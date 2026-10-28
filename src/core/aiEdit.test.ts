@@ -61,6 +61,12 @@ describe('the reply', () => {
     expect(cleanAiReply('```\nFixed.\n```\n', 'Fixd.', preset('proofread'))).toBe('Fixed.')
   })
 
+  it('keeps the fences when a reply holds several fenced blocks', () => {
+    const reply = '```\nnpm install\n```\nThen run:\n```\nnpm start\n```'
+    const selection = 'Setup:\n```\nnpm i\n```\nthen run\n```\nnpm start\n```\nDone.'
+    expect(cleanAiReply(reply, selection, preset('improve'))).toBe(reply)
+  })
+
   it('keeps a fence when the selection was one, and a code block inside the reply', () => {
     const code = '```js\nlet a = 1\n```'
     expect(cleanAiReply('```js\nconst a = 1\n```', code, { prompt: 'const' })).toBe(
