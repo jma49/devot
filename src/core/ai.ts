@@ -335,19 +335,31 @@ export function createAiService(options: AiServiceOptions): AiService {
     )
   }
 
-  /** A name an existing tag has, in any case, puts that tag on the note (tag names are unique). */
+  /** A name an existing visible tag has, in any case, puts that tag on the note (tag names are unique). */
   const setTags = async (noteId: string, wanted: readonly string[]) => {
     const current = await aiStorage.noteTags(noteId)
+    const books = await allowed()
+    const visibleTags = await aiStorage.tagsInBooks([...books.keys()])
+    const missing = wanted.filter((name) => !current.some((tag) => sameName(tag.name, name)))
+    if (missing.length > 0) {
+      const live = (await tagService.list()).filter((tag) => tag.deletedAt === null)
+      for (const name of missing) {
+        // Reusing a tag only hidden notebooks have would confirm its name, so the name is refused.
+        if (
+          !visibleTags.some((tag) => sameName(tag.name, name)) &&
+          live.some((tag) => sameName(tag.name, name))
+        ) {
+          throw new Error('E_TAG_NAME_INVALID')
+        }
+      }
+    }
     for (const tag of current) {
       if (!wanted.some((name) => sameName(name, tag.name))) {
         await tagService.removeFromNote(noteId, tag.id)
       }
     }
-    const missing = wanted.filter((name) => !current.some((tag) => sameName(tag.name, name)))
-    if (missing.length === 0) return
-    const all = await tagService.list()
     for (const name of missing) {
-      const existing = all.find((tag) => sameName(tag.name, name))
+      const existing = visibleTags.find((tag) => sameName(tag.name, name))
       const tagId = existing?.id ?? (await tagService.ensure(name))
       await tagService.putOnNote(noteId, tagId)
     }

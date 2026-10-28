@@ -55,7 +55,7 @@ const HINTS: Record<string, string> = {
   E_AI_PATCH_AMBIGUOUS:
     'A patch find text occurs more than once in the note body. Include more surrounding text so it matches once.',
   E_AI_TAGS_TOO_MANY: `A note may be given at most ${MAX_AI_TAGS} tags at once.`,
-  E_TAG_NAME_INVALID: `Each tag name must be one line of 1 to ${MAX_TAG_NAME_CHARS} characters.`,
+  E_TAG_NAME_INVALID: `Each tag name must be one line of 1 to ${MAX_TAG_NAME_CHARS} characters and must not name a tag used only in notebooks without AI access.`,
   E_BOOK_NAME_INVALID: `The notebook name must be one line of 1 to ${MAX_BOOK_NAME_CHARS} characters.`,
   E_BOOK_NAME_TAKEN:
     'A notebook that allows AI access already has this name. Use it, or choose another name.',

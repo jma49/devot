@@ -12,6 +12,7 @@ import {
   createClock,
   createIdGenerator,
   createNoteService,
+  createTagService,
   readWrites,
   WRITERS,
 } from '../../src/core'
@@ -293,6 +294,31 @@ describe('editing tools', () => {
       notebook: 'Private',
     })
     expect(moved.error).toMatch(/^E_BOOK_NOT_FOUND: /)
+  })
+
+  it('never confirms a tag only hidden notebooks use, and refuses to reuse it', async () => {
+    const world = await makeWorld()
+    const storage = openSqliteAdapter(world.path)
+    try {
+      const tags = createTagService({
+        storage,
+        clock: createClock('mac1'),
+        newId: createIdGenerator(),
+      })
+      await tags.addToNote(world.ids.priv, 'Layoffs-2027')
+    } finally {
+      storage.close()
+    }
+    const { client } = await connect(world.path)
+    expect((await call(client, 'list_tags')).value?.tags).toEqual([])
+
+    const update = await call(client, 'update_note', {
+      id: world.ids.shared,
+      tags: ['lAYOFFS-2027', 'nOPE-TAG'],
+    })
+    expect(update.error).toMatch(/^E_TAG_NAME_INVALID: /)
+    expect((await call(client, 'list_tags')).value?.tags).toEqual([])
+    expect((await call(client, 'read_note', { id: world.ids.shared })).value?.tags).toEqual([])
   })
 
   it('trashes a note without deleting it', async () => {

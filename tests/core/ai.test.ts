@@ -570,7 +570,7 @@ describe('editing notes', () => {
   it('sets the tags by name, reusing tags in any case and creating new ones', async () => {
     const s = setup()
     const { ids } = await world(s)
-    const work = await s.tags.addToNote(ids.priv, 'Work')
+    const work = await s.tags.addToNote(ids.shared, 'Work')
     const updated = await s.ai.update({ id: ids.shared, tags: ['work', ' Fresh ', 'fresh'] })
     expect(updated.tags).toEqual(['Fresh', 'Work'])
     const all = await s.tags.list()
@@ -579,7 +579,19 @@ describe('editing notes', () => {
 
     expect((await s.ai.update({ id: ids.shared, tags: ['Work'] })).tags).toEqual(['Work'])
     expect((await s.ai.update({ id: ids.shared, tags: [] })).tags).toEqual([])
-    expect(await s.storage.noteTags(ids.priv)).toEqual([{ id: work, name: 'Work' }])
+  })
+
+  it('refuses a tag name only hidden notebooks use, so it is not confirmed', async () => {
+    const s = setup()
+    const { ids } = await world(s)
+    const hidden = await s.tags.addToNote(ids.priv, 'Layoffs-2027')
+
+    await expect(s.ai.update({ id: ids.shared, tags: ['lAYOFFS-2027'] })).rejects.toThrow(
+      'E_TAG_NAME_INVALID',
+    )
+    expect(await s.ai.tags()).toEqual([])
+    expect(await s.storage.noteTags(ids.shared)).toEqual([])
+    expect(await s.storage.noteTags(ids.priv)).toEqual([{ id: hidden, name: 'Layoffs-2027' }])
   })
 
   it('merges with edits the app holds of the open note', async () => {
