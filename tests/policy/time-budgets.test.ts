@@ -19,6 +19,10 @@ it('every time limit goes through expectWithinBudget', () => {
 it('the time-limit check catches a duration compared by hand', () => {
   expect(RAW_TIME_ASSERTION.test('expect(ms).toBeLessThan(2000)')).toBe(true)
   expect(RAW_TIME_ASSERTION.test('expect(elapsed).toBeLessThan(limit)')).toBe(true)
+  expect(RAW_TIME_ASSERTION.test('expect(performance.now() - started).toBeLessThan(10_000)')).toBe(
+    true,
+  )
+  expect(RAW_TIME_ASSERTION.test('expect(Date.now() - started).toBeLessThan(1000)')).toBe(true)
   expect(RAW_TIME_ASSERTION.test('expectWithinBudget(context, ms, 2000)')).toBe(false)
   expect(RAW_TIME_ASSERTION.test('expect(items).toBeLessThan(3)')).toBe(false)
 })

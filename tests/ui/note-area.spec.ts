@@ -3,6 +3,7 @@ import { seedNotes } from './renders'
 import {
   pickBook,
   pickStatus,
+  statusPicker,
   changeEditorSettingsElsewhere,
   expect,
   openNoteMore,
@@ -96,16 +97,19 @@ test('the notebook, status and tags share one compact line, worked by click and 
 
   const book = bookPicker(page)
   await expect(meta.locator('.book-popup .popup-value')).toHaveText('Inbox')
+  await expect(book).toHaveAccessibleName('Notebook: Inbox')
   await expect(meta.locator('.book-popup .popup-value')).toHaveCSS('font-weight', '700')
   await book.focus()
   await expect(book).toBeFocused()
   await pickBook(page, 'No Notebook')
   await expect(meta.locator('.book-popup .popup-value')).toHaveText('No Notebook')
+  await expect(book).toHaveAccessibleName('Notebook: No Notebook')
   await expect(book).toBeFocused()
 
   await expect(meta.locator('.status-none .popup-value')).toHaveText('Status')
   await pickStatus(page, 'Active')
   await expect(meta.locator('.status-active .popup-value')).toHaveText('Active')
+  await expect(statusPicker(page)).toHaveAccessibleName('Status: Active')
 
   const add = page.getByRole('combobox', { name: 'Add Tag' })
   await expect(add).toHaveAttribute('placeholder', 'Add Tags')
@@ -116,8 +120,19 @@ test('the notebook, status and tags share one compact line, worked by click and 
   await expect(chip).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await add.press('Backspace')
   await expect(chip).toHaveAttribute('data-selected', 'true')
+  const status = meta.getByRole('group', { name: 'Tags' }).getByRole('status')
+  await expect(status).toHaveText('Tag work selected. Press Backspace to remove it.')
+  // Leaving the chip clears the message, so choosing it again is a change the
+  // live region speaks.
+  await add.press('ArrowRight')
+  await expect(chip).not.toHaveAttribute('data-selected', 'true')
+  await expect(status).toHaveText('')
+  await add.press('ArrowLeft')
+  await expect(chip).toHaveAttribute('data-selected', 'true')
+  await expect(status).toHaveText('Tag work selected. Press Backspace to remove it.')
   await add.press('Backspace')
   await expect(chip).toHaveCount(0)
+  await expect(status).toHaveText('Tag work removed.')
 
   await expect(page.locator('.title')).toHaveCSS('font-size', '24px')
   const toolbarBox = await toolbar(page).boundingBox()
@@ -135,6 +150,28 @@ test('the notebook, status and tags share one compact line, worked by click and 
   await page.keyboard.insertText('Body')
   const lineText = await textStart(page, '.cm-line')
   expect(Math.abs(lineText.x - titleX)).toBeLessThan(2)
+})
+
+test('the notebook pop-up takes the notebook the query picks, not the row that moved into its place', async ({
+  page,
+}) => {
+  for (const name of ['Wander', 'Work', 'Workshop']) {
+    await page.getByRole('button', { name: 'New Notebook' }).click()
+    await page.getByRole('textbox', { name: 'Notebook name' }).fill(name)
+    await page.getByRole('textbox', { name: 'Notebook name' }).press('Enter')
+  }
+  await openNote(page)
+  await bookPicker(page).click()
+  // The notebooks that start with it stay, in that order; No Notebook drops
+  // out, so every row after it moves up one.
+  await page.getByRole('combobox', { name: 'Search notebooks…' }).fill('w')
+  const list = page.getByRole('listbox', { name: 'Notebook' })
+  await expect(list.getByRole('option', { name: 'Wander' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await page.keyboard.press('Enter')
+  await expect(bookPicker(page)).toHaveAccessibleName('Notebook: Wander')
 })
 
 for (const scheme of ['light', 'dark'] as const) {

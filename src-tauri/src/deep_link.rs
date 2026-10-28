@@ -59,6 +59,9 @@ const MAX_URL_LEN: usize = 96;
 const MAX_LICENCE_URL_LEN: usize = 32 + 3 * crate::licence::MAX_LENGTH;
 const MAX_PER_EVENT: usize = 4;
 const MAX_HELD: usize = 16;
+/// Files handed over by the `devot` command, apart from URLs: they come only over the user's own
+/// socket, and a hand-off past this is refused, so the command fails rather than lose them.
+const MAX_HELD_IMPORTS: usize = 64;
 pub(crate) const EVENT: &str = "devot://open-url";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -82,6 +85,12 @@ pub enum Link {
         offer: Option<crate::licence::Offer>,
         code: Option<&'static str>,
     },
+}
+
+impl Link {
+    fn is_import(&self) -> bool {
+        matches!(self, Self::Import { .. })
+    }
 }
 
 /// `Debug` never shows the key: it holds the licensee's address.
@@ -170,13 +179,30 @@ pub(crate) struct Inbox {
 }
 
 impl Inbox {
-    fn arrive(&mut self, link: Link) -> Vec<Link> {
-        if self.held.len() < MAX_HELD {
-            self.held.push_back(link);
-        } else {
-            log::warn!("W_DEEP_LINK_DROPPED");
+    fn room_for_import(&self) -> bool {
+        self.held.iter().filter(|link| link.is_import()).count() < MAX_HELD_IMPORTS
+    }
+
+    fn room_for(&self, link: &Link) -> bool {
+        if link.is_import() {
+            return self.room_for_import();
         }
-        self.release()
+        self.held.iter().filter(|link| !link.is_import()).count() < MAX_HELD
+    }
+
+    /// The link back when there is no room for it.
+    fn offer(&mut self, link: Link) -> Result<Vec<Link>, Box<Link>> {
+        if !self.room_for(&link) {
+            log::warn!("W_DEEP_LINK_DROPPED");
+            return Err(Box::new(link));
+        }
+        self.held.push_back(link);
+        Ok(self.release())
+    }
+
+    #[cfg(test)]
+    fn arrive(&mut self, link: Link) -> Vec<Link> {
+        self.offer(link).unwrap_or_default()
     }
 
     fn take(&mut self, label: &str) -> Vec<Link> {
@@ -225,22 +251,39 @@ impl DeepLinks {
         f(&mut inbox)
     }
 
+    fn update<R: Runtime>(&self, app: &AppHandle<R>, f: impl FnOnce(&mut Inbox) -> Vec<Link>) {
+        self.update_with(
+            || main_windows::front_label(app),
+            f,
+            |target, link| {
+                if app.emit_to(target, EVENT, link).is_err() {
+                    log::warn!("W_DEEP_LINK_EMIT_FAILED");
+                }
+            },
+        );
+    }
+
     /// Changes the inbox and sends what it releases, under its lock, so links
     /// reach the page in the order they came, whatever thread they came on.
-    fn update<R: Runtime>(&self, app: &AppHandle<R>, f: impl FnOnce(&mut Inbox) -> Vec<Link>) {
+    /// The front window is asked for first: off the main thread its getters
+    /// wait for the main thread, which may be waiting for this lock.
+    fn update_with(
+        &self,
+        front: impl FnOnce() -> Option<String>,
+        f: impl FnOnce(&mut Inbox) -> Vec<Link>,
+        mut send: impl FnMut(&str, &Link),
+    ) {
+        let front = front();
         self.with(|inbox| {
             let links = f(inbox);
             if links.is_empty() {
                 return;
             }
-            let front = main_windows::front_label(app);
             let Some(target) = inbox.target(front.as_deref()) else {
                 return;
             };
-            for link in links {
-                if app.emit_to(&target, EVENT, &link).is_err() {
-                    log::warn!("W_DEEP_LINK_EMIT_FAILED");
-                }
+            for link in &links {
+                send(&target, link);
             }
         });
     }
@@ -315,9 +358,37 @@ fn checked(key: LicenceKey, licence: Option<&crate::licence::Licence>) -> Link {
 
 pub(crate) fn deliver<R: Runtime>(app: &AppHandle<R>, link: Link) {
     bring_forward(app);
-    if let Some(links) = app.try_state::<DeepLinks>() {
-        links.update(app, |inbox| inbox.arrive(link));
+    let Some(links) = app.try_state::<DeepLinks>() else {
+        return;
+    };
+    let mut dropped = None;
+    links.update(app, |inbox| {
+        inbox.offer(link).unwrap_or_else(|link| {
+            dropped = Some(*link);
+            Vec::new()
+        })
+    });
+    if let Some(Link::Import { scan, .. }) = dropped
+        && let Some(imports) = app.try_state::<crate::import::Imports>()
+    {
+        imports.finish(scan.id);
     }
+}
+
+/// Whether files handed over now would be held: the single-instance listener refuses the hand-off
+/// otherwise, so the `devot` command fails instead of losing them.
+pub(crate) fn room_for_import<R: Runtime>(app: &AppHandle<R>) -> bool {
+    let open = app
+        .try_state::<crate::import::Imports>()
+        .map_or(0, |imports| imports.open());
+    app.try_state::<DeepLinks>()
+        .is_none_or(|links| links.with(|inbox| import_room(inbox, open)))
+}
+
+/// Files released to the page wait in its queue, which holds as many as Rust does and is not seen
+/// from here; every one of them is an import not yet finished, so those are counted instead.
+fn import_room(inbox: &Inbox, open_imports: usize) -> bool {
+    inbox.room_for_import() && open_imports < MAX_HELD_IMPORTS
 }
 
 /// A phone has no minimized windows.
@@ -769,6 +840,24 @@ mod tests {
         assert_eq!(inbox.take("main"), vec![note()]);
     }
 
+    // Off the main thread, a window's getters wait for the main thread, which may be waiting for
+    // this lock (a page asking for its links).
+    #[test]
+    fn asks_which_window_is_in_front_without_holding_the_inbox() {
+        let links = DeepLinks::default();
+        links.with(|inbox| inbox.take("main"));
+        let mut sent = Vec::new();
+        links.update_with(
+            || {
+                assert!(links.0.try_lock().is_ok(), "the inbox is locked");
+                Some("main".to_owned())
+            },
+            |inbox| inbox.arrive(note()),
+            |target, link| sent.push((target.to_owned(), link.clone())),
+        );
+        assert_eq!(sent, vec![("main".to_owned(), note())]);
+    }
+
     #[test]
     fn holds_a_bounded_number_of_links() {
         let mut inbox = Inbox::default();
@@ -776,6 +865,53 @@ mod tests {
             inbox.arrive(note());
         }
         assert_eq!(inbox.take("main").len(), MAX_HELD);
+    }
+
+    fn import(id: u64) -> Link {
+        Link::Import {
+            scan: crate::import::Scan {
+                id,
+                name: String::new(),
+                kind: crate::import::Kind::Files,
+                files: Vec::new(),
+                images: Vec::new(),
+                skipped: Vec::new(),
+                destination: None,
+            },
+            notebook: None,
+            first: None,
+        }
+    }
+
+    #[test]
+    fn holds_handed_over_files_apart_from_urls_and_refuses_them_only_when_full() {
+        let mut inbox = Inbox::default();
+        inbox.settings(true);
+        for _ in 0..MAX_HELD + 5 {
+            inbox.arrive(note());
+        }
+        for id in 0..MAX_HELD_IMPORTS as u64 {
+            assert!(inbox.room_for_import());
+            assert_eq!(inbox.offer(import(id)), Ok(Vec::new()));
+        }
+        assert!(!inbox.room_for_import());
+        assert_eq!(inbox.offer(import(99)), Err(Box::new(import(99))));
+        inbox.settings(false);
+        let held = inbox.take("main");
+        assert_eq!(
+            held.iter().filter(|link| link.is_import()).count(),
+            MAX_HELD_IMPORTS
+        );
+        assert_eq!(held.len(), MAX_HELD + MAX_HELD_IMPORTS);
+        assert!(inbox.room_for_import());
+    }
+
+    #[test]
+    fn refuses_files_while_the_page_may_already_hold_as_many_imports_as_it_takes() {
+        let mut inbox = Inbox::default();
+        inbox.take("main");
+        assert!(import_room(&inbox, MAX_HELD_IMPORTS - 1));
+        assert!(!import_room(&inbox, MAX_HELD_IMPORTS));
     }
 
     #[test]

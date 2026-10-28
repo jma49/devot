@@ -38,7 +38,14 @@ import {
   workspaceParents,
   workspaceTree,
 } from '../../core/workspace'
-import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, restoreBackup } from './backups'
+import {
+  BACKUP_FAILED,
+  SHOW_BACKUPS,
+  errorCode,
+  listBackups,
+  onRestoreElsewhere,
+  restoreBackup,
+} from './backups'
 import { BackupNotice } from './BackupNotice'
 import { SyncNotice } from './SyncNotice'
 import { TrialEndedBar, TrialReminder } from './TrialNotices'
@@ -50,7 +57,7 @@ import { SearchIndexNotice } from './SearchIndexNotice'
 import { REBUILD_SEARCH_INDEX, rebuildSearchIndex, type RebuildState } from './searchIndex'
 import { ChangeNotice } from './ChangeNotice'
 import { AiSuggestNotice } from './AiSuggestNotice'
-import { ImageNotice } from './ImageNotice'
+import { ImageActionNotice, ImageNotice } from './ImageNotice'
 import { MAX_LINK_NOTES } from './linkCompletion'
 import { useNarrowWindow } from './narrowWindow'
 import { measurePanes, movePanes, type PaneBoxes, shownPanes } from './paneMotion'
@@ -1439,6 +1446,8 @@ export function App() {
           await saveEdits(core)
           void core.mirrorTouch()
           await refresh(core)
+          // Seen writes change no note: the other windows' marks need this read too.
+          agentWrites.reload()
         }
       : undefined,
   )
@@ -1466,6 +1475,22 @@ export function App() {
     window.location.reload()
   }
 
+  useEffect(
+    () =>
+      onRestoreElsewhere(async () => {
+        if (!core) return
+        try {
+          await core.stopImport()
+          await saveEdits(core)
+          // In `main`: no sweep deletes from the restored notes what it chose from these.
+          await core.holdCompaction()
+        } finally {
+          stopCore(core)
+        }
+      }),
+    [core],
+  )
+
   // Quick capture (menu bar mode): this window's core makes the note the
   // capture window sent, and the list shows it.
   useEffect(() => {
@@ -1477,6 +1502,7 @@ export function App() {
       if (!request) return
       void answerCapture(
         request,
+        (id) => invoke('quick_capture_claim', { id }),
         async (r) => {
           await core.capture(r.title, r.body, r.bookId)
         },
@@ -1947,7 +1973,8 @@ export function App() {
       id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
     } catch (e) {
       early.fail()
-      throw e
+      setChangeNotice(errorCode(e))
+      return
     }
     early.claim(id)
     if (!inTemplates) track('note.created', { from: 'new_note' })
@@ -1960,11 +1987,14 @@ export function App() {
   /** Makes a note from a template and opens it (see `showMade`); the template's notebook, if any, wins over the one shown. */
   const createFromTemplate = async (templateId: string) => {
     setPicking(undefined)
-    if (!core) return
+    if (!core || !editing) return
     await saveEdits(core)
     const id = await core
       .applyTemplate(templateId, Date.now(), newNoteBookId())
-      .catch(() => undefined)
+      .catch((e: unknown) => {
+        setChangeNotice(errorCode(e))
+        return undefined
+      })
     if (!id) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
     recentTemplates.use(templateId)
     track('note.created', { from: 'template' })
@@ -1978,14 +2008,17 @@ export function App() {
   /** Fills the open note from a template without making a new one; the open editor takes in the core's writes like another process's. */
   const fillFromTemplate = async (templateId: string, noteId: string) => {
     setPicking(undefined)
-    if (!core) return
+    if (!core || !editing) return
     await saveEdits(core)
     const navigation = opens.current
     const editor = editorRef.current?.noteId === noteId ? editorRef.current : null
     const done = await core
       .applyTemplateTo(templateId, noteId, Date.now())
       .then(() => true)
-      .catch(() => false)
+      .catch((e: unknown) => {
+        setChangeNotice(errorCode(e))
+        return false
+      })
     if (!done) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
     recentTemplates.use(templateId)
     if (opens.current === navigation && editor && editorRef.current === editor) {
@@ -2008,7 +2041,7 @@ export function App() {
   )
 
   const editBuiltInCopy = async (id: string) => {
-    if (!core) return
+    if (!core || !editing) return
     await saveEdits(core)
     const copy = await core.saveTemplate(id, {}).catch(() => undefined)
     if (!copy) return console.warn('W_TEMPLATE_COPY_FAILED', id)
@@ -2017,6 +2050,7 @@ export function App() {
     await select(copy, { keyboard: true })
   }
   const useBuiltIn = (id: string) => {
+    if (!editing) return
     setBuiltIn(undefined)
     return createFromTemplate(id)
   }
@@ -2031,7 +2065,9 @@ export function App() {
     await saveEdits(core)
     const tagIds = [...notes, ...templates].find((n) => n.id === id)?.tagIds
     const copy = await core.duplicate(id, t('note.copySuffix'), tagIds).catch((e: unknown) => {
-      console.warn('W_NOTE_DUPLICATE_FAILED', id, errorCode(e))
+      const code = errorCode(e)
+      console.warn('W_NOTE_DUPLICATE_FAILED', id, code)
+      setChangeNotice(code)
     })
     if (!copy) return
     if (!templates.some((n) => n.id === id)) track('note.created', { from: 'duplicate' })
@@ -2116,7 +2152,9 @@ export function App() {
   const openNoteWindow = async (id: string) => {
     if (core) await saveEdits(core)
     await invoke('note_window_open', { id }).catch((e: unknown) => {
-      console.warn('W_NOTE_WINDOW_OPEN_FAILED', id, errorCode(e))
+      const code = errorCode(e)
+      console.warn('W_NOTE_WINDOW_OPEN_FAILED', id, code)
+      setChangeNotice(code)
     })
   }
 
@@ -2363,6 +2401,11 @@ export function App() {
   }
   const historyBarShown = useEditorSetting('historyBar')
   const authorshipShown = useEditorSetting('authorship')
+  // A restored version, an accepted AI edit or a plugin write reaches the editor only while it
+  // still shows the note it was made for.
+  const applyToOpenNote = useStable((noteId: string, update: Uint8Array) => {
+    if (editorRef.current?.noteId === noteId) restoreRef.current?.(update)
+  })
   const historyBar = useHistoryBar({
     core,
     noteId: selected,
@@ -2370,7 +2413,7 @@ export function App() {
     text: openText,
     enabled: historyBarShown && !inTrash && multiIds === undefined,
     readOnly: !editing,
-    onApply: (update) => restoreRef.current?.(update),
+    onApply: applyToOpenNote,
     onRestored: () => editorRef.current?.focus(),
   })
 
@@ -2451,6 +2494,7 @@ export function App() {
   const find = useFind({
     mode,
     noteOpen: !!core && selected !== undefined && !inTrash && !multiIds,
+    editing,
     editor: editorFind,
     preview: previewFind,
   })
@@ -2515,7 +2559,7 @@ export function App() {
     removeTag: removeTagFromNotes,
     trash: trashNotes,
     clearAuthorship: editing ? setClearing : undefined,
-    authored: (id) => agentWrites.view.byNote.has(id),
+    authored: (id) => agentWrites.view.authored.has(id),
   })
 
   // Back/Forward entries skip deleted notes (the Trash's notes are never entries); templates are entries. The open note is the current entry's or the one a navigation is opening; none in the Trash.
@@ -2747,7 +2791,7 @@ export function App() {
   const openNote = selected !== undefined && !inTrash && !multiIds ? selectedNote : undefined
   const plugins = usePlugins(core, {
     openNote: () => openNote,
-    applyUpdate: (update) => restoreRef.current?.(update),
+    applyUpdate: applyToOpenNote,
     importBook: () => libraryBook?.id ?? null,
     imported: () => {
       if (core) void refresh(core)
@@ -3126,7 +3170,7 @@ export function App() {
   const openFromList = useStable((id: string) => void select(id))
   const createFromList = useStable(() => void create())
   const runNoteAction = useStable((action: NoteAction, id: string) => noteActions.run(action, id))
-  const showNoteMenu = useStable((id: string) => noteActions.menu(id))
+  const showNoteMenu = useStable((id: string, at?: MenuPoint) => noteActions.menu(id, at))
   const findInView = useStable(() => startSearch('view'))
   const findEverywhere = useStable(() => startSearch('all'))
   const findAgain = useStable(() => startSearch(searchIn))
@@ -3154,6 +3198,7 @@ export function App() {
       if (!report?.bookId) showLibraryRef.current?.({ kind: 'all' }, { clearFilter: true })
       void select(id)
     } catch {
+      void finishImport(link.scan.id)
       setLinkNotice('importFailed')
     }
   }
@@ -3204,7 +3249,7 @@ export function App() {
   })
   const trashKey = useStable((action: TrashAction, id: string) => void trashAction(action, id))
   const askEmptyTrash = useStable(() => {
-    if (trash.length > 0) setConfirm({ kind: 'empty' })
+    if (trash.length > 0 && editing) setConfirm({ kind: 'empty' })
   })
   // aria-disabled, not disabled: a disabled button would drop the keyboard
   // when the Trash is emptied from it.
@@ -3222,13 +3267,17 @@ export function App() {
         type="button"
         className="button"
         data-tauri-drag-region="false"
-        aria-disabled={trash.length === 0}
+        aria-disabled={trash.length === 0 || !editing}
         onClick={askEmptyTrash}
       >
         {t('trash.empty')}
       </button>
     ),
-    [trash.length, askEmptyTrash],
+    [trash.length, editing, askEmptyTrash],
+  )
+  // Stable, so a Copy ID that fails does not render the Sidebar with every save.
+  const sidebarCopyFailed = useStable((failure: ExportFailure, code: string) =>
+    setExportNotice({ failure, code }),
   )
   const sidebarSelect = useStable((next: Selection, options?: { clearFilter?: boolean }) =>
     showLibrary(next, options),
@@ -3305,7 +3354,11 @@ export function App() {
       case 'filter':
         return sidebarFilter(chip.filtered ? null : { kind: 'tag', tagId: chip.tagId })
       case 'copyId':
-        return void copyText(chip.tagId).catch(() => console.warn('W_TAG_COPY_FAILED', chip.tagId))
+        return void copyText(chip.tagId).catch((e: unknown) => {
+          const code = errorCode(e)
+          console.warn('W_TAG_COPY_FAILED', chip.tagId, code)
+          setExportNotice({ failure: 'copyId', code })
+        })
     }
   })
   const showChipMenu = useContextMenu('noteTag', CHIP_MENU, runChipAction)
@@ -3314,9 +3367,11 @@ export function App() {
       case 'open':
         return sidebarSelect({ kind: 'book', id: book.bookId })
       case 'copyId':
-        return void copyText(book.bookId).catch(() =>
-          console.warn('W_BOOK_COPY_FAILED', book.bookId),
-        )
+        return void copyText(book.bookId).catch((e: unknown) => {
+          const code = errorCode(e)
+          console.warn('W_BOOK_COPY_FAILED', book.bookId, code)
+          setExportNotice({ failure: 'copyId', code })
+        })
     }
   })
   const showNotebookMenu = useContextMenu('noteBook', NOTEBOOK_MENU, runNotebookAction)
@@ -3428,6 +3483,7 @@ export function App() {
         onSearchBooks={sidebarSearchBooks}
         onSearchTags={sidebarSearchTags}
         onEmptyTrash={askEmptyTrash}
+        onCopyFailed={sidebarCopyFailed}
         onNewNote={core && editing ? sidebarNewNote : undefined}
         readOnly={!editing}
         workspace={sidebarWorkspace}
@@ -3437,6 +3493,7 @@ export function App() {
       />
       {searching ? (
         <NoteList
+          editing={editing}
           view={listView}
           title={t('search.results')}
           filter={filterField}
@@ -3467,6 +3524,7 @@ export function App() {
         />
       ) : inTrash ? (
         <NoteList
+          editing={editing}
           view={listView}
           title={t('sidebar.trash')}
           icon={<Icon name="trash" size="lg" />}
@@ -3491,6 +3549,7 @@ export function App() {
         />
       ) : inTemplates ? (
         <NoteList
+          editing={editing}
           view={listView}
           title={t('sidebar.templates')}
           icon={<Icon name="templates" size="lg" />}
@@ -3520,6 +3579,7 @@ export function App() {
         />
       ) : boardShown ? (
         <NoteBoard
+          editing={editing}
           view={listView}
           title={filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes')}
           icon={listIcon}
@@ -3553,6 +3613,7 @@ export function App() {
         />
       ) : (
         <NoteList
+          editing={editing}
           view={listView}
           title={filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes')}
           icon={listIcon}
@@ -3647,6 +3708,7 @@ export function App() {
             onPin={(pinned) => void setNotesPinned(multiIds, pinned)}
             onStatus={(status) => void setNotesStatus(multiIds, status)}
             onAddTag={(name) => void addTagToNotes(multiIds, name)}
+            onPutTag={(tagId) => void putTagOnNotes(multiIds, tagId)}
             onRemoveTag={(tagId) => void removeTagFromNotes(multiIds, tagId)}
             onCopyLinks={() => void noteActions.runOn('copyLink', multiIds)}
             onTrash={() => void trashNotes(multiIds)}
@@ -3711,6 +3773,7 @@ export function App() {
                   tags={tags}
                   value={selectedNote?.tagIds ?? []}
                   onAdd={(name) => void changeBooks((c) => c.addTag(selected, name))}
+                  onPut={(tagId) => void putTagOnNotes([selected], tagId)}
                   onRemove={(tagId) => void changeBooks((c) => c.removeTag(selected, tagId))}
                   onChipMenu={(tagId, at) =>
                     void showChipMenu(
@@ -3769,8 +3832,10 @@ export function App() {
                 onNewFromLink={inTrash || !editing ? undefined : () => void noteFromLink(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
-                onChooseTemplate={() =>
-                  setPicking({ recent: recentTemplates.load(), into: selected })
+                onChooseTemplate={
+                  inTrash || !editing
+                    ? undefined
+                    : () => setPicking({ recent: recentTemplates.load(), into: selected })
                 }
                 onOpenNote={(id) => void select(id)}
                 readOnly={!editing}
@@ -3808,6 +3873,7 @@ export function App() {
         ) : shownBuiltIn ? (
           <BuiltInTemplate
             id={shownBuiltIn}
+            readOnly={!editing}
             onUse={(id) => void useBuiltIn(id)}
             onEditCopy={(id) => void editBuiltInCopy(id)}
           />
@@ -3888,6 +3954,7 @@ export function App() {
         {imageNotice ? (
           <ImageNotice codes={imageNotice} onDismiss={() => setImageNotice(undefined)} />
         ) : null}
+        <ImageActionNotice />
         {linkNotice ? (
           <DeepLinkNotice problem={linkNotice} onDismiss={() => setLinkNotice(undefined)} />
         ) : null}
@@ -3938,7 +4005,7 @@ export function App() {
           title={title}
           books={books}
           onRestore={(update) => {
-            restoreRef.current?.(update)
+            applyToOpenNote(historyFor, update)
             setHistoryFor(undefined)
           }}
           onClose={() => setHistoryFor(undefined)}
@@ -3951,7 +4018,7 @@ export function App() {
           generator={aiGenerator}
           noteId={aiEditing.noteId}
           start={aiEditing.start}
-          onApply={(update) => restoreRef.current?.(update)}
+          onApply={(update) => applyToOpenNote(aiEditing.noteId, update)}
           onClose={() => setAiEditing(undefined)}
           locked={!licenceEntitlements.has('aiProviders')}
         />

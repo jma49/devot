@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tempDir } from '../support/temp-dirs'
@@ -78,6 +78,14 @@ function restack(work: string, oldTip: string, ...branches: string[]) {
   })
 }
 
+function resume(work: string, onto: string, ...branches: string[]) {
+  return spawnSync('bash', [SCRIPT, '--onto', onto, ...branches], {
+    cwd: work,
+    encoding: 'utf8',
+    env: gitEnv({ DEVOT_RESTACK_NO_GH: '1' }),
+  })
+}
+
 const subjects = (cwd: string, range: string) =>
   git(cwd, 'log', '--format=%s', range).split('\n').filter(Boolean)
 
@@ -133,5 +141,66 @@ describe('restack.sh', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('conflict')
     expect(git(work, 'status', '--porcelain=v1', '--branch')).toContain('layer2')
+  })
+
+  it('resumes after a conflict, rebasing the rest onto the resolved layer', PROCESSES, () => {
+    const { work, oldTip } = stackedRepo(3)
+    git(work, 'checkout', 'main')
+    writeFileSync(join(work, 'layer2.txt'), 'conflicting\n')
+    git(work, 'add', 'layer2.txt')
+    git(work, 'commit', '-m', 'conflict on main')
+    git(work, 'push', 'origin', 'main')
+
+    const conflicted = restack(work, oldTip, 'layer1', 'layer2', 'layer3')
+    expect(conflicted.status).toBe(1)
+    expect(conflicted.stderr).toContain('--onto layer2 layer3')
+
+    writeFileSync(join(work, 'layer2.txt'), 'resolved\n')
+    git(work, 'add', 'layer2.txt')
+    const continued = spawnSync('git', ['rebase', '--continue'], {
+      cwd: work,
+      encoding: 'utf8',
+      env: gitEnv({ GIT_EDITOR: 'true' }),
+    })
+    expect(continued.status).toBe(0)
+
+    const resumed = resume(work, 'layer2', 'layer3')
+    expect(resumed.status).toBe(0)
+    expect(subjects(work, 'origin/main..layer3')).toEqual(['layer3', 'layer2'])
+    expect(git(work, 'rev-parse', 'origin/layer2')).toBe(git(work, 'rev-parse', 'layer2'))
+    expect(git(work, 'rev-parse', 'origin/layer3')).toBe(git(work, 'rev-parse', 'layer3'))
+  })
+
+  it('moves a PR to main only when the merged branch is really merged', PROCESSES, () => {
+    for (const [merged, moved] of [
+      ['MERGED', true],
+      ['OPEN', false],
+    ] as const) {
+      const { work, oldTip } = stackedRepo(2)
+      const dir = tempDir('restack-gh-')
+      const bin = join(dir, 'bin')
+      const calls = join(dir, 'calls')
+      mkdirSync(bin)
+      writeFileSync(
+        join(bin, 'gh'),
+        [
+          '#!/bin/bash',
+          `printf '%s\\n' "$*" >> ${JSON.stringify(calls)}`,
+          'case "$*" in',
+          `  *"pr view layer1 --json state"*) echo ${merged} ;;`,
+          '  *"pr view layer2 --json baseRefName"*) echo layer1 ;;',
+          'esac',
+          '',
+        ].join('\n'),
+      )
+      chmodSync(join(bin, 'gh'), 0o755)
+      const result = spawnSync('bash', [SCRIPT, '--old-tip', oldTip, 'layer1', 'layer2'], {
+        cwd: work,
+        encoding: 'utf8',
+        env: gitEnv({ PATH: `${bin}:${process.env['PATH'] ?? ''}` }),
+      })
+      expect(result.status).toBe(0)
+      expect(readFileSync(calls, 'utf8').includes('pr edit layer2 --base main')).toBe(moved)
+    }
   })
 })

@@ -13,6 +13,7 @@ import {
   type AuthoredRun,
   type Writer,
 } from '../../../core/authorship'
+import { BODY } from '../../../core/notes'
 import { writersLabel } from '../authorshipLabels'
 import { fullDate } from '../format'
 import { currentLocale, format, t } from '../i18n'
@@ -108,6 +109,8 @@ interface Authored {
 }
 
 const NONE: Authored = { runs: [], writes: new Map(), segments: [] }
+/** Not read yet: the state was made from other text than the replica's (a note shown again with its kept history). */
+const UNREAD: Authored = { runs: [], writes: new Map(), segments: [] }
 
 const setAuthored = StateEffect.define<Omit<Authored, 'segments'>>()
 
@@ -132,7 +135,12 @@ function read(ydoc: Y.Doc, noteId: string): Omit<Authored, 'segments'> {
 /** The marks of the document's runs: set again after each change to the Yjs document, mapped through the editor's changes until then. */
 export function authoredField(ydoc: Y.Doc, noteId: string) {
   return StateField.define<Authored>({
-    create: (state) => withSegments(read(ydoc, noteId), state.doc),
+    create: (state) => {
+      const text = ydoc.getText(BODY)
+      return text.length === state.doc.length && text.toString() === state.doc.toString()
+        ? withSegments(read(ydoc, noteId), state.doc)
+        : UNREAD
+    },
     update(value, tr) {
       for (const effect of tr.effects) {
         if (effect.is(setAuthored)) return withSegments(effect.value, tr.state.doc)
@@ -158,8 +166,8 @@ const theme = EditorView.theme({
   '.cm-authorship': { position: 'absolute', top: '0', left: '0', zIndex: '200' },
   '.cm-authorship-mark': {
     position: 'absolute',
-    // The content's own padding and the line's before the text (BOX_HANG and CodeMirror's 6px).
-    width: 'var(--space-5)',
+    // The line's padding, the room before the text.
+    width: 'var(--space-3)',
     padding: '0',
     border: 'none',
     background: 'none',
@@ -222,6 +230,7 @@ export function authorshipMarks(ydoc: Y.Doc, noteId: string): Extension {
         this.dom.appendChild(this.tip)
         view.scrollDOM.appendChild(this.dom)
         ydoc.on('update', this.changed)
+        if (view.state.field(field) === UNREAD) this.changed()
         this.draw()
       }
 
@@ -233,7 +242,7 @@ export function authorshipMarks(ydoc: Y.Doc, noteId: string): Extension {
         queueMicrotask(() => {
           this.pending = false
           // The editor takes a remote change in as Yjs applies it; until then the runs do not fit.
-          if (this.destroyed || ydoc.getText('body').length !== this.view.state.doc.length) return
+          if (this.destroyed || ydoc.getText(BODY).length !== this.view.state.doc.length) return
           this.view.dispatch({ effects: setAuthored.of(read(ydoc, noteId)) })
         })
       }

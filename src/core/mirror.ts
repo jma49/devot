@@ -93,6 +93,8 @@ export interface MirrorResult {
   size?: number
   sha256?: string | null
   kept?: string
+  /** The note's file moved but its new text could not be written: Rust lists it where it went. */
+  moved?: boolean
 }
 
 export function applyResult(manifest: MirrorManifest, op: MirrorOp, result: MirrorResult): void {
@@ -166,7 +168,7 @@ function digest(text: string): string {
   return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0')
 }
 
-/** Any body change moves the update time, so it stands for the body. `-` marks an attachment not in the database. */
+/** The update time stands for the body, though a merged remote edit older than the note's keeps it: that body reaches the file with the note's next change (#386, A019). `-` marks an attachment not in the database. */
 export function noteSource(
   note: Pick<NoteSummary, 'updatedAt' | 'title' | 'status'>,
   tags: readonly string[],
@@ -490,6 +492,14 @@ export function planMirror(input: MirrorPlanInput): MirrorPlan {
       if (taken.has(folder, name)) return false
       const state = foreign.get(pathKey(path))
       if (state === undefined) return true
+      const entry = note && manifest.notes[note.id]
+      if (entry && entry.sha256 === state) {
+        // A move cut short before the manifest was saved left the note's last text here and
+        // nothing at its old path: Rust finishes the move in place.
+        const old = known(entry.path)
+        if (old === null) return true
+        if (old === undefined) ask(entry.path)
+      }
       // A folder Devot did not make may be shared; a file is the note's only
       // when it holds exactly what Devot would write there for it.
       return note === undefined ? state === DIR : holdsText(note, path, depth, state)
@@ -998,6 +1008,8 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
           // Rust stops at a failure that ends the batch; it is the last result.
           if (!result) throw new Error(results.at(-1)?.code ?? 'E_MIRROR_FAILED')
           const { code } = result
+          // The next pass reads the manifest again, which lists the file where it went.
+          if (result.moved) stale = true
           if (code === undefined) {
             applyResult(current, op, result)
             forgetDisk(disk, op)
@@ -1173,6 +1185,7 @@ export function observeWrites(storage: StorageAdapter, changed: () => void): Sto
     listActivity: (since) => storage.listActivity(since),
     listNoteActivity: (ids, since) => storage.listNoteActivity(ids, since),
     listAgentWrites: (limit) => storage.listAgentWrites(limit),
+    authoredNotes: () => storage.authoredNotes(),
     markAgentWritesSeen: (noteId, writeIds) => storage.markAgentWritesSeen(noteId, writeIds),
   }
 }

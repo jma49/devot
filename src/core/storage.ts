@@ -39,7 +39,10 @@ export interface AgentWriteSummary extends AgentWriteRow {
   seen: boolean
 }
 
-/** The most rows one `listAgentWrites` call returns (the Tauri command refuses more). */
+/**
+ * The newest rows one `listAgentWrites` call takes as its `limit` (the Tauri
+ * command refuses more). Every unseen row older than those comes with them.
+ */
 export const MAX_AGENT_WRITES_LISTED = 1000
 
 export interface TrashedNote {
@@ -241,8 +244,14 @@ export interface StorageAdapter {
   listActivity(since: number): Promise<ActivityData>
   /** What listActivity reads of the body versions and title changes, for `ids` only (at most MAX_BODY_IDS; unknown and purged IDs have none): the list's activity strips. */
   listNoteActivity(ids: readonly string[], since: number): Promise<ActivityRevision[]>
-  /** Rows of notes not in the Trash, newest first, at most `limit` (up to MAX_AGENT_WRITES_LISTED). A row starts unseen, an `aiEdit` row seen. */
+  /**
+   * Rows of notes not in the Trash, newest first: the newest `limit` (up to
+   * MAX_AGENT_WRITES_LISTED), and every unseen row older than those. A row
+   * starts unseen, an `aiEdit` row seen.
+   */
   listAgentWrites(limit: number): Promise<AgentWriteSummary[]>
-  /** IDs the note has no row for are skipped. */
-  markAgentWritesSeen(noteId: string, writeIds: readonly string[]): Promise<void>
+  /** IDs of the notes not in the Trash with any agent_writes row, seen or not. */
+  authoredNotes(): Promise<string[]>
+  /** IDs the note has no row for are skipped. Answers how many rows it changed. */
+  markAgentWritesSeen(noteId: string, writeIds: readonly string[]): Promise<number>
 }

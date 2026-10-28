@@ -20,6 +20,7 @@ import { Icon } from './icons/Icon'
 import type { MenuPoint } from './contextMenu'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import {
+  keyTarget,
   openAfter,
   selectAll,
   selectRange,
@@ -32,7 +33,7 @@ import { dragCardLines, setDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
 import { usePaneResize } from './paneResize'
 import { LIST_PANE } from './paneWidth'
-import { entryOffsets, spacerHeight, windowRuns } from './listWindow'
+import { entryOffsets, jumpIndex, spacerHeight, windowRuns } from './listWindow'
 import { noteShortcut, trashShortcut, type NoteAction, type TrashAction } from './noteMenu'
 import { DRAG_TEMPLATE, setNoteDragData } from './dragData'
 import { useStable } from './stable'
@@ -65,7 +66,7 @@ interface Props {
   after?: ReactNode
   onAction?: (action: NoteAction, id: string) => void
   onTrashAction?: (action: TrashAction, id: string) => void
-  onMenu?: (id: string) => void
+  onMenu?: (id: string, at?: MenuPoint) => void
   sort?: { label: string; chip: string; onOpen: (anchor: HTMLElement) => void }
   sortButtonRef?: Ref<HTMLButtonElement>
   /** The List / Board control, for the views that can show a board. */
@@ -89,6 +90,8 @@ interface Props {
   /** Looks up each row's activity strip; without it rows show none (Settings can hide them). */
   activity?: HeadlineLoader<StripDay[]> | undefined
   empty?: ListEmptyKind | undefined
+  /** Whether notes can be made and changed; an empty list says it is read-only when they cannot. */
+  editing?: boolean
   /** The notes agents changed since the owner last looked, with the newest writer (agentWrites.ts). */
   changedBy?: ReadonlyMap<string, WriterRef> | undefined
 }
@@ -219,7 +222,19 @@ export const NoteList = memo(function NoteList(props: Props) {
       ),
     [runs, entries],
   )
-  const headlines = useHeadlines(props.headlines, rendered)
+  // The rows that show, and the selected notes: a drag of the selection names
+  // notes whose rows are outside the rendered part too.
+  const headlineNotes = useMemo(() => {
+    if (!selection) return rendered
+    const seen = new Set(rendered.map((n) => n.id))
+    const more = selection.ids.flatMap((id) => {
+      if (seen.has(id)) return []
+      const note = notes[indexOf.get(id) ?? -1]
+      return note ? [note] : []
+    })
+    return more.length > 0 ? [...rendered, ...more] : rendered
+  }, [rendered, selection, notes, indexOf])
+  const headlines = useHeadlines(props.headlines, headlineNotes)
   const rowInfo = useMemo(
     () => withStrips(props.details, props.activity),
     [props.details, props.activity],
@@ -237,8 +252,12 @@ export const NoteList = memo(function NoteList(props: Props) {
             const gap = parseFloat(style.rowGap) || 0
             const padding = parseFloat(style.paddingTop) || 0
             setMetrics((m) => (m.gap === gap && m.padding === padding ? m : { gap, padding }))
+            // Compared with the top too: a list that comes back from a short view has kept a stale
+            // top while its scroll went to 0, and no scroll event fires to correct it.
             setViewport((v) =>
-              v.height === el.clientHeight ? v : { top: el.scrollTop, height: el.clientHeight },
+              v.height === el.clientHeight && v.top === el.scrollTop
+                ? v
+                : { top: el.scrollTop, height: el.clientHeight },
             )
             continue
           }
@@ -336,6 +355,22 @@ export const NoteList = memo(function NoteList(props: Props) {
     openedBySelection.current = undefined
     follow.current = undefined
     onSelect(id)
+  }
+
+  /** Home, End and Page Up/Page Down: to the first or last row, or about a screen away. */
+  const jump = (event: KeyboardEvent, from: string | undefined): boolean => {
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return false
+    const row = from === undefined ? undefined : rows.current.get(from)
+    const height = row?.getBoundingClientRect().height ?? 0
+    const page = height > 0 ? Math.floor((list.current?.clientHeight ?? 0) / height) : 0
+    const at = from === undefined ? -1 : order.indexOf(from)
+    const to = jumpIndex(event.key, at, order.length, page)
+    const id = to === undefined ? undefined : order[to]
+    if (id === undefined) return false
+    event.preventDefault()
+    focusRow(id)
+    navigate(id)
+    return true
   }
 
   // The row that has the keyboard, remembered until the keyboard goes
@@ -461,9 +496,10 @@ export const NoteList = memo(function NoteList(props: Props) {
       if (selected !== undefined) focusRow(selected)
       return true
     }
-    const by = commandMatches('list.extendDown', event)
+    // A held Shift+Down keeps extending the selection, as the key repeats.
+    const by = commandMatches('list.extendDown', event, true)
       ? 1
-      : commandMatches('list.extendUp', event)
+      : commandMatches('list.extendUp', event, true)
         ? -1
         : 0
     if (!by) return false
@@ -475,19 +511,39 @@ export const NoteList = memo(function NoteList(props: Props) {
     return true
   }
 
+  /** Opens a row's menu from the keyboard, under the row as a notebook row's menu opens. */
+  const rowMenu = (id: string, at = id): boolean => {
+    if (!props.onMenu) return false
+    const box = rows.current.get(at)?.getBoundingClientRect()
+    props.onMenu(id, box ? { x: box.left, y: box.bottom } : undefined)
+    return true
+  }
+
   const listKey = (event: KeyboardEvent) => {
     if (event.target !== event.currentTarget) return
     if (heldKey(event)) return
     if (selectionKey(event)) return
+    if (
+      selected !== undefined &&
+      indexOf.has(selected) &&
+      commandMatches('list.rowMenu', event) &&
+      rowMenu(selected)
+    ) {
+      event.preventDefault()
+      return
+    }
     if (props.onFind && commandMatches('search.fromList', event)) {
       event.preventDefault()
       return props.onFind()
     }
+    if (jump(event, latest().selected)) return
     const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
+    // A bare arrow moves; with a modifier held it is another key (Shift+Down extends the selection).
+    if (!step || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
     const to =
       (selected !== undefined && indexOf.has(selected) ? selected : undefined) ??
       notes[step < 0 ? notes.length - 1 : 0]?.id
-    if (!step || to === undefined) return
+    if (to === undefined) return
     event.preventDefault()
     focusRow(to)
     navigate(to)
@@ -499,9 +555,17 @@ export const NoteList = memo(function NoteList(props: Props) {
     if (selectionKey(event)) return
     // Shortcuts act on the row that has the focus, never on an open note the
     // focus has left (a right-click focuses its row; a filter may hide the
-    // open note). With several notes selected they act on the selection, whose
-    // rows are all drawn selected. Every key here comes from the registry.
-    const target = chosen ? (selected ?? notes[index]?.id) : notes[index]?.id
+    // open note). With several notes selected they act on the selection: a
+    // Cmd-click can take the focused row out of it before the open note
+    // follows. Every key here comes from the registry.
+    const live = latest()
+    const focused = notes[index]?.id
+    const target = keyTarget(live.selection, live.selected, focused)
+    // The menu opens under the focused row, whatever the selection it acts on.
+    if (target && commandMatches('list.rowMenu', event) && rowMenu(target, focused)) {
+      event.preventDefault()
+      return
+    }
     const action = target && props.onAction ? noteShortcut(event) : undefined
     if (target && action) {
       event.preventDefault()
@@ -525,9 +589,12 @@ export const NoteList = memo(function NoteList(props: Props) {
       event.preventDefault()
       return props.onEdit(part, target)
     }
+    if (jump(event, notes[index]?.id)) return
     const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0
+    // A bare arrow moves; with a modifier held it is another key (Shift+Down extends the selection).
+    if (!step || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
     const next = notes[index + step]
-    if (!step || !next) return
+    if (!next) return
     event.preventDefault()
     focusRow(next.id)
     navigate(next.id)
@@ -703,7 +770,9 @@ export const NoteList = memo(function NoteList(props: Props) {
           }
           return out
         })}
-        {entries.length === 0 && props.empty ? <EmptyList kind={props.empty} /> : null}
+        {entries.length === 0 && props.empty ? (
+          <EmptyList kind={props.empty} editing={props.editing} />
+        ) : null}
       </ul>
       {props.after}
       <div className="list-resize" aria-label={t('noteList.resize')} {...edge} />
@@ -711,8 +780,8 @@ export const NoteList = memo(function NoteList(props: Props) {
   )
 })
 
-function EmptyList({ kind }: { kind: ListEmptyKind }) {
-  const { message, tip } = listEmpty(kind)
+function EmptyList({ kind, editing }: { kind: ListEmptyKind; editing?: boolean | undefined }) {
+  const { message, tip } = listEmpty(kind, editing)
   return (
     <li className="list-empty" role="presentation">
       <span className="list-empty-message">{t(message)}</span>

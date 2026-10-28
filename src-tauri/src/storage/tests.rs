@@ -208,6 +208,79 @@ fn upgrades_the_schema_v1_fixture() {
     assert!(store.list_books().unwrap().is_empty());
 }
 
+/// Each released schema with every kind of row (see tests/fixtures/schema-fixtures.sql) upgrades
+/// and reads back.
+#[test]
+fn upgrades_the_fixtures_of_released_schemas() {
+    const LAUNCH: &str = "0192a6f0-0000-7000-8000-000000000001";
+    const INBOX: &str = "0192a6f0-0000-7000-8000-000000000002";
+    for name in ["schema-v18.sqlite", "schema-v19.sqlite"] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("devot.sqlite");
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name);
+        std::fs::copy(fixture, &path).unwrap();
+        let store = Store::open(&path).unwrap();
+        assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION, "{name}");
+        assert!(store.integrity_ok().unwrap(), "{name}");
+
+        let mut live: Vec<String> = store
+            .list_notes()
+            .unwrap()
+            .into_iter()
+            .map(|n| n.title)
+            .collect();
+        live.sort();
+        assert_eq!(live, ["Inbox", "Launch"], "{name}");
+        let launch = store.get_note(LAUNCH, false).unwrap().unwrap();
+        assert_eq!(launch.status, "active");
+        assert_eq!(launch.body_version, 4);
+        assert_eq!(
+            launch.book_id.as_deref(),
+            Some("0192a6f0-0000-7000-8000-00000000b002")
+        );
+        assert!(store.get_note(INBOX, false).unwrap().unwrap().pinned);
+        let trash = store.list_trash().unwrap();
+        assert_eq!(trash.len(), 1, "{name}");
+        assert_eq!(trash[0].title, "Trashed");
+        assert!(
+            store
+                .get_note("0192a6f0-0000-7000-8000-000000000004", true)
+                .unwrap()
+                .is_none(),
+            "{name}: the purged note stays purged"
+        );
+
+        let books = store.list_books().unwrap();
+        assert_eq!(books.len(), 2, "{name}");
+        assert!(books.iter().any(|b| b.icon.as_deref() == Some("star")));
+        assert_eq!(store.list_tags().unwrap().len(), 1);
+        assert!(
+            store
+                .get_note_tag(LAUNCH, "0192a6f0-0000-7000-8000-00000000c001")
+                .unwrap()
+                .is_some_and(|t| t.present)
+        );
+        let file = store
+            .get_file("0192a6f0-0000-7000-8000-00000000f001")
+            .unwrap()
+            .unwrap();
+        assert_eq!(file.note_id, LAUNCH);
+        assert_eq!(file.data.len(), 9);
+        let links: i64 = store
+            .conn
+            .query_row(
+                "SELECT count(*) FROM links WHERE source_id = ?1 AND target_id = ?2",
+                [LAUNCH, INBOX],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(links, 1, "{name}");
+        assert_eq!(store.list_revisions(LAUNCH).unwrap().len(), 2, "{name}");
+    }
+}
+
 #[test]
 fn round_trips_a_note() {
     let (_dir, mut store) = temp_store();
@@ -2822,6 +2895,74 @@ fn replaces_a_notes_agent_writes_with_each_write_that_carries_them_keeping_seen(
 }
 
 #[test]
+fn lists_unseen_agent_writes_older_than_the_newest_limit() {
+    let (_dir, mut store) = temp_store();
+    store.put_note(&note("a", "A", 10), &[]).unwrap();
+    let rows = [
+        agent_write("AAAAAAAAAAA", "mcp", 1),
+        agent_write("BBBBBBBBBBB", "mcp", 2),
+        agent_write("CCCCCCCCCCC", "mcp", 3),
+        agent_write("DDDDDDDDDDD", "mcp", 4),
+    ];
+    store
+        .put_note_with_writes(&based_on(1, note("a", "A", 11)), &[], Some(&rows))
+        .unwrap();
+    // The oldest is seen, then one unseen; the two newest are seen.
+    store
+        .mark_agent_writes_seen(
+            "a",
+            &[
+                "AAAAAAAAAAA".into(),
+                "CCCCCCCCCCC".into(),
+                "DDDDDDDDDDD".into(),
+            ],
+        )
+        .unwrap();
+    let listed: Vec<(String, bool)> = store
+        .list_agent_writes(2)
+        .unwrap()
+        .into_iter()
+        .map(|w| (w.write_id, w.seen))
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            ("DDDDDDDDDDD".into(), true),
+            ("CCCCCCCCCCC".into(), true),
+            ("BBBBBBBBBBB".into(), false),
+        ]
+    );
+}
+
+#[test]
+fn names_every_authored_note_past_the_rows_the_list_keeps() {
+    let (_dir, mut store) = temp_store();
+    let rows = [agent_write("AAAAAAAAAAA", "mcp", 1)];
+    store
+        .put_note_with_writes(&note("a", "A", 10), &[], Some(&rows))
+        .unwrap();
+    let newer = [agent_write("BBBBBBBBBBB", "mcp", 2)];
+    store
+        .put_note_with_writes(&note("b", "B", 10), &[], Some(&newer))
+        .unwrap();
+    store
+        .mark_agent_writes_seen("a", &["AAAAAAAAAAA".into()])
+        .unwrap();
+    store
+        .mark_agent_writes_seen("b", &["BBBBBBBBBBB".into()])
+        .unwrap();
+    // The list keeps the newest row only; the older note is authored all the same.
+    assert_eq!(store.list_agent_writes(1).unwrap().len(), 1);
+    let mut authored = store.authored_notes().unwrap();
+    authored.sort();
+    assert_eq!(authored, ["a".to_string(), "b".to_string()]);
+    store
+        .put_note(&in_trash(based_on(1, note("b", "B", 11)), 11), &[])
+        .unwrap();
+    assert_eq!(store.authored_notes().unwrap(), ["a".to_string()]);
+}
+
+#[test]
 fn lists_agent_writes_of_live_notes_and_purging_deletes_them() {
     let (_dir, mut store) = temp_store();
     let rows = [agent_write("AAAAAAAAAAA", "mcp", 5)];
@@ -2849,4 +2990,54 @@ fn lists_agent_writes_of_live_notes_and_purging_deletes_them() {
         .query_row("SELECT count(*) FROM agent_writes", [], |row| row.get(0))
         .unwrap();
     assert_eq!(left, 0);
+}
+
+/// A note deleted for good leaves no readable copy of its text in the file's free pages, which
+/// every later backup would copy.
+#[test]
+fn a_purged_note_leaves_no_text_in_the_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    let secret = "Qxjzvwkpfyb ".repeat(400);
+    {
+        let mut store = Store::open(&path).unwrap();
+        let mut gone = note("a", "Gone", 10);
+        gone.body_md = secret.clone();
+        gone.ydoc = secret.clone().into_bytes();
+        store.put_note(&gone, &[]).unwrap();
+        store
+            .put_revision(&version("r1", "a", 11, secret.as_bytes()))
+            .unwrap();
+        store.put_note(&note("b", "Kept", 10), &[]).unwrap();
+        store
+            .purge_note("a", 30, "0000000000000030-0000-a")
+            .unwrap();
+        let secure: i64 = store
+            .conn
+            .query_row(
+                "SELECT v FROM notes_fts_config WHERE k = 'secure-delete'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            secure, 0,
+            "only a purge takes text out of the index's pages"
+        );
+    }
+    let bytes = std::fs::read(&path).unwrap();
+    let found = bytes
+        .windows(b"Qxjzvwkpfyb".len())
+        .any(|w| w == b"Qxjzvwkpfyb");
+    assert!(!found, "the purged text is still in the file");
+    // The search index keeps a note's text as trigrams, most of them stored whole.
+    let left: Vec<&[u8]> = b"qxjzvwkpfyb"
+        .windows(3)
+        .filter(|trigram| bytes.windows(3).any(|w| w == *trigram))
+        .collect();
+    assert!(
+        left.is_empty(),
+        "the search index keeps {} trigrams",
+        left.len()
+    );
 }

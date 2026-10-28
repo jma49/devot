@@ -105,12 +105,29 @@ impl Plugins {
     }
 
     fn stored(&self) -> Stored {
-        match std::fs::read(self.state_path()) {
-            Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|_| {
-                log::warn!("W_PLUGINS_STATE_INVALID");
-                Stored::default()
-            }),
-            Err(_) => Stored::default(),
+        self.read_stored().unwrap_or_default()
+    }
+
+    /// None when the state file cannot be read, or is damaged and no copy of it could be kept: nothing may write over it.
+    fn read_stored(&self) -> Option<Stored> {
+        let path = self.state_path();
+        match std::fs::read(&path) {
+            Ok(bytes) => match serde_json::from_slice(&bytes) {
+                Ok(stored) => Some(stored),
+                Err(_) => {
+                    log::warn!("W_PLUGINS_STATE_INVALID");
+                    let kept = atomic_file::keep_damaged(&path, &bytes).is_ok();
+                    if !kept {
+                        log::warn!("W_PLUGINS_STATE_COPY_FAILED");
+                    }
+                    kept.then(Stored::default)
+                }
+            },
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(Stored::default()),
+            Err(_) => {
+                log::warn!("W_PLUGINS_STATE_READ_FAILED");
+                None
+            }
         }
     }
 
@@ -256,6 +273,7 @@ impl Plugins {
             staged.remove(at).1
         };
         let _writing = self.writing.lock().unwrap_or_else(|e| e.into_inner());
+        let mut stored = self.read_stored().ok_or(FAILED)?;
         std::fs::create_dir_all(self.data.join(DIR)).map_err(|_| FAILED)?;
         let plugins = self.folder().map_err(|_| FAILED)?;
         let id = package.manifest.id.clone();
@@ -296,7 +314,6 @@ impl Plugins {
             granted: package.manifest.permissions.clone(),
             installed_at,
         };
-        let mut stored = self.stored();
         stored.plugins.insert(id.clone(), entry.clone());
         self.store(&stored)?;
         log::info!("I_PLUGIN_INSTALLED {id} {}", package.manifest.version);
@@ -305,7 +322,7 @@ impl Plugins {
 
     pub fn set_enabled(&self, id: &str, enabled: bool) -> Result<(), &'static str> {
         let _writing = self.writing.lock().unwrap_or_else(|e| e.into_inner());
-        let mut stored = self.stored();
+        let mut stored = self.read_stored().ok_or(FAILED)?;
         let entry = stored.plugins.get_mut(id).ok_or(NOT_FOUND)?;
         entry.enabled = enabled;
         self.store(&stored)?;
@@ -318,7 +335,7 @@ impl Plugins {
             return Err(NOT_FOUND);
         }
         let _writing = self.writing.lock().unwrap_or_else(|e| e.into_inner());
-        let mut stored = self.stored();
+        let mut stored = self.read_stored().ok_or(FAILED)?;
         let known = stored.plugins.remove(id).is_some();
         self.store(&stored)?;
         if let Ok(plugins) = self.folder()
@@ -880,6 +897,46 @@ mod tests {
         )
         .unwrap();
         assert!(plugins.list().is_empty());
+    }
+
+    #[test]
+    fn keeps_a_damaged_state_file_before_writing_a_new_one() {
+        let data = tempfile::tempdir().unwrap();
+        let plugins = Plugins::new(data.path());
+        let first = plugins.stage(package("1.0.0", b"one"));
+        plugins.install(first.token).unwrap();
+        let damaged = b"{\"plugins\":{\"com.example.other\":";
+        std::fs::write(data.path().join(STATE_FILE), damaged).unwrap();
+        assert!(plugins.list().is_empty());
+        let again = plugins.stage(package("1.0.0", b"one"));
+        plugins.install(again.token).unwrap();
+        let mut copy = data.path().join(STATE_FILE).into_os_string();
+        copy.push(atomic_file::DAMAGED_SUFFIX);
+        assert_eq!(std::fs::read(copy).unwrap(), damaged);
+    }
+
+    #[test]
+    fn refuses_to_write_over_a_state_file_it_cannot_read() {
+        let data = tempfile::tempdir().unwrap();
+        let plugins = Plugins::new(data.path());
+        let staged = plugins.stage(package("1.0.0", b"one"));
+        plugins.install(staged.token).unwrap();
+        let state = data.path().join(STATE_FILE);
+        let before = std::fs::read(&state).unwrap();
+        std::fs::remove_file(&state).unwrap();
+        std::fs::create_dir(&state).unwrap();
+        let again = plugins.stage(package("2.0.0", b"two"));
+        assert_eq!(plugins.install(again.token).err(), Some(FAILED));
+        assert_eq!(
+            plugins.read_file("com.example.hello", "main.js").unwrap(),
+            b"one"
+        );
+        assert_eq!(plugins.set_enabled("com.example.hello", false), Err(FAILED));
+        assert_eq!(plugins.remove("com.example.hello"), Err(FAILED));
+        assert!(data.path().join(DIR).join("com.example.hello").exists());
+        std::fs::remove_dir(&state).unwrap();
+        std::fs::write(&state, &before).unwrap();
+        assert!(plugins.enabled("com.example.hello").is_ok());
     }
 
     #[test]

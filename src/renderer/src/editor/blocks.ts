@@ -15,6 +15,7 @@ import {
 } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
 import type { AlertKind } from '../../../core/preview/registry'
+import { FRONT_MATTER_FENCE } from '../../../core/readable'
 import {
   ALERT_LINE,
   COMMAND_PARSE_MS,
@@ -543,11 +544,21 @@ function paragraphAtEnd(cx: Cx, n: number): SyntaxNode | null {
 /**
  * Whether a line that stops being an item of `list` would continue the
  * paragraph on line `n` above it lazily: that paragraph is in `list`, inside
- * an item that stays (or a quote in one).
+ * an item that stays (or a quote in one), or is the own paragraph of an item
+ * that stays and holds `list` (the line was its first sub-item).
  */
 function continuesInList(cx: Cx, n: number, list: SyntaxNode, changed: Set<number>): boolean {
   const para = paragraphAtEnd(cx, n)
-  if (!para || para.from < list.from || para.to > list.to) return false
+  if (!para) return false
+  const holder = para.parent
+  if (
+    holder?.name === 'ListItem' &&
+    holder.from < list.from &&
+    list.to <= holder.to &&
+    !changed.has(cx.state.doc.lineAt(holder.from).number)
+  )
+    return true
+  if (para.from < list.from || para.to > list.to) return false
   for (let p = para.parent; p && !(p.name === list.name && p.from === list.from); p = p.parent) {
     if (p.name === 'Blockquote') return true
     if (p.name === 'ListItem' && !changed.has(cx.state.doc.lineAt(p.from).number)) return true
@@ -588,6 +599,30 @@ function escapeMarkerText(doc: Text, at: number, edits: Edits) {
 }
 
 /**
+ * Escapes text that a removed marker leaves at the start of a line (`at`, in
+ * the old document) when it reads as a marker itself (`- 1999. Born`), so it
+ * is not renumbered as a new list. Front matter the change closes is not
+ * Markdown and keeps its text.
+ */
+function escapeUnmarked(old: Text, first: ChangeSet, at: number[]): ChangeSet | null {
+  if (at.length === 0) return null
+  const doc = first.apply(old)
+  const edits = new Edits()
+  for (const pos of at) {
+    const now = first.mapPos(pos, 1)
+    if (!inClosedFrontMatter(doc, now)) escapeMarkerText(doc, now, edits)
+  }
+  return edits.empty ? null : edits.changes(doc)
+}
+
+function inClosedFrontMatter(doc: Text, pos: number): boolean {
+  if (!mayBeFrontMatter(doc, pos)) return false
+  for (let n = doc.lineAt(pos).number + 1; n <= doc.lines; n++)
+    if (FRONT_MATTER_FENCE.test(doc.line(n).text)) return true
+  return false
+}
+
+/**
  * Makes the selected lines items of `kind`; when they all are already, they
  * stop being items. Items of another kind are converted. An item's children
  * move with it when its marker gets wider or narrower, so nesting is kept,
@@ -606,6 +641,7 @@ export function toggleList(state: EditorState, kind: ListKind): TransactionSpec 
   const created = new Set<number>()
   const delims = new Map<string, string | undefined>()
   const losing = new Map<number, SyntaxNode>()
+  const unmarked: number[] = []
   const bullet = state.facet(listBullet)
   for (const l of lines) {
     const key = slot(l)
@@ -620,6 +656,7 @@ export function toggleList(state: EditorState, kind: ListKind): TransactionSpec 
     delims.set(key, remove ? undefined : /[.)](?= $)/.exec(next.text)?.[0])
     edits.add(l.at, l.marker?.textFrom ?? l.at, next.text)
     if (!remove && !l.marker && kind !== 'task') escapeMarkerText(state.doc, l.at, edits)
+    if (remove && l.marker) unmarked.push(l.at)
     changed.add(l.line.number)
     if (!l.item) created.add(l.line.number)
     const list = l.item?.parent
@@ -631,10 +668,70 @@ export function toggleList(state: EditorState, kind: ListKind): TransactionSpec 
   for (const list of losing.values()) restartAfterGaps(state.doc, list, changed, edits, shifts)
   if (remove) setApartFromList(cx, lines, changed, edits)
   shifts.into(edits, state.doc, created)
-  const first = edits.changes(state.doc)
+  const marked = edits.changes(state.doc)
+  const escapes = escapeUnmarked(state.doc, marked, unmarked)
+  const first = escapes ? marked.compose(escapes) : marked
   const second = renumber(cx, first, changed)
   const changes = second ? first.compose(second) : first
   return spec(changes, mapSelection(state, changes))
+}
+
+const siblingItem = (item: SyntaxNode, side: -1 | 1, skip?: Set<number>): SyntaxNode | null => {
+  let p = side < 0 ? item.prevSibling : item.nextSibling
+  while (p && (p.name !== 'ListItem' || skip?.has(p.from)))
+    p = side < 0 ? p.prevSibling : p.nextSibling
+  return p
+}
+
+/**
+ * Tab (`dir` 1) and Shift+Tab (-1) on the selected list items. An item moves
+ * in under the text of the item above it, as far as CommonMark needs to nest
+ * it (`1. ` is three columns wide, `10. ` four), or out to the marker of the
+ * item it is in; its other lines move with it. Numbered lists it joins or
+ * leaves are renumbered, a new one from 1. Null when no item can move: the
+ * first of a list going in, or one at the top level going out.
+ */
+export function indentListItems(state: EditorState, dir: 1 | -1): TransactionSpec | null {
+  const cx = commandContext(state)
+  if (!cx) return null
+  const { doc } = state
+  const items: (ListLine & { item: SyntaxNode })[] = []
+  for (const n of selectedLines(state)) {
+    const role = listRole(cx, n)
+    if (role !== 'skip' && role.item && role.marker) items.push({ ...role, item: role.item })
+  }
+  const outer = items.filter(
+    (l) => !items.some((o) => o.item.from < l.item.from && l.item.to <= o.item.to),
+  )
+  const moving = new Set(outer.map((l) => l.item.from))
+  const shifts = new Shifts()
+  const changed = new Set<number>()
+  for (const l of outer) {
+    const column = l.at - l.line.from
+    let target: number | null = null
+    if (dir > 0) {
+      const above = siblingItem(l.item, -1, moving)
+      if (above) target = itemTextColumn(doc, above)
+    } else {
+      const parent = l.item.parent?.parent
+      if (parent?.name === 'ListItem') target = parent.from - doc.lineAt(parent.from).from
+    }
+    if (target === null || (target - column) * dir <= 0) continue
+    const delta = target - column
+    shifts.add(l.line.number, l.line.from + quotePrefix(l.line.text, l.quotes).length, delta)
+    shifts.children(doc, l.item, l.quotes, delta)
+    changed.add(l.line.number)
+    // The item after it starts a list of its own when this one goes out, and moves up a number when it goes in.
+    const next = siblingItem(l.item, 1)
+    if (next) changed.add(doc.lineAt(next.from).number)
+  }
+  if (changed.size === 0) return null
+  const edits = new Edits()
+  shifts.into(edits, doc)
+  const first = edits.changes(doc)
+  const second = renumber(cx, first, changed)
+  const changes = second ? first.compose(second) : first
+  return { ...spec(changes, mapSelection(state, changes)), userEvent: 'input.indent' }
 }
 
 /**
@@ -872,6 +969,15 @@ function unquote(cx: Cx, lines: QuoteLine[], selected: Set<number>, edits: Edits
   }
 }
 
+/** Whether an unselected alert starts right below `q`: quoting `q` would join it and lose its alert. */
+function abutsAlert(cx: Cx, q: QuoteLine, selected: Set<number>): boolean {
+  const below = q.line.number + 1
+  if (below > cx.state.doc.lines || selected.has(below) || !quotedLike(cx, q, selected)(below))
+    return false
+  const run = quoteRun(cx, quoteLine(cx, below, selected), selected)
+  return run.first === below && alertOf(cx, run, selected) !== null
+}
+
 /**
  * Quotes the selected lines; when they are all in a plain quote already,
  * takes their quote markers off. Alerts become plain quotes.
@@ -886,7 +992,13 @@ export function toggleQuote(state: EditorState): TransactionSpec | null {
   if (alerts.every((a) => a === null)) unquote(cx, lines.all, lines.selected, edits)
   else {
     const alone = lines.all.length === 1
-    for (const q of linesToQuote(lines)) edits.add(q.base, q.base, quoteInsert(q, alone))
+    for (const q of linesToQuote(lines)) {
+      edits.add(q.base, q.base, quoteInsert(q, alone))
+      if (abutsAlert(cx, q, lines.selected)) {
+        const { text, from, to } = q.line
+        edits.add(to, to, `\n${keptQuotes(text.slice(0, q.base - from))}`)
+      }
+    }
     for (const run of countedRuns(cx, lines.counted, lines.selected))
       if (alertOf(cx, run, lines.selected)) dropAlertLine(cx, run, lines.selected, edits)
   }
@@ -1010,11 +1122,13 @@ function codeLines(cx: Cx): { line: Line; fence: SyntaxNode | null; blank: boole
 
 /**
  * The column (after `quotes` characters of quote markers) where the text of
- * the list item a line continues starts; null when it continues none.
+ * the list item a line continues starts; null when it continues none, or when
+ * the quote markers already reach past it (a quote inside the item).
  */
 function itemColumn(cx: Cx, line: Line, quotes: number): number | null {
   const item = outerItem(cx, line)
-  return item ? itemTextColumn(cx.state.doc, item) - quotes : null
+  const column = item ? itemTextColumn(cx.state.doc, item) - quotes : -1
+  return column < 0 ? null : column
 }
 
 /**

@@ -17,7 +17,7 @@ import {
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { ALERT_KINDS, type AlertKind } from './blocks'
 import { markerField, scanMarkers, type MarkerScan } from './gutterMarkers'
-import { BOX_HANG, BOX_MARGIN, BOX_PAD } from './boxes'
+import { BOX_INSET, BOX_MARGIN, BOX_PAD } from './boxes'
 
 export interface LineStyle {
   from: number
@@ -123,7 +123,12 @@ export function lineStyles(
   return out
 }
 
-export function decorationsFor(state: EditorState, styles: LineStyle[]): DecorationSet {
+/** Line styles cover only the lines in `shown` (the visible ranges), so a long table costs only its shown rows. */
+export function decorationsFor(
+  state: EditorState,
+  styles: LineStyle[],
+  shown: readonly { from: number; to: number }[] = [{ from: 0, to: state.doc.length }],
+): DecorationSet {
   const ranges: Range<Decoration>[] = []
   const lineClasses = new Map<number, string[]>()
   for (const style of styles) {
@@ -131,10 +136,17 @@ export function decorationsFor(state: EditorState, styles: LineStyle[]): Decorat
       ranges.push(Decoration.mark({ class: style.className }).range(style.from, style.to))
       continue
     }
-    const end = state.doc.lineAt(style.to).number
-    for (let n = state.doc.lineAt(style.from).number; n <= end; n++) {
-      const at = state.doc.line(n).from
-      lineClasses.set(at, [...(lineClasses.get(at) ?? []), style.className])
+    for (const range of shown) {
+      const first = state.doc.lineAt(range.from)
+      const last = state.doc.lineAt(range.to)
+      if (last.to < style.from || first.from > style.to) continue
+      const end = Math.min(state.doc.lineAt(style.to).number, last.number)
+      for (let n = Math.max(state.doc.lineAt(style.from).number, first.number); n <= end; n++) {
+        const at = state.doc.line(n).from
+        const classes = lineClasses.get(at)
+        if (!classes) lineClasses.set(at, [style.className])
+        else if (!classes.includes(style.className)) classes.push(style.className)
+      }
     }
   }
   for (const [at, classes] of lineClasses)
@@ -155,7 +167,7 @@ function build(view: EditorView): DecorationSet {
     seen.add(key)
     return true
   })
-  return decorationsFor(view.state, unique)
+  return decorationsFor(view.state, unique, view.visibleRanges)
 }
 
 const plugin = ViewPlugin.fromClass(
@@ -231,10 +243,16 @@ const token = (name: string) => `var(--color-${name})`
 const BODY_SIZE = 'var(--editor-font-size, var(--font-size-body))'
 const headingSize = (level: HeadingLevel) => `calc(var(--note-heading-h${level}) * ${BODY_SIZE})`
 const BOX_BORDER = `1px solid ${token('code-block-border')}`
+/** A quote's bar, drawn inside the border that holds the text's indent. */
+const QUOTE_BAR = '3px'
+/** The border: the bar, then the space between it and the text (the rest is padding). */
+const QUOTE_INSET = `calc(${QUOTE_BAR} + ${BOX_PAD})`
+/** The padding box starts after the border, so the bar sits a border's width before it. */
+const QUOTE_BAR_LEFT = `calc(-1 * ${QUOTE_BAR} - ${BOX_PAD})`
 
 const alertColours = Object.fromEntries(
   ALERT_KINDS.flatMap((kind) => [
-    [`.cm-md-alert-${kind}.cm-md-quote`, { borderLeftColor: token(`alert-${kind}`) }],
+    [`.cm-md-alert-${kind}.cm-md-quote::before`, { backgroundColor: token(`alert-${kind}`) }],
     [
       `.cm-md-alert-label.cm-md-alert-${kind}, .cm-md-alert-label.cm-md-alert-${kind} *`,
       { color: token(`alert-${kind}`) },
@@ -285,20 +303,38 @@ const theme = EditorView.theme({
     backgroundColor: token('editor-mark-fill'),
     borderBottom: `2px solid ${token('editor-mark-line')}`,
   },
-  // The bar hangs past the line's side as a box does (boxes.ts): it lines up
-  // with a code block's or a table's edge, and the text stays where it was.
+  // The bar sits on the text column, the same edge as a code block's box.
+  // Its width and the indent it needs are a transparent border, shifted by
+  // the line's padding, so that padding stays the one every line shares:
+  // CodeMirror sizes a selection's full rows from the first line's padding.
   '.cm-md-quote': {
-    marginLeft: `calc(-1 * ${BOX_HANG})`,
-    borderLeft: `3px solid ${token('editor-quote-bar')}`,
-    paddingLeft: `calc(var(--space-4) + ${BOX_HANG})`,
+    position: 'relative',
+    marginLeft: BOX_PAD,
+    borderLeft: `${QUOTE_INSET} solid transparent`,
+    paddingLeft: BOX_PAD,
+  },
+  '.cm-md-quote::before': {
+    content: '""',
+    position: 'absolute',
+    top: '0',
+    bottom: '0',
+    left: QUOTE_BAR_LEFT,
+    width: QUOTE_BAR,
+    backgroundColor: token('editor-quote-bar'),
+    pointerEvents: 'none',
   },
   '.cm-md-alert-label, .cm-md-alert-label *': { textDecoration: 'none' },
   ...alertColours,
-  '.cm-md-table': { position: 'relative', zIndex: '0' },
+  '.cm-md-table': {
+    position: 'relative',
+    zIndex: '0',
+    paddingLeft: `calc(${BOX_PAD} + ${BOX_INSET})`,
+    paddingRight: `calc(${BOX_PAD} + ${BOX_INSET})`,
+  },
   '.cm-md-table::before': {
     content: '""',
     position: 'absolute',
-    inset: `0 calc(-1 * ${BOX_HANG})`,
+    inset: `0 ${BOX_PAD}`,
     zIndex: '-1',
     pointerEvents: 'none',
     backgroundColor: token('code-block-bg'),

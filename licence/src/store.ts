@@ -27,7 +27,12 @@ export interface PurchaseRecord {
   paymentIntent: string | null
   customerId: string
   createdAt: string
+  /** When Resend accepted the purchase's mail. A claim in flight leaves this null. */
   mailedAt: string | null
+  /** When a sender took the mail claim; cleared by releaseMail and sentMail. */
+  claimedAt: string | null
+  /** A keyed hash of the buyer's lower-cased address, so /resend finds it whatever its capitals. */
+  emailHash: string | null
 }
 
 export interface Fulfilment {
@@ -37,6 +42,8 @@ export interface Fulfilment {
   paymentIntent: string | null
   /** RFC 3339, when the purchase is recorded. */
   at: string
+  /** A keyed hash of the buyer's lower-cased address; none when the session has no address. */
+  emailHash?: string | null
 }
 
 export interface Fulfilled {
@@ -51,9 +58,14 @@ export interface Store {
   purchase(sessionId: string): Promise<PurchaseRecord | null>
   /** Issues a new licence for a session, once; a second call returns the first. */
   issue(fulfilment: Fulfilment): Promise<Fulfilled>
-  /** Marks a purchase mailed unless it already is: true when this call claimed the mail. */
-  claimMail(sessionId: string, at: string): Promise<boolean>
-  /** Undoes a claim whose mail failed, so a retry can send it. */
+  /**
+   * Takes the purchase's mail claim unless it is mailed or another sender holds a claim newer
+   * than `staleBefore`: true when this call holds it. The claim is not a send.
+   */
+  claimMail(sessionId: string, at: string, staleBefore: string): Promise<boolean>
+  /** Marks the mail sent, after Resend accepted it, and drops the claim. */
+  sentMail(sessionId: string, at: string): Promise<void>
+  /** Drops a claim whose send failed, so a retry can send it. */
   releaseMail(sessionId: string): Promise<void>
   /**
    * Revokes the licence a purchase paid for; null when none or already revoked. Remembers the
@@ -61,6 +73,8 @@ export interface Store {
    */
   revokeByPayment(paymentIntent: string, at: string): Promise<string | null>
   licencesOfCustomers(customerIds: string[]): Promise<Licence[]>
+  /** Every licence a purchase row with this address hash bought, oldest first. */
+  licencesOfEmail(emailHash: string): Promise<Licence[]>
   revokedIds(): Promise<string[]>
   /** Counts a hit on `key` in `window` and returns the window's count so far. */
   hit(key: string, window: number): Promise<number>
@@ -81,6 +95,8 @@ interface PurchaseRow {
   customer_id: string
   created_at: string
   mailed_at: string | null
+  claimed_at: string | null
+  email_hash: string | null
 }
 
 const toLicence = (row: LicenceRow): Licence => ({
@@ -98,6 +114,8 @@ const toPurchase = (row: PurchaseRow): PurchaseRecord => ({
   customerId: row.customer_id,
   createdAt: row.created_at,
   mailedAt: row.mailed_at,
+  claimedAt: row.claimed_at,
+  emailHash: row.email_hash,
 })
 
 export function d1Store(db: SqlDatabase): Store {
@@ -131,10 +149,10 @@ export function d1Store(db: SqlDatabase): Store {
           .bind(f.licenceId, f.sessionId, f.customerId, f.at, f.paymentIntent),
         db
           .prepare(
-            `INSERT INTO purchases (session_id, licence_id, payment_intent, customer_id, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT (session_id) DO NOTHING`,
+            `INSERT INTO purchases (session_id, licence_id, payment_intent, customer_id, created_at, email_hash)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT (session_id) DO NOTHING`,
           )
-          .bind(f.sessionId, f.licenceId, f.paymentIntent, f.customerId, f.at),
+          .bind(f.sessionId, f.licenceId, f.paymentIntent, f.customerId, f.at, f.emailHash ?? null),
       ])
       const purchase = await store.purchase(f.sessionId)
       const licence = purchase && (await store.licence(purchase.licenceId))
@@ -142,17 +160,33 @@ export function d1Store(db: SqlDatabase): Store {
       return { purchase, licence, created: changes(results[1]) > 0 }
     },
 
-    async claimMail(sessionId, at) {
+    async claimMail(sessionId, at, staleBefore) {
       const result = await db
-        .prepare('UPDATE purchases SET mailed_at = ? WHERE session_id = ? AND mailed_at IS NULL')
-        .bind(at, sessionId)
+        .prepare(
+          `UPDATE purchases SET claimed_at = ?1
+           WHERE session_id = ?2 AND mailed_at IS NULL
+             AND (claimed_at IS NULL OR claimed_at < ?3)`,
+        )
+        .bind(at, sessionId, staleBefore)
         .run()
       return changes(result) > 0
     },
 
+    async sentMail(sessionId, at) {
+      await db
+        .prepare(
+          `UPDATE purchases SET mailed_at = ?1, claimed_at = NULL
+           WHERE session_id = ?2 AND mailed_at IS NULL`,
+        )
+        .bind(at, sessionId)
+        .run()
+    },
+
     async releaseMail(sessionId) {
       await db
-        .prepare('UPDATE purchases SET mailed_at = NULL WHERE session_id = ?')
+        .prepare(
+          'UPDATE purchases SET claimed_at = NULL WHERE session_id = ?1 AND mailed_at IS NULL',
+        )
         .bind(sessionId)
         .run()
     },
@@ -192,6 +226,18 @@ export function d1Store(db: SqlDatabase): Store {
       return results.map(toLicence)
     },
 
+    async licencesOfEmail(emailHash) {
+      const { results } = await db
+        .prepare(
+          `SELECT * FROM licences WHERE id IN (
+             SELECT licence_id FROM purchases WHERE email_hash = ?)
+           ORDER BY issued_at, id`,
+        )
+        .bind(emailHash)
+        .all<LicenceRow>()
+      return results.map(toLicence)
+    },
+
     async revokedIds() {
       const { results } = await db
         .prepare('SELECT id FROM licences WHERE revoked_at IS NOT NULL ORDER BY id')
@@ -201,7 +247,9 @@ export function d1Store(db: SqlDatabase): Store {
 
     async hit(key, window) {
       const [, counted] = await db.batch([
-        db.prepare('DELETE FROM rate_limits WHERE window < ?').bind(window - 1),
+        // Only this key's earlier window: hourly and daily counters share the table, and one
+        // scale's number is meaningless to the other.
+        db.prepare('DELETE FROM rate_limits WHERE key = ?1 AND window < ?2').bind(key, window),
         db
           .prepare(
             `INSERT INTO rate_limits (key, window, count) VALUES (?1, ?2, 1)

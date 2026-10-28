@@ -28,14 +28,25 @@ export interface AppDeps {
 }
 
 export const LIMITS = {
+  /** /resend sends allowed an hour, per address and per IP. */
   resendPerAddress: 3,
   resendPerIp: 10,
+  /** A daily cap per address on top of the hourly one: a few a day, not 72. */
+  resendPerAddressPerDay: 6,
+  /** /resend sends allowed a day in all, well under Resend's 100 a day, so issued mails keep room. */
+  resendAllPerDay: 25,
   resendWindowSeconds: 3600,
+  /** How long a mail claim holds before another sender may take it (a Resend call times out in 10 s). */
+  mailClaimSeconds: 60,
   webhookBytes: 512 * 1024,
   formBytes: 4 * 1024,
 }
 
 const SESSION_ID = /^cs_[A-Za-z0-9_]{1,250}$/
+/** The kid the test-vectors seed is used under: the only kid allowed to sign a test-mode purchase. */
+const TEST_KID = 'test'
+/** PaymentIntent statuses that mean a delayed payment failed, not that it is still coming. */
+const FAILED_PAYMENT = new Set(['requires_payment_method', 'canceled'])
 
 function pendingCheck(url: URL): number {
   const check = url.searchParams.get('check') ?? ''
@@ -54,6 +65,7 @@ const STATUS: Partial<Record<LicenceCode, number>> = {
   E_LICENCE_SESSION_UNKNOWN: 404,
   E_LICENCE_STRIPE: 502,
   E_LICENCE_TOO_LARGE: 413,
+  E_LICENCE_UNPAID: 402,
   E_LICENCE_WEBHOOK_SIGNATURE: 400,
 }
 
@@ -69,6 +81,12 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     return code
   }
 
+  /**
+   * A live purchase, or a test-mode one under the test seed. A production seed never signs a
+   * test-mode purchase, however a sandbox Worker was configured (docs/licensing.md, Stripe).
+   */
+  const payable = (session: CheckoutSession): boolean => session.livemode || signer.kid === TEST_KID
+
   async function checkout(origin: string): Promise<Response> {
     const session = await stripe.createCheckoutSession(checkoutParams(config, origin))
     return new Response(null, { status: 303, headers: { Location: session.url } })
@@ -83,6 +101,7 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
       customerId: session.customer,
       paymentIntent: session.paymentIntent,
       at: instant(now()),
+      emailHash: session.email ? await rateKey('email', session.email.toLowerCase()) : null,
     })
     if (issued.created && issued.licence.revokedAt) {
       log(`E_LICENCE_REVOKED ${issued.licence.id} ${session.id}`)
@@ -122,10 +141,19 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
       [key],
       `issued/${purchase.sessionId}`,
     )
-    // /done and the webhook, or two deliveries of one event, can get here together: one sends.
-    if (!(await store.claimMail(purchase.sessionId, instant(now())))) return
+    // /done and the webhook, or two deliveries of one event, can get here together: one claims.
+    // A claim is not a send: a webhook that finds one in flight answers 500, so Stripe retries,
+    // and a claim whose sender is cut off can be taken again once the lease ends.
+    const at = instant(now())
+    const staleBefore = instant(new Date(now().getTime() - LIMITS.mailClaimSeconds * 1000))
+    if (!(await store.claimMail(purchase.sessionId, at, staleBefore))) {
+      const latest = await store.purchase(purchase.sessionId)
+      if (latest?.mailedAt) return
+      throw new LicenceError('E_LICENCE_MAIL', 'claim')
+    }
     try {
       await mailer.send(mail)
+      await store.sentMail(purchase.sessionId, at)
     } catch (error) {
       await store.releaseMail(purchase.sessionId)
       throw error
@@ -156,7 +184,16 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
           if (session?.mode !== 'payment' || session.paymentStatus !== 'paid') break
           // The account may sell other things: only this Worker's sessions issue a licence.
           if (!ours(session)) break
+          if (!payable(session)) {
+            log(`E_LICENCE_SESSION_UNKNOWN ${session.id}`)
+            break
+          }
           await mailOnce(await fulfil(session), session)
+          break
+        }
+        case 'checkout.session.async_payment_failed': {
+          const session = toSession(object)
+          if (session && ours(session)) log(`E_LICENCE_UNPAID ${session.id}`)
           break
         }
         case 'charge.refunded':
@@ -192,10 +229,19 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     if (!purchase) {
       // The buyer can arrive before the webhook: fulfil from the session itself.
       const fetched = await stripe.retrieveCheckoutSession(sessionId)
-      if (!fetched || fetched.mode !== 'payment' || !ours(fetched)) {
+      if (!fetched || fetched.mode !== 'payment' || !ours(fetched) || !payable(fetched)) {
         return errorPage('E_LICENCE_SESSION_UNKNOWN', 404)
       }
-      if (fetched.paymentStatus !== 'paid') return pendingPage(sessionId, pendingCheck(url))
+      if (fetched.paymentStatus !== 'paid') {
+        // A delayed payment that failed is not still coming: say so, not "check again".
+        const intent = fetched.paymentIntent
+          ? await stripe.retrievePaymentIntent(fetched.paymentIntent)
+          : null
+        if (intent && FAILED_PAYMENT.has(intent.status)) {
+          return errorPage('E_LICENCE_UNPAID', 402)
+        }
+        return pendingPage(sessionId, pendingCheck(url))
+      }
       session = fetched
       const fulfilled = await fulfil(fetched)
       deps.defer(mailOnce(fulfilled, fetched).catch((error: unknown) => fail(error, sessionId)))
@@ -228,21 +274,36 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     const form = new URLSearchParams(await readBody(request, LIMITS.formBytes))
     const email = (form.get('email') ?? '').trim()
     if (email.length > 254 || !EMAIL.test(email)) return errorPage('E_LICENCE_BAD_REQUEST', 400)
-    const window = Math.floor(now().getTime() / 1000 / LIMITS.resendWindowSeconds)
+    const seconds = Math.floor(now().getTime() / 1000)
+    const hour = Math.floor(seconds / LIMITS.resendWindowSeconds)
+    const day = Math.floor(seconds / 86400)
+    const lower = email.toLowerCase()
     const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown'
-    const [byAddress, byIp] = await Promise.all([
-      store.hit(await rateKey('address', email.toLowerCase()), window),
-      store.hit(await rateKey('ip', ip), window),
-    ])
-    if (byAddress <= LIMITS.resendPerAddress && byIp <= LIMITS.resendPerIp) {
-      deps.defer(
-        mailAll(
-          email,
-          `${await rateKey('address', email.toLowerCase())}/${byAddress}/${window}`,
-        ).catch((error: unknown) => fail(error)),
-      )
-    } else {
+    // The IP is counted first, and an address only when the IP is under its limit: an over-limit
+    // IP must not spend a buyer's allowance and lock them out of their own recovery.
+    const byIp = await store.hit(await rateKey('ip', ip), hour)
+    let allowed = byIp <= LIMITS.resendPerIp
+    let byAddress = 0
+    if (allowed) {
+      const [hourly, daily, everyone] = await Promise.all([
+        store.hit(await rateKey('address', lower), hour),
+        store.hit(await rateKey('address-day', lower), day),
+        store.hit('resend:all', day),
+      ])
+      byAddress = hourly
+      allowed =
+        hourly <= LIMITS.resendPerAddress &&
+        daily <= LIMITS.resendPerAddressPerDay &&
+        everyone <= LIMITS.resendAllPerDay
+    }
+    if (!allowed) {
       log('I_LICENCE_RESEND_LIMITED')
+    } else {
+      deps.defer(
+        mailAll(email, `${await rateKey('address', lower)}/${byAddress}/${hour}`).catch(
+          (error: unknown) => fail(error),
+        ),
+      )
     }
     // The same answer, at once, whatever the address bought: the lookup runs after it.
     return resentPage()
@@ -250,25 +311,30 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
 
   async function mailAll(email: string, attempt: string): Promise<void> {
     const lower = email.toLowerCase()
+    // The keyed hash finds the purchase whatever capitals Stripe stored; the customer lookup
+    // still serves purchases recorded before the hash was kept.
+    const hashed = await store.licencesOfEmail(await rateKey('email', lower))
     const found = await Promise.all(
       [...new Set([email, lower])].map((e) => stripe.customersByEmail(e)),
     )
     const customers = found.flat().filter((c) => c.email?.toLowerCase() === lower)
-    if (customers.length === 0) return
+    const licences = new Map(hashed.map((l) => [l.id, l]))
+    for (const customer of customers) {
+      for (const licence of await store.licencesOfCustomers([customer.id])) {
+        licences.set(licence.id, licence)
+      }
+    }
+    const live = [...licences.values()].filter((l) => !l.revokedAt)
+    if (live.length === 0) return
     const emails = new Map(customers.map((c) => [c.id, c.email ?? '']))
-    const licences = (await store.licencesOfCustomers([...emails.keys()])).filter(
-      (l) => !l.revokedAt,
-    )
-    if (licences.length === 0) return
     const keys = []
-    for (const licence of licences) {
+    for (const licence of live) {
       const owner =
-        emails.get(licence.customerId) ||
-        (await licensee(licence, undefined, async () => customers[0]?.email ?? null))
+        emails.get(licence.customerId) || (await licensee(licence, undefined, async () => email))
       keys.push(await keyFor(licence, owner))
     }
     await mailer.send(licenceMail(email, 'resend', keys, `resend/${attempt}`))
-    log(`I_LICENCE_RESENT ${licences.map((l) => l.id).join(' ')}`)
+    log(`I_LICENCE_RESENT ${live.map((l) => l.id).join(' ')}`)
   }
 
   async function revoked(): Promise<Response> {

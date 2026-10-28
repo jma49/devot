@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type RefObject } from 'react'
 import type { TagColor, TagRecord } from '../../core/storage'
-import { MAX_TAG_NAME_CHARS } from '../../core/tags'
+import { MAX_TAG_NAME_CHARS, sameName } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
 import { closingRef } from './closing'
 import type { MenuPoint } from './contextMenu'
@@ -52,7 +52,7 @@ export function tagRows(
     )
     .slice(0, MAX_SUGGESTIONS)
   const rows: TagRow[] = found.map((tag) => ({ kind: 'tag', tag }))
-  const exists = tags.some((tag) => tag.name.toLocaleLowerCase() === want)
+  const exists = tags.some((tag) => sameName(tag.name, text))
   if (!exists) rows.push({ kind: 'create', name: text })
   return rows
 }
@@ -72,6 +72,8 @@ export function TagEditor(props: {
   value: readonly string[]
   common?: readonly string[]
   onAdd: (name: string) => void
+  /** A tag picked from the suggestions, by ID: two tags may share a name. */
+  onPut?: (tagId: string) => void
   onRemove: (tagId: string) => void
   onChipMenu?: (tagId: string, at: MenuPoint) => void
   inputRef?: RefObject<HTMLInputElement | null>
@@ -83,6 +85,7 @@ export function TagEditor(props: {
   const [open, setOpen] = useState(false)
   const [chosenChip, setChosenChip] = useState<string>()
   const [added, setAdded] = useState<string>()
+  const [announced, setAnnounced] = useState('')
   const ownField = useRef<HTMLInputElement>(null)
   const field = props.inputRef ?? ownField
   const listId = useId()
@@ -105,8 +108,15 @@ export function TagEditor(props: {
     if (!trimWhitespace(name)) return
     const key = trimWhitespace(name).toLowerCase()
     if (!onNote.some((tag) => tag.name.toLowerCase() === key)) setAdded(key)
-    props.onAdd(name)
+    if (row?.kind === 'tag' && props.onPut) props.onPut(row.tag.id)
+    else props.onAdd(name)
     close()
+  }
+  const choose = (tag: TagRecord | undefined) => {
+    setChosenChip(tag?.id)
+    // A live region speaks only a change: the message goes with the choice, so
+    // choosing the same chip again after leaving it is announced again.
+    setAnnounced(tag ? format(t('note.tagChosen'), { name: tag.name }) : '')
   }
   const optionId = (i: number) => `${listId}-${i}`
   return (
@@ -115,6 +125,7 @@ export function TagEditor(props: {
         <span
           key={tag.id}
           className={chipClass(tag.color)}
+          dir="auto"
           data-selected={chosenChip === tag.id || undefined}
           data-added={tag.name.toLowerCase() === added || undefined}
           onAnimationEnd={(e) => {
@@ -184,6 +195,7 @@ export function TagEditor(props: {
               e.preventDefault()
               e.stopPropagation()
               setChosenChip(undefined)
+              setAnnounced('')
               return close()
             }
             if (draft !== '' || several || onNote.length === 0) return
@@ -194,17 +206,18 @@ export function TagEditor(props: {
               const chosen = onNote[at]
               if (chosen) {
                 setChosenChip(undefined)
+                setAnnounced(format(t('note.tagRemoved'), { name: chosen.name }))
                 return props.onRemove(chosen.id)
               }
-              return setChosenChip(onNote.at(-1)?.id)
+              return choose(onNote.at(-1))
             }
             if (e.key === 'ArrowLeft') {
               e.preventDefault()
-              return setChosenChip(onNote[at < 0 ? onNote.length - 1 : Math.max(0, at - 1)]?.id)
+              return choose(onNote[at < 0 ? onNote.length - 1 : Math.max(0, at - 1)])
             }
             if (e.key === 'ArrowRight' && at >= 0) {
               e.preventDefault()
-              return setChosenChip(onNote[at + 1]?.id)
+              return choose(onNote[at + 1])
             }
           }}
         />
@@ -240,6 +253,9 @@ export function TagEditor(props: {
           </ul>
         ) : null}
       </span>
+      <p className="visually-hidden" role="status" aria-live="polite">
+        {announced}
+      </p>
     </div>
   )
 }

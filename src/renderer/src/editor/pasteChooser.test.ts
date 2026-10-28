@@ -1,5 +1,6 @@
 import { history, redo, undo } from '@codemirror/commands'
 import { EditorSelection, EditorState, type Transaction } from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
 import { describe, expect, it, vi } from 'vitest'
 import { noteMarkdown } from './markdown'
 import { pasteTransaction, pasteUrlAs } from './paste'
@@ -30,11 +31,18 @@ function editor(marked: string, fetcher: PasteFetcher | null = null) {
       pasteChooser(fetcher),
     ],
   })
-  const target: ChooserTarget & { show(): string; paste(text: string): boolean } = {
+  const said: string[] = []
+  const target: ChooserTarget & {
+    said: string[]
+    show(): string
+    paste(text: string): boolean
+  } = {
+    said,
     get state() {
       return state
     },
     dispatch(tr: Transaction) {
+      for (const e of tr.effects) if (e.is(EditorView.announce)) said.push(e.value)
       state = tr.state
     },
     show() {
@@ -188,16 +196,25 @@ describe('the paste chooser', () => {
     expect(warn).toHaveBeenCalledWith('W_PASTE_FETCH_FAILED', 'E_LINK_NOT_HTML')
     pickFormat(ed, 'title')
     expect(ed.show()).toBe(`${URL}|`)
+    // Picked, it shows its error in the URL's place until Esc, an edit or a caret move.
+    expect(chooserOf(ed.state)?.picked).toBe('title')
+    expect(ed.said).toEqual(['Could not get the page title: the page is not HTML.'])
+    ed.dispatch(ed.state.update({ selection: EditorSelection.cursor(0) }))
     expect(chooserOf(ed.state)).toBeNull()
     warn.mockRestore()
   })
 
-  it('reads a page without a title as an error', async () => {
+  it('says why a picked format’s fetch failed, keeping the URL', async () => {
     const ed = editor('|', { title: async () => null, snippet: vi.fn<PasteFetcher['snippet']>() })
     ed.paste(URL)
     pickFormat(ed, 'title')
     await settle()
     expect(ed.show()).toBe(`${URL}|`)
+    expect(chooserOf(ed.state)).toMatchObject({
+      picked: 'title',
+      fetches: new Map([['title', { status: 'error', message: 'pasteFormat.noTitle' }]]),
+    })
+    expect(ed.said).toEqual(['This page has no title.'])
   })
 
   it('drops a fetch that ends after the chooser closed', async () => {

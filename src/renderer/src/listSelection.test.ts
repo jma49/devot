@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  keyTarget,
   openAfter,
   selectAll,
   selectRange,
@@ -79,5 +80,14 @@ describe('the note list selection', () => {
 
   it('keeps the selection in list order', () => {
     expect(selectToggle(sel(['b', 'd'], 'd'), 'b', 'c', order).ids).toEqual(['b', 'c', 'd'])
+  })
+
+  it('aims a key at the selection when a Cmd-click took the open note out of it', () => {
+    // The open note is still a until its opening resolves; the selection is b and c.
+    expect(keyTarget(sel(['b', 'c'], 'b'), 'a', 'a')).toBe('b')
+    expect(keyTarget(sel(['b', 'c'], 'b'), 'c', 'c')).toBe('c')
+    // No selection: the focused row.
+    expect(keyTarget(undefined, 'a', 'c')).toBe('c')
+    expect(keyTarget(sel(['b', 'c'], 'b'), undefined, 'c')).toBe('b')
   })
 })

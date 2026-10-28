@@ -884,6 +884,48 @@ describe('the folder going away', () => {
   })
 })
 
+describe('a move whose new text cannot be written', () => {
+  it('leaves the file listed where it went, and the next pass writes it there', async (context) => {
+    if (process.getuid?.() === 0) context.skip('root ignores permissions')
+    const lib = await sample()
+    await mirrorOn(lib)
+    const work = join(lib.root, 'Work')
+    lib.host.afterMove = () => chmodSync(work, 0o555)
+    try {
+      await lib.notes.setTitle(lib.ids.inbox, 'Inbox 2026')
+      await lib.settled()
+    } finally {
+      chmodSync(work, 0o755)
+    }
+    expect(lib.errors).toContain('E_MIRROR_WRITE_FAILED')
+    expect(lib.host.manifest().notes[lib.ids.inbox]?.path).toBe('Work/Inbox 2026.md')
+    lib.runner.touch()
+    await lib.settled()
+    expect(walk(lib.root).filter((p) => p.startsWith('Work/Inbox'))).toEqual(['Work/Inbox 2026.md'])
+    expect(read(lib, 'Work/Inbox 2026.md')).toContain("title: 'Inbox 2026'")
+  })
+
+  it('a move cut short before the manifest was saved is finished where the file went', async () => {
+    const lib = await sample()
+    await mirrorOn(lib)
+    const manifest = readFileSync(join(lib.root, MANIFEST))
+    const before = readFileSync(join(lib.root, 'Work/Inbox.md'))
+    await lib.notes.setTitle(lib.ids.inbox, 'Inbox 2026')
+    await lib.settled()
+    lib.runner.stop()
+    // The process ended after the move, before the rewrite and the manifest listing it.
+    writeFileSync(join(lib.root, 'Work/Inbox 2026.md'), before)
+    writeFileSync(join(lib.root, MANIFEST), manifest)
+    lib.host.setFolder(lib.root)
+    lib.runner.reconcile()
+    await lib.settled()
+    expect(lib.errors).toEqual([])
+    expect(walk(lib.root).filter((p) => p.startsWith('Work/Inbox'))).toEqual(['Work/Inbox 2026.md'])
+    expect(read(lib, 'Work/Inbox 2026.md')).toContain("title: 'Inbox 2026'")
+    expect(lib.host.manifest().notes[lib.ids.inbox]?.path).toBe('Work/Inbox 2026.md')
+  })
+})
+
 async function importFolder(lib: Library, root: string, name: string) {
   const files = walk(root).filter((p) => p.endsWith('.md'))
   const scan: ImportScan = {

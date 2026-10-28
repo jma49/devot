@@ -7,7 +7,14 @@ import { EditorSelection, Facet, type EditorState, type TransactionSpec } from '
 import { EditorView } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import type { PasteUrlStyle } from '../../../core/editorSettings'
-import { context, inFrontMatter, LITERAL_BLOCKS, nodeAt, type Cx } from './formatContext'
+import {
+  containerEnd,
+  context,
+  inFrontMatter,
+  LITERAL_BLOCKS,
+  nodeAt,
+  type Cx,
+} from './formatContext'
 import { escapeBangBefore, linkAddress, linkTo } from './formats'
 import { chooserOn, chooserPaste, showChooser } from './pasteChooser'
 
@@ -96,7 +103,7 @@ export function pasteTransaction(
   style: PasteUrlStyle,
 ): TransactionSpec | null {
   const url = pastedUrl(text)
-  if (url === null) return null
+  if (url === null) return containedPaste(state, text)
   return state.selection.ranges.some((r) => !r.empty)
     ? linkTo(state, url)
     : urlAtCursors(state, url, style)
@@ -104,7 +111,99 @@ export function pasteTransaction(
 
 export function plainPaste(state: EditorState, text: string): TransactionSpec | null {
   if (text === '') return null
-  return { ...state.replaceSelection(text), userEvent: PASTE_EVENT, scrollIntoView: true }
+  return (
+    containedPaste(state, text) ?? {
+      ...state.replaceSelection(text),
+      userEvent: PASTE_EVENT,
+      scrollIntoView: true,
+    }
+  )
+}
+
+function itemTextColumn(state: EditorState, item: SyntaxNode): number {
+  const line = state.doc.lineAt(item.from)
+  const mark = item.getChild('ListMark')
+  if (!mark) return item.from - line.from
+  const end = mark.to - line.from
+  let spaces = 0
+  while (line.text.charAt(end + spaces) === ' ') spaces++
+  // CommonMark: one space when the item is empty or its text is indented code.
+  return end + (spaces === 0 || spaces > 4 || end + spaces === line.length ? 1 : spaces)
+}
+
+/**
+ * What keeps a line in the quotes and list items that the line at `pos` is
+ * in: their quote markers, and spaces up to the item's text. Null at the top
+ * level, or where the line does not carry that prefix itself (a lazy line).
+ */
+function containerPrefix(cx: Cx, pos: number): { prefix: string; code: boolean } | null {
+  const line = cx.state.doc.lineAt(pos)
+  let column = 0
+  let code = false
+  for (let p: SyntaxNode | null = cx.tree.resolveInner(pos, -1); p; p = p.parent) {
+    if (p.name === 'FencedCode') code = true
+    else if (p.name === 'ListItem') column = Math.max(column, itemTextColumn(cx.state, p))
+  }
+  // A line's quote markers may sit in the block they hold (fenced code), not in the quote.
+  cx.tree.iterate({
+    from: line.from,
+    to: pos,
+    enter(node) {
+      if (node.name !== 'QuoteMark' || node.to > pos) return
+      const end = node.to - line.from
+      column = Math.max(column, end + (line.text.charAt(end) === ' ' ? 1 : 0))
+    },
+  })
+  if (column === 0 || pos - line.from < column || containerEnd(cx, line) < column) return null
+  return { prefix: line.text.slice(0, column).replace(/[^>\t]/g, ' '), code }
+}
+
+/**
+ * A pasted line that starts a block of its own: it cannot continue a paragraph
+ * lazily, so at the container's column it would end the list item or quote.
+ */
+const BLOCK_START =
+  /^ {0,3}(?:[-*+](?:\s|$)|\d{1,9}[.)](?:\s|$)|#{1,6}(?:\s|$)|>|`{3,}|~{3,}|<|\||[-*_](?:\s*[-*_]){2,}\s*$)/
+/** A fence opens a code block, whose lines are not lazy continuations either. */
+const FENCE = /^ {0,3}(?:`{3,}|~{3,})/
+
+/**
+ * Pasted lines that would otherwise leave the list item or quote they go
+ * into, and end it: every line of a code block after the first, in other text
+ * the lines from a blank one on, and any line that starts a block. They get
+ * the container's prefix. Null, for the usual paste, when no line needs it or
+ * there are several ranges.
+ */
+function containedPaste(state: EditorState, text: string): TransactionSpec | null {
+  const lines = text.split(/\r\n?|\n/)
+  if (lines.length < 2 || state.selection.ranges.length > 1) return null
+  const cx = context(state)
+  const { from, to } = state.selection.main
+  const container = cx && containerPrefix(cx, from)
+  if (!container) return null
+  const { prefix, code } = container
+  let inside = code
+  let changed = false
+  const last = lines.length - 1
+  const insert = lines
+    .map((line, i) => {
+      if (i === 0) return line
+      const blank = line.trim() === ''
+      if (blank || FENCE.test(line)) inside = true
+      if (!inside && !BLOCK_START.test(line)) return line
+      changed = true
+      // The last part is the rest of the caret line, which keeps the full prefix so the text after it stays in.
+      if (i === last) return prefix + line
+      return blank ? prefix.trimEnd() : prefix + line
+    })
+    .join('\n')
+  if (!changed) return null
+  return {
+    changes: { from, to, insert },
+    selection: EditorSelection.cursor(from + insert.length),
+    userEvent: PASTE_EVENT,
+    scrollIntoView: true,
+  }
 }
 
 export const pasteUrls = EditorView.domEventHandlers({

@@ -116,6 +116,7 @@ pub fn run() {
             commands::activity::activity_list,
             commands::activity::activity_notes_list,
             commands::authorship::agent_writes_list,
+            commands::authorship::agent_writes_authored,
             commands::authorship::agent_writes_seen,
             commands::files::file_put,
             commands::files::files_copy,
@@ -172,6 +173,7 @@ pub fn run() {
             backups::backups_list,
             backups::backup_now,
             backups::backup_restore,
+            backups::backup_restore_ready,
             import::import_read,
             import::import_attach,
             import::import_finish,
@@ -206,6 +208,8 @@ pub fn run() {
             menu::command_menu_set,
             #[cfg(desktop)]
             menu_bar::quick_capture_save,
+            #[cfg(desktop)]
+            menu_bar::quick_capture_claim,
             #[cfg(desktop)]
             menu_bar::quick_capture_done,
             #[cfg(desktop)]

@@ -76,11 +76,22 @@ describe('the Stripe client', () => {
       url: null,
       mode: 'payment',
       paymentStatus: 'paid',
+      livemode: false,
       customer: 'cus_1',
       paymentIntent: 'pi_1',
       email: 'buyer@example.com',
       metadata: { kind: 'licence', note: 'abc' },
     })
+  })
+
+  it('reads a PaymentIntent status', async () => {
+    const { calls, fetcher } = fakeFetch(() =>
+      json({ object: 'payment_intent', id: 'pi_1', status: 'requires_payment_method' }),
+    )
+    expect(await stripeClient('rk', fetcher).retrievePaymentIntent('pi_1')).toEqual({
+      status: 'requires_payment_method',
+    })
+    expect(calls[0]?.url).toBe('https://api.stripe.com/v1/payment_intents/pi_1')
   })
 
   it('lists customers by email in the query and drops deleted ones', async () => {

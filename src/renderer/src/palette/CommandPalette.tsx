@@ -376,6 +376,7 @@ export function CommandPalette(props: {
                   )}
                   <span
                     className={`palette-label${r.kind === 'command' ? ' palette-command' : ''}${r.done ? ' palette-done' : ''}`}
+                    dir="auto"
                   >
                     <Marked text={r.label} ranges={r.ranges} />
                     {r.description ? (

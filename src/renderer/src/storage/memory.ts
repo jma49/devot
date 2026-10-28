@@ -411,17 +411,33 @@ export const memoryStorage: StorageAdapter = {
         .map((n) => n.id),
     )
     const key = (w: AgentWriteSummary) => `${w.noteId} ${w.writeId}`
-    return read<AgentWriteSummary>(AGENT_WRITES)
+    const sorted = read<AgentWriteSummary>(AGENT_WRITES)
       .filter((w) => live.has(w.noteId))
       .sort((a, b) => b.at - a.at || (key(a) < key(b) ? -1 : 1))
-      .slice(0, limit)
+    // As in SQL: the newest `limit`, and every unseen row older than those.
+    const newest = new Set(sorted.slice(0, limit).map(key))
+    return sorted.filter((w) => !w.seen || newest.has(key(w)))
+  },
+  async authoredNotes() {
+    const live = new Set(
+      read<Stored>(NOTES)
+        .filter((n) => n.deletedAt === null && n.purgedAt === undefined)
+        .map((n) => n.id),
+    )
+    return [...new Set(read<AgentWriteSummary>(AGENT_WRITES).map((w) => w.noteId))].filter((id) =>
+      live.has(id),
+    )
   },
   async markAgentWritesSeen(noteId, writeIds) {
     const ids = new Set(writeIds)
-    const rows = read<AgentWriteSummary>(AGENT_WRITES).map((w) =>
-      w.noteId === noteId && ids.has(w.writeId) ? { ...w, seen: true } : w,
-    )
+    let changed = 0
+    const rows = read<AgentWriteSummary>(AGENT_WRITES).map((w) => {
+      if (w.noteId !== noteId || !ids.has(w.writeId) || w.seen) return w
+      changed += 1
+      return { ...w, seen: true }
+    })
     localStorage.setItem(AGENT_WRITES, JSON.stringify(rows))
+    return changed
   },
   async listBooks() {
     return (

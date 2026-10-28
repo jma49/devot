@@ -134,3 +134,50 @@ test('a note or notebook dropped on the title field does not insert text', async
   expect(dropped).toBe(true)
   await expect(title).toHaveValue('Keep')
 })
+
+test('a dragged selection names untitled notes outside the rendered rows by their headline', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.evaluate(() => {
+    const start = Date.now() - 60_000
+    const notes = Array.from({ length: 300 }, (_, i) => ({
+      id: `0192a6f0-0000-7000-8000-${String(i + 1).padStart(12, '0')}`,
+      title: '',
+      titleHlc: '',
+      bodyMd: `Headline ${i + 1}`,
+      ydoc: [0, 0],
+      bookId: null,
+      bookHlc: '',
+      status: 'none',
+      statusHlc: '',
+      pinned: false,
+      pinnedHlc: '',
+      createdAt: start - i * 60_000,
+      updatedAt: start - i * 60_000,
+      deletedAt: null,
+      deletedHlc: null,
+    }))
+    localStorage.clear()
+    localStorage.setItem('devot.test.notes', JSON.stringify(notes))
+  })
+  await page.reload()
+  await expect(noteRows(page).first()).toBeVisible()
+  // A note other than the first is open: the open note's body is in memory, not read for a headline.
+  await noteRows(page).nth(1).click()
+  await page.keyboard.press('Meta+a')
+  await expect(page.getByRole('region', { name: 'Selected Notes' })).toContainText(
+    '300 Notes Selected',
+  )
+  const data = await dragStart(noteRows(page).first())
+  expect(data.plain).toContain('[Headline 1](')
+  expect(data.plain).toContain('[Headline 300](')
+  expect(data.plain).not.toContain('[Untitled]')
+
+  await page.getByRole('group', { name: 'Layout' }).getByRole('button', { name: 'Board' }).click()
+  const cards = page.locator('.board').getByRole('option')
+  await expect(cards.first()).toContainText('Headline 1')
+  const board = await dragStart(cards.first())
+  expect(board.plain).toContain('[Headline 1](')
+  expect(board.plain).toContain('[Headline 300](')
+})

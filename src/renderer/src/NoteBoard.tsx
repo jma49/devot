@@ -17,7 +17,15 @@ import {
 import type { NoteSummary, TagRecord } from '../../core'
 import type { NoteStatus } from '../../core/storage'
 import type { ListDatesStyle } from '../../core/editorSettings'
-import { boardColumns, boardOrder, cardStep, columnWindow, type BoardColumn } from './board'
+import {
+  boardColumns,
+  boardJump,
+  boardOrder,
+  cardStep,
+  columnJump,
+  columnWindow,
+  type BoardColumn,
+} from './board'
 import { keyMatches } from './commands/keys'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import type { MenuPoint } from './contextMenu'
@@ -31,6 +39,7 @@ import { dragCardLines, setDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
 import { ListHeader } from './ListHeader'
 import {
+  keyTarget,
   selectAll,
   selectRange,
   selectStep,
@@ -68,7 +77,7 @@ interface Props {
   opening?: string | undefined
   onSelect: (id: string) => void
   onAction?: (action: NoteAction, id: string) => void
-  onMenu?: (id: string) => void
+  onMenu?: (id: string, at?: MenuPoint) => void
   onFind?: () => void
   onEdit?: (part: 'title' | 'body', id: string) => void
   selection: ListSelection | undefined
@@ -82,6 +91,8 @@ interface Props {
   onRedo?: (() => void) | undefined
   /** What the board says when the view has no notes. */
   empty?: ListEmptyKind | undefined
+  /** Whether notes can be made and changed; an empty board says it is read-only when they cannot. */
+  editing?: boolean
 }
 
 /** Boards with more cards than this render only the cards near the part of each column that shows (`columnWindow`), like a long list. */
@@ -171,7 +182,19 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       }),
     [columns, windows],
   )
-  const headlines = useHeadlines(props.headlines, rendered)
+  // The cards that show, and the selected notes: a drag of the selection names
+  // notes whose cards are outside the rendered part too.
+  const headlineCards = useMemo(() => {
+    if (!selection) return rendered
+    const seen = new Set(rendered.map((n) => n.id))
+    const more = selection.ids.flatMap((id) => {
+      if (seen.has(id)) return []
+      const note = byId.get(id)
+      return note ? [note] : []
+    })
+    return more.length > 0 ? [...rendered, ...more] : rendered
+  }, [rendered, selection, byId])
+  const headlines = useHeadlines(props.headlines, headlineCards)
   const now = useNow()
   const locale = currentLocale()
   const dates = useEditorSetting('listDates')
@@ -345,9 +368,10 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       if (selected !== undefined) focusCard(selected)
       return true
     }
-    const by = commandMatches('list.extendDown', event)
+    // A held Shift+Down keeps extending the selection, as the key repeats.
+    const by = commandMatches('list.extendDown', event, true)
       ? 1
-      : commandMatches('list.extendUp', event)
+      : commandMatches('list.extendUp', event, true)
         ? -1
         : 0
     if (!by) return false
@@ -375,6 +399,12 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       return
     }
     if (selectionKey(event) || undoKey(event)) return
+    const target = keyTarget(selection, selected, id) ?? id
+    if (props.onMenu && commandMatches('list.rowMenu', event)) {
+      event.preventDefault()
+      const box = cards.current.get(id)?.getBoundingClientRect()
+      return props.onMenu(target, box ? { x: box.left, y: box.bottom } : undefined)
+    }
     const by = commandMatches('status.next', event)
       ? 1
       : commandMatches('status.previous', event)
@@ -385,7 +415,6 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       if (!event.repeat) props.onStep?.(idsFor(id), by)
       return
     }
-    const target = chosen ? (selected ?? id) : id
     const action = props.onAction ? noteShortcut(event) : undefined
     if (action) {
       event.preventDefault()
@@ -404,6 +433,13 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       event.preventDefault()
       return props.onEdit(part, target)
     }
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+      const jumped = boardJump(columns, id, event.key)
+      if (jumped !== undefined) {
+        event.preventDefault()
+        return open(jumped)
+      }
+    }
     const direction = ARROWS[event.key]
     if (!direction || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
     event.preventDefault()
@@ -420,7 +456,19 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       return props.onFind()
     }
     const first = order[0]
-    if (!ARROWS[event.key] || first === undefined) return
+    if (first === undefined) return
+    const status = event.currentTarget.dataset['status'] as NoteStatus | undefined
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+      const jumped =
+        status === undefined
+          ? boardJump(columns, first, event.key)
+          : columnJump(columns, status, event.key)
+      if (jumped !== undefined) {
+        event.preventDefault()
+        return open(jumped)
+      }
+    }
+    if (!ARROWS[event.key]) return
     event.preventDefault()
     open(first)
   }
@@ -551,7 +599,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
   }
   const emptyText =
     props.empty && notes.length === 0
-      ? listEmpty(props.empty)
+      ? listEmpty(props.empty, props.editing)
       : notes.length > 0 && order.length === 0
         ? DROPPED_HIDDEN
         : undefined
@@ -690,7 +738,7 @@ const BoardCard = memo(function BoardCard(props: CardProps) {
       onKeyDown={(e) => events.keyDown(id, e)}
       onContextMenu={props.menu ? (e) => events.contextMenu(id, e) : undefined}
     >
-      <span className={n.title ? 'card-title' : 'card-title card-headline'}>
+      <span className={n.title ? 'card-title' : 'card-title card-headline'} dir="auto">
         {n.title || props.headline || t('note.untitled')}
       </span>
       <span className="card-meta">

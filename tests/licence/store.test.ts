@@ -40,7 +40,7 @@ it('keeps no email address or key', async () => {
     )
     .all<{ name: string }>()
   expect(
-    results.map((r) => r.name).filter((name) => /mail(?!ed_at)|key|licensee/.test(name)),
+    results.map((r) => r.name).filter((name) => /mail(?!ed_at|_hash)|key|licensee/.test(name)),
   ).toEqual([])
 })
 
@@ -62,6 +62,8 @@ it('issues a licence once per session', async () => {
     customerId: 'cus_1',
     createdAt: '2026-10-24T09:30:00Z',
     mailedAt: null,
+    claimedAt: null,
+    emailHash: null,
   })
   const again = await store.issue({ ...first, licenceId: id(), at: '2026-10-24T10:00:00Z' })
   expect(again.created).toBe(false)
@@ -95,18 +97,48 @@ it('finds the licences of the customers asked for, oldest first', async () => {
   expect(await store.licencesOfCustomers([])).toEqual([])
 })
 
-it("claims a purchase's mail once, until the claim is released", async () => {
+it("claims a purchase's mail once, until the claim is released or it goes stale", async () => {
   const bought = purchase()
   await store.issue(bought)
   expect((await store.purchase(bought.sessionId))?.mailedAt).toBeNull()
-  expect(await store.claimMail(bought.sessionId, '2026-10-24T09:31:00Z')).toBe(true)
-  expect(await store.claimMail(bought.sessionId, '2026-10-24T09:32:00Z')).toBe(false)
-  expect((await store.purchase(bought.sessionId))?.mailedAt).toBe('2026-10-24T09:31:00Z')
-  await store.releaseMail(bought.sessionId)
+  expect(
+    await store.claimMail(bought.sessionId, '2026-10-24T09:31:00Z', '2026-10-24T09:30:00Z'),
+  ).toBe(true)
+  // Another sender's live claim is not taken; one older than the lease is.
+  expect(
+    await store.claimMail(bought.sessionId, '2026-10-24T09:31:30Z', '2026-10-24T09:30:30Z'),
+  ).toBe(false)
+  expect((await store.purchase(bought.sessionId))?.claimedAt).toBe('2026-10-24T09:31:00Z')
   expect((await store.purchase(bought.sessionId))?.mailedAt).toBeNull()
-  expect(await store.claimMail(bought.sessionId, '2026-10-24T09:33:00Z')).toBe(true)
-  expect(await store.claimMail('cs_none', '2026-10-24T09:33:00Z')).toBe(false)
+  expect(
+    await store.claimMail(bought.sessionId, '2026-10-24T09:33:00Z', '2026-10-24T09:32:00Z'),
+  ).toBe(true)
+  // A claim is not a send: only sentMail marks the mail.
+  await store.releaseMail(bought.sessionId)
+  expect((await store.purchase(bought.sessionId))?.claimedAt).toBeNull()
+  expect((await store.purchase(bought.sessionId))?.mailedAt).toBeNull()
+  expect(
+    await store.claimMail(bought.sessionId, '2026-10-24T09:34:00Z', '2026-10-24T09:33:00Z'),
+  ).toBe(true)
+  await store.sentMail(bought.sessionId, '2026-10-24T09:34:00Z')
+  expect((await store.purchase(bought.sessionId))?.mailedAt).toBe('2026-10-24T09:34:00Z')
+  expect((await store.purchase(bought.sessionId))?.claimedAt).toBeNull()
+  expect(
+    await store.claimMail(bought.sessionId, '2026-10-24T09:35:00Z', '2026-10-24T09:34:00Z'),
+  ).toBe(false)
+  expect(await store.claimMail('cs_none', '2026-10-24T09:33:00Z', '2026-10-24T09:32:00Z')).toBe(
+    false,
+  )
   expect(await store.purchase('cs_none')).toBeNull()
+})
+
+it('finds the licences bought with an address hash', async () => {
+  const b = (await store.issue(purchase({ at: '2026-02-01T00:00:00Z', emailHash: 'e_b' }))).licence
+  const a = (await store.issue(purchase({ at: '2026-01-01T00:00:00Z', emailHash: 'e_a' }))).licence
+  await store.issue(purchase({ emailHash: 'e_other' }))
+  expect((await store.licencesOfEmail('e_a')).map((l) => l.id)).toEqual([a.id])
+  expect((await store.licencesOfEmail('e_b')).map((l) => l.id)).toEqual([b.id])
+  expect(await store.licencesOfEmail('e_none')).toEqual([])
 })
 
 it('issues a licence revoked when its payment was refunded before the purchase was recorded', async () => {
@@ -141,6 +173,8 @@ it('has the columns the store reads and writes, and none for an update window', 
     'customer_id',
     'created_at',
     'mailed_at',
+    'claimed_at',
+    'email_hash',
   ])
 })
 
@@ -172,12 +206,20 @@ it('migrates a database made by the first migration, keeping its rows', async ()
   }
 })
 
-it('counts hits per key and window and forgets old windows', async () => {
+it("counts hits per key and window and forgets only that key's old windows", async () => {
   expect(await store.hit('ip:a', 10)).toBe(1)
   expect(await store.hit('ip:a', 10)).toBe(2)
   expect(await store.hit('ip:b', 10)).toBe(1)
-  expect(await store.hit('ip:a', 11)).toBe(1)
+  // A newer window for one key starts its count again and drops only its own older row: another
+  // key's row belongs to another scale (an hour, a day) and must stay.
+  expect(await store.hit('ip:a', 24)).toBe(1)
   await store.hit('ip:c', 13)
-  const { results } = await db.prepare('SELECT key FROM rate_limits ORDER BY key').all()
-  expect(results).toEqual([{ key: 'ip:c' }])
+  const { results } = await db
+    .prepare('SELECT key, window, count FROM rate_limits ORDER BY key')
+    .all()
+  expect(results).toEqual([
+    { key: 'ip:a', window: 24, count: 1 },
+    { key: 'ip:b', window: 10, count: 1 },
+    { key: 'ip:c', window: 13, count: 1 },
+  ])
 })

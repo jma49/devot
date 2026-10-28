@@ -96,7 +96,12 @@ pub fn command_for(menu_id: &str) -> Option<&'static str> {
         .map(|item| item.command)
 }
 
-pub struct FormatMenu(Vec<(&'static str, MenuItem<Wry>)>);
+pub struct FormatMenu {
+    items: Vec<(&'static str, MenuItem<Wry>)>,
+    /// The window that turned the menu on. Held across a whole update, so two windows' updates
+    /// (each item a trip to the main thread) never interleave.
+    owner: tokio::sync::Mutex<Option<String>>,
+}
 
 pub fn build(app: &App) -> tauri::Result<(Submenu<Wry>, FormatMenu)> {
     let mut built = Vec::new();
@@ -121,7 +126,13 @@ pub fn build(app: &App) -> tauri::Result<(Submenu<Wry>, FormatMenu)> {
             }
         };
     }
-    Ok((menu.build()?, FormatMenu(built)))
+    Ok((
+        menu.build()?,
+        FormatMenu {
+            items: built,
+            owner: tokio::sync::Mutex::new(None),
+        },
+    ))
 }
 
 pub fn on_menu_event(app: &AppHandle, menu_id: &str) -> bool {
@@ -240,21 +251,36 @@ pub fn plan(
         .collect())
 }
 
+/// Whether a window's update applies: turning the menu off only from the window that turned it on
+/// (or once that one is gone), since the blur of the window left can land after the focus of the
+/// window entered.
+fn applies(owner: Option<&str>, caller: &str, enabled: bool, alive: impl Fn(&str) -> bool) -> bool {
+    enabled || owner.is_none_or(|owner| owner == caller || !alive(owner))
+}
+
 #[tauri::command]
 pub async fn format_menu_set(
     app: AppHandle,
+    window: tauri::WebviewWindow,
     menu: State<'_, FormatMenu>,
     enabled: bool,
     keys: HashMap<String, String>,
 ) -> Result<(), String> {
     let plan = plan(&keys).map_err(String::from)?;
+    let mut owner = menu.owner.lock().await;
+    if !applies(owner.as_deref(), window.label(), enabled, |label| {
+        tauri::Manager::get_webview_window(&app, label).is_some()
+    }) {
+        return Ok(());
+    }
+    *owner = enabled.then(|| window.label().to_owned());
     // Every item is updated even when one fails, so the menu is never left
     // half on: a key left behind would shadow the window's own. Setting no
     // accelerator leaves an item's old key in place, so every key comes off
     // first and only the planned ones go back on.
     let mut failed = !clear_keys(&app).await;
     for (command, accelerator) in plan {
-        let Some((_, item)) = menu.0.iter().find(|(c, _)| *c == command) else {
+        let Some((_, item)) = menu.items.iter().find(|(c, _)| *c == command) else {
             continue;
         };
         failed |= item.set_enabled(enabled).is_err();
@@ -292,6 +318,17 @@ mod tests {
     fn default_keys() -> HashMap<String, String> {
         serde_json::from_str(include_str!("../tests/fixtures/format-menu-keys.json"))
             .expect("a JSON object of strings")
+    }
+
+    #[test]
+    fn a_window_turns_the_menu_off_only_while_it_holds_it() {
+        let alive = |_: &str| true;
+        // The blur of the window left lands after the focus of the window entered.
+        assert!(!applies(Some("main"), "main-2", false, alive));
+        assert!(applies(Some("main"), "main", false, alive));
+        assert!(applies(Some("main"), "main-2", true, alive));
+        assert!(applies(None, "main-2", false, alive));
+        assert!(applies(Some("main"), "main-2", false, |label| label != "main"));
     }
 
     #[test]

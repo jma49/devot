@@ -1,5 +1,11 @@
 import type { Page } from '@playwright/test'
-import { clipboardWrites, expect, test, type TestWindow } from './fixtures'
+import {
+  changeEditorSettingsElsewhere,
+  clipboardWrites,
+  expect,
+  test,
+  type TestWindow,
+} from './fixtures'
 
 // The preview's code blocks show a header and highlighting; task boxes tick the task in the note;
 // front matter shows as properties.
@@ -101,4 +107,78 @@ test('front matter shows as properties', async ({ page }) => {
   const props = preview(page).locator('dl.frontmatter')
   await expect(props.locator('dt')).toHaveText(['author', 'tags'])
   await expect(props.locator('.frontmatter-chip')).toHaveText(['work', 'q4'])
+})
+
+// A whole-line selection reaches the code box's outer edges, the same on both sides, so the tint
+// wraps the box. The active line's tint goes on the box, which stops at its rounded edges, and a
+// selection takes the fill instead.
+test('a selection is centred in a code block, and the active line keeps to its box', async ({
+  page,
+}) => {
+  await changeEditorSettingsElsewhere(page, { highlightActiveLine: true })
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
+  await page.getByRole('textbox', { name: 'Title' }).fill('Blocks')
+  await body(page).click()
+  await page.keyboard.insertText('intro\n```py\n#\nclass Solution:\n    ')
+  await page.keyboard.press('ControlOrMeta+a')
+
+  const first = page.locator('.cm-codeblock-first')
+  const line = (await first.boundingBox())!
+  // The box sits in from the line by the shared padding, on the text column.
+  const hang = await first.evaluate((el) => {
+    const view = globalThis as unknown as {
+      getComputedStyle(e: unknown, pseudo?: string): Record<string, string>
+    }
+    return parseFloat(view.getComputedStyle(el, '::before').left ?? '0')
+  })
+  const boxLeft = line.x + hang
+  const boxRight = line.x + line.width - hang
+
+  const gaps = () =>
+    page.locator('.cm-selectionBackground').evaluateAll((els) =>
+      els.map((el) => {
+        const r = (
+          el as unknown as {
+            getBoundingClientRect(): { left: number; width: number; height: number }
+          }
+        ).getBoundingClientRect()
+        return { left: r.left, width: r.width, height: r.height }
+      }),
+    )
+  // The tallest rectangle covers the whole lines between the selection's ends.
+  await expect
+    .poll(async () => {
+      const rects = await gaps()
+      const full = rects.reduce((a, b) => (b.height > a.height ? b : a))
+      const leftGap = full.left - boxLeft
+      const rightGap = boxRight - (full.left + full.width)
+      return Math.abs(leftGap) < 1 && Math.abs(rightGap) < 1
+    })
+    .toBe(true)
+
+  const tint = () =>
+    page.locator('.cm-activeLine').evaluate((el) => {
+      const view = globalThis as unknown as {
+        getComputedStyle(e: unknown, pseudo?: string): Record<string, string>
+      }
+      const box = view.getComputedStyle(el, '::before')
+      return {
+        line: view.getComputedStyle(el).backgroundColor,
+        box: box.backgroundColor,
+        image: box.backgroundImage,
+        bottom: box.bottom,
+      }
+    })
+
+  // The selection is its own tint; the active line's would be drawn over it.
+  expect(await tint()).toMatchObject({ line: 'rgba(0, 0, 0, 0)', image: 'none' })
+  expect((await tint()).box).not.toBe('rgba(0, 0, 0, 0)')
+
+  // A caret keeps the tint, drawn by the box: it ends above the box's bottom edge.
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(async () => (await tint()).image).toContain('linear-gradient')
+  const caret = await tint()
+  expect(caret.line).toBe('rgba(0, 0, 0, 0)')
+  expect(parseFloat(caret.bottom ?? '0')).toBeGreaterThanOrEqual(4)
 })

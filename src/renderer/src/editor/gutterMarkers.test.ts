@@ -80,6 +80,19 @@ describe('the gutter line classes after an edit', () => {
       expect(markers(t.update({}).state)).toEqual(fresh(t))
     })
 
+  it('match a fresh scan after one transaction of many edits', () => {
+    const s = make(Array.from({ length: 6 }, () => DOC).join('\n\n'))
+    for (const insert of ['# ', '```\n', '> ', '']) {
+      const changes = Array.from({ length: s.doc.lines }, (_, i) => {
+        const line = s.doc.line(i + 1)
+        return insert ? { from: line.from, insert } : { from: line.from, to: line.to }
+      })
+      const t = s.update({ changes }).state
+      ensureSyntaxTree(t, t.doc.length, 5000)
+      expect(markers(t.update({}).state)).toEqual(fresh(t))
+    }
+  })
+
   it('match a fresh scan through many edits in a row', () => {
     let s = make(DOC)
     for (const at of [3, 40, 12, 0, 70, 20]) {

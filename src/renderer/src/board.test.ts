@@ -4,10 +4,12 @@ import { sizes } from './theme/tokens'
 import {
   appliedChanges,
   boardColumns,
+  boardJump,
   boardOrder,
   boardStatuses,
   cardStep,
   changesByStatus,
+  columnJump,
   columnWindow,
   createBoardHistories,
   createMoveHistory,
@@ -285,5 +287,31 @@ describe('the default board width', () => {
       (columns - 1) * px('space.4') +
       2 * px('space.6')
     expect(px('size.board-default-width')).toBeGreaterThanOrEqual(needed)
+  })
+})
+
+describe('columnJump', () => {
+  it('pages from the column that has the keyboard, even an empty one', () => {
+    const columns = boardColumns(notes, boardStatuses(true))
+    expect(columnJump(columns, 'on_hold', 'PageDown')).toBe('d')
+    expect(columnJump(columns, 'on_hold', 'PageUp')).toBe('a')
+    expect(columnJump(columns, 'on_hold', 'Home')).toBe('b')
+    expect(columnJump(columns, 'on_hold', 'End')).toBe('e')
+    expect(columnJump(columns, 'dropped', 'PageDown')).toBeUndefined()
+    expect(columnJump(columns, 'none', 'PageUp')).toBeUndefined()
+    expect(columnJump(columns, 'none', 'ArrowDown')).toBeUndefined()
+  })
+})
+
+describe('boardJump', () => {
+  it('goes to the first or last card, or the first card of the column a page away', () => {
+    const columns = boardColumns(notes, boardStatuses(true))
+    expect(boardJump(columns, 'a', 'Home')).toBe('b')
+    expect(boardJump(columns, 'a', 'End')).toBe('e')
+    expect(boardJump(columns, 'a', 'PageDown')).toBe('d')
+    expect(boardJump(columns, 'd', 'PageUp')).toBe('a')
+    expect(boardJump(columns, 'e', 'PageDown')).toBeUndefined()
+    expect(boardJump(columns, 'b', 'PageUp')).toBeUndefined()
+    expect(boardJump(columns, 'a', 'ArrowDown')).toBeUndefined()
   })
 })

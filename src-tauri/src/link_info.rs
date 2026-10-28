@@ -2,8 +2,8 @@
 //! `net`; nothing runs a page's scripts, so a title a page sets from script is missed. Errors are
 //! codes, never URLs or titles.
 
-use crate::net::{self, Get};
-use std::time::Duration;
+use crate::net::{self, Fetched, Get};
+use std::time::{Duration, Instant};
 use tauri::Url;
 
 const TIMEOUT: Duration = Duration::from_secs(10);
@@ -11,6 +11,9 @@ const TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_PAGE_BYTES: usize = 512 * 1024;
 const MAX_SNIPPET_BYTES: usize = 1024 * 1024;
 const MAX_TITLE_CHARS: usize = 300;
+/// A blob link leaves the `/` in a branch name unencoded, so a ref of up to this many segments is
+/// tried, shortest first.
+const MAX_REF_SEGMENTS: usize = 4;
 
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
@@ -29,8 +32,8 @@ pub async fn link_title(url: String) -> Result<Option<String>, String> {
 
 #[tauri::command]
 pub async fn github_snippet(url: String) -> Result<String, String> {
-    let api = github_contents_url(&url).map_err(String::from)?;
-    blocking(move || fetch_snippet(&api)).await
+    let candidates = github_contents_urls(&url).map_err(String::from)?;
+    blocking(move || fetch_snippet(&candidates)).await
 }
 
 fn fetch_title(url: &Url) -> Result<Option<String>, &'static str> {
@@ -50,14 +53,39 @@ fn fetch_title(url: &Url) -> Result<Option<String>, &'static str> {
     Ok(utf8_text(&page.body).and_then(page_title))
 }
 
-fn fetch_snippet(api: &Url) -> Result<String, &'static str> {
-    let file = net::get(&Get {
-        url: api,
-        accept: "application/vnd.github.raw+json",
-        headers: &[("X-GitHub-Api-Version", "2022-11-28")],
-        timeout: TIMEOUT,
-        max_bytes: MAX_SNIPPET_BYTES,
-    })?;
+fn fetch_snippet(candidates: &[Url]) -> Result<String, &'static str> {
+    fetch_snippet_with(candidates, |api, timeout| {
+        net::get(&Get {
+            url: api,
+            accept: "application/vnd.github.raw+json",
+            headers: &[("X-GitHub-Api-Version", "2022-11-28")],
+            timeout,
+            max_bytes: MAX_SNIPPET_BYTES,
+        })
+    })
+}
+
+/// Git keeps `a` and `a/b` from both being branches, so the first ref that is found is the one.
+fn fetch_snippet_with(
+    candidates: &[Url],
+    mut fetch: impl FnMut(&Url, Duration) -> Result<Fetched, &'static str>,
+) -> Result<String, &'static str> {
+    let deadline = Instant::now() + TIMEOUT;
+    let mut result = Err("E_GITHUB_NOT_FOUND");
+    for api in candidates {
+        let left = deadline
+            .checked_duration_since(Instant::now())
+            .filter(|left| !left.is_zero())
+            .ok_or("E_NET_TIMEOUT")?;
+        result = snippet(fetch(api, left)?);
+        if result != Err("E_GITHUB_NOT_FOUND") {
+            break;
+        }
+    }
+    result
+}
+
+fn snippet(file: Fetched) -> Result<String, &'static str> {
     match file.status {
         200..=299 => {}
         404 => return Err("E_GITHUB_NOT_FOUND"),
@@ -101,22 +129,23 @@ fn plain_segment(segment: &str, max: usize) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
-fn github_contents_url(url: &str) -> Result<Url, &'static str> {
+/// The contents API's URLs for a blob link, one for each split of its ref and path to try.
+fn github_contents_urls(url: &str) -> Result<Vec<Url>, &'static str> {
     const INVALID: &str = "E_GITHUB_URL_INVALID";
     let parsed = net::https_url(url)?;
     if parsed.host_str() != Some("github.com") || parsed.port().is_some() {
         return Err(INVALID);
     }
     let segments: Vec<&str> = parsed.path_segments().ok_or(INVALID)?.collect();
-    let [owner, repo, blob, git_ref, path @ ..] = segments.as_slice() else {
+    let [owner, repo, blob, rest @ ..] = segments.as_slice() else {
         return Err(INVALID);
     };
     if *blob != "blob"
         || !plain_segment(owner, 100)
         || !plain_segment(repo, 100)
-        || !plain_segment(git_ref, 255)
-        || path.is_empty()
-        || path.iter().any(|s| {
+        || rest.len() < 2
+        || !plain_segment(rest[0], 255)
+        || rest[1..].iter().any(|s| {
             // An encoded `/` or `\` would reach another API path once decoded.
             let lower = s.to_ascii_lowercase();
             s.is_empty()
@@ -129,12 +158,22 @@ fn github_contents_url(url: &str) -> Result<Url, &'static str> {
     {
         return Err(INVALID);
     }
-    // The path's segments are already percent-encoded by the parser.
-    Url::parse(&format!(
-        "https://api.github.com/repos/{owner}/{repo}/contents/{}?ref={git_ref}",
-        path.join("/")
-    ))
-    .map_err(|_| INVALID)
+    let mut urls = Vec::new();
+    for split in 1..rest.len().min(MAX_REF_SEGMENTS + 1) {
+        let (git_ref, path) = rest.split_at(split);
+        if !git_ref.iter().all(|s| plain_segment(s, 255)) || git_ref.join("/").len() > 255 {
+            break;
+        }
+        // The path's segments are already percent-encoded by the parser.
+        let url = Url::parse(&format!(
+            "https://api.github.com/repos/{owner}/{repo}/contents/{}?ref={}",
+            path.join("/"),
+            git_ref.join("%2F")
+        ))
+        .map_err(|_| INVALID)?;
+        urls.push(url);
+    }
+    Ok(urls)
 }
 
 fn find_tag(lower: &str, name: &str, from: usize) -> Option<usize> {
@@ -389,15 +428,76 @@ mod tests {
 
     #[test]
     fn maps_blob_links_to_the_contents_api() {
-        let api =
-            github_contents_url("https://github.com/o/r-1/blob/main/src/a%20b.ts#L5-L9").unwrap();
+        let api = github_contents_urls("https://github.com/o/r-1/blob/main/src/a%20b.ts#L5-L9")
+            .unwrap()
+            .remove(0);
         assert_eq!(
             api.as_str(),
             "https://api.github.com/repos/o/r-1/contents/src/a%20b.ts?ref=main"
         );
         let sha = "0123456789abcdef0123456789abcdef01234567";
-        let api = github_contents_url(&format!("https://github.com/o/r/blob/{sha}/a.rs")).unwrap();
+        let api = github_contents_urls(&format!("https://github.com/o/r/blob/{sha}/a.rs"))
+            .unwrap()
+            .remove(0);
         assert_eq!(api.query(), Some(format!("ref={sha}").as_str()));
+    }
+
+    #[test]
+    fn a_branch_name_may_hold_slashes() {
+        let urls: Vec<String> =
+            github_contents_urls("https://github.com/o/r/blob/feature/login/src/a.ts")
+                .unwrap()
+                .iter()
+                .map(|url| url.to_string())
+                .collect();
+        assert_eq!(
+            urls,
+            [
+                "https://api.github.com/repos/o/r/contents/login/src/a.ts?ref=feature",
+                "https://api.github.com/repos/o/r/contents/src/a.ts?ref=feature%2Flogin",
+                "https://api.github.com/repos/o/r/contents/a.ts?ref=feature%2Flogin%2Fsrc",
+            ]
+        );
+        let deep = "https://github.com/o/r/blob/a/b/c/d/e/f/g/h.ts";
+        assert_eq!(github_contents_urls(deep).unwrap().len(), MAX_REF_SEGMENTS);
+        // A segment no branch name could hold ends the refs tried.
+        let spaced = github_contents_urls("https://github.com/o/r/blob/main/a%20b/c.ts").unwrap();
+        assert_eq!(spaced.len(), 1);
+    }
+
+    fn answer(status: u16, body: &str) -> Fetched {
+        Fetched {
+            status,
+            content_type: None,
+            body: body.as_bytes().to_vec(),
+            truncated: false,
+        }
+    }
+
+    #[test]
+    fn tries_a_longer_ref_only_when_the_shorter_one_is_not_found() {
+        let urls = github_contents_urls("https://github.com/o/r/blob/feature/login/a.ts").unwrap();
+        let mut asked = Vec::new();
+        let found = fetch_snippet_with(&urls, |url, _| {
+            asked.push(url.query().unwrap_or("").to_owned());
+            Ok(if asked.len() == 1 {
+                answer(404, "")
+            } else {
+                answer(200, "code")
+            })
+        });
+        assert_eq!(found, Ok("code".to_owned()));
+        assert_eq!(asked, ["ref=feature", "ref=feature%2Flogin"]);
+
+        let mut tries = 0;
+        let limited = fetch_snippet_with(&urls, |_, _| {
+            tries += 1;
+            Ok(answer(403, ""))
+        });
+        assert_eq!((limited, tries), (Err("E_GITHUB_RATE_LIMITED"), 1));
+
+        let missing = fetch_snippet_with(&urls, |_, _| Ok(answer(404, "")));
+        assert_eq!(missing, Err("E_GITHUB_NOT_FOUND"));
     }
 
     #[test]
@@ -417,7 +517,7 @@ mod tests {
             "https://github.com/o/r/blob/main/a%5Cb",
             "https://github.com/o/r/blob/main/%2e%2e/x",
         ] {
-            assert!(github_contents_url(url).is_err(), "{url}");
+            assert!(github_contents_urls(url).is_err(), "{url}");
         }
     }
 }

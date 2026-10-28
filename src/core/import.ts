@@ -357,8 +357,15 @@ const clip = (text: string, max: number) => {
 /** On one line, at most MAX_TITLE_CHARS characters. */
 export const noteTitle = (text: string) => clip(oneLine(text), MAX_TITLE_CHARS)
 
+/**
+ * macOS may give file names decomposed (NFD), while typed text, and so a search, is composed (NFC).
+ * CJK compatibility ideographs stay: NFC would turn each into another character.
+ */
+const composed = (name: string) =>
+  name.replace(/[^\uf900-\ufaff\u{2f800}-\u{2fa1f}]+/gu, (run) => run.normalize('NFC'))
+
 function baseName(path: string): string {
-  const name = path.split('/').pop() ?? path
+  const name = composed(path.split('/').pop() ?? path)
   return name.replace(/\.[^.]+$/, '') || name
 }
 
@@ -754,7 +761,7 @@ const EXTENSIONS: Record<string, string> = {
 }
 
 function bookName(name: string): string {
-  return clip(oneLine(name.replace(/\p{Cc}/gu, ' ')), MAX_BOOK_NAME_CHARS) || '_'
+  return clip(oneLine(composed(name).replace(/\p{Cc}/gu, ' ')), MAX_BOOK_NAME_CHARS) || '_'
 }
 
 export async function importMarkdown(options: ImportOptions): Promise<ImportReport> {

@@ -37,6 +37,23 @@ test('renders the rows that show, and the rest as the list scrolls', async ({ pa
   await expect(titleField(page)).toHaveValue(`Note ${NOTES}`)
 })
 
+test('a long list back from an empty search shows its top again', async ({ page }) => {
+  await list(page).evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+  })
+  await expect(row(page, `Note ${NOTES}`)).toBeVisible()
+  await row(page, `Note ${NOTES}`).click()
+  await expect(titleField(page)).toHaveValue(`Note ${NOTES}`)
+  // A short view with no rows: the list's scroll goes to 0 while its last top is kept.
+  const search = page.getByRole('searchbox', { name: 'Search notes' })
+  await search.fill('zzzz no such note')
+  await expect(page.getByText('No Matching Notes')).toBeVisible()
+  await search.fill('')
+  await expect(caption(page)).toHaveText('1,000 notes')
+  // Not a blank spacer over the kept row: the list is back at its top.
+  await expect(row(page, 'Note 1')).toBeVisible()
+})
+
 test('the arrow keys walk past the rows first rendered', async ({ page }) => {
   await row(page, 'Note 1').click()
   await expect(row(page, 'Note 1')).toBeFocused()
@@ -94,4 +111,27 @@ test('Select All and Shift+Down select across the whole list', async ({ page }) 
   )
   await expect(row(page, 'Note 61')).toBeFocused()
   await expect(row(page, 'Note 61')).toHaveAttribute('aria-selected', 'true')
+})
+
+test('Home, End and the Page keys move the keyboard through the whole list', async ({ page }) => {
+  await row(page, 'Note 1').click()
+  await expect(titleField(page)).toHaveValue('Note 1')
+  await page.keyboard.press('End')
+  await expect(titleField(page)).toHaveValue(`Note ${NOTES}`)
+  await expect(row(page, `Note ${NOTES}`)).toBeFocused()
+  await expect(row(page, `Note ${NOTES}`)).toBeInViewport()
+  await page.keyboard.press('Home')
+  await expect(titleField(page)).toHaveValue('Note 1')
+  await expect(row(page, 'Note 1')).toBeFocused()
+
+  await page.keyboard.press('PageDown')
+  await expect.poll(() => titleField(page).inputValue()).not.toBe('Note 1')
+  const focused = await page.evaluate(() =>
+    Number(document.activeElement?.getAttribute('aria-posinset')),
+  )
+  expect(focused).toBeGreaterThan(1)
+  await expect(row(page, `Note ${focused}`)).toBeFocused()
+  await expect(row(page, `Note ${focused}`)).toBeInViewport()
+  await page.keyboard.press('PageUp')
+  await expect(titleField(page)).toHaveValue('Note 1')
 })

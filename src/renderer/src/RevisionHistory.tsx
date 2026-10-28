@@ -222,7 +222,7 @@ export function RevisionHistory(props: {
             </li>
           ))}
         </ul>
-        <section className="history-diff" aria-label={t('history.changes')}>
+        <section className="history-diff" aria-label={t('history.changes')} tabIndex={0}>
           {entries && entries.length === 0 ? (
             <p className="sheet-detail">{t('history.empty')}</p>
           ) : selected && selected.kind !== 'body' ? (

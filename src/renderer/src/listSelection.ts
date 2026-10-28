@@ -108,6 +108,20 @@ export function selectAll(
 }
 
 /**
+ * The note a key acts on: the open note while the selection holds it, else
+ * the selection's lead (a Cmd-click may have just taken the open note out,
+ * before it stopped being open), else the focused row.
+ */
+export function keyTarget(
+  selection: ListSelection | undefined,
+  selected: string | undefined,
+  focused: string | undefined,
+): string | undefined {
+  if (!selection) return focused
+  return selected !== undefined && selection.ids.includes(selected) ? selected : selection.lead
+}
+
+/**
  * The note that is open with this selection: the open note while it is
  * selected, else the anchor, else the lead, else the last selected one.
  */

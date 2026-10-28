@@ -27,7 +27,7 @@ import { blockUnit, codeStyle, nextLine } from './codeIndent'
 import { context, TOOLBAR_PARSE_MS } from './formatContext'
 import { barsMayShow } from './barRules'
 import { markerField, type MarkerScan } from './gutterMarkers'
-import { BOX_HANG, BOX_MARGIN, BOX_PAD } from './boxes'
+import { BOX_INSET, BOX_MARGIN, BOX_PAD } from './boxes'
 import { buttonIn, motionKeyframes } from './motion'
 import { withLook } from './popupLook'
 import { toolbarStateExtension } from './toolbarState'
@@ -215,9 +215,10 @@ export function copyBlock(state: EditorState): SyntaxNode | null {
 }
 
 /**
- * The decorations of the blocks in `ranges` (the view's visible ranges). A
- * fold or a line gap splits the ranges around a block, so two can share it:
- * each block is decorated once.
+ * The decorations of the lines of blocks in `ranges` (the view's visible
+ * ranges), and no others, so a long block costs only its shown lines. A fold
+ * or a line gap splits the ranges around a block, so two can share a line:
+ * each line is decorated once.
  */
 export function blockDecorations(
   state: EditorState,
@@ -225,11 +226,11 @@ export function blockDecorations(
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>()
   const active = copyBlock(state)
-  const seen = new Set<number>()
+  let done = 0
   for (const { from, to } of ranges) {
+    const shownFirst = state.doc.lineAt(from).number
+    const shownLast = state.doc.lineAt(to).number
     for (const block of fencedBlocks(state, from, to)) {
-      if (seen.has(block.from)) continue
-      seen.add(block.from)
       const { first, last, closed } = blockLines(state, block)
       const marks: { from: number; to: number; deco: Decoration }[] = []
       for (const mark of block.getChildren('CodeMark'))
@@ -237,7 +238,9 @@ export function blockDecorations(
       const info = block.getChild('CodeInfo')
       if (info) marks.push({ from: info.from, to: info.to, deco: infoMark })
       marks.sort((a, b) => a.from - b.from)
-      for (let n = first; n <= last; n++) {
+      const end = Math.min(last, shownLast)
+      for (let n = Math.max(first, shownFirst, done + 1); n <= end; n++) {
+        done = n
         const line = state.doc.line(n)
         builder.add(
           line.from,
@@ -534,16 +537,18 @@ const theme = EditorView.theme({
   '.cm-line.cm-codeblock': {
     position: 'relative',
     zIndex: '0',
+    // Inside the box, past the column its edge shares with the prose.
+    paddingLeft: `calc(${BOX_PAD} + ${BOX_INSET})`,
+    paddingRight: `calc(${BOX_PAD} + ${BOX_INSET})`,
     fontFamily: 'var(--code-font-family, var(--font-family-mono))',
   },
   // The box is drawn behind the text, inset by the margin on the outer lines.
-  // It reaches past the line's sides (as the quote bar does, see lineStyles.ts):
-  // the text keeps the note's column, and its inset from the box's side
-  // matches the one from its top and bottom.
+  // Its sides are the note's column (the line's padding): the prose lines up
+  // with the box, and the text above sits further in.
   '.cm-line.cm-codeblock::before': {
     content: '""',
     position: 'absolute',
-    inset: `0 calc(-1 * ${BOX_HANG})`,
+    inset: `0 ${BOX_PAD}`,
     zIndex: '-1',
     pointerEvents: 'none',
     background: 'var(--color-code-block-bg)',
@@ -569,6 +574,18 @@ const theme = EditorView.theme({
   // fence stands from the top.
   '.cm-line.cm-codeblock-closing': { paddingBottom: BOX_MARGIN },
   '.cm-line.cm-codeblock-closing::before': { bottom: `calc(${BOX_MARGIN} + var(--space-1))` },
+  // The active line's tint follows the block's shape. On the line itself it
+  // squares off the box's rounded corners and fills the box's margins at the
+  // block's ends, where the line reaches past the box.
+  '.cm-line.cm-codeblock.cm-activeLine': { backgroundColor: 'transparent' },
+  '.cm-line.cm-codeblock.cm-activeLine::before': {
+    background: `linear-gradient(var(--color-editor-active-line), var(--color-editor-active-line)), var(--color-code-block-bg)`,
+  },
+  // A selection has its own tint, and the selection is drawn behind the lines,
+  // so the active line's would lie over it.
+  '&:has(.cm-selectionBackground) .cm-line.cm-codeblock.cm-activeLine::before': {
+    background: 'var(--color-code-block-bg)',
+  },
   '.cm-gutterElement.cm-codeblock-gutter-first': {
     boxSizing: 'border-box',
     paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`,
@@ -579,7 +596,7 @@ const theme = EditorView.theme({
     position: 'absolute',
     // In the box's corner, as far from its top as from its side.
     top: `calc(${BOX_MARGIN} + var(--space-2))`,
-    right: `calc(var(--space-2) - ${BOX_HANG})`,
+    right: `calc(${BOX_PAD} + var(--space-2))`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

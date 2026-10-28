@@ -27,13 +27,15 @@ type Pane = 'editor' | 'preview'
 interface Input {
   mode: Mode
   noteOpen: boolean
+  /** False in a read-only window: Find and Replace opens plain Find. */
+  editing: boolean
   editor: FindTarget | null
   preview: FindTarget | null
 }
 
 const TOGGLES: ReadonlySet<FindAction> = new Set(['regexp', 'caseSensitive'])
 
-export function useFind({ mode, noteOpen, editor, preview }: Input): {
+export function useFind({ mode, noteOpen, editing, editor, preview }: Input): {
   bar: ReactNode
   commands: CommandHandlers
 } {
@@ -199,7 +201,7 @@ export function useFind({ mode, noteOpen, editor, preview }: Input): {
         replacement={replacement}
         regexp={regexp}
         caseSensitive={caseSensitive}
-        replace={withReplace && (target?.canReplace ?? false)}
+        replace={editing && withReplace && (target?.canReplace ?? false)}
         status={status}
         onQuery={setQuery}
         onReplacement={setReplacement}

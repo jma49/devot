@@ -33,6 +33,13 @@ async function createNoteWithTag(page: Page, title: string, tag: string) {
   await expect(tagRow(page, tag)).toBeVisible()
 }
 
+async function createNote(page: Page, title: string) {
+  const before = await noteRows(page).count()
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(noteRows(page)).toHaveCount(before + 1)
+  await page.getByRole('textbox', { name: 'Title' }).fill(title)
+}
+
 const popups = (page: Page) =>
   page.evaluate(
     () =>
@@ -70,6 +77,40 @@ for (const keys of ['Shift+F10', 'ContextMenu', 'Control+Enter']) {
     await expect(book(page, 'Home')).toBeFocused()
   })
 }
+
+for (const keys of ['Shift+F10', 'ContextMenu', 'Control+Enter']) {
+  test(`${keys} opens the menu of the focused note row, at the row`, async ({ page }) => {
+    await createNote(page, 'Alpha')
+    await createNote(page, 'Beta')
+    await noteRows(page).filter({ hasText: 'Alpha' }).click()
+    const row = noteRows(page).filter({ hasText: 'Alpha' })
+    await expect(row).toBeFocused()
+    const before = await popups(page)
+    await page.keyboard.press(keys)
+    await expect.poll(() => popups(page)).toBe(before + 1)
+    expect(await shownMenu(page)).toContain('Duplicate CmdOrCtrl+D')
+    const box = await row.boundingBox()
+    const at = await popupAt(page)
+    expect(at?.x).toBeCloseTo(box?.x ?? 0, -1)
+    // Under the row: the row's own bottom, within a few pixels of its grow motion.
+    expect(Math.abs((at?.y ?? 0) - ((box?.y ?? 0) + (box?.height ?? 0)))).toBeLessThan(12)
+    await expect(row).toBeFocused()
+  })
+}
+
+test('the row-menu key opens the selection’s menu, export included', async ({ page }) => {
+  await createNote(page, 'Alpha')
+  await createNote(page, 'Beta')
+  await noteRows(page).filter({ hasText: 'Alpha' }).click()
+  await noteRows(page)
+    .filter({ hasText: 'Beta' })
+    .click({ modifiers: ['Meta'] })
+  await page.keyboard.press('Shift+F10')
+  await expect.poll(() => popups(page)).toBe(1)
+  const menu = await shownMenu(page)
+  expect(menu.some((item) => item.startsWith('Export Selected Notes as Markdown'))).toBe(true)
+  expect(menu.some((item) => item.startsWith('Copy Note Links'))).toBe(true)
+})
 
 test('Allow AI Access can be toggled from the keyboard', async ({ page }) => {
   await createBook(page, 'Home')

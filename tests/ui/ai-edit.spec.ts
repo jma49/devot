@@ -141,6 +141,25 @@ test('a preset from the selection toolbar proposes a diff, applied as one undo s
   await expect(history.getByRole('option').first()).toContainText('Edited with AI')
 })
 
+test('a proposed change taller than its box scrolls from the keyboard', async ({ page }) => {
+  const after = Array.from({ length: 40 }, (_, i) => `changed ${i}`).join('\n')
+  await fakeProvider(page, [after])
+  await page.reload()
+  await notebook(page, 'Work', true)
+  await note(page, 'Teh first draft.')
+  await selectLine(page, 0)
+  await fromToolbar(page, 'Improve Writing')
+
+  const diff = sheet(page).getByRole('region', { name: 'Proposed changes' })
+  await expect(diff.locator('ins').first()).toBeVisible()
+  // One change, so there is nothing to tick off: the diff is the only way to read it.
+  await expect(sheet(page).getByRole('checkbox')).toHaveCount(0)
+  await diff.focus()
+  await expect(diff).toBeFocused()
+  await page.keyboard.press('PageDown')
+  await expect.poll(() => diff.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+})
+
 test('takes only the changes left checked', async ({ page }) => {
   await fakeProvider(page, ['One.\nkeep\nTwo.'])
   await page.reload()

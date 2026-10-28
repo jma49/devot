@@ -120,3 +120,28 @@ test('the notebook pop-over searches the tree; the status pop-over shows keys', 
   await page.keyboard.press('Enter')
   await expect(statusPicker(page)).toHaveAttribute('data-value', 'dropped')
 })
+
+test('titles, excerpts, chips and names take their direction from their text', async ({ page }) => {
+  const title = 'שלום'
+  const book = 'עבודה'
+  await createNote(page, title, 'עולם')
+  await tagField(page).fill('home')
+  await tagField(page).press('Enter')
+  const row = noteRow(page, title)
+  await expect(row.locator('.row-title')).toHaveAttribute('dir', 'auto')
+  await expect(row.locator('.row-excerpt')).toHaveAttribute('dir', 'auto')
+  await expect(row.locator('.chip')).toHaveAttribute('dir', 'auto')
+  await expect(page.locator('.note-meta .chip')).toHaveAttribute('dir', 'auto')
+
+  const layout = page.getByRole('group', { name: 'Layout' })
+  await layout.getByRole('button', { name: 'Board' }).click()
+  await expect(page.locator('.card-title').first()).toHaveAttribute('dir', 'auto')
+  await layout.getByRole('button', { name: 'List' }).click()
+
+  await createBook(page, book)
+  const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
+  await expect(sidebar.locator('.source-label', { hasText: book })).toHaveAttribute('dir', 'auto')
+
+  await page.keyboard.press('Meta+k')
+  await expect(page.locator('.palette-label').first()).toHaveAttribute('dir', 'auto')
+})

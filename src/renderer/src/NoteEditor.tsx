@@ -21,7 +21,7 @@ import { imageFiles, storeImages } from './attachments'
 import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
-import { BOX_HANG } from './editor/boxes'
+import { BOX_PAD } from './editor/boxes'
 import { readClipboardText } from './clipboard'
 import { editorCommandKeys, type CommandId } from './commands/registry'
 import { invoke } from './ipc'
@@ -82,8 +82,11 @@ import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
 import { pasteUrlAs, pasteUrls, plainPaste } from './editor/paste'
 import { pasteChooser, showChooser, type PasteFetcher } from './editor/pasteChooser'
 import { editorSetup, reconfigureSetup } from './editor/settings'
+import { selectionEdges } from './editor/selectionEdges'
 import { editorCompletions } from './editor/completions'
+import { chooseTemplate } from './editor/hints'
 import { taskToggle } from './editor/tasks'
+import { setToolbarFocus } from './editor/toolbarState'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
 import { reconfigureRegistryKeys, registryKeys } from './editor/registryKeys'
 import { setInertFormats } from './commands/formatMenu'
@@ -137,8 +140,18 @@ const LOCKED = [
     }),
   ),
 ]
+// WebKit keeps a contenteditable's selection when focus moves to a sheet or the history bar, and
+// runs Backspace and typing against it even under `inert` or a modal: the note out of sight would
+// change. The change is dropped and the editor draws its own text again. It comes first among the
+// highest-precedence handlers so no other one (close brackets, backticks, table typing, overwrite)
+// dispatches the change before the check runs.
+const ONLY_WHILE_FOCUSED = Prec.highest(EditorView.inputHandler.of((view) => !view.hasFocus))
 // View > Show Authorship (editor/authorship.ts), set for the replica of the note shown.
 const authorshipSlot = new Compartment()
+// The empty note's Choose a Template chip: only where the window can run it on a note that may change.
+const templateSlot = new Compartment()
+const templateChip = (offered: boolean, run: { readonly current: (() => void) | undefined }) =>
+  offered ? chooseTemplate.of(() => run.current?.()) : []
 const marksFor = (on: boolean, doc: Y.Doc, noteId: string) =>
   on ? authorshipMarks(doc, noteId) : []
 /** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
@@ -445,9 +458,9 @@ const theme = EditorView.theme({
     lineHeight: 'var(--editor-line-height, 1.5)',
   },
   '&.cm-focused': { outline: 'none' },
-  // Room for the boxes and quote bars that reach past the lines (editor/boxes.ts).
+  // The line's padding is the note's text column, and a box sits on it (editor/boxes.ts).
   '.cm-content': {
-    paddingInline: BOX_HANG,
+    '--box-edge': BOX_PAD,
     fontKerning: 'normal',
     lineBreak: 'strict',
   },
@@ -455,6 +468,10 @@ const theme = EditorView.theme({
     '.cm-content': { textAutospace: 'normal' },
     '.cm-line.cm-codeblock, .cm-md-code': { textAutospace: 'no-autospace' },
   },
+  // CodeMirror pads a line 6px on the start side and 2px on the end, and sizes
+  // every full row from the first line's padding. Equal sides keep that row on
+  // the note's column, which is where a box's outer edge sits (editor/boxes.ts).
+  '.cm-line': { paddingInline: BOX_PAD },
   '.cm-scroller::-webkit-scrollbar': {
     width: 'var(--size-scrollbar)',
     height: 'var(--size-scrollbar)',
@@ -491,6 +508,36 @@ const theme = EditorView.theme({
   '.cm-selectionBackground': { backgroundColor: 'var(--color-accent-selection-inactive)' },
   '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
     backgroundColor: 'var(--color-accent-selection)',
+  },
+  // A full row is the column. A code or table line's own padding sits inside its
+  // box (editor/selectionEdges.ts), so a side drawn at that padding grows back
+  // out to the column, and the first and last rows the rest of the way from the
+  // caret, so the tint wraps the box.
+  '& > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:not(:first-child):not(:last-child)':
+    {
+      boxSizing: 'content-box',
+      marginLeft: 'calc(-1 * var(--sel-box-left, 0px))',
+      paddingLeft: 'var(--sel-box-left, 0px)',
+      paddingRight: 'var(--sel-box-right, 0px)',
+    },
+  '& > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:first-child:not(:last-child)': {
+    boxSizing: 'content-box',
+    paddingRight: 'var(--sel-box-right, 0px)',
+  },
+  '& > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:last-child:not(:first-child)': {
+    boxSizing: 'content-box',
+    marginLeft: 'calc(-1 * var(--sel-box-left, 0px))',
+    paddingLeft: 'var(--sel-box-left, 0px)',
+  },
+  '&.cm-sel-reach-start > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:first-child':
+    {
+      boxSizing: 'content-box',
+      marginLeft: 'calc(-1 * var(--sel-reach-start, 0px))',
+      paddingLeft: 'var(--sel-reach-start, 0px)',
+    },
+  '&.cm-sel-reach-end > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:last-child': {
+    boxSizing: 'content-box',
+    paddingRight: 'var(--sel-reach-end, 0px)',
   },
   '.cm-selectionMatch': { backgroundColor: 'var(--color-fill-match)' },
   '.cm-foldPlaceholder': {
@@ -649,7 +696,7 @@ interface Props {
   onNewFromLink?: (() => void) | undefined
   onImagesRefused?: (codes: string[]) => void
   onOpenFailed?: (noteId: string, code: string) => void
-  onChooseTemplate?: () => void
+  onChooseTemplate?: (() => void) | undefined
   onOpenNote?: (noteId: string) => void
   /** Shown but not changed: the trial is over without a licence. */
   readOnly?: boolean
@@ -719,6 +766,8 @@ export function NoteEditor({
   const imagesRefused = useRef(onImagesRefused)
   const openFailed = useRef(onOpenFailed)
   const chooseTemplateRef = useRef(onChooseTemplate)
+  const templateOffered = onChooseTemplate !== undefined && !readOnly
+  const templateShown = useRef(templateOffered)
   const noteOpener = useRef(onOpenNote)
   const menuAt = useRef<MenuPoint>({ x: 0, y: 0 })
   const pickMenuAction = useCallback((action: EditorAction, target: EditorMenuTarget) => {
@@ -829,6 +878,14 @@ export function NoteEditor({
 
   // An imported font face that has loaded changes the text's size: measure again.
   useEffect(() => subscribeFontsLoaded(() => editor.current?.view.requestMeasure()), [])
+
+  useEffect(() => {
+    if (templateShown.current === templateOffered) return
+    templateShown.current = templateOffered
+    editor.current?.view.dispatch({
+      effects: templateSlot.reconfigure(templateChip(templateOffered, chooseTemplateRef)),
+    })
+  }, [templateOffered])
 
   useEffect(() => {
     if (locked.current === readOnly) return
@@ -965,10 +1022,12 @@ export function NoteEditor({
               }
             : {}),
           extensions: [
+            ONLY_WHILE_FOCUSED,
             editorSetup(setupFor),
             // No keymap acts on the keys an input method composes with.
             imeKeys(),
             theme,
+            selectionEdges,
             // Operators in code keep one style each, so code fonts form ligatures.
             noteHighlighting(noteHighlightStyle),
             markdownLineStyles,
@@ -1010,10 +1069,8 @@ export function NoteEditor({
               preview: (id) => previewsFor(core)(id),
               linked: (id) => linkSources.current.linked(id),
             }),
-            editorCompletions({
-              chooseImageFiles: (target) => imageChooser(target),
-              chooseTemplate: () => chooseTemplateRef.current?.(),
-            }),
+            editorCompletions({ chooseImageFiles: (target) => imageChooser(target) }),
+            templateSlot.of(templateChip(templateShown.current, chooseTemplateRef)),
             ghostText({
               suggest: (context, trigger) =>
                 suggestions.current?.suggest(noteId, context, trigger) ??
@@ -1092,7 +1149,9 @@ export function NoteEditor({
         const leftState = view.state
         scroller.scrollTop = 0
         view.setState(initial)
-        if (scrollTo) view.dispatch({ effects: scrollTo })
+        // setState keeps the DOM focus but sends no focus change, so the new state is told.
+        const effects = [...(scrollTo ? [scrollTo] : []), setToolbarFocus.of(view.hasFocus)]
+        view.dispatch({ effects })
         before.settings = setupFor
         left?.close(leftState)
       } else {

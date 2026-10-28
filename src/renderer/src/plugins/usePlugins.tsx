@@ -35,8 +35,8 @@ import { pluginRenderersChanged } from './rendererRevision'
 export interface PluginWindow {
   /** The note open in the editor. */
   openNote(): { id: string } | undefined
-  /** Applies a Yjs update the core returned to the editor, as one undo step. */
-  applyUpdate(update: Uint8Array): void
+  /** Applies a Yjs update the core returned to the editor, as one undo step, if it still shows the note. */
+  applyUpdate(noteId: string, update: Uint8Array): void
   /** Where imported notes go: the notebook shown, or none. */
   importBook(): string | null
   /** The lists show what an import made. */
@@ -83,7 +83,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
         const { core: c, app: w } = latest.current
         const open = w.openNote()
         if (!c || !open) throw new Error('E_PLUGIN_NO_NOTE')
-        w.applyUpdate(await c.applyPluginEdit(open.id, edit))
+        w.applyUpdate(open.id, await c.applyPluginEdit(open.id, edit))
       },
       showUi: (plugin, height) => setPanel({ plugin, height }),
       hideUi: (plugin) => setPanel((now) => (now?.plugin === plugin ? null : now)),

@@ -278,6 +278,15 @@ export const COMMANDS = [
     keys: ['Shift+ArrowDown'],
     palette: false,
   },
+  // Opens the focused note's menu from the keyboard, as a notebook row's does (the same keys).
+  {
+    id: 'list.rowMenu',
+    label: 'command.rowMenu',
+    group: 'note',
+    scope: 'list',
+    keys: ['Shift+F10', 'ContextMenu', 'Ctrl+Enter'],
+    palette: false,
+  },
   {
     id: 'trash.restore',
     label: 'command.restoreFromTrash',
@@ -1636,8 +1645,9 @@ export function defaultKeys(id: CommandId): readonly string[] {
   return command(id).keys
 }
 
-export function commandMatches(id: CommandId, e: KeyPress): boolean {
-  return commandKeys(id).some((key) => keyMatches(key, e))
+/** Whether a press is this command's key. Auto-repeat never matches, unless `repeats` (a held key that keeps acting, such as Shift+Down extending a selection). */
+export function commandMatches(id: CommandId, e: KeyPress, repeats = false): boolean {
+  return commandKeys(id).some((key) => keyMatches(key, e, repeats))
 }
 
 /**

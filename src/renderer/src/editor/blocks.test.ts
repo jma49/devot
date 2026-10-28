@@ -15,6 +15,7 @@ import {
   ALERT_KINDS,
   alertKind,
   blockState,
+  indentListItems,
   listBullet,
   toggleAlert,
   toggleCodeBlock,
@@ -295,6 +296,16 @@ describe('text that only looks like a list marker', () => {
     expect(list('- 2020 was good|', 'numbered')).toBe('1. 2020 was good|')
     expect(list('«1. a\n2. b»', 'bullet')).toBe('- «a\n- b»')
   })
+
+  it('is escaped when the marker before it is taken off, so it is not renumbered', () => {
+    const timeline = list('«- 1999. Born\n- 2020. Moved»', 'bullet')
+    expect(timeline).toBe('«1999\\. Born\n2020\\. Moved»')
+    expect(outline(strip(timeline))).toBe('Paragraph')
+    expect(list('- 2020. A good year|', 'bullet')).toBe('2020\\. A good year|')
+    expect(list('- [ ] 2020.|', 'task')).toBe('2020\\.|')
+    expect(list('1. 2020. x|', 'numbered')).toBe('2020\\. x|')
+    expect(list('- 3)|', 'bullet')).toBe('3\\)|')
+  })
 })
 
 describe('taking a quote or list off lines after others of the block', () => {
@@ -345,6 +356,27 @@ describe('taking a quote or list off lines after others of the block', () => {
     const quoted = list('> - a\n> - «b»', 'bullet')
     expect(quoted).toBe('> - a\n>\n> «b»')
     expect(outline(strip(quoted))).toBe('Blockquote(BulletList(ListItem(Paragraph)) Paragraph)')
+  })
+
+  it('keeps a first sub-item out of its parent item paragraph', async () => {
+    const bullet = list('- a\n  - «b»', 'bullet')
+    expect(bullet).toBe('- a\n\n  «b»')
+    expect(outline(strip(bullet))).toBe('BulletList(ListItem(Paragraph Paragraph))')
+    expect(await previewShape(strip(bullet))).toBe('<ul><li><p>a</p><p>b</p></li></ul>')
+    const task = list('- [ ] a\n  - [ ] «b»', 'task')
+    expect(task).toBe('- [ ] a\n\n  «b»')
+    expect(outline(strip(task))).toBe('BulletList(ListItem(Task Paragraph))')
+    const numbered = list('1. a\n   1. «b»', 'numbered')
+    expect(numbered).toBe('1. a\n\n   «b»')
+    expect(outline(strip(numbered))).toBe('OrderedList(ListItem(Paragraph Paragraph))')
+    const quoted = list('> - a\n>   1. «b»', 'numbered')
+    expect(quoted).toBe('> - a\n>\n>   «b»')
+    expect(outline(strip(quoted))).toBe('Blockquote(BulletList(ListItem(Paragraph Paragraph)))')
+    const followed = list('- a\n  - «b»\n- c', 'bullet')
+    expect(followed).toBe('- a\n\n  «b»\n- c')
+    expect(outline(strip(followed))).toBe(
+      'BulletList(ListItem(Paragraph Paragraph) ListItem(Paragraph))',
+    )
   })
 
   it('keeps lines that leave together in one paragraph', () => {
@@ -497,6 +529,16 @@ describe('alerts', () => {
     expect(alert('«a»\n\n> [!NOTE]\n> b', 'warning')).toBe('> [!WARNING]\n> «a»\n\n> [!NOTE]\n> b')
   })
 
+  it('keep an alert right below lines that are quoted', () => {
+    const doc = quote('«para»\n> [!NOTE]\n> body')
+    expect(doc).toBe('> «para»\n\n> [!NOTE]\n> body')
+    expect(outline(strip(doc))).toBe('Blockquote(Paragraph) Blockquote(Paragraph)')
+    expect(alertKind(state('> para\n\n> [!NOTE]\n> bo|dy'))).toBe('note')
+    expect(quote('- x\n  «para»\n  > [!TIP]\n  > body')).toBe(
+      '- x\n  > «para»\n\n  > [!TIP]\n  > body',
+    )
+  })
+
   it('read the kind of the selection', () => {
     expect(alertKind(state('> [!Warning]\n> «a»'))).toBe('warning')
     expect(alertKind(state('> «a»'))).toBeNull()
@@ -613,6 +655,16 @@ describe('code blocks', () => {
     expect(code('1. a\n\n|')).toBe('1. a\n\n```\n|\n```')
     const quoted = code('> - a\n    |')
     expect(outline(strip(quoted))).toBe('Blockquote(BulletList(ListItem(Paragraph))) FencedCode')
+  })
+
+  it('go inside a quote that is inside a list item', () => {
+    const quoted = code('- step\n  > «quoted»')
+    expect(quoted).toBe('- step\n  > ```\n  > «quoted»\n  > ```')
+    expect(outline(strip(quoted))).toBe('BulletList(ListItem(Paragraph Blockquote(FencedCode)))')
+    expect(code('1. step\n   > qu|oted')).toBe('1. step\n   > ```\n   > qu|oted\n   > ```')
+    expect(code('- [ ] task\n  > «note»')).toBe('- [ ] task\n  > ```\n  > «note»\n  > ```')
+    expect(code('- step\n\n  > «quoted»')).toBe('- step\n\n  > ```\n  > «quoted»\n  > ```')
+    expect(code('> - step\n>   > «quoted»')).toBe('> - step\n>   > ```\n>   > «quoted»\n>   > ```')
   })
 
   it('wrap a mixed selection, code included, in one longer fence', () => {
@@ -790,4 +842,50 @@ describe('lists at the end of a note', () => {
       }
     },
   )
+})
+
+describe('Tab and Shift+Tab on list items', () => {
+  const tab = (marked: string, dir: 1 | -1 = 1) => run(marked, (s) => indentListItems(s, dir))
+
+  it('nest a numbered item under the text of the item above, from 1', () => {
+    const nested = tab('1. first\n2. chi|ld')
+    expect(nested).toBe('1. first\n   1. chi|ld')
+    expect(outline(strip(nested))).toBe(
+      'OrderedList(ListItem(Paragraph OrderedList(ListItem(Paragraph))))',
+    )
+    const wide = tab('10. a\n11. b|')
+    expect(wide).toBe('10. a\n    1. b|')
+    expect(outline(strip(wide))).toBe(
+      'OrderedList(ListItem(Paragraph OrderedList(ListItem(Paragraph))))',
+    )
+    expect(tab('- a\n- b|')).toBe('- a\n  - b|')
+    expect(tab('> 1. a\n> 2. b|')).toBe('> 1. a\n>    1. b|')
+  })
+
+  it('renumber the list the item leaves and the one it joins', () => {
+    expect(tab('1. a\n2. b|\n3. c')).toBe('1. a\n   1. b|\n2. c')
+    expect(tab('1. a\n   1. x\n2. b|')).toBe('1. a\n   1. x\n   2. b|')
+    expect(tab('1. a\n2. «b\n3. c»')).toBe('1. a\n   1. «b\n   2. c»')
+  })
+
+  it('move the item lines with it', () => {
+    const moved = tab('1. a\n2. b|\n   - kid')
+    expect(moved).toBe('1. a\n   1. b|\n      - kid')
+    expect(outline(strip(moved))).toBe(
+      'OrderedList(ListItem(Paragraph OrderedList(ListItem(Paragraph BulletList(ListItem(Paragraph))))))',
+    )
+  })
+
+  it('move an item out to the marker of the item it is in with Shift+Tab', () => {
+    expect(tab('1. first\n   1. chi|ld', -1)).toBe('1. first\n2. chi|ld')
+    expect(tab('1. a\n   1. b|\n2. c', -1)).toBe('1. a\n2. b|\n3. c')
+    expect(tab('- a\n  - b|', -1)).toBe('- a\n- b|')
+  })
+
+  it('leave an item that cannot move to the usual indent', () => {
+    expect(indentListItems(state('1. a|'), 1)).toBeNull()
+    expect(indentListItems(state('- a\n  - b|'), 1)).toBeNull()
+    expect(indentListItems(state('1. a\n2. b|'), -1)).toBeNull()
+    expect(indentListItems(state('plain|'), 1)).toBeNull()
+  })
 })

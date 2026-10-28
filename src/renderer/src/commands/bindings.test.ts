@@ -60,6 +60,7 @@ const BOUND_IN: Partial<Record<CommandId, [file: string, call: string]>> = {
   'list.clearSelection': ['../NoteList.tsx', 'commandMatches'],
   'list.extendUp': ['../NoteList.tsx', 'commandMatches'],
   'list.extendDown': ['../NoteList.tsx', 'commandMatches'],
+  'list.rowMenu': ['../NoteList.tsx', 'commandMatches'],
   'status.next': ['../NoteBoard.tsx', 'commandMatches'],
   'status.previous': ['../NoteBoard.tsx', 'commandMatches'],
   'view.nextAreaInPane': ['../areas.ts', 'commandMatches'],

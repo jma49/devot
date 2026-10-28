@@ -248,6 +248,7 @@ export const coreApi = {
     required().undoAgentWrites(id, writer),
   clearAuthorship: (id: string) => required().clearAuthorship(id),
   agentWrites: (limit: number) => required().agentWrites(limit),
+  authoredNotes: () => required().authoredNotes(),
   markWritesSeen: (id: string, writeIds: string[]) => required().markWritesSeen(id, writeIds),
   activity: (now: number) => required().activity(now),
   noteActivity: (ids: string[], now: number) => required().noteActivity(ids, now),

@@ -263,6 +263,20 @@ test('the caret in a note link shows Open Note, which opens it', async ({ page }
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Groceries')
 })
 
+test('after Open Note keeps the editor focused, a selection in the opened note shows the format bar', async ({
+  page,
+}) => {
+  await linkedPair(page)
+  await page.keyboard.press('ArrowLeft')
+  await page.locator('.cm-link-tip').getByRole('button', { name: 'Open Note' }).click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Groceries')
+  await expect(body(page)).toContainText('Milk and eggs')
+  await expect(body(page)).toBeFocused()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.press('Shift+Home')
+  await expect(page.getByRole('toolbar', { name: 'Format' })).toBeVisible()
+})
+
 test('the caret in a web link shows Open URL, and none outside a link', async ({ page }) => {
   await createNote(page, 'Web')
   await body(page).click()

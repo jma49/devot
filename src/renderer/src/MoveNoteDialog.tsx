@@ -1,7 +1,7 @@
 import { fieldStep } from './Picker'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { BookNode } from '../../core/books'
-import { bookOptions, currentBookOption, filterBooks, NO_BOOK } from './BookPicker'
+import { bookOptions, currentBookOption, filterBooks, firstBookMatch, NO_BOOK } from './BookPicker'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { BookIcon } from './BookIcon'
@@ -103,8 +103,12 @@ export function MoveNoteDialog(props: {
         autoFocus
         value={query}
         onChange={(e) => {
-          setQuery(e.target.value)
-          setActive(0)
+          const next = e.target.value
+          setQuery(next)
+          // Return picks the best notebook whose own name matches, not a parent kept as context.
+          const left = filterBooks(all, next)
+          const first = firstBookMatch(left, next)
+          setActive(first ? Math.max(0, left.indexOf(first)) : 0)
         }}
         onKeyDown={onKeyDown}
       />

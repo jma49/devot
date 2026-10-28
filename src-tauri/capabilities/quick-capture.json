@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "quick-capture",
-  "description": "Permissions for the quick capture window (menu bar mode): reading the editor settings for its look and default notebook (and hearing when they change), the system accent colour, the licence's state (it saves nothing once the trial is over), handing its note to the main window to save, and closing itself. It reads and writes no notes itself.",
+  "description": "Permissions for the quick capture window (menu bar mode): reading the editor settings for its look and default notebook (and hearing when they change), loading an imported font they choose, the system accent colour, the licence's state (it saves nothing once the trial is over), handing its note to the main window to save, and closing itself. It reads and writes no notes itself.",
   "windows": ["quick-capture"],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "allow-editor-settings-get",
+    "allow-font-read",
     "allow-licence-get",
     "allow-system-accent",
     "allow-quick-capture-save",

@@ -40,6 +40,7 @@
     "allow-font-read",
     "allow-keyboard-shortcuts-get",
     "allow-app-exit-ready",
+    "allow-backup-restore-ready",
     "allow-app-exit-cancel",
     "allow-note-relay-send",
     "allow-note-window-open",

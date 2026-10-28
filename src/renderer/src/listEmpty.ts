@@ -19,4 +19,15 @@ const TEXT: Readonly<Record<ListEmptyKind, { message: MessageKey; tip?: MessageK
   templates: { message: 'noteList.empty.templates', tip: 'noteList.empty.templatesTip' },
 }
 
-export const listEmpty = (kind: ListEmptyKind) => TEXT[kind]
+/** What a list that cannot create notes says instead of its create tip. */
+const READ_ONLY_TIP: Partial<Record<ListEmptyKind, MessageKey>> = {
+  all: 'noteList.empty.readOnly',
+  notebook: 'noteList.empty.readOnly',
+  templates: 'noteList.empty.templatesReadOnly',
+}
+
+export const listEmpty = (kind: ListEmptyKind, editing = true) => {
+  const text = TEXT[kind]
+  if (editing || !READ_ONLY_TIP[kind]) return text
+  return { message: text.message, tip: READ_ONLY_TIP[kind] }
+}

@@ -216,11 +216,13 @@ describe('Tauri command permissions', () => {
   it('lets a note window edit its note, relay its changes and save before it closes, and nothing more', () => {
     const noteWindow = capabilities().filter((c) => c.windows.includes('note-*'))
     // No notebook or tag changes, imports, exports, backups, mirror or settings changes: those
-    // stay in the main window. It reads the notebooks only to make a linked note in one.
+    // stay in the main window. It reads the notebooks only to make a linked note in one, and
+    // answers a restore started elsewhere once it has stopped its core.
     expect(noteWindow.flatMap(permissionIds).sort()).toEqual([
       'allow-agent-writes-seen',
       'allow-app-exit-cancel',
       'allow-app-exit-ready',
+      'allow-backup-restore-ready',
       'allow-books-list',
       'allow-clipboard-read-text',
       'allow-clipboard-write-text',
@@ -294,6 +296,7 @@ describe('Tauri command permissions', () => {
     const mainOnly = [
       'activity_list',
       'activity_notes_list',
+      'agent_writes_authored',
       'agent_writes_list',
       'book_put',
       'files_copy',
@@ -319,9 +322,10 @@ describe('Tauri command permissions', () => {
 
   it('lets the quick capture window hand over its note and close, and nothing more', () => {
     const quickCapture = capabilities().filter((c) => c.windows.includes('quick-capture'))
-    // No notes, no files: the main window's core saves the note.
+    // No notes, no files (an imported font only by its ID): the main window's core saves the note.
     expect(quickCapture.flatMap(permissionIds).sort()).toEqual([
       'allow-editor-settings-get',
+      'allow-font-read',
       'allow-licence-get',
       'allow-quick-capture-close',
       'allow-quick-capture-save',
@@ -330,6 +334,7 @@ describe('Tauri command permissions', () => {
       'core:event:allow-unlisten',
     ])
     expect(windowsWith('allow-quick-capture-done')).toEqual(['main'])
+    expect(windowsWith('allow-quick-capture-claim')).toEqual(['main'])
   })
 
   it('lets only Settings see or replace the HTTP API token, and only the main window answer its calls', () => {
@@ -355,11 +360,11 @@ describe('Tauri command permissions', () => {
     }
   })
 
-  it('lets only the Settings window import and list fonts, and the main, Settings and note windows load one', () => {
+  it('lets only the Settings window import and list fonts, and every window that draws text in the chosen fonts load one', () => {
     for (const command of ['font-import', 'fonts-list', 'fonts-installed']) {
       expect(windowsWith(`allow-${command}`)).toEqual(['settings'])
     }
-    expect(windowsWith('allow-font-read')).toEqual(['main', 'note-*', 'settings'])
+    expect(windowsWith('allow-font-read')).toEqual(['main', 'note-*', 'quick-capture', 'settings'])
   })
 
   it('lets both windows check for updates, and only the main window download and restart', () => {

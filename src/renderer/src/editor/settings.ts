@@ -206,6 +206,15 @@ export function scrollMarginsOf(s: EditorSettings): { top: number; bottom: numbe
   const room = s.scrollPastEnd ? Math.round(s.fontSize * s.lineHeight * LAST_LINE_ROOM) : 0
   return { top: s.cursorScrollMargin, bottom: Math.max(s.cursorScrollMargin, room) }
 }
+
+/** Room the trial-ended bar keeps at the foot of the window (TrialNotices.tsx), read when the margin is. */
+function trialBarInset(): number {
+  if (typeof document === 'undefined') return 0
+  const px = Number.parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue('--trial-bar-inset'),
+  )
+  return Number.isFinite(px) ? px : 0
+}
 const whitespaceTheme = EditorView.theme({
   '.cm-highlightSpace': {
     backgroundImage:
@@ -240,7 +249,9 @@ const PARTS = {
   scrollPastEnd: (s: EditorSettings): Extension => (s.scrollPastEnd ? pastEnd : []),
   scrollMargin: (s: EditorSettings): Extension => {
     const { top, bottom } = scrollMarginsOf(s)
-    return top > 0 || bottom > 0 ? EditorView.scrollMargins.of(() => ({ top, bottom })) : []
+    return top > 0 || bottom > 0
+      ? EditorView.scrollMargins.of(() => ({ top, bottom: bottom + trialBarInset() }))
+      : []
   },
   invisibles: (s: EditorSettings): Extension => (s.showInvisibles ? invisibles : []),
   trailing: (s: EditorSettings): Extension =>

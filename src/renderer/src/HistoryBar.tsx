@@ -86,7 +86,8 @@ function pointIn(
   return pastOffset(segments, index, within)
 }
 
-// Tab moves through the struck runs and takes each in whole, so Restore This Passage can be reached without a pointer.
+// A struck run takes itself in whole when the keyboard reaches it, so Restore This Passage can be
+// reached without a pointer. Only one run is a Tab stop; the arrow keys move between them.
 function selectFromKeyboard(e: FocusEvent<HTMLElement>) {
   if (e.currentTarget.matches(':focus-visible')) {
     document.getSelection()?.selectAllChildren(e.currentTarget)
@@ -108,6 +109,10 @@ function HistoryOverlay(props: {
   const box = useRef<HTMLDivElement>(null)
   const { onPassage, bar } = props
   const length = props.past.text.length
+  const [focusAt, setFocusAt] = useState<number>()
+  const firstRemoved = segments.findIndex((s) => s.kind === 'removed')
+  const tabAt =
+    focusAt !== undefined && segments[focusAt]?.kind === 'removed' ? focusAt : firstRemoved
 
   useEffect(() => {
     const read = () => {
@@ -160,7 +165,26 @@ function HistoryOverlay(props: {
       <div ref={root} className="history-overlay-text">
         {segments.map((s, i) =>
           s.kind === 'removed' ? (
-            <del key={i} data-segment={i} tabIndex={0} onFocus={selectFromKeyboard}>
+            <del
+              key={i}
+              data-segment={i}
+              tabIndex={i === tabAt ? 0 : -1}
+              onFocus={(e) => {
+                setFocusAt(i)
+                selectFromKeyboard(e)
+              }}
+              onKeyDown={(e) => {
+                const next =
+                  e.key === 'ArrowRight'
+                    ? segments.findIndex((part, j) => j > i && part.kind === 'removed')
+                    : e.key === 'ArrowLeft'
+                      ? segments.findLastIndex((part, j) => j < i && part.kind === 'removed')
+                      : -1
+                if (next === -1) return
+                e.preventDefault()
+                root.current?.querySelector<HTMLElement>(`del[data-segment="${next}"]`)?.focus()
+              }}
+            >
               {s.text}
             </del>
           ) : s.kind === 'added' ? (
@@ -192,14 +216,20 @@ export function useHistoryBar(props: {
   text: TextStore
   enabled: boolean
   readOnly: boolean
-  onApply: (update: Uint8Array) => void
+  onApply: (noteId: string, update: Uint8Array) => void
   /** After a restore, once the overlay is gone, so the next undo takes the restore back. */
   onRestored: () => void
 }): { bar: ReactNode; overlay: ReactNode } {
   const { core, noteId, enabled } = props
+  // The note the bar is on now, for a restore that answers after another note opened.
+  const noteIdNow = useRef(noteId)
+  useEffect(() => {
+    noteIdNow.current = noteId
+  }, [noteId])
   const locale = currentLocale()
   const [steps, setSteps] = useState<{ noteId: string; steps: HistoryStep[] }>()
   const [error, setError] = useState<string>()
+  const [restoreError, setRestoreError] = useState<string>()
   const [shown, setShown] = useState<Shown>()
   const [texts, setTexts] = useState(() => new Map<string, string>())
   const [passage, setPassage] = useState<{ from: number; to: number }>()
@@ -256,17 +286,20 @@ export function useHistoryBar(props: {
     setTexts(new Map())
     setPassage(undefined)
     setShown(undefined)
+    setRestoreError(undefined)
   }
 
   const show = (i: number, mode: Mode) => {
     if (!noteId) return
     const id = list[i]?.id ?? null
     setShown({ noteId, id, mode: id === null ? 'idle' : mode })
+    setRestoreError(undefined)
     if (id !== atNote?.id) setPassage(undefined)
   }
   const back = () => {
     if (noteId) setShown({ noteId, id: null, mode: 'idle' })
     setPassage(undefined)
+    setRestoreError(undefined)
   }
 
   // Only Escape pressed in the bar or the overlay: elsewhere (the palette, a sheet) it is theirs.
@@ -335,12 +368,15 @@ export function useHistoryBar(props: {
     if (!core || !step || !passage) return
     setBusy(true)
     try {
-      props.onApply(await core.restorePassage(noteId, step.id, passage))
+      const update = await core.restorePassage(noteId, step.id, passage)
+      // Another note opened while the core worked: the update is not for this one.
+      if (noteIdNow.current !== noteId) return
+      props.onApply(noteId, update)
       back()
       restored.current = true
       setReload((n) => n + 1)
     } catch (e) {
-      setError(errorCode(e))
+      if (noteIdNow.current === noteId) setRestoreError(errorCode(e))
     } finally {
       setBusy(false)
     }
@@ -349,12 +385,14 @@ export function useHistoryBar(props: {
     if (!core || !step) return
     setBusy(true)
     try {
-      props.onApply(await core.restoreRevision(noteId, step.id))
+      const update = await core.restoreRevision(noteId, step.id)
+      if (noteIdNow.current !== noteId) return
+      props.onApply(noteId, update)
       back()
       restored.current = true
       setReload((n) => n + 1)
     } catch (e) {
-      setError(errorCode(e))
+      if (noteIdNow.current === noteId) setRestoreError(errorCode(e))
     } finally {
       setBusy(false)
     }
@@ -362,13 +400,15 @@ export function useHistoryBar(props: {
 
   const note = error
     ? format(t('historyBar.failed'), { code: error })
-    : list.length === 0
-      ? t('history.empty')
-      : showing
-        ? t('historyBar.shownHint')
-        : compactionLimited(list, now)
-          ? t('historyBar.compacted')
-          : t('historyBar.hint')
+    : restoreError
+      ? format(t('history.restoreFailed'), { code: restoreError })
+      : list.length === 0
+        ? t('history.empty')
+        : showing
+          ? t('historyBar.shownHint')
+          : compactionLimited(list, now)
+            ? t('historyBar.compacted')
+            : t('historyBar.hint')
   const handleAt = step ? axisAt(step.at, start, end) : 1
 
   const bar = (
@@ -420,7 +460,7 @@ export function useHistoryBar(props: {
         </div>
       </div>
       <div className="history-bar-row">
-        <p className="history-bar-note" role={error ? 'alert' : undefined}>
+        <p className="history-bar-note" role={error || restoreError ? 'alert' : undefined}>
           {note}
         </p>
         {showing ? (

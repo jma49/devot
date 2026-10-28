@@ -2,10 +2,20 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { backupNow, errorCode, listBackups, type BackupInfo } from './backups'
 import { ConfirmDialog } from './ConfirmDialog'
 import { fileSize } from './format'
-import { currentLocale, format, t } from './i18n'
+import { currentLocale, format, t, type MessageKey } from './i18n'
 
 const backupDate = (ms: number, locale: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(ms)
+
+interface Failure {
+  message: MessageKey
+  code: string
+}
+
+const restoreFailure = (code: string): Failure => ({
+  message: code === 'E_BACKUP_RESTORE_WINDOWS' ? 'backups.restoreWindows' : 'backups.restoreFailed',
+  code,
+})
 
 /** The local backups, newest first: back up now, or restore one after confirming. */
 export function BackupsDialog(props: {
@@ -17,7 +27,7 @@ export function BackupsDialog(props: {
   const dialog = useRef<HTMLDialogElement>(null)
   const done = useRef<HTMLButtonElement>(null)
   const [backups, setBackups] = useState<BackupInfo[]>()
-  const [error, setError] = useState<string>()
+  const [error, setError] = useState<Failure>()
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState<BackupInfo>()
   const locale = currentLocale()
@@ -27,9 +37,9 @@ export function BackupsDialog(props: {
       listBackups().then(
         (status) => {
           setBackups(status.backups)
-          if (status.lastError) setError(status.lastError)
+          if (status.lastError) setError({ message: 'backups.failed', code: status.lastError })
         },
-        (e: unknown) => setError(errorCode(e)),
+        (e: unknown) => setError({ message: 'backups.listFailed', code: errorCode(e) }),
       ),
     [],
   )
@@ -47,13 +57,13 @@ export function BackupsDialog(props: {
     void load()
   }, [load])
 
-  const run = async (work: () => Promise<unknown>) => {
+  const run = async (work: () => Promise<unknown>, failure: (code: string) => Failure) => {
     setBusy(true)
     setError(undefined)
     try {
       await work()
     } catch (e) {
-      setError(errorCode(e))
+      setError(failure(errorCode(e)))
     } finally {
       setBusy(false)
     }
@@ -84,7 +94,7 @@ export function BackupsDialog(props: {
       <p className="sheet-detail">{t('backups.detail')}</p>
       {error ? (
         <p role="alert" className="sheet-error">
-          {format(t('backups.failed'), { code: error })}
+          {format(t(error.message), { code: error.code })}
         </p>
       ) : null}
       {backups && backups.length === 0 ? (
@@ -119,7 +129,11 @@ export function BackupsDialog(props: {
           className="button"
           aria-disabled={busy}
           onClick={() => {
-            if (!busy) void run(() => backupNow().then(load))
+            if (!busy)
+              void run(
+                () => backupNow().then(load),
+                (code) => ({ message: 'backups.failed', code }),
+              )
           }}
         >
           {t('backups.now')}
@@ -146,7 +160,7 @@ export function BackupsDialog(props: {
           onConfirm={() => {
             const id = confirm.id
             setConfirm(undefined)
-            void run(() => props.onRestore(id))
+            void run(() => props.onRestore(id), restoreFailure)
           }}
           onCancel={() => setConfirm(undefined)}
         />

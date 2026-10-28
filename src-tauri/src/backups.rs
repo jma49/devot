@@ -2,6 +2,10 @@
 //! taken is a day old, keeping the last `KEEP`. Until sync exists these are the only second copy of
 //! the notes. Snapshots run on their own thread and connection; restoring first copies the current
 //! data aside.
+//! A restore replaces the notes under every window. Each other window with a core of its own saves,
+//! stops its core and answers before it (`devot://restore-prepare`, `backup_restore_ready`), and
+//! reloads after it (`devot://restore-done`), so none writes notes from before the restore back over
+//! it and the compaction in `main` is stopped wherever the restore starts.
 //! Backups go in the order they were taken, which the number in their names keeps, never by the
 //! time beside it: the clock can be set back or ahead, and a backup taken then must neither be the
 //! first to go nor stay the newest.
@@ -9,9 +13,10 @@
 use crate::atomic_file::{self, Place, TempDir};
 use crate::{logs, storage};
 use serde::Serialize;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, EventTarget, Manager, State, WebviewWindow};
 use tokio::sync::Mutex;
 
 pub const DIR: &str = "backups";
@@ -29,6 +34,11 @@ const STAMP_LEN: usize = 24;
 const FIRST_CHECK: Duration = Duration::from_secs(20);
 const CHECK_EVERY: Duration = Duration::from_secs(3600);
 pub const FAILED_EVENT: &str = "devot://backup-failed";
+pub const PREPARE_EVENT: &str = "devot://restore-prepare";
+pub const DONE_EVENT: &str = "devot://restore-done";
+/// A window that has not stopped by then calls the restore off.
+const PREPARE_TIMEOUT: Duration = Duration::from_secs(5);
+const PREPARE_POLL: Duration = Duration::from_millis(50);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -323,6 +333,80 @@ pub struct Backups {
     dir: PathBuf,
     lock: Mutex<()>,
     last_error: std::sync::Mutex<Option<&'static str>>,
+    preparing: Preparing,
+}
+
+fn others_with_a_core(caller: &str, labels: impl IntoIterator<Item = String>) -> HashSet<String> {
+    labels
+        .into_iter()
+        .filter(|label| label != caller && crate::note_relay::may_relay(label))
+        .collect()
+}
+
+/// The other windows as a restore sees them.
+trait Others {
+    fn tell(&self, label: &str, event: &'static str);
+    fn open(&self) -> HashSet<String>;
+}
+
+impl Others for AppHandle {
+    fn tell(&self, label: &str, event: &'static str) {
+        if self
+            .emit_to(EventTarget::webview_window(label), event, ())
+            .is_err()
+        {
+            log::warn!("W_BACKUP_RESTORE_EMIT_FAILED {event}");
+        }
+    }
+
+    fn open(&self) -> HashSet<String> {
+        self.webview_windows().into_keys().collect()
+    }
+}
+
+/// The windows a restore waits for, while one does.
+#[derive(Default)]
+struct Preparing {
+    waiting: std::sync::Mutex<Option<HashSet<String>>>,
+}
+
+impl Preparing {
+    fn waiting(&self) -> std::sync::MutexGuard<'_, Option<HashSet<String>>> {
+        self.waiting.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn begin(&self, asked: HashSet<String>) -> Result<(), &'static str> {
+        let mut waiting = self.waiting();
+        if waiting.is_some() {
+            return Err("E_BACKUP_RESTORE_BUSY");
+        }
+        *waiting = Some(asked);
+        Ok(())
+    }
+
+    fn ready(&self, label: &str) {
+        if let Some(waiting) = self.waiting().as_mut() {
+            waiting.remove(label);
+        }
+    }
+
+    /// Whether every window asked has answered or closed (`live` are the windows open); the wait
+    /// ends when so.
+    fn settled(&self, live: &HashSet<String>) -> bool {
+        let mut waiting = self.waiting();
+        let Some(asked) = waiting.as_mut() else {
+            return true;
+        };
+        asked.retain(|label| live.contains(label));
+        if asked.is_empty() {
+            *waiting = None;
+        }
+        waiting.is_none()
+    }
+
+    fn end(&self) {
+        *self.waiting() = None;
+    }
 }
 
 impl Backups {
@@ -332,6 +416,66 @@ impl Backups {
             dir: data_dir.join(DIR),
             lock: Mutex::new(()),
             last_error: std::sync::Mutex::new(None),
+            preparing: Preparing::default(),
+        }
+    }
+
+    fn source(&self, id: &str) -> Result<PathBuf, &'static str> {
+        if parse_name(id).is_none() {
+            return Err("E_BACKUP_ID_INVALID");
+        }
+        let source = self.dir.join(id);
+        if !source.is_file() {
+            return Err("E_BACKUP_NOT_FOUND");
+        }
+        Ok(source)
+    }
+
+    /// Windows asked to stop reload after, whether the restore ran or not. A restore refused because
+    /// another is waiting asked none, so it tells none.
+    async fn restore_with_others_stopped(
+        &self,
+        others: &impl Others,
+        asked: &HashSet<String>,
+        db: &storage::Db,
+        id: &str,
+        now: i64,
+    ) -> Result<(), &'static str> {
+        if !asked.is_empty() {
+            self.preparing.begin(asked.clone())?;
+        }
+        let result = match self.wait_for(others, asked).await {
+            Ok(()) => self.restore(db, id, now).await,
+            Err(code) => Err(code),
+        };
+        for label in asked {
+            others.tell(label, DONE_EVENT);
+        }
+        result
+    }
+
+    async fn wait_for(
+        &self,
+        others: &impl Others,
+        asked: &HashSet<String>,
+    ) -> Result<(), &'static str> {
+        if asked.is_empty() {
+            return Ok(());
+        }
+        for label in asked {
+            others.tell(label, PREPARE_EVENT);
+        }
+        let deadline = Instant::now() + PREPARE_TIMEOUT;
+        loop {
+            if self.preparing.settled(&others.open()) {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                self.preparing.end();
+                log::warn!("W_BACKUP_PREPARE_TIMEOUT");
+                return Err("E_BACKUP_RESTORE_WINDOWS");
+            }
+            tokio::time::sleep(PREPARE_POLL).await;
         }
     }
 
@@ -361,14 +505,8 @@ impl Backups {
     /// Copies the current data aside first as a safety copy, so the restore can be undone. It
     /// removes nothing (see `prune`).
     async fn restore(&self, db: &storage::Db, id: &str, now: i64) -> Result<(), &'static str> {
-        if parse_name(id).is_none() {
-            return Err("E_BACKUP_ID_INVALID");
-        }
         let _held = self.lock.lock().await;
-        let source = self.dir.join(id);
-        if !source.is_file() {
-            return Err("E_BACKUP_NOT_FOUND");
-        }
+        let source = self.source(id)?;
         let (db_path, dir) = (self.db_path.clone(), self.dir.clone());
         tauri::async_runtime::spawn_blocking(move || {
             tidy(&dir);
@@ -460,17 +598,27 @@ pub async fn backup_now(app: AppHandle) -> Result<BackupInfo, String> {
     result.map_err(String::from)
 }
 
+/// The calling window saves and holds its own core first, and reloads after.
 #[tauri::command]
 pub async fn backup_restore(
     app: AppHandle,
+    window: WebviewWindow,
     db: State<'_, storage::Db>,
     id: String,
 ) -> Result<(), String> {
     let backups = app.state::<Backups>();
+    backups.source(&id)?;
+    let asked = others_with_a_core(window.label(), app.webview_windows().into_keys());
     backups
-        .restore(&db, &id, logs::now_ms())
+        .restore_with_others_stopped(&app, &asked, &db, &id, logs::now_ms())
         .await
         .map_err(String::from)
+}
+
+/// A window has saved and stopped its core for the restore.
+#[tauri::command]
+pub fn backup_restore_ready(app: AppHandle, window: WebviewWindow) {
+    app.state::<Backups>().preparing.ready(window.label());
 }
 
 #[cfg(test)]
@@ -515,6 +663,88 @@ mod tests {
         let week = names(backups);
         assert_eq!(week.len(), KEEP);
         week
+    }
+
+    fn labels(names: &[&str]) -> HashSet<String> {
+        names.iter().map(|n| (*n).to_owned()).collect()
+    }
+
+    #[test]
+    fn a_restore_waits_for_every_other_window_with_a_core_to_stop_it() {
+        let note = crate::note_window::label_for("0192a6f0-0000-7000-8000-000000000001");
+        let asked = others_with_a_core(
+            "main-2",
+            labels(&["main", "main-2", &note, "settings", "quick-capture"]),
+        );
+        assert_eq!(asked, labels(&["main", &note]));
+
+        let gate = Preparing::default();
+        gate.begin(asked.clone()).unwrap();
+        assert_eq!(gate.begin(asked.clone()), Err("E_BACKUP_RESTORE_BUSY"));
+        let live = labels(&["main", "main-2", &note]);
+        assert!(!gate.settled(&live));
+        gate.ready("main");
+        assert!(!gate.settled(&live));
+        assert!(
+            gate.settled(&labels(&["main", "main-2"])),
+            "a window that closed has nothing left to write"
+        );
+        gate.begin(asked.clone()).unwrap();
+        gate.end();
+        gate.ready("main");
+        gate.begin(asked).unwrap();
+    }
+
+    #[derive(Default)]
+    struct Told(std::sync::Mutex<Vec<(String, &'static str)>>);
+
+    impl Others for Told {
+        fn tell(&self, label: &str, event: &'static str) {
+            self.0.lock().unwrap().push((label.to_owned(), event));
+        }
+
+        fn open(&self) -> HashSet<String> {
+            HashSet::new()
+        }
+    }
+
+    #[test]
+    fn a_restore_refused_while_another_waits_tells_no_window_to_reload() {
+        let (_dir, backups, db) = app_data();
+        let id = backups.back_up(NOW).unwrap().id;
+        let asked = labels(&["main", "main-2"]);
+        backups.preparing.begin(labels(&["main-2"])).unwrap();
+
+        let told = Told::default();
+        let refused = tauri::async_runtime::block_on(backups.restore_with_others_stopped(
+            &told,
+            &asked,
+            &db,
+            &id,
+            NOW + HOUR,
+        ));
+        assert_eq!(refused, Err("E_BACKUP_RESTORE_BUSY"));
+        assert!(told.0.lock().unwrap().is_empty());
+
+        backups.preparing.end();
+        tauri::async_runtime::block_on(backups.restore_with_others_stopped(
+            &told,
+            &asked,
+            &db,
+            &id,
+            NOW + HOUR,
+        ))
+        .unwrap();
+        let events = told.0.lock().unwrap().clone();
+        let to = |event: &str, from: &[(String, &str)]| -> HashSet<String> {
+            from.iter()
+                .filter(|(_, e)| *e == event)
+                .map(|(label, _)| label.clone())
+                .collect()
+        };
+        let (first, then) = events.split_at(2);
+        assert_eq!(to(PREPARE_EVENT, first), asked, "{events:?}");
+        assert_eq!(to(DONE_EVENT, then), asked, "{events:?}");
     }
 
     fn left_behind(folder: TempDir) -> PathBuf {

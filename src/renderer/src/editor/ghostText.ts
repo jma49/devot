@@ -115,11 +115,12 @@ class GhostRequests {
   /** Bumped by every change of the note or the caret, and by every request: an answer for an older one is dropped. */
   private token = 0
   private idle: ReturnType<typeof setTimeout> | undefined
-  private pending = false
+  /** What asked for the request in flight, if one is. */
+  private pending: SuggestTrigger | null = null
 
   constructor(private readonly view: EditorView) {}
 
-  get busy(): boolean {
+  get waitingFor(): SuggestTrigger | null {
     return this.pending
   }
 
@@ -140,7 +141,7 @@ class GhostRequests {
     clearTimeout(this.idle)
     this.idle = undefined
     if (this.pending) {
-      this.pending = false
+      this.pending = null
       this.view.state.facet(ghostSource)?.cancel()
     }
   }
@@ -153,10 +154,10 @@ class GhostRequests {
     const mine = this.token
     const { doc } = this.view.state
     const caret = main.head
-    this.pending = true
+    this.pending = trigger
     const settle = () => {
       if (mine !== this.token) return false
-      this.pending = false
+      this.pending = null
       return true
     }
     source
@@ -192,14 +193,19 @@ class GhostRequests {
 
 const requests = ViewPlugin.fromClass(GhostRequests)
 
-/** Escape drops a suggestion or a request still on its way; with neither it falls through to the editor's own. */
+/**
+ * Escape drops a suggestion or a request still on its way. It is used up only by what the user
+ * saw or asked for: after a pause's unseen request it still does the editor's own job too (Escape
+ * then Tab leaves the editor).
+ */
 function dismiss(view: EditorView): boolean {
   const plugin = view.plugin(requests)
   const shown = view.state.field(ghostField, false)
-  if (!shown && !plugin?.busy) return false
+  const waiting = plugin?.waitingFor ?? null
+  if (!shown && !waiting) return false
   plugin?.stop()
   if (shown) view.dispatch({ effects: setGhost.of(null) })
-  return true
+  return !!shown || waiting === 'key'
 }
 
 const keys = Prec.highest(

@@ -9,7 +9,7 @@ import { EditorState, type Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { iconElement } from '../icons/Icon'
 import { codeBlocks, languageSource } from './codeBlocks'
-import { chooseTemplate, editorHints } from './hints'
+import { editorHints } from './hints'
 import { alertSource, emojiSource } from './inlineCompletions'
 import { closingStyles, closingTooltips, fadeIn, motionKeyframes } from './motion'
 import { unlessChoosing } from './pasteChooser'
@@ -163,7 +163,6 @@ const popupSources = [slashSource, languageSource, emojiSource, alertSource].map
 
 export interface CompletionHost {
   chooseImageFiles?: (view: EditorView) => void
-  chooseTemplate?: () => void
 }
 
 export function editorCompletions(host: CompletionHost = {}): Extension {
@@ -176,6 +175,5 @@ export function editorCompletions(host: CompletionHost = {}): Extension {
     codeBlocks(),
     editorHints(),
     host.chooseImageFiles ? chooseImageFiles.of(host.chooseImageFiles) : [],
-    host.chooseTemplate ? chooseTemplate.of(host.chooseTemplate) : [],
   ]
 }

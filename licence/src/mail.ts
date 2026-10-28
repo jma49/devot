@@ -16,6 +16,8 @@ export interface Mailer {
 }
 
 const RESEND_URL = 'https://api.resend.com/emails'
+/** Shorter than the Worker's 30 s waitUntil budget, so a hung Resend call cannot strand the claim. */
+export const MAIL_TIMEOUT_MS = 10_000
 
 type Fetch = (input: string, init: RequestInit) => Promise<Response>
 
@@ -56,6 +58,7 @@ export function resendMailer(
             html: mail.html,
             ...(replyTo?.trim() ? { reply_to: replyTo.trim() } : {}),
           }),
+          signal: AbortSignal.timeout(MAIL_TIMEOUT_MS),
         })
       } catch {
         throw new LicenceError('E_LICENCE_MAIL', 'network')

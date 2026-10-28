@@ -5,7 +5,8 @@
 // the palette and any keys the user gives them act on the image at the
 // cursor too.
 import { invoke } from './ipc'
-import { useCallback } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
+import { errorCode } from '../../core/errors'
 import { IMAGE_SIZES, type ImageSize } from '../../core/images'
 import { editorCommandKeys, type CommandId } from './commands/registry'
 import {
@@ -107,7 +108,40 @@ export function imageActionApplies(action: ImageAction, image: ImageMenuTarget):
   return shownGroups(IMAGE_MENU, image).some((group) => group.some((e) => e.action === item))
 }
 
-/** Runs an image action on an image; a failure is logged by code. */
+export interface ImageActionFailure {
+  action: 'copy' | 'save'
+  code: string
+}
+
+// Per window: the window that ran the action shows its notice.
+let failure: ImageActionFailure | null = null
+const failureListeners = new Set<() => void>()
+
+function setImageActionFailure(next: ImageActionFailure | null): void {
+  failure = next
+  failureListeners.forEach((listener) => listener())
+}
+
+export const dismissImageActionFailure = (): void => setImageActionFailure(null)
+
+export function useImageActionFailure(): ImageActionFailure | null {
+  return useSyncExternalStore(
+    (listener) => {
+      failureListeners.add(listener)
+      return () => failureListeners.delete(listener)
+    },
+    () => failure,
+    () => failure,
+  )
+}
+
+const reportFailure = (action: 'copy' | 'save', fileId: string) => (error: unknown) => {
+  const code = errorCode(error, 'E_COMMAND_FAILED')
+  console.warn(action === 'copy' ? 'W_IMAGE_COPY_FAILED' : 'W_IMAGE_SAVE_FAILED', fileId, code)
+  setImageActionFailure({ action, code })
+}
+
+/** Runs an image action on an image; a failed copy or save is logged and shown by code (useImageActionFailure). */
 export function runImageAction(
   action: ImageAction,
   image: ImageMenuTarget,
@@ -116,10 +150,10 @@ export function runImageAction(
   if (!imageActionApplies(action, image)) return
   const fileId = image.fileId
   if (action === 'copy' && fileId) {
-    return copyImage(fileId).catch(() => console.warn('W_IMAGE_COPY_FAILED', fileId))
+    return copyImage(fileId).catch(reportFailure('copy', fileId))
   }
   if (action === 'save' && fileId) {
-    return saveImage(fileId).catch(() => console.warn('W_IMAGE_SAVE_FAILED', fileId))
+    return saveImage(fileId).catch(reportFailure('save', fileId))
   }
   const size = sizeOfAction(action)
   if (size && image.source) setSize(image.source, size)

@@ -161,6 +161,7 @@ const PAUSED_MESSAGES = new Map<string, MessageKey>([
   // mirror waits for the file to come back or the folder to be chosen again.
   ['E_MIRROR_MANIFEST_MISSING', 'mirror.pausedManifestMissing'],
   ['E_MIRROR_MANIFEST_INVALID', 'mirror.pausedManifestInvalid'],
+  ['E_MIRROR_MANIFEST_FOREIGN', 'mirror.pausedManifestForeign'],
 ])
 
 export function pausedMessage(code: string): string {

@@ -76,13 +76,21 @@ export function PickerList(props: {
     placeholder: string
     query: string
     onQuery: (query: string) => void
+    /** The option to make active for a query (the first one otherwise). */
+    pick?: (query: string) => string | undefined
   }
   empty?: string
 }) {
   const { options, value } = props
   const listId = useId()
   const start = options.findIndex((o) => o.id === value)
-  const [active, setActive] = useState(start >= 0 ? start : options.length > 0 ? 0 : -1)
+  // Held as an id: a query change rebuilds the rows, and the row picked for
+  // the new query is the one to keep active, whatever index it lands on.
+  const [activeOption, setActiveOption] = useState<string | undefined>(
+    options[start >= 0 ? start : 0]?.id,
+  )
+  const found = options.findIndex((o) => o.id === activeOption)
+  const shownActive = found >= 0 ? found : options.length > 0 ? 0 : -1
   const list = useRef<HTMLUListElement>(null)
   const field = useRef<HTMLInputElement>(null)
   useEffect(() => {
@@ -108,7 +116,6 @@ export function PickerList(props: {
     panel.style.left = `${p.shift}px`
     panel.style.setProperty('--picker-room', `${p.room}px`)
   }, [])
-  const shownActive = active >= options.length ? options.length - 1 : active
   useEffect(() => {
     if (shownActive < 0) return
     list.current
@@ -133,7 +140,7 @@ export function PickerList(props: {
     const next = (props.search ? fieldStep : pickerStep)(e.key, shownActive, options.length)
     if (next === undefined) return
     e.preventDefault()
-    setActive(next)
+    setActiveOption(options[next]?.id)
   }
   const optionId = (i: number) => `${listId}-${i}`
   const activeId = shownActive >= 0 ? optionId(shownActive) : undefined
@@ -156,8 +163,9 @@ export function PickerList(props: {
           placeholder={props.search.placeholder}
           value={props.search.query}
           onChange={(e) => {
-            props.search?.onQuery(e.target.value)
-            setActive(0)
+            const next = e.target.value
+            props.search?.onQuery(next)
+            setActiveOption(props.search?.pick?.(next))
           }}
         />
       ) : null}

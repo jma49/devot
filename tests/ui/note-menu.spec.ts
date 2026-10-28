@@ -298,6 +298,57 @@ test('the picker moves from the menu, by arrow keys or click, and Escape cancels
     .toBeNull()
 })
 
+test('Move to Notebook takes the typed notebook, not a parent or No Notebook', async ({ page }) => {
+  const tree = page.getByRole('tree', { name: 'Notebooks' })
+  await createBook(page, 'Work')
+  const work = tree.getByRole('treeitem', { name: /^Work\b/ }).locator('> .book-row')
+  await work.click({ button: 'right' })
+  await pickMenuItem(page, 'New Notebook Inside')
+  const nameField = page.getByRole('textbox', { name: 'Notebook name' })
+  await nameField.fill('Devot')
+  await nameField.press('Enter')
+  await createBook(page, 'Notes')
+  await page.getByRole('button', { name: /^All Notes/ }).click()
+  await createNote(page, 'Loose')
+
+  const books = () =>
+    page.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem('devot.test.books') ?? '[]') as {
+          id: string
+          name: string
+        }[],
+    )
+  const bookIdOf = async (title: string) =>
+    (await stored(page)).find((n) => n.title === title)?.bookId
+
+  await openMenu(page, 'Loose')
+  await pickMenuItem(page, 'Move to Notebook…')
+  await picker(page).getByRole('combobox').fill('devot')
+  // Projects and Devot are listed, but the name typed is Devot's.
+  await expect(picker(page).getByRole('option', { name: 'Work' })).toBeVisible()
+  await expect(picker(page).getByRole('option', { name: 'Devot' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await page.keyboard.press('Enter')
+  await expect(picker(page)).toHaveCount(0)
+  expect(await bookIdOf('Loose')).toBe((await books()).find((b) => b.name === 'Devot')?.id)
+
+  // "No Notebook" holds the query too; the notebook named for it wins.
+  await openMenu(page, 'Loose')
+  await pickMenuItem(page, 'Move to Notebook…')
+  await picker(page).getByRole('combobox').fill('note')
+  await expect(picker(page).getByRole('option', { name: 'No Notebook' })).toBeVisible()
+  await expect(picker(page).getByRole('option', { name: 'Notes' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await page.keyboard.press('Enter')
+  await expect(picker(page)).toHaveCount(0)
+  expect(await bookIdOf('Loose')).toBe((await books()).find((b) => b.name === 'Notes')?.id)
+})
+
 test('Cmd+Delete moves the selected note to the trash', async ({ page }) => {
   await createNote(page, 'Keep')
   await createNote(page, 'Drop')

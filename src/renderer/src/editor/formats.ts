@@ -25,6 +25,7 @@ import {
   type AlertKind,
   type BlockFormat,
 } from './blocks'
+import { noteParser } from './markdown'
 import { insertRule } from './rule'
 import { Covered, SpanIndex } from './spanIndex'
 import {
@@ -216,7 +217,10 @@ function otherSyntax(cx: Cx, format: Wrap, from: number, to: number): Syntax[] {
     from,
     to,
     enter(node) {
-      if (node.name === own) return true
+      if (node.name === own) {
+        if (format === 'code') found.push(...codeTextSyntax(cx, node.node))
+        return true
+      }
       const markName = NESTING_MARKS[node.name]
       if (markName) {
         const marks = node.node.getChildren(markName)
@@ -254,6 +258,57 @@ function otherSyntax(cx: Cx, format: Wrap, from: number, to: number): Syntax[] {
   })
   if (format !== 'highlight')
     for (const span of markSpans(cx, from, to)) found.push({ ...span, nest: true })
+  return found
+}
+
+/**
+ * The syntax a code span's text has once its markers come off (links, tags,
+ * URLs), which the tree does not show inside code: taking the code off part
+ * of it must not cut through that syntax, so each is taken whole.
+ */
+function codeTextSyntax(cx: Cx, code: SyntaxNode): Syntax[] {
+  const marks = code.getChildren('CodeMark')
+  const from = marks[0]?.to
+  const to = marks.at(-1)?.from
+  if (from === undefined || to === undefined || from >= to) return []
+  const text = cx.state.sliceDoc(from, to)
+  const found: Syntax[] = []
+  const add = (a: number, b: number) =>
+    found.push({ from: from + a, to: from + b, openTo: from + b, closeFrom: from + b, nest: false })
+  const open: number[] = []
+  noteParser.parse(text).iterate({
+    enter(node) {
+      if (node.name === 'Link' || node.name === 'Image') {
+        if (linkOf(node.node)) add(node.from, node.to)
+        return false
+      }
+      if (!ATOMIC.has(node.name)) return true
+      add(node.from, node.to)
+      const tag = text.slice(node.from, node.to)
+      if (node.name === 'HTMLTag' && MARK_OPEN.test(tag)) open.push(node.from)
+      else if (node.name === 'HTMLTag' && MARK_CLOSE.test(tag)) {
+        const start = open.pop()
+        if (start !== undefined) add(start, node.to)
+      }
+      return false
+    },
+  })
+  return found
+}
+
+/** The atomic node (an escape, an entity, …) each position from `from` to `to` is in. */
+function atomsIn(cx: Cx, from: number, to: number): Map<number, { from: number; to: number }> {
+  const found = new Map<number, { from: number; to: number }>()
+  cx.tree.iterate({
+    from,
+    to,
+    enter(node) {
+      if (!ATOMIC.has(node.name)) return true
+      const atom = { from: node.from, to: node.to }
+      for (let p = Math.max(from, node.from); p < Math.min(to, node.to); p++) found.set(p, atom)
+      return false
+    },
+  })
   return found
 }
 
@@ -480,6 +535,7 @@ const canClose = (before: string, after: string) => {
 function rebuild(cx: Cx, format: InlineFormat, region: Region, apply: boolean): Rebuilt {
   const { state } = cx
   const others = syntaxMarks(cx, region.from, region.to)
+  const atoms = atomsIn(cx, region.from, region.to)
   const literal = format === 'code' ? null : literalChars(cx, region.from, region.to, true)
   const spans = new SpanIndex(region.spans)
   const segments = new Covered(region.segments)
@@ -528,11 +584,25 @@ function rebuild(cx: Cx, format: InlineFormat, region: Region, apply: boolean): 
   ): { lead: number; trail: number } | null => {
     let lead = 0
     let trail = 0
-    // Whole characters: a surrogate pair is one.
+    // Whole characters: a surrogate pair is one, and so is an escape or an entity.
     const glyph = (at: number, side: -1 | 1) => {
       const c = core[at]
       const pair = core[at + side]
       if (!c) return { text: '', size: 0 }
+      const atom = atoms.get(c.pos)
+      if (atom) {
+        let whole = ''
+        let size = 0
+        for (
+          let k = at, d = core[k];
+          d && d.pos >= atom.from && d.pos < atom.to;
+          d = core[(k += side)]
+        ) {
+          whole = side > 0 ? whole + d.ch : d.ch + whole
+          size++
+        }
+        return { text: whole, size }
+      }
       if (side > 0 && pair && /[\ud800-\udbff]/.test(c.ch) && /[\udc00-\udfff]/.test(pair.ch))
         return { text: c.ch + pair.ch, size: 2 }
       if (side < 0 && pair && /[\udc00-\udfff]/.test(c.ch) && /[\ud800-\udbff]/.test(pair.ch))
@@ -963,11 +1033,14 @@ export function escapeBangBefore(state: EditorState, pos: number): ChangeSpec[] 
 /**
  * A URL as a link's address: as it is, except that `|` is percent-encoded
  * (in a table it would end the cell), and so are `\` (it would escape the
- * next character, a closing parenthesis too) and parentheses that do not
- * pair up (one would end the address early).
+ * next character, a closing parenthesis too), whitespace (it would end the
+ * address) and parentheses that do not pair up (one would end the address early).
  */
 export function linkAddress(url: string): string {
-  const piped = url.replace(/\|/g, '%7C').replace(/\\/g, '%5C')
+  const piped = url
+    .replace(/\|/g, '%7C')
+    .replace(/\\/g, '%5C')
+    .replace(/\s/g, (c) => encodeURIComponent(c))
   let depth = 0
   for (const ch of piped) {
     if (ch === '(') depth++
@@ -975,6 +1048,9 @@ export function linkAddress(url: string): string {
   }
   return depth === 0 ? piped : piped.replace(/[()]/g, (c) => (c === '(' ? '%28' : '%29'))
 }
+
+/** An odd run of backslashes at the end: the last one would escape a link's closing bracket. */
+const TRAILING_ESCAPE = /(?<!\\)(?:\\\\)*\\$/
 
 /**
  * Makes the selected text a link to `url` (a URL pasted over it), the
@@ -990,19 +1066,23 @@ export function linkTo(state: EditorState, url: string): TransactionSpec | null 
   const segments = linkSegments(cx)
   if (segments.length === 0) return null
   if (segments.some((seg) => URL_ONLY.test(state.sliceDoc(seg.from, seg.to)))) return null
+  return { ...linkSegmentsTo(cx, segments, url), userEvent: 'input.paste' }
+}
+
+/** Makes each segment a link to `url`, the cursor after each. */
+function linkSegmentsTo(cx: Cx, segments: Segment[], url: string): TransactionSpec {
+  const { state } = cx
   const inserts: ChangeSpec[] = []
   for (const seg of segments) {
     inserts.push(...escapeBangBefore(state, seg.from))
     inserts.push({ from: seg.from, insert: '[' })
     for (const at of loneBrackets(cx, seg.from, seg.to)) inserts.push({ from: at, insert: '\\' })
-    inserts.push({ from: seg.to, insert: `](${linkAddress(url)})` })
+    const trailing = TRAILING_ESCAPE.test(state.sliceDoc(seg.from, seg.to)) ? '\\' : ''
+    inserts.push({ from: seg.to, insert: `${trailing}](${linkAddress(url)})` })
   }
   const changes = state.changes(inserts)
   const cursors = segments.map((seg) => EditorSelection.cursor(changes.mapPos(seg.to, 1)))
-  return {
-    ...spec(changes, EditorSelection.create(cursors)),
-    userEvent: 'input.paste',
-  }
+  return spec(changes, EditorSelection.create(cursors))
 }
 
 export function selectionHasLink(state: EditorState): boolean {
@@ -1010,19 +1090,46 @@ export function selectionHasLink(state: EditorState): boolean {
   return !!cx && selectedLinks(cx).length > 0
 }
 
-function linkLabel(text: string): string {
-  return text.replace(/\s*\n\s*/g, ' ').replace(/\\?[[\]]/g, (m) => (m.length === 2 ? m : `\\${m}`))
+const CODE_SPAN = /(`+)[\s\S]*?(?<!`)\1(?!`)/g
+
+/**
+ * Text as a link's label, on one line. Lone brackets are escaped, and `|` (in
+ * a table it would end the cell), outside code spans, where a backslash would
+ * show; so is a trailing backslash, which would escape the closing bracket.
+ */
+function linkLabel(text: string, inTable = false): string {
+  const flat = text.replace(/\s*\n\s*/g, ' ')
+  const escape = (plain: string) =>
+    plain.replace(/\\?[[\]|]/g, (m) => (m.length === 2 ? m : `\\${m}`))
+  // A table splits a cell on a pipe even inside a code span, where the escape shows as the pipe.
+  const inCode = (code: string) => (inTable ? code.replace(/(?<!\\)\|/g, '\\|') : code)
+  let label = ''
+  let at = 0
+  for (const span of flat.matchAll(CODE_SPAN)) {
+    label += escape(flat.slice(at, span.index)) + inCode(span[0])
+    at = span.index + span[0].length
+  }
+  label += escape(flat.slice(at))
+  return TRAILING_ESCAPE.test(label) ? `${label}\\` : label
 }
 
 /**
  * The link dialog's result: `[text](url)` in place of the main selection
  * (the URL as its text when `text` is empty), the cursor after it; one undo
- * step.
+ * step. A selection over several lines or ranges is linked line by line,
+ * after block markers, as the Link command does; `text` cannot name each link.
  */
 export function insertLink(state: EditorState, text: string, url: string): TransactionSpec {
-  const { from, to } = state.selection.main
+  const { ranges, main } = state.selection
+  const { from, to } = main
+  const cx = context(state)
+  if (ranges.length > 1 || state.doc.lineAt(from).number !== state.doc.lineAt(to).number) {
+    const segments = cx ? linkSegments(cx) : []
+    if (cx && segments.length > 0) return linkSegmentsTo(cx, segments, url.trim())
+  }
   const address = linkAddress(url.trim())
-  const label = linkLabel(text.trim() === '' ? url.trim() : text)
+  const inTable = cx !== null && lineBlock(cx, state.doc.lineAt(from)).kind === 'table'
+  const label = linkLabel(text.trim() === '' ? url.trim() : text, inTable)
   const changes = state.changes([
     ...escapeBangBefore(state, from),
     { from, to, insert: `[${label}](${address})` },

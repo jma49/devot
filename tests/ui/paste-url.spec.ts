@@ -129,7 +129,36 @@ test('a failed fetch says why in the preview', async ({ page }) => {
   await page.keyboard.press('ArrowDown')
   await expect(previewOf(page)).toHaveText('Could not get the page title: the page is not HTML.')
   await page.keyboard.press('Enter')
+  await expect(formats(page)).toHaveCount(0)
+  await expect(previewOf(page)).toHaveText('Could not get the page title: the page is not HTML.')
+  await page.keyboard.press('Escape')
+  await expect(previewOf(page)).toHaveCount(0)
   await expect(line(page, 0)).toHaveText('x https://example.com/file.pdf')
+})
+
+test('a format picked before its fetch fails says why, and the URL stays', async ({ page }) => {
+  await page.evaluate(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      ...w.devotIpcMocks,
+      link_title: () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve(null), 400)
+        }),
+    }
+  })
+  await newNote(page, 'x ')
+  await changeEditorSettingsElsewhere(page, { pasteUrl: 'choose' })
+  await body(page).click()
+  await page.keyboard.press('End')
+  await paste(page, 'https://example.com/')
+  await expect(formats(page)).toHaveCount(4)
+  await settleList(page)
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Enter')
+  await expect(previewOf(page)).toHaveText('This page has no title.')
+  await page.keyboard.insertText(' after')
+  await expect(line(page, 0)).toHaveText('x https://example.com/ after')
 })
 
 test('a GitHub file link pastes as a fenced snippet', async ({ page }) => {
@@ -179,4 +208,14 @@ test('Paste URL As… opens the chooser for the clipboard URL', async ({ page })
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('Enter')
   await expect(line(page, 0)).toHaveText('go <https://a.example/>')
+})
+
+test('lines pasted into a code block in a list item stay in the item', async ({ page }) => {
+  await newNote(page, '- item\n  ```\n  \n  ```\n- next')
+  await line(page, 2).click()
+  await page.keyboard.press('End')
+  await paste(page, 'line1\nline2')
+  await expect
+    .poll(() => lines(page))
+    .toEqual(['- item', '  ```', '  line1', '  line2', '  ```', '- next'])
 })

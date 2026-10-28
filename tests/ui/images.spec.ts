@@ -194,6 +194,42 @@ test('the image menu copies and saves an attachment, and sets its size', async (
   await expect(img).not.toHaveClass(/image-size/)
 })
 
+test('a copy or save of an image that fails says so with its code; a cancelled save says nothing', async ({
+  page,
+}) => {
+  const mock = (mocks: Record<string, unknown>) =>
+    page.evaluate((m) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = { ...w.devotIpcMocks, ...m }
+    }, mocks)
+  await mock({ image_copy: { error: 'E_FILE_NOT_FOUND' }, image_save: false })
+  await newNote(page, `Before ![Shot](${FILE}) after`)
+  await showMode(page, 'Split')
+  const img = preview(page).locator('img')
+  const openMenu = async () => {
+    const before = await popups(page)
+    await img.dispatchEvent('contextmenu', { clientX: 20, clientY: 20, bubbles: true })
+    await expect.poll(() => popups(page)).toBe(before + 1)
+  }
+  const notice = page.getByRole('alert').filter({ hasText: /The image could not be/ })
+
+  await openMenu()
+  await pickMenuItem(page, 'Copy Image')
+  await expect(notice).toHaveText(/The image could not be copied\. \(E_FILE_NOT_FOUND\)/)
+  await notice.getByRole('button', { name: 'Dismiss' }).click()
+  await expect(notice).toHaveCount(0)
+
+  await openMenu()
+  await pickMenuItem(page, 'Save Image As…')
+  await expect.poll(() => calls(page, 'image_save')).toHaveLength(1)
+  await expect(notice).toHaveCount(0)
+
+  await mock({ image_save: { error: 'E_IMAGE_SAVE_FAILED' } })
+  await openMenu()
+  await pickMenuItem(page, 'Save Image As…')
+  await expect(notice).toHaveText(/The image could not be saved\. \(E_IMAGE_SAVE_FAILED\)/)
+})
+
 test('size presets show in the preview and stay in the Markdown', async ({ page }) => {
   await newNote(
     page,

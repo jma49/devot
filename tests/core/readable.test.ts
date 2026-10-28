@@ -2,6 +2,7 @@ import fc from 'fast-check'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { expectWithinBudget } from '../support/budget'
 import {
   bodyExcerpt,
   EXCERPT_BEFORE,
@@ -201,7 +202,7 @@ describe('readableText properties', () => {
     )
   })
 
-  it('stays linear on input made to be slow', () => {
+  it('stays linear on input made to be slow', (context) => {
     const size = 200_000
     const inputs = [
       '['.repeat(size),
@@ -218,10 +219,10 @@ describe('readableText properties', () => {
     const started = performance.now()
     for (const input of inputs) readableText(`x${input}\n${input}`)
     // Linear work takes well under a second; quadratic work takes minutes.
-    expect(performance.now() - started).toBeLessThan(10_000)
+    expectWithinBudget(context, performance.now() - started, 10_000)
   }, 20_000)
 
-  it('checks nested link destinations in linear time', () => {
+  it('checks nested link destinations in linear time', (context) => {
     const k = 50_000
     const inputs = [
       // Every `(` opens a destination that runs to the one late space.
@@ -233,7 +234,7 @@ describe('readableText properties', () => {
       const started = performance.now()
       readableText(input)
       // Linear work takes milliseconds; quadratic work takes seconds.
-      expect(performance.now() - started).toBeLessThan(1_000)
+      expectWithinBudget(context, performance.now() - started, 1_000)
     }
   })
 

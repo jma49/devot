@@ -184,7 +184,7 @@ export function TemplatePicker(props: {
           </div>
           {options.length === 0 ? <p className="sheet-detail">{t('templates.noMatches')}</p> : null}
         </div>
-        <section className="templates-preview" aria-label={t('templates.preview')}>
+        <section className="templates-preview" aria-label={t('templates.preview')} tabIndex={0}>
           {shown ? (
             <>
               <h3 className="templates-preview-title">

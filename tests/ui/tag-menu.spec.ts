@@ -4,6 +4,7 @@ import {
   clipboardWrites,
   expect,
   pickMenuItem,
+  reloadApp,
   shownMenu,
   test,
   type TestWindow,
@@ -27,6 +28,17 @@ interface StoredTag {
 /** Tags the in-memory store holds (saved state, not the screen). */
 const storedTags = (page: Page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem('devot.test.tags') ?? '[]') as StoredTag[])
+
+interface StoredLink {
+  noteId: string
+  tagId: string
+  present: boolean
+}
+
+const storedLinks = (page: Page) =>
+  page.evaluate(
+    () => JSON.parse(localStorage.getItem('devot.test.noteTags') ?? '[]') as StoredLink[],
+  )
 
 async function createNote(page: Page, title: string) {
   const before = await noteRows(page).count()
@@ -253,4 +265,50 @@ test('Tag Settings sets the name and the colour from the tag palette', async ({ 
   await expect(dialog).toHaveCount(0)
   await expect(tagRow(page, 'thoughts')).toBeVisible()
   expect((await storedTags(page)).find((t) => t.name === 'thoughts')?.color).toBe('blue')
+})
+
+test('a suggestion picked from two tags of one name goes on by ID', async ({ page }) => {
+  await createNote(page, 'One')
+  await addTag(page, 'Work')
+  const first = (await storedTags(page))[0]!
+  // A second tag of the same name, as sync may bring.
+  const second = { ...first, id: '0192a6f0-0000-7000-8000-0000000000b2' }
+  await page.evaluate(
+    (tags) => localStorage.setItem('devot.test.tags', JSON.stringify(tags)),
+    [first, second],
+  )
+  await reloadApp(page)
+  await noteRow(page, 'One').click()
+  await expect(editorTags(page)).toBeVisible()
+  // The first is on the note already, so the other is the only suggestion.
+  const field = page.getByRole('combobox', { name: 'Add Tag' })
+  await field.fill('Work')
+  const options = page.getByRole('listbox', { name: 'Tag suggestions' }).getByRole('option')
+  await expect(options).toHaveCount(1)
+  await options.first().click()
+  await expect(editorTags(page).locator('.chip')).toHaveCount(2)
+  await expect
+    .poll(async () =>
+      (await storedLinks(page))
+        .filter((link) => link.present)
+        .map((link) => link.tagId)
+        .sort(),
+    )
+    .toEqual([first.id, second.id].sort())
+})
+
+test('a Copy Tag ID that fails says so, with its code', async ({ page }) => {
+  await setUp(page)
+  await page.evaluate(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      ...w.devotIpcMocks,
+      clipboard_write_text: { error: 'E_CLIPBOARD_WRITE_FAILED' },
+    }
+  })
+  await openMenu(page, 'idea')
+  await pickMenuItem(page, 'Copy Tag ID')
+  await expect(page.getByRole('alert')).toContainText(
+    'The ID could not be copied (E_CLIPBOARD_WRITE_FAILED).',
+  )
 })

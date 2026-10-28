@@ -100,14 +100,21 @@ const emptyNote = ViewPlugin.fromClass(
       this.place()
     }
     update(update: ViewUpdate) {
-      if (update.docChanged || update.geometryChanged) this.place()
+      if (
+        update.docChanged ||
+        update.geometryChanged ||
+        update.startState.readOnly !== update.state.readOnly ||
+        update.startState.facet(chooseTemplate) !== update.state.facet(chooseTemplate)
+      )
+        this.place()
     }
     place() {
       const { view, dom } = this
       const empty = view.state.doc.length === 0
-      dom.hidden = !empty
+      // Nothing to type and no template to choose while the note is read-only.
+      dom.hidden = !empty || view.state.readOnly
       chipShown(dom, view.state.facet(chooseTemplate) !== null)
-      if (!empty) return
+      if (dom.hidden) return
       view.requestMeasure({
         read: () => {
           const line = view.lineBlockAt(0)

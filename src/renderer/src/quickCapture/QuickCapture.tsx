@@ -19,6 +19,7 @@ function failure(code: string): MessageKey {
   if (code === 'E_BOOK_NOT_FOUND') return 'quickCapture.notebookGone'
   if (code === 'E_QUICK_CAPTURE_TIMEOUT' || code === 'E_QUICK_CAPTURE_NO_WINDOW')
     return 'quickCapture.noAnswer'
+  if (code === 'E_QUICK_CAPTURE_LATE') return 'quickCapture.stillSaving'
   return 'quickCapture.saveFailed'
 }
 

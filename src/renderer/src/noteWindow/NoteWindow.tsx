@@ -5,11 +5,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SaveProblem, TakenIn } from '../../../core'
 import { errorCode } from '../../../core/errors'
 import { clipTitle } from '../../../core/noteLimits'
+import { onRestoreElsewhere } from '../backups'
 import { startCore, stopCore, type Core } from '../core-client'
 import { useAlertMenu } from '../editor/alertMenu'
 import { useExternalChanges } from '../externalChanges'
 import { t, format } from '../i18n'
 import { useImageMenu, type SetImageSize } from '../imageMenu'
+import { ImageActionNotice } from '../ImageNotice'
 import { ImageViewer, type ViewedImage } from '../ImageViewer'
 import { isImeKey } from '../ime'
 import { invoke } from '../ipc'
@@ -197,6 +199,20 @@ export function NoteWindow() {
     )
   }, [quitGuard, closeGuard])
 
+  useEffect(
+    () =>
+      onRestoreElsewhere(async () => {
+        const ready = coreRef.current
+        if (!ready) return
+        try {
+          await saveEdits(ready)
+        } finally {
+          stopCore(ready)
+        }
+      }),
+    [],
+  )
+
   // Another process (devot-mcp) wrote: the note takes it in, and the editor what changed (takeIn).
   useExternalChanges(
     core
@@ -311,6 +327,7 @@ export function NoteWindow() {
       </main>
       <Notices>
         <TrialEndedBar />
+        <ImageActionNotice />
         {problems.length > 0 && !dismissed ? (
           <SaveNotice
             problems={problems}

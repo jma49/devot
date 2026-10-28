@@ -23,7 +23,7 @@ import {
 } from '../textServices'
 import { aiEditSelection, aiMenuEntries, type AiEditChoice } from './aiMenu'
 import { selectedText } from './extract'
-import { linkAt } from './lineCommands'
+import { linkAt, opensLink } from './lineCommands'
 import { registryKeys } from './registryKeys'
 
 export type EditorAction =
@@ -52,6 +52,7 @@ export interface EditorMenuTarget {
 }
 
 const hasLink = (target: EditorMenuTarget) => target.link !== null
+const opensTargetLink = (target: EditorMenuTarget) => target.link !== null && opensLink(target.link)
 const hasSelection = (target: EditorMenuTarget) => target.selection !== null
 
 const SPEECH: MenuEntry<EditorAction, EditorMenuTarget>[] = [
@@ -64,7 +65,10 @@ const AI_SUBMENU = aiMenuEntries<EditorAction, EditorMenuTarget>((choice) => `ai
 
 export const EDITOR_MENU: MenuGroups<EditorAction, EditorMenuTarget> = [
   [
-    commandEntry('openLink', 'edit.openLink', { label: 'editorMenu.openLink', shown: hasLink }),
+    commandEntry('openLink', 'edit.openLink', {
+      label: 'editorMenu.openLink',
+      shown: opensTargetLink,
+    }),
     { action: 'copyLink', label: 'editorMenu.copyLink', shown: hasLink },
   ],
   [
@@ -141,10 +145,11 @@ export interface WordRange {
 
 /**
  * The word at `pos` the system may offer spelling guesses for: none away
- * from the text, or when a selection is something other than that word.
+ * from the text, when a selection is something other than that word, or in
+ * a read-only note.
  */
 export function spellingWordAt(state: EditorState, pos: number | null): WordRange | null {
-  if (pos === null) return null
+  if (pos === null || state.readOnly) return null
   const word = state.wordAt(pos)
   if (!word) return null
   const { from, to, empty } = state.selection.main

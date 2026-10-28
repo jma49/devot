@@ -24,6 +24,7 @@ import {
   BOOK_COMMANDS,
   BOOK_MENU,
   WORKSPACE_MENU,
+  bookActionShown,
   bookShortcut,
   workspaceShortcut,
   type BookAction,
@@ -31,6 +32,8 @@ import {
   type ImportAction,
 } from './bookMenu'
 import { changesNotes, commandMatches, heldCommandKey } from './commands/registry'
+import type { ExportFailure } from './ExportNotice'
+import { errorCode } from '../../core/errors'
 import { useKeymap } from './commands/shortcutSettings'
 import { titleWithKey } from './commands/titles'
 import { useContextMenu, type MenuPoint } from './contextMenu'
@@ -186,6 +189,8 @@ interface Props {
   menus?: Ref<SidebarMenus> | undefined
   onSearchTags: () => void
   onEmptyTrash: () => void
+  /** Shows a copy that failed, with its code, as the note copy actions do. */
+  onCopyFailed?: (failure: ExportFailure, code: string) => void
   /** Makes a new note (the All Notes row's menu); absent while the library is not open. */
   onNewNote?: (() => void) | undefined
   /** Where the collapsed sections are kept; this window's local storage by default. */
@@ -480,7 +485,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
         }}
       >
         {tag ? <TagGlyph color={tag.color} /> : <Icon name={icon} size="md" />}
-        <span className="source-label">{label}</span>
+        <span className="source-label" dir="auto">
+          {label}
+        </span>
         {unseen && count === 0 ? null : (
           <span className="source-count" aria-hidden={unseen || undefined}>
             {format(count)}
@@ -649,7 +656,11 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     }
     switch (action) {
       case 'copyId':
-        return void copyText(node.id).catch(() => console.warn('W_BOOK_COPY_FAILED', node.id))
+        return void copyText(node.id).catch((e: unknown) => {
+          const code = errorCode(e)
+          console.warn('W_BOOK_COPY_FAILED', node.id, code)
+          props.onCopyFailed?.('copyId', code)
+        })
       case 'move':
         return setMovingBook(node)
       case 'newInside':
@@ -704,7 +715,11 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       case 'filter':
         return props.onFilter(tag.filtered ? null : { kind: 'tag', tagId: tag.id })
       case 'copyId':
-        return void copyText(tag.id).catch(() => console.warn('W_TAG_COPY_FAILED', tag.id))
+        return void copyText(tag.id).catch((e: unknown) => {
+          const code = errorCode(e)
+          console.warn('W_TAG_COPY_FAILED', tag.id, code)
+          props.onCopyFailed?.('copyId', code)
+        })
       case 'delete':
         return props.onDeleteTag(tag.id)
     }
@@ -801,7 +816,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     const action = bookShortcut(event)
     if (action) {
       event.preventDefault()
-      runAction(action, placed(node))
+      const target = placed(node)
+      if (bookActionShown(action, target)) runAction(action, target)
     }
   }
 
@@ -982,7 +998,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                 }}
               />
             ) : (
-              <span className="source-label">{node.name}</span>
+              <span className="source-label" dir="auto">
+                {node.name}
+              </span>
             )}
             {node.aiAccess ? (
               <span
@@ -1186,7 +1204,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             }}
           >
             <Icon name="notes.all" size="md" />
-            <span className="source-label">{t('sidebar.allNotes')}</span>
+            <span className="source-label" dir="auto">
+              {t('sidebar.allNotes')}
+            </span>
             <span className="source-count">{format(props.total)}</span>
           </button>
         </li>
@@ -1209,7 +1229,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                 onClick={() => props.onSelect({ kind: 'templates' })}
               >
                 <Icon name="templates" size="md" />
-                <span className="source-label">{t('sidebar.templates')}</span>
+                <span className="source-label" dir="auto">
+                  {t('sidebar.templates')}
+                </span>
                 <span className="source-count">{format(props.templatesCount)}</span>
               </button>
             </li>
@@ -1394,7 +1416,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
               }}
             >
               <Icon name="trash" size="md" />
-              <span className="source-label">{t('sidebar.trash')}</span>
+              <span className="source-label" dir="auto">
+                {t('sidebar.trash')}
+              </span>
               <span className="source-count">{format(props.trashCount)}</span>
             </button>
           </li>
