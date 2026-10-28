@@ -292,6 +292,22 @@ describe('hand-set dates', () => {
     expect([stored.createdAt, stored.updatedAt]).toEqual([MAR_1, MAR_2])
   })
 
+  it('keeps a hand-set update date when another writer saved the note first', async () => {
+    const path = freshPath()
+    const app = service(path)
+    const id = await app.notes.create('Dated')
+    await app.notes.setBody(id, 'Text')
+    await app.notes.flush()
+    // Another writer moves the body on, so this core's put is refused once and retried.
+    const other = service(path, 'mac2')
+    await other.notes.setBody(id, 'Text, changed elsewhere')
+    await other.notes.flush()
+
+    await app.notes.setDates(id, { createdAt: MAR_1, updatedAt: MAR_1 + 1000 })
+    const stored = (await app.storage.getNote(id))!
+    expect([stored.createdAt, stored.updatedAt]).toEqual([MAR_1, MAR_1 + 1000])
+  })
+
   it('wins over a stale write from another process, which keeps only a later update', async () => {
     const path = freshPath()
     const app = service(path)

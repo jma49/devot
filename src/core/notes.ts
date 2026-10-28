@@ -386,7 +386,9 @@ const withNewer = (to: NoteRecord, from: NoteRecord): NoteRecord => ({
   // Newer hand-set dates are taken as they are (see NoteRecord.datesHlc).
   ...((from.datesHlc ?? '') > (to.datesHlc ?? '')
     ? { createdAt: from.createdAt, updatedAt: from.updatedAt, datesHlc: from.datesHlc ?? '' }
-    : { updatedAt: Math.max(to.updatedAt, from.updatedAt) }),
+    : (to.datesHlc ?? '') > (from.datesHlc ?? '')
+      ? {}
+      : { updatedAt: Math.max(to.updatedAt, from.updatedAt) }),
 })
 
 const holdsMore = (doc: Y.Doc, stored: NoteRecord) => {
