@@ -201,6 +201,40 @@ describe('Undo All', () => {
     expect(readWrites(owner)).toHaveLength(1)
   })
 
+  it('keeps a writer’s text gone when two writers changed the same passage, undone in order', () => {
+    const owner = docWith('Intro.\n')
+    let agent = loaded(owner, 2)
+    edit(agent, claude, 'Intro.\nAlpha wrote this paragraph.\n')
+    sync(agent, owner)
+    agent = loaded(owner, 3)
+    edit(agent, codex, 'Intro.\nBeta replaced it.\n', 2000)
+    sync(agent, owner)
+    expect(body(owner)).toBe('Intro.\nBeta replaced it.\n')
+
+    reverseWrites(owner, { kind: 'mcp', name: 'Claude Code' })
+    reverseWrites(owner, { kind: 'mcp', name: 'Codex' })
+    expect(body(owner)).toBe('Intro.\n')
+    expect(agentText(owner)).toBe('')
+  })
+
+  it('takes back a writer’s restored text when the writer is undone after the one that replaced it', () => {
+    const owner = docWith('Intro.\n')
+    let agent = loaded(owner, 2)
+    edit(agent, claude, 'Intro.\nAlpha wrote this paragraph.\n')
+    sync(agent, owner)
+    agent = loaded(owner, 3)
+    edit(agent, codex, 'Intro.\nBeta replaced it.\n', 2000)
+    sync(agent, owner)
+
+    reverseWrites(owner, { kind: 'mcp', name: 'Codex' })
+    // The text Claude wrote comes back, still Claude's, so its own Undo All takes it out.
+    expect(body(owner)).toBe('Intro.\nAlpha wrote this paragraph.\n')
+    expect(agentText(owner)).toBe('Alpha wrote this paragraph.\n')
+    reverseWrites(owner, { kind: 'mcp', name: 'Claude Code' })
+    expect(body(owner)).toBe('Intro.\n')
+    expect(agentText(owner)).toBe('')
+  })
+
   it('does not put back text the writer deleted that it had inserted itself', () => {
     const owner = docWith('Start.\n')
     let agent = loaded(owner, 2)
