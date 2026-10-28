@@ -163,12 +163,20 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
           const files = await pickImportFiles(action.plugin, action.id)
           if (!files) return
           let made = 0
-          for (const file of files) {
-            const note = await host.convertImport(action.plugin, action.id, file)
-            await c.capture(note.title, note.markdown, w.importBook())
-            made += 1
+          try {
+            for (const file of files) {
+              try {
+                const note = await host.convertImport(action.plugin, action.id, file)
+                await c.capture(note.title, note.markdown, w.importBook())
+                made += 1
+              } catch (error) {
+                // One file the plugin could not convert does not stop the rest.
+                fail(action.plugin, error)
+              }
+            }
+          } finally {
+            if (made > 0) w.imported()
           }
-          if (made > 0) w.imported()
         } else {
           const open = w.openNote()
           if (!c || !open) return

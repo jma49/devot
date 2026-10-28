@@ -43,7 +43,10 @@ devot.ui.onHidden(() => {
   globalThis.hidden = (globalThis.hidden ?? 0) + 1
 })
 devot.preview.handle('shout', (source) => '**' + source.toUpperCase() + '** <script>top.shouted = 1</script><img src=x onerror="top.shouted = 2">')
-devot.importer.handle('shout', ({ name, text }) => ({ title: name.replace(/\\.shout$/, ''), markdown: text.toUpperCase() }))
+devot.importer.handle('shout', ({ name, text }) => {
+  if (name.includes('bad')) throw new Error('no')
+  return { title: name.replace(/\\.shout$/, ''), markdown: text.toUpperCase() }
+})
 devot.exporter.handle('shout', ({ title, markdown }) => title + ': ' + markdown.toUpperCase())
 `
 
@@ -219,6 +222,30 @@ test('a plugin shows its panel while its command runs; Close hides it and tells 
   await panel.getByRole('button', { name: 'Close' }).click()
   await expect(panel).toBeHidden()
   await expect.poll(() => inner.evaluate(() => (globalThis as { hidden?: number }).hidden)).toBe(1)
+})
+
+test('an import that fails partway keeps the notes it made, tries the rest and shows them', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      ...w.devotIpcMocks,
+      plugin_import_pick: () => [
+        { name: 'first.shout', text: 'quiet one' },
+        { name: 'bad.shout', text: 'quiet bad' },
+        { name: 'second.shout', text: 'quiet two' },
+      ],
+    }
+  })
+  await paletteRun(page, 'Import Shout Files')
+  await expect(noteRows(page)).toHaveCount(2)
+  const notes = await savedNotes(page)
+  expect(notes.map((n) => [n.title, n.bodyMd]).sort()).toEqual([
+    ['first', 'QUIET ONE'],
+    ['second', 'QUIET TWO'],
+  ])
+  await expect(page.getByRole('alert')).toContainText('E_PLUGIN_FAILED')
 })
 
 test('a read-only licence keeps plugin commands and imports from changing notes', async ({
