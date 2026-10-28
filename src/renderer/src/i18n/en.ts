@@ -982,6 +982,8 @@ export const en = {
   'change.tagNameInvalid': 'A tag name is one line of at most {max} characters.',
   'change.bookNameInvalid': 'A notebook name is one line of at most {max} characters.',
   'export.failed': 'The export did not complete ({code}).',
+  'export.partial':
+    'The export is incomplete: {written} written, {problems} with problems (first: {code}).',
   'export.allName': 'Devot Notes',
   'export.selectionName': 'Devot Export',
   'export.printFailed': 'The note could not be printed ({code}).',

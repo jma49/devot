@@ -35,14 +35,15 @@ async function draw(request: RenderRequest): Promise<void> {
   // A container of its own, removed when this drawing is done; nothing else
   // in the document is touched.
   const container = document.createElement('div')
+  document.body.appendChild(container)
   try {
-    document.body.appendChild(container)
     const { svg } = await mermaid.render(`devot-mermaid-${request.id}`, request.source, container)
     reply({ type: 'rendered', id: request.id, svg })
   } catch {
     // Only a drawing that failed is checked for an error in its source, so a
     // diagram that draws is parsed once. A source that parses but cannot be
-    // laid out fails the same way every time: it is not asked again.
+    // laid out fails the same way every time: it is not asked again. A
+    // failure before Mermaid runs (above) may pass, and is asked for again.
     const parsed = await mermaid.parse(request.source, { suppressErrors: true }).catch(() => false)
     reply({ type: 'failed', id: request.id, reason: parsed ? 'layout' : 'parse' })
   } finally {

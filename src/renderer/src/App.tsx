@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type {
   BatchChange,
   BookRecord,
+  ExportReport,
   ImportScan,
   NoteStatus,
   NoteSummary,
@@ -558,6 +559,7 @@ export function App() {
   const [exportNotice, setExportNotice] = useState<{
     failure: ExportFailure
     code: string
+    values?: Record<string, string | number>
   }>()
   // Print and Export as PDF ask for the page setup first.
   const [pageSetupFor, setPageSetupFor] = useState<{
@@ -2567,12 +2569,21 @@ export function App() {
   /** Runs an export, print or copy (exporter.ts, loaded on first use); a failure is shown with its code in a notice. */
   const runExport = async (
     failure: ExportFailure,
-    run: (exporter: typeof import('./exporter')) => Promise<void>,
+    run: (exporter: typeof import('./exporter')) => Promise<ExportReport | null | void>,
   ) => {
     if (!core) return
     setExportNotice(undefined)
     try {
-      await run(await import('./exporter'))
+      const report = await run(await import('./exporter'))
+      const problem = report?.problems[0]
+      if (report && problem) {
+        console.warn('W_EXPORT_INCOMPLETE', problem.code)
+        setExportNotice({
+          failure: 'partial',
+          code: problem.code,
+          values: { written: report.notes, problems: report.problems.length },
+        })
+      }
     } catch (error) {
       const code = errorCode(error)
       console.warn('W_EXPORT_FAILED', code)
@@ -3998,6 +4009,7 @@ export function App() {
           <ExportNotice
             failure={exportNotice.failure}
             code={exportNotice.code}
+            values={exportNotice.values}
             onDismiss={() => setExportNotice(undefined)}
           />
         ) : null}

@@ -403,3 +403,194 @@ test('a diagram far below the view is drawn only once scrolled near', async ({ p
   await expect(svgs).toHaveCount(2, { timeout: 20_000 })
   await expect(svgs.nth(1)).toContainText('Review')
 })
+
+const noteBody = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
+
+test('a footnote link scrolls to its footnote, and its back link to the text', async ({ page }) => {
+  const filler = Array.from({ length: 60 }, (_, i) => `Line ${i}\n`).join('\n')
+  await newNote(page, 'Notes', `Claim.[^1]\n\n${filler}\n[^1]: The source.`)
+  await mode(page, 'Preview').click()
+  const footnote = preview(page).locator('li[id="user-content-fn-1"]')
+  await expect(footnote).toHaveCount(1)
+  await expect(footnote).not.toBeInViewport()
+  await preview(page).locator('a[data-footnote-ref]').click()
+  await expect(footnote).toBeInViewport()
+  await preview(page).locator('a[data-footnote-backref]').click()
+  await expect(preview(page).locator('a[data-footnote-ref]')).toBeInViewport()
+})
+
+test('a link the preview will not open says so and offers its address', async ({ page }) => {
+  await newNote(page, 'Mail', 'Write [me](mailto:a@b.example) or see [this](http://example.com).')
+  await mode(page, 'Split').click()
+  await preview(page).getByRole('link', { name: 'me' }).click()
+  const notice = preview(page).getByRole('status')
+  await expect(notice).toHaveText('Only https links open from the preview: mailto:a@b.example')
+  await preview(page).getByRole('link', { name: 'this' }).click()
+  await expect(notice).toHaveText('Only https links open from the preview: http://example.com')
+  const opened = await page.evaluate(() =>
+    (globalThis as unknown as TestWindow).devotIpcCalls.filter((c) => c.cmd === 'open_external'),
+  )
+  expect(opened).toEqual([])
+  await preview(page).getByRole('button', { name: 'Dismiss' }).click()
+  await expect(notice).toHaveCount(0)
+})
+
+test('a details block the reader opened stays open while the note is edited', async ({ page }) => {
+  await newNote(page, 'Folds', '<details><summary>More</summary>Hidden text.</details>\n\nTail')
+  await mode(page, 'Split').click()
+  const details = preview(page).locator('details')
+  await details.getByText('More').click()
+  await expect(details).toHaveJSProperty('open', true)
+  await noteBody(page).click()
+  await page.keyboard.press('Meta+ArrowDown')
+  await page.keyboard.insertText(' edited')
+  await expect(preview(page)).toContainText('Tail edited')
+  await expect(details).toHaveJSProperty('open', true)
+})
+
+test('an image with a width and a height keeps the ratio of the picture', async ({ page }) => {
+  await page.route('**/test-images/ratio.svg', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="100%" height="100%" fill="teal"/></svg>',
+    }),
+  )
+  await newNote(page, 'Photo', '![photo w:320 h:100](/test-images/ratio.svg)')
+  await mode(page, 'Preview').click()
+  const image = preview(page).locator('img').first()
+  await expect
+    .poll(() => image.evaluate((el) => (el as unknown as { naturalWidth: number }).naturalWidth))
+    .toBe(400)
+  const drawn = await image.evaluate((el) => {
+    type Style = Record<string, string>
+    const style = (
+      globalThis as unknown as { getComputedStyle(e: unknown): Style }
+    ).getComputedStyle(el)
+    const box = (
+      el as unknown as { getBoundingClientRect(): { width: number; height: number } }
+    ).getBoundingClientRect()
+    const across = parseFloat(style['paddingLeft']!) + parseFloat(style['paddingRight']!)
+    const down = parseFloat(style['paddingTop']!) + parseFloat(style['paddingBottom']!)
+    return (box.width - across) / (box.height - down)
+  })
+  expect(drawn).toBeCloseTo(4 / 3, 1)
+})
+
+test('a block that stops being a diagram does not keep the diagram', async ({ page }) => {
+  await newNote(page, 'Swap', `${DIAGRAM}\n\n> [!NOTE]\n> Mind the gap.`)
+  await mode(page, 'Split').click()
+  await expect(preview(page).locator('.island-mermaid svg')).toHaveCount(1)
+  await noteBody(page).click()
+  await page.keyboard.press('Meta+a')
+  await page.keyboard.insertText('> [!NOTE]\n> Mind the gap.')
+  await expect(preview(page).locator('[data-devot-island]')).toHaveCount(0)
+  await expect(preview(page).locator('.alert')).toContainText('Mind the gap.')
+  await page.keyboard.press('Meta+z')
+  await expect(preview(page).locator('.island-mermaid svg')).toHaveCount(1, { timeout: 20_000 })
+  await expect(preview(page).locator('.island-mermaid .alert-title')).toHaveCount(0)
+  await expect(preview(page).locator('.alert')).toHaveCount(1)
+})
+
+test('a diagram that parses but cannot be laid out is not drawn again at each edit', async ({
+  page,
+}) => {
+  await newNote(page, 'Layout', FLOWCHART)
+  await mode(page, 'Split').click()
+  await expect(preview(page).locator('.island-mermaid svg')).toHaveCount(1)
+
+  // Mermaid measures with getBBox: a drawing that cannot be measured fails after the source parsed.
+  const frame = await mermaidFrame(page)
+  await frame.evaluate(() => {
+    type Window = {
+      SVGGraphicsElement: { prototype: { getBBox(): unknown } }
+      devotMeasured: number
+    }
+    const w = globalThis as unknown as Window
+    w.devotMeasured = 0
+    w.SVGGraphicsElement.prototype.getBBox = () => {
+      w.devotMeasured += 1
+      throw new Error('test')
+    }
+  })
+  await appendToNote(page, `\n\n${SECOND_FLOWCHART}\n`)
+  await expect(preview(page).locator('.island-error')).toHaveText(
+    'This diagram has an error and cannot be drawn.',
+    { timeout: 20_000 },
+  )
+  const measured = () =>
+    frame.evaluate(() => (globalThis as unknown as { devotMeasured: number }).devotMeasured)
+  const before = await measured()
+  for (const text of ['\nOne.\n', '\nTwo.\n', '\nThree.\n']) {
+    await appendToNote(page, text)
+    await expect(preview(page)).toContainText(text.trim())
+  }
+  await page.waitForTimeout(1500)
+  expect(await measured()).toBe(before)
+})
+
+test('right-to-left text reads right to left in the preview and the editor', async ({ page }) => {
+  await newNote(page, 'Hebrew', 'שלום, עולם!\n\nHello')
+  await mode(page, 'Split').click()
+  const paragraphs = preview(page).locator('p')
+  await expect(paragraphs).toHaveCount(2)
+  const bidi = (index: number) =>
+    paragraphs.nth(index).evaluate((el) => {
+      const style = (
+        globalThis as unknown as { getComputedStyle(e: unknown): Record<string, string> }
+      ).getComputedStyle(el)
+      return style['unicodeBidi']
+    })
+  expect(await bidi(0)).toBe('plaintext')
+  const line = page.locator('.cm-line').filter({ hasText: 'שלום' })
+  expect(
+    await line.evaluate(
+      (el) =>
+        (
+          globalThis as unknown as { getComputedStyle(e: unknown): Record<string, string> }
+        ).getComputedStyle(el)['unicodeBidi'],
+    ),
+  ).toBe('plaintext')
+})
+
+test('a note link chip follows its note when it changes elsewhere', async ({ page }) => {
+  await newNote(page, 'Target')
+  await newNote(page, 'Source')
+  const target = await page.evaluate(() => {
+    const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
+      id: string
+      title: string
+    }[]
+    return notes.find((n) => n.title === 'Target')?.id
+  })
+  await noteBody(page).click()
+  await page.keyboard.insertText(`See [](devot://note/${target}).`)
+  await mode(page, 'Split').click()
+  const chip = preview(page).locator('a.note-chip')
+  await expect(chip).toContainText('Target')
+  await page.evaluate((id) => {
+    const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
+      id: string
+      title: string
+    }[]
+    localStorage.setItem(
+      'devot.test.notes',
+      JSON.stringify(
+        notes.map((n) =>
+          n.id === id
+            ? {
+                ...n,
+                title: 'Renamed',
+                titleHlc: `${String(Date.now() + 60_000).padStart(16, '0')}-0000-mcptest`,
+              }
+            : n,
+        ),
+      ),
+    )
+    const w = globalThis as unknown as {
+      dispatchEvent(e: unknown): void
+      CustomEvent: new (t: string) => unknown
+    }
+    w.dispatchEvent(new w.CustomEvent('devot:db-changed'))
+  }, target)
+  await expect(chip).toContainText('Renamed')
+})
