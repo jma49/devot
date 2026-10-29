@@ -148,7 +148,6 @@ export function Preview({
   const pane = useRef<HTMLElement>(null)
   const host = useRef<HTMLDivElement>(null)
   const [loadedEmbeds, setLoadedEmbeds] = useState<string[]>([])
-  /** A link the preview will not open (http:, mailto:), shown with what it was. */
   const [refusedLink, setRefusedLink] = useState<string>()
   const appearance = useAppearance()
   const appearanceNow = useRef(appearance)
@@ -295,7 +294,7 @@ export function Preview({
     input.current = { markdown, loadedEmbeds }
   })
   useEffect(() => onPluginRenderersChanged(() => render.current?.(input.current)), [])
-  // The lists were reloaded (a note a chip shows was renamed, moved, trashed, or changed from another process): its chip is drawn again with the new title, status and progress.
+  // Another window or process can change a note a chip shows.
   useEffect(() => {
     const changed = () => {
       knownLinks.current = undefined

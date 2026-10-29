@@ -148,7 +148,6 @@ export function pageBody(tree: Root, options: PageOptions): PageBody {
     if (print && node.tagName === 'source') return []
     if (simple && (names.includes('frontmatter') || names.includes('swatch'))) return []
     if (simple && names.includes('code-block')) {
-      // The code alone: no header, no line numbers, no highlighting.
       const pre = node.children.find(
         (c): c is Element => c.type === 'element' && c.tagName === 'pre',
       )
