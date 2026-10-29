@@ -773,6 +773,16 @@ test.describe('the relay’s quota cap', () => {
     await expect(panel).toContainText(
       '1 image is not synced: your relay is too old to hold images. Update it',
     )
+    await sendSnapshot(page, {
+      ...snapshot,
+      status: {
+        ...idle,
+        relayOutdated: true,
+        unsyncedFiles: { count: 1, code: 'E_SYNC_RELAY_OUTDATED' },
+      },
+    })
+    await expect(panel).toContainText('Your relay comes from an earlier release')
+    await expect(panel).not.toContainText('image is not synced')
     await sendSnapshot(page, { ...snapshot, status: idle })
     await expect(panel).not.toContainText('not synced:')
   })

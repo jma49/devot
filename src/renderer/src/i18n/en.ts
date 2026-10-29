@@ -637,9 +637,9 @@ export const en = {
   'syncSettings.filesFullOther':
     '{count} images are not synced: the relay has no room left for images. They stay on this device, and are sent again after images are deleted or on the next launch.',
   'syncSettings.filesOutdatedOne':
-    '{count} image is not synced: your relay is too old to hold images.',
+    '{count} image is not synced: your relay is too old to hold images. Update it: run wrangler deploy again from the new release, or restart the Node relay from it.',
   'syncSettings.filesOutdatedOther':
-    '{count} images are not synced: your relay is too old to hold images.',
+    '{count} images are not synced: your relay is too old to hold images. Update it: run wrangler deploy again from the new release, or restart the Node relay from it.',
   'syncSettings.urlFailed': 'The relay address could not be saved ({code}).',
   'syncSettings.vaultFailed': 'The vault could not be created ({code}).',
   'syncSettings.changeFailed': 'Sync could not be turned on or off ({code}).',

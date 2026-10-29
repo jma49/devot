@@ -410,14 +410,21 @@ test('an image under its line has the image menu', async ({ page }) => {
 })
 
 test('an image under its line opens the viewer on a double-click', async ({ page }) => {
-  await newNote(page, `![Big picture](${BIG})\n`)
+  const remote = `https://images.test${BIG}`
+  await page.route(remote, (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: `<svg xmlns="http://www.w3.org/2000/svg" width="${BIG_SIZE.width}" height="${BIG_SIZE.height}"><rect width="100%" height="100%" fill="teal"/></svg>`,
+    }),
+  )
+  await newNote(page, `![Big picture](${remote})\n`)
   const img = inlineImages(page).locator('img')
   await expect
     .poll(() => img.evaluate((i) => (i as unknown as { naturalWidth: number }).naturalWidth))
     .toBe(BIG_SIZE.width)
   await img.dispatchEvent('dblclick', { bubbles: true })
   await expect(viewer(page)).toBeVisible()
-  await expect(viewerImage(page)).toHaveAttribute('src', new RegExp(`${BIG}$`))
+  await expect(viewerImage(page)).toHaveAttribute('src', remote)
   await page.keyboard.press('Escape')
   await expect(viewer(page)).toBeHidden()
   await expect(body(page)).toBeFocused()
