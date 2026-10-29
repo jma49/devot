@@ -442,7 +442,7 @@ test('a details block the reader opened stays open while the note is edited', as
   await details.getByText('More').click()
   await expect(details).toHaveJSProperty('open', true)
   await noteBody(page).click()
-  await page.keyboard.press('ControlOrMeta+ArrowDown')
+  await page.keyboard.press('ControlOrMeta+End')
   await page.keyboard.insertText(' edited')
   await expect(preview(page)).toContainText('Tail edited')
   await expect(details).toHaveJSProperty('open', true)
