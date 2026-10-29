@@ -7,7 +7,11 @@ import { useEffect, useRef } from 'react'
 import { listenHere } from './windowEvents'
 
 export const DB_CHANGED = 'devot:db-changed'
-/** Sent each time the app has reloaded its lists, whatever changed the notes. */
+/**
+ * Sent each time the app has reloaded its lists, whatever changed the notes,
+ * and when a note window's save or title reaches the core (then `detail` is
+ * the note's ID).
+ */
 export const NOTES_LOADED = 'devot:notes-loaded'
 
 export function useExternalChanges(onChange: (() => Promise<void>) | undefined) {

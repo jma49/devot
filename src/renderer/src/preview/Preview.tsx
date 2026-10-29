@@ -296,7 +296,9 @@ export function Preview({
   useEffect(() => onPluginRenderersChanged(() => render.current?.(input.current)), [])
   // Another window or process can change a note a chip shows.
   useEffect(() => {
-    const changed = () => {
+    const changed = (event: Event) => {
+      const noteId = (event as CustomEvent<string | undefined>).detail
+      if (noteId && !knownLinks.current?.key.split(' ').includes(noteId)) return
       knownLinks.current = undefined
       render.current?.(input.current)
     }

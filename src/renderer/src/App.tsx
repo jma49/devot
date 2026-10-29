@@ -2265,9 +2265,16 @@ export function App() {
     if (!core) return
     const listening = relay.link.listen((message) => {
       relay.gate.heard(message.noteId)
-      void core.relayIn(message).catch((e: unknown) => {
-        console.warn('W_NOTE_RELAY_IN_FAILED', message.noteId, errorCode(e))
-      })
+      void core
+        .relayIn(message)
+        .then(() => {
+          if (message.kind === 'saved' || message.kind === 'title') {
+            window.dispatchEvent(new CustomEvent(NOTES_LOADED, { detail: message.noteId }))
+          }
+        })
+        .catch((e: unknown) => {
+          console.warn('W_NOTE_RELAY_IN_FAILED', message.noteId, errorCode(e))
+        })
       if (message.kind === 'saved') {
         // A note made there (a `[[` link to a new note) is not listed yet.
         if (knownNotes.current.has(message.noteId)) {
