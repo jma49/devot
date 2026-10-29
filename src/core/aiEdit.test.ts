@@ -74,6 +74,15 @@ describe('the reply', () => {
     )
   })
 
+  it('takes off a longer or tilde fence around a reply holding a shorter code block', () => {
+    const inner = 'Setup:\n```bash\nnpm i\n```\nthen run'
+    for (const fence of ['````', '~~~']) {
+      expect(
+        cleanAiReply(`${fence}\n${inner}\n${fence}`, 'Setup: npm i then run', preset('improve')),
+      ).toBe(inner)
+    }
+  })
+
   it('keeps a fence when the selection was one, and a code block inside the reply', () => {
     const code = '```js\nlet a = 1\n```'
     expect(cleanAiReply('```js\nconst a = 1\n```', code, { prompt: 'const' })).toBe(

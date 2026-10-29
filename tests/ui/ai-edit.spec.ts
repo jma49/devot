@@ -195,6 +195,35 @@ test('moves focus to the proposal when it arrives, so it is announced and usable
   await expect(sheet(page).getByRole('status')).toContainText('Proposed by')
 })
 
+test('gives the keyboard back to the editor when the sheet closes', async ({ page }) => {
+  await fakeProvider(page, ['One.\nkeep\nTwo.', 'One.\nkeep\nTwo.'])
+  await page.reload()
+  await notebook(page, 'Work', true)
+  await note(page, 'one\nkeep\ntwo')
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+a')
+  // The editor lives in a shadow root, so the page's active element is its host.
+  const inEditor = () =>
+    page.evaluate(
+      () =>
+        document
+          .querySelector('[data-devot-part="editor-body"]')
+          ?.shadowRoot?.activeElement?.closest('.cm-editor') != null,
+    )
+
+  await fromToolbar(page, 'Improve Writing')
+  await expect(sheet(page).getByRole('region', { name: 'Proposed changes' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(sheet(page)).toBeHidden()
+  await expect.poll(inEditor).toBe(true)
+
+  await page.keyboard.press('ControlOrMeta+a')
+  await fromToolbar(page, 'Improve Writing')
+  await sheet(page).getByRole('button', { name: 'Accept' }).click()
+  await expect(sheet(page)).toBeHidden()
+  await expect.poll(inEditor).toBe(true)
+})
+
 test('the editor menu asks with a custom instruction, and Discard leaves the note', async ({
   page,
 }) => {

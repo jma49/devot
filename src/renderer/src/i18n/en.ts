@@ -134,6 +134,7 @@ export const en = {
   'selection.countOne': '{count} Note Selected',
   'selection.countOther': '{count} Notes Selected',
   'selection.more': 'and {count} more',
+  'selection.capped': 'More notes match the search than the list shows. They are not included.',
   'batch.move': 'Move Selected Notes to Notebook\u2026',
   'batch.pin': 'Pin Selected Notes',
   'batch.unpin': 'Unpin Selected Notes',
@@ -363,6 +364,7 @@ title: Daily Report {{date}}
   'noteList.countOther': '{count} notes',
   'noteList.scopedCount': '{scope} \u00b7 {notes}',
   'noteList.capped': 'More than {count} notes',
+  'noteList.cappedNote': 'Showing the first {count} matches. Narrow the search to see the rest.',
   'toolbar.label': 'Toolbar',
   'note.untitled': 'Untitled',
   'time.fewSeconds': 'a few seconds',
@@ -1757,6 +1759,8 @@ title: Daily Report {{date}}
   'plugins.exportAs': 'Export Note as {title}…',
   'plugins.panelClose': 'Close',
   'plugins.failed': '{name} could not finish ({code}).',
+  'plugins.trialEnded':
+    'Your Devot trial has ended, so a plugin cannot change notes. Add a licence in Settings > Licence.',
 } as const
 
 export type MessageKey = keyof typeof en

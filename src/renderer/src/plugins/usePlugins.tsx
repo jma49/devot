@@ -11,7 +11,7 @@ import { COMMANDS, commandKeys, RESERVED_KEYS } from '../commands/registry'
 import type { Core } from '../core-client'
 import { format, t } from '../i18n'
 import { isImeKey } from '../ime'
-import { editingAllowed } from '../licence'
+import { editingAllowed, LICENCE_REQUIRED, openLicenceSettings } from '../licence'
 import type { PaletteEntry } from '../palette/results'
 import {
   listPlugins,
@@ -267,9 +267,24 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     </dialog>
   )
 
+  const licenceRefused = failure?.code === LICENCE_REQUIRED
   const notice: ReactNode = failure ? (
     <div role="alert" className="notice" data-devot-part="notice" data-devot-plugin-notice>
-      <span className="notice-text">{format(t('plugins.failed'), failure)}</span>
+      <span className="notice-text">
+        {licenceRefused ? t('plugins.trialEnded') : format(t('plugins.failed'), failure)}
+      </span>
+      {licenceRefused ? (
+        <button
+          type="button"
+          className="button"
+          onClick={() => {
+            setFailure(undefined)
+            openLicenceSettings()
+          }}
+        >
+          {t('licenceSettings.add')}
+        </button>
+      ) : null}
       <button type="button" className="button" onClick={() => setFailure(undefined)}>
         {t('notice.dismiss')}
       </button>

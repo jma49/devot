@@ -27,7 +27,9 @@ export function noteIdOf(href: string): string | undefined {
 
 /** The title with the punctuation that would read as formatting, a table divider or HTML escaped, so the link text is the title as typed. */
 export function noteLink(title: string, id: string): string {
-  const text = title.replace(/\s*\n\s*/g, ' ').replace(/[\\[\]|*_`<>~!&]/g, (c) => `\\${c}`)
+  const text = title
+    .replace(/\s*\n\s*/g, ' ')
+    .replace(/[\\[\]|*`<~]|(?<![\p{L}\p{N}])_|_(?![\p{L}\p{N}])|&(?=#?\w+;)/gu, (c) => `\\${c}`)
   return `[${text}](${noteUri(id)})`
 }
 

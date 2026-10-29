@@ -3817,6 +3817,7 @@ export function App() {
             onRestore={() => void restoreNotes(multiIds)}
             onDelete={() => confirmDeleteMany(multiIds)}
             readOnly={!editing}
+            capped={searching && (results?.capped ?? false)}
           />
         ) : null}
         {core && selected && inTrash && !multiIds ? (
