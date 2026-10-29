@@ -144,6 +144,72 @@ test('double-clicking a placeholder does not open the viewer', async ({ page }) 
   await expect(viewer(page)).toBeHidden()
 })
 
+// The colours drawn in the middle of `el`, read back from a screenshot: the broken-image icon shows as a second one.
+const paintedColours = async (page: Page, el: Locator) => {
+  const png = (await el.screenshot()).toString('base64')
+  return page.evaluate(async (data) => {
+    const img = new Image()
+    img.src = `data:image/png;base64,${data}`
+    await img.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = img.width
+    canvas.height = img.height
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(img, 0, 0)
+    const inset = 24
+    const { data: px } = ctx.getImageData(
+      inset,
+      inset,
+      img.width - 2 * inset,
+      img.height - 2 * inset,
+    )
+    const seen = new Set<string>()
+    for (let i = 0; i < px.length; i += 4)
+      seen.add(`${px[i]},${px[i + 1]},${px[i + 2]},${px[i + 3]}`)
+    return seen.size
+  }, png)
+}
+
+test('a placeholder is a plain box: the web view draws no broken-image icon in it', async ({
+  page,
+}) => {
+  await newNote(page, `Look:\n\n![Shot](${FILE})\n`)
+  await showMode(page, 'Split')
+  const inline = page.locator('.cm-inline-image')
+  const shown = preview(page).locator('img')
+  await expect(inline).toHaveClass(/image-missing/)
+  await expect(shown).toHaveClass(/image-missing/)
+  expect(await paintedColours(page, inline)).toBe(1)
+  expect(await paintedColours(page, shown)).toBe(1)
+})
+
+test('a placeholder looks the same alone on a line and inside a paragraph', async ({ page }) => {
+  await newNote(page, `![a](${FILE})\n\nText ![b](${FILE}) text\n`)
+  await showMode(page, 'Preview')
+  const [block, inline] = await preview(page)
+    .locator('img.image-missing')
+    .evaluateAll((els) =>
+      els.map((el) => {
+        const box = el.getBoundingClientRect()
+        return { width: box.width, height: box.height, padding: getComputedStyle(el).padding }
+      }),
+    )
+  expect(block).toEqual(inline)
+  expect(block!.padding).toBe('0px')
+})
+
+test('placeholders on one line stay inside the editor', async ({ page }) => {
+  await newNote(page, `![a](${FILE}) ![b](devot://file/${FILE_ID.replace('f001', 'f002')})\n`)
+  await showMode(page, 'Split')
+  const row = inlineImages(page)
+  const images = page.locator('.cm-inline-image.image-missing')
+  await expect(images).toHaveCount(2)
+  const edge = (await row.boundingBox())!
+  for (const box of await images.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()))) {
+    expect(box.right).toBeLessThanOrEqual(edge.x + edge.width)
+  }
+})
+
 test('double-clicking a preview image opens the viewer, fitted to the window', async ({ page }) => {
   await newNote(page, `Look:\n\n![Big picture](${BIG})\n`)
   await showMode(page, 'Preview')

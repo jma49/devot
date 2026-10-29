@@ -276,6 +276,8 @@ const theme = EditorView.theme({
   // An attachment that has not arrived: a box where the image will be.
   [`.cm-inline-image.${MISSING_IMAGE}`]: {
     height: '100%',
+    minWidth: 0,
+    content: 'var(--image-missing-content)',
     aspectRatio: '4 / 3',
     background: 'var(--color-fill-track)',
     cursor: 'default',

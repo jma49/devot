@@ -1,6 +1,6 @@
 // An attachment whose image has not arrived yet (sync pulls it from the relay, docs/adr/0003-sync-attachments-as-records.md)
 // shows a placeholder at the fixed inline image height, and the image replaces it once it is here.
-// The placeholder is the same <img>, marked: an empty alt keeps the web view from drawing its broken-image icon.
+// The placeholder is the same <img>, marked; app.css keeps the web view from drawing its broken-image icon in it.
 import { DB_CHANGED } from './externalChanges'
 import { format, t } from './i18n'
 
