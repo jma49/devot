@@ -365,7 +365,7 @@ mod tests {
         assert_eq!(checked_file(negative, &data), Err("E_SYNC_RECORD_INVALID"));
         assert_eq!(checked_file(dto(65), &data), Err("E_SYNC_RECORD_INVALID"));
         let bad_clock = SyncFileDto {
-            note_hlc: "x".into(),
+            note_hlc: "\u{e9}".into(),
             ..dto(64)
         };
         assert_eq!(checked_file(bad_clock, &data), Err("E_SYNC_RECORD_INVALID"));
