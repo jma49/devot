@@ -156,6 +156,7 @@ test('a note link chip in the main window follows a rename made in the note wind
 }) => {
   const alpha = await noteInMain(page, 'Alpha', 'Body')
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(title(page)).toHaveValue('')
   await title(page).fill('Projects')
   await body(page).click()
   await page.keyboard.insertText(`See [](devot://note/${alpha}).`)
