@@ -28,6 +28,7 @@ import {
   type TagRecord,
   type TextCondition,
 } from './storage'
+import { wellFormed } from './text'
 import { MAX_TAG_NAME_CHARS, sameName, type NoteFilter } from './tags'
 
 export const MAX_SEARCH_TERMS = 10
@@ -88,9 +89,6 @@ export function pinnedFromValue(value: string): 'true' | 'false' | null {
 }
 
 /** Replaces each lone surrogate (it cannot cross to storage as text) with U+FFFD. */
-export const wellFormed = (text: string) =>
-  text.replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, '\ufffd')
-
 const MAX_CHARS: Partial<Record<SearchField, number>> = {
   book: MAX_BOOK_NAME_CHARS,
   tag: MAX_TAG_NAME_CHARS,

@@ -11,6 +11,7 @@ import { COMMANDS, commandKeys, RESERVED_KEYS } from '../commands/registry'
 import type { Core } from '../core-client'
 import { format, t } from '../i18n'
 import { isImeKey } from '../ime'
+import { editingAllowed, LICENCE_REQUIRED, openLicenceSettings } from '../licence'
 import type { PaletteEntry } from '../palette/results'
 import {
   listPlugins,
@@ -26,6 +27,7 @@ import {
   pluginKeys,
   rendererOfKey,
   rendererSpecs,
+  stopsImport,
   type PluginAction,
 } from './contributions'
 import { frameConnector, showFrame } from './frames'
@@ -83,6 +85,7 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
         const { core: c, app: w } = latest.current
         const open = w.openNote()
         if (!c || !open) throw new Error('E_PLUGIN_NO_NOTE')
+        if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
         w.applyUpdate(open.id, await c.applyPluginEdit(open.id, edit))
       },
       showUi: (plugin, height) => setPanel({ plugin, height }),
@@ -152,17 +155,30 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
       const { core: c, app: w } = latest.current
       if (!host) return
       try {
+        // An import makes notes, so it is refused like the app's own changes are; a command's edit is refused in replaceNote.
+        if (action.kind === 'import' && !editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
         if (action.kind === 'command') {
           await host.run(action.plugin, action.id)
         } else if (action.kind === 'import') {
           if (!c) return
           const files = await pickImportFiles(action.plugin, action.id)
           if (!files) return
-          for (const file of files) {
-            const note = await host.convertImport(action.plugin, action.id, file)
-            await c.capture(note.title, note.markdown, w.importBook())
+          let made = 0
+          try {
+            for (const file of files) {
+              try {
+                const note = await host.convertImport(action.plugin, action.id, file)
+                await c.capture(note.title, note.markdown, w.importBook())
+                made += 1
+              } catch (error) {
+                fail(action.plugin, error)
+                // A plugin that hangs or stopped would cost every remaining file its own wait.
+                if (stopsImport(error)) break
+              }
+            }
+          } finally {
+            if (made > 0) w.imported()
           }
-          w.imported()
         } else {
           const open = w.openNote()
           if (!c || !open) return
@@ -217,10 +233,11 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
 
   const items = useMemo(() => pluginItems(plugins), [plugins])
 
-  /** The palette's entries for plugins' commands and formats; exports only while a note is open. */
+  /** The palette's entries for plugins' commands and formats; exports only while a note is open, and imports only while editing is allowed. */
   const entries = (noteOpen: boolean): PaletteEntry[] =>
     items.flatMap((item): PaletteEntry[] => {
       if (item.kind === 'export' && !noteOpen) return []
+      if (item.kind === 'import' && !editingAllowed()) return []
       const label =
         item.kind === 'command'
           ? item.title
@@ -250,9 +267,24 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
     </dialog>
   )
 
+  const licenceRefused = failure?.code === LICENCE_REQUIRED
   const notice: ReactNode = failure ? (
     <div role="alert" className="notice" data-devot-part="notice" data-devot-plugin-notice>
-      <span className="notice-text">{format(t('plugins.failed'), failure)}</span>
+      <span className="notice-text">
+        {licenceRefused ? t('plugins.trialEnded') : format(t('plugins.failed'), failure)}
+      </span>
+      {licenceRefused ? (
+        <button
+          type="button"
+          className="button"
+          onClick={() => {
+            setFailure(undefined)
+            openLicenceSettings()
+          }}
+        >
+          {t('licenceSettings.add')}
+        </button>
+      ) : null}
       <button type="button" className="button" onClick={() => setFailure(undefined)}>
         {t('notice.dismiss')}
       </button>

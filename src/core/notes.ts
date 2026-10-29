@@ -138,6 +138,12 @@ export interface NoteServiceOptions {
 /** An agent's write (ADR 0007), timed by the service. */
 export type AgentNoteWrite = Omit<AgentEdit, 'at' | 'maxRemovedBytes'>
 
+/** Search hits, and whether more matched than the SEARCH_LIMIT returned. */
+export interface SearchResult {
+  found: NoteSummary[]
+  capped: boolean
+}
+
 export interface NoteService {
   list(limit?: number): Promise<NoteSummary[]>
   create(title?: string, bookId?: string | null): Promise<string>
@@ -178,14 +184,12 @@ export interface NoteService {
   setTitle(id: string, title: string): Promise<void>
   setBook(id: string, bookId: string | null): Promise<void>
   setStatus(id: string, status: NoteStatus): Promise<void>
-  /** Both dates take one new HLC so the change wins over older writes (schema v17). */
-  /** Throws E_NOTE_TIME_INVALID for a date that is not a whole, non-negative millisecond time, or an update before the creation. */
+  /** Both dates take one new HLC so the change wins over older writes (schema v17). Throws E_NOTE_TIME_INVALID for a date that is not a whole, non-negative millisecond time, or an update before the creation. */
   setDates(id: string, dates: { createdAt?: number; updatedAt?: number }): Promise<void>
   setPinned(id: string, pinned: boolean): Promise<void>
   /** Writes now (a batch writes each note before the next). On failure it rejects and the field reverts unless changed again meanwhile. A note not in memory is not loaded: its stored record is rewritten with the field changed. `bookChecked`: the caller already ran checkBook. */
   writeMeta(id: string, change: MetaChange, options?: { bookChecked?: boolean }): Promise<void>
-  /** Templates count as a notebook; null always passes. */
-  /** Throws E_BOOK_NOT_FOUND unless notes can go in `bookId`: a live notebook or Templates. */
+  /** Throws E_BOOK_NOT_FOUND unless notes can go in `bookId`: a live notebook or Templates (which count as one); null always passes. */
   checkBook(bookId: string | null): Promise<void>
   /** With `versions` (quitting), unversioned typing also becomes a version. Rejects with E_NOTE_SAVE_FAILED and the IDs once the rest are saved. */
   flush(options?: { versions?: boolean }): Promise<void>
@@ -193,7 +197,7 @@ export interface NoteService {
   holdCompaction(): Promise<void>
   resumeCompaction(): void
   /** Templates are never found. `flush: false` (the `[[` popup runs on every key) searches as stored and writes nothing. */
-  search(query: string, scope?: SearchScope, options?: { flush?: boolean }): Promise<NoteSummary[]>
+  search(query: string, scope?: SearchScope, options?: { flush?: boolean }): Promise<SearchResult>
   /** Pending edits are saved first; when the write fails it rejects and the note stays where it was. */
   trash(id: string): Promise<void>
   restore(id: string): Promise<void>
@@ -273,8 +277,8 @@ export interface NoteService {
   /**
    * Takes in what another process wrote (devot-mcp, or a writer on another connection; see `devot://db-changed`), so the next write keeps the other's changes.
    * Every note in memory merges the stored state, and another window that may hold a note this core does not is relayed its stored state. Returns the notes whose title the other process changed.
+   * A note deleted for good meanwhile is let go; the others stay in memory (letting one go could lose an edit that has just loaded it). A note that cannot be read is left as it was.
    */
-  /** A note deleted for good meanwhile is let go; the others stay in memory (letting one go could lose an edit that has just loaded it). A note that cannot be read is left as it was. */
   mergeStored(): Promise<{ id: string; title: string }[]>
   /**
    * Takes in what another window's core relayed. A note not in memory ignores it: it is read from storage when used, and asks then for what
@@ -386,7 +390,9 @@ const withNewer = (to: NoteRecord, from: NoteRecord): NoteRecord => ({
   // Newer hand-set dates are taken as they are (see NoteRecord.datesHlc).
   ...((from.datesHlc ?? '') > (to.datesHlc ?? '')
     ? { createdAt: from.createdAt, updatedAt: from.updatedAt, datesHlc: from.datesHlc ?? '' }
-    : { updatedAt: Math.max(to.updatedAt, from.updatedAt) }),
+    : (to.datesHlc ?? '') > (from.datesHlc ?? '')
+      ? {}
+      : { updatedAt: Math.max(to.updatedAt, from.updatedAt) }),
 })
 
 const holdsMore = (doc: Y.Doc, stored: NoteRecord) => {
@@ -673,8 +679,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
   const dirty = (note: Live) =>
     note.edits !== note.savedEdits || META_HLCS.some((key) => note.record[key] !== note.saved[key])
 
-  /** Serialises writes of a note so they never overlap and land in order. */
-  // Serialises the note's writes: they never overlap and land in the order asked for.
+  /** Serialises writes of a note so they never overlap and land in the order asked for. */
   const exclusive = <T>(note: Live, work: () => Promise<T>): Promise<T> => {
     note.writes += 1
     const run = note.queue.then(work)
@@ -1273,17 +1278,17 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         schedule(note)
       }),
 
-    setBody: (id, markdown) => using(id, (note) => replaceBody(note, markdown)),
+    setBody: (id, markdown) => using(id, (note) => replaceBody(note, lineFeeds(markdown))),
 
     fill: (id, { title, markdown }) =>
       using(id, (note) => {
         if (note.record.title === '' && title !== '') retitle(note, title)
         const text = note.doc.getText(BODY)
         const own = text.toString()
-        if (own.trim() === '') return replaceBody(note, markdown)
+        if (own.trim() === '') return replaceBody(note, lineFeeds(markdown))
         const breaks = /\n*$/.exec(own)?.[0].length ?? 0
         editBody(note, () =>
-          text.insert(text.length, `${'\n'.repeat(Math.max(0, 2 - breaks))}${markdown}`),
+          text.insert(text.length, `${'\n'.repeat(Math.max(0, 2 - breaks))}${lineFeeds(markdown)}`),
         )
         schedule(note)
       }),
@@ -1293,7 +1298,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         const text = note.doc.getText(BODY)
         const index = anchoredIndex(note.doc, text, anchor)
         if (!markdown) return
-        editBody(note, () => text.insert(index, markdown))
+        editBody(note, () => text.insert(index, lineFeeds(markdown)))
         schedule(note)
       }),
 
@@ -1406,7 +1411,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
     async search(query, scope, lookup) {
       const clauses = parseSearch(query)
-      if (clauses.length === 0) return []
+      if (clauses.length === 0) return { found: [], capped: false }
       if (lookup?.flush !== false) await saveAll()
       const needs = (...fields: SearchClause['field'][]) =>
         clauses.some((c) => fields.includes(c.field))
@@ -1417,12 +1422,13 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       // `book:` and `bookId:` never name Templates.
       const nameable = books.filter((b) => b.id !== TEMPLATES_BOOK_ID)
       const resolved = resolveSearch(clauses, { books, tags, scope, nameable })
-      if (!resolved) return []
-      const found = await storage.searchNotes(excludeTemplates(resolved), SEARCH_LIMIT)
-      return found.map(({ excerpt, ...note }) => {
+      if (!resolved) return { found: [], capped: false }
+      const hits = await storage.searchNotes(excludeTemplates(resolved), SEARCH_LIMIT + 1)
+      const found = hits.slice(0, SEARCH_LIMIT).map(({ excerpt, ...note }) => {
         const tidy = excerpt ? tidyExcerpt(excerpt) : ''
         return tidy ? { ...note, excerpt: tidy } : note
       })
+      return { found, capped: hits.length > SEARCH_LIMIT }
     },
 
     async trash(id) {
@@ -1487,28 +1493,29 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       if (want.size === 0) return {}
       const [list, tags] = await Promise.all([storage.listNotes(), storage.listTags()])
       const tagById = new Map(tags.filter((t) => t.deletedAt === null).map((t) => [t.id, t]))
+      const targets = list.filter((summary) => want.has(summary.id))
+      // Batched, and from memory where it is held: only the Markdown is needed, not each full record.
+      const bodiesById = new Map(
+        (await bodies(targets.map((summary) => summary.id))).map((body) => [body.id, body.bodyMd]),
+      )
       const found: Record<string, NoteLinkTarget> = {}
       await Promise.all(
-        list
-          .filter((summary) => want.has(summary.id))
-          .map(async (summary) => {
-            const note = live.get(summary.id)
-            const bodyMd = note
-              ? note.doc.getText(BODY).toString()
-              : ((await storage.getNote(summary.id))?.bodyMd ?? '')
-            const title = note ? note.record.title : summary.title
-            found[summary.id] = {
-              title: title || headline(bodyMd),
-              status: note ? note.record.status : summary.status,
-              tasks: taskProgress(bodyMd),
-              tags: summary.tagIds
-                .flatMap((tagId) => {
-                  const tag = tagById.get(tagId)
-                  return tag ? [{ name: tag.name, color: tag.color }] : []
-                })
-                .sort((a, b) => a.name.localeCompare(b.name)),
-            }
-          }),
+        targets.map((summary) => {
+          const note = live.get(summary.id)
+          const bodyMd = bodiesById.get(summary.id) ?? ''
+          const title = note ? note.record.title : summary.title
+          found[summary.id] = {
+            title: title || headline(bodyMd),
+            status: note ? note.record.status : summary.status,
+            tasks: taskProgress(bodyMd),
+            tags: summary.tagIds
+              .flatMap((tagId) => {
+                const tag = tagById.get(tagId)
+                return tag ? [{ name: tag.name, color: tag.color }] : []
+              })
+              .sort((a, b) => a.name.localeCompare(b.name)),
+          }
+        }),
       )
       return found
     },

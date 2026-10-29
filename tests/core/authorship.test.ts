@@ -201,6 +201,40 @@ describe('Undo All', () => {
     expect(readWrites(owner)).toHaveLength(1)
   })
 
+  it('keeps a writer’s text gone when two writers changed the same passage, undone in order', () => {
+    const owner = docWith('Intro.\n')
+    let agent = loaded(owner, 2)
+    edit(agent, claude, 'Intro.\nAlpha wrote this paragraph.\n')
+    sync(agent, owner)
+    agent = loaded(owner, 3)
+    edit(agent, codex, 'Intro.\nBeta replaced it.\n', 2000)
+    sync(agent, owner)
+    expect(body(owner)).toBe('Intro.\nBeta replaced it.\n')
+
+    reverseWrites(owner, { kind: 'mcp', name: 'Claude Code' })
+    reverseWrites(owner, { kind: 'mcp', name: 'Codex' })
+    expect(body(owner)).toBe('Intro.\n')
+    expect(agentText(owner)).toBe('')
+  })
+
+  it('takes back a writer’s restored text when the writer is undone after the one that replaced it', () => {
+    const owner = docWith('Intro.\n')
+    let agent = loaded(owner, 2)
+    edit(agent, claude, 'Intro.\nAlpha wrote this paragraph.\n')
+    sync(agent, owner)
+    agent = loaded(owner, 3)
+    edit(agent, codex, 'Intro.\nBeta replaced it.\n', 2000)
+    sync(agent, owner)
+
+    reverseWrites(owner, { kind: 'mcp', name: 'Codex' })
+    // The text Claude wrote comes back, still Claude's, so its own Undo All takes it out.
+    expect(body(owner)).toBe('Intro.\nAlpha wrote this paragraph.\n')
+    expect(agentText(owner)).toBe('Alpha wrote this paragraph.\n')
+    reverseWrites(owner, { kind: 'mcp', name: 'Claude Code' })
+    expect(body(owner)).toBe('Intro.\n')
+    expect(agentText(owner)).toBe('')
+  })
+
   it('does not put back text the writer deleted that it had inserted itself', () => {
     const owner = docWith('Start.\n')
     let agent = loaded(owner, 2)
@@ -317,6 +351,28 @@ describe('Undo All', () => {
     const [older, newer] = readWrites(doc)
     expect(older!.removed).toBeUndefined()
     expect(newer!.removed).toBe(`${'b'.repeat(600)}\n`)
+  })
+})
+
+describe('the deleted text of an undone write', () => {
+  it('is dropped, so it does not push a live writer’s text out of the cap', () => {
+    const doc = docWith(`${'a'.repeat(600)}\n${'b'.repeat(600)}\n`)
+    const max = 1300
+    applyAgentEdit(doc, {
+      writer: codex,
+      at: 1,
+      markdown: `${'b'.repeat(600)}\n`,
+      maxRemovedBytes: max,
+    })
+    applyAgentEdit(doc, { writer: claude, at: 2, markdown: '', maxRemovedBytes: max })
+    reverseWrites(doc, { kind: 'mcp', name: 'Claude Code' })
+    const undone = [...doc.getMap(WRITES).values()].filter(
+      (raw) => (raw as { reversed?: boolean }).reversed,
+    )
+    expect(undone).toHaveLength(1)
+    expect(undone[0]).not.toHaveProperty('removed')
+    applyAgentEdit(doc, { writer: codex, at: 3, markdown: '', maxRemovedBytes: max })
+    expect(readWrites(doc)[0]!.removed).toBe(`${'a'.repeat(600)}\n`)
   })
 })
 

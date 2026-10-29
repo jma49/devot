@@ -113,6 +113,16 @@ describe('checkCall', () => {
     }
   })
 
+  it('refuses a lone surrogate, which storage could never parse', () => {
+    const granted = context(['note.read', 'note.edit'])
+    for (const bad of [
+      call('note.replace', { base: 'Trip', markdown: 'Trip \ud83c' }),
+      call('note.replace', { base: 'Trip \ud83c', markdown: 'Trip' }),
+    ]) {
+      expect(checkCall(bad, granted)).toEqual({ ok: false, code: 'E_PLUGIN_MESSAGE_INVALID' })
+    }
+  })
+
   it('keeps a panel between its smallest and largest height', () => {
     expect(checkCall(call('ui.show', { height: 5 }), context([]))).toEqual({
       ok: true,
@@ -147,6 +157,8 @@ describe('checkResult', () => {
     })
     invalid(() => checkResult('import.convert', { title: 'A' }))
     invalid(() => checkResult('import.convert', 'x'))
+    invalid(() => checkResult('import.convert', { title: 'A', markdown: 'x \ud83c' }))
+    invalid(() => checkResult('import.convert', { title: 'A \ud83c', markdown: 'x' }))
   })
 
   it('takes text from an export', () => {

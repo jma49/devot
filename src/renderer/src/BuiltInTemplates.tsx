@@ -1,5 +1,5 @@
-import { STARTER_TEMPLATES, starterTemplate } from '../../core/starterTemplates'
 import { t } from './i18n'
+import { starterTemplate, starterTemplates } from './starterTemplates'
 
 export function BuiltInTemplates(props: {
   selected: string | undefined
@@ -8,7 +8,7 @@ export function BuiltInTemplates(props: {
   return (
     <div className="builtin" role="group" aria-label={t('templates.builtIn')}>
       <div className="builtin-title">{t('templates.builtIn')}</div>
-      {STARTER_TEMPLATES.map((template) => (
+      {starterTemplates().map((template) => (
         <button
           key={template.id}
           type="button"

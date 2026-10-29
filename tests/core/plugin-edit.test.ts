@@ -72,4 +72,14 @@ describe('a plugin edit', () => {
     ).rejects.toThrow('E_PLUGIN_NOTE_CHANGED')
     expect((await notes.read(id)).bodyMd).toBe('typed since')
   })
+
+  it('stores a lone surrogate as U+FFFD, so the note can still be saved', async () => {
+    const { storage, notes } = service()
+    const id = await notes.create('Trip')
+    await notes.setBody(id, 'Trip')
+    await notes.applyPluginEdit(id, { base: 'Trip', markdown: 'Trip \ud83c' })
+    expect((await notes.read(id)).bodyMd).toBe('Trip �')
+    await notes.flush()
+    expect((await storage.getNote(id))!.bodyMd).toBe('Trip �')
+  })
 })

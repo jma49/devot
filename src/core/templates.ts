@@ -22,7 +22,7 @@ import { newFileCopies, replaceFileLinks } from './files'
 import type { Clock } from './hlc'
 import { noteTitle, readFrontMatter, withoutFrontMatterKeys } from './import'
 import type { NoteService } from './notes'
-import { isStarterTemplate, starterTemplate } from './starterTemplates'
+import { isStarterTemplate, type StarterTemplate } from './starterTemplates'
 import type { BookRecord, NoteStatus, NoteSummary, StorageAdapter } from './storage'
 import { sameName, type TagService } from './tags'
 import { lineFeeds } from './text'
@@ -199,6 +199,8 @@ export interface TemplateServiceOptions {
   clock: Clock
   newId: () => string
   now?: () => number
+  /** The built-in templates (see starterTemplates.ts), read when used. */
+  starters?: () => readonly StarterTemplate[]
 }
 
 export interface TemplateService {
@@ -222,6 +224,7 @@ export interface TemplateService {
 export function createTemplateService(options: TemplateServiceOptions): TemplateService {
   const { storage, notes, books, tags, clock, newId } = options
   const now = options.now ?? Date.now
+  const starterTemplate = (id: string) => options.starters?.().find((s) => s.id === id)
 
   /** Every device writes the same ID, so their copies merge field by field (newer HLC wins). */
   const ensureBook = async () => {
@@ -313,7 +316,8 @@ export function createTemplateService(options: TemplateServiceOptions): Template
     async applyTo(id, noteId, at) {
       const note = await notes.read(noteId)
       const made = await draft(id, at, null, note.title)
-      await notes.flush()
+      // Another note whose save fails must not stop the template; this note's own pending edits still save.
+      await notes.flush().catch(() => {})
       const status = (await storage.listNotes()).find((n) => n.id === noteId)?.status ?? 'none'
       const copies = newFileCopies(made.body, newId)
       if (copies.length > 0) await storage.copyFiles(noteId, copies)

@@ -139,6 +139,12 @@ const withoutAuthorship = (doc: Y.Doc, _writer: Writer, markdown: string) => {
   })
 }
 
+const isSubsequence = (small: string, big: string) => {
+  let next = 0
+  for (const char of big) if (char === small[next]) next += 1
+  return next === small.length
+}
+
 const size = (doc: Y.Doc) => Y.encodeStateAsUpdate(doc).length
 
 it('adds no more to a note than the ADR measured, and clearing gives most of it back', () => {
@@ -194,7 +200,10 @@ it('attributes the whole note and undoes one writer within budget, keeping every
   const after = owner.getText('body').toString()
   const left = attribute(owner)
   expect(left.every((r) => byWriter.get(r.writeId) === codexSession)).toBe(true)
-  expect(left.map((r) => after.slice(r.from, r.to)).join('')).toBe(codexText)
+  // What Claude had deleted of Codex's text comes back, and stays Codex's.
+  const leftText = left.map((r) => after.slice(r.from, r.to)).join('')
+  expect(leftText.length).toBeGreaterThanOrEqual(codexText.length)
+  expect(isSubsequence(codexText, leftText)).toBe(true)
   expect(after).toContain('From the other device. ')
   // Owner text the writer had deleted comes back too.
   expect(after.split('typed ').length - 1).toBeGreaterThanOrEqual(typed)

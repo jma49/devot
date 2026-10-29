@@ -12,11 +12,12 @@ import {
   createClock,
   createIdGenerator,
   createNoteService,
+  createTagService,
   readWrites,
   WRITERS,
 } from '../../src/core'
 import { clientWriter, createServer, errorCode } from '../../src/mcp/server'
-import { openSqliteAdapter } from '../../src/mcp/sqlite'
+import { openSqliteAdapter, openFailureCode } from '../../src/mcp/sqlite'
 import { HIDDEN, makeWorld } from './support'
 import { tempDir } from '../support/temp-dirs'
 
@@ -295,6 +296,31 @@ describe('editing tools', () => {
     expect(moved.error).toMatch(/^E_BOOK_NOT_FOUND: /)
   })
 
+  it('never confirms a tag only hidden notebooks use, and refuses to reuse it', async () => {
+    const world = await makeWorld()
+    const storage = openSqliteAdapter(world.path)
+    try {
+      const tags = createTagService({
+        storage,
+        clock: createClock('mac1'),
+        newId: createIdGenerator(),
+      })
+      await tags.addToNote(world.ids.priv, 'Layoffs-2027')
+    } finally {
+      storage.close()
+    }
+    const { client } = await connect(world.path)
+    expect((await call(client, 'list_tags')).value?.tags).toEqual([])
+
+    const update = await call(client, 'update_note', {
+      id: world.ids.shared,
+      tags: ['lAYOFFS-2027', 'nOPE-TAG'],
+    })
+    expect(update.error).toMatch(/^E_TAG_NAME_INVALID: /)
+    expect((await call(client, 'list_tags')).value?.tags).toEqual([])
+    expect((await call(client, 'read_note', { id: world.ids.shared })).value?.tags).toEqual([])
+  })
+
   it('trashes a note without deleting it', async () => {
     const world = await makeWorld()
     const { client, storage, logs } = await connect(world.path)
@@ -364,6 +390,13 @@ describe('opening without migrating', () => {
     expect(existsSync(join(dir, 'none.sqlite'))).toBe(false)
     // A folder where the file should be.
     expect(() => openSqliteAdapter(dir, { migrate: false })).toThrow(/^E_STORAGE_OPEN_FAILED$/)
+  })
+
+  it('tells a module this Node cannot load apart from a bad path', () => {
+    const path = join(tempDir('devot-mcp-'), 'devot.sqlite')
+    const dlopen = Object.assign(new Error('dlopen failed'), { code: 'ERR_DLOPEN_FAILED' })
+    expect(openFailureCode(dlopen, path, false)).toBe('E_STORAGE_MODULE_FAILED')
+    expect(openFailureCode(new Error('SQLITE_CANTOPEN'), path, false)).toBe('E_STORAGE_NOT_FOUND')
   })
 })
 

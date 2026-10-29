@@ -516,13 +516,20 @@ export interface OpenOptions {
   migrate?: boolean
 }
 
+/** The code for a failed open: an addon this Node cannot load is not a wrong path. */
+export function openFailureCode(error: unknown, path: string, migrate: boolean): string {
+  const code = (error as { code?: unknown } | null)?.code
+  if (code === 'ERR_DLOPEN_FAILED') return 'E_STORAGE_MODULE_FAILED'
+  return migrate || existsSync(path) ? 'E_STORAGE_OPEN_FAILED' : 'E_STORAGE_NOT_FOUND'
+}
+
 export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteAdapter {
   const migrate = open.migrate ?? true
   let db: Database.Database
   try {
     db = new Database(path, { fileMustExist: !migrate })
-  } catch {
-    throw new Error(migrate || existsSync(path) ? 'E_STORAGE_OPEN_FAILED' : 'E_STORAGE_NOT_FOUND')
+  } catch (error) {
+    throw new Error(openFailureCode(error, path, migrate))
   }
   try {
     // The same pragmas as the Rust store: WAL lets the app and devot-mcp

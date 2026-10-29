@@ -32,6 +32,8 @@ export function SelectionSummary(props: {
   onDelete: () => void
   /** Only Copy Links works: the trial is over without a licence. */
   readOnly?: boolean
+  /** The selection comes from a capped search: more notes match than are in it. */
+  capped?: boolean
 }) {
   const { notes, view, readOnly } = props
   const locale = currentLocale()
@@ -58,6 +60,7 @@ export function SelectionSummary(props: {
           {format(t('selection.more'), { count: new Intl.NumberFormat(locale).format(more) })}
         </p>
       ) : null}
+      {props.capped ? <p className="selection-more">{t('selection.capped')}</p> : null}
       {view === 'trash' ? (
         <div className="selection-actions">
           <button type="button" className="button" disabled={readOnly} onClick={props.onRestore}>

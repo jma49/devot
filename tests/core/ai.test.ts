@@ -210,6 +210,28 @@ describe('what AI can see', () => {
     await expect(s.ai.search('   ')).rejects.toThrow('E_SEARCH_QUERY_EMPTY')
   })
 
+  it('cuts results to the limit even when its storage ignores it', async () => {
+    const s = setup()
+    const shared = await s.books.create('Shared', null)
+    await s.books.setAiAccess(shared, true)
+    for (let i = 0; i < 4; i += 1) await note(s, `plum ${i}`, 'plum', shared)
+    const ignoring = {
+      ...s.storage,
+      searchNotesInBooks: (
+        query: Parameters<typeof s.storage.searchNotesInBooks>[0],
+        bookIds: Parameters<typeof s.storage.searchNotesInBooks>[1],
+      ) => s.storage.searchNotesInBooks(query, bookIds, 200),
+    }
+    const ai = createAiService({
+      storage: ignoring,
+      clock: createClock('mcptest'),
+      newId: createIdGenerator(),
+      atomically: ignoring.atomically,
+      writer: () => WRITER,
+    })
+    expect(await ai.search('plum', 2)).toHaveLength(2)
+  })
+
   it('searches short terms and Chinese text too', async () => {
     const s = setup()
     const shared = await s.books.create('Shared', null)
@@ -548,7 +570,7 @@ describe('editing notes', () => {
   it('sets the tags by name, reusing tags in any case and creating new ones', async () => {
     const s = setup()
     const { ids } = await world(s)
-    const work = await s.tags.addToNote(ids.priv, 'Work')
+    const work = await s.tags.addToNote(ids.shared, 'Work')
     const updated = await s.ai.update({ id: ids.shared, tags: ['work', ' Fresh ', 'fresh'] })
     expect(updated.tags).toEqual(['Fresh', 'Work'])
     const all = await s.tags.list()
@@ -557,7 +579,19 @@ describe('editing notes', () => {
 
     expect((await s.ai.update({ id: ids.shared, tags: ['Work'] })).tags).toEqual(['Work'])
     expect((await s.ai.update({ id: ids.shared, tags: [] })).tags).toEqual([])
-    expect(await s.storage.noteTags(ids.priv)).toEqual([{ id: work, name: 'Work' }])
+  })
+
+  it('refuses a tag name only hidden notebooks use, so it is not confirmed', async () => {
+    const s = setup()
+    const { ids } = await world(s)
+    const hidden = await s.tags.addToNote(ids.priv, 'Layoffs-2027')
+
+    await expect(s.ai.update({ id: ids.shared, tags: ['lAYOFFS-2027'] })).rejects.toThrow(
+      'E_TAG_NAME_INVALID',
+    )
+    expect(await s.ai.tags()).toEqual([])
+    expect(await s.storage.noteTags(ids.shared)).toEqual([])
+    expect(await s.storage.noteTags(ids.priv)).toEqual([{ id: hidden, name: 'Layoffs-2027' }])
   })
 
   it('merges with edits the app holds of the open note', async () => {

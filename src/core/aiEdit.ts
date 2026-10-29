@@ -84,6 +84,10 @@ export function aiEditInput(ask: AiEditAsk, selection: string): AiGenerateInput 
 
 const WHOLE_FENCE = /^(`{3,}|~{3,})[ \t]*([\w+-]*)[^\n]*\n([\s\S]*?)\n?\1[ \t]*$/
 
+/** Whether `body` holds a fence line with `marker`'s character, so an unlabelled outer fence around it is not the whole reply. */
+const holdsFence = (body: string, marker: string) =>
+  new RegExp(`^[ \\t]*${marker[0]}{${marker.length},}`, 'm').test(body)
+
 /** The reply as text for the note: a fence around the whole reply comes off (a Mermaid diagram keeps its own), and the selection's own white space at either end stays. */
 export function cleanAiReply(reply: string, original: string, ask: AiEditAsk): string {
   let text = lineFeeds(reply).trim()
@@ -92,7 +96,11 @@ export function cleanAiReply(reply: string, original: string, ask: AiEditAsk): s
   if (mermaid) {
     const body = fenced && /^(mermaid)?$/i.test(fenced[2] ?? '') ? (fenced[3] ?? '') : text
     text = body.trim() === '' ? '' : `\`\`\`mermaid\n${body.replace(/\n+$/, '')}\n\`\`\``
-  } else if (fenced && /^(markdown|md)?$/i.test(fenced[2] ?? '')) {
+  } else if (
+    fenced &&
+    /^(markdown|md)?$/i.test(fenced[2] ?? '') &&
+    (fenced[2] !== '' || !holdsFence(fenced[3] ?? '', fenced[1] ?? ''))
+  ) {
     // A fenced block selected stays one.
     if (!WHOLE_FENCE.test(original.trim())) text = (fenced[3] ?? '').trim()
   }

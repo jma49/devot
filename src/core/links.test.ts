@@ -38,6 +38,16 @@ describe('noteLink', () => {
     expect(noteLink('a [b] c\\d', A)).toBe(`[a \\[b\\] c\\\\d](devot://note/${A})`)
   })
 
+  it('escapes only the punctuation that would read as formatting', () => {
+    const text = (title: string) => noteLink(title, A).slice(1, -`](${noteUri(A)})`.length)
+    expect(text('snake_case_name')).toBe('snake_case_name')
+    expect(text('_under_ *star* a|b ~x~ `c` <b>')).toBe(
+      '\\_under\\_ \\*star\\* a\\|b \\~x\\~ \\`c\\` \\<b>',
+    )
+    expect(text('Q&A! Fish & chips')).toBe('Q&A! Fish & chips')
+    expect(text('R&amp;D &#35; &copy;')).toBe('R\\&amp;D \\&#35; \\&copy;')
+  })
+
   it('keeps the link on one line', () => {
     expect(noteLink('two\nlines', A)).toBe(`[two lines](devot://note/${A})`)
   })

@@ -416,6 +416,7 @@ export function App() {
   const [searchIn, setSearchIn] = useState<'all' | 'view'>('view')
   const [results, setResults] = useState<{
     found: NoteSummary[]
+    capped: boolean
     search: Search
   }>()
   const searchField = useRef<HTMLInputElement>(null)
@@ -1193,10 +1194,10 @@ export function App() {
     const arm = () => {
       if (!alive) return
       runSearch.current = latestOnly(
-        async (search: Search) => ({
-          found: await core.search(search.query, search.scope),
-          search,
-        }),
+        async (search: Search) => {
+          const { found, capped } = await core.search(search.query, search.scope)
+          return { found, capped, search }
+        },
         // Results that did not change keep their objects (and their rows their render).
         (next) => {
           // An answer that lands after the field was cleared is not kept: the
@@ -1999,7 +2000,9 @@ export function App() {
     if (!made) return
     const search = latestSearch.current
     if (search.query.trim()) {
-      const found = await c.search(search.query, search.scope).catch(() => [])
+      const { found } = await c
+        .search(search.query, search.scope)
+        .catch(() => ({ found: [], capped: false }))
       if (found.some((n) => n.id === id)) return
     } else {
       const view: ListView = inTrash
@@ -2139,7 +2142,7 @@ export function App() {
   const findLinkTargets = async (linkQuery: string) => {
     if (!core) return []
     const found = linkQuery
-      ? await core.search(linkQuery, undefined, { flush: false })
+      ? (await core.search(linkQuery, undefined, { flush: false })).found
       : await core.list(MAX_LINK_NOTES + 1)
     const targets = found.filter((n) => n.id !== selected)
     const named = await displayTitles(loadHeadlines, targets.slice(0, MAX_LINK_NOTES))
@@ -3601,6 +3604,7 @@ export function App() {
           empty="search"
           pinned={NO_NOTES}
           notes={shownResults}
+          capped={results?.capped ?? false}
           tags={tagsById}
           selected={selected}
           opening={switching ? openingId : undefined}
@@ -3813,6 +3817,7 @@ export function App() {
             onRestore={() => void restoreNotes(multiIds)}
             onDelete={() => confirmDeleteMany(multiIds)}
             readOnly={!editing}
+            capped={searching && (results?.capped ?? false)}
           />
         ) : null}
         {core && selected && inTrash && !multiIds ? (

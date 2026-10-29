@@ -1489,6 +1489,14 @@ button {
   font-size: var(--font-size-footnote);
 }
 
+.list-capped {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-footnote);
+  text-align: center;
+}
+
 .list-resize,
 .sidebar-resize {
   position: absolute;

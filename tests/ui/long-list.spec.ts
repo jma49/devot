@@ -135,3 +135,21 @@ test('Home, End and the Page keys move the keyboard through the whole list', asy
   await page.keyboard.press('PageUp')
   await expect(titleField(page)).toHaveValue('Note 1')
 })
+
+test('a capped search says so, and a selection of it says the rest is left out', async ({
+  page,
+}) => {
+  await page.getByRole('searchbox', { name: 'Search notes' }).fill('Note')
+  await expect(caption(page)).toHaveText('In All Notes \u00b7 More than 200 notes')
+  await expect(
+    page.getByText('Showing the first 200 matches. Narrow the search to see the rest.'),
+  ).toBeVisible()
+  await row(page, 'Note 1').click()
+  await page.keyboard.press('Meta+KeyA')
+  const selected = page.getByRole('region', { name: 'Selected Notes' })
+  await expect(selected).toContainText('200 Notes Selected')
+  await expect(selected).toContainText('More notes match the search than the list shows')
+
+  await page.getByRole('searchbox', { name: 'Search notes' }).fill('Note 99')
+  await expect(page.getByText('Showing the first 200 matches')).toHaveCount(0)
+})

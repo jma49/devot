@@ -54,7 +54,7 @@ async function note(notes: NoteService, title: string, body: string, bookId: str
 }
 
 const titles = async (notes: NoteService, query: string, scope?: SearchScope) =>
-  (await notes.search(query, scope)).map((n) => n.title).sort()
+  (await notes.search(query, scope)).found.map((n) => n.title).sort()
 
 const any = (value: string, negate = false): SearchClause => ({ field: 'any', value, negate })
 
@@ -452,8 +452,8 @@ describe('full-text search on SQLite', () => {
     expect(await titles(notes, 'a*b')).toEqual(['Ops'])
     expect(await titles(notes, '"quotes"')).toEqual(['Ops'])
     expect(await titles(notes, 'body:"NOT care"')).toEqual(['Ops'])
-    expect(await notes.search('NEAR(')).toEqual([])
-    expect(await notes.search('title:NEAR( body:"x" -"{a b}"')).toEqual([])
+    expect((await notes.search('NEAR(')).found).toEqual([])
+    expect((await notes.search('title:NEAR( body:"x" -"{a b}"')).found).toEqual([])
   })
 
   it('stays in step with edits, the trash, restores and purges', async () => {
@@ -490,7 +490,7 @@ describe('full-text search on SQLite', () => {
   it('returns nothing for an empty query', async () => {
     const { notes } = setup()
     await note(notes, 'Any', 'thing')
-    expect(await notes.search('   ')).toEqual([])
+    expect((await notes.search('   ')).found).toEqual([])
   })
 })
 
@@ -618,7 +618,10 @@ describe('qualifiers combined with full-text search on SQLite', () => {
       }
     })
     insert()
-    expect(await notes.search('plan')).toHaveLength(SEARCH_LIMIT)
+    const capped = await notes.search('plan')
+    expect(capped.found).toHaveLength(SEARCH_LIMIT)
+    expect(capped.capped).toBe(true)
+    expect((await notes.search('plan book:Work')).capped).toBe(false)
     expect(await titles(notes, 'plan book:Work')).toEqual(['Editor plan', 'Relay plan'])
     expect(await titles(notes, 'plan', { bookId: books.weekly, filter: null })).toEqual(['Week 41'])
     expect(await titles(notes, 'plan tag:sync -status:active')).toEqual(['Editor plan'])
@@ -630,13 +633,13 @@ describe('qualifiers combined with full-text search on SQLite', () => {
     await note(notes, 'Long', long)
     await note(notes, 'Short', 'one\nrelay   here')
     await note(notes, 'Title only', 'nothing relevant')
-    const [hit] = await notes.search('hibernation')
+    const [hit] = (await notes.search('hibernation')).found
     expect(hit?.excerpt).toMatch(/^\u2026.*ipsum the hibernation plan dolor/)
     expect([...(hit?.excerpt ?? '')].length).toBeLessThanOrEqual(161)
-    expect((await notes.search('relay'))[0]?.excerpt).toBe('one relay here')
+    expect((await notes.search('relay')).found[0]?.excerpt).toBe('one relay here')
     await note(notes, 'German', 'Kein \u00c4rger im Team')
-    expect((await notes.search('\u00e4rger'))[0]?.excerpt).toBe('Kein \u00c4rger im Team')
-    expect((await notes.search('title:only'))[0]?.excerpt).toBeUndefined()
-    expect((await notes.search('only'))[0]?.excerpt).toBeUndefined()
+    expect((await notes.search('\u00e4rger')).found[0]?.excerpt).toBe('Kein \u00c4rger im Team')
+    expect((await notes.search('title:only')).found[0]?.excerpt).toBeUndefined()
+    expect((await notes.search('only')).found[0]?.excerpt).toBeUndefined()
   })
 })

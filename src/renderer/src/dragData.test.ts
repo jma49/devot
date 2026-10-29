@@ -33,7 +33,8 @@ describe('note drags', () => {
       '<a href="devot://note/x">A &lt;b&gt; &amp; &quot;c&quot;</a>',
     )
     expect(data.get('text/html')).toContain('A &lt;b&gt; &amp; &quot;c&quot; [d]')
-    expect(data.get('text/plain')).toBe('[A <b> & "c" \\[d\\]](devot://note/x)')
+    // The title's Markdown punctuation is escaped, so the link text is the title as typed.
+    expect(data.get('text/plain')).toBe('[A \\<b> & "c" \\[d\\]](devot://note/x)')
   })
 })
 

@@ -43,7 +43,10 @@ devot.ui.onHidden(() => {
   globalThis.hidden = (globalThis.hidden ?? 0) + 1
 })
 devot.preview.handle('shout', (source) => '**' + source.toUpperCase() + '** <script>top.shouted = 1</script><img src=x onerror="top.shouted = 2">')
-devot.importer.handle('shout', ({ name, text }) => ({ title: name.replace(/\\.shout$/, ''), markdown: text.toUpperCase() }))
+devot.importer.handle('shout', ({ name, text }) => {
+  if (name.includes('bad')) throw new Error('no')
+  return { title: name.replace(/\\.shout$/, ''), markdown: text.toUpperCase() }
+})
 devot.exporter.handle('shout', ({ title, markdown }) => title + ': ' + markdown.toUpperCase())
 `
 
@@ -219,6 +222,67 @@ test('a plugin shows its panel while its command runs; Close hides it and tells 
   await panel.getByRole('button', { name: 'Close' }).click()
   await expect(panel).toBeHidden()
   await expect.poll(() => inner.evaluate(() => (globalThis as { hidden?: number }).hidden)).toBe(1)
+})
+
+test('an import that fails partway keeps the notes it made, tries the rest and shows them', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      ...w.devotIpcMocks,
+      plugin_import_pick: () => [
+        { name: 'first.shout', text: 'quiet one' },
+        { name: 'bad.shout', text: 'quiet bad' },
+        { name: 'second.shout', text: 'quiet two' },
+      ],
+    }
+  })
+  await paletteRun(page, 'Import Shout Files')
+  await expect(noteRows(page)).toHaveCount(2)
+  const notes = await savedNotes(page)
+  expect(notes.map((n) => [n.title, n.bodyMd]).sort()).toEqual([
+    ['first', 'QUIET ONE'],
+    ['second', 'QUIET TWO'],
+  ])
+  await expect(page.getByRole('alert')).toContainText('E_PLUGIN_FAILED')
+})
+
+test('a read-only licence keeps plugin imports and edits from changing notes', async ({ page }) => {
+  await noteWith(page, 'hello world')
+  // The trial is over and no licence is added, as Rust tells the window.
+  await page.evaluate(() => {
+    window.dispatchEvent(
+      new CustomEvent('devot:licence-changed', {
+        detail: {
+          gated: true,
+          state: 'none',
+          code: null,
+          id: null,
+          licensee: null,
+          plan: null,
+          trial: { state: 'ended', endsAt: Date.now() - 3_600_000, code: null },
+        },
+      }),
+    )
+  })
+  await page.keyboard.press('Meta+KeyK')
+  await palette(page).getByRole('combobox', { name: 'Command Palette' }).fill('> ')
+  const entries = palette(page).getByRole('option')
+  await expect(entries.filter({ hasText: 'Upper Case' })).toHaveCount(1)
+  await expect(entries.filter({ hasText: 'Import Shout Files…' })).toHaveCount(0)
+  await expect(entries.filter({ hasText: 'Export Note as Shout…' })).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(palette(page)).toBeHidden()
+
+  // A command is not hidden, but its edit is refused; an import that still arrives (a menu item Rust has not disabled) is too.
+  await pickPluginMenu(page, { kind: 'command', plugin: 'com.example.tools', id: 'upper' })
+  const notice = page.locator('[data-devot-plugin-notice]')
+  await expect(notice).toContainText('Your Devot trial has ended, so a plugin cannot change notes.')
+  await expect(notice.getByRole('button', { name: 'Add Licence' })).toBeVisible()
+  await expect(body(page)).toHaveText('hello world')
+  await expect.poll(async () => (await savedNotes(page))[0]?.bodyMd).toBe('hello world')
 })
 
 test('a failing plugin shows a notice with its code, never its text', async ({ page }) => {

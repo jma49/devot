@@ -1,6 +1,7 @@
 // The message protocol between Devot and a plugin's frame (ADR 0005), version 1. Every message a plugin sends is read here
 // before the host acts on it: its shape, a known method, the permission behind it and its sizes.
 import { MAX_BODY_BYTES, MAX_TITLE_CHARS } from '../noteLimits'
+import { wellFormed } from '../text'
 import type { PluginPermission } from './manifest'
 
 export const PLUGIN_PROTOCOL_VERSION = 1
@@ -126,6 +127,7 @@ function params(call: CallMessage, method: PluginMethod): PluginCall | null {
     case 'note.replace': {
       const { base, markdown } = p
       if (typeof base !== 'string' || typeof markdown !== 'string') return null
+      if (wellFormed(base) !== base || wellFormed(markdown) !== markdown) return null
       if (utf8Length(markdown) > MAX_BODY_BYTES || utf8Length(base) > MAX_BODY_BYTES) return null
       return { method, base, markdown }
     }
@@ -175,6 +177,7 @@ export function checkResult(method: HostMethod, value: unknown): unknown {
       if (!isRecord(value)) return invalid()
       const { title, markdown } = value
       if (typeof title !== 'string' || typeof markdown !== 'string') return invalid()
+      if (wellFormed(title) !== title || wellFormed(markdown) !== markdown) return invalid()
       if ([...title].length > MAX_TITLE_CHARS || utf8Length(markdown) > MAX_BODY_BYTES) {
         return invalid()
       }

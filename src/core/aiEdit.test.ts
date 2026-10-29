@@ -61,6 +61,28 @@ describe('the reply', () => {
     expect(cleanAiReply('```\nFixed.\n```\n', 'Fixd.', preset('proofread'))).toBe('Fixed.')
   })
 
+  it('keeps the fences when a reply holds several fenced blocks', () => {
+    const reply = '```\nnpm install\n```\nThen run:\n```\nnpm start\n```'
+    const selection = 'Setup:\n```\nnpm i\n```\nthen run\n```\nnpm start\n```\nDone.'
+    expect(cleanAiReply(reply, selection, preset('improve'))).toBe(reply)
+  })
+
+  it('takes off a markdown fence that wraps a reply holding a code block', () => {
+    const reply = '```markdown\nSetup:\n```bash\nnpm i\n```\nthen run\n```'
+    expect(cleanAiReply(reply, 'Setup: npm i then run', preset('improve'))).toBe(
+      'Setup:\n```bash\nnpm i\n```\nthen run',
+    )
+  })
+
+  it('takes off a longer or tilde fence around a reply holding a shorter code block', () => {
+    const inner = 'Setup:\n```bash\nnpm i\n```\nthen run'
+    for (const fence of ['````', '~~~']) {
+      expect(
+        cleanAiReply(`${fence}\n${inner}\n${fence}`, 'Setup: npm i then run', preset('improve')),
+      ).toBe(inner)
+    }
+  })
+
   it('keeps a fence when the selection was one, and a code block inside the reply', () => {
     const code = '```js\nlet a = 1\n```'
     expect(cleanAiReply('```js\nconst a = 1\n```', code, { prompt: 'const' })).toBe(

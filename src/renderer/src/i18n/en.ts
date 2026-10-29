@@ -134,6 +134,7 @@ export const en = {
   'selection.countOne': '{count} Note Selected',
   'selection.countOther': '{count} Notes Selected',
   'selection.more': 'and {count} more',
+  'selection.capped': 'More notes match the search than the list shows. They are not included.',
   'batch.move': 'Move Selected Notes to Notebook\u2026',
   'batch.pin': 'Pin Selected Notes',
   'batch.unpin': 'Unpin Selected Notes',
@@ -164,6 +165,117 @@ export const en = {
   'templates.recent': 'Recently Used',
   'templates.builtIn': 'Built-in',
   'templates.builtInHint': 'Built-in templates are read-only. Edit a copy to make one of your own.',
+  'templates.starter.brainstorming.title': 'Brainstorming',
+  'templates.starter.brainstorming.body': `> # !Instructions
+> Write the topic under Goal, then list every idea without judging it.
+> Group the ideas, pick the best few and give each a next step.
+
+# {{title}}
+
+## Goal
+
+## Ideas
+
+- 
+
+## Groups
+
+## Next steps
+
+- [ ] 
+`,
+  'templates.starter.debugging.title': 'Debugging',
+  'templates.starter.debugging.body': `> # !Instructions
+> Describe what you expected and what happened, then record each attempt
+> and what it showed. Finish with the cause and the fix.
+
+# {{title}}
+
+## Expected behaviour
+
+## Actual behaviour
+
+## Steps to reproduce
+
+1. 
+
+## Attempts
+
+- 
+
+## Cause
+
+## Fix
+
+- [ ] 
+`,
+  'templates.starter.learning.title': 'Learning',
+  'templates.starter.learning.body': `> # !Instructions
+> Note the source and what you want to learn. Write the key points in your
+> own words, then questions, then a short summary you could teach from.
+
+# {{title}}
+
+## Source
+
+## What I want to learn
+
+## Key points
+
+- 
+
+## Questions
+
+- 
+
+## Summary
+`,
+  'templates.starter.planning.title': 'Planning',
+  'templates.starter.planning.body': `> # !Instructions
+> State the outcome and why it matters. Break it into tasks with owners and
+> dates, and list what could go wrong.
+
+# {{title}}
+
+## Outcome
+
+## Why it matters
+
+## Tasks
+
+- [ ] 
+
+## Timeline
+
+## Risks
+`,
+  'templates.starter.daily-report.title': 'Daily Report',
+  'templates.starter.daily-report.body': `---
+title: Daily Report {{date}}
+---
+
+> # !Instructions
+> Fill this in at the end of the day. {{date}} is replaced with today's date
+> in each note made from this template.
+
+# {{title}}
+
+## Done today
+
+- 
+
+## In progress
+
+- 
+
+## Blockers
+
+- 
+
+## Plan for tomorrow
+
+- [ ] 
+`,
   'templates.editCopy': 'Edit a Copy',
   'templates.noMatches': 'No templates match.',
   'templates.create': 'Create',
@@ -251,6 +363,8 @@ export const en = {
   'noteList.countOne': '{count} note',
   'noteList.countOther': '{count} notes',
   'noteList.scopedCount': '{scope} \u00b7 {notes}',
+  'noteList.capped': 'More than {count} notes',
+  'noteList.cappedNote': 'Showing the first {count} matches. Narrow the search to see the rest.',
   'toolbar.label': 'Toolbar',
   'note.untitled': 'Untitled',
   'time.fewSeconds': 'a few seconds',
@@ -1408,6 +1522,7 @@ export const en = {
     'Proposed by {model}. Review the changes, then accept them or discard the proposal.',
   'aiEdit.changes': 'Proposed changes',
   'aiEdit.takeChange': 'Apply this change',
+  'aiEdit.takeChangeOf': 'Apply change {index} of {count}',
   'aiEdit.noChanges': 'The proposal leaves the selection as it is.',
   'aiEdit.accept': 'Accept',
   'aiEdit.acceptSome': 'Accept Selected',
@@ -1644,6 +1759,8 @@ export const en = {
   'plugins.exportAs': 'Export Note as {title}…',
   'plugins.panelClose': 'Close',
   'plugins.failed': '{name} could not finish ({code}).',
+  'plugins.trialEnded':
+    'Your Devot trial has ended, so a plugin cannot change notes. Add a licence in Settings > Licence.',
 } as const
 
 export type MessageKey = keyof typeof en

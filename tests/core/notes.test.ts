@@ -178,6 +178,15 @@ describe('replacing a body', () => {
     expect((await storage.getNote(id))!.bodyMd).toBe('Howdy wo!rld')
   })
 
+  it('stores a captured body without carriage returns, so later edits land right', async () => {
+    const { notes, storage } = service(freshPath())
+    const id = await notes.create()
+    await notes.setBody(id, 'one\r\ntwo\rthree\n')
+    expect((await notes.read(id)).bodyMd).toBe('one\ntwo\nthree\n')
+    await notes.flush()
+    expect((await storage.getNote(id))!.bodyMd).toBe('one\ntwo\nthree\n')
+  })
+
   it('does nothing when the body is already the same', async () => {
     const { notes, storage } = service(freshPath())
     const id = await notes.create()
@@ -290,6 +299,22 @@ describe('hand-set dates', () => {
     await expect(notes.setDates(id, { createdAt: -1 })).rejects.toThrow('E_NOTE_TIME_INVALID')
     const stored = (await storage.getNote(id))!
     expect([stored.createdAt, stored.updatedAt]).toEqual([MAR_1, MAR_2])
+  })
+
+  it('keeps a hand-set update date when another writer saved the note first', async () => {
+    const path = freshPath()
+    const app = service(path)
+    const id = await app.notes.create('Dated')
+    await app.notes.setBody(id, 'Text')
+    await app.notes.flush()
+    // Another writer moves the body on, so this core's put is refused once and retried.
+    const other = service(path, 'mac2')
+    await other.notes.setBody(id, 'Text, changed elsewhere')
+    await other.notes.flush()
+
+    await app.notes.setDates(id, { createdAt: MAR_1, updatedAt: MAR_1 + 1000 })
+    const stored = (await app.storage.getNote(id))!
+    expect([stored.createdAt, stored.updatedAt]).toEqual([MAR_1, MAR_1 + 1000])
   })
 
   it('wins over a stale write from another process, which keeps only a later update', async () => {

@@ -15,7 +15,7 @@ import {
 import type { NoteSummary, RowDetail, TagRecord } from '../../core'
 import type { StripDay } from '../../core/activity'
 import { withStrips, type RowInfo } from './ActivityStrip'
-import { currentLocale, t } from './i18n'
+import { currentLocale, format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import type { MenuPoint } from './contextMenu'
 import { commandMatches, heldCommandKey } from './commands/registry'
@@ -94,6 +94,8 @@ interface Props {
   editing?: boolean
   /** The notes agents changed since the owner last looked, with the newest writer (agentWrites.ts). */
   changedBy?: ReadonlyMap<string, WriterRef> | undefined
+  /** More matched than the rows shown (a capped search), so the count says so. */
+  capped?: boolean | undefined
 }
 
 const MINUTE = 60_000
@@ -711,6 +713,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         title={title}
         scope={scope}
         count={notes.length}
+        capped={props.capped}
         icon={props.icon}
         onTitleMenu={props.onTitleMenu}
         leading={props.leading}
@@ -774,6 +777,13 @@ export const NoteList = memo(function NoteList(props: Props) {
           <EmptyList kind={props.empty} editing={props.editing} />
         ) : null}
       </ul>
+      {props.capped ? (
+        <p className="list-capped">
+          {format(t('noteList.cappedNote'), {
+            count: new Intl.NumberFormat(locale).format(notes.length),
+          })}
+        </p>
+      ) : null}
       {props.after}
       <div className="list-resize" aria-label={t('noteList.resize')} {...edge} />
     </section>

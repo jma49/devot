@@ -19,6 +19,7 @@ import {
   type NoteService,
   type OffsetAt,
 } from '../../src/core'
+import { starterTemplates } from '../../src/renderer/src/starterTemplates'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -41,7 +42,15 @@ function device(path: string, node = 'mac1') {
   services.push(notes)
   const books = createBookService({ storage, clock, newId })
   const tags = createTagService({ storage, clock, newId })
-  const templates = createTemplateService({ storage, notes, books, tags, clock, newId })
+  const templates = createTemplateService({
+    storage,
+    notes,
+    books,
+    tags,
+    clock,
+    newId,
+    starters: starterTemplates,
+  })
   return { storage, clock, notes, books, tags, templates }
 }
 
@@ -176,7 +185,7 @@ describe('templates stay out of the library', () => {
   it('never finds a template by search, with or without qualifiers', async () => {
     const { d, plain, loose, work } = await library()
     const ids = async (query: string, scope?: Parameters<typeof d.notes.search>[1]) =>
-      (await d.notes.search(query, scope)).map((n) => n.id).sort()
+      (await d.notes.search(query, scope)).found.map((n) => n.id).sort()
     expect(await ids('kiwi')).toEqual([plain, loose].sort())
     expect(await ids('title:template')).toEqual([])
     expect(await ids('tag:fruit')).toEqual([plain])
@@ -428,6 +437,39 @@ describe('applying a template to a note', () => {
     expect(storedFile(d, file as string)?.noteId).toBe(note)
     expect((await d.storage.listNotes()).find((n) => n.id === note)?.status).toBe('active')
     expect((await d.storage.listNotes()).filter((n) => n.id !== t).map((n) => n.id)).toEqual([note])
+  })
+
+  it('fills the note even when another note in memory cannot be saved', async () => {
+    const storage = openSqliteAdapter(freshPath())
+    open.push(storage)
+    const clock = createClock('mac1')
+    const newId = createIdGenerator()
+    const failing = new Set<string>()
+    const wrapped = {
+      ...storage,
+      atomically: storage.atomically.bind(storage),
+      putNote: (record: Parameters<typeof storage.putNote>[0]) =>
+        failing.has(record.id)
+          ? Promise.reject(new Error('E_STORAGE_WRITE_FAILED'))
+          : storage.putNote(record),
+    }
+    const notes = createNoteService({ storage: wrapped, clock, newId, saveDelayMs: 5 })
+    services.push(notes)
+    const books = createBookService({ storage: wrapped, clock, newId })
+    const tags = createTagService({ storage: wrapped, clock, newId })
+    const templates = createTemplateService({ storage: wrapped, notes, books, tags, clock, newId })
+    const t = await templates.create('T')
+    await notes.setBody(t, 'From template\n')
+    await notes.flush()
+    const broken = await notes.create('Broken', null)
+    failing.add(broken)
+    await notes.setBody(broken, 'This save is refused')
+    const note = await notes.create('Mine', null)
+    await notes.setBody(note, 'Own text')
+
+    await templates.applyTo(t, note, CLOCK)
+    expect((await notes.read(note)).bodyMd).toBe('Own text\n\nFrom template\n')
+    failing.clear()
   })
 
   it('names a titled note in {{title}}, not the template', async () => {
