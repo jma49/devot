@@ -146,8 +146,13 @@ fn creates_enrolls_pushes_and_pulls_sealed_records() {
     let (on_mac, _) = events();
     let (mac_socket, welcome) = Connection::open(&relay.url, &id, &mac.token, on_mac).unwrap();
     assert_eq!(
-        (welcome.epoch.as_str(), welcome.seq, welcome.quota),
-        (mac.epoch.as_str(), 0, Some("on"))
+        (
+            welcome.epoch.as_str(),
+            welcome.seq,
+            welcome.quota,
+            welcome.attachments
+        ),
+        (mac.epoch.as_str(), 0, Some("on"), Some("on"))
     );
     assert!((welcome.time - mac.time).abs() < 60_000);
     let (on_phone, phone_events) = events();
@@ -155,7 +160,7 @@ fn creates_enrolls_pushes_and_pulls_sealed_records() {
 
     let first = b"a note's record, sealed before it leaves".to_vec();
     assert_eq!(
-        client::push(&mac_socket, &vault, RECORD, 0, &first),
+        client::push(&mac_socket, &vault, RECORD, 0, &first, "record"),
         Ok(PushReply::Pushed { version: 1, seq: 1 })
     );
     assert_eq!(
@@ -163,7 +168,14 @@ fn creates_enrolls_pushes_and_pulls_sealed_records() {
         Ok(Event::Changed(1))
     );
     assert_eq!(
-        client::push(&phone_socket, &vault, RECORD, 0, b"based on nothing"),
+        client::push(
+            &phone_socket,
+            &vault,
+            RECORD,
+            0,
+            b"based on nothing",
+            "record"
+        ),
         Ok(PushReply::Rejected { version: 1 })
     );
     let page = client::pull(&phone_socket, &vault, 0).unwrap();
@@ -198,7 +210,7 @@ fn keeps_a_record_past_the_chunk_cap_here() {
         Connection::open(&relay.url, &vault.id().to_string(), &mac.token, on_event).unwrap();
     let big = vec![0; 17 * super::MAX_CHUNK_BYTES];
     assert_eq!(
-        client::push(&socket, &vault, RECORD, 0, &big),
+        client::push(&socket, &vault, RECORD, 0, &big, "record"),
         Err("E_SYNC_TOO_LARGE")
     );
     assert_eq!(client::pull(&socket, &vault, 0).unwrap().records.len(), 0);
@@ -274,7 +286,7 @@ fn the_service_creates_the_vault_once_and_connects_with_the_kept_token() {
     let welcome = service.connect().unwrap();
     let data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"record");
     assert!(matches!(
-        service.push(RECORD, 0, &data),
+        service.push(RECORD, 0, &data, "record"),
         Ok(super::service::PushDto::Pushed { version: 1, .. })
     ));
     let page = service.pull(welcome.seq).unwrap();

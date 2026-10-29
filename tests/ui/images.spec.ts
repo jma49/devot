@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import {
   changeEditorSettingsElsewhere,
   changeShortcutsElsewhere,
@@ -70,12 +70,144 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/')
   await page.evaluate(() => {
     localStorage.clear()
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = { image_copy: null, image_save: true }
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      image_copy: null,
+      image_save: true,
+    }
   })
   await page.reload()
   await page.evaluate(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = { image_copy: null, image_save: true }
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      image_copy: null,
+      image_save: true,
+    }
   })
+})
+
+test('a link whose image has not arrived shows a placeholder at the inline image height and tries again when the database changes', async ({
+  page,
+}) => {
+  await newNote(page, `Look:\n\n![Shot](${FILE})\n`)
+  await showMode(page, 'Split')
+  const inline = page.locator('.cm-inline-image')
+  await expect(inline).toHaveClass(/image-missing/)
+  const height = (await inlineImages(page).boundingBox())!.height
+  expect(height).toBe(160)
+  const placeholder = (await inline.boundingBox())!
+  expect(placeholder.height).toBeGreaterThan(100)
+  expect(placeholder.width / placeholder.height).toBeCloseTo(4 / 3, 1)
+  await expect(inline).toHaveAttribute('alt', '')
+  const shown = preview(page).locator('img')
+  await expect(shown).toHaveClass(/image-missing/)
+  expect((await shown.boundingBox())!.height).toBe(160)
+
+  await expect(inline).toHaveAttribute('aria-label', 'Shot: image not synced yet')
+  await expect(shown).toHaveAttribute('role', 'img')
+
+  // A database change loads it again; the placeholder keeps its box and its mark meanwhile.
+  const watched = (img: Locator) =>
+    img.evaluate((el) => {
+      const seen = { reloads: 0, unmarked: 0 }
+      el.addEventListener('error', () => (seen.reloads += 1))
+      new MutationObserver(() => {
+        if (!el.classList.contains('image-missing')) seen.unmarked += 1
+      }).observe(el, { attributes: true, attributeFilter: ['class'] })
+      ;(el as unknown as { seen: typeof seen }).seen = seen
+    })
+  await watched(inline)
+  await watched(shown)
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('devot:db-changed')))
+  for (const img of [inline, shown]) {
+    await expect
+      .poll(() =>
+        img.evaluate((el) => (el as unknown as { seen: { reloads: number } }).seen.reloads),
+      )
+      .toBeGreaterThan(0)
+    expect(
+      await img.evaluate((el) => (el as unknown as { seen: { unmarked: number } }).seen.unmarked),
+    ).toBe(0)
+    await expect(img).toHaveClass(/image-missing/)
+  }
+  expect((await inlineImages(page).boundingBox())!.height).toBe(height)
+  expect((await shown.boundingBox())!.height).toBe(160)
+})
+
+test('double-clicking a placeholder does not open the viewer', async ({ page }) => {
+  await newNote(page, `Look:\n\n![Shot](${FILE})\n`)
+  await showMode(page, 'Split')
+  const inline = page.locator('.cm-inline-image')
+  const shown = preview(page).locator('img')
+  await expect(inline).toHaveClass(/image-missing/)
+  await expect(shown).toHaveClass(/image-missing/)
+  await inline.dispatchEvent('dblclick', { bubbles: true })
+  await shown.dblclick()
+  await expect(viewer(page)).toBeHidden()
+})
+
+// The colours drawn in the middle of `el`, read back from a screenshot: the broken-image icon shows as a second one.
+const paintedColours = async (page: Page, el: Locator) => {
+  const png = (await el.screenshot()).toString('base64')
+  return page.evaluate(async (data) => {
+    const img = new Image()
+    img.src = `data:image/png;base64,${data}`
+    await img.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = img.width
+    canvas.height = img.height
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(img, 0, 0)
+    const inset = 24
+    const { data: px } = ctx.getImageData(
+      inset,
+      inset,
+      img.width - 2 * inset,
+      img.height - 2 * inset,
+    )
+    const seen = new Set<string>()
+    for (let i = 0; i < px.length; i += 4)
+      seen.add(`${px[i]},${px[i + 1]},${px[i + 2]},${px[i + 3]}`)
+    return seen.size
+  }, png)
+}
+
+test('a placeholder is a plain box: the web view draws no broken-image icon in it', async ({
+  page,
+}) => {
+  await newNote(page, `Look:\n\n![Shot](${FILE})\n`)
+  await showMode(page, 'Split')
+  const inline = page.locator('.cm-inline-image')
+  const shown = preview(page).locator('img')
+  await expect(inline).toHaveClass(/image-missing/)
+  await expect(shown).toHaveClass(/image-missing/)
+  expect(await paintedColours(page, inline)).toBe(1)
+  expect(await paintedColours(page, shown)).toBe(1)
+})
+
+test('a placeholder looks the same alone on a line and inside a paragraph', async ({ page }) => {
+  await newNote(page, `![a](${FILE})\n\nText ![b](${FILE}) text\n`)
+  await showMode(page, 'Preview')
+  const [block, inline] = await preview(page)
+    .locator('img.image-missing')
+    .evaluateAll((els) =>
+      els.map((el) => {
+        const box = el.getBoundingClientRect()
+        return { width: box.width, height: box.height, padding: getComputedStyle(el).padding }
+      }),
+    )
+  expect(block).toEqual(inline)
+  expect(block!.padding).toBe('0px')
+})
+
+test('placeholders on one line stay inside the editor', async ({ page }) => {
+  await newNote(page, `![a](${FILE}) ![b](devot://file/${FILE_ID.replace('f001', 'f002')})\n`)
+  await showMode(page, 'Split')
+  const row = inlineImages(page)
+  const images = page.locator('.cm-inline-image.image-missing')
+  await expect(images).toHaveCount(2)
+  const edge = (await row.boundingBox())!
+  for (const box of await images.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()))) {
+    expect(box.right).toBeLessThanOrEqual(edge.x + edge.width)
+  }
 })
 
 test('double-clicking a preview image opens the viewer, fitted to the window', async ({ page }) => {
@@ -163,7 +295,11 @@ test('the image menu copies and saves an attachment, and sets its size', async (
   const before = await popups(page)
   // Attachments do not load here, and WebKit sometimes lays the broken image out at zero size, so
   // the event goes to the image directly.
-  await img.dispatchEvent('contextmenu', { clientX: 20, clientY: 20, bubbles: true })
+  await img.dispatchEvent('contextmenu', {
+    clientX: 20,
+    clientY: 20,
+    bubbles: true,
+  })
   await expect.poll(() => popups(page)).toBe(before + 1)
   expect(await shownMenu(page)).toEqual([
     'Copy Image',
@@ -186,7 +322,11 @@ test('the image menu copies and saves an attachment, and sets its size', async (
   await expect(img).toHaveClass('image-size-small')
   await expect(img).toHaveAttribute('src', FILE)
 
-  await img.dispatchEvent('contextmenu', { clientX: 20, clientY: 20, bubbles: true })
+  await img.dispatchEvent('contextmenu', {
+    clientX: 20,
+    clientY: 20,
+    bubbles: true,
+  })
   await expect.poll(() => popups(page)).toBe(before + 2)
   expect(await shownMenu(page)).toContain('  Small [x]')
   await pickMenuItem(page, 'Auto', 'Size')
@@ -208,7 +348,11 @@ test('a copy or save of an image that fails says so with its code; a cancelled s
   const img = preview(page).locator('img')
   const openMenu = async () => {
     const before = await popups(page)
-    await img.dispatchEvent('contextmenu', { clientX: 20, clientY: 20, bubbles: true })
+    await img.dispatchEvent('contextmenu', {
+      clientX: 20,
+      clientY: 20,
+      bubbles: true,
+    })
     await expect.poll(() => popups(page)).toBe(before + 1)
   }
   const notice = page.getByRole('alert').filter({ hasText: /The image could not be/ })
@@ -318,17 +462,35 @@ test('an image under its line has the image menu', async ({ page }) => {
   await expect(img).toHaveCount(1)
   const before = await popups(page)
   // Attachments do not load here, so the event goes to the image directly.
-  await img.dispatchEvent('contextmenu', { clientX: 20, clientY: 20, bubbles: true })
+  await img.dispatchEvent('contextmenu', {
+    clientX: 20,
+    clientY: 20,
+    bubbles: true,
+  })
   await expect.poll(() => popups(page)).toBe(before + 1)
   expect(await shownMenu(page)).toContain('Copy Image')
   await pickMenuItem(page, 'Half Width', 'Size')
   await expect(body(page)).toContainText(`![Shot w:50%](${FILE})`)
   await pickMenuItem(page, 'Save Image As…')
   await expect.poll(() => calls(page, 'image_save')).toEqual([{ id: FILE_ID }])
+})
 
+test('an image under its line opens the viewer on a double-click', async ({ page }) => {
+  const remote = `https://images.test${BIG}`
+  await page.route(remote, (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: `<svg xmlns="http://www.w3.org/2000/svg" width="${BIG_SIZE.width}" height="${BIG_SIZE.height}"><rect width="100%" height="100%" fill="teal"/></svg>`,
+    }),
+  )
+  await newNote(page, `![Big picture](${remote})\n`)
+  const img = inlineImages(page).locator('img')
+  await expect
+    .poll(() => img.evaluate((i) => (i as unknown as { naturalWidth: number }).naturalWidth))
+    .toBe(BIG_SIZE.width)
   await img.dispatchEvent('dblclick', { bubbles: true })
   await expect(viewer(page)).toBeVisible()
-  await expect(viewerImage(page)).toHaveAttribute('src', FILE)
+  await expect(viewerImage(page)).toHaveAttribute('src', remote)
   await page.keyboard.press('Escape')
   await expect(viewer(page)).toBeHidden()
   await expect(body(page)).toBeFocused()

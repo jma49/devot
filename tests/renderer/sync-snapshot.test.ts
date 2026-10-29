@@ -48,3 +48,23 @@ it('says the reset’s local time, with the weekday when it is another day here'
     total: '45,000',
   })
 })
+
+it('reads how many images stay on this device and why, and drops anything else', () => {
+  expect(
+    snapshot({ state: 'idle', unsyncedFiles: { count: 3, code: 'E_SYNC_ATTACHMENTS_FULL' } }),
+  ).toMatchObject({ unsyncedFiles: { count: 3, code: 'E_SYNC_ATTACHMENTS_FULL' } })
+  expect(
+    snapshot({ state: 'idle', unsyncedFiles: { count: 1, code: 'E_SYNC_RELAY_OUTDATED' } }),
+  ).toMatchObject({ unsyncedFiles: { count: 1, code: 'E_SYNC_RELAY_OUTDATED' } })
+  for (const unsyncedFiles of [
+    { count: 0, code: 'E_SYNC_ATTACHMENTS_FULL' },
+    { count: -1, code: 'E_SYNC_ATTACHMENTS_FULL' },
+    { count: 2, code: 'a note title' },
+    { count: 'many', code: 'E_SYNC_ATTACHMENTS_FULL' },
+    'x',
+    null,
+  ]) {
+    expect(snapshot({ state: 'idle', unsyncedFiles })).toMatchObject({ unsyncedFiles: null })
+  }
+  expect(snapshot({ state: 'idle' })).toMatchObject({ unsyncedFiles: null })
+})

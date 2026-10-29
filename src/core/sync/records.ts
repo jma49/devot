@@ -7,15 +7,20 @@
 // Trash can be ordered against edits) and `purged`. A purged note is a tombstone: its ID, `purged`
 // and its deletion, nothing else. Notebooks and tags carry fields and HLCs only. Allow AI Access
 // is not synced: each device decides what devot-mcp may read.
+//
+// A file (an attachment, docs/adr/0003-sync-attachments-as-records.md) carries its name, MIME type,
+// size and bytes, written once; the note it belongs to with the HLC of that link's last change; and
+// `purged`. A purged file is a tombstone: its ID and `purged`, nothing else.
 
 import * as Y from 'yjs'
 import { agentWriteRows } from '../authorship'
+import { detectImage, MAX_FILE_BYTES, MAX_FILE_NAME_CHARS } from '../files'
 import { UUID_V7 } from '../ids'
 import { BODY, seedClient } from '../notes'
 import { sha256Hex } from '../sha256'
 import { NOTE_STATUSES, type NoteStatus } from '../storage'
 
-export type SyncKind = 'note' | 'book' | 'tag'
+export type SyncKind = 'note' | 'book' | 'tag' | 'file'
 
 export interface NoteTagState {
   tagId: string
@@ -80,7 +85,23 @@ export interface TagState {
   colorHlc: string
 }
 
-export type SyncRecord = NoteState | BookState | TagState
+export interface FileState {
+  kind: 'file'
+  id: string
+  purged: boolean
+  /** '' for a tombstone. */
+  noteId: string
+  /** The clock of the last change of `noteId`; '' for a file never passed to another note. */
+  noteHlc: string
+  name: string
+  mime: string
+  size: number
+  createdAt: number
+  /** Empty for a tombstone, and for a file whose bytes are not read yet (they are read to push it). */
+  data: Uint8Array
+}
+
+export type SyncRecord = NoteState | BookState | TagState | FileState
 
 export interface Merged<T extends SyncRecord> {
   record: T
@@ -103,15 +124,26 @@ const decoder = new TextDecoder('utf-8', { fatal: true })
 
 /** `format (1) || header length (u32, big-endian) || JSON header || Yjs state`. */
 export function encodeRecord(record: SyncRecord): Uint8Array {
-  const { ydoc, ...header } = record.kind === 'note' ? record : { ...record, ydoc: undefined }
+  const { body, header } = split(record)
   const head = encoder.encode(JSON.stringify(header))
-  const body = ydoc ?? new Uint8Array(0)
   const out = new Uint8Array(5 + head.length + body.length)
   out[0] = FORMAT
   new DataView(out.buffer).setUint32(1, head.length)
   out.set(head, 5)
   out.set(body, 5 + head.length)
   return out
+}
+
+function split(record: SyncRecord): { header: object; body: Uint8Array } {
+  if (record.kind === 'note') {
+    const { ydoc, ...header } = record
+    return { header, body: ydoc }
+  }
+  if (record.kind === 'file') {
+    const { data, ...header } = record
+    return { header, body: data }
+  }
+  return { header: record, body: new Uint8Array(0) }
 }
 
 const invalid = () => new Error('E_SYNC_RECORD_INVALID')
@@ -180,6 +212,54 @@ function readNote(h: Record<string, unknown>, ydoc: Uint8Array): NoteState {
     bodyHlc: h['bodyHlc'] as string,
     tags: byTag(tagStates),
     ydoc,
+  }
+}
+
+const isFileName = (v: unknown): v is string =>
+  typeof v === 'string' &&
+  v.length > 0 &&
+  [...v].length <= MAX_FILE_NAME_CHARS &&
+  !/\p{Cc}/u.test(v)
+
+/** As a paste is checked (checkUpload, and Rust's validate_upload): a known raster image of at most 10 MiB, named as such. */
+function readFile(h: Record<string, unknown>, data: Uint8Array): FileState {
+  const purged = h['purged']
+  if (typeof purged !== 'boolean') throw invalid()
+  if (purged) {
+    const empty =
+      data.length === 0 &&
+      h['noteId'] === '' &&
+      h['noteHlc'] === '' &&
+      h['name'] === '' &&
+      h['mime'] === '' &&
+      h['size'] === 0 &&
+      h['createdAt'] === 0
+    if (!empty) throw invalid()
+    return tombstoneFile(h['id'] as string)
+  }
+  const mime = detectImage(data)
+  const valid =
+    isId(h['noteId']) &&
+    isOptionalHlc(h['noteHlc']) &&
+    isFileName(h['name']) &&
+    data.length > 0 &&
+    data.length <= MAX_FILE_BYTES &&
+    h['size'] === data.length &&
+    mime !== null &&
+    h['mime'] === mime &&
+    isTime(h['createdAt'])
+  if (!valid) throw invalid()
+  return {
+    kind: 'file',
+    id: h['id'] as string,
+    purged: false,
+    noteId: h['noteId'] as string,
+    noteHlc: h['noteHlc'] as string,
+    name: h['name'] as string,
+    mime,
+    size: data.length,
+    createdAt: h['createdAt'] as number,
+    data,
   }
 }
 
@@ -259,6 +339,7 @@ export function decodeRecord(id: string, bytes: Uint8Array): SyncRecord {
   if (h['id'] !== id || !isId(id)) throw invalid()
   const rest = bytes.slice(5 + length)
   if (h['kind'] === 'note') return readNote(h, rest)
+  if (h['kind'] === 'file') return readFile(h, rest)
   if (rest.length > 0) throw invalid()
   if (h['kind'] === 'book') return readBook(h)
   if (h['kind'] === 'tag') return readTag(h)
@@ -281,6 +362,8 @@ const byTag = (tags: readonly NoteTagState[]) =>
 
 /** Equal for records that hold the same fields and the same body, whatever the bytes of its state. */
 export function fingerprint(record: SyncRecord): string {
+  // A file's bytes never change under its ID, so its fields stand for them.
+  if (record.kind === 'file') return sha256Hex(JSON.stringify(split(record).header))
   if (record.kind !== 'note') return sha256Hex(JSON.stringify(record))
   const { ydoc, ...fields } = record
   return sha256Hex(`${JSON.stringify({ ...fields, tags: byTag(fields.tags) })}\n${bodyPrint(ydoc)}`)
@@ -558,7 +641,56 @@ export function mergeTag(local: TagState, remote: TagState): Merged<TagState> {
   return { record, localNews: tagAhead(record, remote), remoteNews: tagAhead(record, local) }
 }
 
+export function tombstoneFile(id: string): FileState {
+  return {
+    kind: 'file',
+    id,
+    purged: true,
+    noteId: '',
+    noteHlc: '',
+    name: '',
+    mime: '',
+    size: 0,
+    createdAt: 0,
+    data: new Uint8Array(0),
+  }
+}
+
+/** The higher HLC owns the file; equal clocks (the same purge heard on two devices): the greater note ID. */
+const ownerOrder = (a: FileState, b: FileState) =>
+  a.noteHlc === b.noteHlc
+    ? a.noteId < b.noteId
+      ? -1
+      : a.noteId > b.noteId
+        ? 1
+        : 0
+    : a.noteHlc < b.noteHlc
+      ? -1
+      : 1
+
+/**
+ * A purge wins over everything and is final. Otherwise the bytes are the same on both sides (they
+ * are written once), and the higher HLC decides which note the file belongs to.
+ */
+export function mergeFile(local: FileState, remote: FileState): Merged<FileState> {
+  if (local.purged || remote.purged) {
+    return {
+      record: tombstoneFile(local.id),
+      localNews: local.purged && !remote.purged,
+      remoteNews: remote.purged && !local.purged,
+    }
+  }
+  const order = ownerOrder(local, remote)
+  const owner = order < 0 ? remote : local
+  return {
+    record: { ...local, noteId: owner.noteId, noteHlc: owner.noteHlc },
+    localNews: order > 0,
+    remoteNews: order < 0,
+  }
+}
+
 export function mergeRecord(local: SyncRecord, remote: SyncRecord): Merged<SyncRecord> {
+  if (local.kind === 'file' && remote.kind === 'file') return mergeFile(local, remote)
   if (local.kind === 'note' && remote.kind === 'note') return mergeNote(local, remote)
   if (local.kind === 'book' && remote.kind === 'book') return mergeBook(local, remote)
   if (local.kind === 'tag' && remote.kind === 'tag') return mergeTag(local, remote)
@@ -570,6 +702,7 @@ export function stampsOf(record: SyncRecord): string[] {
   if (record.kind === 'note') {
     return [...NOTE_HLCS.map((key) => record[key]), ...record.tags.map((t) => t.hlc)]
   }
+  if (record.kind === 'file') return record.noteHlc === '' ? [] : [record.noteHlc]
   if (record.kind === 'book') {
     return [record.nameHlc, record.parentHlc, record.deletedHlc, record.sortKeyHlc, record.iconHlc]
   }

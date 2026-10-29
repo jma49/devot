@@ -745,7 +745,15 @@ title: Daily Report {{date}}
   'syncSettings.resuming': 'The relay’s quota for today has reset; sync resumes in a moment.',
   'syncSettings.upload': '{sent} of {total} items uploaded.',
   'syncSettings.relayOutdated':
-    'Your relay comes from an earlier release and has no quota cap of its own. Update it: run wrangler deploy again from the new release, or restart the Node relay from it.',
+    'Your relay comes from an earlier release and lacks the quota cap or the limit for images. Update it: run wrangler deploy again from the new release, or restart the Node relay from it.',
+  'syncSettings.filesFullOne':
+    '{count} image is not synced: the relay has no room left for images. It stays on this device, and is sent again after images are deleted or on the next launch.',
+  'syncSettings.filesFullOther':
+    '{count} images are not synced: the relay has no room left for images. They stay on this device, and are sent again after images are deleted or on the next launch.',
+  'syncSettings.filesOutdatedOne':
+    '{count} image is not synced: your relay is too old to hold images. Update it: run wrangler deploy again from the new release, or restart the Node relay from it.',
+  'syncSettings.filesOutdatedOther':
+    '{count} images are not synced: your relay is too old to hold images. Update it: run wrangler deploy again from the new release, or restart the Node relay from it.',
   'syncSettings.urlFailed': 'The relay address could not be saved ({code}).',
   'syncSettings.vaultFailed': 'The vault could not be created ({code}).',
   'syncSettings.changeFailed': 'Sync could not be turned on or off ({code}).',
@@ -1560,6 +1568,8 @@ title: Daily Report {{date}}
   'imageMenu.size.small': 'Small',
   'imageMenu.size.half': 'Half Width',
   'imageMenu.size.full': 'Full Width',
+  'image.missing': 'Image not synced yet',
+  'image.missingNamed': '{alt}: image not synced yet',
   'imageViewer.label': 'Image Viewer',
   'imageViewer.labelNamed': 'Image Viewer: {alt}',
   'imageViewer.zoom': 'Zoom',

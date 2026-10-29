@@ -43,13 +43,17 @@ Update the relay when Devot's release notes say so, and before you update the ap
 
 Pairing devices (docs/adr/0008-sync-device-pairing.md) needs a relay from this release or later. A relay from before answers a pairing with `E_SYNC_NOT_FOUND`; Devot then says the relay needs an update and changes nothing on either device. Joining with the recovery key works with an older relay too. An updated relay keeps serving devices that run an older Devot: every earlier route and message is unchanged.
 
+To get images to sync (docs/adr/0003-sync-attachments-as-records.md) a relay from before this release must be updated; there is no data migration, and the relay's storage schema is unchanged. Update it the same way as for any release:
+
 - **Cloudflare:** pull the repository, then in `relay/` run `pnpm install --filter @devot/relay` and `pnpm exec wrangler deploy`. The deploy applies the `v2` migration, which adds the `PairingObject` class next to your vaults and leaves them as they are. If you renamed the Worker or edited `wrangler.toml`, add the `PAIRINGS` binding and the `v2` migration from the template first. The secret and the URL stay.
 - **Node:** pull the repository, run `pnpm install --filter @devot/relay`, and restart `node relay/src/node/main.ts` with the same `RELAY_SECRET` and `RELAY_DATA`. The vault files stay as they are.
 
 Mixed versions keep working while you update:
 
-- **A newer app with an older relay** syncs as before, without the quota cap. The relay's `welcome` does not say `quota`, so Settings > Sync tells you to update the relay. A relay older than the cap never refuses a push for quota; on Cloudflare a request past a free limit then fails until 00:00 UTC, which the app treats as being offline and tries again later. Nothing is lost.
-- **An older app (1.0.5-beta2) with a newer relay** syncs as before. It reads `E_SYNC_QUOTA` as a pause and tries again every hour, without the reset time.
+- **A newer app with an older relay** syncs notes, notebooks and tags as before, without the quota cap. The relay's `welcome` does not say `quota`, so Settings > Sync tells you to update the relay. A relay older than the cap never refuses a push for quota; on Cloudflare a request past a free limit then fails until 00:00 UTC, which the app treats as being offline and tries again later. Nothing is lost.
+- **A newer app with a relay from before attachments** (it has the quota cap but its `welcome` does not say `attachments`) sends no image: an attachment could take the room notes need, which only the new relay limits (see Attachments). Images stay on the device that added them, notes keep syncing, and Settings > Sync says how many images are not synced and that the relay needs an update. Update the relay and the images go on the next connection. A relay so old that it does not know file records answers `E_SYNC_BAD_MESSAGE` to one; the app treats that the same way and loses nothing.
+- **An older app (1.0.5-beta2) with a newer relay** syncs as before. It does not send or read images: it skips the file records it pulls (they stay on the relay for the devices that read them), and the relay never sends it `E_SYNC_ATTACHMENTS_FULL`. Once updated, the app pulls again from the start, so the images it skipped arrive.
+- **An older app (1.0.5-beta2) with a newer relay** also reads `E_SYNC_QUOTA` as a pause and tries again every hour, without the reset time.
 
 ## Quota
 
@@ -61,6 +65,7 @@ The relay keeps every vault inside 80% of each Workers Free limit it can count (
 | Durable Object requests | 100,000 a day; a connection or call is 1, 20 incoming messages count as 1 | 80,000 a day        | `requests` + `messages` / 20                                                      |
 | Workers requests        | 100,000 a day                                                             | within the above    | each HTTP call and socket connection is in `requests`, so the cap above covers it |
 | Stored data (SQLite)    | 5 GB in total                                                             | 4,000,000,000 bytes | `storedBytes`, the records' sealed bytes                                          |
+| Attachments (share)     | part of the stored data                                                   | 3,000,000,000 bytes | `fileBytes`, the sealed bytes of file records; see Attachments                    |
 | Rows read (SQLite)      | 5,000,000 a day                                                           | not counted         | see Pulls                                                                         |
 | Duration                | 13,000 GB-s a day                                                         | not counted         | the Hibernation API bills only while a message is handled                         |
 
@@ -70,6 +75,15 @@ The relay keeps every vault inside 80% of each Workers Free limit it can count (
 - **What the app does:** it stops pushing, closes the socket and shows "Sync paused until <the reset in local time>" in its notice and in Settings > Sync; notes keep working on the device. A refusal for stored bytes does not stop the pass: the app still sends the records that fit (smaller ones, purges) and pauses after it. It connects again after the reset, at a random moment in the next minute, and pushes what waited. It never connects in between; it checks the time at least hourly, so a timer that fell behind while the computer slept still ends the pause.
 - **Per vault:** the counters are per vault, and the Workers Free limits are per account. One vault per account, as the deploy steps above set up, keeps the two the same.
 - **Stored bytes** count the records' sealed bytes, not SQLite's own overhead (row headers, index pages); the 20% left covers it.
+
+## Attachments
+
+Images sync as file records (`kind: "file"`) on the same relay, one record per image, cut into chunks like any record: an image of at most 10 MiB is a record of at most 11 MiB sealed, so 6 chunks (`E_SYNC_TOO_LARGE` past that). Every device downloads every file record (docs/adr/0003-sync-attachments-as-records.md).
+
+- **The share:** file records may take 3,000,000,000 bytes (`FILE_SHARE_BYTES` in `relay/src/quota.ts`) of the stored bytes, so notes, notebooks and tags always keep about 1 GB under the cap above. A push that would take them past it is refused with `error`, `code: "E_SYNC_ATTACHMENTS_FULL"`, and nothing is written; pushes of notes, notebooks and tags, and every pull, go on. The app keeps the image on the device that added it, counts it in Settings > Sync ("N images are not synced") and sends it again after a purge frees room or on the next launch. A relay that runs with `RELAY_QUOTA=off` has no share.
+- **Order of the checks:** the daily limits come first (they pause every push: `E_SYNC_QUOTA`), then the share (`E_SYNC_ATTACHMENTS_FULL`, files only), then the total stored bytes (`E_SYNC_QUOTA` with `limit: "storedBytes"`).
+- **A purge frees the space:** the app replaces the file record with a tombstone (`purged`, no bytes, kept forever); the push replaces its chunks, so `storedBytes` and `fileBytes` fall by the image's size. A file record of at most 1 KiB (a tombstone) is never refused for the share, so a full share can always be emptied. Other devices pull the tombstone and remove the image.
+- **`welcome`** says `attachments` (`on` or `off`) when the relay holds file records within the share. An app that does not see it sends no image (see Update the relay).
 
 ## Connect Devot
 
@@ -125,13 +139,13 @@ Version 1. Every message is an envelope `{"v": 1, "type": …}`; a relay refuses
 | `time`                                                  | `time`: the relay's time in milliseconds                                                         |
 | `usage`                                                 | `usage`: the counters below                                                                      |
 
-- On connecting, the relay sends `welcome`: its `time` (for the client's 5-minute clock check), the vault `epoch`, the current `seq`, the `device` and `quota` (`on` or `off`, whether it enforces the quota cap; a relay older than the cap leaves it out).
+- On connecting, the relay sends `welcome`: its `time` (for the client's 5-minute clock check), the vault `epoch`, the current `seq`, the `device` and `quota` (`on` or `off`, whether it enforces the quota cap; a relay older than the cap leaves it out) and `attachments` (`on` or `off`, whether it holds file records within their share; a relay older than that leaves it out).
 - **Push** is one SQLite transaction with compare-and-swap: when `base` is the stored version (0 for a new record), the relay replaces the record's chunks, sets the version to `base + 1`, gives it the next vault-wide `seq` and sends `changed`: `seq` to the vault's other connections. Otherwise it rejects with the current version and changes nothing. `kind` is `record` or `file` (an attachment, whose bytes count apart; docs/adr/0003-sync-attachments-as-records.md).
 - **Pull** returns the records with `seq` greater than `since`, in `seq` order, in pages of at most 100 records and 16 MiB of chunks (a larger record comes alone). `next` is the `since` of the next pull; `more` says whether there is one.
-- **Limits:** a chunk is at most 1,900,000 bytes, a push at most 16 chunks (one message stays under the Workers 32 MiB WebSocket limit), a message at most 31 MiB (`E_SYNC_TOO_LARGE`), an HTTP body at most 4 KiB. Each device may send 60 messages at once and 10 a second after that; past it the relay answers `E_SYNC_RATE` with `retryAfter` in milliseconds and does nothing else. Every message counts against the rate, malformed and oversized ones included. A vault holds at most 100 devices.
-- **Errors** are `error`: `code` (`E_SYNC_BAD_MESSAGE`, `E_SYNC_PROTOCOL`, `E_SYNC_TOO_LARGE`, `E_SYNC_RATE`, `E_SYNC_QUOTA` with `limit` and `until`, `E_SYNC_NO_DEVICE`, `E_SYNC_INTERNAL`); a socket stays open after one. A message from a revoked device, on a socket the host has not finished closing, gets `E_SYNC_REVOKED` again and nothing else. HTTP errors are the same envelope with a status.
+- **Limits:** a chunk is at most 1,900,000 bytes, a push at most 16 chunks, a file record at most 11 MiB (one message stays under the Workers 32 MiB WebSocket limit), a message at most 31 MiB (`E_SYNC_TOO_LARGE`), an HTTP body at most 4 KiB. Each device may send 60 messages at once and 10 a second after that; past it the relay answers `E_SYNC_RATE` with `retryAfter` in milliseconds and does nothing else. Every message counts against the rate, malformed and oversized ones included. A vault holds at most 100 devices.
+- **Errors** are `error`: `code` (`E_SYNC_BAD_MESSAGE`, `E_SYNC_PROTOCOL`, `E_SYNC_TOO_LARGE`, `E_SYNC_RATE`, `E_SYNC_QUOTA` with `limit` and `until`, `E_SYNC_ATTACHMENTS_FULL`, `E_SYNC_NO_DEVICE`, `E_SYNC_INTERNAL`); a socket stays open after one. A message from a revoked device, on a socket the host has not finished closing, gets `E_SYNC_REVOKED` again and nothing else. HTTP errors are the same envelope with a status.
 
-**Counters.** One row per vault counts, for the current UTC day, the rows written (as the host's SQLite reports them, the counters row's own write included), the incoming messages and the requests (connections, creations and enrollments; refused messages and requests are added with the next write rather than with a write of their own), and in total the stored bytes of all records and of file records. A day's counts start from 0 with the first write after 00:00 UTC. `usage` answers with them and with `caps`, the quota cap's values (null when it is off). The quota cap above uses them.
+**Counters.** One row per vault counts, for the current UTC day, the rows written (as the host's SQLite reports them, the counters row's own write included), the incoming messages and the requests (connections, creations and enrollments; refused messages and requests are added with the next write rather than with a write of their own), and in total the stored bytes of all records and of file records (`fileBytes`, which the attachment share above uses). A day's counts start from 0 with the first write after 00:00 UTC. `usage` answers with them and with `caps`, the quota cap's values (null when it is off). The quota cap above uses them.
 
 ## Tests
 

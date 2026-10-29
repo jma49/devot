@@ -1,6 +1,7 @@
 // A sync transport for the core's tests, against the Node relay started in-process: what Rust does
 // in the app (src-tauri/src/sync/client.rs), with the record left unsealed and cut into chunks.
 import {
+  ATTACHMENTS_FULL,
   CLOSE,
   decodeFrame,
   encodeFrame,
@@ -10,8 +11,10 @@ import {
   SUBPROTOCOL,
   TOKEN_SUBPROTOCOL_PREFIX,
   type RecordHead,
+  type RecordKind,
 } from '../../src/core/sync/protocol'
 import type {
+  PulledRecord,
   PullPage,
   PushResult,
   SyncEvent,
@@ -40,7 +43,11 @@ export interface RelayTransportOptions {
   /** Smaller chunks reach the relay's chunk cap with a small record. */
   chunkBytes?: number
   /** Called with every push before it goes out: a test can hold one back. */
-  beforePush?: (id: string) => Promise<void>
+  beforePush?: (id: string, kind: RecordKind) => Promise<void>
+  /** Cuts a push short: `before` drops the connection without sending; `after` sends and drops it before the answer, so the relay may hold the record while the device does not know. */
+  cut?: (id: string, kind: RecordKind) => 'before' | 'after' | undefined
+  /** Changes a pulled record: a test can play a relay that tampers. */
+  tamper?: (record: PulledRecord) => PulledRecord
   /** Changes the relay's welcome: a test can play a relay from an earlier release. */
   welcome?: (welcome: Welcome) => Welcome
 }
@@ -49,6 +56,8 @@ export class RelayTransport implements SyncTransport {
   onEvent: (event: SyncEvent) => void = () => {}
   pushes = 0
   pulls = 0
+  /** The IDs pushed, in order. */
+  readonly pushed: string[] = []
   private ws: WebSocket | undefined
   private rid = 0
   private readonly waiting = new Map<number, (answer: Answer) => void>()
@@ -116,7 +125,8 @@ export class RelayTransport implements SyncTransport {
         continue
       }
       const code = answer.message['code']
-      if (code === 'E_SYNC_QUOTA' && 'chunks' in message) return answer
+      const refusal = code === 'E_SYNC_QUOTA' || code === ATTACHMENTS_FULL
+      if (refusal && 'chunks' in message) return answer
       if (answer.message['type'] === 'error') throw new Error(String(code))
       return answer
     }
@@ -141,41 +151,60 @@ export class RelayTransport implements SyncTransport {
           plaintext.set(chunk, offset)
           offset += chunk.length
         }
-        return { id: head.id, version: head.version, seq: head.seq, kind: head.kind, plaintext }
+        const record = {
+          id: head.id,
+          version: head.version,
+          seq: head.seq,
+          kind: head.kind,
+          plaintext,
+        }
+        return this.options.tamper ? this.options.tamper(record) : record
       }),
       next: message['next'] as number,
       more: message['more'] as boolean,
     }
   }
 
-  async push(id: string, base: number, plaintext: Uint8Array): Promise<PushResult> {
-    await this.options.beforePush?.(id)
-    this.pushes += 1
+  async push(
+    id: string,
+    base: number,
+    plaintext: Uint8Array,
+    kind: RecordKind = 'record',
+  ): Promise<PushResult> {
+    await this.options.beforePush?.(id, kind)
     const size = this.options.chunkBytes ?? LIMITS.maxChunkBytes
     const chunks: Uint8Array[] = []
     for (let at = 0; at < plaintext.length || chunks.length === 0; at += size) {
       chunks.push(plaintext.subarray(at, at + size))
     }
-    const { message } = await this.request(
-      { type: 'push', id, base, kind: 'record', chunks: chunks.map((c) => c.length) },
-      chunks,
-    )
-    if (message['type'] === 'error') {
-      const { until, limit } = message
+    const message = { type: 'push', id, base, kind, chunks: chunks.map((c) => c.length) }
+    const cut = this.options.cut?.(id, kind)
+    if (cut) {
+      const ws = this.ws
+      if (cut === 'after') ws?.send(encodeFrame({ ...message, rid: ++this.rid }, chunks))
+      await this.close()
+      throw new Error('E_SYNC_OFFLINE')
+    }
+    this.pushes += 1
+    this.pushed.push(id)
+    const { message: answer } = await this.request(message, chunks)
+    if (answer['type'] === 'error') {
+      if (answer['code'] === ATTACHMENTS_FULL) return { type: 'full' }
+      const { until, limit } = answer
       return {
         type: 'paused',
         until: typeof until === 'number' ? until : null,
         limit: isQuotaLimit(limit) ? limit : null,
       }
     }
-    if (message['type'] === 'pushed') {
+    if (answer['type'] === 'pushed') {
       return {
         type: 'pushed',
-        version: message['version'] as number,
-        seq: message['seq'] as number,
+        version: answer['version'] as number,
+        seq: answer['seq'] as number,
       }
     }
-    return { type: 'rejected', version: message['version'] as number }
+    return { type: 'rejected', version: answer['version'] as number }
   }
 
   /** A message this transport does not send itself (`revoke`, `devices`). */

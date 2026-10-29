@@ -232,7 +232,7 @@ fn pairs_a_new_device_by_code_and_both_read_the_same_records() {
     let mac = Device::first(url);
     mac.service.connect().unwrap();
     assert!(matches!(
-        mac.service.push(RECORD, 0, &record_data()),
+        mac.service.push(RECORD, 0, &record_data(), "record"),
         Ok(PushDto::Pushed { version: 1, .. })
     ));
 
@@ -495,7 +495,9 @@ fn the_recovery_key_restores_access_on_a_fresh_device() {
             .is_none()
     );
     mac.service.connect().unwrap();
-    mac.service.push(RECORD, 0, &record_data()).unwrap();
+    mac.service
+        .push(RECORD, 0, &record_data(), "record")
+        .unwrap();
     mac.service.disconnect();
 
     let fresh = Device::at(url);
@@ -583,7 +585,12 @@ fn a_removed_device_can_no_longer_push_or_pull_until_it_is_let_back_in() {
     wait_until("the close marks the phone removed", || {
         !phone.service.snapshot().enrolled
     });
-    assert!(phone.service.push(RECORD, 0, &record_data()).is_err());
+    assert!(
+        phone
+            .service
+            .push(RECORD, 0, &record_data(), "record")
+            .is_err()
+    );
     assert!(phone.service.pull(0).is_err());
     assert_eq!(phone.service.connect().err(), Some("E_SYNC_REVOKED"));
     assert_eq!(phone.service.devices().err(), Some("E_SYNC_REVOKED"));

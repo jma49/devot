@@ -694,6 +694,31 @@ fn the_book_icon_migration_keeps_the_notebooks() {
 }
 
 #[test]
+fn the_sync_files_migration_pulls_again_from_the_start_and_keeps_the_epoch() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    {
+        let conn = Connection::open(&path).unwrap();
+        for (index, sql) in MIGRATIONS.iter().take(21).enumerate() {
+            conn.execute_batch(sql).unwrap();
+            conn.pragma_update(None, "user_version", index as u32 + 1)
+                .unwrap();
+        }
+        conn.execute(
+            "INSERT INTO sync_state (key, value) VALUES ('since', '60'), ('epoch', 'e1')",
+            [],
+        )
+        .unwrap();
+    }
+    let store = Store::open(&path).unwrap();
+    assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
+    assert_eq!(
+        store.sync_state().unwrap(),
+        vec![("epoch".to_string(), "e1".to_string())]
+    );
+}
+
+#[test]
 fn equal_sort_key_clocks_merge_to_the_greater_key_in_any_order() {
     // Two devices gave the same old notebook different keys (no clock).
     let migrated = |key: &str| {

@@ -16,6 +16,8 @@ export const LIMITS = {
   maxMessageBytes: 31 * 1024 * 1024,
   pullPageRecords: 100,
   pullPageBytes: 16 * 1024 * 1024,
+  /** A file record's sealed size: an image of at most 10 MiB, its header and the cipher's overhead (docs/adr/0003-sync-attachments-as-records.md). */
+  maxFileRecordBytes: 11 * 1024 * 1024,
   maxLabelLength: 256,
   maxHttpBodyBytes: 4096,
 } as const
@@ -66,7 +68,13 @@ export type QuotaLimit = (typeof QUOTA_LIMITS)[number]
 export const isQuotaLimit = (value: unknown): value is QuotaLimit =>
   QUOTA_LIMITS.includes(value as QuotaLimit)
 
-export type QuotaCaps = Readonly<Record<QuotaLimit, number>>
+export type QuotaCaps = Readonly<Record<QuotaLimit, number>> & {
+  /** The bytes file records may take; absent from a relay older than the attachment share. */
+  readonly fileBytes?: number
+}
+
+/** The code of a push refused because file records are at their share; notes keep syncing. */
+export const ATTACHMENTS_FULL = 'E_SYNC_ATTACHMENTS_FULL'
 
 export interface Usage {
   /** UTC day (YYYY-MM-DD) the daily counters belong to. */
@@ -103,6 +111,8 @@ export type RelayMessage =
       device: string
       /** Whether the relay enforces the quota cap; absent from a relay older than the cap. */
       quota?: 'on' | 'off'
+      /** Whether the relay enforces the attachment share; absent from a relay older than it. */
+      attachments?: 'on' | 'off'
     }
   | { type: 'records'; rid?: number; records: RecordHead[]; next: number; more: boolean }
   | { type: 'pushed'; rid?: number; id: string; version: number; seq: number }

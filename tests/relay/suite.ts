@@ -560,6 +560,92 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
       })
     })
 
+    describe('attachments', () => {
+      const image = (size: number) => Uint8Array.from({ length: size }, (_, i) => (i * 7) % 251)
+      const cut = (data: Uint8Array) => {
+        const chunks: Uint8Array[] = []
+        for (let at = 0; at < data.length; at += LIMITS.maxChunkBytes) {
+          chunks.push(data.subarray(at, at + LIMITS.maxChunkBytes))
+        }
+        return chunks
+      }
+
+      it(
+        'stores a 10 MiB image as six chunks and pulls it back byte for byte',
+        { timeout: 30_000 },
+        async () => {
+          const vault = await createVault(host)
+          const { socket } = await connect(host, vault.vault, vault.first.token)
+          const data = image(10 * 1024 * 1024 + 100)
+          const chunks = cut(data)
+          expect(chunks).toHaveLength(6)
+          socket.send(
+            { type: 'push', id: 'img', base: 0, kind: 'file', chunks: chunks.map((c) => c.length) },
+            chunks,
+          )
+          expect((await socket.expect('pushed')).message).toMatchObject({ version: 1, seq: 1 })
+          socket.send({ type: 'pull', since: 0 })
+          const page = await socket.expect('records')
+          expect(page.message['records']).toEqual([
+            { id: 'img', version: 1, seq: 1, kind: 'file', chunks: chunks.map((c) => c.length) },
+          ])
+          expect(Buffer.from(page.payload).equals(data)).toBe(true)
+          socket.close()
+        },
+      )
+
+      it('frees the chunks when a tombstone replaces the image', async () => {
+        const vault = await createVault(host)
+        const { socket } = await connect(host, vault.vault, vault.first.token)
+        const chunks = cut(image(4_000_000))
+        socket.send(
+          { type: 'push', id: 'img', base: 0, kind: 'file', chunks: chunks.map((c) => c.length) },
+          chunks,
+        )
+        await socket.expect('pushed')
+        socket.send({ type: 'usage' })
+        expect((await socket.expect('usage')).message).toMatchObject({ fileBytes: 4_000_000 })
+        socket.send({ type: 'push', id: 'img', base: 1, kind: 'file', chunks: [40] }, [
+          bytes(40, 9),
+        ])
+        await socket.expect('pushed')
+        socket.send({ type: 'usage' })
+        expect((await socket.expect('usage')).message).toMatchObject({
+          fileBytes: 40,
+          storedBytes: 40,
+        })
+        socket.send({ type: 'pull', since: 0 })
+        const page = await socket.expect('records')
+        expect(page.message['records']).toEqual([
+          { id: 'img', version: 2, seq: 2, kind: 'file', chunks: [40] },
+        ])
+        expect(page.payload).toEqual(bytes(40, 9))
+        socket.close()
+      })
+
+      it('refuses a file record larger than an image can be, and stores nothing of a cut-off push', async () => {
+        const vault = await createVault(host)
+        const { socket } = await connect(host, vault.vault, vault.first.token)
+        const huge = cut(image(LIMITS.maxFileRecordBytes + 1))
+        socket.send(
+          { type: 'push', id: 'big', base: 0, kind: 'file', chunks: huge.map((c) => c.length) },
+          huge,
+        )
+        expect((await socket.expect('error')).message).toMatchObject({ code: 'E_SYNC_TOO_LARGE' })
+        socket.send({ type: 'push', id: 'cut', base: 0, kind: 'file', chunks: [100, 100] }, [
+          bytes(100, 1),
+        ])
+        expect((await socket.expect('error')).message).toMatchObject({
+          code: 'E_SYNC_BAD_MESSAGE',
+        })
+        socket.send({ type: 'pull', since: 0 })
+        expect((await socket.expect('records')).message).toMatchObject({ records: [] })
+        socket.send({ type: 'usage' })
+        expect((await socket.expect('usage')).message).toMatchObject({ fileBytes: 0 })
+        socket.close()
+      })
+    })
+
     describe('counters', () => {
       it('count rows written, incoming messages, requests and stored bytes, files apart', async () => {
         const vault = await createVault(host)
@@ -568,7 +654,12 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
         const before = (await socket.expect('usage')).message
         expect(before['day']).toBe(new Date().toISOString().slice(0, 10))
         expect(before).toMatchObject({ storedBytes: 0, fileBytes: 0 })
-        expect(before['caps']).toEqual({ rowsWritten: 80_000, requests: 80_000, storedBytes: 4e9 })
+        expect(before['caps']).toEqual({
+          rowsWritten: 80_000,
+          requests: 80_000,
+          storedBytes: 4e9,
+          fileBytes: 3e9,
+        })
         expect(Number(before['requests'])).toBeGreaterThanOrEqual(2)
 
         socket.send({ type: 'push', id: 'note', base: 0, kind: 'record', chunks: [100, 50] }, [

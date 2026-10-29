@@ -4,13 +4,17 @@
 
 use std::collections::BTreeMap;
 
-use serde::Serialize;
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::notes::{NoteDto, valid_hlc, valid_note_id, validate_purge};
 use crate::storage::{
-    BookRecord, Db, NoteTagRecord, SYNC_KINDS, SyncEntry, SyncLocal, TagRecord, Write,
+    BookRecord, Db, NoteTagRecord, SYNC_KINDS, SyncEntry, SyncFile, SyncFileWrite, SyncLocal,
+    TagRecord, Write,
 };
+use crate::sync::file_record::{self, Fields};
 
 /// MAX_SYNC_IDS in src/core/sync/store.ts.
 const MAX_SYNC_IDS: usize = 100;
@@ -34,6 +38,7 @@ pub struct SyncLocalDto {
     pub note: Option<SyncNoteDto>,
     pub book: Option<BookRecord>,
     pub tag: Option<TagRecord>,
+    pub file: Option<SyncFile>,
 }
 
 impl From<SyncLocal> for SyncLocalDto {
@@ -48,6 +53,7 @@ impl From<SyncLocal> for SyncLocalDto {
             }),
             book: local.book,
             tag: local.tag,
+            file: local.file,
         }
     }
 }
@@ -161,6 +167,84 @@ pub async fn sync_reset(db: State<'_, Db>) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// The bytes of an attachment as base64, read when it is pushed; None once it is gone.
+#[tauri::command]
+pub async fn sync_file_data(db: State<'_, Db>, id: String) -> Result<Option<String>, String> {
+    validate_ids(std::slice::from_ref(&id)).map_err(String::from)?;
+    db.call(move |store| store.sync_file_data(&id))
+        .await
+        .map(|data| data.map(|bytes| STANDARD.encode(bytes)))
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SyncFileDto {
+    pub id: String,
+    pub note_id: String,
+    pub note_hlc: String,
+    pub name: String,
+    pub mime: String,
+    pub size: i64,
+    pub created_at: i64,
+}
+
+/// An attachment another device wrote, checked here as a paste is checked: the bytes must be a
+/// known raster image of at most 10 MiB, and the fields must describe them.
+fn checked_file(file: SyncFileDto, data: &str) -> Result<SyncFileWrite, &'static str> {
+    let bytes = STANDARD
+        .decode(data.as_bytes())
+        .map_err(|_| "E_SYNC_RECORD_INVALID")?;
+    let size = u64::try_from(file.size).map_err(|_| "E_SYNC_RECORD_INVALID")?;
+    file_record::check_file(
+        &Fields {
+            id: &file.id,
+            note_id: &file.note_id,
+            note_hlc: &file.note_hlc,
+            name: &file.name,
+            mime: &file.mime,
+            size,
+            created_at: file.created_at,
+        },
+        &bytes,
+    )?;
+    Ok(SyncFileWrite {
+        file: SyncFile {
+            id: file.id,
+            note_id: file.note_id,
+            note_hlc: file.note_hlc,
+            name: file.name,
+            mime: file.mime,
+            size: file.size,
+            created_at: file.created_at,
+        },
+        data: bytes,
+    })
+}
+
+#[tauri::command]
+pub async fn sync_file_put(
+    db: State<'_, Db>,
+    file: SyncFileDto,
+    data: String,
+) -> Result<(), String> {
+    let id = file.id.clone();
+    let write = checked_file(file, &data).inspect_err(|code| {
+        log::warn!("W_SYNC_FILE_REFUSED {code} id={id}");
+    })?;
+    db.write(Write::Content, move |store| store.sync_file_put(&write))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sync_file_delete(db: State<'_, Db>, id: String) -> Result<(), String> {
+    validate_ids(std::slice::from_ref(&id)).map_err(String::from)?;
+    db.write(Write::Content, move |store| store.sync_file_delete(&id))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn sync_note_purge(
     db: State<'_, Db>,
@@ -200,7 +284,7 @@ mod tests {
                 ..entry()
             },
             SyncEntry {
-                kind: "file".into(),
+                kind: "folder".into(),
                 ..entry()
             },
             SyncEntry {
@@ -233,6 +317,70 @@ mod tests {
         assert!(validate_state("token", "x").is_err());
         assert!(validate_state("since", &"9".repeat(200)).is_err());
         assert!(validate_state("since", "a b").is_err());
+    }
+
+    const FILE: &str = "0192a6f0-0000-7000-8000-00000000f001";
+    const NOTE: &str = "0192a6f0-0000-7000-8000-000000000001";
+
+    fn png(len: usize) -> Vec<u8> {
+        let mut bytes = vec![0u8; len];
+        bytes[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
+        bytes
+    }
+
+    fn dto(len: usize) -> SyncFileDto {
+        SyncFileDto {
+            id: FILE.into(),
+            note_id: NOTE.into(),
+            note_hlc: String::new(),
+            name: "shot.png".into(),
+            mime: "image/png".into(),
+            size: len as i64,
+            created_at: 7,
+        }
+    }
+
+    #[test]
+    fn takes_an_attachment_a_paste_would_take() {
+        let data = png(64);
+        let write = checked_file(dto(64), &STANDARD.encode(&data)).unwrap();
+        assert_eq!(write.data, data);
+        assert_eq!(write.file.id, FILE);
+        assert_eq!(write.file.note_id, NOTE);
+        assert_eq!(write.file.size, 64);
+        assert_eq!(write.file.created_at, 7);
+    }
+
+    #[test]
+    fn refuses_an_attachment_that_does_not_describe_its_bytes() {
+        let data = STANDARD.encode(png(64));
+        assert_eq!(
+            checked_file(dto(64), "not base64!"),
+            Err("E_SYNC_RECORD_INVALID")
+        );
+        let negative = SyncFileDto {
+            size: -1,
+            ..dto(64)
+        };
+        assert_eq!(checked_file(negative, &data), Err("E_SYNC_RECORD_INVALID"));
+        assert_eq!(checked_file(dto(65), &data), Err("E_SYNC_RECORD_INVALID"));
+        let bad_clock = SyncFileDto {
+            note_hlc: "\u{e9}".into(),
+            ..dto(64)
+        };
+        assert_eq!(checked_file(bad_clock, &data), Err("E_SYNC_RECORD_INVALID"));
+        let bad_note = SyncFileDto {
+            note_id: "x".into(),
+            ..dto(64)
+        };
+        assert!(checked_file(bad_note, &data).is_err());
+        let svg = b"<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>";
+        let as_svg = SyncFileDto {
+            mime: "image/svg+xml".into(),
+            size: svg.len() as i64,
+            ..dto(0)
+        };
+        assert!(checked_file(as_svg, &STANDARD.encode(svg)).is_err());
     }
 
     #[test]

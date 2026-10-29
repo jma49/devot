@@ -42,10 +42,16 @@ export interface SyncSnapshot {
     /** Paused by the relay's quota cap until then. */
     pausedUntil: number | null
     upload: { sent: number; total: number } | null
-    /** The relay predates the quota cap. */
+    /** The relay predates the quota cap or the attachment share. */
     relayOutdated: boolean
+    /** Images kept on this device only, and why. */
+    unsyncedFiles: { count: number; code: UnsyncedFilesCode } | null
   }
 }
+
+/** The relay's share for attachments is used up, or the relay cannot hold attachments at all. */
+export const UNSYNCED_FILES_CODES = ['E_SYNC_ATTACHMENTS_FULL', 'E_SYNC_RELAY_OUTDATED'] as const
+export type UnsyncedFilesCode = (typeof UNSYNCED_FILES_CODES)[number]
 
 export const SYNC_OFF: SyncSnapshot = {
   relayUrl: '',
@@ -60,19 +66,27 @@ export const SYNC_OFF: SyncSnapshot = {
     pausedUntil: null,
     upload: null,
     relayOutdated: false,
+    unsyncedFiles: null,
   },
 }
 
 const CODE = /^[EWI]_[A-Z0-9_]+$/
 
-const count = (value: unknown): number | null =>
+const readCount = (value: unknown): number | null =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null
 
 function readUpload(value: unknown): SyncSnapshot['status']['upload'] {
   if (typeof value !== 'object' || value === null) return null
-  const sent = count((value as Record<string, unknown>)['sent'])
-  const total = count((value as Record<string, unknown>)['total'])
+  const sent = readCount((value as Record<string, unknown>)['sent'])
+  const total = readCount((value as Record<string, unknown>)['total'])
   return sent !== null && total !== null && total > 0 && sent <= total ? { sent, total } : null
+}
+
+function readUnsyncedFiles(value: unknown): SyncSnapshot['status']['unsyncedFiles'] {
+  if (typeof value !== 'object' || value === null) return null
+  const count = readCount((value as Record<string, unknown>)['count'])
+  const code = UNSYNCED_FILES_CODES.find((c) => c === (value as Record<string, unknown>)['code'])
+  return count !== null && count > 0 && code ? { count, code } : null
 }
 
 export function readSnapshot(value: unknown): SyncSnapshot | undefined {
@@ -83,7 +97,7 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
     unknown
   >
   const state = SYNC_STATES.find((name) => name === s['state']) ?? 'off'
-  const tooLarge = count(s['tooLarge']) ?? 0
+  const tooLarge = readCount(s['tooLarge']) ?? 0
   return {
     relayUrl: typeof v['relayUrl'] === 'string' ? v['relayUrl'] : '',
     enabled: v['enabled'] === true,
@@ -91,12 +105,13 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
     enrolled: v['enrolled'] === true,
     status: {
       state,
-      lastSync: count(s['lastSync']),
+      lastSync: readCount(s['lastSync']),
       code: typeof s['code'] === 'string' && CODE.test(s['code']) ? s['code'] : null,
       tooLarge,
-      pausedUntil: state === 'paused' ? count(s['pausedUntil']) : null,
+      pausedUntil: state === 'paused' ? readCount(s['pausedUntil']) : null,
       upload: readUpload(s['upload']),
       relayOutdated: s['relayOutdated'] === true,
+      unsyncedFiles: readUnsyncedFiles(s['unsyncedFiles']),
     },
   }
 }
@@ -353,13 +368,16 @@ export const tauriSync: WireSync = {
   syncSetState: (key, value) => invoke('sync_state_put', { key, value }),
   syncReset: () => invoke('sync_reset'),
   syncPurge: (id, at, hlc) => invoke('sync_note_purge', { id, at, hlc }),
+  syncFileData: (id) => invoke<string | null>('sync_file_data', { id }),
+  syncFilePut: (file, data) => invoke('sync_file_put', { file, data }),
+  syncFileDelete: (id) => invoke('sync_file_delete', { id }),
 }
 
 export const tauriTransport: WireTransport = {
   connect: () => invoke<Welcome>('sync_connect'),
   pull: (since) =>
     invoke<{ records: WirePulled[]; next: number; more: boolean }>('sync_pull', { since }),
-  push: (id, base, data) => invoke<PushResult>('sync_push', { id, base, data }),
+  push: (id, base, data, kind) => invoke<PushResult>('sync_push', { id, base, data, kind }),
   close: () => invoke('sync_disconnect'),
 }
 
@@ -371,6 +389,7 @@ const reported = (status: SyncStatus) => ({
   pausedUntil: status.pausedUntil,
   upload: status.upload,
   relayOutdated: status.relayOutdated,
+  unsyncedFiles: status.unsyncedFiles,
 })
 
 /**

@@ -29,6 +29,18 @@ export interface SyncNoteRow {
   tags: NoteTagRecord[]
 }
 
+/** An attachment without its bytes (`SyncStore.syncFileData`). */
+export interface SyncFileMeta {
+  id: string
+  noteId: string
+  /** '' for a file never passed to another note. */
+  noteHlc: string
+  name: string
+  mime: string
+  size: number
+  createdAt: number
+}
+
 export interface SyncLocal {
   id: string
   entry: SyncEntry | null
@@ -36,6 +48,8 @@ export interface SyncLocal {
   /** Deleted ones too, with their stored icon and colour as written. */
   book: BookRecord | null
   tag: TagRecord | null
+  /** A purged file has none: its entry is the tombstone. */
+  file: SyncFileMeta | null
 }
 
 export type SyncEntryWrite = Omit<SyncEntry, 'edits'>
@@ -54,6 +68,15 @@ export interface SyncStore {
   syncSetState(key: string, value: string): Promise<void>
   /** A new vault epoch: no record is on the relay (version 0, no fingerprint) and every one is pending. */
   syncReset(): Promise<void>
+  /** The bytes of an attachment, read when it is pushed; null when it is gone. */
+  syncFileData(id: string): Promise<Uint8Array | null>
+  /**
+   * An attachment another device wrote, already checked. A file that exists keeps its bytes and
+   * takes only the owner and its clock: bytes are written once.
+   */
+  syncFilePut(file: SyncFileMeta, data: Uint8Array): Promise<void>
+  /** An attachment another device purged: its row goes, its entry stays as the tombstone. */
+  syncFileDelete(id: string): Promise<void>
   /** A purge another device made: as `purgeNote`, but the note's revisions stay (the copy kept before it among them). */
   syncPurge(id: string, at: number, hlc: string): Promise<void>
 }

@@ -609,11 +609,21 @@ test('images under their lines and the image viewer are styled under the policy'
 }) => {
   await start(page)
   const file = 'devot://file/0192a6f0-0000-7000-8000-00000000f001'
-  await newNote(page, `![Shot](${file}#half)\n\nafter`)
+  // The attachment does not load here and stays a placeholder; the viewer opens on a web image.
+  const web = 'https://example.com/shot.png'
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    'base64',
+  )
+  await page.route(web, (route) =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: png }),
+  )
+  await newNote(page, `![Shot](${file}#half) ![Shot](${web})\n\nafter`)
   await expect(page.locator('.cm-inline-images')).toHaveCSS('height', '160px')
-  const img = page.getByRole('article', { name: 'Preview' }).locator('img')
-  await expect(img).toHaveClass(/\bimage-size-half\b/)
-  await img.dblclick()
+  const images = page.getByRole('article', { name: 'Preview' }).locator('img')
+  await expect(images.first()).toHaveClass(/\bimage-size-half\b/)
+  await expect(images.last()).toHaveAttribute('src', web)
+  await images.last().dblclick()
   const viewer = page.getByRole('dialog', { name: 'Image Viewer: Shot' })
   await expect(viewer).toBeVisible()
   await expect(viewer).toHaveCSS('display', 'flex')

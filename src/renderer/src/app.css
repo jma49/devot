@@ -2597,6 +2597,17 @@ button {
   cursor: zoom-in;
 }
 
+/* WebKit paints its broken-image icon in a failed image's box even with an empty alt; a transparent pixel as
+   the content takes its place and leaves the box the placeholder styles give it. The editor sits in a shadow
+   root that only inherited properties cross, so it reads the pixel from the variable. */
+:root {
+  --image-missing-content: url('data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==');
+}
+
+.preview img.image-missing {
+  content: var(--image-missing-content);
+}
+
 /* The Mermaid renderer frame needs layout to measure text but is never seen. */
 .mermaid-frame {
   position: fixed;

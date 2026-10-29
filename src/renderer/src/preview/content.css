@@ -364,6 +364,16 @@
   background: var(--color-fill-track);
 }
 
+.preview img.image-missing {
+  display: inline-block;
+  box-sizing: border-box;
+  height: var(--size-inline-image-height);
+  padding: 0;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
+}
+
 .preview img.image-size-small {
   width: 240px;
 }

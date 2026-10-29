@@ -747,6 +747,46 @@ test.describe('the relay’s quota cap', () => {
     await expect(panel).toContainText('Your relay comes from an earlier release')
   })
 
+  test('Settings > Sync says how many images are not synced, and why', async ({ page }) => {
+    const idle = { state: 'idle', lastSync: Date.UTC(2026, 9, 23, 19), code: null, tooLarge: 0 }
+    await fakeRust(page, {
+      relayUrl: RELAY,
+      enabled: true,
+      enrolled: true,
+      status: { ...idle, unsyncedFiles: { count: 2, code: 'E_SYNC_ATTACHMENTS_FULL' } },
+    })
+    await openSettings(page, 'Sync')
+    const panel = page.getByRole('tabpanel')
+    await expect(panel).toContainText(
+      '2 images are not synced: the relay has no room left for images.',
+    )
+    const snapshot = { relayUrl: RELAY, enabled: true, vault: true, enrolled: true }
+    await sendSnapshot(page, {
+      ...snapshot,
+      status: { ...idle, unsyncedFiles: { count: 1, code: 'E_SYNC_ATTACHMENTS_FULL' } },
+    })
+    await expect(panel).toContainText('1 image is not synced: the relay has no room left')
+    await sendSnapshot(page, {
+      ...snapshot,
+      status: { ...idle, unsyncedFiles: { count: 1, code: 'E_SYNC_RELAY_OUTDATED' } },
+    })
+    await expect(panel).toContainText(
+      '1 image is not synced: your relay is too old to hold images. Update it',
+    )
+    await sendSnapshot(page, {
+      ...snapshot,
+      status: {
+        ...idle,
+        relayOutdated: true,
+        unsyncedFiles: { count: 1, code: 'E_SYNC_RELAY_OUTDATED' },
+      },
+    })
+    await expect(panel).toContainText('Your relay comes from an earlier release')
+    await expect(panel).not.toContainText('image is not synced')
+    await sendSnapshot(page, { ...snapshot, status: idle })
+    await expect(panel).not.toContainText('not synced:')
+  })
+
   test('a long notice stays a bounded toast, clear of both window edges', async ({ page }) => {
     await page.setViewportSize({ width: 760, height: 800 })
     await page.clock.setFixedTime(new Date(Date.UTC(2026, 9, 23, 20)))

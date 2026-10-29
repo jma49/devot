@@ -18,7 +18,7 @@ import {
   indexable,
   scanFolding,
 } from '../core/search'
-import type { SyncEntry, SyncLocal, SyncStore } from '../core/sync/store'
+import type { SyncEntry, SyncFileMeta, SyncLocal, SyncStore } from '../core/sync/store'
 import { isTagColor } from '../core/tags'
 import type {
   ActivityData,
@@ -221,6 +221,15 @@ export const SYNC_SQL = {
      WHERE note_id = @id ORDER BY tag_id`,
   book: `SELECT * FROM books WHERE id = @id`,
   tag: `SELECT * FROM tags WHERE id = @id`,
+  /** An attachment without its bytes; absent once it was purged (its entry is the tombstone). */
+  file: `SELECT id, note_id AS noteId, note_hlc AS noteHlc, name, mime, size, created_at AS createdAt
+     FROM files WHERE id = @id`,
+  fileData: `SELECT data FROM files WHERE id = @id`,
+  /** Bytes are written once: a row that exists takes only its owner and the owner's clock. */
+  filePut: `INSERT INTO files (id, note_id, note_hlc, name, mime, size, data, created_at)
+     VALUES (@id, @noteId, @noteHlc, @name, @mime, @size, @data, @createdAt)
+     ON CONFLICT (id) DO UPDATE SET note_id = excluded.note_id, note_hlc = excluded.note_hlc`,
+  fileDelete: `DELETE FROM files WHERE id = @id`,
 } as const
 
 /**
@@ -346,7 +355,7 @@ export function searchStatement(
  * same statement as the Rust store's (storage/mod.rs, HAND_OVER_FILES_SQL;
  * a test compares them).
  */
-export const HAND_OVER_FILES_SQL = `UPDATE files SET note_id = COALESCE((
+export const HAND_OVER_FILES_SQL = `UPDATE files SET note_hlc = MAX(note_hlc, @hlc), note_id = COALESCE((
        SELECT n.id FROM notes_fts JOIN notes n ON n.rowid = notes_fts.rowid
         WHERE notes_fts MATCH 'body_md : "devot://file/' || replace(files.id, '"', '""') || '"'
           AND n.purged_at IS NULL AND n.id <> files.note_id
@@ -614,7 +623,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   // The link index: same statements as the Rust store (put_note, purge_note).
   const dropNoteLinks = db.prepare('DELETE FROM links WHERE source_id = ?')
   const addNoteLink = db.prepare('INSERT OR IGNORE INTO links (source_id, target_id) VALUES (?, ?)')
-  const handOverFiles = db.prepare<[{ id: string }]>(HAND_OVER_FILES_SQL)
+  const handOverFiles = db.prepare<[{ id: string; hlc: string }]>(HAND_OVER_FILES_SQL)
   const dropFiles = db.prepare('DELETE FROM files WHERE note_id = ?')
   // Revision history: same statements as the Rust store (storage/mod.rs).
   const dropRevisions = db.prepare('DELETE FROM revisions WHERE note_id = ?')
@@ -643,6 +652,10 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   >(SYNC_SQL.noteTags)
   const syncBook = db.prepare<[{ id: string }], BookRow>(SYNC_SQL.book)
   const syncTag = db.prepare<[{ id: string }], TagRow>(SYNC_SQL.tag)
+  const syncFile = db.prepare<[{ id: string }], SyncFileMeta>(SYNC_SQL.file)
+  const syncFileData = db.prepare<[{ id: string }], { data: Buffer }>(SYNC_SQL.fileData)
+  const syncFilePut = db.prepare(SYNC_SQL.filePut)
+  const syncFileDelete = db.prepare(SYNC_SQL.fileDelete)
   const putRevision = db.prepare(
     `INSERT INTO revisions (id, note_id, kind, at, ydoc, length, value)
      SELECT @id, @noteId, @kind, @at, @ydoc, @length, @value
@@ -786,18 +799,21 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   // Bodies are read for the notes returned only, never for every match.
   const bodyOf = (id: string) => bodyMd.get(id)?.body_md ?? ''
 
-  const purgeWith = (id: string, at: number, hlc: string, revisions: boolean) =>
+  const purgeWith = (id: string, at: number, hlc: string, here: boolean) =>
     db
       .transaction(() => {
         searchSecureDelete.run(1n)
         purge.run({ id, at, hlc })
         dropLinks.run(id)
-        // Attachments another note still shows pass to it; the rest go.
-        handOverFiles.run({ id })
-        dropFiles.run(id)
+        // Attachments another note still shows pass to it; the rest go. A purge from sync leaves
+        // them: the other device's file records decide, and its heir's link may not be here yet.
+        if (here) {
+          handOverFiles.run({ id, hlc })
+          dropFiles.run(id)
+        }
         dropNoteLinks.run(id)
         dropAgentWrites.run({ noteId: id })
-        if (revisions) dropRevisions.run(id)
+        if (here) dropRevisions.run(id)
         searchSecureDelete.run(0n)
       })
       .immediate()
@@ -916,6 +932,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         const note = syncNote.get({ id })
         const book = note ? undefined : syncBook.get({ id })
         const tag = note || book ? undefined : syncTag.get({ id })
+        const file = note || book || tag ? undefined : syncFile.get({ id })
         return {
           id,
           entry: syncEntry.get({ id }) ?? null,
@@ -933,8 +950,19 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
             : null,
           book: book ? toBook(book, true) : null,
           tag: tag ? toTag(tag, true) : null,
+          file: file ?? null,
         }
       })
+    },
+    async syncFileData(id) {
+      const row = syncFileData.get({ id })
+      return row ? new Uint8Array(row.data) : null
+    },
+    async syncFilePut(file, data) {
+      syncFilePut.run({ ...file, data: Buffer.from(data) })
+    },
+    async syncFileDelete(id) {
+      syncFileDelete.run({ id })
     },
     async syncPut(entry) {
       syncPut.run(entry)
