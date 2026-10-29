@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { htmlToMarkdown } from '../../src/core'
+import { htmlDocument, htmlToMarkdown, pageBody, renderPreview } from '../../src/core'
+import { labels } from '../support/preview-html'
 
 const PNG_B64 = 'iVBORw0KGgoAAAANAQ=='
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 1])
@@ -229,5 +230,36 @@ describe('HTML to Markdown for import', () => {
     )
     expect(out.images).toEqual([])
     expect(out.dropped).toEqual(['data:image/png'])
+  })
+
+  describe("of Devot's own HTML export", () => {
+    const roundTrip = async (markdown: string) => {
+      const tree = await renderPreview(markdown, { labels, loadedEmbeds: [] })
+      const body = pageBody(tree, { nonce: '0123456789abcdef0123456789abcdef' })
+      return htmlToMarkdown(htmlDocument({ title: 'T', body: body.html, css: '', lang: 'en' }))
+    }
+
+    it('gives back numbered code without its line numbers or header', async () => {
+      const out = await roundTrip(
+        '```py line=10\na = 1\nb = 2\n```\n\n```js title="app.js"\nlet a\n```\n',
+      )
+      expect(out.markdown).toContain('```py\na = 1\nb = 2\n```')
+      expect(out.markdown).toContain('```js\nlet a\n```')
+      expect(out.markdown).not.toMatch(/app\.js|JavaScript|Python|Line 10|^1[01]$/m)
+      expect(out.dropped).toEqual([])
+    })
+
+    it('gives back an alert as the blockquote that made it', async () => {
+      const out = await roundTrip('> [!NOTE]\n> Mind the gap.\n\n> [!WARNING]\n>\n> * a\n')
+      expect(out.markdown).toContain('> [!NOTE]\n>\n> Mind the gap.')
+      expect(out.markdown).toContain('> [!WARNING]\n>\n> - a')
+      const again = await renderPreview(out.markdown, { labels, loadedEmbeds: [] })
+      expect(JSON.stringify(again).match(/alert-(note|warning)/g)).toEqual([
+        'alert-note',
+        'alert-warning',
+      ])
+      expect(out.markdown).not.toMatch(/^Note$/m)
+      expect(out.dropped).toEqual([])
+    })
   })
 })

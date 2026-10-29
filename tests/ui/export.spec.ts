@@ -276,6 +276,54 @@ test('Page Setup comes first: it remembers the paper, margins, header and footer
   await expect.poll(async () => (await calls(page, 'note_print')).length).toBe(1)
 })
 
+test('an exported page keeps a diagram on a light surface in the dark, and a height-only image', async ({
+  page,
+  context,
+}) => {
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="teal"/></svg>'
+  const picture = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
+  await createNote(page, 'Look', `${DIAGRAM}\n![Tall h:200](${picture})\n`)
+  await mockExport(page, { export_begin: { id: 3, fileName: 'Look.html' } })
+  await pickFromNoteMenu(page, 'Look', 'Export as HTML…')
+  await expect
+    .poll(async () => (await calls(page, 'export_write')).length, { timeout: 20_000 })
+    .toBe(1)
+  const html = ((await calls(page, 'export_write'))[0]!.args as { text: string }).text
+
+  const view = await context.newPage()
+  await view.emulateMedia({ colorScheme: 'dark' })
+  await view.setViewportSize({ width: 160, height: 600 })
+  await view.setContent(html, { waitUntil: 'load' })
+  type Style = Record<string, string>
+  const computed = (selector: string) =>
+    view
+      .locator(selector)
+      .first()
+      .evaluate((el) => {
+        const style = (
+          globalThis as unknown as { getComputedStyle(e: unknown): Style }
+        ).getComputedStyle(el)
+        const box = (
+          el as unknown as { getBoundingClientRect(): { height: number } }
+        ).getBoundingClientRect()
+        return { background: style['backgroundColor']!, height: box.height }
+      })
+  const channels = (color: string) => (color.match(/\d+/g) ?? []).slice(0, 3).map(Number)
+  const diagram = await computed('.island svg')
+  expect(Math.min(...channels(diagram.background))).toBeGreaterThan(200)
+  expect((await computed('img')).height).toBeCloseTo(200, 0)
+  const overflow = await view
+    .locator('.island')
+    .first()
+    .evaluate((el) => {
+      const box = el as unknown as { scrollWidth: number; clientWidth: number }
+      return box.scrollWidth - box.clientWidth
+    })
+  expect(overflow).toBeLessThanOrEqual(0)
+  await view.close()
+})
+
 test('Print right after the preview opens draws every diagram', async ({ page }) => {
   const sequence = '```mermaid\nsequenceDiagram\n  Alice->>Bob: Hello\n```\n'
   await createNote(page, 'Charts', `${DIAGRAM}\n${sequence}`)
@@ -412,6 +460,16 @@ test('a failure shows what did not complete, with its code, until dismissed', as
   await pickFromNoteMenu(page, 'Plan', 'Export as PDF…')
   await confirmPageSetup(page, 'Export…')
   await expect(notice).toHaveText(/^The export did not complete \(E_EXPORT_PDF_FAILED\)\./)
+})
+
+test('an export that wrote the note but not one image says what is missing', async ({ page }) => {
+  await createNote(page, 'Plan', BODY)
+  await mockExport(page, { export_attach: { error: 'E_EXPORT_ATTACH_FAILED' } })
+  await pickFromNoteMenu(page, 'Plan', 'Export as Markdown…')
+  await expect(page.getByRole('alert')).toHaveText(
+    /^The export is incomplete: 1 written, 1 with problems \(first: E_EXPORT_ATTACH_FAILED\)\./,
+  )
+  expect((await calls(page, 'export_write')).length).toBe(1)
 })
 
 test("an export's notice and a backup's both show, each with its buttons", async ({ page }) => {

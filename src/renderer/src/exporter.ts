@@ -39,7 +39,7 @@ export function pageStyles(): string {
       .map(([key, value]) => `${indent}--${key.replaceAll('.', '-')}: ${value};`)
       .join('\n')
   return [
-    `:root {\n${vars(sizes, '  ')}\n${vars(light, '  ')}\n}`,
+    `:root {\n${vars(sizes, '  ')}\n${vars(light, '  ')}\n  --island-surface: ${light['color.surface.editor']};\n}`,
     `@media screen and (prefers-color-scheme: dark) {\n  :root {\n${vars(dark, '    ')}\n  }\n}`,
     contentCss,
     pageCss,
@@ -220,9 +220,14 @@ async function exportHtml(core: Core, target: ExportTarget): Promise<ExportRepor
 
 /**
  * Runs a note's export or print action. Resolves once it is done (or the
- * user cancelled a panel); rejects with the error code of the first problem.
+ * user cancelled a panel) with the report, whose problems say what could not
+ * be written; rejects with the first problem's code when nothing was written.
  */
-export async function runNoteExport(core: Core, action: ExportAction, noteId: string) {
+export async function runNoteExport(
+  core: Core,
+  action: ExportAction,
+  noteId: string,
+): Promise<ExportReport | null> {
   let report: ExportReport | null = null
   switch (action) {
     case 'exportMarkdown':
@@ -249,30 +254,38 @@ export async function runNoteExport(core: Core, action: ExportAction, noteId: st
       }
     }
   }
+  // An export that wrote nothing failed; one that wrote the rest reports
+  // what it could not write, and the caller says so.
   const problem = report?.problems[0]
-  if (problem) throw new Error(problem.code)
+  if (problem && report!.notes === 0) throw new Error(problem.code)
+  return report
 }
 
-/** Exports a notebook and its sub-notebooks; rejects like `runNoteExport`. */
+/** Exports a notebook and its sub-notebooks; reports like `runNoteExport`. */
 export const runBookExport = (core: Core, action: BookExport, bookId: string) =>
   runTargetExport(core, action, { kind: 'notebook', bookId })
 
 /**
  * Exports every note (File > Export > All Notes): each top-level notebook a
- * folder, notes in no notebook at the top; rejects like `runNoteExport`.
+ * folder, notes in no notebook at the top; reports like `runNoteExport`.
  */
 export const runAllExport = (core: Core, action: BookExport) =>
   runTargetExport(core, action, { kind: 'all', name: t('export.allName') })
 
-/** Exports chosen notes side by side in one folder; rejects like `runNoteExport`. */
+/** Exports chosen notes side by side in one folder; reports like `runNoteExport`. */
 export const runSelectionExport = (core: Core, action: BookExport, noteIds: readonly string[]) =>
   runTargetExport(core, action, { kind: 'notes', noteIds, name: t('export.selectionName') })
 
-async function runTargetExport(core: Core, action: BookExport, target: ExportTarget) {
+async function runTargetExport(
+  core: Core,
+  action: BookExport,
+  target: ExportTarget,
+): Promise<ExportReport | null> {
   const report =
     action === 'exportMarkdown'
       ? await exportMarkdown(core, target)
       : await exportHtml(core, target)
   const problem = report?.problems[0]
-  if (problem) throw new Error(problem.code)
+  if (problem && report!.notes === 0) throw new Error(problem.code)
+  return report
 }

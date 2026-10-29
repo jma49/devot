@@ -305,6 +305,8 @@ export const en = {
   'preview.codeLine': 'Line {n}',
   'preview.codeRef': 'in {ref}',
   'preview.codeSource': 'Open source',
+  'preview.linkRefused': 'Only https links open from the preview: {href}',
+  'preview.copyLink': 'Copy Link',
   'noteInfo.label': 'Note info',
   'noteInfo.progress': 'Progress',
   'noteInfo.tasksOne': '{done} of {count} task',
@@ -980,6 +982,8 @@ export const en = {
   'change.tagNameInvalid': 'A tag name is one line of at most {max} characters.',
   'change.bookNameInvalid': 'A notebook name is one line of at most {max} characters.',
   'export.failed': 'The export did not complete ({code}).',
+  'export.partial':
+    'The export is incomplete: {written} written, {problems} with problems (first: {code}).',
   'export.allName': 'Devot Notes',
   'export.selectionName': 'Devot Export',
   'export.printFailed': 'The note could not be printed ({code}).',

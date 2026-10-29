@@ -15,11 +15,11 @@ export interface RenderRequest {
 export const READY = 'devot-mermaid-ready'
 
 /**
- * Why the frame could not draw: `parse`, the source has an error (kept until
- * the source changes); `render`, drawing failed for another reason (asked
- * again later).
+ * Why the frame could not draw: `parse`, the source has an error; `layout`,
+ * it parses but Mermaid cannot lay it out. Both stay until the source
+ * changes. `render` is a failure that may pass, asked again later.
  */
-export type FailureReason = 'parse' | 'render'
+export type FailureReason = 'parse' | 'layout' | 'render'
 
 export type FrameMessage =
   | { type: 'rendered'; id: number; svg: string }
@@ -50,7 +50,8 @@ export function isFrameMessage(data: unknown): data is FrameMessage {
     reason: string
   }> | null
   if (typeof m !== 'object' || m === null || !Number.isSafeInteger(m.id)) return false
-  if (m.type === 'failed') return m.reason === 'parse' || m.reason === 'render'
+  if (m.type === 'failed')
+    return m.reason === 'parse' || m.reason === 'layout' || m.reason === 'render'
   return m.type === 'rendered' && typeof m.svg === 'string'
 }
 

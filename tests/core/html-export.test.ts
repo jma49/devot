@@ -241,6 +241,41 @@ describe('HTML pages', () => {
     expect(mapped.html).toContain('<a href="../Other%20note.html">Other note</a>')
   })
 
+  it('writes footnote links to ids the page has', async () => {
+    const tree = await renderPreview('Claim.[^1]\n\n[^1]: Source.\n', { labels, loadedEmbeds: [] })
+    for (const options of [{}, { simple: true }, { print: true }]) {
+      const { html } = pageBody(tree, { nonce: NONCE, ...options })
+      const links = [...html.matchAll(/href="#([^"]+)"/g)].map((m) => m[1]!)
+      expect(links).toHaveLength(2)
+      for (const link of links) expect(html).toContain(`id="${link}"`)
+    }
+  })
+
+  it("leaves an image given by a path as a link, as the page's CSP loads no file", async () => {
+    const tree = await renderPreview(
+      '![A photo](photo.jpg) [![in](a/b.png)](https://x.example)\n',
+      {
+        labels,
+        loadedEmbeds: [],
+      },
+    )
+    const { html } = pageBody(tree, { nonce: NONCE })
+    expect(html).not.toContain('<img')
+    expect(html).toContain('<a href="photo.jpg">A photo</a>')
+    expect(html).toContain('<a href="https://x.example">in</a>')
+    expect(pageBody(tree, { nonce: NONCE, simple: true }).html).toContain('<img src="photo.jpg"')
+  })
+
+  it('copies a numbered code block as its code alone', async () => {
+    const tree = await renderPreview('```py line=10\na = 1\nb = 2\n```\n', {
+      labels,
+      loadedEmbeds: [],
+    })
+    expect(pageBody(tree, { nonce: NONCE, simple: true }).html).toBe(
+      '<pre><code>a = 1\nb = 2\n</code></pre>',
+    )
+  })
+
   it('simple HTML has no classes, styles, data attributes or heading ids', async () => {
     const { html, images } = await page({ simple: true, island: () => SVG })
     expect(html).not.toMatch(/\s(?:class|style|data-[a-z-]+)=/)

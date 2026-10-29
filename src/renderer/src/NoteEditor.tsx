@@ -471,7 +471,8 @@ const theme = EditorView.theme({
   // CodeMirror pads a line 6px on the start side and 2px on the end, and sizes
   // every full row from the first line's padding. Equal sides keep that row on
   // the note's column, which is where a box's outer edge sits (editor/boxes.ts).
-  '.cm-line': { paddingInline: BOX_PAD },
+  // Each line reads in the direction of its own first strong character (see `perLineTextDirection`).
+  '.cm-line': { paddingInline: BOX_PAD, unicodeBidi: 'plaintext' },
   '.cm-scroller::-webkit-scrollbar': {
     width: 'var(--size-scrollbar)',
     height: 'var(--size-scrollbar)',
@@ -1032,6 +1033,7 @@ export function NoteEditor({
             noteHighlighting(noteHighlightStyle),
             markdownLineStyles,
             noteMarkdown,
+            EditorView.perLineTextDirection.of(true),
             images.extension,
             pasteUrls,
             pasteChooser(linkFetcher),

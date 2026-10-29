@@ -56,6 +56,45 @@ describe('plugin preview renderers', () => {
     expect(out).toContain('<img src="data:image/png;base64,AAAA"')
   })
 
+  it("links nowhere but to notes from an answer, not even through a code block's source", async () => {
+    const out = await html(
+      '```chart\nsecret\n```',
+      async () =>
+        '```js filename=app.js url=https://evil.example/c?d=x\nlet a\n```\n\n[n](devot://note/0192a6f0-0000-7000-8000-000000000009) [w](https://x.example)',
+    )
+    expect(out).not.toMatch(/evil\.example|x\.example/)
+    expect(out).toContain('devot://note/0192a6f0-0000-7000-8000-000000000009')
+  })
+
+  it('draws a code block and a colour swatch of an answer once', async () => {
+    const tree = await renderPreview(
+      '```chart\nx\n```',
+      { labels, loadedEmbeds: [] },
+      createPreviewRegistry({
+        builtins: true,
+        plugins: { specs, render: async () => 'Colour `#ff0000`\n\n```js\nlet a\n```' },
+      }),
+    )
+    const out = toHtml(tree)
+    expect(out.match(/class="swatch"/g)).toHaveLength(1)
+    expect(out.match(/class="code-block/g)).toHaveLength(1)
+    expect(out.match(/class="code-header/g)).toHaveLength(1)
+  })
+
+  it('keeps a plugin block inside an alert a built-in renderer rebuilds', async () => {
+    const out = await html('> [!NOTE]\n> ```chart\n> x\n> ```', async () => 'drawn')
+    expect(out).toMatch(
+      /<div class="alert alert-note"[^>]*>[\s\S]*<div class="plugin-block"[\s\S]*drawn/,
+    )
+  })
+
+  it('keeps front matter first when a plugin block opens the body', async () => {
+    const out = await html('---\ntitle: a\n---\n\n```chart\nx\n```\n\nAfter', async () => 'drawn')
+    expect(out.indexOf('class="frontmatter"')).toBeGreaterThan(-1)
+    expect(out.indexOf('class="frontmatter"')).toBeLessThan(out.indexOf('class="plugin-block"'))
+    expect(out.indexOf('class="plugin-block"')).toBeLessThan(out.indexOf('After'))
+  })
+
   it('leaves the answer no offsets into the note: its task boxes are disabled and its images carry no range', async () => {
     const tree = await renderPreview(
       '- [ ] real task\n\n```chart\nx\n```\n\n![a](devot://file/00000000-0000-4000-8000-000000000001)\n',

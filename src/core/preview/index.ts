@@ -1,6 +1,6 @@
 // Markdown to a sanitized HTML tree (hast) for the preview. Note content is untrusted (import, sync and AI write it too): raw HTML is parsed, then sanitized by an
 // allowlist, and only then do preview renderers add Devot's own structure. The tree is plain data, so it crosses the worker boundary.
-import type { Element, Root as HastRoot, RootContent } from 'hast'
+import type { Comment, Element, ElementContent, Root as HastRoot, RootContent } from 'hast'
 import type { Root as MdastRoot } from 'mdast'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema, type Options as Schema } from 'rehype-sanitize'
@@ -65,7 +65,13 @@ const remark = (sanitize: Schema = schema) =>
     .use(remarkGfm)
     .use(remarkMath)
     // Front matter is shown by the `devot.frontmatter` renderer, not as text.
-    .use(remarkRehype, { allowDangerousHtml: true, handlers: { yaml: () => undefined } })
+    // The sanitizer adds the one clobber prefix (`user-content-`): a second one
+    // here would leave footnote ids out of reach of their links.
+    .use(remarkRehype, {
+      allowDangerousHtml: true,
+      clobberPrefix: '',
+      handlers: { yaml: () => undefined },
+    })
     .use(rehypeRaw)
     .use(rehypeSanitize, sanitize)
 
@@ -87,7 +93,56 @@ export function createPreviewRegistry(
   const inner = builtins.filter((r) => r !== headingIds)
   const toNodes: MarkdownNodes = async (markdown, context) =>
     (await transformed(pluginProcessor, markdown, context, inner)).children
-  return createRegistry([createPluginRenderer(plugins.specs, plugins.render, toNodes), ...builtins])
+  return createRegistry([
+    createPluginRenderer(plugins.specs, plugins.render, toNodes),
+    // Heading ids still reach an answer's headings; every other built-in has
+    // run over it already (code blocks, swatches).
+    ...builtins.map((r) => (r === headingIds ? r : outsidePluginBlocks(r))),
+  ])
+}
+
+const isPluginBlock = (node: Element): boolean => {
+  const names = node.properties['className']
+  return Array.isArray(names) && names.map(String).includes('plugin-block')
+}
+
+/**
+ * A built-in renderer that leaves plugin blocks alone: the block's answer was
+ * rendered by the built-ins already, and a second pass would put a code block
+ * inside a code block's header and a swatch on every swatch.
+ */
+function outsidePluginBlocks(renderer: PreviewRenderer): PreviewRenderer {
+  return {
+    id: renderer.id,
+    apiVersion: renderer.apiVersion,
+    async transform(tree, context) {
+      // A placeholder keeps the block's place through a renderer that moves, rebuilds or prepends nodes around it.
+      const held = new Map<Comment, Element>()
+      const take = (parent: HastRoot | Element) => {
+        parent.children.forEach((child, at) => {
+          if (child.type !== 'element') return
+          if (!isPluginBlock(child)) return take(child)
+          const placeholder: Comment = { type: 'comment', value: 'plugin-block' }
+          held.set(placeholder, child)
+          ;(parent as { children: ElementContent[] }).children[at] = placeholder
+        })
+      }
+      const restore = (parent: HastRoot | Element) => {
+        parent.children.forEach((child, at) => {
+          if (child.type === 'comment') {
+            const node = held.get(child)
+            if (node) (parent as { children: ElementContent[] }).children[at] = node
+          } else if (child.type === 'element') restore(child)
+        })
+      }
+      take(tree)
+      try {
+        await renderer.transform(tree, context)
+      } finally {
+        restore(tree)
+      }
+    },
+  }
 }
 
 const defaultRegistry = createPreviewRegistry({ builtins: true })
@@ -226,15 +281,30 @@ export function createPieceRenderer({
   let cached = 0
   let ids = 0
 
+  /** Pieces with the same text get nodes of their own (their heading ids differ). */
+  const keyOf = (text: string, first: boolean, copy: number, optionsKey: string) =>
+    `${first ? 1 : 0} ${copy} ${optionsKey}\u0000${text}`
+
+  /**
+   * Drops the oldest pieces the note does not show right now, until the cache
+   * fits. A piece it shows is never dropped, or a note larger than the cache
+   * would render whole again on every keystroke.
+   */
+  const trim = (shown: ReadonlySet<string>) => {
+    for (const [key, { length }] of cache) {
+      if (cached <= capacity) return
+      if (shown.has(key)) continue
+      cache.delete(key)
+      cached -= length
+    }
+  }
+
   const piece = async (
+    key: string,
     text: string,
     first: boolean,
-    copy: number,
     options: PreviewOptions,
-    optionsKey: string,
   ): Promise<Rendered> => {
-    // Pieces with the same text get nodes of their own (their heading ids differ).
-    const key = `${first ? 1 : 0} ${copy} ${optionsKey}\u0000${text}`
     const found = cache.get(key)
     if (found) {
       cache.delete(key)
@@ -254,11 +324,6 @@ export function createPieceRenderer({
     const rendered = { id: (ids += 1), nodes: tree.children, headings, length: text.length }
     cache.set(key, rendered)
     cached += text.length
-    while (cached > capacity && cache.size > 1) {
-      const [oldest, { length }] = cache.entries().next().value!
-      cache.delete(oldest)
-      cached -= length
-    }
     return rendered
   }
 
@@ -266,12 +331,19 @@ export function createPieceRenderer({
     const names = registry.renderers().includes(headingIds)
     const optionsKey = JSON.stringify(options)
     const blocks = splitBlocks(markdown, pieceLength)
-    const rendered: Rendered[] = []
     const copies = new Map<string, number>()
-    for (const [i, block] of blocks.entries()) {
+    const keys = blocks.map((block, i) => {
       const copy = copies.get(block.text) ?? 0
       copies.set(block.text, copy + 1)
-      rendered.push(await piece(block.text, i === 0, copy, options, optionsKey))
+      return keyOf(block.text, i === 0, copy, optionsKey)
+    })
+    const rendered: Rendered[] = []
+    try {
+      for (const [i, block] of blocks.entries()) {
+        rendered.push(await piece(keys[i]!, block.text, i === 0, options))
+      }
+    } finally {
+      trim(new Set(keys))
     }
     const have = new Set(known)
     const next = names ? createSlugger() : undefined

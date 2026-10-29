@@ -332,6 +332,8 @@ test('picked Markdown files go straight to the destination, then show the same r
   await button(page, 'Import').click()
   await expect(dialog(page)).toContainText('Imported 1 note.')
   await expect(dialog(page)).toContainText('1 imported \u00b7 1 skipped \u00b7 0 failed')
+  await expect(dialog(page)).toHaveAccessibleDescription(/^Imported 1 note\./)
+  await expect(dialog(page).getByRole('status')).toContainText('Imported 1 note.')
   await button(page, 'Done').click()
   await expect(noteRows(page).filter({ hasText: 'Inbox' })).toHaveCount(1)
 })

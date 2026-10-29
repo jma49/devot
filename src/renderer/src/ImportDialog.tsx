@@ -498,7 +498,7 @@ export function ImportDialog(props: {
     const counts = resultCounts(report, scan.skipped.length)
     content = (
       <>
-        <p className="sheet-detail import-summary">
+        <p className="sheet-detail import-summary" id="import-summary" role="status">
           {format(t(summaryKey(report)), {
             notes: noteCount(report.notes, locale),
             books: countOf(report.books, locale, 'import.booksOne', 'import.booksOther'),
@@ -523,6 +523,9 @@ export function ImportDialog(props: {
       ref={dialog}
       className="sheet import"
       aria-labelledby="import-title"
+      // What the import did, read as the dialog's description once it is done
+      // (focus lands on Done, so the summary is otherwise never read).
+      aria-describedby={step.kind === 'done' && step.report !== null ? 'import-summary' : undefined}
       aria-busy={running || !scan}
       onCancel={(e) => {
         e.preventDefault()

@@ -150,6 +150,27 @@ test('a title changed in the note window shows in the main window', async ({ pag
   await expect(win).toHaveTitle('Renamed')
 })
 
+test('a note link chip in the main window follows a rename made in the note window', async ({
+  page,
+  context,
+}) => {
+  const alpha = await noteInMain(page, 'Alpha', 'Body')
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(title(page)).toHaveValue('')
+  await title(page).fill('Projects')
+  await body(page).click()
+  await page.keyboard.insertText(`See [](devot://note/${alpha}).`)
+  await page
+    .getByRole('group', { name: 'View mode' })
+    .getByRole('button', { name: 'Split', exact: true })
+    .click()
+  const chip = page.getByRole('article', { name: 'Preview' }).locator('a.note-chip')
+  await expect(chip).toContainText('Alpha')
+  const win = await openNoteWindow(context, alpha)
+  await title(win).fill('Renamed')
+  await expect(chip).toContainText('Renamed')
+})
+
 test('closing a note window saves its edits first', async ({ page, context }) => {
   const id = await noteInMain(page, 'Plan', 'Start.')
   // The main window moves on to another note: what is stored is the note window's own save.

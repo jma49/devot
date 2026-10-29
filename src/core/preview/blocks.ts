@@ -59,6 +59,9 @@ function htmlAfter(line: string, depth: number): { depth: number; until: string 
 
 function tagsIn(text: string): number {
   let change = 0
+  // Search forward only for the next `>`: a rescan per unclosed tag is quadratic on a long line.
+  let close = -1
+  let noCloseFrom = -1
   for (const match of text.matchAll(TAG)) {
     if (match.index > 0 && text[match.index - 1] === '\\') continue
     const name = match[2]!.toLowerCase()
@@ -67,8 +70,11 @@ function tagsIn(text: string): number {
       continue
     }
     if (VOID.has(name)) continue
-    const end = text.indexOf('>', match.index)
-    if (end > 0 && text[end - 1] === '/') continue
+    if (close < match.index && (noCloseFrom < 0 || match.index < noCloseFrom)) {
+      close = text.indexOf('>', match.index)
+      if (close < 0) noCloseFrom = match.index
+    }
+    if (close > match.index && text[close - 1] === '/') continue
     change += 1
   }
   return change

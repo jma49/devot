@@ -13,7 +13,10 @@ interface FakeElement {
   source: string
   top: number
   isConnected: boolean
+  /** Whether it still carries the attribute that makes it an island. */
+  island: boolean
   shown: unknown[]
+  hasAttribute(name: string): boolean
   getAttribute(name: string): string | null
   replaceChildren(...nodes: unknown[]): void
 }
@@ -23,7 +26,11 @@ function islandElement(source: string): FakeElement {
     source,
     top: 0,
     isConnected: true,
+    island: true,
     shown: [],
+    hasAttribute(this: FakeElement, name) {
+      return name === 'data-devot-island' && this.island
+    },
     getAttribute(name) {
       if (name === 'data-devot-island') return 'test'
       if (name === 'data-island-source') return this.source
@@ -156,26 +163,95 @@ describe('createIslandMounter', () => {
     expect(live()).toBe(0)
   })
 
-  it('draws again at the next mount only after a failure that may pass', async () => {
-    const { island, requests } = testIsland()
+  it('releases the drawing of an element that is no island any more', async () => {
+    const { island, requests, live } = testIsland()
     const mounter = createIslandMounter(createIslandRegistry([island]))
     const el = islandElement('a')
-    const host = hostOf([el])
-
-    mounter.mount(host, { appearance: 'light' })
-    requests[0]!.land({ retry: true })
+    mounter.mount(hostOf([el]), { appearance: 'light' })
+    requests[0]!.land()
     await settle()
-    mounter.mount(host, { appearance: 'light' })
-    expect(requests).toHaveLength(2)
-
-    // A final answer (a drawing, or an error in the source) is kept.
-    requests[1]!.land()
-    await settle()
-    mounter.mount(host, { appearance: 'light' })
+    expect(live()).toBe(1)
+    // The patcher turned the diagram's div into a plain one, and later back.
+    el.island = false
+    mounter.mount(hostOf([]), { appearance: 'light' })
+    expect(live()).toBe(0)
+    el.island = true
+    mounter.mount(hostOf([el]), { appearance: 'light' })
     expect(requests).toHaveLength(2)
   })
 
-  it('draws again at the next mount after the island failed', async () => {
+  describe('after a failure that may pass', () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    it('waits out a backoff, then draws again without another patch, and keeps a final answer', async () => {
+      const { island, requests } = testIsland()
+      const mounter = createIslandMounter(createIslandRegistry([island]))
+      const el = islandElement('a')
+      const host = hostOf([el])
+
+      mounter.mount(host, { appearance: 'light' })
+      requests[0]!.land({ retry: true })
+      await vi.advanceTimersByTimeAsync(0)
+      // A patch right after does not ask again.
+      mounter.mount(host, { appearance: 'light' })
+      expect(requests).toHaveLength(1)
+
+      await vi.advanceTimersByTimeAsync(600)
+      expect(requests).toHaveLength(2)
+      requests[1]!.land({ retry: true })
+      await vi.advanceTimersByTimeAsync(0)
+      // Each failure waits longer than the one before.
+      await vi.advanceTimersByTimeAsync(600)
+      expect(requests).toHaveLength(2)
+      await vi.advanceTimersByTimeAsync(600)
+      expect(requests).toHaveLength(3)
+
+      requests[2]!.land()
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(60_000)
+      mounter.mount(host, { appearance: 'light' })
+      expect(requests).toHaveLength(3)
+      mounter.dispose()
+    })
+
+    it('tries a new failure at its own time, not after the long backoff already waiting', async () => {
+      const { island, requests } = testIsland()
+      const mounter = createIslandMounter(createIslandRegistry([island]))
+      const a = islandElement('a')
+      mounter.mount(hostOf([a]), { appearance: 'light' })
+      for (const wait of [600, 1100]) {
+        requests.at(-1)!.land({ retry: true })
+        await vi.advanceTimersByTimeAsync(wait)
+      }
+      requests.at(-1)!.land({ retry: true })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(requests).toHaveLength(3)
+
+      mounter.mount(hostOf([a, islandElement('b')]), { appearance: 'light' })
+      expect(requests).toHaveLength(4)
+      requests[3]!.land({ retry: true })
+      await vi.advanceTimersByTimeAsync(600)
+      expect(requests).toHaveLength(5)
+      mounter.dispose()
+    })
+
+    it('starts over at once when the source changes', async () => {
+      const { island, requests } = testIsland()
+      const mounter = createIslandMounter(createIslandRegistry([island]))
+      const el = islandElement('a')
+      const host = hostOf([el])
+      mounter.mount(host, { appearance: 'light' })
+      requests[0]!.land({ retry: true })
+      await vi.advanceTimersByTimeAsync(0)
+      el.source = 'b'
+      mounter.mount(host, { appearance: 'light' })
+      expect(requests).toHaveLength(2)
+      mounter.dispose()
+    })
+  })
+
+  it('does not draw again at once after the island failed', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     let calls = 0
     const island: PreviewIsland = {
@@ -190,10 +266,9 @@ describe('createIslandMounter', () => {
     const host = hostOf([islandElement('a')])
     mounter.mount(host, { appearance: 'light' })
     await settle()
-    mounter.mount(host, { appearance: 'light' })
-    await settle()
-    expect(calls).toBe(2)
+    expect(calls).toBe(1)
     expect(warn).toHaveBeenCalledWith('W_PREVIEW_ISLAND_FAILED', 'test')
+    mounter.dispose()
     warn.mockRestore()
   })
 

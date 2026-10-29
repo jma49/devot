@@ -8,6 +8,7 @@
 // external links are dropped.
 import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
 import { format as fill, t } from '../i18n'
+import { sizes } from '../theme/tokens'
 import type { IslandContent, IslandContext, PreviewIsland } from './islands'
 import { keptAnswers } from './kept'
 import {
@@ -82,8 +83,29 @@ interface Font {
   fontSize: string
 }
 
+/** The preview's own font, which a diagram measures its text with. */
+function previewFont(): Font {
+  const preview = document.querySelector('.preview') ?? document.body
+  const { fontFamily, fontSize } = getComputedStyle(preview)
+  return { fontFamily, fontSize }
+}
+
+/**
+ * The exported page's font. The page's stylesheet sets the same tokens, and
+ * `devot export`'s page has no stylesheet of its own: a drawing measured in
+ * WebKit's serif would not be the page's.
+ */
+export function exportFont(): Font {
+  return { fontFamily: sizes['font.family.ui'], fontSize: sizes['font.size.preview'] }
+}
+
 /** A diagram drawn once for a theme and font is not drawn again. */
-const drawn = keptAnswers<Answer>(64, (answer) => answer.type === 'rendered')
+const drawn = keptAnswers<Answer>(
+  64,
+  (answer) =>
+    answer.type === 'rendered' ||
+    (answer.type === 'failed' && (answer.reason === 'parse' || answer.reason === 'layout')),
+)
 
 /**
  * Requests wait in one queue for the frame; one whose signal is aborted by
@@ -94,17 +116,20 @@ async function renderInFrame(
   source: string,
   appearance: IslandContext['appearance'],
   signal?: AbortSignal,
+  font?: Font,
 ): Promise<Answer> {
-  const preview = document.querySelector('.preview') ?? document.body
-  const { fontFamily, fontSize } = getComputedStyle(preview)
+  const measured = font ?? previewFont()
   for (;;) {
-    const answer = await drawn(JSON.stringify([appearance, fontFamily, fontSize, source]), () => {
-      const turn = queue.then((): Answer | Promise<Answer> =>
-        signal?.aborted ? { type: 'skipped' } : ask(source, appearance, { fontFamily, fontSize }),
-      )
-      queue = turn
-      return turn
-    })
+    const answer = await drawn(
+      JSON.stringify([appearance, measured.fontFamily, measured.fontSize, source]),
+      () => {
+        const turn = queue.then((): Answer | Promise<Answer> =>
+          signal?.aborted ? { type: 'skipped' } : ask(source, appearance, measured),
+        )
+        queue = turn
+        return turn
+      },
+    )
     // A skipped answer may have been shared with a request still wanted: ask again.
     if (answer.type !== 'skipped' || signal?.aborted) return answer
   }
@@ -201,7 +226,7 @@ function errorContent(reason: FailureReason | 'timeout' | 'svg'): IslandContent 
   const box = document.createElement('div')
   box.className = 'island-error'
   box.setAttribute('role', 'note')
-  if (reason === 'parse') {
+  if (reason === 'parse' || reason === 'layout') {
     box.textContent = t('mermaid.error')
     return { node: box }
   }
@@ -250,7 +275,7 @@ async function render(
  */
 export async function mermaidMarkup(source: string): Promise<string | null> {
   if (source.length > MAX_SOURCE_LENGTH) return null
-  const answer = await renderInFrame(source, 'light')
+  const answer = await renderInFrame(source, 'light', undefined, exportFont())
   if (answer.type === 'skipped') return null
   if (answer.type !== 'rendered') {
     logFailure(answer.reason)
