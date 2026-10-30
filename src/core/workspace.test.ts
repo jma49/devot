@@ -44,6 +44,7 @@ const note = (
   title: id,
   createdAt: 0,
   updatedAt: 0,
+  bodyVersion: 1,
   bookId,
   status,
   pinned: false,

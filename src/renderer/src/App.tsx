@@ -816,6 +816,7 @@ export function App() {
           title: n.title,
           createdAt: n.deletedAt,
           updatedAt: n.deletedAt,
+          bodyVersion: 0,
           bookId: n.bookId,
           status: 'none',
           pinned: false,

@@ -41,6 +41,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0020_agent_writes.sql"),
     include_str!("../../migrations/0021_agent_writes_unseen.sql"),
     include_str!("../../migrations/0022_sync_files.sql"),
+    include_str!("../../migrations/0023_list_body_version.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -492,7 +493,8 @@ const HAND_OVER_FILES_SQL: &str = r#"UPDATE files SET note_hlc = MAX(note_hlc, @
 const NOTES_LIST_SQL: &str = "SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
             (SELECT group_concat(nt.tag_id) FROM note_tags nt
                JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
-              WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds
+              WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds,
+            body_version AS bodyVersion
      FROM notes INDEXED BY notes_list
      WHERE deleted_at IS NULL ORDER BY updated_at DESC, id DESC";
 const TRASH_LIST_SQL: &str =
@@ -519,6 +521,8 @@ pub struct NoteSummary {
     pub status: String,
     pub pinned: bool,
     pub tag_ids: Vec<String>,
+    /// The stored body's version; it moves with every write of the note.
+    pub body_version: i64,
     /// Search results only: the body around the first searched word found
     /// there, starting with an ellipsis when it starts mid-body.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -904,6 +908,7 @@ fn summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
         tag_ids: tags
             .map(|t| t.split(',').map(String::from).collect())
             .unwrap_or_default(),
+        body_version: row.get(8)?,
         excerpt: None,
     })
 }
@@ -979,7 +984,8 @@ fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>) {
     let select = "SELECT n.id, n.title, n.created_at AS createdAt, n.updated_at AS updatedAt, n.book_id AS bookId, n.status, n.pinned,
                 (SELECT group_concat(nt.tag_id) FROM note_tags nt
                    JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
-                  WHERE nt.note_id = n.id AND nt.present = 1) AS tagIds";
+                  WHERE nt.note_id = n.id AND nt.present = 1) AS tagIds,
+                n.body_version AS bodyVersion";
     // Ranked text and a scan: the matches meeting every other condition, in
     // rank order. The scan reads them in that order and stops at a page only
     // because SQLite keeps a MATERIALIZED CTE's order and uses it for the
@@ -991,7 +997,7 @@ fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>) {
             format!(
                 "{hits},
                  ranked AS MATERIALIZED (SELECT n.rowid AS rid, h.score, n.id, n.title, n.created_at,
-                     n.updated_at, n.book_id, n.status, n.pinned
+                     n.updated_at, n.book_id, n.status, n.pinned, n.body_version
                    FROM notes n INDEXED BY notes_list JOIN hits h ON h.rid = n.rowid
                    WHERE {}
                    ORDER BY h.score, n.updated_at DESC, n.id DESC)

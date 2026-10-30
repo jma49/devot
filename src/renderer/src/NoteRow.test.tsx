@@ -20,6 +20,7 @@ function note(over: Partial<NoteSummary> = {}): NoteSummary {
     title: 'Garden plan',
     createdAt: now - 60_000,
     updatedAt: now - 7 * 60_000,
+    bodyVersion: 1,
     bookId: null,
     status: 'none',
     pinned: false,

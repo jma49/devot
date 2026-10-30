@@ -15,6 +15,7 @@ const note = (id: string, title: string, updatedAt = 1): NoteSummary => ({
   title,
   createdAt: 0,
   updatedAt,
+  bodyVersion: 1,
   bookId: null,
   status: 'none',
   pinned: false,
