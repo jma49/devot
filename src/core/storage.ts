@@ -60,6 +60,8 @@ export interface NoteSummary {
   title: string
   createdAt: number
   updatedAt: number
+  /** The stored body's version (NoteRecord.bodyVersion): moves with every write of the note, whatever happens to its update time. */
+  bodyVersion: number
   bookId: string | null
   status: NoteStatus
   pinned: boolean

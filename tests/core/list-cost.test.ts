@@ -81,7 +81,8 @@ const query = (
 const BEFORE_LIST = `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
         (SELECT group_concat(nt.tag_id) FROM note_tags nt
            JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
-          WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds
+          WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds,
+          body_version AS bodyVersion
    FROM notes
    WHERE deleted_at IS NULL ORDER BY updated_at DESC, id DESC`
 const BEFORE_TRASH = `SELECT id, title, deleted_at AS deletedAt, book_id AS bookId FROM notes
@@ -134,7 +135,8 @@ function beforeSearch(db: Database.Database, q: NoteQuery, limit: number) {
     `SELECT n.id, n.title, n.created_at AS createdAt, n.updated_at AS updatedAt, n.book_id AS bookId, n.status, n.pinned,
             (SELECT group_concat(nt.tag_id) FROM note_tags nt
                JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
-              WHERE nt.note_id = n.id AND nt.present = 1) AS tagIds
+              WHERE nt.note_id = n.id AND nt.present = 1) AS tagIds,
+            n.body_version AS bodyVersion
      FROM notes n`,
     ranked.length
       ? `JOIN notes_fts f ON f.rowid = n.rowid AND notes_fts MATCH ${param(ftsQuery(ranked))}`
@@ -160,6 +162,7 @@ const asSummary = (row: Record<string, unknown>): Omit<NoteSummary, 'excerpt'> =
   status: row['status'] as NoteSummary['status'],
   pinned: row['pinned'] === 1,
   tagIds: row['tagIds'] ? (row['tagIds'] as string).split(',') : [],
+  bodyVersion: row['bodyVersion'] as number,
 })
 
 const record = (id: string, fields: Partial<NoteRecord>): NoteRecord => ({

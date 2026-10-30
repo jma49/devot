@@ -188,7 +188,7 @@ export const memoryStorage: StorageAdapter = {
     return read<Stored>(NOTES)
       .filter((n) => n.deletedAt === null)
       .sort((a, b) => b.updatedAt - a.updatedAt || (a.id < b.id ? 1 : -1))
-      .map(({ id, title, createdAt, updatedAt, bookId, status, pinned }) => ({
+      .map(({ id, title, createdAt, updatedAt, bookId, status, pinned, bodyVersion }) => ({
         id,
         title,
         createdAt,
@@ -197,6 +197,7 @@ export const memoryStorage: StorageAdapter = {
         status,
         pinned,
         tagIds: links.filter((l) => l.noteId === id).map((l) => l.tagId),
+        bodyVersion: bodyVersion ?? 0,
       }))
   },
   async getNote(id, options) {

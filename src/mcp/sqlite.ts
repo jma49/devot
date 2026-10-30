@@ -244,7 +244,8 @@ export const LIST_SQL = {
   notes: `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
             (SELECT group_concat(nt.tag_id) FROM note_tags nt
                JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
-              WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds
+              WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds,
+            body_version AS bodyVersion
      FROM notes INDEXED BY notes_list
      WHERE deleted_at IS NULL ORDER BY updated_at DESC, id DESC`,
   /** Notes in the Trash (not purged), most recently deleted first. */
@@ -323,11 +324,12 @@ export function searchStatement(
   const select = `SELECT n.id, n.title, n.created_at AS createdAt, n.updated_at AS updatedAt, n.book_id AS bookId, n.status, n.pinned,
             (SELECT group_concat(nt.tag_id) FROM note_tags nt
                JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
-              WHERE nt.note_id = n.id AND nt.present = 1) AS tagIds`
+              WHERE nt.note_id = n.id AND nt.present = 1) AS tagIds,
+            n.body_version AS bodyVersion`
   const source = early
     ? `${hits},
         ranked AS MATERIALIZED (SELECT n.rowid AS rid, h.score, n.id, n.title, n.created_at,
-            n.updated_at, n.book_id, n.status, n.pinned
+            n.updated_at, n.book_id, n.status, n.pinned, n.body_version
           FROM notes n INDEXED BY notes_list JOIN hits h ON h.rid = n.rowid
           WHERE ${where.join('\n  AND ')}
           ORDER BY h.score, n.updated_at DESC, n.id DESC)
@@ -392,6 +394,7 @@ interface SummaryRow {
   status: NoteStatus
   pinned: number
   tagIds: string | null
+  bodyVersion: number
 }
 
 interface RevisionRow {
@@ -581,6 +584,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     status: row.status,
     pinned: row.pinned === 1,
     tagIds: row.tagIds ? row.tagIds.split(',') : [],
+    bodyVersion: row.bodyVersion,
   })
   const countInBooks = db.prepare<[string], { bookId: string; notes: number }>(
     `SELECT book_id AS bookId, count(*) AS notes FROM notes

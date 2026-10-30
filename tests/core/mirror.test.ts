@@ -39,6 +39,7 @@ const note = (
   status: 'none',
   pinned: false,
   tagIds: [],
+  bodyVersion: 1,
   ...more,
 })
 
@@ -325,6 +326,20 @@ describe('keeping it up to date', () => {
     expect(kinds(plan.ops)).toEqual(['note Work/Inbox.md -> Work/Inbox.md'])
     expect(textOf(plan, 'Work/Inbox.md')).toBe('# Inbox\n\nNew thoughts.\n')
     expect(plan.asked).toEqual({ bodies: [id(1)], paths: ['Work/Inbox.md'], hashes: [] })
+  })
+
+  it('a body that changed while the update time stayed (an older synced edit merged in) is written', () => {
+    const world = mirrored()
+    const merged = {
+      ...world,
+      notes: world.notes.map((x) =>
+        x.id === id(1) ? { ...x, bodyVersion: x.bodyVersion + 1 } : x,
+      ),
+      bodies: { ...world.bodies, [id(1)]: '# Inbox\n\nMerged in from another device.\n' },
+    }
+    const plan = settle(merged)
+    expect(kinds(plan.ops)).toEqual(['note Work/Inbox.md -> Work/Inbox.md'])
+    expect(textOf(plan, 'Work/Inbox.md')).toBe('# Inbox\n\nMerged in from another device.\n')
   })
 
   it('a change that leaves the file as it is (pinning) only records it, without the disk', () => {
@@ -882,12 +897,13 @@ describe('attachments', () => {
 })
 
 describe('what a note is written from', () => {
-  it('changes with its update time, title, status, tags, path and attachment paths only', () => {
+  it('changes with its update time, body version, title, status, tags, path and attachment paths only', () => {
     const base = note(1, 'Plan')
     const source = noteSource(base, ['a'], 'Plan.md', ['attachments/x.png'])
     expect(noteSource({ ...base }, ['a'], 'Plan.md', ['attachments/x.png'])).toBe(source)
     for (const other of [
       noteSource({ ...base, updatedAt: 1 }, ['a'], 'Plan.md', ['attachments/x.png']),
+      noteSource({ ...base, bodyVersion: 2 }, ['a'], 'Plan.md', ['attachments/x.png']),
       noteSource({ ...base, title: 'Other' }, ['a'], 'Plan.md', ['attachments/x.png']),
       noteSource({ ...base, status: 'active' }, ['a'], 'Plan.md', ['attachments/x.png']),
       noteSource(base, ['b'], 'Plan.md', ['attachments/x.png']),

@@ -8,6 +8,7 @@ const note = (id: string, extra: Partial<NoteSummary> = {}): NoteSummary => ({
   title: id,
   createdAt: 1,
   updatedAt: 10,
+  bodyVersion: 1,
   bookId: null,
   status: 'none',
   pinned: false,

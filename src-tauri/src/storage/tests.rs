@@ -397,6 +397,24 @@ fn listed_and_found_notes_carry_their_creation_time() {
 }
 
 #[test]
+fn listed_and_found_notes_carry_their_body_version_though_the_update_time_stays() {
+    let (_dir, mut store) = temp_store();
+    store.put_note(&note("a", "Groceries", 30), &[]).unwrap();
+    let listed = &store.list_notes().unwrap()[0];
+    assert_eq!((listed.updated_at, listed.body_version), (30, 1));
+    // An older edit merged in: the body moves on, the newer update time stays.
+    let mut merged = based_on(1, note("a", "Groceries", 10));
+    merged.body_md = "Merged in".into();
+    store.put_note(&merged, &[]).unwrap();
+    let listed = &store.list_notes().unwrap()[0];
+    assert_eq!((listed.updated_at, listed.body_version), (30, 2));
+    let found = &store.search_notes(&words(&["Groceries"]), 10).unwrap()[0];
+    assert_eq!((found.updated_at, found.body_version), (30, 2));
+    let short = &store.search_notes(&words(&["gr"]), 10).unwrap()[0];
+    assert_eq!(short.body_version, 2);
+}
+
+#[test]
 fn keeps_the_newer_value_of_each_note_field() {
     let (_dir, mut store) = temp_store();
     let mut newer = note("a", "New title", 30);

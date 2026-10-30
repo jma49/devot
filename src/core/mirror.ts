@@ -168,9 +168,9 @@ function digest(text: string): string {
   return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0')
 }
 
-/** The update time stands for the body, though a merged remote edit older than the note's keeps it: that body reaches the file with the note's next change (#386, A019). `-` marks an attachment not in the database. */
+/** The body version stands for the body: a merged remote edit older than the note's update time changes the body but not that time. `-` marks an attachment not in the database. */
 export function noteSource(
-  note: Pick<NoteSummary, 'updatedAt' | 'title' | 'status'>,
+  note: Pick<NoteSummary, 'updatedAt' | 'bodyVersion' | 'title' | 'status'>,
   tags: readonly string[],
   path: string,
   marks: readonly string[],
@@ -178,6 +178,7 @@ export function noteSource(
 ): string {
   const inputs = [
     String(note.updatedAt),
+    String(note.bodyVersion),
     note.title,
     note.status,
     tags.join('\u001f'),
