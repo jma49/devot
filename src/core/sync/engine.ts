@@ -44,7 +44,7 @@ import {
   type SyncLocal,
   type SyncStore,
 } from './store'
-import type { PulledRecord, SyncEvent, SyncTransport } from './transport'
+import { STORAGE_FULL, type PulledRecord, type SyncEvent, type SyncTransport } from './transport'
 
 export const PUSH_IDLE_MS = 3_000
 export const PUSH_EVERY_MS = 10_000
@@ -96,9 +96,11 @@ const FILES_UNSUPPORTED = 'E_SYNC_RELAY_OUTDATED'
 
 class QuotaPaused extends Error {
   readonly until: number | null
-  constructor(until: number | null) {
+  readonly storageFull: boolean
+  constructor(until: number | null, storageFull = false) {
     super('E_SYNC_QUOTA')
     this.until = until
+    this.storageFull = storageFull
   }
 }
 
@@ -396,7 +398,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       const next = quotaResetAt(relayNow)
       // A reset already past (the refusal came in after it) resumes after the jitter; one past the next two is not believed.
       const until = said === null ? next : Math.min(said, quotaResetAt(next))
-      set({ state: 'paused', code, pausedUntil: until })
+      const full = error instanceof QuotaPaused && error.storageFull
+      set({ state: 'paused', code: full ? STORAGE_FULL : code, pausedUntil: until })
       resumeAt(until)
     } else {
       set({ state: 'offline', code })
@@ -785,8 +788,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         return
       }
       if (result.type === 'paused') {
-        const paused = new QuotaPaused(result.until)
-        if (result.limit === 'storedBytes') {
+        const paused = new QuotaPaused(result.until, result.limit === 'storedBytes')
+        if (paused.storageFull) {
           if (state.kind === 'file' && !state.purged) keepLocal(id, print, FILES_FULL)
           return paused
         }

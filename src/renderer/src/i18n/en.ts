@@ -742,6 +742,9 @@ title: Daily Report {{date}}
     '{count} notes are too large for the relay and stay on this device.',
   'syncSettings.pausedUntil':
     'Sync paused until {time}: the relay has reached its quota for today.',
+  'syncSettings.storageFull':
+    'Sync paused until {time}: the relay has no storage left. Delete or purge notes or images, or free space on the relay.',
+  'syncSettings.storageFullRetry': 'Sync is trying again; the relay had no storage left.',
   'syncSettings.resuming': 'The relay’s quota for today has reset; sync resumes in a moment.',
   'syncSettings.upload': '{sent} of {total} items uploaded.',
   'syncSettings.relayOutdated':
@@ -829,11 +832,32 @@ title: Daily Report {{date}}
   'syncSettings.why.noVault': 'The relay set above has no such vault. Check its address.',
   'syncSettings.why.relayInvalid':
     'A relay’s address starts with https:// (http:// only for a relay on this computer).',
+  'syncSettings.why.relaySecret':
+    'The relay did not accept that secret. Check RELAY_SECRET on the relay.',
+  'syncSettings.why.relaySecretInvalid':
+    'The relay’s secret is empty or holds characters it cannot. Paste it again.',
+  'syncSettings.why.unreachable':
+    'The relay could not be reached, or it answered with an error. Check your connection and the relay’s address above.',
+  'syncSettings.why.keychain':
+    'The keychain did not let Devot keep this vault’s key. Allow access and try again.',
+  'syncSettings.why.tooManyDevices':
+    'The vault is at its device limit. Remove a device you no longer use from another device, then try again.',
+  'syncSettings.why.enrollDenied':
+    'The relay refused this device: the key or code belongs to another vault.',
   'sync.notice.revoked':
     'This device was removed from sync, so sync has stopped. Your notes stay on this device.',
   'sync.notice.clock':
     'Sync is paused: this device’s clock is more than 5 minutes off. Set the date and time automatically to sync again.',
-  'sync.notice.stopped': 'Sync has stopped ({code}). Open Settings > Sync to set it up again.',
+  'sync.notice.stopped':
+    'Sync has stopped ({code}). In Settings > Sync, turn Sync This Device off and on to try again, or set this device up again.',
+  'sync.notice.stoppedAdvice': 'Sync has stopped ({code}). {advice}',
+  'sync.advice.protocol': 'Update Devot and your relay to the same release.',
+  'sync.advice.circuit':
+    'A note kept changing back and forth between devices. Turn Sync This Device off and on in Settings > Sync to try again.',
+  'sync.notice.storageFull':
+    'Sync paused until {time}: the relay has no storage left. Delete or purge notes or images, or free space on the relay. Sync tries again after that.',
+  'sync.notice.storageFullRetry':
+    'Sync is trying again: the relay had no storage left. If it pauses again, delete or purge notes or images, or free space on the relay.',
   'sync.notice.licence':
     'Sync has stopped: it needs a Devot licence. Your notes stay on this device. Add a licence in Settings > Licence.',
   'sync.notice.licenceTrialEnded':

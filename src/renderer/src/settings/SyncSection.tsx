@@ -10,6 +10,8 @@ import {
   pendingRecoveryKey,
   recoverySaved,
   startSyncStatus,
+  STOP_ADVICE,
+  STORAGE_FULL,
   usePauseOver,
   useSyncSnapshot,
   type SyncSnapshot,
@@ -31,9 +33,11 @@ const STATES: Readonly<Record<SyncStateName, MessageKey>> = {
 const when = (at: number, locale: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(at)
 
-function pauseText(pausedUntil: number, pauseOver: boolean, locale: string): string {
-  if (pauseOver) return t('syncSettings.resuming')
-  return format(t('syncSettings.pausedUntil'), { time: untilTime(pausedUntil, Date.now(), locale) })
+function pauseText(pausedUntil: number, pauseOver: boolean, locale: string, code: string | null) {
+  const full = code === STORAGE_FULL
+  if (pauseOver) return t(full ? 'syncSettings.storageFullRetry' : 'syncSettings.resuming')
+  const time = untilTime(pausedUntil, Date.now(), locale)
+  return format(t(full ? 'syncSettings.storageFull' : 'syncSettings.pausedUntil'), { time })
 }
 
 function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string): string {
@@ -41,9 +45,10 @@ function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string):
   const shown = snapshot.enabled ? state : 'off'
   const parts = [
     shown === 'paused' && pausedUntil !== null
-      ? pauseText(pausedUntil, pauseOver, locale)
+      ? pauseText(pausedUntil, pauseOver, locale, code)
       : t(STATES[shown]),
   ]
+  if (shown === 'stopped' && code && STOP_ADVICE[code]) parts.push(t(STOP_ADVICE[code]))
   if (upload && snapshot.enabled)
     parts.push(format(t('syncSettings.upload'), uploadCounts(upload, locale)))
   if (code && snapshot.enabled && state !== 'idle')
@@ -56,7 +61,7 @@ function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string):
   return parts.join(' ')
 }
 
-// Why a join or a pairing failed, for the codes a person can act on.
+// Why a join, a pairing or a vault's creation failed, for the codes a person can act on.
 const WHY: Readonly<Record<string, MessageKey>> = {
   E_SYNC_RELAY_OUTDATED: 'syncSettings.why.outdated',
   E_SYNC_VAULT_EXISTS: 'syncSettings.why.otherVault',
@@ -73,6 +78,14 @@ const WHY: Readonly<Record<string, MessageKey>> = {
   E_SYNC_NO_RELAY: 'syncSettings.why.noRelay',
   E_SYNC_NO_VAULT: 'syncSettings.why.noVault',
   E_SYNC_RELAY_URL_INVALID: 'syncSettings.why.relayInvalid',
+  E_SYNC_RELAY_SECRET: 'syncSettings.why.relaySecret',
+  E_SYNC_RELAY_SECRET_INVALID: 'syncSettings.why.relaySecretInvalid',
+  E_SYNC_OFFLINE: 'syncSettings.why.unreachable',
+  E_SYNC_RELAY_FAILED: 'syncSettings.why.unreachable',
+  E_SYNC_KEYCHAIN: 'syncSettings.why.keychain',
+  E_SYNC_KEYCHAIN_UNAVAILABLE: 'syncSettings.why.keychain',
+  E_SYNC_TOO_MANY_DEVICES: 'syncSettings.why.tooManyDevices',
+  E_SYNC_ENROLL_DENIED: 'syncSettings.why.enrollDenied',
 }
 
 /**

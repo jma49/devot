@@ -6,9 +6,15 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import * as Comlink from 'comlink'
 import { MAX_WALL } from '../../core/hlc'
 import type { SyncStatus } from '../../core/sync/engine'
-import type { SyncEvent, Welcome, PushResult } from '../../core/sync/transport'
+import {
+  STORAGE_FULL,
+  type SyncEvent,
+  type Welcome,
+  type PushResult,
+} from '../../core/sync/transport'
 import type { Core } from './coreConnect'
 import { DB_CHANGED } from './externalChanges'
+import type { MessageKey } from './i18n'
 import { invoke } from './ipc'
 import { licenceEntitlements, startLicence, subscribeLicence } from './licence'
 import type { WirePulled, WireSync, WireSyncLocal, WireTransport } from './storage/syncWire'
@@ -72,6 +78,14 @@ export const SYNC_OFF: SyncSnapshot = {
 }
 
 const CODE = /^[EWI]_[A-Z0-9_]+$/
+
+export { STORAGE_FULL }
+
+/** What a person does about a sync that stopped for these codes. */
+export const STOP_ADVICE: Readonly<Record<string, MessageKey>> = {
+  E_SYNC_PROTOCOL: 'sync.advice.protocol',
+  E_SYNC_CIRCUIT_OPEN: 'sync.advice.circuit',
+}
 
 const readCount = (value: unknown): number | null =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null

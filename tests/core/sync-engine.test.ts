@@ -633,9 +633,10 @@ describe('the relay’s quota cap', () => {
     await a.notes.purge(purged)
     await a.sync()
     await a.engine.idle()
+    // Not the daily quota: the reset frees no storage, so the status names its own cause.
     expect(a.engine.status()).toMatchObject({
       state: 'paused',
-      code: 'E_SYNC_QUOTA',
+      code: 'E_SYNC_STORAGE_FULL',
       pausedUntil: midnight,
     })
     await b.sync()

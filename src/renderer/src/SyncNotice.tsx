@@ -3,7 +3,7 @@ import { countOf, untilTime, uploadCounts } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
 import { LICENCE_REQUIRED, licenceSnapshot, trialOver } from './licence'
 import { LicenceButton } from './LicenceLocked'
-import { usePauseOver, type SyncSnapshot } from './sync'
+import { STOP_ADVICE, STORAGE_FULL, usePauseOver, type SyncSnapshot } from './sync'
 
 const STOPPED: Readonly<Record<string, MessageKey>> = {
   E_SYNC_REVOKED: 'sync.notice.revoked',
@@ -17,16 +17,20 @@ function stateMessage(snapshot: SyncSnapshot, pauseOver: boolean): string | unde
   if (state === 'paused' && pausedUntil !== null) {
     const locale = currentLocale()
     if (pauseOver) {
+      if (code === STORAGE_FULL) return t('sync.notice.storageFullRetry')
       if (!upload) return t('sync.notice.resuming')
       return format(t('sync.notice.resumingUpload'), uploadCounts(upload, locale))
     }
     const time = untilTime(pausedUntil, Date.now(), locale)
+    if (code === STORAGE_FULL) return format(t('sync.notice.storageFull'), { time })
     if (!upload) return format(t('sync.notice.paused'), { time })
     return format(t('sync.notice.pausedUpload'), { time, ...uploadCounts(upload, locale) })
   }
   if (state === 'stopped' && code) {
     if (code === LICENCE_REQUIRED && trialOver(licenceSnapshot(), Date.now()))
       return t('sync.notice.licenceTrialEnded')
+    const advice = STOP_ADVICE[code]
+    if (advice) return format(t('sync.notice.stoppedAdvice'), { code, advice: t(advice) })
     return format(t(STOPPED[code] ?? 'sync.notice.stopped'), { code })
   }
   return undefined
@@ -48,10 +52,12 @@ function message(snapshot: SyncSnapshot, pauseOver: boolean): string | undefined
 export function SyncNotice(props: { snapshot: SyncSnapshot }) {
   const text = message(props.snapshot, usePauseOver(props.snapshot.status.pausedUntil))
   const [dismissed, setDismissed] = useState<string>()
-  // A notice that went away is shown again when it comes back, even with the same words (a pause on another day).
-  if (!text && dismissed !== undefined) setDismissed(undefined)
+  // A notice that went away is shown again when it comes back, even with the same words (a pause on another day). A recheck (connecting, syncing) is not going away: a clock that is still off stops sync again.
+  const { state } = props.snapshot.status
+  const checking = state === 'connecting' || state === 'syncing'
+  if (!text && !checking && dismissed !== undefined) setDismissed(undefined)
   if (!text || text === dismissed) return null
-  const { state, code } = props.snapshot.status
+  const { code } = props.snapshot.status
   return (
     <div role="alert" className="notice" data-devot-part="notice">
       <span className="notice-text">{text}</span>
