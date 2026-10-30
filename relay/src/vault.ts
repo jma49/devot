@@ -242,7 +242,7 @@ export class VaultRelay {
 
   /** Counts a new connection and returns its welcome. */
   connected(device: string): Outgoing {
-    this.count({ requests: 1 })
+    this.pending.requests++
     const epoch = String(this.sql.all('SELECT epoch FROM vault WHERE id = 1')[0]?.['epoch'])
     const quota = this.quota ? 'on' : 'off'
     const attachments = this.quota?.fileBytes === undefined ? 'off' : 'on'
@@ -257,7 +257,7 @@ export class VaultRelay {
     })
   }
 
-  /** Messages refused before dispatch (rate, revoked device, malformed) cost no write of their own. */
+  /** Messages refused before dispatch (rate, revoked device, malformed) and reads cost no write of their own. */
   receive(device: string, data: Outgoing): Outcome {
     const wait = this.limiter.take(device, this.now())
     let rid: number | undefined
@@ -302,15 +302,15 @@ export class VaultRelay {
       case 'pull':
         return this.pull(rid, message)
       case 'devices':
-        this.count({ messages: 1 })
+        this.pending.messages++
         return { reply: encodeFrame({ type: 'devices', rid, devices: this.devices(device) }) }
       case 'revoke':
         return this.revoke(rid, message)
       case 'time':
-        this.count({ messages: 1 })
+        this.pending.messages++
         return { reply: encodeFrame({ type: 'time', rid, time: this.now() }) }
       case 'usage':
-        this.count({ messages: 1 })
+        this.pending.messages++
         return { reply: encodeFrame({ type: 'usage', rid, ...this.usage() }) }
       default:
         throw new ProtocolError('E_SYNC_BAD_MESSAGE')
@@ -417,7 +417,7 @@ export class VaultRelay {
   private pull(rid: number | undefined, message: Record<string, unknown>): Outcome {
     const since = message['since']
     if (!isCount(since)) throw new ProtocolError('E_SYNC_BAD_MESSAGE')
-    this.count({ messages: 1 })
+    this.pending.messages++
     const rows = this.sql.all(
       'SELECT id, version, seq, kind, bytes FROM records WHERE seq > ? ORDER BY seq LIMIT ?',
       since,
@@ -456,7 +456,8 @@ export class VaultRelay {
     if (!isRecordId(target)) throw new ProtocolError('E_SYNC_BAD_MESSAGE')
     const rows = this.sql.transaction(() => {
       const deleted = this.sql.run('DELETE FROM devices WHERE id = ?', target)
-      this.count({ rows: deleted, messages: 1 })
+      if (deleted > 0) this.count({ rows: deleted, messages: 1 })
+      else this.pending.messages++
       return deleted
     })
     if (rows === 0) return { reply: encodeFrame({ type: 'error', rid, code: 'E_SYNC_NO_DEVICE' }) }
@@ -477,36 +478,25 @@ export class VaultRelay {
       }))
   }
 
-  private usage() {
+  /** The counters row as of `at`, plus what is waiting for the next write; the daily counts are 0 until the row's first write today. */
+  private usage(at = this.now()) {
     const row = this.sql.all('SELECT * FROM counters WHERE id = 1')[0] ?? {}
+    const today = row['day'] === day(at)
     return {
-      day: String(row['day']),
-      rowsWritten: num(row['rows_written']),
-      messages: num(row['messages']),
-      requests: num(row['requests']),
+      day: day(at),
+      rowsWritten: today ? num(row['rows_written']) : 0,
+      messages: (today ? num(row['messages']) : 0) + this.pending.messages,
+      requests: (today ? num(row['requests']) : 0) + this.pending.requests,
       storedBytes: num(row['stored_bytes']),
       fileBytes: num(row['file_bytes']),
       caps: this.quota,
     }
   }
 
-  /** The limit a push adding `growth` stored bytes would trip; today's counts are 0 until the row's first write today. */
+  /** The limit a push adding `growth` stored bytes would trip. */
   private quotaLimit(growth: number, fileGrowth: number, at: number) {
     if (!this.quota) return null
-    const usage = this.usage()
-    const today = usage.day === day(at)
-    return trippedLimit(
-      {
-        rowsWritten: today ? usage.rowsWritten : 0,
-        messages: (today ? usage.messages : 0) + this.pending.messages,
-        requests: (today ? usage.requests : 0) + this.pending.requests,
-        storedBytes: usage.storedBytes,
-        fileBytes: usage.fileBytes,
-      },
-      this.quota,
-      growth,
-      fileGrowth,
-    )
+    return trippedLimit(this.usage(at), this.quota, growth, fileGrowth)
   }
 
   private head(): number {
