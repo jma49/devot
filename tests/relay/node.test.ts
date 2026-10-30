@@ -44,3 +44,18 @@ it('closes a revoked device’s sockets with 4003', async () => {
   mac.socket.close()
   await relay.close()
 })
+
+it('survives a socket that sends a frame over the payload limit', async () => {
+  const relay = await startNodeRelay({ data: tempDir('devot-relay-oversize-'), secret })
+  const host = { ...relay, secret }
+  const vault = await createVault(host)
+  const abuser = await connect(host, vault.vault, vault.first.token)
+  abuser.socket.sendRaw(new Uint8Array(33 * 1024 * 1024))
+  expect((await abuser.socket.closed).code).toBe(1009)
+
+  const other = await connect(host, vault.vault, vault.first.token)
+  other.socket.send({ type: 'time' })
+  await other.socket.expect('time')
+  other.socket.close()
+  await relay.close()
+})
