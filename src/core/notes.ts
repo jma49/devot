@@ -332,6 +332,8 @@ interface Live {
 
 const notFound = () => new Error('E_REVISION_NOT_FOUND')
 const MAX_RETRY_MS = 30_000
+/** How long a note another window changed stays watched for a stored write to relay (see relayStored). */
+const HEARD_QUIET_MS = 10 * 60_000
 /** Attempts when storage keeps refusing because another process wrote first; then the write fails like any other (see failed). */
 const WRITE_TRIES = 5
 
@@ -445,8 +447,13 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
   const live = new Map<string, Live>()
   const loading = new Map<string, { note: Promise<Live>; users: number }>()
   const holds = new Map<string, number>()
-  // Notes another window spoke of, so it may hold them: the stored write last relayed to it (see mergeStored).
-  const heard = new Map<string, string | undefined>()
+  // Notes another window may hold: the stored write last relayed to it, its body version, and when
+  // it last said so (see relayStored). A `want` or `saved` only says the window has the note; its
+  // stored state is relayed when that write moves, checked by body version before any record read.
+  const heard = new Map<
+    string,
+    { seen: string | undefined; version: number | undefined; at: number }
+  >()
   const coldWrites = new Map<string, Promise<void>>()
   const failing = new Map<string, string>()
   const report = () => {
@@ -957,8 +964,22 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
   /** The stored state of the notes another window may hold and this core does not, when a write moved it since it was last relayed: the core holding the note is the one that takes it in. */
   const relayStored = async () => {
+    const at = now()
+    // The list's body versions are cheap: no note's Yjs state is read until its version moves.
+    let versions: Map<string, number> | undefined
+    const versionOf = async (id: string) => {
+      versions ??= new Map((await storage.listNotes()).map((n) => [n.id, n.bodyVersion]))
+      return versions.get(id)
+    }
     for (const [id, last] of heard) {
+      // Quiet for a while: the window that changed it is not waiting on anything here.
+      if (at - last.at > HEARD_QUIET_MS) {
+        heard.delete(id)
+        continue
+      }
       if (live.has(id)) continue
+      const version = await versionOf(id)
+      if (version !== undefined && version === last.version) continue
       const stored = await getStored(id, { trashed: true }).catch((e: unknown) => {
         console.warn('W_NOTE_MERGE_FAILED', errorCode(e))
         return undefined
@@ -966,8 +987,10 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       if (stored === null) heard.delete(id)
       if (!stored) continue
       const seen = `${stored.bodyVersion} ${stored.titleHlc}`
-      if (seen === last) continue
-      heard.set(id, seen)
+      // A trashed note is not in the list: it is read each time, until it is quiet.
+      last.version = stored.bodyVersion
+      if (seen === last.seen) continue
+      last.seen = seen
       relay({ kind: 'update', noteId: id, data: stored.ydoc })
       relay({ kind: 'title', noteId: id, title: clipTitle(stored.title), hlc: stored.titleHlc })
     }
@@ -1748,7 +1771,10 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
     async receive(message) {
       const { noteId: id } = message
-      if (!heard.has(id)) heard.set(id, undefined)
+      // The window may hold the note: its stored state is relayed when that write moves.
+      const last = heard.get(id)
+      if (last) last.at = now()
+      else heard.set(id, { seen: undefined, version: undefined, at: now() })
       // The note window turns read-only on a `gone` itself (NoteWindow.tsx): nothing to take in here.
       if (message.kind === 'saved' || message.kind === 'gone') return
       const note = await inMemory(id)

@@ -2,7 +2,7 @@
 // hears devot://db-changed and merges (mergeStored). A write made before that is refused by storage
 // (stale body version) and redone after the merge, so it keeps the other's changes too.
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import {
   BODY,
@@ -303,6 +303,34 @@ describe('a write made before the window hears of an outside write', () => {
 
     expect(await a.notes.mergeStored()).toEqual([{ id, title: 'Renamed in B' }])
     expect(await a.notes.mergeStored()).toEqual([])
+  })
+
+  it('reads a note another window opened only when its stored write moved', async () => {
+    const { a, b } = twoProcesses()
+    const id = await b.notes.create('Plan')
+    await b.notes.setBody(id, 'text')
+    await b.notes.flush()
+    // Another window opened the note and said so; this core holds nothing of it.
+    await a.notes.receive({ kind: 'want', noteId: id, data: Y.encodeStateVector(new Y.Doc()) })
+    const read = vi.spyOn(a.storage, 'getNote')
+    // The first outside change reads the record once, to learn the write it is at.
+    await a.notes.mergeStored()
+    expect(read).toHaveBeenCalledTimes(1)
+    read.mockClear()
+
+    // An outside change that leaves the note alone does not read its record again.
+    await b.notes.create('Other')
+    await b.notes.flush()
+    await a.notes.mergeStored()
+    expect(read).not.toHaveBeenCalled()
+
+    // A write to it is read once, so the window holding it hears of the change.
+    await b.notes.setBody(id, 'text, edited in B')
+    await b.notes.flush()
+    await a.notes.mergeStored()
+    expect(read).toHaveBeenCalledTimes(1)
+    expect(read).toHaveBeenCalledWith(id, { trashed: true })
+    read.mockRestore()
   })
 
   it('keeps a body written between the read and the write of a change to a note not in memory', async () => {
