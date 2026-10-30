@@ -508,6 +508,41 @@ describe('sync between two devices', () => {
     void small
   })
 
+  it('does not announce an upload for records the relay refused as too large', async () => {
+    const { a, b } = await pair({
+      a: { transport: { chunkBytes: 64 }, engine: { uploadShownFrom: 5 } },
+    })
+    for (let i = 0; i < 6; i++) {
+      const id = await a.notes.create(`Long ${i}`)
+      await a.notes.setBody(id, 'x'.repeat(2000))
+    }
+    await settle(a, b)
+    expect(a.engine.status().tooLarge).toHaveLength(6)
+    a.statuses.length = 0
+    await a.engine.syncNow()
+    await a.engine.idle()
+    expect(a.statuses.filter((s) => s.upload !== null)).toEqual([])
+    expect((await a.storage.syncState())['uploadTotal'] ?? '0').toBe('0')
+  })
+
+  it('clears the too-large notice when the relay has a new vault epoch', async () => {
+    const { vault, a } = await pair({ a: { transport: { chunkBytes: 64 } } })
+    const big = await a.notes.create('Long')
+    await a.notes.setBody(big, 'x'.repeat(2000))
+    await a.sync()
+    expect(a.engine.status().tooLarge).toEqual([big])
+    const fresh = await startRelay()
+    const again = await postCreate(fresh.host, vault)
+    a.credentials.relay = fresh
+    a.credentials.token = again.token
+    await a.engine.stop()
+    await a.notes.setBody(big, 'short\n')
+    await a.notes.flush()
+    a.engine.start()
+    await a.engine.idle()
+    expect(a.engine.status().tooLarge).toEqual([])
+  })
+
   it('takes the other device’s copy of a first-launch note nobody edited', async () => {
     const welcome = (body: string): WelcomeContent => ({
       bookName: 'Getting started',

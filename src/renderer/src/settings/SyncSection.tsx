@@ -393,7 +393,7 @@ export function SyncSection() {
                 )}
           </SettingsNote>
         ) : null}
-        {snapshot.status.tooLarge > 0 ? (
+        {snapshot.enabled && snapshot.status.tooLarge > 0 ? (
           <SettingsNote>
             {countOf(
               snapshot.status.tooLarge,

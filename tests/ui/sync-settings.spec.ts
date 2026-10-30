@@ -1061,6 +1061,18 @@ test.describe('the relay’s quota cap', () => {
     await expect(panel).not.toContainText('not synced:')
   })
 
+  test('Settings > Sync drops the too-large note once sync is off', async ({ page }) => {
+    const snapshot = { relayUrl: RELAY, vault: true, enrolled: true }
+    const status = { state: 'idle', lastSync: Date.UTC(2026, 9, 23, 19), code: null, tooLarge: 1 }
+    await fakeRust(page, { ...snapshot, enabled: true, status })
+    await openSettings(page, 'Sync')
+    const panel = page.getByRole('tabpanel')
+    await expect(panel).toContainText('1 note is too large for the relay')
+    await sendSnapshot(page, { ...snapshot, enabled: false, status: { ...status, state: 'off' } })
+    await expect(panel).toContainText('Off.')
+    await expect(panel).not.toContainText('too large for the relay')
+  })
+
   test('a long notice stays a bounded toast, clear of both window edges', async ({ page }) => {
     await page.setViewportSize({ width: 760, height: 800 })
     await page.clock.setFixedTime(new Date(Date.UTC(2026, 9, 23, 20)))

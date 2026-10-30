@@ -443,6 +443,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       parked.clear()
       unsynced.clear()
       fullAt = undefined
+      set({ tooLarge: [] })
       reportUnsynced()
     }
     connected = true
@@ -659,7 +660,9 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
   /** Counts the records sent while a large backlog goes out; `step` after each one, `show` to report now. */
   async function trackUpload() {
-    const remaining = await sync.syncPendingCount()
+    // Records kept here (too large, refused, parked) stay pending but are not part of the backlog.
+    const kept = new Set([...tooLarge.keys(), ...unsynced.keys(), ...parked])
+    const remaining = Math.max(0, (await sync.syncPendingCount()) - kept.size)
     const stored = Number((await sync.syncState())[UPLOAD_TOTAL] ?? '0') || 0
     if (stored === 0 && remaining < uploadShownFrom) return undefined
     const total = Math.max(stored, remaining)
@@ -690,7 +693,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         await pending(async (id) => {
           const refused = parked.has(id) ? undefined : await pushOne(id)
           if (refused) full = refused
-          else upload?.step()
+          else if (!tooLarge.has(id) && !unsynced.has(id) && !parked.has(id)) upload?.step()
         })
         full ??= shownRefused
         // A purge pushed in this pass made room: the attachments it passed over are tried again.
