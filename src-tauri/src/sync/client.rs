@@ -50,6 +50,12 @@ const POLL: Duration = Duration::from_millis(25);
 const PING_EVERY: Duration = Duration::from_secs(45);
 /// Nothing heard for this long, not even the answer to a ping: the connection is gone.
 const SILENT_FOR: Duration = Duration::from_secs(120);
+/// A write that moves no bytes for this long means the connection is gone (the limit is per write
+/// call, so a slow link that makes progress is not cut off).
+const WRITE_STALLED: Duration = Duration::from_secs(30);
+/// What a request is given on top of `REQUEST_TIMEOUT` per byte of its frame, so a slow uplink can
+/// finish writing before the wait for the answer counts.
+const SLOWEST_UPLOAD_BYTES_PER_SECOND: u64 = 64 * 1024;
 const MAX_RATE_WAITS: u32 = 10;
 const MAX_RATE_WAIT: Duration = Duration::from_secs(30);
 const USER_AGENT: &str = concat!("devot/", env!("CARGO_PKG_VERSION"));
@@ -461,6 +467,22 @@ fn close_code(code: u16) -> &'static str {
 
 type Socket = WebSocket<MaybeTlsStream<TcpStream>>;
 
+/// How long the connection waits on a silent or stalled peer; tests shorten them.
+#[derive(Debug, Clone, Copy)]
+struct Limits {
+    write_stalled: Duration,
+    silent_for: Duration,
+}
+
+const LIMITS: Limits = Limits {
+    write_stalled: WRITE_STALLED,
+    silent_for: SILENT_FOR,
+};
+
+fn request_timeout(frame_bytes: usize) -> Duration {
+    REQUEST_TIMEOUT + Duration::from_secs(frame_bytes as u64 / SLOWEST_UPLOAD_BYTES_PER_SECOND)
+}
+
 fn set_read_timeout(socket: &Socket, timeout: Duration) {
     let result = match socket.get_ref() {
         MaybeTlsStream::Plain(stream) => stream.set_read_timeout(Some(timeout)),
@@ -476,7 +498,12 @@ fn waiting(error: &tungstenite::Error) -> bool {
     matches!(error, tungstenite::Error::Io(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut))
 }
 
-fn open_socket(relay: &RelayUrl, vault: &str, token: &str) -> Result<Socket, &'static str> {
+fn open_socket(
+    relay: &RelayUrl,
+    vault: &str,
+    token: &str,
+    write_stalled: Duration,
+) -> Result<Socket, &'static str> {
     let url = Url::parse(&relay.socket(vault)).map_err(|_| "E_SYNC_RELAY_URL_INVALID")?;
     let host = url.host_str().ok_or("E_SYNC_RELAY_URL_INVALID")?;
     let port = url
@@ -492,6 +519,9 @@ fn open_socket(relay: &RelayUrl, vault: &str, token: &str) -> Result<Socket, &'s
         .ok_or("E_SYNC_OFFLINE")?;
     stream
         .set_read_timeout(Some(CONNECT_TIMEOUT))
+        .map_err(|_| "E_SYNC_OFFLINE")?;
+    stream
+        .set_write_timeout(Some(write_stalled))
         .map_err(|_| "E_SYNC_OFFLINE")?;
     let mut request = url
         .as_str()
@@ -514,11 +544,6 @@ fn open_socket(relay: &RelayUrl, vault: &str, token: &str) -> Result<Socket, &'s
             if response.status().as_u16() == 401 =>
         {
             Err("E_SYNC_TOKEN_REFUSED")
-        }
-        Err(tungstenite::HandshakeError::Failure(tungstenite::Error::Http(response)))
-            if response.status().as_u16() == 404 =>
-        {
-            Err("E_SYNC_NO_VAULT")
         }
         Err(_) => Err("E_SYNC_OFFLINE"),
     }
@@ -619,7 +644,17 @@ impl Connection {
         token: &str,
         on_event: Box<dyn Fn(Event) + Send>,
     ) -> Result<(Self, Welcome), &'static str> {
-        let mut socket = open_socket(relay, vault, token)?;
+        Self::open_with(relay, vault, token, on_event, LIMITS)
+    }
+
+    fn open_with(
+        relay: &RelayUrl,
+        vault: &str,
+        token: &str,
+        on_event: Box<dyn Fn(Event) + Send>,
+        limits: Limits,
+    ) -> Result<(Self, Welcome), &'static str> {
+        let mut socket = open_socket(relay, vault, token, limits.write_stalled)?;
         let welcome = read_welcome(&mut socket)?;
         set_read_timeout(&socket, POLL);
         let (outgoing, incoming) = mpsc::channel();
@@ -627,7 +662,15 @@ impl Connection {
         let thread_waiters = Arc::clone(&waiters);
         let thread = std::thread::Builder::new()
             .name("sync-socket".into())
-            .spawn(move || run(socket, incoming, &thread_waiters, on_event.as_ref()))
+            .spawn(move || {
+                run(
+                    socket,
+                    incoming,
+                    &thread_waiters,
+                    on_event.as_ref(),
+                    limits.silent_for,
+                );
+            })
             .map_err(|_| "E_SYNC_INTERNAL")?;
         Ok((
             Self {
@@ -649,6 +692,7 @@ impl Connection {
         let mut message = message.clone();
         message.insert("rid".into(), rid.into());
         let frame = encode(&message, chunks)?;
+        let timeout = request_timeout(frame.len());
         let (reply, answer) = mpsc::channel();
         self.waiters
             .lock()
@@ -658,7 +702,7 @@ impl Connection {
             self.forget(rid);
             return Err("E_SYNC_OFFLINE");
         }
-        match answer.recv_timeout(REQUEST_TIMEOUT) {
+        match answer.recv_timeout(timeout) {
             Ok(result) => result,
             Err(RecvTimeoutError::Timeout) => {
                 self.forget(rid);
@@ -729,6 +773,7 @@ fn run(
     incoming: Receiver<Outgoing>,
     waiters: &Waiters,
     on_event: &dyn Fn(Event),
+    silent_for: Duration,
 ) {
     let mut last_ping = Instant::now();
     let mut last_heard = Instant::now();
@@ -737,10 +782,13 @@ fn run(
         loop {
             match incoming.try_recv() {
                 Ok(Outgoing::Send(message)) => {
+                    let writing = Instant::now();
                     if socket.send(message).is_err() {
                         closing = true;
                         break;
                     }
+                    // Time spent writing is not silence: the peer may answer only once it has it all.
+                    last_heard += writing.elapsed();
                 }
                 Ok(Outgoing::Close) | Err(mpsc::TryRecvError::Disconnected) => {
                     let _ = socket.close(None);
@@ -754,7 +802,7 @@ fn run(
         if closing {
             break "E_SYNC_OFFLINE";
         }
-        if last_heard.elapsed() > SILENT_FOR {
+        if last_heard.elapsed() > silent_for {
             break "E_SYNC_OFFLINE";
         }
         if last_ping.elapsed() > PING_EVERY {
@@ -1192,6 +1240,120 @@ mod tests {
         assert_eq!(
             pushed(&answer(json!({ "type": "pushed", "version": 2, "seq": 9 }))),
             Ok(PushReply::Pushed { version: 2, seq: 9 })
+        );
+    }
+
+    /// A relay on this machine that completes the handshake and the welcome, then hands the socket
+    /// to `serve`.
+    fn fake_relay(serve: impl FnOnce(WebSocket<TcpStream>) + Send + 'static) -> RelayUrl {
+        use tungstenite::handshake::server::{Request, Response};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = RelayUrl::parse(&format!("http://{}", listener.local_addr().unwrap())).unwrap();
+        std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let accept = |_: &Request, mut response: Response| {
+                response.headers_mut().insert(
+                    "Sec-WebSocket-Protocol",
+                    HeaderValue::from_static(SUBPROTOCOL),
+                );
+                Ok(response)
+            };
+            let config = WebSocketConfig::default()
+                .max_message_size(Some(MAX_MESSAGE_BYTES))
+                .max_frame_size(Some(MAX_MESSAGE_BYTES));
+            let mut socket =
+                tungstenite::accept_hdr_with_config(stream, accept, Some(config)).unwrap();
+            let welcome = json!({
+                "v": PROTOCOL_VERSION, "type": "welcome", "time": 1, "epoch": "e", "seq": 0, "device": "d"
+            });
+            socket.send(Message::text(welcome.to_string())).unwrap();
+            serve(socket);
+        });
+        url
+    }
+
+    fn big_request(connection: &Connection) -> Result<Answer, &'static str> {
+        connection.request(&object(json!({ "type": "push" })), &[vec![7; 24 << 20]])
+    }
+
+    #[test]
+    fn a_relay_that_stops_reading_ends_the_connection_and_close_does_not_wait_for_the_kernel() {
+        let (release, held) = mpsc::channel::<()>();
+        let url = fake_relay(move |socket| {
+            let _ = held.recv();
+            drop(socket);
+        });
+        let limits = Limits {
+            write_stalled: Duration::from_millis(500),
+            silent_for: SILENT_FOR,
+        };
+        let (connection, _) =
+            Connection::open_with(&url, "v", "t", Box::new(|_| {}), limits).unwrap();
+        let connection = Arc::new(connection);
+        let (done, finished) = mpsc::channel();
+        let requester = Arc::clone(&connection);
+        std::thread::spawn(move || {
+            let result = big_request(&requester);
+            let _ = done.send(result.map(|_| ()));
+        });
+        assert_eq!(
+            finished.recv_timeout(Duration::from_secs(20)),
+            Ok(Err("E_SYNC_OFFLINE"))
+        );
+        let (closed, joined) = mpsc::channel();
+        let closer = Arc::clone(&connection);
+        std::thread::spawn(move || {
+            closer.close();
+            let _ = closed.send(());
+        });
+        assert!(joined.recv_timeout(Duration::from_secs(5)).is_ok());
+        drop(release);
+    }
+
+    #[test]
+    fn time_spent_writing_a_large_frame_is_not_silence_from_the_relay() {
+        let url = fake_relay(|mut socket| {
+            std::thread::sleep(Duration::from_millis(1500));
+            let message = socket.read().unwrap();
+            let rid = decode(message).and_then(|a| a.message.get("rid").cloned());
+            let answer = json!({ "v": PROTOCOL_VERSION, "type": "pushed", "rid": rid });
+            socket.send(Message::text(answer.to_string())).unwrap();
+            let _ = socket.read();
+        });
+        let limits = Limits {
+            write_stalled: Duration::from_secs(10),
+            silent_for: Duration::from_secs(1),
+        };
+        let (connection, _) =
+            Connection::open_with(&url, "v", "t", Box::new(|_| {}), limits).unwrap();
+        assert!(big_request(&connection).is_ok());
+    }
+
+    #[test]
+    fn a_request_gets_more_time_for_a_bigger_frame() {
+        assert_eq!(request_timeout(0), REQUEST_TIMEOUT);
+        assert_eq!(
+            request_timeout(30 << 20),
+            REQUEST_TIMEOUT + Duration::from_secs(480)
+        );
+    }
+
+    #[test]
+    fn a_404_on_the_socket_upgrade_is_not_the_relay_losing_the_vault() {
+        use std::io::Write as _;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = RelayUrl::parse(&format!("http://{}", listener.local_addr().unwrap())).unwrap();
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut seen = [0; 1024];
+            let _ = stream.read(&mut seen);
+            let _ = stream.write_all(
+                b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            );
+        });
+        assert_eq!(
+            Connection::open(&url, "v", "t", Box::new(|_| {})).err(),
+            Some("E_SYNC_OFFLINE")
         );
     }
 
