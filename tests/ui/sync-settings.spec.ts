@@ -364,6 +364,25 @@ test('a dismissed clock notice stays away while sync only rechecks the clock', a
   await expect(notice).toHaveCount(1)
 })
 
+test('a dismissed clock notice stays away while notes too large are rechecked', async ({
+  page,
+}) => {
+  const snapshot = { relayUrl: RELAY, enabled: true, vault: true, enrolled: true }
+  const stopped = { state: 'stopped', lastSync: 1, code: 'E_SYNC_CLOCK_SKEW', tooLarge: 2 }
+  await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true, status: stopped })
+  await openApp(page)
+  const notice = page.getByRole('alert').filter({ hasText: 'too large' })
+  await expect(notice).toHaveCount(1)
+  await notice.getByRole('button', { name: 'Dismiss' }).click()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await sendSnapshot(page, { ...snapshot, status: { ...stopped, state: 'connecting' } })
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await sendSnapshot(page, { ...snapshot, status: { ...stopped, state: 'syncing' } })
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await sendSnapshot(page, { ...snapshot, status: stopped })
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
 test('says what to do when sync stopped for the protocol or the loop breaker', async ({ page }) => {
   const snapshot = { relayUrl: RELAY, enabled: true, vault: true, enrolled: true }
   const stopped = { state: 'stopped', lastSync: 1, tooLarge: 0 }
@@ -809,6 +828,54 @@ test('lists the devices again with Try Again when the relay was out of reach', a
   await expect(panel.getByRole('list', { name: 'Devices in this vault' })).toBeVisible()
   await expect(panel).not.toContainText('could not be listed')
   await expect(panel.getByRole('button', { name: 'Try Again' })).toHaveCount(0)
+})
+
+test('Try Again says when the listing fails again, and hands focus to the list when it works', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    ;(globalThis as unknown as { devotDevicesFails: string }).devotDevicesFails = 'E_SYNC_OFFLINE'
+  })
+  await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true })
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  const retry = panel.getByRole('button', { name: 'Try Again' })
+  await expect(retry).toBeVisible()
+  await retry.focus()
+  await page.keyboard.press('Enter')
+  await expect(panel.getByRole('status').first()).toHaveText(
+    'The devices could not be listed (E_SYNC_OFFLINE).',
+  )
+  await page.evaluate(() => {
+    delete (globalThis as unknown as { devotDevicesFails?: string }).devotDevicesFails
+  })
+  await retry.focus()
+  await page.keyboard.press('Enter')
+  await expect(panel.getByRole('list', { name: 'Devices in this vault' })).toBeFocused()
+})
+
+test('a device name with no spaces wraps inside the Remove dialog', async ({ page }) => {
+  await fakeRust(page, {
+    relayUrl: RELAY,
+    enabled: true,
+    enrolled: true,
+    devices: [
+      { id: 'mac', label: 'Devot for macOS', created: NOW, current: true },
+      { id: 'phone', label: 'w'.repeat(200), created: NOW, current: false },
+    ],
+  })
+  await openSettings(page, 'Sync')
+  await page
+    .getByRole('tabpanel')
+    .getByRole('button', { name: /^Remove w+, added / })
+    .click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('Remove www')
+  const { scroll, client } = await dialog.evaluate((el) => ({
+    scroll: el.scrollWidth,
+    client: el.clientWidth,
+  }))
+  expect(scroll).toBeLessThanOrEqual(client)
 })
 
 test('a device removed from the vault is told so, and that the relay’s secret signs it back in', async ({

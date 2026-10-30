@@ -396,6 +396,8 @@ export function DevicesRow(props: {
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set())
   const [removed, setRemoved] = useState(0)
   const [retried, setRetried] = useState(0)
+  const [recovered, setRecovered] = useState(0)
+  const retryFocused = useRef(false)
   const removals = useRef(0)
   const focusNext = useRef<string>(undefined)
   const list = useRef<HTMLUListElement>(null)
@@ -412,15 +414,26 @@ export function DevicesRow(props: {
         if (!current || removals.current !== started) return
         setProblem(undefined)
         setDevices(found)
+        if (retryFocused.current) setRecovered((n) => n + 1)
+        retryFocused.current = false
       },
       (e: unknown) => {
-        if (current) setProblem(format(t('syncSettings.devicesFailed'), { code: errorCode(e) }))
+        if (!current) return
+        const text = format(t('syncSettings.devicesFailed'), { code: errorCode(e) })
+        setProblem(text)
+        if (retryFocused.current) onAnnounce(text)
+        retryFocused.current = false
       },
     )
     return () => {
       current = false
     }
-  }, [refresh, retried])
+  }, [refresh, retried, onAnnounce])
+
+  // The Try Again button that had focus is gone: the list takes it.
+  useEffect(() => {
+    if (recovered > 0) list.current?.focus()
+  }, [recovered])
 
   // Focus goes to the next device's Remove button, or the list when none is left after it.
   useEffect(() => {
@@ -461,7 +474,14 @@ export function DevicesRow(props: {
       <Setting label="syncSettings.devices" description={problem ?? t('syncSettings.devicesHint')}>
         {problem ? (
           <div className="settings-buttons">
-            <button type="button" className="button" onClick={() => setRetried((n) => n + 1)}>
+            <button
+              type="button"
+              className="button"
+              onClick={(e) => {
+                retryFocused.current = document.activeElement === e.currentTarget
+                setRetried((n) => n + 1)
+              }}
+            >
               {t('syncSettings.devicesRetry')}
             </button>
           </div>
