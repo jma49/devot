@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{BookRecord, NoteRecord, NoteTagRecord, Result, Store, TagRecord};
 
-const SYNC_PENDING_SQL: &str =
-    "SELECT id FROM sync_records WHERE edits <> synced AND id > @after ORDER BY id LIMIT @limit";
+const SYNC_PENDING_SQL: &str = "SELECT id, edits FROM sync_records WHERE edits <> synced AND id > @after ORDER BY id LIMIT @limit";
 const SYNC_PENDING_COUNT_SQL: &str = "SELECT COUNT(*) AS n FROM sync_records WHERE edits <> synced";
 const SYNC_ENTRY_SQL: &str =
     "SELECT id, kind, version, fingerprint, body_hlc AS bodyHlc, body_fp AS bodyFp, edits, synced
@@ -37,6 +36,15 @@ const SYNC_FILE_DELETE_SQL: &str = "DELETE FROM files WHERE id = @id";
 const SYNC_NOTE_TAGS_SQL: &str =
     "SELECT note_id AS noteId, tag_id AS tagId, present, hlc FROM note_tags
      WHERE note_id = @id ORDER BY tag_id";
+
+/// A record to look at, with the `edits` it is at: the engine skips one whose body it stamped at
+/// these edits already, without reading the record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncPending {
+    pub id: String,
+    pub edits: i64,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -96,11 +104,14 @@ pub struct SyncLocal {
 pub const SYNC_KINDS: [&str; 4] = ["note", "book", "tag", "file"];
 
 impl Store {
-    pub fn sync_pending(&self, after: &str, limit: u32) -> Result<Vec<String>> {
+    pub fn sync_pending(&self, after: &str, limit: u32) -> Result<Vec<SyncPending>> {
         let mut statement = self.conn.prepare_cached(SYNC_PENDING_SQL)?;
-        let rows = statement
-            .query_map(named_params! { "@after": after, "@limit": limit }, |row| {
-                row.get(0)
+        let rows =
+            statement.query_map(named_params! { "@after": after, "@limit": limit }, |row| {
+                Ok(SyncPending {
+                    id: row.get(0)?,
+                    edits: row.get(1)?,
+                })
             })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
@@ -391,11 +402,21 @@ mod tests {
         }
     }
 
+    /// The pending IDs alone, for assertions about what is pending.
+    fn pending(store: &Store, after: &str, limit: u32) -> Vec<String> {
+        store
+            .sync_pending(after, limit)
+            .unwrap()
+            .into_iter()
+            .map(|p| p.id)
+            .collect()
+    }
+
     #[test]
     fn marks_every_write_pending_until_the_engine_has_looked() {
         let (_dir, mut store) = store();
         store.put_note(&note(), &[]).unwrap();
-        assert_eq!(store.sync_pending("", 10).unwrap(), vec![NOTE.to_string()]);
+        assert_eq!(pending(&store, "", 10), vec![NOTE.to_string()]);
         assert_eq!(store.sync_pending_count().unwrap(), 1);
         let local = store.sync_read(&[NOTE.into()]).unwrap().remove(0);
         let entry = local.entry.unwrap();
@@ -411,7 +432,7 @@ mod tests {
                 ..entry.clone()
             })
             .unwrap();
-        assert!(store.sync_pending("", 10).unwrap().is_empty());
+        assert!(pending(&store, "", 10).is_empty());
         assert_eq!(store.sync_pending_count().unwrap(), 0);
         store
             .put_note_tag(&NoteTagRecord {
@@ -421,7 +442,7 @@ mod tests {
                 hlc: "0001728000000001-0000-mac".into(),
             })
             .unwrap();
-        assert_eq!(store.sync_pending("", 10).unwrap(), vec![NOTE.to_string()]);
+        assert_eq!(pending(&store, "", 10), vec![NOTE.to_string()]);
         let again = store.sync_read(&[NOTE.into()]).unwrap().remove(0);
         assert_eq!(again.entry.as_ref().unwrap().version, 3);
         assert_eq!(again.note.unwrap().tags.len(), 1);
@@ -433,7 +454,7 @@ mod tests {
             .entry
             .unwrap();
         assert_eq!((reset.version, reset.fingerprint.as_str()), (0, ""));
-        assert_eq!(store.sync_pending("", 10).unwrap(), vec![NOTE.to_string()]);
+        assert_eq!(pending(&store, "", 10), vec![NOTE.to_string()]);
     }
 
     #[test]
@@ -521,12 +542,7 @@ mod tests {
         let (_dir, mut store) = store();
         store.put_note(&note(), &[]).unwrap();
         assert!(store.put_file(&attachment(FILE, NOTE)).unwrap());
-        assert!(
-            store
-                .sync_pending("", 10)
-                .unwrap()
-                .contains(&FILE.to_string())
-        );
+        assert!(pending(&store, "", 10).contains(&FILE.to_string()));
         let local = store.sync_read(&[FILE.into()]).unwrap().remove(0);
         assert_eq!(local.entry.as_ref().unwrap().kind, "file");
         assert!(local.note.is_none() && local.book.is_none() && local.tag.is_none());
@@ -552,12 +568,7 @@ mod tests {
         store.put_note(&note(), &[]).unwrap();
         store.put_file(&attachment(FILE, NOTE)).unwrap();
         let seen = looked_at(&mut store, FILE);
-        assert!(
-            !store
-                .sync_pending("", 10)
-                .unwrap()
-                .contains(&FILE.to_string())
-        );
+        assert!(!pending(&store, "", 10).contains(&FILE.to_string()));
         store
             .purge_note(NOTE, 9, "0001728000000009-0000-mac")
             .unwrap();
@@ -566,12 +577,7 @@ mod tests {
         let entry = gone.entry.unwrap();
         assert_eq!((entry.kind.as_str(), entry.version), ("file", 1));
         assert!(entry.edits > seen.edits, "the purge is pending");
-        assert!(
-            store
-                .sync_pending("", 10)
-                .unwrap()
-                .contains(&FILE.to_string())
-        );
+        assert!(pending(&store, "", 10).contains(&FILE.to_string()));
         assert_eq!(store.sync_file_data(FILE).unwrap(), None);
     }
 
@@ -703,11 +709,6 @@ mod tests {
         let file = store.sync_read(&[FILE.into()]).unwrap().remove(0);
         assert_eq!(file.entry.unwrap().kind, "file");
         assert_eq!(file.file.unwrap().note_hlc, "");
-        assert!(
-            store
-                .sync_pending("", 10)
-                .unwrap()
-                .contains(&FILE.to_string())
-        );
+        assert!(pending(&store, "", 10).contains(&FILE.to_string()));
     }
 }

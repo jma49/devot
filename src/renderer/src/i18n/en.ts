@@ -742,6 +742,10 @@ title: Daily Report {{date}}
   'syncSettings.tooLargeOne': '{count} note is too large for the relay and stays on this device.',
   'syncSettings.tooLargeOther':
     '{count} notes are too large for the relay and stay on this device.',
+  'syncSettings.skippedOne':
+    '{count} change from another device could not be read and was skipped. Update Devot to the latest release to bring it in.',
+  'syncSettings.skippedOther':
+    '{count} changes from other devices could not be read and were skipped. Update Devot to the latest release to bring them in.',
   'syncSettings.pausedUntil':
     'Sync paused until {time}: the relay has reached its quota for today.',
   'syncSettings.storageFull':

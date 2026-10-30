@@ -6,6 +6,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import * as Comlink from 'comlink'
 import { MAX_WALL } from '../../core/hlc'
 import type { SyncStatus } from '../../core/sync/engine'
+import type { SyncPending } from '../../core/sync/store'
 import {
   STORAGE_FULL,
   type SyncEvent,
@@ -53,6 +54,8 @@ export interface SyncSnapshot {
     relayOutdated: boolean
     /** Images kept on this device only, and why. */
     unsyncedFiles: { count: number; code: UnsyncedFilesCode } | null
+    /** Records this run could not read or apply: a newer Devot may. */
+    skipped: number
   }
 }
 
@@ -74,6 +77,7 @@ export const SYNC_OFF: SyncSnapshot = {
     upload: null,
     relayOutdated: false,
     unsyncedFiles: null,
+    skipped: 0,
   },
 }
 
@@ -119,6 +123,7 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
   >
   const state = SYNC_STATES.find((name) => name === s['state']) ?? 'off'
   const tooLarge = readCount(s['tooLarge']) ?? 0
+  const skipped = readCount(s['skipped']) ?? 0
   return {
     relayUrl: typeof v['relayUrl'] === 'string' ? v['relayUrl'] : '',
     enabled: v['enabled'] === true,
@@ -133,6 +138,7 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
       upload: readUpload(s['upload']),
       relayOutdated: s['relayOutdated'] === true,
       unsyncedFiles: readUnsyncedFiles(s['unsyncedFiles']),
+      skipped,
     },
   }
 }
@@ -392,7 +398,7 @@ export async function removeDevice(device: string): Promise<SyncDevice[]> {
 }
 
 export const tauriSync: WireSync = {
-  syncPending: (after, limit) => invoke<string[]>('sync_pending', { after, limit }),
+  syncPending: (after, limit) => invoke<SyncPending[]>('sync_pending', { after, limit }),
   syncPendingCount: () => invoke<number>('sync_pending_count'),
   syncRead: (ids) => invoke<WireSyncLocal[]>('sync_read', { ids }),
   syncPut: (entry) => invoke('sync_entry_put', { entry: { ...entry, edits: 0 } }),
@@ -422,6 +428,7 @@ const reported = (status: SyncStatus) => ({
   upload: status.upload,
   relayOutdated: status.relayOutdated,
   unsyncedFiles: status.unsyncedFiles,
+  skipped: status.skipped,
 })
 
 /**

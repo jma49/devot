@@ -324,6 +324,36 @@ test('turns sync off and on, and shows the status Rust reports', async ({ page }
   await expect(panel).toContainText('2 notes are too large for the relay and stay on this device.')
 })
 
+test('says when changes from another device could not be read', async ({ page }) => {
+  await fakeRust(page, {
+    relayUrl: RELAY,
+    enabled: true,
+    enrolled: true,
+    status: { state: 'idle', lastSync: Date.UTC(2026, 9, 23, 12), skipped: 1 },
+  })
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  await expect(panel).toContainText(
+    '1 change from another device could not be read and was skipped. Update Devot',
+  )
+  await sendSnapshot(page, {
+    relayUrl: RELAY,
+    enabled: true,
+    vault: true,
+    enrolled: true,
+    status: { state: 'idle', lastSync: Date.UTC(2026, 9, 23, 12), skipped: 3 },
+  })
+  await expect(panel).toContainText('3 changes from other devices could not be read')
+  await sendSnapshot(page, {
+    relayUrl: RELAY,
+    enabled: true,
+    vault: true,
+    enrolled: true,
+    status: { state: 'idle', lastSync: Date.UTC(2026, 9, 23, 12) },
+  })
+  await expect(panel).not.toContainText('could not be read')
+})
+
 test('the main window says when this device was removed from sync', async ({ page }) => {
   await fakeRust(page, {
     relayUrl: RELAY,

@@ -6,6 +6,8 @@ import { openSqliteAdapter, SYNC_SQL, type SqliteAdapter } from '../support/sqli
 import { tempDir } from '../support/temp-dirs'
 
 const open: SqliteAdapter[] = []
+const pendingIds = async (storage: SqliteAdapter) =>
+  (await storage.syncPending('', 10)).map((row) => row.id)
 afterEach(() => open.splice(0).forEach((a) => a.close()))
 
 function sqlite() {
@@ -20,16 +22,16 @@ it('marks every write of a note, its tags, a notebook or a tag pending until loo
   const notes = createNoteService({ storage, clock, newId: createIdGenerator(), saveDelayMs: 5 })
   const id = await notes.create('One')
   await notes.flush()
-  expect(await storage.syncPending('', 10)).toEqual([id])
+  expect(await pendingIds(storage)).toEqual([id])
   expect(await storage.syncPendingCount()).toBe(1)
   const [row] = await storage.syncRead([id])
   expect(row?.entry).toMatchObject({ kind: 'note', version: 0, synced: 0 })
   await storage.syncPut({ ...row!.entry!, version: 4, fingerprint: 'f', synced: row!.entry!.edits })
-  expect(await storage.syncPending('', 10)).toEqual([])
+  expect(await pendingIds(storage)).toEqual([])
   expect(await storage.syncPendingCount()).toBe(0)
   await notes.setPinned(id, true)
   await notes.flush()
-  expect(await storage.syncPending('', 10)).toEqual([id])
+  expect(await pendingIds(storage)).toEqual([id])
   expect((await storage.syncRead([id]))[0]?.entry?.version).toBe(4)
   await storage.syncReset()
   expect((await storage.syncRead([id]))[0]?.entry).toMatchObject({ version: 0, fingerprint: '' })
@@ -59,6 +61,21 @@ it('purges a note from sync keeping its revisions', async () => {
   const [row] = await storage.syncRead([id])
   expect(row?.note?.purged).toBe(true)
   expect((await storage.listRevisions(id)).map((r) => r.value)).toEqual([MERGE])
+})
+
+it('gives each pending record’s edits, so the engine skips one it stamped already', async () => {
+  const storage = sqlite()
+  const notes = createNoteService({
+    storage,
+    clock: createClock('mac'),
+    newId: createIdGenerator(),
+    saveDelayMs: 5,
+  })
+  const id = await notes.create('One')
+  await notes.flush()
+  const [pending] = await storage.syncPending('', 10)
+  const [row] = await storage.syncRead([id])
+  expect(pending).toEqual({ id, edits: row?.entry?.edits })
 })
 
 it('reads and counts pending records from the partial index', () => {

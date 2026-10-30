@@ -403,6 +403,16 @@ export function SyncSection() {
             )}
           </SettingsNote>
         ) : null}
+        {snapshot.enabled && snapshot.status.skipped > 0 ? (
+          <SettingsNote>
+            {countOf(
+              snapshot.status.skipped,
+              locale,
+              'syncSettings.skippedOne',
+              'syncSettings.skippedOther',
+            )}
+          </SettingsNote>
+        ) : null}
         {snapshot.enrolled ? (
           <>
             <PairingRow
