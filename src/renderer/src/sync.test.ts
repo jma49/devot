@@ -54,6 +54,12 @@ describe('readDevices', () => {
     ])
     expect(readDevices({})).toEqual([])
   })
+
+  it('drops a device whose creation time is no date', () => {
+    for (const created of [9.2e18, Number.MAX_SAFE_INTEGER, -1, 1.5, Number.NaN]) {
+      expect(readDevices([{ id: 'phone', label: 'Devot for iOS', created }])).toEqual([])
+    }
+  })
 })
 
 describe('linkRelay', () => {

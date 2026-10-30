@@ -4,6 +4,7 @@
 // which re-sends it in the page as `devot:sync-changed` (the UI tests send that one).
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import * as Comlink from 'comlink'
+import { MAX_WALL } from '../../core/hlc'
 import type { SyncStatus } from '../../core/sync/engine'
 import type { SyncEvent, Welcome, PushResult } from '../../core/sync/transport'
 import type { Core } from './coreConnect'
@@ -75,6 +76,12 @@ const CODE = /^[EWI]_[A-Z0-9_]+$/
 const readCount = (value: unknown): number | null =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null
 
+/** A time `Date` can format; the engine, the relay and the database are not trusted to stay in range. */
+const readTime = (value: unknown): number | null => {
+  const time = readCount(value)
+  return time !== null && time <= MAX_WALL ? time : null
+}
+
 function readUpload(value: unknown): SyncSnapshot['status']['upload'] {
   if (typeof value !== 'object' || value === null) return null
   const sent = readCount((value as Record<string, unknown>)['sent'])
@@ -105,10 +112,10 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
     enrolled: v['enrolled'] === true,
     status: {
       state,
-      lastSync: readCount(s['lastSync']),
+      lastSync: readTime(s['lastSync']),
       code: typeof s['code'] === 'string' && CODE.test(s['code']) ? s['code'] : null,
       tooLarge,
-      pausedUntil: state === 'paused' ? readCount(s['pausedUntil']) : null,
+      pausedUntil: state === 'paused' ? readTime(s['pausedUntil']) : null,
       upload: readUpload(s['upload']),
       relayOutdated: s['relayOutdated'] === true,
       unsyncedFiles: readUnsyncedFiles(s['unsyncedFiles']),
@@ -345,8 +352,15 @@ export function readDevices(value: unknown): SyncDevice[] {
     const d = item as Record<string, unknown>
     const { id, label, created } = d
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) return []
-    if (typeof label !== 'string' || typeof created !== 'number') return []
-    return [{ id, label: label.slice(0, 256), created, current: d['current'] === true }]
+    if (typeof label !== 'string' || readTime(created) === null) return []
+    return [
+      {
+        id,
+        label: label.slice(0, 256),
+        created: created as number,
+        current: d['current'] === true,
+      },
+    ]
   })
 }
 
