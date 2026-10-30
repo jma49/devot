@@ -1,8 +1,9 @@
+import { connect as tcp } from 'node:net'
 import { expect, it } from 'vitest'
 import { startNodeRelay } from '../../relay/src/node/server'
 import { tempDir } from '../support/temp-dirs'
 import { CLOSE } from '../../src/core/sync/protocol'
-import { bytes, connect, createVault, enrolled } from './client'
+import { bytes, connect, createVault, enrolled, socketProtocols } from './client'
 import { relaySuite } from './suite'
 
 const secret = 'test-relay-secret-0123456789abcdef'
@@ -56,6 +57,41 @@ it('survives a socket that sends a frame over the payload limit', async () => {
   const other = await connect(host, vault.vault, vault.first.token)
   other.socket.send({ type: 'time' })
   await other.socket.expect('time')
+  other.socket.close()
+  await relay.close()
+})
+
+it('survives a client that resets the connection while its upgrade is checked', async () => {
+  const relay = await startNodeRelay({ data: tempDir('devot-relay-reset-'), secret })
+  const host = { ...relay, secret }
+  const vault = await createVault(host)
+  const { port } = new URL(relay.url)
+  const upgrade = [
+    `GET /v1/vaults/${vault.vault}/socket HTTP/1.1`,
+    'Host: relay',
+    'Upgrade: websocket',
+    'Connection: Upgrade',
+    `Sec-WebSocket-Key: ${Buffer.from('0123456789abcdef').toString('base64')}`,
+    'Sec-WebSocket-Version: 13',
+    `Sec-WebSocket-Protocol: ${socketProtocols(vault.first.token).join(', ')}`,
+    '',
+    '',
+  ].join('\r\n')
+  for (let i = 0; i < 200; i++) {
+    await new Promise<void>((resolve) => {
+      const raw = tcp(Number(port), '127.0.0.1', () =>
+        raw.write(upgrade, () => {
+          raw.resetAndDestroy()
+          resolve()
+        }),
+      )
+      raw.on('error', () => resolve())
+    })
+  }
+
+  const other = await connect(host, vault.vault, vault.first.token)
+  other.socket.send({ type: 'time' })
+  expect((await other.socket.expect('time')).message).toMatchObject({ type: 'time' })
   other.socket.close()
   await relay.close()
 })

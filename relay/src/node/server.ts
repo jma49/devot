@@ -105,6 +105,8 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
   })
 
   server.on('upgrade', (req: IncomingMessage, socket, head) => {
+    // Node drops its own socket error listener on upgrade and ws adds one only in handleUpgrade, after the awaits below; a reset in between would end the process.
+    socket.on('error', () => socket.destroy())
     void (async () => {
       const request = toRequest(req, false)
       if (!isSocketPath(new URL(request.url).pathname)) {
