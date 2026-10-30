@@ -8,6 +8,8 @@ pub(crate) trait SecretStore {
     /// Adds a new item; `false` when the account already holds one, which stays as it is. The check
     /// and the add are one step, so concurrent callers (also in other processes) cannot both add.
     fn add(&self, account: &str, secret: &[u8]) -> Result<bool, SyncError>;
+    /// Sets the account's item, updating one that exists in place, so a failure leaves the old item.
+    fn replace(&self, account: &str, secret: &[u8]) -> Result<(), SyncError>;
     /// `false` when there was nothing to remove.
     fn remove(&self, account: &str) -> Result<bool, SyncError>;
 }
@@ -41,6 +43,7 @@ impl Keychain {
 mod apple {
     use security_framework::passwords::{
         PasswordOptions, delete_generic_password_options, generic_password,
+        set_generic_password_options,
     };
     use zeroize::Zeroizing;
 
@@ -92,6 +95,15 @@ mod apple {
             }
         }
 
+        fn replace(&self, account: &str, secret: &[u8]) -> Result<(), SyncError> {
+            match add_item(self, account, secret) {
+                Ok(()) => Ok(()),
+                Err(DUPLICATE) => set_generic_password_options(secret, options(self, account))
+                    .map_err(|error| SyncError::Keychain(error.code())),
+                Err(status) => Err(SyncError::Keychain(status)),
+            }
+        }
+
         fn remove(&self, account: &str) -> Result<bool, SyncError> {
             match delete_generic_password_options(options(self, account)) {
                 Ok(()) => Ok(true),
@@ -109,6 +121,10 @@ impl SecretStore for Keychain {
     }
 
     fn add(&self, _: &str, _: &[u8]) -> Result<bool, SyncError> {
+        Err(SyncError::KeychainUnavailable)
+    }
+
+    fn replace(&self, _: &str, _: &[u8]) -> Result<(), SyncError> {
         Err(SyncError::KeychainUnavailable)
     }
 

@@ -4,7 +4,7 @@ Attachments sync through the relay of ADR 0002, as records of their own: one enc
 
 ## What an attachment is today
 
-- An image (PNG, JPEG, GIF, WebP or AVIF, detected from its bytes), at most 10 MiB, stored as a row of `files` with its bytes.
+- An image (PNG, JPEG, GIF, WebP, AVIF or HEIC, detected from its bytes), at most 10 MiB, stored as a row of `files` with its bytes.
 - It belongs to one note (`files.note_id`), which shows it as `devot://file/<id>`.
 - Its bytes never change. It is created, copied under a new ID (Duplicate, New Note from Selection, templates), passed to another note when its note is purged, or deleted.
 
