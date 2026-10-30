@@ -25,6 +25,7 @@ use tungstenite::{Message, WebSocket};
 use zeroize::Zeroizing;
 
 use super::{MAX_CHUNK_BYTES, Vault, enrollment_verifier};
+use crate::commands::notes::valid_note_id;
 
 pub(crate) const PROTOCOL_VERSION: u64 = 1;
 const SUBPROTOCOL: &str = "devot-relay.1";
@@ -56,6 +57,9 @@ const WRITE_STALLED: Duration = Duration::from_secs(30);
 /// What a request is given on top of `REQUEST_TIMEOUT` per byte of its frame, so a slow uplink can
 /// finish writing before the wait for the answer counts.
 const SLOWEST_UPLOAD_BYTES_PER_SECOND: u64 = 64 * 1024;
+/// Stands for the ID of a pulled record whose ID the relay sent as something else, so relay text
+/// never reaches the log or the web view.
+const UNREADABLE_ID: &str = "00000000-0000-0000-0000-000000000000";
 const MAX_RATE_WAITS: u32 = 10;
 const MAX_RATE_WAIT: Duration = Duration::from_secs(30);
 const USER_AGENT: &str = concat!("devot/", env!("CARGO_PKG_VERSION"));
@@ -978,18 +982,22 @@ pub(crate) fn pull(
             chunks.push(answer.payload.get(at..end).ok_or("E_SYNC_PROTOCOL")?);
             at = end;
         }
-        let plaintext = if kind == "record" || kind == "file" {
-            vault
+        let known = kind == "record" || kind == "file";
+        let (id, plaintext) = if !valid_note_id(id) {
+            (UNREADABLE_ID, Err("E_SYNC_RECORD_ID"))
+        } else if known {
+            let opened = vault
                 .decrypt_record(id, version, &chunks)
-                .map_err(|error| error.code())
+                .map_err(|error| error.code());
+            (id, opened)
         } else {
-            Err("E_SYNC_KIND_UNSUPPORTED")
+            (id, Err("E_SYNC_KIND_UNSUPPORTED"))
         };
         records.push(Pulled {
             id: id.to_string(),
             version,
             seq,
-            kind: kind.to_string(),
+            kind: if known { kind } else { "unknown" }.to_string(),
             plaintext,
         });
     }
@@ -1327,6 +1335,37 @@ mod tests {
         let (connection, _) =
             Connection::open_with(&url, "v", "t", Box::new(|_| {}), limits).unwrap();
         assert!(big_request(&connection).is_ok());
+    }
+
+    #[test]
+    fn a_pulled_record_with_an_id_or_kind_that_is_not_one_comes_back_without_the_relays_text() {
+        let url = fake_relay(|mut socket| {
+            let message = socket.read().unwrap();
+            let rid = decode(message).and_then(|a| a.message.get("rid").cloned());
+            let text = "x".repeat(5 << 20);
+            let answer = json!({
+                "v": PROTOCOL_VERSION, "type": "records", "rid": rid, "next": 1, "more": false,
+                "records": [
+                    { "id": text, "version": 1, "seq": 1, "kind": "record", "chunks": [] },
+                    { "id": "0192f4c8-7a1b-7c3d-8e9f-0123456789ab", "version": 1, "seq": 2, "kind": text, "chunks": [] },
+                ],
+            });
+            socket.send(Message::text(answer.to_string())).unwrap();
+            let _ = socket.read();
+        });
+        let (connection, _) = Connection::open(&url, "v", "t", Box::new(|_| {})).unwrap();
+        let vault = crate::sync::tests::fixed_vault();
+        let page = pull(&connection, &vault, 0).unwrap();
+        let [bad_id, bad_kind] = page.records.as_slice() else {
+            panic!("two records expected");
+        };
+        assert_eq!(bad_id.id, UNREADABLE_ID);
+        assert_eq!(bad_id.plaintext.as_ref().err(), Some(&"E_SYNC_RECORD_ID"));
+        assert_eq!(bad_kind.kind, "unknown");
+        assert_eq!(
+            bad_kind.plaintext.as_ref().err(),
+            Some(&"E_SYNC_KIND_UNSUPPORTED")
+        );
     }
 
     #[test]
