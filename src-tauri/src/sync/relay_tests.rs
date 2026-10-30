@@ -101,6 +101,14 @@ impl SecretStore for Secrets {
         Ok(true)
     }
 
+    fn replace(&self, account: &str, secret: &[u8]) -> Result<(), SyncError> {
+        self.0
+            .lock()
+            .unwrap()
+            .insert(account.into(), secret.to_vec());
+        Ok(())
+    }
+
     fn remove(&self, account: &str) -> Result<bool, SyncError> {
         Ok(self.0.lock().unwrap().remove(account).is_some())
     }

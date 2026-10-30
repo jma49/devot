@@ -105,12 +105,7 @@ impl DeviceCredentials {
 
     pub(crate) fn save(&self, store: &dyn SecretStore) -> Result<(), SyncError> {
         let bytes = Zeroizing::new(serde_json::to_vec(self).map_err(|_| SyncError::VaultCorrupt)?);
-        store.remove(DEVICE_ACCOUNT)?;
-        if store.add(DEVICE_ACCOUNT, &bytes)? {
-            Ok(())
-        } else {
-            Err(SyncError::VaultExists)
-        }
+        store.replace(DEVICE_ACCOUNT, &bytes)
     }
 
     pub(crate) fn forget(store: &dyn SecretStore) -> Result<(), SyncError> {

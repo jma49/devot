@@ -28,6 +28,11 @@ impl SecretStore for MemoryStore {
         Ok(true)
     }
 
+    fn replace(&self, account: &str, secret: &[u8]) -> Result<(), SyncError> {
+        self.0.borrow_mut().insert(account.into(), secret.to_vec());
+        Ok(())
+    }
+
     fn remove(&self, account: &str) -> Result<bool, SyncError> {
         Ok(self.0.borrow_mut().remove(account).is_some())
     }
@@ -41,6 +46,10 @@ impl SecretStore for FailingStore {
     }
 
     fn add(&self, _: &str, _: &[u8]) -> Result<bool, SyncError> {
+        Err(SyncError::Keychain(-25293))
+    }
+
+    fn replace(&self, _: &str, _: &[u8]) -> Result<(), SyncError> {
         Err(SyncError::Keychain(-25293))
     }
 
@@ -460,6 +469,10 @@ impl SecretStore for RacedStore {
         Ok(false)
     }
 
+    fn replace(&self, _: &str, _: &[u8]) -> Result<(), SyncError> {
+        Ok(())
+    }
+
     fn remove(&self, _: &str) -> Result<bool, SyncError> {
         Ok(false)
     }
@@ -624,4 +637,52 @@ fn closing_the_settings_window_ends_the_pairing_on_show() {
     assert!(ends_pairing("settings", &WindowEvent::Destroyed));
     assert!(!ends_pairing("main", &WindowEvent::Destroyed));
     assert!(!ends_pairing("settings", &WindowEvent::Focused(false)));
+}
+
+/// A keychain that refuses every write (locked, or access denied) but still removes and reads.
+struct DenyingWriteStore(MemoryStore);
+
+impl SecretStore for DenyingWriteStore {
+    fn read(&self, account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, SyncError> {
+        self.0.read(account)
+    }
+
+    fn add(&self, _: &str, _: &[u8]) -> Result<bool, SyncError> {
+        Err(SyncError::Keychain(-25293))
+    }
+
+    fn replace(&self, _: &str, _: &[u8]) -> Result<(), SyncError> {
+        Err(SyncError::Keychain(-25293))
+    }
+
+    fn remove(&self, account: &str) -> Result<bool, SyncError> {
+        self.0.remove(account)
+    }
+}
+
+#[test]
+fn saving_the_device_credentials_never_leaves_the_keychain_without_them() {
+    use super::settings::DeviceCredentials;
+    let credentials = |token: &str| DeviceCredentials {
+        relay: "https://relay.example.com".into(),
+        vault: "v".into(),
+        device: "d".into(),
+        token: token.into(),
+    };
+    let memory = MemoryStore::default();
+    credentials("old").save(&memory).unwrap();
+    credentials("new").save(&memory).unwrap();
+    assert_eq!(
+        DeviceCredentials::load(&memory).unwrap().unwrap().token,
+        "new"
+    );
+
+    let store = DenyingWriteStore(MemoryStore::default());
+    store
+        .0
+        .add("device", &serde_json::to_vec(&credentials("kept")).unwrap())
+        .unwrap();
+    let _ = credentials("revoked").save(&store);
+    let kept = DeviceCredentials::load(&store).unwrap();
+    assert_eq!(kept.map(|c| c.token), Some("kept".to_string()));
 }
