@@ -15,6 +15,7 @@
 import * as Y from 'yjs'
 import { agentWriteRows } from '../authorship'
 import { detectImage, MAX_FILE_BYTES, MAX_FILE_NAME_CHARS } from '../files'
+import { isHlcText, MAX_WALL } from '../hlc'
 import { UUID_V7 } from '../ids'
 import { BODY, seedClient } from '../notes'
 import { sha256Hex } from '../sha256'
@@ -148,12 +149,11 @@ function split(record: SyncRecord): { header: object; body: Uint8Array } {
 
 const invalid = () => new Error('E_SYNC_RECORD_INVALID')
 
-const HLC = /^\d{16}-[0-9a-f]{4}-[a-z0-9]{1,32}$/
-const isHlc = (v: unknown): v is string => typeof v === 'string' && HLC.test(v)
+const isHlc = isHlcText
 const isOptionalHlc = (v: unknown): v is string => v === '' || isHlc(v)
 const isId = (v: unknown): v is string => typeof v === 'string' && UUID_V7.test(v)
 const isTime = (v: unknown): v is number =>
-  typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
+  typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 && v <= MAX_WALL
 const isName = (v: unknown): v is string => typeof v === 'string' && v.length <= 4000
 const isNullable = <T>(v: unknown, test: (v: unknown) => v is T): v is T | null =>
   v === null || test(v)

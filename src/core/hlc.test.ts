@@ -72,6 +72,16 @@ describe('hybrid logical clock', () => {
     expect(parseHlc(clock.tick())).toEqual({ wall: 1000, counter: 0, node: 'a' })
   })
 
+  it('refuses a stamp whose wall time does not fit the 16-digit encoding', () => {
+    const huge = '9999999999999999-0000-evil'
+    expect(() => parseHlc(huge)).toThrow('E_HLC_INVALID')
+    const clock = createClock('a', () => 1000)
+    receiveStored(clock, [huge])
+    expect(() => clock.receive(huge)).toThrow('E_HLC_INVALID')
+    expect(clock.tick()).toMatch(/^\d{16}-/)
+    expect(parseHlc(clock.tick()).wall).toBe(1000)
+  })
+
   it('a received timestamp is always followed by a later local one', () => {
     fc.assert(
       fc.property(

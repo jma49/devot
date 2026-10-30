@@ -95,6 +95,22 @@ describe('sync records', () => {
     expect(() => decodeRecord(ID, new Uint8Array([2, 0, 0, 0, 0]))).toThrow('E_SYNC_RECORD_INVALID')
   })
 
+  it('refuse times and stamps beyond what a Date or the HLC encoding can hold', () => {
+    const late = Number.MAX_SAFE_INTEGER
+    expect(() =>
+      decodeRecord(ID, encodeRecord(note({ createdAt: late, updatedAt: late }))),
+    ).toThrow('E_SYNC_RECORD_INVALID')
+    expect(() =>
+      decodeRecord(ID, encodeRecord(note({ deletedAt: late, deletedHlc: hlc(3) }))),
+    ).toThrow('E_SYNC_RECORD_INVALID')
+    expect(() =>
+      decodeRecord(ID, encodeRecord(note({ titleHlc: '9999999999999999-0000-mac' }))),
+    ).toThrow('E_SYNC_RECORD_INVALID')
+    const edge = 8_640_000_000_000_000
+    const kept = note({ createdAt: edge, updatedAt: edge })
+    expect(decodeRecord(ID, encodeRecord(kept))).toEqual(kept)
+  })
+
   it('fingerprint the content, not the bytes of the Yjs state', () => {
     const a = textDoc('Hello\n')
     const copy = new Y.Doc()
