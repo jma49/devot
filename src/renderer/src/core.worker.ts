@@ -367,10 +367,12 @@ export const coreApi = {
     transport: WireTransport,
     onStatus: (status: SyncStatus) => void,
     onApplied: () => void,
+    build?: string,
   ) {
     if (sync || !syncParts) return
     sync = createSyncEngine({
       ...syncParts,
+      ...(build ? { build } : {}),
       sync: fromWireSync(store),
       transport: fromWireTransport(transport),
       onStatus: (status) => void Promise.resolve(onStatus(status)).catch(() => undefined),

@@ -147,6 +147,10 @@ const publish = (next: SyncSnapshot | undefined) => {
 
 let started = false
 
+/** This build's version, so records an older one could not read are pulled again; none outside the app. */
+const appBuild = (): Promise<string | undefined> =>
+  import('@tauri-apps/api/app').then(({ getVersion }) => getVersion()).catch(() => undefined)
+
 /** Reads the snapshot and follows Rust's changes; once per window. */
 export function startSyncStatus(): void {
   if (started) return
@@ -457,6 +461,7 @@ export function runSync(core: Core): () => void {
           Comlink.proxy(report),
           // Another device changed notes here: merged and reloaded as another process's writes.
           Comlink.proxy(() => window.dispatchEvent(new CustomEvent(DB_CHANGED))),
+          await appBuild(),
         )
       })
       .catch(() => console.warn('W_SYNC_START_FAILED'))

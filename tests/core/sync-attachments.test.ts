@@ -574,7 +574,7 @@ describe('the attachment share', () => {
     await a.engine.idle()
     expect(a.engine.status()).toMatchObject({
       state: 'paused',
-      code: 'E_SYNC_QUOTA',
+      code: 'E_SYNC_STORAGE_FULL',
       unsyncedFiles: { count: 1, code: 'E_SYNC_ATTACHMENTS_FULL' },
     })
     await b.sync()

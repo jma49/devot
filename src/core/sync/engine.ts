@@ -70,6 +70,8 @@ const MAX_SHOWN_FILES = 500
 const WRITE_TRIES = 5
 /** The size of the upload under way, in `sync_state`, so its progress survives a restart; '0' when none. */
 const UPLOAD_TOTAL = 'uploadTotal'
+/** The build that skipped a record it could not read, in `sync_state`; a different build pulls everything again. */
+const SKIPPED_BY = 'skippedBy'
 
 export type SyncState = 'off' | 'connecting' | 'syncing' | 'idle' | 'offline' | 'paused' | 'stopped'
 
@@ -131,6 +133,8 @@ export interface SyncEngineOptions {
   retryBaseMs?: number
   quotaJitterMs?: number
   uploadShownFrom?: number
+  /** Names this build (its version). A record it could not read is pulled again once the build changes. */
+  build?: string
   onStatus?: (status: SyncStatus) => void
   /** Records another device changed here, after each page they came in. */
   onApplied?: (ids: string[]) => void
@@ -318,6 +322,10 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   const tooLarge = new Map<string, string>()
   /** Past the retry cap: left until the next `changed`. */
   const parked = new Set<string>()
+  /** A `changed` event waits for a pass that has not started; it covers any that come before it does. */
+  let passQueued = false
+  /** A record this build could not read came in during the current pull. */
+  let unreadable = false
   const pushTimes = new Map<string, number[]>()
   /** Attachment ID to why it stays local: the relay refused it (or cannot hold it), or it would be refused as a larger one was. */
   const unsynced = new Map<string, { print: string; code: string }>()
@@ -452,8 +460,19 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   }
 
   async function pullAll() {
-    let since = Number((await sync.syncState())['since'] ?? '0') || 0
+    const state = await sync.syncState()
+    let since = Number(state['since'] ?? '0') || 0
+    let skippedBy = state[SKIPPED_BY] ?? ''
+    const build = options.build
+    // A newer build may read what the one that skipped it could not.
+    if (build && skippedBy !== '' && skippedBy !== build) {
+      since = 0
+      skippedBy = ''
+      await sync.syncSetState('since', '0')
+      await sync.syncSetState(SKIPPED_BY, '')
+    }
     for (;;) {
+      unreadable = false
       const page = await transport.pull(since)
       const applied: string[] = []
       try {
@@ -462,6 +481,10 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         }
       } finally {
         if (applied.length > 0) options.onApplied?.(applied)
+      }
+      if (unreadable && build && skippedBy !== build) {
+        skippedBy = build
+        await sync.syncSetState(SKIPPED_BY, build)
       }
       const advanced = page.next > since
       since = Math.max(since, page.next)
@@ -482,22 +505,20 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   }
 
   async function applyPulled(pulled: PulledRecord): Promise<boolean> {
-    if (pulled.kind !== 'record' && pulled.kind !== 'file') return false
-    if (!pulled.plaintext) {
-      console.warn('W_SYNC_RECORD_SKIPPED', pulled.id, pulled.error ?? 'E_SYNC_RECORD_EMPTY')
+    const skip = (code: string) => {
+      console.warn('W_SYNC_RECORD_SKIPPED', pulled.id, code)
+      unreadable = true
       return false
     }
+    if (pulled.kind !== 'record' && pulled.kind !== 'file') return false
+    if (!pulled.plaintext) return skip(pulled.error ?? 'E_SYNC_RECORD_EMPTY')
     let remote: SyncRecord
     try {
       remote = decodeRecord(pulled.id, pulled.plaintext)
     } catch (error) {
-      console.warn('W_SYNC_RECORD_SKIPPED', pulled.id, errorCode(error))
-      return false
+      return skip(errorCode(error))
     }
-    if ((remote.kind === 'file') !== (pulled.kind === 'file')) {
-      console.warn('W_SYNC_RECORD_SKIPPED', pulled.id, 'E_SYNC_RECORD_KIND')
-      return false
-    }
+    if ((remote.kind === 'file') !== (pulled.kind === 'file')) return skip('E_SYNC_RECORD_KIND')
     receiveStored(clock, stampsOf(remote))
     for (let tries = 1; ; tries += 1) {
       const [local] = await sync.syncRead([pulled.id])
@@ -509,8 +530,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         if (code === 'E_NOTE_BODY_STALE' && tries < WRITE_TRIES) continue
         // Still racing local writes: stop before `since` passes the record, so it is pulled again.
         if (code === 'E_NOTE_BODY_STALE' || storageFailure(code)) throw error
-        console.warn('W_SYNC_RECORD_SKIPPED', pulled.id, code)
-        return false
+        return skip(code)
       }
     }
   }
@@ -839,6 +859,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       reconnectTimer = undefined
       pushTimer = undefined
       firstTouch = undefined
+      passQueued = false
       await transport.close().catch(() => undefined)
       await queue
       unsynced.clear()
@@ -867,7 +888,12 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       if (event.type === 'changed') {
         if (!connected) return
         parked.clear()
-        void enqueue(syncAll).catch(() => undefined)
+        if (passQueued) return
+        passQueued = true
+        void enqueue(() => {
+          passQueued = false
+          return syncAll()
+        }).catch(() => undefined)
         return
       }
       if (!connected) return

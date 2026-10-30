@@ -524,6 +524,76 @@ describe('sync between two devices', () => {
   })
 })
 
+describe('what the relay announces and what this build cannot read', () => {
+  it('answers a burst of change events with one pass, not one pass each', async () => {
+    const { a, b } = await pair()
+    await b.notes.create('Burst')
+    await b.sync()
+    const pull = a.transport.pull.bind(a.transport)
+    let pulls = 0
+    a.transport.pull = async (since) => {
+      pulls += 1
+      return pull(since)
+    }
+    for (let seq = 1; seq <= 50; seq += 1) a.engine.received({ type: 'changed', seq })
+    await a.engine.idle()
+    // One pass for the burst, one more at most for an event that came while it ran.
+    expect(pulls).toBeLessThanOrEqual(2)
+    expect((await a.storage.listNotes()).map((n) => n.title)).toContain('Burst')
+  })
+
+  it('pulls a record again after an update, when this build could not read it', async () => {
+    const cfg = { build: '1.0.0' }
+    const { a, b } = await pair({ a: { engine: cfg } })
+    const id = await b.notes.create('From the future')
+    await b.sync()
+    const pull = a.transport.pull.bind(a.transport)
+    const sinces: number[] = []
+    let unreadable = true
+    a.transport.pull = async (since) => {
+      sinces.push(since)
+      const page = await pull(since)
+      if (!unreadable) return page
+      const records = page.records.map(({ plaintext: _gone, ...rest }) => ({
+        ...rest,
+        error: 'E_SYNC_RECORD_INVALID',
+      }))
+      return { ...page, records }
+    }
+    await a.sync()
+    expect(await a.note(id)).toBeNull()
+    unreadable = false
+    await a.sync()
+    expect(await a.note(id)).toBeNull()
+    // The same build does not pull everything again on a restart.
+    sinces.length = 0
+    await a.restart()
+    expect(sinces.every((since) => since > 0)).toBe(true)
+    cfg.build = '1.1.0'
+    await a.restart()
+    expect(sinces).toContain(0)
+    await a.sync()
+    expect((await a.note(id))?.title).toBe('From the future')
+  })
+
+  it('does not pull everything again after an update when nothing was skipped', async () => {
+    const cfg = { build: '1.0.0' }
+    const { a, b } = await pair({ a: { engine: cfg } })
+    await b.notes.create('Fine')
+    await b.sync()
+    await a.sync()
+    const pull = a.transport.pull.bind(a.transport)
+    const sinces: number[] = []
+    a.transport.pull = async (since) => {
+      sinces.push(since)
+      return pull(since)
+    }
+    cfg.build = '1.1.0'
+    await a.restart()
+    expect(sinces.every((since) => since > 0)).toBe(true)
+  })
+})
+
 describe('the relay’s quota cap', () => {
   /** A relay with these caps, on a clock the test moves; while `jump` is on, a pause lets the clock run to the reset. */
   async function cappedPair(start: number, caps: { rowsWritten?: number; storedBytes?: number }) {
