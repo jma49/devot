@@ -5,8 +5,8 @@
 
 use std::collections::HashMap;
 use std::io::{ErrorKind, Read};
-use std::net::{TcpStream, ToSocketAddrs};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::net::{Shutdown, TcpStream, ToSocketAddrs};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -54,6 +54,8 @@ const SILENT_FOR: Duration = Duration::from_secs(120);
 /// A write that moves no bytes for this long means the connection is gone (the limit is per write
 /// call, so a slow link that makes progress is not cut off).
 const WRITE_STALLED: Duration = Duration::from_secs(30);
+/// How long `close` waits for the socket thread to say goodbye before it cuts the stream.
+const CLOSE_GRACE: Duration = Duration::from_secs(2);
 /// What a request is given on top of `REQUEST_TIMEOUT` per byte of its frame, so a slow uplink can
 /// finish writing before the wait for the answer counts.
 const SLOWEST_UPLOAD_BYTES_PER_SECOND: u64 = 64 * 1024;
@@ -507,7 +509,7 @@ fn open_socket(
     vault: &str,
     token: &str,
     write_stalled: Duration,
-) -> Result<Socket, &'static str> {
+) -> Result<(Socket, TcpStream), &'static str> {
     let url = Url::parse(&relay.socket(vault)).map_err(|_| "E_SYNC_RELAY_URL_INVALID")?;
     let host = url.host_str().ok_or("E_SYNC_RELAY_URL_INVALID")?;
     let port = url
@@ -527,6 +529,7 @@ fn open_socket(
     stream
         .set_write_timeout(Some(write_stalled))
         .map_err(|_| "E_SYNC_OFFLINE")?;
+    let handle = stream.try_clone().map_err(|_| "E_SYNC_OFFLINE")?;
     let mut request = url
         .as_str()
         .into_client_request()
@@ -543,7 +546,7 @@ fn open_socket(
         .max_message_size(Some(MAX_MESSAGE_BYTES + 2 * 1024 * 1024))
         .max_frame_size(Some(MAX_MESSAGE_BYTES + 2 * 1024 * 1024));
     match tungstenite::client_tls_with_config(request, stream, Some(config), None) {
-        Ok((socket, _)) => Ok(socket),
+        Ok((socket, _)) => Ok((socket, handle)),
         Err(tungstenite::HandshakeError::Failure(tungstenite::Error::Http(response)))
             if response.status().as_u16() == 401 =>
         {
@@ -632,6 +635,8 @@ pub(crate) struct Connection {
     waiters: Waiters,
     next_rid: AtomicU64,
     thread: Mutex<Option<JoinHandle<()>>>,
+    stream: TcpStream,
+    closing: Arc<AtomicBool>,
 }
 
 impl std::fmt::Debug for Connection {
@@ -658,12 +663,14 @@ impl Connection {
         on_event: Box<dyn Fn(Event) + Send>,
         limits: Limits,
     ) -> Result<(Self, Welcome), &'static str> {
-        let mut socket = open_socket(relay, vault, token, limits.write_stalled)?;
+        let (mut socket, stream) = open_socket(relay, vault, token, limits.write_stalled)?;
         let welcome = read_welcome(&mut socket)?;
         set_read_timeout(&socket, POLL);
         let (outgoing, incoming) = mpsc::channel();
         let waiters: Waiters = Arc::default();
         let thread_waiters = Arc::clone(&waiters);
+        let closing = Arc::new(AtomicBool::new(false));
+        let thread_closing = Arc::clone(&closing);
         let thread = std::thread::Builder::new()
             .name("sync-socket".into())
             .spawn(move || {
@@ -673,6 +680,7 @@ impl Connection {
                     &thread_waiters,
                     on_event.as_ref(),
                     limits.silent_for,
+                    &thread_closing,
                 );
             })
             .map_err(|_| "E_SYNC_INTERNAL")?;
@@ -682,6 +690,8 @@ impl Connection {
                 waiters,
                 next_rid: AtomicU64::new(1),
                 thread: Mutex::new(Some(thread)),
+                stream,
+                closing,
             },
             welcome,
         ))
@@ -761,6 +771,14 @@ impl Connection {
         let _ = self.outgoing.send(Outgoing::Close);
         let thread = self.thread.lock().ok().and_then(|mut t| t.take());
         if let Some(thread) = thread {
+            let grace = Instant::now() + CLOSE_GRACE;
+            while !thread.is_finished() && Instant::now() < grace {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            self.closing.store(true, Ordering::Relaxed);
+            // The write timeout is per call, so a relay taking a few bytes at a time could hold the
+            // thread in `send` for hours; shutting the stream makes that write fail.
+            let _ = self.stream.shutdown(Shutdown::Both);
             let _ = thread.join();
         }
     }
@@ -778,6 +796,7 @@ fn run(
     waiters: &Waiters,
     on_event: &dyn Fn(Event),
     silent_for: Duration,
+    closing: &AtomicBool,
 ) {
     let mut last_ping = Instant::now();
     let mut last_heard = Instant::now();
@@ -830,7 +849,9 @@ fn run(
         }
     };
     fail_all(waiters, reason);
-    on_event(Event::Closed(reason));
+    if !closing.load(Ordering::Relaxed) {
+        on_event(Event::Closed(reason));
+    }
 }
 
 fn dispatch(answer: Answer, waiters: &Waiters, on_event: &dyn Fn(Event)) {
@@ -1312,6 +1333,35 @@ mod tests {
             finished.recv_timeout(Duration::from_secs(20)),
             Ok(Err("E_SYNC_OFFLINE"))
         );
+        let (closed, joined) = mpsc::channel();
+        let closer = Arc::clone(&connection);
+        std::thread::spawn(move || {
+            closer.close();
+            let _ = closed.send(());
+        });
+        assert!(joined.recv_timeout(Duration::from_secs(5)).is_ok());
+        drop(release);
+    }
+
+    #[test]
+    fn close_does_not_wait_for_a_relay_that_takes_a_frame_a_few_bytes_at_a_time() {
+        let (release, held) = mpsc::channel::<()>();
+        let url = fake_relay(move |socket| {
+            let _ = held.recv();
+            drop(socket);
+        });
+        let limits = Limits {
+            write_stalled: Duration::from_secs(120),
+            silent_for: SILENT_FOR,
+        };
+        let (connection, _) =
+            Connection::open_with(&url, "v", "t", Box::new(|_| {}), limits).unwrap();
+        let connection = Arc::new(connection);
+        let requester = Arc::clone(&connection);
+        std::thread::spawn(move || {
+            let _ = big_request(&requester);
+        });
+        std::thread::sleep(Duration::from_millis(1500));
         let (closed, joined) = mpsc::channel();
         let closer = Arc::clone(&connection);
         std::thread::spawn(move || {
