@@ -77,6 +77,11 @@ export function createClock(node: string, now: () => number = Date.now): Clock {
       wall += 1
       counter = 0
     }
+    // Past the last wall time a stamp is refused by every peer, so the clock stops at the last stamp that is valid.
+    if (wall > MAX_WALL) {
+      wall = MAX_WALL
+      counter = MAX_COUNTER
+    }
     return formatHlc({ wall, counter, node })
   }
 

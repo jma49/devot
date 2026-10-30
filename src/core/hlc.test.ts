@@ -1,6 +1,15 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { compareHlc, createClock, formatHlc, newNodeId, parseHlc, receiveStored } from './hlc'
+import {
+  compareHlc,
+  createClock,
+  formatHlc,
+  isHlcText,
+  MAX_WALL,
+  newNodeId,
+  parseHlc,
+  receiveStored,
+} from './hlc'
 
 describe('hybrid logical clock', () => {
   it('formats and parses round-trip', () => {
@@ -80,6 +89,22 @@ describe('hybrid logical clock', () => {
     expect(() => clock.receive(huge)).toThrow('E_HLC_INVALID')
     expect(clock.tick()).toMatch(/^\d{16}-/)
     expect(parseHlc(clock.tick()).wall).toBe(1000)
+  })
+
+  it('keeps every stamp valid when a remote stamp sits at the last wall time and counter', () => {
+    const last = formatHlc({ wall: MAX_WALL, counter: 0xffff, node: 'evil' })
+    const clock = createClock('a', () => 1000)
+    receiveStored(clock, [last])
+    for (const stamp of [clock.tick(), clock.tick(), clock.receive(last)]) {
+      expect(isHlcText(stamp)).toBe(true)
+      expect(parseHlc(stamp).wall).toBe(MAX_WALL)
+    }
+  })
+
+  it('carries a counter overflow below the last wall time into the wall', () => {
+    const clock = createClock('a', () => 1000)
+    clock.receive(formatHlc({ wall: MAX_WALL - 1, counter: 0xffff, node: 'b' }))
+    expect(parseHlc(clock.tick())).toEqual({ wall: MAX_WALL, counter: 1, node: 'a' })
   })
 
   it('a received timestamp is always followed by a later local one', () => {
