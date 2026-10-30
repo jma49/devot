@@ -20,6 +20,8 @@ import {
 import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
 import { DevicesRow, JoinRows, PairingRow, RecoveryKeyPanel } from './SyncDevices'
 
+const SAY_AFTER_MS = 50
+
 const STATES: Readonly<Record<SyncStateName, MessageKey>> = {
   off: 'syncSettings.state.off',
   connecting: 'syncSettings.state.connecting',
@@ -92,7 +94,7 @@ const WHY: Readonly<Record<string, MessageKey>> = {
  * Settings > Sync: the relay's URL, joining with a pairing code or the recovery key, or on the
  * first device only creating the vault with the relay's secret (asked once and never kept), the
  * recovery key until it is saved, showing a pairing code, the vault's devices, sync on or off and
- * its status. Attachments come with issue 327.
+ * its status.
  */
 export function SyncSection() {
   const ids = useId()
@@ -101,7 +103,7 @@ export function SyncSection() {
   const pauseOver = usePauseOver(snapshot.status.pausedUntil)
   const [url, setUrl] = useState<string>()
   const [secret, setSecret] = useState('')
-  const [error, setError] = useState<{ message: MessageKey; code: string }>()
+  const [error, setError] = useState<{ message: MessageKey; code: string; n: number }>()
   const [creating, setCreating] = useState(false)
   const [announcement, setAnnouncement] = useState('')
   const [recoveryKey, setRecoveryKey] = useState<string>()
@@ -110,6 +112,8 @@ export function SyncSection() {
   const [backedOut, setBackedOut] = useState(0)
   const [focusPairing, setFocusPairing] = useState(0)
   const [devicesVersion, setDevicesVersion] = useState(0)
+  const failures = useRef(0)
+  const said = useRef<ReturnType<typeof setTimeout>>(undefined)
   const alert = useRef<HTMLParagraphElement>(null)
   const secretInput = useRef<HTMLInputElement>(null)
   const newVaultButton = useRef<HTMLButtonElement>(null)
@@ -123,17 +127,29 @@ export function SyncSection() {
   const locked = !licenceEntitlements.has('sync')
 
   const shownUrl = url ?? snapshot.relayUrl
+  // A live region speaks only when its text changes, so it is emptied first to say the same
+  // words again.
+  const say = useCallback((text: string) => {
+    clearTimeout(said.current)
+    setAnnouncement('')
+    if (text) said.current = setTimeout(() => setAnnouncement(text), SAY_AFTER_MS)
+  }, [])
+  useEffect(() => () => clearTimeout(said.current), [])
   const failed = useCallback(
     (message: MessageKey) => (e: unknown) => {
-      setAnnouncement('')
-      setError({ message, code: errorCode(e) })
+      say('')
+      failures.current += 1
+      setError({ message, code: errorCode(e), n: failures.current })
     },
-    [],
+    [say],
   )
-  const announce = useCallback((text: string) => {
-    setError(undefined)
-    setAnnouncement(text)
-  }, [])
+  const announce = useCallback(
+    (text: string) => {
+      setError(undefined)
+      say(text)
+    },
+    [say],
+  )
   const devicesChanged = useCallback(() => setDevicesVersion((v) => v + 1), [])
   const joined = useCallback(() => {
     announce(t('syncSettings.joined'))
@@ -204,7 +220,7 @@ export function SyncSection() {
           setRecoveryKey(created.recoveryKey)
           setKeyFocus(true)
         }
-        setAnnouncement(t('syncSettings.vaultReady'))
+        say(t('syncSettings.vaultReady'))
       }, failed('syncSettings.vaultFailed'))
       .finally(() => setCreating(false))
   }
@@ -213,6 +229,11 @@ export function SyncSection() {
   // A device that holds no vault joins one; making a new vault there is a separate, first-device step.
   const asksSecret = needsVault && (snapshot.vault || firstDevice)
   const why = error ? WHY[error.code] : undefined
+  const secretHint: MessageKey = !snapshot.vault
+    ? 'syncSettings.secretHint'
+    : snapshot.status.code === 'E_SYNC_REVOKED'
+      ? 'syncSettings.secretRevokedHint'
+      : 'syncSettings.secretAgainHint'
 
   return (
     <section className="settings-section" aria-labelledby="sync-title">
@@ -220,7 +241,7 @@ export function SyncSection() {
         {t('syncSettings.title')}
       </h2>
       {error ? (
-        <p ref={alert} role="alert" className="settings-error">
+        <p key={error.n} ref={alert} role="alert" className="settings-error">
           {format(t(error.message), { code: error.code })}
           {why ? ` ${t(why)}` : null}
         </p>
@@ -282,9 +303,7 @@ export function SyncSection() {
         {asksSecret ? (
           <Setting
             label="syncSettings.secret"
-            description={t(
-              snapshot.vault ? 'syncSettings.secretAgainHint' : 'syncSettings.secretHint',
-            )}
+            description={t(secretHint)}
             htmlFor={id('secret')}
             descriptionId={id('secret-hint')}
           >
@@ -393,8 +412,7 @@ export function SyncSection() {
               onAnnounce={announce}
               failed={failed}
             />
-            {/* Read again when a device joins or may have enrolled. */}
-            <DevicesRow key={devicesVersion} onAnnounce={announce} failed={failed} />
+            <DevicesRow refresh={devicesVersion} onAnnounce={announce} failed={failed} />
           </>
         ) : null}
       </SettingsSection>

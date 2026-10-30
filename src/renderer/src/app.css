@@ -4953,6 +4953,9 @@ button.popup:focus-visible {
 
 .recovery-key {
   align-self: stretch;
+}
+
+.recovery-key pre {
   margin: 0;
 }
 

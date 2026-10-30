@@ -711,7 +711,7 @@ title: Daily Report {{date}}
   'mirror.keptMore': '{count} more',
   'syncSettings.title': 'Sync',
   'syncSettings.detail':
-    'Sync keeps your notes, notebooks and tags the same on your devices, through a relay you run yourself. Everything is encrypted on this device before it leaves: the relay never sees a title or a note.',
+    'Sync keeps your notes, notebooks, tags and images the same on your devices, through a relay you run yourself. Everything is encrypted on this device before it leaves: the relay never sees a title or a note.',
   'syncSettings.relay': 'Relay',
   'syncSettings.relayHint': 'The address of your relay, as its deploy printed it.',
   'syncSettings.relayPlaceholder': 'https://',
@@ -720,6 +720,8 @@ title: Daily Report {{date}}
     'The relay’s own secret (RELAY_SECRET), asked once to create your vault there. It is not kept on this device.',
   'syncSettings.secretAgainHint':
     'This device holds a vault the relay does not know. Enter the relay’s secret once to create it there; it is not kept.',
+  'syncSettings.secretRevokedHint':
+    'This device was removed from the vault. Enter the relay’s secret once to sign it back in; it is not kept.',
   'syncSettings.createVault': 'Create Vault',
   'syncSettings.connect': 'Connect',
   'syncSettings.vaultReady': 'The vault is ready and sync is on.',
@@ -810,12 +812,13 @@ title: Daily Report {{date}}
   'syncSettings.thisDevice': 'This Device',
   'syncSettings.deviceRemove': 'Remove…',
   'syncSettings.deviceRemoveLabel': 'Remove {name}, added {date}',
-  'syncSettings.deviceRemoveConfirm': 'Remove this device from sync?',
+  'syncSettings.deviceRemoveConfirm': 'Remove {name}, added {date}, from sync?',
   'syncSettings.deviceRemoveDetail':
     'Sync stops there and its notes stay. The device still holds this vault’s key, so whoever has it can join again; Devot cannot change the key yet.',
   'syncSettings.deviceRemoveButton': 'Remove',
   'syncSettings.deviceRemoved': 'The device was removed from sync.',
   'syncSettings.devicesFailed': 'The devices could not be listed ({code}).',
+  'syncSettings.devicesRetry': 'Try Again',
   'syncSettings.removeFailed': 'The device could not be removed ({code}).',
   'syncSettings.why.outdated':
     'Your relay is from before pairing: update it (docs/sync-relay.md, Update the relay). The recovery key works with it meanwhile.',
