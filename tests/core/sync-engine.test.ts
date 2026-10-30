@@ -191,6 +191,20 @@ describe('sync between two devices', () => {
     expect(a.engine.status().lastSync).toEqual(expect.any(Number))
   })
 
+  it('stamps the last sync when a pass only pushes', async () => {
+    const clock = { now: Date.now() }
+    const { a } = await pair({ a: { now: () => clock.now } })
+    await a.sync()
+    const first = a.engine.status().lastSync
+    clock.now += 3_600_000
+    await a.notes.create('Typed while the others sleep')
+    await a.notes.flush()
+    a.engine.touch()
+    await vi.waitFor(() => expect(a.engine.status().lastSync).toBe(clock.now))
+    expect(first).not.toBe(clock.now)
+    expect((await a.storage.syncState())['lastSync']).toBe(String(clock.now))
+  })
+
   it('pushes a record only when it changed', async () => {
     const { a, b } = await pair()
     const id = await a.notes.create('Once')
@@ -494,6 +508,41 @@ describe('sync between two devices', () => {
     void small
   })
 
+  it('does not announce an upload for records the relay refused as too large', async () => {
+    const { a, b } = await pair({
+      a: { transport: { chunkBytes: 64 }, engine: { uploadShownFrom: 5 } },
+    })
+    for (let i = 0; i < 6; i++) {
+      const id = await a.notes.create(`Long ${i}`)
+      await a.notes.setBody(id, 'x'.repeat(2000))
+    }
+    await settle(a, b)
+    expect(a.engine.status().tooLarge).toHaveLength(6)
+    a.statuses.length = 0
+    await a.engine.syncNow()
+    await a.engine.idle()
+    expect(a.statuses.filter((s) => s.upload !== null)).toEqual([])
+    expect((await a.storage.syncState())['uploadTotal'] ?? '0').toBe('0')
+  })
+
+  it('clears the too-large notice when the relay has a new vault epoch', async () => {
+    const { vault, a } = await pair({ a: { transport: { chunkBytes: 64 } } })
+    const big = await a.notes.create('Long')
+    await a.notes.setBody(big, 'x'.repeat(2000))
+    await a.sync()
+    expect(a.engine.status().tooLarge).toEqual([big])
+    const fresh = await startRelay()
+    const again = await postCreate(fresh.host, vault)
+    a.credentials.relay = fresh
+    a.credentials.token = again.token
+    await a.engine.stop()
+    await a.notes.setBody(big, 'short\n')
+    await a.notes.flush()
+    a.engine.start()
+    await a.engine.idle()
+    expect(a.engine.status().tooLarge).toEqual([])
+  })
+
   it('takes the other device’s copy of a first-launch note nobody edited', async () => {
     const welcome = (body: string): WelcomeContent => ({
       bookName: 'Getting started',
@@ -521,6 +570,76 @@ describe('sync between two devices', () => {
     // Nobody wrote the welcome that gave way: there is no text of the user's to keep.
     const kept = await b.storage.listRevisions('00000000-0000-7000-8000-0000000000c1')
     expect(kept.filter((r) => r.value === MERGE)).toEqual([])
+  })
+})
+
+describe('what the relay announces and what this build cannot read', () => {
+  it('answers a burst of change events with one pass, not one pass each', async () => {
+    const { a, b } = await pair()
+    await b.notes.create('Burst')
+    await b.sync()
+    const pull = a.transport.pull.bind(a.transport)
+    let pulls = 0
+    a.transport.pull = async (since) => {
+      pulls += 1
+      return pull(since)
+    }
+    for (let seq = 1; seq <= 50; seq += 1) a.engine.received({ type: 'changed', seq })
+    await a.engine.idle()
+    // One pass for the burst, one more at most for an event that came while it ran.
+    expect(pulls).toBeLessThanOrEqual(2)
+    expect((await a.storage.listNotes()).map((n) => n.title)).toContain('Burst')
+  })
+
+  it('pulls a record again after an update, when this build could not read it', async () => {
+    const cfg = { build: '1.0.0' }
+    const { a, b } = await pair({ a: { engine: cfg } })
+    const id = await b.notes.create('From the future')
+    await b.sync()
+    const pull = a.transport.pull.bind(a.transport)
+    const sinces: number[] = []
+    let unreadable = true
+    a.transport.pull = async (since) => {
+      sinces.push(since)
+      const page = await pull(since)
+      if (!unreadable) return page
+      const records = page.records.map(({ plaintext: _gone, ...rest }) => ({
+        ...rest,
+        error: 'E_SYNC_RECORD_INVALID',
+      }))
+      return { ...page, records }
+    }
+    await a.sync()
+    expect(await a.note(id)).toBeNull()
+    unreadable = false
+    await a.sync()
+    expect(await a.note(id)).toBeNull()
+    // The same build does not pull everything again on a restart.
+    sinces.length = 0
+    await a.restart()
+    expect(sinces.every((since) => since > 0)).toBe(true)
+    cfg.build = '1.1.0'
+    await a.restart()
+    expect(sinces).toContain(0)
+    await a.sync()
+    expect((await a.note(id))?.title).toBe('From the future')
+  })
+
+  it('does not pull everything again after an update when nothing was skipped', async () => {
+    const cfg = { build: '1.0.0' }
+    const { a, b } = await pair({ a: { engine: cfg } })
+    await b.notes.create('Fine')
+    await b.sync()
+    await a.sync()
+    const pull = a.transport.pull.bind(a.transport)
+    const sinces: number[] = []
+    a.transport.pull = async (since) => {
+      sinces.push(since)
+      return pull(since)
+    }
+    cfg.build = '1.1.0'
+    await a.restart()
+    expect(sinces.every((since) => since > 0)).toBe(true)
   })
 })
 
@@ -633,9 +752,10 @@ describe('the relay’s quota cap', () => {
     await a.notes.purge(purged)
     await a.sync()
     await a.engine.idle()
+    // Not the daily quota: the reset frees no storage, so the status names its own cause.
     expect(a.engine.status()).toMatchObject({
       state: 'paused',
-      code: 'E_SYNC_QUOTA',
+      code: 'E_SYNC_STORAGE_FULL',
       pausedUntil: midnight,
     })
     await b.sync()

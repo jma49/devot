@@ -4,6 +4,9 @@
 
 import type { QuotaLimit, RecordKind } from './protocol'
 
+/** The status code of a pause by the relay's stored-bytes cap, which the 00:00 UTC reset does not lift: only deleting or purging does. */
+export const STORAGE_FULL = 'E_SYNC_STORAGE_FULL'
+
 export interface Welcome {
   /** The relay's clock, in milliseconds. */
   time: number

@@ -2836,6 +2836,7 @@ button {
 
 .confirm-message {
   margin: 0 0 var(--space-2);
+  overflow-wrap: anywhere;
   font-weight: var(--font-weight-semibold);
 }
 
@@ -4953,6 +4954,9 @@ button.popup:focus-visible {
 
 .recovery-key {
   align-self: stretch;
+}
+
+.recovery-key pre {
   margin: 0;
 }
 

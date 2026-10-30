@@ -9,6 +9,8 @@ export interface Hlc {
 }
 
 const MAX_COUNTER = 0xffff
+/** The latest instant a `Date` holds. A larger wall time would also outgrow the 16-digit encoding and break the ordering of stamps. */
+export const MAX_WALL = 8_640_000_000_000_000
 const NODE = /^[a-z0-9]{1,32}$/
 const HLC = /^(\d{16})-([0-9a-f]{4})-([a-z0-9]{1,32})$/
 
@@ -18,8 +20,19 @@ export function formatHlc({ wall, counter, node }: Hlc): string {
 
 export function parseHlc(text: string): Hlc {
   const match = HLC.exec(text)
-  if (!match) throw new Error('E_HLC_INVALID')
-  return { wall: Number(match[1]), counter: parseInt(match[2]!, 16), node: match[3]! }
+  const wall = match ? Number(match[1]) : NaN
+  if (!match || !(wall <= MAX_WALL)) throw new Error('E_HLC_INVALID')
+  return { wall, counter: parseInt(match[2]!, 16), node: match[3]! }
+}
+
+export function isHlcText(text: unknown): text is string {
+  if (typeof text !== 'string') return false
+  try {
+    parseHlc(text)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export const compareHlc = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
@@ -42,7 +55,7 @@ export interface Clock {
 export function receiveStored(clock: Clock, stamps: Iterable<string | null | undefined>): void {
   let newest: string | undefined
   for (const stamp of stamps) {
-    if (stamp && HLC.test(stamp) && (newest === undefined || stamp > newest)) newest = stamp
+    if (isHlcText(stamp) && (newest === undefined || stamp > newest)) newest = stamp
   }
   if (newest !== undefined) clock.receive(newest)
 }
@@ -63,6 +76,11 @@ export function createClock(node: string, now: () => number = Date.now): Clock {
     if (counter > MAX_COUNTER) {
       wall += 1
       counter = 0
+    }
+    // Past the last wall time a stamp is refused by every peer, so the clock stops at the last stamp that is valid.
+    if (wall > MAX_WALL) {
+      wall = MAX_WALL
+      counter = MAX_COUNTER
     }
     return formatHlc({ wall, counter, node })
   }

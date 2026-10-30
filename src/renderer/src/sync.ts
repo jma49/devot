@@ -4,10 +4,17 @@
 // which re-sends it in the page as `devot:sync-changed` (the UI tests send that one).
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import * as Comlink from 'comlink'
+import { MAX_WALL } from '../../core/hlc'
 import type { SyncStatus } from '../../core/sync/engine'
-import type { SyncEvent, Welcome, PushResult } from '../../core/sync/transport'
+import {
+  STORAGE_FULL,
+  type SyncEvent,
+  type Welcome,
+  type PushResult,
+} from '../../core/sync/transport'
 import type { Core } from './coreConnect'
 import { DB_CHANGED } from './externalChanges'
+import type { MessageKey } from './i18n'
 import { invoke } from './ipc'
 import { licenceEntitlements, startLicence, subscribeLicence } from './licence'
 import type { WirePulled, WireSync, WireSyncLocal, WireTransport } from './storage/syncWire'
@@ -72,8 +79,22 @@ export const SYNC_OFF: SyncSnapshot = {
 
 const CODE = /^[EWI]_[A-Z0-9_]+$/
 
+export { STORAGE_FULL }
+
+/** What a person does about a sync that stopped for these codes. */
+export const STOP_ADVICE: Readonly<Record<string, MessageKey>> = {
+  E_SYNC_PROTOCOL: 'sync.advice.protocol',
+  E_SYNC_CIRCUIT_OPEN: 'sync.advice.circuit',
+}
+
 const readCount = (value: unknown): number | null =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null
+
+/** A time `Date` can format; the engine, the relay and the database are not trusted to stay in range. */
+const readTime = (value: unknown): number | null => {
+  const time = readCount(value)
+  return time !== null && time <= MAX_WALL ? time : null
+}
 
 function readUpload(value: unknown): SyncSnapshot['status']['upload'] {
   if (typeof value !== 'object' || value === null) return null
@@ -105,10 +126,10 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
     enrolled: v['enrolled'] === true,
     status: {
       state,
-      lastSync: readCount(s['lastSync']),
+      lastSync: readTime(s['lastSync']),
       code: typeof s['code'] === 'string' && CODE.test(s['code']) ? s['code'] : null,
       tooLarge,
-      pausedUntil: state === 'paused' ? readCount(s['pausedUntil']) : null,
+      pausedUntil: state === 'paused' ? readTime(s['pausedUntil']) : null,
       upload: readUpload(s['upload']),
       relayOutdated: s['relayOutdated'] === true,
       unsyncedFiles: readUnsyncedFiles(s['unsyncedFiles']),
@@ -125,6 +146,10 @@ const publish = (next: SyncSnapshot | undefined) => {
 }
 
 let started = false
+
+/** This build's version, so records an older one could not read are pulled again; none outside the app. */
+const appBuild = (): Promise<string | undefined> =>
+  import('@tauri-apps/api/app').then(({ getVersion }) => getVersion()).catch(() => undefined)
 
 /** Reads the snapshot and follows Rust's changes; once per window. */
 export function startSyncStatus(): void {
@@ -345,8 +370,15 @@ export function readDevices(value: unknown): SyncDevice[] {
     const d = item as Record<string, unknown>
     const { id, label, created } = d
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) return []
-    if (typeof label !== 'string' || typeof created !== 'number') return []
-    return [{ id, label: label.slice(0, 256), created, current: d['current'] === true }]
+    if (typeof label !== 'string' || readTime(created) === null) return []
+    return [
+      {
+        id,
+        label: label.slice(0, 256),
+        created: created as number,
+        current: d['current'] === true,
+      },
+    ]
   })
 }
 
@@ -429,6 +461,7 @@ export function runSync(core: Core): () => void {
           Comlink.proxy(report),
           // Another device changed notes here: merged and reloaded as another process's writes.
           Comlink.proxy(() => window.dispatchEvent(new CustomEvent(DB_CHANGED))),
+          await appBuild(),
         )
       })
       .catch(() => console.warn('W_SYNC_START_FAILED'))

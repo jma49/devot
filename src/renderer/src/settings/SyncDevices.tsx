@@ -79,14 +79,11 @@ export function RecoveryKeyPanel(props: {
     )
   return (
     <Setting label="syncSettings.recovery" description={t('syncSettings.recoveryHint')} stacked>
-      <pre
-        ref={key}
-        tabIndex={-1}
-        className="integration-config recovery-key"
-        aria-label={t('syncSettings.recovery')}
-      >
-        <code>{props.recoveryKey}</code>
-      </pre>
+      <div role="group" aria-label={t('syncSettings.recovery')} className="recovery-key">
+        <pre ref={key} tabIndex={-1} className="integration-config">
+          <code>{props.recoveryKey}</code>
+        </pre>
+      </div>
       <div className="settings-buttons">
         <button type="button" className="button" onClick={copy}>
           {t('syncSettings.recoveryCopy')}
@@ -122,6 +119,7 @@ export function PairingRow(props: {
   const [opening, setOpening] = useState(false)
   const [closed, setClosed] = useState(0)
   const open = useRef(false)
+  const block = useRef<HTMLDivElement>(null)
   const showButton = useRef<HTMLButtonElement>(null)
   const code = useRef<HTMLParagraphElement>(null)
   const { onDevicesChanged, onAnnounce, failed, focusRequest } = props
@@ -144,7 +142,11 @@ export function PairingRow(props: {
       setShown(undefined)
       setUnreachable(false)
       setEnded(message)
-      setClosed((n) => n + 1)
+      // Focus elsewhere (a field being typed in, an open dialog) stays where it is.
+      const active = document.activeElement
+      if (!active || active === document.body || block.current?.contains(active)) {
+        setClosed((n) => n + 1)
+      }
       if (message) onAnnounce(t(message))
     }
     const check = () => {
@@ -230,19 +232,15 @@ export function PairingRow(props: {
     <Setting label="syncSettings.pair" description={ended ? t(ended) : t('syncSettings.pairHint')}>
       {shown ? (
         <div
+          ref={block}
           className="pairing"
           onKeyDown={(e) => {
             if (e.key === 'Escape') cancel()
           }}
         >
           <QrCode qr={shown.qr} />
-          <div className="pairing-text">
-            <p
-              ref={code}
-              tabIndex={-1}
-              className="pairing-code"
-              aria-label={t('syncSettings.pairCode')}
-            >
+          <div className="pairing-text" role="group" aria-label={t('syncSettings.pairCode')}>
+            <p ref={code} tabIndex={-1} className="pairing-code">
               {shown.code}
             </p>
             <p className="settings-hint" role="status">
@@ -386,34 +384,56 @@ export function JoinRows(props: {
 }
 
 /** The vault's devices, this one marked; any other can be removed after a confirmation. */
-export function DevicesRow(props: { onAnnounce: (text: string) => void; failed: Failure }) {
+export function DevicesRow(props: {
+  /** Reads the list again when it grows, without dropping a dialog or a removal in flight. */
+  refresh: number
+  onAnnounce: (text: string) => void
+  failed: Failure
+}) {
   const [devices, setDevices] = useState<SyncDevice[]>()
   const [problem, setProblem] = useState<string>()
   const [removing, setRemoving] = useState<SyncDevice>()
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set())
   const [removed, setRemoved] = useState(0)
+  const [retried, setRetried] = useState(0)
+  const [recovered, setRecovered] = useState(0)
+  const retryFocused = useRef(false)
+  const removals = useRef(0)
   const focusNext = useRef<string>(undefined)
   const list = useRef<HTMLUListElement>(null)
   const removeButtons = useRef(new Map<string, HTMLButtonElement>())
   const locale = currentLocale()
-  const { onAnnounce, failed } = props
+  const { onAnnounce, failed, refresh } = props
 
   useEffect(() => {
     let current = true
+    const started = removals.current
     listDevices().then(
       (found) => {
-        if (!current) return
+        // A removal answered meanwhile is newer than this list.
+        if (!current || removals.current !== started) return
         setProblem(undefined)
         setDevices(found)
+        if (retryFocused.current) setRecovered((n) => n + 1)
+        retryFocused.current = false
       },
       (e: unknown) => {
-        if (current) setProblem(format(t('syncSettings.devicesFailed'), { code: errorCode(e) }))
+        if (!current) return
+        const text = format(t('syncSettings.devicesFailed'), { code: errorCode(e) })
+        setProblem(text)
+        if (retryFocused.current) onAnnounce(text)
+        retryFocused.current = false
       },
     )
     return () => {
       current = false
     }
-  }, [])
+  }, [refresh, retried, onAnnounce])
+
+  // The Try Again button that had focus is gone: the list takes it.
+  useEffect(() => {
+    if (recovered > 0) list.current?.focus()
+  }, [recovered])
 
   // Focus goes to the next device's Remove button, or the list when none is left after it.
   useEffect(() => {
@@ -440,6 +460,8 @@ export function DevicesRow(props: { onAnnounce: (text: string) => void; failed: 
           ?.slice(index + 1)
           .find((d) => !d.current && left.some((l) => l.id === d.id))
         focusNext.current = next?.id
+        removals.current += 1
+        setProblem(undefined)
         setDevices(left)
         setRemoved((n) => n + 1)
         onAnnounce(t('syncSettings.deviceRemoved'))
@@ -450,7 +472,20 @@ export function DevicesRow(props: { onAnnounce: (text: string) => void; failed: 
   return (
     <>
       <Setting label="syncSettings.devices" description={problem ?? t('syncSettings.devicesHint')}>
-        {null}
+        {problem ? (
+          <div className="settings-buttons">
+            <button
+              type="button"
+              className="button"
+              onClick={(e) => {
+                retryFocused.current = document.activeElement === e.currentTarget
+                setRetried((n) => n + 1)
+              }}
+            >
+              {t('syncSettings.devicesRetry')}
+            </button>
+          </div>
+        ) : null}
       </Setting>
       {devices && devices.length > 0 ? (
         <ul
@@ -499,7 +534,10 @@ export function DevicesRow(props: { onAnnounce: (text: string) => void; failed: 
       ) : null}
       {removing ? (
         <ConfirmDialog
-          message={t('syncSettings.deviceRemoveConfirm')}
+          message={format(t('syncSettings.deviceRemoveConfirm'), {
+            name: removing.label,
+            date: day(removing.created, locale),
+          })}
           detail={t('syncSettings.deviceRemoveDetail')}
           confirm={t('syncSettings.deviceRemoveButton')}
           onConfirm={() => remove(removing)}

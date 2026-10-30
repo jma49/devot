@@ -68,3 +68,11 @@ it('reads how many images stay on this device and why, and drops anything else',
   }
   expect(snapshot({ state: 'idle' })).toMatchObject({ unsyncedFiles: null })
 })
+
+it('drops a last sync or pause time that no date can hold', () => {
+  const late = Number.MAX_SAFE_INTEGER
+  expect(snapshot({ state: 'paused', lastSync: late, pausedUntil: late })).toMatchObject({
+    lastSync: null,
+    pausedUntil: null,
+  })
+})
