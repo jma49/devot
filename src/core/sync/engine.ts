@@ -454,6 +454,10 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     set({ state: 'syncing' })
     await pullAll()
     await pushAll()
+    await finishPass()
+  }
+
+  async function finishPass() {
     const at = now()
     await sync.syncSetState('lastSync', String(at))
     set({ state: 'idle', code: null, lastSync: at })
@@ -879,7 +883,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
           if (!connected) return stampAll()
           set({ state: 'syncing' })
           await pushAll()
-          set({ state: 'idle', code: null })
+          await finishPass()
         }).catch(() => undefined)
       }, wait)
     },

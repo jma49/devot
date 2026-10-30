@@ -191,6 +191,20 @@ describe('sync between two devices', () => {
     expect(a.engine.status().lastSync).toEqual(expect.any(Number))
   })
 
+  it('stamps the last sync when a pass only pushes', async () => {
+    const clock = { now: Date.now() }
+    const { a } = await pair({ a: { now: () => clock.now } })
+    await a.sync()
+    const first = a.engine.status().lastSync
+    clock.now += 3_600_000
+    await a.notes.create('Typed while the others sleep')
+    await a.notes.flush()
+    a.engine.touch()
+    await vi.waitFor(() => expect(a.engine.status().lastSync).toBe(clock.now))
+    expect(first).not.toBe(clock.now)
+    expect((await a.storage.syncState())['lastSync']).toBe(String(clock.now))
+  })
+
   it('pushes a record only when it changed', async () => {
     const { a, b } = await pair()
     const id = await a.notes.create('Once')
