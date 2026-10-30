@@ -37,7 +37,7 @@ interface OpenVault {
   sockets: Map<WebSocket, string>
 }
 
-// Above the protocol's own limit, so an oversized message gets E_SYNC_TOO_LARGE as on Cloudflare.
+// Above the protocol's own limit, so a message between the two gets E_SYNC_TOO_LARGE; a bigger one closes the socket with 1009.
 const MAX_PAYLOAD = 32 * 1024 * 1024
 
 export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRelay> {
@@ -105,6 +105,8 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
   })
 
   server.on('upgrade', (req: IncomingMessage, socket, head) => {
+    // Node drops its own socket error listener on upgrade and ws adds one only in handleUpgrade, after the awaits below; a reset in between would end the process.
+    socket.on('error', () => socket.destroy())
     void (async () => {
       const request = toRequest(req, false)
       if (!isSocketPath(new URL(request.url).pathname)) {
@@ -117,6 +119,8 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
         ? await vault.relay.authenticate(target.device, target.token)
         : 'no-vault'
       wss.handleUpgrade(req, socket, head, (ws) => {
+        // An oversized or invalid frame emits 'error' (ws then closes with 1009 or 1002); unhandled it would end the process.
+        ws.on('error', () => {})
         if (!vault || access !== 'ok') {
           // Accepted only to say why: a web view cannot read the status of a refused upgrade.
           const code = access === 'no-vault' ? 'E_SYNC_NO_VAULT' : 'E_SYNC_UNAUTHORIZED'

@@ -71,18 +71,38 @@ describe('counters', () => {
     expect(Number(before['messages'])).toBe(2)
     clock.now = Date.UTC(2026, 9, 24, 0, 0, 30)
     const after = send({ type: 'usage' })
-    expect(after).toMatchObject({ day: '2026-10-24', messages: 1, requests: 0, rowsWritten: 1 })
+    // The first usage was not written before midnight, so it is counted into the new day.
+    expect(after).toMatchObject({ day: '2026-10-24', messages: 2, requests: 0, rowsWritten: 0 })
     expect(after).toMatchObject({ storedBytes: 8, fileBytes: 8 })
   })
 
   it('count messages refused by the rate limit with the next write, not with a write of their own', async () => {
-    const { send, db } = await vaultAt(Date.UTC(2026, 9, 23, 12))
+    const { clock, send, db } = await vaultAt(Date.UTC(2026, 9, 23, 12))
     for (let i = 0; i < 3; i++) expect(send({ type: 'time' })['type']).toBe('time')
     const limited = send({ type: 'time', rid: 1 })
     expect(limited).toMatchObject({ type: 'error', rid: 1, code: 'E_SYNC_RATE' })
     expect(Number(limited['retryAfter'])).toBeGreaterThan(0)
-    const counted = db.prepare('SELECT messages FROM counters').get() as { messages: number }
-    expect(counted.messages).toBe(3)
+    clock.now += 10_000
+    expect(send({ type: 'usage' })).toMatchObject({ messages: 5 })
+    expect(db.prepare('SELECT messages FROM counters').get()).toEqual({ messages: 0 })
+  })
+
+  it('count reads and connections with the next write, not with a write of their own', async () => {
+    const { relay, device, send, db } = await vaultAt(Date.UTC(2026, 9, 23, 12), {
+      limiter: new RateLimiter(1000, 1000),
+    })
+    const before = countersRow(db)
+    relay.connected(device)
+    for (const type of ['time', 'usage', 'devices']) send({ type })
+    send({ type: 'pull', since: 0 })
+    send({ type: 'revoke', device: 'nobody0123456789' })
+    expect(countersRow(db)).toEqual(before)
+    expect(send({ type: 'usage' })).toMatchObject({ messages: 6, requests: 2 })
+    send({ type: 'push', id: 'r', base: 0, kind: 'record', chunks: [1] }, [new Uint8Array(1)])
+    expect(db.prepare('SELECT messages, requests FROM counters').get()).toEqual({
+      messages: 7,
+      requests: 2,
+    })
   })
 
   it('refuse a flood of malformed or oversized messages by rate, without a write of their own', async () => {
