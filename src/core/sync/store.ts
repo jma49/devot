@@ -57,9 +57,15 @@ export type SyncEntryWrite = Omit<SyncEntry, 'edits'>
 /** The most IDs one `syncRead` takes (the Tauri command refuses more). */
 export const MAX_SYNC_IDS = 100
 
+export interface SyncPending {
+  id: string
+  /** The `edits` the record is at: the engine skips one it stamped at these edits already. */
+  edits: number
+}
+
 export interface SyncStore {
   /** Records written since the engine last looked, by ID after `after`, at most `limit`. */
-  syncPending(after: string, limit: number): Promise<string[]>
+  syncPending(after: string, limit: number): Promise<SyncPending[]>
   syncPendingCount(): Promise<number>
   syncRead(ids: readonly string[]): Promise<SyncLocal[]>
   /** Inserts or replaces an entry; the stored `edits` stays as it is. */

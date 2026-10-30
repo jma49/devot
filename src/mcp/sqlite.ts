@@ -18,7 +18,7 @@ import {
   indexable,
   scanFolding,
 } from '../core/search'
-import type { SyncEntry, SyncFileMeta, SyncLocal, SyncStore } from '../core/sync/store'
+import type { SyncEntry, SyncFileMeta, SyncLocal, SyncPending, SyncStore } from '../core/sync/store'
 import { isTagColor } from '../core/tags'
 import type {
   ActivityData,
@@ -199,8 +199,8 @@ export const REVISION_SQL = {
  * Rust store's (storage/sync.rs; a test compares them).
  */
 export const SYNC_SQL = {
-  /** Records written since the engine last looked, by ID, from the partial index sync_pending. */
-  pending: `SELECT id FROM sync_records WHERE edits <> synced AND id > @after ORDER BY id LIMIT @limit`,
+  /** Records written since the engine last looked, by ID and edits, from the partial index sync_pending. */
+  pending: `SELECT id, edits FROM sync_records WHERE edits <> synced AND id > @after ORDER BY id LIMIT @limit`,
   pendingCount: `SELECT COUNT(*) AS n FROM sync_records WHERE edits <> synced`,
   entry: `SELECT id, kind, version, fingerprint, body_hlc AS bodyHlc, body_fp AS bodyFp, edits, synced
      FROM sync_records WHERE id = @id`,
@@ -640,9 +640,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const authoredAgentWrites = db.prepare<[], { note_id: string }>(AGENT_WRITES_SQL.authored)
   const seenAgentWrites = db.prepare(AGENT_WRITES_SQL.seen)
   const dropAgentWrites = db.prepare(AGENT_WRITES_SQL.purge)
-  const syncPending = db.prepare<[{ after: string; limit: number }], { id: string }>(
-    SYNC_SQL.pending,
-  )
+  const syncPending = db.prepare<[{ after: string; limit: number }], SyncPending>(SYNC_SQL.pending)
   const syncPendingCount = db.prepare<[], { n: number }>(SYNC_SQL.pendingCount)
   const syncEntry = db.prepare<[{ id: string }], SyncEntry>(SYNC_SQL.entry)
   const syncPut = db.prepare(SYNC_SQL.put)
@@ -926,7 +924,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       purgeWith(id, at, hlc, true)
     },
     async syncPending(after, limit) {
-      return syncPending.all({ after, limit }).map((row) => row.id)
+      return syncPending.all({ after, limit })
     },
     async syncPendingCount() {
       return syncPendingCount.get()?.n ?? 0

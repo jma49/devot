@@ -161,6 +161,12 @@ async function settle(...devices: Device[]) {
   }
 }
 
+/** Lets a touch's debounce fire, then waits for the engine's queue to empty. */
+async function quiet(device: Device) {
+  await new Promise((resolve) => setTimeout(resolve, 80))
+  await device.engine.idle()
+}
+
 async function sameNote(a: Device, b: Device, id: string) {
   const [x, y] = await Promise.all([a.note(id), b.note(id)])
   const view = (n: Awaited<ReturnType<Device['note']>>) =>
@@ -360,6 +366,29 @@ describe('sync between two devices', () => {
     b.credentials.relay = a.credentials.relay
     await settle(a, b)
     expect((await b.note(id))?.bodyMd).toBe('Packed on the train\n')
+  })
+
+  it('stamps only the record a write touched while offline, not every pending one', async () => {
+    const { relay, a } = await pair()
+    const ids: string[] = []
+    for (let n = 0; n < 5; n += 1) ids.push(await a.notes.create(`Note ${n}`))
+    await settle(a)
+    await relay.node.close()
+    for (const id of ids) await a.notes.setBody(id, 'Written offline\n')
+    await a.sync()
+    // The first touch stamps every pending record, reading each once.
+    const read = vi.spyOn(a.storage, 'syncRead')
+    await a.engine.touch()
+    await quiet(a)
+    expect(read).toHaveBeenCalledTimes(5)
+    read.mockClear()
+    // A later write reads only its own record: the other four were stamped at these edits.
+    await a.notes.setBody(ids[0]!, 'Written offline again\n')
+    await a.notes.flush()
+    await a.engine.touch()
+    await quiet(a)
+    expect(read).toHaveBeenCalledTimes(1)
+    read.mockRestore()
   })
 
   it('uploads everything again to a relay with a new vault epoch', async () => {
@@ -611,9 +640,12 @@ describe('what the relay announces and what this build cannot read', () => {
     }
     await a.sync()
     expect(await a.note(id)).toBeNull()
+    // The status says a change could not be read, so the user can update Devot.
+    expect(a.engine.status().skipped).toBe(1)
     unreadable = false
     await a.sync()
     expect(await a.note(id)).toBeNull()
+    expect(a.engine.status().skipped).toBe(1)
     // The same build does not pull everything again on a restart.
     sinces.length = 0
     await a.restart()
@@ -623,6 +655,7 @@ describe('what the relay announces and what this build cannot read', () => {
     expect(sinces).toContain(0)
     await a.sync()
     expect((await a.note(id))?.title).toBe('From the future')
+    expect(a.engine.status().skipped).toBe(0)
   })
 
   it('does not pull everything again after an update when nothing was skipped', async () => {

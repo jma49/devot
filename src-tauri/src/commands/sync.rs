@@ -12,7 +12,7 @@ use tauri::State;
 use super::notes::{NoteDto, valid_hlc, valid_note_id, validate_purge};
 use crate::storage::{
     BookRecord, Db, NoteTagRecord, SYNC_KINDS, SyncEntry, SyncFile, SyncFileWrite, SyncLocal,
-    TagRecord, Write,
+    SyncPending, TagRecord, Write,
 };
 use crate::sync::file_record::{self, Fields};
 
@@ -106,7 +106,7 @@ pub async fn sync_pending(
     db: State<'_, Db>,
     after: String,
     limit: u32,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<SyncPending>, String> {
     if !(after.is_empty() || valid_note_id(&after)) {
         return Err("E_SYNC_ID_INVALID".into());
     }

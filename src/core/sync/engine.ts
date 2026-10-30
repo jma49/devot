@@ -90,6 +90,8 @@ export interface SyncStatus {
   relayOutdated: boolean
   /** Images kept on this device only, and why: E_SYNC_ATTACHMENTS_FULL, or E_SYNC_RELAY_OUTDATED (a relay that cannot hold them). */
   unsyncedFiles: { count: number; code: string } | null
+  /** Records this run could not read or apply: a newer Devot may. */
+  skipped: number
 }
 
 /** Why attachments stay local; the relay's refusal is retried after a purge frees space and on the next launch. */
@@ -310,6 +312,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     upload: null,
     relayOutdated: false,
     unsyncedFiles: null,
+    skipped: 0,
   }
   /** The relay's clock less this device's, from the last welcome. */
   let relayOffset = 0
@@ -322,6 +325,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   const tooLarge = new Map<string, string>()
   /** Past the retry cap: left until the next `changed`. */
   const parked = new Set<string>()
+  /** Records this run skipped, by ID: a later pull that reads one takes it off the count. */
+  const skippedIds = new Set<string>()
   /** A `changed` event waits for a pass that has not started; it covers any that come before it does. */
   let passQueued = false
   /** A record this build could not read came in during the current pull. */
@@ -513,6 +518,10 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const skip = (code: string) => {
       console.warn('W_SYNC_RECORD_SKIPPED', pulled.id, code)
       unreadable = true
+      if (!skippedIds.has(pulled.id)) {
+        skippedIds.add(pulled.id)
+        set({ skipped: skippedIds.size })
+      }
       return false
     }
     if (pulled.kind !== 'record' && pulled.kind !== 'file') return false
@@ -529,7 +538,9 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       const [local] = await sync.syncRead([pulled.id])
       if (local?.entry && pulled.version <= local.entry.version) return false
       try {
-        return await applyRemote(local, remote, pulled.version)
+        const applied = await applyRemote(local, remote, pulled.version)
+        if (skippedIds.delete(pulled.id)) set({ skipped: skippedIds.size })
+        return applied
       } catch (error) {
         const code = errorCode(error)
         if (code === 'E_NOTE_BODY_STALE' && tries < WRITE_TRIES) continue
@@ -648,13 +659,13 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
   const backoff = (attempt: number) => retryBaseMs * 2 ** attempt * (0.5 + random())
 
-  const pending = async (each: (id: string) => Promise<void>) => {
+  const pending = async (each: (id: string, edits: number) => Promise<void>) => {
     let after = ''
     for (;;) {
-      const ids = await sync.syncPending(after, PAGE)
-      for (const id of ids) await each(id)
-      if (ids.length < PAGE) return
-      after = ids.at(-1)!
+      const rows = await sync.syncPending(after, PAGE)
+      for (const row of rows) await each(row.id, row.edits)
+      if (rows.length < PAGE) return
+      after = rows.at(-1)!.id
     }
   }
 
@@ -708,14 +719,22 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     set({ upload: null })
   }
 
-  /** Offline: the stamps of bodies changed here are taken now, so the Trash orders them right later. */
+  /**
+   * Offline: the stamps of bodies changed here are taken now, so the Trash orders them right
+   * later. A record whose `edits` this engine stamped already is skipped without reading it:
+   * every write while offline used to re-read and hash every pending record.
+   */
+  const stampedEdits = new Map<string, number>()
+
   async function stampAll() {
-    await pending(async (id) => {
+    await pending(async (id, edits) => {
+      if (stampedEdits.get(id) === edits) return
       const [local] = await sync.syncRead([id])
       const entry = local?.entry
       if (!local || !entry || !local.note) return
       const stamped = stamp(local)
       if (stamped.bodyFp !== entry.bodyFp) await sync.syncPut({ ...entry, ...stamped })
+      stampedEdits.set(id, edits)
     })
   }
 

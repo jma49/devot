@@ -67,6 +67,9 @@ pub(crate) struct StatusView {
     /// Images kept on this device only, and why (`E_SYNC_ATTACHMENTS_FULL`, `E_SYNC_RELAY_OUTDATED`).
     #[serde(default)]
     pub unsynced_files: Option<UnsyncedView>,
+    /// Records this run could not read or apply: a newer Devot may.
+    #[serde(default)]
+    pub skipped: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -94,6 +97,7 @@ impl Default for StatusView {
             upload: None,
             relay_outdated: false,
             unsynced_files: None,
+            skipped: 0,
         }
     }
 }
@@ -966,6 +970,7 @@ mod tests {
                 count: 2,
                 code: "E_SYNC_ATTACHMENTS_FULL".into(),
             }),
+            skipped: 3,
         };
         assert!(ok.clone().checked().is_ok());
         let older: StatusView = serde_json::from_value(json!({

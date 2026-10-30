@@ -5,7 +5,7 @@ mod db;
 mod readable;
 mod sync;
 
-pub use sync::{SYNC_KINDS, SyncEntry, SyncFile, SyncFileWrite, SyncLocal};
+pub use sync::{SYNC_KINDS, SyncEntry, SyncFile, SyncFileWrite, SyncLocal, SyncPending};
 
 pub use db::{Db, Write};
 
