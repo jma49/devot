@@ -27,6 +27,8 @@
     "allow-update-status",
     "allow-update-check",
     "allow-settings-mcp-setup",
+    "allow-settings-ai-access-summary",
+    "allow-main-window-show",
     "allow-ai-settings-get",
     "allow-ai-settings-set",
     "allow-ai-key-set",

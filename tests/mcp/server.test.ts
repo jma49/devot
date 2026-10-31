@@ -16,7 +16,7 @@ import {
   readWrites,
   WRITERS,
 } from '../../src/core'
-import { clientWriter, createServer, errorCode } from '../../src/mcp/server'
+import { clientWriter, createServer, errorCode, NO_NOTEBOOKS_HINT } from '../../src/mcp/server'
 import { openSqliteAdapter, openFailureCode } from '../../src/mcp/sqlite'
 import { HIDDEN, makeWorld } from './support'
 import { tempDir } from '../support/temp-dirs'
@@ -100,6 +100,15 @@ describe('devot-mcp tools', () => {
     const { client } = await connect(world.path)
     expect(await call(client, 'list_notebooks')).toEqual({
       value: { notebooks: [{ id: world.books.shared, name: 'Shared', notes: 1 }] },
+    })
+  })
+
+  it('says how to allow AI access when no notebook does', async () => {
+    const path = join(tempDir('devot-mcp-empty-'), 'devot.sqlite')
+    openSqliteAdapter(path).close()
+    const { client } = await connect(path)
+    expect(await call(client, 'list_notebooks')).toEqual({
+      value: { notebooks: [], hint: NO_NOTEBOOKS_HINT },
     })
   })
 

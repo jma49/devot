@@ -144,6 +144,8 @@ devot-mcp lets Claude Code, Codex, Claude Desktop and other MCP clients work wit
 
 **Only notebooks with Allow AI Access on are visible.** Right-click a notebook in the sidebar and choose Allow AI Access; a sparkle marks the notebooks that have it. The switch is per notebook: a sub-notebook needs its own. Notes in the Trash and notes in no notebook are never visible.
 
+Settings > Integrations says how many notebooks allow it and, when none does, offers to turn it on. The picker there (also in the Command Palette as **AI Access for Several Notebooks…**) switches several notebooks at once, with Undo.
+
 | Tool              | What it does                                                    |
 | ----------------- | --------------------------------------------------------------- |
 | `list_notebooks`  | The notebooks it can see                                        |

@@ -3,8 +3,9 @@
 use std::path::Path;
 use std::process::Command;
 
+use crate::storage::{BookRecord, Db};
 use crate::strings;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 pub const LABEL: &str = "settings";
 pub const SHOW_BACKUPS_EVENT: &str = "devot://show-backups";
@@ -155,6 +156,65 @@ pub fn settings_mcp_setup(app: AppHandle) -> Result<McpSetup, String> {
     Ok(mcp_setup(checkout, &data_dir, cfg!(debug_assertions)))
 }
 
+/// Matches `TEMPLATES_BOOK_ID` in src/core/books.ts: the Templates notebook never counts.
+const TEMPLATES_BOOK_ID: &str = "00000000-0000-7000-8000-000000000001";
+
+/// What Settings > Integrations tells the owner about AI access, and whether to offer the picker.
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiAccessSummary {
+    /// Live notebooks, the Templates one left out.
+    notebooks: u32,
+    /// How many of them allow AI access.
+    allowed: u32,
+}
+
+fn ai_access_summary(books: &[BookRecord]) -> AiAccessSummary {
+    let live = books
+        .iter()
+        .filter(|book| book.deleted_at.is_none() && book.id != TEMPLATES_BOOK_ID);
+    let mut summary = AiAccessSummary {
+        notebooks: 0,
+        allowed: 0,
+    };
+    for book in live {
+        summary.notebooks += 1;
+        if book.ai_access {
+            summary.allowed += 1;
+        }
+    }
+    summary
+}
+
+#[tauri::command]
+pub async fn settings_ai_access_summary(db: State<'_, Db>) -> Result<AiAccessSummary, String> {
+    let books = db
+        .call(|store| store.list_books())
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(ai_access_summary(&books))
+}
+
+/// Focuses a main window (shown again if hidden, unminimised if needed), or opens one:
+/// Settings asks for the AI access picker, which lives in the main window.
+#[tauri::command]
+pub fn main_window_show(app: AppHandle) -> Result<(), String> {
+    let Some(window) =
+        crate::main_windows::front_label(&app).and_then(|label| app.get_webview_window(&label))
+    else {
+        return crate::main_windows::open(&app).map_err(String::from);
+    };
+    if window
+        .show()
+        .and(crate::deep_link::unminimize(&window))
+        .and(window.set_focus())
+        .is_err()
+    {
+        log::warn!("W_MAIN_WINDOW_FOCUS_FAILED");
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -201,5 +261,44 @@ mod tests {
         for folder in ["-a Calculator", "relative/folder", ""] {
             assert!(open_folder_command(Path::new(folder)).is_err(), "{folder}");
         }
+    }
+
+    fn book(id: &str, ai_access: bool, deleted: bool) -> BookRecord {
+        const HLC: &str = "0001728000000000-0000-node";
+        BookRecord {
+            id: id.into(),
+            name: "Notebook".into(),
+            name_hlc: HLC.into(),
+            parent_id: None,
+            parent_hlc: String::new(),
+            created_at: 1,
+            updated_at: 2,
+            deleted_at: deleted.then_some(3),
+            deleted_hlc: deleted.then(|| HLC.to_string()),
+            ai_access,
+            ai_access_hlc: if ai_access { HLC.into() } else { String::new() },
+            sort_key: "a0".into(),
+            sort_key_hlc: HLC.into(),
+            icon: None,
+            icon_color: None,
+            icon_hlc: String::new(),
+        }
+    }
+
+    #[test]
+    fn counts_live_notebooks_and_those_that_allow_ai_access() {
+        let books = [
+            book("0192a6f0-0000-7000-8000-0000000000b1", true, false),
+            book("0192a6f0-0000-7000-8000-0000000000b2", false, false),
+            book("0192a6f0-0000-7000-8000-0000000000b3", true, true),
+            book(TEMPLATES_BOOK_ID, true, false),
+        ];
+        assert_eq!(
+            ai_access_summary(&books),
+            AiAccessSummary {
+                notebooks: 2,
+                allowed: 1
+            },
+        );
     }
 }

@@ -127,6 +127,8 @@ describe('Tauri command permissions', () => {
       'allow-licence-get',
       'allow-licence-remove',
       'allow-licence-set',
+      // Settings > Integrations offers the AI access picker, which lives in the main window.
+      'allow-main-window-show',
       'allow-mirror-choose',
       'allow-mirror-confirm',
       'allow-mirror-get',
@@ -140,6 +142,8 @@ describe('Tauri command permissions', () => {
       'allow-plugin-remove',
       'allow-plugin-set-enabled',
       'allow-plugins-list',
+      // Settings > Integrations says whether any notebook allows AI access.
+      'allow-settings-ai-access-summary',
       'allow-settings-mcp-setup',
       'allow-settings-open-data-folder',
       'allow-settings-show-backups',
