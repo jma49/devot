@@ -3606,12 +3606,12 @@ export function App() {
     if (kind === 'tag') return <span className={`headline-dot${a ? ` tag-color-${a}` : ''}`} />
     if (kind === 'status') {
       const icon = STATUSES.find((s) => s.status === a)?.icon ?? 'status.none'
-      return <Icon name={icon} size="lg" />
+      return <Icon name={icon} size="title" />
     }
-    if (kind === 'pinned') return <Icon name="notes.pinned" size="lg" />
-    if (kind === 'agent') return <Icon name="notebook.ai" size="lg" />
+    if (kind === 'pinned') return <Icon name="notes.pinned" size="title" />
+    if (kind === 'agent') return <Icon name="notebook.ai" size="title" />
     if (kind === 'book')
-      return <BookIcon icon={a || null} color={(b || null) as TagColor | null} size="lg" />
+      return <BookIcon icon={a || null} color={(b || null) as TagColor | null} size="title" />
     return null
   }, [iconKey])
   const menuKey =
@@ -3722,7 +3722,7 @@ export function App() {
           editing={editing}
           view={listView}
           title={t('sidebar.trash')}
-          icon={<Icon name="trash" size="lg" />}
+          icon={<Icon name="trash" size="title" />}
           empty="trash"
           filter={filterField}
           pinned={NO_NOTES}
@@ -3747,7 +3747,7 @@ export function App() {
           editing={editing}
           view={listView}
           title={t('sidebar.templates')}
-          icon={<Icon name="templates" size="lg" />}
+          icon={<Icon name="templates" size="title" />}
           empty="templates"
           filter={filterField}
           pinned={templateRows.pinned}

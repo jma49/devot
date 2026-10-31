@@ -23,15 +23,14 @@ const cache = createSymbolCache((name, pointSize, weight) =>
   invoke<string>('symbol_png', { name, pointSize, weight }),
 )
 
-/**
- * Each size's box in pixels, as its `--size-icon-*` token; the symbol's ink
- * is centred on it (`placeInCanvas`). `xs` is a small mark beside text (a
- * pop-up's chevron, a tag's remove button).
- */
-const BOXES = { xs: 10, sm: 14, md: 17, toolbar: 18, lg: 22 } as const
+const BOXES = { xs: 10, sm: 14, md: 17, toolbar: 18, lg: 22, title: 17 } as const
 
-/** Copies a rendered symbol pixel for pixel onto its square canvas, its ink centred (`placeInCanvas`). */
-async function compose(rendered: string, box: number, ratio: number): Promise<SymbolImage> {
+async function compose(
+  rendered: string,
+  box: number,
+  ratio: number,
+  title: boolean,
+): Promise<SymbolImage> {
   const image = new Image()
   image.src = rendered
   await image.decode()
@@ -43,10 +42,10 @@ async function compose(rendered: string, box: number, ratio: number): Promise<Sy
   if (!context) throw new Error('E_SYMBOL_CANVAS_UNAVAILABLE')
   context.drawImage(image, 0, 0)
   const ink = inkBounds(context.getImageData(0, 0, width, height).data, width, height)
-  const at = placeInCanvas(width, height, ink ?? { x: 0, y: 0, width, height }, box, ratio)
+  const at = placeInCanvas(ink ?? { x: 0, y: 0, width, height }, box, ratio, title)
   canvas.width = at.side
   canvas.height = at.side
-  context.drawImage(image, at.x, at.y)
+  context.drawImage(image, at.x, at.y, width * at.scale, height * at.scale)
   return { url: canvas.toDataURL('image/png'), side: at.side / ratio }
 }
 
@@ -58,8 +57,9 @@ function placedSymbol(
   appearance: Appearance,
   ratio: number,
   weight: SymbolWeight = 'regular',
+  title = false,
 ): Promise<SymbolImage> {
-  const key = `${symbol}@${box}x${ratio}/${appearance}/${weight}`
+  const key = `${symbol}@${box}x${ratio}/${appearance}/${weight}/${title}`
   let entry = placed.get(key)
   if (!entry) {
     entry = (async () =>
@@ -67,6 +67,7 @@ function placedSymbol(
         await cache.get(symbol, renderPoints(boxPoints(box), ratio), appearance, weight),
         box,
         ratio,
+        title,
       ))()
     entry.catch(() => placed.delete(key))
     placed.set(key, entry)
@@ -106,7 +107,7 @@ function LucideGlyph({
   return (
     <Glyph
       size={BOXES[size]}
-      strokeWidth={lucideStroke(weight)}
+      strokeWidth={lucideStroke(weight ?? (size === 'title' ? 'light' : 'regular'))}
       className={`icon-svg icon-${size}${fill ? ` icon-fill-${fill}` : ''}${className ? ` ${className}` : ''}`}
     />
   )
@@ -194,17 +195,17 @@ export function SymbolIcon({
     if (!visible) return
     let current = true
     const show = (next: SymbolImage) => current && setImage(next)
-    placedSymbol(symbol, box, appearance, ratio, weight).then(show, () => {
+    placedSymbol(symbol, box, appearance, ratio, weight, size === 'title').then(show, () => {
       console.warn('W_SYMBOL_UNAVAILABLE', symbol)
       if (fallback && fallback !== symbol)
-        placedSymbol(fallback, box, appearance, ratio, weight).then(show, () =>
+        placedSymbol(fallback, box, appearance, ratio, weight, size === 'title').then(show, () =>
           console.warn('W_SYMBOL_UNAVAILABLE', fallback),
         )
     })
     return () => {
       current = false
     }
-  }, [visible, symbol, box, appearance, ratio, weight, fallback])
+  }, [visible, symbol, box, appearance, ratio, weight, fallback, size])
 
   return (
     <span
@@ -212,7 +213,7 @@ export function SymbolIcon({
       className={`icon icon-${size}${className ? ` ${className}` : ''}`}
       data-symbol={symbol}
       aria-hidden="true"
-      style={image ? symbolStyle(image, box) : { maskImage: 'none', WebkitMaskImage: 'none' }}
+      style={image ? symbolStyle(image) : { maskImage: 'none', WebkitMaskImage: 'none' }}
     />
   )
 }
@@ -230,12 +231,14 @@ export function iconElement(name: IconName, box: number): HTMLElement {
   }
   const symbol = symbolFor(name)
   span.className = 'icon'
+  span.style.width = `${box}px`
+  span.style.height = `${box}px`
   span.dataset['symbol'] = symbol
   span.setAttribute('aria-hidden', 'true')
   placedSymbol(symbol, box, shownAppearance(), currentRatio()).then(
     (image) => {
       // React's names to CSS's (`WebkitMaskImage` is `-webkit-mask-image`).
-      for (const [key, value] of Object.entries(symbolStyle(image, box)))
+      for (const [key, value] of Object.entries(symbolStyle(image)))
         span.style.setProperty(
           key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`),
           value,

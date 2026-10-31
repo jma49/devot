@@ -47,6 +47,18 @@ describe('Icon', () => {
       `stroke-width="${lucideStroke('thin')}"`,
     )
   })
+
+  it('gives title glyphs a text-relative role and a lighter Lucide stroke', () => {
+    state.style = 'lucide'
+    const html = renderToStaticMarkup(<Icon name="templates" size="title" />)
+    expect(html).toContain('icon-title')
+    expect(html).toContain('width="17"')
+    expect(html).toContain(`stroke-width="${lucideStroke('light')}"`)
+    state.style = 'sfSymbols'
+    const symbol = renderToStaticMarkup(<Icon name="templates" size="title" />)
+    expect(symbol).toContain('icon-title')
+    expect(symbol).toContain('data-symbol="doc.on.doc"')
+  })
 })
 
 describe('lucideStroke', () => {
