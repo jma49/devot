@@ -98,7 +98,7 @@ test('a selection adds Look Up, New Note from Selection and Edit with AI', async
     '  Improve Writing',
     '  Proofread',
     '  Reformat',
-    '  Summarise',
+    '  Summarize',
     '  Make Bullet List',
     '  Make Task List',
     '  Make Table',

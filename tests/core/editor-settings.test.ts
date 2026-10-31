@@ -7,6 +7,7 @@ import {
   FONT_SIZE_MAX,
   GRADIENT_THEMES,
   ICON_STYLES,
+  INTERFACE_STYLES,
   FONT_SIZE_MIN,
   APPEARANCES,
   THEMES,
@@ -24,7 +25,10 @@ import {
   parseEditorSettings,
   slotFont,
   stepFontSize,
+  interfaceStyle,
+  interfaceStylePatch,
   themeFollowsSystemAccent,
+  themeInEffect,
 } from '../../src/core/editorSettings'
 
 describe('editor settings', () => {
@@ -55,7 +59,8 @@ describe('editor settings', () => {
       syncScroll: true,
       inlineImages: true,
       appearance: 'system',
-      theme: 'default',
+      lightTheme: 'default',
+      darkTheme: 'default',
       systemAccent: false,
       iconStyle: 'sfSymbols',
       toolbar: true,
@@ -280,7 +285,9 @@ describe('editor settings', () => {
       { pasteUrl: 'markdown' },
       { pasteUrl: true },
       { lineNumbers: 'false' },
-      { theme: 'dark' },
+      { lightTheme: 'dark' },
+      { darkTheme: null },
+      { theme: 'ivory' },
       { sidebarMaterial: 'off' },
       { sidebarMaterial: null },
       { windowTransparency: -105 },
@@ -380,20 +387,61 @@ describe('editor settings', () => {
     }
   })
 
-  it('reads the theme as default or ivory, and anything else as default', () => {
-    for (const theme of ['default', 'ivory'] as const) {
-      expect(parseEditorSettings({ theme }).theme).toBe(theme)
-      expect(checkEditorSettingsPatch({ theme })).toEqual({ theme })
+  it('reads each appearance’s theme as one the setting offers, and anything else as default', () => {
+    for (const theme of THEMES) {
+      expect(parseEditorSettings({ lightTheme: theme }).lightTheme).toBe(theme)
+      expect(parseEditorSettings({ darkTheme: theme }).darkTheme).toBe(theme)
+      expect(checkEditorSettingsPatch({ lightTheme: theme })).toEqual({ lightTheme: theme })
+      expect(checkEditorSettingsPatch({ darkTheme: theme })).toEqual({ darkTheme: theme })
     }
     for (const theme of ['Ivory', 'dark', 'system', '', 1, null, true]) {
-      expect(parseEditorSettings({ theme }).theme).toBe('default')
-      expect(() => checkEditorSettingsPatch({ theme })).toThrow('E_EDITOR_SETTINGS_INVALID')
+      expect(parseEditorSettings({ lightTheme: theme }).lightTheme).toBe('default')
+      expect(parseEditorSettings({ darkTheme: theme }).darkTheme).toBe('default')
+      expect(() => checkEditorSettingsPatch({ darkTheme: theme })).toThrow(
+        'E_EDITOR_SETTINGS_INVALID',
+      )
     }
-    // A theme with a bad value does not spoil the settings beside it.
-    expect(parseEditorSettings({ theme: 'nope', appearance: 'dark' })).toMatchObject({
-      theme: 'default',
+    expect(parseEditorSettings({ lightTheme: 'nope', appearance: 'dark' })).toMatchObject({
+      lightTheme: 'default',
       appearance: 'dark',
     })
+  })
+
+  it('fills both appearances’ themes from the single theme stored before them', () => {
+    const read = parseEditorSettings({ theme: 'ivory' })
+    expect(read).toMatchObject({ lightTheme: 'ivory', darkTheme: 'ivory' })
+    expect(read).not.toHaveProperty('theme')
+    expect(parseEditorSettings({ theme: 'sage', darkTheme: 'ember' })).toMatchObject({
+      lightTheme: 'sage',
+      darkTheme: 'ember',
+    })
+    expect(parseEditorSettings({ theme: 'dawn', lightTheme: 'tide' })).toMatchObject({
+      lightTheme: 'tide',
+      darkTheme: 'dawn',
+    })
+    expect(parseEditorSettings({ theme: 'other' })).toMatchObject({
+      lightTheme: 'default',
+      darkTheme: 'default',
+    })
+  })
+
+  it('applies the theme chosen for the appearance shown', () => {
+    const settings = { lightTheme: 'ivory', darkTheme: 'tide' } as const
+    expect(themeInEffect(settings, 'light')).toBe('ivory')
+    expect(themeInEffect(settings, 'dark')).toBe('tide')
+  })
+
+  it('reads the interface style from the window material, and stores it there', () => {
+    expect(INTERFACE_STYLES).toEqual(['classic', 'glass'])
+    expect(interfaceStyle({ sidebarMaterial: true })).toBe('glass')
+    expect(interfaceStyle({ sidebarMaterial: false })).toBe('classic')
+    expect(interfaceStyle(DEFAULT_EDITOR_SETTINGS)).toBe('glass')
+    expect(interfaceStylePatch('classic')).toEqual({ sidebarMaterial: false })
+    expect(interfaceStylePatch('glass')).toEqual({ sidebarMaterial: true })
+    for (const style of INTERFACE_STYLES)
+      expect(interfaceStyle({ ...DEFAULT_EDITOR_SETTINGS, ...interfaceStylePatch(style) })).toBe(
+        style,
+      )
   })
 
   it('lets only the default theme follow the system accent', () => {

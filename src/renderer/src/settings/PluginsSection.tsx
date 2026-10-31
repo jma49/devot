@@ -3,6 +3,7 @@ import type { InstalledPlugin, PluginPermission } from '../../../core/plugins'
 import { errorCode } from '../backups'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { format, t, type MessageKey } from '../i18n'
+import { Setting, SettingsSection } from './controls'
 import {
   cancelInstall,
   installPlugin,
@@ -26,10 +27,11 @@ const PERMISSION_TEXT: Readonly<Record<PluginPermission, MessageKey>> = {
 }
 
 function Permissions(props: { list: readonly PluginPermission[]; label: MessageKey }) {
-  if (props.list.length === 0) return <p>{t('plugins.noPermissions')}</p>
+  if (props.list.length === 0)
+    return <p className="plugin-permissions-intro">{t('plugins.noPermissions')}</p>
   return (
     <>
-      <p>{t(props.label)}</p>
+      <p className="plugin-permissions-intro">{t(props.label)}</p>
       <ul className="plugin-permissions">
         {props.list.map((p) => (
           <li key={p} data-permission={p}>
@@ -152,67 +154,76 @@ export function PluginsSection() {
           {format(t(failure.message), { code: failure.code })}
         </p>
       ) : null}
-      <div className="settings-actions">
-        <button type="button" className="button" onClick={() => void pick('folder')}>
-          {t('plugins.installFolder')}
-        </button>
-        <button type="button" className="button" onClick={() => void pick('archive')}>
-          {t('plugins.installArchive')}
-        </button>
-      </div>
-      {plugins === undefined ? null : plugins.length === 0 ? (
-        <p>{t('plugins.empty')}</p>
-      ) : (
-        <ul className="plugin-list" aria-label={t('plugins.listLabel')}>
-          {plugins.map((p) => {
-            const m = p.manifest
-            const titleId = `plugin-${m.id}`
-            return (
-              <li key={m.id} className="plugin-row" aria-labelledby={titleId}>
-                <div className="setting setting-toggle">
-                  <div className="setting-text">
-                    <span id={titleId} className="setting-label">
-                      {m.name}
-                    </span>
-                    <span className="setting-description">
-                      {m.author
-                        ? format(t('plugins.versionBy'), { version: m.version, author: m.author })
-                        : format(t('plugins.version'), { version: m.version })}
-                    </span>
-                    {m.description ? (
-                      <span className="setting-description">{m.description}</span>
-                    ) : null}
-                  </div>
-                  <div className="setting-control">
-                    <input
-                      type="checkbox"
-                      role="switch"
-                      checked={p.enabled}
-                      aria-label={format(t('plugins.on'), { name: m.name })}
-                      onChange={(e) =>
-                        void settle(
-                          setPluginEnabled(m.id, e.currentTarget.checked),
-                          'plugins.changeFailed',
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-                <Permissions list={p.granted} label="plugins.permissions" />
-                <div className="settings-actions">
-                  <button
-                    type="button"
-                    className="button"
-                    aria-label={format(t('plugins.removeLabel'), { name: m.name })}
-                    onClick={() => setRemoving(p)}
+      <SettingsSection title="plugins.installTitle">
+        <Setting label="plugins.installLabel" description={t('plugins.installHint')}>
+          <div className="settings-buttons">
+            <button type="button" className="button" onClick={() => void pick('folder')}>
+              {t('plugins.installFolder')}
+            </button>
+            <button type="button" className="button" onClick={() => void pick('archive')}>
+              {t('plugins.installArchive')}
+            </button>
+          </div>
+        </Setting>
+      </SettingsSection>
+      {plugins === undefined ? null : (
+        <SettingsSection title="plugins.installedTitle">
+          {plugins.length === 0 ? (
+            <p>{t('plugins.empty')}</p>
+          ) : (
+            <ul className="plugin-list" aria-label={t('plugins.listLabel')}>
+              {plugins.map((p) => {
+                const m = p.manifest
+                const titleId = `plugin-${m.id}`
+                return (
+                  <li
+                    key={m.id}
+                    className="setting setting-toggle plugin-row"
+                    aria-labelledby={titleId}
                   >
-                    {t('plugins.remove')}
-                  </button>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+                    <div className="setting-text">
+                      <span id={titleId} className="setting-label">
+                        {m.name}
+                      </span>
+                      <span className="setting-description">
+                        {m.author
+                          ? format(t('plugins.versionBy'), { version: m.version, author: m.author })
+                          : format(t('plugins.version'), { version: m.version })}
+                      </span>
+                      {m.description ? (
+                        <span className="setting-description">{m.description}</span>
+                      ) : null}
+                      <Permissions list={p.granted} label="plugins.permissions" />
+                    </div>
+                    <div className="setting-control">
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        className="plugin-switch"
+                        checked={p.enabled}
+                        aria-label={format(t('plugins.on'), { name: m.name })}
+                        onChange={(e) =>
+                          void settle(
+                            setPluginEnabled(m.id, e.currentTarget.checked),
+                            'plugins.changeFailed',
+                          )
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="button"
+                        aria-label={format(t('plugins.removeLabel'), { name: m.name })}
+                        onClick={() => setRemoving(p)}
+                      >
+                        {t('plugins.remove')}
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </SettingsSection>
       )}
       {staged ? <Review staged={staged} onInstall={install} onCancel={cancel} /> : null}
       {removing ? (

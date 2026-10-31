@@ -126,11 +126,11 @@ test.describe('once the trial is over', () => {
     await expect(find.getByRole('textbox', { name: 'Replace' })).toHaveCount(0)
     await page.keyboard.press('Escape')
 
-    await bar(page).getByRole('button', { name: 'Buy a Licence' }).click()
+    await bar(page).getByRole('button', { name: 'Buy a License' }).click()
     expect(await calls(page, 'open_external')).toEqual([
       { url: 'https://licence.devot.online/buy' },
     ])
-    await bar(page).getByRole('button', { name: 'Add Licence' }).click()
+    await bar(page).getByRole('button', { name: 'Add License' }).click()
     expect(await calls(page, 'settings_open_licence')).toHaveLength(1)
     await expect(bar(page)).toHaveCount(1)
   })
@@ -244,7 +244,7 @@ test.describe('once the trial is over', () => {
     await page.goto('/quick-capture.html')
     await page.getByRole('textbox', { name: 'Note' }).fill('An idea')
     await expect(page.locator('[data-devot-trial-ended]')).toHaveText(
-      'Your Devot trial has ended, so no note can be saved. Add a licence in Settings > Licence.',
+      'Your Devot trial has ended, so no note can be saved. Add a license in Settings > License.',
     )
     await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled()
     await page.getByRole('textbox', { name: 'Note' }).press('Meta+Enter')
@@ -337,9 +337,9 @@ test.describe('the reminder', () => {
     await reloadApp(page)
     const reminder = page.locator('[data-devot-trial-reminder]')
     await expect(reminder).toHaveText(
-      /Your Devot trial ends (today|tomorrow) at .+\. After that, notes are read-only until you add a licence\./,
+      /Your Devot trial ends (today|tomorrow) at .+\. After that, notes are read-only until you add a license\./,
     )
-    await reminder.getByRole('button', { name: 'Add Licence' }).click()
+    await reminder.getByRole('button', { name: 'Add License' }).click()
     expect(await calls(page, 'settings_open_licence')).toHaveLength(1)
     await reminder.getByRole('button', { name: 'Dismiss' }).click()
     await expect(reminder).toHaveCount(0)
@@ -360,20 +360,20 @@ test.describe('the reminder', () => {
 test.describe('Settings > Licence', () => {
   test('shows the time left while the trial runs, and that it ended after', async ({ page }) => {
     await fakeTrial(page, 50 * HOUR)
-    await openSettings(page, 'Licence')
+    await openSettings(page, 'License')
     const panel = page.getByRole('tabpanel')
     await expect(panel).toContainText(
       /Everything works, sync and AI included, until the trial ends on .+ \(2 days left\)\./,
     )
     await changeLicence(page, ended())
     await expect(panel).toContainText(
-      'The trial has ended, so notes are read-only and sync and AI are locked until you add a licence.',
+      'The trial has ended, so notes are read-only and sync and AI are locked until you add a license.',
     )
   })
 
   test('opens at the Licence pane when Add Licence asks for it', async ({ page }) => {
     await page.goto('/settings.html?pane=licence')
-    await expect(page.getByRole('tab', { name: 'Licence', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('tab', { name: 'License', exact: true })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -385,7 +385,7 @@ test.describe('Settings > Licence', () => {
       }
       w.dispatchEvent(new w.CustomEvent('devot:settings-pane', { detail: 'licence' }))
     })
-    await expect(page.getByRole('tab', { name: 'Licence', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('tab', { name: 'License', exact: true })).toHaveAttribute(
       'aria-selected',
       'true',
     )

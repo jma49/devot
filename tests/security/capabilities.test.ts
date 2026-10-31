@@ -169,6 +169,8 @@ describe('Tauri command permissions', () => {
       'allow-usage-list',
       'core:event:allow-listen',
       'core:event:allow-unlisten',
+      // The toolbar drags the window, which has no title bar.
+      'core:window:allow-start-dragging',
     ])
   })
 

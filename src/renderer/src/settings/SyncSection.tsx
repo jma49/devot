@@ -249,7 +249,7 @@ export function SyncSection() {
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
-      <SettingsSection icon="settings.sync" title="syncSettings.title">
+      <SettingsSection title="syncSettings.title">
         <SettingsNote>{t('syncSettings.detail')}</SettingsNote>
         {locked ? (
           <Setting

@@ -67,7 +67,7 @@ Removing a device revokes its token, not its knowledge: it still holds the vault
 
 - A device that already holds another vault refuses to join (`E_SYNC_VAULT_EXISTS`): a key that may be the only copy is never replaced. Joining the vault it already holds (a removed device that is let back in) is allowed.
 - Settings offers the joins first on a device that holds no vault. Creating a new vault is a separate step marked as for the first device only, so a second device does not start a vault of its own by mistake: with no way yet to leave a vault, its notes would never meet the others.
-- Pairing and joining are sync actions and need the licence (`E_LICENCE_REQUIRED`), as creating the vault and connecting do. Listing and removing devices do not need it: taking access away is never locked.
+- Pairing and joining are sync actions and need the license (`E_LICENCE_REQUIRED`), as creating the vault and connecting do. Listing and removing devices do not need it: taking access away is never locked.
 - Key material stays in Rust. The page sees the code to show (text and QR), its expiry, the outcome, and the recovery key until it is saved.
 
 ## Compatibility

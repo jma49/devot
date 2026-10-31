@@ -8,7 +8,7 @@ import { format, t, type MessageKey } from '../i18n'
 import { readNotebooks, subscribeNotebooks } from '../notebookChoices'
 import { checkForUpdates, startUpdateStatus, updateStatusText, useUpdateStatus } from '../updates'
 import { cliToolFailure } from './cliTool'
-import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
+import { Select, Setting, SettingsSection, SettingToggle, useSettingsChange } from './controls'
 import {
   cliToolStatus,
   installCliTool,
@@ -106,14 +106,14 @@ export function GeneralSection() {
           {format(t('editorSettings.failed'), { code: saveError })}
         </p>
       ) : null}
-      <SettingsSection icon="settings.defaults" title="generalSettings.defaults">
+      <SettingsSection title="generalSettings.defaults">
         <Setting
           label="generalSettings.defaultNotebook"
           description={t('generalSettings.defaultNotebookHint')}
           htmlFor={`${ids}-notebook`}
           descriptionId={`${ids}-notebook-hint`}
         >
-          <select
+          <Select
             id={`${ids}-notebook`}
             value={shown ?? ''}
             aria-describedby={`${ids}-notebook-hint`}
@@ -125,7 +125,7 @@ export function GeneralSection() {
                 {indented(n.name, n.depth)}
               </option>
             ))}
-          </select>
+          </Select>
         </Setting>
         <Setting
           label="generalSettings.listDates"
@@ -133,7 +133,7 @@ export function GeneralSection() {
           htmlFor={`${ids}-dates`}
           descriptionId={`${ids}-dates-hint`}
         >
-          <select
+          <Select
             id={`${ids}-dates`}
             value={listDates}
             aria-describedby={`${ids}-dates-hint`}
@@ -141,7 +141,7 @@ export function GeneralSection() {
           >
             <option value="relative">{t('generalSettings.listDates.relative')}</option>
             <option value="absolute">{t('generalSettings.listDates.absolute')}</option>
-          </select>
+          </Select>
         </Setting>
         <SettingToggle
           label="generalSettings.boardDropped"
@@ -156,7 +156,7 @@ export function GeneralSection() {
           onChange={(on) => change({ activityStrip: on })}
         />
       </SettingsSection>
-      <SettingsSection icon="settings.data" title="generalSettings.data">
+      <SettingsSection title="generalSettings.data">
         <Setting
           label="generalSettings.dataFolder"
           description={t('generalSettings.dataFolderHint')}
@@ -186,7 +186,7 @@ export function GeneralSection() {
           </button>
         </Setting>
       </SettingsSection>
-      <SettingsSection icon="settings.commandLine" title="generalSettings.commandLine">
+      <SettingsSection title="generalSettings.commandLine">
         <Setting
           label="generalSettings.commandLineTool"
           description={format(t(CLI_TOOL_TEXT[cliTool?.state ?? 'absent']), {
@@ -209,7 +209,7 @@ export function GeneralSection() {
           </button>
         </Setting>
       </SettingsSection>
-      <SettingsSection icon="settings.interface" title="generalSettings.menuBar">
+      <SettingsSection title="generalSettings.menuBar">
         <SettingToggle
           label="generalSettings.keepInMenuBar"
           description="generalSettings.keepInMenuBarHint"
@@ -218,7 +218,7 @@ export function GeneralSection() {
           onChange={(on) => change({ menuBar: on })}
         />
       </SettingsSection>
-      <SettingsSection icon="settings.updates" title="generalSettings.updates">
+      <SettingsSection title="generalSettings.updates">
         <SettingToggle
           label="generalSettings.autoDownloadUpdates"
           description="generalSettings.autoDownloadUpdatesHint"

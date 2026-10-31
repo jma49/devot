@@ -62,7 +62,7 @@ A beta install reads `beta.json`, so a stable release also goes there when it is
 
 Release builds check 30 seconds after launch and then daily (hourly on a beta build), and on Devot > Check for Updates…. With Settings > General > Automatically Download Updates on (the default), an update downloads in the background; then Devot offers Restart to Update, which installs it and restarts once the notes are saved. A plain quit installs nothing; the next launch finds the update again.
 
-The same daily schedule fetches the licence Worker's revocation list, also in a build without the updater key (docs/architecture.md, Updates).
+The same daily schedule fetches the license Worker's revocation list, also in a build without the updater key (docs/architecture.md, Updates).
 
 ## Signing the app
 
@@ -115,11 +115,11 @@ APPLE_CERTIFICATE=$(base64 -i test-identity.p12) APPLE_CERTIFICATE_PASSWORD=<pas
 
 ### Keychain items after the switch
 
-macOS ties a keychain item to the signature of the app that made it. An ad-hoc signature names one exact build, so each ad-hoc update was a different app to the keychain; a Developer ID signature names the team and the app's identifier, so every later signed update is the same app and reads its items without asking. The first Developer ID build that opens an install's items (the licence, the trial, sync's vault and device token, the AI keys, the HTTP API token) may make macOS ask once, per item, whether Devot may use it. Choosing Always Allow ends the prompts for good.
+macOS ties a keychain item to the signature of the app that made it. An ad-hoc signature names one exact build, so each ad-hoc update was a different app to the keychain; a Developer ID signature names the team and the app's identifier, so every later signed update is the same app and reads its items without asking. The first Developer ID build that opens an install's items (the license, the trial, sync's vault and device token, the AI keys, the HTTP API token) may make macOS ask once, per item, whether Devot may use it. Choosing Always Allow ends the prompts for good.
 
 A denied or failed read loses nothing, since Devot never writes over or removes on its own an item it could not read:
 
-- the licence shows its keychain error (`E_LICENCE_KEYCHAIN`) and is asked for again at the next tick (a minute), not at every save; with the trial over, notes stay readable but read-only until the licence is read or added again;
+- the license shows its keychain error (`E_LICENCE_KEYCHAIN`) and is asked for again at the next tick (a minute), not at every save; with the trial over, notes stay readable but read-only until the license is read or added again;
 - the trial counts as ended and is read again at the next tick; a trial it could not read is never begun again, so a denial never resets it;
 - sync, AI and the HTTP API report their keychain errors and never make a new vault key, AI key or token in place of one they could not read.
 
@@ -131,7 +131,7 @@ The notes of the first signed release carry this line:
 
 ### The first signed release
 
-Once the credentials are in place, release a beta first (the very first notarization of a new team can take hours, so the notarize job may run for most of its 360 minutes; see Waiting for Apple) and, before the stable release, check on a Mac that has an ad-hoc build installed: the downloaded dmg opens without Gatekeeper's warning (`spctl -a -vv /Applications/Devot.app` says `Notarized Developer ID`); the update from the ad-hoc build installs; the keychain prompts appear once and Always Allow keeps the licence, the trial and sync working; a native crash is still reported (`devot --crash-reporter`). Then check the install steps in `README.md` and the Release signing section of `SECURITY.md` against the build users download.
+Once the credentials are in place, release a beta first (the very first notarization of a new team can take hours, so the notarize job may run for most of its 360 minutes; see Waiting for Apple) and, before the stable release, check on a Mac that has an ad-hoc build installed: the downloaded dmg opens without Gatekeeper's warning (`spctl -a -vv /Applications/Devot.app` says `Notarized Developer ID`); the update from the ad-hoc build installs; the keychain prompts appear once and Always Allow keeps the license, the trial and sync working; a native crash is still reported (`devot --crash-reporter`). Then check the install steps in `README.md` and the Release signing section of `SECURITY.md` against the build users download.
 
 ## Updater key
 

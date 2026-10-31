@@ -11,6 +11,7 @@ import { editorSettings, startEditorSettings, subscribeEditorSettings } from './
 import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
 import { startMotion } from './motionPreference'
+import { showSidebarMaterial } from './sidebarMaterial'
 import { applyMotionScale } from './motionTiming'
 import { resolveLocale, setLocale, t } from './i18n'
 import { watchCompositions } from './ime'
@@ -25,9 +26,10 @@ watchCompositions(window)
 startEditorSettings()
 startAppearance()
 startMotion()
+showSidebarMaterial()
 applyMotionScale(document.documentElement)
 startShortcutSettings()
-// The same accent as the main window, so "Match System Accent" shows here too.
+// The same accent as the main window, so "Use the System Accent Color" shows here too.
 if (!DEVOT_UI_TEST) {
   void followSystemAccent(document.documentElement.style, () => editorSettings().systemAccent)
     .then((refresh) => subscribeEditorSettings(refresh))

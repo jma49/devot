@@ -340,7 +340,6 @@ button {
   .find-field,
   .link-dialog-field,
   .tag-input,
-  .shortcuts-search,
   .settings-number
 ) {
   transition:
@@ -356,14 +355,7 @@ button {
   transition-timing-function: var(--motion-easing-quick);
 }
 
-:is(
-  .search-field,
-  .find-field,
-  .link-dialog-field,
-  .tag-input,
-  .shortcuts-search,
-  .settings-number
-):focus-within {
+:is(.search-field, .find-field, .link-dialog-field, .tag-input, .settings-number):focus-within {
   transition-duration: var(--motion-duration-quick);
   transition-timing-function: var(--motion-easing-quick);
 }
@@ -3694,50 +3686,226 @@ button {
 .settings {
   box-sizing: border-box;
   display: flex;
+  flex-direction: row;
   height: 100%;
+  background: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* The page draws the toolbar itself: the window has no title bar, so this row
+   drags it, and the traffic lights sit over the sidebar beside it. */
+.settings-toolbar {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-6);
+  box-sizing: border-box;
+  height: var(--size-toolbar-height);
+  padding: 0 var(--space-9);
   background: var(--color-surface-editor);
 }
 
+/* The rule under the toolbar appears only once the pane scrolls. */
+.settings-toolbar::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 1px;
+  background: var(--color-line-hairline);
+  opacity: 0;
+  transition: opacity var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
+.settings-toolbar[data-scrolled]::after {
+  opacity: 1;
+}
+
+/* Back and Forward share one capsule, split by a hairline. */
+.settings-history {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: var(--size-settings-control);
+  overflow: hidden;
+  border-radius: calc(var(--size-settings-control) / 2);
+  background: var(--color-fill-control);
+}
+
+.settings-history-button {
+  display: grid;
+  place-items: center;
+  width: calc(var(--size-settings-control) + var(--space-3));
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-primary);
+}
+
+.settings-history-button:hover:not(:disabled) {
+  background: var(--color-fill-hover);
+}
+
+.settings-history-button:disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+.settings-history-button:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
+.settings-history-divider {
+  flex: none;
+  width: 1px;
+  height: calc(var(--size-settings-control) - var(--space-6));
+  background: var(--color-line-hairline);
+}
+
+.settings-title {
+  margin: 0;
+  font-size: var(--font-size-title3);
+  font-weight: var(--font-weight-semibold);
+}
+
+.settings-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The sidebar lets the window's material through, as the main window's does;
+   its wash follows Settings > Appearance > Glass Transparency. */
 .settings-nav {
   display: flex;
   flex: none;
   flex-direction: column;
+  gap: var(--space-1);
   box-sizing: border-box;
   width: var(--size-settings-nav-width);
-  padding-top: var(--space-2);
+  padding: calc(var(--size-toolbar-height) + var(--space-2)) var(--space-5) var(--space-6);
   overflow-y: auto;
   border-right: 1px solid var(--color-line-hairline);
-  background: var(--color-surface-sidebar-opaque);
+  background: color(
+    from var(--color-surface-sidebar) srgb r g b /
+      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
+  );
   background-image: var(--backdrop, none);
   background-attachment: fixed;
 }
 
-.settings-tab {
+:root[data-sidebar-material='off'] .settings-nav {
+  background: var(--color-surface-sidebar-opaque);
+  background-image: var(--backdrop, none);
+}
+
+/* A capsule as wide as a row's highlight, its glyph on the tiles' centre line. */
+.settings-search {
   display: flex;
+  flex: none;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3);
   box-sizing: border-box;
-  height: calc(var(--size-field-height) + var(--space-4));
-  padding: 0 var(--space-7);
+  height: var(--size-settings-control);
+  margin: 0 0 var(--space-5);
+  padding: 0 var(--space-4) 0 var(--space-5);
+  border-radius: calc(var(--size-settings-control) / 2);
+  background: var(--color-fill-control);
+  color: var(--color-text-secondary);
+}
+
+.settings-search:focus-within {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+}
+
+.settings-search-field {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
   border: 0;
   background: none;
   color: var(--color-text-primary);
-  font-size: var(--font-size-title3);
+  font: inherit;
+  font-size: var(--font-size-body);
+  outline: none;
+}
+
+.settings-search-field::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.settings-search-field::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.settings-nav-row {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--size-settings-nav-row);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-settings-row);
+  background: none;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--size-settings-tile);
   text-align: left;
 }
 
-.settings-tab .icon {
-  color: var(--color-text-secondary);
+.settings-nav-row:hover {
+  background: var(--color-fill-hover);
 }
 
-.settings-tab .icon-svg {
-  color: var(--color-text-secondary);
+.settings-nav-row:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
-.settings-tab[aria-selected='true'] {
-  background: var(--color-fill-row-selected-unemphasized);
-  box-shadow: inset -3px 0 0 var(--color-accent-fill);
+.settings-nav-row[aria-selected='true'] {
+  background: var(--color-fill-row-selected);
+}
+
+.settings:not([data-focused]) .settings-nav-row[aria-selected='true'] {
+  background: var(--color-fill-row-selected-inactive);
+}
+
+.settings-nav-tile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-settings-tile);
+  height: var(--size-settings-tile);
+  border-radius: var(--radius-settings-tile);
+}
+
+.settings-nav-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-result-pane {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.settings-no-results {
+  margin: var(--space-3) var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
 }
 
 .settings-pane {
@@ -3747,15 +3915,23 @@ button {
   /* Room for a scroll bar whether or not the pane scrolls, so the controls
      end at the same edge on every pane. */
   scrollbar-gutter: stable;
+  background: var(--color-surface-editor);
 }
 
 .settings-pane-body {
-  padding: var(--space-7) var(--space-9) var(--space-9);
+  padding: var(--space-4) var(--space-9) var(--space-9);
 }
 
 .settings-section p {
   margin: 0 0 var(--space-6);
   color: var(--color-text-secondary);
+}
+
+/* Prose outside the cards is a caption on the line the titles and the rows' text start on. */
+.settings-section > p {
+  margin-bottom: var(--space-7);
+  padding: 0 var(--space-7);
+  font-size: var(--font-size-caption);
 }
 
 .settings-section .settings-error {
@@ -3782,110 +3958,509 @@ button {
 
 .settings-block + .settings-block {
   margin-top: var(--space-9);
-  padding-top: var(--space-9);
-  border-top: 1px solid var(--color-line-hairline);
 }
 
+/* Above the card, on the line its rows' text starts on. */
 .settings-block-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  margin: 0 0 var(--space-7);
-  font-size: var(--font-size-headline);
-  font-weight: var(--font-weight-bold);
+  margin: 0 0 var(--space-4);
+  padding: 0 var(--space-7);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
 }
 
+.settings-block-suffix {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-regular);
+}
+
+.settings-card {
+  display: flow-root;
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-settings-card);
+  background: var(--color-fill-settings-card);
+}
+
+/* Anything in a card but rows and pickers (prose, code, buttons) keeps clear of its edges as a row's text does. */
+.settings-card
+  > :not(
+    .setting,
+    .choice-groups,
+    .swatch-row,
+    .shortcut-list,
+    .settings-table,
+    .usage-events,
+    .plugin-list
+  ):first-child {
+  margin-top: var(--space-6);
+}
+
+.settings-card
+  > :not(
+    .setting,
+    .choice-groups,
+    .swatch-row,
+    .shortcut-list,
+    .settings-table,
+    .usage-events,
+    .plugin-list
+  ):last-child {
+  margin-bottom: var(--space-6);
+}
+
+/* Prose in a card reads like a row's description. */
+.settings-section .settings-card > p {
+  font-size: var(--font-size-caption);
+}
+
+.settings-footnote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: 0 var(--space-7);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.settings-section .settings-footnote {
+  margin-bottom: 0;
+}
+
+.settings-footnote > .icon {
+  flex: none;
+  margin-top: var(--space-1);
+}
+
+/* Every one-line row is one height, and every row with a description another; a description that wraps adds its lines. */
 .setting {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-9);
-  margin-bottom: var(--space-7);
+  box-sizing: border-box;
+  min-height: var(--size-settings-row);
+  padding: var(--space-4) 0;
 }
 
-.theme-rows {
+.setting:has(.setting-description) {
+  min-height: var(--size-settings-row-sub);
+}
+
+/* A hairline from the text's start to the card's padding, between rows only. */
+:is(.setting, .choice-groups, .settings-card > p, .settings-card > pre) + .setting::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: var(--color-line-hairline);
+}
+
+/* Thumbnails and swatches: a radio drawn as a picture, its name under it. */
+.choice-groups {
   display: flex;
+  align-items: stretch;
+  gap: var(--space-7);
+  padding: var(--space-6) 0;
+}
+
+.choice-group {
+  display: flex;
+  flex: none;
   flex-direction: column;
+  gap: var(--space-4);
+}
+
+.choice-group-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+}
+
+.choice-items {
+  display: flex;
   gap: var(--space-6);
 }
 
-.theme-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-6);
+.choice-divider {
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  margin-top: calc(var(--font-size-footnote) * 1.4 + var(--space-4));
+  margin-bottom: calc(var(--font-size-caption) * 1.4 + var(--space-3));
+  background: var(--color-line-hairline);
 }
 
-.theme-card {
+.choice {
   display: flex;
+  flex: none;
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
 }
 
-.theme-card-previews {
-  display: flex;
-  overflow: hidden;
-  border-radius: var(--radius-card);
-  box-shadow: 0 0 0 1px var(--color-line-hairline);
+/* The chosen picture has an accent ring a little way out from its edge; the keyboard's ring fills the gap. */
+.choice-frame {
+  position: relative;
+  display: block;
+  border-radius: var(--radius-settings-card);
 }
 
-.theme-card:has(input:checked) .theme-card-previews {
-  box-shadow: 0 0 0 2px var(--color-accent-fill);
+.choice-frame::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * (var(--space-1) + var(--size-focus-ring)));
+  border: var(--size-focus-ring) solid transparent;
+  border-radius: calc(var(--radius-settings-card) + var(--space-1) + var(--size-focus-ring));
+  pointer-events: none;
+  transition: border-color var(--motion-duration-hover) var(--motion-easing-out);
 }
 
-.theme-card:has(input:focus-visible) .theme-card-previews {
+.choice:has(input:checked) .choice-frame::after {
+  border-color: var(--color-accent-fill);
+}
+
+.choice:has(input:focus-visible) .choice-frame {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
-  outline-offset: var(--size-focus-ring);
+  outline-offset: 0;
 }
 
-/* A card shows its own theme's gradient, or none, whatever the page's theme. */
-.theme-preview {
-  --backdrop: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  width: calc(var(--space-10) * 3);
-  padding: var(--space-4);
-  background: var(--color-surface-editor);
-  background-image: var(--backdrop);
-  color: var(--color-text-editor);
-  font: var(--font-size-caption) / 1.4 var(--font-family-mono);
+.choice-thumb,
+.swatch {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: var(--radius-settings-card);
+  transition: filter var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+.choice-thumb {
+  width: var(--size-settings-thumb-width);
+  height: var(--size-settings-thumb-height);
+}
+
+.choice:hover :is(.choice-thumb, .swatch) {
+  filter: brightness(1.06);
+}
+
+.choice-name {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
   white-space: nowrap;
 }
 
-.theme-card-previews .theme-preview + .theme-preview,
-.theme-card-previews .theme-preview:has(+ .theme-preview) {
-  width: calc(var(--space-10) * 1.5);
-  overflow: hidden;
+.choice:has(input:checked) .choice-name {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
 }
 
-.theme-preview-heading {
-  color: var(--color-syntax-heading);
-  font-weight: var(--font-weight-bold);
+:root[data-motion='reduced'] :is(.choice-thumb, .swatch),
+:root[data-motion='reduced'] .choice-frame::after {
+  transition: none;
 }
 
-.theme-preview-markup {
-  color: var(--color-syntax-markup);
-  font-weight: var(--font-weight-regular);
+/* A small window over a wallpaper; Glass lets the wallpaper through it. */
+.window-thumb {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: var(--space-4) var(--space-5);
+  background: linear-gradient(
+    135deg,
+    var(--color-icon-tile-appearance),
+    var(--color-icon-tile-mirror)
+  );
 }
 
-.theme-preview-list {
-  color: var(--color-syntax-list);
-}
-
-.theme-preview-keyword {
-  color: var(--color-syntax-keyword);
-}
-
-.icon-style-sample {
-  gap: var(--space-5);
-  padding: var(--space-5) var(--space-6);
+.window-thumb-window {
+  --backdrop: none;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-radius: var(--radius-button);
   background: var(--color-surface-editor);
+  background-image: var(--backdrop);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+}
+
+.window-thumb[data-glass] .window-thumb-window {
+  background-color: var(--color-surface-editor-wash);
+}
+
+.window-thumb-lights {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.window-thumb-lights > span {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: 50%;
+}
+
+.window-thumb-lights > span:nth-child(1) {
+  background: var(--color-icon-tile-plugins);
+}
+
+.window-thumb-lights > span:nth-child(2) {
+  background: var(--color-icon-tile-usage);
+}
+
+.window-thumb-lights > span:nth-child(3) {
+  background: var(--color-icon-tile-sync);
+}
+
+.window-thumb-bar,
+.window-thumb-panes > span {
+  border-radius: var(--space-1);
+  background: var(--color-fill-row-selected);
+}
+
+.window-thumb-bar {
+  flex: 1;
+}
+
+.window-thumb-panes {
+  display: flex;
+  flex: 1;
+  gap: var(--space-1);
+}
+
+.window-thumb-panes > span {
+  flex: 1;
+}
+
+/* Auto: Light and Dark along one diagonal, which crosses only the picture. */
+.auto-thumb > span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+.auto-thumb-light {
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+.auto-thumb-dark {
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+.icon-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: var(--size-settings-thumb-width);
+  padding: 0 var(--space-5);
+  gap: var(--space-4);
+  background: var(--color-surface-editor);
+  box-shadow: inset 0 0 0 1px var(--color-line-hairline);
   color: var(--color-text-primary);
 }
 
-.theme-card-name {
-  font-size: var(--font-size-footnote);
+/* One appearance's themes in one row; it scrolls sideways when they do not fit. It reaches into the
+   card's start padding only, so the first swatch's ring has room and its right edge stays on the card's. */
+.swatch-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-7);
+  padding: var(--space-6) var(--space-3);
+  margin-left: calc(-1 * var(--space-3));
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+/* A theme's own background (and gradient, or none, whatever the page's theme), text and palette. */
+.swatch {
+  --backdrop: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: var(--size-settings-swatch-width);
+  height: var(--size-settings-swatch-height);
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface-editor);
+  background-image: var(--backdrop);
+  box-shadow: inset 0 0 0 1px var(--color-line-hairline);
+}
+
+.swatch-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.swatch-sample {
+  margin-right: auto;
+  color: var(--color-text-editor);
+  font-family: var(--editor-font-family, var(--font-family-mono));
+  font-size: var(--font-size-headline);
+  line-height: 1;
+}
+
+.swatch-path {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--space-2);
+  background: var(--color-accent-selection);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-caption);
+  line-height: 1;
+}
+
+.swatch-accent {
+  width: var(--space-3);
+  height: calc(var(--font-size-caption) + var(--space-2));
+  border-radius: var(--space-1);
+  background: var(--color-accent-fill);
+}
+
+.swatch-dots {
+  display: flex;
+}
+
+.swatch-dots > span {
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--color-surface-editor);
+}
+
+.swatch-dots > span + span {
+  margin-left: calc(-1 * var(--space-2));
+}
+
+/* A number with - and + in one capsule; the field takes typing. */
+.stepper {
+  display: flex;
+  align-items: center;
+  height: var(--size-settings-control);
+  padding: 0 var(--space-1);
+  border-radius: calc(var(--size-settings-control) / 2);
+  background: var(--color-fill-control);
+}
+
+.stepper-button {
+  display: grid;
+  place-items: center;
+  width: calc(var(--size-settings-control) - var(--space-2));
+  height: calc(var(--size-settings-control) - var(--space-2));
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-text-primary);
+}
+
+.stepper-button:hover:not(:disabled) {
+  background: var(--color-fill-hover);
+}
+
+.stepper-button:disabled {
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+.stepper-button:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+}
+
+.stepper-field {
+  box-sizing: border-box;
+  width: calc(var(--space-10) + var(--space-2));
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  appearance: textfield;
+}
+
+.stepper-field::-webkit-inner-spin-button,
+.stepper-field::-webkit-outer-spin-button {
+  appearance: none;
+}
+
+.stepper:has(.stepper-field:focus-visible) {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+}
+
+/* A pop-up: the value, then a round button with the up and down chevron, on a capsule. */
+.select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: var(--size-settings-control);
+  border-radius: calc(var(--size-settings-control) / 2);
+  background: var(--color-fill-control);
+  color: var(--color-text-primary);
+  transition: background-color var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+.select:hover:not(:has(select:disabled)) {
+  background: var(--color-fill-tool-hover);
+}
+
+.select > select {
+  box-sizing: border-box;
+  height: 100%;
+  min-width: 0;
+  padding: 0 calc(var(--size-settings-control) + var(--space-2)) 0 var(--space-5);
+  border: 0;
+  border-radius: inherit;
+  outline: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-size-body);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.select:has(select:focus-visible) {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+}
+
+.select:has(select:disabled) {
+  opacity: var(--opacity-disabled);
+}
+
+.select-chevron {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: calc(var(--size-settings-control) - var(--space-4));
+  height: calc(var(--size-settings-control) - var(--space-4));
+  border-radius: 50%;
+  background: var(--color-fill-control);
+  pointer-events: none;
+}
+
+/* Push buttons in Settings: filled capsules. */
+.settings-card .button {
+  height: var(--size-settings-control);
+  padding: 0 var(--space-6);
+  border-radius: calc(var(--size-settings-control) / 2);
+  background: var(--color-fill-control);
+  box-shadow: none;
+}
+
+.settings-card .button:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-fill-tool-hover);
+}
+
+.settings-card .button:active:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-fill-row-selected);
 }
 
 .setting-text {
@@ -3897,13 +4472,13 @@ button {
 
 .setting-label {
   color: var(--color-text-primary);
-  font-size: var(--font-size-title3);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
 }
 
 .setting-description {
   color: var(--color-text-secondary);
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-caption);
 }
 
 .setting-control {
@@ -3917,24 +4492,55 @@ button {
 .setting-range {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
-.setting-range-end {
-  font-size: var(--font-size-caption);
+.setting-range-value {
+  min-width: calc(var(--space-10) - var(--space-2));
   color: var(--color-text-secondary);
-}
-
-.setting-range input:disabled ~ .setting-range-end {
-  opacity: var(--opacity-disabled);
-}
-
-.setting-control select {
-  box-sizing: border-box;
-  height: var(--size-segment-height);
-  border-radius: var(--radius-control);
-  font: inherit;
   font-size: var(--font-size-body);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* A slider: a thin track filled with the accent up to a round knob. */
+.slider {
+  --fill: calc((var(--value, 0) - var(--min, 0)) / (var(--max, 100) - var(--min, 0)) * 100%);
+  width: calc(var(--size-settings-swatch-width) * 1.6);
+  height: var(--size-switch-height);
+  margin: 0;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: var(--space-2);
+  border-radius: var(--space-1);
+  background: linear-gradient(
+    to right,
+    var(--color-accent-fill) var(--fill),
+    var(--color-fill-control) var(--fill)
+  );
+}
+
+.slider::-webkit-slider-thumb {
+  width: var(--size-switch-height);
+  height: var(--size-switch-height);
+  margin-top: calc((var(--space-2) - var(--size-switch-height)) / 2);
+  border-radius: 50%;
+  background: var(--color-switch-handle);
+  box-shadow: 0 1px 2px var(--color-shadow-popover-key);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.slider:focus-visible {
+  outline: none;
+}
+
+.slider:focus-visible::-webkit-slider-thumb {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
 }
 
 .setting-toggle input[role='switch'] {
@@ -4000,14 +4606,15 @@ button {
   font-size: var(--font-size-body);
 }
 
+/* A typed value in Settings: a capsule like the pop-ups beside it. */
 .settings-number {
   box-sizing: border-box;
   width: calc(var(--space-10) * 2);
-  height: var(--size-segment-height);
-  padding: 0 var(--space-4);
-  border: 1px solid var(--color-line-hairline);
-  border-radius: var(--radius-control);
-  background: var(--color-surface-editor);
+  height: var(--size-settings-control);
+  padding: 0 var(--space-5);
+  border: 1px solid transparent;
+  border-radius: calc(var(--size-settings-control) / 2);
+  background: var(--color-fill-control);
   color: var(--color-text-primary);
   font: inherit;
 }
@@ -4026,8 +4633,18 @@ button {
   width: calc(var(--space-10) * 2 + var(--space-4) * 2);
 }
 
+/* Every text field in Settings is one width, and buttons under one span exactly its width. */
 .settings-text {
-  width: calc(var(--space-10) * 6);
+  width: var(--size-settings-field);
+}
+
+.setting-control:has(> .settings-text) > :is(.settings-buttons, .settings-error) {
+  width: var(--size-settings-field);
+}
+
+.setting-control > .settings-error {
+  margin: 0;
+  font-size: var(--font-size-caption);
 }
 
 .settings-hint {
@@ -4035,17 +4652,15 @@ button {
   font-size: var(--font-size-footnote);
 }
 
+/* A group of buttons: equal-width capsules side by side. */
 .settings-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   gap: var(--space-4);
-}
-
-.settings-actions {
-  display: flex;
-  gap: var(--space-4);
-  margin: var(--space-6) 0;
+  width: max-content;
+  max-width: 100%;
+  margin-left: auto;
 }
 
 .visually-hidden {
@@ -4057,147 +4672,220 @@ button {
   white-space: nowrap;
 }
 
-.shortcuts-search {
-  box-sizing: border-box;
-  width: 100%;
-  height: var(--size-field-height);
-  margin: 0 0 var(--space-6);
-  padding: 0 var(--space-5);
-  border: 1px solid var(--color-line-hairline);
-  border-radius: var(--radius-field);
-  background: var(--color-surface-editor);
-  color: var(--color-text-primary);
+/* Settings > Keyboard: the filter capsule spans the pane; the caption under it starts on the titles' line. */
+.shortcuts-filter {
+  margin: 0 0 var(--space-4);
 }
 
-.shortcuts-search:focus {
-  outline: none;
-  border-color: var(--color-focus-ring);
+.shortcut-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.shortcuts {
-  width: 100%;
-  margin: 0 0 var(--space-7);
-  border: 1px solid var(--color-line-hairline);
-  border-radius: var(--radius-card);
-  border-collapse: separate;
-  border-spacing: 0;
+.shortcut-row .setting-text {
+  flex: 1;
 }
 
-.shortcuts thead th {
-  background: var(--color-fill-track);
-  font-weight: var(--font-weight-semibold);
-  text-align: left;
-}
-
-.shortcuts th,
-.shortcuts td {
-  padding: var(--space-3) var(--space-5);
-  border-bottom: 1px solid var(--color-line-hairline);
-  vertical-align: middle;
-}
-
-.shortcuts tbody tr:last-child > * {
-  border-bottom: 0;
-}
-
-.shortcuts th[scope='row'] {
-  font-weight: var(--font-weight-regular);
-  text-align: left;
-}
-
-.shortcuts th[scope='row'] .settings-hint {
-  display: block;
-}
-
-.shortcut-keystroke {
-  white-space: nowrap;
-}
-
-.shortcut-copy {
-  display: inline-flex;
+/* Copy, Clear and Reset sit left of the key field; Reset shows while the command is changed, the
+   others while the row is under the pointer or has the keyboard. They keep their room, so the key
+   fields stay in one column. */
+.shortcut-controls {
+  display: flex;
+  flex: none;
   align-items: center;
-  justify-content: center;
-  margin-right: var(--space-3);
-  padding: var(--space-1);
-  border: 0;
-  background: none;
-  color: var(--color-accent-text);
-  vertical-align: middle;
+  gap: var(--space-2);
 }
 
-.shortcut-copy[aria-disabled='true'] {
-  opacity: 0.4;
-}
-
-.shortcut-source {
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-}
-
-.shortcut-key {
-  min-width: calc(var(--space-10) * 2);
+.shortcut-action {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-segment-height);
   height: var(--size-segment-height);
-  padding: 0 var(--space-3);
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-control);
-  background: var(--color-fill-track);
+  border-radius: 50%;
+  background: none;
+  color: var(--color-text-secondary);
+  opacity: 0;
+  transition:
+    background-color var(--motion-duration-hover) var(--motion-easing-out),
+    color var(--motion-duration-hover) var(--motion-easing-out),
+    opacity var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+.shortcut-row:is(:hover, :focus-within) .shortcut-action,
+.shortcut-row[data-customized] .shortcut-reset {
+  opacity: 1;
+}
+
+.shortcut-action:hover:not([aria-disabled='true']) {
+  background: var(--color-fill-hover);
   color: var(--color-text-primary);
+}
+
+.shortcut-row:is(:hover, :focus-within) .shortcut-action[aria-disabled='true'] {
+  opacity: var(--opacity-disabled);
+}
+
+.shortcut-action:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+}
+
+/* One width for every key field, so they line up; the keys are one line of glyphs, so an ellipsis
+   never cuts one in half. */
+.shortcut-key {
+  box-sizing: border-box;
+  width: var(--size-settings-key-field);
+  height: calc(var(--size-settings-control) + var(--space-1));
+  padding: 0 var(--space-5);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-settings-row);
+  background: var(--color-fill-control);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
   font-variant-numeric: tabular-nums;
-  text-align: left;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  transition:
+    background-color var(--motion-duration-hover) var(--motion-easing-out),
+    box-shadow var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+.shortcut-key:hover {
+  background: var(--color-fill-tool-hover);
+}
+
+.shortcut-key:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
 }
 
 .shortcut-key[aria-pressed='true'] {
-  box-shadow: 0 0 0 2px var(--color-accent-fill);
+  box-shadow: inset 0 0 0 var(--size-focus-ring) var(--color-accent-fill);
+  color: var(--color-text-secondary);
+  letter-spacing: normal;
 }
 
-.shortcut-key kbd {
-  font: inherit;
-}
-
-.shortcut-key kbd + kbd {
-  margin-left: var(--space-3);
+.shortcut-key[aria-pressed='true']:focus-visible {
+  outline: none;
 }
 
 .shortcut-none {
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
+  letter-spacing: normal;
 }
 
-.shortcuts td.shortcut-actions {
-  padding-right: 0;
-  text-align: right;
+.shortcut-key:has(.shortcut-none):not(:hover) {
+  background: var(--color-fill-settings-card);
+}
+
+.shortcut-row .settings-error {
+  color: var(--color-status-dropped);
+}
+
+/* The pane's own button at the toolbar's end: round, on the same fill as Back and Forward. */
+.settings-toolbar-end {
+  display: flex;
+  margin-left: auto;
+}
+
+.more-menu {
+  position: relative;
+}
+
+.settings-more {
+  display: grid;
+  place-items: center;
+  width: calc(var(--size-settings-control) + var(--space-2));
+  height: calc(var(--size-settings-control) + var(--space-2));
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-fill-control);
+  color: var(--color-text-primary);
+  transition: background-color var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+.settings-more:hover,
+.settings-more[aria-expanded='true'] {
+  background: var(--color-fill-tool-hover);
+}
+
+.settings-more:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+}
+
+.more-menu-list {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: calc(var(--size-settings-key-field) + var(--space-9));
+  padding: var(--space-2);
+  border-radius: var(--radius-popover);
+  background: var(--color-surface-popover);
+  box-shadow:
+    0 0 0 0.5px var(--color-line-hairline),
+    0 var(--space-2) var(--space-7) var(--color-shadow-popover-key);
+}
+
+.more-menu-item {
+  height: var(--size-settings-nav-row);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-settings-tile);
+  background: none;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+  text-align: left;
   white-space: nowrap;
 }
 
-.shortcut-actions .button + .button {
-  margin-left: var(--space-2);
+.more-menu-item:focus {
+  outline: none;
 }
 
-.shortcuts td .settings-error {
-  display: block;
-  margin-top: var(--space-2);
-  white-space: normal;
+.more-menu-item:is(:hover, :focus-visible):not([aria-disabled='true']) {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
 }
 
-.usage-counts {
+.more-menu-item[aria-disabled='true'] {
+  color: var(--color-text-tertiary);
+}
+
+/* Data in a card: a caption header, then one row per item, its value at the right, with the rows' separators. */
+.settings-table {
   width: 100%;
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
 }
 
-.usage-counts th {
-  color: var(--color-text-secondary);
+.settings-table :is(th, td) {
+  height: var(--size-settings-row);
+  padding: 0;
   font-weight: var(--font-weight-regular);
   text-align: left;
 }
 
-.usage-counts th,
-.usage-counts td {
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--color-line-hairline);
+.settings-table thead th {
+  height: calc(var(--size-settings-row) - var(--space-6));
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
 }
 
-.usage-counts :is(th, td):last-child {
+.settings-table tr + tr :is(th, td),
+.settings-table tbody tr:first-child :is(th, td) {
+  border-top: 1px solid var(--color-line-hairline);
+}
+
+.settings-table :is(th, td):last-child {
   text-align: right;
 }
 
@@ -4205,15 +4893,20 @@ button {
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--color-line-hairline);
 }
 
 .usage-events li {
   display: flex;
   flex-wrap: wrap;
+  align-content: center;
   gap: var(--space-2) var(--space-5);
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--color-line-hairline);
+  min-height: var(--size-settings-row-sub);
+  padding: var(--space-4) 0;
+  box-sizing: border-box;
+}
+
+.usage-events li + li {
+  border-top: 1px solid var(--color-line-hairline);
 }
 
 .usage-events time {
@@ -4917,14 +5610,21 @@ button.popup:focus-visible {
 }
 
 .plugin-row {
+  align-items: flex-start;
   padding: var(--space-6) 0;
-  border-top: 1px solid var(--color-line-hairline);
+}
+
+.setting-text .plugin-permissions-intro {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
 }
 
 .plugin-permissions {
-  margin: 0 0 var(--space-4);
+  margin: 0;
   padding-left: var(--space-7);
   color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
 }
 
 .plugin-review .confirm-detail p {

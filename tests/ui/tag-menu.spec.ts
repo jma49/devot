@@ -118,12 +118,12 @@ test.beforeEach(async ({ page }) => {
   await page.reload()
 })
 
-test('right-click shows the native tag menu with a Colour submenu', async ({ page }) => {
+test('right-click shows the native tag menu with a Color submenu', async ({ page }) => {
   await setUp(page)
   await openMenu(page, 'sync')
   expect(await shownMenu(page)).toEqual([
     'Tag Settings…',
-    'Colour >',
+    'Color >',
     '  None [x]',
     '  Red [ ]',
     '  Orange [ ]',
@@ -132,7 +132,7 @@ test('right-click shows the native tag menu with a Colour submenu', async ({ pag
     '  Blue [ ]',
     '  Purple [ ]',
     '  Pink [ ]',
-    '  Grey [ ]',
+    '  Gray [ ]',
     '---',
     'Filter by Tag [ ]',
     '---',
@@ -145,7 +145,7 @@ test('right-click shows the native tag menu with a Colour submenu', async ({ pag
 test('a colour shows as the sidebar dot and on chips, and survives a reload', async ({ page }) => {
   await setUp(page)
   await openMenu(page, 'idea')
-  await pickMenuItem(page, 'Purple', 'Colour')
+  await pickMenuItem(page, 'Purple', 'Color')
 
   const dot = tagRow(page, 'idea').locator('.tag-dot')
   await expect(dot).toHaveAttribute('data-color', 'purple')
@@ -172,7 +172,7 @@ test('a colour shows as the sidebar dot and on chips, and survives a reload', as
   await expect(tagRow(page, 'idea').locator('.tag-dot')).toHaveAttribute('data-color', 'purple')
 
   await openMenu(page, 'idea')
-  await pickMenuItem(page, 'None', 'Colour')
+  await pickMenuItem(page, 'None', 'Color')
   await expect(tagRow(page, 'idea').locator('.tag-dot')).toHaveCount(0)
   await expect(page.locator('.chip .tag-dot')).toHaveCount(0)
 })

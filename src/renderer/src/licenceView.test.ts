@@ -53,7 +53,7 @@ describe('readLicence', () => {
   })
 })
 
-describe('the licence pages', () => {
+describe('the license pages', () => {
   it('live under one address', () => {
     expect(BUY_URL).toBe('https://licence.devot.online/buy')
   })
@@ -61,8 +61,8 @@ describe('the licence pages', () => {
 
 describe('what the windows say', () => {
   it('gives each state a sentence', () => {
-    expect(stateSentence(none)).toMatch(/^No licence is added/)
-    expect(stateSentence({ ...none, gated: false })).toMatch(/does not check licences/)
+    expect(stateSentence(none)).toMatch(/^No license is added/)
+    expect(stateSentence({ ...none, gated: false })).toMatch(/does not check licenses/)
     expect(stateSentence({ ...none, code: 'E_LICENCE_KEYCHAIN' })).toMatch(
       /keychain \(E_LICENCE_KEYCHAIN\)/,
     )
@@ -75,44 +75,44 @@ describe('what the windows say', () => {
 
   it('says why a key was refused', () => {
     expect(licenceProblem('E_LICENCE_MALFORMED')).toBe(
-      'This is not a complete Devot licence key. (E_LICENCE_MALFORMED)',
+      'This is not a complete Devot license key. (E_LICENCE_MALFORMED)',
     )
     expect(licenceProblem('E_LICENCE_UNKNOWN_KID')).toMatch(/Update Devot/)
     expect(licenceProblem('E_COMMAND_FAILED')).toBe('Something went wrong. (E_COMMAND_FAILED)')
   })
 })
 
-describe('a devot://licence link', () => {
-  it('adds a licence to a device that holds none', () => {
+describe('a devot://license link', () => {
+  it('adds a license to a device that holds none', () => {
     expect(planLicenceLink(none, offer)).toEqual({ kind: 'add' })
   })
 
-  it('changes nothing for the licence held already', () => {
+  it('changes nothing for the license held already', () => {
     expect(planLicenceLink(held(), offer)).toEqual({ kind: 'same' })
     expect(planLicenceLink(held({ state: 'revoked' }), offer)).toEqual({ kind: 'same' })
   })
 
-  it('asks before it replaces another licence, or one that does not verify', () => {
+  it('asks before it replaces another license, or one that does not verify', () => {
     const other = { ...offer, id: OTHER_ID, licensee: 'someone@example.com' }
     expect(planLicenceLink(held(), other)).toEqual({
       kind: 'ask',
-      message: 'Replace the licence on this device?',
-      detail: `This device holds the licence for buyer@example.com (${ID}). The key in the link is for someone@example.com (${OTHER_ID}).`,
+      message: 'Replace the license on this device?',
+      detail: `This device holds the license for buyer@example.com (${ID}). The key in the link is for someone@example.com (${OTHER_ID}).`,
     })
     const invalid = { ...none, state: 'invalid', code: 'E_LICENCE_SIGNATURE' } as const
     expect(planLicenceLink(invalid, other)).toEqual({
       kind: 'ask',
-      message: 'Replace the licence on this device?',
-      detail: `The licence on this device could not be verified. The key in the link is for someone@example.com (${OTHER_ID}).`,
+      message: 'Replace the license on this device?',
+      detail: `The license on this device could not be verified. The key in the link is for someone@example.com (${OTHER_ID}).`,
     })
-    // A keychain that could not be read may hold a licence: ask too.
+    // A keychain that could not be read may hold a license: ask too.
     expect(planLicenceLink({ ...none, code: 'E_LICENCE_KEYCHAIN' }, other).kind).toBe('ask')
   })
 
-  it('asks when the same licence now names another licensee', () => {
+  it('asks when the same license now names another licensee', () => {
     expect(planLicenceLink(held(), { ...offer, licensee: 'new@example.com' })).toMatchObject({
       kind: 'ask',
-      message: 'Replace the licence on this device?',
+      message: 'Replace the license on this device?',
     })
   })
 })
@@ -151,7 +151,7 @@ describe('the trial', () => {
     expect(timeLeft(10_000, 'en')).toBe('1 minute')
   })
 
-  it('has a line in Settings > Licence unless a licence unlocks Devot', () => {
+  it('has a line in Settings > License unless a license unlocks Devot', () => {
     expect(trialSentence(running(), END - 30 * HOUR, 'en')).toMatch(
       /^Everything works, sync and AI included, until the trial ends on .+ \(1 day left\)\.$/,
     )

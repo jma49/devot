@@ -58,11 +58,11 @@ async function shown(target: TagMenuTarget, pick: (a: TagAction) => void = () =>
 }
 
 describe('TAG_MENU', () => {
-  it('shows Tag Settings, the Colour submenu, Filter by Tag, Copy Tag ID and Delete Tag', async () => {
+  it('shows Tag Settings, the Color submenu, Filter by Tag, Copy Tag ID and Delete Tag', async () => {
     const { lines } = await shown({ id: 't', color: null, filtered: false })
     expect(lines).toEqual([
       'Tag Settings\u2026',
-      'Colour >',
+      'Color >',
       '  None [x]',
       '  Red [ ]',
       '  Orange [ ]',
@@ -71,7 +71,7 @@ describe('TAG_MENU', () => {
       '  Blue [ ]',
       '  Purple [ ]',
       '  Pink [ ]',
-      '  Grey [ ]',
+      '  Gray [ ]',
       '---',
       'Filter by Tag [ ]',
       '---',

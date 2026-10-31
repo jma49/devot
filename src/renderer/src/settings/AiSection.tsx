@@ -11,7 +11,7 @@ import { licenceEntitlements, startLicence, useLicence, useTrialOver } from '../
 import { LicenceButton } from '../LicenceLocked'
 import { loadAiSettings, removeAiKey, saveAiKey, saveAiSettings } from './aiProviders'
 import { SUGGEST_AFTER_CHARS, SUGGEST_BEFORE_CHARS } from '../../../core/aiSuggest'
-import { Setting, SettingToggle, SettingsSection } from './controls'
+import { Select, Setting, SettingsSection, SettingToggle } from './controls'
 
 const NAMES: Record<AiProviderId, MessageKey> = {
   anthropic: 'aiSettings.provider.anthropic',
@@ -161,7 +161,7 @@ export function AiSection() {
         {announcement}
       </p>
       {licenceEntitlements.has('aiProviders') ? null : (
-        <SettingsSection icon="settings.licence" title="licenceSettings.title">
+        <SettingsSection title="licenceSettings.title">
           <Setting
             label="licenceSettings.title"
             description={t(trialEnded ? 'licence.locked.aiTrialEnded' : 'licence.locked.ai')}
@@ -174,14 +174,14 @@ export function AiSection() {
       )}
       {view && drafts ? (
         <>
-          <SettingsSection icon="settings.ai" title="aiSettings.activeTitle">
+          <SettingsSection title="aiSettings.activeTitle">
             <Setting
               label="aiSettings.active"
               description={t('aiSettings.activeHint')}
               htmlFor={id('active')}
               descriptionId={id('active-hint')}
             >
-              <select
+              <Select
                 id={id('active')}
                 value={view.active}
                 aria-describedby={id('active-hint')}
@@ -192,10 +192,10 @@ export function AiSection() {
                     {t(NAMES[p])}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Setting>
           </SettingsSection>
-          <SettingsSection icon="settings.ai" title="aiSettings.suggestTitle">
+          <SettingsSection title="aiSettings.suggestTitle">
             <SettingToggle
               label="aiSettings.suggestOnIdle"
               description="aiSettings.suggestOnIdleHint"
@@ -218,7 +218,7 @@ export function AiSection() {
               if (e.key === 'Enter') commit()
             }
             return (
-              <SettingsSection key={provider} icon="settings.ai" title={NAMES[provider]}>
+              <SettingsSection key={provider} title={NAMES[provider]}>
                 <Setting
                   label="aiSettings.endpoint"
                   description={t('aiSettings.endpointHint')}

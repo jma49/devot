@@ -5,6 +5,7 @@
   "windows": ["settings"],
   "permissions": [
     "core:event:allow-listen",
+    "core:window:allow-start-dragging",
     "core:event:allow-unlisten",
     "allow-editor-settings-get",
     "allow-editor-settings-set",

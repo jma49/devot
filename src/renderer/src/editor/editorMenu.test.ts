@@ -80,7 +80,7 @@ describe('the editor menu', () => {
       'Improve Writing',
       'Proofread',
       'Reformat',
-      'Summarise',
+      'Summarize',
       'Make Bullet List',
       'Make Task List',
       'Make Table',

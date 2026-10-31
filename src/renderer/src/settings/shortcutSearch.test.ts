@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { effectiveKeymap } from '../commands/keymap'
 import { COMMANDS } from '../commands/registry'
-import { matchesQuery } from './shortcutSearch'
+import { GROUP_ORDER, groupedShortcuts, matchesQuery } from './shortcutSearch'
 
 const keymap = effectiveKeymap({})
 const found = (query: string, map = keymap) =>
@@ -41,5 +41,56 @@ describe('the keyboard search', () => {
 
   it('finds the commands of a group by its name', () => {
     expect(found('tables')).toEqual(COMMANDS.filter((c) => c.group === 'table').map((c) => c.id))
+  })
+
+  it('reads cmd, command, ctrl, control, opt, option, alt and shift in a typed key, in any order', () => {
+    expect(found('cmd+k')).toEqual(found('mod+k'))
+    expect(found('cmd+k')).toContain('palette.open')
+    expect(found('CMD+K')).toEqual(found('mod+k'))
+    expect(found('command+u')).toEqual(['format.strikethrough'])
+    expect(found('shift+cmd+d')).toEqual(found('mod+shift+d'))
+    expect(found('opt+cmd+y')).toEqual(found('mod+alt+y'))
+    expect(found('option+cmd+y')).toEqual(found('mod+alt+y'))
+    expect(found('control+cmd+1')).toEqual(found('mod+ctrl+1'))
+    expect(found('ctrl+cmd+1').length).toBeGreaterThan(0)
+    // A typed key names that key alone, not every key that has it inside.
+    expect(found('cmd+k')).not.toContain(
+      COMMANDS.find((c) => keymap.get(c.id)?.includes('Mod+Shift+K'))?.id,
+    )
+  })
+})
+
+describe('the keyboard groups', () => {
+  it('orders every group once, app first', () => {
+    expect(GROUP_ORDER).toEqual([
+      'app',
+      'note',
+      'notebook',
+      'tag',
+      'view',
+      'search',
+      'find',
+      'edit',
+      'format',
+      'table',
+      'image',
+    ])
+    expect(new Set(COMMANDS.map((c) => c.group))).toEqual(new Set(GROUP_ORDER))
+  })
+
+  it('lists every command under its group, in the group order, keeping the registry order', () => {
+    const groups = groupedShortcuts(COMMANDS, keymap, '')
+    expect(groups.map((g) => g.group)).toEqual(GROUP_ORDER)
+    for (const { group, commands } of groups)
+      expect(commands.map((c) => c.id)).toEqual(
+        COMMANDS.filter((c) => c.group === group).map((c) => c.id),
+      )
+  })
+
+  it('leaves out a group the search empties, and every group when nothing matches', () => {
+    expect(groupedShortcuts(COMMANDS, keymap, 'bold')).toEqual([
+      { group: 'format', commands: [COMMANDS.find((c) => c.id === 'format.bold')] },
+    ])
+    expect(groupedShortcuts(COMMANDS, keymap, 'no such command')).toEqual([])
   })
 })

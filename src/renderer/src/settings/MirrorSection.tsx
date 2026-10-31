@@ -56,7 +56,7 @@ export function MirrorSection() {
           {pausedMessage(status.paused)}
         </p>
       ) : null}
-      <SettingsSection icon="settings.mirror" title="mirror.title">
+      <SettingsSection title="mirror.title">
         <SettingsNote>{t('mirror.detail')}</SettingsNote>
         <Setting
           label="mirror.folderLabel"

@@ -2,8 +2,6 @@ import { useId, useMemo } from 'react'
 import {
   CURSOR_SCROLL_MARGIN_MAX,
   FONT_SLOT_ORDER,
-  FONT_SIZE_MAX,
-  FONT_SIZE_MIN,
   FONT_WEIGHTS,
   INDENT_UNITS,
   LINE_HEIGHTS,
@@ -17,12 +15,17 @@ import {
   type ListMarker,
   type PasteUrlStyle,
 } from '../../../core/editorSettings'
-import { commandKeys } from '../commands/registry'
-import { shortcutLabel } from '../commands/keys'
 import { useKeymap } from '../commands/shortcutSettings'
 import { useEditorSettings } from '../editorSettings'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
-import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
+import {
+  NumberStepper,
+  Select,
+  Setting,
+  SettingsSection,
+  SettingToggle,
+  useSettingsChange,
+} from './controls'
 import { FontSection } from './FontChoice'
 import { useTypedNumber } from './typedNumber'
 
@@ -90,26 +93,6 @@ const FLAGS: Readonly<Record<Flag, { label: MessageKey; hint: MessageKey }>> = {
   },
 }
 
-/**
- * The font size description: what it is, and the keys in effect (or, when
- * any of the three has no key, so a sentence with them would have blanks,
- * the palette's commands).
- */
-function fontSizeHint(): string {
-  const [bigger, smaller, reset] = (
-    ['view.fontBigger', 'view.fontSmaller', 'view.fontReset'] as const
-  ).map((id) => commandKeys(id)[0])
-  const keys =
-    bigger === undefined || smaller === undefined || reset === undefined
-      ? t('editorSettings.fontSizeKeysNone')
-      : format(t('editorSettings.fontSizeKeys'), {
-          bigger: shortcutLabel(bigger),
-          smaller: shortcutLabel(smaller),
-          reset: shortcutLabel(reset),
-        })
-  return `${t('editorSettings.fontSizeHint')} ${keys}`
-}
-
 function withStored(list: readonly number[], stored: number): number[] {
   return list.includes(stored) ? [...list] : [...list, stored].sort((a, b) => a - b)
 }
@@ -128,12 +111,6 @@ export function EditingSection() {
   const whole = useMemo(() => new Intl.NumberFormat(locale), [locale])
   const id = (name: string) => `${ids}-${name}`
 
-  const fontSize = useTypedNumber({
-    stored: settings.fontSize,
-    min: FONT_SIZE_MIN,
-    max: FONT_SIZE_MAX,
-    store: (fontSize) => change({ fontSize }),
-  })
   const margin = useTypedNumber({
     stored: settings.cursorScrollMargin,
     min: 0,
@@ -163,7 +140,7 @@ export function EditingSection() {
           {format(t('editorSettings.failed'), { code: error })}
         </p>
       ) : null}
-      <SettingsSection icon="settings.interface" title="editorSettings.interface">
+      <SettingsSection title="editorSettings.interface">
         {flag('toolbar')}
         {flag('lineNumbers')}
         {flag('highlightActiveLine')}
@@ -173,7 +150,7 @@ export function EditingSection() {
           htmlFor={id('line-wrapping')}
           descriptionId={id('line-wrapping-hint')}
         >
-          <select
+          <Select
             id={id('line-wrapping')}
             value={settings.lineWrapping}
             aria-describedby={id('line-wrapping-hint')}
@@ -184,7 +161,7 @@ export function EditingSection() {
                 {t(WRAPPING_LABELS[m])}
               </option>
             ))}
-          </select>
+          </Select>
         </Setting>
         {flag('inlineImages')}
         {/* Only wrapped lines can keep to a width (see editor/settings.ts). */}
@@ -199,28 +176,25 @@ export function EditingSection() {
           htmlFor={id('margin')}
           descriptionId={id('margin-hint')}
         >
-          <input
+          <NumberStepper
             id={id('margin')}
-            type="number"
-            className="settings-number"
+            value={margin.value}
             min={0}
             max={CURSOR_SCROLL_MARGIN_MAX}
-            step={1}
-            value={margin.value}
-            aria-describedby={id('margin-hint')}
-            onChange={(e) => margin.type(e.currentTarget.value)}
-            onBlur={margin.leave}
+            onType={margin.type}
+            onLeave={margin.leave}
+            describedBy={id('margin-hint')}
           />
         </Setting>
       </SettingsSection>
-      <SettingsSection icon="settings.markdown" title="editorSettings.markdown">
+      <SettingsSection title="editorSettings.markdown">
         <Setting
           label="editorSettings.listMarker"
           description={t('editorSettings.listMarkerHint')}
           htmlFor={id('marker')}
           descriptionId={id('marker-hint')}
         >
-          <select
+          <Select
             id={id('marker')}
             value={settings.listMarker}
             aria-describedby={id('marker-hint')}
@@ -231,7 +205,7 @@ export function EditingSection() {
                 {t(MARKER_LABELS[m])}
               </option>
             ))}
-          </select>
+          </Select>
         </Setting>
         <Setting
           label="editorSettings.indentUnit"
@@ -239,7 +213,7 @@ export function EditingSection() {
           htmlFor={id('indent')}
           descriptionId={id('indent-hint')}
         >
-          <select
+          <Select
             id={id('indent')}
             value={settings.indentUnit}
             aria-describedby={id('indent-hint')}
@@ -250,7 +224,7 @@ export function EditingSection() {
                 {t(INDENT_LABELS[u])}
               </option>
             ))}
-          </select>
+          </Select>
         </Setting>
         <Setting
           label="editorSettings.tabWidth"
@@ -258,7 +232,7 @@ export function EditingSection() {
           htmlFor={id('tab-width')}
           descriptionId={id('tab-width-hint')}
         >
-          <select
+          <Select
             id={id('tab-width')}
             value={String(settings.tabWidth)}
             aria-describedby={id('tab-width-hint')}
@@ -269,7 +243,7 @@ export function EditingSection() {
                 {whole.format(w)}
               </option>
             ))}
-          </select>
+          </Select>
         </Setting>
         <Setting
           label="editorSettings.pasteUrl"
@@ -277,7 +251,7 @@ export function EditingSection() {
           htmlFor={id('paste-url')}
           descriptionId={id('paste-url-hint')}
         >
-          <select
+          <Select
             id={id('paste-url')}
             value={settings.pasteUrl}
             aria-describedby={id('paste-url-hint')}
@@ -288,37 +262,18 @@ export function EditingSection() {
                 {t(PASTE_URL_LABELS[p])}
               </option>
             ))}
-          </select>
+          </Select>
         </Setting>
         {flag('spellCheck')}
       </SettingsSection>
-      <SettingsSection icon="settings.textAppearance" title="editorSettings.textAppearance">
-        <Setting
-          label="editorSettings.fontSize"
-          description={fontSizeHint()}
-          htmlFor={id('size')}
-          descriptionId={id('size-hint')}
-        >
-          <input
-            id={id('size')}
-            type="number"
-            className="settings-number"
-            min={FONT_SIZE_MIN}
-            max={FONT_SIZE_MAX}
-            step={1}
-            value={fontSize.value}
-            aria-describedby={id('size-hint')}
-            onChange={(e) => fontSize.type(e.currentTarget.value)}
-            onBlur={fontSize.leave}
-          />
-        </Setting>
+      <SettingsSection title="editorSettings.textAppearance">
         <Setting
           label="editorSettings.fontWeight"
           description={t('editorSettings.fontWeightHint')}
           htmlFor={id('weight')}
           descriptionId={id('weight-hint')}
         >
-          <select
+          <Select
             id={id('weight')}
             value={settings.fontWeight}
             aria-describedby={id('weight-hint')}
@@ -329,7 +284,7 @@ export function EditingSection() {
                 {w === 'normal' ? t('editorSettings.weight.normal') : w}
               </option>
             ))}
-          </select>
+          </Select>
         </Setting>
         <Setting
           label="editorSettings.lineHeight"
@@ -337,7 +292,7 @@ export function EditingSection() {
           htmlFor={id('line-height')}
           descriptionId={id('line-height-hint')}
         >
-          <select
+          <Select
             id={id('line-height')}
             value={String(settings.lineHeight)}
             aria-describedby={id('line-height-hint')}
@@ -348,12 +303,12 @@ export function EditingSection() {
                 {decimal.format(h)}
               </option>
             ))}
-          </select>
+          </Select>
         </Setting>
         {flag('showInvisibles')}
         {flag('highlightTrailingWhitespace')}
       </SettingsSection>
-      {FONT_SLOT_ORDER.map((slot) => (
+      {FONT_SLOT_ORDER.filter((slot) => slot !== 'note').map((slot) => (
         <FontSection key={slot} slot={slot} settings={settings} change={change} id={id} />
       ))}
       <p className="settings-note">{t('editorSettings.detail')}</p>

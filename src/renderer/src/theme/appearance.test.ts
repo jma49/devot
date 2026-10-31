@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { THEMES } from '../../../core/editorSettings'
-import { applyAppearance, applyTheme, shownAppearance, type AppearanceTarget } from './appearance'
+import {
+  applyAppearance,
+  applyAppearanceSettings,
+  applyTheme,
+  shownAppearance,
+  type AppearanceTarget,
+} from './appearance'
 
 const root = (): AppearanceTarget => ({ dataset: {} })
 
@@ -36,5 +42,41 @@ describe('the theme on the root element', () => {
       applyTheme(theme, target)
       expect(target.dataset['theme']).toBe(theme === 'default' ? undefined : theme)
     }
+  })
+})
+
+describe('the theme for the appearance shown', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  const systemIs = (appearance: 'light' | 'dark') =>
+    vi.stubGlobal('matchMedia', () => ({ matches: appearance === 'dark' }))
+  const themes = { lightTheme: 'ivory', darkTheme: 'tide' } as const
+
+  it('takes the light theme in the light appearance and the dark one in the dark', () => {
+    systemIs('dark')
+    const target = root()
+    applyAppearanceSettings({ appearance: 'light', ...themes }, target)
+    expect(target.dataset).toEqual({ appearance: 'light', theme: 'ivory' })
+    applyAppearanceSettings({ appearance: 'dark', ...themes }, target)
+    expect(target.dataset).toEqual({ appearance: 'dark', theme: 'tide' })
+  })
+
+  it('follows the system appearance while the window does', () => {
+    const target = root()
+    systemIs('light')
+    applyAppearanceSettings({ appearance: 'system', ...themes }, target)
+    expect(target.dataset).toEqual({ theme: 'ivory' })
+    systemIs('dark')
+    applyAppearanceSettings({ appearance: 'system', ...themes }, target)
+    expect(target.dataset).toEqual({ theme: 'tide' })
+  })
+
+  it('leaves the root unmarked when the appearance shown has the default theme', () => {
+    systemIs('dark')
+    const target = root()
+    applyAppearanceSettings(
+      { appearance: 'system', lightTheme: 'ivory', darkTheme: 'default' },
+      target,
+    )
+    expect(target.dataset).toEqual({})
   })
 })

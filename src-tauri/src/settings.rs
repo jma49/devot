@@ -5,14 +5,21 @@ use std::process::Command;
 
 use crate::storage::{BookRecord, Db};
 use crate::strings;
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::utils::config::WindowEffectsConfig;
+use tauri::utils::{WindowEffect, WindowEffectState};
+use tauri::{
+    AppHandle, Emitter, LogicalPosition, Manager, State, TitleBarStyle, WebviewUrl,
+    WebviewWindowBuilder,
+};
 
 pub const LABEL: &str = "settings";
 pub const SHOW_BACKUPS_EVENT: &str = "devot://show-backups";
 const PAGE: &str = "settings.html";
 
-const WIDTH: f64 = 820.0;
-const HEIGHT: f64 = 640.0;
+const WIDTH: f64 = 900.0;
+const HEIGHT: f64 = 680.0;
+/// The traffic lights sit on the 52 px toolbar's centre line, as in the main window.
+const TRAFFIC_LIGHTS: LogicalPosition<f64> = LogicalPosition::new(20.0, 28.0);
 
 /// Tells an open Settings window which pane to show (`settings_open_licence`).
 pub const PANE_EVENT: &str = "devot://settings-pane";
@@ -52,6 +59,16 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
         .title(strings::SETTINGS_TITLE)
         .theme(theme)
         .inner_size(WIDTH, HEIGHT)
+        // The page draws the toolbar and the sidebar itself, over the system's sidebar material.
+        .transparent(true)
+        .title_bar_style(TitleBarStyle::Overlay)
+        .hidden_title(true)
+        .traffic_light_position(TRAFFIC_LIGHTS)
+        .effects(WindowEffectsConfig {
+            effects: vec![WindowEffect::Sidebar],
+            state: Some(WindowEffectState::FollowsWindowActiveState),
+            ..Default::default()
+        })
         .resizable(false);
     #[cfg(desktop)]
     let builder = builder.minimizable(false).maximizable(false);

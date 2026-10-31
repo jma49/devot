@@ -2,9 +2,9 @@
 
 Devot's icons are SF Symbols. The repository and the app bundle hold symbol names only (`design/icons/symbols.json`); the `symbol_png` command asks AppKit (UIKit on iOS) for each image at runtime and the UI caches it per name, size and appearance.
 
-## Licence finding
+## License finding
 
-SF Symbols come with Apple's SF Symbols licence (part of the Xcode and Apple SDKs agreement). What it allows and forbids, as it applies to Devot:
+SF Symbols come with Apple's SF Symbols license (part of the Xcode and Apple SDKs agreement). What it allows and forbids, as it applies to Devot:
 
 - The symbols may be used in software built for Apple platforms. Devot runs on macOS and iOS, both Apple platforms, so drawing them in its UI is allowed.
 - The symbols may not be redistributed as artwork: no exported SVG, PNG or font copies in this repository, in `design/`, or in the app bundle. Asking the system for the image at runtime, as Devot does, ships nothing of Apple's.

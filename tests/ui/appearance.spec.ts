@@ -44,8 +44,9 @@ test.describe('with the system in light', () => {
 
   test('the Dark card in Settings stores the choice and shows it', async ({ page }) => {
     await openSettings(page, 'Appearance')
-    const cards = page.getByRole('radiogroup', { name: 'Appearance' })
-    await expect(cards.getByRole('radio', { name: 'Match System' })).toBeChecked()
+    const cards = page.getByRole('radiogroup', { name: 'Color scheme' })
+    await expect(cards.getByRole('radio')).toHaveCount(3)
+    await expect(cards.getByRole('radio', { name: 'Auto' })).toBeChecked()
 
     await cards.getByText('Dark', { exact: true }).click()
     await expect(cards.getByRole('radio', { name: 'Dark' })).toBeChecked()
@@ -65,8 +66,8 @@ test.describe('with the system in dark', () => {
   })
 })
 
-// A chosen theme marks the root (`data-theme`); the generated tokens scope each built-in theme by it, in both
-// appearances, and the choice reaches every window like the appearance does.
+// Each appearance has its own theme; the one for the appearance shown marks the root (`data-theme`). The generated
+// tokens scope each built-in theme by it, and the choice reaches every window like the appearance does.
 
 /** The editor pane and sidebar as painted over the window material, per theme and appearance. */
 const SURFACES = {
@@ -88,46 +89,100 @@ const shownSurfaces = async (page: Page) => ({
 })
 
 for (const scheme of ['light', 'dark'] as const) {
+  const other = scheme === 'light' ? 'dark' : 'light'
   test.describe(`the theme with the system in ${scheme}`, () => {
     test.use({ colorScheme: scheme })
 
-    test('Ivory changes the editor and the sidebar colours at once, and Default brings them back', async ({
+    test('Ivory for the appearance shown changes the editor and the sidebar colours at once; for the other it waits', async ({
       page,
     }) => {
       await page.goto('/')
       await expect.poll(() => shownSurfaces(page)).toEqual(SURFACES.default[scheme])
       await expect(page.locator('html')).not.toHaveAttribute('data-theme')
 
-      await changeEditorSettingsElsewhere(page, { theme: 'ivory' })
+      await changeEditorSettingsElsewhere(page, { [`${other}Theme`]: 'ivory' })
+      await expect(page.locator('html')).not.toHaveAttribute('data-theme')
+      await expect.poll(() => shownSurfaces(page)).toEqual(SURFACES.default[scheme])
+
+      await changeEditorSettingsElsewhere(page, { [`${scheme}Theme`]: 'ivory' })
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'ivory')
       await expect.poll(() => shownSurfaces(page)).toEqual(SURFACES.ivory[scheme])
 
-      await changeEditorSettingsElsewhere(page, { theme: 'default' })
+      await changeEditorSettingsElsewhere(page, { [`${scheme}Theme`]: 'default' })
       await expect(page.locator('html')).not.toHaveAttribute('data-theme')
       await expect.poll(() => shownSurfaces(page)).toEqual(SURFACES.default[scheme])
     })
 
-    test('Ivory follows the chosen appearance, not the system', async ({ page }) => {
-      const other = scheme === 'light' ? 'dark' : 'light'
+    test('the chosen appearance picks its own theme, not the system', async ({ page }) => {
       await page.goto('/')
-      await changeEditorSettingsElsewhere(page, { theme: 'ivory', appearance: other })
+      await changeEditorSettingsElsewhere(page, {
+        [`${other}Theme`]: 'ivory',
+        [`${scheme}Theme`]: 'default',
+        appearance: other,
+      })
+      await expect(page.locator('html')).toHaveAttribute('data-theme', 'ivory')
       await expect.poll(() => shownSurfaces(page)).toEqual(SURFACES.ivory[other])
-      await changeEditorSettingsElsewhere(page, { theme: 'ivory', appearance: 'system' })
-      await expect.poll(() => shownSurfaces(page)).toEqual(SURFACES.ivory[scheme])
+      await changeEditorSettingsElsewhere(page, {
+        [`${other}Theme`]: 'ivory',
+        appearance: 'system',
+      })
+      await expect(page.locator('html')).not.toHaveAttribute('data-theme')
+      await expect.poll(() => shownSurfaces(page)).toEqual(SURFACES.default[scheme])
+    })
+
+    test('while the window follows the system, a system switch brings the other appearance its theme', async ({
+      page,
+    }) => {
+      await page.goto('/')
+      await changeEditorSettingsElsewhere(page, { lightTheme: 'ivory', darkTheme: 'tide' })
+      const theme = { light: 'ivory', dark: 'tide' } as const
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme[scheme])
+      await page.emulateMedia({ colorScheme: other })
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme[other])
+      await page.emulateMedia({ colorScheme: scheme })
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme[scheme])
     })
   })
 }
 
-test.describe('the Theme choice in Settings', () => {
+test.describe('the theme choices in Settings', () => {
   test.use({ colorScheme: 'light' })
 
-  test('stores the choice and shows it, with Default chosen at first', async ({ page }) => {
-    await openSettings(page, 'Appearance')
-    const cards = page.getByRole('radiogroup', { name: 'Theme' })
-    await expect(cards.getByRole('radio', { name: 'Default' })).toBeChecked()
+  const picker = (page: Page, mode: 'Light' | 'Dark') =>
+    page.getByRole('radiogroup', { name: `${mode} Mode Theme` })
 
-    await cards.getByText('Ivory', { exact: true }).click()
-    await expect(cards.getByRole('radio', { name: 'Ivory' })).toBeChecked()
+  test('one per appearance, the one shown marked Active, each with Default chosen at first', async ({
+    page,
+  }) => {
+    await openSettings(page, 'Appearance')
+    await expect(page.getByRole('heading', { name: 'Light Mode \u2014 Active' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Dark Mode', exact: true })).toBeVisible()
+    for (const mode of ['Light', 'Dark'] as const) {
+      await expect(picker(page, mode).getByRole('radio', { name: 'Default' })).toBeChecked()
+      await expect(picker(page, mode).locator('.choice-group-label')).toHaveText([
+        'Default',
+        'Built-in',
+      ])
+      await expect(picker(page, mode).locator('.choice-name')).toHaveText([
+        'Default',
+        'Ivory',
+        'Dawn',
+        'Tide',
+        'Sage',
+        'Ember',
+      ])
+    }
+
+    await changeEditorSettingsElsewhere(page, { appearance: 'dark' })
+    await expect(page.getByRole('heading', { name: 'Dark Mode \u2014 Active' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Light Mode', exact: true })).toBeVisible()
+  })
+
+  test('stores the light theme and shows it, and leaves the dark one alone', async ({ page }) => {
+    await openSettings(page, 'Appearance')
+    await picker(page, 'Light').getByText('Ivory', { exact: true }).click()
+    await expect(picker(page, 'Light').getByRole('radio', { name: 'Ivory' })).toBeChecked()
+    await expect(picker(page, 'Dark').getByRole('radio', { name: 'Default' })).toBeChecked()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'ivory')
     await expect
       .poll(() =>
@@ -138,40 +193,35 @@ test.describe('the Theme choice in Settings', () => {
         ),
       )
       .toBe('#f5f4ed')
-    await expect.poll(() => settingsCalls(page)).toEqual([{ theme: 'ivory' }])
+    await expect.poll(() => settingsCalls(page)).toEqual([{ lightTheme: 'ivory' }])
+
+    await picker(page, 'Dark').getByText('Tide', { exact: true }).click()
+    await expect(picker(page, 'Dark').getByRole('radio', { name: 'Tide' })).toBeChecked()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'ivory')
+    await expect
+      .poll(() => settingsCalls(page))
+      .toEqual([{ lightTheme: 'ivory' }, { darkTheme: 'tide' }])
   })
 
-  test('hides the system accent option for Ivory and shows it again for Default', async ({
+  test('hides the system accent option while Ivory is in effect, and only then', async ({
     page,
   }) => {
     await openSettings(page, 'Appearance')
-    const accent = page.getByRole('switch', { name: 'Use the system accent colour' })
+    const accent = page.getByRole('switch', { name: 'Use the System Accent Color' })
     await expect(accent).toBeEnabled()
 
-    await changeEditorSettingsElsewhere(page, { theme: 'ivory' })
+    await changeEditorSettingsElsewhere(page, { darkTheme: 'ivory' })
+    await expect(accent).toBeEnabled()
+    await changeEditorSettingsElsewhere(page, { lightTheme: 'ivory' })
     await expect(accent).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: 'Accent colour' })).toHaveCount(0)
-
-    await changeEditorSettingsElsewhere(page, { theme: 'default' })
+    await changeEditorSettingsElsewhere(page, { lightTheme: 'default' })
     await expect(accent).toBeEnabled()
   })
 
-  test('offers the gradients in a row of their own, keeping the default colours and accent', async ({
-    page,
-  }) => {
+  test('a gradient theme keeps the default colours and accent', async ({ page }) => {
     await openSettings(page, 'Appearance')
-    const cards = page.getByRole('radiogroup', { name: 'Theme' })
-    const rows = cards.locator('.theme-cards')
-    await expect(rows).toHaveCount(2)
-    await expect(rows.nth(1).locator('.theme-card-name')).toHaveText([
-      'Dawn',
-      'Tide',
-      'Sage',
-      'Ember',
-    ])
-
-    await cards.getByText('Sage', { exact: true }).click()
-    await expect(cards.getByRole('radio', { name: 'Sage' })).toBeChecked()
+    await picker(page, 'Light').getByText('Sage', { exact: true }).click()
+    await expect(picker(page, 'Light').getByRole('radio', { name: 'Sage' })).toBeChecked()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'sage')
     await expect
       .poll(() =>
@@ -180,8 +230,22 @@ test.describe('the Theme choice in Settings', () => {
         ),
       )
       .toContain('linear-gradient')
-    await expect(page.getByRole('switch', { name: 'Use the system accent colour' })).toBeEnabled()
-    await expect.poll(() => settingsCalls(page)).toEqual([{ theme: 'sage' }])
+    await expect(page.getByRole('switch', { name: 'Use the System Accent Color' })).toBeEnabled()
+    await expect.poll(() => settingsCalls(page)).toEqual([{ lightTheme: 'sage' }])
+  })
+
+  test('each swatch shows its own theme whatever the window shows', async ({ page }) => {
+    await openSettings(page, 'Appearance')
+    await changeEditorSettingsElsewhere(page, { lightTheme: 'ivory' })
+    const swatch = (mode: 'Light' | 'Dark', name: string) =>
+      picker(page, mode).locator('.choice', { hasText: name }).locator('.swatch')
+    const surface = (mode: 'Light' | 'Dark', name: string) =>
+      swatch(mode, name).evaluate((el) => getComputedStyle(el).backgroundColor)
+    expect(await surface('Light', 'Default')).toBe('rgb(255, 255, 255)')
+    expect(await surface('Dark', 'Default')).toBe('rgb(10, 10, 10)')
+    expect(await surface('Dark', 'Ivory')).toBe('rgb(48, 48, 46)')
+    await expect(swatch('Light', 'Dawn')).toHaveCSS('background-image', /linear-gradient/)
+    await expect(swatch('Light', 'Default')).toHaveCSS('background-image', 'none')
   })
 })
 
@@ -214,21 +278,21 @@ test.describe('the Icon style choice in Settings', () => {
     await openSettings(page, 'Appearance')
     const cards = page.getByRole('radiogroup', { name: 'Icon style' })
     await expect(cards.getByRole('radio', { name: 'SF Symbols' })).toBeChecked()
-    await expect(cards.locator('svg')).toHaveCount(6)
-    await expect(cards.locator('[data-symbol]')).toHaveCount(6)
-    await expect(page.locator('.settings-tab [data-symbol]').first()).toBeVisible()
-    await expect(page.locator('.settings-tab svg')).toHaveCount(0)
+    await expect(cards.locator('svg')).toHaveCount(3)
+    await expect(cards.locator('[data-symbol]')).toHaveCount(3)
+    await expect(page.locator('.settings-nav-row [data-symbol]').first()).toBeVisible()
+    await expect(page.locator('.settings-nav-row svg')).toHaveCount(0)
 
     await cards.getByText('Lucide', { exact: true }).click()
     await expect(cards.getByRole('radio', { name: 'Lucide' })).toBeChecked()
-    await expect(page.locator('.settings-tab svg').first()).toBeVisible()
-    await expect(page.locator('.settings-tab [data-symbol]')).toHaveCount(0)
+    await expect(page.locator('.settings-nav-row svg').first()).toBeVisible()
+    await expect(page.locator('.settings-nav-row [data-symbol]')).toHaveCount(0)
     await expect.poll(() => settingsCalls(page)).toEqual([{ iconStyle: 'lucide' }])
 
-    await changeEditorSettingsElsewhere(page, { theme: 'ivory', iconStyle: 'lucide' })
-    await expect(page.locator('.settings-tab svg').first()).toBeVisible()
+    await changeEditorSettingsElsewhere(page, { lightTheme: 'ivory', iconStyle: 'lucide' })
+    await expect(page.locator('.settings-nav-row svg').first()).toBeVisible()
     await changeEditorSettingsElsewhere(page, { iconStyle: 'sfSymbols' })
-    await expect(page.locator('.settings-tab svg')).toHaveCount(0)
-    await expect(page.locator('.settings-tab [data-symbol]').first()).toBeVisible()
+    await expect(page.locator('.settings-nav-row svg')).toHaveCount(0)
+    await expect(page.locator('.settings-nav-row [data-symbol]').first()).toBeVisible()
   })
 })

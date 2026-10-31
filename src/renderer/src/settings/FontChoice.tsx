@@ -10,8 +10,7 @@ import {
 import { errorCode } from '../../../core/errors'
 import { importFont, importedFonts, installedFonts, type FontFile } from '../fonts'
 import { format, t, type MessageKey } from '../i18n'
-import type { IconName } from '../icons/symbols'
-import { Setting, SettingsSection } from './controls'
+import { Select, Setting, SettingsSection } from './controls'
 
 const FONT_LABELS: Readonly<Record<FontFamilyId, MessageKey>> = {
   system: 'editorSettings.font.system',
@@ -23,21 +22,16 @@ const FONT_LABELS: Readonly<Record<FontFamilyId, MessageKey>> = {
   imported: 'editorSettings.font.imported',
 }
 
-const SLOT_SECTIONS: Readonly<
-  Record<FontSlot, { icon: IconName; title: MessageKey; hint: MessageKey }>
-> = {
+const SLOT_SECTIONS: Readonly<Record<FontSlot, { title: MessageKey; hint: MessageKey }>> = {
   app: {
-    icon: 'settings.appFont',
     title: 'editorSettings.appFont',
     hint: 'editorSettings.appFontHint',
   },
   note: {
-    icon: 'settings.noteFont',
     title: 'editorSettings.noteFont',
     hint: 'editorSettings.noteFontHint',
   },
   code: {
-    icon: 'settings.codeFont',
     title: 'editorSettings.codeFont',
     hint: 'editorSettings.codeFontHint',
   },
@@ -57,14 +51,14 @@ export function FontSection({
   const section = SLOT_SECTIONS[slot]
   const own = (name: string) => id(`${slot}-${name}`)
   return (
-    <SettingsSection icon={section.icon} title={section.title}>
+    <SettingsSection title={section.title}>
       <Setting
         label="editorSettings.fontFamily"
         description={t(section.hint)}
         htmlFor={own('font')}
         descriptionId={own('font-hint')}
       >
-        <select
+        <Select
           id={own('font')}
           value={slotFont(settings, slot).family}
           aria-describedby={own('font-hint')}
@@ -77,7 +71,7 @@ export function FontSection({
               {t(FONT_LABELS[f])}
             </option>
           ))}
-        </select>
+        </Select>
       </Setting>
       <FontChoice slot={slot} settings={settings} change={change} id={own} />
     </SettingsSection>
@@ -126,7 +120,7 @@ export function FontChoice({
         htmlFor={id('installed-font')}
         descriptionId={id('installed-font-hint')}
       >
-        <select
+        <Select
           id={id('installed-font')}
           value={font.installed ?? ''}
           aria-describedby={id('installed-font-hint')}
@@ -138,7 +132,7 @@ export function FontChoice({
               {name}
             </option>
           ))}
-        </select>
+        </Select>
       </Setting>
     )
   }
@@ -170,7 +164,7 @@ export function FontChoice({
       descriptionId={id('imported-font-hint')}
     >
       <div className="settings-buttons">
-        <select
+        <Select
           id={id('imported-font')}
           value={chosen ?? ''}
           aria-describedby={id('imported-font-hint')}
@@ -183,7 +177,7 @@ export function FontChoice({
               {f.name}
             </option>
           ))}
-        </select>
+        </Select>
         <button type="button" className="button" onClick={add}>
           {t('editorSettings.importFont')}
         </button>

@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { clearUsage, listUsage } from '../usage'
+import { Setting, SettingsSection } from './controls'
 
 const LABELS: Record<UsageEventName, MessageKey> = {
   'note.created': 'usage.event.note.created',
@@ -90,18 +91,51 @@ export function UsageSection() {
         {t('usage.title')}
       </h2>
       <p>{t('usage.detail')}</p>
-      <p>{t('usage.limits')}</p>
       {errors.map((text) => (
         <p key={text} role="alert" className="settings-error">
           {text}
         </p>
       ))}
-      {events === undefined ? null : count === 0 ? (
-        <p>{t('usage.empty')}</p>
-      ) : (
-        <>
-          <p>{countOf(count, locale, 'usage.countOne', 'usage.countOther')}</p>
-          <table className="usage-counts" aria-label={t('usage.byType')}>
+      <SettingsSection title="usage.eventsTitle" footnote={t('usage.limits')}>
+        <Setting
+          label="usage.eventsLabel"
+          description={
+            events === undefined
+              ? ''
+              : count === 0
+                ? t('usage.empty')
+                : countOf(count, locale, 'usage.countOne', 'usage.countOther')
+          }
+        >
+          {/* aria-disabled, not disabled: clearing leaves the keyboard on Clear. */}
+          <div className="settings-buttons">
+            <button
+              type="button"
+              className="button"
+              aria-expanded={shown && count > 0}
+              aria-disabled={count === 0}
+              onClick={() => {
+                if (count > 0) setShown((s) => !s)
+              }}
+            >
+              {shown && count > 0 ? t('usage.hide') : t('usage.show')}
+            </button>
+            <button
+              type="button"
+              className="button"
+              aria-disabled={count === 0}
+              onClick={() => {
+                if (count > 0) setConfirming(true)
+              }}
+            >
+              {t('usage.clear')}
+            </button>
+          </div>
+        </Setting>
+      </SettingsSection>
+      {count > 0 ? (
+        <SettingsSection title="usage.byType">
+          <table className="settings-table" aria-label={t('usage.byType')}>
             <thead>
               <tr>
                 <th scope="col">{t('usage.eventColumn')}</th>
@@ -117,37 +151,17 @@ export function UsageSection() {
               ))}
             </tbody>
           </table>
-        </>
-      )}
-      {/* aria-disabled, not disabled: clearing leaves the keyboard on Clear. */}
-      <div className="settings-actions">
-        <button
-          type="button"
-          className="button"
-          aria-expanded={shown && count > 0}
-          aria-disabled={count === 0}
-          onClick={() => {
-            if (count > 0) setShown((s) => !s)
-          }}
-        >
-          {shown && count > 0 ? t('usage.hide') : t('usage.show')}
-        </button>
-        <button
-          type="button"
-          className="button"
-          aria-disabled={count === 0}
-          onClick={() => {
-            if (count > 0) setConfirming(true)
-          }}
-        >
-          {t('usage.clear')}
-        </button>
-      </div>
+        </SettingsSection>
+      ) : null}
       {shown && events && count > 0 ? (
-        <>
-          {count > SHOWN ? (
-            <p>{format(t('usage.newest'), { shown: formats.number.format(SHOWN) })}</p>
-          ) : null}
+        <SettingsSection
+          title="usage.list"
+          footnote={
+            count > SHOWN
+              ? format(t('usage.newest'), { shown: formats.number.format(SHOWN) })
+              : undefined
+          }
+        >
           <ol className="usage-events" aria-label={t('usage.list')}>
             {events.slice(0, SHOWN).map((e) => (
               <li key={e.id}>
@@ -157,7 +171,7 @@ export function UsageSection() {
               </li>
             ))}
           </ol>
-        </>
+        </SettingsSection>
       ) : null}
       {confirming ? (
         <ConfirmDialog
