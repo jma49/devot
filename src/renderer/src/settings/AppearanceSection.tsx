@@ -32,7 +32,7 @@ import {
   useSettingsChange,
 } from './controls'
 import { StyledIcon, useAppearance } from '../icons/Icon'
-import { FontChoice } from './FontChoice'
+import { FontChoice, FontFamilySetting } from './FontChoice'
 import { useTypedNumber } from './typedNumber'
 import type { IconName } from '../icons/symbols'
 import { useDraggedNumber } from './draggedNumber'
@@ -475,6 +475,13 @@ export function AppearanceSection() {
         </div>
       </SettingsSection>
       <SettingsSection title="appearanceSettings.groupTypography">
+        <FontFamilySetting
+          slot="note"
+          label="editorSettings.noteFont"
+          settings={settings}
+          change={change}
+          id={id}
+        />
         <FontChoice slot="note" settings={settings} change={change} id={id} />
         <Setting
           label="appearanceSettings.editorFontSize"

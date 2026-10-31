@@ -48,33 +48,50 @@ export function FontSection({
   change: (patch: Partial<EditorSettings>) => void
   id: (name: string) => string
 }) {
-  const section = SLOT_SECTIONS[slot]
   const own = (name: string) => id(`${slot}-${name}`)
   return (
-    <SettingsSection title={section.title}>
-      <Setting
-        label="editorSettings.fontFamily"
-        description={t(section.hint)}
-        htmlFor={own('font')}
-        descriptionId={own('font-hint')}
-      >
-        <Select
-          id={own('font')}
-          value={slotFont(settings, slot).family}
-          aria-describedby={own('font-hint')}
-          onChange={(e) =>
-            change({ [FONT_SLOTS[slot].family]: e.currentTarget.value as FontFamilyId })
-          }
-        >
-          {FONT_FAMILIES.map((f) => (
-            <option key={f} value={f}>
-              {t(FONT_LABELS[f])}
-            </option>
-          ))}
-        </Select>
-      </Setting>
+    <SettingsSection title={SLOT_SECTIONS[slot].title}>
+      <FontFamilySetting slot={slot} settings={settings} change={change} id={own} />
       <FontChoice slot={slot} settings={settings} change={change} id={own} />
     </SettingsSection>
+  )
+}
+
+export function FontFamilySetting({
+  slot,
+  settings,
+  change,
+  id,
+  label = 'editorSettings.fontFamily',
+}: {
+  slot: FontSlot
+  settings: EditorSettings
+  change: (patch: Partial<EditorSettings>) => void
+  id: (name: string) => string
+  label?: MessageKey
+}) {
+  return (
+    <Setting
+      label={label}
+      description={t(SLOT_SECTIONS[slot].hint)}
+      htmlFor={id('font')}
+      descriptionId={id('font-hint')}
+    >
+      <Select
+        id={id('font')}
+        value={slotFont(settings, slot).family}
+        aria-describedby={id('font-hint')}
+        onChange={(e) =>
+          change({ [FONT_SLOTS[slot].family]: e.currentTarget.value as FontFamilyId })
+        }
+      >
+        {FONT_FAMILIES.map((f) => (
+          <option key={f} value={f}>
+            {t(FONT_LABELS[f])}
+          </option>
+        ))}
+      </Select>
+    </Setting>
   )
 }
 

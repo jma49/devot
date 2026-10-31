@@ -277,7 +277,7 @@ test('a note window turns read-only once the trial is over, with the bar to add 
   await body(win).click()
   await win.keyboard.type(' more')
   await expect(body(win)).toHaveText('Steps')
-  await bar.getByRole('button', { name: 'Add Licence' }).click()
+  await bar.getByRole('button', { name: 'Add License' }).click()
   expect(await calls(win, 'settings_open_licence')).toHaveLength(1)
 })
 

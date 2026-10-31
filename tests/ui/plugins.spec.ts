@@ -280,7 +280,7 @@ test('a read-only licence keeps plugin imports and edits from changing notes', a
   await pickPluginMenu(page, { kind: 'command', plugin: 'com.example.tools', id: 'upper' })
   const notice = page.locator('[data-devot-plugin-notice]')
   await expect(notice).toContainText('Your Devot trial has ended, so a plugin cannot change notes.')
-  await expect(notice.getByRole('button', { name: 'Add Licence' })).toBeVisible()
+  await expect(notice.getByRole('button', { name: 'Add License' })).toBeVisible()
   await expect(body(page)).toHaveText('hello world')
   await expect.poll(async () => (await savedNotes(page))[0]?.bodyMd).toBe('hello world')
 })

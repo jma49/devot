@@ -7,10 +7,9 @@ use crate::storage::{BookRecord, Db};
 use crate::strings;
 use tauri::utils::config::WindowEffectsConfig;
 use tauri::utils::{WindowEffect, WindowEffectState};
-use tauri::{
-    AppHandle, Emitter, LogicalPosition, Manager, State, TitleBarStyle, WebviewUrl,
-    WebviewWindowBuilder,
-};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+#[cfg(target_os = "macos")]
+use tauri::{LogicalPosition, TitleBarStyle};
 
 pub const LABEL: &str = "settings";
 pub const SHOW_BACKUPS_EVENT: &str = "devot://show-backups";
@@ -19,6 +18,7 @@ const PAGE: &str = "settings.html";
 const WIDTH: f64 = 900.0;
 const HEIGHT: f64 = 680.0;
 /// The traffic lights sit on the 52 px toolbar's centre line, as in the main window.
+#[cfg(target_os = "macos")]
 const TRAFFIC_LIGHTS: LogicalPosition<f64> = LogicalPosition::new(20.0, 28.0);
 
 /// Tells an open Settings window which pane to show (`settings_open_licence`).
@@ -61,15 +61,17 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
         .inner_size(WIDTH, HEIGHT)
         // The page draws the toolbar and the sidebar itself, over the system's sidebar material.
         .transparent(true)
-        .title_bar_style(TitleBarStyle::Overlay)
-        .hidden_title(true)
-        .traffic_light_position(TRAFFIC_LIGHTS)
         .effects(WindowEffectsConfig {
             effects: vec![WindowEffect::Sidebar],
             state: Some(WindowEffectState::FollowsWindowActiveState),
             ..Default::default()
         })
         .resizable(false);
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .title_bar_style(TitleBarStyle::Overlay)
+        .hidden_title(true)
+        .traffic_light_position(TRAFFIC_LIGHTS);
     #[cfg(desktop)]
     let builder = builder.minimizable(false).maximizable(false);
     let built = builder.build();
