@@ -88,15 +88,20 @@ it('runs the affected project when a spec is removed or renamed away', () => {
   expect(plan.files).toEqual(specs.filter((file) => file.startsWith('tests/ui/')).sort())
 })
 
-it('adds shards for larger selections without losing or duplicating coverage', () => {
-  const files = Array.from({ length: 49 }, (_, i) => `tests/ui/feature-${i}.spec.ts`)
+it.each([
+  [1, 1],
+  [6, 1],
+  [7, 2],
+  [42, 7],
+  [43, 8],
+  [49, 8],
+  [96, 8],
+])('schedules %i selected files in %i parallel jobs', (count, shards) => {
+  const files = Array.from({ length: count }, (_, i) => `tests/ui/feature-${i}.spec.ts`)
   const plan = planUi(files, files)
-  expect(plan.matrix.include.map(({ shard, shards }) => [shard, shards])).toEqual([
-    [1, 4],
-    [2, 4],
-    [3, 4],
-    [4, 4],
-  ])
+  expect(plan.matrix.include.map((job) => [job.shard, job.shards])).toEqual(
+    Array.from({ length: shards }, (_, i) => [i + 1, shards]),
+  )
   for (const job of plan.matrix.include) expect(job.files).toEqual([...files].sort())
 })
 

@@ -118,7 +118,7 @@ export function planUi(changed: string[], available: string[], forceFull = false
   for (const [project, prefix] of projects) {
     const matching = files.filter((file) => file.startsWith(prefix))
     if (!matching.length) continue
-    const shards = Math.min(4, Math.ceil(matching.length / 12))
+    const shards = Math.min(8, Math.ceil(matching.length / 6))
     for (let shard = 1; shard <= shards; shard++) {
       include.push({ project, shard, shards, files: matching })
     }

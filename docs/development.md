@@ -52,7 +52,7 @@ Pull requests select browser tests separately from the Web and Rust build jobs. 
 - Documentation, unit tests, MCP, Rust-only, relay and licence-service changes need no browser run. Their existing build, type and Vitest checks still apply.
 - Manual workflow runs select the full suite. Empty change lists and missing selection outputs also retain full coverage.
 
-Development and production CSP run in separate jobs, each starting only its own server. Development selections use one shard per twelve spec files, capped at four; production CSP currently has one spec and uses one job. File count is a scheduling heuristic; it does not predict equal execution time. Traces from failures and retries retain project and shard names.
+Development and production CSP run in separate jobs, each starting only its own server. Development selections use one shard per six spec files, capped at eight; production CSP currently has one spec and uses one job. Each CI job runs four Playwright workers to use the public Linux runner's four CPU cores; local runs default to two. `DEVOT_UI_WORKERS` overrides either default. File count is a scheduling heuristic; it does not predict equal execution time. More shards reduce work per runner but still depend on GitHub runner availability and account concurrency limits. Traces from failures and retries retain project and shard names.
 
 `pnpm test:ui` still runs both complete projects locally. To run an exact selection with only its server:
 
