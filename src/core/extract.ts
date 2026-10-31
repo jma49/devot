@@ -46,13 +46,17 @@ export function headline(markdown: string): string {
 const EXCERPT_SCAN_CHARS = 2000
 export const LIST_EXCERPT_CHARS = 200
 
-/** For a note with no title the first line is its headline, so the excerpt starts after it. Empty when nothing is left. */
+/**
+ * The first line leads the excerpt only when it says more than the title: for a
+ * note with no title it is the headline, for a titled one it usually repeats the
+ * title. Empty when nothing is left.
+ */
 export function listExcerpt(markdown: string, title: string): string {
   let text = readableText(markdown.slice(0, EXCERPT_SCAN_CHARS))
-  if (title === '') {
-    const first = headline(markdown)
-    if (first !== '' && text.startsWith(first)) text = text.slice(first.length).trim()
-  }
+  const first = headline(markdown)
+  const named = (line: string) => line.trim().toLowerCase().replace(/\s+/g, ' ')
+  if (first !== '' && (title === '' || named(first) === named(title)) && text.startsWith(first))
+    text = text.slice(first.length).trim()
   return [...text].slice(0, LIST_EXCERPT_CHARS).join('')
 }
 

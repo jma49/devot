@@ -69,6 +69,26 @@ test('the defaults give the editor room', async ({ page }) => {
   await expect(scroller(page)).toHaveCSS('font-family', /SF Mono|ui-monospace|Menlo|monospace/)
 })
 
+test('tints the active line and its number only while the editor has the keyboard', async ({
+  page,
+}) => {
+  await changed(page, { lineNumbers: true, highlightActiveLine: true })
+  await newNote(page, 'alpha\nbeta')
+  const line = page.locator('.cm-activeLine')
+  const number = page.locator('.cm-lineNumbers .cm-activeLineGutter')
+  await expect(line).toHaveCount(1)
+  await expect
+    .poll(() => line.evaluate((el) => getComputedStyle(el).backgroundColor))
+    .not.toBe('rgba(0, 0, 0, 0)')
+  await page.getByRole('textbox', { name: 'Title' }).click()
+  await expect
+    .poll(() => line.evaluate((el) => getComputedStyle(el).backgroundColor))
+    .toBe('rgba(0, 0, 0, 0)')
+  await expect
+    .poll(() => number.evaluate((el) => getComputedStyle(el).backgroundColor))
+    .toBe('rgba(0, 0, 0, 0)')
+})
+
 test('a change from another window applies to the open editor at once', async ({ page }) => {
   await newNote(page, 'alpha\n\tbeta')
   await markEditor(page)

@@ -103,6 +103,16 @@ describe('NoteRow', () => {
     expect(html).toMatch(/<span class="chip" dir="auto">t2<\/span>/)
   })
 
+  it('lists its tags in the name order the note header uses, whatever order the note holds them in', () => {
+    const tag = (name: string) => ({ id: name, name, color: null }) as unknown as TagRecord
+    const tags = new Map([
+      ['work', tag('work')],
+      ['q4', tag('q4')],
+    ])
+    const html = row({ note: note({ tagIds: ['work', 'q4'] }), tags })
+    expect(html.indexOf('q4')).toBeLessThan(html.indexOf('work'))
+  })
+
   it('dims a row while it is being dragged', () => {
     expect(row({ dragging: true })).toMatch(/^<li class="row"[^>]* data-dragging="true"/)
     expect(row()).not.toContain('data-dragging')

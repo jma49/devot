@@ -272,7 +272,7 @@ describe('HTML pages', () => {
       loadedEmbeds: [],
     })
     expect(pageBody(tree, { nonce: NONCE, simple: true }).html).toBe(
-      '<pre><code>a = 1\nb = 2\n</code></pre>',
+      '<pre><code>a = 1\nb = 2</code></pre>',
     )
   })
 

@@ -586,6 +586,10 @@ const theme = EditorView.theme({
   '&:has(.cm-selectionBackground) .cm-line.cm-codeblock.cm-activeLine::before': {
     background: 'var(--color-code-block-bg)',
   },
+  // An unfocused editor shows no active line (NoteEditor.tsx), so the box keeps its own tint.
+  '&:not(.cm-focused) .cm-line.cm-codeblock.cm-activeLine::before': {
+    background: 'var(--color-code-block-bg)',
+  },
   '.cm-gutterElement.cm-codeblock-gutter-first': {
     boxSizing: 'border-box',
     paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`,

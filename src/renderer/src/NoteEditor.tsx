@@ -504,6 +504,12 @@ const theme = EditorView.theme({
     backgroundColor: 'var(--color-editor-active-line)',
     color: 'var(--color-text-primary)',
   },
+  // The tint marks where the caret is, which only means something while the
+  // editor has the keyboard: a note opens with its caret on line 1, and an
+  // unfocused pane must not look as if the reader were typing there.
+  '&:not(.cm-focused) .cm-activeLine, &:not(.cm-focused) .cm-activeLineGutter': {
+    backgroundColor: 'transparent',
+  },
   // The selection is drawn in a layer behind the lines, so the active line's tint lies over it.
   // A solid tint that stands 1.3:1 from both; lighter while the editor does not have focus.
   '.cm-selectionBackground': { backgroundColor: 'var(--color-accent-selection-inactive)' },

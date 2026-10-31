@@ -177,6 +177,6 @@ describe('code blocks', () => {
     const plain = await render('```\n<b>&amp;</b>\n  indented\n```')
     expect(elements(plain).map((e) => e.tagName)).toEqual(['pre', 'code'])
     const code = first(plain, (e) => e.tagName === 'code')
-    expect(code?.children).toEqual([{ type: 'text', value: '<b>&amp;</b>\n  indented\n' }])
+    expect(code?.children).toEqual([{ type: 'text', value: '<b>&amp;</b>\n  indented' }])
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractTitle, headline, HEADLINE_CHARS, taskProgress } from './extract'
+import { extractTitle, headline, HEADLINE_CHARS, listExcerpt, taskProgress } from './extract'
 import { MAX_TITLE_CHARS } from './noteLimits'
 
 describe('extractTitle', () => {
@@ -82,6 +82,23 @@ describe('headline', () => {
     expect([...headline('x'.repeat(500))]).toHaveLength(HEADLINE_CHARS)
     expect(headline('\n'.repeat(100_000) + 'late')).toBe('')
     expect(headline('\u{1F600}'.repeat(500))).toBe('\u{1F600}'.repeat(HEADLINE_CHARS))
+  })
+})
+
+describe('listExcerpt', () => {
+  it('leaves out a first line that only repeats the note title', () => {
+    expect(listExcerpt('# Garden plan\n\nMilk and eggs', 'Garden plan')).toBe('Milk and eggs')
+    expect(listExcerpt('Garden plan\n\nMilk and eggs', 'Garden plan')).toBe('Milk and eggs')
+  })
+
+  it('keeps a first line that says more than the title', () => {
+    expect(listExcerpt('# Garden plan for May\n\nMilk', 'Garden plan')).toBe(
+      'Garden plan for May Milk',
+    )
+  })
+
+  it('still starts an untitled note after its headline', () => {
+    expect(listExcerpt('# Shopping list\n\nmilk', '')).toBe('milk')
   })
 })
 
