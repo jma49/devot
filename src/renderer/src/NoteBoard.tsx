@@ -26,6 +26,7 @@ import {
   columnWindow,
   type BoardColumn,
 } from './board'
+import { compareNames } from '../../core/sort'
 import { keyMatches } from './commands/keys'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import type { MenuPoint } from './contextMenu'
@@ -713,10 +714,13 @@ const BoardCard = memo(function BoardCard(props: CardProps) {
   const { note: n, events } = props
   const id = n.id
   const ref = useCallback((el: HTMLLIElement) => events.setCard(id, el), [events, id])
-  const tags = n.tagIds.flatMap((tagId) => {
-    const tag = props.tags.get(tagId)
-    return tag ? [tag] : []
-  })
+  // By name, as the note header lists them; the note stores them in its query's order.
+  const tags = n.tagIds
+    .flatMap((tagId) => {
+      const tag = props.tags.get(tagId)
+      return tag ? [tag] : []
+    })
+    .sort((a, b) => compareNames(a.name, b.name, props.locale))
   return (
     <li
       ref={ref}

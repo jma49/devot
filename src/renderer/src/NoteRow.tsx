@@ -9,6 +9,7 @@ import {
 import type { NoteSummary, TagRecord } from '../../core'
 import type { NoteStatus } from '../../core/storage'
 import { matchSegments } from '../../core/search'
+import { compareNames } from '../../core/sort'
 import type { ListDatesStyle } from '../../core/editorSettings'
 import type { StripDay } from '../../core/activity'
 import { ActivityStrip } from './ActivityStrip'
@@ -131,10 +132,13 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
   const { note: n, events, highlight } = props
   const id = n.id
   const ref = useCallback((el: HTMLLIElement | null) => events.setRow(id, el), [events, id])
-  const chips = n.tagIds.flatMap((tagId) => {
-    const tag = props.tags.get(tagId)
-    return tag ? [tag] : []
-  })
+  // The note header lists tags by name; a note stores them in whatever order its query returned.
+  const chips = n.tagIds
+    .flatMap((tagId) => {
+      const tag = props.tags.get(tagId)
+      return tag ? [tag] : []
+    })
+    .sort((a, b) => compareNames(a.name, b.name, props.locale))
   const progress = parseProgress(props.progress)
   const excerpt = n.excerpt ?? props.preview ?? ''
   return (

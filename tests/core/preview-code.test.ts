@@ -72,7 +72,7 @@ describe('code blocks', () => {
     expect(classes(code)).toEqual(['language-js'])
     expect(byClass(code, 'hljs-keyword').map(text)).toEqual(['const'])
     expect(byClass(code, 'hljs-string').map(text)).toEqual(['"x"'])
-    expect(text(code)).toBe('const a = "x" // hi\n')
+    expect(text(code)).toBe('const a = "x" // hi')
   })
 
   it('reads the title attribute, also in a list or a quote', async () => {
@@ -90,6 +90,15 @@ describe('code blocks', () => {
     expect(byClass(block!, 'code-lang-icon-generic')).toHaveLength(1)
     expect(byClass(tree, 'code-block')).toHaveLength(1)
     expect(elements(tree).filter((e) => e.tagName === 'pre')).toHaveLength(3)
+  })
+
+  it('drops the blank lines before a closing fence, so the block does not end in a gap', async () => {
+    const tree = await render('```py\nx = 1\n\n\n```\n\n```\nplain\n  \n```')
+    expect(
+      elements(tree)
+        .filter((e) => e.tagName === 'code')
+        .map(text),
+    ).toEqual(['x = 1', 'plain'])
   })
 
   it('takes the language of a raw HTML block from its class', async () => {
@@ -137,7 +146,7 @@ describe('line numbers', () => {
     expect(text(gutter!)).toBe('5\n6')
     expect(gutter!.properties['ariaHidden']).toBe('true')
     const code = elements(pre!).find((e) => e.tagName === 'code')!
-    expect(text(code)).toBe('let a\nlet b\n')
+    expect(text(code)).toBe('let a\nlet b')
     expect(byClass(code, 'code-gutter')).toHaveLength(0)
     expect(pre!.children.filter((c) => c.type === 'element')).toHaveLength(2)
   })
@@ -214,7 +223,7 @@ describe('code blocks stay safe', () => {
     expect(elements(tree).some((e) => /^(img|script)$/.test(e.tagName))).toBe(false)
     expect(text(byClass(tree, 'code-title')[0]!)).toBe('<img src=x onerror=alert(1)>')
     const code = elements(tree).find((e) => e.tagName === 'code')!
-    expect(text(code)).toBe('</code></pre><script>alert(1)</script>\n')
+    expect(text(code)).toBe('</code></pre><script>alert(1)</script>')
     // Only Devot's own marks are SVG: one per header.
     const svgs = elements(tree).filter((e) => e.tagName === 'svg')
     expect(svgs).toHaveLength(byClass(tree, 'code-header').length)

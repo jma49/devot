@@ -131,6 +131,9 @@ export async function loadHighlighter(): Promise<Highlighter> {
 const MAX_HIGHLIGHT = 20_000
 const MAX_NUMBERED_LINES = 100_000
 
+/** Blank lines between a block's last line and its closing fence: the box ends under the text. */
+const TRAILING_BLANK_LINES = /(?:\r?\n[ \t]*)+$/
+
 const FENCE = /^(`{3,}|~{3,})([^\n]*)/
 
 const el = (tagName: string, properties: Element['properties'], children: ElementContent[] = []) =>
@@ -216,7 +219,9 @@ export function createCodeRenderer(
       const highlight = needs ? await (highlighter ??= load()) : null
       for (const [parent, { pre, code, info }] of blocks) {
         const lang = info.language ? codeLanguage(info.language) : null
-        const text = textOf(code)
+        const raw = textOf(code)
+        const text = raw.replace(TRAILING_BLANK_LINES, '')
+        if (text !== raw) code.children = [txt(text)]
         if (info.language && highlight && text.length <= MAX_HIGHLIGHT) {
           const out = await highlight(lang?.grammar ?? info.language, text)
           if (out) code.children = out
