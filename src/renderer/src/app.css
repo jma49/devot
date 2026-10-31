@@ -1794,7 +1794,8 @@ button {
   color: var(--color-text-tertiary);
 }
 
-.chip.tag-chip {
+.chip.tag-chip,
+.frontmatter-chip.tag-chip {
   border: 1px solid
     color-mix(in srgb, var(--tag-color) calc(var(--opacity-tag-border) * 100%), transparent);
   background: color-mix(

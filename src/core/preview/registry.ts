@@ -31,11 +31,35 @@ export interface NoteLinkTarget {
   tags: { name: string; color: TagColor | null }[]
 }
 
+/** The open note's own fields, so its front matter can show what differs from them. */
+export interface PreviewNote {
+  title: string
+  status: NoteStatus
+  /** The names of the note's tags. */
+  tags: readonly string[]
+  /** The library's tags that have a colour, so a front-matter tag naming one is drawn in it. */
+  tagColors: readonly { name: string; color: TagColor }[]
+  /** False while the note cannot be changed: what differs shows without Apply. */
+  canApply: boolean
+  labels: {
+    statuses: Record<NoteStatus, string>
+    /** `{value}` is the note's own value. */
+    noteValue: string
+    noTags: string
+    apply: string
+    applyTitle: string
+    applyStatus: string
+    applyTags: string
+  }
+}
+
 export interface PreviewOptions {
   labels: PreviewLabels
   loadedEmbeds: readonly string[]
   /** Without it (exported pages) note links stay plain links; a link to a note missing here is a broken link. */
   noteLinks?: Readonly<Record<string, NoteLinkTarget>>
+  /** Only the live preview gives it: exported pages, copies and templates show front matter as written. */
+  note?: PreviewNote
   /** Changes when plugins' renderers do, so pieces rendered before are rendered again. */
   pluginRenderers?: number
 }

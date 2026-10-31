@@ -10,13 +10,20 @@ import {
   splitImageSize,
 } from '../images'
 import { createMathRenderer } from './math'
-import { PREVIEW_API_VERSION, type AlertKind, type PreviewRenderer } from './registry'
+import {
+  PREVIEW_API_VERSION,
+  type AlertKind,
+  type PreviewNote,
+  type PreviewRenderer,
+} from './registry'
 import { fillPlaceholders } from '../text'
 import { createCodeRenderer } from './code'
 import { glyph } from './glyphs'
 import { headingIds } from './headingIds'
 import { noteLinkChips } from './noteLinks'
 import { parse, stringify } from 'yaml'
+import { noteTitle, readFrontMatterYaml, type FrontMatterMeta } from '../import'
+import { sameName } from '../tags'
 
 type Parent = Root | Element
 type Rewrite = (el: Element, parent: Parent) => ElementContent | ElementContent[] | null | undefined
@@ -65,7 +72,83 @@ function valueText(value: unknown): string {
   return value instanceof Date ? value.toISOString() : String(value)
 }
 
-function propertiesBlock(yaml: string): Element | null {
+type NoteField = 'title' | 'status' | 'tags'
+
+const chip = (name: string, note: PreviewNote | undefined): Element => {
+  const color = note?.tagColors.find((tag) => sameName(tag.name, name))?.color
+  const className = color
+    ? ['frontmatter-chip', 'tag-chip', `tag-color-${color}`]
+    : ['frontmatter-chip']
+  return el('span', { className }, [txt(name)])
+}
+
+/** The note's own value beside the front matter's, and an Apply that sets it from the front matter. */
+function difference(
+  field: NoteField,
+  shown: string,
+  value: string | null,
+  note: PreviewNote,
+): Element {
+  const { labels } = note
+  const badge = fillPlaceholders(labels.noteValue, { value: shown })
+  const out: ElementContent[] = [
+    el('span', { className: ['frontmatter-badge'], title: badge }, [txt(badge)]),
+  ]
+  if (value !== null && note.canApply) {
+    const name = { title: labels.applyTitle, status: labels.applyStatus, tags: labels.applyTags }
+    out.push(
+      el(
+        'button',
+        {
+          type: 'button',
+          className: ['frontmatter-apply'],
+          ariaLabel: name[field],
+          dataFrontmatterApply: field,
+          dataFrontmatterValue: value,
+        },
+        [txt(labels.apply)],
+      ),
+    )
+  }
+  return el('span', { className: ['frontmatter-note'] }, out)
+}
+
+/** What a field's row adds when the front matter says something other than the note: null when they agree. */
+function fieldDifference(
+  field: NoteField,
+  meta: FrontMatterMeta,
+  written: string,
+  note: PreviewNote,
+  untitled: string,
+): Element | null {
+  if (field === 'title') {
+    if (meta.title === null || meta.title.trim() === '') return null
+    const title = noteTitle(meta.title)
+    if (title === note.title) return null
+    return difference(field, note.title || untitled, title, note)
+  }
+  if (field === 'status') {
+    if (meta.status === note.status) return null
+    // Text that names no status cannot be applied, but it still is not the note's status.
+    if (meta.status === null && written.trim() === '') return null
+    return difference(field, note.labels.statuses[note.status], meta.status, note)
+  }
+  const same =
+    meta.tags.length === note.tags.length &&
+    meta.tags.every((name) => note.tags.some((own) => sameName(own, name)))
+  if (same) return null
+  const shown = note.tags.length > 0 ? note.tags.join(', ') : note.labels.noTags
+  return difference(field, shown, JSON.stringify(meta.tags), note)
+}
+
+const isNoteField = (key: string): key is NoteField =>
+  key === 'title' || key === 'status' || key === 'tags'
+
+function propertiesBlock(
+  yaml: string,
+  note: PreviewNote | undefined,
+  untitled: string,
+): Element | null {
   let data: unknown
   try {
     data = parse(yaml, { maxAliasCount: 16 })
@@ -73,13 +156,30 @@ function propertiesBlock(yaml: string): Element | null {
     return null
   }
   if (data === null || typeof data !== 'object' || Array.isArray(data)) return null
-  const rows = Object.entries(data as Record<string, unknown>).map(([key, value]) => {
+  const entries = Object.entries(data as Record<string, unknown>)
+  const meta = note ? readFrontMatterYaml(yaml) : null
+  // As import reads them: keys match in any case and the last of a repeated one counts.
+  const fieldRows = new Map<NoteField, number>()
+  entries.forEach(([key], i) => {
+    const field = key.toLowerCase()
+    if (isNoteField(field)) fieldRows.set(field, i)
+  })
+  const fieldAt = new Map([...fieldRows].map(([field, i]) => [i, field]))
+  const rows = entries.map(([key, value], i) => {
+    const field = note && meta ? fieldAt.get(i) : undefined
     const list = Array.isArray(value) && value.every((v) => v === null || typeof v !== 'object')
-    const dd = list
-      ? (value as unknown[]).map((v) =>
-          el('span', { className: ['frontmatter-chip'] }, [txt(valueText(v))]),
-        )
-      : [txt(valueText(value))]
+    const dd: ElementContent[] =
+      field === 'tags' && meta
+        ? meta.tags.map((name) => chip(name, note))
+        : list
+          ? (value as unknown[]).map((v) => chip(valueText(v), undefined))
+          : [txt(valueText(value))]
+    if (field && meta && note) {
+      const added = fieldDifference(field, meta, valueText(value), note, untitled)
+      // A space, so the badge can wrap under a long value; chips are spaced by their row.
+      if (added && dd[0]?.type === 'text') dd.push(txt(' '), added)
+      else if (added) dd.push(added)
+    }
     return el('div', { className: ['frontmatter-row'] }, [
       el('dt', {}, [txt(key)]),
       el('dd', {}, dd),
@@ -92,10 +192,10 @@ function propertiesBlock(yaml: string): Element | null {
 const frontmatter: PreviewRenderer = {
   id: 'devot.frontmatter',
   apiVersion: PREVIEW_API_VERSION,
-  transform(tree, { frontmatter: yaml }) {
+  transform(tree, { frontmatter: yaml, note, labels }) {
     if (yaml === null) return
     const block =
-      propertiesBlock(yaml) ??
+      propertiesBlock(yaml, note, labels.untitled) ??
       el('pre', { className: ['frontmatter'] }, [
         el('code', { className: ['language-yaml'] }, [txt(yaml)]),
       ])

@@ -1,5 +1,5 @@
 import type { Element, Root, RootContent } from 'hast'
-import { renderPreview, type PreviewLabels } from '../../src/core'
+import { renderPreview, type PreviewLabels, type PreviewNote } from '../../src/core'
 
 // What the preview makes of Markdown, flat for assertions: checks that text the editor writes reads as intended by the shared parser.
 
@@ -21,6 +21,31 @@ export const labels: PreviewLabels = {
   codeRef: 'in {ref}',
   codeSource: 'Open source',
 }
+
+/** The live preview's note fields: a note with no title, status or tags unless given. */
+export const noteFields = (fields: Partial<PreviewNote> = {}): PreviewNote => ({
+  title: '',
+  status: 'none',
+  tags: [],
+  tagColors: [],
+  canApply: true,
+  labels: {
+    statuses: {
+      none: 'No Status',
+      active: 'Active',
+      on_hold: 'On Hold',
+      completed: 'Completed',
+      dropped: 'Dropped',
+    },
+    noteValue: 'Note: {value}',
+    noTags: 'No Tags',
+    apply: 'Apply',
+    applyTitle: 'Apply title to note',
+    applyStatus: 'Apply status to note',
+    applyTags: 'Apply tags to note',
+  },
+  ...fields,
+})
 
 export const previewTree = (markdown: string): Promise<Root> =>
   renderPreview(markdown, { labels, loadedEmbeds: [] })
