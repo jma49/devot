@@ -12,6 +12,7 @@ import {
 } from '../../src/core'
 import { setImageMarkdownSize } from '../../src/core/images'
 import { fragmentId } from '../../src/core/preview/headingIds'
+import { noteFields } from '../support/preview-html'
 
 const labels: PreviewLabels = {
   alerts: {
@@ -134,6 +135,100 @@ describe('Markdown dialect', () => {
     expect(text(first)).toBe('- just\n- a list')
     const broken = await render('---\ntitle: [unclosed\n---\n\nBody')
     expect((broken.children[0] as Element).tagName).toBe('pre')
+  })
+
+  describe('beside the note it opens (the live preview)', () => {
+    const row = (tree: Root, key: string) =>
+      byClass(tree, 'frontmatter-row').find(
+        (r) => text(tags(r as unknown as Root, 'dt')[0]!) === key,
+      ) as unknown as Root
+    const badges = (tree: Root) => byClass(tree, 'frontmatter-badge').map(text)
+    const applies = (tree: Root) =>
+      tags(tree, 'button').map((b) => ({
+        field: b.properties['dataFrontmatterApply'],
+        value: b.properties['dataFrontmatterValue'],
+        name: b.properties['ariaLabel'],
+      }))
+
+    it('colours the chips of tags the library has a colour for, and leaves the others plain', async () => {
+      const tree = await render('---\ntags: [Work, "#q4", new]\n---\n', {
+        note: noteFields({
+          tags: ['work', 'q4', 'new'],
+          tagColors: [
+            { name: 'work', color: 'green' },
+            { name: 'Q4', color: 'blue' },
+          ],
+        }),
+      })
+      expect(byClass(tree, 'frontmatter-chip').map((c) => [text(c), classes(c)])).toEqual([
+        ['Work', ['frontmatter-chip', 'tag-chip', 'tag-color-green']],
+        ['q4', ['frontmatter-chip', 'tag-chip', 'tag-color-blue']],
+        ['new', ['frontmatter-chip']],
+      ])
+      expect(badges(tree)).toEqual([])
+    })
+
+    it('shows the note’s value and an Apply for each field that differs', async () => {
+      const tree = await render(
+        '---\ntitle: Launch plan\nstatus: on hold\ntags: work, q4\nauthor: me\n---\n',
+        { note: noteFields({ title: 'Draft', status: 'active', tags: ['home'] }) },
+      )
+      expect(badges(tree)).toEqual(['Note: Draft', 'Note: Active', 'Note: home'])
+      expect(applies(tree)).toEqual([
+        { field: 'title', value: 'Launch plan', name: 'Apply title to note' },
+        { field: 'status', value: 'on_hold', name: 'Apply status to note' },
+        { field: 'tags', value: '["work","q4"]', name: 'Apply tags to note' },
+      ])
+      expect(text(row(tree, 'author'))).toBe('authorme')
+      expect(byClass(row(tree, 'tags'), 'frontmatter-chip').map(text)).toEqual(['work', 'q4'])
+      const untitled = await render('---\ntitle: Plan\ntags: []\n---\n', {
+        note: noteFields({}),
+      })
+      expect(badges(untitled)).toEqual(['Note: Untitled'])
+      const noTags = await render('---\ntags: [a]\n---\n', { note: noteFields({}) })
+      expect(badges(noTags)).toEqual(['Note: No Tags'])
+    })
+
+    it('adds nothing when the front matter says what the note does', async () => {
+      const tree = await render(
+        '---\ntitle: Launch plan\nStatus: On-Hold\ntags: [Q4, "#work"]\n---\n',
+        { note: noteFields({ title: 'Launch plan', status: 'on_hold', tags: ['work', 'q4'] }) },
+      )
+      expect(badges(tree)).toEqual([])
+      expect(applies(tree)).toEqual([])
+    })
+
+    it('offers no Apply for status text that names no status', async () => {
+      const tree = await render('---\nstatus: someday\n---\n', {
+        note: noteFields({ status: 'active' }),
+      })
+      expect(badges(tree)).toEqual(['Note: Active'])
+      expect(applies(tree)).toEqual([])
+    })
+
+    it('offers no Apply while the note cannot be changed', async () => {
+      const tree = await render('---\nstatus: active\n---\n', {
+        note: noteFields({ canApply: false }),
+      })
+      expect(badges(tree)).toEqual(['Note: No Status'])
+      expect(applies(tree)).toEqual([])
+    })
+
+    it('cuts a title to what the note can hold, on one line', async () => {
+      const tree = await render(`---\ntitle: "a\\nb ${'x'.repeat(1200)}"\n---\n`, {
+        note: noteFields({}),
+      })
+      const value = applies(tree)[0]!.value as string
+      expect(value.startsWith('a b x')).toBe(true)
+      expect(value).toHaveLength(1000)
+    })
+
+    it('shows front matter as written without the note’s fields (exports, copies, templates)', async () => {
+      const tree = await render('---\ntitle: Plan\nstatus: on hold\ntags: [work]\n---\n')
+      expect(badges(tree)).toEqual([])
+      expect(applies(tree)).toEqual([])
+      expect(byClass(tree, 'frontmatter-chip').map(classes)).toEqual([['frontmatter-chip']])
+    })
   })
 
   it.each([

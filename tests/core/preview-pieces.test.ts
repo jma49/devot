@@ -10,7 +10,7 @@ import {
 } from '../../src/core'
 import { splitBlocks } from '../../src/core/preview/blocks'
 import { sampleNote } from '../../scripts/bench/fixtures'
-import { labels } from '../support/preview-html'
+import { labels, noteFields } from '../support/preview-html'
 
 // The live preview renders a note in pieces (blocks.ts) and re-renders only
 // the pieces that change; put together, they must be the whole note's preview.
@@ -183,6 +183,25 @@ describe('createPieceRenderer', () => {
       first[0]!.key,
     ])
     expect(second[0]!.key).not.toBe(first[0]!.key)
+  })
+
+  it("renders only the front matter's piece again when the note's fields change", async () => {
+    const render = small()
+    const markdown = '---\ntitle: A\n---\n\nOne.\n\nTwo.'
+    const first = await render(markdown, { ...options, note: noteFields({ title: 'A' }) })
+    const second = await render(
+      markdown,
+      { ...options, note: noteFields({ title: 'B' }) },
+      first.map((p) => p.key),
+    )
+    expect(second.map((p) => p.nodes !== undefined)).toEqual([true, false, false])
+    const plain = await render('One.\n\nTwo.', { ...options, note: noteFields({ title: 'A' }) })
+    const retitled = await render(
+      'One.\n\nTwo.',
+      { ...options, note: noteFields({ title: 'B' }) },
+      plain.map((p) => p.key),
+    )
+    expect(retitled.every((p) => p.nodes === undefined)).toBe(true)
   })
 
   it('lets go of the old versions of a piece being edited', async () => {

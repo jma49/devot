@@ -329,18 +329,23 @@ export function createPieceRenderer({
 
   return async (markdown, options, known = []) => {
     const names = registry.renderers().includes(headingIds)
-    const optionsKey = JSON.stringify(options)
     const blocks = splitBlocks(markdown, pieceLength)
+    // Only front matter shows the note's fields: other pieces do not render again when those change.
+    const { note, ...bodyOptions } = options
+    const bodyKey = JSON.stringify(bodyOptions)
+    const front = note !== undefined && markdown.startsWith('---')
+    const firstKey = front ? JSON.stringify(options) : bodyKey
     const copies = new Map<string, number>()
     const keys = blocks.map((block, i) => {
       const copy = copies.get(block.text) ?? 0
       copies.set(block.text, copy + 1)
-      return keyOf(block.text, i === 0, copy, optionsKey)
+      return keyOf(block.text, i === 0, copy, i === 0 ? firstKey : bodyKey)
     })
     const rendered: Rendered[] = []
     try {
       for (const [i, block] of blocks.entries()) {
-        rendered.push(await piece(keys[i]!, block.text, i === 0, options))
+        const pieceOptions = i === 0 && front ? options : bodyOptions
+        rendered.push(await piece(keys[i]!, block.text, i === 0, pieceOptions))
       }
     } finally {
       trim(new Set(keys))

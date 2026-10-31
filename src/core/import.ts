@@ -311,6 +311,9 @@ export function readFrontMatter(markdown: string): FrontMatterMeta {
   return metaOf(yamlOf(parse(markdown)))
 }
 
+/** `readFrontMatter` for front matter already taken out of its note (the preview's). */
+export const readFrontMatterYaml = (yaml: string): FrontMatterMeta => metaOf(yaml)
+
 function metaOf(yaml: string | null, exact = false): FrontMatterMeta {
   const meta: FrontMatterMeta = { title: null, notebook: null, tags: [], status: null }
   if (yaml === null) return meta

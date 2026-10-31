@@ -1,6 +1,6 @@
 import { invoke } from '../ipc'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
-import type { NoteLinkTarget, PreviewLabels } from '../../../core'
+import type { NoteLinkTarget, PreviewLabels, PreviewNote } from '../../../core'
 import { NOTES_LOADED } from '../externalChanges'
 import { noteLinks } from '../../../core/links'
 import { taskProgress } from '../../../core/tasks'
@@ -38,6 +38,7 @@ import { NoteInfo } from './NoteInfo'
 import type { NoteInfoData } from './infoCard'
 import type { SetNoteDates } from './NoteInfo'
 import { previewScrollPane, type PreviewScrollPane, type ScrollPane } from './scrollSync'
+import { frontMatterChange, type FrontMatterChange } from './frontMatterApply'
 
 const NOTE_LINK = /^devot:\/\/note\/([0-9a-f-]{36})$/
 
@@ -64,15 +65,43 @@ export function previewLabels(): PreviewLabels {
   }
 }
 
+/** The open note's fields as the live preview's front matter compares them. */
+export type PreviewNoteFields = Omit<PreviewNote, 'labels'>
+
+function previewNote(fields: PreviewNoteFields): PreviewNote {
+  return {
+    ...fields,
+    labels: {
+      statuses: {
+        none: t('status.none'),
+        active: t('status.active'),
+        on_hold: t('status.on_hold'),
+        completed: t('status.completed'),
+        dropped: t('status.dropped'),
+      },
+      noteValue: t('preview.frontMatterNote'),
+      noTags: t('preview.frontMatterNoTags'),
+      apply: t('preview.frontMatterApply'),
+      applyTitle: t('preview.applyTitle'),
+      applyStatus: t('preview.applyStatus'),
+      applyTags: t('preview.applyTags'),
+    },
+  }
+}
+
 interface RenderInput {
   markdown: string
   loadedEmbeds: string[]
+  note: PreviewNoteFields | undefined
 }
 
 interface Props {
   core: Core
   markdown: string
   info?: NoteInfoData | undefined
+  /** Only the main window's live preview: its front matter then shows what differs from the note. */
+  note?: PreviewNoteFields | undefined
+  onApplyFrontMatter?: ((change: FrontMatterChange) => void) | undefined
   onSetDates?: SetNoteDates | undefined
   onOpenNote: (id: string) => void
   onFind?: (target: FindTarget | null) => void
@@ -136,6 +165,8 @@ export function Preview({
   core,
   markdown,
   info,
+  note: noteFields,
+  onApplyFrontMatter,
   onSetDates,
   onOpenNote,
   onFind,
@@ -244,6 +275,7 @@ export function Preview({
                 labels: previewLabels(),
                 loadedEmbeds: input.loadedEmbeds,
                 ...(targets ? { noteLinks: targets } : {}),
+                ...(input.note ? { note: previewNote(input.note) } : {}),
               },
               pieces.current.map((piece) => piece.key),
             ),
@@ -291,10 +323,19 @@ export function Preview({
   // Leaving the preview frees what its diagrams hold (their stylesheets).
   useEffect(() => () => mounter.dispose(), [mounter])
 
-  useEffect(() => render.current?.({ markdown, loadedEmbeds }), [markdown, loadedEmbeds])
-  const input = useRef({ markdown, loadedEmbeds })
+  // The window passes the fields as a new object on every render: the preview renders again only when they change.
+  const noteKey = noteFields ? JSON.stringify(noteFields) : ''
+  const fields = useMemo(
+    () => (noteKey ? (JSON.parse(noteKey) as PreviewNoteFields) : undefined),
+    [noteKey],
+  )
+  useEffect(
+    () => render.current?.({ markdown, loadedEmbeds, note: fields }),
+    [markdown, loadedEmbeds, fields],
+  )
+  const input = useRef<RenderInput>({ markdown, loadedEmbeds, note: fields })
   useEffect(() => {
-    input.current = { markdown, loadedEmbeds }
+    input.current = { markdown, loadedEmbeds, note: fields }
   })
   useEffect(() => onPluginRenderersChanged(() => render.current?.(input.current)), [])
   // Another window or process can change a note a chip shows.
@@ -318,6 +359,16 @@ export function Preview({
       // The box shows what the note says: the change comes back as a render.
       event.preventDefault()
       onToggleTask?.(Number(box.getAttribute('data-task-at')))
+      return
+    }
+    const apply = target.closest('button[data-frontmatter-apply]')
+    if (apply) {
+      // The row shows what the note says: once applied, the render drops its badge.
+      const change = frontMatterChange(
+        apply.getAttribute('data-frontmatter-apply'),
+        apply.getAttribute('data-frontmatter-value'),
+      )
+      if (change) onApplyFrontMatter?.(change)
       return
     }
     const load = target.closest('[data-embed-load]')
