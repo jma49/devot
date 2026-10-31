@@ -36,6 +36,11 @@ export interface ServerOptions {
   log: Log
 }
 
+/** Said when no notebook allows AI access, so a client can tell the owner how to change that. */
+export const NO_NOTEBOOKS_HINT =
+  'No notebook allows AI access, so no note is visible. In Devot, right-click a notebook in ' +
+  'the sidebar and choose Allow AI Access; Settings > Integrations can turn it on for several ' +
+  'notebooks at once. create_notebook makes one with it on.'
 const HINTS: Record<string, string> = {
   E_NOTE_NOT_FOUND: 'No note with this ID is available to AI.',
   E_BOOK_NOT_FOUND:
@@ -174,7 +179,10 @@ export function createServer({ service, log }: ServerOptions): McpServer {
         'each holds. Notes can only be created in these notebooks.',
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    run('list_notebooks', async (ai) => ({ notebooks: await ai.notebooks() })),
+    run('list_notebooks', async (ai) => {
+      const notebooks = await ai.notebooks()
+      return notebooks.length === 0 ? { notebooks, hint: NO_NOTEBOOKS_HINT } : { notebooks }
+    }),
   )
 
   server.registerTool(

@@ -1,12 +1,14 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { CHOOSE_AI_ACCESS } from '../aiAccess'
 import { errorCode } from '../backups'
 import { writeClipboardText } from '../clipboard'
+import { formatNumber } from '../format'
 import type { IconName } from '../icons/symbols'
-import { format, t, type MessageKey } from '../i18n'
+import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { SettingsSection } from './controls'
 import { HttpApiSection } from './HttpApiSection'
 import { claudeCodeCommand, codexConfig, mcpServersJson, type McpSetup } from './mcpConfigs'
-import { mcpSetup } from './window'
+import { aiAccessSummary, mcpSetup, showMainWindow, type AiAccessSummary } from './window'
 
 const CLIENTS: readonly {
   id: string
@@ -38,6 +40,60 @@ const CLIENTS: readonly {
   },
 ]
 
+// Once per Settings window: "Later" keeps it quiet until the window closes.
+let promptSeen = false
+
+/**
+ * Why MCP clients see nothing yet, and the way to the picker in the main
+ * window: the flag in the storage both windows share asks it to open there.
+ */
+function AiAccessPrompt(props: { notebooks: number; onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const el = dialog.current
+    if (el && !el.open) el.showModal()
+    return () => el?.close()
+  }, [])
+  const openPicker = () => {
+    try {
+      localStorage.setItem(CHOOSE_AI_ACCESS, '1')
+    } catch {
+      // Without the shared storage the main window still opens; the picker is one menu away.
+    }
+    void showMainWindow().catch((e: unknown) =>
+      console.warn('W_MAIN_WINDOW_SHOW_FAILED', errorCode(e)),
+    )
+    props.onClose()
+  }
+  return (
+    <dialog
+      ref={dialog}
+      className="confirm"
+      aria-labelledby="ai-access-prompt-title"
+      aria-describedby="ai-access-prompt-detail"
+      onCancel={(e) => {
+        e.preventDefault()
+        props.onClose()
+      }}
+    >
+      <p id="ai-access-prompt-title" className="confirm-message">
+        {t('integrations.noAiAccessTitle')}
+      </p>
+      <p id="ai-access-prompt-detail" className="confirm-detail">
+        {t(props.notebooks === 0 ? 'integrations.noNotebooks' : 'integrations.noAiAccess')}
+      </p>
+      <div className="confirm-actions">
+        <button type="button" className="button" onClick={props.onClose} autoFocus>
+          {t('integrations.later')}
+        </button>
+        <button type="button" className="button button-default" onClick={openPicker}>
+          {t(props.notebooks === 0 ? 'integrations.openDevot' : 'integrations.chooseNotebooks')}
+        </button>
+      </div>
+    </dialog>
+  )
+}
+
 export function IntegrationsSection() {
   const ids = useId()
   // Undefined until Rust answers; the configs show only then.
@@ -45,6 +101,33 @@ export function IntegrationsSection() {
   const [setupError, setSetupError] = useState<string>()
   const [copyError, setCopyError] = useState<string>()
   const [announcement, setAnnouncement] = useState('')
+  const [summary, setSummary] = useState<AiAccessSummary>()
+  const [prompt, setPrompt] = useState(false)
+  useEffect(() => {
+    let live = true
+    const load = () => {
+      aiAccessSummary().then(
+        (found) => {
+          if (!live) return
+          setSummary(found)
+          if (found.allowed === 0 && !promptSeen) {
+            promptSeen = true
+            setPrompt(true)
+          }
+        },
+        (e: unknown) => {
+          if (live) console.warn('W_AI_ACCESS_SUMMARY_FAILED', errorCode(e))
+        },
+      )
+    }
+    load()
+    // Notebooks may be allowed while the pane is open (from the main window).
+    window.addEventListener('focus', load)
+    return () => {
+      live = false
+      window.removeEventListener('focus', load)
+    }
+  }, [])
 
   useEffect(() => {
     let live = true
@@ -86,6 +169,14 @@ export function IntegrationsSection() {
         {t('integrations.title')}
       </h2>
       <p>{t('integrations.detail')}</p>
+      {summary ? (
+        <p className="settings-note">
+          {format(t('integrations.aiAccessCount'), {
+            allowed: formatNumber(summary.allowed, currentLocale()),
+            notebooks: formatNumber(summary.notebooks, currentLocale()),
+          })}
+        </p>
+      ) : null}
       {setup ? (
         <p>{t(setup.script === null ? 'integrations.noScript' : 'integrations.script')}</p>
       ) : null}
@@ -124,6 +215,9 @@ export function IntegrationsSection() {
         )
       })}
       <HttpApiSection />
+      {prompt && summary ? (
+        <AiAccessPrompt notebooks={summary.notebooks} onClose={() => setPrompt(false)} />
+      ) : null}
     </section>
   )
 }

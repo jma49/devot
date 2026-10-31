@@ -169,6 +169,8 @@ fn main() {
             "update_restart",
             "deep_link_take",
             "settings_mcp_setup",
+            "settings_ai_access_summary",
+            "main_window_show",
             "cli_tool_status",
             "cli_tool_install",
             "cli_tool_uninstall",

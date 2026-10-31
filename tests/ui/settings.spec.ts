@@ -767,3 +767,59 @@ test('Preview has its own font size (15 px) and synced scrolling', async ({ page
   await tab(page, 'Editing').click()
   await expect(editor(page).getByRole('switch', { name: 'Synced Scrolling' })).toHaveCount(0)
 })
+
+test('Integrations says when no notebook allows AI access and offers the picker', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      settings_mcp_setup: { script: '/Users/me/Code/devot/dist-mcp/devot-mcp.mjs', db: null },
+      settings_ai_access_summary: { notebooks: 3, allowed: 0 },
+      main_window_show: null,
+    }
+  })
+  await openSettings(page, 'Integrations')
+  const prompt = page.getByRole('dialog', { name: 'No notebook allows AI access' })
+  await expect(prompt).toBeVisible()
+  await expect(prompt).toContainText('Right-click a notebook in the sidebar')
+  await prompt.getByRole('button', { name: 'Choose Notebooks\u2026' }).click()
+  await expect(prompt).toHaveCount(0)
+  expect(await calls(page, 'main_window_show')).toEqual([{ cmd: 'main_window_show', args: {} }])
+  // The main window reads this flag when it gains focus.
+  expect(await page.evaluate(() => localStorage.getItem('devot:choose-ai-access'))).toBe('1')
+})
+
+test('Later keeps the AI access prompt quiet for the Settings window', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      settings_mcp_setup: { script: null, db: null },
+      settings_ai_access_summary: { notebooks: 2, allowed: 0 },
+    }
+  })
+  await openSettings(page, 'Integrations')
+  const prompt = page.getByRole('dialog', { name: 'No notebook allows AI access' })
+  await prompt.getByRole('button', { name: 'Later' }).click()
+  await expect(prompt).toHaveCount(0)
+  await tab(page, 'General').click()
+  await tab(page, 'Integrations').click()
+  await expect(prompt).toHaveCount(0)
+  await expect(page.getByRole('tabpanel')).toContainText('0 of 2 notebooks allow AI access.')
+})
+
+test('Integrations offers a way to create a notebook when there is none', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      settings_mcp_setup: { script: null, db: null },
+      settings_ai_access_summary: { notebooks: 0, allowed: 0 },
+      main_window_show: null,
+    }
+  })
+  await openSettings(page, 'Integrations')
+  const prompt = page.getByRole('dialog', { name: 'No notebook allows AI access' })
+  await expect(prompt).toContainText('Devot has no notebooks yet')
+  await prompt.getByRole('button', { name: 'Open Devot' }).click()
+  expect(await calls(page, 'main_window_show')).toEqual([{ cmd: 'main_window_show', args: {} }])
+})

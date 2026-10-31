@@ -195,6 +195,8 @@ pub fn run() {
             settings::settings_show_backups,
             settings::settings_open_licence,
             settings::settings_mcp_setup,
+            settings::settings_ai_access_summary,
+            settings::main_window_show,
             cli_tool::cli_tool_status,
             cli_tool::cli_tool_install,
             cli_tool::cli_tool_uninstall,

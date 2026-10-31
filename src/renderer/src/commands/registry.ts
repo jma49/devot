@@ -451,6 +451,13 @@ export const COMMANDS = [
     palette: false,
   },
   {
+    id: 'notebook.aiAccessMany',
+    label: 'bookMenu.aiAccessMany',
+    group: 'notebook',
+    scope: 'window',
+    keys: [],
+  },
+  {
     id: 'notebook.importMarkdownFiles',
     label: 'bookMenu.importMarkdownFiles',
     group: 'notebook',
@@ -1494,6 +1501,7 @@ const CHANGES_NOTES: ReadonlySet<CommandId> = new Set<CommandId>([
   'notebook.moveDown',
   'notebook.moveToTop',
   'notebook.aiAccess',
+  'notebook.aiAccessMany',
   'notebook.importMarkdownFiles',
   'notebook.importMarkdownFolder',
   'notebook.importHtmlFiles',

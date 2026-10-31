@@ -3052,6 +3052,41 @@ button {
   color: var(--color-accent-on-fill);
 }
 
+.ai-access-tools {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-5);
+}
+
+.ai-access-label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  height: 100%;
+  padding-inline-end: var(--space-4);
+  cursor: pointer;
+}
+
+.ai-access-label:hover {
+  background: var(--color-fill-hover);
+  border-radius: var(--radius-control);
+}
+
+.ai-access-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-access-count {
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 .button-default {
   background: var(--color-accent-fill);
   color: var(--color-accent-on-fill);

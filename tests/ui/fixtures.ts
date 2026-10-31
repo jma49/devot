@@ -126,6 +126,9 @@ export async function mockTauri(page: Page): Promise<void> {
             if (typeof mock === 'object' && mock !== null && 'error' in mock) throw mock.error
             return typeof mock === 'function' ? (mock as (a: unknown) => unknown)(args) : mock
           }
+          // One notebook, allowed: Integrations shows no prompt unless a test says otherwise.
+          if (cmd === 'settings_ai_access_summary') return { notebooks: 1, allowed: 1 }
+
           // No link from another app waits at launch (deep-links.spec.ts), and no plugin is installed (plugins.ts).
           if (cmd === 'deep_link_take' || cmd === 'plugins_list') return []
           if (cmd === 'cli_tool_status') return { state: 'absent', path: '/usr/local/bin/devot' }

@@ -428,3 +428,33 @@ test('Move Notebook keeps the focus on Cancel through a re-render, so Return can
     page.getByRole('treeitem', { name: /^Home\b/ }).getByRole('treeitem', { name: /^Work\b/ }),
   ).toHaveCount(0)
 })
+
+test('turns Allow AI Access on for several notebooks at once, with Undo', async ({ page }) => {
+  await setUp(page)
+  await page.keyboard.press('Meta+KeyK')
+  const palette = page.getByRole('dialog', { name: 'Command Palette' })
+  await palette.getByRole('combobox', { name: 'Command Palette' }).fill('AI Access for Several')
+  await palette.getByRole('option', { name: /AI Access for Several Notebooks/ }).click()
+
+  const picker = page.getByRole('dialog', { name: 'Allow AI Access' })
+  await expect(picker).toBeVisible()
+  // Nothing is on yet, and Apply has nothing to do until a switch differs.
+  await expect(picker.getByRole('checkbox')).toHaveCount(3)
+  await expect(picker.getByRole('button', { name: 'Apply' })).toBeDisabled()
+  await picker.getByRole('button', { name: 'Select All' }).click()
+  await expect(picker.getByRole('button', { name: 'Apply' })).toBeEnabled()
+  await picker.getByRole('button', { name: 'Apply' }).click()
+  await expect(picker).toHaveCount(0)
+
+  const done = page.getByRole('status').filter({ hasText: 'notebooks now allow AI access' })
+  await expect(done).toContainText('3 notebooks now allow AI access.')
+  for (const name of ['Home', 'Work', 'Devot']) {
+    await expect(row(page, name).getByRole('img', { name: 'AI access on' })).toBeVisible()
+  }
+
+  await done.getByRole('button', { name: 'Undo' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'AI access is off' })).toContainText(
+    'AI access is off for 3 notebooks.',
+  )
+  await expect(page.getByRole('img', { name: 'AI access on' })).toHaveCount(0)
+})

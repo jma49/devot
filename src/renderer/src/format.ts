@@ -83,6 +83,10 @@ export function countOf(count: number, locale: string, one: MessageKey, other: M
   return format(t(key), { count: number.format(count) })
 }
 
+export function formatNumber(count: number, locale: string): string {
+  return kept(`number|${locale}`, () => new Intl.NumberFormat(locale)).format(count)
+}
+
 export function taskCount(done: number, total: number, locale: string): string {
   const plural = kept(`plural|${locale}`, () => new Intl.PluralRules(locale))
   const key = plural.select(total) === 'one' ? 'noteInfo.tasksOne' : 'noteInfo.tasksOther'
