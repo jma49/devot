@@ -1,16 +1,14 @@
 import { defineConfig, devices } from '@playwright/test'
 import { reuseServers, uiPorts } from './tests/support/ports'
+import { uiSelection } from './tests/support/ui-selection'
 
-// UI tests: the real UI in Playwright's WebKit with Tauri's IPC mocked; they cannot reach Rust.
-
-// Ports derive from the checkout folder so checkouts run side by side (DEVOT_UI_PORT, DEVOT_CSP_PORT
-// override). A server already answering on a port fails the run, as it may be another checkout's or an
-// old build; DEVOT_REUSE_SERVERS=1 reuses them (and skips the production-CSP build).
 const { ui: uiPort, csp: cspPort } = uiPorts(import.meta.dirname, process.env)
 const reuseExistingServer = reuseServers(process.env)
+const selection = uiSelection(import.meta.dirname, process.env)
 
 export default defineConfig({
   testDir: 'tests',
+  ...(selection.testMatch ? { testMatch: selection.testMatch } : {}),
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 1 : 0,
@@ -32,7 +30,7 @@ export default defineConfig({
       testDir: 'tests/ui-csp',
       use: { ...devices['Desktop Safari'], baseURL: `http://localhost:${cspPort}` },
     },
-  ],
+  ].filter((project) => selection.projects.some((name) => name === project.name)),
   webServer: [
     {
       // No DSN in tests: nothing may reach Sentry. The UI tests' build keeps
@@ -47,5 +45,5 @@ export default defineConfig({
       reuseExistingServer,
       timeout: 120_000,
     },
-  ],
+  ].filter((_, index) => selection.projects.includes(index === 0 ? 'webkit' : 'webkit-prod-csp')),
 })
