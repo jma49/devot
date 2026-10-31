@@ -46,7 +46,7 @@ Tokens use the [W3C Design Tokens (DTCG)](https://www.designtokens.org/) format.
 
 ## Tag colours
 
-Tags may take one colour from a fixed palette of eight: red, orange, yellow, green, blue, purple, pink and gray (`color.tag.*` in each theme, light and dark). Notes store the palette ID, never a colour value, so a theme can restyle every tag. The colour shows as a dot in the sidebar and on tag chips. A coloured tag's chip mixes its colour with transparent: fill at `opacity.tag.fill` (10%), edge at `opacity.tag.border` (20%), and under the pointer or pressed 20% and 30%; its label is `color.tag-text.*`, the tag colour moved toward black (light) or white (dark) only as far as 4.5:1 on the chip needs. The dot is the colour at `opacity.tag.dot` (30%) inside a solid edge. The strengths are the same in both appearances; only the colours change.
+Tags may take one colour from a fixed palette of eight: red, orange, yellow, green, blue, purple, pink and gray (`color.tag.*` in each theme, light and dark). Notes store the palette ID, never a colour value, so a theme can restyle every tag. The colour shows as a dot in the sidebar and on tag chips, including the chips of a front matter `tags` row in the live preview. A coloured tag's chip mixes its colour with transparent: fill at `opacity.tag.fill` (10%), edge at `opacity.tag.border` (20%), and under the pointer or pressed 20% and 30%; its label is `color.tag-text.*`, the tag colour moved toward black (light) or white (dark) only as far as 4.5:1 on the chip needs. The dot is the colour at `opacity.tag.dot` (30%) inside a solid edge. The strengths are the same in both appearances; only the colours change.
 
 ## Activity heatmap
 

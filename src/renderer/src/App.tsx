@@ -238,6 +238,7 @@ import {
 } from './noteMenu'
 import { applyOrder, orderChip, orderLabel, sortLocales, sortView, useListOrder } from './noteSort'
 import { LivePreview } from './preview/Preview'
+import { tagChanges, type FrontMatterChange } from './preview/frontMatterApply'
 import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
 import { useHistoryBar } from './HistoryBar'
@@ -2424,6 +2425,30 @@ export function App() {
     recordStatus([noteId], status)
     return changeBooks((c) => c.setStatus(noteId, status))
   }
+  const selectedTags = (selectedNote?.tagIds ?? []).flatMap(
+    (id) => tags.find((tag) => tag.id === id) ?? [],
+  )
+  // The services the title field and the header pickers use, so undo, sync and saving are theirs.
+  const applyFrontMatter = (change: FrontMatterChange) => {
+    if (!selected) return
+    if (change.field === 'title') return rename(change.value)
+    if (change.field === 'status') return void setStatus(selected, change.value)
+    const { add, remove } = tagChanges(selectedTags, change.value)
+    void changeBooks(async (c) => {
+      for (const name of add) await c.addTag(selected, name)
+      for (const tagId of remove) await c.removeTag(selected, tagId)
+    })
+  }
+  const previewFields =
+    selectedNote && !selectedIsTemplate
+      ? {
+          title,
+          status: selectedNote.status,
+          tags: selectedTags.map((tag) => tag.name),
+          tagColors: tags.flatMap(({ name, color }) => (color ? [{ name, color }] : [])),
+          canApply: editing,
+        }
+      : undefined
 
   /** One change to several notes, note by note (each its own write); failures are logged by code and counted in a notice, the rest keep their change. Resolves to the notes whose write failed. `notice` false leaves the notice to the caller, so a move over several statuses counts all its failures once. */
   const batchFailures = async (
@@ -4024,6 +4049,8 @@ export function App() {
                         }
                       : undefined
                   }
+                  note={previewFields}
+                  onApplyFrontMatter={editing ? applyFrontMatter : undefined}
                   onSetDates={inTrash || !core || !editing ? undefined : setNoteDates}
                   onOpenNote={(id) => void select(id)}
                   onFind={setPreviewFind}
