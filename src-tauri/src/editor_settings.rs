@@ -128,8 +128,8 @@ pub enum IconStyle {
     Lucide,
 }
 
-/// The page applies it (the tokens read `data-theme` on the root element); Rust validates and
-/// stores it.
+/// The page applies it (the tokens read `data-theme` on the root element), picking `light_theme`
+/// or `dark_theme` from the appearance it shows; Rust validates and stores both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Theme {
@@ -184,7 +184,8 @@ pub struct EditorSettings {
     pub inline_images: bool,
     pub appearance: Appearance,
     /// Ivory ignores the system accent.
-    pub theme: Theme,
+    pub light_theme: Theme,
+    pub dark_theme: Theme,
     pub system_accent: bool,
     pub icon_style: IconStyle,
     pub toolbar: bool,
@@ -253,7 +254,8 @@ impl Default for EditorSettings {
             sync_scroll: true,
             inline_images: true,
             appearance: Appearance::System,
-            theme: Theme::Default,
+            light_theme: Theme::Default,
+            dark_theme: Theme::Default,
             system_accent: false,
             icon_style: IconStyle::SfSymbols,
             toolbar: true,
@@ -385,7 +387,8 @@ impl EditorSettings {
             "syncScroll" => self.sync_scroll = flag(value)?,
             "inlineImages" => self.inline_images = flag(value)?,
             "appearance" => self.appearance = choice(value)?,
-            "theme" => self.theme = choice(value)?,
+            "lightTheme" => self.light_theme = choice(value)?,
+            "darkTheme" => self.dark_theme = choice(value)?,
             "systemAccent" => self.system_accent = flag(value)?,
             "iconStyle" => self.icon_style = choice(value)?,
             "toolbar" => self.toolbar = flag(value)?,
@@ -457,11 +460,32 @@ impl EditorSettings {
     pub fn from_stored(value: &Value) -> Self {
         let mut out = Self::default();
         if let Value::Object(map) = value {
-            for (key, value) in map {
+            let mut map = map.clone();
+            migrate_theme(&mut map);
+            for (key, value) in &map {
                 let _ = out.set(key, value);
             }
         }
         out
+    }
+}
+
+/// One theme was kept before light and dark had their own; it fills whichever of them is not
+/// validly stored.
+fn migrate_theme(stored: &mut Map<String, Value>) {
+    let Some(old) = stored.remove("theme") else {
+        return;
+    };
+    if serde_json::from_value::<Theme>(old.clone()).is_err() {
+        return;
+    }
+    for key in ["lightTheme", "darkTheme"] {
+        let valid = stored
+            .get(key)
+            .is_some_and(|v| serde_json::from_value::<Theme>(v.clone()).is_ok());
+        if !valid {
+            stored.insert(key.into(), old.clone());
+        }
     }
 }
 
@@ -552,6 +576,7 @@ impl EditorSettingsStore {
                 let mode = if old { "unwrapAtCursor" } else { "off" };
                 stored.insert("lineWrapping".into(), Value::from(mode));
             }
+            migrate_theme(&mut stored);
             stored
                 .into_iter()
                 .filter(|(key, value)| settings.set(key, value).is_ok())
@@ -758,7 +783,8 @@ mod tests {
         assert!(!d.menu_bar, "menu bar mode is opt-in");
         assert!(d.inline_images);
         assert_eq!(d.appearance, Appearance::System);
-        assert_eq!(d.theme, Theme::Default);
+        assert_eq!(d.light_theme, Theme::Default);
+        assert_eq!(d.dark_theme, Theme::Default);
         assert!(!d.system_accent);
         assert_eq!(d.icon_style, IconStyle::SfSymbols);
     }
@@ -800,6 +826,14 @@ mod tests {
             Value::Object(history),
             json!({ "activityStrip": true, "historyBar": false, "authorship": true })
         );
+        let themes: Map<String, Value> = ["lightTheme", "darkTheme"]
+            .into_iter()
+            .filter_map(|k| map.remove(k).map(|v| (k.to_string(), v)))
+            .collect();
+        assert_eq!(
+            Value::Object(themes),
+            json!({ "lightTheme": "default", "darkTheme": "default" })
+        );
         assert_eq!(
             value,
             json!({
@@ -828,7 +862,6 @@ mod tests {
                 "syncScroll": true,
                 "inlineImages": true,
                 "appearance": "system",
-                "theme": "default",
                 "systemAccent": false,
                 "iconStyle": "sfSymbols",
                 "toolbar": true,
@@ -925,7 +958,8 @@ mod tests {
                 "syncScroll": false,
                 "inlineImages": false,
                 "appearance": "dark",
-                "theme": "ivory",
+                "lightTheme": "ivory",
+                "darkTheme": "ember",
                 "systemAccent": true,
                 "iconStyle": "lucide",
                 "toolbar": false,
@@ -954,7 +988,8 @@ mod tests {
         assert!(!next.auto_download_updates);
         assert!(next.menu_bar);
         assert_eq!(next.appearance, Appearance::Dark);
-        assert_eq!(next.theme, Theme::Ivory);
+        assert_eq!(next.light_theme, Theme::Ivory);
+        assert_eq!(next.dark_theme, Theme::Ember);
         assert!(next.system_accent);
         assert_eq!(next.icon_style, IconStyle::Lucide);
         for (appearance, theme) in [
@@ -1099,7 +1134,7 @@ mod tests {
     #[test]
     fn refuses_unknown_keys_and_bad_values_as_a_whole() {
         let bad = [
-            json!({ "theme": "dark" }),
+            json!({ "theme": "ivory" }),
             json!({ "lineNumbers": "yes" }),
             json!({ "lineNumbers": 1 }),
             json!({ "fontSize": 9 }),
@@ -1178,11 +1213,15 @@ mod tests {
             json!({ "appearance": "auto" }),
             json!({ "appearance": "Dark" }),
             json!({ "appearance": true }),
-            json!({ "theme": "Ivory" }),
-            json!({ "theme": "dark" }),
-            json!({ "theme": "" }),
-            json!({ "theme": null }),
-            json!({ "theme": 1 }),
+            json!({ "lightTheme": "Ivory" }),
+            json!({ "lightTheme": "dark" }),
+            json!({ "lightTheme": "" }),
+            json!({ "lightTheme": null }),
+            json!({ "lightTheme": 1 }),
+            json!({ "darkTheme": "Ember" }),
+            json!({ "darkTheme": "light" }),
+            json!({ "darkTheme": null }),
+            json!({ "darkTheme": 1 }),
             json!({ "systemAccent": "on" }),
             json!({ "iconStyle": "SF" }),
             json!({ "iconStyle": null }),
@@ -1294,17 +1333,69 @@ mod tests {
     fn keeps_the_chosen_theme_after_reopening() {
         let dir = tempfile::tempdir().unwrap();
         store(&dir)
-            .update(&patch(json!({ "theme": "ivory", "appearance": "dark" })))
+            .update(&patch(
+                json!({ "lightTheme": "ivory", "darkTheme": "tide", "appearance": "dark" }),
+            ))
             .unwrap();
         let read = store(&dir).get().unwrap().settings;
-        assert_eq!(read.theme, Theme::Ivory);
+        assert_eq!(
+            (read.light_theme, read.dark_theme),
+            (Theme::Ivory, Theme::Tide)
+        );
         assert_eq!(read.appearance, Appearance::Dark);
         let held = store(&dir);
         assert_eq!(
-            held.update(&patch(json!({ "theme": "other" }))),
+            held.update(&patch(json!({ "darkTheme": "other" }))),
             Err(INVALID)
         );
-        assert_eq!(held.get().unwrap().settings.theme, Theme::Ivory);
+        assert_eq!(held.get().unwrap().settings.dark_theme, Theme::Tide);
+    }
+
+    #[test]
+    fn moves_a_stored_single_theme_to_both_appearances() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(FILE), br#"{ "theme": "ivory" }"#).unwrap();
+        let held = store(&dir);
+        let read = held.get().unwrap().settings;
+        assert_eq!(
+            (read.light_theme, read.dark_theme),
+            (Theme::Ivory, Theme::Ivory)
+        );
+        held.update(&patch(json!({ "lineNumbers": true }))).unwrap();
+        let written: Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join(FILE)).unwrap()).unwrap();
+        assert_eq!(
+            written,
+            json!({ "lightTheme": "ivory", "darkTheme": "ivory", "lineNumbers": true })
+        );
+    }
+
+    #[test]
+    fn a_stored_appearance_theme_wins_over_the_single_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let stored = json!({ "theme": "sage", "darkTheme": "ember" });
+        std::fs::write(dir.path().join(FILE), stored.to_string()).unwrap();
+        let read = store(&dir).get().unwrap().settings;
+        assert_eq!(
+            (read.light_theme, read.dark_theme),
+            (Theme::Sage, Theme::Ember)
+        );
+        let read = EditorSettings::from_stored(&stored);
+        assert_eq!(
+            (read.light_theme, read.dark_theme),
+            (Theme::Sage, Theme::Ember)
+        );
+    }
+
+    #[test]
+    fn an_unknown_single_theme_moves_nothing() {
+        for old in [json!("other"), json!(7)] {
+            let read = EditorSettings::from_stored(&json!({ "theme": old }));
+            assert_eq!(
+                (read.light_theme, read.dark_theme),
+                (Theme::Default, Theme::Default)
+            );
+        }
     }
 
     #[test]
@@ -1327,18 +1418,22 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
             dir.path().join(FILE),
-            br#"{ "theme": "other", "appearance": "light" }"#,
+            br#"{ "lightTheme": "other", "darkTheme": 7, "appearance": "light" }"#,
         )
         .unwrap();
         let held = store(&dir);
         let read = held.get().unwrap().settings;
-        assert_eq!(read.theme, Theme::Default);
+        assert_eq!(
+            (read.light_theme, read.dark_theme),
+            (Theme::Default, Theme::Default)
+        );
         assert_eq!(read.appearance, Appearance::Light);
         held.update(&patch(json!({ "lineNumbers": true }))).unwrap();
         let file = std::fs::read_to_string(dir.path().join(FILE)).unwrap();
         assert!(!file.contains("other"), "{file}");
         assert_eq!(
-            EditorSettings::from_stored(&json!({ "theme": "ivory", "fontSize": 99 })).theme,
+            EditorSettings::from_stored(&json!({ "lightTheme": "ivory", "fontSize": 99 }))
+                .light_theme,
             Theme::Ivory
         );
         for (stored, theme) in [
@@ -1348,14 +1443,10 @@ mod tests {
             ("ember", Theme::Ember),
         ] {
             assert_eq!(
-                EditorSettings::from_stored(&json!({ "theme": stored })).theme,
+                EditorSettings::from_stored(&json!({ "darkTheme": stored })).dark_theme,
                 theme
             );
         }
-        assert_eq!(
-            EditorSettings::from_stored(&json!({ "theme": 7 })).theme,
-            Theme::Default
-        );
     }
 
     #[test]
@@ -1599,7 +1690,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(FILE);
-        let before = br#"{ "fontSize": 16, "theme": "ivory" }"#;
+        let before = br#"{ "fontSize": 16, "darkTheme": "ivory" }"#;
         std::fs::write(&path, before).unwrap();
         let mode = |bits| std::fs::set_permissions(&path, std::fs::Permissions::from_mode(bits));
         mode(0o000).unwrap();
@@ -1618,14 +1709,14 @@ mod tests {
         let next = s.update(&patch(json!({ "lineNumbers": false }))).unwrap();
         assert!(next.revision > shown.revision);
         assert_eq!(
-            (next.settings.font_size, next.settings.theme),
+            (next.settings.font_size, next.settings.dark_theme),
             (16, Theme::Ivory)
         );
         assert!(!next.settings.line_numbers);
         let written: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         assert_eq!(
             written,
-            json!({ "fontSize": 16, "theme": "ivory", "lineNumbers": false })
+            json!({ "fontSize": 16, "darkTheme": "ivory", "lineNumbers": false })
         );
     }
 

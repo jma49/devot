@@ -7,6 +7,24 @@
     }
   },
   "color": {
+    "icon": {
+      "tile": {
+        "general": { "$value": "{color.tile.general}", "$type": "color" },
+        "appearance": { "$value": "{color.tile.appearance}", "$type": "color" },
+        "editing": { "$value": "{color.tile.editing}", "$type": "color" },
+        "preview": { "$value": "{color.tile.preview}", "$type": "color" },
+        "keyboard": { "$value": "{color.tile.keyboard}", "$type": "color" },
+        "mirror": { "$value": "{color.tile.mirror}", "$type": "color" },
+        "sync": { "$value": "{color.tile.sync}", "$type": "color" },
+        "ai": { "$value": "{color.tile.ai}", "$type": "color" },
+        "integrations": { "$value": "{color.tile.integrations}", "$type": "color" },
+        "plugins": { "$value": "{color.tile.plugins}", "$type": "color" },
+        "usage": { "$value": "{color.tile.usage}", "$type": "color" },
+        "license": { "$value": "{color.tile.license}", "$type": "color" }
+      },
+      "tile-foreground": { "$value": "{color.tile.foreground}", "$type": "color" },
+      "tile-foreground-contrast": { "$value": "{color.tile.foreground-contrast}", "$type": "color" }
+    },
     "qr": {
       "ground": {
         "$type": "color",
@@ -414,6 +432,36 @@
           "alpha": 0.065
         },
         "$description": "The preview's note info card."
+      },
+      "settings-card": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.04
+        },
+        "$description": "A Settings card: a low-contrast step up from the pane behind it."
+      },
+      "control": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.07
+        },
+        "$description": "A capsule control's fill in Settings: the search field, Back and Forward, pop-ups, buttons, segmented controls and steppers."
+      },
+      "row-selected-inactive": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19",
+          "alpha": 0.07
+        },
+        "$description": "The selected Settings sidebar row while the window is not focused: a lighter neutral grey."
       },
       "row-selected": {
         "$type": "color",

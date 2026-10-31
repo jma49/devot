@@ -1,6 +1,66 @@
 {
   "$description": "Devot primitives. Themes reference these; components use theme tokens only.",
   "color": {
+    "tile": {
+      "general": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [0.5569, 0.5569, 0.5765], "hex": "#8e8e93" }
+      },
+      "appearance": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [0.0392, 0.5176, 1], "hex": "#0a84ff" }
+      },
+      "editing": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [1, 0.6235, 0.0392], "hex": "#ff9f0a" }
+      },
+      "preview": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [0.251, 0.7843, 0.8784], "hex": "#40c8e0" }
+      },
+      "keyboard": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [0.5569, 0.5569, 0.5765], "hex": "#8e8e93" }
+      },
+      "mirror": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [0.3686, 0.3608, 0.902], "hex": "#5e5ce6" }
+      },
+      "sync": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [0.1882, 0.8196, 0.3451], "hex": "#30d158" }
+      },
+      "ai": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [0.749, 0.3529, 0.949], "hex": "#bf5af2" }
+      },
+      "integrations": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [1, 0.2157, 0.3725], "hex": "#ff375f" }
+      },
+      "plugins": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [1, 0.2706, 0.2275], "hex": "#ff453a" }
+      },
+      "usage": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [1, 0.8392, 0.0392], "hex": "#ffd60a" }
+      },
+      "license": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [0.5569, 0.5569, 0.5765], "hex": "#8e8e93" }
+      },
+      "foreground": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [1, 1, 1], "hex": "#ffffff" },
+        "$description": "The glyph on a coloured icon tile: white, except where the tile is light."
+      },
+      "foreground-contrast": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [0.1098, 0.1059, 0.098], "hex": "#1c1b19" },
+        "$description": "The glyph on the yellow icon tile, which white would disappear into."
+      }
+    },
     "paper": {
       "0": {
         "$type": "color",
@@ -851,6 +911,20 @@
     }
   },
   "radius": {
+    "settings-row": {
+      "$type": "dimension",
+      "$value": { "value": 8, "unit": "px" }
+    },
+    "settings-card": {
+      "$type": "dimension",
+      "$value": { "value": 12, "unit": "px" },
+      "$description": "A Settings card, a theme swatch and an Interface style thumbnail."
+    },
+    "settings-tile": {
+      "$type": "dimension",
+      "$value": { "value": 6, "unit": "px" },
+      "$description": "The coloured icon tile in the Settings sidebar."
+    },
     "mark": {
       "$type": "dimension",
       "$description": "Inline code chips and the box around tables in the editor.",
@@ -927,6 +1001,59 @@
     }
   },
   "size": {
+    "settings-nav-row": {
+      "$type": "dimension",
+      "$value": { "value": 32, "unit": "px" },
+      "$description": "A row in the Settings window's sidebar."
+    },
+    "settings-row": {
+      "$type": "dimension",
+      "$value": { "value": 44, "unit": "px" },
+      "$description": "A Settings row whose label sits on one line."
+    },
+    "settings-row-sub": {
+      "$type": "dimension",
+      "$value": { "value": 56, "unit": "px" },
+      "$description": "A Settings row with a description under its label."
+    },
+    "settings-tile": {
+      "$type": "dimension",
+      "$value": { "value": 22, "unit": "px" },
+      "$description": "The coloured icon tile before a Settings sidebar row's name."
+    },
+    "settings-control": {
+      "$type": "dimension",
+      "$value": { "value": 28, "unit": "px" },
+      "$description": "A capsule control in Settings: the search field, Back and Forward, pop-ups, buttons, segmented controls and steppers."
+    },
+    "settings-swatch-width": {
+      "$type": "dimension",
+      "$value": { "value": 100, "unit": "px" },
+      "$description": "A theme swatch in Settings > Appearance."
+    },
+    "settings-swatch-height": {
+      "$type": "dimension",
+      "$value": { "value": 62, "unit": "px" }
+    },
+    "settings-thumb-width": {
+      "$type": "dimension",
+      "$value": { "value": 76, "unit": "px" },
+      "$description": "A Color scheme, Interface style or Icon style thumbnail in Settings > Appearance."
+    },
+    "settings-thumb-height": {
+      "$type": "dimension",
+      "$value": { "value": 54, "unit": "px" }
+    },
+    "settings-key-field": {
+      "$type": "dimension",
+      "$value": { "value": 200, "unit": "px" },
+      "$description": "The key field of a Settings > Keyboard row: one width for every row, so they line up."
+    },
+    "settings-field": {
+      "$type": "dimension",
+      "$value": { "value": 280, "unit": "px" },
+      "$description": "A text field in Settings (URLs, models, keys, codes): one width in every pane, with any buttons under it spanning the same width."
+    },
     "sidebar-width": {
       "$type": "dimension",
       "$value": {
@@ -1112,7 +1239,7 @@
     "settings-nav-width": {
       "$type": "dimension",
       "$value": {
-        "value": 155,
+        "value": 200,
         "unit": "px"
       },
       "$description": "The width of the Settings window's navigation column."
@@ -1360,7 +1487,7 @@
       "$type": "dimension",
       "$description": "An on/off switch: the lane width.",
       "$value": {
-        "value": 36,
+        "value": 38,
         "unit": "px"
       }
     },
@@ -1368,7 +1495,7 @@
       "$type": "dimension",
       "$description": "An on/off switch: the lane height; the knob is this less twice the inset.",
       "$value": {
-        "value": 20,
+        "value": 22,
         "unit": "px"
       }
     },

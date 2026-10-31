@@ -1,4 +1,5 @@
-import { useId, useMemo, useState, type KeyboardEvent } from 'react'
+import { useContext, useId, useMemo, useState, type KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { errorCode } from '../backups'
 import { useKeyLayout } from '../commands/dispatch'
 import { shortcutLabel } from '../commands/keys'
@@ -19,7 +20,9 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { Icon } from '../icons/Icon'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { isImeKey } from '../ime'
-import { matchesQuery } from './shortcutSearch'
+import { MoreMenu, SettingsSection } from './controls'
+import { GROUP_LABELS, groupedShortcuts } from './shortcutSearch'
+import { ToolbarEnd } from './toolbar'
 
 const SCOPES: Readonly<Record<Exclude<CommandScope, 'window'>, MessageKey>> = {
   editor: 'shortcuts.scope.editor',
@@ -51,16 +54,15 @@ interface Pending {
 }
 
 /**
- * Settings > Keyboard Shortcuts: every command by group with its keys in
- * effect. A command's shortcut is a button: pressed, it records the next key
- * combination (Escape cancels; keys an input method is composing are left
- * to it). A key another command has where both work is taken from it after
- * asking; a key the command may not have is refused with the reason. Clear
- * removes a command's keys, Reset gives it its defaults back, Reset All every
- * command. These buttons are `aria-disabled` rather than `disabled` when there
- * is nothing to do, so the one just used keeps the keyboard (a disabled
- * button would drop it to the page). What happens is announced through a
- * live region.
+ * Settings > Keyboard Shortcuts: every command in a card per group, with its keys in effect in a
+ * field on the right. The field is a button: pressed, it records the next key combination (Escape
+ * cancels; keys an input method is composing are left to it). A key another command has where both
+ * work is taken from it after asking; a key the command may not have is refused with the reason,
+ * under the command's name. Left of the field, Reset gives a changed command its defaults back
+ * (shown while it is changed), and Copy and Clear show while the row is under the pointer or has the
+ * keyboard; Reset All Shortcuts is in the toolbar's More menu. These buttons are `aria-disabled`
+ * rather than `disabled` when there is nothing to do, so the one just used keeps the keyboard (a
+ * disabled button would drop it to the page). What happens is announced through a live region.
  */
 export function KeyboardSection() {
   const keymap = useKeymap()
@@ -128,7 +130,9 @@ export function KeyboardSection() {
     if (key !== undefined) recorded(id, key)
   }
 
-  const shown = COMMANDS.filter((c) => matchesQuery(c, keymap.get(c.id) ?? [], query))
+  const groups = groupedShortcuts(COMMANDS, keymap, query)
+  const toolbarEnd = useContext(ToolbarEnd)
+  const customized = Object.keys(overrides).length > 0
 
   const copy = (text: string) => {
     const done = () => setAnnouncement(format(t('shortcuts.copied'), { keys: text }))
@@ -141,9 +145,6 @@ export function KeyboardSection() {
       <h2 id="shortcuts-title" className="visually-hidden">
         {t('shortcuts.title')}
       </h2>
-      <p>
-        {t('shortcuts.detail')} {t('shortcuts.howTo')}
-      </p>
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
@@ -152,138 +153,140 @@ export function KeyboardSection() {
           {format(t('shortcuts.failed'), { code: error })}
         </p>
       ) : null}
-      <input
-        type="search"
-        className="shortcuts-search"
-        aria-label={t('shortcuts.search')}
-        placeholder={t('shortcuts.search')}
-        value={query}
-        onChange={(e) => setQuery(e.currentTarget.value)}
-      />
-      <table className="shortcuts" aria-label={t('shortcuts.title')}>
-        <thead>
-          <tr>
-            <th scope="col">{t('shortcuts.keyColumn')}</th>
-            <th scope="col">{t('shortcuts.commandColumn')}</th>
-            <th scope="col">{t('shortcuts.sourceColumn')}</th>
-            <th scope="col" className="visually-hidden">
-              {t('shortcuts.actionsColumn')}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {shown.map((c) => {
-            const keys = keymap.get(c.id) ?? []
-            const changed = isCustomized(c.id, overrides)
-            const isRecording = recording === c.id
-            const scope = c.scope === 'window' ? undefined : SCOPES[c.scope]
-            const problemId = `${ids}-${c.id}-problem`
-            const rowProblem = problem?.id === c.id ? problem.text : undefined
-            return (
-              <tr key={c.id} data-command={c.id}>
-                <td className="shortcut-keystroke">
-                  <button
-                    type="button"
-                    className="icon-button shortcut-copy"
-                    aria-label={format(t('shortcuts.copy'), { command: t(c.label) })}
-                    aria-disabled={keys.length === 0}
-                    onClick={() => {
-                      if (keys.length > 0) copy(keysText(keys))
-                    }}
-                  >
-                    <Icon name="settings.copy" size="sm" />
-                  </button>
-                  <button
-                    type="button"
-                    className="shortcut-key"
-                    aria-label={
-                      isRecording
-                        ? format(t('shortcuts.recordingLabel'), { command: t(c.label) })
-                        : format(t('shortcuts.recorderLabel'), {
-                            command: t(c.label),
-                            keys: keysText(keys),
-                          })
-                    }
-                    aria-pressed={isRecording}
-                    aria-describedby={rowProblem ? problemId : undefined}
-                    onClick={(e) => {
-                      if (isRecording) {
-                        cancel()
-                        return
-                      }
-                      // WebKit does not focus a clicked button; the keys go to it.
-                      e.currentTarget.focus()
-                      setProblem(null)
-                      setRecording(c.id)
-                    }}
-                    onKeyDown={(e) => onRecorderKey(c.id, e)}
-                    onBlur={() => {
-                      if (isRecording) cancel()
-                    }}
-                  >
-                    {isRecording ? (
-                      t('shortcuts.recording')
-                    ) : keys.length === 0 ? (
-                      <span className="shortcut-none">{t('shortcuts.none')}</span>
-                    ) : (
-                      keys.map((key) => <kbd key={key}>{shortcutLabel(key)}</kbd>)
-                    )}
-                  </button>
-                  {rowProblem ? (
-                    <span id={problemId} className="settings-hint settings-error">
-                      {rowProblem}
-                    </span>
-                  ) : null}
-                </td>
-                <th scope="row">
-                  <span className="shortcut-command">{t(c.label)}</span>
-                  {scope ? <span className="settings-hint">{t(scope)}</span> : null}
-                </th>
-                <td className="shortcut-source">
-                  {changed ? t('shortcuts.sourceUser') : t('shortcuts.sourceDefault')}
-                </td>
-                <td className="shortcut-actions">
-                  <button
-                    type="button"
-                    className="button"
-                    aria-label={format(t('shortcuts.clearLabel'), { command: t(c.label) })}
-                    aria-disabled={keys.length === 0}
-                    onClick={() => {
-                      if (keys.length > 0) apply(c.id, { patch: clearKeys(c.id), takes: [] }, [])
-                    }}
-                  >
-                    {t('shortcuts.clear')}
-                  </button>
-                  <button
-                    type="button"
-                    className="button"
-                    aria-label={format(t('shortcuts.resetLabel'), { command: t(c.label) })}
-                    aria-disabled={!changed}
-                    onClick={() => {
-                      if (changed) offer(c.id, c.keys, resetKeys(c.id, keymap))
-                    }}
-                  >
-                    {t('shortcuts.reset')}
-                  </button>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-      {shown.length === 0 ? <p>{t('shortcuts.noMatch')}</p> : null}
-      <div className="settings-actions">
-        <button
-          type="button"
-          className="button"
-          aria-disabled={Object.keys(overrides).length === 0}
-          onClick={() => {
-            if (Object.keys(overrides).length > 0) setResettingAll(true)
-          }}
-        >
-          {t('shortcuts.resetAll')}
-        </button>
+      <div className="settings-search shortcuts-filter">
+        <Icon name="search" size="sm" />
+        <input
+          type="search"
+          className="settings-search-field"
+          aria-label={t('shortcuts.search')}
+          placeholder={t('shortcuts.search')}
+          value={query}
+          onChange={(e) => setQuery(e.currentTarget.value)}
+        />
       </div>
+      <p>{t('shortcuts.detail')}</p>
+      {groups.length === 0 ? <p>{t('shortcuts.noMatch')}</p> : null}
+      {groups.map(({ group, commands }) => (
+        <SettingsSection key={group} title={GROUP_LABELS[group]}>
+          <ul className="shortcut-list">
+            {commands.map((c) => {
+              const keys = keymap.get(c.id) ?? []
+              const changed = isCustomized(c.id, overrides)
+              const isRecording = recording === c.id
+              const scope = c.scope === 'window' ? undefined : SCOPES[c.scope]
+              const problemId = `${ids}-${c.id}-problem`
+              const rowProblem = problem?.id === c.id ? problem.text : undefined
+              return (
+                <li
+                  key={c.id}
+                  className="setting shortcut-row"
+                  data-command={c.id}
+                  data-customized={changed || undefined}
+                >
+                  <div className="setting-text">
+                    <span className="setting-label">{t(c.label)}</span>
+                    {scope ? <span className="setting-description">{t(scope)}</span> : null}
+                    {rowProblem ? (
+                      <span id={problemId} className="setting-description settings-error">
+                        {rowProblem}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="shortcut-controls">
+                    <button
+                      type="button"
+                      className="shortcut-action"
+                      aria-label={format(t('shortcuts.copy'), { command: t(c.label) })}
+                      title={format(t('shortcuts.copy'), { command: t(c.label) })}
+                      aria-disabled={keys.length === 0}
+                      onClick={() => {
+                        if (keys.length > 0) copy(keysText(keys))
+                      }}
+                    >
+                      <Icon name="settings.copy" size="sm" />
+                    </button>
+                    <button
+                      type="button"
+                      className="shortcut-action"
+                      aria-label={format(t('shortcuts.clearLabel'), { command: t(c.label) })}
+                      title={format(t('shortcuts.clearLabel'), { command: t(c.label) })}
+                      aria-disabled={keys.length === 0}
+                      onClick={() => {
+                        if (keys.length > 0) apply(c.id, { patch: clearKeys(c.id), takes: [] }, [])
+                      }}
+                    >
+                      <Icon name="settings.clear" size="sm" />
+                    </button>
+                    <button
+                      type="button"
+                      className="shortcut-action shortcut-reset"
+                      aria-label={format(t('shortcuts.resetLabel'), { command: t(c.label) })}
+                      title={format(t('shortcuts.resetLabel'), { command: t(c.label) })}
+                      aria-disabled={!changed}
+                      onClick={() => {
+                        if (changed) offer(c.id, c.keys, resetKeys(c.id, keymap))
+                      }}
+                    >
+                      <Icon name="settings.reset" size="sm" />
+                    </button>
+                    <button
+                      type="button"
+                      className="shortcut-key"
+                      aria-label={
+                        isRecording
+                          ? format(t('shortcuts.recordingLabel'), { command: t(c.label) })
+                          : format(t('shortcuts.recorderLabel'), {
+                              command: t(c.label),
+                              keys: keysText(keys),
+                            })
+                      }
+                      aria-pressed={isRecording}
+                      aria-describedby={rowProblem ? problemId : undefined}
+                      onClick={(e) => {
+                        if (isRecording) {
+                          cancel()
+                          return
+                        }
+                        // WebKit does not focus a clicked button; the keys go to it.
+                        e.currentTarget.focus()
+                        setProblem(null)
+                        setRecording(c.id)
+                      }}
+                      onKeyDown={(e) => onRecorderKey(c.id, e)}
+                      onBlur={() => {
+                        if (isRecording) cancel()
+                      }}
+                    >
+                      {isRecording ? (
+                        t('shortcuts.recording')
+                      ) : keys.length === 0 ? (
+                        <span className="shortcut-none">{t('shortcuts.record')}</span>
+                      ) : (
+                        keys.map(shortcutLabel).join('\u2002')
+                      )}
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </SettingsSection>
+      ))}
+      {toolbarEnd
+        ? createPortal(
+            <MoreMenu
+              label={t('shortcuts.more')}
+              items={[
+                {
+                  label: t('shortcuts.resetAll'),
+                  disabled: !customized,
+                  onSelect: () => setResettingAll(true),
+                },
+              ]}
+            />,
+            toolbarEnd,
+          )
+        : null}
       {pending ? (
         <ConfirmDialog
           message={format(t('shortcuts.takeMessage'), {

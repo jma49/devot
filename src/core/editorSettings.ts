@@ -17,6 +17,7 @@ export type LineWrappingMode = 'off' | 'all' | 'prose' | 'unwrapAtCursor'
 export type AppearanceChoice = 'system' | 'light' | 'dark'
 export type ThemeChoice = 'default' | 'ivory' | GradientTheme
 export type IconStyleChoice = 'sfSymbols' | 'lucide'
+export type InterfaceStyle = 'classic' | 'glass'
 export type GradientTheme = 'dawn' | 'tide' | 'sage' | 'ember'
 
 export type ListDatesStyle = 'relative' | 'absolute'
@@ -45,15 +46,17 @@ export interface EditorSettings {
   listMarker: ListMarker
   spellCheck: boolean
   highlightActiveLine: boolean
-  /** The whole window shows the material (the key keeps its old name); off, the window is opaque. */
+  /** Glass (the window shows the material; the key keeps its old name) or Classic (opaque); see `interfaceStyle`. */
   sidebarMaterial: boolean
-  /** Adjusts the regions' washes from their design values: 0 is the design, -100 opaque, 100 twice as see-through. */
+  /** How see-through Glass is, from the regions' design washes: 0 is the design, -100 opaque, 100 twice as see-through. */
   windowTransparency: number
   pasteUrl: PasteUrlStyle
   syncScroll: boolean
   inlineImages: boolean
   appearance: AppearanceChoice
-  theme: ThemeChoice
+  /** The theme while the light appearance shows; `themeInEffect` picks between the two. */
+  lightTheme: ThemeChoice
+  darkTheme: ThemeChoice
   systemAccent: boolean
   iconStyle: IconStyleChoice
   toolbar: boolean
@@ -123,7 +126,8 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   syncScroll: true,
   inlineImages: true,
   appearance: 'system',
-  theme: 'default',
+  lightTheme: 'default',
+  darkTheme: 'default',
   systemAccent: false,
   iconStyle: 'sfSymbols',
   toolbar: true,
@@ -215,8 +219,19 @@ export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'syste
 export const GRADIENT_THEMES: readonly GradientTheme[] = ['dawn', 'tide', 'sage', 'ember']
 export const THEMES: readonly ThemeChoice[] = ['default', 'ivory', ...GRADIENT_THEMES]
 export const ICON_STYLES: readonly IconStyleChoice[] = ['sfSymbols', 'lucide']
+export const INTERFACE_STYLES: readonly InterfaceStyle[] = ['classic', 'glass']
 /** The gradient themes keep the default palette, accent included. */
 export const themeFollowsSystemAccent = (theme: ThemeChoice): boolean => theme !== 'ivory'
+export const themeInEffect = (
+  settings: Pick<EditorSettings, 'lightTheme' | 'darkTheme'>,
+  appearance: 'light' | 'dark',
+): ThemeChoice => (appearance === 'dark' ? settings.darkTheme : settings.lightTheme)
+export const interfaceStyle = (
+  settings: Pick<EditorSettings, 'sidebarMaterial'>,
+): InterfaceStyle => (settings.sidebarMaterial ? 'glass' : 'classic')
+export const interfaceStylePatch = (style: InterfaceStyle): Partial<EditorSettings> => ({
+  sidebarMaterial: style === 'glass',
+})
 export const FONT_SIZE_MIN = 10
 export const FONT_SIZE_MAX = 32
 const LINE_HEIGHT_MIN = 1
@@ -278,7 +293,8 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   syncScroll: isFlag,
   inlineImages: isFlag,
   appearance: oneOf(APPEARANCES),
-  theme: oneOf(THEMES),
+  lightTheme: oneOf(THEMES),
+  darkTheme: oneOf(THEMES),
   systemAccent: isFlag,
   iconStyle: oneOf(ICON_STYLES),
   toolbar: isFlag,
@@ -314,10 +330,20 @@ const KEYS = Object.keys(VALID) as (keyof EditorSettings)[]
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
 
-/** Line wrapping was on/off before it became a mode: on is unwrap at cursor. */
+/**
+ * Line wrapping was on/off before it became a mode: on is unwrap at cursor.
+ * One `theme` came before a theme per appearance: it fills whichever of the two is unset.
+ */
 function migrate(from: Record<string, unknown>): Record<string, unknown> {
   const old = from.lineWrapping
-  return typeof old === 'boolean' ? { ...from, lineWrapping: old ? 'unwrapAtCursor' : 'off' } : from
+  const out =
+    typeof old === 'boolean' ? { ...from, lineWrapping: old ? 'unwrapAtCursor' : 'off' } : from
+  const { theme, ...rest } = out
+  if (VALID.lightTheme(theme)) {
+    if (!VALID.lightTheme(rest.lightTheme)) rest.lightTheme = theme
+    if (!VALID.darkTheme(rest.darkTheme)) rest.darkTheme = theme
+  }
+  return rest
 }
 
 export function parseEditorSettings(value: unknown): EditorSettings {

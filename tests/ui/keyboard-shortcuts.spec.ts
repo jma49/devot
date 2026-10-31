@@ -18,10 +18,13 @@ const MOD = MAC ? 'Mod' : 'Ctrl'
 const withMod = (rest: string) => (MAC ? `${rest}\u2318` : `\u2303${rest}`)
 
 const section = (page: Page) => page.getByRole('region', { name: 'Keyboard Shortcuts' })
-const table = (page: Page) => section(page).getByRole('table', { name: 'Keyboard Shortcuts' })
-const search = (page: Page) => section(page).getByRole('searchbox', { name: 'Search keybindings' })
+const search = (page: Page) =>
+  section(page).getByRole('searchbox', { name: 'Filter Shortcuts\u2026' })
 /** By registry ID: labels repeat, with a scope after them. */
-const row = (page: Page, id: string) => section(page).locator(`tr[data-command="${id}"]`)
+const row = (page: Page, id: string) => section(page).locator(`li[data-command="${id}"]`)
+const rows = (page: Page) => section(page).getByRole('listitem')
+const more = (page: Page) => page.getByRole('button', { name: 'More' })
+const resetAll = (page: Page) => page.getByRole('menuitem', { name: 'Reset All Shortcuts\u2026' })
 const recorder = (page: Page, command: string) =>
   section(page).getByRole('button', { name: new RegExp(`^${command} shortcut`) })
 const status = (page: Page) => section(page).getByRole('status')
@@ -35,7 +38,7 @@ async function openSettings(page: Page) {
 async function record(page: Page, command: string, keys: string) {
   await recorder(page, command).click()
   await expect(recorder(page, command)).toHaveAttribute('aria-pressed', 'true')
-  await expect(recorder(page, command)).toHaveText('Type a shortcut\u2026')
+  await expect(recorder(page, command)).toHaveText('Type Shortcut\u2026')
   await page.keyboard.press(keys)
 }
 
@@ -48,21 +51,29 @@ const calls = (page: Page, cmd: string) =>
     cmd,
   )
 
-test('lists every command in one table with its keys and where they come from', async ({
+test('lists every command in a card per group, with its keys and what can be done with them', async ({
   page,
 }) => {
   await openSettings(page)
-  await expect(table(page).getByRole('columnheader')).toHaveText([
-    'Keystroke',
-    'Command',
-    'Source',
-    'Actions',
+  await expect(section(page).getByRole('table')).toHaveCount(0)
+  await expect(section(page).getByRole('heading', { level: 3 })).toHaveText([
+    'App',
+    'Notes',
+    'Notebooks',
+    'Tags',
+    'View',
+    'Search',
+    'Find',
+    'Edit',
+    'Format',
+    'Tables',
+    'Images',
   ])
-  await expect(section(page).getByRole('table')).toHaveCount(1)
-  await expect(row(page, 'format.bold').getByRole('cell').nth(1)).toHaveText('Default')
+  const format = section(page).getByRole('region', { name: 'Format' })
+  await expect(format.locator('li[data-command="format.bold"]')).toContainText('Bold')
   await expect(
     row(page, 'format.bold').getByRole('button', { name: 'Copy the keystroke for Bold' }),
-  ).toBeVisible()
+  ).toBeEnabled()
   await expect(row(page, 'image.sizeHalf')).toContainText('Image Size: Half Width')
   await expect(row(page, 'insert.table')).toContainText('In the editor')
   await expect(row(page, 'list.selectAll')).toContainText('Select All Notes')
@@ -75,32 +86,50 @@ test('lists every command in one table with its keys and where they come from', 
   await expect(recorder(page, 'Increase Font Size')).toHaveAccessibleName(
     'Increase Font Size shortcut: \u2318= and \u21e7\u2318=',
   )
-  await expect(recorder(page, 'Copy Note ID')).toHaveText('None')
+  await expect(recorder(page, 'Copy Note ID')).toHaveText('Record Shortcut')
   await expect(row(page, 'note.copyId').getByRole('button', { name: /^Clear/ })).toBeDisabled()
   await expect(row(page, 'format.bold').getByRole('button', { name: /^Reset/ })).toBeDisabled()
-  await expect(
-    section(page).getByRole('button', { name: 'Reset All Shortcuts\u2026' }),
-  ).toBeDisabled()
+  await expect(row(page, 'format.bold')).not.toHaveAttribute('data-customized')
+
+  await expect(more(page)).toHaveAttribute('aria-haspopup', 'menu')
+  await more(page).click()
+  await expect(page.getByRole('menu', { name: 'More' })).toBeVisible()
+  await expect(resetAll(page)).toBeFocused()
+  await expect(resetAll(page)).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect(more(page)).toBeFocused()
 })
 
-test('the search field narrows the table to the commands that match', async ({ page }) => {
+test('the More button is on the Keyboard pane only', async ({ page }) => {
   await openSettings(page)
-  const rows = table(page).locator('tbody tr')
-  const all = await rows.count()
+  await expect(more(page)).toBeVisible()
+  await page.getByRole('tab', { name: 'General', exact: true }).click()
+  await expect(more(page)).toHaveCount(0)
+})
+
+test('the filter narrows the groups to the commands that match', async ({ page }) => {
+  await openSettings(page)
+  const all = await rows(page).count()
   expect(all).toBeGreaterThan(100)
   await search(page).fill('bold')
-  await expect(rows).toHaveCount(1)
+  await expect(rows(page)).toHaveCount(1)
+  await expect(section(page).getByRole('heading', { level: 3 })).toHaveText(['Format'])
   await expect(row(page, 'format.bold')).toBeVisible()
   await search(page).fill('\u2318K')
   await expect(row(page, 'palette.open')).toBeVisible()
   await expect(row(page, 'format.bold')).toHaveCount(0)
+  await search(page).fill('cmd+k')
+  await expect(row(page, 'palette.open')).toBeVisible()
+  await expect(rows(page)).toHaveCount(1)
   await search(page).fill('shift+enter')
   await expect(row(page, 'edit.plainNewline')).toBeVisible()
   await search(page).fill('no such command')
-  await expect(rows).toHaveCount(0)
-  await expect(section(page)).toContainText('No keybinding matches.')
+  await expect(rows(page)).toHaveCount(0)
+  await expect(section(page).getByRole('heading', { level: 3 })).toHaveCount(0)
+  await expect(section(page)).toContainText('No shortcut matches.')
   await search(page).fill('')
-  await expect(rows).toHaveCount(all)
+  await expect(rows(page)).toHaveCount(all)
 })
 
 test('records a new key, and announces it', async ({ page }) => {
@@ -109,7 +138,8 @@ test('records a new key, and announces it', async ({ page }) => {
   await expect(recorder(page, 'Bold')).toHaveAttribute('aria-pressed', 'false')
   await expect(recorder(page, 'Bold')).toHaveText(withMod('\u2325') + 'B')
   await expect(status(page)).toHaveText(`Bold: ${withMod('\u2325')}B`)
-  await expect(row(page, 'format.bold')).toContainText('User')
+  await expect(row(page, 'format.bold')).toHaveAttribute('data-customized', 'true')
+  await expect(row(page, 'format.bold').getByRole('button', { name: /^Reset/ })).toBeVisible()
   expect(await storedShortcuts(page)).toEqual({ 'format.bold': [`${MOD}+Alt+B`] })
   await expect(recorder(page, 'Bold')).toBeFocused()
 })
@@ -138,7 +168,7 @@ test('waits for a key after modifiers, ignores composing, and Escape cancels', a
   await page.keyboard.press('Escape')
   await expect(recorder(page, 'Italic')).toHaveAttribute('aria-pressed', 'false')
   await expect(recorder(page, 'Italic')).toHaveText('\u2318I')
-  await expect(status(page)).toHaveText('Recording cancelled.')
+  await expect(status(page)).toHaveText('Recording canceled.')
   expect(await calls(page, 'keyboard_shortcuts_set')).toEqual([])
 })
 
@@ -179,7 +209,7 @@ test('asks before taking a key from another command', async ({ page }) => {
   await record(page, 'Bold', 'Meta+KeyK')
   await dialog.getByRole('button', { name: 'Reassign' }).click()
   await expect(recorder(page, 'Bold')).toHaveText('\u2318K')
-  await expect(recorder(page, 'Command Palette')).toHaveText('None')
+  await expect(recorder(page, 'Command Palette')).toHaveText('Record Shortcut')
   expect(await storedShortcuts(page)).toEqual({ 'format.bold': ['Mod+K'], 'palette.open': [] })
 
   await row(page, 'palette.open')
@@ -190,7 +220,7 @@ test('asks before taking a key from another command', async ({ page }) => {
     .getByRole('button', { name: 'Reassign' })
     .click()
   await expect(recorder(page, 'Command Palette')).toHaveText('\u2318K')
-  await expect(recorder(page, 'Bold')).toHaveText('None')
+  await expect(recorder(page, 'Bold')).toHaveText('Record Shortcut')
   expect(await storedShortcuts(page)).toEqual({ 'format.bold': [] })
 
   // A key used only where Bold never works is not a clash.
@@ -206,7 +236,7 @@ test('clears a key, resets one and resets all', async ({ page }) => {
   })
   await clear.focus()
   await page.keyboard.press('Space')
-  await expect(recorder(page, 'Italic')).toHaveText('None')
+  await expect(recorder(page, 'Italic')).toHaveText('Record Shortcut')
   await expect(status(page)).toHaveText('Italic: None')
   await expect(clear).toBeDisabled()
   await expect(clear).toBeFocused()
@@ -230,18 +260,21 @@ test('clears a key, resets one and resets all', async ({ page }) => {
   await expect(reset).toBeDisabled()
   await expect(reset).toBeFocused()
 
-  const resetAll = section(page).getByRole('button', { name: 'Reset All Shortcuts\u2026' })
   const confirm = page.getByRole('dialog', { name: 'Reset every shortcut to its default?' })
-  await resetAll.click()
+  await more(page).click()
+  await resetAll(page).click()
   await confirm.getByRole('button', { name: 'Cancel' }).click()
+  await expect(more(page)).toBeFocused()
   await expect(recorder(page, 'Focus Mode')).toHaveText(withMod('\u2325') + 'J')
-  await resetAll.focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(resetAll(page)).toBeFocused()
   await page.keyboard.press('Space')
   await confirm.getByRole('button', { name: 'Reset All' }).click()
   await expect(recorder(page, 'Focus Mode')).toHaveText('\u21e7\u2318D')
-  await expect(resetAll).toBeDisabled()
-  await expect(resetAll).toBeFocused()
+  await expect(more(page)).toBeFocused()
   expect(await storedShortcuts(page)).toEqual({})
+  await more(page).click()
+  await expect(resetAll(page)).toBeDisabled()
   await page.keyboard.press('Space')
   await expect(confirm).toBeHidden()
 })

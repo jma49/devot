@@ -172,24 +172,22 @@ test('a navigation column of panes on the left, General first', async ({ page })
   await expect(page.getByRole('main', { name: 'Settings' })).toBeVisible()
   await expect(tabs(page).getByRole('tab')).toHaveText([
     'General',
+    'Appearance',
     'Editing',
     'Preview',
-    'Appearance',
     'Keyboard',
     'Mirror',
     'Sync',
     'AI',
-    'Licence',
     'Integrations',
     'Plugins',
     'Usage',
+    'License',
   ])
-  await expect(tabs(page).locator('[data-symbol]')).toHaveCount(12)
-  await expect(tabs(page)).toHaveCSS('width', '155px')
+  await expect(tabs(page).getByRole('tab').locator('[data-symbol]')).toHaveCount(12)
+  await expect(tabs(page)).toHaveCSS('width', '200px')
   await expect(tabs(page)).toHaveAttribute('aria-orientation', 'vertical')
   await expect(tab(page, 'General')).toHaveAttribute('aria-selected', 'true')
-  await expect(tab(page, 'General')).toHaveCSS('box-shadow', /-3px 0px 0px 0px inset/)
-  await expect(tab(page, 'Editing')).toHaveCSS('box-shadow', 'none')
   await expect(page.getByRole('tabpanel')).toHaveCount(1)
   await expect(page.getByRole('tabpanel')).toHaveAccessibleName('General')
   await expect(page.getByRole('tabpanel').getByRole('region').first()).toHaveAccessibleName(
@@ -213,21 +211,24 @@ test('a click on a row shows its pane', async ({ page }) => {
 test('the column is one tab stop; Up, Down, Home and End move between panes', async ({ page }) => {
   await page.goto('/settings.html')
   await expect(tab(page, 'General')).toHaveAttribute('tabindex', '0')
-  await expect(tab(page, 'Editing')).toHaveAttribute('tabindex', '-1')
+  await expect(tab(page, 'Appearance')).toHaveAttribute('tabindex', '-1')
   await tab(page, 'General').focus()
   await page.keyboard.press('ArrowDown')
-  await expect(tab(page, 'Editing')).toBeFocused()
-  await expect(editor(page)).toBeVisible()
+  await expect(tab(page, 'Appearance')).toBeFocused()
+  await expect(page.getByRole('tabpanel', { name: 'Appearance' })).toBeVisible()
   await page.keyboard.press('End')
-  await expect(tab(page, 'Usage')).toBeFocused()
-  await expect(page.getByRole('region', { name: 'Usage Data' })).toBeVisible()
+  await expect(tab(page, 'License')).toBeFocused()
+  await expect(page.getByRole('region', { name: 'License' }).first()).toBeVisible()
   await page.keyboard.press('ArrowDown')
   await expect(tab(page, 'General')).toBeFocused()
   await page.keyboard.press('ArrowUp')
-  await expect(tab(page, 'Usage')).toBeFocused()
+  await expect(tab(page, 'License')).toBeFocused()
   await page.keyboard.press('Home')
   await expect(tab(page, 'General')).toBeFocused()
   // Tab leaves the column for the pane's first control (WebKit on macOS tabs to buttons only with Option or Full Keyboard Access).
+  await page.keyboard.press('Alt+Tab')
+  // The toolbar comes between the column and the pane: Back takes the focus first.
+  await expect(page.locator('.settings-history-button').first()).toBeFocused()
   await page.keyboard.press('Alt+Tab')
   await expect(page.getByRole('combobox', { name: 'Default Notebook' })).toBeFocused()
 })
@@ -430,11 +431,18 @@ test('General offers the notebooks as the default for new notes', async ({ page 
 const editor = (page: Page) => page.getByRole('region', { name: 'Editing' })
 const checkbox = (page: Page, name: string) => editor(page).getByRole('switch', { name })
 const select = (page: Page, name: string) => editor(page).getByRole('combobox', { name })
-const noteFont = (page: Page) =>
-  editor(page)
-    .getByRole('region', { name: 'Note Font' })
-    .getByRole('combobox', { name: 'Font Family' })
-const fontSize = (page: Page) => editor(page).getByRole('spinbutton', { name: 'Font Size' })
+const appearance = (page: Page) => page.getByRole('tabpanel', { name: 'Appearance' })
+const fontSize = (page: Page) =>
+  appearance(page).getByRole('spinbutton', { name: 'Editor Font Size' })
+
+async function openAppearance(page: Page, stored: Record<string, unknown> = {}) {
+  await page.addInitScript((settings) => {
+    const w = globalThis as unknown as TestWindow & { devotEditorSettings: unknown }
+    w.devotEditorSettings = settings
+    w.devotIpcMocks = { usage_list: [] }
+  }, stored)
+  await openSettings(page, 'Appearance')
+}
 
 async function openEditor(page: Page, stored: Record<string, unknown> = {}) {
   await page.addInitScript((settings) => {
@@ -457,18 +465,16 @@ test('the Editing pane has Interface, Markdown, Text Appearance and font section
     'Markdown',
     'Text Appearance',
     'App Font',
-    'Note Font',
     'Code Font',
   ])
   await expect(editor(page).getByRole('heading', { level: 3 }).first()).toHaveCSS(
     'font-size',
-    '17px',
+    '13px',
   )
   await expect(editor(page).getByRole('heading', { level: 3 }).first()).toHaveCSS(
     'font-weight',
-    '700',
+    '600',
   )
-  await expect(editor(page).locator('h3 [data-symbol]')).toHaveCount(6)
   await expect(checkbox(page, 'Toolbar')).toHaveAccessibleDescription(
     'Whether the toolbar shows over selected text and above the current table row.',
   )
@@ -511,8 +517,6 @@ test('every editor setting has a labelled control showing its stored value', asy
   await expect(select(page, 'Tab Size')).toHaveValue('8')
   await expect(select(page, 'Paste URL as Link')).toHaveValue('autolink')
   await expect(checkbox(page, 'Spellcheck')).not.toBeChecked()
-  await expect(fontSize(page)).toHaveValue('15')
-  await expect(noteFont(page)).toHaveValue('menlo')
   await expect(select(page, 'Font Weight')).toHaveValue('600')
   await expect(select(page, 'Line Height')).toHaveValue('1.8')
   await expect(checkbox(page, 'Show Invisible Characters')).toBeChecked()
@@ -522,15 +526,6 @@ test('every editor setting has a labelled control showing its stored value', asy
     'All lines',
     'Prose only',
     'Unwrap at cursor',
-  ])
-  await expect(noteFont(page).getByRole('option')).toHaveText([
-    'System',
-    'SF Mono',
-    'Menlo',
-    'Monaco',
-    'Courier New',
-    'Installed Font',
-    'Imported Font',
   ])
   await expect(select(page, 'Font Weight').getByRole('option')).toHaveText([
     'normal',
@@ -564,9 +559,6 @@ test('every editor setting has a labelled control showing its stored value', asy
     '1.8',
     '2.0',
   ])
-  await expect(fontSize(page)).toHaveAccessibleDescription(
-    /\u2318= and \u2318- change it from the editor/,
-  )
 })
 
 test('the new defaults show for settings never set', async ({ page }) => {
@@ -589,7 +581,7 @@ test('the font size description drops its keys when one of them is cleared', asy
     w.devotShortcutRevision = 1
     w.devotShortcutOverrides = { 'view.fontSmaller': [] }
   })
-  await openEditor(page)
+  await openAppearance(page)
   await expect(fontSize(page)).toHaveAccessibleDescription(
     /The command palette changes it too: Increase, Decrease and Reset Font Size\./,
   )
@@ -612,10 +604,8 @@ test('each control stores its change at once', async ({ page }) => {
   await select(page, 'Indent Unit').selectOption('4 spaces')
   await select(page, 'Tab Size').selectOption('4')
   await select(page, 'Paste URL as Link').selectOption('Autolink <URL>')
-  await noteFont(page).selectOption('System')
   await select(page, 'Font Weight').selectOption('500')
   await select(page, 'Line Height').selectOption('1.6')
-  await fontSize(page).fill('16')
   await expect
     .poll(() => setCalls(page))
     .toEqual([
@@ -633,10 +623,8 @@ test('each control stores its change at once', async ({ page }) => {
       { indentUnit: 'spaces4' },
       { tabWidth: 4 },
       { pasteUrl: 'autolink' },
-      { fontFamily: 'system' },
       { fontWeight: '500' },
       { lineHeight: 1.6 },
-      { fontSize: 16 },
     ])
   await expect(checkbox(page, 'Line Numbers')).toBeChecked()
   await expect(select(page, 'Unordered List Bullet')).toHaveValue('+')
@@ -670,7 +658,7 @@ test('a font size out of range is not stored, and leaving the field shows the st
 }) => {
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(e.message))
-  await openEditor(page, { fontSize: 14 })
+  await openAppearance(page, { fontSize: 14 })
   await expect(fontSize(page)).toHaveValue('14')
   await expect(fontSize(page)).toHaveAttribute('min', '10')
   await expect(fontSize(page)).toHaveAttribute('max', '32')
@@ -712,7 +700,7 @@ const typeBurst = (page: Page, values: string[]) =>
   }, values)
 
 test('the font size is stored once typing pauses, or when the field is left', async ({ page }) => {
-  await openEditor(page)
+  await openAppearance(page)
   await typeBurst(page, ['12', '14'])
   await expect.poll(() => setCalls(page)).toEqual([{ fontSize: 14 }])
   await typeBurst(page, ['16'])
@@ -724,10 +712,11 @@ test('the font size is stored once typing pauses, or when the field is left', as
 })
 
 test('a change made in another window shows at once', async ({ page }) => {
-  await openEditor(page)
+  await openAppearance(page)
   await expect(fontSize(page)).toHaveValue('13')
   await changedElsewhere(page, { fontSize: 18, lineNumbers: true })
   await expect(fontSize(page)).toHaveValue('18')
+  await tab(page, 'Editing').click()
   await expect(checkbox(page, 'Line Numbers')).toBeChecked()
 })
 
@@ -750,20 +739,17 @@ test('a change that cannot be stored is reported and undone', async ({ page }) =
 
 const preview = (page: Page) => page.getByRole('region', { name: 'Preview' })
 
-test('Preview has its own font size (15 px) and synced scrolling', async ({ page }) => {
+test('Preview has synced scrolling; its font size sits in Appearance', async ({ page }) => {
   await page.addInitScript(() => {
     const w = globalThis as unknown as TestWindow & { devotEditorSettings: unknown }
     w.devotIpcMocks = { usage_list: [] }
   })
   await openSettings(page, 'Preview')
-  const size = preview(page).getByRole('spinbutton', { name: 'Font Size' })
   const sync = preview(page).getByRole('switch', { name: 'Synced Scrolling' })
-  await expect(size).toHaveValue('15')
   await expect(sync).toBeChecked()
   await sync.uncheck()
-  await size.fill('18')
-  await size.blur()
-  await expect.poll(() => setCalls(page)).toEqual([{ syncScroll: false }, { previewFontSize: 18 }])
+  await expect.poll(() => setCalls(page)).toEqual([{ syncScroll: false }])
+  await expect(preview(page).getByRole('spinbutton')).toHaveCount(0)
   await tab(page, 'Editing').click()
   await expect(editor(page).getByRole('switch', { name: 'Synced Scrolling' })).toHaveCount(0)
 })
@@ -822,4 +808,74 @@ test('Integrations offers a way to create a notebook when there is none', async 
   await expect(prompt).toContainText('Devot has no notebooks yet')
   await prompt.getByRole('button', { name: 'Open Devot' }).click()
   expect(await calls(page, 'main_window_show')).toEqual([{ cmd: 'main_window_show', args: {} }])
+})
+
+test('search finds a setting and shows its pane', async ({ page }) => {
+  await page.goto('/settings.html')
+  const field = page.getByRole('searchbox', { name: 'Search Settings' })
+  await field.fill('transparency')
+  const results = page.getByRole('listbox', { name: 'Search Results' })
+  await expect(results.getByRole('option')).toContainText(['Transparency'])
+  await field.press('Enter')
+  await expect(page.getByRole('tabpanel', { name: 'Appearance' })).toBeVisible()
+  await expect(field).toHaveValue('')
+})
+
+test('Back and Forward walk the panes visited', async ({ page }) => {
+  await page.goto('/settings.html')
+  const back = page.locator('.settings-history-button').first()
+  const forward = page.locator('.settings-history-button').last()
+  await expect(back).toBeDisabled()
+  await expect(forward).toBeDisabled()
+  await tab(page, 'Appearance').click()
+  await tab(page, 'Editing').click()
+  await expect(back).toBeEnabled()
+  await back.click()
+  await expect(page.getByRole('tabpanel', { name: 'Appearance' })).toBeVisible()
+  await expect(forward).toBeEnabled()
+  await forward.click()
+  await expect(page.getByRole('tabpanel', { name: 'Editing' })).toBeVisible()
+})
+
+test('the search capsule lines up with the rows, and every control ends on the card padding', async ({
+  page,
+}) => {
+  await openSettings(page, 'Appearance')
+  const box = async (selector: string) => (await page.locator(selector).first().boundingBox())!
+  const search = await box('.settings-search')
+  const selected = await box('.settings-nav-row[aria-selected="true"]')
+  expect([search.x, search.x + search.width]).toEqual([selected.x, selected.x + selected.width])
+  await expect(page.locator('.settings-search')).toHaveCSS('border-radius', '14px')
+
+  for (const pane of ['General', 'Appearance', 'Editing']) {
+    await tab(page, pane).click()
+    const overflow = await page.evaluate(() =>
+      [...document.querySelectorAll('.settings-card')].flatMap((card) => {
+        const right =
+          card.getBoundingClientRect().right - parseFloat(getComputedStyle(card).paddingRight)
+        return [...card.querySelectorAll('.setting-control > *')]
+          .map((control) => control.getBoundingClientRect().right - right)
+          .filter((by) => Math.abs(by) > 0.5)
+      }),
+    )
+    expect(overflow).toEqual([])
+  }
+})
+
+test('the selected pane turns a lighter grey, not a colour, while the window is behind another', async ({
+  page,
+}) => {
+  await page.goto('/settings.html')
+  const row = page.locator('.settings-nav-row[aria-selected="true"]')
+  const token = (name: string) =>
+    page.evaluate((n) => {
+      const probe = document.body.appendChild(document.createElement('div'))
+      probe.style.backgroundColor = `var(${n})`
+      const color = getComputedStyle(probe).backgroundColor
+      probe.remove()
+      return color
+    }, name)
+  await expect(row).toHaveCSS('background-color', await token('--color-fill-row-selected'))
+  await page.locator('main.settings').evaluate((el) => el.removeAttribute('data-focused'))
+  await expect(row).toHaveCSS('background-color', await token('--color-fill-row-selected-inactive'))
 })

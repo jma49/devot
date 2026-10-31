@@ -105,7 +105,7 @@ test('a preset from the selection toolbar proposes a diff, applied as one undo s
     'Proofread',
     'Reformat',
     '---',
-    'Summarise',
+    'Summarize',
     '---',
     'Make Bullet List',
     'Make Task List',
@@ -255,7 +255,7 @@ test('sends nothing from a notebook without AI access, and says why', async ({ p
   await note(page, 'secret plans')
   await selectLine(page, 0)
 
-  await fromToolbar(page, 'Summarise')
+  await fromToolbar(page, 'Summarize')
   await expect(sheet(page).getByRole('alert')).toHaveText(
     'AI can only use notes in a notebook with Allow AI Access on. Turn it on in the notebook’s menu. (E_AI_ACCESS_DENIED)',
   )

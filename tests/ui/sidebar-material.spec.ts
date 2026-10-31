@@ -33,8 +33,9 @@ const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' }
 const list = (page: Page) => page.getByRole('region', { name: 'Notes' })
 const editor = (page: Page) => page.getByRole('main')
 const appearance = (page: Page) => page.getByRole('region', { name: 'Appearance' }).first()
-const translucent = (page: Page) =>
-  appearance(page).getByRole('switch', { name: 'Translucent window' })
+const style = (page: Page) => appearance(page).getByRole('radiogroup', { name: 'Interface style' })
+const classic = (page: Page) => style(page).getByRole('radio', { name: 'Classic' })
+const glass = (page: Page) => style(page).getByRole('radio', { name: 'Glass' })
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
@@ -293,16 +294,15 @@ test('stored settings without the material mean the default, the material', asyn
   await expectShown(page, true)
 })
 
-test('the Settings window turns the material off and on', async ({ page }) => {
+test('the Settings window turns the material off and on as Classic and Glass', async ({ page }) => {
   await openSettings(page, 'Appearance')
   await expect(appearance(page).getByRole('heading', { name: 'Appearance' }).first()).toBeVisible()
-  await expect(translucent(page)).toBeChecked()
-  await expect(translucent(page)).toHaveAccessibleDescription(/opaque window/)
+  await expect(glass(page)).toBeChecked()
 
-  await translucent(page).uncheck()
-  await expect(translucent(page)).not.toBeChecked()
-  await translucent(page).check()
-  await expect(translucent(page)).toBeChecked()
+  await style(page).getByText('Classic', { exact: true }).click()
+  await expect(classic(page)).toBeChecked()
+  await style(page).getByText('Glass', { exact: true }).click()
+  await expect(glass(page)).toBeChecked()
   expect(await calls(page, 'editor_settings_set')).toEqual([
     { patch: { sidebarMaterial: false } },
     { patch: { sidebarMaterial: true } },
@@ -314,9 +314,9 @@ test('the Settings window turns the material off and on', async ({ page }) => {
 test('the Settings window shows the stored choice and changes from elsewhere', async ({ page }) => {
   await stored(page, { sidebarMaterial: false })
   await openSettings(page, 'Appearance')
-  await expect(translucent(page)).not.toBeChecked()
+  await expect(classic(page)).toBeChecked()
   await changeEditorSettingsElsewhere(page, { sidebarMaterial: true })
-  await expect(translucent(page)).toBeChecked()
+  await expect(glass(page)).toBeChecked()
 })
 
 test('a change that cannot be stored is reported and dropped', async ({ page }) => {
@@ -325,14 +325,13 @@ test('a change that cannot be stored is reported and dropped', async ({ page }) 
     w.devotIpcMocks = { editor_settings_set: { error: 'E_EDITOR_SETTINGS_WRITE_FAILED' } }
   })
   await openSettings(page, 'Appearance')
-  // A click, not uncheck(): the box goes back as soon as Rust refuses.
-  await translucent(page).click()
+  await style(page).getByText('Classic', { exact: true }).click()
   await expect(appearance(page).getByRole('alert')).toContainText('E_EDITOR_SETTINGS_WRITE_FAILED')
-  await expect(translucent(page)).toBeChecked()
+  await expect(glass(page)).toBeChecked()
 })
 
-const transparency = (page: Page) => appearance(page).getByRole('slider', { name: 'Transparency' })
-const reset = (page: Page) => appearance(page).getByRole('button', { name: 'Reset' })
+const transparency = (page: Page) =>
+  appearance(page).getByRole('slider', { name: 'Glass Transparency' })
 
 test('the transparency adjusts every wash: opaque at one end, the design in the middle, twice as clear at the other', async ({
   page,
@@ -353,31 +352,27 @@ test('the transparency adjusts every wash: opaque at one end, the design in the 
   await expectShown(page, false)
 })
 
-test('the Settings window adjusts the transparency with a slider and resets it, off while the window is opaque', async ({
+test('the Settings window adjusts how see-through Glass is with a slider, shown only for Glass', async ({
   page,
 }) => {
   await openSettings(page, 'Appearance')
   await expect(transparency(page)).toHaveValue('0')
-  await expect(transparency(page)).toHaveAttribute('aria-valuetext', 'Default')
   await expect(transparency(page)).toHaveAccessibleDescription(/shows through/)
-  await expect(appearance(page).getByText('Opaque', { exact: true })).toBeVisible()
-  await expect(appearance(page).getByText('Transparent', { exact: true })).toBeVisible()
-  await expect(reset(page)).toHaveCount(0)
+  await expect(appearance(page).locator('output')).toHaveText('0')
 
   await transparency(page).fill('40')
-  await expect(transparency(page)).toHaveAttribute('aria-valuetext', /More transparent/)
+  await expect(appearance(page).locator('output')).toHaveText('+40')
   await expect
     .poll(() => calls(page, 'editor_settings_set'))
     .toEqual([{ patch: { windowTransparency: 40 } }])
-  await reset(page).click()
-  await expect(transparency(page)).toHaveValue('0')
-  await expect(reset(page)).toHaveCount(0)
+  await transparency(page).focus()
+  await page.keyboard.press('ArrowLeft')
   await expect
     .poll(() => calls(page, 'editor_settings_set'))
-    .toEqual([{ patch: { windowTransparency: 40 } }, { patch: { windowTransparency: 0 } }])
+    .toEqual([{ patch: { windowTransparency: 40 } }, { patch: { windowTransparency: 35 } }])
 
-  await translucent(page).uncheck()
-  await expect(transparency(page)).toBeDisabled()
-  await translucent(page).check()
-  await expect(transparency(page)).toBeEnabled()
+  await style(page).getByText('Classic', { exact: true }).click()
+  await expect(transparency(page)).toHaveCount(0)
+  await style(page).getByText('Glass', { exact: true }).click()
+  await expect(transparency(page)).toHaveValue('35')
 })

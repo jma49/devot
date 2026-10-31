@@ -475,7 +475,7 @@ test('an import refused because the trial is over says so', async ({ page }) => 
   await send(page, 'devot:import-failed', { id: null, code: 'E_LICENCE_REQUIRED' })
   await expect(dialog(page)).toContainText('The import failed (E_LICENCE_REQUIRED).')
   await expect(dialog(page)).toContainText(
-    'Your Devot trial has ended, so nothing can be imported. Add a licence in Settings > Licence.',
+    'Your Devot trial has ended, so nothing can be imported. Add a license in Settings > License.',
   )
 })
 

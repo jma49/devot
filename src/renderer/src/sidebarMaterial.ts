@@ -71,3 +71,17 @@ export function startSidebarMaterial(
   show(wanted)
   subscribeEditorSettings(() => void follow())
 }
+
+/**
+ * For the Settings window, whose effect Rust never drops: the root shows the stored material and
+ * follows changes, without asking Rust (only the main window brings the effect in line).
+ */
+export function showSidebarMaterial(
+  root: MaterialTarget = document.documentElement as unknown as MaterialTarget,
+): void {
+  const apply = () => {
+    root.dataset['sidebarMaterial'] = editorSettings().sidebarMaterial ? 'on' : 'off'
+  }
+  apply()
+  subscribeEditorSettings(apply)
+}

@@ -127,13 +127,13 @@ test('Allow AI Access can be toggled from the keyboard', async ({ page }) => {
   await expect(book(page, 'Home')).toBeFocused()
 })
 
-test('the menu key opens the menu of a tag row, with the Colour submenu', async ({ page }) => {
+test('the menu key opens the menu of a tag row, with the Color submenu', async ({ page }) => {
   await createNoteWithTag(page, 'One', 'idea')
   await tagRow(page, 'idea').focus()
   await page.keyboard.press('Shift+F10')
   await expect.poll(() => popups(page)).toBe(1)
-  expect(await shownMenu(page)).toContain('Colour >')
-  await pickMenuItem(page, 'Purple', 'Colour')
+  expect(await shownMenu(page)).toContain('Color >')
+  await pickMenuItem(page, 'Purple', 'Color')
   await expect(sidebar(page).getByRole('img', { name: 'Purple' })).toBeVisible()
   await expect(tagRow(page, 'idea')).toBeFocused()
   await sidebar(page)

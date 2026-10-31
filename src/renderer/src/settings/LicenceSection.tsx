@@ -86,7 +86,7 @@ export function LicenceSection() {
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
-      <SettingsSection icon="settings.licence" title="licenceSettings.title">
+      <SettingsSection title="licenceSettings.title">
         <SettingsNote>{t('licenceSettings.detail')}</SettingsNote>
         {licence.gated || licence.state === 'none' ? null : (
           <SettingsNote>{t('licenceSettings.ungated')}</SettingsNote>

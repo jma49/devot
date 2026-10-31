@@ -3,9 +3,8 @@ import { CHOOSE_AI_ACCESS } from '../aiAccess'
 import { errorCode } from '../backups'
 import { writeClipboardText } from '../clipboard'
 import { formatNumber } from '../format'
-import type { IconName } from '../icons/symbols'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
-import { SettingsSection } from './controls'
+import { Setting, SettingsSection } from './controls'
 import { HttpApiSection } from './HttpApiSection'
 import { claudeCodeCommand, codexConfig, mcpServersJson, type McpSetup } from './mcpConfigs'
 import { aiAccessSummary, mcpSetup, showMainWindow, type AiAccessSummary } from './window'
@@ -13,28 +12,24 @@ import { aiAccessSummary, mcpSetup, showMainWindow, type AiAccessSummary } from 
 const CLIENTS: readonly {
   id: string
   title: MessageKey
-  icon: IconName
   where: MessageKey
   text: (setup: McpSetup) => string
 }[] = [
   {
     id: 'claude-code',
     title: 'integrations.claudeCode',
-    icon: 'settings.terminal',
     where: 'integrations.claudeCodeHint',
     text: claudeCodeCommand,
   },
   {
     id: 'codex',
     title: 'integrations.codex',
-    icon: 'settings.configFile',
     where: 'integrations.codexHint',
     text: codexConfig,
   },
   {
     id: 'json',
     title: 'integrations.json',
-    icon: 'settings.json',
     where: 'integrations.jsonHint',
     text: mcpServersJson,
   },
@@ -169,16 +164,30 @@ export function IntegrationsSection() {
         {t('integrations.title')}
       </h2>
       <p>{t('integrations.detail')}</p>
-      {summary ? (
-        <p className="settings-note">
-          {format(t('integrations.aiAccessCount'), {
-            allowed: formatNumber(summary.allowed, currentLocale()),
-            notebooks: formatNumber(summary.notebooks, currentLocale()),
-          })}
-        </p>
-      ) : null}
-      {setup ? (
-        <p>{t(setup.script === null ? 'integrations.noScript' : 'integrations.script')}</p>
+      {summary || setup ? (
+        <SettingsSection title="integrations.mcpTitle">
+          {summary ? (
+            <Setting
+              label="integrations.accessLabel"
+              description={format(t('integrations.aiAccessCount'), {
+                allowed: formatNumber(summary.allowed, currentLocale()),
+                notebooks: formatNumber(summary.notebooks, currentLocale()),
+              })}
+            >
+              {null}
+            </Setting>
+          ) : null}
+          {setup ? (
+            <Setting
+              label="integrations.scriptLabel"
+              description={t(
+                setup.script === null ? 'integrations.noScript' : 'integrations.script',
+              )}
+            >
+              {null}
+            </Setting>
+          ) : null}
+        </SettingsSection>
       ) : null}
       {errors.map((text) => (
         <p key={text} role="alert" className="settings-error">
@@ -193,10 +202,8 @@ export function IntegrationsSection() {
         const text = client.text(setup)
         const hint = `${ids}-${client.id}-hint`
         return (
-          <SettingsSection key={client.id} icon={client.icon} title={client.title}>
-            <p id={hint} className="settings-note">
-              {t(client.where)}
-            </p>
+          <SettingsSection key={client.id} title={client.title}>
+            <p id={hint}>{t(client.where)}</p>
             <pre className="integration-config">
               <code>{text}</code>
             </pre>

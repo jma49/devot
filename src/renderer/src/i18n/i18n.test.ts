@@ -28,10 +28,10 @@ describe('i18n', () => {
     expect(format('{a} and {b}', { a: '1' })).toBe('1 and {b}')
   })
 
-  it('spells each word one way, British, across the catalog', () => {
-    const american =
-      /\b(?:cent(?:er|ers|ered|ering)|color\w*|gray|(?:organ|categor|custom|normal|summar|synchron|visual|minim|maxim|util|real|recogn|initial)iz\w*)\b/i
-    const found = Object.entries(en).filter(([, text]) => american.test(text))
+  it('spells each word one way, American, across the catalog', () => {
+    const british =
+      /\b(?:centre\w*|colour\w*|grey\w*|behaviour\w*|favourite\w*|licence\w*|cancell(?:ed|ing)|(?:organ|categor|custom|normal|summar|synchron|visual|minim|maxim|util|real|recogn|initial)is(?:e|es|ed|ing|ation\w*))\b/i
+    const found = Object.entries(en).filter(([, text]) => british.test(text))
     expect(found).toEqual([])
   })
 })

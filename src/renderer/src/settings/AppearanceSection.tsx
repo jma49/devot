@@ -1,34 +1,57 @@
-import { useId } from 'react'
+import { useId, useMemo, type CSSProperties, type ReactNode } from 'react'
 import {
   ANIMATIONS,
-  APPEARANCES,
-  DEFAULT_EDITOR_SETTINGS,
-  GRADIENT_THEMES,
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
   ICON_STYLES,
+  INTERFACE_STYLES,
   THEMES,
   WINDOW_TRANSPARENCY_MAX,
   WINDOW_TRANSPARENCY_STEP,
+  interfaceStyle,
+  interfaceStylePatch,
   themeFollowsSystemAccent,
+  themeInEffect,
   type AnimationsChoice,
   type AppearanceChoice,
   type IconStyleChoice,
+  type InterfaceStyle,
   type ThemeChoice,
 } from '../../../core/editorSettings'
-import { useEditorSetting } from '../editorSettings'
-import { format, t, type MessageKey } from '../i18n'
-import { Setting, SettingToggle, SettingsSection, useSettingsChange } from './controls'
-import { useDraggedNumber } from './draggedNumber'
-import { StyledIcon } from '../icons/Icon'
+import { useEditorSettings } from '../editorSettings'
+import { commandKeys } from '../commands/registry'
+import { shortcutLabel } from '../commands/keys'
+import { useKeymap } from '../commands/shortcutSettings'
+import { currentLocale, format, t, type MessageKey } from '../i18n'
+import {
+  NumberStepper,
+  Select,
+  Setting,
+  SettingToggle,
+  SettingsSection,
+  useSettingsChange,
+} from './controls'
+import { StyledIcon, useAppearance } from '../icons/Icon'
+import { FontChoice, FontFamilySetting } from './FontChoice'
+import { useTypedNumber } from './typedNumber'
 import type { IconName } from '../icons/symbols'
+import { useDraggedNumber } from './draggedNumber'
+import type { Appearance } from '../theme/appearance'
 
-function transparencyText(value: number): string {
-  const design = DEFAULT_EDITOR_SETTINGS.windowTransparency
-  if (value === design) return t('appearanceSettings.windowTransparencyDefault')
-  return t(
-    value < design
-      ? 'appearanceSettings.windowTransparencyMoreOpaque'
-      : 'appearanceSettings.windowTransparencyMoreClear',
-  )
+/** The font size description: what it is, and the keys in effect (or the palette's commands when one has no key). */
+function fontSizeHint(): string {
+  const [bigger, smaller, reset] = (
+    ['view.fontBigger', 'view.fontSmaller', 'view.fontReset'] as const
+  ).map((id) => commandKeys(id)[0])
+  const keys =
+    bigger === undefined || smaller === undefined || reset === undefined
+      ? t('editorSettings.fontSizeKeysNone')
+      : format(t('editorSettings.fontSizeKeys'), {
+          bigger: shortcutLabel(bigger),
+          smaller: shortcutLabel(smaller),
+          reset: shortcutLabel(reset),
+        })
+  return `${t('editorSettings.fontSizeHint')} ${keys}`
 }
 
 const ANIMATION_LABELS: Readonly<Record<AnimationsChoice, MessageKey>> = {
@@ -37,10 +60,17 @@ const ANIMATION_LABELS: Readonly<Record<AnimationsChoice, MessageKey>> = {
   off: 'appearanceSettings.animations.off',
 }
 
-const CARD_LABELS: Readonly<Record<AppearanceChoice, MessageKey>> = {
+const SCHEMES: readonly AppearanceChoice[] = ['system', 'light', 'dark']
+
+const SCHEME_LABELS: Readonly<Record<AppearanceChoice, MessageKey>> = {
+  system: 'appearanceSettings.system',
   light: 'appearanceSettings.light',
   dark: 'appearanceSettings.dark',
-  system: 'appearanceSettings.system',
+}
+
+const STYLE_LABELS: Readonly<Record<InterfaceStyle, MessageKey>> = {
+  classic: 'appearanceSettings.interfaceClassic',
+  glass: 'appearanceSettings.interfaceGlass',
 }
 
 const THEME_LABELS: Readonly<Record<ThemeChoice, MessageKey>> = {
@@ -52,89 +82,222 @@ const THEME_LABELS: Readonly<Record<ThemeChoice, MessageKey>> = {
   ember: 'appearanceSettings.themeEmber',
 }
 
+const BUILT_IN_THEMES = THEMES.filter((theme) => theme !== 'default')
+
 const ICON_STYLE_LABELS: Readonly<Record<IconStyleChoice, MessageKey>> = {
   sfSymbols: 'appearanceSettings.iconStyleSfSymbols',
   lucide: 'appearanceSettings.iconStyleLucide',
 }
 
-const ICON_SAMPLES: readonly IconName[] = [
-  'notes.all',
-  'notebook',
-  'note.pinned',
-  'status.completed',
-  'search',
-  'trash',
-]
+const ICON_SAMPLES: readonly IconName[] = ['notes.all', 'note.pinned', 'search']
 
-/** The themes in two rows: plain palettes, then the gradients. */
-const THEME_ROWS: readonly (readonly ThemeChoice[])[] = [
-  THEMES.filter((choice) => !(GRADIENT_THEMES as readonly ThemeChoice[]).includes(choice)),
-  GRADIENT_THEMES,
-]
+/** A theme's palette as dots on its swatch: its text, then its syntax colours, then its accent. */
+const PALETTE = [
+  'text-editor',
+  'syntax-heading',
+  'syntax-list-alt',
+  'syntax-string',
+  'syntax-function',
+  'syntax-markup',
+  'syntax-keyword',
+  'accent-fill',
+] as const
+
+const themePreview = (theme: ThemeChoice) => (theme === 'default' ? undefined : theme)
+
+/** A radio shown as a thumbnail with its name under it. */
+function Choice({
+  group,
+  checked,
+  onChange,
+  label,
+  className,
+  children,
+}: {
+  group: string
+  checked: boolean
+  onChange: () => void
+  label: string
+  className: string
+  children: ReactNode
+}) {
+  return (
+    <label className={`choice ${className}`}>
+      <input
+        type="radio"
+        className="visually-hidden"
+        name={group}
+        checked={checked}
+        onChange={onChange}
+      />
+      <span className="choice-frame">{children}</span>
+      <span className="choice-name">{label}</span>
+    </label>
+  )
+}
 
 /**
- * A few lines of Markdown in one theme's and appearance's colours, whatever
- * the window shows (`data-appearance-preview` and `data-theme-preview`, read
- * by the generated tokens; the default theme needs no theme mark).
+ * A small window over a wallpaper, in one appearance and theme (`data-appearance-preview` and
+ * `data-theme-preview`, read by the generated tokens). Glass lets the wallpaper through the window.
  */
-function Preview({
+function WindowThumb({
   appearance,
-  theme = 'default',
+  theme,
+  glass,
 }: {
-  appearance: 'light' | 'dark'
-  theme?: ThemeChoice
+  appearance: Appearance
+  theme: ThemeChoice
+  glass: boolean
 }) {
   return (
     <span
-      className="theme-preview"
+      className="window-thumb"
       data-appearance-preview={appearance}
-      data-theme-preview={theme === 'default' ? undefined : theme}
-      aria-hidden="true"
+      data-theme-preview={themePreview(theme)}
+      data-glass={glass || undefined}
     >
-      <span className="theme-preview-heading">
-        <span className="theme-preview-markup">#</span> {t('appearanceSettings.previewHeading')}
-      </span>
-      <span>
-        <span className="theme-preview-list">-</span> {t('appearanceSettings.previewItem')}
-      </span>
-      <span>
-        <span className="theme-preview-markup">`</span>
-        <span className="theme-preview-keyword">{t('appearanceSettings.previewCode')}</span>
-        <span className="theme-preview-markup">`</span>
+      <span className="window-thumb-window">
+        <span className="window-thumb-lights">
+          <span />
+          <span />
+          <span />
+        </span>
+        <span className="window-thumb-bar" />
+        <span className="window-thumb-panes">
+          <span />
+          <span />
+        </span>
       </span>
     </span>
   )
 }
 
+/** Light and dark along one diagonal; the name stays under the thumbnail, clear of the split. */
+function AutoThumb({
+  themes,
+  glass,
+}: {
+  themes: Readonly<Record<Appearance, ThemeChoice>>
+  glass: boolean
+}) {
+  return (
+    <span className="choice-thumb auto-thumb" aria-hidden="true">
+      <span className="auto-thumb-light">
+        <WindowThumb appearance="light" theme={themes.light} glass={glass} />
+      </span>
+      <span className="auto-thumb-dark">
+        <WindowThumb appearance="dark" theme={themes.dark} glass={glass} />
+      </span>
+    </span>
+  )
+}
+
+function ThemeSwatch({ appearance, theme }: { appearance: Appearance; theme: ThemeChoice }) {
+  return (
+    <span
+      className="swatch"
+      data-appearance-preview={appearance}
+      data-theme-preview={themePreview(theme)}
+      aria-hidden="true"
+    >
+      <span className="swatch-top">
+        <span className="swatch-sample">{t('appearanceSettings.swatchSample')}</span>
+        <span className="swatch-path">{t('appearanceSettings.swatchPath')}</span>
+        <span className="swatch-accent" />
+      </span>
+      <span className="swatch-dots">
+        {PALETTE.map((token) => (
+          <span key={token} style={{ background: `var(--color-${token})` }} />
+        ))}
+      </span>
+    </span>
+  )
+}
+
+/** One appearance's themes: Default, a divider, then the built-in ones, in one row that scrolls sideways. */
+function ThemePicker({
+  appearance,
+  chosen,
+  onChoose,
+}: {
+  appearance: Appearance
+  chosen: ThemeChoice
+  onChoose: (theme: ThemeChoice) => void
+}) {
+  const ids = useId()
+  const swatch = (theme: ThemeChoice) => (
+    <Choice
+      key={theme}
+      group={`${ids}-theme`}
+      checked={chosen === theme}
+      onChange={() => onChoose(theme)}
+      label={t(THEME_LABELS[theme])}
+      className="theme-choice"
+    >
+      <ThemeSwatch appearance={appearance} theme={theme} />
+    </Choice>
+  )
+  return (
+    <div
+      className="swatch-row"
+      role="radiogroup"
+      aria-label={t(
+        appearance === 'light' ? 'appearanceSettings.lightTheme' : 'appearanceSettings.darkTheme',
+      )}
+    >
+      <div className="choice-group">
+        <span className="choice-group-label">{t('appearanceSettings.themesDefault')}</span>
+        <div className="choice-items">{swatch('default')}</div>
+      </div>
+      <span className="choice-divider" aria-hidden="true" />
+      <div className="choice-group">
+        <span className="choice-group-label">{t('appearanceSettings.themesBuiltIn')}</span>
+        <div className="choice-items">{BUILT_IN_THEMES.map(swatch)}</div>
+      </div>
+    </div>
+  )
+}
+
 /**
- * Settings > Appearance: Light, Dark or Match System (the default), as
- * cards with a small preview; the theme, Default or Ivory, or a gradient in a
- * row of its own, as cards that show each in both appearances (Ivory has its own accent, so the system accent
- * option is hidden while it is chosen); the icon style, SF Symbols (the default) or Lucide,
- * as cards of sample icons, whatever the theme; whether the accent follows the macOS accent
- * colour (off by default: Devot's palette); and whether the whole window shows
- * the material (on by default), and how see-through its regions are (a
- * slider from Opaque to Transparent that starts at the design washes and
- * applies while it is dragged, with a Reset back to them; off while the
- * material is). Off, every
- * region paints an opaque surface and the main window drops its effect
- * (sidebarMaterial.ts). Every
- * change applies at once, without a restart. The settings are stored with
- * the editor settings, so changes made elsewhere show here as they happen.
+ * Settings > Appearance: the color scheme (Auto, Light or Dark) and the interface style (Classic,
+ * an opaque window, or Glass, with how see-through it is); a theme for each appearance, the one in
+ * effect marked Active (Ivory has its own accent, so the system accent option is hidden while it is in
+ * effect); whether things move; the icon style; and the editor's and preview's type. Every change
+ * applies at once, and changes made elsewhere show here as they happen.
  */
 export function AppearanceSection() {
-  const appearance = useEditorSetting('appearance')
-  const theme = useEditorSetting('theme')
-  const systemAccent = useEditorSetting('systemAccent')
-  const iconStyle = useEditorSetting('iconStyle')
-  const material = useEditorSetting('sidebarMaterial')
-  const animations = useEditorSetting('animations')
+  const settings = useEditorSettings()
+  const shown = useAppearance()
   const [error, change] = useSettingsChange()
-  const id = useId()
-  const transparency = useDraggedNumber({
-    stored: useEditorSetting('windowTransparency'),
+  useKeymap()
+  const ids = useId()
+  const id = (name: string) => `${ids}-${name}`
+  const fontSize = useTypedNumber({
+    stored: settings.fontSize,
+    min: FONT_SIZE_MIN,
+    max: FONT_SIZE_MAX,
+    store: (size) => change({ fontSize: size }),
+  })
+  const previewSize = useTypedNumber({
+    stored: settings.previewFontSize,
+    min: FONT_SIZE_MIN,
+    max: FONT_SIZE_MAX,
+    store: (previewFontSize) => change({ previewFontSize }),
+  })
+  const locale = currentLocale()
+  const signed = useMemo(
+    () => new Intl.NumberFormat(locale, { signDisplay: 'exceptZero' }),
+    [locale],
+  )
+  const glassAmount = useDraggedNumber({
+    stored: settings.windowTransparency,
     store: (windowTransparency) => change({ windowTransparency }),
   })
+  const style = interfaceStyle(settings)
+  const themes = { light: settings.lightTheme, dark: settings.darkTheme }
+  const glass = style === 'glass'
+  const modeTitle = (appearance: Appearance) =>
+    appearance === shown ? t('appearanceSettings.modeActive') : undefined
 
   return (
     <section className="settings-section" aria-labelledby="appearance-title">
@@ -146,164 +309,132 @@ export function AppearanceSection() {
           {format(t('appearanceSettings.failed'), { code: error })}
         </p>
       ) : null}
-      <SettingsSection icon="settings.appearanceMode" title="appearanceSettings.appearance">
-        <div
-          className="theme-cards"
-          role="radiogroup"
-          aria-label={t('appearanceSettings.appearance')}
-        >
-          {APPEARANCES.map((choice) => (
-            <label key={choice} className="theme-card">
-              <input
-                type="radio"
-                className="visually-hidden"
-                name={`${id}-appearance`}
-                value={choice}
-                checked={appearance === choice}
-                onChange={() => change({ appearance: choice })}
-              />
-              <span className="theme-card-previews">
-                {choice === 'system' ? (
-                  <>
-                    <Preview appearance="light" theme={theme} />
-                    <Preview appearance="dark" theme={theme} />
-                  </>
-                ) : (
-                  <Preview appearance={choice} theme={theme} />
-                )}
-              </span>
-              <span className="theme-card-name">{t(CARD_LABELS[choice])}</span>
-            </label>
-          ))}
-        </div>
-      </SettingsSection>
-      <SettingsSection icon="settings.theme" title="appearanceSettings.theme">
-        <div className="theme-rows" role="radiogroup" aria-label={t('appearanceSettings.theme')}>
-          {THEME_ROWS.map((row) => (
-            <div key={row[0]} className="theme-cards">
-              {row.map((choice) => (
-                <label key={choice} className="theme-card">
-                  <input
-                    type="radio"
-                    className="visually-hidden"
-                    name={`${id}-theme`}
-                    value={choice}
-                    checked={theme === choice}
-                    onChange={() => change({ theme: choice })}
-                  />
-                  <span className="theme-card-previews">
-                    <Preview appearance="light" theme={choice} />
-                    <Preview appearance="dark" theme={choice} />
-                  </span>
-                  <span className="theme-card-name">{t(THEME_LABELS[choice])}</span>
-                </label>
+      <SettingsSection
+        title="appearanceSettings.groupAppearance"
+        footnote={t('appearanceSettings.interfaceStyleNote')}
+      >
+        <div className="choice-groups">
+          <div className="choice-group" role="radiogroup" aria-labelledby={id('scheme')}>
+            <span id={id('scheme')} className="choice-group-label">
+              {t('appearanceSettings.colorScheme')}
+            </span>
+            <div className="choice-items">
+              {SCHEMES.map((choice) => (
+                <Choice
+                  key={choice}
+                  group={id('scheme-choice')}
+                  checked={settings.appearance === choice}
+                  onChange={() => change({ appearance: choice })}
+                  label={t(SCHEME_LABELS[choice])}
+                  className="thumb-choice"
+                >
+                  {choice === 'system' ? (
+                    <AutoThumb themes={themes} glass={glass} />
+                  ) : (
+                    <span className="choice-thumb" aria-hidden="true">
+                      <WindowThumb appearance={choice} theme={themes[choice]} glass={glass} />
+                    </span>
+                  )}
+                </Choice>
               ))}
             </div>
-          ))}
+          </div>
+          <span className="choice-divider" aria-hidden="true" />
+          <div className="choice-group" role="radiogroup" aria-labelledby={id('style')}>
+            <span id={id('style')} className="choice-group-label">
+              {t('appearanceSettings.interfaceStyle')}
+            </span>
+            <div className="choice-items">
+              {INTERFACE_STYLES.map((choice) => (
+                <Choice
+                  key={choice}
+                  group={id('style-choice')}
+                  checked={style === choice}
+                  onChange={() => change(interfaceStylePatch(choice))}
+                  label={t(STYLE_LABELS[choice])}
+                  className="thumb-choice"
+                >
+                  <span className="choice-thumb" aria-hidden="true">
+                    <WindowThumb
+                      appearance={shown}
+                      theme={themes[shown]}
+                      glass={choice === 'glass'}
+                    />
+                  </span>
+                </Choice>
+              ))}
+            </div>
+          </div>
         </div>
-      </SettingsSection>
-      <SettingsSection icon="settings.iconStyle" title="appearanceSettings.iconStyle">
-        <div
-          className="theme-cards"
-          role="radiogroup"
-          aria-label={t('appearanceSettings.iconStyle')}
-        >
-          {ICON_STYLES.map((choice) => (
-            <label key={choice} className="theme-card">
+        {glass ? (
+          <Setting
+            label="appearanceSettings.glassAmount"
+            description={t('appearanceSettings.glassAmountHint')}
+            htmlFor={id('glass')}
+            descriptionId={id('glass-hint')}
+          >
+            <span className="setting-range">
               <input
-                type="radio"
-                className="visually-hidden"
-                name={`${id}-icon-style`}
-                value={choice}
-                checked={iconStyle === choice}
-                onChange={() => change({ iconStyle: choice })}
+                id={id('glass')}
+                type="range"
+                className="slider"
+                min={-WINDOW_TRANSPARENCY_MAX}
+                max={WINDOW_TRANSPARENCY_MAX}
+                step={WINDOW_TRANSPARENCY_STEP}
+                value={glassAmount.value}
+                style={
+                  {
+                    '--value': glassAmount.value,
+                    '--min': -WINDOW_TRANSPARENCY_MAX,
+                    '--max': WINDOW_TRANSPARENCY_MAX,
+                  } as CSSProperties
+                }
+                aria-describedby={id('glass-hint')}
+                onChange={(e) => glassAmount.drag(Number(e.currentTarget.value))}
+                onPointerUp={glassAmount.release}
+                onKeyUp={glassAmount.release}
+                onBlur={glassAmount.release}
               />
-              <span className="theme-card-previews icon-style-sample" aria-hidden="true">
-                {ICON_SAMPLES.map((name) => (
-                  <StyledIcon key={name} style={choice} name={name} size="lg" />
-                ))}
-              </span>
-              <span className="theme-card-name">{t(ICON_STYLE_LABELS[choice])}</span>
-            </label>
-          ))}
-        </div>
-      </SettingsSection>
-      {themeFollowsSystemAccent(theme) ? (
-        <SettingsSection icon="settings.accent" title="appearanceSettings.accent">
+              <output className="setting-range-value" htmlFor={id('glass')}>
+                {signed.format(glassAmount.value)}
+              </output>
+            </span>
+          </Setting>
+        ) : null}
+        {themeFollowsSystemAccent(themeInEffect(settings, shown)) ? (
           <SettingToggle
             label="appearanceSettings.systemAccent"
             description="appearanceSettings.systemAccentHint"
-            checked={systemAccent}
+            checked={settings.systemAccent}
             onChange={(checked) => change({ systemAccent: checked })}
           />
-        </SettingsSection>
-      ) : null}
-      <SettingsSection icon="settings.sidebar" title="appearanceSettings.sidebar">
-        <SettingToggle
-          label="appearanceSettings.sidebarMaterial"
-          description="appearanceSettings.sidebarMaterialHint"
-          checked={material}
-          onChange={(sidebarMaterial) => change({ sidebarMaterial })}
-        />
-        <Setting
-          label="appearanceSettings.windowTransparency"
-          description={t('appearanceSettings.windowTransparencyHint')}
-          htmlFor={`${id}-transparency`}
-          descriptionId={`${id}-transparency-hint`}
-        >
-          <div className="setting-range">
-            <span className="setting-range-end" aria-hidden="true">
-              {t('appearanceSettings.windowTransparencyOpaque')}
-            </span>
-            <input
-              id={`${id}-transparency`}
-              type="range"
-              min={-WINDOW_TRANSPARENCY_MAX}
-              max={WINDOW_TRANSPARENCY_MAX}
-              step={WINDOW_TRANSPARENCY_STEP}
-              list={`${id}-transparency-default`}
-              value={transparency.value}
-              disabled={!material}
-              aria-describedby={`${id}-transparency-hint`}
-              aria-valuetext={transparencyText(transparency.value)}
-              onChange={(e) => transparency.drag(Number(e.currentTarget.value))}
-              onPointerUp={transparency.release}
-              onKeyUp={transparency.release}
-              onBlur={transparency.release}
-            />
-            {/* A tick at the design washes, where the thumb starts. */}
-            <datalist id={`${id}-transparency-default`}>
-              <option value={DEFAULT_EDITOR_SETTINGS.windowTransparency} />
-            </datalist>
-            <span className="setting-range-end" aria-hidden="true">
-              {t('appearanceSettings.windowTransparencyClear')}
-            </span>
-          </div>
-          {transparency.value !== DEFAULT_EDITOR_SETTINGS.windowTransparency && (
-            <button
-              type="button"
-              className="button"
-              disabled={!material}
-              onClick={() =>
-                change({ windowTransparency: DEFAULT_EDITOR_SETTINGS.windowTransparency })
-              }
-            >
-              {t('appearanceSettings.windowTransparencyReset')}
-            </button>
-          )}
-        </Setting>
+        ) : null}
       </SettingsSection>
-      <SettingsSection icon="settings.motion" title="appearanceSettings.motion">
+      <SettingsSection title="appearanceSettings.lightMode" titleSuffix={modeTitle('light')}>
+        <ThemePicker
+          appearance="light"
+          chosen={settings.lightTheme}
+          onChoose={(lightTheme) => change({ lightTheme })}
+        />
+      </SettingsSection>
+      <SettingsSection title="appearanceSettings.darkMode" titleSuffix={modeTitle('dark')}>
+        <ThemePicker
+          appearance="dark"
+          chosen={settings.darkTheme}
+          onChoose={(darkTheme) => change({ darkTheme })}
+        />
+      </SettingsSection>
+      <SettingsSection title="appearanceSettings.groupMotion">
         <Setting
           label="appearanceSettings.animations"
           description={t('appearanceSettings.animationsHint')}
-          htmlFor={`${id}-animations`}
-          descriptionId={`${id}-animations-hint`}
+          htmlFor={id('animations')}
+          descriptionId={id('animations-hint')}
         >
-          <select
-            id={`${id}-animations`}
-            value={animations}
-            aria-describedby={`${id}-animations-hint`}
+          <Select
+            id={id('animations')}
+            value={settings.animations}
+            aria-describedby={id('animations-hint')}
             onChange={(e) => change({ animations: e.currentTarget.value as AnimationsChoice })}
           >
             {ANIMATIONS.map((choice) => (
@@ -311,7 +442,78 @@ export function AppearanceSection() {
                 {t(ANIMATION_LABELS[choice])}
               </option>
             ))}
-          </select>
+          </Select>
+        </Setting>
+      </SettingsSection>
+      <SettingsSection
+        title="appearanceSettings.groupIcons"
+        footnote={t('appearanceSettings.iconStyleHint')}
+      >
+        <div className="choice-groups">
+          <div
+            className="choice-items"
+            role="radiogroup"
+            aria-label={t('appearanceSettings.iconStyle')}
+          >
+            {ICON_STYLES.map((choice) => (
+              <Choice
+                key={choice}
+                group={id('icon-style')}
+                checked={settings.iconStyle === choice}
+                onChange={() => change({ iconStyle: choice })}
+                label={t(ICON_STYLE_LABELS[choice])}
+                className="thumb-choice"
+              >
+                <span className="choice-thumb icon-thumb" aria-hidden="true">
+                  {ICON_SAMPLES.map((name) => (
+                    <StyledIcon key={name} style={choice} name={name} size="lg" />
+                  ))}
+                </span>
+              </Choice>
+            ))}
+          </div>
+        </div>
+      </SettingsSection>
+      <SettingsSection title="appearanceSettings.groupTypography">
+        <FontFamilySetting
+          slot="note"
+          label="editorSettings.noteFont"
+          settings={settings}
+          change={change}
+          id={id}
+        />
+        <FontChoice slot="note" settings={settings} change={change} id={id} />
+        <Setting
+          label="appearanceSettings.editorFontSize"
+          description={fontSizeHint()}
+          htmlFor={id('size')}
+          descriptionId={id('size-hint')}
+        >
+          <NumberStepper
+            id={id('size')}
+            value={fontSize.value}
+            min={FONT_SIZE_MIN}
+            max={FONT_SIZE_MAX}
+            onType={fontSize.type}
+            onLeave={fontSize.leave}
+            describedBy={id('size-hint')}
+          />
+        </Setting>
+        <Setting
+          label="appearanceSettings.previewFontSize"
+          description={t('previewSettings.fontSizeHint')}
+          htmlFor={id('preview-size')}
+          descriptionId={id('preview-size-hint')}
+        >
+          <NumberStepper
+            id={id('preview-size')}
+            value={previewSize.value}
+            min={FONT_SIZE_MIN}
+            max={FONT_SIZE_MAX}
+            onType={previewSize.type}
+            onLeave={previewSize.leave}
+            describedBy={id('preview-size-hint')}
+          />
         </Setting>
       </SettingsSection>
     </section>

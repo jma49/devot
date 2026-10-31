@@ -7,17 +7,17 @@ import type { MessageKey } from '../i18n'
 
 export const PANES = [
   'general',
+  'appearance',
   'editing',
   'preview',
-  'appearance',
   'keyboard',
   'mirror',
   'sync',
   'ai',
-  'licence',
   'integrations',
   'plugins',
   'usage',
+  'licence',
 ] as const
 export type PaneId = (typeof PANES)[number]
 
@@ -34,6 +34,31 @@ export const PANE_TABS: Readonly<Record<PaneId, { label: MessageKey; icon: IconN
   integrations: { label: 'settings.pane.integrations', icon: 'settings.integrations' },
   plugins: { label: 'settings.pane.plugins', icon: 'settings.plugins' },
   usage: { label: 'settings.pane.usage', icon: 'settings.usage' },
+}
+
+/** The coloured tile before each row's name: its glyph, its ground, and a glyph that needs a dark one. */
+export const PANE_TILES: Readonly<
+  Record<PaneId, { icon: IconName; color: string; foreground?: string }>
+> = {
+  general: { icon: 'settings.tile.general', color: 'var(--color-icon-tile-general)' },
+  appearance: { icon: 'settings.tile.appearance', color: 'var(--color-icon-tile-appearance)' },
+  editing: { icon: 'settings.tile.editing', color: 'var(--color-icon-tile-editing)' },
+  preview: { icon: 'settings.tile.preview', color: 'var(--color-icon-tile-preview)' },
+  keyboard: { icon: 'settings.tile.keyboard', color: 'var(--color-icon-tile-keyboard)' },
+  mirror: { icon: 'settings.tile.mirror', color: 'var(--color-icon-tile-mirror)' },
+  sync: { icon: 'settings.tile.sync', color: 'var(--color-icon-tile-sync)' },
+  ai: { icon: 'settings.tile.ai', color: 'var(--color-icon-tile-ai)' },
+  integrations: {
+    icon: 'settings.tile.integrations',
+    color: 'var(--color-icon-tile-integrations)',
+  },
+  plugins: { icon: 'settings.tile.plugins', color: 'var(--color-icon-tile-plugins)' },
+  usage: {
+    icon: 'settings.tile.usage',
+    color: 'var(--color-icon-tile-usage)',
+    foreground: 'var(--color-icon-tile-foreground-contrast)',
+  },
+  licence: { icon: 'settings.tile.license', color: 'var(--color-icon-tile-license)' },
 }
 
 const KEY = 'devot.settings.pane'

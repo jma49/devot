@@ -236,9 +236,9 @@ describe('createContextMenu', () => {
     const plain: Tinted = { tint: null }
     const menu = await createContextMenu('test', groups, (a) => picked.push(a), fake.api, plain)
     await menu.popup(plain)
-    expect(fake.shown()).toEqual(['New Notebook', 'Colour >', '  None [x]', '  Red [ ]'])
+    expect(fake.shown()).toEqual(['New Notebook', 'Color >', '  None [x]', '  Red [ ]'])
     await menu.popup({ tint: 'red' })
-    expect(fake.shown()).toEqual(['New Notebook', 'Colour >', '  None [ ]', '  Red [x]'])
+    expect(fake.shown()).toEqual(['New Notebook', 'Color >', '  None [ ]', '  Red [x]'])
     fake.click('devot.test.tint.none')
     expect(picked).toEqual(['tint.none'])
   })

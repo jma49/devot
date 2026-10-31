@@ -82,10 +82,10 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
 
 **Look**
 
-- Light and dark appearance, or match the system.
-- Themes: Default, Ivory and four gradients (Dawn, Tide, Sage, Ember), and an option to use the system accent colour.
+- Light and dark appearance, or match the system, with a theme for each.
+- Themes: Default, Ivory and four gradients (Dawn, Tide, Sage, Ember), and an option to use the system accent color.
 - App, note and code fonts chosen separately, from the built-in fonts, any installed font or a font file you import (TTF, OTF, WOFF or WOFF2).
-- A translucent window, or an opaque one.
+- A Glass window, as see-through as you like, or a Classic opaque one.
 - macOS text services in the editor: Look Up and Speech.
 
 **Bring notes in and out**
@@ -229,4 +229,4 @@ Report security problems privately, as [`SECURITY.md`](SECURITY.md) describes.
 
 [FSL-1.1-MIT](LICENSE): use, change and share Devot for anything but a competing commercial product. Each release becomes MIT two years after it is published. Versions up to v1.0.4 were published under MIT and stay MIT.
 
-Devot works fully for a three-day trial; after it, notes are read-only (you can read, search, copy and export them) and sync and AI are locked until you add a licence bought once, which unlocks them on all your devices in every version ([ADR 0006](docs/adr/0006-source-available-and-sold-once.md)).
+Devot works fully for a three-day trial; after it, notes are read-only (you can read, search, copy and export them) and sync and AI are locked until you add a license bought once, which unlocks them on all your devices in every version ([ADR 0006](docs/adr/0006-source-available-and-sold-once.md)).

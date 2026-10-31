@@ -45,33 +45,33 @@ describe('the last pane', () => {
 
 describe('navigation keys', () => {
   it('step through the panes with the Up and Down keys, wrapping at the ends', () => {
-    expect(paneAfterKey('general', 'ArrowDown')).toBe('editing')
-    expect(paneAfterKey('editing', 'ArrowDown')).toBe('preview')
-    expect(paneAfterKey('usage', 'ArrowDown')).toBe('general')
-    expect(paneAfterKey('general', 'ArrowUp')).toBe('usage')
+    expect(paneAfterKey('general', 'ArrowDown')).toBe('appearance')
+    expect(paneAfterKey('appearance', 'ArrowDown')).toBe('editing')
+    expect(paneAfterKey('licence', 'ArrowDown')).toBe('general')
+    expect(paneAfterKey('general', 'ArrowUp')).toBe('licence')
     expect(paneAfterKey('general', 'ArrowRight')).toBeUndefined()
   })
 
   it('lists the panes in the order the column shows them', () => {
     expect(PANES).toEqual([
       'general',
+      'appearance',
       'editing',
       'preview',
-      'appearance',
       'keyboard',
       'mirror',
       'sync',
       'ai',
-      'licence',
       'integrations',
       'plugins',
       'usage',
+      'licence',
     ])
   })
 
   it('go to the ends with Home and End, and leave other keys alone', () => {
     expect(paneAfterKey('keyboard', 'Home')).toBe(PANES[0])
-    expect(paneAfterKey('keyboard', 'End')).toBe('usage')
+    expect(paneAfterKey('keyboard', 'End')).toBe('licence')
     expect(paneAfterKey('keyboard', 'Enter')).toBeUndefined()
   })
 })

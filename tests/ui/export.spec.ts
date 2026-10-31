@@ -209,7 +209,7 @@ test('Page Setup comes first: it remembers the paper, margins, header and footer
   // The defaults: A4, normal margins, page numbers in the footer's centre.
   await expect(dialog.getByRole('combobox', { name: 'Paper' })).toHaveValue('a4')
   await expect(dialog.getByRole('combobox', { name: 'Margins' })).toHaveValue('normal')
-  await expect(dialog.getByRole('textbox', { name: 'Footer Centre' })).toHaveValue(
+  await expect(dialog.getByRole('textbox', { name: 'Footer Center' })).toHaveValue(
     '{page} / {total}',
   )
   await expect(dialog.getByRole('button', { name: 'Print…' })).toBeFocused()

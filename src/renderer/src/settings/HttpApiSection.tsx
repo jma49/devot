@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { errorCode } from '../backups'
 import { writeClipboardText } from '../clipboard'
 import { format, t, type MessageKey } from '../i18n'
-import { Setting, SettingToggle, SettingsSection } from './controls'
+import { Select, Setting, SettingsSection, SettingToggle } from './controls'
 import {
   curlExample,
   HTTP_API_MAX_PORT,
@@ -134,7 +134,7 @@ export function HttpApiSection() {
   const hasToken = view?.token === 'set' || view?.token === 'unknown'
 
   return (
-    <SettingsSection icon="settings.integrations" title="httpApi.title">
+    <SettingsSection title="httpApi.title">
       <p className="settings-note">{t('httpApi.detail')}</p>
       {failure ? (
         <p role="alert" className="settings-error">
@@ -179,7 +179,7 @@ export function HttpApiSection() {
             htmlFor={id('access')}
             descriptionId={id('access-hint')}
           >
-            <select
+            <Select
               id={id('access')}
               value={view.scope}
               disabled={noKeychain}
@@ -191,7 +191,7 @@ export function HttpApiSection() {
                   {t(scope.label)}
                 </option>
               ))}
-            </select>
+            </Select>
           </Setting>
           <Setting label="httpApi.token" description={t('httpApi.tokenHint')}>
             {shown !== undefined ? (
