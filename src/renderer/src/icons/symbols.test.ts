@@ -1,14 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import symbolsJson from '../../../../design/icons/symbols.json'
 import {
+  boxPoints,
   createSymbolCache,
-  canvasPixels,
-  fitInCanvas,
-  renderPoints,
   ICONS,
-  symbolFor,
   inkBounds,
-  symbolSize,
+  placeInCanvas,
+  renderPoints,
+  symbolFor,
   symbolStyle,
   type RenderSymbol,
 } from './symbols'
@@ -62,114 +61,80 @@ describe('icon names', () => {
   })
 })
 
-function png(width: number, height: number): string {
-  const be = (n: number) => [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]
-  const bytes = [
-    137,
-    80,
-    78,
-    71,
-    13,
-    10,
-    26,
-    10,
-    0,
-    0,
-    0,
-    13,
-    73,
-    72,
-    68,
-    82,
-    ...be(width),
-    ...be(height),
-    8,
-    6,
-    0,
-    0,
-    0,
-  ]
-  return `data:image/png;base64,${btoa(String.fromCharCode(...bytes))}`
-}
-
-describe('symbol size', () => {
-  it('is half the PNG, which Rust renders at twice the point size', () => {
-    expect(symbolSize(png(50, 32))).toEqual({ width: 25, height: 16 })
-    expect(symbolSize('data:image/png;base64,pin@17')).toBeNull()
-  })
-})
-
 describe('ink', () => {
-  it('is the bounds of the pixels more than a quarter opaque, in CSS pixels', () => {
-    // 4 by 3 pixels: ink from (1, 0) to (2, 2); a faint pixel at (3, 2) does not count.
+  it('is the bounds of the pixels more than a quarter opaque, in pixels', () => {
+    // 4 by 3 pixels, RGBA: ink from (1, 0) to (2, 2); a faint pixel at (3, 2) does not count.
     const alpha = [0, 255, 0, 0, 0, 200, 255, 0, 0, 0, 255, 40]
-    expect(inkBounds(alpha, 4, 3)).toEqual({
-      x: 0.5,
-      y: 0,
-      width: 1,
-      height: 1.5,
-    })
-    expect(inkBounds([0, 10, 64], 3, 1)).toBeNull()
+    const rgba = alpha.flatMap((a) => [0, 0, 0, a])
+    expect(inkBounds(rgba, 4, 3)).toEqual({ x: 1, y: 0, width: 2, height: 3 })
+    expect(inkBounds([0, 0, 0, 10, 0, 0, 0, 64], 2, 1)).toBeNull()
   })
 })
 
-describe('the shared canvas', () => {
-  it('is the same square for every toolbar icon, at any pixel ratio', () => {
-    // Symbols differ in width and height (device pixels at ratio 2).
-    const sources = [
-      [29, 31],
-      [36, 28],
-      [22, 33],
-      [35, 35],
-    ] as const
-    for (const ratio of [1, 2, 3]) {
-      const side = canvasPixels(18, ratio)
-      expect(side).toBe(18 * ratio)
-      for (const [w, h] of sources) {
-        const at = fitInCanvas(w, h, side)
-        for (const n of Object.values(at)) expect(Number.isInteger(n)).toBe(true)
-        expect(at.x).toBeGreaterThanOrEqual(0)
-        expect(at.x + at.width).toBeLessThanOrEqual(side)
-        expect(at.y + at.height).toBeLessThanOrEqual(side)
-        expect(Math.abs(at.x * 2 + at.width - side)).toBeLessThanOrEqual(1)
-      }
-    }
-  })
+// Toolbar symbols as AppKit renders them at 36 pixels (18 points at two pixels a point): PNG
+// width and height, then the ink's bounds.
+const TOOLBAR = {
+  'sidebar.left': [51, 39, { x: 4, y: 3, width: 42, height: 33 }],
+  'book.closed': [39, 44, { x: 4, y: 3, width: 30, height: 38 }],
+  'square.and.pencil': [45, 44, { x: 6, y: 6, width: 35, height: 35 }],
+  'arrow.up.left.and.arrow.down.right': [43, 40, { x: 4, y: 3, width: 34, height: 34 }],
+  'arrow.left': [42, 33, { x: 4, y: 3, width: 33, height: 27 }],
+  ellipsis: [39, 13, { x: 3, y: 3, width: 33, height: 7 }],
+} as const
 
-  it('draws a symbol that fits as it is, and fits a larger one by its larger side', () => {
-    expect(fitInCanvas(29, 31, 36)).toEqual({ x: 3, y: 2, width: 29, height: 31 })
-    const big = fitInCanvas(72, 36, 36)
-    expect(big).toEqual({ x: 0, y: 9, width: 36, height: 18 })
-  })
-
-  it('asks Rust for one point size per box and ratio', () => {
+describe('the point size of a box', () => {
+  it('is the same for every symbol of the box, at any pixel ratio', () => {
+    expect(boxPoints(22)).toBe(18)
+    expect(boxPoints(17)).toBe(14)
     expect(renderPoints(14, 2)).toBe(14)
     expect(renderPoints(14, 3)).toBe(21)
     expect(renderPoints(14, 1)).toBe(7)
   })
 })
 
-describe('placing a symbol in its box', () => {
-  const image = {
-    url: 'data:x',
-    width: 20,
-    height: 16,
-    ink: { x: 1, y: 2, width: 17, height: 11 },
-  }
+describe('placing a symbol on its canvas', () => {
+  it('centres its ink on whole device pixels, drawn at its own size, at any pixel ratio', () => {
+    for (const ratio of [1, 2, 3])
+      for (const [width, height, ink] of Object.values(TOOLBAR)) {
+        const boxSide = 22 * ratio
+        const at = placeInCanvas(width, height, ink, 22, ratio)
+        for (const n of Object.values(at)) expect(Number.isInteger(n)).toBe(true)
+        expect(Math.abs(at.x + ink.x + ink.width / 2 - at.side / 2)).toBeLessThanOrEqual(0.5)
+        expect(Math.abs(at.y + ink.y + ink.height / 2 - at.side / 2)).toBeLessThanOrEqual(0.5)
+        // The whole PNG fits unscaled, and the canvas keeps the box's centre.
+        expect(at.x).toBeGreaterThanOrEqual(0)
+        expect(at.y).toBeGreaterThanOrEqual(0)
+        expect(at.x + width).toBeLessThanOrEqual(at.side)
+        expect(at.y + height).toBeLessThanOrEqual(at.side)
+        expect(at.side).toBeGreaterThanOrEqual(boxSide)
+        expect((at.side - boxSide) % 2).toBe(0)
+      }
+  })
 
-  it('shows the PNG at its exact CSS size, mask size included, never scaled', () => {
-    const style = symbolStyle(image, 18)
-    expect(style.width).toBe('20px')
-    expect(style.height).toBe('16px')
-    expect(style.maskSize).toBe('20px 16px')
-    expect(style.WebkitMaskSize).toBe('20px 16px')
+  it('keeps the box for a symbol that fits, and grows it for a wider one rather than shrink it', () => {
+    const [arrowWidth, arrowHeight, arrowInk] = TOOLBAR['arrow.left']
+    expect(placeInCanvas(arrowWidth, arrowHeight, arrowInk, 22, 2)).toEqual({
+      side: 44,
+      x: 2,
+      y: 6,
+    })
+    const [width, height, ink] = TOOLBAR['sidebar.left']
+    expect(placeInCanvas(width, height, ink, 22, 2)).toEqual({ side: 54, x: 2, y: 8 })
+  })
+})
+
+describe('a placed symbol in its box', () => {
+  it('shows the canvas at its exact CSS size, mask size included, never scaled', () => {
+    const style = symbolStyle({ url: 'data:x', side: 27 }, 22)
+    expect(style.width).toBe('27px')
+    expect(style.height).toBe('27px')
+    expect(style.maskSize).toBe('27px 27px')
+    expect(style.WebkitMaskSize).toBe('27px 27px')
     expect(JSON.stringify(style)).not.toMatch(/contain|%/)
   })
 
-  it('centres the ink on the box on whole pixels, keeping the box in the layout', () => {
-    // Ink centre (9.5, 7.5) onto (9, 9): left -0.5 rounds to 0 (-0 shown as 0), top 1.5 rounds to 2.
-    for (const px of symbolStyle(image, 18).margin!.split(' '))
-      expect(Number.isInteger(Number.parseFloat(px))).toBe(true)
-    expect(symbolStyle(image, 18).margin).toBe('2px -2px 0px 0px')
+  it('overhangs the box evenly, keeping the box in the layout', () => {
+    expect(symbolStyle({ url: 'data:x', side: 27 }, 22).margin).toBe('-2.5px')
+    expect(symbolStyle({ url: 'data:x', side: 22 }, 22).margin).toBe('0px')
   })
 })

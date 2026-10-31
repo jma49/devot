@@ -20,6 +20,12 @@ describe('sectionStore', () => {
     expect([...sectionStore(storage, 'main').load()]).toEqual([])
   })
 
+  it('remembers a collapsed Notebooks section like the others', () => {
+    const storage = memory()
+    sectionStore(storage, 'main').save(new Set(['books', 'agents']))
+    expect([...sectionStore(storage, 'main').load()]).toEqual(['books', 'agents'])
+  })
+
   it('reads damaged or unavailable storage as none collapsed', () => {
     const storage = memory()
     storage.setItem('devot.sidebarCollapsed.main', '{"x":1}')

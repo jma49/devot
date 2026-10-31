@@ -503,10 +503,12 @@ button {
   color: var(--color-text-secondary);
 }
 
-/* Same accent wash as a selected note row; the keyboard bar is drawn inside the row so nothing shifts. */
+/* Same accent wash as a selected note row while the pane has the keyboard; the keyboard bar is drawn
+   inside the row so nothing shifts. A pane without the keyboard draws its selection neutral. */
 .source.filter[aria-pressed='true'],
 .source[aria-current='true'],
-.books [aria-selected='true'] > .book-row {
+.books [aria-selected='true'] > .book-row,
+.row[aria-selected='true'] {
   background: color-mix(
     in srgb,
     var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
@@ -514,12 +516,14 @@ button {
   );
 }
 
-.row[aria-selected='true'] {
-  background: color-mix(
-    in srgb,
-    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
-    transparent
-  );
+:where(.sidebar:not(:focus-within))
+  :is(
+    .source.filter[aria-pressed='true'],
+    .source[aria-current='true'],
+    .books [aria-selected='true'] > .book-row
+  ),
+:where(.rows:not(:focus-within)) .row[aria-selected='true'] {
+  background: var(--color-fill-row-selected-inactive);
 }
 
 .rows:focus-within .row[data-open] {
@@ -768,6 +772,17 @@ button {
   gap: var(--space-1);
 }
 
+/* At rest a header shows its title, and the chevron of a folded section so its state shows. */
+.section-header:not(:hover, :focus-within)
+  .section-tools
+  > :not(.section-toggle[aria-expanded='false']) {
+  opacity: 0;
+}
+
+:root[data-motion='reduced'] .section-tools > .tool {
+  transition: none;
+}
+
 .section-tools .tool {
   color: var(--color-text-tertiary);
 }
@@ -841,9 +856,20 @@ button {
   color: var(--color-accent-text);
 }
 
+/* At rest it gives its room to the name; it stays in the accessibility tree. */
 .book-ai {
   display: flex;
+  flex: none;
+  width: 0;
+  margin-inline-start: calc(-1 * var(--space-3));
+  overflow: hidden;
   color: var(--color-text-secondary);
+}
+
+[role='treeitem']:is(:hover, :focus-visible, [aria-selected='true']) > .book-row > .book-ai,
+.book-row.menu-target > .book-ai {
+  width: auto;
+  margin-inline-start: 0;
 }
 
 .disclosure {
@@ -1021,6 +1047,13 @@ button {
   color: var(--color-text-tertiary);
 }
 
+.footer-saved {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .footer-panel {
   position: absolute;
   inset-inline: 0;
@@ -1148,24 +1181,13 @@ button {
   white-space: nowrap;
 }
 
+/* The view's icon is a toolbar icon, the size and stroke of the buttons' beside it. */
 .headline-icon {
   display: flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 1em;
-  height: 1em;
   opacity: var(--opacity-headline-icon);
-}
-
-.headline-icon > .icon {
-  width: 1em;
-  height: 1em;
-}
-
-.headline-icon > .icon-svg {
-  width: 1em;
-  height: 1em;
 }
 
 .headline-dot {
@@ -1315,7 +1337,6 @@ button {
 
 .row-meta {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   font-size: var(--font-size-footnote);
@@ -1323,13 +1344,30 @@ button {
   white-space: nowrap;
 }
 
-.row-time {
-  color: var(--color-accent-text);
+/* One line: an item that does not fit wraps to a second line that is cut off, so it goes whole.
+   Items go from the end: the activity strip first, then tags. The cap is a tag chip's height. */
+.row-meta-items {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-3);
+  min-width: 0;
+  max-height: calc(var(--font-size-caption2) * 1.5 + var(--space-1));
+  overflow: hidden;
 }
 
-/* After the chips, at the row's end; it wraps to a line of its own in a narrow list. */
+.row-meta-items > * {
+  flex: none;
+}
+
+.row-time {
+  color: var(--color-text-secondary);
+}
+
 .activity-strip {
   display: inline-flex;
+  flex: none;
   gap: var(--space-1);
   margin-inline-start: auto;
 }
@@ -1361,10 +1399,10 @@ button {
   color: var(--color-text-secondary);
 }
 
-/* In a list row it takes the line's room and cuts the name short before it wraps to a line of its own. */
-.row-meta > .row-agent {
+/* It takes the line's room and cuts the name short; below 6em it goes with the rest that does not fit. */
+.row-meta-items > .row-agent {
   flex: 1 1 0;
-  min-width: 10em;
+  min-width: 6em;
 }
 
 /* A writer's name gives way first: the kind beside it stays shown (WriterLabel.tsx). */
@@ -1651,7 +1689,7 @@ button {
 }
 
 .card-time {
-  color: var(--color-accent-text);
+  color: var(--color-text-secondary);
 }
 
 .card-tags {
@@ -1734,6 +1772,21 @@ button {
   background: transparent;
   color: inherit;
   font: var(--font-weight-regular) var(--font-size-note-title) / 1.25 var(--font-family-ui);
+  cursor: text;
+  transition:
+    background-color var(--motion-duration-hover) var(--motion-easing-out),
+    box-shadow var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+/* The field is drawn by a spread shadow around the text column, so the text and the box do not move. */
+.title:not(:read-only):is(:hover, :focus) {
+  border-radius: var(--radius-control);
+  background: var(--color-fill-hover);
+  box-shadow: 0 0 0 var(--space-3) var(--color-fill-hover);
+}
+
+:root[data-motion='reduced'] .title {
+  transition: none;
 }
 
 .note-meta {
@@ -1919,6 +1972,42 @@ button {
 .tag-input:focus {
   background: var(--color-fill-track);
   box-shadow: inset 0 0 0 1px var(--color-focus-ring);
+}
+
+/* At rest the empty field is a chip-shaped control: a dashed edge and a leading plus. */
+.tag-input:placeholder-shown:not(:focus) {
+  width: calc(var(--space-10) * 2 + var(--space-7));
+  padding-inline: calc(var(--space-3) + var(--size-icon-sm)) var(--space-3);
+  border: 1px dashed var(--color-line-control);
+  border-radius: var(--radius-capsule);
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.tag-input:placeholder-shown:not(:focus):hover {
+  background: var(--color-fill-hover);
+}
+
+.tag-field-plus {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: var(--space-4);
+  display: flex;
+  align-items: center;
+  color: var(--color-text-tertiary);
+  pointer-events: none;
+}
+
+.tag-field-plus .icon {
+  background-color: var(--color-text-tertiary);
+}
+
+.tag-field-plus .icon-svg {
+  color: var(--color-text-tertiary);
+}
+
+.tag-input:is(:focus, :not(:placeholder-shown)) ~ .tag-field-plus {
+  display: none;
 }
 
 .popup {

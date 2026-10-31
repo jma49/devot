@@ -132,6 +132,12 @@ test('Shift+Cmd+J moves the selection from All Notes to the next row', async ({ 
   )
 })
 
+test('before any save the footer names its panel, never a bare chevron', async ({ page }) => {
+  const toggle = sidebar(page).locator('.footer-toggle')
+  await expect(toggle).toHaveText('Backup and mirror status')
+  await expect(toggle).toHaveAccessibleName('Backup and mirror status')
+})
+
 test('the footer shows when the last note was saved', async ({ page }) => {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await page.getByRole('textbox', { name: 'Title' }).fill('Saved')

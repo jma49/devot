@@ -220,6 +220,7 @@ test('in a workspace the Agents section counts only its notes, and filtering sho
   for (const name of ['Home', 'Work']) {
     await row(page, name).click({ button: 'right' })
     await pickMenuItem(page, 'Allow AI Access')
+    await book(page, name).hover()
     await expect(book(page, name).getByRole('img', { name: 'AI access on' })).toBeVisible()
   }
   await openFromMenu(page, 'Work')

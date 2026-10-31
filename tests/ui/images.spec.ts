@@ -186,6 +186,7 @@ test('a placeholder is a plain box: the web view draws no broken-image icon in i
 test('a placeholder looks the same alone on a line and inside a paragraph', async ({ page }) => {
   await newNote(page, `![a](${FILE})\n\nText ![b](${FILE}) text\n`)
   await showMode(page, 'Preview')
+  await expect(preview(page).locator('img.image-missing')).toHaveCount(2)
   const [block, inline] = await preview(page)
     .locator('img.image-missing')
     .evaluateAll((els) =>

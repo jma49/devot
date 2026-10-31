@@ -129,7 +129,7 @@ test('icons are SF Symbols, cached per name, size and appearance', async ({ page
   expect((await requests()).filter((r) => r === 'square.and.pencil@18')).toHaveLength(2)
 })
 
-test('the note list selection is an accent wash, with a bar on the open row while the list has the keyboard', async ({
+test('the note list selection is neutral without the keyboard, an accent wash with a bar on the open row with it', async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: 'light' })
@@ -142,13 +142,14 @@ test('the note list selection is an accent wash, with a bar on the open row whil
   const alphaRow = rows.getByRole('option', { name: /Alpha/ })
   await expect(beta).toHaveAttribute('aria-selected', 'true')
 
-  const wash = await css(beta, 'background-color')
-  expect(alpha(wash)).toBeCloseTo(0.2, 2)
+  expect(alpha(await css(beta, 'background-color'))).toBeCloseTo(0.07, 2)
   expect(await css(beta, 'box-shadow')).toBe('none')
   const text = await css(beta, 'color')
 
   await beta.click()
   await expect(beta).toBeFocused()
+  await expect.poll(async () => alpha(await css(beta, 'background-color'))).toBeCloseTo(0.2, 2)
+  const wash = await css(beta, 'background-color')
   await expect
     .poll(() => css(beta, 'box-shadow'))
     .toBe(`${rgb(light['color.accent.fill'])} 5px 0px 0px 0px inset`)

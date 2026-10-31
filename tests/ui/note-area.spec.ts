@@ -112,7 +112,9 @@ test('the notebook, status and tags share one compact line, worked by click and 
   await expect(statusPicker(page)).toHaveAccessibleName('Status: Active')
 
   const add = page.getByRole('combobox', { name: 'Add Tag' })
-  await expect(add).toHaveAttribute('placeholder', 'Add Tags')
+  await expect(add).toHaveAttribute('placeholder', 'Add Tag')
+  await expect(add).toHaveCSS('border-top-style', 'dashed')
+  await expect(meta.locator('.tag-field-plus')).toBeVisible()
   await add.fill('work')
   await add.press('Enter')
   const chip = meta.locator('.chip', { hasText: 'work' })

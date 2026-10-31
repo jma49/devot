@@ -505,12 +505,16 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const rows = useRef(new Map<string, HTMLLIElement>())
   const rowList = visibleRows(tree, collapsed)
   const selectedBook = selection?.kind === 'book' ? selection.id : undefined
+  // A notebook being named shows in a folded Notebooks section too: its name field is there.
+  const nameEditing = editing ?? renaming
+  const booksShown =
+    !folded.has('books') || (nameEditing !== undefined && nameEditing !== ws?.book.id)
 
   // The arrow keys move through every row in the order shown, and the sidebar is one tab stop: the row of the view shown.
   const rowOrder: Row[] = [
     libraryRow(allSelection),
     ...(ws ? [] : [filterRowOf({ kind: 'pinned' }), libraryRow({ kind: 'templates' })]),
-    ...rowList.map((n) => libraryRow({ kind: 'book', id: n.id })),
+    ...(booksShown ? rowList.map((n) => libraryRow({ kind: 'book', id: n.id })) : []),
     ...(folded.has('status')
       ? []
       : STATUSES.map((s) => filterRowOf({ kind: 'status', status: s.status }))),
@@ -621,7 +625,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     window.addEventListener(SIDEBAR_STEP, onStep)
     return () => window.removeEventListener(SIDEBAR_STEP, onStep)
   })
-  const nameEditing = editing ?? renaming
   const siblings = useMemo(() => neighbours(tree), [tree])
   const placed = (node: BookNode): PlacedNode => ({
     ...node,
@@ -1043,16 +1046,23 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     label: string,
     listId: string,
     tools: ReactNode,
+    topLevelDrop = false,
   ) => {
     const isFolded = folded.has(section)
     return (
-      <div className="section-header">
+      <div
+        className={`section-header${topLevelDrop && dropAt && dropAt.id === null ? ' drop-target' : ''}`}
+        onDragEnter={topLevelDrop ? (e) => onDragOver(e, null) : undefined}
+        onDragOver={topLevelDrop ? (e) => onDragOver(e, null) : undefined}
+        onDragLeave={topLevelDrop ? (e) => onDragLeave(e, null) : undefined}
+        onDrop={topLevelDrop ? (e) => onDrop(e, null) : undefined}
+      >
         <span id={headingId}>{label}</span>
         <span className="section-tools">
           {tools}
           <button
             type="button"
-            className="tool tool-small"
+            className="tool tool-small section-toggle"
             ref={(el) => {
               if (el) sectionToggles.current.set(section, el)
               else sectionToggles.current.delete(section)
@@ -1239,15 +1249,12 @@ export const Sidebar = memo(function Sidebar(props: Props) {
         )}
       </ul>
       <div className="sidebar-scroll">
-        <div
-          className={`section-header${dropAt && dropAt.id === null ? ' drop-target' : ''}`}
-          onDragEnter={(e) => onDragOver(e, null)}
-          onDragOver={(e) => onDragOver(e, null)}
-          onDragLeave={(e) => onDragLeave(e, null)}
-          onDrop={(e) => onDrop(e, null)}
-        >
-          <span id="notebooks-heading">{t('sidebar.notebooks')}</span>
-          <span className="section-tools">
+        {sectionHeader(
+          'books',
+          'notebooks-heading',
+          t('sidebar.notebooks'),
+          'books-tree',
+          <>
             <button
               type="button"
               className="tool tool-small"
@@ -1267,11 +1274,20 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             >
               <Icon name="notebook.new" size="sm" />
             </button>
-          </span>
-        </div>
-        <ul className="books" role="tree" aria-labelledby="notebooks-heading">
-          {tree.map(renderNode)}
-        </ul>
+          </>,
+          true,
+        )}
+        {booksShown ? (
+          <ul
+            id="books-tree"
+            className="books"
+            role="tree"
+            aria-labelledby="notebooks-heading"
+            ref={revealed('section:books')}
+          >
+            {tree.map(renderNode)}
+          </ul>
+        ) : null}
         {sectionHeader('status', 'statuses-heading', t('sidebar.statuses'), 'statuses-list', null)}
         {folded.has('status') ? null : (
           <ul

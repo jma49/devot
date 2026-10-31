@@ -44,11 +44,13 @@ export function noteDate(updatedAt: number, now: number, locale: string): string
 export function relativeTime(updatedAt: number, now: number, locale: string): string {
   const seconds = Math.max(0, Math.round((now - updatedAt) / 1000))
   const span = (count: number, unit: 'minute' | 'hour' | 'day') =>
-    kept(
-      `span|${unit}|${locale}`,
-      () => new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'long' }),
-    ).format(count)
-  if (seconds < 60) return t('time.fewSeconds')
+    format(t('time.ago'), {
+      time: kept(
+        `span|${unit}|${locale}`,
+        () => new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'short' }),
+      ).format(count),
+    })
+  if (seconds < 60) return t('time.justNow')
   if (seconds < 3600) return span(Math.floor(seconds / 60), 'minute')
   if (seconds < 86_400) return span(Math.floor(seconds / 3600), 'hour')
   const days = Math.floor(seconds / 86_400)
@@ -76,6 +78,13 @@ export function fullDate(updatedAt: number, locale: string): string {
   ).format(new Date(updatedAt))
 }
 
+export function exactDate(at: number, locale: string): string {
+  return kept(
+    `date|exact|${locale}|${zone()}`,
+    () => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'medium' }),
+  ).format(new Date(at))
+}
+
 export function countOf(count: number, locale: string, one: MessageKey, other: MessageKey): string {
   const plural = kept(`plural|${locale}`, () => new Intl.PluralRules(locale))
   const key = plural.select(count) === 'one' ? one : other
@@ -92,14 +101,6 @@ export function taskCount(done: number, total: number, locale: string): string {
   const key = plural.select(total) === 'one' ? 'noteInfo.tasksOne' : 'noteInfo.tasksOther'
   const number = kept(`number|${locale}`, () => new Intl.NumberFormat(locale))
   return format(t(key), { done: number.format(done), count: number.format(total) })
-}
-
-const pad = (value: number) => String(value).padStart(2, '0')
-
-export function stampDate(at: number): string {
-  const d = new Date(at)
-  const day = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-  return `${day} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 export const noteCount = (count: number, locale: string) =>

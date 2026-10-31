@@ -166,34 +166,36 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
         </span>
       ) : null}
       <span className="row-meta">
-        <time
-          className="row-time"
-          dateTime={new Date(n.updatedAt).toISOString()}
-          title={fullDate(n.updatedAt, props.locale)}
-        >
-          {rowDate(n.updatedAt, props.now, props.locale, props.dates)}
-        </time>
-        {n.status !== 'none' ? (
-          <span
-            className={`row-status status-${n.status}`}
-            role="img"
-            aria-label={t(`status.${n.status}`)}
-            title={t(`status.${n.status}`)}
+        <span className="row-meta-items">
+          <time
+            className="row-time"
+            dateTime={new Date(n.updatedAt).toISOString()}
+            title={fullDate(n.updatedAt, props.locale)}
           >
-            <Icon name={STATUS_ICONS[n.status]} size="sm" />
-          </span>
-        ) : null}
-        {progress ? <TaskProgress {...progress} /> : null}
-        {chips.map((c) => (
-          <span key={c.id} className={chipClass(c.color)} dir="auto">
-            {c.color ? <TagDot color={c.color} /> : null}
-            {c.name}
-          </span>
-        ))}
-        {props.changedBy ? <ChangedBy writer={props.changedBy} /> : null}
-        {props.strip ? (
-          <ActivityStrip days={props.strip} now={props.now} locale={props.locale} />
-        ) : null}
+            {rowDate(n.updatedAt, props.now, props.locale, props.dates)}
+          </time>
+          {n.status !== 'none' ? (
+            <span
+              className={`row-status status-${n.status}`}
+              role="img"
+              aria-label={t(`status.${n.status}`)}
+              title={t(`status.${n.status}`)}
+            >
+              <Icon name={STATUS_ICONS[n.status]} size="sm" />
+            </span>
+          ) : null}
+          {progress ? <TaskProgress {...progress} /> : null}
+          {chips.map((c) => (
+            <span key={c.id} className={chipClass(c.color)} dir="auto">
+              {c.color ? <TagDot color={c.color} /> : null}
+              {c.name}
+            </span>
+          ))}
+          {props.changedBy ? <ChangedBy writer={props.changedBy} /> : null}
+          {props.strip ? (
+            <ActivityStrip days={props.strip} now={props.now} locale={props.locale} />
+          ) : null}
+        </span>
       </span>
       {n.title ? (
         excerpt ? (

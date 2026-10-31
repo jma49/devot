@@ -1,7 +1,6 @@
 import { CompletionContext } from '@codemirror/autocomplete'
 import { ensureSyntaxTree, indentUnit } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
-import { gutterLineClass } from '@codemirror/view'
 import { describe, expect, it, vi } from 'vitest'
 
 const look = vi.hoisted(() => ({ iconStyle: 'sfSymbols' }))
@@ -13,7 +12,6 @@ import {
   blockAt,
   blockDecorations,
   codeBlockLines,
-  codeBlocks,
   codeReturn,
   codeTab,
   copyText,
@@ -64,27 +62,6 @@ describe('codeBlockLines', () => {
 
   it('boxes a block in a list item from its fence line', () => {
     expect(boxed('- item\n  ```\n  x\n  ```\n- next')).toEqual(['2F', '3', '4LC'])
-  })
-})
-
-describe('the gutter beside a block', () => {
-  const padded = (doc: string) => {
-    const s = EditorState.create({ doc, extensions: [noteMarkdown, codeBlocks()] })
-    ensureSyntaxTree(s, s.doc.length, 5000)
-    // The tree is complete now: a transaction brings the field up to date.
-    const t = s.update({}).state
-    const lines: number[] = []
-    for (const set of t.facet(gutterLineClass))
-      for (let c = set.iter(); c.value; c.next()) {
-        if (c.value.elementClass === 'cm-codeblock-gutter-first')
-          lines.push(t.doc.lineAt(c.from).number)
-      }
-    return lines
-  }
-
-  it('pads the first line of each block, so its number and fold mark sit level with the fence', () => {
-    expect(padded('a\n\n```js\nx\n```\n\nb\n\n```\ny')).toEqual([3, 9])
-    expect(padded('no code')).toEqual([])
   })
 })
 

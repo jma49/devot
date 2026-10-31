@@ -168,7 +168,7 @@ export function TagEditor(props: {
           aria-controls={rows.length > 0 ? listId : undefined}
           aria-autocomplete="list"
           aria-activedescendant={active >= 0 && rows[active] ? optionId(active) : undefined}
-          placeholder={t('note.addTags')}
+          placeholder={t('note.addTag')}
           value={draft}
           {...limit}
           onBlur={() => {
@@ -223,6 +223,9 @@ export function TagEditor(props: {
             }
           }}
         />
+        <span className="tag-field-plus" aria-hidden="true">
+          <Icon name="stepper.more" size="xs" />
+        </span>
         {rows.length > 0 ? (
           <ul
             ref={suggestionsRef}

@@ -60,6 +60,7 @@ export const ActivityStrip = memo(function ActivityStrip(props: {
 }) {
   const days = stripDays(props.days, props.now)
   const active = days.filter((d) => d.edits > 0).length
+  if (active === 0) return null
   return (
     <span
       className="activity-strip"

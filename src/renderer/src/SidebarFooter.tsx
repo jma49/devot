@@ -98,11 +98,17 @@ export function SidebarFooter() {
         aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((now) => !now)}
       >
-        {/* The visible save time is part of the name: an aria-label would replace it. */}
-        <span className="visually-hidden">{t('sidebar.statusLabel')}: </span>
-        <span className="footer-saved">
-          {at === null ? '' : format(t('sidebar.savedAt'), { time: clockTime(at) })}
-        </span>
+        {at === null ? (
+          <span className="footer-saved">{t('sidebar.statusLabel')}</span>
+        ) : (
+          <>
+            {/* The visible save time is part of the name: an aria-label would replace it. */}
+            <span className="visually-hidden">{t('sidebar.statusLabel')}: </span>
+            <span className="footer-saved">
+              {format(t('sidebar.savedAt'), { time: clockTime(at) })}
+            </span>
+          </>
+        )}
         <Chevron open={open} closed="up" />
       </button>
     </div>

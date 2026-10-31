@@ -24,17 +24,23 @@ it('bars the focused sidebar selection and draws no solid fill', () => {
   expect(ruleFor('.sidebar:focus-within', 'background')).toEqual([])
 })
 
-it('washes a selected note row in the accent, focused or not, and bars the open row', () => {
-  const [row] = rules.filter((r) => r.selector === ".row[aria-selected='true']")
+it('washes a selected note row in the accent and bars the open row while the list has the keyboard', () => {
+  const [row] = rules.filter((r) =>
+    r.selector.split(',').some((s) => s.trim() === ".row[aria-selected='true']"),
+  )
   expect(row?.body.get('background')).toMatch(/var\(--color-accent-fill\)/)
   expect(row?.body.get('background')).toMatch(/var\(--opacity-list-selected\)/)
-  expect(
-    rules.filter((r) => r.selector.includes(".rows:focus-within .row[aria-selected='true']")),
-  ).toEqual([])
   const [bar] = ruleFor('.rows:focus-within .row[data-open]', 'box-shadow')
   expect(bar?.body.get('box-shadow')).toBe(
     'inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill)',
   )
+})
+
+it('draws the selection of a pane without the keyboard in the neutral inactive fill', () => {
+  for (const pane of ['.sidebar:not(:focus-within)', '.rows:not(:focus-within)']) {
+    const [neutral] = ruleFor(pane, 'background')
+    expect(neutral?.body.get('background')).toBe('var(--color-fill-row-selected-inactive)')
+  }
 })
 
 it('draws no other fill for a selected row of either list', () => {

@@ -93,6 +93,7 @@ async function notebook(page: Page, name: string, aiAccess: boolean) {
   if (aiAccess) {
     await bookRow(page, name).click({ button: 'right' })
     await pickMenuItem(page, 'Allow AI Access')
+    await bookRow(page, name).hover()
     await expect(bookRow(page, name).getByRole('img', { name: 'AI access on' })).toBeVisible()
   }
   await bookRow(page, name).click()
