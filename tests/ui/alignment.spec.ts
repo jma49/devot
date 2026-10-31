@@ -168,6 +168,22 @@ test("the list header's toggle, name and New Note share the toolbars' centre lin
   await sameLine('icon', await box(header.locator('.headline-icon')))
 })
 
+test("the list title's icon is the toolbar buttons' size in both icon styles", async ({ page }) => {
+  const header = page.locator('.list-header')
+  for (const iconStyle of ['sfSymbols', 'lucide'] as const) {
+    await changeEditorSettingsElsewhere(page, { iconStyle })
+    await page
+      .getByRole('navigation', { name: 'Sidebar' })
+      .getByRole('button', { name: /^Trash/ })
+      .click()
+    const glyph = iconStyle === 'lucide' ? 'svg' : '[data-symbol]'
+    const toggle = await box(header.locator(`.sidebar-toggle ${glyph}`))
+    const icon = await box(header.locator(`.headline-icon ${glyph}`))
+    expect([icon.width, icon.height], iconStyle).toEqual([toggle.width, toggle.height])
+    expect(icon.width, iconStyle).toBe(22)
+  }
+})
+
 test('a note row insets its title and meta line by the same amount on both sides', async ({
   page,
 }) => {

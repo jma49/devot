@@ -6,9 +6,10 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { shownAppearance, subscribeAppearance } from '../theme/appearance'
 import { LUCIDE_FILLS, LUCIDE_ICONS, lucideStroke } from './lucide'
 import {
+  boxPoints,
   createSymbolCache,
-  canvasPixels,
-  fitInCanvas,
+  inkBounds,
+  placeInCanvas,
   renderPoints,
   symbolFor,
   symbolStyle,
@@ -24,37 +25,29 @@ const cache = createSymbolCache((name, pointSize, weight) =>
 
 /**
  * Each size's box in pixels, as its `--size-icon-*` token; the symbol's ink
- * is centred on it (`symbolStyle`). `xs` is a small mark beside text (a
+ * is centred on it (`placeInCanvas`). `xs` is a small mark beside text (a
  * pop-up's chevron, a tag's remove button).
  */
 const BOXES = { xs: 10, sm: 14, md: 17, toolbar: 18, lg: 22 } as const
 
-/**
- * The point size a symbol is drawn at for a box: a symbol at N points is a
- * little taller than N pixels, so this keeps a typical one inside the box.
- * Every symbol at one size for a box shares its stroke weight.
- */
-const boxPoints = (box: number) => Math.round(box * 0.8)
-
-/**
- * Draws a rendered symbol into the one square canvas every symbol of a box
- * shares (`box` x `ratio` device pixels), centred on whole pixels, copied
- * pixel for pixel. It is shown at `box` CSS pixels, so it is never resampled.
- */
+/** Copies a rendered symbol pixel for pixel onto its square canvas, its ink centred (`placeInCanvas`). */
 async function compose(rendered: string, box: number, ratio: number): Promise<SymbolImage> {
-  const whole = { x: 0, y: 0, width: box, height: box }
   const image = new Image()
   image.src = rendered
   await image.decode()
-  const side = canvasPixels(box, ratio)
+  const { naturalWidth: width, naturalHeight: height } = image
   const canvas = document.createElement('canvas')
-  canvas.width = side
-  canvas.height = side
-  const context = canvas.getContext('2d')
-  if (!context) return { url: rendered, width: box, height: box, ink: whole }
-  const at = fitInCanvas(image.naturalWidth, image.naturalHeight, side)
-  context.drawImage(image, at.x, at.y, at.width, at.height)
-  return { url: canvas.toDataURL('image/png'), width: box, height: box, ink: whole }
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) throw new Error('E_SYMBOL_CANVAS_UNAVAILABLE')
+  context.drawImage(image, 0, 0)
+  const ink = inkBounds(context.getImageData(0, 0, width, height).data, width, height)
+  const at = placeInCanvas(width, height, ink ?? { x: 0, y: 0, width, height }, box, ratio)
+  canvas.width = at.side
+  canvas.height = at.side
+  context.drawImage(image, at.x, at.y)
+  return { url: canvas.toDataURL('image/png'), side: at.side / ratio }
 }
 
 const placed = new Map<string, Promise<SymbolImage>>()

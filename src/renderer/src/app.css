@@ -1181,24 +1181,13 @@ button {
   white-space: nowrap;
 }
 
+/* The view's icon is a toolbar icon, the size and stroke of the buttons' beside it. */
 .headline-icon {
   display: flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 1em;
-  height: 1em;
   opacity: var(--opacity-headline-icon);
-}
-
-.headline-icon > .icon {
-  width: 1em;
-  height: 1em;
-}
-
-.headline-icon > .icon-svg {
-  width: 1em;
-  height: 1em;
 }
 
 .headline-dot {

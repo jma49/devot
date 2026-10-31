@@ -8,6 +8,7 @@ vi.mock('../editorSettings', () => ({
 }))
 vi.mock('../ipc', () => ({ invoke: vi.fn<() => Promise<string>>() }))
 
+import { invoke } from '../ipc'
 import { Icon, iconElement } from './Icon'
 import { lucideStroke } from './lucide'
 
@@ -89,5 +90,22 @@ describe('iconElement', () => {
     const el = iconElement('trash', 16) as unknown as ReturnType<typeof fake>
     expect(el.innerHTML).toBe('')
     expect(el.dataset['symbol']).toBe('trash')
+  })
+
+  it('asks for every symbol of a box at one point size and weight, whatever its shape', () => {
+    state.style = 'sfSymbols'
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(invoke).mockClear().mockRejectedValue(new Error('E_TEST'))
+    const toolbar = ['sidebar.toggle', 'note.new', 'nav.back', 'mode.focus', 'notebook'] as const
+    for (const name of toolbar) iconElement(name, 22)
+    expect(vi.mocked(invoke).mock.calls.map(([, args]) => args)).toEqual(
+      [
+        'sidebar.left',
+        'square.and.pencil',
+        'arrow.left',
+        'arrow.up.left.and.arrow.down.right',
+        'book.closed',
+      ].map((name) => ({ name, pointSize: 18, weight: 'regular' })),
+    )
   })
 })
