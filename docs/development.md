@@ -42,6 +42,28 @@ Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Appl
 | `pnpm format`                   | oxfmt                                                                                                        |
 | `pnpm typecheck`                | TypeScript for tooling, tests, the core, the UI and the sync relay                                           |
 
+### Targeted UI CI
+
+Pull requests select browser tests separately from the Web and Rust build jobs. `scripts/ci/ui-plan.ts` reads the changed paths from the PR's merge with its base and writes the project, exact spec files and shard count to the UI job matrix. The changes job's summary lists the selected specs.
+
+- A changed UI spec runs that file. A removed spec runs the remaining specs in its project; renames include both old and new paths.
+- Exact source allowlists cover Find, update checking, tooltip placement and Mermaid rendering. Their selections include cross-feature consumers and the production CSP suite. For example, tooltip placement also runs note-link hover coverage, Find also runs IME and read-only coverage, and Mermaid also runs export and scroll restoration coverage. Update these mappings when a feature gains another consumer.
+- Shared application code, global event handling, styles, core code, UI fixtures, dependency files, build configuration and unknown paths run the full UI suite. A missing mapped spec also falls back to full coverage.
+- Documentation, unit tests, MCP, Rust-only, relay and licence-service changes need no browser run. Their existing build, type and Vitest checks still apply.
+- Manual workflow runs select the full suite. Empty change lists and missing selection outputs also retain full coverage.
+
+Development and production CSP run in separate jobs, each starting only its own server. Development selections use one shard per twelve spec files, capped at four; production CSP currently has one spec and uses one job. File count is a scheduling heuristic; it does not predict equal execution time. Traces from failures and retries retain project and shard names.
+
+`pnpm test:ui` still runs both complete projects locally. To run an exact selection with only its server:
+
+```sh
+DEVOT_UI_PROJECT=webkit DEVOT_UI_TEST_FILES='["tests/ui/tooltips.spec.ts"]' pnpm test:ui
+DEVOT_UI_PROJECT=webkit-prod-csp pnpm test:ui
+git diff --no-renames --name-only main...HEAD | node scripts/ci/ui-plan.ts
+```
+
+An empty file array runs the complete selected project. Invalid project names, malformed selections and missing or cross-project spec paths fail before tests start.
+
 ### smoke:quit
 
 `pnpm smoke:quit` runs the debug bundle (`pnpm build:debug --bundles app`) on the debug builds' data folder, never on an installed Devot's: it starts the app with HOME in a temporary folder in which only that folder is real, so a bundle built before debug builds had a folder of their own opens a new database there, and the script stops. Each check starts from an empty database: a dev database that is there first is copied aside with SQLite's online backup (into `smoke-backups/` in that folder) and put back at the end, and the script refuses to start while another process has it open.

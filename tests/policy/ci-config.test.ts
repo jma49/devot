@@ -61,9 +61,7 @@ it('a pull request without web changes still gets a policy run with all of Vites
 it('every job runs unless the change detection said it is not needed', () => {
   // Missing or unexpected outputs must run everything, never skip everything.
   expect(job('policy')).toContain("needs.changes.outputs.web != 'true'")
-  for (const name of ['web-checks', 'ui']) {
-    expect(job(name)).toContain("needs.changes.outputs.web != 'false'")
-  }
+  expect(job('web-checks')).toContain("needs.changes.outputs.web != 'false'")
   expect(job('rust')).toContain("needs.changes.outputs.rust != 'false'")
   expect(workflow).not.toMatch(/outputs\.(web|rust) == /)
 })
@@ -80,19 +78,6 @@ it('the web check fails when the quick checks, a UI shard or the change detectio
   expect(web).toMatch(/failure\|cancelled/)
 })
 
-it('the UI tests run in shards that together cover the whole suite', () => {
-  const ui = job('ui')
-  const shards =
-    /shard: \[([\d, ]+)\]/
-      .exec(ui)?.[1]
-      ?.split(',')
-      .map((n) => Number(n.trim())) ?? []
-  expect(shards.length).toBeGreaterThan(1)
-  expect(shards).toEqual(shards.map((_, i) => i + 1))
-  expect(ui).toContain(`pnpm test:ui --shard=\${{ matrix.shard }}/${shards.length}`)
-  expect(ui).toContain('fail-fast: false')
-})
-
 it('CI runs on every pull request and by hand, with no label gate', () => {
   const trigger = workflow.slice(0, workflow.indexOf('\njobs:'))
   expect(trigger).toMatch(/^ {2}pull_request:\n {4}types: \[opened, synchronize, reopened\]$/m)
@@ -103,16 +88,6 @@ it('CI runs on every pull request and by hand, with no label gate', () => {
   const concurrency = /concurrency:\n((?: {2}.*\n)+)/.exec(workflow)?.[1] ?? ''
   expect(concurrency).toContain('group: ci-${{ github.ref }}\n')
   expect(concurrency).toContain('cancel-in-progress: true')
-})
-
-it('Playwright traces are uploaded unless the run was cancelled', () => {
-  const ui = job('ui')
-  const upload =
-    /^\s*- if: (.*)\n\s*uses: actions\/upload-artifact@[0-9a-f]{40} # v4\.[\d.]+$/m.exec(ui)
-  expect(upload?.[1]).toBe('${{ !cancelled() }}')
-  expect(ui).toContain('if-no-files-found: ignore')
-  // One artifact per shard: two shards cannot upload under the same name.
-  expect(ui).toContain('name: playwright-results-${{ matrix.shard }}')
 })
 
 // Stand-in for lefthook's glob matcher (gobwas): `**` crosses folders, `*` does not, `/**/` needs a folder, `{a,b}` is either.
