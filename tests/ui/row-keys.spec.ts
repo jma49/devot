@@ -119,6 +119,7 @@ test('Allow AI Access can be toggled from the keyboard', async ({ page }) => {
   await page.keyboard.press('Shift+F10')
   await expect.poll(() => popups(page)).toBe(1)
   await pickMenuItem(page, 'Allow AI Access')
+  await bookRow(page, 'Home').hover()
   await expect(bookRow(page, 'Home').getByRole('img', { name: 'AI access on' })).toBeVisible()
   await expect(bookRow(page, 'Work').getByRole('img', { name: 'AI access on' })).toHaveCount(0)
   await page.keyboard.press('Shift+F10')

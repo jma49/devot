@@ -1,7 +1,7 @@
 // What the preview's note info card shows (NoteInfo.tsx): task progress when
 // the note has tasks, then when it was created and last updated.
 import type { TaskProgress } from '../../../core/tasks'
-import { stampDate, taskCount } from '../format'
+import { exactDate, fullDate, taskCount } from '../format'
 import { t } from '../i18n'
 import type { IconName } from '../icons/symbols'
 
@@ -18,6 +18,7 @@ export interface InfoField {
   value: string
   tasks?: TaskProgress
   dateTime?: string
+  exact?: string
 }
 
 /** The card's fields, in order. Progress shows only for a note with tasks. */
@@ -26,7 +27,8 @@ export function infoFields(info: NoteInfoData, tasks: TaskProgress, locale: stri
     key,
     icon,
     label: t(key === 'created' ? 'noteInfo.created' : 'noteInfo.updated'),
-    value: stampDate(at),
+    value: fullDate(at, locale),
+    exact: exactDate(at, locale),
     dateTime: new Date(at).toISOString(),
   })
   return [

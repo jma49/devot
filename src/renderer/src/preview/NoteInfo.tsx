@@ -65,7 +65,7 @@ export function DateValue(props: {
     setEditing(false)
   }
   const time = (
-    <time data-info={field.key} dateTime={field.dateTime}>
+    <time data-info={field.key} dateTime={field.dateTime} title={onSet ? undefined : field.exact}>
       {field.value}
     </time>
   )
@@ -76,7 +76,7 @@ export function DateValue(props: {
         ref={button}
         type="button"
         className="note-info-date"
-        title={t('noteInfo.editDate')}
+        title={field.exact}
         aria-label={format(t('noteInfo.editDateNamed'), {
           field: field.label,
           date: field.value,

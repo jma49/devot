@@ -41,6 +41,7 @@ import {
 import { indentText, type EditorSettings } from '../../../core/editorSettings'
 import { shortcutCodeMirror } from '../commands/keys'
 import { COMMANDS, commandKeys, defaultKeys } from '../commands/registry'
+import { t } from '../i18n'
 import { listBullet } from './blocks'
 import { inlineImages } from './images'
 import { pasteUrlStyle } from './paste'
@@ -169,8 +170,26 @@ const fixedSetup: Extension = [
   highlightSelectionMatches(),
 ]
 
+function foldMarker(open: boolean): HTMLElement {
+  const marker = document.createElement('span')
+  marker.className = open ? 'cm-fold-marker' : 'cm-fold-marker cm-fold-marker-folded'
+  marker.textContent = open ? '\u2304' : '\u203a'
+  marker.title = t(open ? 'editor.foldLine' : 'editor.unfoldLine')
+  return marker
+}
+
+// Markers show while the pointer is over the gutter; a folded line's stays, or the fold could not be seen.
+const foldMarkers = EditorView.theme({
+  '.cm-fold-marker': {
+    opacity: '0',
+    transition: 'opacity var(--motion-duration-hover) var(--motion-easing-out)',
+  },
+  '.cm-gutters:hover .cm-fold-marker, .cm-fold-marker.cm-fold-marker-folded': { opacity: '1' },
+  ":root[data-motion='reduced'] & .cm-fold-marker": { transition: 'none' },
+})
+
 // Made once, so reconfiguring with an unchanged value changes nothing.
-const gutterOn = [lineNumbers(), foldGutter()]
+const gutterOn = [lineNumbers(), foldGutter({ markerDOM: foldMarker }), foldMarkers]
 const activeLineGutter = highlightActiveLineGutter()
 const activeLine = highlightActiveLine()
 const spellCheck = EditorView.contentAttributes.of({ spellcheck: 'true' })

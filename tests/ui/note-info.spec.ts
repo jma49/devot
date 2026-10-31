@@ -34,7 +34,7 @@ test('shows task progress and dates in the note info card', async ({ page }) => 
   await expect(card(page).locator('progress')).toHaveAttribute('max', '2')
   await expect(card(page).locator('time')).toHaveCount(2)
   await expect(card(page).locator('time').first()).toHaveText(
-    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
+    /^[A-Z][a-z]{2} \d{1,2}, \d{4} at \d{1,2}:\d{2}\s[AP]M$/,
   )
 })
 
@@ -52,7 +52,7 @@ test('a date on the card is edited in a date-time field: Return saves, Escape ca
   await showPreview(page)
   const created = card(page).locator('time[data-info="created"]')
   const updated = card(page).locator('time[data-info="updated"]')
-  await expect(created).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+  await expect(created).toHaveText(/^[A-Z][a-z]{2} \d{1,2}, \d{4} at \d{1,2}:\d{2}\s[AP]M$/)
   // The typed body saves a moment later and moves the update date (to the second): read it once it has held for over a second.
   await expect
     .poll(async () => {
@@ -69,7 +69,7 @@ test('a date on the card is edited in a date-time field: Return saves, Escape ca
   await field.fill('2020-01-02T03:04:05')
   await page.keyboard.press('Enter')
   await expect(field).toHaveCount(0)
-  await expect(created).toHaveText('2020-01-02 03:04:05')
+  await expect(created).toHaveText(/^Jan 2, 2020 at 3:04\sAM$/)
   await expect(updated).toHaveText(updatedBefore ?? '')
 
   await updated.click()
@@ -78,7 +78,7 @@ test('a date on the card is edited in a date-time field: Return saves, Escape ca
   await page.keyboard.press('Escape')
   await expect(other).toHaveCount(0)
   await expect(updated).toHaveText(updatedBefore ?? '')
-  await expect(created).toHaveText('2020-01-02 03:04:05')
+  await expect(created).toHaveText(/^Jan 2, 2020 at 3:04\sAM$/)
 })
 
 test('a date the card turns down stays open and says why', async ({ page }) => {
@@ -122,6 +122,8 @@ test('the date button takes the keyboard back after Escape or a saved date', asy
   await button('created').click()
   await card(page).locator('input[data-info-edit="created"]').fill('2020-01-02T03:04:05')
   await page.keyboard.press('Enter')
-  await expect(card(page).locator('time[data-info="created"]')).toHaveText('2020-01-02 03:04:05')
+  await expect(card(page).locator('time[data-info="created"]')).toHaveText(
+    /^Jan 2, 2020 at 3:04\sAM$/,
+  )
   await expect(button('created')).toBeFocused()
 })

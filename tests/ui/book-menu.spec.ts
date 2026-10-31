@@ -356,6 +356,7 @@ test('Allow AI Access switches the clicked notebook alone and shows on its row',
   await expect(page.getByRole('img', { name: 'AI access on' })).toHaveCount(0)
   await openMenu(page, 'Work')
   await pickMenuItem(page, 'Allow AI Access')
+  await row(page, 'Work').hover()
   await expect(aiBadge(page, 'Work')).toBeVisible()
   // Not inherited: the sub-notebook keeps its own switch, off.
   await expect(aiBadge(page, 'Devot')).toHaveCount(0)
@@ -370,6 +371,7 @@ test('Allow AI Access switches the clicked notebook alone and shows on its row',
   expect(await shownMenu(page)).toContain('Allow AI Access [x]')
 
   await page.reload()
+  await row(page, 'Work').hover()
   await expect(aiBadge(page, 'Work')).toBeVisible()
 
   await openMenu(page, 'Work')
@@ -449,6 +451,7 @@ test('turns Allow AI Access on for several notebooks at once, with Undo', async 
   const done = page.getByRole('status').filter({ hasText: 'notebooks now allow AI access' })
   await expect(done).toContainText('3 notebooks now allow AI access.')
   for (const name of ['Home', 'Work', 'Devot']) {
+    await row(page, name).hover()
     await expect(row(page, name).getByRole('img', { name: 'AI access on' })).toBeVisible()
   }
 

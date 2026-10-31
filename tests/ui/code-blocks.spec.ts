@@ -175,10 +175,40 @@ test('a selection is centred in a code block, and the active line keeps to its b
   expect(await tint()).toMatchObject({ line: 'rgba(0, 0, 0, 0)', image: 'none' })
   expect((await tint()).box).not.toBe('rgba(0, 0, 0, 0)')
 
-  // A caret keeps the tint, drawn by the box: it ends above the box's bottom edge.
+  // A caret keeps the tint, drawn by the box, which reaches past the last line instead of padding it.
   await page.keyboard.press('ArrowRight')
   await expect.poll(async () => (await tint()).image).toContain('linear-gradient')
   const caret = await tint()
   expect(caret.line).toBe('rgba(0, 0, 0, 0)')
-  expect(parseFloat(caret.bottom ?? '0')).toBeGreaterThanOrEqual(4)
+  expect(parseFloat(caret.bottom ?? '0')).toBeLessThan(0)
+})
+
+test('line numbers stay evenly spaced through a code block in the editor', async ({ page }) => {
+  await changeEditorSettingsElsewhere(page, { lineNumbers: true })
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Title' }).fill('Rhythm')
+  await body(page).click()
+  await page.keyboard.insertText('one\ntwo\n```py\nx = 1\ny = 2\n```\nthree\nfour')
+  await expect(page.locator('.cm-line')).toHaveCount(8)
+  const tops = (selector: string) =>
+    page.locator(selector).evaluateAll(
+      (els, numbered) =>
+        els.flatMap((el) => {
+          const e = el as unknown as {
+            style: { visibility: string }
+            textContent: string
+            getBoundingClientRect(): { top: number }
+          }
+          if (e.style.visibility === 'hidden') return []
+          if (numbered && !/^\d+$/.test(e.textContent.trim())) return []
+          return [e.getBoundingClientRect().top]
+        }),
+      selector.includes('gutter'),
+    )
+  const numbers = await tops('.cm-lineNumbers .cm-gutterElement')
+  const gaps = numbers.slice(1).map((top, i) => top - numbers[i]!)
+  // Sub-pixel line heights round either way; the old padding added 5 to 11 px around the block.
+  expect(Math.max(...gaps) - Math.min(...gaps), `gaps ${gaps.join(', ')}`).toBeLessThan(1)
+  const lines = await tops('.cm-line')
+  numbers.forEach((top, i) => expect(Math.abs(top - lines[i]!)).toBeLessThan(1))
 })

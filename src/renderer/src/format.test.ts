@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   bookDeleteDetail,
   dayDate,
+  exactDate,
   fileSize,
   fullDate,
   listCaption,
@@ -9,7 +10,6 @@ import {
   noteDate,
   relativeTime,
   rowDate,
-  stampDate,
   taskCount,
 } from './format'
 
@@ -35,12 +35,12 @@ afterEach(() => restore.splice(0).forEach((undo) => undo()))
 describe('relativeTime', () => {
   const now = new Date(2026, 9, 10, 15, 30).getTime()
 
-  it('says how long since a note changed', () => {
-    expect(relativeTime(now - 5_000, now, 'en')).toBe('a few seconds')
-    expect(relativeTime(now - 60_000, now, 'en')).toBe('1 minute')
-    expect(relativeTime(now - 7 * 60_000, now, 'en')).toBe('7 minutes')
-    expect(relativeTime(now - 3 * 3_600_000, now, 'en')).toBe('3 hours')
-    expect(relativeTime(now - 3 * 86_400_000, now, 'en')).toBe('3 days')
+  it('says how long ago a note changed', () => {
+    expect(relativeTime(now - 5_000, now, 'en')).toBe('Just now')
+    expect(relativeTime(now - 60_000, now, 'en')).toBe('1 min ago')
+    expect(relativeTime(now - 7 * 60_000, now, 'en')).toBe('7 min ago')
+    expect(relativeTime(now - 3 * 3_600_000, now, 'en')).toBe('3 hr ago')
+    expect(relativeTime(now - 3 * 86_400_000, now, 'en')).toBe('3 days ago')
   })
 
   it('falls back to the date after a month', () => {
@@ -94,8 +94,8 @@ describe('rowDate', () => {
   const recent = now - 3 * 3_600_000
 
   it('shows how long ago in relative style', () => {
-    expect(rowDate(recent, now, 'en', 'relative')).toBe('3 hours')
-    expect(rowDate(now - 3 * 86_400_000, now, 'en', 'relative')).toBe('3 days')
+    expect(rowDate(recent, now, 'en', 'relative')).toBe('3 hr ago')
+    expect(rowDate(now - 3 * 86_400_000, now, 'en', 'relative')).toBe('3 days ago')
   })
 
   it('shows the time for today and the medium date otherwise in absolute style', () => {
@@ -156,10 +156,11 @@ describe('bookDeleteDetail', () => {
   })
 })
 
-describe('stampDate', () => {
-  it('writes the local date and time as YYYY-MM-DD HH:mm:ss, zero-padded', () => {
-    expect(stampDate(new Date(2026, 0, 5, 7, 8, 9).getTime())).toBe('2026-01-05 07:08:09')
-    expect(stampDate(new Date(2026, 9, 13, 23, 59, 30).getTime())).toBe('2026-10-13 23:59:30')
+describe('exactDate', () => {
+  it('writes the date and the time to the second', () => {
+    expect(exactDate(new Date(2026, 0, 5, 7, 8, 9).getTime(), 'en')).toMatch(
+      /^Jan 5, 2026, 7:08:09\sAM$/,
+    )
   })
 })
 

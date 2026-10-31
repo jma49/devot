@@ -10,7 +10,6 @@ import { Prec, RangeSetBuilder, type EditorState, type Extension } from '@codemi
 import {
   Decoration,
   EditorView,
-  GutterMarker,
   keymap,
   ViewPlugin,
   WidgetType,
@@ -26,7 +25,6 @@ import { iconElement } from '../icons/Icon'
 import { blockUnit, codeStyle, nextLine } from './codeIndent'
 import { context, TOOLBAR_PARSE_MS } from './formatContext'
 import { barsMayShow } from './barRules'
-import { markerField, type MarkerScan } from './gutterMarkers'
 import { BOX_INSET, BOX_MARGIN, BOX_PAD } from './boxes'
 import { buttonIn, motionKeyframes } from './motion'
 import { withLook } from './popupLook'
@@ -305,24 +303,6 @@ const boxes = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 )
 
-/**
- * The gutter beside a block's first line: padded as that line is (the
- * theme), so its number and fold chevron sit level with the opening fence.
- */
-class FirstLineGutter extends GutterMarker {
-  override elementClass = 'cm-codeblock-gutter-first'
-}
-const firstLineGutter = new FirstLineGutter()
-
-const scanFirstLines: MarkerScan = (state, from, to, mark, touch) => {
-  for (const block of fencedBlocks(state, from, to)) {
-    touch(block.from, block.to)
-    mark(state.doc.lineAt(block.from).from, firstLineGutter)
-  }
-}
-
-const gutterLines = markerField(scanFirstLines)
-
 export interface FenceLanguage {
   alias: string
   name: string
@@ -554,26 +534,21 @@ const theme = EditorView.theme({
     background: 'var(--color-code-block-bg)',
     borderInline: '1px solid var(--color-code-block-border)',
   },
-  // Above the lines under it: the copy button reaches down over them.
-  '.cm-line.cm-codeblock-first': { paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`, zIndex: '1' },
-  '.cm-line.cm-codeblock-last': { paddingBottom: `calc(${BOX_MARGIN} + var(--space-1))` },
+  // Every line keeps the editor's rhythm, so line numbers stay evenly spaced: the box reaches past
+  // its outer lines instead of padding them. Above the lines under it: the copy button reaches down over them.
+  '.cm-line.cm-codeblock-first': { zIndex: '1' },
   '.cm-line.cm-codeblock-first::before': {
-    top: BOX_MARGIN,
+    top: `calc(-1 * ${BOX_MARGIN})`,
     borderTop: '1px solid var(--color-code-block-border)',
     borderTopLeftRadius: 'var(--radius-button)',
     borderTopRightRadius: 'var(--radius-button)',
   },
   '.cm-line.cm-codeblock-last::before': {
-    bottom: BOX_MARGIN,
+    bottom: `calc(-1 * ${BOX_MARGIN})`,
     borderBottom: '1px solid var(--color-code-block-border)',
     borderBottomLeftRadius: 'var(--radius-button)',
     borderBottomRightRadius: 'var(--radius-button)',
   },
-  // A closing fence's backticks sit high in their line: the box's bottom comes
-  // up a little under them, so they stand as far from it as the opening
-  // fence stands from the top.
-  '.cm-line.cm-codeblock-closing': { paddingBottom: BOX_MARGIN },
-  '.cm-line.cm-codeblock-closing::before': { bottom: `calc(${BOX_MARGIN} + var(--space-1))` },
   // The active line's tint follows the block's shape. On the line itself it
   // squares off the box's rounded corners and fills the box's margins at the
   // block's ends, where the line reaches past the box.
@@ -590,16 +565,12 @@ const theme = EditorView.theme({
   '&:not(.cm-focused) .cm-line.cm-codeblock.cm-activeLine::before': {
     background: 'var(--color-code-block-bg)',
   },
-  '.cm-gutterElement.cm-codeblock-gutter-first': {
-    boxSizing: 'border-box',
-    paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`,
-  },
   '.cm-codeblock-fence, .cm-codeblock-fence *': { color: 'var(--color-syntax-markup)' },
   '.cm-codeblock-info, .cm-codeblock-info *': { color: 'var(--color-syntax-heading)' },
   '.cm-codeblock-copy': {
     position: 'absolute',
     // In the box's corner, as far from its top as from its side.
-    top: `calc(${BOX_MARGIN} + var(--space-2))`,
+    top: `calc(var(--space-2) - ${BOX_MARGIN})`,
     right: `calc(${BOX_PAD} + var(--space-2))`,
     display: 'flex',
     alignItems: 'center',
@@ -633,5 +604,5 @@ const theme = EditorView.theme({
 })
 
 export function codeBlocks(): Extension {
-  return [toolbarStateExtension, boxes, gutterLines, typingKeys, theme]
+  return [toolbarStateExtension, boxes, typingKeys, theme]
 }

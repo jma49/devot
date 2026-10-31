@@ -18,7 +18,15 @@ describe('the note info card', () => {
   it('hides Progress for a note without tasks', () => {
     const fields = infoFields(info, { done: 0, total: 0 }, 'en')
     expect(fields.map((f) => f.key)).toEqual(['created', 'updated'])
-    expect(fields.map((f) => f.value)).toEqual(['2026-10-13 01:43:54', '2026-10-13 01:57:24'])
+    // Intl separates the day period with a narrow no-break space or a space, by ICU version.
+    expect(fields.map((f) => f.value.replace(/\s/g, ' '))).toEqual([
+      'Oct 13, 2026, 1:43 AM',
+      'Oct 13, 2026, 1:57 AM',
+    ])
+    expect(fields.map((f) => f.exact?.replace(/\s/g, ' '))).toEqual([
+      'Oct 13, 2026, 1:43:54 AM',
+      'Oct 13, 2026, 1:57:24 AM',
+    ])
     expect(fields.map((f) => f.label)).toEqual(['Created at', 'Updated at'])
   })
 

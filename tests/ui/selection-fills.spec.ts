@@ -12,7 +12,7 @@ const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).ge
 const allNotes = (page: Page) =>
   page.getByRole('navigation', { name: 'Sidebar' }).getByRole('button', { name: /^All Notes/ })
 
-test('a selected row is washed in the sidebar and the note list; both bar it when focused', async ({
+test('a selected row is washed in the accent in the pane with the keyboard, neutral elsewhere', async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' })
@@ -23,23 +23,22 @@ test('a selected row is washed in the sidebar and the note list; both bar it whe
   await expect(row).toHaveAttribute('aria-selected', 'true')
   await expect(allNotes(page)).toHaveAttribute('aria-current', 'true')
 
-  // The title field has the keyboard: both lists show the wash.
+  // The title field has the keyboard: neither list does, so both draw the neutral fill.
   await page.getByRole('textbox', { name: 'Title' }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toBeFocused()
-  const wash = await background(row)
-  const sidebarWash = await background(allNotes(page))
-  expect(wash).not.toBe('rgba(0, 0, 0, 0)')
-  expect(sidebarWash).not.toBe('rgba(0, 0, 0, 0)')
+  const neutral = await background(row)
+  expect(neutral).not.toBe('rgba(0, 0, 0, 0)')
+  await expect.poll(() => background(allNotes(page))).toBe(neutral)
 
-  // The note list has it: its selection keeps the wash, the sidebar's too.
+  // The note list has it: its selection takes the accent wash, the sidebar's stays neutral.
   await row.click()
   await expect(row).toBeFocused()
-  await expect.poll(() => background(row)).toBe(wash)
-  await expect.poll(() => background(allNotes(page))).toBe(sidebarWash)
+  await expect.poll(() => background(row)).not.toBe(neutral)
+  await expect.poll(() => background(allNotes(page))).toBe(neutral)
 
-  // The sidebar has it: the same wash, plus the bar on the row's left edge.
+  // The sidebar has it: its accent wash and the bar; the list goes neutral.
   await allNotes(page).focus()
-  await expect.poll(() => background(allNotes(page))).toBe(sidebarWash)
+  await expect.poll(() => background(allNotes(page))).not.toBe(neutral)
   await expect(allNotes(page)).toHaveCSS('box-shadow', /^rgb.* 5px 0px 0px 0px inset$/)
-  await expect.poll(() => background(row)).toBe(wash)
+  await expect.poll(() => background(row)).toBe(neutral)
 })
