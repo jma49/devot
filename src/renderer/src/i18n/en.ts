@@ -1283,6 +1283,7 @@ title: Daily Report {{date}}
   'import.treeLabel': 'Folders found',
   'import.folderCounts': '{files} \u00b7 {images} \u00b7 {size}',
   'import.notebookBadge': 'Notebook',
+  'import.treeSummary': '{books} \u00b7 {notes}',
   'import.willSkip': 'Will be skipped',
   'import.markdownOne': '{count} Markdown file',
   'import.markdownOther': '{count} Markdown files',

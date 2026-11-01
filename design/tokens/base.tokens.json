@@ -1648,6 +1648,30 @@
       },
       "$description": "Glass interface: the padding where groups and buttons meet a dialog's edge; radius.glass-dialog minus this is radius.glass-group."
     },
+    "glass-dialog-button": {
+      "$type": "dimension",
+      "$value": {
+        "value": 28,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a dialog's capsule button; half of this plus size.glass-dialog-inset is radius.glass-dialog."
+    },
+    "glass-dialog-row": {
+      "$type": "dimension",
+      "$value": {
+        "value": 36,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a row of an inset group in a dialog."
+    },
+    "glass-badge": {
+      "$type": "dimension",
+      "$value": {
+        "value": 18,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a tinted capsule badge in a dialog row."
+    },
     "glass-palette-inset": {
       "$type": "dimension",
       "$value": {

@@ -563,6 +563,16 @@
           "alpha": 0.3
         }
       },
+      "glass-backdrop": {
+        "$type": "color",
+        "$description": "Glass interface: the dim behind a modal dialog, lighter in dark so the glass still reads as glass.",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0, 0, 0],
+          "hex": "#000000",
+          "alpha": 0.3
+        }
+      },
       "field": {
         "$type": "color",
         "$value": {

@@ -73,3 +73,10 @@ export function importTree(scan: ImportScan): ImportFolder {
   sort(root)
   return root
 }
+
+export function notebookCount(folder: ImportFolder): number {
+  return folder.folders.reduce(
+    (count, child) => count + notebookCount(child),
+    folder.notebook ? 1 : 0,
+  )
+}

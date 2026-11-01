@@ -229,6 +229,8 @@ export const LUCIDE_ICONS = {
   'slash.remoteImage': ImagesIcon,
   'slash.noteLink': FileTextIcon,
   'alert.note': InfoIcon,
+  'import.folder': FolderIcon,
+  'import.hint': InfoIcon,
   'alert.tip': LightbulbIcon,
   'alert.important': MessageSquareWarningIcon,
   'alert.warning': TriangleAlertIcon,

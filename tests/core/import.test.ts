@@ -16,6 +16,7 @@ import {
   imageLinks,
   importMarkdown,
   importTree,
+  notebookCount,
   lineFeeds,
   preparerHere,
   replaceRanges,
@@ -848,6 +849,13 @@ describe('import preview', () => {
         ],
       ],
     ])
+  })
+
+  it('counts the notebooks an import makes, at every depth', () => {
+    expect(
+      notebookCount(importTree(scan('folders', ['Home/a.md', 'Work/b.md', 'Work/Sub/c.md']))),
+    ).toBe(3)
+    expect(notebookCount(importTree(scan('folder', ['top.md'])))).toBe(0)
   })
 
   it('makes each of several picked folders a notebook', () => {

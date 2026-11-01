@@ -119,6 +119,8 @@
     "slash.remoteImage": "photo.on.rectangle.angled",
     "slash.noteLink": "doc.text",
     "alert.note": "info.circle",
+    "import.folder": "folder",
+    "import.hint": "info.circle",
     "alert.tip": "lightbulb",
     "alert.important": "exclamationmark.bubble",
     "alert.warning": "exclamationmark.triangle",
