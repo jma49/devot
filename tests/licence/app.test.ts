@@ -58,11 +58,13 @@ async function build(kid = 'test') {
     stripe,
     mailer,
     signer: await signerFromSeed(kid, seed),
+    publicKeys,
     config: {
       managedPayments,
       priceLicence: 'price_licence',
       cancelUrl: undefined,
       webhookSecret: WEBHOOK_SECRET,
+      maxDevices: 3,
     },
     rateSecret: new Uint8Array(32).fill(1),
     defer: (work) => pending.push(work),

@@ -36,6 +36,19 @@ export const MESSAGES = {
     'If that address bought a licence, its key is on its way. It may take a few minutes; you can ask again in an hour.',
   errorTitle: 'Something went wrong',
   errorCode: 'Error code',
+  devicesTitle: 'Devices on your licence',
+  devicesBody:
+    'Paste your licence key to see the devices it is activated on. Removing a device frees its seat; the device keeps working offline until its lease runs out (at most 30 days).',
+  devicesField: 'Licence key',
+  devicesButton: 'Show devices',
+  devicesCount: 'devices in use, of',
+  devicesEmpty: 'No device is activated on this licence yet.',
+  devicesSeat: 'Device',
+  devicesAdded: 'Added',
+  devicesSeen: 'Last seen',
+  devicesRemove: 'Remove',
+  devicesRemoved: 'That device no longer holds a seat.',
+  devicesUnknown: 'That device is not activated on this licence.',
   errors: {
     E_LICENCE_BAD_REQUEST: 'That request is not one this page understands.',
     E_LICENCE_CONFIG: 'The licence service is not set up yet. Please try again later.',
@@ -50,6 +63,12 @@ export const MESSAGES = {
     E_LICENCE_TOO_LARGE: 'That request is too large.',
     E_LICENCE_UNPAID: 'This purchase is not paid yet.',
     E_LICENCE_WEBHOOK_SIGNATURE: 'That request is not signed.',
+    E_LICENCE_MALFORMED: 'That is not a licence key.',
+    E_LICENCE_UNKNOWN_KID: 'That key was signed by a key this version does not know.',
+    E_LICENCE_SIGNATURE: 'That key is not signed by Devot.',
+    E_LICENCE_DEVICE_LIMIT:
+      'Every device this licence allows is in use. Remove one, then try again.',
+    E_LICENCE_RATE_LIMITED: 'Too many attempts. Please try again in a while.',
   },
   mail: {
     issuedSubject: 'Your Devot licence',

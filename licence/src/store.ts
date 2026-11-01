@@ -53,6 +53,20 @@ export interface Fulfilled {
   created: boolean
 }
 
+/** One device's seat on a licence; `label` is what the buyer called it. */
+export interface Activation {
+  device: string
+  label: string
+  createdAt: string
+  lastSeenAt: string
+}
+
+export interface ActivationResult {
+  activation: Activation
+  /** The seats in use after this call, the licence's limit included. */
+  used: number
+}
+
 export interface Store {
   licence(id: string): Promise<Licence | null>
   purchase(sessionId: string): Promise<PurchaseRecord | null>
@@ -78,6 +92,20 @@ export interface Store {
   revokedIds(): Promise<string[]>
   /** Counts a hit on `key` in `window` and returns the window's count so far. */
   hit(key: string, window: number): Promise<number>
+  /**
+   * Takes a seat for `device`, or refreshes one it holds; null when the licence has no seat left.
+   * The count and the insert are one statement, so two devices cannot take the last seat twice.
+   */
+  activate(
+    licenceId: string,
+    device: string,
+    label: string,
+    at: string,
+    limit: number,
+  ): Promise<ActivationResult | null>
+  /** Frees a seat; false when the device held none. */
+  deactivate(licenceId: string, device: string): Promise<boolean>
+  activations(licenceId: string): Promise<Activation[]>
 }
 
 interface LicenceRow {
@@ -99,6 +127,13 @@ interface PurchaseRow {
   email_hash: string | null
 }
 
+interface ActivationRow {
+  device: string
+  label: string
+  created_at: string
+  last_seen_at: string
+}
+
 const toLicence = (row: LicenceRow): Licence => ({
   id: row.id,
   sessionId: row.session_id,
@@ -116,6 +151,13 @@ const toPurchase = (row: PurchaseRow): PurchaseRecord => ({
   mailedAt: row.mailed_at,
   claimedAt: row.claimed_at,
   emailHash: row.email_hash,
+})
+
+const toActivation = (row: ActivationRow): Activation => ({
+  device: row.device,
+  label: row.label,
+  createdAt: row.created_at,
+  lastSeenAt: row.last_seen_at,
 })
 
 export function d1Store(db: SqlDatabase): Store {
@@ -243,6 +285,48 @@ export function d1Store(db: SqlDatabase): Store {
         .prepare('SELECT id FROM licences WHERE revoked_at IS NOT NULL ORDER BY id')
         .all<{ id: string }>()
       return results.map((row) => row.id)
+    },
+
+    async activate(licenceId, device, label, at, limit) {
+      const { results } = await db
+        .prepare(
+          `INSERT INTO activations (licence_id, device, label, created_at, last_seen_at)
+           SELECT ?1, ?2, ?3, ?4, ?4
+           WHERE (SELECT COUNT(*) FROM activations WHERE licence_id = ?1) < ?5
+              OR EXISTS (SELECT 1 FROM activations WHERE licence_id = ?1 AND device = ?2)
+           ON CONFLICT (licence_id, device) DO UPDATE SET
+             last_seen_at = excluded.last_seen_at,
+             label = excluded.label
+           RETURNING device, label, created_at, last_seen_at`,
+        )
+        .bind(licenceId, device, label, at, limit)
+        .all<ActivationRow>()
+      const row = results[0]
+      if (!row) return null
+      const { results: counted } = await db
+        .prepare('SELECT COUNT(*) AS n FROM activations WHERE licence_id = ?')
+        .bind(licenceId)
+        .all<{ n: number }>()
+      return { activation: toActivation(row), used: Number(counted[0]?.n ?? 1) }
+    },
+
+    async deactivate(licenceId, device) {
+      const result = await db
+        .prepare('DELETE FROM activations WHERE licence_id = ?1 AND device = ?2')
+        .bind(licenceId, device)
+        .run()
+      return changes(result) > 0
+    },
+
+    async activations(licenceId) {
+      const { results } = await db
+        .prepare(
+          `SELECT device, label, created_at, last_seen_at FROM activations
+           WHERE licence_id = ? ORDER BY created_at, device`,
+        )
+        .bind(licenceId)
+        .all<ActivationRow>()
+      return results.map(toActivation)
     },
 
     async hit(key, window) {

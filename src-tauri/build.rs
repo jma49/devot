@@ -72,6 +72,7 @@ fn main() {
             "licence_get",
             "licence_set",
             "licence_remove",
+            "licence_refresh",
             "sync_get",
             "sync_set",
             "sync_vault_create",

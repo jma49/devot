@@ -45,6 +45,11 @@ p{margin:0 0 1rem}
 .form label{flex-basis:100%;font-weight:600;font-size:.9375rem}
 .form input{flex:1 1 14rem;min-width:0;min-height:3rem;padding:0 1rem;border:1px solid var(--color-line-control);border-radius:12px;background:var(--color-fill-field);color:var(--color-text-primary);font:inherit}
 .code{color:var(--color-text-secondary);font-size:.875rem}
+.devices{list-style:none;margin:1.5rem 0;padding:0;display:grid;gap:.75rem}
+.devices li{display:grid;gap:.25rem;padding:1rem 1.125rem;border:1px solid var(--color-line-separator);border-radius:12px;background:var(--color-fill-card)}
+.devices .muted{font-size:.875rem;overflow-wrap:anywhere}
+.devices form{margin:.5rem 0 0}
+.devices .button{min-height:2.5rem;padding:0 1rem;font-size:.9375rem}
 .code code{font-family:var(--font-mono)}
 .wait{display:flex;align-items:center;gap:.75rem}
 .spinner{flex:none;width:1.25rem;height:1.25rem;border:2px solid var(--color-line-control);border-top-color:var(--brand);border-radius:50%;animation:spin 1s linear infinite}

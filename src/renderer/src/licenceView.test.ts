@@ -12,6 +12,7 @@ import {
   planLicenceLink,
   reminderDue,
   reminderText,
+  seatSentence,
   stateSentence,
   timeLeft,
   trialSentence,
@@ -30,6 +31,7 @@ const held = (over: Partial<LicenceSnapshot> = {}): LicenceSnapshot => ({
   licensee: 'buyer@example.com',
   plan: 'pro',
   trial: { state: 'ended', endsAt: END, code: null },
+  activation: null,
   ...over,
 })
 const none: LicenceSnapshot = {
@@ -50,6 +52,13 @@ describe('readLicence', () => {
     expect(readLicence({ ...held(), state: 'updatesEnded' })).toBeUndefined()
     expect(readLicence({ state: 'none' })).toBeUndefined()
     expect(readLicence(null)).toBeUndefined()
+    expect(
+      readLicence({ ...held(), activation: { state: 'active', used: 2, limit: 3, expiresAt: END } })
+        ?.activation,
+    ).toEqual({ state: 'active', used: 2, limit: 3, expiresAt: END })
+    expect(
+      readLicence({ ...held(), activation: { state: 'seat', used: 2 } })?.activation,
+    ).toBeNull()
   })
 })
 
@@ -71,6 +80,15 @@ describe('what the windows say', () => {
     expect(stateSentence({ ...none, state: 'invalid', code: 'E_LICENCE_SIGNATURE' })).toMatch(
       /could not be verified \(E_LICENCE_SIGNATURE\)/,
     )
+  })
+
+  it('says how many seats are in use, and why a device is not activated', () => {
+    const seat = { state: 'active' as const, used: 2, limit: 3, expiresAt: END }
+    expect(seatSentence(held({ activation: seat }))).toBe('2 of 3 devices are in use.')
+    expect(seatSentence(held({ activation: { ...seat, state: 'expired' } }))).toMatch(
+      /^2 of 3 devices are in use\..*expired/,
+    )
+    expect(seatSentence(held())).toBeNull()
   })
 
   it('says why a key was refused', () => {

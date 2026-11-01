@@ -25,7 +25,7 @@ import { LivePreview } from '../preview/Preview'
 import { SaveNotice } from '../SaveNotice'
 import { createQuitGuard, newProblems } from '../saving'
 import { textStore } from '../textStore'
-import { TrialEndedBar } from '../TrialNotices'
+import { ActivationBar, TrialEndedBar } from '../TrialNotices'
 
 export const CLOSE_EVENT = 'devot:note-window-close'
 export const FLUSH_EVENT = 'devot:flush-before-exit'
@@ -333,6 +333,7 @@ export function NoteWindow() {
         ) : null}
       </main>
       <Notices>
+        <ActivationBar />
         <TrialEndedBar />
         {gone ? (
           <div role="alert" className="notice" data-devot-part="notice">

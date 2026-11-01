@@ -29,6 +29,16 @@ export interface TrialSnapshot {
   code: string | null
 }
 
+export type ActivationState = 'active' | 'required' | 'expired'
+
+/** This device's seat on the licence, as Rust reports it (docs/licensing.md, Activation). */
+export interface ActivationSnapshot {
+  state: ActivationState
+  used: number
+  limit: number
+  /** Milliseconds since the epoch; null when no lease is held. */
+  expiresAt: number | null
+}
 export interface LicenceSnapshot {
   /** Whether this build needs a licence or the trial for editing, sync and AI at all. */
   gated: boolean
@@ -39,6 +49,7 @@ export interface LicenceSnapshot {
   plan: 'pro' | null
   /** Null while the build gates nothing. */
   trial: TrialSnapshot | null
+  activation: ActivationSnapshot | null
 }
 
 /** Until Rust answers, nothing shows as locked: Rust refuses on its own when it must. */
@@ -50,6 +61,7 @@ export const LICENCE_UNKNOWN: LicenceSnapshot = {
   licensee: null,
   plan: null,
   trial: null,
+  activation: null,
 }
 
 const CODE = /^[EWI]_[A-Z0-9_]+$/
@@ -62,6 +74,24 @@ export const isLicenceState = (value: unknown): value is LicenceState =>
 
 const isTrialState = (value: unknown): value is TrialState =>
   typeof value === 'string' && (TRIAL_STATES as readonly string[]).includes(value)
+
+const ACTIVATION_STATES: readonly string[] = ['active', 'required', 'expired']
+const isActivationState = (value: unknown): value is ActivationState =>
+  typeof value === 'string' && ACTIVATION_STATES.includes(value)
+
+function readActivation(value: unknown): ActivationSnapshot | null {
+  if (typeof value !== 'object' || value === null) return null
+  const v = value as Record<string, unknown>
+  if (!isActivationState(v['state'])) return null
+  const count = (n: unknown) => (typeof n === 'number' && Number.isSafeInteger(n) && n >= 0 ? n : 0)
+  const expiresAt = v['expiresAt']
+  return {
+    state: v['state'],
+    used: count(v['used']),
+    limit: count(v['limit']),
+    expiresAt: typeof expiresAt === 'number' && Number.isSafeInteger(expiresAt) ? expiresAt : null,
+  }
+}
 
 function readTrial(value: unknown): TrialSnapshot | null {
   if (typeof value !== 'object' || value === null) return null
@@ -101,6 +131,7 @@ export function readLicence(value: unknown): LicenceSnapshot | undefined {
     trial: v['gated']
       ? (readTrial(v['trial']) ?? { state: 'ended', endsAt: null, code: null })
       : null,
+    activation: readActivation(v['activation']),
   }
 }
 
@@ -187,6 +218,7 @@ export const licenceEntitlements: Entitlements = createEntitlements({
       state: snapshot.state,
       plan: snapshot.plan,
       trial: trialRunning(snapshot, Date.now()) ? 'running' : 'ended',
+      activation: snapshot.activation?.state ?? null,
     }),
   },
 })
@@ -220,6 +252,20 @@ export async function removeLicence(): Promise<LicenceSnapshot> {
 const open = (url: string) =>
   void invoke('open_external', { url }).catch(() => console.warn('W_OPEN_EXTERNAL_FAILED'))
 
+/** Asks Rust for this device's seat now (Settings > Licence's Retry). */
+export async function refreshLicence(): Promise<LicenceSnapshot> {
+  const next = readLicence(await invoke<unknown>('licence_refresh'))
+  publish(next)
+  return next ?? snapshot
+}
+
+/** The page where a buyer frees a seat on a device they no longer have. */
+export const DEVICES_URL = `${LICENCE_SITE}/devices`
+export const openDevices = () => open(DEVICES_URL)
+
+/** Retry Activation, from the notice: a failure changes nothing and the seat sentence says why. */
+export const retryLicence = () =>
+  void refreshLicence().catch(() => console.warn('W_LICENCE_REFRESH_FAILED'))
 export const openBuy = () => open(BUY_URL)
 
 /** Add Licence: Settings, at the Licence pane. */

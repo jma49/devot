@@ -10,6 +10,7 @@ use ed25519_dalek::{Signature, VerifyingKey};
 use serde_json::{Map, Value};
 
 pub(crate) const LICENCE_PREFIX: &str = "devot1";
+pub(crate) const ACTIVATION_PREFIX: &str = "devot1dev";
 pub(crate) const REVOCATIONS_PREFIX: &str = "devot1rev";
 pub(crate) const PLAN: &str = "pro";
 pub(crate) const MAX_LENGTH: usize = 1024;
@@ -49,6 +50,25 @@ impl fmt::Debug for Payload {
     }
 }
 
+/// A device's seat on a licence, signed by the Worker and checked offline (docs/licensing.md,
+/// Activation). `Debug` shows the ids alone.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct Activation {
+    pub id: String,
+    pub device: String,
+    pub issued_at: String,
+    pub expires_at: String,
+}
+
+impl fmt::Debug for Activation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Activation")
+            .field("id", &self.id)
+            .field("device", &self.device)
+            .finish_non_exhaustive()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Revocations {
     pub kid: String,
@@ -63,6 +83,19 @@ pub(crate) trait KeyRing {
 
 pub(crate) fn verify_licence(key: &str, keys: &dyn KeyRing) -> Result<Payload, VerifyError> {
     verify_envelope(key, LICENCE_PREFIX, MAX_LENGTH, keys, licence_payload)
+}
+
+pub(crate) fn verify_activation(
+    lease: &str,
+    keys: &dyn KeyRing,
+) -> Result<Activation, VerifyError> {
+    verify_envelope(
+        lease,
+        ACTIVATION_PREFIX,
+        MAX_LENGTH,
+        keys,
+        activation_payload,
+    )
 }
 
 pub(crate) fn verify_revocations(
@@ -147,6 +180,10 @@ fn is_instant(text: &str) -> bool {
     shaped(text, b"9999-99-99T99:99:99Z")
 }
 
+pub(crate) fn is_device_id(text: &str) -> bool {
+    is_licence_id(text)
+}
+
 fn text<'a>(object: &'a Map<String, Value>, field: &str) -> Option<&'a str> {
     object.get(field).and_then(Value::as_str)
 }
@@ -186,6 +223,23 @@ fn revocations_payload(object: &Map<String, Value>) -> Option<(Revocations, Stri
             kid: kid.to_owned(),
             issued_at: issued_at.to_owned(),
             ids,
+        },
+        kid.to_owned(),
+    ))
+}
+
+fn activation_payload(object: &Map<String, Value>) -> Option<(Activation, String)> {
+    let id = text(object, "id").filter(|id| is_licence_id(id))?;
+    let device = text(object, "device").filter(|d| is_device_id(d))?;
+    let kid = text(object, "kid")?;
+    let issued_at = text(object, "issuedAt").filter(|t| is_instant(t))?;
+    let expires_at = text(object, "expiresAt").filter(|t| is_instant(t))?;
+    Some((
+        Activation {
+            id: id.to_owned(),
+            device: device.to_owned(),
+            issued_at: issued_at.to_owned(),
+            expires_at: expires_at.to_owned(),
         },
         kid.to_owned(),
     ))

@@ -167,6 +167,7 @@ pub fn run() {
             licence::licence_get,
             licence::licence_set,
             licence::licence_remove,
+            licence::licence_refresh,
             link_info::link_title,
             link_info::github_snippet,
             #[cfg(desktop)]
@@ -374,13 +375,25 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     let editor_settings = std::sync::Arc::new(editor_settings);
     app.manage(std::sync::Arc::clone(&editor_settings));
     let identifier = &app.config().identifier;
-    let licence = std::sync::Arc::new(licence::Licence::new(
-        licence::PublicKeys::built_in(),
-        std::sync::Arc::new(licence::Keychain::new(identifier, licence::LICENCE_ACCOUNT)),
-        std::sync::Arc::new(licence::Keychain::new(identifier, licence::TRIAL_ACCOUNT)),
-        data_dir,
-        licence_emitter(app.handle().clone()),
-    ));
+    let licence = std::sync::Arc::new(
+        licence::Licence::new(
+            licence::PublicKeys::built_in(),
+            std::sync::Arc::new(licence::Keychain::new(identifier, licence::LICENCE_ACCOUNT)),
+            std::sync::Arc::new(licence::Keychain::new(identifier, licence::TRIAL_ACCOUNT)),
+            data_dir,
+            licence_emitter(app.handle().clone()),
+        )
+        .with_activation(
+            std::sync::Arc::new(licence::Keychain::new(identifier, licence::DEVICE_ACCOUNT)),
+            std::sync::Arc::new(licence::Keychain::new(
+                identifier,
+                licence::ACTIVATION_ACCOUNT,
+            )),
+            std::sync::Arc::new(|key, device, label| {
+                licence::client::activate_from_site(key, device, label)
+            }),
+        ),
+    );
     app.manage(std::sync::Arc::clone(&licence));
     // Every write of user content asks the licence first (docs/licensing.md, The app).
     let gate = licence::Gate::of(&licence);

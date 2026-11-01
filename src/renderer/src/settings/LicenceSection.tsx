@@ -2,9 +2,16 @@ import { useEffect, useId, useState } from 'react'
 import { errorCode } from '../backups'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { currentLocale, format, t } from '../i18n'
-import { addLicence, removeLicence, startLicence, useLicence } from '../licence'
+import {
+  addLicence,
+  openDevices,
+  refreshLicence,
+  removeLicence,
+  startLicence,
+  useLicence,
+} from '../licence'
 import { LicenceButton } from '../LicenceLocked'
-import { licenceProblem, stateSentence, trialSentence } from '../licenceView'
+import { licenceProblem, seatSentence, stateSentence, trialSentence } from '../licenceView'
 import { Setting, SettingsNote, SettingsSection } from './controls'
 
 const MINUTE_MS = 60_000
@@ -34,6 +41,7 @@ export function LicenceSection() {
   const [announcement, setAnnouncement] = useState('')
   const [confirming, setConfirming] = useState(false)
   const now = useMinutes()
+  const [refreshing, setRefreshing] = useState(false)
   const trial = trialSentence(licence, now, currentLocale())
 
   useEffect(() => startLicence(), [])
@@ -72,6 +80,22 @@ export function LicenceSection() {
       },
     )
   }
+  const retry = () => {
+    if (refreshing) return
+    setRefreshing(true)
+    void refreshLicence()
+      .then(
+        () => {
+          setError(undefined)
+          setAnnouncement(t('licenceSettings.devices.refreshed'))
+        },
+        (e: unknown) => {
+          setAnnouncement('')
+          setError(format(t('licenceSettings.devices.refreshFailed'), { code: errorCode(e) }))
+        },
+      )
+      .finally(() => setRefreshing(false))
+  }
 
   return (
     <section className="settings-section" aria-labelledby="licence-title">
@@ -103,6 +127,23 @@ export function LicenceSection() {
             {null}
           </Setting>
         )}
+        {licence.activation ? (
+          <Setting label="licenceSettings.devices" description={seatSentence(licence) ?? ''}>
+            <div className="settings-buttons">
+              {licence.activation.state === 'active' &&
+              !['E_LICENCE_DEVICE_LIMIT', 'E_LICENCE_ACTIVATION_REQUIRED'].includes(
+                licence.code ?? '',
+              ) ? null : (
+                <button type="button" className="button" aria-disabled={refreshing} onClick={retry}>
+                  {t('licenceSettings.devices.retry')}
+                </button>
+              )}
+              <button type="button" className="button" onClick={() => openDevices()}>
+                {t('licenceSettings.devices.manage')}
+              </button>
+            </div>
+          </Setting>
+        ) : null}
         {licence.licensee ? (
           <Setting label="licenceSettings.licensee" description={licence.licensee}>
             {null}

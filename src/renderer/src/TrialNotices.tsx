@@ -2,8 +2,15 @@
 // over without a licence), and once, in the trial's last day, when it ends.
 import { useEffect, useRef, useState } from 'react'
 import { currentLocale, t } from './i18n'
-import { openBuy, openLicenceSettings, useLicence, useTrialOver } from './licence'
-import { reminderDue, reminderText, REMINDER_MS } from './licenceView'
+import {
+  openBuy,
+  openDevices,
+  openLicenceSettings,
+  retryLicence,
+  useLicence,
+  useTrialOver,
+} from './licence'
+import { licenceProblem, reminderDue, reminderText, REMINDER_MS } from './licenceView'
 
 const REMINDED_KEY = 'devot.trial.reminded'
 
@@ -67,6 +74,34 @@ export function TrialEndedBar() {
     <div ref={bar} role="status" className="notice" data-devot-part="notice" data-devot-trial-ended>
       <span className="notice-text">{t('trial.ended')}</span>
       <TrialButtons />
+    </div>
+  )
+}
+
+/**
+ * Stays while this device holds a key but no live seat: editing is read-only and sync and AI are
+ * locked, and the trial's bar does not show because the licence is valid.
+ */
+export function ActivationBar() {
+  const licence = useLicence()
+  const seat = licence.activation
+  if (!licence.gated || !seat || seat.state === 'active') return null
+  const text = licence.code
+    ? licenceProblem(licence.code)
+    : t(
+        seat.state === 'expired'
+          ? 'licenceSettings.devices.expired'
+          : 'licenceSettings.devices.required',
+      )
+  return (
+    <div role="status" className="notice" data-devot-part="notice" data-devot-activation>
+      <span className="notice-text">{text}</span>
+      <button type="button" className="button" onClick={retryLicence}>
+        {t('licenceSettings.devices.retry')}
+      </button>
+      <button type="button" className="button" onClick={openDevices}>
+        {t('licenceSettings.devices.manage')}
+      </button>
     </div>
   )
 }

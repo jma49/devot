@@ -10,6 +10,9 @@
 //! The key and the licensee's address never reach a log, an error or a crash report: logs carry
 //! codes and the licence ID.
 
+mod activation;
+pub(crate) mod client;
+mod device;
 mod format;
 mod keys;
 mod revoked;
@@ -27,8 +30,13 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use serde::Serialize;
 use tauri::State as Tauri;
 
+pub(crate) use activation::ACTIVATION_ACCOUNT;
+pub(crate) use client::Reply as ActivationReply;
+pub(crate) use device::DEVICE_ACCOUNT;
 pub(crate) use format::MAX_LENGTH;
-use format::{Payload, Revocations, VerifyError, verify_licence, verify_revocations};
+use format::{
+    Payload, Revocations, VerifyError, verify_activation, verify_licence, verify_revocations,
+};
 pub(crate) use keys::PublicKeys;
 pub(crate) use revoked::refresh_from_site as refresh_revocations;
 pub(crate) use store::{KeyStore, Keychain, LICENCE_ACCOUNT, REVOCATIONS_FILE, TRIAL_ACCOUNT};
@@ -43,6 +51,11 @@ pub(crate) const REQUIRED: &str = "E_LICENCE_REQUIRED";
 const MAX_INPUT: usize = 4 * MAX_LENGTH;
 /// How often the trial is looked at while Devot runs: its end reaches the windows within this.
 const TICK: std::time::Duration = std::time::Duration::from_secs(60);
+/// A note's text and history are still written this long after a seat runs out, so a save in
+/// flight lands (the trial's grace is the same idea).
+const SEAT_GRACE_MS: i64 = 5 * 60_000;
+/// How many licences a device remembers having tried; past this the oldest is forgotten.
+const MAX_ATTEMPTED: usize = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,6 +80,18 @@ pub(crate) struct Snapshot {
     pub plan: Option<&'static str>,
     /// None while the build gates nothing.
     pub trial: Option<TrialView>,
+    /// This device's seat, in a build that manages them; None otherwise.
+    pub activation: Option<ActivationView>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ActivationView {
+    pub state: activation::State,
+    pub used: u32,
+    pub limit: u32,
+    /// Milliseconds since the epoch.
+    pub expires_at: Option<i64>,
 }
 
 impl fmt::Debug for Snapshot {
@@ -105,6 +130,17 @@ struct Held {
     key: Kept,
     revocations: Option<Revocations>,
 }
+/// Asks the Worker for a seat: the key, this device's ID and its label.
+pub(crate) type Activator =
+    Arc<dyn Fn(&str, &str, &str) -> Result<ActivationReply, &'static str> + Send + Sync>;
+/// What the devices page and the Worker's logs show for this build.
+const DEVICE_LABEL: &str = if cfg!(target_os = "macos") {
+    "Devot for macOS"
+} else if cfg!(target_os = "ios") {
+    "Devot for iPhone"
+} else {
+    "Devot"
+};
 
 pub(crate) type Emit = Arc<dyn Fn(&Snapshot) + Send + Sync>;
 /// Milliseconds since the epoch.
@@ -142,6 +178,17 @@ pub(crate) struct Licence {
     ticked: Mutex<Option<Snapshot>>,
     clock: Clock,
     emit: Emit,
+    device_store: Option<Arc<dyn KeyStore>>,
+    activation_store: Option<Arc<dyn KeyStore>>,
+    /// The lease and the seats it reported, read from the keychain once.
+    activation: Mutex<Option<activation::Stored>>,
+    device: Mutex<Option<String>>,
+    activator: Activator,
+    /// Why the last activation attempt failed, for the snapshot's code; cleared on success.
+    seat_error: Mutex<Option<&'static str>>,
+    /// Why the seat item could not be read: a managed device with no readable seat is locked,
+    /// and the read is tried again at the next tick rather than at every write.
+    seat_unread: Mutex<Option<&'static str>>,
 }
 
 /// Keeps every character a key can hold; spaces and line breaks a mail client wrapped it with go.
@@ -170,9 +217,30 @@ impl Licence {
             trial_store,
             trial: Mutex::new(None),
             ticked: Mutex::new(None),
+            device_store: None,
+            activation_store: None,
+            activation: Mutex::new(None),
+            device: Mutex::new(None),
+            activator: Arc::new(client::activate_from_site),
+            seat_error: Mutex::new(None),
+            seat_unread: Mutex::new(None),
             clock: Arc::new(system_now),
             emit,
         }
+    }
+
+    /// Manages this device's seats (docs/licensing.md, Activation). Without it the licence is the
+    /// key alone, as before seats existed.
+    pub(crate) fn with_activation(
+        mut self,
+        device_store: Arc<dyn KeyStore>,
+        activation_store: Arc<dyn KeyStore>,
+        activator: Activator,
+    ) -> Self {
+        self.device_store = Some(device_store);
+        self.activation_store = Some(activation_store);
+        self.activator = activator;
+        self
     }
 
     #[cfg(test)]
@@ -283,6 +351,7 @@ impl Licence {
             licensee: None,
             plan: None,
             trial: None,
+            activation: None,
         };
         match &held.key {
             None => empty,
@@ -301,8 +370,12 @@ impl Licence {
         }
     }
 
+    /// The key's state, then this device's seat. The seat is read outside `held`: its keychain
+    /// reads must never nest inside another keychain use, which `put` takes in the other order.
     fn key_snapshot(&self) -> Snapshot {
-        self.with_held(|held| self.snapshot_of(held))
+        let now = (self.clock)();
+        let mut snapshot = self
+            .with_held(|held| self.snapshot_of(held))
             .unwrap_or_else(|code| Snapshot {
                 gated: self.keys.gated(),
                 state: LicenceState::None,
@@ -311,7 +384,341 @@ impl Licence {
                 licensee: None,
                 plan: None,
                 trial: None,
-            })
+                activation: None,
+            });
+        if snapshot.state == LicenceState::Valid
+            && let Some(id) = snapshot.id.as_deref()
+        {
+            let issued_at = self
+                .with_held(|held| {
+                    held.key
+                        .as_ref()
+                        .and_then(|(_, payload)| payload.as_ref().ok())
+                        .map(|payload| payload.issued_at.clone())
+                })
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            let mut check = self.activation_check(id, now);
+            // A key sold before seats existed, on a device that has not reached the Worker yet,
+            // gets its 30 days. A key sold since, a refused request, or one never held from
+            // before does not.
+            if check
+                .as_ref()
+                .is_some_and(|c| c.state == activation::State::Required && c.expires_at.is_none())
+                && activation::predates_seats(&issued_at)
+                && !self.attempted_for(id)
+            {
+                self.start_migration(id);
+                check = self.activation_check(id, now);
+            }
+            match check {
+                Some(check) => {
+                    // A failed attempt explains a usable migration window; once it is over, the
+                    // seat's own code says what is missing.
+                    let code = if check.state == activation::State::Active {
+                        self.seat_error
+                            .lock()
+                            .ok()
+                            .and_then(|code| *code)
+                            .or(check.code)
+                    } else {
+                        check.code
+                    };
+                    if code.is_some() {
+                        snapshot.code = code;
+                    }
+                    snapshot.activation = self
+                        .with_activation_record(|stored| ActivationView {
+                            state: check.state,
+                            used: stored.used,
+                            limit: stored.limit,
+                            expires_at: check.expires_at,
+                        })
+                        .ok();
+                }
+                None => {
+                    // A managed device whose seat cannot be read is locked, never unlocked.
+                    snapshot.code = Some(
+                        self.seat_unread
+                            .lock()
+                            .ok()
+                            .and_then(|code| *code)
+                            .unwrap_or("E_LICENCE_ACTIVATION_UNREADABLE"),
+                    );
+                    snapshot.activation = Some(ActivationView {
+                        state: activation::State::Required,
+                        used: 0,
+                        limit: 0,
+                        expires_at: None,
+                    });
+                }
+            }
+        }
+        snapshot
+    }
+
+    fn managed(&self) -> bool {
+        self.activation_store.is_some()
+    }
+
+    fn device_id(&self) -> Result<String, &'static str> {
+        if let Some(id) = self
+            .device
+            .lock()
+            .map_err(|_| "E_LICENCE_INTERNAL")?
+            .clone()
+        {
+            return Ok(id);
+        }
+        let store = self.device_store.as_deref().ok_or("E_LICENCE_INTERNAL")?;
+        let _keychain = self.keychain()?;
+        let id = device::id(store)?;
+        *self.device.lock().map_err(|_| "E_LICENCE_INTERNAL")? = Some(id.clone());
+        Ok(id)
+    }
+
+    fn with_activation_record<T>(
+        &self,
+        f: impl FnOnce(&mut activation::Stored) -> T,
+    ) -> Result<T, &'static str> {
+        let store = self
+            .activation_store
+            .as_deref()
+            .ok_or("E_LICENCE_INTERNAL")?;
+        if let Some(code) = *self.seat_unread.lock().map_err(|_| "E_LICENCE_INTERNAL")? {
+            return Err(code);
+        }
+        if self
+            .activation
+            .lock()
+            .map_err(|_| "E_LICENCE_INTERNAL")?
+            .is_none()
+        {
+            let _keychain = self.keychain()?;
+            if self
+                .activation
+                .lock()
+                .map_err(|_| "E_LICENCE_INTERNAL")?
+                .is_none()
+            {
+                match activation::read(store) {
+                    Ok(stored) => {
+                        *self.activation.lock().map_err(|_| "E_LICENCE_INTERNAL")? = Some(stored);
+                    }
+                    Err(code) => {
+                        log::warn!("W_LICENCE_ACTIVATION_UNREADABLE {code}");
+                        *self.seat_unread.lock().map_err(|_| "E_LICENCE_INTERNAL")? = Some(code);
+                        return Err(code);
+                    }
+                }
+            }
+        }
+        let mut guard = self.activation.lock().map_err(|_| "E_LICENCE_INTERNAL")?;
+        Ok(f(guard.as_mut().ok_or("E_LICENCE_INTERNAL")?))
+    }
+
+    fn activation_check(&self, licence_id: &str, now: i64) -> Option<activation::Check> {
+        if !self.managed() {
+            return None;
+        }
+        let device = match self.device_id() {
+            Ok(device) => device,
+            Err(code) => {
+                if let Ok(mut unread) = self.seat_unread.lock() {
+                    *unread = Some(code);
+                }
+                return None;
+            }
+        };
+        self.with_activation_record(|stored| {
+            activation::check(stored, &self.keys, licence_id, &device, now)
+        })
+        .ok()
+    }
+
+    fn persist_activation(&self) -> Result<(), &'static str> {
+        let stored = self
+            .activation
+            .lock()
+            .map_err(|_| "E_LICENCE_INTERNAL")?
+            .clone()
+            .ok_or("E_LICENCE_INTERNAL")?;
+        let store = self
+            .activation_store
+            .as_deref()
+            .ok_or("E_LICENCE_INTERNAL")?;
+        let _keychain = self.keychain()?;
+        activation::write(store, &stored)
+    }
+
+    /// Takes or renews this device's seat; a failure leaves the lease kept and says why.
+    fn activate_now(&self, licence_id: &str, key: &str) -> Result<(), &'static str> {
+        let device = self.device_id()?;
+        let reply = (self.activator)(key, &device, DEVICE_LABEL)?;
+        self.with_activation_record(|stored| {
+            stored.lease = Some(reply.lease.clone());
+            stored.used = reply.used;
+            stored.limit = reply.limit;
+            stored.migration = None;
+        })?;
+        self.persist_activation()?;
+        log::info!("I_LICENCE_ACTIVATED licence={licence_id}");
+        Ok(())
+    }
+
+    /// Records that this device asked for this licence, so a refusal never turns into a window.
+    fn mark_attempted(&self, licence_id: &str) {
+        let marked = self.with_activation_record(|stored| {
+            if !stored.attempted.iter().any(|id| id == licence_id) {
+                stored.attempted.push(licence_id.to_owned());
+                if stored.attempted.len() > MAX_ATTEMPTED {
+                    stored.attempted.remove(0);
+                }
+            }
+        });
+        if marked.and_then(|()| self.persist_activation()).is_err() {
+            log::warn!("W_LICENCE_ATTEMPT_WRITE_FAILED");
+        }
+    }
+
+    fn attempted_for(&self, licence_id: &str) -> bool {
+        self.with_activation_record(|stored| stored.attempted.iter().any(|id| id == licence_id))
+            .unwrap_or(true)
+    }
+
+    /// A key added while the Worker could not be reached works for the migration window. A
+    /// window already there is never moved forward, and the key counts as tried from now on.
+    fn start_migration(&self, licence_id: &str) {
+        let now = (self.clock)();
+        let started = self.with_activation_record(|stored| {
+            if stored.lease.is_none() && stored.migration.is_none() {
+                stored.migration = Some(activation::Migration {
+                    id: licence_id.to_owned(),
+                    first_seen: now,
+                });
+                if !stored.attempted.iter().any(|id| id == licence_id) {
+                    stored.attempted.push(licence_id.to_owned());
+                }
+            }
+        });
+        if started.and_then(|()| self.persist_activation()).is_err() {
+            log::warn!("W_LICENCE_MIGRATION_WRITE_FAILED");
+        }
+    }
+
+    /// A seat item that does not parse can never be read again; re-pasting a key, removing the
+    /// licence or Retry replaces it, so the device is not locked out for good.
+    fn recover_seat(&self) {
+        if self.with_activation_record(|_| ()).is_ok() {
+            return;
+        }
+        if self.seat_unread.lock().ok().and_then(|code| *code)
+            != Some("E_LICENCE_ACTIVATION_UNREADABLE")
+        {
+            return;
+        }
+        if self.reset_activation_record().is_err() {
+            log::warn!("W_LICENCE_ACTIVATION_RESET_FAILED");
+        }
+    }
+
+    fn reset_activation_record(&self) -> Result<(), &'static str> {
+        let store = self
+            .activation_store
+            .as_deref()
+            .ok_or("E_LICENCE_INTERNAL")?;
+        *self.activation.lock().map_err(|_| "E_LICENCE_INTERNAL")? =
+            Some(activation::Stored::default());
+        *self.seat_unread.lock().map_err(|_| "E_LICENCE_INTERNAL")? = None;
+        let _keychain = self.keychain()?;
+        activation::write(store, &activation::Stored::default())
+    }
+
+    fn reset_seat_if_other(&self, licence_id: &str) {
+        let reset = self.with_activation_record(|stored| {
+            let lease_id = stored
+                .lease
+                .as_deref()
+                .and_then(|lease| verify_activation(lease, &self.keys).ok())
+                .map(|activation| activation.id);
+            let migration_id = stored.migration.as_ref().map(|m| m.id.clone());
+            let other = lease_id.as_deref().is_some_and(|id| id != licence_id)
+                || migration_id.as_deref().is_some_and(|id| id != licence_id);
+            if other {
+                stored.lease = None;
+                stored.used = 0;
+                stored.limit = 0;
+                stored.migration = None;
+            }
+            other
+        });
+        if reset == Ok(true) {
+            let _ = self.persist_activation();
+        }
+    }
+
+    /// Renews the seat now, whatever the schedule; a failure keeps the lease that is there.
+    pub(crate) fn refresh_activation(&self) -> Result<bool, &'static str> {
+        if !self.managed() {
+            return Ok(false);
+        }
+        self.recover_seat();
+        let Some(id) = self.key_snapshot().id else {
+            return Ok(false);
+        };
+        self.mark_attempted(&id);
+        let key = self.with_held(|held| {
+            held.key
+                .as_ref()
+                .and_then(|(key, payload)| payload.is_ok().then(|| key.clone()))
+        })?;
+        let Some(key) = key else {
+            return Ok(false);
+        };
+        match self.activate_now(&id, &key) {
+            Ok(()) => {
+                if let Ok(mut seat) = self.seat_error.lock() {
+                    *seat = None;
+                }
+                self.changed();
+                Ok(true)
+            }
+            Err(code) => {
+                if let Ok(mut seat) = self.seat_error.lock() {
+                    *seat = Some(code);
+                }
+                Err(code)
+            }
+        }
+    }
+
+    /// What the daily schedule runs: the seat when it is missing or near its end.
+    pub(crate) fn refresh_activation_if_due(&self) -> bool {
+        if !self.managed() {
+            return false;
+        }
+        let now = (self.clock)();
+        let Some(id) = self.key_snapshot().id else {
+            return false;
+        };
+        let Ok(device) = self.device_id() else {
+            return false;
+        };
+        let due = self
+            .with_activation_record(|stored| activation::due(stored, &self.keys, &id, &device, now))
+            .unwrap_or(false);
+        if !due {
+            return false;
+        }
+        match self.refresh_activation() {
+            Ok(_) => true,
+            Err(code) => {
+                log::warn!("W_LICENCE_ACTIVATION_FAILED {code}");
+                // An unreachable Worker is tried again at the next wake-up; a refusal waits.
+                !activation::offline(code)
+            }
+        }
     }
 
     pub(crate) fn snapshot(&self) -> Snapshot {
@@ -403,10 +810,27 @@ impl Licence {
     /// nothing, else with a valid licence or while the trial runs. A note's text and history are
     /// still written for a short grace after the trial ran out, so a save in flight lands.
     fn unlocked(&self, what: Write) -> bool {
-        if !self.keys.gated() || self.key_snapshot().state == LicenceState::Valid {
+        if !self.keys.gated() {
             return true;
         }
         let now = (self.clock)();
+        let snapshot = self.key_snapshot();
+        let licensed = snapshot.state == LicenceState::Valid
+            && if self.managed() {
+                match snapshot.activation {
+                    Some(seat) if seat.state == activation::State::Active => true,
+                    // A save in flight still lands when the lease runs out under it.
+                    Some(seat) if what == Write::Body => seat
+                        .expires_at
+                        .is_some_and(|expires| now.saturating_sub(expires) < SEAT_GRACE_MS),
+                    _ => false,
+                }
+            } else {
+                true
+            };
+        if licensed {
+            return true;
+        }
         self.trial_at(now)
             .is_ok_and(|trial| trial.running(now) || (what == Write::Body && trial.in_grace(now)))
     }
@@ -439,6 +863,9 @@ impl Licence {
         }
         let now = (self.clock)();
         if let Ok(mut unread) = self.unread() {
+            *unread = None;
+        }
+        if let Ok(mut unread) = self.seat_unread.lock() {
             *unread = None;
         }
         if let Ok(mut trial) = self.trial_lock()
@@ -496,10 +923,37 @@ impl Licence {
             e.code()
         })?;
         let id = payload.id.clone();
+        let issued_at = payload.issued_at.clone();
+        let first_try = if self.managed() {
+            self.recover_seat();
+            self.reset_seat_if_other(&id);
+            let first_try = !self.attempted_for(&id);
+            // Marked before the key is kept, so a snapshot in between cannot open a window.
+            self.mark_attempted(&id);
+            first_try
+        } else {
+            false
+        };
         {
             let _keychain = self.keychain()?;
             self.store.set(&key)?;
-            self.put(Some((key, Ok(payload))))?;
+            self.put(Some((key.clone(), Ok(payload))))?;
+        }
+        if self.managed() {
+            if let Err(code) = self.activate_now(&id, &key) {
+                log::warn!("W_LICENCE_ACTIVATION_FAILED {code}");
+                if let Ok(mut seat) = self.seat_error.lock() {
+                    *seat = Some(code);
+                }
+                // Only the first try of a key sold before seats existed, and only when the
+                // Worker was unreachable, opens the window; a refusal is final.
+                if first_try && activation::offline(code) && activation::predates_seats(&issued_at)
+                {
+                    self.start_migration(&id);
+                }
+            } else if let Ok(mut seat) = self.seat_error.lock() {
+                *seat = None;
+            }
         }
         log::info!("I_LICENCE_SET licence={id}");
         Ok(self.changed())
@@ -512,6 +966,20 @@ impl Licence {
             let _keychain = self.keychain()?;
             self.store.clear()?;
             self.put(None)?;
+        }
+        if self.managed() {
+            self.recover_seat();
+            let cleared = self
+                .with_activation_record(|stored| {
+                    stored.lease = None;
+                    stored.used = 0;
+                    stored.limit = 0;
+                    stored.migration = None;
+                })
+                .and_then(|()| self.persist_activation());
+            if cleared.is_err() {
+                log::warn!("W_LICENCE_ACTIVATION_CLEAR_FAILED");
+            }
         }
         log::info!("I_LICENCE_REMOVED");
         Ok(self.changed())
@@ -642,4 +1110,14 @@ pub async fn licence_set(
 #[tauri::command]
 pub async fn licence_remove(licence: Tauri<'_, Arc<Licence>>) -> Result<Snapshot, String> {
     blocking(&licence, |licence| licence.remove()).await
+}
+
+/// Settings > Licence's Retry: asks the Worker for this device's seat now.
+#[tauri::command]
+pub async fn licence_refresh(licence: Tauri<'_, Arc<Licence>>) -> Result<Snapshot, String> {
+    blocking(&licence, |licence| {
+        licence.refresh_activation()?;
+        Ok(licence.snapshot())
+    })
+    .await
 }
