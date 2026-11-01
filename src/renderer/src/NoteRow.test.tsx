@@ -88,10 +88,40 @@ describe('NoteRow', () => {
     expect(html).toContain('<span class="row-excerpt" dir="auto">tomato rows and beans</span>')
   })
 
-  it('has no title node for a note without a title: its first line leads the excerpt', () => {
+  it('uses the headline as the title and does not repeat it in the excerpt', () => {
     const html = row({ note: note({ title: '' }), headline: 'Shopping list', preview: 'milk' })
-    expect(html).not.toContain('row-title')
-    expect(html).toContain('<span class="row-headline" dir="auto">Shopping list</span> milk')
+    expect(html).toContain('<span class="row-title" dir="auto">Shopping list</span>')
+    expect(html).toContain('<span class="row-excerpt" dir="auto">milk</span>')
+    expect(html).not.toContain('row-headline')
+  })
+
+  it('removes a repeated headline from a search excerpt', () => {
+    const html = row({
+      note: note({ title: '', excerpt: 'Shopping list milk' }),
+      headline: 'Shopping list',
+    })
+    expect(html).toContain('<span class="row-excerpt" dir="auto">milk</span>')
+    expect(
+      row({ note: note({ title: '', excerpt: 'Shopping list' }), headline: 'Shopping list' }),
+    ).not.toContain('row-excerpt')
+  })
+
+  it('uses a dim Untitled title for an empty note with no excerpt', () => {
+    const html = row({ note: note({ title: '' }) })
+    expect(html).toContain('class="row-title" dir="auto" data-untitled="true">Untitled</span>')
+    expect(html).not.toContain('row-excerpt')
+  })
+
+  it('marks body and title matches in the fallback title, and body matches in the excerpt', () => {
+    const html = row({
+      note: note({ title: '' }),
+      headline: 'Shopping list',
+      preview: 'milk',
+      highlight: { title: /Shopping/gi, body: /list|milk/gi },
+    })
+    expect(html).toContain('<mark>Shopping</mark> <mark>list</mark>')
+    expect(html).toContain('<mark>milk</mark>')
+    expect(row({ note: note({ title: '' }), headline: 'Only line' })).not.toContain('row-excerpt')
   })
 
   it('shows task progress as "1 of 4" with a bar, only when the note has tasks', () => {

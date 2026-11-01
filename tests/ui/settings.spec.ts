@@ -48,6 +48,7 @@ async function open(page: Page, events: unknown[] | { error: string }) {
     }
   }, events)
   await openSettings(page, 'Usage')
+  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
 }
 
 const calls = (page: Page, cmd: string) =>

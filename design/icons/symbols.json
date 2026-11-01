@@ -24,6 +24,8 @@
     "mode.split": "rectangle.split.2x1",
     "mode.preview": "eye",
     "more": "ellipsis.circle",
+    "usage.private": "lock",
+    "usage.import": "arrow.down.to.line",
     "search": "magnifyingglass",
     "popup": "chevron.up.chevron.down",
     "disclosure.open": "chevron.down",

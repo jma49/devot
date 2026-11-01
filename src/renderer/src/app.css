@@ -1361,6 +1361,43 @@ button {
   font-weight: var(--font-weight-semibold);
 }
 
+.row-title[data-untitled] {
+  color: var(--color-text-tertiary);
+}
+
+:root[data-sidebar-material='off'] .row[data-no-title] {
+  display: grid;
+  grid-template-columns: fit-content(100%) minmax(0, 1fr);
+  column-gap: var(--space-2);
+}
+
+:root[data-sidebar-material='off'] .row[data-no-title] .row-meta {
+  grid-row: 1;
+  grid-column: 1 / -1;
+  margin-top: var(--space-4);
+}
+
+:root[data-sidebar-material='off'] .row[data-no-title] .row-title {
+  grid-row: 2;
+  grid-column: 1;
+  margin: 0;
+  padding: calc(var(--space-2) - 1px) 0 1px;
+  font-size: var(--font-size-footnote);
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  font-weight: var(--font-weight-regular);
+}
+
+:root[data-sidebar-material='off'] .row[data-no-title] .row-title:not([data-untitled]) {
+  color: var(--color-text-secondary);
+}
+
+:root[data-sidebar-material='off'] .row[data-no-title] .row-excerpt {
+  grid-row: 2;
+  grid-column: 2;
+  min-width: 0;
+}
+
 .row > .row-meta:first-child {
   margin-top: var(--space-4);
 }
@@ -6619,4 +6656,28 @@ button.popup:focus-visible {
   :root[data-sidebar-material='on'] :is(.sidebar, .settings-nav) {
     background: var(--color-surface-sidebar-opaque);
   }
+}
+
+@property --scroll-edge-size {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+:root[data-sidebar-material='on'] .content > .panes:not(.panes-split),
+:root[data-sidebar-material='on'] .panes-split > :is(.editor, .preview) {
+  --scroll-edge-size: 0px;
+  mask-image: linear-gradient(transparent, var(--color-ink-text) var(--scroll-edge-size));
+  transition: --scroll-edge-size var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
+:root[data-sidebar-material='on'] .content[data-scrolled] > .panes:not(.panes-split),
+:root[data-sidebar-material='on'] .panes-split[data-editor-scrolled] > .editor,
+:root[data-sidebar-material='on'] .panes-split[data-preview-scrolled] > .preview {
+  --scroll-edge-size: var(--size-scroll-edge);
+}
+
+:root[data-motion='reduced'][data-sidebar-material='on'] .content > .panes,
+:root[data-motion='reduced'][data-sidebar-material='on'] .panes-split > :is(.editor, .preview) {
+  transition: none;
 }

@@ -99,9 +99,7 @@ test('the button is reachable from the keyboard', async ({ page }) => {
   // A click on the code puts the keyboard there; Option+Tab goes on to the button (WebKit on
   // macOS tabs to buttons with Option, or with Full Keyboard Access; elsewhere Tab alone does).
   // The click is on the code, past the info card's date buttons above it.
-  await preview(page)
-    .locator('pre code')
-    .click({ position: { x: 2, y: 2 } })
+  await preview(page).locator('pre code').click()
   // Away from the block, so only the keyboard focus can show the button.
   await page.mouse.move(0, 0)
   await expect(copyButtons(page)).toHaveCSS('opacity', '0')

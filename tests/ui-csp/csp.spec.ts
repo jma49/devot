@@ -448,20 +448,45 @@ test('find marks matches in the editor and the preview under the policy', async 
 const settingsTab = (page: Page, name: string) =>
   page.getByRole('tablist', { name: 'Settings panes' }).getByRole('tab', { name, exact: true })
 
-test('the settings window lists usage events within the policy', async ({ page }) => {
-  await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
-      usage_list: [{ id: 1, at: 0, name: 'note.created', properties: { from: 'new_note' } }],
+for (const glass of [true, false]) {
+  test(`the ${glass ? 'Glass' : 'Classic'} settings window lists usage events within the policy`, async ({
+    page,
+  }) => {
+    await page.clock.setFixedTime(Date.UTC(2026, 10, 1, 12))
+    await page.addInitScript((sidebarMaterial) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotEditorSettings = { sidebarMaterial }
+      w.devotIpcMocks = {
+        usage_list: [
+          { id: 1, at: Date.now(), name: 'note.created', properties: { from: 'new_note' } },
+        ],
+      }
+    }, glass)
+    await start(page, '/settings.html')
+    await settingsTab(page, 'Usage').click()
+    const section = page.getByRole('region', { name: 'Usage Data' })
+    const table = section.getByRole('table', { name: 'Events by type' })
+    const notes = table
+      .getByRole('row')
+      .filter({ hasText: glass ? 'Notes created' : 'Note created' })
+    await expect(notes.locator('td').nth(1)).toHaveText('1')
+    if (glass) {
+      await expect(section.locator('.usage-cell')).toHaveCount(168)
+      await section.getByRole('button', { name: '7 Days', exact: true }).click()
+      await expect(section.locator('.usage-daily rect')).toHaveCount(7)
+      await section.getByRole('combobox', { name: 'Event type' }).selectOption('search.run')
+      await expect(section.locator('.usage-stat strong').first()).toHaveText('0')
+      await section.getByRole('combobox', { name: 'Event type' }).selectOption('note.created')
+      await expect(section.locator('.usage-stat strong').first()).toHaveText('1')
+      await expect(section.locator('.usage-type-track i').first()).not.toHaveCSS('width', '0px')
     }
+    await section.getByRole('button', { name: 'Show Events' }).click()
+    await expect(section.getByRole('list', { name: 'Stored events' })).toContainText(
+      'from: new_note',
+    )
+    expect(await violations(page)).toEqual([])
   })
-  await start(page, '/settings.html')
-  await settingsTab(page, 'Usage').click()
-  const section = page.getByRole('region', { name: 'Usage Data' })
-  await expect(section.getByRole('table', { name: 'Events by type' })).toContainText('Note created')
-  await section.getByRole('button', { name: 'Show Events' }).click()
-  await expect(section.getByRole('list', { name: 'Stored events' })).toContainText('from: new_note')
-  expect(await violations(page)).toEqual([])
-})
+}
 
 test('the quick capture window works under the policy', async ({ page }) => {
   await page.addInitScript(() => {

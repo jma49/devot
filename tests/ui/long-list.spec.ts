@@ -94,7 +94,8 @@ test('a new note opened elsewhere is scrolled to and takes the keyboard in the l
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(caption(page)).toHaveText('1,001 notes')
   const created = rows(page).and(page.locator('[aria-selected="true"]'))
-  await expect(created.locator('.row-headline')).toHaveText('Untitled')
+  await expect(created.locator('.row-title')).toHaveText('Untitled')
+  await expect(created.locator('.row-title')).toHaveAttribute('data-untitled', 'true')
   await expect(created).toBeInViewport()
 })
 
