@@ -93,48 +93,52 @@ describe('the point size of a box', () => {
 })
 
 describe('placing a symbol on its canvas', () => {
-  it('centres its ink on whole device pixels, drawn at its own size, at any pixel ratio', () => {
+  it('caps actual ink at the box without counting transparent PNG padding', () => {
     for (const ratio of [1, 2, 3])
-      for (const [width, height, ink] of Object.values(TOOLBAR)) {
-        const boxSide = 22 * ratio
-        const at = placeInCanvas(width, height, ink, 22, ratio)
-        for (const n of Object.values(at)) expect(Number.isInteger(n)).toBe(true)
-        expect(Math.abs(at.x + ink.x + ink.width / 2 - at.side / 2)).toBeLessThanOrEqual(0.5)
-        expect(Math.abs(at.y + ink.y + ink.height / 2 - at.side / 2)).toBeLessThanOrEqual(0.5)
-        // The whole PNG fits unscaled, and the canvas keeps the box's centre.
-        expect(at.x).toBeGreaterThanOrEqual(0)
-        expect(at.y).toBeGreaterThanOrEqual(0)
-        expect(at.x + width).toBeLessThanOrEqual(at.side)
-        expect(at.y + height).toBeLessThanOrEqual(at.side)
-        expect(at.side).toBeGreaterThanOrEqual(boxSide)
-        expect((at.side - boxSide) % 2).toBe(0)
+      for (const [, , ink] of Object.values(TOOLBAR)) {
+        const at = placeInCanvas(ink, 22, ratio)
+        expect(at.side).toBe(Math.round(22 * ratio))
+        expect(at.scale).toBeLessThanOrEqual(1)
+        expect(ink.width * at.scale).toBeLessThanOrEqual(at.side)
+        expect(ink.height * at.scale).toBeLessThanOrEqual(at.side)
+        expect(
+          Math.abs(at.x + (ink.x + ink.width / 2) * at.scale - at.side / 2),
+        ).toBeLessThanOrEqual(0.5)
+        expect(
+          Math.abs(at.y + (ink.y + ink.height / 2) * at.scale - at.side / 2),
+        ).toBeLessThanOrEqual(0.5)
       }
   })
 
-  it('keeps the box for a symbol that fits, and grows it for a wider one rather than shrink it', () => {
-    const [arrowWidth, arrowHeight, arrowInk] = TOOLBAR['arrow.left']
-    expect(placeInCanvas(arrowWidth, arrowHeight, arrowInk, 22, 2)).toEqual({
-      side: 44,
-      x: 2,
-      y: 6,
-    })
-    const [width, height, ink] = TOOLBAR['sidebar.left']
-    expect(placeInCanvas(width, height, ink, 22, 2)).toEqual({ side: 54, x: 2, y: 8 })
+  it('preserves a fitting glyph and shrinks oversized ink rather than overhanging', () => {
+    expect(placeInCanvas(TOOLBAR['sidebar.left'][2], 22, 2).scale).toBe(1)
+    const oversized = { x: 30, y: 40, width: 60, height: 50 }
+    expect(placeInCanvas(oversized, 22, 2).scale).toBeCloseTo(44 / 60)
+    expect(placeInCanvas({ ...oversized, x: 300, y: 400 }, 22, 2).scale).toBeCloseTo(44 / 60)
+  })
+
+  it('fits a title glyph to cap height, including the wide Templates symbol', () => {
+    for (const ink of [
+      { x: 4, y: 3, width: 30, height: 38 },
+      { x: 5, y: 6, width: 46, height: 39 },
+      { x: 3, y: 3, width: 36, height: 36 },
+    ]) {
+      const at = placeInCanvas(ink, 17, 2, true)
+      const caps = at.side / 1.4
+      expect((ink.height * at.scale) / caps).toBeGreaterThanOrEqual(1)
+      expect((ink.height * at.scale) / caps).toBeLessThanOrEqual(1.3)
+      expect(ink.width * at.scale).toBeLessThanOrEqual(at.side)
+    }
   })
 })
 
 describe('a placed symbol in its box', () => {
-  it('shows the canvas at its exact CSS size, mask size included, never scaled', () => {
-    const style = symbolStyle({ url: 'data:x', side: 27 }, 22)
-    expect(style.width).toBe('27px')
-    expect(style.height).toBe('27px')
-    expect(style.maskSize).toBe('27px 27px')
-    expect(style.WebkitMaskSize).toBe('27px 27px')
-    expect(JSON.stringify(style)).not.toMatch(/contain|%/)
-  })
-
-  it('overhangs the box evenly, keeping the box in the layout', () => {
-    expect(symbolStyle({ url: 'data:x', side: 27 }, 22).margin).toBe('-2.5px')
-    expect(symbolStyle({ url: 'data:x', side: 22 }, 22).margin).toBe('0px')
+  it('uses the fixed box with no negative margins and scales its mask with text', () => {
+    const style = symbolStyle({ url: 'data:x', side: 22 })
+    expect(style.maskSize).toBe('100% 100%')
+    expect(style.WebkitMaskSize).toBe('100% 100%')
+    expect(style).not.toHaveProperty('margin')
+    expect(style).not.toHaveProperty('width')
+    expect(style).not.toHaveProperty('height')
   })
 })

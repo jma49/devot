@@ -266,6 +266,11 @@ button {
   height: var(--size-icon-lg);
 }
 
+.icon-title {
+  width: 1.4cap;
+  height: 1.4cap;
+}
+
 .toolbar,
 .titlebar {
   height: var(--size-toolbar-height);
@@ -1161,7 +1166,7 @@ button {
   display: flex;
   flex: 1;
   flex-direction: row;
-  align-items: center;
+  align-items: baseline;
   justify-content: center;
   gap: calc(var(--font-size-list-title) * 0.3);
   min-width: 0;
@@ -1181,13 +1186,19 @@ button {
   white-space: nowrap;
 }
 
-/* The view's icon is a toolbar icon, the size and stroke of the buttons' beside it. */
 .headline-icon {
-  display: flex;
+  position: relative;
   flex: none;
-  align-items: center;
-  justify-content: center;
+  width: 1.4cap;
+  height: 1cap;
   opacity: var(--opacity-headline-icon);
+}
+
+.headline-icon > * {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .headline-dot {

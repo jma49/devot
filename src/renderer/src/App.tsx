@@ -1603,12 +1603,18 @@ export function App() {
   }, [core])
 
   const shownWrites = useRef<{ noteId: string; ids: Set<string> } | undefined>(undefined)
+  // Marking runs in call order: a later note's reload must not overtake an
+  // earlier note's write, or its older read can bring a dismissed notice back.
+  const seenQueue = useRef<Promise<void>>(Promise.resolve())
   const reloadAgentWrites = agentWrites.reload
   const markShownSeen = useCallback(
     (options?: { reload?: boolean }) => {
       const shown = shownWrites.current
       shownWrites.current = undefined
-      return core ? markSeen(core, reloadAgentWrites, shown, options) : Promise.resolve()
+      if (!core) return Promise.resolve()
+      const next = seenQueue.current.then(() => markSeen(core, reloadAgentWrites, shown, options))
+      seenQueue.current = next
+      return next
     },
     [core, reloadAgentWrites],
   )
@@ -3606,12 +3612,12 @@ export function App() {
     if (kind === 'tag') return <span className={`headline-dot${a ? ` tag-color-${a}` : ''}`} />
     if (kind === 'status') {
       const icon = STATUSES.find((s) => s.status === a)?.icon ?? 'status.none'
-      return <Icon name={icon} size="lg" />
+      return <Icon name={icon} size="title" />
     }
-    if (kind === 'pinned') return <Icon name="notes.pinned" size="lg" />
-    if (kind === 'agent') return <Icon name="notebook.ai" size="lg" />
+    if (kind === 'pinned') return <Icon name="notes.pinned" size="title" />
+    if (kind === 'agent') return <Icon name="notebook.ai" size="title" />
     if (kind === 'book')
-      return <BookIcon icon={a || null} color={(b || null) as TagColor | null} size="lg" />
+      return <BookIcon icon={a || null} color={(b || null) as TagColor | null} size="title" />
     return null
   }, [iconKey])
   const menuKey =
@@ -3722,7 +3728,7 @@ export function App() {
           editing={editing}
           view={listView}
           title={t('sidebar.trash')}
-          icon={<Icon name="trash" size="lg" />}
+          icon={<Icon name="trash" size="title" />}
           empty="trash"
           filter={filterField}
           pinned={NO_NOTES}
@@ -3747,7 +3753,7 @@ export function App() {
           editing={editing}
           view={listView}
           title={t('sidebar.templates')}
-          icon={<Icon name="templates" size="lg" />}
+          icon={<Icon name="templates" size="title" />}
           empty="templates"
           filter={filterField}
           pinned={templateRows.pinned}

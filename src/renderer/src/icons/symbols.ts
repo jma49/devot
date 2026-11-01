@@ -105,45 +105,35 @@ export function inkBounds(rgba: ArrayLike<number>, width: number, height: number
   return { x: left, y: top, width: right - left + 1, height: bottom - top + 1 }
 }
 
-/**
- * Where a rendered symbol of `width` by `height` pixels, its ink at `ink`,
- * goes on the square canvas that shows it in a `box` of CSS pixels at
- * `ratio` device pixels each: drawn at its own size, never scaled, at whole
- * pixels `x`, `y`, so its ink centre is within half a pixel of the canvas
- * centre. The canvas (`side` pixels) is the box, grown by whole pixels on
- * every side where the symbol is larger, so its centre stays the box's:
- * a wide symbol overhangs the box rather than shrink.
- */
-export function placeInCanvas(width: number, height: number, ink: Box, box: number, ratio: number) {
-  const boxSide = Math.round(box * ratio)
-  const inkX = ink.x + ink.width / 2
-  const inkY = ink.y + ink.height / 2
-  // Rounding the offset moves the symbol up to half a pixel toward the far edge.
-  const half = Math.max(boxSide / 2, inkX, width - inkX + 0.5, inkY, height - inkY + 0.5)
-  const side = boxSide + 2 * Math.ceil(half - boxSide / 2)
-  return { side, x: Math.round(side / 2 - inkX), y: Math.round(side / 2 - inkY) }
+/** Transparent PNG padding never affects the glyph's size or its layout box. */
+export function placeInCanvas(ink: Box, box: number, ratio: number, title = false) {
+  const side = Math.round(box * ratio)
+  const scale = Math.min(
+    title ? (side * 0.85) / ink.height : 1,
+    side / ink.width,
+    side / ink.height,
+  )
+  const offset = (start: number, length: number) =>
+    Math.max(
+      -start * scale,
+      Math.min(
+        side - (start + length) * scale,
+        Math.round((side - length * scale) / 2 - start * scale),
+      ),
+    )
+  return { side, scale, x: offset(ink.x, ink.width), y: offset(ink.y, ink.height) }
 }
 
-/**
- * How a placed symbol sits in its `box` (CSS pixels, square): shown at its
- * exact size with a mask of the same size, never scaled, centred on the box.
- * The margins keep the box's place in the layout; a canvas larger than the
- * box overhangs it evenly.
- */
-export function symbolStyle(image: SymbolImage, box: number): Record<string, string> {
+export function symbolStyle(image: SymbolImage): Record<string, string> {
   const mask = `url("${image.url}")`
-  const size = `${image.side}px ${image.side}px`
   return {
     maskImage: mask,
     WebkitMaskImage: mask,
-    maskSize: size,
-    WebkitMaskSize: size,
+    maskSize: '100% 100%',
+    WebkitMaskSize: '100% 100%',
     maskRepeat: 'no-repeat',
     WebkitMaskRepeat: 'no-repeat',
-    maskPosition: '0px 0px',
-    WebkitMaskPosition: '0px 0px',
-    width: `${image.side}px`,
-    height: `${image.side}px`,
-    margin: `${(box - image.side) / 2}px`,
+    maskPosition: 'center',
+    WebkitMaskPosition: 'center',
   }
 }
