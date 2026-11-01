@@ -57,7 +57,7 @@ test('a row keeps its tag chips on one meta line; the activity strip goes first'
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await createNote(page, 'Data Structures and Algorithms', '- [x] one\n- [ ] two\n- [ ] three')
-  for (const tag of ['cs', 'algo', 'work']) {
+  for (const tag of ['cs', 'algo', 'ux']) {
     const add = page.getByRole('combobox', { name: 'Add Tag' })
     await add.fill(tag)
     await add.press('Enter')

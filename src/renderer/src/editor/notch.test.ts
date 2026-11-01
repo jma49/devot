@@ -47,6 +47,16 @@ describe('notch geometry', () => {
     expect(rule('.cm-float-notch').zIndex).toBe('-1')
   })
 
+  it('clips the edge triangle to its outline, so a translucent fill never shows it through', () => {
+    // The fill triangle, one pixel in, crosses the edge triangle's base half a notch width per height in.
+    expect(rule('.cm-tooltip-above > .cm-float-notch::before').clipPath).toBe(
+      'polygon(0 0, 1px 0, 50% calc(100% - 1px), calc(100% - 1px) 0, 100% 0, 50% 100%)',
+    )
+    expect(rule('.cm-tooltip-below > .cm-float-notch::before').clipPath).toBe(
+      'polygon(0 100%, 1px 100%, 50% 1px, calc(100% - 1px) 100%, 100% 100%, 50% 0)',
+    )
+  })
+
   it('is not a rotated square', () => {
     expect(JSON.stringify(notchStyles)).not.toContain('rotate')
   })

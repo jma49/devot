@@ -1,6 +1,12 @@
 import type { Locator, Page } from '@playwright/test'
 import { light } from '../../src/renderer/src/theme/tokens'
-import { expect, symbolRequests, test, type TestWindow } from './fixtures'
+import {
+  changeEditorSettingsElsewhere,
+  expect,
+  symbolRequests,
+  test,
+  type TestWindow,
+} from './fixtures'
 
 function rgb(hex: string): string {
   const n = Number.parseInt(hex.slice(1), 16)
@@ -178,7 +184,9 @@ test('coded console warnings reach the local log without other arguments', async
     .toContainEqual({ level: 'warn', code: 'W_UI_TEST', ids: [id] })
 })
 
-test('the selected view mode is a neutral grey segment', async ({ page }) => {
+test('the selected view mode is a raised glass segment, and a neutral grey one in Classic', async ({
+  page,
+}) => {
   await page.emulateMedia({ colorScheme: 'light' })
   await freshStart(page)
   await createNote(page, 'Modes')
@@ -187,6 +195,8 @@ test('the selected view mode is a neutral grey segment', async ({ page }) => {
     .getByRole('button', { name: 'Split' })
   await split.click()
   await expect(split).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => css(split, 'background-color')).toBe(rgb(light['color.fill.segment-on']))
+  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
   await expect.poll(() => css(split, 'background-color')).toBe('rgba(28, 27, 25, 0.12)')
 })
 

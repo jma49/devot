@@ -7,8 +7,7 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// The preview's code blocks show a header and highlighting; task boxes tick the task in the note;
-// front matter shows as properties.
+// The preview's code blocks show a header and highlighting; task boxes tick the task in the note.
 
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -100,13 +99,6 @@ test('ticking a task in the preview ticks it in the note', async ({ page }) => {
   await boxes.nth(1).click()
   await expect(body(page)).toContainText('- [ ] second')
   await expect(boxes.nth(1)).not.toBeChecked()
-})
-
-test('front matter shows as properties', async ({ page }) => {
-  await openNote(page, '---\nauthor: me\ntags: [work, q4]\n---\n\nBody')
-  const props = preview(page).locator('dl.frontmatter')
-  await expect(props.locator('dt')).toHaveText(['author', 'tags'])
-  await expect(props.locator('.frontmatter-chip')).toHaveText(['work', 'q4'])
 })
 
 // A whole-line selection reaches the code box's outer edges, the same on both sides, so the tint

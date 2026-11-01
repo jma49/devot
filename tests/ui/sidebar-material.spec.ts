@@ -8,25 +8,26 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// With the window material on, the sidebar, note list and editor show it through their washes; off, they paint
-// opaque and the page asks Rust (`sidebar_material_sync`) to drop the window effect. Off paints opaque before Rust
-// drops the effect, on waits for Rust to restore it, so the desktop never shows through a bare wash.
+// With the window material on, the note list and editor share one sheet over it and the sidebar floats with its own
+// glass layers; off, they paint opaque and the page asks Rust (`sidebar_material_sync`) to drop the window effect.
+// Off paints opaque before Rust drops the effect, on waits for Rust to restore it, so the desktop never shows
+// through a bare wash.
 
+const CLEAR = 'rgba(0, 0, 0, 0)'
 const SURFACES = {
   light: {
-    sidebar: { material: 'rgba(255, 255, 255, 0.02)', opaque: 'rgb(243, 244, 246)' },
-    list: { material: 'rgba(245, 245, 244, 0.8)', opaque: 'rgb(250, 250, 249)' },
-    editor: { material: 'rgba(255, 255, 255, 0.7)', opaque: 'rgb(255, 255, 255)' },
+    sidebar: { material: CLEAR, opaque: 'rgb(243, 244, 246)' },
+    list: { material: 'rgba(255, 255, 255, 0.75)', opaque: 'rgb(250, 250, 249)' },
+    editor: { material: 'rgba(255, 255, 255, 0.75)', opaque: 'rgb(255, 255, 255)' },
     window: 'rgb(255, 255, 255)',
   },
   dark: {
-    sidebar: { material: 'rgba(0, 0, 0, 0.1)', opaque: 'rgb(23, 23, 23)' },
-    list: { material: 'rgba(23, 23, 23, 0.5)', opaque: 'rgb(17, 17, 17)' },
-    editor: { material: 'rgba(10, 10, 10, 0.6)', opaque: 'rgb(10, 10, 10)' },
+    sidebar: { material: CLEAR, opaque: 'rgb(23, 23, 23)' },
+    list: { material: 'rgba(18, 18, 18, 0.55)', opaque: 'rgb(17, 17, 17)' },
+    editor: { material: 'rgba(18, 18, 18, 0.55)', opaque: 'rgb(10, 10, 10)' },
     window: 'rgb(0, 0, 0)',
   },
 } as const
-const CLEAR = 'rgba(0, 0, 0, 0)'
 
 const root = (page: Page) => page.locator('html')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -60,6 +61,7 @@ async function expectShown(page: Page, material: boolean, scheme: 'light' | 'dar
   await expect.poll(() => paintedBackground(sidebar(page))).toBe(surfaces.sidebar[shown])
   await expect.poll(() => paintedBackground(list(page))).toBe(surfaces.list[shown])
   await expect.poll(() => paintedBackground(editor(page))).toBe(surfaces.editor[shown])
+  if (material) await expect(sidebar(page)).toHaveCSS('background-image', /linear-gradient/)
   // Behind every pane: clear over the material, opaque without it.
   await expect(root(page)).toHaveCSS('background-color', material ? CLEAR : surfaces.window)
 }
@@ -333,18 +335,17 @@ test('a change that cannot be stored is reported and dropped', async ({ page }) 
 const transparency = (page: Page) =>
   appearance(page).getByRole('slider', { name: 'Glass Transparency' })
 
-test('the transparency adjusts every wash: opaque at one end, the design in the middle, twice as clear at the other', async ({
+test('the transparency adjusts the sheet: opaque at one end, the design in the middle, twice as clear at the other', async ({
   page,
 }) => {
   await stored(page, { windowTransparency: -100 })
   await page.goto('/')
   await expect(root(page)).toHaveAttribute('data-sidebar-material', 'on')
-  await expect.poll(() => paintedBackground(sidebar(page))).toBe('rgb(255, 255, 255)')
-  await expect.poll(() => paintedBackground(list(page))).toBe('rgb(245, 245, 244)')
+  await expect.poll(() => paintedBackground(list(page))).toBe('rgb(255, 255, 255)')
+  await expect.poll(() => paintedBackground(editor(page))).toBe('rgb(255, 255, 255)')
   await changeEditorSettingsElsewhere(page, { windowTransparency: 100 })
-  await expect.poll(() => paintedBackground(sidebar(page))).toBe('rgba(255, 255, 255, 0)')
-  await expect.poll(() => paintedBackground(list(page))).toBe('rgba(245, 245, 244, 0.6)')
-  await expect.poll(() => paintedBackground(editor(page))).toBe('rgba(255, 255, 255, 0.4)')
+  await expect.poll(() => paintedBackground(list(page))).toBe('rgba(255, 255, 255, 0.5)')
+  await expect.poll(() => paintedBackground(editor(page))).toBe('rgba(255, 255, 255, 0.5)')
   await changeEditorSettingsElsewhere(page, { windowTransparency: 0 })
   await expectShown(page, true)
   // Turned off, the regions are opaque whatever the transparency.

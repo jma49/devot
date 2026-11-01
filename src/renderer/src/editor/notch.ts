@@ -23,6 +23,9 @@ export const notchLeft = (tip: string, width: number) => `calc(${tip} - ${width 
 
 const tip = `var(--float-notch-x, ${NOTCH_X}px)`
 const half = NOTCH_WIDTH / 2
+// Where the fill triangle's sides cross the edge triangle's base: the edge is clipped to the
+// outline between the two, so a translucent (Glass) fill never shows the edge colour through it.
+const inset = `${half / NOTCH_HEIGHT}px`
 const edge = 'var(--color-line-float-bar)'
 const fill = 'var(--color-surface-float-bar)'
 
@@ -52,6 +55,7 @@ export const notchStyles = {
   '.cm-tooltip-above > .cm-float-notch::before': {
     top: '0',
     borderTop: `${NOTCH_HEIGHT}px solid ${edge}`,
+    clipPath: `polygon(0 0, ${inset} 0, 50% calc(100% - ${EDGE}px), calc(100% - ${inset}) 0, 100% 0, 50% 100%)`,
   },
   '.cm-tooltip-above > .cm-float-notch::after': {
     top: `-${EDGE}px`,
@@ -60,6 +64,7 @@ export const notchStyles = {
   '.cm-tooltip-below > .cm-float-notch::before': {
     bottom: '0',
     borderBottom: `${NOTCH_HEIGHT}px solid ${edge}`,
+    clipPath: `polygon(0 100%, ${inset} 100%, 50% ${EDGE}px, calc(100% - ${inset}) 100%, 100% 100%, 50% 0)`,
   },
   '.cm-tooltip-below > .cm-float-notch::after': {
     bottom: `-${EDGE}px`,

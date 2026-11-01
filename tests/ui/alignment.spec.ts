@@ -141,7 +141,9 @@ test('toolbar buttons sit on the toolbar centre line, and so do the traffic ligh
   expect(Math.abs(lights.y - 2 - barCentre)).toBeLessThanOrEqual(2)
 })
 
-test('toolbar glyphs are large, and the view modes are 44 by 30 segments', async ({ page }) => {
+test('toolbar glyphs are large, and the view modes are 44 by 26 segments in a glass capsule', async ({
+  page,
+}) => {
   await newNote(page, 'Plan')
   const toolbar = page.locator('.editor-toolbar')
   for (const name of ['Focus Mode', 'Back', 'Forward', 'More']) {
@@ -153,13 +155,13 @@ test('toolbar glyphs are large, and the view modes are 44 by 30 segments', async
 
   const modes = toolbar.getByRole('group', { name: 'View mode' })
   const modesBox = await box(modes)
-  expect(modesBox.width).toBe(134)
+  expect(modesBox.width).toBe(138)
   expect(modesBox.height).toBe(32)
   const offsets = new Set<string>()
   for (const segment of await modes.getByRole('button').all()) {
     const b = await box(segment)
     expect(b.width).toBe(44)
-    expect(b.height).toBe(30)
+    expect(b.height).toBe(26)
     const icon = await box(segment.locator('.icon'))
     expect(icon.width).toBe(17)
     expect(Number.isInteger(icon.x) && Number.isInteger(icon.y)).toBe(true)
@@ -202,7 +204,10 @@ test("the list header's toggle, name and New Note share the toolbars' centre lin
   await check()
   for (const button of await page.locator('.editor-toolbar .tool').all())
     await sameLine('editor button', await box(button))
-  await sameLine('sidebar title bar', await box(page.locator('[data-devot-part=sidebar-titlebar]')))
+  // The sidebar floats inset from the window, so its title bar is a drag strip around the traffic lights' line.
+  const titlebar = await box(page.locator('[data-devot-part=sidebar-titlebar]'))
+  expect(titlebar.y).toBeLessThan(line - 12)
+  expect(titlebar.y + titlebar.height).toBeGreaterThan(line + 12)
 
   await page
     .getByRole('navigation', { name: 'Sidebar' })
