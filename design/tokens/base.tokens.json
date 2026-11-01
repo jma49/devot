@@ -1399,6 +1399,11 @@
         "unit": "px"
       }
     },
+    "scroll-edge": {
+      "$type": "dimension",
+      "$value": { "value": 28, "unit": "px" },
+      "$description": "Glass note content fades over this distance below its header after scrolling."
+    },
     "scrollbar": {
       "$type": "dimension",
       "$description": "The width of a scroll bar.",

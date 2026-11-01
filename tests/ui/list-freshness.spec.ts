@@ -4,7 +4,7 @@ import { seedNotes } from './renders'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const rows = (page: Page) => list(page).getByRole('option')
-const rowTitles = (page: Page) => list(page).locator('.row-title, .row-headline')
+const rowTitles = (page: Page) => list(page).locator('.row-title')
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -28,8 +28,9 @@ async function expectNewNoteListed(page: Page, total: number) {
   await expect(rows(page)).toHaveCount(total)
   await expect(titleField(page)).toHaveValue('')
   await expect(selectedRow(page)).toHaveCount(1)
-  await expect(selectedRow(page).locator('.row-headline')).toHaveText('Untitled')
-  await expect(selectedRow(page).locator('.row-title')).toHaveCount(0)
+  await expect(selectedRow(page).locator('.row-title')).toHaveText('Untitled')
+  await expect(selectedRow(page).locator('.row-title')).toHaveAttribute('data-untitled', 'true')
+  await expect(selectedRow(page).locator('.row-excerpt')).toHaveCount(0)
 }
 
 test('an edited note moves to the top with its new date', async ({ page }) => {

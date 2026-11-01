@@ -375,7 +375,12 @@ test('the keyboard goes back to the editor when the notice’s control goes away
   await expect(body(page)).toContainText('Claude adds')
 
   await noteRow(page, 'Other').click()
-  await notice(page).getByRole('button', { name: 'Dismiss' }).focus()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Other')
+  await expect(body(page)).toContainText('Codex line.')
+  await expect(notice(page)).toContainText('1 change by Codex (MCP)')
+  const dismiss = notice(page).getByRole('button', { name: 'Dismiss' })
+  await dismiss.focus()
+  await expect(dismiss).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(notice(page)).toHaveCount(0)
   await expect(body(page)).toBeFocused()
