@@ -11,6 +11,13 @@ const REASONS: Readonly<Record<string, MessageKey>> = {
   E_LICENCE_SIGNATURE: 'licence.reason.signature',
   E_LICENCE_KEYCHAIN: 'licence.reason.keychain',
   E_LICENCE_KEYCHAIN_UNAVAILABLE: 'licence.reason.keychain',
+  E_LICENCE_DEVICE_LIMIT: 'licence.reason.deviceLimit',
+  E_LICENCE_ACTIVATION_REQUIRED: 'licence.reason.activationRequired',
+  E_LICENCE_ACTIVATION_EXPIRED: 'licence.reason.activationExpired',
+  E_LICENCE_ACTIVATION_FAILED: 'licence.reason.activationFailed',
+  E_LICENCE_ACTIVATION_REFUSED: 'licence.reason.activationFailed',
+  E_LICENCE_RATE_LIMITED: 'licence.reason.rateLimited',
+  E_LICENCE_ACTIVATION_UNREADABLE: 'licence.reason.activationUnreadable',
 }
 
 export function licenceProblem(code: string): string {
@@ -99,6 +106,27 @@ export function trialSentence(
       left: timeLeft(trial.endsAt - now, locale),
     })
   return t('licenceSettings.trial.ended')
+}
+
+/** Settings > Licence's line on this device's seat; none in a build that manages none. */
+export function seatSentence(licence: LicenceSnapshot): string | null {
+  const seat = licence.activation
+  if (!seat) return null
+  const problem =
+    seat.state === 'active'
+      ? null
+      : t(
+          seat.state === 'expired'
+            ? 'licenceSettings.devices.expired'
+            : 'licenceSettings.devices.required',
+        )
+  // A refused or unreadable seat has no counts yet: say only what is missing.
+  if (seat.limit === 0) return problem
+  const seats = format(t('licenceSettings.devices.seats'), {
+    used: String(seat.used),
+    limit: String(seat.limit),
+  })
+  return problem ? `${seats} ${problem}` : seats
 }
 
 /** The trial ends within a day, and the reminder for this trial was not dismissed. */

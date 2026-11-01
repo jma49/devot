@@ -938,6 +938,27 @@ title: Daily Report {{date}}
     'The trial could not be read from the keychain ({code}), so notes are read-only until you add a license.',
   'licenceSettings.licensee': 'Licensed To',
   'licenceSettings.id': 'License ID',
+  'licenceSettings.devices': 'Devices',
+  'licenceSettings.devices.seats': '{used} of {limit} devices are in use.',
+  'licenceSettings.devices.required':
+    'This device is not activated yet. Connect to the internet to activate it.',
+  'licenceSettings.devices.expired':
+    'This device’s activation has expired. Connect to the internet to renew it.',
+  'licenceSettings.devices.manage': 'Manage Devices',
+  'licenceSettings.devices.retry': 'Retry Activation',
+  'licenceSettings.devices.refreshed': 'This device’s activation was renewed.',
+  'licenceSettings.devices.refreshFailed': 'The activation could not be renewed ({code}).',
+  'licence.reason.deviceLimit':
+    'Every device this license allows is in use. Remove one at Manage Devices, then try again.',
+  'licence.reason.activationRequired':
+    'This device is not activated yet. Connect to the internet and try again.',
+  'licence.reason.activationExpired':
+    'This device’s activation has expired. Connect to the internet and try again.',
+  'licence.reason.activationFailed':
+    'The license service could not be reached. Try again in a moment.',
+  'licence.reason.activationUnreadable':
+    'This device’s activation record could not be read. Add the key again or choose Retry Activation.',
+  'licence.reason.rateLimited': 'Too many attempts. Try again in a while.',
   'licenceSettings.key': 'License Key',
   'licenceSettings.keyHint': 'Paste the key from your purchase email. It starts with devot1.',
   'licenceSettings.replaceHint': 'Paste another key to replace the license on this device.',

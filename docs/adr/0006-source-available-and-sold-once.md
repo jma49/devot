@@ -105,3 +105,5 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
 Issue #360 settled that a license is bought once and unlocks sync and AI in every version, with no renewal: the key carries no date that ends it, the Worker sells one Price, and the updater offers every update the same way to everyone.
 
 Issue #362 replaced "free but for sync and AI" and "there is no trial" with the three-day trial and the read-only mode after it, described above.
+
+ADR 0009 amends "all of the buyer's devices" and "a licence works offline forever": a licence is activated on up to three devices, each with a 30-day signed lease, and a key bought before that change gets a 30-day migration window.

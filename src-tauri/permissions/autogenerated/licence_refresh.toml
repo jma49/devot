@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-licence-refresh"
+description = "Enables the licence_refresh command without any pre-configured scope."
+commands.allow = ["licence_refresh"]
+
+[[permission]]
+identifier = "deny-licence-refresh"
+description = "Denies the licence_refresh command without any pre-configured scope."
+commands.deny = ["licence_refresh"]

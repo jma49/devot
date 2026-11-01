@@ -40,6 +40,8 @@ export interface LicenceEntitlements {
   readonly plan: Plan | null
   /** The three-day trial; unknown counts as ended. */
   readonly trial?: TrialState | null
+  /** This device's seat: a key alone is not enough once seats are managed. */
+  readonly activation?: 'active' | 'required' | 'expired' | null
 }
 
 /** The licence as Rust checked it (src-tauri/src/licence), or null when it is not known. */
@@ -65,6 +67,8 @@ export function createEntitlements(options: EntitlementOptions = {}): Entitlemen
       const licence = source?.read()
       if (!licence) return false
       if (!licence.enforced) return true
+      if (licence.activation != null && licence.activation !== 'active')
+        return licence.trial === 'running'
       if (licence.state === 'valid' && licence.plan !== null)
         return PLAN_FEATURES[licence.plan]?.includes(feature) ?? false
       return licence.trial === 'running'

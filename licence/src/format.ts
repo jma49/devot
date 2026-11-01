@@ -4,6 +4,7 @@
  */
 
 export const LICENCE_PREFIX = 'devot1'
+export const ACTIVATION_PREFIX = 'devot1dev'
 export const REVOCATIONS_PREFIX = 'devot1rev'
 export const PLAN = 'pro'
 
@@ -15,6 +16,15 @@ export interface LicencePayload {
   issuedAt: string
 }
 
+/** A device's seat on a licence: what the app keeps and verifies offline. */
+export interface ActivationPayload {
+  id: string
+  device: string
+  kid: string
+  issuedAt: string
+  expiresAt: string
+}
+
 export interface RevocationsPayload {
   kid: string
   issuedAt: string
@@ -22,6 +32,9 @@ export interface RevocationsPayload {
 }
 
 export type VerifyCode = 'E_LICENCE_MALFORMED' | 'E_LICENCE_UNKNOWN_KID' | 'E_LICENCE_SIGNATURE'
+
+/** How long a lease lasts; the app renews it on its daily schedule. */
+export const ACTIVATION_DAYS = 30
 
 export type Verified<T> = { ok: true; payload: T } | { ok: false; code: VerifyCode }
 
@@ -31,6 +44,7 @@ export interface Signer {
 }
 
 export const LICENCE_ID = /^[A-Za-z0-9_-]{22}$/
+export const DEVICE_ID = /^[A-Za-z0-9_-]{22}$/
 const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/
 const BASE64URL = /^[A-Za-z0-9_-]+$/
 const MAX_LENGTH = 1024
@@ -111,6 +125,20 @@ export function signRevocations(
   return signEnvelope(REVOCATIONS_PREFIX, signer, payload)
 }
 
+export function signActivation(
+  signer: Signer,
+  fields: Omit<ActivationPayload, 'kid'>,
+): Promise<string> {
+  const payload: ActivationPayload = {
+    id: fields.id,
+    device: fields.device,
+    kid: signer.kid,
+    issuedAt: fields.issuedAt,
+    expiresAt: fields.expiresAt,
+  }
+  return signEnvelope(ACTIVATION_PREFIX, signer, payload)
+}
+
 async function signEnvelope(prefix: string, signer: Signer, payload: object): Promise<string> {
   const signed = `${prefix}.${toBase64Url(new TextEncoder().encode(JSON.stringify(payload)))}`
   const signature = await signer.sign(new TextEncoder().encode(signed))
@@ -133,6 +161,13 @@ export function verifyRevocations(
   publicKeys: Readonly<Record<string, Uint8Array>>,
 ): Promise<Verified<RevocationsPayload>> {
   return verifyEnvelope(list, REVOCATIONS_PREFIX, MAX_REVOCATIONS_LENGTH, publicKeys, isRevocations)
+}
+
+export function verifyActivation(
+  lease: string,
+  publicKeys: Readonly<Record<string, Uint8Array>>,
+): Promise<Verified<ActivationPayload>> {
+  return verifyEnvelope(lease, ACTIVATION_PREFIX, MAX_LENGTH, publicKeys, isActivationPayload)
 }
 
 async function verifyEnvelope<T extends { kid: string }>(
@@ -190,5 +225,20 @@ function isRevocations(value: unknown): value is RevocationsPayload {
     INSTANT.test(value['issuedAt']) &&
     Array.isArray(value['ids']) &&
     value['ids'].every((id) => typeof id === 'string' && LICENCE_ID.test(id))
+  )
+}
+
+function isActivationPayload(value: unknown): value is ActivationPayload {
+  return (
+    isRecord(value) &&
+    typeof value['id'] === 'string' &&
+    LICENCE_ID.test(value['id']) &&
+    typeof value['device'] === 'string' &&
+    DEVICE_ID.test(value['device']) &&
+    typeof value['kid'] === 'string' &&
+    typeof value['issuedAt'] === 'string' &&
+    INSTANT.test(value['issuedAt']) &&
+    typeof value['expiresAt'] === 'string' &&
+    INSTANT.test(value['expiresAt'])
   )
 }

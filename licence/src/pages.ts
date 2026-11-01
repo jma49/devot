@@ -114,6 +114,55 @@ export function resentPage(): Response {
   return page(MESSAGES.resentTitle, p(MESSAGES.resentBody, 'lead'))
 }
 
+export interface DeviceRow {
+  device: string
+  label: string
+  createdAt: string
+  lastSeenAt: string
+}
+
+/**
+ * The devices page: a key to paste, then the seats it holds. The key travels in a form body and is
+ * carried between the two forms as a hidden field; the page is never cached.
+ */
+export function devicesPage(
+  key: string | null,
+  devices: DeviceRow[] | null,
+  limit: number,
+  notice?: string,
+): Response {
+  const form =
+    `<form method="post" action="/devices" class="form">` +
+    `<label for="key">${escapeHtml(MESSAGES.devicesField)}</label>` +
+    `<input id="key" type="password" name="key" required maxlength="1024" autocomplete="off" spellcheck="false">` +
+    `<button class="button primary" type="submit">${escapeHtml(MESSAGES.devicesButton)}</button></form>`
+  if (!key || !devices) {
+    return page(MESSAGES.devicesTitle, p(MESSAGES.devicesBody, 'lead') + form)
+  }
+  const rows = devices
+    .map(
+      (device) =>
+        `<li><strong>${escapeHtml(device.label)}</strong>` +
+        `<span class="muted">${escapeHtml(device.device)}</span>` +
+        `<span class="muted">${escapeHtml(MESSAGES.devicesAdded)} ${escapeHtml(device.createdAt)}` +
+        ` · ${escapeHtml(MESSAGES.devicesSeen)} ${escapeHtml(device.lastSeenAt)}</span>` +
+        `<form method="post" action="/devices">` +
+        `<input type="hidden" name="key" value="${escapeHtml(key)}">` +
+        `<input type="hidden" name="device" value="${escapeHtml(device.device)}">` +
+        `<button class="button" type="submit">${escapeHtml(MESSAGES.devicesRemove)}</button>` +
+        `</form></li>`,
+    )
+    .join('')
+  return page(
+    MESSAGES.devicesTitle,
+    p(MESSAGES.devicesBody, 'lead') +
+      (notice ? p(notice, 'status') : '') +
+      `<p class="lead">${devices.length} ${escapeHtml(MESSAGES.devicesCount)} ${limit}.</p>` +
+      (devices.length === 0 ? p(MESSAGES.devicesEmpty) : `<ul class="devices">${rows}</ul>`) +
+      form,
+  )
+}
+
 export function errorPage(code: LicenceCode, status: number): Response {
   return page(
     MESSAGES.errorTitle,

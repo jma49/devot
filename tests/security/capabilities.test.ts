@@ -123,8 +123,10 @@ describe('Tauri command permissions', () => {
       'allow-http-api-token-rotate',
       'allow-keyboard-shortcuts-get',
       'allow-keyboard-shortcuts-set',
-      // Settings > Licence adds a key (which never comes back out), shows its state and removes it.
+      // Settings > Licence adds a key (which never comes back out), shows its state, renews its
+      // seat and removes it.
       'allow-licence-get',
+      'allow-licence-refresh',
       'allow-licence-remove',
       'allow-licence-set',
       // Settings > Integrations offers the AI access picker, which lives in the main window.
@@ -186,6 +188,8 @@ describe('Tauri command permissions', () => {
     // The main window adds the key a devot://licence link brings, once the user agrees.
     expect(windowsWith('allow-licence-set')).toEqual(['main', 'settings'])
     expect(windowsWith('allow-licence-remove')).toEqual(['settings'])
+    // Retry Activation is in Settings > Licence.
+    expect(windowsWith('allow-licence-refresh')).toEqual(['settings'])
   })
 
   it('lets only the main window run sync, and only the Settings window set it up', () => {

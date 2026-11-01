@@ -20,6 +20,15 @@ pub struct Get<'a> {
     pub max_bytes: usize,
 }
 
+pub struct Post<'a> {
+    pub url: &'a Url,
+    pub accept: &'a str,
+    pub content_type: &'a str,
+    pub body: &'a str,
+    pub timeout: Duration,
+    pub max_bytes: usize,
+}
+
 /// Any status: the caller decides what a 404 means.
 #[derive(Debug, Clone)]
 pub struct Fetched {
@@ -180,6 +189,74 @@ pub fn get(get: &Get) -> Result<Fetched, &'static str> {
 #[cfg(test)]
 pub fn get_local(get: &Get) -> Result<Fetched, &'static str> {
     fetch(get, false)
+}
+
+/// A POST with a small text body. Redirects are not followed: the Worker's routes answer directly.
+pub fn post(post: &Post) -> Result<Fetched, &'static str> {
+    post_with(post, true, DefaultResolver::default)
+}
+
+/// Tests reach a server on this machine, over plain http.
+#[cfg(test)]
+pub fn post_local(post: &Post) -> Result<Fetched, &'static str> {
+    post_with(post, false, DefaultResolver::default)
+}
+
+fn post_with<R: Resolver>(
+    post: &Post,
+    strict: bool,
+    resolver: impl Fn() -> R,
+) -> Result<Fetched, &'static str> {
+    if strict && !public_host(post.url) {
+        return Err("E_NET_HOST_REFUSED");
+    }
+    let config = ureq::Agent::config_builder()
+        .tls_config(
+            ureq::tls::TlsConfig::builder()
+                .provider(ureq::tls::TlsProvider::NativeTls)
+                .build(),
+        )
+        .https_only(strict)
+        .max_redirects(0)
+        .timeout_global(Some(post.timeout))
+        .http_status_as_error(false)
+        .build();
+    let agent = if strict {
+        ureq::Agent::with_parts(config, DefaultConnector::default(), PublicOnly(resolver()))
+    } else {
+        ureq::Agent::with_parts(config, DefaultConnector::default(), resolver())
+    };
+    let mut response = agent
+        .post(post.url.as_str())
+        .header("User-Agent", USER_AGENT)
+        .header("Accept", post.accept)
+        .header("Content-Type", post.content_type)
+        .send(post.body)
+        .map_err(|e| error_code(&e))?;
+    let status = response.status().as_u16();
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .map(|t| t.to_ascii_lowercase());
+    let mut body = Vec::new();
+    let limit = u64::try_from(post.max_bytes)
+        .unwrap_or(u64::MAX)
+        .saturating_add(1);
+    response
+        .body_mut()
+        .as_reader()
+        .take(limit)
+        .read_to_end(&mut body)
+        .map_err(|_| "E_NET_FAILED")?;
+    let truncated = body.len() > post.max_bytes;
+    body.truncate(post.max_bytes);
+    Ok(Fetched {
+        status,
+        content_type,
+        body,
+        truncated,
+    })
 }
 
 fn fetch(get: &Get, strict: bool) -> Result<Fetched, &'static str> {

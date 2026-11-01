@@ -50,7 +50,7 @@ import {
 } from './backups'
 import { BackupNotice } from './BackupNotice'
 import { SyncNotice } from './SyncNotice'
-import { TrialEndedBar, TrialReminder } from './TrialNotices'
+import { ActivationBar, TrialEndedBar, TrialReminder } from './TrialNotices'
 import { runSync, runsSync, startSyncStatus, useSyncSnapshot } from './sync'
 import { licenceEntitlements, startLicence, useEditing } from './licence'
 import { useLicenceLink } from './LicenceLink'
@@ -4091,6 +4091,7 @@ export function App() {
         <BackupsDialog onRestore={restore} onClose={closeBackups} readOnly={!editing} />
       ) : null}
       <Notices>
+        <ActivationBar />
         <TrialEndedBar />
         <TrialReminder />
         {saveNoticeShown ? (

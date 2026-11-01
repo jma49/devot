@@ -338,9 +338,18 @@ fn a_licence_unlocks_every_version_whatever_dates_it_carries() {
         sent.as_object()
             .map(|o| o.keys().cloned().collect::<Vec<_>>()),
         Some(
-            ["code", "gated", "id", "licensee", "plan", "state", "trial"]
-                .map(String::from)
-                .to_vec()
+            [
+                "activation",
+                "code",
+                "gated",
+                "id",
+                "licensee",
+                "plan",
+                "state",
+                "trial"
+            ]
+            .map(String::from)
+            .to_vec()
         )
     );
 }
@@ -965,4 +974,345 @@ fn a_denied_licence_read_keeps_the_key_and_is_asked_again_at_the_next_tick_not_a
         emitted.last().map(|snapshot| snapshot.state),
         Some(LicenceState::Valid)
     );
+}
+
+mod seats {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+
+    use super::super::activation::State as SeatState;
+    use super::super::client::Reply as ActivationReply;
+    use super::super::store::MemoryKey;
+    use super::super::testing::{ID, key, sign, test_keys, trial_over};
+    use super::super::tests::OTHER_ID;
+    use super::super::{Licence, LicenceState, REQUIRED, Snapshot};
+    use crate::storage::Write;
+
+    const DAY: i64 = 86_400_000;
+    /// `setup`'s clock starts here.
+    const START: i64 = 1_790_000_000_000;
+
+    fn lease_for(id: &str, device: &str, expires_at: &str) -> String {
+        sign(
+            "devot1dev",
+            &serde_json::json!({
+                "id": id,
+                "device": device,
+                "kid": "test",
+                "issuedAt": "2026-10-24T09:30:00Z",
+                "expiresAt": expires_at,
+            }),
+        )
+    }
+
+    struct Seats {
+        licence: Arc<Licence>,
+        now: Arc<AtomicI64>,
+        activation: Arc<MemoryKey>,
+        _dir: tempfile::TempDir,
+    }
+
+    fn seat_setup(
+        answer: impl Fn(&str) -> Result<ActivationReply, &'static str> + Send + Sync + 'static,
+    ) -> Seats {
+        seat_setup_with(None, answer)
+    }
+
+    fn seat_setup_with(
+        held: Option<&str>,
+        answer: impl Fn(&str) -> Result<ActivationReply, &'static str> + Send + Sync + 'static,
+    ) -> Seats {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let now = Arc::new(AtomicI64::new(START));
+        let clock = Arc::clone(&now);
+        let key_store = held.map_or_else(MemoryKey::default, MemoryKey::holding);
+        let activation = Arc::new(MemoryKey::default());
+        let licence = Arc::new(
+            Licence::new(
+                test_keys(true),
+                Arc::new(key_store),
+                trial_over(),
+                dir.path(),
+                Arc::new(|_: &Snapshot| {}),
+            )
+            .with_clock(Arc::new(move || clock.load(Ordering::SeqCst)))
+            .with_activation(
+                Arc::new(MemoryKey::default()),
+                Arc::clone(&activation) as Arc<dyn super::super::store::KeyStore>,
+                Arc::new(move |_: &str, device: &str, _: &str| answer(device)),
+            ),
+        );
+        Seats {
+            licence,
+            now,
+            activation,
+            _dir: dir,
+        }
+    }
+
+    fn active(device: &str) -> Result<ActivationReply, &'static str> {
+        Ok(ActivationReply {
+            lease: lease_for(ID, device, "2099-01-01T00:00:00Z"),
+            used: 1,
+            limit: 3,
+        })
+    }
+
+    #[test]
+    fn a_key_takes_a_seat_and_the_snapshot_reports_it() {
+        let s = seat_setup(active);
+        s.licence.set(&key(ID)).expect("set");
+        let snapshot = s.licence.snapshot();
+        assert_eq!(snapshot.state, LicenceState::Valid);
+        let seat = snapshot.activation.expect("seat");
+        assert_eq!(
+            (seat.state, seat.used, seat.limit),
+            (SeatState::Active, 1, 3)
+        );
+        assert!(seat.expires_at.is_some());
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+    }
+
+    #[test]
+    fn an_unreachable_worker_leaves_a_thirty_day_migration_window() {
+        let s = seat_setup(|_| Err("E_NET_TIMEOUT"));
+        s.licence.set(&key(ID)).expect("set");
+        let snapshot = s.licence.snapshot();
+        assert_eq!(snapshot.code, Some("E_NET_TIMEOUT"));
+        // A migration window is usable, so it reports as active; the code says why it was needed.
+        assert_eq!(
+            snapshot.activation.map(|seat| seat.state),
+            Some(SeatState::Active)
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+        s.now.fetch_add(29 * DAY, Ordering::SeqCst);
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+        s.now.fetch_add(2 * DAY, Ordering::SeqCst);
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+        assert_eq!(
+            s.licence.snapshot().code,
+            Some("E_LICENCE_ACTIVATION_REQUIRED")
+        );
+    }
+
+    #[test]
+    fn a_refused_seat_does_not_open_a_window() {
+        let s = seat_setup(|_| Err("E_LICENCE_DEVICE_LIMIT"));
+        s.licence.set(&key(ID)).expect("set");
+        let snapshot = s.licence.snapshot();
+        assert_eq!(
+            snapshot.activation.map(|seat| seat.state),
+            Some(SeatState::Required)
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    }
+
+    #[test]
+    fn an_expired_lease_locks_writes_until_it_is_renewed() {
+        let renew = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&renew);
+        let s = seat_setup(move |device| {
+            if flag.load(Ordering::SeqCst) {
+                active(device)
+            } else {
+                Ok(ActivationReply {
+                    lease: lease_for(ID, device, "2000-01-01T00:00:00Z"),
+                    used: 1,
+                    limit: 3,
+                })
+            }
+        });
+        s.licence.set(&key(ID)).expect("set");
+        assert_eq!(
+            s.licence.snapshot().code,
+            Some("E_LICENCE_ACTIVATION_EXPIRED")
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+        renew.store(true, Ordering::SeqCst);
+        assert_eq!(s.licence.refresh_activation(), Ok(true));
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+    }
+
+    #[test]
+    fn a_lease_signed_for_another_device_is_not_this_devices_seat() {
+        let s = seat_setup(|_| {
+            Ok(ActivationReply {
+                lease: lease_for(ID, "BBBBBBBBBBBBBBBBBBBBBB", "2099-01-01T00:00:00Z"),
+                used: 1,
+                limit: 3,
+            })
+        });
+        s.licence.set(&key(ID)).expect("set");
+        let snapshot = s.licence.snapshot();
+        assert_eq!(
+            snapshot.activation.map(|seat| seat.state),
+            Some(SeatState::Required)
+        );
+        assert_eq!(snapshot.code, Some("E_LICENCE_ACTIVATION_REQUIRED"));
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    }
+
+    #[test]
+    fn a_key_sold_after_seats_gets_no_window_when_the_worker_is_unreachable() {
+        let s = seat_setup(|_| Err("E_NET_TIMEOUT"));
+        let fresh = sign(
+            "devot1",
+            &serde_json::json!({
+                "id": ID,
+                "kid": "test",
+                "plan": "pro",
+                "licensee": "buyer@example.com",
+                "issuedAt": "2026-12-01T00:00:00Z",
+            }),
+        );
+        s.licence.set(&fresh).expect("set");
+        let snapshot = s.licence.snapshot();
+        assert_eq!(snapshot.code, Some("E_LICENCE_ACTIVATION_REQUIRED"));
+        assert_eq!(
+            snapshot.activation.map(|seat| seat.state),
+            Some(SeatState::Required)
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    }
+
+    #[test]
+    fn a_key_already_held_from_before_seats_starts_its_window_without_adding_it_again() {
+        let held = key(ID);
+        let s = seat_setup_with(Some(held.as_str()), |_| Err("E_NET_TIMEOUT"));
+        let snapshot = s.licence.snapshot();
+        assert_eq!(snapshot.state, LicenceState::Valid);
+        assert_eq!(
+            snapshot.activation.map(|seat| seat.state),
+            Some(SeatState::Active)
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+    }
+
+    #[test]
+    fn a_refused_key_cannot_reopen_a_window_by_going_offline() {
+        let online = Arc::new(AtomicBool::new(true));
+        let flag = Arc::clone(&online);
+        let s = seat_setup(move |_| {
+            if flag.load(Ordering::SeqCst) {
+                Err("E_LICENCE_DEVICE_LIMIT")
+            } else {
+                Err("E_NET_TIMEOUT")
+            }
+        });
+        s.licence.set(&key(ID)).expect("set");
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+        online.store(false, Ordering::SeqCst);
+        s.licence.set(&key(ID)).expect("set");
+        let snapshot = s.licence.snapshot();
+        assert_eq!(
+            snapshot.activation.map(|seat| seat.state),
+            Some(SeatState::Required)
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    }
+
+    #[test]
+    fn an_unreadable_seat_locks_the_device_and_a_re_paste_recovers() {
+        let held = key(ID);
+        let s = seat_setup_with(Some(held.as_str()), active);
+        *s.activation.key.lock().expect("seat") = Some("not json".into());
+        let snapshot = s.licence.snapshot();
+        assert_eq!(snapshot.state, LicenceState::Valid);
+        assert_eq!(snapshot.code, Some("E_LICENCE_ACTIVATION_UNREADABLE"));
+        assert_eq!(
+            snapshot.activation.map(|seat| seat.state),
+            Some(SeatState::Required)
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+        s.licence.set(&held).expect("set");
+        assert_eq!(
+            s.licence.snapshot().activation.map(|seat| seat.state),
+            Some(SeatState::Active)
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+    }
+
+    #[test]
+    fn a_lease_for_another_licence_is_not_this_ones() {
+        let s = seat_setup(|device| {
+            Ok(ActivationReply {
+                lease: lease_for(OTHER_ID, device, "2099-01-01T00:00:00Z"),
+                used: 1,
+                limit: 3,
+            })
+        });
+        s.licence.set(&key(ID)).expect("set");
+        assert_eq!(
+            s.licence.snapshot().activation.map(|seat| seat.state),
+            Some(SeatState::Required)
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    }
+
+    #[test]
+    fn a_failed_renewal_keeps_the_lease_that_is_there() {
+        let fail = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&fail);
+        let s = seat_setup(move |device| {
+            if flag.load(Ordering::SeqCst) {
+                Err("E_NET_TIMEOUT")
+            } else {
+                Ok(ActivationReply {
+                    // Within the 7 days before its end, so the schedule tries to renew it.
+                    lease: lease_for(ID, device, "2026-09-26T08:00:00Z"),
+                    used: 1,
+                    limit: 3,
+                })
+            }
+        });
+        s.licence.set(&key(ID)).expect("set");
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+        fail.store(true, Ordering::SeqCst);
+        // An unreachable Worker is tried again at the next wake-up, not once a day.
+        assert!(!s.licence.refresh_activation_if_due());
+        assert_eq!(s.licence.require_write(Write::Content), Ok(()));
+    }
+
+    #[test]
+    fn swapping_keys_does_not_restart_a_window() {
+        let s = seat_setup(|_| Err("E_NET_TIMEOUT"));
+        let other = sign(
+            "devot1",
+            &serde_json::json!({
+                "id": OTHER_ID,
+                "kid": "test",
+                "plan": "pro",
+                "licensee": "buyer@example.com",
+                "issuedAt": "2026-10-24T09:30:00Z",
+            }),
+        );
+        s.licence.set(&key(ID)).expect("set");
+        s.licence.set(&other).expect("set");
+        s.licence.set(&key(ID)).expect("set");
+        let snapshot = s.licence.snapshot();
+        assert_eq!(
+            snapshot.activation.map(|seat| seat.state),
+            Some(SeatState::Required)
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    }
+
+    #[test]
+    fn removing_and_readding_a_key_does_not_restart_its_window() {
+        let held = key(ID);
+        let s = seat_setup_with(Some(held.as_str()), |_| Err("E_NET_TIMEOUT"));
+        // The held key's window starts on the first look.
+        assert_eq!(
+            s.licence.snapshot().activation.map(|seat| seat.state),
+            Some(SeatState::Active)
+        );
+        s.licence.remove().expect("remove");
+        s.licence.set(&held).expect("set");
+        let snapshot = s.licence.snapshot();
+        assert_eq!(
+            snapshot.activation.map(|seat| seat.state),
+            Some(SeatState::Required)
+        );
+        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    }
 }

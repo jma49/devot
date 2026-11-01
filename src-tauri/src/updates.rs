@@ -581,6 +581,7 @@ pub fn start(app: &AppHandle) {
         .spawn(move || {
             std::thread::sleep(FIRST_CHECK);
             let mut last_revocations = None;
+            let mut last_seat = None;
             loop {
                 if let Some(licence) = &licence
                     && due(last_revocations, SystemTime::now(), CHECK_EVERY)
@@ -588,6 +589,12 @@ pub fn start(app: &AppHandle) {
                     && licence::refresh_revocations(licence)
                 {
                     last_revocations = Some(SystemTime::now());
+                }
+                if let Some(licence) = &licence
+                    && due(last_seat, SystemTime::now(), CHECK_EVERY)
+                    && licence.refresh_activation_if_due()
+                {
+                    last_seat = Some(SystemTime::now());
                 }
                 if updater && due_now(&app) {
                     tauri::async_runtime::block_on(check(app.clone(), None));

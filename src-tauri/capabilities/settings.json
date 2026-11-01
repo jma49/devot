@@ -53,6 +53,7 @@
     "allow-licence-get",
     "allow-licence-set",
     "allow-licence-remove",
+    "allow-licence-refresh",
     "allow-open-external",
     "allow-cli-tool-status",
     "allow-cli-tool-install",

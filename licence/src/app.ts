@@ -1,15 +1,28 @@
 import { assetResponse } from './assets.ts'
 import { type CheckoutConfig, checkoutParams, LICENCE_KIND } from './checkout.ts'
 import { type LicenceCode, LicenceError } from './errors.ts'
-import { instant, newLicenceId, type Signer, signLicence, signRevocations } from './format.ts'
+import {
+  ACTIVATION_DAYS,
+  DEVICE_ID,
+  instant,
+  newLicenceId,
+  type Signer,
+  signActivation,
+  signLicence,
+  signRevocations,
+  verifyLicence,
+} from './format.ts'
 import { licenceMail, type Mailer } from './mail.ts'
-import { donePage, errorPage, pendingPage, resendPage, resentPage } from './pages.ts'
+import { MESSAGES } from './messages.ts'
+import { devicesPage, donePage, errorPage, pendingPage, resendPage, resentPage } from './pages.ts'
 import type { Fulfilled, Licence, Store } from './store.ts'
 import { type CheckoutSession, type StripeClient, toSession } from './stripe.ts'
 import { verifyStripeSignature } from './webhook.ts'
 
 export interface AppConfig extends CheckoutConfig {
   webhookSecret: string
+  /** How many devices one licence may be activated on. */
+  maxDevices: number
 }
 
 export interface AppDeps {
@@ -18,6 +31,8 @@ export interface AppDeps {
   mailer: Mailer
   signer: Signer
   config: AppConfig
+  /** The public keys a licence key is checked against, by `kid`; the signer's own at least. */
+  publicKeys: Readonly<Record<string, Uint8Array>>
   /** Keys the hashes `/resend` counts addresses and IPs under, so no address is stored. */
   rateSecret: Uint8Array
   /** Runs work after the answer has gone (the Worker's `waitUntil`). */
@@ -40,6 +55,10 @@ export const LIMITS = {
   mailClaimSeconds: 60,
   webhookBytes: 512 * 1024,
   formBytes: 4 * 1024,
+  /** Activations and device lookups allowed an hour per licence. */
+  activatePerLicencePerHour: 120,
+  activationBytes: 4 * 1024,
+  labelChars: 64,
 }
 
 const SESSION_ID = /^cs_[A-Za-z0-9_]{1,250}$/
@@ -53,7 +72,6 @@ function pendingCheck(url: URL): number {
   return /^\d+$/.test(check) ? Number(check) : 0
 }
 const EMAIL = /^[^\s@<>"]{1,64}@[^\s@<>"]+\.[^\s@<>"]+$/
-
 const STATUS: Partial<Record<LicenceCode, number>> = {
   E_LICENCE_BAD_REQUEST: 400,
   E_LICENCE_CONFIG: 503,
@@ -67,6 +85,35 @@ const STATUS: Partial<Record<LicenceCode, number>> = {
   E_LICENCE_TOO_LARGE: 413,
   E_LICENCE_UNPAID: 402,
   E_LICENCE_WEBHOOK_SIGNATURE: 400,
+  E_LICENCE_DEVICE_LIMIT: 409,
+  E_LICENCE_RATE_LIMITED: 429,
+  E_LICENCE_MALFORMED: 400,
+  E_LICENCE_UNKNOWN_KID: 400,
+  E_LICENCE_SIGNATURE: 400,
+}
+
+/** A label the buyer can recognise their device by; never markup, never long. */
+function cleanLabel(value: unknown): string {
+  const text = typeof value === 'string' ? value : ''
+  const plain = [...text]
+    .filter((c) => c >= ' ' && c !== '\u007f')
+    .join('')
+    .trim()
+  return plain.slice(0, LIMITS.labelChars) || 'Devot'
+}
+
+async function readJson(request: Request): Promise<Record<string, unknown>> {
+  const body = await readBody(request, LIMITS.activationBytes)
+  let value: unknown
+  try {
+    value = JSON.parse(body)
+  } catch {
+    throw new LicenceError('E_LICENCE_BAD_REQUEST')
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new LicenceError('E_LICENCE_BAD_REQUEST')
+  }
+  return value as Record<string, unknown>
 }
 
 export function createApp(deps: AppDeps): (request: Request) => Promise<Response> {
@@ -350,6 +397,85 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     })
   }
 
+  /**
+   * The live licence a key names; a key that fails says why, as the app does. A complimentary key
+   * has no row in D1 (docs/licensing.md, Complimentary licences): its signature is the root of
+   * trust, and only a row that says it was revoked refuses it.
+   */
+  async function licenceFor(key: unknown): Promise<{ id: string }> {
+    if (typeof key !== 'string' || key.length === 0 || key.length > 1024) {
+      throw new LicenceError('E_LICENCE_BAD_REQUEST')
+    }
+    const verified = await verifyLicence(key, deps.publicKeys)
+    if (!verified.ok) throw new LicenceError(verified.code)
+    const id = verified.payload.id
+    const licence = await store.licence(id)
+    if (licence?.revokedAt) throw new LicenceError('E_LICENCE_REVOKED', id)
+    return { id }
+  }
+
+  function deviceOf(value: unknown): string {
+    if (typeof value !== 'string' || !DEVICE_ID.test(value)) {
+      throw new LicenceError('E_LICENCE_BAD_REQUEST')
+    }
+    return value
+  }
+
+  /** Takes or refreshes a seat and answers with a lease the app verifies offline. */
+  async function activate(request: Request): Promise<Response> {
+    const body = await readJson(request)
+    const licence = await licenceFor(body['key'])
+    const device = deviceOf(body['device'])
+    const at = instant(now())
+    const hour = Math.floor(now().getTime() / 3_600_000)
+    // Per device: a refused copy cannot spend the owner's allowance.
+    const counter = `activate:${licence.id}:${device}`
+    if ((await store.hit(counter, hour)) > LIMITS.activatePerLicencePerHour) {
+      log(`I_LICENCE_ACTIVATE_LIMITED ${licence.id}`)
+      throw new LicenceError('E_LICENCE_RATE_LIMITED')
+    }
+    const taken = await store.activate(
+      licence.id,
+      device,
+      cleanLabel(body['label']),
+      at,
+      config.maxDevices,
+    )
+    if (!taken) {
+      log(`I_LICENCE_DEVICE_LIMIT ${licence.id}`)
+      throw new LicenceError('E_LICENCE_DEVICE_LIMIT', licence.id)
+    }
+    const expiresAt = instant(new Date(now().getTime() + ACTIVATION_DAYS * 86_400_000))
+    const lease = await signActivation(signer, { id: licence.id, device, issuedAt: at, expiresAt })
+    log(`I_LICENCE_ACTIVATED ${licence.id} ${device}`)
+    return json({ lease, used: taken.used, limit: config.maxDevices }, 200)
+  }
+
+  async function deactivate(request: Request): Promise<Response> {
+    const body = await readJson(request)
+    const licence = await licenceFor(body['key'])
+    const device = deviceOf(body['device'])
+    const freed = await store.deactivate(licence.id, device)
+    log(`I_LICENCE_DEACTIVATED ${licence.id} ${device} ${freed ? 'seat' : 'none'}`)
+    return json({ deactivated: freed }, 200)
+  }
+
+  /** The page a buyer uses to free a seat, for a device they no longer have. */
+  async function devices(request: Request): Promise<Response> {
+    if (request.method === 'GET') return devicesPage(null, null, config.maxDevices)
+    const form = new URLSearchParams(await readBody(request, LIMITS.formBytes))
+    const key = form.get('key') ?? ''
+    const licence = await licenceFor(key)
+    const target = form.get('device')
+    let notice: string | undefined
+    if (target) {
+      const freed = await store.deactivate(licence.id, deviceOf(target))
+      log(`I_LICENCE_DEACTIVATED ${licence.id} ${target} ${freed ? 'page' : 'none'}`)
+      notice = freed ? MESSAGES.devicesRemoved : MESSAGES.devicesUnknown
+    }
+    return devicesPage(key, await store.activations(licence.id), config.maxDevices, notice)
+  }
+
   return async (request) => {
     const url = new URL(request.url)
     const asset = assetResponse(url.pathname, request.method)
@@ -367,13 +493,23 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
           return await done(url)
         case '/resend':
           return request.method === 'GET' ? resendPage() : await resend(request)
+        case '/activate':
+          return await activate(request)
+        case '/deactivate':
+          return await deactivate(request)
+        case '/devices':
+          return await devices(request)
         default:
           return await revoked()
       }
     } catch (error) {
       const code = fail(error)
       const status = STATUS[code] ?? 500
-      return url.pathname === '/stripe/webhook' ? json({ code }, status) : errorPage(code, status)
+      const api =
+        url.pathname === '/stripe/webhook' ||
+        url.pathname === '/activate' ||
+        url.pathname === '/deactivate'
+      return api ? json({ code }, status) : errorPage(code, status)
     }
   }
 }
@@ -384,6 +520,9 @@ const ROUTES: Record<string, string[]> = {
   '/done': ['GET'],
   '/resend': ['GET', 'POST'],
   '/revoked': ['GET'],
+  '/activate': ['POST'],
+  '/deactivate': ['POST'],
+  '/devices': ['GET', 'POST'],
 }
 
 function ours(session: CheckoutSession): boolean {

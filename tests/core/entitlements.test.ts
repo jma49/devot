@@ -40,6 +40,15 @@ describe('without a valid licence', () => {
     }
   })
 
+  it('withholds them from a valid licence whose device has no live seat', () => {
+    for (const activation of ['required', 'expired'] as const) {
+      const e = withLicence({ ...valid, activation })
+      for (const f of PLAN_GATED_FEATURES) expect(e.has(f)).toBe(false)
+      expect(e.has('localNotes')).toBe(true)
+    }
+    expect(withLicence({ ...valid, activation: 'active' }).has('editing')).toBe(true)
+  })
+
   it('withholds gated features when the licence is not known or there is no source', () => {
     expect(withLicence(null).has('sync')).toBe(false)
     expect(createEntitlements().has('aiProviders')).toBe(false)
