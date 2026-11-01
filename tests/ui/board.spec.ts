@@ -335,6 +335,7 @@ test('Undo on a card takes back the last status change made by any means, not an
   await card(page, 'Alpha').dragTo(column(page, 'On Hold'))
   await expect.poll(async () => (await storedStatus(page))['Alpha']).toBe('on_hold')
   await card(page, 'Bravo').click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Bravo')
   await page.keyboard.press('Meta+Control+2')
   await expect.poll(async () => (await storedStatus(page))['Bravo']).toBe('active')
   await card(page, 'Bravo').focus()

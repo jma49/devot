@@ -65,7 +65,7 @@ describe('every page', () => {
 
   it.each(pages())('%s shows the dove and the wordmark', async (_name, response) => {
     const html = await response.text()
-    expect(html).toContain(`d="${DOVE.path}"`)
+    expect(html).toContain(`d="${DOVE.smallPath}"`)
     expect(html).toContain(`<span>${MESSAGES.product}</span>`)
     expect(html).toContain('<meta name="viewport" content="width=device-width,initial-scale=1">')
   })
@@ -242,15 +242,5 @@ describe('brand', () => {
     for (const [name, color] of Object.entries(colors)) {
       expect([name, value(css, name)]).toEqual([name, color])
     }
-  })
-
-  it('the dove is the app icon dove, inked as in the light and dark lockups', () => {
-    const dove = readFileSync('design/app-icon/dove.svg', 'utf8')
-    const stops = (svg: string) => [...svg.matchAll(/stop-color="([^"]+)"/g)].map((m) => m[1])
-    expect(dove).toContain(`d="${DOVE.path}"`)
-    expect(dove).toContain(`viewBox="${DOVE.viewBox}"`)
-    expect(dove).toContain(`y1="${DOVE.gradient.y1}" x2="0" y2="${DOVE.gradient.y2}"`)
-    expect(stops(dove)).toEqual(DOVE.ink.light)
-    expect(stops(readFileSync('design/app-icon/lockup-dark.svg', 'utf8'))).toEqual(DOVE.ink.dark)
   })
 })

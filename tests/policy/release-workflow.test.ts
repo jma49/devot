@@ -58,6 +58,17 @@ describe('the release workflow', () => {
     expect(verify).toBeLessThan(workflow.indexOf('- name: Publish the release'))
   })
 
+  it('checks the documented release gate before it builds', () => {
+    const gate = step('Check the merged pull request passed CI')
+    expect(gate).toContain('release.ts ci-gate')
+    expect(gate).toContain('merge_commit_sha')
+    expect(gate).toContain('.tree.sha')
+    expect(gate).toContain('conclusion == "success"')
+    expect(workflow.indexOf('- name: Check the merged pull request passed CI')).toBeLessThan(
+      workflow.indexOf('- name: Build'),
+    )
+  })
+
   it('keeps the token out of every checkout', () => {
     const checkouts = workflow.match(
       /uses: actions\/checkout@.*\n\s+with:\n(?:\s+(?:#.*|\w[\w-]*: .*)\n)*/g,
