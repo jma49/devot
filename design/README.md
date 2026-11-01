@@ -17,6 +17,7 @@ Everything in this folder is published with the repository (`LICENSE`) and may o
 | `icons/symbols.json`                     | Devot icon names mapped to SF Symbol names                          |
 | `icons/languages.json`                   | Language marks for code block headers (third party, see below)      |
 | `app-icon/dove.svg`                      | The Devot dove: the logo mark, one vector path in the teal gradient |
+| `app-icon/dove-small.svg`                | The optical small mark: larger eye, one notch and no inner wing cut |
 | `app-icon/source.svg`                    | The flat macOS app icon: the dove on a light tile, 1024 canvas      |
 | `app-icon/source.png`                    | `source.svg` rendered at 2048 px, for tools that take no SVG        |
 | `app-icon/source-dark.svg`               | The macOS app icon in the dark appearance                           |
@@ -126,13 +127,14 @@ A code block in the preview with a language shows that language's mark in its he
 
 ## App icon
 
-The app icon is a teal dove on a warm light tile. Its outline is made of smooth curves and rounded corners, and the wing's feathers and the upper tail prong fall on one even step. The tile is 824 px on the 1024 canvas, the macOS icon grid, with continuous corners; the dove spans 66% of it, centred halfway between its bounding box and its area centroid, so neither the long wing nor the heavy body pulls it off centre.
+The app icon is a teal dove on a warm light tile. The production mark uses optically adjusted cubic curves: a lighter belly, tapered feathers, a deeper tail fork and an ascending inner wing cut. The golden circle construction informed its proportions; the final outline is optically refined rather than constrained to exact circles. The tile is 824 px on the 1024 canvas, the macOS icon grid, with continuous corners; the dove spans 66% of it, centred halfway between its bounding box and its area centroid, so neither the long wing nor the heavy body pulls it off centre.
 
 - **Colours** are `color.brand.*` in `tokens/base.tokens.json`: the tile runs from `tile-top` to `tile-bottom`, the dove from `dove-top` through `dove-middle` to `dove-bottom`, each with a `-dark` partner for the dark appearance. The glow, highlights and shadows are brand colours at an opacity the artwork sets. A test refuses any other colour in the artwork and holds the dove at 3:1 against its tile and the wordmark at 4.5:1.
 - **The layered icon** (`AppIcon.icon`, an Icon Composer document) is what macOS 26 shows: a gradient background and one dove layer, which the system draws in Liquid Glass, masks and shades itself, in the default, dark, clear and tinted appearances. In the tinted and clear ones the dove is white, so the system's tint colours it. The bundle compiles it into the app's `Assets.car`.
 - **The flat images** (`src-tauri/icons/`: the PNGs, and `icon.icns`, the fallback) imitate that light with a sheen, a top rim and soft shadows. At 16 and 32 px they use the small cut: one wing notch, a wider tail fork, a larger eye, no wing line, and the dove at 74% of the tile. The system scales the layered icon down by itself, so the small cut appears only in the flat images.
 - **iOS** uses the PNG set of the Xcode project (`src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset`, kept the same in `src-tauri/icons/ios`), made from `source-ios.svg`: square and opaque, since the device masks the corners.
-- **The lockup** sets the dove beside the wordmark in Figtree SemiBold (SIL Open Font License 1.1), converted to outlines, so the files need no font.
+- **The lockup** sets the optical dove beside the wordmark in Figtree SemiBold (SIL Open Font License 1.1), converted to outlines, so the files need no font. The mark retains the previous lockup's occupied width and lower alignment; the wordmark and spacing stay fixed.
+- **The menu bar template** uses the optical small cut in black, with its own mixed bounding-box/area centring on a square canvas, so the eye and tail fork remain clear at menu bar size.
 - **Rebuilding:** edit the SVGs (plain paths that open in any vector editor) or `AppIcon.icon` (in Icon Composer, which comes with Xcode), then run `pnpm app-icon` (it needs ImageMagick: `brew install imagemagick`). It renders every image with `tauri icon`, puts the `.icns` together with `iconutil`, writes the iOS images without an alpha channel (App Store Connect refuses one) and copies `AppIcon.icon` to `src-tauri/icons/`. Tests check that every image is the size its name gives and that the shipped document is the design's.
 
 ## Preview blocks

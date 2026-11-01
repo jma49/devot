@@ -180,7 +180,7 @@ describe('the licence email', () => {
     expect(html).toMatch(/^<!doctype html><html lang="en">/)
     expect(html).toContain('<meta name="color-scheme" content="light dark">')
     expect(html).toContain('@media (prefers-color-scheme:dark)')
-    expect(html).toContain(`d="${DOVE.path}"`)
+    expect(html).toContain(`d="${DOVE.smallPath}"`)
     expect(html).not.toMatch(/<script|<img|<link|url\(http|@import/)
     const external = [...html.matchAll(/href="(https?:[^"]+)"/g)].map((m) => m[1])
     expect(new Set(external)).toEqual(new Set([MESSAGES.siteUrl]))
