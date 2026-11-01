@@ -161,6 +161,13 @@ describe('the release workflow', () => {
     expect(build).not.toContain('createUpdaterArtifacts')
   })
 
+  it("builds the release app, which alone keeps the installed app's data and keychain items", () => {
+    expect(step('Build')).toMatch(/^\s+DEVOT_RELEASE_BUILD: '1'$/m)
+    expect(readFileSync('src-tauri/src/data_folder.rs', 'utf8')).toContain(
+      'option_env!("DEVOT_RELEASE_BUILD")',
+    )
+  })
+
   it('binds the signature to the version the feed announces', () => {
     expect(step('Build')).toContain('requireSignedVersion: true')
     expect(step('Verify the signature')).toMatch(/release\.ts verify-signature .* "\$TAG"$/m)

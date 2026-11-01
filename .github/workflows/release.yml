@@ -125,6 +125,8 @@ jobs:
           workspaces: src-tauri
       - name: Build
         env:
+          # Without it the app keeps its data and keychain items under `.local` (data_folder.rs).
+          DEVOT_RELEASE_BUILD: '1'
           PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
           DEVOT_SENTRY_DSN: ${{ secrets.DEVOT_SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

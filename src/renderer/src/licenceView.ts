@@ -11,6 +11,7 @@ const REASONS: Readonly<Record<string, MessageKey>> = {
   E_LICENCE_SIGNATURE: 'licence.reason.signature',
   E_LICENCE_KEYCHAIN: 'licence.reason.keychain',
   E_LICENCE_KEYCHAIN_UNAVAILABLE: 'licence.reason.keychain',
+  E_LICENCE_KEYCHAIN_DENIED: 'licence.reason.keychainDenied',
   E_LICENCE_DEVICE_LIMIT: 'licence.reason.deviceLimit',
   E_LICENCE_ACTIVATION_REQUIRED: 'licence.reason.activationRequired',
   E_LICENCE_ACTIVATION_EXPIRED: 'licence.reason.activationExpired',
@@ -34,7 +35,7 @@ const STATES: Readonly<Record<LicenceState, MessageKey>> = {
 export function stateSentence(licence: LicenceSnapshot): string {
   if (licence.state === 'none' && !licence.gated) return t('licenceSettings.ungated')
   if (licence.state === 'none' && licence.code)
-    return format(t('licenceSettings.state.unreadable'), { code: licence.code })
+    return format(t('licenceSettings.state.unreadable'), { problem: licenceProblem(licence.code) })
   return format(t(STATES[licence.state]), { code: licence.code ?? '' })
 }
 

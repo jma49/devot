@@ -91,7 +91,11 @@ export function LicenceSection() {
         },
         (e: unknown) => {
           setAnnouncement('')
-          setError(format(t('licenceSettings.devices.refreshFailed'), { code: errorCode(e) }))
+          setError(
+            format(t('licenceSettings.devices.refreshFailed'), {
+              problem: licenceProblem(errorCode(e)),
+            }),
+          )
         },
       )
       .finally(() => setRefreshing(false))

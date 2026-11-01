@@ -935,7 +935,7 @@ title: Daily Report {{date}}
   'licenceSettings.state.revoked': 'This license was revoked after a refund or a lost dispute.',
   'licenceSettings.state.invalid':
     'The license on this device could not be verified ({code}). Add the key from your purchase email again.',
-  'licenceSettings.state.unreadable': 'The license could not be read from the keychain ({code}).',
+  'licenceSettings.state.unreadable': 'The license could not be read. {problem}',
   'licenceSettings.trial': 'Trial',
   'licenceSettings.trial.running':
     'Everything works, sync and AI included, until the trial ends on {date} ({left} left).',
@@ -954,7 +954,7 @@ title: Daily Report {{date}}
   'licenceSettings.devices.manage': 'Manage Devices',
   'licenceSettings.devices.retry': 'Retry Activation',
   'licenceSettings.devices.refreshed': 'This device’s activation was renewed.',
-  'licenceSettings.devices.refreshFailed': 'The activation could not be renewed ({code}).',
+  'licenceSettings.devices.refreshFailed': 'The activation could not be renewed. {problem}',
   'licence.reason.deviceLimit':
     'Every device this license allows is in use. Remove one at Manage Devices, then try again.',
   'licence.reason.activationRequired':
@@ -988,6 +988,8 @@ title: Daily Report {{date}}
   'licence.reason.signature':
     'Its signature does not match, so it was changed after it was issued.',
   'licence.reason.keychain': 'The keychain could not be used.',
+  'licence.reason.keychainDenied':
+    'macOS did not let Devot read its keychain items. When macOS asks again, enter your login password and click Always Allow.',
   'licence.reason.other': 'Something went wrong.',
   'licence.locked.sync': 'Sync needs a Devot license. Add one in Settings > License.',
   'licence.locked.ai': 'AI needs a Devot license. Add one in Settings > License.',

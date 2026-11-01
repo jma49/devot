@@ -73,7 +73,7 @@ describe('what the windows say', () => {
     expect(stateSentence(none)).toMatch(/^No license is added/)
     expect(stateSentence({ ...none, gated: false })).toMatch(/does not check licenses/)
     expect(stateSentence({ ...none, code: 'E_LICENCE_KEYCHAIN' })).toMatch(
-      /keychain \(E_LICENCE_KEYCHAIN\)/,
+      /keychain could not be used\. \(E_LICENCE_KEYCHAIN\)/,
     )
     expect(stateSentence(held())).toBe('Editing, sync and AI are unlocked on this device.')
     expect(stateSentence(held({ state: 'revoked' }))).toMatch(/revoked/)
@@ -97,6 +97,15 @@ describe('what the windows say', () => {
     )
     expect(licenceProblem('E_LICENCE_UNKNOWN_KID')).toMatch(/Update Devot/)
     expect(licenceProblem('E_COMMAND_FAILED')).toBe('Something went wrong. (E_COMMAND_FAILED)')
+  })
+
+  it('says how to get past a refused keychain prompt', () => {
+    expect(licenceProblem('E_LICENCE_KEYCHAIN_DENIED')).toMatch(
+      /login password and click Always Allow\. \(E_LICENCE_KEYCHAIN_DENIED\)$/,
+    )
+    expect(stateSentence({ ...none, code: 'E_LICENCE_KEYCHAIN_DENIED' })).toMatch(
+      /^The license could not be read\. macOS did not let Devot read its keychain items\./,
+    )
   })
 })
 
