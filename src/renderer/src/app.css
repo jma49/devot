@@ -6130,6 +6130,7 @@ button.popup:focus-visible {
 :root[data-sidebar-material='on'] .sidebar {
   z-index: 1;
   margin: var(--size-sidebar-inset);
+  padding-inline: var(--size-sidebar-inset);
   border-right: 0;
   border-radius: var(--radius-sidebar);
   background-color: transparent;
