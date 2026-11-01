@@ -1054,6 +1054,14 @@
         "unit": "px"
       },
       "$description": "Glass interface: dialogs and sheets."
+    },
+    "glass-card": {
+      "$type": "dimension",
+      "$value": {
+        "value": 18,
+        "unit": "px"
+      },
+      "$description": "Glass Settings cards and picture choices, concentric with the floating navigation."
     }
   },
   "size": {
@@ -1610,6 +1618,30 @@
         "unit": "px"
       },
       "$description": "Glass interface: the height of a toolbar control, and a round toolbar button's width."
+    },
+    "glass-switch-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 44,
+        "unit": "px"
+      },
+      "$description": "Glass switch track width, allowing a capsule handle."
+    },
+    "glass-switch-knob-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 26,
+        "unit": "px"
+      },
+      "$description": "Glass switch capsule handle width."
+    },
+    "glass-slider-knob-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      },
+      "$description": "Glass slider capsule handle width."
     }
   },
   "motion": {

@@ -68,3 +68,29 @@ for (const colorScheme of ['light', 'dark'] as const) {
     })
   })
 }
+
+for (const appearance of ['light', 'dark'] as const) {
+  test(`capsule controls stay opaque at every transparency in ${appearance}`, async ({ page }) => {
+    await openSettings(page, 'Appearance')
+    await changeEditorSettingsElsewhere(page, { appearance })
+    const toggle = page.getByRole('switch', { name: 'Use the System Accent Color' })
+    const slider = page.locator('.slider').first()
+    for (const transparency of [-100, 0, 100]) {
+      await changeEditorSettingsElsewhere(page, { windowTransparency: transparency })
+      expect(
+        await slider.evaluate((el) => getComputedStyle(el, '::-webkit-slider-thumb').width),
+      ).toBe('32px')
+      await expect(toggle).toHaveCSS('width', '44px')
+      expect(await toggle.evaluate((el) => getComputedStyle(el, '::after').width)).toBe('26px')
+      await expect(page.locator('.settings-card').first()).toHaveCSS('border-radius', '18px')
+      expect(
+        await slider.evaluate((el) =>
+          getComputedStyle(el).getPropertyValue('--size-glass-slider-knob-width').trim(),
+        ),
+      ).toBe('32px')
+    }
+    await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
+    await expect(toggle).toHaveCSS('width', '38px')
+    await expect(page.locator('.settings-card').first()).toHaveCSS('border-radius', '12px')
+  })
+}
