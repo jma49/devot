@@ -256,11 +256,12 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     color: 'var(--color-text-tertiary)',
     whiteSpace: 'nowrap',
   },
-  // The app's icon rules do not reach into the editor's shadow root.
-  // Its size, mask size and place are set from the rendered image (`symbolStyle`).
+  // The app's icon rules, sizes among them, do not reach into the editor's shadow root.
   '.cm-float-button .icon': {
     display: 'block',
     flexShrink: '0',
+    width: 'var(--size-icon-toolbar)',
+    height: 'var(--size-icon-toolbar)',
     backgroundColor: 'currentColor',
   },
   '.cm-float-button .icon-svg': { display: 'block', flexShrink: '0' },
