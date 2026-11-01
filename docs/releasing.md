@@ -22,6 +22,8 @@ Release only when both are true:
 
 The release workflow checks both before it builds: the tag must be a merged pull request's merge commit, the merge tree must equal that pull request head's tree, and CI must have a successful run for that head. It fails with `E_RELEASE_NO_MERGED_PR`, `E_RELEASE_TREE_MISMATCH` or `E_RELEASE_CI_NOT_GREEN` otherwise, so a release cannot be made from a commit CI never checked.
 
+A pull request whose branch is behind `main` when it merges fails the second condition: its merge commit also holds what `main` gained meanwhile. Bring the branch up to date with `main` before merging a pull request you mean to release, or release from the next pull request cut from the new `main`.
+
 ## Release
 
 Write the notes in English, one line per issue the release closes (`- #148 Drag notes and notebooks out of the app as links`), then tag the merge commit with them and push the tag:
