@@ -8,6 +8,7 @@ import {
   compareVersions,
   feedChannels,
   marksLatest,
+  releaseGate,
   replacesFeed,
   scryptParams,
   signedVersion,
@@ -369,5 +370,21 @@ describe('signing the updater bundle', () => {
     const other = check('v0.9.3-beta1')
     expect(other.status).toBe(1)
     expect(other.stderr).toContain('E_RELEASE_SIGNED_VERSION_MISMATCH')
+  })
+})
+
+describe('release provenance', () => {
+  const merged = { mergedPr: 423, mergeTree: 'tree-a', headTree: 'tree-a', ciGreen: true }
+
+  it('accepts a merged pull request whose tree and CI match the tag', () => {
+    expect(() => releaseGate(merged)).not.toThrow()
+  })
+
+  it.each([
+    [{ ...merged, mergedPr: null }, 'E_RELEASE_NO_MERGED_PR'],
+    [{ ...merged, headTree: 'tree-b' }, 'E_RELEASE_TREE_MISMATCH'],
+    [{ ...merged, ciGreen: false }, 'E_RELEASE_CI_NOT_GREEN'],
+  ] as const)('refuses a tag that did not pass the documented gate', (input, code) => {
+    expect(() => releaseGate(input)).toThrow(code)
   })
 })
