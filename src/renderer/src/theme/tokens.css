@@ -66,9 +66,13 @@
   --radius-sidebar-row: 10px;
   --radius-list-row: 12px;
   --radius-note-info: 14px;
-  --radius-glass-popover: 14px;
+  --radius-glass-popover: 18px;
   --radius-glass-floating-bar: 18px;
-  --radius-glass-dialog: 20px;
+  --radius-glass-dialog: 26px;
+  --radius-glass-group: 14px;
+  --radius-glass-menu-row: 12px;
+  --radius-glass-tooltip: 12px;
+  --radius-window: 26px;
   --radius-glass-card: 18px;
   --size-settings-nav-row: 32px;
   --size-settings-row: 44px;
@@ -144,6 +148,9 @@
   --size-filter-field-height: 30px;
   --size-filter-icon-slot: 37.4px;
   --size-sidebar-inset: 8px;
+  --size-glass-dialog-inset: 12px;
+  --size-glass-palette-inset: 6px;
+  --size-glass-popover-inset: 6px;
   --size-list-inset: 8px;
   --size-toolbar-control: 36px;
   --size-glass-switch-width: 44px;

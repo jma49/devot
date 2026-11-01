@@ -1013,7 +1013,7 @@
         "value": 10,
         "unit": "px"
       },
-      "$description": "Glass interface: a sidebar row's highlight, concentric with the sidebar."
+      "$description": "Glass interface: a sidebar row's highlight, concentric with radius.sidebar at size.sidebar-inset."
     },
     "list-row": {
       "$type": "dimension",
@@ -1034,10 +1034,10 @@
     "glass-popover": {
       "$type": "dimension",
       "$value": {
-        "value": 14,
+        "value": 18,
         "unit": "px"
       },
-      "$description": "Glass interface: popovers, tooltips' cards, pickers and the command palette."
+      "$description": "Glass interface: popovers, pickers and page-drawn menus. Concentric with radius.glass-menu-row at size.glass-popover-inset."
     },
     "glass-floating-bar": {
       "$type": "dimension",
@@ -1050,10 +1050,42 @@
     "glass-dialog": {
       "$type": "dimension",
       "$value": {
-        "value": 20,
+        "value": 26,
         "unit": "px"
       },
-      "$description": "Glass interface: dialogs and sheets."
+      "$description": "Glass interface: sheets, alerts, the link dialog and the palette. Concentric with radius.glass-group and a 28 px capsule at size.glass-dialog-inset, and with a 40 px capsule at size.glass-palette-inset."
+    },
+    "glass-group": {
+      "$type": "dimension",
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "Glass interface: an inset group inside a dialog, concentric with radius.glass-dialog at size.glass-dialog-inset."
+    },
+    "glass-menu-row": {
+      "$type": "dimension",
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a row or search field in a popover, concentric with radius.glass-popover at size.glass-popover-inset."
+    },
+    "glass-tooltip": {
+      "$type": "dimension",
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a tooltip, which stands alone and has no inset child."
+    },
+    "window": {
+      "$type": "dimension",
+      "$value": {
+        "value": 26,
+        "unit": "px"
+      },
+      "$description": "The system's window corner, not drawn by the app: documents the rule. Concentric with radius.sidebar at size.sidebar-inset."
     },
     "glass-card": {
       "$type": "dimension",
@@ -1606,7 +1638,31 @@
         "value": 8,
         "unit": "px"
       },
-      "$description": "Glass interface: the room between the floating sidebar and the window's edges and the note list."
+      "$description": "Glass interface: the room between the floating sidebar and the window's edges and the note list, and between the sidebar's edge and its rows."
+    },
+    "glass-dialog-inset": {
+      "$type": "dimension",
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the padding where groups and buttons meet a dialog's edge; radius.glass-dialog minus this is radius.glass-group."
+    },
+    "glass-palette-inset": {
+      "$type": "dimension",
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the padding inside the palette; radius.glass-dialog minus this is half of its 40 px field."
+    },
+    "glass-popover-inset": {
+      "$type": "dimension",
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the padding inside a popover; radius.glass-popover minus this is radius.glass-menu-row."
     },
     "list-inset": {
       "$type": "dimension",
