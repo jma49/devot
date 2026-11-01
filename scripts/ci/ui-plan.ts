@@ -16,12 +16,12 @@ const projects: [Project, string][] = [
   ['webkit-prod-csp', 'tests/ui-csp/'],
 ]
 
-// Each browser job gets two workers on a four-core runner. About 640 s of
-// recorded work is roughly 320 s per worker before server and browser startup.
-// More shards duplicate that startup, so stop at 12 (16 jobs with the other
+// Each browser job gets two workers on a four-core runner. About 560 s of
+// recorded work is roughly 280 s per worker before server and browser startup.
+// More shards duplicate that startup, so stop at 14 (19 jobs with the other
 // CI jobs), which stays below GitHub's default concurrency limit.
-const MAX_SHARDS = 12
-const TARGET_SHARD_WORK_MS = 640_000
+const MAX_SHARDS = 14
+const TARGET_SHARD_WORK_MS = 560_000
 
 const features: { sources: string[]; specs: string[] }[] = [
   {

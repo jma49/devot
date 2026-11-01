@@ -159,12 +159,14 @@ it('separates expensive specs instead of grouping them by filename', () => {
   expect(jobs.flatMap((job) => job.files).sort()).toEqual(files)
 })
 
-it('uses measured work to schedule a full run in at most twelve shards', () => {
+it('uses measured work to schedule a full run in at most fourteen shards', () => {
   const files = Array.from({ length: 96 }, (_, i) => `tests/ui/feature-${i}.spec.ts`)
   const durations = Object.fromEntries(files.map((file) => [file, 100_000]))
   const plan = planUi(files, files, false, durations)
-  expect(plan.matrix.include).toHaveLength(12)
-  expect(plan.matrix.include.every((job) => job.shards === 12 && job.files.length === 8)).toBe(true)
+  expect(plan.matrix.include).toHaveLength(14)
+  expect(
+    plan.matrix.include.every((job) => job.shards === 14 && [6, 7].includes(job.files.length)),
+  ).toBe(true)
   expect(plan.matrix.include.flatMap((job) => job.files).sort()).toEqual([...files].sort())
 })
 

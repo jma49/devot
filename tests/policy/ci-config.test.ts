@@ -80,6 +80,17 @@ it('documentation-only pull requests skip heavy jobs but still report every requ
   }
 })
 
+it('uses the setup caches only where the job installs those dependencies', () => {
+  for (const name of ['policy-check', 'web-checks', 'unit-tests', 'ui', 'rust-check']) {
+    expect(job(name)).toMatch(/actions\/setup-node@[^\n]*\n(?: {8,}.*\n)*? {10}cache: pnpm/)
+  }
+  const rust = job('rust-check')
+  expect(rust).toContain('Swatinem/rust-cache@')
+  expect(rust).toContain('workspaces: src-tauri')
+  expect(rust).toContain("save-if: ${{ github.ref == 'refs/heads/main' }}")
+  expect(job('deny')).not.toContain('Swatinem/rust-cache@')
+})
+
 it('the web check fails when the quick checks, a UI shard or the change detection fails', () => {
   // `web` is a required check that sums up the jobs and runs even when they were skipped,
   // so a skipped job cannot read as passing a failed one.

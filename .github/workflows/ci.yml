@@ -167,7 +167,7 @@ jobs:
       PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/report.json
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.changes.outputs.ui_matrix || '{"include":[{"project":"webkit","shard":1,"shards":12,"files":[]},{"project":"webkit","shard":2,"shards":12,"files":[]},{"project":"webkit","shard":3,"shards":12,"files":[]},{"project":"webkit","shard":4,"shards":12,"files":[]},{"project":"webkit","shard":5,"shards":12,"files":[]},{"project":"webkit","shard":6,"shards":12,"files":[]},{"project":"webkit","shard":7,"shards":12,"files":[]},{"project":"webkit","shard":8,"shards":12,"files":[]},{"project":"webkit","shard":9,"shards":12,"files":[]},{"project":"webkit","shard":10,"shards":12,"files":[]},{"project":"webkit","shard":11,"shards":12,"files":[]},{"project":"webkit","shard":12,"shards":12,"files":[]},{"project":"webkit-prod-csp","shard":1,"shards":1,"files":[]}]}') }}
+      matrix: ${{ fromJSON(needs.changes.outputs.ui_matrix || '{"include":[{"project":"webkit","shard":1,"shards":14,"files":[]},{"project":"webkit","shard":2,"shards":14,"files":[]},{"project":"webkit","shard":3,"shards":14,"files":[]},{"project":"webkit","shard":4,"shards":14,"files":[]},{"project":"webkit","shard":5,"shards":14,"files":[]},{"project":"webkit","shard":6,"shards":14,"files":[]},{"project":"webkit","shard":7,"shards":14,"files":[]},{"project":"webkit","shard":8,"shards":14,"files":[]},{"project":"webkit","shard":9,"shards":14,"files":[]},{"project":"webkit","shard":10,"shards":14,"files":[]},{"project":"webkit","shard":11,"shards":14,"files":[]},{"project":"webkit","shard":12,"shards":14,"files":[]},{"project":"webkit","shard":13,"shards":14,"files":[]},{"project":"webkit","shard":14,"shards":14,"files":[]},{"project":"webkit-prod-csp","shard":1,"shards":1,"files":[]}]}') }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
@@ -245,6 +245,8 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
+          # PR caches cannot help main, and the save costs the critical path.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
