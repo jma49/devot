@@ -6138,6 +6138,7 @@ button.popup:focus-visible {
   z-index: 1;
   margin: var(--size-sidebar-inset);
   padding-inline: var(--size-sidebar-inset);
+  padding-block-end: var(--size-sidebar-inset);
   border-right: 0;
   border-radius: var(--radius-sidebar);
   background-color: transparent;
@@ -6155,8 +6156,14 @@ button.popup:focus-visible {
   box-shadow: none;
 }
 
-:root[data-sidebar-material='on'] .sidebar :is(.source, .book-row) {
+:root[data-sidebar-material='on']
+  .sidebar
+  :is(.source, .book-row, .section-header, .sidebar-workspace-title) {
   border-radius: var(--radius-sidebar-row);
+}
+
+:root[data-sidebar-material='on'] .sidebar :is(.source, .section-header) {
+  padding-inline-start: var(--space-5);
 }
 
 /* The sidebar's selection is neutral, focused or not; the note list keeps the accent. */
@@ -6170,15 +6177,85 @@ button.popup:focus-visible {
   background: var(--color-fill-row-selected);
 }
 
-/* A notebook's icon lines up with the library's; a parent's chevron sits in the room before it. */
+/* Every notebook keeps room for a chevron before its icon, so no chevron leaves the row's rounded box. */
 :root[data-sidebar-material='on'] .books li {
-  --book-indent: calc(var(--space-3) + var(--book-depth, 0) * var(--space-8));
+  --book-indent: calc(var(--space-5) + var(--space-6) + var(--book-depth, 0) * var(--space-7));
 }
 
 :root[data-sidebar-material='on'] .book-row > .disclosure {
   position: absolute;
-  inset-inline-start: calc(var(--book-indent) - var(--space-6));
+  inset-inline-start: calc(var(--book-indent) - var(--space-6) - var(--space-2));
   height: 100%;
+}
+
+/* The group's item carries the parent's depth, so this runs down from the parent's icon. */
+:root[data-sidebar-material='on'] .books ul[role='group']::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--book-indent) + var(--size-icon-md) / 2);
+  width: 1px;
+  background: var(--color-line-separator);
+  pointer-events: none;
+}
+
+@property --scroll-edge-bottom-size {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* The scroll bar is a fixed width, so scrolling always reserves it: pulled out into the sidebar's inset, it leaves the list's rows on the same inset as the pinned rows, with or without overflow. */
+:root[data-sidebar-material='on'] .sidebar-scroll {
+  --scroll-edge-size: 0px;
+  --scroll-edge-bottom-size: 0px;
+  margin-inline-end: calc(-1 * var(--size-scrollbar));
+  overflow-y: scroll;
+  scroll-padding-block: var(--size-sidebar-scroll-edge);
+  mask-image: linear-gradient(
+    transparent,
+    var(--color-ink-text) var(--scroll-edge-size),
+    var(--color-ink-text) calc(100% - var(--scroll-edge-bottom-size)),
+    transparent
+  );
+  transition:
+    --scroll-edge-size var(--motion-duration-quick) var(--motion-easing-quick),
+    --scroll-edge-bottom-size var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
+:root[data-sidebar-material='on'] .sidebar-scroll[data-scrolled] {
+  --scroll-edge-size: var(--size-sidebar-scroll-edge);
+}
+
+:root[data-sidebar-material='on'] .sidebar-scroll[data-more-below] {
+  --scroll-edge-bottom-size: var(--size-sidebar-scroll-edge);
+}
+
+:root[data-sidebar-material='on'] .sidebar > .sources:has(+ .sidebar-scroll) {
+  position: relative;
+}
+
+:root[data-sidebar-material='on'] .sidebar > .sources:has(+ .sidebar-scroll)::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  inset-inline: 0;
+  height: 1px;
+  background: var(--color-line-separator);
+  opacity: 0;
+  transition: opacity var(--motion-duration-quick) var(--motion-easing-quick);
+  pointer-events: none;
+}
+
+:root[data-sidebar-material='on'] .sidebar > .sources:has(+ .sidebar-scroll[data-scrolled])::after {
+  opacity: 1;
+}
+
+:root[data-motion='reduced'][data-sidebar-material='on'] .sidebar-scroll,
+:root[data-motion='reduced'][data-sidebar-material='on']
+  .sidebar
+  > .sources:has(+ .sidebar-scroll)::after {
+  transition: none;
 }
 
 :root[data-sidebar-material='on'] .section-header {
@@ -6188,9 +6265,15 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .footer-toggle {
+  height: var(--size-sidebar-footer);
+  padding-inline: var(--space-5) var(--space-3);
   border: 1px solid var(--color-line-glass-edge);
   border-radius: var(--radius-capsule);
   color: var(--color-text-primary);
+}
+
+:root[data-sidebar-material='on'] .footer-toggle:not(:hover, :active) {
+  background: var(--color-fill-glass-control);
 }
 
 :root[data-sidebar-material='on'] .footer-toggle .icon {

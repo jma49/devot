@@ -1436,6 +1436,16 @@
       "$value": { "value": 28, "unit": "px" },
       "$description": "Glass note content fades over this distance below its header after scrolling."
     },
+    "sidebar-scroll-edge": {
+      "$type": "dimension",
+      "$value": { "value": 18, "unit": "px" },
+      "$description": "The Glass sidebar's list fades over this distance at an edge with more content beyond it."
+    },
+    "sidebar-footer": {
+      "$type": "dimension",
+      "$value": { "value": 36, "unit": "px" },
+      "$description": "The Glass sidebar's footer capsule: size.sidebar-inset + 36 / 2 = 26, the value of radius.window."
+    },
     "scrollbar": {
       "$type": "dimension",
       "$description": "The width of a scroll bar.",

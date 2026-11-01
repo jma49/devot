@@ -273,8 +273,8 @@ test('notebook drops show their insertion line and indent under the policy', asy
           globalThis as unknown as { getComputedStyle(e: unknown): { paddingInlineStart: string } }
         ).getComputedStyle(el).paddingInlineStart,
     )
-  expect(await indent('Alpha')).toBe('6px')
-  expect(await indent('Charlie')).toBe('24px')
+  expect(await indent('Alpha')).toBe('22px')
+  expect(await indent('Charlie')).toBe('38px')
 
   const from = await box('Bravo')
   const to = await box('Alpha')
