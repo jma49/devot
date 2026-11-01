@@ -196,6 +196,21 @@ test('the toolbar shows for a selection, with named SF Symbol buttons in four gr
   expect(symbolRequests(calls)).toContain('bold@14')
 })
 
+test('every button shows its symbol at the toolbar icon size', async ({ page }) => {
+  await newNote(page, 'alpha beta gamma')
+  await selectAll(page)
+  const icons = toolbar(page).locator('button [data-symbol]')
+  await expect(icons.first()).toHaveCSS('-webkit-mask-image', /^url\(/)
+  const sizes = await icons.evaluateAll((all) =>
+    all.map((el) => {
+      const box = el.getBoundingClientRect()
+      return `${box.width}x${box.height}`
+    }),
+  )
+  expect(sizes.length).toBeGreaterThan(4)
+  expect(new Set(sizes)).toEqual(new Set(['18x18']))
+})
+
 test('a button tooltip shows its name and key; Heading and Highlight have no key', async ({
   page,
 }) => {
