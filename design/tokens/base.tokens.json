@@ -1688,7 +1688,23 @@
         "value": 6,
         "unit": "px"
       },
-      "$description": "Glass interface: the padding inside the palette; radius.glass-dialog minus this is half of its 40 px field."
+      "$description": "Glass interface: the padding inside the palette; radius.glass-dialog minus this is half of size.glass-palette-field."
+    },
+    "glass-palette-field": {
+      "$type": "dimension",
+      "$value": {
+        "value": 40,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the height of the palette's capsule field."
+    },
+    "glass-palette-row": {
+      "$type": "dimension",
+      "$value": {
+        "value": 38,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the height of a palette row, a capsule when selected."
     },
     "glass-popover-inset": {
       "$type": "dimension",

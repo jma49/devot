@@ -16,7 +16,6 @@ function dimension(group: Record<string, DimensionToken>, name: string): number 
 }
 const radius = (name: string): number => dimension(tokens.radius, name)
 const size = (name: string): number => dimension(tokens.size, name)
-const GLASS_PALETTE_FIELD_HEIGHT = 40
 
 describe('Glass radii are concentric: inner radius = outer radius - inset', () => {
   it.each([
@@ -36,7 +35,7 @@ describe('Glass radii are concentric: inner radius = outer radius - inset', () =
     [
       'palette, field capsule',
       radius('glass-dialog') - size('glass-palette-inset'),
-      GLASS_PALETTE_FIELD_HEIGHT / 2,
+      size('glass-palette-field') / 2,
     ],
   ])('%s', (_pair, computed, documented) => {
     expect(computed).toBe(documented)

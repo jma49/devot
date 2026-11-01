@@ -1808,6 +1808,8 @@ title: Daily Report {{date}}
   'palette.line': 'Line',
   'palette.back': 'Back',
   'palette.openSource': 'Open Source',
+  'palette.close': 'Close',
+  'palette.key.escape': 'esc',
   'palette.openNotebook': 'Open Notebook',
   'palette.openWorkspace': 'Open as Workspace',
   'palette.goToLine': 'Go to Line',
