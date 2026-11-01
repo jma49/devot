@@ -248,9 +248,10 @@ test('the bar is one outlined box with a separate notch, and its icons sit on wh
   expect(look.shadow).toMatch(/0px 0px 0px 1px/)
   expect(look.filter).toBe('none')
   expect(look.notch).toEqual([12, 6])
-  // Whole pixels, and the mask is exactly the box: nothing is scaled.
+  // Whole pixels, and the mask fills the box exactly, so the glyph is scaled
+  // into it rather than overhanging.
   for (const px of look.size) expect(Number.isInteger(Number.parseFloat(px ?? ''))).toBe(true)
-  expect(look.mask).toBe(look.size.join(' '))
+  expect(look.mask).toBe('100% 100%')
 })
 
 test('the toolbar hides on Escape, a collapsed selection and typing', async ({ page }) => {
