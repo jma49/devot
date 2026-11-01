@@ -41,11 +41,11 @@ startAppearance()
 startMotion()
 applyMotionScale(document.documentElement)
 watchDialogExits()
+startSidebarGlass()
 if (!DEVOT_UI_TEST) {
   void followSystemAccent(document.documentElement.style, () => editorSettings().systemAccent)
     .then((refresh) => subscribeEditorSettings(refresh))
     .catch(() => console.warn('W_SYSTEM_ACCENT_FAILED'))
-  startSidebarGlass()
 }
 
 const root = document.getElementById('root')

@@ -1,5 +1,5 @@
 import { t, type MessageKey } from './i18n'
-import { Icon } from './icons/Icon'
+import { ToolIcon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
 
 export type Mode = 'edit' | 'split' | 'preview'
@@ -23,7 +23,7 @@ export function ModeControl({ mode, onChange }: { mode: Mode; onChange: (mode: M
           aria-pressed={mode === m.mode}
           onClick={() => onChange(m.mode)}
         >
-          <Icon name={m.icon} size="md" />
+          <ToolIcon name={m.icon} size="md" />
         </button>
       ))}
     </div>

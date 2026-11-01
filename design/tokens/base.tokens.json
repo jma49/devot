@@ -1606,7 +1606,7 @@
     "toolbar-control": {
       "$type": "dimension",
       "$value": {
-        "value": 32,
+        "value": 36,
         "unit": "px"
       },
       "$description": "Glass interface: the height of a toolbar control, and a round toolbar button's width."

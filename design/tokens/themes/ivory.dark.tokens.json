@@ -151,7 +151,7 @@
           "colorSpace": "srgb",
           "components": [1.0, 1.0, 1.0],
           "hex": "#ffffff",
-          "alpha": 0.06
+          "alpha": 0.1
         },
         "$description": "Glass interface: the floating sidebar's tint over the sheet where the system draws no glass of its own (before macOS 26)."
       },

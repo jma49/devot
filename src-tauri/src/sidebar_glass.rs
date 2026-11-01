@@ -59,8 +59,8 @@ pub async fn sidebar_glass(
     frame: Option<GlassFrame>,
 ) -> Result<bool, String> {
     let frame = checked(frame).map_err(String::from)?;
-    if !crate::main_windows::is_main(window.label()) {
-        return Err(String::from("E_SIDEBAR_GLASS_NOT_MAIN"));
+    if !crate::main_windows::is_main(window.label()) && window.label() != "settings" {
+        return Err(String::from("E_SIDEBAR_GLASS_WINDOW_INVALID"));
     }
     #[cfg(target_os = "macos")]
     {

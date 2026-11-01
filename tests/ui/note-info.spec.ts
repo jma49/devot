@@ -41,7 +41,7 @@ test('shows task progress and dates in the note info card', async ({ page }) => 
 test('leaves Progress out for a note without tasks', async ({ page }) => {
   await newNote(page, 'Plain', 'Just words.')
   await showPreview(page)
-  await expect(card(page)).toContainText('Created at')
+  await expect(card(page)).toContainText('Created')
   await expect(card(page)).not.toContainText('Progress')
 })
 

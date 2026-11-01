@@ -143,7 +143,7 @@
   --size-filter-icon-slot: 37.4px;
   --size-sidebar-inset: 8px;
   --size-list-inset: 8px;
-  --size-toolbar-control: 32px;
+  --size-toolbar-control: 36px;
   --motion-duration-color: 400ms;
   --motion-duration-ring: 200ms;
   --motion-duration-popover: 150ms;
@@ -377,7 +377,7 @@
     --color-surface-popover: #171717;
     --color-surface-float-bar: #2a2927;
     --color-surface-sheet: rgb(18 18 18 / 0.55);
-    --color-surface-glass: rgb(255 255 255 / 0.06);
+    --color-surface-glass: rgb(255 255 255 / 0.1);
     --color-surface-glass-popover: rgb(42 42 46 / 0.78);
     --color-surface-glass-float-bar: rgb(44 44 48 / 0.86);
     --color-ink-text: #fafafa;
@@ -540,7 +540,7 @@
   --color-surface-popover: #171717;
   --color-surface-float-bar: #2a2927;
   --color-surface-sheet: rgb(18 18 18 / 0.55);
-  --color-surface-glass: rgb(255 255 255 / 0.06);
+  --color-surface-glass: rgb(255 255 255 / 0.1);
   --color-surface-glass-popover: rgb(42 42 46 / 0.78);
   --color-surface-glass-float-bar: rgb(44 44 48 / 0.86);
   --color-ink-text: #fafafa;
@@ -1026,7 +1026,7 @@
     --color-surface-popover: #353533;
     --color-surface-float-bar: #353533;
     --color-surface-sheet: rgb(43 43 41 / 0.55);
-    --color-surface-glass: rgb(255 255 255 / 0.06);
+    --color-surface-glass: rgb(255 255 255 / 0.1);
     --color-surface-glass-popover: rgb(49 49 47 / 0.8);
     --color-surface-glass-float-bar: rgb(51 51 47 / 0.88);
     --color-ink-text: #faf9f5;
@@ -1189,7 +1189,7 @@
   --color-surface-popover: #353533;
   --color-surface-float-bar: #353533;
   --color-surface-sheet: rgb(43 43 41 / 0.55);
-  --color-surface-glass: rgb(255 255 255 / 0.06);
+  --color-surface-glass: rgb(255 255 255 / 0.1);
   --color-surface-glass-popover: rgb(49 49 47 / 0.8);
   --color-surface-glass-float-bar: rgb(51 51 47 / 0.88);
   --color-ink-text: #faf9f5;

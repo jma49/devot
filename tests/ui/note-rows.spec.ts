@@ -45,16 +45,19 @@ test('a row shows its status as an icon, its task progress and its tags', async 
   await expect(row.locator('.progress-text')).toHaveText('1 of 4')
   await expect(row.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1')
   await expect(row.locator('.chip', { hasText: 'home' })).toHaveCSS('border-top-style', 'solid')
-  await expect(row.locator('.row-excerpt')).toHaveCSS('white-space', 'nowrap')
+  await expect(row.locator('.row-excerpt')).toHaveCSS('white-space', 'normal')
+  await expect(row.locator('.row-excerpt')).toHaveCSS('-webkit-line-clamp', '2')
+  await row.click()
+  await expect(row).toHaveCSS('box-shadow', 'none')
 })
 
-test('Return in the Filter field focuses the list; the chip reads Best match', async ({ page }) => {
+test('Return in the Filter field focuses the list; the chip reads Best Match', async ({ page }) => {
   await createNote(page, 'Garden plan', 'tomato rows')
   await createNote(page, 'Tax notes', 'receipts')
-  await expect(chip(page)).toHaveText('Date Updated ↓')
+  await expect(chip(page)).toHaveText('Date Updated')
   await filter(page).fill('garden')
   await expect(noteRows(page)).toHaveCount(1)
-  await expect(chip(page)).toHaveText('Best match ↑')
+  await expect(chip(page)).toHaveText('Best Match')
   await expect(page.getByRole('button', { name: 'Clear Search' })).toBeVisible()
   await expect(noteRow(page, 'Garden plan').locator('.row-title mark')).toHaveText('Garden')
 
@@ -64,7 +67,7 @@ test('Return in the Filter field focuses the list; the chip reads Best match', a
   await filter(page).click()
   await filter(page).press('Escape')
   await expect(filter(page)).toHaveValue('')
-  await expect(chip(page)).toHaveText('Date Updated ↓')
+  await expect(chip(page)).toHaveText('Date Updated')
 })
 
 test('the tag field offers matching tags and a Create row', async ({ page }) => {

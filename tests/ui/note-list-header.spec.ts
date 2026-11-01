@@ -25,7 +25,7 @@ test.beforeEach(async ({ page }) => {
 test('the Filter field sits under the list header; Escape clears it', async ({ page }) => {
   await createNote(page, 'Garden plan', 'tomato rows')
   await createNote(page, 'Tax notes', 'receipts')
-  await expect(filter(page)).toHaveAttribute('placeholder', 'Filter')
+  await expect(filter(page)).toHaveAttribute('placeholder', 'Search')
   expect(await filter(page).evaluate((el) => !!el.closest('.list'))).toBe(true)
 
   await filter(page).fill('garden')
@@ -38,10 +38,11 @@ test('the Filter field sits under the list header; Escape clears it', async ({ p
 })
 
 test('the sort chip shows the order and opens the sort menu', async ({ page }) => {
-  await expect(chip(page)).toHaveText('Date Updated ↓')
+  await expect(chip(page)).toHaveText('Date Updated')
   await chip(page).click()
   await pickMenuItem(page, 'Title (A to Z)')
-  await expect(chip(page)).toHaveText('Title \u2191')
+  await expect(chip(page)).toHaveText('Title')
+  await expect(chip(page)).toHaveAttribute('title', 'Sorted by Title (A to Z)')
 })
 
 test('a row shows its time, then one line of body', async ({ page }) => {

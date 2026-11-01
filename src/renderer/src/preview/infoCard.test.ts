@@ -27,7 +27,7 @@ describe('the note info card', () => {
       'Oct 13, 2026, 1:43:54 AM',
       'Oct 13, 2026, 1:57:24 AM',
     ])
-    expect(fields.map((f) => f.label)).toEqual(['Created at', 'Updated at'])
+    expect(fields.map((f) => f.label)).toEqual(['Created', 'Updated'])
   })
 
   it('shows Progress first for a note with tasks', () => {

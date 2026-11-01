@@ -22,6 +22,23 @@ export interface SidebarBox {
 
 const RADIUS = Number.parseFloat(sizes['radius.sidebar'])
 
+export function sidebarSurround(
+  frame: GlassFrame,
+  viewport: { width: number; height: number },
+): string {
+  const { x, y, width, height, radius: r } = frame
+  const right = x + width
+  const bottom = y + height
+  // The continuous window sheet leaves a rounded hole for native glass.
+  const outer = `M0 0H${viewport.width}V${viewport.height}H0Z`
+  const hole =
+    `M${x + r} ${y}H${right - r}A${r} ${r} 0 0 1 ${right} ${y + r}` +
+    `V${bottom - r}A${r} ${r} 0 0 1 ${right - r} ${bottom}` +
+    `H${x + r}A${r} ${r} 0 0 1 ${x} ${bottom - r}` +
+    `V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`
+  return `path(evenodd, '${outer}${hole}')`
+}
+
 export function glassFrame(
   box: SidebarBox | undefined,
   shown: { material: boolean; visible: boolean },
@@ -55,7 +72,7 @@ export function showNativeGlass(
 
 function measure(doc: Document): GlassFrame | null {
   const root = doc.documentElement
-  const sidebar = doc.querySelector<HTMLElement>('.window > .sidebar')
+  const sidebar = doc.querySelector<HTMLElement>('.window > .sidebar, .settings > .settings-nav')
   const win = sidebar?.parentElement
   const visible =
     !!sidebar &&
@@ -66,6 +83,13 @@ function measure(doc: Document): GlassFrame | null {
     material: root.dataset['sidebarMaterial'] === 'on',
     visible,
   })
+}
+
+function nativeFrame(doc: Document): GlassFrame | null {
+  return doc.defaultView?.matchMedia('(prefers-reduced-transparency: reduce)').matches ||
+    doc.defaultView?.matchMedia('(prefers-contrast: more)').matches
+    ? null
+    : measure(doc)
 }
 
 let started = false
@@ -83,17 +107,29 @@ export function startSidebarGlass(doc: Document = document): void {
     if (sending) return
     sending = true
     try {
-      let frame = measure(doc)
+      const surroundFrame = measure(doc)
+      if (surroundFrame) {
+        root.style.setProperty(
+          '--sidebar-surround-clip',
+          sidebarSurround(surroundFrame, {
+            width: root.clientWidth,
+            height: root.clientHeight,
+          }),
+        )
+      } else {
+        root.style.removeProperty('--sidebar-surround-clip')
+      }
+      let frame = nativeFrame(doc)
       while (!sameFrame(sent, frame)) {
         sent = frame
         let native = false
         try {
-          native = await invoke<boolean>('sidebar_glass', { frame })
+          if (!DEVOT_UI_TEST) native = await invoke<boolean>('sidebar_glass', { frame })
         } catch {
           console.warn('W_SIDEBAR_GLASS_FAILED')
         }
         showNativeGlass(root, native && frame !== null)
-        frame = measure(doc)
+        frame = nativeFrame(doc)
       }
     } finally {
       sending = false
@@ -112,7 +148,7 @@ export function startSidebarGlass(doc: Document = document): void {
   resized.observe(root)
   let watched: Element | null = null
   const changed = new MutationObserver(() => {
-    const sidebar = doc.querySelector('.window > .sidebar')
+    const sidebar = doc.querySelector('.window > .sidebar, .settings > .settings-nav')
     if (sidebar !== watched) {
       if (watched) resized.unobserve(watched)
       if (sidebar) resized.observe(sidebar)
@@ -129,5 +165,8 @@ export function startSidebarGlass(doc: Document = document): void {
   // Panes slide by transforms (paneMotion.ts), which no observer reports: measure where they settle.
   doc.addEventListener('transitionend', schedule)
   doc.addEventListener('animationend', schedule)
+  for (const query of ['(prefers-reduced-transparency: reduce)', '(prefers-contrast: more)']) {
+    doc.defaultView?.matchMedia(query).addEventListener('change', schedule)
+  }
   schedule()
 }

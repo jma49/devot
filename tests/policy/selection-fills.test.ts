@@ -43,11 +43,22 @@ it('draws the selection of a pane without the keyboard in the neutral inactive f
   }
 })
 
+const GLASS = ":root[data-sidebar-material='on']"
+const selectedRow = /(\.row\[aria-selected='true'\]|\[aria-selected='true'\] > \.book-row)\s*\)?$/
+const selectedFills = rules.filter(
+  (r) => r.body.has('background') && r.selector.split(',').some((s) => selectedRow.test(s.trim())),
+)
+
 it('draws no other fill for a selected row of either list', () => {
-  const selectedRow = /(\.row\[aria-selected='true'\]|\[aria-selected='true'\] > \.book-row)\)?$/
-  const fills = rules.filter(
-    (r) =>
-      r.body.has('background') && r.selector.split(',').some((s) => selectedRow.test(s.trim())),
-  )
-  expect(fills).toHaveLength(2)
+  expect(selectedFills.filter((r) => !r.selector.includes(GLASS))).toHaveLength(2)
+})
+
+it('in the Glass style, draws the sidebar selection neutral and the note list selection in the accent, focused or not', () => {
+  const glass = selectedFills.filter((r) => r.selector.includes(GLASS))
+  expect(glass).toHaveLength(2)
+  const sidebar = glass.find((r) => r.selector.includes('.book-row'))
+  expect(sidebar?.body.get('background')).toBe('var(--color-fill-row-selected)')
+  const list = glass.find((r) => r.selector.includes('.row['))
+  expect(list?.selector).toContain('.rows:not(:focus-within)')
+  expect(list?.body.get('background')).toMatch(/var\(--color-accent-fill\)/)
 })

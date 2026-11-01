@@ -147,7 +147,7 @@ import { bookDeleteDetail, noteCount } from './format'
 import { openAfter, selectAll, type ListSelection } from './listSelection'
 import { SelectionSummary } from './SelectionSummary'
 import { TrashView } from './TrashView'
-import { Icon } from './icons/Icon'
+import { Icon, ToolIcon } from './icons/Icon'
 import { BookIcon } from './BookIcon'
 import { StatusPicker } from './StatusPicker'
 import { TagEditor } from './TagEditor'
@@ -328,7 +328,7 @@ function SidebarToggle({ shown, onClick }: { shown: boolean; onClick: () => void
         title={titleWithKey(shown ? 'sidebar.hideTitle' : 'sidebar.showTitle', 'view.sidebar')}
         onClick={onClick}
       >
-        <Icon name="sidebar.toggle" size="lg" />
+        <ToolIcon name="sidebar.toggle" />
       </button>
     </>
   )
@@ -3342,7 +3342,7 @@ export function App() {
         value={query}
         onChange={changeQueryStable}
         onClear={clearSearchStable}
-        placeholder={inView ? t('filter.placeholder') : t('search.placeholder')}
+        placeholder={inView ? t('search.placeholder') : t('search.placeholderAll')}
       />
     ),
     [query, inView, changeQueryStable, clearSearchStable],
@@ -3857,7 +3857,7 @@ export function App() {
               aria-pressed={focus}
               onClick={toggleFocus}
             >
-              <Icon name={focus ? 'mode.focus.exit' : 'mode.focus'} size="lg" />
+              <ToolIcon name={focus ? 'mode.focus.exit' : 'mode.focus'} />
             </button>
             <button
               type="button"
@@ -3867,7 +3867,7 @@ export function App() {
               disabled={backAt === undefined}
               onClick={() => void step(-1)}
             >
-              <Icon name="nav.back" size="lg" />
+              <ToolIcon name="nav.back" />
             </button>
             <button
               type="button"
@@ -3877,7 +3877,7 @@ export function App() {
               disabled={forwardAt === undefined}
               onClick={() => void step(1)}
             >
-              <Icon name="nav.forward" size="lg" />
+              <ToolIcon name="nav.forward" />
             </button>
           </div>
           {selected && !inTrash && !multiIds ? (
@@ -3894,7 +3894,7 @@ export function App() {
                   noteActions.menuAt(selected, { x: box.left, y: box.bottom })
                 }}
               >
-                <Icon name="more.vertical" size="lg" />
+                <ToolIcon name="more.horizontal" />
               </button>
             </>
           ) : null}

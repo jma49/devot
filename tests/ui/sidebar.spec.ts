@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, type TestWindow } from './fixtures'
 
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
@@ -132,20 +132,38 @@ test('Shift+Cmd+J moves the selection from All Notes to the next row', async ({ 
   )
 })
 
-test('before any save the footer names its panel, never a bare chevron', async ({ page }) => {
+test('until the backups are known the footer names its panel, never a bare chevron', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      backups_list: () => new Promise(() => {}),
+    }
+  })
+  await page.reload()
   const toggle = sidebar(page).locator('.footer-toggle')
   await expect(toggle).toHaveText('Backup and mirror status')
   await expect(toggle).toHaveAccessibleName('Backup and mirror status')
 })
 
-test('the footer shows when the last note was saved', async ({ page }) => {
+test('the footer sums up backups and the mirror, and tells when the last note was saved', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      backups_list: { backups: [{ id: 'b', createdAt: 1, size: 1 }], lastError: null },
+    }
+  })
+  await page.reload()
+  const toggle = sidebar(page).locator('.footer-toggle')
+  await expect(toggle.locator('.footer-saved')).toHaveText('Backed up · Mirror off')
+  // The visible status is part of the button's name, not replaced by it (A174).
+  await expect(toggle).toHaveAccessibleName('Backup and mirror status: Backed up · Mirror off')
+  await expect(toggle.locator('.footer-dot')).toHaveAttribute('data-tone', 'ok')
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await page.getByRole('textbox', { name: 'Title' }).fill('Saved')
-  await expect(sidebar(page)).toContainText(/Saved at \d\d:\d\d:\d\d/)
-  // The visible save time is part of the button's name, not replaced by it (A174).
-  const toggle = sidebar(page).locator('.footer-toggle')
-  await expect(toggle).toHaveAccessibleName(/Backup and mirror status: Saved at \d\d:\d\d:\d\d/)
-  await sidebar(page).getByRole('button', { name: 'Backup and mirror status' }).click()
+  await expect(toggle).toHaveAttribute('title', /^Saved at \d\d:\d\d:\d\d$/)
+  await toggle.click()
   await expect(sidebar(page).getByRole('group', { name: 'Backup and mirror status' })).toBeVisible()
 })
 
