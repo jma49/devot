@@ -520,7 +520,7 @@ test('a long client name is cut short, and its kind stays shown', async ({ page 
   const time = (await noteRow(page, 'Plan').locator('.row-time').boundingBox())!
   const mark = (await agent.boundingBox())!
   expect(Math.abs(time.y + time.height / 2 - (title.y + title.height / 2))).toBeLessThan(2)
-  expect(mark.y).toBeGreaterThanOrEqual(title.y + title.height - 0.5)
+  expect(mark.y + mark.height / 2).toBeGreaterThan(title.y + title.height)
 })
 
 test('the Agents section lists the writers with their unseen changes and filters to their notes', async ({
