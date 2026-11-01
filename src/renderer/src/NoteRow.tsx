@@ -120,13 +120,6 @@ export interface RowProps {
   events: RowEvents
 }
 
-/**
- * One note in the list: its title (none for an untitled note, whose first
- * line leads its excerpt instead), a meta line (when it changed, its status,
- * its tasks done and its tags) and one line of its body. It renders again
- * only when what it shows changes, so a list of any length costs one row
- * when one note changes.
- */
 export const NoteRow = memo(function NoteRow(props: RowProps) {
   const { note: n, events, highlight } = props
   const id = n.id
@@ -139,12 +132,27 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
     })
     .sort((a, b) => compareNames(a.name, b.name, props.locale))
   const progress = parseProgress(props.progress)
-  const excerpt = n.excerpt ?? props.preview ?? ''
+  const rawExcerpt = n.excerpt ?? props.preview ?? ''
+  const excerpt =
+    !n.title && props.headline && rawExcerpt.startsWith(props.headline)
+      ? rawExcerpt.slice(props.headline.length).trimStart()
+      : rawExcerpt
+  const title = n.title || props.headline || t('note.untitled')
+  const headlinePatterns = [highlight?.title, highlight?.body].filter((p): p is RegExp => !!p)
+  const titlePattern = n.title
+    ? highlight?.title
+    : headlinePatterns.length
+      ? new RegExp(
+          headlinePatterns.map((p) => `(?:${p.source})`).join('|'),
+          [...new Set(headlinePatterns.flatMap((p) => [...p.flags]))].join(''),
+        )
+      : undefined
   return (
     <li
       ref={ref}
       className="row"
       data-note-id={id}
+      data-no-title={!n.title || undefined}
       role="option"
       aria-selected={props.selected}
       data-open={props.open || undefined}
@@ -159,11 +167,13 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
       onKeyDown={(e) => events.keyDown(id, e)}
       onContextMenu={props.menu ? (e) => events.contextMenu(id, e) : undefined}
     >
-      {n.title ? (
-        <span className="row-title" dir="auto">
-          <Marked text={n.title} pattern={highlight?.title} />
-        </span>
-      ) : null}
+      <span
+        className="row-title"
+        dir="auto"
+        data-untitled={(!n.title && !props.headline) || undefined}
+      >
+        <Marked text={title} pattern={titlePattern} />
+      </span>
       <span className="row-meta">
         <span className="row-meta-items">
           <time
@@ -196,25 +206,11 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
           ) : null}
         </span>
       </span>
-      {n.title ? (
-        excerpt ? (
-          <span className="row-excerpt" dir="auto">
-            <Marked text={excerpt} pattern={highlight?.body} />
-          </span>
-        ) : null
-      ) : (
+      {excerpt ? (
         <span className="row-excerpt" dir="auto">
-          <span className="row-headline" dir="auto">
-            {props.headline ?? t('note.untitled')}
-          </span>
-          {excerpt ? (
-            <>
-              {' '}
-              <Marked text={excerpt} pattern={highlight?.body} />
-            </>
-          ) : null}
+          <Marked text={excerpt} pattern={highlight?.body} />
         </span>
-      )}
+      ) : null}
     </li>
   )
 })
