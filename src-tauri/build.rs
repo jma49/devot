@@ -131,6 +131,7 @@ fn main() {
             "fonts_installed",
             "font_read",
             "sidebar_material_sync",
+            "sidebar_glass",
             "sidebar_menu_set",
             "command_menu_set",
             "quick_capture_save",

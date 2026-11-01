@@ -9,6 +9,7 @@ import { forwardConsole, forwardUncaught, type LogEntry } from './log'
 import { editorSettings, startEditorSettings, subscribeEditorSettings } from './editorSettings'
 import { startShortcutSettings } from './commands/shortcutSettings'
 import { startSidebarMaterial } from './sidebarMaterial'
+import { startSidebarGlass } from './sidebarGlass'
 import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
 import { startMotion } from './motionPreference'
@@ -40,6 +41,7 @@ startAppearance()
 startMotion()
 applyMotionScale(document.documentElement)
 watchDialogExits()
+startSidebarGlass()
 if (!DEVOT_UI_TEST) {
   void followSystemAccent(document.documentElement.style, () => editorSettings().systemAccent)
     .then((refresh) => subscribeEditorSettings(refresh))

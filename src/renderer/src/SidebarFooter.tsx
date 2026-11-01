@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { SHOW_BACKUPS, errorCode, listBackups, type BackupStatus } from './backups'
+import { BACKUP_FAILED, SHOW_BACKUPS, errorCode, listBackups, type BackupStatus } from './backups'
+import { footerStatus, type FooterBackups } from './footerStatus'
 import { currentLocale, format, t } from './i18n'
 import { Chevron } from './Chevron'
 import { clockTime, useLastWrite } from './lastWrite'
@@ -65,9 +66,33 @@ function StatusPanel(props: { id: string; onClose: () => void }) {
   )
 }
 
+function useFooterBackups(open: boolean): FooterBackups {
+  const [backups, setBackups] = useState<FooterBackups>({ kind: 'loading' })
+  useEffect(() => {
+    if (open) return
+    let alive = true
+    const read = () =>
+      listBackups().then(
+        (status) =>
+          alive &&
+          Array.isArray(status?.backups) &&
+          setBackups({ kind: 'ready', count: status.backups.length, lastError: status.lastError }),
+        () => alive && setBackups({ kind: 'failed' }),
+      )
+    void read()
+    window.addEventListener(BACKUP_FAILED, read)
+    return () => {
+      alive = false
+      window.removeEventListener(BACKUP_FAILED, read)
+    }
+  }, [open])
+  return backups
+}
+
 export function SidebarFooter() {
   const at = useLastWrite()
   const [open, setOpen] = useState(false)
+  const status = footerStatus(useFooterBackups(open), useMirrorStatus())
   const panelId = useId()
   const root = useRef<HTMLDivElement>(null)
 
@@ -96,17 +121,17 @@ export function SidebarFooter() {
         className="footer-toggle"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
+        title={at === null ? undefined : format(t('sidebar.savedAt'), { time: clockTime(at) })}
         onClick={() => setOpen((now) => !now)}
       >
-        {at === null ? (
+        {status === undefined ? (
           <span className="footer-saved">{t('sidebar.statusLabel')}</span>
         ) : (
           <>
-            {/* The visible save time is part of the name: an aria-label would replace it. */}
+            <span className="footer-dot" data-tone={status.tone} aria-hidden="true" />
+            {/* The visible status is part of the name: an aria-label would replace it. */}
             <span className="visually-hidden">{t('sidebar.statusLabel')}: </span>
-            <span className="footer-saved">
-              {format(t('sidebar.savedAt'), { time: clockTime(at) })}
-            </span>
+            <span className="footer-saved">{status.text}</span>
           </>
         )}
         <Chevron open={open} closed="up" />

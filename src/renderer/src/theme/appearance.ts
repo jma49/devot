@@ -72,11 +72,20 @@ export function startAppearance(root: AppearanceTarget = rootTarget()): void {
   if (started) return
   started = true
   applyAppearanceSettings(editorSettings(), root)
+  const palette = () =>
+    `${root.dataset['appearance']}/${root.dataset['theme']}/${shownAppearance(root)}`
+  let current = palette()
   const follow = () => {
-    const before = `${root.dataset['appearance']}/${root.dataset['theme']}`
     applyAppearanceSettings(editorSettings(), root)
-    if (`${root.dataset['appearance']}/${root.dataset['theme']}` !== before)
+    const next = palette()
+    if (next !== current) {
+      current = next
+      root.dataset['appearanceChanging'] = ''
+      // Finish the new palette before WKWebView resumes a background window's compositor.
+      void document.documentElement.offsetHeight
+      requestAnimationFrame(() => delete root.dataset['appearanceChanging'])
       window.dispatchEvent(new Event(APPEARANCE_CHANGED))
+    }
   }
   subscribeEditorSettings(follow)
   matchMedia(DARK).addEventListener('change', follow)

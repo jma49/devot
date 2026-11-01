@@ -141,27 +141,27 @@ test('toolbar buttons sit on the toolbar centre line, and so do the traffic ligh
   expect(Math.abs(lights.y - 2 - barCentre)).toBeLessThanOrEqual(2)
 })
 
-test('toolbar glyphs are large, and the view modes are 44 by 30 segments', async ({ page }) => {
+test('Glass toolbar glyphs share an 18 point box in 36 point capsules', async ({ page }) => {
   await newNote(page, 'Plan')
   const toolbar = page.locator('.editor-toolbar')
   for (const name of ['Focus Mode', 'Back', 'Forward', 'More']) {
     const icon = toolbar.getByRole('button', { name, exact: true }).locator('.icon')
-    expect((await box(icon)).width).toBe(22)
+    expect((await box(icon)).width).toBe(18)
   }
   const newNoteIcon = page.getByRole('button', { name: 'New Note', exact: true }).locator('.icon')
-  expect((await box(newNoteIcon)).width).toBe(22)
+  expect((await box(newNoteIcon)).width).toBe(18)
 
   const modes = toolbar.getByRole('group', { name: 'View mode' })
   const modesBox = await box(modes)
-  expect(modesBox.width).toBe(134)
-  expect(modesBox.height).toBe(32)
+  expect(modesBox.width).toBe(136)
+  expect(modesBox.height).toBe(36)
   const offsets = new Set<string>()
   for (const segment of await modes.getByRole('button').all()) {
     const b = await box(segment)
     expect(b.width).toBe(44)
-    expect(b.height).toBe(30)
+    expect(b.height).toBe(32)
     const icon = await box(segment.locator('.icon'))
-    expect(icon.width).toBe(17)
+    expect(icon.width).toBe(18)
     expect(Number.isInteger(icon.x) && Number.isInteger(icon.y)).toBe(true)
     offsets.add(`${icon.x - b.x},${icon.y - b.y}`)
   }
@@ -185,7 +185,7 @@ test("the list header's toggle, name and New Note share the toolbars' centre lin
   const check = async () => {
     await sameLine('toggle', await box(toggle))
     await sameLine('New Note', await box(create))
-    await sameLine('name', await textBox(name))
+    await sameLine('name and count', await box(header.locator('.toolbar-title')))
     for (const button of [toggle, create]) {
       const b = await box(button)
       const icon = await box(button.locator('.icon'))
@@ -202,23 +202,24 @@ test("the list header's toggle, name and New Note share the toolbars' centre lin
   await check()
   for (const button of await page.locator('.editor-toolbar .tool').all())
     await sameLine('editor button', await box(button))
-  await sameLine('sidebar title bar', await box(page.locator('[data-devot-part=sidebar-titlebar]')))
+  // The sidebar floats inset from the window, so its title bar is a drag strip around the traffic lights' line.
+  const titlebar = await box(page.locator('[data-devot-part=sidebar-titlebar]'))
+  expect(titlebar.y).toBeLessThan(line - 12)
+  expect(titlebar.y + titlebar.height).toBeGreaterThan(line + 12)
 
   await page
     .getByRole('navigation', { name: 'Sidebar' })
     .getByRole('button', { name: /^Trash/ })
     .click()
   await expect(name).toHaveText('Trash')
-  const icon = await box(header.locator('.headline-icon'))
-  const caps = await titleCaps(name)
-  expect(Math.abs(centreY(icon) - caps.centre)).toBeLessThanOrEqual(0.75)
+  await expect(header.locator('.headline-icon')).toBeHidden()
+  await sameLine('Trash name and count', await box(header.locator('.toolbar-title')))
 
   await page.getByRole('button', { name: 'Hide Sidebar' }).click()
   await expect.poll(async () => (await box(toggle)).x).toBe(84)
   await sameLine('toggle', await box(toggle))
-  expect(
-    Math.abs(centreY(await box(header.locator('.headline-icon'))) - (await titleCaps(name)).centre),
-  ).toBeLessThanOrEqual(0.75)
+  await expect(header.locator('.headline-icon')).toBeHidden()
+  await sameLine('Trash name and count', await box(header.locator('.toolbar-title')))
 })
 
 test('title ink follows the text caps in every view and both styles; toolbar ink stays inside its box', async ({
@@ -243,6 +244,7 @@ test('title ink follows the text caps in every view and both styles; toolbar ink
     }
   })
   await page.reload()
+  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
   await newNote(page, 'Plan')
   const tag = page.getByRole('combobox', { name: 'Add Tag' })
   await tag.fill('urgent')
@@ -254,7 +256,7 @@ test('title ink follows the text caps in every view and both styles; toolbar ink
   const header = page.locator('.list-header')
   const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
   for (const iconStyle of ['sfSymbols', 'lucide'] as const) {
-    await changeEditorSettingsElsewhere(page, { iconStyle })
+    await changeEditorSettingsElsewhere(page, { iconStyle, sidebarMaterial: false })
     for (const view of ['Templates', 'Work', 'Active', 'urgent', 'Trash', 'All Notes']) {
       const row =
         view === 'Work'

@@ -998,6 +998,62 @@
         "value": 12,
         "unit": "px"
       }
+    },
+    "sidebar": {
+      "$type": "dimension",
+      "$value": {
+        "value": 18,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the floating sidebar, concentric with the window's corner at size.sidebar-inset from its edge."
+    },
+    "sidebar-row": {
+      "$type": "dimension",
+      "$value": {
+        "value": 10,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a sidebar row's highlight, concentric with the sidebar."
+    },
+    "list-row": {
+      "$type": "dimension",
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a note row's highlight, inset from the list's edges."
+    },
+    "note-info": {
+      "$type": "dimension",
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the note info card."
+    },
+    "glass-popover": {
+      "$type": "dimension",
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "Glass interface: popovers, tooltips' cards, pickers and the command palette."
+    },
+    "glass-floating-bar": {
+      "$type": "dimension",
+      "$value": {
+        "value": 18,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the selection toolbar and the image size bar."
+    },
+    "glass-dialog": {
+      "$type": "dimension",
+      "$value": {
+        "value": 20,
+        "unit": "px"
+      },
+      "$description": "Glass interface: dialogs and sheets."
     }
   },
   "size": {
@@ -1530,6 +1586,30 @@
         "unit": "px"
       },
       "$description": "The Filter field's icon slot (the funnel at rest, the clear button with a query): the text starts after it."
+    },
+    "sidebar-inset": {
+      "$type": "dimension",
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the room between the floating sidebar and the window's edges and the note list."
+    },
+    "list-inset": {
+      "$type": "dimension",
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      },
+      "$description": "Glass interface: how far note rows sit in from the list's edges."
+    },
+    "toolbar-control": {
+      "$type": "dimension",
+      "$value": {
+        "value": 36,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the height of a toolbar control, and a round toolbar button's width."
     }
   },
   "motion": {
@@ -1672,6 +1752,10 @@
       "chip-enter": {
         "$value": 0.5,
         "$description": "The size a tag chip starts at as it is added."
+      },
+      "press": {
+        "$value": 0.96,
+        "$description": "Glass interface: the size a toolbar control shrinks to while it is pressed, springing back on release."
       }
     },
     "delay": {

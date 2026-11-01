@@ -78,17 +78,17 @@ test('Shift+Cmd+D toggles focus mode, and the window remembers it', async ({ pag
   await expect(sidebar).toBeVisible()
 })
 
-for (const keys of ['Meta+Alt+Shift+KeyF', 'Meta+Shift+KeyF']) {
-  test(`the search shortcut ${keys} leaves focus mode and focuses the field`, async ({ page }) => {
-    await freshStart(page)
+test('both search shortcuts leave focus mode and focus the field', async ({ page }) => {
+  await freshStart(page)
+  for (const keys of ['Meta+Alt+Shift+KeyF', 'Meta+Shift+KeyF']) {
     await focusButton(page).click()
     await expect(page.getByRole('searchbox', { name: 'Search notes' })).toBeHidden()
     await page.keyboard.press(keys)
     await expect(focusButton(page)).toHaveAttribute('aria-pressed', 'false')
     await expect(page.getByRole('navigation', { name: 'Sidebar' })).toBeVisible()
     await expect(page.getByRole('searchbox', { name: 'Search notes' })).toBeFocused()
-  })
-}
+  }
+})
 
 test('hiding the panes fades them and slides the editor, and Reduce Motion makes it immediate', async ({
   page,

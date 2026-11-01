@@ -660,5 +660,16 @@ export function paintedColour(css: string): string {
 }
 
 export async function paintedBackground(element: Locator): Promise<string> {
-  return paintedColour(await element.evaluate((el) => getComputedStyle(el).backgroundColor))
+  return paintedColour(
+    await element.evaluate((el) => {
+      const sheet =
+        el.matches('.list, .content, .settings-main') &&
+        document.documentElement.dataset['sidebarMaterial'] === 'on'
+          ? el.closest('.window, .settings')
+          : null
+      return sheet
+        ? getComputedStyle(sheet, '::before').backgroundColor
+        : getComputedStyle(el).backgroundColor
+    }),
+  )
 }

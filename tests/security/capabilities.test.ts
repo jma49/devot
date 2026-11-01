@@ -149,6 +149,7 @@ describe('Tauri command permissions', () => {
       'allow-settings-mcp-setup',
       'allow-settings-open-data-folder',
       'allow-settings-show-backups',
+      'allow-sidebar-glass',
       'allow-symbol-png',
       // Settings > Sync sets the relay and turns sync on or off; the relay's secret goes in, once.
       // It offers the recovery key until it is saved, pairs and joins devices, lists and removes them.

@@ -114,7 +114,7 @@ describe('iconElement', () => {
       [
         'sidebar.left',
         'square.and.pencil',
-        'arrow.left',
+        'chevron.left',
         'arrow.up.left.and.arrow.down.right',
         'book.closed',
       ].map((name) => ({ name, pointSize: 18, weight: 'regular' })),

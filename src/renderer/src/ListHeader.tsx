@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode, type Ref } from 'react'
 import { listCaption } from './format'
 import { currentLocale, t } from './i18n'
-import { Icon } from './icons/Icon'
+import { Icon, ToolIcon } from './icons/Icon'
 import type { MenuPoint } from './contextMenu'
 import { isImeKey } from './ime'
 
@@ -76,9 +76,9 @@ export function ListHeader(props: ListHeaderProps) {
           <span role="status" className="visually-hidden">
             {spoken}
           </span>
-          {/* The count as it is now (the spoken one waits for it to settle);
-              never shown. */}
-          <span className="list-count" hidden>
+          {/* The count as it is now (the spoken one waits for it to settle); the
+              Glass style shows it under the name. */}
+          <span className="list-count" aria-hidden="true">
             {caption}
           </span>
         </div>
@@ -93,7 +93,7 @@ export function ListHeader(props: ListHeaderProps) {
               onClick={props.onCreate}
               disabled={!props.onCreate}
             >
-              <Icon name="note.new" size="lg" />
+              <ToolIcon name="note.new" />
             </button>
           )}
         </div>
@@ -123,6 +123,7 @@ export function ListHeader(props: ListHeaderProps) {
                   onClick={(e) => props.sort?.onOpen(e.currentTarget)}
                 >
                   {props.sort.chip}
+                  <Icon name="popup.chevron" size="xs" />
                 </button>
               ) : null}
               {props.layout}

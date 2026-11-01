@@ -50,7 +50,6 @@ export function TaskProgress({ done, total }: { done: number; total: number }) {
   const values = { done: String(done), total: String(total) }
   return (
     <span className="row-progress">
-      <Icon name="progress" size="sm" />
       <span
         className="progress-bar"
         role="progressbar"

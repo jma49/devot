@@ -41,6 +41,14 @@ describe('floating bar motion and states', () => {
     })
   })
 
+  it('blurs what is under the bar and its tooltip in the Glass interface, and nothing otherwise', () => {
+    for (const selector of ['.cm-tooltip.cm-float-bar', '.cm-float-tip']) {
+      const surface = rule(selector)
+      expect(surface.backdropFilter).toBe('var(--glass-backdrop, none)')
+      expect(surface.WebkitBackdropFilter).toBe('var(--glass-backdrop, none)')
+    }
+  })
+
   it('has zero-width separators with a left border and buttons with no gap', () => {
     const separator = rule('.cm-float-separator')
     expect(separator.width).toBe('0')

@@ -70,9 +70,11 @@ export function StatusPicker(props: {
           setOpen(true)
         }}
       >
-        {shown === 'none' ? null : <Icon name={STATUS_ICONS[shown]} size="sm" />}
+        <span className={shown === 'none' ? 'status-empty-mark' : undefined}>
+          <Icon name={STATUS_ICONS[shown]} size="sm" />
+        </span>
         <span className="popup-value">{value}</span>
-        <Icon name="popup.chevron" size="xs" />
+        <Icon name="popup" size="xs" />
       </button>
       {open ? (
         <PickerList

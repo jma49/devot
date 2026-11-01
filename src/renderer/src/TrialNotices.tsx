@@ -56,10 +56,13 @@ export function TrialEndedBar() {
     if (!over || !el) return
     const root = document.documentElement
     const reserve = () => {
-      // Layout, not the rect: the bar enters with a translate, and the stack holds it above the window's edge.
+      // The rect's height, not its position: the bar enters with a translate, which never scales it.
       const stack = el.parentElement
       const gap = Number.parseFloat(stack ? getComputedStyle(stack).bottom : '')
-      root.style.setProperty('--trial-bar-inset', `${el.offsetHeight + (gap || 0)}px`)
+      const height = el.getBoundingClientRect().height
+      // WebKit reports scroll heights in whole pixels, so up to a pixel of fractional rows cannot be
+      // scrolled to: one more pixel keeps the last row clear of the bar.
+      root.style.setProperty('--trial-bar-inset', `${Math.ceil(height + (gap || 0)) + 1}px`)
     }
     reserve()
     const observer = new ResizeObserver(reserve)

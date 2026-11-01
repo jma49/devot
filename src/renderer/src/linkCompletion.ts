@@ -175,6 +175,8 @@ const infoTheme = EditorView.theme({
     border: '0',
     borderRadius: 'var(--radius-popover)',
     backgroundColor: 'var(--color-surface-popover)',
+    backdropFilter: 'var(--glass-backdrop, none)',
+    WebkitBackdropFilter: 'var(--glass-backdrop, none)',
     boxShadow: '0 0 0 1px var(--color-line-hairline), var(--popover-shadow)',
     padding: '0',
   },

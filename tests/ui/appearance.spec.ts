@@ -69,23 +69,25 @@ test.describe('with the system in dark', () => {
 // Each appearance has its own theme; the one for the appearance shown marks the root (`data-theme`). The generated
 // tokens scope each built-in theme by it, and the choice reaches every window like the appearance does.
 
-/** The editor pane and sidebar as painted over the window material, per theme and appearance. */
+/** The sheet the note list and the editor share over the window material, per theme and appearance. */
+const SHEET = {
+  default: { light: 'rgba(255, 255, 255, 0.75)', dark: 'rgba(18, 18, 18, 0.55)' },
+  ivory: { light: 'rgba(253, 252, 248, 0.75)', dark: 'rgba(43, 43, 41, 0.55)' },
+} as const
 const SURFACES = {
   default: {
-    light: { editor: 'rgba(255, 255, 255, 0.7)', sidebar: 'rgba(255, 255, 255, 0.02)' },
-    dark: { editor: 'rgba(10, 10, 10, 0.6)', sidebar: 'rgba(0, 0, 0, 0.1)' },
+    light: { editor: SHEET.default.light, list: SHEET.default.light },
+    dark: { editor: SHEET.default.dark, list: SHEET.default.dark },
   },
   ivory: {
-    light: { editor: 'rgba(255, 255, 255, 0.7)', sidebar: 'rgba(245, 244, 237, 0.02)' },
-    dark: { editor: 'rgba(48, 48, 46, 0.6)', sidebar: 'rgba(31, 30, 29, 0.1)' },
+    light: { editor: SHEET.ivory.light, list: SHEET.ivory.light },
+    dark: { editor: SHEET.ivory.dark, list: SHEET.ivory.dark },
   },
 } as const
 
-const background = paintedBackground
-
 const shownSurfaces = async (page: Page) => ({
-  editor: await background(page.locator('main.content')),
-  sidebar: await background(page.getByRole('navigation', { name: 'Sidebar' })),
+  editor: await paintedBackground(page.locator('main.content')),
+  list: await paintedBackground(page.getByRole('region', { name: 'Notes' })),
 })
 
 for (const scheme of ['light', 'dark'] as const) {
@@ -93,7 +95,7 @@ for (const scheme of ['light', 'dark'] as const) {
   test.describe(`the theme with the system in ${scheme}`, () => {
     test.use({ colorScheme: scheme })
 
-    test('Ivory for the appearance shown changes the editor and the sidebar colours at once; for the other it waits', async ({
+    test('Ivory for the appearance shown changes the editor and the note list colours at once; for the other it waits', async ({
       page,
     }) => {
       await page.goto('/')

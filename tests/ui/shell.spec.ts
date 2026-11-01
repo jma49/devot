@@ -1,6 +1,12 @@
 import type { Locator, Page } from '@playwright/test'
 import { light } from '../../src/renderer/src/theme/tokens'
-import { expect, symbolRequests, test, type TestWindow } from './fixtures'
+import {
+  changeEditorSettingsElsewhere,
+  expect,
+  symbolRequests,
+  test,
+  type TestWindow,
+} from './fixtures'
 
 function rgb(hex: string): string {
   const n = Number.parseInt(hex.slice(1), 16)
@@ -25,6 +31,16 @@ const alpha = (color: string) => {
   const channels = parts[0] === 'srgb' ? parts.slice(1) : parts
   return channels.length === 4 ? Number(channels[3]) : 1
 }
+
+/** A colour token as the page resolves it, for themes whose values the token table does not list. */
+const tokenColor = (page: Page, name: string) =>
+  page.evaluate((n) => {
+    const probe = document.body.appendChild(document.createElement('div'))
+    probe.style.backgroundColor = `var(${n})`
+    const color = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return color
+  }, name)
 
 async function freshStart(page: Page) {
   await page.goto('/')
@@ -66,7 +82,11 @@ test('lays out sidebar, note list and editor at the macOS type scale', async ({ 
   expect(await css(count, 'color')).toBe(rgb(light['color.text.secondary']))
 
   const field = list.locator('.search-field')
-  expect((await field.boundingBox())?.height).toBe(30)
+  // The Glass search field is a toolbar control's height.
+  const control = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--size-toolbar-control'),
+  )
+  expect(`${(await field.boundingBox())?.height}px`).toBe(control.trim())
   await expect(field.locator('.search-icon')).toHaveCount(1)
   expect((await field.locator('.search-icon').boundingBox())?.width).toBeCloseTo(37.4, 0)
   await field.locator('input').fill('x')
@@ -117,19 +137,19 @@ test('icons are SF Symbols, cached per name, size and appearance', async ({ page
     page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls).then(symbolRequests)
   await expect.poll(requests).toContain('note.text@14')
   const once = await requests()
-  expect(once.filter((r) => r === 'square.and.pencil@18')).toHaveLength(1)
+  expect(once.filter((r) => r === 'square.and.pencil@14')).toHaveLength(1)
 
   // A new appearance renders again; returning to a seen one uses the cache.
   await page.emulateMedia({ colorScheme: 'dark' })
   await expect
-    .poll(async () => (await requests()).filter((r) => r === 'square.and.pencil@18'))
+    .poll(async () => (await requests()).filter((r) => r === 'square.and.pencil@14'))
     .toHaveLength(2)
   await page.emulateMedia({ colorScheme: 'light' })
   await page.waitForTimeout(100)
-  expect((await requests()).filter((r) => r === 'square.and.pencil@18')).toHaveLength(2)
+  expect((await requests()).filter((r) => r === 'square.and.pencil@14')).toHaveLength(2)
 })
 
-test('the note list selection is neutral without the keyboard, an accent wash with a bar on the open row with it', async ({
+test('the note list selection is the same accent wash with the keyboard and without, and has no bar', async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: 'light' })
@@ -142,18 +162,15 @@ test('the note list selection is neutral without the keyboard, an accent wash wi
   const alphaRow = rows.getByRole('option', { name: /Alpha/ })
   await expect(beta).toHaveAttribute('aria-selected', 'true')
 
-  expect(alpha(await css(beta, 'background-color'))).toBeCloseTo(0.07, 2)
+  expect(alpha(await css(beta, 'background-color'))).toBeCloseTo(0.2, 2)
+  const wash = await css(beta, 'background-color')
   expect(await css(beta, 'box-shadow')).toBe('none')
   const text = await css(beta, 'color')
 
   await beta.click()
   await expect(beta).toBeFocused()
-  await expect.poll(async () => alpha(await css(beta, 'background-color'))).toBeCloseTo(0.2, 2)
-  const wash = await css(beta, 'background-color')
-  await expect
-    .poll(() => css(beta, 'box-shadow'))
-    .toBe(`${rgb(light['color.accent.fill'])} 5px 0px 0px 0px inset`)
   expect(await css(beta, 'background-color')).toBe(wash)
+  expect(await css(beta, 'box-shadow')).toBe('none')
   expect(await css(beta, 'color')).toBe(text)
   expect(await css(alphaRow, 'box-shadow')).toBe('none')
 
@@ -178,7 +195,9 @@ test('coded console warnings reach the local log without other arguments', async
     .toContainEqual({ level: 'warn', code: 'W_UI_TEST', ids: [id] })
 })
 
-test('the selected view mode is a neutral grey segment', async ({ page }) => {
+test('the selected view mode is a raised glass segment, and a neutral grey one in Classic', async ({
+  page,
+}) => {
   await page.emulateMedia({ colorScheme: 'light' })
   await freshStart(page)
   await createNote(page, 'Modes')
@@ -187,6 +206,10 @@ test('the selected view mode is a neutral grey segment', async ({ page }) => {
     .getByRole('button', { name: 'Split' })
   await split.click()
   await expect(split).toHaveAttribute('aria-pressed', 'true')
+  await expect
+    .poll(() => css(split, 'background-color'))
+    .toBe(await tokenColor(page, '--color-fill-glass-control'))
+  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
   await expect.poll(() => css(split, 'background-color')).toBe('rgba(28, 27, 25, 0.12)')
 })
 

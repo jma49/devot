@@ -30,7 +30,7 @@ export const SearchField = forwardRef<
     placeholder: string
     icon?: IconName
   }
->(function SearchField({ value, onChange, onClear, placeholder, icon = 'filter' }, ref) {
+>(function SearchField({ value, onChange, onClear, placeholder, icon = 'search' }, ref) {
   const box = useRef<HTMLDivElement>(null)
   const helpButton = useRef<HTMLButtonElement>(null)
   const [helpOpen, setHelpOpen] = usePickerOpen(box)

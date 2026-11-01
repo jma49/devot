@@ -8,6 +8,7 @@
   --dialog-enter-scale: var(--motion-scale-dialog-enter);
   --dialog-blur: var(--motion-blur-dialog);
   --chip-enter-scale: var(--motion-scale-chip-enter);
+  --press-scale: var(--motion-scale-press);
   --bar-enter-shift: var(--space-4);
   --popover-shadow:
     0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key),
@@ -20,6 +21,7 @@
   --dialog-enter-scale: 1;
   --dialog-blur: 0px;
   --chip-enter-scale: 1;
+  --press-scale: 1;
   --bar-enter-shift: 0px;
 }
 
@@ -178,6 +180,13 @@ body {
 
 #root {
   contain: paint;
+}
+
+/* WKWebView can retain partially transitioned layers when a background window changes theme. */
+:root[data-appearance-changing] *,
+:root[data-appearance-changing] *::before,
+:root[data-appearance-changing] *::after {
+  transition: none !important;
 }
 
 body {
@@ -1052,7 +1061,26 @@ button {
   color: var(--color-text-tertiary);
 }
 
+.footer-dot {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  margin-inline-end: var(--space-4);
+  border-radius: var(--radius-capsule);
+  background: var(--color-status-done-mark);
+}
+
+.footer-dot[data-tone='warn'] {
+  background: var(--color-status-hold-mark);
+}
+
+.footer-dot[data-tone='error'] {
+  background: var(--color-status-dropped-mark);
+}
+
 .footer-saved {
+  flex: 1;
+  text-align: start;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1262,7 +1290,14 @@ button {
   padding-inline-start: var(--space-4);
 }
 
+.list-count {
+  display: none;
+}
+
 .sort-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   height: calc(var(--space-8) + var(--space-1));
   padding: 0 var(--space-4);
   border: 1px solid var(--color-line-hairline);
@@ -2035,6 +2070,10 @@ button {
   color: var(--color-text-primary);
 }
 
+.status-empty-mark {
+  display: none;
+}
+
 .popup:hover {
   background: var(--color-fill-track);
 }
@@ -2152,14 +2191,6 @@ button {
 .editor-toolbar .segment[aria-pressed='true'] {
   background: var(--color-fill-row-selected);
   box-shadow: none;
-}
-
-.note-more .icon {
-  transform: rotate(90deg);
-}
-
-.note-more .icon-svg {
-  transform: rotate(90deg);
 }
 
 .trail-buttons {
@@ -5997,4 +6028,577 @@ button.popup:focus-visible {
 
 :root[data-motion='reduced'] .authorship-notice {
   animation: none;
+}
+
+/* Glass interface (Settings > Appearance > Interface style: Glass). Two materials only: one sheet the
+   note list and the editor share, and glass controls floating over it. The sidebar floats inset from
+   the window; on macOS 26 the system draws its glass (sidebarGlass.ts), elsewhere a tint over the
+   sheet stands in. A cutout in the surrounding sheet leaves native glass uncovered. */
+:root[data-sidebar-material='on'] body {
+  --glass-sheet: color(
+    from var(--color-surface-sheet) srgb r g b /
+      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
+  );
+  --glass-backdrop: blur(var(--space-9)) saturate(1.8);
+  --glass-rim:
+    inset 0 1px 0 var(--color-line-glass-highlight), 0 0 0 0.5px var(--color-line-glass-edge);
+  --color-surface-popover: var(--color-surface-glass-popover);
+  --color-surface-float-bar: var(--color-surface-glass-float-bar);
+  --radius-popover: var(--radius-glass-popover);
+  --radius-floating-bar: var(--radius-glass-floating-bar);
+  --radius-dialog: var(--radius-glass-dialog);
+}
+
+:root[data-sidebar-material='on'] :is(.list, .content) {
+  background: transparent;
+}
+
+:root[data-sidebar-material='on'] .settings {
+  position: relative;
+}
+
+:root[data-sidebar-material='on'] :is(.window, .settings) {
+  isolation: isolate;
+}
+
+/* One continuous sheet avoids compositing seams between the sidebar's corners and the panes. */
+:root[data-sidebar-material='on'] :is(.window, .settings)::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: var(--glass-sheet);
+  background-image: var(--backdrop, none);
+  clip-path: var(--sidebar-surround-clip, none);
+  pointer-events: none;
+}
+
+:root[data-sidebar-material='on'] .list {
+  border-right: 0;
+}
+
+:root[data-sidebar-material='on'] .list::after {
+  content: '';
+  position: absolute;
+  top: var(--size-toolbar-height);
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-line-separator);
+  pointer-events: none;
+}
+
+/* Above the list, so the sidebar's soft shadow fades out over it instead of stopping at its edge. */
+:root[data-sidebar-material='on'] .sidebar {
+  z-index: 1;
+  margin: var(--size-sidebar-inset);
+  border-right: 0;
+  border-radius: var(--radius-sidebar);
+  background-color: transparent;
+  background-image:
+    linear-gradient(var(--color-surface-glass), var(--color-surface-glass)), var(--backdrop, none),
+    linear-gradient(var(--glass-sheet), var(--glass-sheet));
+  background-attachment: scroll, fixed, scroll;
+  box-shadow:
+    var(--glass-rim),
+    0 var(--space-2) var(--space-8) var(--color-shadow-glass);
+}
+
+:root[data-sidebar-material='on'][data-native-glass='on'] .sidebar {
+  background-image: none;
+  box-shadow: none;
+}
+
+:root[data-sidebar-material='on'] .sidebar :is(.source, .book-row) {
+  border-radius: var(--radius-sidebar-row);
+}
+
+/* The sidebar's selection is neutral, focused or not; the note list keeps the accent. */
+:root[data-sidebar-material='on']
+  .sidebar
+  :is(
+    .source.filter[aria-pressed='true'],
+    .source[aria-current='true'],
+    .books [aria-selected='true'] > .book-row
+  ) {
+  background: var(--color-fill-row-selected);
+}
+
+/* A notebook's icon lines up with the library's; a parent's chevron sits in the room before it. */
+:root[data-sidebar-material='on'] .books li {
+  --book-indent: calc(var(--space-3) + var(--book-depth, 0) * var(--space-8));
+}
+
+:root[data-sidebar-material='on'] .book-row > .disclosure {
+  position: absolute;
+  inset-inline-start: calc(var(--book-indent) - var(--space-6));
+  height: 100%;
+}
+
+:root[data-sidebar-material='on'] .section-header {
+  font-size: var(--font-size-footnote);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+:root[data-sidebar-material='on'] .footer-toggle {
+  border: 1px solid var(--color-line-glass-edge);
+  border-radius: var(--radius-capsule);
+  color: var(--color-text-primary);
+}
+
+:root[data-sidebar-material='on'] .footer-toggle .icon {
+  background-color: var(--color-text-secondary);
+}
+
+:root[data-sidebar-material='on'] .footer-toggle .icon-svg {
+  color: var(--color-text-secondary);
+}
+
+:root[data-sidebar-material='on'] .toolbar {
+  border-bottom: 0;
+}
+
+:root[data-sidebar-material='on'] .toolbar .tool {
+  width: var(--size-toolbar-control);
+  height: var(--size-toolbar-control);
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-glass-control);
+  box-shadow:
+    var(--glass-rim),
+    0 1px var(--space-4) var(--color-shadow-glass);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  transition:
+    background-color var(--motion-duration-hover) var(--motion-easing-out),
+    box-shadow var(--motion-duration-hover) var(--motion-easing-out),
+    color var(--motion-duration-hover) var(--motion-easing-out),
+    opacity var(--motion-duration-hover) var(--motion-easing-out),
+    scale var(--motion-duration-quick) var(--motion-easing-move),
+    outline-color var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
+:root[data-sidebar-material='on'] .toolbar .tool:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-fill-glass-control);
+  box-shadow:
+    var(--glass-rim),
+    inset 0 0 0 100vmax var(--color-fill-tool-hover),
+    0 var(--space-1) var(--space-6) var(--color-shadow-glass);
+}
+
+:root[data-sidebar-material='on'] .toolbar .tool:active:not(:disabled, [aria-disabled='true']) {
+  scale: var(--press-scale);
+}
+
+:root[data-sidebar-material='on'] .toolbar .tool[aria-pressed='true'] {
+  color: var(--color-accent-text);
+}
+
+/* Back and Forward share one capsule, as in Settings. */
+:root[data-sidebar-material='on'] .trail-buttons {
+  gap: var(--space-3);
+}
+
+:root[data-sidebar-material='on'] .trail-buttons .tool:nth-child(2) {
+  width: calc(var(--size-toolbar-control) + var(--space-2));
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+:root[data-sidebar-material='on'] .trail-buttons .tool:nth-child(3) {
+  width: calc(var(--size-toolbar-control) + var(--space-2));
+  margin-inline-start: calc(-1 * var(--space-3));
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+:root[data-sidebar-material='on'] .toolbar .segmented {
+  height: var(--size-toolbar-control);
+  box-sizing: border-box;
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-glass-control);
+  box-shadow:
+    var(--glass-rim),
+    0 1px var(--space-4) var(--color-shadow-glass);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+}
+
+:root[data-sidebar-material='on'] .toolbar .segment {
+  height: 100%;
+  border: 0;
+  border-radius: var(--radius-capsule);
+}
+
+:root[data-sidebar-material='on'] .list-filter .search-field {
+  height: var(--size-toolbar-control);
+  background: var(--color-fill-track);
+  box-shadow: inset 0 0 0 1px transparent;
+}
+
+:root[data-sidebar-material='on'] .list-filter .search-field:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-focus-ring);
+}
+
+:root[data-sidebar-material='on'] .list-filter .search-icon {
+  opacity: 1;
+  color: var(--color-text-secondary);
+}
+
+/* The syntax list's button shows only while the field is in use. */
+:root[data-sidebar-material='on']
+  .search-field:not(:focus-within, :hover)
+  > .search-help-button:not([aria-expanded='true']) {
+  opacity: 0;
+}
+
+:root[data-sidebar-material='on'] .list-filter {
+  border-bottom-color: transparent;
+}
+
+:root[data-sidebar-material='on'] .sort-chip {
+  border-color: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+  font-weight: var(--font-weight-medium);
+}
+
+:root[data-sidebar-material='on'] .layout-control {
+  border-radius: var(--radius-capsule);
+}
+
+:root[data-sidebar-material='on'] .layout-control .segment {
+  border-radius: var(--radius-capsule);
+}
+
+:root[data-sidebar-material='on'] .layout-control .segment[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 0.5px var(--color-line-hairline),
+    0 1px var(--space-2) var(--color-shadow-glass);
+}
+
+:root[data-sidebar-material='on'] .toolbar .segment[aria-pressed='true'] {
+  background: var(--color-fill-glass-control);
+  box-shadow:
+    var(--glass-rim),
+    0 1px var(--space-2) var(--color-shadow-glass);
+  color: var(--color-accent-text);
+}
+
+/* The note list's header: the view's name over its count, with no icon. */
+:root[data-sidebar-material='on'] .list .list-header .toolbar-title {
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
+}
+
+:root[data-sidebar-material='on'] .list-header .headline-icon {
+  display: none;
+}
+
+/* Centred in a column, the name would otherwise take its full width instead of an ellipsis. */
+:root[data-sidebar-material='on'] .list-header .headline {
+  max-width: 100%;
+}
+
+:root[data-sidebar-material='on'] .list-header .list-count {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+  font-weight: var(--font-weight-regular);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root[data-sidebar-material='on'] .rows {
+  gap: var(--space-1);
+  padding-inline: var(--size-list-inset);
+}
+
+:root[data-sidebar-material='on'] .rows .row[data-open],
+:root[data-sidebar-material='on']
+  .sidebar:focus-within
+  :is(.source, .books .book-row):not(.menu-target) {
+  box-shadow: none;
+}
+
+:root[data-sidebar-material='on']
+  :is(.sidebar .source:focus-visible, .books li:focus-visible > .book-row):not(.menu-target) {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
+:root[data-sidebar-material='on'] .list-section:not(:first-child) {
+  position: relative;
+  margin-top: var(--space-4);
+  padding-top: var(--space-6);
+}
+
+:root[data-sidebar-material='on'] .list-section:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  inset-inline: var(--size-list-row-inset);
+  height: 1px;
+  background: var(--color-line-separator);
+}
+
+/* A row: the title with its time at the end of the line, then the rest of its details, then two
+   lines of its text. The time leaves its line, which goes when nothing else is on it. */
+:root[data-sidebar-material='on'] .row {
+  position: relative;
+  padding-bottom: var(--space-6);
+  border-bottom: 0;
+  border-radius: var(--radius-list-row);
+}
+
+:root[data-sidebar-material='on'] .row-title {
+  margin-bottom: var(--space-2);
+  padding-inline-end: calc(var(--space-10) * 2);
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
+:root[data-sidebar-material='on'] .row-time {
+  position: absolute;
+  top: var(--space-6);
+  inset-inline-end: var(--size-list-row-inset);
+  font-size: var(--font-size-footnote);
+}
+
+:root[data-sidebar-material='on'] .row > .row-meta:first-child {
+  margin-top: 0;
+  min-height: calc(var(--space-6) * 2);
+}
+
+:root[data-sidebar-material='on']
+  .row-title
+  + .row-meta:has(.row-meta-items > .row-time:only-child) {
+  height: 0;
+}
+
+:root[data-sidebar-material='on'] .row-excerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+:root[data-sidebar-material='on'] .row[aria-selected='true'],
+:root[data-sidebar-material='on'] :where(.rows:not(:focus-within)) .row[aria-selected='true'] {
+  background: color-mix(
+    in srgb,
+    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
+    transparent
+  );
+}
+
+:root[data-sidebar-material='on'] :is(.search-field, .sort-chip, .popup) {
+  border-radius: var(--radius-capsule);
+}
+
+:root[data-sidebar-material='on'] .note-info-card {
+  border-radius: var(--radius-note-info);
+}
+
+:root[data-sidebar-material='on'] .title {
+  font-weight: var(--font-weight-bold);
+}
+
+:root[data-sidebar-material='on'] .note-meta > .picker:first-child {
+  margin-inline-start: 0;
+}
+
+:root[data-sidebar-material='on'] .note-meta .popup {
+  height: var(--size-settings-control);
+  padding-inline: var(--space-5);
+  border: 1px solid var(--color-line-hairline);
+  background: var(--color-fill-track);
+}
+
+:root[data-sidebar-material='on'] .status-empty-mark {
+  display: inline-flex;
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-input {
+  height: var(--size-settings-control);
+}
+
+:root[data-sidebar-material='on'] .note-info-field {
+  flex: 1 1 auto;
+}
+
+:root[data-sidebar-material='on'] .note-info-icon {
+  color: var(--color-text-secondary);
+}
+
+:root[data-sidebar-material='on'] .note-info-field + .note-info-field {
+  padding-inline-start: var(--space-7);
+  border-inline-start: 1px solid var(--color-line-separator);
+}
+
+:root[data-sidebar-material='on'] .note-info-icon .icon,
+:root[data-sidebar-material='on'] .note-info-icon .icon-svg {
+  width: var(--size-icon-md);
+  height: var(--size-icon-md);
+}
+
+:root[data-sidebar-material='on'] .note-backlinks > summary {
+  font-size: var(--font-size-body);
+  text-transform: none;
+  color: var(--color-text-secondary);
+  opacity: 1;
+  list-style: none;
+}
+
+:root[data-sidebar-material='on'] .note-backlinks > summary::-webkit-details-marker {
+  display: none;
+}
+
+:root[data-sidebar-material='on'] .note-backlinks > summary::before {
+  content: '';
+  display: inline-block;
+  width: var(--space-2);
+  height: var(--space-2);
+  margin-inline: var(--space-1) var(--space-4);
+  border-top: 1px solid currentColor;
+  border-right: 1px solid currentColor;
+  rotate: 45deg;
+}
+
+:root[data-sidebar-material='on'] .note-backlinks[open] > summary::before {
+  rotate: 135deg;
+}
+
+:root[data-sidebar-material='on'] .preview :is(h1, h2) {
+  border-bottom: 0;
+}
+
+:root[data-sidebar-material='on'] .note-info-label {
+  font-size: var(--font-size-caption);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* Floating surfaces: popovers, tooltips, pickers, the palette, dialogs and sheets lie over a blur of
+   what is under them, with the glass rim. The editor's own popups (in its shadow root) read
+   --glass-backdrop and the surface tokens above. */
+:root[data-sidebar-material='on']
+  :is(
+    .tool-tip,
+    .palette,
+    .tag-suggestions,
+    .picker-list,
+    .more-menu-list,
+    .search-help,
+    .confirm,
+    .link-dialog,
+    .sheet,
+    .plugin-panel
+  ) {
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow: var(--glass-rim), var(--popover-shadow);
+}
+
+/* Settings shares the library's sheet and its rounded cutout for native glass. */
+:root[data-sidebar-material='on'] .settings-main {
+  background: transparent;
+}
+
+:root[data-sidebar-material='on'] .settings-nav {
+  position: relative;
+  z-index: 1;
+  margin: var(--size-sidebar-inset);
+  padding-top: calc(var(--size-toolbar-height) - var(--size-sidebar-inset));
+  border: 0;
+  border-radius: var(--radius-sidebar);
+  background-color: transparent;
+  background-image:
+    linear-gradient(var(--color-surface-glass), var(--color-surface-glass)), var(--backdrop, none),
+    linear-gradient(var(--glass-sheet), var(--glass-sheet));
+  background-attachment: scroll, fixed, scroll;
+  box-shadow:
+    var(--glass-rim),
+    0 var(--space-2) var(--space-8) var(--color-shadow-glass);
+}
+
+:root[data-sidebar-material='on'][data-native-glass='on'] .settings-nav {
+  background-image: none;
+  box-shadow: none;
+}
+
+:root[data-sidebar-material='on'] :is(.settings-pane, .settings-toolbar) {
+  background: transparent;
+}
+
+:root[data-sidebar-material='on'] .settings-toolbar::after {
+  height: var(--space-6);
+  background: linear-gradient(var(--color-fill-hover), transparent);
+  translate: 0 100%;
+  pointer-events: none;
+}
+
+:root[data-sidebar-material='on'] .settings-title {
+  font-size: var(--font-size-body);
+}
+
+:root[data-sidebar-material='on'] .settings-history {
+  height: var(--size-toolbar-control);
+  background: var(--color-fill-glass-control);
+  box-shadow:
+    var(--glass-rim),
+    0 1px var(--space-4) var(--color-shadow-glass);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+}
+
+/* Search lives on glass already, so it gets a fill and rim without a second blur. */
+:root[data-sidebar-material='on'] .settings-search {
+  height: var(--size-toolbar-control);
+  background: var(--color-fill-glass-control);
+  box-shadow: var(--glass-rim);
+}
+
+:root[data-sidebar-material='on'] .settings-nav-row {
+  border-radius: var(--radius-sidebar-row);
+}
+
+:root[data-sidebar-material='on'] .settings-card {
+  border-radius: var(--radius-sidebar);
+}
+
+:root[data-sidebar-material='on'] .slider::-webkit-slider-thumb {
+  width: var(--size-settings-control);
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-glass-control);
+  box-shadow:
+    var(--glass-rim),
+    0 1px var(--space-4) var(--color-shadow-glass);
+}
+
+/* Accessibility preferences override every translucent surface, including shadow-root popups
+   which inherit these variables. The native sidebar is removed by sidebarGlass.ts as well. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root[data-sidebar-material='on'] body {
+    --glass-sheet: var(--color-surface-editor);
+    --glass-backdrop: none;
+    --color-surface-glass: var(--color-surface-sidebar-opaque);
+    --color-fill-glass-control: var(--color-surface-editor);
+    --color-surface-popover: var(--color-surface-editor);
+    --color-surface-float-bar: var(--color-surface-editor);
+    --color-line-glass-edge: var(--color-line-control);
+  }
+
+  :root[data-sidebar-material='on'] :is(.sidebar, .settings-nav) {
+    background: var(--color-surface-sidebar-opaque);
+  }
 }

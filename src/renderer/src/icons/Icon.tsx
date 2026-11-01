@@ -149,6 +149,15 @@ export function Icon(props: {
   return <StyledIcon style={useEditorSetting('iconStyle')} {...props} />
 }
 
+/** A toolbar button's icon: the Glass interface draws it smaller and lighter, at one size for buttons and segments. */
+export function ToolIcon({ name, size = 'lg' }: { name: IconName; size?: IconSize }) {
+  return useEditorSetting('sidebarMaterial') ? (
+    <Icon name={name} size="toolbar" weight="light" />
+  ) : (
+    <Icon name={name} size={size} />
+  )
+}
+
 export type IconSize = keyof typeof BOXES
 
 /** `lazy` renders only once it scrolls into view (a long grid of symbols); `fallback` is drawn when the symbol cannot be rendered. */
