@@ -146,17 +146,26 @@ it('unions multiple feature selections and directly changed specs', () => {
 })
 
 it('separates expensive specs instead of grouping them by filename', () => {
-  const files = Array.from({ length: 8 }, (_, i) => `tests/ui/feature-${i}.spec.ts`)
-  const durations = Object.fromEntries(files.map((file, i) => [file, i < 2 ? 100 : 10]))
+  const files = Array.from({ length: 4 }, (_, i) => `tests/ui/feature-${i}.spec.ts`)
+  const durations = Object.fromEntries(files.map((file, i) => [file, i < 2 ? 400_000 : 10_000]))
   const plan = planUi(files, files, false, durations)
   const jobs = plan.matrix.include
   expect(jobs).toHaveLength(2)
   expect(jobs.every((job) => job.partitioned)).toBe(true)
   expect(jobs.map((job) => job.files.reduce((sum, file) => sum + durations[file]!, 0))).toEqual([
-    130, 130,
+    410_000, 410_000,
   ])
   expect(jobs[0]!.files).not.toContain(files[1])
   expect(jobs.flatMap((job) => job.files).sort()).toEqual(files)
+})
+
+it('uses measured work to schedule a full run in at most twelve shards', () => {
+  const files = Array.from({ length: 96 }, (_, i) => `tests/ui/feature-${i}.spec.ts`)
+  const durations = Object.fromEntries(files.map((file) => [file, 100_000]))
+  const plan = planUi(files, files, false, durations)
+  expect(plan.matrix.include).toHaveLength(12)
+  expect(plan.matrix.include.every((job) => job.shards === 12 && job.files.length === 8)).toBe(true)
+  expect(plan.matrix.include.flatMap((job) => job.files).sort()).toEqual([...files].sort())
 })
 
 it('retains new specs and deterministic assignments when durations are missing', () => {

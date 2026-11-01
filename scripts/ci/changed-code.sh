@@ -9,7 +9,9 @@
 # - Documentation (a file under docs/, or a Markdown file outside src/) and
 #   the design sources of the app icon (design/app-icon/) need neither. A
 #   Markdown file under src/ is part of the UI (the welcome notes), so it needs
-#   both.
+#   both. A change made only of documentation gets `docs_only=true`, so CI can
+#   skip the expensive jobs while its always-on gates still satisfy the
+#   required checks.
 # - The sync relay (relay/) and the licence Worker (licence/) need neither:
 #   the app imports neither, and the policy job checks both.
 # - src-tauri/tauri.conf.json needs both: the UI tests serve the built UI
@@ -26,35 +28,49 @@
 # A list with no files needs both, so a doubt runs everything.
 web=false
 rust=false
+docs_only=true
 seen=false
 while IFS= read -r file; do
   [ -n "$file" ] || continue
   seen=true
   case "$file" in
-    licence/test-vectors.json) rust=true ;;
+    licence/test-vectors.json)
+      rust=true
+      docs_only=false
+      ;;
     src/*)
       web=true
       rust=true
+      docs_only=false
       ;;
-    docs/* | *.md | design/app-icon/* | relay/* | licence/*) ;;
+    docs/* | *.md) ;;
+    design/app-icon/* | relay/* | licence/*) docs_only=false ;;
     src-tauri/tauri.conf.json)
       web=true
       rust=true
+      docs_only=false
       ;;
     src-tauri/plugin-frame/*)
       web=true
       rust=true
+      docs_only=false
       ;;
-    src-tauri/*) rust=true ;;
+    src-tauri/*)
+      rust=true
+      docs_only=false
+      ;;
     *)
       web=true
       rust=true
+      docs_only=false
       ;;
   esac
 done
 if [ "$seen" = false ]; then
   web=true
   rust=true
+  docs_only=false
 fi
 echo "web=$web"
 echo "rust=$rust"
+echo "docs_only=$docs_only"

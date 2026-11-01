@@ -16,6 +16,13 @@ const projects: [Project, string][] = [
   ['webkit-prod-csp', 'tests/ui-csp/'],
 ]
 
+// Each browser job gets two workers on a four-core runner. About 640 s of
+// recorded work is roughly 320 s per worker before server and browser startup.
+// More shards duplicate that startup, so stop at 12 (16 jobs with the other
+// CI jobs), which stays below GitHub's default concurrency limit.
+const MAX_SHARDS = 12
+const TARGET_SHARD_WORK_MS = 640_000
+
 const features: { sources: string[]; specs: string[] }[] = [
   {
     sources: ['src/renderer/src/tipPlacement.ts'],
@@ -124,12 +131,15 @@ export function planUi(
   for (const [project, prefix] of projects) {
     const matching = files.filter((file) => file.startsWith(prefix))
     if (!matching.length) continue
-    const shards = Math.min(8, Math.ceil(matching.length / 6))
     const measured = matching
       .map((file) => durations[file])
       .filter((ms): ms is number => ms !== undefined && ms > 0)
     const fallback = measured.length ? Math.max(...measured) : 1
     const cost = (file: string) => durations[file] || fallback
+    const total = matching.reduce((ms, file) => ms + cost(file), 0)
+    const shards = measured.length
+      ? Math.min(MAX_SHARDS, matching.length, Math.max(1, Math.ceil(total / TARGET_SHARD_WORK_MS)))
+      : Math.min(8, Math.ceil(matching.length / 6))
     const groups = Array.from({ length: shards }, () => ({ files: [] as string[], duration: 0 }))
     const ordered = [...matching].sort((a, b) => cost(b) - cost(a) || a.localeCompare(b))
     for (const file of ordered) {
