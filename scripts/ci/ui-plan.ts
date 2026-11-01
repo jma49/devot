@@ -1,4 +1,4 @@
-import { appendFileSync, globSync, readFileSync } from 'node:fs'
+import { appendFileSync, existsSync, globSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -8,6 +8,7 @@ interface UiJob {
   shard: number
   shards: number
   files: string[]
+  partitioned?: true
 }
 
 const projects: [Project, string][] = [
@@ -68,7 +69,12 @@ const features: { sources: string[]; specs: string[] }[] = [
   },
 ]
 
-export function planUi(changed: string[], available: string[], forceFull = false) {
+export function planUi(
+  changed: string[],
+  available: string[],
+  forceFull = false,
+  durations: Record<string, number> = {},
+) {
   const specs = [...new Set(available)].sort()
   const selected = new Set<string>()
   let full = forceFull || !changed.some(Boolean)
@@ -119,8 +125,28 @@ export function planUi(changed: string[], available: string[], forceFull = false
     const matching = files.filter((file) => file.startsWith(prefix))
     if (!matching.length) continue
     const shards = Math.min(8, Math.ceil(matching.length / 6))
-    for (let shard = 1; shard <= shards; shard++) {
-      include.push({ project, shard, shards, files: matching })
+    const measured = matching
+      .map((file) => durations[file])
+      .filter((ms): ms is number => ms !== undefined && ms > 0)
+    const fallback = measured.length ? Math.max(...measured) : 1
+    const cost = (file: string) => durations[file] || fallback
+    const groups = Array.from({ length: shards }, () => ({ files: [] as string[], duration: 0 }))
+    const ordered = [...matching].sort((a, b) => cost(b) - cost(a) || a.localeCompare(b))
+    for (const file of ordered) {
+      const group = groups.reduce((lightest, candidate) =>
+        candidate.duration < lightest.duration ? candidate : lightest,
+      )
+      group.files.push(file)
+      group.duration += cost(file)
+    }
+    for (const [index, group] of groups.entries()) {
+      include.push({
+        project,
+        shard: index + 1,
+        shards,
+        files: group.files.sort(),
+        ...(shards > 1 ? { partitioned: true as const } : {}),
+      })
     }
   }
   const mode = full ? 'full' : files.length ? 'targeted' : 'none'
@@ -132,7 +158,11 @@ export function planUi(changed: string[], available: string[], forceFull = false
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const changed = readFileSync(0, 'utf8').split('\n').filter(Boolean)
   const available = globSync(['tests/ui/**/*.spec.ts', 'tests/ui-csp/**/*.spec.ts'])
-  const plan = planUi(changed, available, process.argv.includes('--full'))
+  const baseline = new URL('./ui-durations.json', import.meta.url)
+  const durations = existsSync(baseline)
+    ? (JSON.parse(readFileSync(baseline, 'utf8')) as Record<string, number>)
+    : {}
+  const plan = planUi(changed, available, process.argv.includes('--full'), durations)
   if (!available.length) throw new Error('E_UI_SPECS_MISSING')
   console.log(`ui=${plan.mode !== 'none'}`)
   console.log(`ui_matrix=${JSON.stringify(plan.matrix)}`)
@@ -144,6 +174,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         '### UI test selection',
         '',
         `Mode: **${plan.mode}**; selected **${plan.files.length}/${available.length}** spec files.`,
+        '',
+        '| Project | Shard | Specs | Recorded work (s) | Unmeasured specs |',
+        '| --- | --- | --- | --- | --- |',
+        ...plan.matrix.include.map(
+          (job) =>
+            `| ${job.project} | ${job.shard}/${job.shards} | ${job.files.length} | ${(job.files.reduce((ms, file) => ms + (durations[file] ?? 0), 0) / 1000).toFixed(1)} | ${job.files.filter((file) => !durations[file]).length} |`,
+        ),
         '',
         ...plan.files.map((file) => `- \`${file}\``),
         '',

@@ -102,7 +102,9 @@ it.each([
   expect(plan.matrix.include.map((job) => [job.shard, job.shards])).toEqual(
     Array.from({ length: shards }, (_, i) => [i + 1, shards]),
   )
-  for (const job of plan.matrix.include) expect(job.files).toEqual([...files].sort())
+  const assigned = plan.matrix.include.flatMap((job) => job.files)
+  expect(assigned.sort()).toEqual([...files].sort())
+  expect(new Set(assigned).size).toBe(files.length)
 })
 
 it('retains all available specs when a mapped regression file disappears', () => {
@@ -141,4 +143,28 @@ it('unions multiple feature selections and directly changed specs', () => {
     ]),
   )
   expect(plan.files.filter((file) => file === 'tests/ui-csp/csp.spec.ts')).toHaveLength(1)
+})
+
+it('separates expensive specs instead of grouping them by filename', () => {
+  const files = Array.from({ length: 8 }, (_, i) => `tests/ui/feature-${i}.spec.ts`)
+  const durations = Object.fromEntries(files.map((file, i) => [file, i < 2 ? 100 : 10]))
+  const plan = planUi(files, files, false, durations)
+  const jobs = plan.matrix.include
+  expect(jobs).toHaveLength(2)
+  expect(jobs.every((job) => job.partitioned)).toBe(true)
+  expect(jobs.map((job) => job.files.reduce((sum, file) => sum + durations[file]!, 0))).toEqual([
+    130, 130,
+  ])
+  expect(jobs[0]!.files).not.toContain(files[1])
+  expect(jobs.flatMap((job) => job.files).sort()).toEqual(files)
+})
+
+it('retains new specs and deterministic assignments when durations are missing', () => {
+  const files = Array.from({ length: 13 }, (_, i) => `tests/ui/feature-${i}.spec.ts`)
+  const durations = { [files[0]!]: 100, [files[1]!]: 10 }
+  const forward = planUi(files, files, false, durations)
+  const reversed = planUi([...files].reverse(), [...files].reverse(), false, durations)
+  expect(forward.matrix).toEqual(reversed.matrix)
+  expect(forward.matrix.include.every((job) => job.files.length > 0)).toBe(true)
+  expect(forward.matrix.include.flatMap((job) => job.files).sort()).toEqual([...files].sort())
 })

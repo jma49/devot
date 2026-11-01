@@ -12,8 +12,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 1 : 0,
-  // Public Linux runners have four cores; keep local runs capped at two.
-  workers: Number(process.env['DEVOT_UI_WORKERS'] ?? (process.env['CI'] ? 4 : 2)),
+  // Leave runner capacity for Vite and WebKit's rendering processes.
+  workers: Number(process.env['DEVOT_UI_WORKERS'] ?? 2),
   reporter: process.env['CI'] ? 'github' : 'list',
   // Reduce Motion is on so sliding panes never race an assertion; motion tests turn it off with `page.emulateMedia`.
   use: {

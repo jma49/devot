@@ -1,7 +1,8 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
+import { parse } from 'yaml'
 import { gitIn } from '../support/git-files'
 import { tempDir } from '../support/temp-dirs'
 
@@ -30,7 +31,7 @@ it('pnpm check runs the dependency audit', () => {
 })
 
 it('every pnpm step of the CI web jobs is a step of pnpm check', () => {
-  const steps = commands(job('web-checks') + job('ui'))
+  const steps = commands(job('web-checks') + job('unit-tests') + job('ui'))
     .filter((c) => c.startsWith('pnpm ') && !/^pnpm (install|exec|ui:build)\b/.test(c))
     .map((c) => c.replace(/^pnpm /, '').split(' ')[0] ?? '')
   expect(steps.length).toBeGreaterThan(5)
@@ -70,13 +71,40 @@ it('the web check fails when the quick checks, a UI shard or the change detectio
   // `web` is a required check that sums up the jobs and runs even when they were skipped,
   // so a skipped job cannot read as passing a failed one.
   const web = job('web')
-  expect(web).toMatch(/^ {4}needs: \[changes, web-checks, ui\]$/m)
+  expect(web).toMatch(/^ {4}needs: \[changes, web-checks, unit-tests, ui\]$/m)
   expect(web).toMatch(/^ {4}if: \$\{\{ always\(\) \}\}$/m)
-  for (const need of ['changes', 'web-checks', 'ui']) {
+  for (const need of ['changes', 'web-checks', 'unit-tests', 'ui']) {
     expect(web).toContain(`needs.${need}.result`)
   }
   expect(web).toMatch(/failure\|cancelled/)
 })
+
+it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI'])(
+  'the required gate rejects failed or cancelled %s results',
+  (need) => {
+    const config = parse(workflow) as {
+      jobs: { web: { steps: { run: string }[] } }
+    }
+    const command = config.jobs.web.steps[0]!.run
+    const summary = join(tempDir('devot-ci-summary-'), 'summary.md')
+    const env = {
+      ...process.env,
+      GITHUB_STEP_SUMMARY: summary,
+      CHANGES: 'success',
+      CHECKS: 'success',
+      TESTS: 'success',
+      UI: 'success',
+    }
+    for (const result of ['success', 'skipped', 'failure', 'cancelled']) {
+      const run = spawnSync('bash', ['-e', '-c', command], {
+        env: { ...env, [need]: result },
+        encoding: 'utf8',
+      })
+      expect(run.stderr).toBe('')
+      expect(run.status).toBe(result === 'failure' || result === 'cancelled' ? 1 : 0)
+    }
+  },
+)
 
 it('CI runs on every pull request and by hand, with no label gate', () => {
   const trigger = workflow.slice(0, workflow.indexOf('\njobs:'))
