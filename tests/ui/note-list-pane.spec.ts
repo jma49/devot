@@ -104,7 +104,7 @@ test('the list announces its note count in a status region', async ({ page }) =>
   await expect(pane(page).getByRole('status')).toContainText('0 notes')
 })
 
-test('a long title runs to two lines, then is cut off', async ({ page }) => {
+test('a long title keeps to one line, then is cut off', async ({ page }) => {
   await createNote(page, 'Short')
   await createNote(
     page,
@@ -113,8 +113,8 @@ test('a long title runs to two lines, then is cut off', async ({ page }) => {
   const short = noteRow(page, 'Short').locator('.row-title')
   const long = noteRow(page, 'A rather long').locator('.row-title')
   const lineHeight = (await short.boundingBox())?.height ?? 0
-  await expect.poll(async () => (await long.boundingBox())?.height).toBeCloseTo(lineHeight * 2, 0)
-  await expect(long).toHaveCSS('-webkit-line-clamp', '2')
+  await expect.poll(async () => (await long.boundingBox())?.height).toBeCloseTo(lineHeight, 0)
+  await expect(long).toHaveCSS('-webkit-line-clamp', '1')
   const rowBox = await noteRow(page, 'Short').boundingBox()
   const titleBox = await short.boundingBox()
   expect(Math.round((titleBox?.x ?? 0) - (rowBox?.x ?? 0))).toBe(15)

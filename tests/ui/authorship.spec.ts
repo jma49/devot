@@ -515,10 +515,12 @@ test('a long client name is cut short, and its kind stays shown', async ({ page 
   const agent = noteRow(page, 'Plan').locator('.row-agent')
   await expect(agent.locator('.writer-label')).toHaveAttribute('title', `changed by ${fullLong}`)
   expect(await kindShown(agent.locator('.writer-label'), noteRow(page, 'Plan'))).toBe(true)
-  // It shares the line with the date instead of taking a line of its own.
+  // The date sits at the end of the title's line, so the mark takes the details line below it.
+  const title = (await noteRow(page, 'Plan').locator('.row-title').boundingBox())!
   const time = (await noteRow(page, 'Plan').locator('.row-time').boundingBox())!
   const mark = (await agent.boundingBox())!
-  expect(Math.abs(mark.y + mark.height / 2 - (time.y + time.height / 2))).toBeLessThan(2)
+  expect(Math.abs(time.y + time.height / 2 - (title.y + title.height / 2))).toBeLessThan(2)
+  expect(mark.y).toBeGreaterThanOrEqual(title.y + title.height - 0.5)
 })
 
 test('the Agents section lists the writers with their unseen changes and filters to their notes', async ({
