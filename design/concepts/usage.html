@@ -1,0 +1,1536 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Devot Usage Concept</title>
+    <style>
+      :root {
+        --wall: #dfe7ee;
+        --blob-a: rgb(95 196 192 / 0.75);
+        --blob-b: rgb(122 167 240 / 0.7);
+        --blob-c: rgb(243 190 160 / 0.75);
+        --window: rgb(244 245 248 / 0.55);
+        --window-edge: rgb(0 0 0 / 0.18);
+        --window-shadow: rgb(20 30 50 / 0.18);
+        --sheet: rgb(255 255 255 / 0.8);
+        --card: rgb(28 27 25 / 0.04);
+        --card-raised: rgb(255 255 255 / 0.7);
+        --glass: rgb(255 255 255 / 0.4);
+        --glass-strong: rgb(255 255 255 / 0.72);
+        --glass-edge: rgb(255 255 255 / 0.85);
+        --glass-hi: rgb(255 255 255 / 0.95);
+        --glass-shadow: rgb(20 32 50 / 0.1);
+        --ink: rgb(0 0 0 / 0.86);
+        --ink-2: #595959;
+        --ink-3: #676767;
+        --hair: rgb(0 0 0 / 0.1);
+        --grid: rgb(0 0 0 / 0.07);
+        --accent: #3472d6;
+        --accent-text: #2856a2;
+        --sel: rgb(52 114 214 / 0.13);
+        --destructive: #af3b36;
+        --act: #0e6b62;
+        --act-0: rgb(28 27 25 / 0.07);
+        --act-1: rgb(14 107 98 / 0.25);
+        --act-2: rgb(14 107 98 / 0.45);
+        --act-3: rgb(14 107 98 / 0.7);
+        --act-4: #0e6b62;
+        --up: #096848;
+        --down: #94414e;
+        --tip: rgb(255 255 255 / 0.86);
+        --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+        color-scheme: light;
+      }
+      .dark {
+        --wall: #0e141b;
+        --blob-a: rgb(20 120 118 / 0.55);
+        --blob-b: rgb(52 84 170 / 0.55);
+        --blob-c: rgb(120 70 60 / 0.45);
+        --window: rgb(24 25 29 / 0.62);
+        --window-edge: rgb(255 255 255 / 0.14);
+        --window-shadow: rgb(0 0 0 / 0.5);
+        --sheet: rgb(30 30 34 / 0.82);
+        --card: rgb(235 232 226 / 0.05);
+        --card-raised: rgb(255 255 255 / 0.06);
+        --glass: rgb(255 255 255 / 0.07);
+        --glass-strong: rgb(60 60 66 / 0.62);
+        --glass-edge: rgb(255 255 255 / 0.14);
+        --glass-hi: rgb(255 255 255 / 0.16);
+        --glass-shadow: rgb(0 0 0 / 0.35);
+        --ink: rgb(255 255 255 / 0.9);
+        --ink-2: #a3a3a3;
+        --ink-3: #909090;
+        --hair: rgb(255 255 255 / 0.1);
+        --grid: rgb(255 255 255 / 0.07);
+        --accent: #4576b2;
+        --accent-text: #7ea6d8;
+        --sel: rgb(91 155 255 / 0.2);
+        --destructive: #f0a6a2;
+        --act: #63cdbf;
+        --act-0: rgb(235 232 226 / 0.08);
+        --act-1: rgb(99 205 191 / 0.22);
+        --act-2: rgb(99 205 191 / 0.42);
+        --act-3: rgb(99 205 191 / 0.66);
+        --act-4: #63cdbf;
+        --up: #10b77f;
+        --down: #fb7085;
+        --tip: rgb(44 44 48 / 0.88);
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+      }
+      body {
+        min-height: 100vh;
+        background: var(--wall);
+        color: var(--ink);
+        font: 13px/1.45 var(--font);
+        font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
+        position: relative;
+        overflow-x: hidden;
+      }
+      button,
+      select {
+        font: inherit;
+        color: inherit;
+      }
+      button {
+        cursor: default;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .blob {
+        position: fixed;
+        border-radius: 50%;
+        pointer-events: none;
+      }
+      .blob.a {
+        left: -160px;
+        top: -180px;
+        width: 720px;
+        height: 620px;
+        background: var(--blob-a);
+        filter: blur(100px);
+      }
+      .blob.b {
+        right: -200px;
+        top: 140px;
+        width: 760px;
+        height: 640px;
+        background: var(--blob-b);
+        filter: blur(120px);
+      }
+      .blob.c {
+        left: 30%;
+        bottom: -300px;
+        width: 820px;
+        height: 520px;
+        background: var(--blob-c);
+        filter: blur(120px);
+      }
+
+      .review {
+        position: relative;
+        max-width: 1160px;
+        margin: 0 auto;
+        padding: 20px 24px 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .review .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge);
+      }
+      .review .switches {
+        display: flex;
+        gap: 6px;
+      }
+      .chip {
+        height: 26px;
+        padding: 0 12px;
+        border-radius: 13px;
+        border: 0;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge),
+          0 1px 6px var(--glass-shadow);
+        font-size: 11px;
+        backdrop-filter: blur(20px) saturate(1.8);
+      }
+      .chip[aria-pressed='true'] {
+        color: var(--accent-text);
+        font-weight: 600;
+      }
+
+      .frame {
+        position: relative;
+        max-width: 1160px;
+        margin: 16px auto 40px;
+        padding: 0 24px;
+      }
+      .window {
+        position: relative;
+        border-radius: 26px;
+        overflow: hidden;
+        background: var(--window);
+        backdrop-filter: blur(60px) saturate(1.6);
+        -webkit-backdrop-filter: blur(60px) saturate(1.6);
+        box-shadow:
+          0 0 0 0.5px var(--window-edge),
+          0 30px 80px var(--window-shadow),
+          0 8px 24px var(--window-shadow);
+        display: flex;
+        min-height: 900px;
+      }
+      .window::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: var(--sheet);
+      }
+
+      /* Floating glass sidebar, as in the Settings design */
+      .sidebar {
+        position: relative;
+        z-index: 1;
+        flex: none;
+        width: 216px;
+        margin: 8px;
+        border-radius: 18px;
+        padding: 0 8px 8px;
+        background: var(--glass);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge),
+          0 10px 30px var(--glass-shadow);
+        backdrop-filter: blur(32px) saturate(1.9);
+        -webkit-backdrop-filter: blur(32px) saturate(1.9);
+        align-self: stretch;
+      }
+      .lights {
+        display: flex;
+        gap: 9px;
+        height: 44px;
+        align-items: center;
+        padding-left: 10px;
+      }
+      .lights i {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #ff5f57;
+        box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.12);
+      }
+      .lights i:nth-child(2) {
+        background: #febc2e;
+      }
+      .lights i:nth-child(3) {
+        background: #28c840;
+      }
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        height: 32px;
+        margin: 0 0 10px;
+        padding: 0 11px;
+        border-radius: 16px;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge);
+        color: var(--ink-2);
+      }
+      .search input {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        background: none;
+        outline: none;
+        font: inherit;
+        color: var(--ink);
+      }
+      .nav {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .nav a {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        height: 32px;
+        padding: 0 8px;
+        border-radius: 10px;
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .nav a[aria-current='page'] {
+        background: var(--sel);
+      }
+      .tile {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        background: var(--t);
+        color: #fff;
+        box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.35);
+      }
+      .tile svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      /* Content on the sheet */
+      main {
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        min-width: 0;
+        padding: 0 28px 32px;
+      }
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 52px;
+        margin: 0 -28px;
+        padding: 0 16px;
+      }
+      .toolbar::before {
+        content: '';
+        position: absolute;
+        inset: 0 0 -20px;
+        background: linear-gradient(var(--sheet) 40%, transparent);
+        backdrop-filter: blur(4px);
+        -webkit-mask-image: linear-gradient(#000 50%, transparent);
+        mask-image: linear-gradient(#000 50%, transparent);
+        pointer-events: none;
+        z-index: -1;
+      }
+      .history {
+        display: flex;
+        height: 32px;
+        border-radius: 16px;
+        overflow: hidden;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge),
+          0 1px 8px var(--glass-shadow);
+        backdrop-filter: blur(20px) saturate(1.8);
+      }
+      .history button {
+        width: 36px;
+        border: 0;
+        background: none;
+        display: grid;
+        place-items: center;
+        color: var(--ink-2);
+      }
+      .history button:disabled {
+        opacity: 0.4;
+      }
+      .history i {
+        width: 0.5px;
+        margin: 8px 0;
+        background: var(--hair);
+      }
+      .toolbar h1 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      .privacy {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 6px 0 18px;
+        color: var(--ink-2);
+        font-size: 12px;
+      }
+      .privacy svg {
+        flex: none;
+        color: var(--act);
+      }
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 14px;
+        margin-bottom: 14px;
+      }
+      .segmented {
+        display: flex;
+        height: 32px;
+        padding: 3px;
+        border-radius: 16px;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge),
+          0 1px 8px var(--glass-shadow);
+        backdrop-filter: blur(20px) saturate(1.8);
+      }
+      .segmented button {
+        min-width: 72px;
+        border: 0;
+        border-radius: 13px;
+        background: transparent;
+        color: var(--ink-2);
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .segmented button[aria-pressed='true'] {
+        background: var(--card-raised);
+        color: var(--ink);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 1px 4px var(--glass-shadow);
+      }
+      .dark .segmented button[aria-pressed='true'] {
+        background: rgb(110 110 118 / 0.55);
+      }
+      .range {
+        color: var(--ink-2);
+        font-size: 12px;
+      }
+      .popup {
+        margin-left: auto;
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+      .popup select {
+        appearance: none;
+        -webkit-appearance: none;
+        height: 28px;
+        padding: 0 30px 0 12px;
+        border: 0;
+        border-radius: 14px;
+        background: var(--card);
+        box-shadow: 0 0 0 0.5px var(--hair);
+        font-size: 12px;
+      }
+      .popup svg {
+        position: absolute;
+        right: 10px;
+        pointer-events: none;
+        color: var(--ink-2);
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+      .stat {
+        border-radius: 18px;
+        background: var(--card);
+        padding: 16px 18px 14px;
+        min-width: 0;
+      }
+      .stat .label {
+        font-size: 12px;
+        color: var(--ink-2);
+      }
+      .stat .value {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        margin: 4px 0 2px;
+        font-size: 28px;
+        font-weight: 600;
+        letter-spacing: -0.6px;
+        line-height: 1.15;
+      }
+      .stat .value small {
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0;
+        color: var(--ink-2);
+      }
+      .delta {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .delta b {
+        font-weight: 600;
+      }
+      .delta.up b {
+        color: var(--up);
+      }
+      .delta.down b {
+        color: var(--down);
+      }
+      .spark {
+        display: block;
+        width: 100%;
+        height: 26px;
+        margin-top: 10px;
+      }
+      .days {
+        display: grid;
+        grid-template-columns: repeat(30, minmax(0, 1fr));
+        gap: 2px;
+        margin-top: 12px;
+        height: 26px;
+        align-items: end;
+      }
+      .days span {
+        height: 10px;
+        border-radius: 2px;
+        background: var(--act-0);
+      }
+      .days span.on {
+        background: var(--act-3);
+      }
+
+      .section-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 0 4px 8px;
+      }
+      h2 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .section-head span {
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .card {
+        border-radius: 18px;
+        background: var(--card);
+        padding: 16px 18px;
+        margin-bottom: 8px;
+      }
+      .chart-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 10px;
+        font-size: 12px;
+      }
+      .chart-title b {
+        font-weight: 600;
+      }
+      .chart-title span {
+        color: var(--ink-2);
+        font-size: 11px;
+      }
+      .footnote {
+        margin: 0 4px 22px;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+
+      .plot {
+        position: relative;
+      }
+      .plot svg {
+        display: block;
+        width: 100%;
+        overflow: visible;
+      }
+      .plot .grid line {
+        stroke: var(--grid);
+        stroke-width: 1;
+      }
+      .plot text {
+        fill: var(--ink-3);
+        font-size: 10px;
+        font-family: var(--font);
+      }
+      .col {
+        fill: var(--act);
+        opacity: 0.85;
+        transition: opacity 0.12s;
+      }
+      .col.zero {
+        fill: var(--act-0);
+        opacity: 1;
+      }
+      .col.dim {
+        opacity: 0.35;
+      }
+      .col.hot {
+        opacity: 1;
+      }
+      .avg {
+        stroke: var(--ink-3);
+        stroke-width: 1;
+      }
+      .avg-key {
+        display: inline-block;
+        width: 14px;
+        height: 1px;
+        background: var(--ink-3);
+        vertical-align: middle;
+        margin-right: 6px;
+      }
+      .hit {
+        fill: transparent;
+      }
+
+      .heat {
+        display: grid;
+        grid-template-columns: 30px repeat(24, minmax(0, 1fr));
+        gap: 3px;
+        align-items: center;
+      }
+      .heat .d {
+        font-size: 10px;
+        color: var(--ink-3);
+      }
+      .heat .h {
+        font-size: 10px;
+        color: var(--ink-3);
+        text-align: left;
+        padding-top: 3px;
+        white-space: nowrap;
+      }
+      .cell {
+        aspect-ratio: 1.25;
+        min-height: 12px;
+        border: 0;
+        padding: 0;
+        border-radius: 4px;
+        background: var(--act-0);
+      }
+      .cell[data-l='1'] {
+        background: var(--act-1);
+      }
+      .cell[data-l='2'] {
+        background: var(--act-2);
+      }
+      .cell[data-l='3'] {
+        background: var(--act-3);
+      }
+      .cell[data-l='4'] {
+        background: var(--act-4);
+      }
+      .cell:hover,
+      .cell:focus-visible {
+        box-shadow:
+          0 0 0 2px var(--sheet),
+          0 0 0 3.5px var(--ink-2);
+        outline: none;
+      }
+      .heat-foot {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin: 12px 0 0 33px;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .peak b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .key {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+      }
+      .key i {
+        width: 12px;
+        height: 10px;
+        border-radius: 3px;
+        display: inline-block;
+      }
+      .key span {
+        margin: 0 4px;
+      }
+      .divider {
+        height: 0.5px;
+        background: var(--hair);
+        margin: 18px 0 16px;
+      }
+
+      .types {
+        padding: 4px 18px;
+      }
+      .type {
+        display: grid;
+        grid-template-columns: 22px 140px minmax(0, 1fr) 54px 40px;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 0;
+      }
+      .type + .type {
+        border-top: 0.5px solid var(--hair);
+      }
+      .type svg {
+        color: var(--ink-2);
+      }
+      .track {
+        height: 6px;
+        border-radius: 3px;
+        background: var(--act-0);
+        overflow: hidden;
+      }
+      .track i {
+        display: block;
+        height: 100%;
+        border-radius: 3px;
+        background: var(--act);
+      }
+      .type .n {
+        text-align: right;
+        font-weight: 500;
+      }
+      .type .pct {
+        text-align: right;
+        color: var(--ink-2);
+        font-size: 11px;
+      }
+
+      .storage {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 14px 20px;
+        align-items: center;
+      }
+      .storage .title {
+        font-weight: 500;
+      }
+      .storage .sub {
+        font-size: 11px;
+        color: var(--ink-2);
+        margin-top: 2px;
+      }
+      .meter {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .meter .bar {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--act-0);
+        overflow: hidden;
+      }
+      .meter .bar i {
+        display: block;
+        height: 100%;
+        background: var(--accent);
+        border-radius: 3px;
+      }
+      .buttons {
+        display: flex;
+        gap: 8px;
+      }
+      .button {
+        height: 28px;
+        padding: 0 14px;
+        border: 0;
+        border-radius: 14px;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--hair),
+          0 1px 3px var(--glass-shadow);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .button:active {
+        transform: scale(0.96);
+      }
+      .button.danger {
+        color: var(--destructive);
+      }
+
+      .events {
+        margin-top: 10px;
+        border-radius: 14px;
+        background: var(--card-raised);
+        box-shadow: 0 0 0 0.5px var(--hair);
+        overflow: hidden;
+      }
+      .events table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      .events th {
+        text-align: left;
+        font-weight: 500;
+        color: var(--ink-2);
+        font-size: 11px;
+        padding: 8px 14px;
+        border-bottom: 0.5px solid var(--hair);
+      }
+      .events td {
+        padding: 7px 14px;
+        border-bottom: 0.5px solid var(--hair);
+      }
+      .events tr:last-child td {
+        border-bottom: 0;
+      }
+      .events td:first-child {
+        color: var(--ink-2);
+        width: 45%;
+      }
+
+      .empty {
+        display: none;
+        text-align: center;
+        padding: 30px 16px 26px;
+      }
+      .empty svg {
+        color: var(--act);
+      }
+      .empty h3 {
+        margin: 10px 0 4px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .empty p {
+        margin: 0;
+        font-size: 12px;
+        color: var(--ink-2);
+      }
+      .sparse .empty {
+        display: block;
+      }
+      .sparse .has-data {
+        display: none;
+      }
+
+      .tip {
+        position: fixed;
+        z-index: 10;
+        pointer-events: none;
+        padding: 7px 10px;
+        border-radius: 12px;
+        background: var(--tip);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge),
+          0 8px 24px var(--glass-shadow);
+        backdrop-filter: blur(20px) saturate(1.8);
+        -webkit-backdrop-filter: blur(20px) saturate(1.8);
+        font-size: 11px;
+        color: var(--ink-2);
+        opacity: 0;
+        transform: translateY(4px);
+        transition:
+          opacity 0.12s,
+          transform 0.12s;
+        white-space: nowrap;
+      }
+      .tip.on {
+        opacity: 1;
+        transform: none;
+      }
+      .tip b {
+        display: block;
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+
+      @media (max-width: 900px) {
+        .sidebar {
+          display: none;
+        }
+        .window {
+          border-radius: 22px;
+          min-height: 0;
+        }
+        main {
+          padding: 0 16px 24px;
+        }
+        .toolbar {
+          margin: 0 -16px;
+        }
+        .stats {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 560px) {
+        .frame,
+        .review {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+        .popup {
+          margin-left: 0;
+        }
+        .segmented button {
+          min-width: 0;
+          padding: 0 10px;
+        }
+        .type {
+          grid-template-columns: 18px minmax(0, 1fr) 44px;
+        }
+        .type .track,
+        .type .pct {
+          display: none;
+        }
+        .storage {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .heat {
+          grid-template-columns: 24px repeat(24, minmax(0, 1fr));
+          gap: 2px;
+        }
+        .cell {
+          border-radius: 2px;
+          min-height: 8px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition: none !important;
+        }
+        .button:active {
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="blob a" aria-hidden="true"></div>
+    <div class="blob b" aria-hidden="true"></div>
+    <div class="blob c" aria-hidden="true"></div>
+
+    <div class="review">
+      <span class="tag">Design concept · sample data, not a real usage record</span>
+      <div class="switches">
+        <button class="chip" id="sparse" aria-pressed="false">First day</button>
+        <button class="chip" id="theme" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="window">
+        <nav class="sidebar" aria-label="Settings">
+          <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+          <label class="search">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="6.5" />
+              <path d="M20 20l-4.2-4.2" />
+            </svg>
+            <input type="search" placeholder="Search" aria-label="Search Settings" />
+          </label>
+          <ul class="nav" id="nav"></ul>
+        </nav>
+
+        <main id="main">
+          <header class="toolbar">
+            <div class="history" role="group" aria-label="History">
+              <button aria-label="Back">
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M15 5l-7 7 7 7" />
+                </svg>
+              </button>
+              <i></i>
+              <button aria-label="Forward" disabled>
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+            <h1>Usage</h1>
+          </header>
+
+          <p class="privacy">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="5" y="11" width="14" height="9" rx="2" />
+              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+            </svg>
+            Only counts are recorded, never note content, titles or names. Nothing leaves this Mac.
+          </p>
+
+          <div class="filters">
+            <div class="segmented" role="group" aria-label="Period">
+              <button data-days="7" aria-pressed="false">7 Days</button>
+              <button data-days="30" aria-pressed="true">30 Days</button>
+              <button data-days="90" aria-pressed="false">90 Days</button>
+            </div>
+            <span class="range" id="range"></span>
+            <label class="popup">
+              <span class="visually-hidden">Event type</span>
+              <select id="filter">
+                <option value="all">All Events</option>
+                <option value="0">Notes Created</option>
+                <option value="1">Searches Run</option>
+                <option value="2">Imports Finished</option>
+              </select>
+              <svg
+                width="9"
+                height="9"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M7 10l5-5 5 5M7 14l5 5 5-5" />
+              </svg>
+            </label>
+          </div>
+
+          <section class="stats" aria-label="Overview">
+            <div class="stat">
+              <div class="label" id="total-label">Events</div>
+              <div class="value" id="total"></div>
+              <div class="delta" id="total-delta"></div>
+              <svg
+                class="spark has-data"
+                id="spark"
+                viewBox="0 0 200 26"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              ></svg>
+            </div>
+            <div class="stat">
+              <div class="label">Active days</div>
+              <div class="value" id="active"></div>
+              <div class="delta" id="active-note"></div>
+              <div class="days has-data" id="days" aria-hidden="true"></div>
+            </div>
+            <div class="stat">
+              <div class="label">Notes created</div>
+              <div class="value" id="notes"></div>
+              <div class="delta" id="notes-delta"></div>
+            </div>
+          </section>
+
+          <div class="section-head">
+            <h2>Activity</h2>
+            <span id="activity-caption"></span>
+          </div>
+          <section class="card" aria-label="Activity">
+            <div class="has-data">
+              <div class="chart-title"><b>By day</b><span id="avg-caption"></span></div>
+              <div class="plot" id="daily"></div>
+              <div class="divider"></div>
+              <div class="chart-title"><b>By weekday and hour</b><span>Local time</span></div>
+              <div class="heat" id="heat" role="grid" aria-label="Events by weekday and hour"></div>
+              <div class="heat-foot">
+                <span class="peak" id="peak"></span>
+                <span class="key" aria-label="Fewer to more events"
+                  ><span>Fewer</span><i style="background: var(--act-0)"></i
+                  ><i style="background: var(--act-1)"></i><i style="background: var(--act-2)"></i
+                  ><i style="background: var(--act-3)"></i><i style="background: var(--act-4)"></i
+                  ><span>More</span></span
+                >
+              </div>
+            </div>
+            <div class="empty">
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4 19V9M10 19V5M16 19v-7M22 19H2" />
+              </svg>
+              <h3>Your first activity is here</h3>
+              <p>Patterns appear after a few days of writing and searching.</p>
+            </div>
+          </section>
+          <p class="footnote">Shading is relative to the busiest hour in this period.</p>
+
+          <div class="section-head">
+            <h2>By type</h2>
+            <span>Share of events in this period</span>
+          </div>
+          <section class="card types" id="types" aria-label="Events by type"></section>
+          <div style="height: 16px"></div>
+
+          <div class="section-head"><h2>Stored on this Mac</h2></div>
+          <section class="card">
+            <div class="storage">
+              <div>
+                <div class="title" id="stored"></div>
+                <div class="sub">Kept for 90 days, at most 10,000 events.</div>
+              </div>
+              <div class="buttons">
+                <button class="button" id="show" aria-expanded="false" aria-controls="events">
+                  Show Events
+                </button>
+                <button class="button danger" id="clear">Clear Usage Data…</button>
+              </div>
+              <div class="meter">
+                <div
+                  class="bar"
+                  role="meter"
+                  aria-label="Storage used"
+                  aria-valuemin="0"
+                  aria-valuemax="10000"
+                  id="meter"
+                >
+                  <i></i>
+                </div>
+                <span id="meter-label"></span>
+              </div>
+            </div>
+            <div class="events" id="events" hidden></div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="tip" id="tip" role="tooltip"></div>
+
+    <script>
+      const $ = (s) => document.querySelector(s)
+      const TYPES = [
+        {
+          name: 'Notes created',
+          icon: '<path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/><path d="M18.4 3.6a2 2 0 0 1 2.8 2.8L12 15.6 8.5 16.5l.9-3.5z"/>',
+        },
+        {
+          name: 'Searches run',
+          icon: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+        },
+        { name: 'Imports finished', icon: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>' },
+      ]
+      const NAV = [
+        [
+          'General',
+          '#8e8e93',
+          '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>',
+        ],
+        [
+          'Appearance',
+          '#0a84ff',
+          '<circle cx="12" cy="12" r="7"/><path d="M12 5a7 7 0 0 0 0 14z" fill="currentColor"/>',
+        ],
+        ['Editing', '#ff9f0a', '<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/>'],
+        [
+          'Preview',
+          '#40c8e0',
+          '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+        ],
+        [
+          'Keyboard',
+          '#8e8e93',
+          '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 14h10"/>',
+        ],
+        [
+          'Mirror',
+          '#5e5ce6',
+          '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 4v16"/>',
+        ],
+        [
+          'Sync',
+          '#30d158',
+          '<path d="M20 12a8 8 0 0 1-14 5M4 12a8 8 0 0 1 14-5"/><path d="M18 3v4h-4M6 21v-4h4"/>',
+        ],
+        ['AI', '#bf5af2', '<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>'],
+        ['Integrations', '#ff375f', '<path d="M9 7h6v10H9zM4 12h5M15 12h5"/>'],
+        ['Plugins', '#ff453a', '<path d="M8 4v6M16 4v6M6 10h12v3a6 6 0 0 1-12 0zM12 19v2"/>'],
+        ['Usage', '#ffd60a', '<path d="M5 19V11M12 19V5M19 19v-6"/>'],
+        ['License', '#8e8e93', '<path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z"/>'],
+      ]
+      $('#nav').innerHTML = NAV.map(
+        ([n, c, p]) =>
+          `<li><a href="#" ${n === 'Usage' ? 'aria-current="page"' : ''}><span class="tile" style="--t:${c}${n === 'Usage' ? ';color:#1d1d1f' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg></span>${n}</a></li>`,
+      ).join('')
+
+      const END = new Date(2026, 10, 1)
+      const fmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+      const fmtLong = new Intl.DateTimeFormat('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      })
+      const nf = new Intl.NumberFormat('en-US')
+      const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+      let days = 30,
+        sparse = false,
+        filter = 'all'
+
+      // Deterministic sample data: weekday evenings busiest, some days off.
+      function dayWeight(i) {
+        return i % 9 === 0 || i % 11 === 0 ? 0 : 1 + ((i * 17 + i * i * 3) % 27)
+      }
+      function sample(n) {
+        if (sparse)
+          return {
+            daily: Array.from({ length: n }, (_, i) => (i === n - 1 ? [1, 0, 0] : [0, 0, 0])),
+          }
+        const daily = []
+        for (let i = 0; i < n; i++) {
+          const w = dayWeight(i + (90 - n))
+          daily.push(
+            w
+              ? [Math.round(w * 0.2 + (i % 3)), Math.round(w * 0.78), i % 13 === 4 ? 1 : 0]
+              : [0, 0, 0],
+          )
+        }
+        return { daily }
+      }
+      function hourWeight(d, h) {
+        if (sparse) return d === 6 && h === 10 ? 1 : 0
+        if (h < 7) return h === 0 && d === 4 ? 1 : 0
+        if (h >= 18 && h < 23 && d < 5) return 6 + (((d * 24 + h) * 7) % 10)
+        if (h >= 9 && h < 17) return ((d * 24 + h) * 13) % 6
+        return ((d * 24 + h) * 3) % 4
+      }
+
+      function pick(row) {
+        return filter === 'all' ? row[0] + row[1] + row[2] : row[Number(filter)]
+      }
+      function delta(now, before, unit) {
+        if (!before) return `<span>No earlier ${unit}</span>`
+        const p = Math.round(((now - before) / before) * 100)
+        const cls = p > 0 ? 'up' : p < 0 ? 'down' : ''
+        const sign = p > 0 ? '+' : p < 0 ? '−' : ''
+        return `<span class="delta ${cls}"><b>${sign}${Math.abs(p)}%</b>&nbsp;vs previous ${days} days</span>`
+      }
+
+      function render() {
+        document.body.classList.toggle('sparse', sparse)
+        const { daily } = sample(days)
+        const prev = sparse ? null : sample(Math.min(days * 2, 90)).daily.slice(0, days)
+        const series = daily.map(pick)
+        const total = series.reduce((a, b) => a + b, 0)
+        const prevTotal = prev
+          ? prev.map(pick).reduce((a, b) => a + b, 0) * (days === 90 ? 0.86 : 1)
+          : 0
+        const start = new Date(END)
+        start.setDate(END.getDate() - days + 1)
+        $('#range').textContent = `${fmt.format(start)} – ${fmt.format(END)}, 2026`
+        $('#total-label').textContent = filter === 'all' ? 'Events' : TYPES[Number(filter)].name
+        $('#total').textContent = nf.format(total)
+        $('#total-delta').outerHTML =
+          `<div class="delta" id="total-delta">${delta(total, Math.round(prevTotal), 'period')}</div>`
+        const active = series.filter((v) => v > 0).length
+        $('#active').innerHTML = `${active}<small>of ${days}</small>`
+        $('#active-note').textContent = sparse
+          ? 'Today'
+          : `${Math.round((active / days) * 100)}% of days`
+        const notes = daily.reduce((a, r) => a + r[0], 0)
+        const prevNotes = prev ? prev.reduce((a, r) => a + r[0], 0) : 0
+        $('#notes').textContent = nf.format(notes)
+        $('#notes-delta').outerHTML =
+          `<div class="delta" id="notes-delta">${delta(notes, prevNotes, 'period')}</div>`
+
+        // Sparkline: the period in the activity hue
+        const sMax = Math.max(...series, 1)
+        const pts = series.map(
+          (v, i) => `${(i / (series.length - 1)) * 200},${24 - (v / sMax) * 20}`,
+        )
+        $('#spark').innerHTML =
+          `<polyline points="${pts.join(' ')}" fill="none" stroke="var(--act)" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`
+        // Active days strip (last 30 of the period)
+        const strip = series.slice(-30)
+        $('#days').innerHTML = strip.map((v) => `<span class="${v ? 'on' : ''}"></span>`).join('')
+        $('#days').style.gridTemplateColumns = `repeat(${strip.length}, minmax(0, 1fr))`
+
+        $('#activity-caption').textContent =
+          `${nf.format(total)} ${filter === 'all' ? 'events' : TYPES[Number(filter)].name.toLowerCase()}`
+        const avg = total / days
+        $('#avg-caption').innerHTML =
+          `<span class="avg-key" aria-hidden="true"></span>Average ${avg < 10 ? avg.toFixed(1) : Math.round(avg)} a day`
+        drawDaily(series, start)
+        drawHeat(total)
+        drawTypes(daily)
+        $('#stored').textContent = sparse ? '1 event' : '1,264 events'
+        const used = sparse ? 1 : 1264
+        $('#meter i').style.width = `${Math.max((used / 10000) * 100, 0.6)}%`
+        $('#meter').setAttribute('aria-valuenow', used)
+        $('#meter-label').textContent = `${nf.format(used)} of 10,000`
+        $('#events').innerHTML =
+          `<table><thead><tr><th scope="col">Time</th><th scope="col">Event</th></tr></thead><tbody>
+    <tr><td>Nov 1, 2026 at 10:24 AM</td><td>Note created</td></tr>
+    <tr><td>Nov 1, 2026 at 10:02 AM</td><td>Search run</td></tr>
+    <tr><td>Oct 31, 2026 at 9:41 PM</td><td>Search run</td></tr>
+    <tr><td>Oct 31, 2026 at 9:17 PM</td><td>Import finished</td></tr></tbody></table>`
+      }
+
+      function niceMax(v) {
+        if (v <= 4) return 4
+        const p = 10 ** Math.floor(Math.log10(v))
+        const n = v / p
+        return [1.2, 1.6, 2, 3, 4, 5, 6, 8, 10].find((s) => n <= s) * p
+      }
+
+      function drawDaily(series, start) {
+        const W = 1000,
+          H = 150,
+          L = 30,
+          B = 22,
+          T = 8
+        const max = niceMax(Math.max(...series, 1))
+        const n = series.length,
+          band = (W - L) / n,
+          bw = Math.min(band - 2, 24)
+        const y = (v) => T + (H - T - B) * (1 - v / max)
+        let g = '<g class="grid">'
+        for (const t of [0, max / 2, max])
+          g += `<line x1="${L}" x2="${W}" y1="${y(t)}" y2="${y(t)}"/><text x="${L - 6}" y="${y(t) + 3}" text-anchor="end">${nf.format(t)}</text>`
+        g += '</g>'
+        const avg = series.reduce((a, b) => a + b, 0) / n
+        let bars = ''
+        series.forEach((v, i) => {
+          const x = L + i * band + (band - bw) / 2
+          const h = v ? Math.max(y(0) - y(v), 2) : 2
+          const r = Math.min(4, bw / 2, h)
+          const top = y(0) - h
+          const d = `M${x},${y(0)}V${top + r}Q${x},${top} ${x + r},${top}H${x + bw - r}Q${x + bw},${top} ${x + bw},${top + r}V${y(0)}Z`
+          const date = new Date(start)
+          date.setDate(start.getDate() + i)
+          bars += `<path class="col ${v ? '' : 'zero'}" data-i="${i}" d="${d}"/>`
+          bars += `<rect class="hit" x="${L + i * band}" y="${T}" width="${band}" height="${H - T - B}" data-i="${i}" data-label="${fmtLong.format(date)}" data-v="${v}"/>`
+        })
+        const ticks = [0, Math.floor((n - 1) / 2), n - 1]
+          .map((i) => {
+            const date = new Date(start)
+            date.setDate(start.getDate() + i)
+            const x = L + i * band + band / 2
+            const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'
+            return `<text x="${i === 0 ? L : i === n - 1 ? W : x}" y="${H - 6}" text-anchor="${anchor}">${fmt.format(date)}</text>`
+          })
+          .join('')
+        const avgLine = avg
+          ? `<line class="avg" x1="${L}" x2="${W}" y1="${y(avg)}" y2="${y(avg)}"/>`
+          : ''
+        $('#daily').innerHTML =
+          `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Events by day, ${n} days">${g}${bars}${avgLine}${ticks}</svg>`
+        const svg = $('#daily svg'),
+          cols = svg.querySelectorAll('.col')
+        svg.querySelectorAll('.hit').forEach((h) => {
+          h.addEventListener('pointerenter', (e) => {
+            cols.forEach((c) => c.classList.toggle('dim', c.dataset.i !== h.dataset.i))
+            cols[h.dataset.i].classList.add('hot')
+            tip(
+              e,
+              h.dataset.label,
+              `${nf.format(h.dataset.v)} ${Number(h.dataset.v) === 1 ? 'event' : 'events'}`,
+            )
+          })
+          h.addEventListener('pointermove', move)
+          h.addEventListener('pointerleave', () => {
+            cols.forEach((c) => c.classList.remove('dim', 'hot'))
+            hide()
+          })
+        })
+      }
+
+      function drawHeat(total) {
+        const w = []
+        for (let d = 0; d < 7; d++) for (let h = 0; h < 24; h++) w.push(hourWeight(d, h))
+        const ws = w.reduce((a, b) => a + b, 0) || 1
+        const c = w.map((v) => Math.round((v / ws) * total))
+        const max = Math.max(...c, 1)
+        let out = ''
+        for (let d = 0; d < 7; d++) {
+          out += `<span class="d" role="rowheader">${WEEK[d]}</span>`
+          for (let h = 0; h < 24; h++) {
+            const n = c[d * 24 + h]
+            const l = n ? Math.max(1, Math.ceil((n / max) * 4)) : 0
+            const label = `${WEEK[d]} ${String(h).padStart(2, '0')}:00–${String(h + 1).padStart(2, '0')}:00`
+            out += `<button class="cell" role="gridcell" data-l="${l}" data-label="${label}" data-v="${n}" aria-label="${label}, ${n} events"></button>`
+          }
+        }
+        out += '<span></span>'
+        for (let h = 0; h < 24; h++)
+          out += `<span class="h">${h % 6 === 0 ? String(h).padStart(2, '0') + ':00' : ''}</span>`
+        $('#heat').innerHTML = out
+        $('#heat')
+          .querySelectorAll('.cell')
+          .forEach((b) => {
+            const show = (e) =>
+              tip(e, b.dataset.label, `${b.dataset.v} ${b.dataset.v === '1' ? 'event' : 'events'}`)
+            b.addEventListener('pointerenter', show)
+            b.addEventListener('pointermove', move)
+            b.addEventListener('pointerleave', hide)
+            b.addEventListener('focus', () => {
+              const r = b.getBoundingClientRect()
+              tip(
+                { clientX: r.left + r.width / 2, clientY: r.top },
+                b.dataset.label,
+                `${b.dataset.v} events`,
+              )
+            })
+            b.addEventListener('blur', hide)
+          })
+        const weekdayEvenings = [0, 1, 2, 3, 4].reduce(
+          (a, d) => a + c.slice(d * 24 + 18, d * 24 + 23).reduce((x, y) => x + y, 0),
+          0,
+        )
+        $('#peak').innerHTML = total
+          ? `Busiest: <b>weekday evenings</b>, ${Math.round((weekdayEvenings / total) * 100)}% of events between 18:00 and 23:00`
+          : ''
+      }
+
+      function drawTypes(daily) {
+        const counts = [0, 1, 2].map((t) => daily.reduce((a, r) => a + r[t], 0))
+        const sum = counts.reduce((a, b) => a + b, 0) || 1
+        $('#types').innerHTML = TYPES.map(
+          (t, i) => `<div class="type">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${t.icon}</svg>
+    <span>${t.name}</span>
+    <div class="track" aria-hidden="true"><i style="width:${(counts[i] / sum) * 100}%"></i></div>
+    <span class="n">${nf.format(counts[i])}</span>
+    <span class="pct">${counts[i] && counts[i] / sum < 0.01 ? '<1' : Math.round((counts[i] / sum) * 100)}%</span></div>`,
+        ).join('')
+      }
+
+      const tipEl = $('#tip')
+      function tip(e, title, body) {
+        tipEl.innerHTML = `<b>${body}</b>${title}`
+        tipEl.classList.add('on')
+        move(e)
+      }
+      function move(e) {
+        const r = tipEl.getBoundingClientRect()
+        let x = e.clientX - r.width / 2,
+          y = e.clientY - r.height - 12
+        x = Math.max(8, Math.min(innerWidth - r.width - 8, x))
+        if (y < 8) y = e.clientY + 16
+        tipEl.style.left = x + 'px'
+        tipEl.style.top = y + 'px'
+      }
+      function hide() {
+        tipEl.classList.remove('on')
+      }
+
+      document.querySelectorAll('[data-days]').forEach((b) =>
+        b.addEventListener('click', () => {
+          days = Number(b.dataset.days)
+          document
+            .querySelectorAll('[data-days]')
+            .forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+          render()
+        }),
+      )
+      $('#filter').addEventListener('change', (e) => {
+        filter = e.target.value
+        render()
+      })
+      $('#sparse').addEventListener('click', (e) => {
+        sparse = !sparse
+        e.target.setAttribute('aria-pressed', String(sparse))
+        render()
+      })
+      $('#theme').addEventListener('click', (e) => {
+        const on = document.documentElement.classList.toggle('dark')
+        e.target.setAttribute('aria-pressed', String(on))
+      })
+      if (matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.classList.add('dark')
+        $('#theme').setAttribute('aria-pressed', 'true')
+      }
+      $('#show').addEventListener('click', (e) => {
+        const el = $('#events')
+        el.hidden = !el.hidden
+        e.target.setAttribute('aria-expanded', String(!el.hidden))
+        e.target.textContent = el.hidden ? 'Show Events' : 'Hide Events'
+      })
+      $('#clear').addEventListener('click', (e) => {
+        e.target.textContent = 'Preview only'
+        setTimeout(() => (e.target.textContent = 'Clear Usage Data…'), 1400)
+      })
+      render()
+    </script>
+  </body>
+</html>

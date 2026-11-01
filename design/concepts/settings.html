@@ -1,0 +1,3154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Devot Settings Concept</title>
+    <style>
+      :root {
+        --wall: #dfe7ee;
+        --blob-a: rgb(95 196 192 / 0.75);
+        --blob-b: rgb(122 167 240 / 0.7);
+        --blob-c: rgb(243 190 160 / 0.75);
+        --window: rgb(244 245 248 / 0.55);
+        --window-edge: rgb(0 0 0 / 0.18);
+        --window-shadow: rgb(20 30 50 / 0.18);
+        --sheet: rgb(255 255 255 / 0.8);
+        --card: rgb(28 27 25 / 0.04);
+        --card-raised: rgb(255 255 255 / 0.7);
+        --glass: rgb(255 255 255 / 0.4);
+        --glass-strong: rgb(255 255 255 / 0.72);
+        --glass-edge: rgb(255 255 255 / 0.85);
+        --glass-hi: rgb(255 255 255 / 0.95);
+        --glass-shadow: rgb(20 32 50 / 0.1);
+        --ink: rgb(0 0 0 / 0.86);
+        --ink-2: #595959;
+        --ink-3: #676767;
+        --hair: rgb(0 0 0 / 0.1);
+        --grid: rgb(0 0 0 / 0.07);
+        --accent: #3472d6;
+        --accent-text: #2856a2;
+        --sel: rgb(52 114 214 / 0.13);
+        --destructive: #af3b36;
+        --act: #0e6b62;
+        --act-0: rgb(28 27 25 / 0.07);
+        --act-1: rgb(14 107 98 / 0.25);
+        --act-2: rgb(14 107 98 / 0.45);
+        --act-3: rgb(14 107 98 / 0.7);
+        --act-4: #0e6b62;
+        --up: #096848;
+        --down: #94414e;
+        --tip: rgb(255 255 255 / 0.86);
+        --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+        color-scheme: light;
+      }
+      .dark {
+        --wall: #0e141b;
+        --blob-a: rgb(20 120 118 / 0.55);
+        --blob-b: rgb(52 84 170 / 0.55);
+        --blob-c: rgb(120 70 60 / 0.45);
+        --window: rgb(24 25 29 / 0.62);
+        --window-edge: rgb(255 255 255 / 0.14);
+        --window-shadow: rgb(0 0 0 / 0.5);
+        --sheet: rgb(30 30 34 / 0.82);
+        --card: rgb(235 232 226 / 0.05);
+        --card-raised: rgb(255 255 255 / 0.06);
+        --glass: rgb(255 255 255 / 0.07);
+        --glass-strong: rgb(60 60 66 / 0.62);
+        --glass-edge: rgb(255 255 255 / 0.14);
+        --glass-hi: rgb(255 255 255 / 0.16);
+        --glass-shadow: rgb(0 0 0 / 0.35);
+        --ink: rgb(255 255 255 / 0.9);
+        --ink-2: #a3a3a3;
+        --ink-3: #909090;
+        --hair: rgb(255 255 255 / 0.1);
+        --grid: rgb(255 255 255 / 0.07);
+        --accent: #4576b2;
+        --accent-text: #7ea6d8;
+        --sel: rgb(91 155 255 / 0.2);
+        --destructive: #f0a6a2;
+        --act: #63cdbf;
+        --act-0: rgb(235 232 226 / 0.08);
+        --act-1: rgb(99 205 191 / 0.22);
+        --act-2: rgb(99 205 191 / 0.42);
+        --act-3: rgb(99 205 191 / 0.66);
+        --act-4: #63cdbf;
+        --up: #10b77f;
+        --down: #fb7085;
+        --tip: rgb(44 44 48 / 0.88);
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+      }
+      body {
+        min-height: 100vh;
+        background: var(--wall);
+        color: var(--ink);
+        font: 13px/1.45 var(--font);
+        font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
+        position: relative;
+        overflow-x: hidden;
+      }
+      button,
+      select {
+        font: inherit;
+        color: inherit;
+      }
+      button {
+        cursor: default;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .blob {
+        position: fixed;
+        border-radius: 50%;
+        pointer-events: none;
+      }
+      .blob.a {
+        left: -160px;
+        top: -180px;
+        width: 720px;
+        height: 620px;
+        background: var(--blob-a);
+        filter: blur(100px);
+      }
+      .blob.b {
+        right: -200px;
+        top: 140px;
+        width: 760px;
+        height: 640px;
+        background: var(--blob-b);
+        filter: blur(120px);
+      }
+      .blob.c {
+        left: 30%;
+        bottom: -300px;
+        width: 820px;
+        height: 520px;
+        background: var(--blob-c);
+        filter: blur(120px);
+      }
+
+      .review {
+        position: relative;
+        max-width: 1160px;
+        margin: 0 auto;
+        padding: 20px 24px 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .review .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge);
+      }
+      .review .switches {
+        display: flex;
+        gap: 6px;
+      }
+      .chip {
+        height: 26px;
+        padding: 0 12px;
+        border-radius: 13px;
+        border: 0;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge),
+          0 1px 6px var(--glass-shadow);
+        font-size: 11px;
+        backdrop-filter: blur(20px) saturate(1.8);
+      }
+      .chip[aria-pressed='true'] {
+        color: var(--accent-text);
+        font-weight: 600;
+      }
+
+      .frame {
+        position: relative;
+        max-width: 1160px;
+        margin: 16px auto 40px;
+        padding: 0 24px;
+      }
+      .window {
+        position: relative;
+        border-radius: 26px;
+        overflow: hidden;
+        background: var(--window);
+        backdrop-filter: blur(60px) saturate(1.6);
+        -webkit-backdrop-filter: blur(60px) saturate(1.6);
+        box-shadow:
+          0 0 0 0.5px var(--window-edge),
+          0 30px 80px var(--window-shadow),
+          0 8px 24px var(--window-shadow);
+        display: flex;
+        min-height: 900px;
+      }
+      .window::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: var(--sheet);
+      }
+
+      /* Floating glass sidebar, as in the Settings design */
+      .sidebar {
+        position: relative;
+        z-index: 1;
+        flex: none;
+        width: 216px;
+        margin: 8px;
+        border-radius: 18px;
+        padding: 0 8px 8px;
+        background: var(--glass);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge),
+          0 10px 30px var(--glass-shadow);
+        backdrop-filter: blur(32px) saturate(1.9);
+        -webkit-backdrop-filter: blur(32px) saturate(1.9);
+        align-self: stretch;
+      }
+      .lights {
+        display: flex;
+        gap: 9px;
+        height: 44px;
+        align-items: center;
+        padding-left: 10px;
+      }
+      .lights i {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #ff5f57;
+        box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.12);
+      }
+      .lights i:nth-child(2) {
+        background: #febc2e;
+      }
+      .lights i:nth-child(3) {
+        background: #28c840;
+      }
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        height: 32px;
+        margin: 0 0 10px;
+        padding: 0 11px;
+        border-radius: 16px;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge);
+        color: var(--ink-2);
+      }
+      .search input {
+        flex: 1;
+        min-width: 0;
+        border: 0;
+        background: none;
+        outline: none;
+        font: inherit;
+        color: var(--ink);
+      }
+      .nav {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .nav a {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        height: 32px;
+        padding: 0 8px;
+        border-radius: 10px;
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .nav a[aria-current='page'] {
+        background: var(--sel);
+      }
+      .tile {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        display: grid;
+        place-items: center;
+        background: var(--t);
+        color: #fff;
+        box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.35);
+      }
+      .tile svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      /* Content on the sheet */
+      main {
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        min-width: 0;
+        padding: 0 28px 32px;
+      }
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 52px;
+        margin: 0 -28px;
+        padding: 0 16px;
+      }
+      .toolbar::before {
+        content: '';
+        position: absolute;
+        inset: 0 0 -20px;
+        background: linear-gradient(var(--sheet) 40%, transparent);
+        backdrop-filter: blur(4px);
+        -webkit-mask-image: linear-gradient(#000 50%, transparent);
+        mask-image: linear-gradient(#000 50%, transparent);
+        pointer-events: none;
+        z-index: -1;
+      }
+      .hist {
+        display: flex;
+        height: 32px;
+        border-radius: 16px;
+        overflow: hidden;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge),
+          0 1px 8px var(--glass-shadow);
+        backdrop-filter: blur(20px) saturate(1.8);
+      }
+      .hist button {
+        width: 36px;
+        border: 0;
+        background: none;
+        display: grid;
+        place-items: center;
+        color: var(--ink-2);
+      }
+      .hist button:disabled {
+        opacity: 0.4;
+      }
+      .hist i {
+        width: 0.5px;
+        margin: 8px 0;
+        background: var(--hair);
+      }
+      .toolbar h1 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        transition: opacity 0.18s;
+      }
+      .redesign .toolbar h1 {
+        opacity: 0;
+      }
+      .redesign.scrolled .toolbar h1,
+      .redesign.searching .toolbar h1 {
+        opacity: 1;
+      }
+
+      .privacy {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 6px 0 18px;
+        color: var(--ink-2);
+        font-size: 12px;
+      }
+      .privacy svg {
+        flex: none;
+        color: var(--act);
+      }
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 14px;
+        margin-bottom: 14px;
+      }
+      .segmented {
+        display: flex;
+        height: 32px;
+        padding: 3px;
+        border-radius: 16px;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge),
+          0 1px 8px var(--glass-shadow);
+        backdrop-filter: blur(20px) saturate(1.8);
+      }
+      .segmented button {
+        min-width: 72px;
+        border: 0;
+        border-radius: 13px;
+        background: transparent;
+        color: var(--ink-2);
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .segmented button[aria-pressed='true'] {
+        background: var(--card-raised);
+        color: var(--ink);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 1px 4px var(--glass-shadow);
+      }
+      .dark .segmented button[aria-pressed='true'] {
+        background: rgb(110 110 118 / 0.55);
+      }
+      .range {
+        color: var(--ink-2);
+        font-size: 12px;
+      }
+      .popup {
+        margin-left: auto;
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+      .popup select {
+        appearance: none;
+        -webkit-appearance: none;
+        height: 28px;
+        padding: 0 30px 0 12px;
+        border: 0;
+        border-radius: 14px;
+        background: var(--card);
+        box-shadow: 0 0 0 0.5px var(--hair);
+        font-size: 12px;
+      }
+      .popup svg {
+        position: absolute;
+        right: 10px;
+        pointer-events: none;
+        color: var(--ink-2);
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+      .stat {
+        border-radius: 18px;
+        background: var(--card);
+        padding: 16px 18px 14px;
+        min-width: 0;
+      }
+      .stat .label {
+        font-size: 12px;
+        color: var(--ink-2);
+      }
+      .stat .value {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        margin: 4px 0 2px;
+        font-size: 28px;
+        font-weight: 600;
+        letter-spacing: -0.6px;
+        line-height: 1.15;
+      }
+      .stat .value small {
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0;
+        color: var(--ink-2);
+      }
+      .delta {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .delta b {
+        font-weight: 600;
+      }
+      .delta.up b {
+        color: var(--up);
+      }
+      .delta.down b {
+        color: var(--down);
+      }
+      .spark {
+        display: block;
+        width: 100%;
+        height: 26px;
+        margin-top: 10px;
+      }
+      .days {
+        display: grid;
+        grid-template-columns: repeat(30, minmax(0, 1fr));
+        gap: 2px;
+        margin-top: 12px;
+        height: 26px;
+        align-items: end;
+      }
+      .days span {
+        height: 10px;
+        border-radius: 2px;
+        background: var(--act-0);
+      }
+      .days span.on {
+        background: var(--act-3);
+      }
+
+      .section-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 0 4px 8px;
+      }
+      h2 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .section-head span {
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .card {
+        border-radius: 18px;
+        background: var(--card);
+        padding: 16px 18px;
+        margin-bottom: 8px;
+      }
+      .chart-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 10px;
+        font-size: 12px;
+      }
+      .chart-title b {
+        font-weight: 600;
+      }
+      .chart-title span {
+        color: var(--ink-2);
+        font-size: 11px;
+      }
+      .footnote {
+        margin: 0 4px 22px;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+
+      .plot {
+        position: relative;
+      }
+      .plot svg {
+        display: block;
+        width: 100%;
+        overflow: visible;
+      }
+      .plot .grid line {
+        stroke: var(--grid);
+        stroke-width: 1;
+      }
+      .plot text {
+        fill: var(--ink-3);
+        font-size: 10px;
+        font-family: var(--font);
+      }
+      .col {
+        fill: var(--act);
+        opacity: 0.85;
+        transition: opacity 0.12s;
+      }
+      .col.zero {
+        fill: var(--act-0);
+        opacity: 1;
+      }
+      .col.dim {
+        opacity: 0.35;
+      }
+      .col.hot {
+        opacity: 1;
+      }
+      .avg {
+        stroke: var(--ink-3);
+        stroke-width: 1;
+      }
+      .avg-key {
+        display: inline-block;
+        width: 14px;
+        height: 1px;
+        background: var(--ink-3);
+        vertical-align: middle;
+        margin-right: 6px;
+      }
+      .hit {
+        fill: transparent;
+      }
+
+      .heat {
+        display: grid;
+        grid-template-columns: 30px repeat(24, minmax(0, 1fr));
+        gap: 3px;
+        align-items: center;
+      }
+      .heat .d {
+        font-size: 10px;
+        color: var(--ink-3);
+      }
+      .heat .h {
+        font-size: 10px;
+        color: var(--ink-3);
+        text-align: left;
+        padding-top: 3px;
+        white-space: nowrap;
+      }
+      .cell {
+        aspect-ratio: 1.25;
+        min-height: 12px;
+        border: 0;
+        padding: 0;
+        border-radius: 4px;
+        background: var(--act-0);
+      }
+      .cell[data-l='1'] {
+        background: var(--act-1);
+      }
+      .cell[data-l='2'] {
+        background: var(--act-2);
+      }
+      .cell[data-l='3'] {
+        background: var(--act-3);
+      }
+      .cell[data-l='4'] {
+        background: var(--act-4);
+      }
+      .cell:hover,
+      .cell:focus-visible {
+        box-shadow:
+          0 0 0 2px var(--sheet),
+          0 0 0 3.5px var(--ink-2);
+        outline: none;
+      }
+      .heat-foot {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin: 12px 0 0 33px;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .peak b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .key {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+      }
+      .key i {
+        width: 12px;
+        height: 10px;
+        border-radius: 3px;
+        display: inline-block;
+      }
+      .key span {
+        margin: 0 4px;
+      }
+      .divider {
+        height: 0.5px;
+        background: var(--hair);
+        margin: 18px 0 16px;
+      }
+
+      .types {
+        padding: 4px 18px;
+      }
+      .type {
+        display: grid;
+        grid-template-columns: 22px 140px minmax(0, 1fr) 54px 40px;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 0;
+      }
+      .type + .type {
+        border-top: 0.5px solid var(--hair);
+      }
+      .type svg {
+        color: var(--ink-2);
+      }
+      .track {
+        height: 6px;
+        border-radius: 3px;
+        background: var(--act-0);
+        overflow: hidden;
+      }
+      .track i {
+        display: block;
+        height: 100%;
+        border-radius: 3px;
+        background: var(--act);
+      }
+      .type .n {
+        text-align: right;
+        font-weight: 500;
+      }
+      .type .pct {
+        text-align: right;
+        color: var(--ink-2);
+        font-size: 11px;
+      }
+
+      .storage {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 14px 20px;
+        align-items: center;
+      }
+      .storage .title {
+        font-weight: 500;
+      }
+      .storage .sub {
+        font-size: 11px;
+        color: var(--ink-2);
+        margin-top: 2px;
+      }
+      .meter {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .meter .bar {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--act-0);
+        overflow: hidden;
+      }
+      .meter .bar i {
+        display: block;
+        height: 100%;
+        background: var(--accent);
+        border-radius: 3px;
+      }
+      .buttons {
+        display: flex;
+        gap: 8px;
+      }
+      .button {
+        height: 28px;
+        padding: 0 14px;
+        border: 0;
+        border-radius: 14px;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--hair),
+          0 1px 3px var(--glass-shadow);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .button:active {
+        transform: scale(0.96);
+      }
+      .button.danger {
+        color: var(--destructive);
+      }
+
+      .events {
+        margin-top: 10px;
+        border-radius: 14px;
+        background: var(--card-raised);
+        box-shadow: 0 0 0 0.5px var(--hair);
+        overflow: hidden;
+      }
+      .events table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      .events th {
+        text-align: left;
+        font-weight: 500;
+        color: var(--ink-2);
+        font-size: 11px;
+        padding: 8px 14px;
+        border-bottom: 0.5px solid var(--hair);
+      }
+      .events td {
+        padding: 7px 14px;
+        border-bottom: 0.5px solid var(--hair);
+      }
+      .events tr:last-child td {
+        border-bottom: 0;
+      }
+      .events td:first-child {
+        color: var(--ink-2);
+        width: 45%;
+      }
+
+      .empty {
+        display: none;
+        text-align: center;
+        padding: 30px 16px 26px;
+      }
+      .empty svg {
+        color: var(--act);
+      }
+      .empty h3 {
+        margin: 10px 0 4px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .empty p {
+        margin: 0;
+        font-size: 12px;
+        color: var(--ink-2);
+      }
+      .sparse .empty {
+        display: block;
+      }
+      .sparse .has-data {
+        display: none;
+      }
+
+      .tip {
+        position: fixed;
+        z-index: 10;
+        pointer-events: none;
+        padding: 7px 10px;
+        border-radius: 12px;
+        background: var(--tip);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--glass-edge),
+          0 8px 24px var(--glass-shadow);
+        backdrop-filter: blur(20px) saturate(1.8);
+        -webkit-backdrop-filter: blur(20px) saturate(1.8);
+        font-size: 11px;
+        color: var(--ink-2);
+        opacity: 0;
+        transform: translateY(4px);
+        transition:
+          opacity 0.12s,
+          transform 0.12s;
+        white-space: nowrap;
+      }
+      .tip.on {
+        opacity: 1;
+        transform: none;
+      }
+      .tip b {
+        display: block;
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+
+      @media (max-width: 900px) {
+        .sidebar {
+          display: none;
+        }
+        .window {
+          border-radius: 22px;
+          min-height: 0;
+        }
+        main {
+          padding: 0 16px 24px;
+        }
+        .toolbar {
+          margin: 0 -16px;
+        }
+        .stats {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 560px) {
+        .frame,
+        .review {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+        .popup {
+          margin-left: 0;
+        }
+        .segmented button {
+          min-width: 0;
+          padding: 0 10px;
+        }
+        .type {
+          grid-template-columns: 18px minmax(0, 1fr) 44px;
+        }
+        .type .track,
+        .type .pct {
+          display: none;
+        }
+        .storage {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .heat {
+          grid-template-columns: 24px repeat(24, minmax(0, 1fr));
+          gap: 2px;
+        }
+        .cell {
+          border-radius: 2px;
+          min-height: 8px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition: none !important;
+        }
+        .button:active {
+          transform: none;
+        }
+      }
+
+      /* ---- Settings shell ---- */
+      .window {
+        min-height: 820px;
+      }
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .nav-scroll {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        margin: 0 -8px;
+        padding: 0 8px 8px;
+      }
+      .account {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 8px;
+        margin: 0 0 10px;
+        border: 0;
+        border-radius: 12px;
+        background: transparent;
+        text-align: left;
+      }
+      .account:hover {
+        background: var(--card);
+      }
+      .account[aria-current='page'] {
+        background: var(--sel);
+      }
+      .account .mark {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        flex: none;
+        background: linear-gradient(160deg, #f7f4ec, #e7e1d3);
+        box-shadow:
+          inset 0 0 0 0.5px rgb(0 0 0 / 0.12),
+          0 1px 3px var(--glass-shadow);
+        display: grid;
+        place-items: center;
+        color: #0e6b62;
+      }
+      .account b {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .account small {
+        display: block;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .group-label {
+        margin: 12px 10px 4px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ink-3);
+      }
+      .nav a {
+        position: relative;
+      }
+      .nav a .badge {
+        margin-left: auto;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: 9px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 600;
+        display: grid;
+        place-items: center;
+      }
+      .nav a:hover:not([aria-current]) {
+        background: var(--card);
+      }
+      .nav .moved {
+        margin-left: auto;
+        font-size: 10px;
+        color: var(--ink-3);
+      }
+
+      .pane-head {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin: 4px 4px 20px;
+      }
+      .pane-head .tile {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        flex: none;
+      }
+      .pane-head .tile svg {
+        width: 24px;
+        height: 24px;
+      }
+      .pane-head h2 {
+        font-size: 20px;
+        letter-spacing: -0.3px;
+        font-weight: 700;
+      }
+      .pane-head p {
+        margin: 2px 0 0;
+        font-size: 12px;
+        color: var(--ink-2);
+        max-width: 560px;
+        line-height: 1.5;
+      }
+
+      .group-title {
+        margin: 0 4px 8px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .group {
+        border-radius: 18px;
+        background: var(--card);
+        padding: 0 16px;
+        margin-bottom: 8px;
+      }
+      .group-foot {
+        display: flex;
+        gap: 6px;
+        align-items: flex-start;
+        margin: 0 16px 22px;
+        font-size: 11px;
+        color: var(--ink-2);
+        line-height: 1.5;
+      }
+      .group-foot svg {
+        flex: none;
+        margin-top: 2px;
+      }
+      .spacer {
+        height: 22px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        min-height: 48px;
+        padding: 10px 0;
+      }
+      .row + .row,
+      .row + .block,
+      .block + .row {
+        border-top: 0.5px solid var(--hair);
+      }
+      .row .text {
+        flex: 1;
+        min-width: 0;
+      }
+      .row .label {
+        font-size: 13px;
+      }
+      .row .hint {
+        font-size: 11px;
+        color: var(--ink-2);
+        margin-top: 2px;
+        line-height: 1.45;
+      }
+      .row.hit {
+        animation: hit 1.6s ease-out;
+      }
+      @keyframes hit {
+        0%,
+        30% {
+          box-shadow: 0 0 0 4px var(--sel);
+          background: var(--sel);
+          border-radius: 10px;
+        }
+        100% {
+          box-shadow: 0 0 0 4px transparent;
+        }
+      }
+      .block {
+        padding: 14px 0;
+      }
+
+      .switch {
+        position: relative;
+        flex: none;
+        width: 44px;
+        height: 24px;
+        border: 0;
+        padding: 0;
+        border-radius: 12px;
+        background: var(--act-0);
+        box-shadow: inset 0 0 0 0.5px var(--hair);
+        transition: background 0.18s;
+      }
+      .switch::after {
+        content: '';
+        position: absolute;
+        left: 2px;
+        top: 2px;
+        width: 26px;
+        height: 20px;
+        border-radius: 10px;
+        background: #fff;
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 0.9),
+          0 1px 4px rgb(0 0 0 / 0.22);
+        transition: translate 0.24s cubic-bezier(0.2, 0.9, 0.3, 1);
+      }
+      .switch[aria-checked='true'] {
+        background: var(--accent);
+        box-shadow: none;
+      }
+      .switch[aria-checked='true']::after {
+        translate: 14px 0;
+      }
+      .pop {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        flex: none;
+        height: 28px;
+        padding: 0 28px 0 12px;
+        border: 0;
+        border-radius: 14px;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--hair),
+          0 1px 3px var(--glass-shadow);
+        font-size: 12px;
+        max-width: 220px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .pop::after {
+        content: '';
+        position: absolute;
+        right: 11px;
+        top: 8px;
+        width: 7px;
+        height: 12px;
+        background: currentColor;
+        opacity: 0.55;
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 12'%3E%3Cpath d='M1 4.5L3.5 2 6 4.5M1 7.5L3.5 10 6 7.5' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+          center/contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 12'%3E%3Cpath d='M1 4.5L3.5 2 6 4.5M1 7.5L3.5 10 6 7.5' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+          center/contain no-repeat;
+      }
+      .seg {
+        display: flex;
+        flex: none;
+        height: 28px;
+        padding: 2px;
+        border-radius: 14px;
+        background: var(--act-0);
+      }
+      .seg button {
+        border: 0;
+        padding: 0 12px;
+        border-radius: 12px;
+        background: none;
+        font-size: 12px;
+        color: var(--ink-2);
+      }
+      .seg button[aria-pressed='true'] {
+        background: var(--card-raised);
+        color: var(--ink);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 1px 3px var(--glass-shadow);
+      }
+      .dark .seg button[aria-pressed='true'] {
+        background: rgb(110 110 118 / 0.55);
+      }
+      .stepper {
+        display: flex;
+        flex: none;
+        align-items: center;
+        height: 28px;
+        border-radius: 14px;
+        background: var(--glass-strong);
+        box-shadow:
+          inset 0 1px 0 var(--glass-hi),
+          0 0 0 0.5px var(--hair);
+      }
+      .stepper button {
+        width: 28px;
+        height: 28px;
+        border: 0;
+        background: none;
+        font-size: 15px;
+        color: var(--ink-2);
+      }
+      .stepper output {
+        min-width: 44px;
+        text-align: center;
+        font-size: 12px;
+      }
+      .stepper output small {
+        color: var(--ink-3);
+      }
+      .field {
+        flex: none;
+        width: 260px;
+        height: 28px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 14px;
+        background: var(--card-raised);
+        box-shadow: inset 0 0 0 0.5px var(--hair);
+        font: inherit;
+        font-size: 12px;
+        color: var(--ink);
+      }
+      .field::placeholder {
+        color: var(--ink-3);
+      }
+      .field:focus {
+        outline: none;
+        box-shadow:
+          inset 0 0 0 1px var(--accent),
+          0 0 0 3px var(--sel);
+      }
+      .mono {
+        font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+      }
+      .link {
+        color: var(--accent-text);
+        text-decoration: none;
+        font-size: 12px;
+      }
+      .button.primary {
+        background: var(--accent);
+        color: #fff;
+        box-shadow:
+          inset 0 1px 0 rgb(255 255 255 / 0.25),
+          0 1px 3px var(--glass-shadow);
+      }
+      .range-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: none;
+      }
+      input[type='range'] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 160px;
+        height: 24px;
+        background: none;
+      }
+      input[type='range']::-webkit-slider-runnable-track {
+        height: 4px;
+        border-radius: 2px;
+        background: linear-gradient(to right, var(--accent) var(--p), var(--act-0) var(--p));
+      }
+      input[type='range']::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 32px;
+        height: 22px;
+        margin-top: -9px;
+        border-radius: 11px;
+        background: #fff;
+        box-shadow:
+          inset 0 1px 0 #fff,
+          0 0 0 0.5px var(--hair),
+          0 2px 8px rgb(0 0 0 / 0.18);
+      }
+      input[type='range']::-moz-range-track {
+        height: 4px;
+        border-radius: 2px;
+        background: var(--act-0);
+      }
+      input[type='range']::-moz-range-thumb {
+        width: 32px;
+        height: 22px;
+        border: 0;
+        border-radius: 11px;
+        background: #fff;
+        box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+      }
+
+      /* pictures */
+      .choices {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+      }
+      .choice-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .choice-group > span {
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .choice-items {
+        display: flex;
+        gap: 12px;
+      }
+      .vdiv {
+        width: 0.5px;
+        background: var(--hair);
+        margin: 22px 2px 20px;
+      }
+      .pic {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 0;
+        border: 0;
+        background: none;
+        font-size: 11px;
+        color: var(--ink-2);
+      }
+      .pic .f,
+      .pic .in {
+        display: block;
+      }
+      .pic .f {
+        width: 80px;
+        height: 56px;
+        border-radius: 13px;
+        padding: 3px;
+        transition: box-shadow 0.15s;
+      }
+      .pic[aria-pressed='true'] {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .pic[aria-pressed='true'] .f {
+        box-shadow: 0 0 0 2px var(--accent);
+      }
+      .pic .in {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: inset 0 0 0 0.5px var(--hair);
+      }
+      .pic .in i {
+        position: absolute;
+        border-radius: 3px;
+      }
+      .themes {
+        display: flex;
+        gap: 14px;
+        overflow-x: auto;
+        padding: 4px 3px 6px;
+        margin: 0 -3px;
+      }
+      .theme .f {
+        width: 104px;
+        height: 66px;
+      }
+      .theme .in {
+        padding: 8px 10px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .theme .aa {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 14px;
+      }
+      .theme .aa i {
+        position: static;
+        width: 5px;
+        height: 14px;
+        border-radius: 2px;
+        background: #3472d6;
+      }
+      .theme .dots {
+        display: flex;
+        gap: 2px;
+      }
+      .theme .dots i {
+        position: static;
+        width: 8px;
+        height: 8px;
+        border-radius: 4px;
+      }
+      .mode-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 8px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .mode-title span {
+        font-weight: 400;
+        color: var(--ink-2);
+        font-size: 11px;
+      }
+
+      /* keyboard */
+      .kb-tools {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin: 0 0 12px;
+      }
+      .kb-tools .field {
+        flex: 1;
+        width: auto;
+        height: 32px;
+        border-radius: 16px;
+        padding-left: 34px;
+        background: var(--glass-strong)
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='6.5'/%3E%3Cpath d='M20 20l-4.2-4.2'/%3E%3C/svg%3E")
+          12px center/14px no-repeat;
+      }
+      .kb-group {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ink-3);
+        margin: 14px 4px 6px;
+      }
+      .keys {
+        display: flex;
+        gap: 4px;
+        flex: none;
+      }
+      .kbd {
+        min-width: 26px;
+        height: 24px;
+        padding: 0 7px;
+        border: 0;
+        border-radius: 7px;
+        background: var(--card-raised);
+        box-shadow:
+          inset 0 -1px 0 var(--hair),
+          0 0 0 0.5px var(--hair);
+        font: 12px var(--font);
+        color: var(--ink);
+      }
+      .kbd.changed {
+        box-shadow: inset 0 0 0 1px var(--accent);
+        color: var(--accent-text);
+      }
+      .kbd.recording {
+        box-shadow:
+          inset 0 0 0 1.5px var(--accent),
+          0 0 0 3px var(--sel);
+        color: var(--ink-2);
+        animation: pulse 1.2s infinite;
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.6;
+        }
+      }
+      .reset {
+        width: 24px;
+        height: 24px;
+        border: 0;
+        border-radius: 12px;
+        background: none;
+        color: var(--ink-3);
+        visibility: hidden;
+      }
+      .row:hover .reset.on {
+        visibility: visible;
+      }
+
+      /* status heroes */
+      .hero {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 16px;
+        border-radius: 18px;
+        background: var(--card);
+        margin-bottom: 22px;
+      }
+      .hero .big {
+        width: 44px;
+        height: 44px;
+        border-radius: 22px;
+        display: grid;
+        place-items: center;
+        flex: none;
+      }
+      .hero b {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .hero small {
+        display: block;
+        font-size: 12px;
+        color: var(--ink-2);
+        margin-top: 1px;
+      }
+      .hero .grow {
+        flex: 1;
+        min-width: 0;
+      }
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 4px;
+        background: var(--up);
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+      .trial-meter {
+        height: 6px;
+        border-radius: 3px;
+        background: var(--act-0);
+        overflow: hidden;
+        margin-top: 10px;
+      }
+      .trial-meter i {
+        display: block;
+        height: 100%;
+        width: 36%;
+        background: var(--accent);
+        border-radius: 3px;
+      }
+      .device {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+      }
+      .device + .device {
+        border-top: 0.5px solid var(--hair);
+      }
+      .device svg {
+        color: var(--ink-2);
+        flex: none;
+      }
+      .device .text {
+        flex: 1;
+      }
+      .device .tag {
+        font-size: 10px;
+        padding: 2px 7px;
+        border-radius: 8px;
+        background: var(--sel);
+        color: var(--accent-text);
+        font-weight: 600;
+      }
+      .tabs {
+        display: flex;
+        gap: 2px;
+        padding: 2px;
+        border-radius: 14px;
+        background: var(--act-0);
+        width: max-content;
+        margin-bottom: 10px;
+      }
+      .tabs button {
+        height: 24px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 12px;
+        background: none;
+        font-size: 12px;
+        color: var(--ink-2);
+      }
+      .tabs button[aria-selected='true'] {
+        background: var(--card-raised);
+        color: var(--ink);
+        box-shadow: 0 1px 3px var(--glass-shadow);
+      }
+      .code {
+        position: relative;
+        border-radius: 12px;
+        background: var(--card-raised);
+        box-shadow: inset 0 0 0 0.5px var(--hair);
+        padding: 12px 70px 12px 14px;
+        font:
+          12px/1.6 ui-monospace,
+          'SF Mono',
+          Menlo,
+          monospace;
+        white-space: pre-wrap;
+        word-break: break-all;
+        color: var(--ink);
+      }
+      .code .button {
+        position: absolute;
+        right: 8px;
+        top: 8px;
+        height: 24px;
+        font-family: var(--font);
+      }
+      .empty-state {
+        text-align: center;
+        padding: 34px 20px 30px;
+      }
+      .empty-state .big {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 12px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        background: var(--card-raised);
+        box-shadow: inset 0 0 0 0.5px var(--hair);
+        color: var(--ink-2);
+      }
+      .empty-state b {
+        display: block;
+        font-size: 14px;
+      }
+      .empty-state p {
+        margin: 4px auto 16px;
+        max-width: 420px;
+        font-size: 12px;
+        color: var(--ink-2);
+      }
+      .empty-state .buttons {
+        justify-content: center;
+      }
+      .results h3 {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ink-3);
+        margin: 14px 4px 6px;
+      }
+      .result {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 9px 12px;
+        border: 0;
+        border-radius: 12px;
+        background: var(--card);
+        text-align: left;
+        margin-bottom: 4px;
+      }
+      .result:hover {
+        background: var(--sel);
+      }
+      .result small {
+        color: var(--ink-2);
+        margin-left: auto;
+        font-size: 11px;
+      }
+      .result mark {
+        background: rgb(255 214 10 / 0.45);
+        color: inherit;
+        border-radius: 3px;
+      }
+      .note-callout {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: var(--sel);
+        font-size: 12px;
+        margin-bottom: 18px;
+        color: var(--ink);
+      }
+      .note-callout svg {
+        color: var(--accent-text);
+        flex: none;
+        margin-top: 1px;
+      }
+      .redesign .review .tag b {
+        color: var(--accent-text);
+      }
+      #pane {
+        animation: in 0.22s ease-out;
+      }
+      @keyframes in {
+        from {
+          opacity: 0;
+          translate: 0 4px;
+        }
+      }
+      @media (max-width: 700px) {
+        .row {
+          flex-wrap: wrap;
+        }
+        .field {
+          width: 100%;
+        }
+        .choices {
+          gap: 12px;
+        }
+        .vdiv {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body class="redesign">
+    <div class="blob a" aria-hidden="true"></div>
+    <div class="blob b" aria-hidden="true"></div>
+    <div class="blob c" aria-hidden="true"></div>
+
+    <div class="review">
+      <span class="tag">Design concept · <b>Settings, redesigned</b> · sample data</span>
+      <div class="switches">
+        <button class="chip" id="sparse" aria-pressed="false">Usage: first day</button>
+        <button class="chip" id="theme" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="window">
+        <nav class="sidebar" aria-label="Settings">
+          <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+          <label class="search">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="6.5" />
+              <path d="M20 20l-4.2-4.2" />
+            </svg>
+            <input
+              type="search"
+              id="q"
+              placeholder="Search"
+              aria-label="Search Settings"
+              autocomplete="off"
+            />
+          </label>
+          <div class="nav-scroll">
+            <button class="account" id="account" data-pane="license">
+              <span class="mark"
+                ><svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z" />
+                  <path d="M9 12l2 2 4-4" /></svg
+              ></span>
+              <span><b>Devot Trial</b><small>9 days left · Add License</small></span>
+            </button>
+            <div id="nav"></div>
+          </div>
+        </nav>
+
+        <main id="main">
+          <header class="toolbar">
+            <div class="hist" role="group" aria-label="Back and Forward">
+              <button aria-label="Back" id="back">
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M15 5l-7 7 7 7" />
+                </svg>
+              </button>
+              <i></i>
+              <button aria-label="Forward" id="fwd">
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+            <h1 id="title">General</h1>
+          </header>
+          <div id="pane"></div>
+        </main>
+      </div>
+    </div>
+    <div class="tip" id="tip" role="tooltip"></div>
+
+    <template id="usage-markup">
+      <p class="privacy">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="5" y="11" width="14" height="9" rx="2" />
+          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+        </svg>
+        Only counts are recorded, never note content, titles or names. Nothing leaves this Mac.
+      </p>
+
+      <div class="filters">
+        <div class="segmented" role="group" aria-label="Period">
+          <button data-days="7" aria-pressed="false">7 Days</button>
+          <button data-days="30" aria-pressed="true">30 Days</button>
+          <button data-days="90" aria-pressed="false">90 Days</button>
+        </div>
+        <span class="range" id="range"></span>
+        <label class="popup">
+          <span class="visually-hidden">Event type</span>
+          <select id="filter">
+            <option value="all">All Events</option>
+            <option value="0">Notes Created</option>
+            <option value="1">Searches Run</option>
+            <option value="2">Imports Finished</option>
+          </select>
+          <svg
+            width="9"
+            height="9"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M7 10l5-5 5 5M7 14l5 5 5-5" />
+          </svg>
+        </label>
+      </div>
+
+      <section class="stats" aria-label="Overview">
+        <div class="stat">
+          <div class="label" id="total-label">Events</div>
+          <div class="value" id="total"></div>
+          <div class="delta" id="total-delta"></div>
+          <svg
+            class="spark has-data"
+            id="spark"
+            viewBox="0 0 200 26"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          ></svg>
+        </div>
+        <div class="stat">
+          <div class="label">Active days</div>
+          <div class="value" id="active"></div>
+          <div class="delta" id="active-note"></div>
+          <div class="days has-data" id="days" aria-hidden="true"></div>
+        </div>
+        <div class="stat">
+          <div class="label">Notes created</div>
+          <div class="value" id="notes"></div>
+          <div class="delta" id="notes-delta"></div>
+        </div>
+      </section>
+
+      <div class="section-head">
+        <h2>Activity</h2>
+        <span id="activity-caption"></span>
+      </div>
+      <section class="card" aria-label="Activity">
+        <div class="has-data">
+          <div class="chart-title"><b>By day</b><span id="avg-caption"></span></div>
+          <div class="plot" id="daily"></div>
+          <div class="divider"></div>
+          <div class="chart-title"><b>By weekday and hour</b><span>Local time</span></div>
+          <div class="heat" id="heat" role="grid" aria-label="Events by weekday and hour"></div>
+          <div class="heat-foot">
+            <span class="peak" id="peak"></span>
+            <span class="key" aria-label="Fewer to more events"
+              ><span>Fewer</span><i style="background: var(--act-0)"></i
+              ><i style="background: var(--act-1)"></i><i style="background: var(--act-2)"></i
+              ><i style="background: var(--act-3)"></i><i style="background: var(--act-4)"></i
+              ><span>More</span></span
+            >
+          </div>
+        </div>
+        <div class="empty">
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 19V9M10 19V5M16 19v-7M22 19H2" />
+          </svg>
+          <h3>Your first activity is here</h3>
+          <p>Patterns appear after a few days of writing and searching.</p>
+        </div>
+      </section>
+      <p class="footnote">Shading is relative to the busiest hour in this period.</p>
+
+      <div class="section-head">
+        <h2>By type</h2>
+        <span>Share of events in this period</span>
+      </div>
+      <section class="card types" id="types" aria-label="Events by type"></section>
+      <div style="height: 16px"></div>
+
+      <div class="section-head"><h2>Stored on this Mac</h2></div>
+      <section class="card">
+        <div class="storage">
+          <div>
+            <div class="title" id="stored"></div>
+            <div class="sub">Kept for 90 days, at most 10,000 events.</div>
+          </div>
+          <div class="buttons">
+            <button class="button" id="show" aria-expanded="false" aria-controls="events">
+              Show Events
+            </button>
+            <button class="button danger" id="clear">Clear Usage Data…</button>
+          </div>
+          <div class="meter">
+            <div
+              class="bar"
+              role="meter"
+              aria-label="Storage used"
+              aria-valuemin="0"
+              aria-valuemax="10000"
+              id="meter"
+            >
+              <i></i>
+            </div>
+            <span id="meter-label"></span>
+          </div>
+        </div>
+        <div class="events" id="events" hidden></div>
+      </section>
+    </template>
+
+    <script>
+      const $ = (s, r = document) => r.querySelector(s)
+      const I = {
+        general:
+          '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+        appearance:
+          '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/>',
+        editing: '<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/>',
+        keyboard:
+          '<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M8 14h8"/>',
+        mirror:
+          '<path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M9 13h6M13 11l2 2-2 2"/>',
+        sync: '<path d="M20 12a8 8 0 0 1-14 5M4 12a8 8 0 0 1 14-5"/><path d="M18 3v4h-4M6 21v-4h4"/>',
+        ai: '<path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+        integrations:
+          '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/><path d="M10 6.5h4a3 3 0 0 1 3 3V14M14 17.5h-4a3 3 0 0 1-3-3V10"/>',
+        plugins: '<path d="M9 3v4M15 3v4M6 7h12v4a6 6 0 0 1-12 0zM12 17v4"/>',
+        usage: '<path d="M5 20V12M12 20V5M19 20v-6"/>',
+        license: '<path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z"/><path d="M9 12l2 2 4-4"/>',
+        info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+        lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+        laptop: '<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/>',
+        phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+        folder:
+          '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+        puzzle:
+          '<path d="M10 4a2 2 0 1 1 4 0v2h4v4h-1a2 2 0 1 0 0 4h1v4h-4v-1a2 2 0 1 0-4 0v1H6v-4h1a2 2 0 1 0 0-4H6V6h4z"/>',
+        reset: '<path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4"/>',
+      }
+      const svg = (k, s = 16, w = 2) =>
+        `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[k]}</svg>`
+      const esc = (s) =>
+        String(s).replace(
+          /[&<>"]/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+        )
+
+      // controls
+      const toggle = (on, label) =>
+        `<button class="switch" role="switch" aria-checked="${on}" aria-label="${esc(label)}"></button>`
+      const pop = (v, label) =>
+        `<button class="pop" aria-haspopup="menu" aria-label="${esc(label)}: ${esc(v)}">${esc(v)}</button>`
+      const seg = (opts, sel, label) =>
+        `<div class="seg" role="radiogroup" aria-label="${esc(label)}">${opts.map((o) => `<button role="radio" aria-pressed="${o === sel}" aria-checked="${o === sel}">${esc(o)}</button>`).join('')}</div>`
+      const step = (v, unit = '', min = 0, max = 99, inc = 1) =>
+        `<div class="stepper" data-min="${min}" data-max="${max}" data-inc="${inc}"><button aria-label="Decrease">−</button><output data-unit="${unit}">${v}${unit ? `<small> ${unit}</small>` : ''}</output><button aria-label="Increase">+</button></div>`
+      const field = (ph, v = '', type = 'text', cls = '') =>
+        `<input class="field ${cls}" type="${type}" placeholder="${esc(ph)}" value="${esc(v)}" aria-label="${esc(ph)}">`
+      const btn = (l, cls = '') => `<button class="button ${cls}">${esc(l)}</button>`
+      const slider = (v, label) =>
+        `<div class="range-row"><input type="range" min="-100" max="100" value="${v}" style="--p:${(v + 100) / 2}%" aria-label="${esc(label)}"><output class="range-out" style="min-width:34px;text-align:right;color:var(--ink-2)">${v > 0 ? '+' : ''}${v}</output></div>`
+
+      // panes: groups of rows; a row is [label, hint, control] or {html}
+      const thumb = (bg, bars, side) =>
+        `<span class="in" style="background:${bg}">${side ? `<i style="left:4px;top:4px;bottom:4px;width:20px;border-radius:5px;background:${side}"></i>` : '<i style="left:6px;top:6px;width:16px;height:4px;background:linear-gradient(90deg,#ff5f57 0 4px,transparent 4px 6px,#febc2e 6px 10px,transparent 10px 12px,#28c840 12px 16px)"></i>'}<i style="left:${side ? 30 : 6}px;right:6px;top:${side ? 10 : 15}px;height:${side ? 10 : 12}px;background:${bars}"></i><i style="left:${side ? 30 : 6}px;right:6px;bottom:6px;height:${side ? 18 : 12}px;background:${bars}"></i></span>`
+      const pic = (name, on, inner, cls = '') =>
+        `<button class="pic ${cls}" aria-pressed="${on}"><span class="f">${inner}</span>${name}</button>`
+      const DOTS = ['#1d1d1f', '#ab205e', '#93440c', '#0e692f', '#09665f', '#4c4eb8'],
+        DOTS_D = ['#f2f2f2', '#f471b5', '#f97415', '#36d399', '#14b8a5', '#8c8ff5']
+      const theme = (name, on, bg, dark) =>
+        pic(
+          name,
+          on,
+          `<span class="in" style="background:${bg}"><span class="aa" style="color:${dark ? '#eee' : '#1d1d1f'}">Aa<i></i></span><span class="dots">${(dark ? DOTS_D : DOTS).map((c) => `<i style="background:${c}"></i>`).join('')}</span></span>`,
+          'theme',
+        )
+
+      const PANES = [
+        {
+          id: 'general',
+          title: 'General',
+          color: '#8e8e93',
+          desc: 'Where new notes go, how the list reads, and the app’s data on this Mac.',
+          groups: [
+            {
+              title: 'Notes',
+              rows: [
+                [
+                  'Default Notebook',
+                  'Where a new note goes when the view shown has no notebook.',
+                  pop('Getting started', 'Default Notebook'),
+                ],
+                [
+                  'Note List Dates',
+                  'How long ago a note changed, or its date.',
+                  seg(['Relative', 'Absolute'], 'Relative', 'Note List Dates'),
+                ],
+                [
+                  'Show Activity in the Note List',
+                  'Each note shows its last 14 days as small squares, darker on days with more writing.',
+                  toggle(true, 'Show Activity'),
+                ],
+                [
+                  'Dropped Column on Boards',
+                  'Turn it off to leave dropped notes off boards.',
+                  toggle(true, 'Dropped Column'),
+                ],
+              ],
+            },
+            {
+              title: 'Menu Bar & Updates',
+              rows: [
+                [
+                  'Keep in Menu Bar',
+                  'Closing the window keeps Devot running in the menu bar, ready for a quick note.',
+                  toggle(true, 'Keep in Menu Bar'),
+                ],
+                [
+                  'Automatically Download Updates',
+                  'Download new versions in the background, then offer to restart.',
+                  toggle(true, 'Automatically Download Updates'),
+                ],
+                ['Devot [version]', 'Up to date · checked today', btn('Check Now')],
+              ],
+            },
+            {
+              title: 'Data',
+              rows: [
+                [
+                  'Data Folder',
+                  '<span class="mono">~/Library/Application Support/Devot</span>',
+                  btn('Open in Finder'),
+                ],
+                [
+                  'Backups',
+                  'Daily copies of your library, kept on this Mac.',
+                  btn('Show Backups…'),
+                ],
+                [
+                  'Command Line Tool',
+                  'Adds the <span class="mono">devot</span> command: open or export Markdown from a terminal.',
+                  btn('Install'),
+                ],
+              ],
+            },
+          ],
+        },
+        {
+          id: 'appearance',
+          title: 'Appearance',
+          color: '#0a84ff',
+          desc: 'How Devot looks: light or dark, Glass or Classic, themes, fonts and motion.',
+          groups: [
+            {
+              title: 'Look',
+              rows: [
+                {
+                  html: `<div class="choices"><div class="choice-group"><span>Color scheme</span><div class="choice-items">${pic('Auto', true, thumb('linear-gradient(135deg,#f5f6f8 50%,#2a2b30 50%)', 'rgb(140 145 160 / 0.55)'))}${pic('Light', false, thumb('#f5f6f8', '#d9dce3'))}${pic('Dark', false, thumb('#2a2b30', '#44464e'))}</div></div><span class="vdiv"></span><div class="choice-group"><span>Interface style</span><div class="choice-items">${pic('Classic', false, thumb('#f5f6f8', '#d9dce3', '#e8eaee'))}${pic('Glass', true, thumb('linear-gradient(135deg,#9fd8d3,#b5c8f3 60%,#f2cdb5)', 'rgb(255 255 255 / 0.75)', 'rgb(255 255 255 / 0.55)'))}</div></div></div>`,
+                  keys: 'Color scheme Interface style Auto Light Dark Glass Classic',
+                },
+                [
+                  'Glass Transparency',
+                  'How much of the desktop shows through the window.',
+                  slider(0, 'Glass Transparency'),
+                ],
+                [
+                  'Use the System Accent Color',
+                  'Buttons, links and selections follow the accent color in System Settings.',
+                  toggle(false, 'System Accent'),
+                ],
+              ],
+            },
+            {
+              title: 'Themes',
+              rows: [
+                {
+                  html: `<div class="mode-title">Light Mode <span>Active now</span></div><div class="themes">${theme('Default', true, '#ffffff')}${theme('Ivory', false, '#faf9f5')}${theme('Dawn', false, 'linear-gradient(160deg,#f5d3e6,#f9e9ee 50%,#fae2c6)')}${theme('Tide', false, 'linear-gradient(160deg,#cddff9,#e6e9f8 50%,#e0d6f5)')}${theme('Sage', false, 'linear-gradient(160deg,#cde9d7,#e8f1e4 50%,#f2e8c2)')}</div>`,
+                  keys: 'Light Mode Theme Default Ivory Dawn Tide Sage',
+                },
+                {
+                  html: `<div class="mode-title">Dark Mode</div><div class="themes">${theme('Default', true, '#000', true)}${theme('Ivory', false, '#30302e', true)}${theme('Dawn', false, 'linear-gradient(160deg,#45293b,#2f2530 50%,#45311f)', true)}${theme('Tide', false, 'linear-gradient(160deg,#22314d,#24283b 50%,#302849)', true)}${theme('Sage', false, 'linear-gradient(160deg,#21392b,#232d26 50%,#3a3821)', true)}</div>`,
+                  keys: 'Dark Mode Theme',
+                },
+              ],
+            },
+            {
+              title: 'Text',
+              note: 'Fonts and sizes now live together here; they were spread over Appearance, Editing and Preview.',
+              rows: [
+                [
+                  'App Font',
+                  'The sidebar, the note list, menus, dialogs and Settings.',
+                  pop('System', 'App Font'),
+                ],
+                [
+                  'Note Font',
+                  'The editor text, and the preview once it is not SF Mono.',
+                  pop('SF Mono', 'Note Font'),
+                ],
+                [
+                  'Code Font',
+                  'Code blocks and inline code, in the editor and the preview.',
+                  pop('SF Mono', 'Code Font'),
+                ],
+                [
+                  'Editor Font Size',
+                  '⌘+ and ⌘− change it from the editor; ⌘0 resets it.',
+                  step(15, 'px', 9, 32),
+                ],
+                [
+                  'Preview Font Size',
+                  'The size of the text in the preview.',
+                  step(15, 'px', 9, 32),
+                ],
+              ],
+            },
+            {
+              title: 'Icons & Motion',
+              rows: [
+                [
+                  'Icon Style',
+                  'Sidebar and toolbar icons. Custom notebook icons stay as symbols.',
+                  seg(['SF Symbols', 'Lucide'], 'SF Symbols', 'Icon Style'),
+                ],
+                [
+                  'Animations',
+                  'Follow System uses Reduce Motion in System Settings › Accessibility › Display.',
+                  seg(['Always', 'Follow System', 'Off'], 'Follow System', 'Animations'),
+                ],
+              ],
+            },
+          ],
+        },
+        {
+          id: 'editing',
+          title: 'Editing',
+          color: '#ff9f0a',
+          desc: 'How the editor behaves and what Markdown it writes. These settings apply to every window on this Mac.',
+          groups: [
+            {
+              title: 'Editor',
+              rows: [
+                [
+                  'Line Wrapping',
+                  'Prose only keeps code blocks and tables on one line each.',
+                  pop('Prose only', 'Line Wrapping'),
+                ],
+                [
+                  'Readable Line Length',
+                  'Limits lines to 740 pixels so text stays easy to read. Applies when lines wrap.',
+                  toggle(true, 'Readable Line Length'),
+                ],
+                [
+                  'Formatting Toolbar',
+                  'Shows over selected text and above the current table row.',
+                  toggle(true, 'Toolbar'),
+                ],
+                ['Line Numbers', '', toggle(false, 'Line Numbers')],
+                ['Highlight Active Line', '', toggle(true, 'Highlight Active Line')],
+                [
+                  'Inline Image Widgets',
+                  'Images show under their lines in the editor.',
+                  toggle(true, 'Inline Images'),
+                ],
+                ['Scroll Past End', '', toggle(true, 'Scroll Past End')],
+                [
+                  'Cursor Scroll Margin',
+                  'Space kept above and below the cursor near the edge of the view.',
+                  step(60, 'px', 0, 400, 10),
+                ],
+              ],
+            },
+            {
+              title: 'Text',
+              rows: [
+                ['Font Weight', '', pop('Regular', 'Font Weight')],
+                ['Line Height', 'A multiple of the font size.', step('1.6', '×', 1, 3, 0.1)],
+                ['Spellcheck', '', toggle(true, 'Spellcheck')],
+                [
+                  'Show Invisible Characters',
+                  'Draws spaces and tabs.',
+                  toggle(false, 'Show Invisibles'),
+                ],
+                ['Highlight Trailing Whitespace', '', toggle(false, 'Trailing Whitespace')],
+              ],
+            },
+            {
+              title: 'Markdown',
+              rows: [
+                ['Bullet for New List Items', '', seg(['-', '*', '+'], '-', 'Bullet')],
+                [
+                  'Indent',
+                  'What one level of indentation inserts.',
+                  seg(['Tab', '2 Spaces', '4 Spaces'], 'Tab', 'Indent'),
+                ],
+                ['Tab Size', 'Columns a tab character takes.', step(4, '', 1, 8)],
+                [
+                  'Paste URL as Link',
+                  'A URL pasted over selected text always makes a link.',
+                  pop('Link [](URL)', 'Paste URL'),
+                ],
+              ],
+            },
+            {
+              title: 'Preview',
+              note: 'The Preview pane is folded in here: its font size moved to Appearance › Text.',
+              rows: [
+                [
+                  'Synced Scrolling',
+                  'The editor and the preview scroll together in split view.',
+                  toggle(true, 'Synced Scrolling'),
+                ],
+              ],
+            },
+          ],
+        },
+        {
+          id: 'keyboard',
+          title: 'Keyboard',
+          color: '#8e8e93',
+          desc: 'Click a shortcut, then press the new keys; Escape cancels. Search for a key, such as ⌘K, to see every command bound to it.',
+          custom: 'keyboard',
+        },
+        {
+          id: 'mirror',
+          title: 'Markdown Mirror',
+          short: 'Mirror',
+          color: '#5e5ce6',
+          desc: 'Keeps a folder up to date with every note as a Markdown file, so other apps and tools can read your notes.',
+          custom: 'mirror',
+        },
+        {
+          id: 'sync',
+          title: 'Sync',
+          color: '#30d158',
+          desc: 'Your notes on all your devices, through a relay you run yourself. Everything is encrypted on this device before it leaves.',
+          custom: 'sync',
+        },
+        {
+          id: 'ai',
+          title: 'AI',
+          color: '#bf5af2',
+          desc: 'Text goes to a provider only when you start an AI action, and only from notebooks with Allow AI Access on.',
+          groups: [
+            {
+              title: 'Provider',
+              rows: [
+                [
+                  'Provider',
+                  'The provider AI features use.',
+                  seg(
+                    ['Claude (Anthropic)', 'OpenAI-compatible'],
+                    'Claude (Anthropic)',
+                    'Provider',
+                  ),
+                ],
+                ['Endpoint', 'Leave empty for the default.', field('Default')],
+                ['Model', 'Leave empty for the default.', field('Default')],
+                [
+                  'API Key',
+                  '<span class="dot"></span>A key is stored in the Keychain and never shown again.',
+                  `<div class="range-row">${field('Paste a new key', '', 'password')}${btn('Save')}</div>`,
+                ],
+              ],
+            },
+            {
+              title: 'Next Edit Suggestions',
+              rows: [
+                [
+                  'Suggest When I Pause',
+                  'Off, a suggestion comes only when you choose Suggest Next Edit.',
+                  toggle(false, 'Suggest When I Pause'),
+                ],
+              ],
+            },
+          ],
+        },
+        {
+          id: 'integrations',
+          title: 'Integrations',
+          color: '#ff375f',
+          desc: 'devot-mcp lets Claude Code, Codex and other MCP clients search, read, create and edit your notes, only in notebooks with Allow AI Access on.',
+          custom: 'integrations',
+        },
+        {
+          id: 'plugins',
+          title: 'Plugins',
+          color: '#ff453a',
+          desc: 'Plugins add commands, menu items, shortcuts, preview drawings and file formats. Each runs apart from your notes, with no network access.',
+          custom: 'plugins',
+        },
+        {
+          id: 'usage',
+          title: 'Usage',
+          color: '#ffd60a',
+          dark: true,
+          desc: 'How you use Devot on this Mac, over the period you choose.',
+          custom: 'usage',
+        },
+        {
+          id: 'license',
+          title: 'License',
+          color: '#0e6b62',
+          desc: 'Your trial, your license and the devices it is active on.',
+          custom: 'license',
+          hidden: true,
+        },
+      ]
+      const NAV_GROUPS = [
+        ['general', 'appearance', 'editing', 'keyboard'],
+        ['mirror', 'sync'],
+        ['ai', 'integrations', 'plugins'],
+        ['usage'],
+      ]
+      const NAV_LABELS = [null, 'Your Notes, Elsewhere', 'AI & Extensions', 'Privacy']
+      const byId = Object.fromEntries(PANES.map((p) => [p.id, p]))
+      const tile = (p, cls = '') =>
+        `<span class="tile ${cls}" style="--t:${p.color}${p.dark ? ';color:#1d1d1f' : ''}">${svg(p.id, 14, 2)}</span>`
+
+      function renderNav(current) {
+        $('#nav').innerHTML = NAV_GROUPS.map(
+          (g, i) =>
+            `${NAV_LABELS[i] ? `<div class="group-label">${NAV_LABELS[i]}</div>` : ''}<ul class="nav">${g
+              .map((id) => {
+                const p = byId[id]
+                return `<li><a href="#${id}" data-pane="${id}" ${id === current ? 'aria-current="page"' : ''}>${tile(p)}${p.short || p.title}</a></li>`
+              })
+              .join('')}</ul>`,
+        ).join('')
+        $('#account').toggleAttribute('aria-current', current === 'license')
+        if (current === 'license') $('#account').setAttribute('aria-current', 'page')
+      }
+
+      function rowHtml(r) {
+        if (!Array.isArray(r)) return `<div class="block">${r.html}</div>`
+        const [label, hint, control] = r
+        return `<div class="row" data-label="${esc(label)}"><div class="text"><div class="label">${label}</div>${hint ? `<div class="hint">${hint}</div>` : ''}</div>${control}</div>`
+      }
+      function groupsHtml(groups) {
+        return groups
+          .map(
+            (g) =>
+              `${g.title ? `<h3 class="group-title">${g.title}</h3>` : ''}${g.note ? `<div class="note-callout">${svg('info', 15)}<span>${g.note}</span></div>` : ''}<section class="group">${g.rows.map(rowHtml).join('')}</section>${g.foot ? `<div class="group-foot">${svg('info', 12)}<span>${g.foot}</span></div>` : '<div class="spacer"></div>'}`,
+          )
+          .join('')
+      }
+      const head = (p) =>
+        `<div class="pane-head">${tile(p)}<div><h2>${p.title}</h2><p>${p.desc}</p></div></div>`
+
+      const CUSTOM = {
+        keyboard() {
+          const G = {
+            Notes: [
+              ['New Note', ['⌘', 'N']],
+              ['New Note from Template', ['⌘', 'T']],
+              ['Quick Note (any app)', ['⌃', '⌥', 'Space'], true],
+              ['Move to Trash', ['⌘', '⌫']],
+              ['Pin to Top', ['P']],
+            ],
+            Status: [
+              ['None', ['⌃', '⌘', '1']],
+              ['Active', ['⌃', '⌘', '2']],
+              ['On Hold', ['⌃', '⌘', '3']],
+              ['Completed', ['⌃', '⌘', '4']],
+              ['Dropped', ['⌃', '⌘', '5']],
+            ],
+            View: [
+              ['Command Palette', ['⌘', 'K']],
+              ['Show Editor', ['⌘', '1'], false],
+              ['Show Editor and Preview', ['⌘', '2']],
+              ['Preview', ['⌘', '3']],
+              ['Focus Mode', ['⇧', '⌘', 'D']],
+            ],
+            Format: [
+              ['Bold', ['⌘', 'B']],
+              ['Italic', ['⌘', 'I']],
+              ['Link', ['⌥', '⌘', 'K']],
+              ['Headings 1 to 6', ['⌘', '1–6']],
+            ],
+          }
+          return (
+            `<div class="kb-tools"><input class="field" id="kbq" placeholder="Filter Shortcuts" aria-label="Filter Shortcuts">${btn('Reset All…')}</div>` +
+            Object.entries(G)
+              .map(
+                ([g, rows]) =>
+                  `<div class="kb-group">${g}</div><section class="group">${rows.map(([n, k, changed]) => `<div class="row kb" data-label="${esc(n)}" data-keys="${esc(k.join(''))}"><div class="text"><div class="label">${n}</div></div><button class="reset ${changed ? 'on' : ''}" aria-label="Reset ${esc(n)}">${svg('reset', 13)}</button><div class="keys" role="button" tabindex="0" aria-label="${esc(n)} shortcut, ${esc(k.join(' '))}">${k.map((x) => `<span class="kbd ${changed ? 'changed' : ''}">${x}</span>`).join('')}</div></div>`).join('')}</section>`,
+              )
+              .join('') +
+            '<div class="group-foot" style="margin-top:12px">' +
+            svg('info', 12) +
+            '<span>Changed shortcuts are drawn in the accent color; hover one to reset it.</span></div>'
+          )
+        },
+        mirror() {
+          return (
+            `<section class="group"><div class="empty-state"><div class="big">${svg('folder', 26, 1.7)}</div><b>The mirror is off</b><p>Choose a folder and Devot writes every note there as Markdown, laid out like an export, and keeps it up to date.</p><div class="buttons">${btn('Choose Folder…', 'primary')}</div></div></section><div class="spacer"></div>` +
+            groupsHtml([
+              {
+                title: 'Options',
+                rows: [
+                  [
+                    'Include Attachments',
+                    'Off, images still link to the attachments folder, but no copies are written there.',
+                    toggle(true, 'Include Attachments'),
+                  ],
+                ],
+                foot: 'The folder is written by Devot: edits made there are not read back. A file changed there is kept under a new name.',
+              },
+            ])
+          )
+        },
+        sync() {
+          return (
+            `<div class="hero"><span class="big" style="background:rgb(48 209 88 / 0.16);color:var(--up)">${svg('sync', 22)}</span><div class="grow"><b><span class="dot"></span>Up to date</b><small>Last synced 2 minutes ago · relay.example.dev</small></div>${toggle(true, 'Sync This Device')}</div>` +
+            groupsHtml([
+              {
+                title: 'Devices',
+                rows: [
+                  {
+                    html: `<div class="device">${svg('laptop', 20, 1.7)}<div class="text"><div class="label">MacBook Pro</div><div class="hint">Added Oct 12, 2026</div></div><span class="tag">This Mac</span></div><div class="device">${svg('phone', 20, 1.7)}<div class="text"><div class="label">iPhone</div><div class="hint">Added Oct 20, 2026</div></div>${btn('Remove…')}</div>`,
+                    keys: 'Devices MacBook iPhone Remove',
+                  },
+                  [
+                    'Add a Device',
+                    'Shows a code to scan or type on the new device. It works once, for 10 minutes.',
+                    btn('Show Pairing Code', 'primary'),
+                  ],
+                ],
+              },
+              {
+                title: 'Relay',
+                rows: [
+                  [
+                    'Relay Address',
+                    'As your relay’s deploy printed it.',
+                    field('https://', 'https://relay.example.dev'),
+                  ],
+                  [
+                    'Recovery Key',
+                    'Keep it in your password manager. With it, a new device joins even when no other device is left.',
+                    btn('Show Key…'),
+                  ],
+                ],
+              },
+              {
+                title: 'Join or Start Over',
+                rows: [
+                  [
+                    'Join With a Code',
+                    'The code another device shows under Add a Device.',
+                    btn('Join…'),
+                  ],
+                  [
+                    'Set Up a New Vault',
+                    'Only on your first device. On any other, join instead, or its notes never meet the others.',
+                    btn('New Vault…', 'danger'),
+                  ],
+                ],
+              },
+            ])
+          )
+        },
+        integrations() {
+          return `<div class="hero"><span class="big" style="background:var(--sel);color:var(--accent-text)">${svg('lock', 20)}</span><div class="grow"><b>1 of 1 notebooks allow AI access</b><small>MCP clients see only these notebooks. Right-click a notebook to change it.</small></div>${btn('Choose Notebooks…')}</div><h3 class="group-title">Connect a Client</h3><section class="group block-pad" style="padding:14px 16px"><div class="tabs" role="tablist">${['Claude Code', 'Codex', 'Other MCP Clients'].map((t, i) => `<button role="tab" aria-selected="${i === 0}" data-tab="${i}">${t}</button>`).join('')}</div><div class="hint" id="cfg-hint" style="font-size:11px;color:var(--ink-2);margin-bottom:8px">Run this command in Terminal.</div><div class="code" id="cfg">claude mcp add devot -- node ~/Code/devot/dist-mcp/devot-mcp.mjs<button class="button" id="copy">Copy</button></div></section><div class="group-foot" style="margin-top:8px">${svg('info', 12)}<span>These configs run devot-mcp from the Devot checkout this app was built from.</span></div>`
+        },
+        plugins() {
+          return `<section class="group"><div class="empty-state"><div class="big">${svg('puzzle', 26, 1.7)}</div><b>No plugins installed</b><p>Install a plugin from a folder or a .zip archive. You review what it asks for before it runs.</p><div class="buttons">${btn('Install from Folder…', 'primary')}${btn('Install from Archive…')}</div></div></section><div class="group-foot" style="margin-top:8px">${svg('info', 12)}<span>Each plugin runs apart from Devot and your notes, with no network access, and can do only what you approved.</span></div>`
+        },
+        license() {
+          return (
+            `<div class="hero" style="display:block"><div style="display:flex;align-items:center;gap:14px"><span class="big" style="background:var(--sel);color:var(--accent-text)">${svg('license', 22)}</span><div class="grow"><b>Trial · 9 days left</b><small>Everything works, sync and AI included, until Nov 10, 2026.</small></div>${btn('Buy a License', 'primary')}</div><div class="trial-meter" role="meter" aria-label="Trial used" aria-valuenow="5" aria-valuemax="14"><i></i></div></div>` +
+            groupsHtml([
+              {
+                title: 'Add a License',
+                rows: [
+                  [
+                    'License Key',
+                    'Paste the key from your purchase email. It starts with devot1.',
+                    `<div class="range-row">${field('devot1…', '', 'text', 'mono')}${btn('Add License')}</div>`,
+                  ],
+                ],
+                foot: 'A license activates up to three devices. Manage them after you add it.',
+              },
+            ])
+          )
+        },
+        usage() {
+          return $('#usage-markup').innerHTML
+        },
+      }
+
+      let hist = ['general'],
+        at = 0
+      function show(id, push = true, focusLabel) {
+        const p = byId[id]
+        if (push) {
+          hist = hist.slice(0, at + 1)
+          hist.push(id)
+          at = hist.length - 1
+        }
+        $('#title').textContent = p.title
+        renderNav(id)
+        $('#pane').style.animation = 'none'
+        void $('#pane').offsetWidth
+        $('#pane').style.animation = ''
+        $('#pane').innerHTML = head(p) + (p.custom ? CUSTOM[p.custom]() : groupsHtml(p.groups))
+        $('#back').disabled = at === 0
+        $('#fwd').disabled = at === hist.length - 1
+        wire(id)
+        if (focusLabel) {
+          const r = [...document.querySelectorAll('#pane .row')].find(
+            (x) => x.dataset.label === focusLabel,
+          )
+          if (r) {
+            r.scrollIntoView({ block: 'center', behavior: 'smooth' })
+            r.classList.add('hit')
+          }
+        } else window.scrollTo({ top: 0 })
+      }
+
+      function wire(id) {
+        document
+          .querySelectorAll('#pane .switch')
+          .forEach((s) =>
+            s.addEventListener('click', () =>
+              s.setAttribute('aria-checked', String(s.getAttribute('aria-checked') !== 'true')),
+            ),
+          )
+        document.querySelectorAll('#pane .seg').forEach((g) =>
+          g.querySelectorAll('button').forEach((b) =>
+            b.addEventListener('click', () =>
+              g.querySelectorAll('button').forEach((x) => {
+                x.setAttribute('aria-pressed', String(x === b))
+                x.setAttribute('aria-checked', String(x === b))
+              }),
+            ),
+          ),
+        )
+        document
+          .querySelectorAll('#pane .choice-items, #pane .themes')
+          .forEach((g) =>
+            g
+              .querySelectorAll('.pic')
+              .forEach((b) =>
+                b.addEventListener('click', () =>
+                  g
+                    .querySelectorAll('.pic')
+                    .forEach((x) => x.setAttribute('aria-pressed', String(x === b))),
+                ),
+              ),
+          )
+        document.querySelectorAll('#pane .stepper').forEach((s) => {
+          const o = s.querySelector('output'),
+            u = o.dataset.unit,
+            inc = +s.dataset.inc
+          s.querySelectorAll('button').forEach((b, i) =>
+            b.addEventListener('click', () => {
+              let v = parseFloat(o.textContent) + (i ? inc : -inc)
+              v = Math.min(+s.dataset.max, Math.max(+s.dataset.min, v))
+              o.innerHTML = (inc < 1 ? v.toFixed(1) : v) + (u ? `<small> ${u}</small>` : '')
+            }),
+          )
+        })
+        document.querySelectorAll('#pane input[type=range]').forEach((r) =>
+          r.addEventListener('input', () => {
+            r.style.setProperty('--p', (+r.value + 100) / 2 + '%')
+            r.nextElementSibling.textContent = (r.value > 0 ? '+' : '') + r.value
+          }),
+        )
+        if (id === 'keyboard') {
+          $('#kbq').addEventListener('input', (e) => {
+            const q = e.target.value
+              .toLowerCase()
+              .replace(/cmd|command/g, '⌘')
+              .replace(/shift/g, '⇧')
+              .replace(/opt(ion)?|alt/g, '⌥')
+              .replace(/ctrl|control/g, '⌃')
+              .replace(/[\s+]/g, '')
+            document.querySelectorAll('#pane .row.kb').forEach((r) => {
+              r.hidden =
+                !!q &&
+                !r.dataset.label.toLowerCase().includes(q) &&
+                !r.dataset.keys.toLowerCase().includes(q)
+            })
+          })
+          document.querySelectorAll('#pane .keys').forEach((k) =>
+            k.addEventListener('click', () => {
+              const old = k.innerHTML
+              k.innerHTML = '<span class="kbd recording">Type shortcut…</span>'
+              setTimeout(() => (k.innerHTML = old), 1600)
+            }),
+          )
+        }
+        if (id === 'integrations') {
+          const CFG = [
+            [
+              'Run this command in Terminal.',
+              'claude mcp add devot -- node ~/Code/devot/dist-mcp/devot-mcp.mjs',
+            ],
+            [
+              'Add this to ~/.codex/config.toml.',
+              '[mcp_servers.devot]\ncommand = "node"\nargs = ["~/Code/devot/dist-mcp/devot-mcp.mjs"]',
+            ],
+            [
+              'Add this to the client’s MCP configuration file (mcpServers).',
+              '{\n  "mcpServers": {\n    "devot": { "command": "node", "args": ["~/Code/devot/dist-mcp/devot-mcp.mjs"] }\n  }\n}',
+            ],
+          ]
+          document.querySelectorAll('#pane [data-tab]').forEach((t) =>
+            t.addEventListener('click', () => {
+              document
+                .querySelectorAll('#pane [data-tab]')
+                .forEach((x) => x.setAttribute('aria-selected', String(x === t)))
+              const [h, c] = CFG[+t.dataset.tab]
+              $('#cfg-hint').textContent = h
+              $('#cfg').firstChild.textContent = c
+            }),
+          )
+          $('#copy').addEventListener('click', (e) => {
+            e.target.textContent = 'Copied'
+            setTimeout(() => (e.target.textContent = 'Copy'), 1200)
+          })
+        }
+        if (id === 'usage') initUsage()
+      }
+
+      // search across every pane
+      function index() {
+        const out = []
+        for (const p of PANES) {
+          out.push({ pane: p.id, label: p.title, kind: 'pane' })
+          for (const g of p.groups || [])
+            for (const r of g.rows) {
+              if (Array.isArray(r)) out.push({ pane: p.id, label: r[0], hint: r[1] })
+              else if (r.keys)
+                out.push({
+                  pane: p.id,
+                  label: r.keys.split(' ').slice(0, 2).join(' '),
+                  hint: r.keys,
+                })
+            }
+        }
+        const extra = {
+          keyboard: ['Keyboard Shortcuts', 'Reset All'],
+          mirror: ['Choose Folder', 'Include Attachments'],
+          sync: [
+            'Sync This Device',
+            'Add a Device',
+            'Relay Address',
+            'Recovery Key',
+            'Join With a Code',
+            'Set Up a New Vault',
+          ],
+          integrations: ['AI Access', 'Claude Code', 'Codex', 'MCP'],
+          plugins: ['Install from Folder', 'Install from Archive'],
+          usage: ['Usage Data', 'Clear Usage Data', 'Show Events'],
+          license: ['License Key', 'Buy a License', 'Trial'],
+        }
+        for (const [pane, labels] of Object.entries(extra))
+          for (const label of labels) out.push({ pane, label })
+        return out
+      }
+      const IDX = index()
+      $('#q').addEventListener('input', (e) => {
+        const q = e.target.value.trim().toLowerCase()
+        if (!q) {
+          document.body.classList.remove('searching')
+          show(hist[at], false)
+          return
+        }
+        const hits = IDX.filter(
+          (x) => x.label.toLowerCase().includes(q) || (x.hint || '').toLowerCase().includes(q),
+        )
+        const mark = (s) =>
+          esc(s).replace(
+            new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig'),
+            '<mark>$1</mark>',
+          )
+        const grouped = {}
+        hits.forEach((h) => (grouped[h.pane] ||= []).push(h))
+        document.body.classList.add('searching')
+        $('#title').textContent = 'Search Results'
+        $('#pane').innerHTML = `<div class="results">${
+          hits.length
+            ? Object.entries(grouped)
+                .map(
+                  ([pane, hs]) =>
+                    `<h3>${byId[pane].title}</h3>${hs.map((h) => `<button class="result" data-pane="${pane}" data-label="${esc(h.label)}">${tile(byId[pane])}<span>${mark(h.label)}</span><small>${byId[pane].short || byId[pane].title}</small></button>`).join('')}`,
+                )
+                .join('')
+            : '<div class="empty-state"><b>No settings match</b><p>Try another word, such as font, sync or shortcut.</p></div>'
+        }</div>`
+        document.querySelectorAll('.result').forEach((r) =>
+          r.addEventListener('click', () => {
+            $('#q').value = ''
+            document.body.classList.remove('searching')
+            show(r.dataset.pane, true, r.dataset.label)
+          }),
+        )
+      })
+
+      document.addEventListener('click', (e) => {
+        const a = e.target.closest('[data-pane]')
+        if (a && !a.classList.contains('result')) {
+          e.preventDefault()
+          $('#q').value = ''
+          show(a.dataset.pane)
+        }
+      })
+      addEventListener('scroll', () => document.body.classList.toggle('scrolled', scrollY > 90), {
+        passive: true,
+      })
+      $('#back').addEventListener('click', () => {
+        if (at > 0) {
+          at--
+          show(hist[at], false)
+        }
+      })
+      $('#fwd').addEventListener('click', () => {
+        if (at < hist.length - 1) {
+          at++
+          show(hist[at], false)
+        }
+      })
+      $('#theme').addEventListener('click', (e) => {
+        const on = document.documentElement.classList.toggle('dark')
+        e.target.setAttribute('aria-pressed', String(on))
+      })
+      if (matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.classList.add('dark')
+        $('#theme').setAttribute('aria-pressed', 'true')
+      }
+
+      const TYPES = [
+        {
+          name: 'Notes created',
+          icon: '<path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/><path d="M18.4 3.6a2 2 0 0 1 2.8 2.8L12 15.6 8.5 16.5l.9-3.5z"/>',
+        },
+        {
+          name: 'Searches run',
+          icon: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+        },
+        { name: 'Imports finished', icon: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>' },
+      ]
+
+      const END = new Date(2026, 10, 1)
+      const fmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+      const fmtLong = new Intl.DateTimeFormat('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      })
+      const nf = new Intl.NumberFormat('en-US')
+      const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+      let days = 30,
+        sparse = false,
+        filter = 'all'
+
+      // Deterministic sample data: weekday evenings busiest, some days off.
+      function dayWeight(i) {
+        return i % 9 === 0 || i % 11 === 0 ? 0 : 1 + ((i * 17 + i * i * 3) % 27)
+      }
+      function sample(n) {
+        if (sparse)
+          return {
+            daily: Array.from({ length: n }, (_, i) => (i === n - 1 ? [1, 0, 0] : [0, 0, 0])),
+          }
+        const daily = []
+        for (let i = 0; i < n; i++) {
+          const w = dayWeight(i + (90 - n))
+          daily.push(
+            w
+              ? [Math.round(w * 0.2 + (i % 3)), Math.round(w * 0.78), i % 13 === 4 ? 1 : 0]
+              : [0, 0, 0],
+          )
+        }
+        return { daily }
+      }
+      function hourWeight(d, h) {
+        if (sparse) return d === 6 && h === 10 ? 1 : 0
+        if (h < 7) return h === 0 && d === 4 ? 1 : 0
+        if (h >= 18 && h < 23 && d < 5) return 6 + (((d * 24 + h) * 7) % 10)
+        if (h >= 9 && h < 17) return ((d * 24 + h) * 13) % 6
+        return ((d * 24 + h) * 3) % 4
+      }
+
+      function pick(row) {
+        return filter === 'all' ? row[0] + row[1] + row[2] : row[Number(filter)]
+      }
+      function delta(now, before, unit) {
+        if (!before) return `<span>No earlier ${unit}</span>`
+        const p = Math.round(((now - before) / before) * 100)
+        const cls = p > 0 ? 'up' : p < 0 ? 'down' : ''
+        const sign = p > 0 ? '+' : p < 0 ? '−' : ''
+        return `<span class="delta ${cls}"><b>${sign}${Math.abs(p)}%</b>&nbsp;vs previous ${days} days</span>`
+      }
+
+      function render() {
+        document.body.classList.toggle('sparse', sparse)
+        const { daily } = sample(days)
+        const prev = sparse ? null : sample(Math.min(days * 2, 90)).daily.slice(0, days)
+        const series = daily.map(pick)
+        const total = series.reduce((a, b) => a + b, 0)
+        const prevTotal = prev
+          ? prev.map(pick).reduce((a, b) => a + b, 0) * (days === 90 ? 0.86 : 1)
+          : 0
+        const start = new Date(END)
+        start.setDate(END.getDate() - days + 1)
+        $('#range').textContent = `${fmt.format(start)} – ${fmt.format(END)}, 2026`
+        $('#total-label').textContent = filter === 'all' ? 'Events' : TYPES[Number(filter)].name
+        $('#total').textContent = nf.format(total)
+        $('#total-delta').outerHTML =
+          `<div class="delta" id="total-delta">${delta(total, Math.round(prevTotal), 'period')}</div>`
+        const active = series.filter((v) => v > 0).length
+        $('#active').innerHTML = `${active}<small>of ${days}</small>`
+        $('#active-note').textContent = sparse
+          ? 'Today'
+          : `${Math.round((active / days) * 100)}% of days`
+        const notes = daily.reduce((a, r) => a + r[0], 0)
+        const prevNotes = prev ? prev.reduce((a, r) => a + r[0], 0) : 0
+        $('#notes').textContent = nf.format(notes)
+        $('#notes-delta').outerHTML =
+          `<div class="delta" id="notes-delta">${delta(notes, prevNotes, 'period')}</div>`
+
+        // Sparkline: the period in the activity hue
+        const sMax = Math.max(...series, 1)
+        const pts = series.map(
+          (v, i) => `${(i / (series.length - 1)) * 200},${24 - (v / sMax) * 20}`,
+        )
+        $('#spark').innerHTML =
+          `<polyline points="${pts.join(' ')}" fill="none" stroke="var(--act)" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`
+        // Active days strip (last 30 of the period)
+        const strip = series.slice(-30)
+        $('#days').innerHTML = strip.map((v) => `<span class="${v ? 'on' : ''}"></span>`).join('')
+        $('#days').style.gridTemplateColumns = `repeat(${strip.length}, minmax(0, 1fr))`
+
+        $('#activity-caption').textContent =
+          `${nf.format(total)} ${filter === 'all' ? 'events' : TYPES[Number(filter)].name.toLowerCase()}`
+        const avg = total / days
+        $('#avg-caption').innerHTML =
+          `<span class="avg-key" aria-hidden="true"></span>Average ${avg < 10 ? avg.toFixed(1) : Math.round(avg)} a day`
+        drawDaily(series, start)
+        drawHeat(total)
+        drawTypes(daily)
+        $('#stored').textContent = sparse ? '1 event' : '1,264 events'
+        const used = sparse ? 1 : 1264
+        $('#meter i').style.width = `${Math.max((used / 10000) * 100, 0.6)}%`
+        $('#meter').setAttribute('aria-valuenow', used)
+        $('#meter-label').textContent = `${nf.format(used)} of 10,000`
+        $('#events').innerHTML =
+          `<table><thead><tr><th scope="col">Time</th><th scope="col">Event</th></tr></thead><tbody>
+    <tr><td>Nov 1, 2026 at 10:24 AM</td><td>Note created</td></tr>
+    <tr><td>Nov 1, 2026 at 10:02 AM</td><td>Search run</td></tr>
+    <tr><td>Oct 31, 2026 at 9:41 PM</td><td>Search run</td></tr>
+    <tr><td>Oct 31, 2026 at 9:17 PM</td><td>Import finished</td></tr></tbody></table>`
+      }
+
+      function niceMax(v) {
+        if (v <= 4) return 4
+        const p = 10 ** Math.floor(Math.log10(v))
+        const n = v / p
+        return [1.2, 1.6, 2, 3, 4, 5, 6, 8, 10].find((s) => n <= s) * p
+      }
+
+      function drawDaily(series, start) {
+        const W = 1000,
+          H = 150,
+          L = 30,
+          B = 22,
+          T = 8
+        const max = niceMax(Math.max(...series, 1))
+        const n = series.length,
+          band = (W - L) / n,
+          bw = Math.min(band - 2, 24)
+        const y = (v) => T + (H - T - B) * (1 - v / max)
+        let g = '<g class="grid">'
+        for (const t of [0, max / 2, max])
+          g += `<line x1="${L}" x2="${W}" y1="${y(t)}" y2="${y(t)}"/><text x="${L - 6}" y="${y(t) + 3}" text-anchor="end">${nf.format(t)}</text>`
+        g += '</g>'
+        const avg = series.reduce((a, b) => a + b, 0) / n
+        let bars = ''
+        series.forEach((v, i) => {
+          const x = L + i * band + (band - bw) / 2
+          const h = v ? Math.max(y(0) - y(v), 2) : 2
+          const r = Math.min(4, bw / 2, h)
+          const top = y(0) - h
+          const d = `M${x},${y(0)}V${top + r}Q${x},${top} ${x + r},${top}H${x + bw - r}Q${x + bw},${top} ${x + bw},${top + r}V${y(0)}Z`
+          const date = new Date(start)
+          date.setDate(start.getDate() + i)
+          bars += `<path class="col ${v ? '' : 'zero'}" data-i="${i}" d="${d}"/>`
+          bars += `<rect class="hit" x="${L + i * band}" y="${T}" width="${band}" height="${H - T - B}" data-i="${i}" data-label="${fmtLong.format(date)}" data-v="${v}"/>`
+        })
+        const ticks = [0, Math.floor((n - 1) / 2), n - 1]
+          .map((i) => {
+            const date = new Date(start)
+            date.setDate(start.getDate() + i)
+            const x = L + i * band + band / 2
+            const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'
+            return `<text x="${i === 0 ? L : i === n - 1 ? W : x}" y="${H - 6}" text-anchor="${anchor}">${fmt.format(date)}</text>`
+          })
+          .join('')
+        const avgLine = avg
+          ? `<line class="avg" x1="${L}" x2="${W}" y1="${y(avg)}" y2="${y(avg)}"/>`
+          : ''
+        $('#daily').innerHTML =
+          `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Events by day, ${n} days">${g}${bars}${avgLine}${ticks}</svg>`
+        const svg = $('#daily svg'),
+          cols = svg.querySelectorAll('.col')
+        svg.querySelectorAll('.hit').forEach((h) => {
+          h.addEventListener('pointerenter', (e) => {
+            cols.forEach((c) => c.classList.toggle('dim', c.dataset.i !== h.dataset.i))
+            cols[h.dataset.i].classList.add('hot')
+            tip(
+              e,
+              h.dataset.label,
+              `${nf.format(h.dataset.v)} ${Number(h.dataset.v) === 1 ? 'event' : 'events'}`,
+            )
+          })
+          h.addEventListener('pointermove', move)
+          h.addEventListener('pointerleave', () => {
+            cols.forEach((c) => c.classList.remove('dim', 'hot'))
+            hide()
+          })
+        })
+      }
+
+      function drawHeat(total) {
+        const w = []
+        for (let d = 0; d < 7; d++) for (let h = 0; h < 24; h++) w.push(hourWeight(d, h))
+        const ws = w.reduce((a, b) => a + b, 0) || 1
+        const c = w.map((v) => Math.round((v / ws) * total))
+        const max = Math.max(...c, 1)
+        let out = ''
+        for (let d = 0; d < 7; d++) {
+          out += `<span class="d" role="rowheader">${WEEK[d]}</span>`
+          for (let h = 0; h < 24; h++) {
+            const n = c[d * 24 + h]
+            const l = n ? Math.max(1, Math.ceil((n / max) * 4)) : 0
+            const label = `${WEEK[d]} ${String(h).padStart(2, '0')}:00–${String(h + 1).padStart(2, '0')}:00`
+            out += `<button class="cell" role="gridcell" data-l="${l}" data-label="${label}" data-v="${n}" aria-label="${label}, ${n} events"></button>`
+          }
+        }
+        out += '<span></span>'
+        for (let h = 0; h < 24; h++)
+          out += `<span class="h">${h % 6 === 0 ? String(h).padStart(2, '0') + ':00' : ''}</span>`
+        $('#heat').innerHTML = out
+        $('#heat')
+          .querySelectorAll('.cell')
+          .forEach((b) => {
+            const show = (e) =>
+              tip(e, b.dataset.label, `${b.dataset.v} ${b.dataset.v === '1' ? 'event' : 'events'}`)
+            b.addEventListener('pointerenter', show)
+            b.addEventListener('pointermove', move)
+            b.addEventListener('pointerleave', hide)
+            b.addEventListener('focus', () => {
+              const r = b.getBoundingClientRect()
+              tip(
+                { clientX: r.left + r.width / 2, clientY: r.top },
+                b.dataset.label,
+                `${b.dataset.v} events`,
+              )
+            })
+            b.addEventListener('blur', hide)
+          })
+        const weekdayEvenings = [0, 1, 2, 3, 4].reduce(
+          (a, d) => a + c.slice(d * 24 + 18, d * 24 + 23).reduce((x, y) => x + y, 0),
+          0,
+        )
+        $('#peak').innerHTML = total
+          ? `Busiest: <b>weekday evenings</b>, ${Math.round((weekdayEvenings / total) * 100)}% of events between 18:00 and 23:00`
+          : ''
+      }
+
+      function drawTypes(daily) {
+        const counts = [0, 1, 2].map((t) => daily.reduce((a, r) => a + r[t], 0))
+        const sum = counts.reduce((a, b) => a + b, 0) || 1
+        $('#types').innerHTML = TYPES.map(
+          (t, i) => `<div class="type">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${t.icon}</svg>
+    <span>${t.name}</span>
+    <div class="track" aria-hidden="true"><i style="width:${(counts[i] / sum) * 100}%"></i></div>
+    <span class="n">${nf.format(counts[i])}</span>
+    <span class="pct">${counts[i] && counts[i] / sum < 0.01 ? '<1' : Math.round((counts[i] / sum) * 100)}%</span></div>`,
+        ).join('')
+      }
+
+      const tipEl = $('#tip')
+      function tip(e, title, body) {
+        tipEl.innerHTML = `<b>${body}</b>${title}`
+        tipEl.classList.add('on')
+        move(e)
+      }
+      function move(e) {
+        const r = tipEl.getBoundingClientRect()
+        let x = e.clientX - r.width / 2,
+          y = e.clientY - r.height - 12
+        x = Math.max(8, Math.min(innerWidth - r.width - 8, x))
+        if (y < 8) y = e.clientY + 16
+        tipEl.style.left = x + 'px'
+        tipEl.style.top = y + 'px'
+      }
+      function hide() {
+        tipEl.classList.remove('on')
+      }
+
+      function initUsage() {
+        document.querySelectorAll('[data-days]').forEach((b) =>
+          b.addEventListener('click', () => {
+            days = Number(b.dataset.days)
+            document
+              .querySelectorAll('[data-days]')
+              .forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+            render()
+          }),
+        )
+        $('#filter').addEventListener('change', (e) => {
+          filter = e.target.value
+          render()
+        })
+        $('#show').addEventListener('click', (e) => {
+          const el = $('#events')
+          el.hidden = !el.hidden
+          e.target.setAttribute('aria-expanded', String(!el.hidden))
+          e.target.textContent = el.hidden ? 'Show Events' : 'Hide Events'
+        })
+        $('#clear').addEventListener('click', (e) => {
+          e.target.textContent = 'Preview only'
+          setTimeout(() => (e.target.textContent = 'Clear Usage Data…'), 1400)
+        })
+        days = 30
+        filter = 'all'
+        render()
+      }
+
+      $('#sparse').addEventListener('click', (e) => {
+        sparse = !sparse
+        e.target.setAttribute('aria-pressed', String(sparse))
+        if (byId.usage && hist[at] === 'usage') render()
+      })
+      const start = (location.hash || '').slice(1)
+      show(byId[start] ? start : 'general')
+    </script>
+  </body>
+</html>

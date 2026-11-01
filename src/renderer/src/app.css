@@ -6035,6 +6035,7 @@ button.popup:focus-visible {
    the window; on macOS 26 the system draws its glass (sidebarGlass.ts), elsewhere a tint over the
    sheet stands in. A cutout in the surrounding sheet leaves native glass uncovered. */
 :root[data-sidebar-material='on'] body {
+  --radius-settings-card: var(--radius-glass-card);
   --glass-sheet: color(
     from var(--color-surface-sheet) srgb r g b /
       clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
@@ -6572,17 +6573,34 @@ button.popup:focus-visible {
   border-radius: var(--radius-sidebar-row);
 }
 
-:root[data-sidebar-material='on'] .settings-card {
-  border-radius: var(--radius-sidebar);
+:root[data-sidebar-material='on'] .slider::-webkit-slider-thumb {
+  width: var(--size-glass-slider-knob-width);
+  border-radius: var(--radius-capsule);
+  background: var(--color-switch-handle);
+  box-shadow:
+    inset 0 1px 0 var(--color-line-glass-highlight),
+    0 0 0 0.5px var(--color-line-hairline),
+    0 var(--space-1) var(--space-4) var(--color-shadow-glass);
 }
 
-:root[data-sidebar-material='on'] .slider::-webkit-slider-thumb {
-  width: var(--size-settings-control);
+:root[data-sidebar-material='on'] .setting-toggle input[role='switch'] {
+  width: var(--size-glass-switch-width);
+}
+
+:root[data-sidebar-material='on'] .setting-toggle input[role='switch']::after {
+  width: var(--size-glass-switch-knob-width);
   border-radius: var(--radius-capsule);
-  background: var(--color-fill-glass-control);
   box-shadow:
-    var(--glass-rim),
-    0 1px var(--space-4) var(--color-shadow-glass);
+    inset 0 1px 0 var(--color-line-glass-highlight),
+    0 1px var(--space-2) var(--color-shadow-glass);
+}
+
+:root[data-sidebar-material='on'] .setting-toggle input[role='switch']:checked::after {
+  translate: calc(
+      var(--size-glass-switch-width) - var(--size-glass-switch-knob-width) - 2 *
+        var(--size-switch-inset)
+    )
+    0;
 }
 
 /* Accessibility preferences override every translucent surface, including shadow-root popups
