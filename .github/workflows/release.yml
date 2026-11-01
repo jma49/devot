@@ -76,8 +76,10 @@ jobs:
             '[.[] | select(.merged_at != null and .merge_commit_sha == $sha)] | first | .head.sha' <<< "$prs")
           merge_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$sha" --jq .tree.sha)
           head_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$head" --jq .tree.sha)
-          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$head&per_page=100")
-          green=$(jq -r 'any(.workflow_runs[]; .conclusion == "success")' <<< "$runs")
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$head&event=pull_request&per_page=100")
+          green=$(jq -r --arg head "$head" \
+            'any(.workflow_runs[]; .head_sha == $head and .event == "pull_request" and .conclusion == "success")' \
+            <<< "$runs")
           node scripts/release/release.ts ci-gate "$pr" "$merge_tree" "$head_tree" "$green" || {
             echo "::error::CI has not passed on pull request #$pr's head ($head), or its tree differs from the tag."
             exit 1

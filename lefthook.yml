@@ -27,6 +27,11 @@ pre-push:
       use_stdin: true
     - name: format
       run: pnpm format:check
+    - name: lint
+      glob:
+        - '*.{ts,tsx,js,mjs,cjs,json,yml,yaml}'
+        - '**/*.{ts,tsx,js,mjs,cjs,json,yml,yaml}'
+      run: pnpm lint
     # The heavy steps run only when the push changes files they check: a push
     # of docs or images skips them (CI still runs what the change needs).
     # Each glob is listed with and without `**/`, which needs a folder.
