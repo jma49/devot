@@ -1,3 +1,4 @@
+import { isScrolled } from './scrollEdge'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type {
   BatchChange,
@@ -628,6 +629,30 @@ export function App() {
   const listDates = useEditorSetting('listDates')
   const [editorPane, setEditorPane] = useState<ScrollPane | null>(null)
   const [previewPane, setPreviewPane] = useState<ScrollPane | null>(null)
+  useEffect(() => {
+    const panes = panesRef.current
+    const content = panes?.closest('.content')
+    if (!panes || !content) return
+    const update = () => {
+      const editor = isScrolled(editorPane?.element.scrollTop ?? 0)
+      const preview = isScrolled(previewPane?.element.scrollTop ?? 0)
+      panes.toggleAttribute('data-editor-scrolled', editor)
+      panes.toggleAttribute('data-preview-scrolled', preview)
+      content.toggleAttribute(
+        'data-scrolled',
+        mode === 'edit' ? editor : mode === 'preview' ? preview : editor || preview,
+      )
+    }
+    const scrollers = [editorPane?.element, previewPane?.element].filter((el) => !!el)
+    for (const el of scrollers) el.addEventListener('scroll', update, { passive: true })
+    update()
+    return () => {
+      for (const el of scrollers) el.removeEventListener('scroll', update)
+      content.removeAttribute('data-scrolled')
+      panes.removeAttribute('data-editor-scrolled')
+      panes.removeAttribute('data-preview-scrolled')
+    }
+  }, [editorPane, previewPane, mode, selected])
   // Coming from Preview, the place being read leads; otherwise the editor does.
   const modeBefore = useRef(mode)
   useEffect(() => {

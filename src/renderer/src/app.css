@@ -6602,3 +6602,27 @@ button.popup:focus-visible {
     background: var(--color-surface-sidebar-opaque);
   }
 }
+
+@property --scroll-edge-size {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+:root[data-sidebar-material='on'] .content > .panes:not(.panes-split),
+:root[data-sidebar-material='on'] .panes-split > :is(.editor, .preview) {
+  --scroll-edge-size: 0px;
+  mask-image: linear-gradient(transparent, var(--color-ink-text) var(--scroll-edge-size));
+  transition: --scroll-edge-size var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
+:root[data-sidebar-material='on'] .content[data-scrolled] > .panes:not(.panes-split),
+:root[data-sidebar-material='on'] .panes-split[data-editor-scrolled] > .editor,
+:root[data-sidebar-material='on'] .panes-split[data-preview-scrolled] > .preview {
+  --scroll-edge-size: var(--size-scroll-edge);
+}
+
+:root[data-motion='reduced'][data-sidebar-material='on'] .content > .panes,
+:root[data-motion='reduced'][data-sidebar-material='on'] .panes-split > :is(.editor, .preview) {
+  transition: none;
+}
