@@ -1603,12 +1603,18 @@ export function App() {
   }, [core])
 
   const shownWrites = useRef<{ noteId: string; ids: Set<string> } | undefined>(undefined)
+  // Marking runs in call order: a later note's reload must not overtake an
+  // earlier note's write, or its older read can bring a dismissed notice back.
+  const seenQueue = useRef<Promise<void>>(Promise.resolve())
   const reloadAgentWrites = agentWrites.reload
   const markShownSeen = useCallback(
     (options?: { reload?: boolean }) => {
       const shown = shownWrites.current
       shownWrites.current = undefined
-      return core ? markSeen(core, reloadAgentWrites, shown, options) : Promise.resolve()
+      if (!core) return Promise.resolve()
+      const next = seenQueue.current.then(() => markSeen(core, reloadAgentWrites, shown, options))
+      seenQueue.current = next
+      return next
     },
     [core, reloadAgentWrites],
   )
