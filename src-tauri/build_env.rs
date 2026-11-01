@@ -37,9 +37,26 @@ pub fn watch_lines(env_file: &str, exists: bool) -> Vec<String> {
     lines
 }
 
+/// A release build of a tag on GitHub Actions is the shipped app, so it must be compiled with
+/// `DEVOT_RELEASE_BUILD=1`: without it the app would open the `.local` data folder and every
+/// user's notes would seem gone (`src/data_folder.rs`).
+pub fn missing_release_marker(profile: &str, ref_type: Option<&str>, marker: Option<&str>) -> bool {
+    profile == "release" && ref_type == Some("tag") && marker != Some("1")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{sentry_dsn, watch_lines};
+    use super::{missing_release_marker, sentry_dsn, watch_lines};
+
+    #[test]
+    fn a_tag_built_for_release_needs_the_release_marker() {
+        assert!(missing_release_marker("release", Some("tag"), None));
+        assert!(missing_release_marker("release", Some("tag"), Some("0")));
+        assert!(!missing_release_marker("release", Some("tag"), Some("1")));
+        assert!(!missing_release_marker("release", Some("branch"), None));
+        assert!(!missing_release_marker("release", None, None));
+        assert!(!missing_release_marker("debug", Some("tag"), None));
+    }
 
     const DSN: &str = "https://key@o1.ingest.us.sentry.io/2";
 

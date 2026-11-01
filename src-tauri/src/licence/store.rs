@@ -18,6 +18,21 @@ pub(crate) const TRIAL_ACCOUNT: &str = "trial";
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
 
+/// A keychain status as an error code: a refused access prompt (`errSecUserCanceled`,
+/// `errSecAuthFailed`) gets its own, which the windows explain.
+#[cfg_attr(
+    all(not(test), not(any(target_os = "macos", target_os = "ios"))),
+    expect(dead_code, reason = "only the Security framework reports a status")
+)]
+pub(crate) fn keychain_error(status: i32) -> &'static str {
+    const ERR_SEC_USER_CANCELED: i32 = -128;
+    const ERR_SEC_AUTH_FAILED: i32 = -25293;
+    match status {
+        ERR_SEC_USER_CANCELED | ERR_SEC_AUTH_FAILED => "E_LICENCE_KEYCHAIN_DENIED",
+        _ => "E_LICENCE_KEYCHAIN",
+    }
+}
+
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) struct Keychain {
     service: String,
@@ -50,7 +65,7 @@ impl KeyStore for Keychain {
                     self.account,
                     e.code()
                 );
-                Err("E_LICENCE_KEYCHAIN")
+                Err(keychain_error(e.code()))
             }
         }
     }
@@ -61,14 +76,14 @@ impl KeyStore for Keychain {
             self.account,
             key.as_bytes(),
         )
-        .map_err(|_| "E_LICENCE_KEYCHAIN")
+        .map_err(|e| keychain_error(e.code()))
     }
 
     fn clear(&self) -> Result<(), &'static str> {
         match security_framework::passwords::delete_generic_password(&self.service, self.account) {
             Ok(()) => Ok(()),
             Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(()),
-            Err(_) => Err("E_LICENCE_KEYCHAIN"),
+            Err(e) => Err(keychain_error(e.code())),
         }
     }
 }
@@ -144,5 +159,18 @@ impl KeyStore for MemoryKey {
     fn clear(&self) -> Result<(), &'static str> {
         *self.key.lock().map_err(|_| "E_LICENCE_KEYCHAIN")? = None;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod keychain_error_tests {
+    use super::keychain_error;
+
+    #[test]
+    fn a_refused_access_prompt_has_its_own_code() {
+        assert_eq!(keychain_error(-128), "E_LICENCE_KEYCHAIN_DENIED");
+        assert_eq!(keychain_error(-25293), "E_LICENCE_KEYCHAIN_DENIED");
+        assert_eq!(keychain_error(-25308), "E_LICENCE_KEYCHAIN");
+        assert_eq!(keychain_error(-34018), "E_LICENCE_KEYCHAIN");
     }
 }

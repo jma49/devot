@@ -18,8 +18,22 @@ fn sentry_dsn() {
     }
 }
 
+/// Read by `data_folder::Build::this`; a tag's release build without it stops here.
+fn release_marker() {
+    for key in ["DEVOT_RELEASE_BUILD", "GITHUB_REF_TYPE"] {
+        println!("cargo:rerun-if-env-changed={key}");
+    }
+    let profile = std::env::var("PROFILE").unwrap_or_default();
+    let ref_type = std::env::var("GITHUB_REF_TYPE").ok();
+    let marker = std::env::var("DEVOT_RELEASE_BUILD").ok();
+    if build_env::missing_release_marker(&profile, ref_type.as_deref(), marker.as_deref()) {
+        panic!("E_RELEASE_BUILD_MARKER: a tag's release build needs DEVOT_RELEASE_BUILD=1");
+    }
+}
+
 fn main() {
     sentry_dsn();
+    release_marker();
     // Declaring the app's commands makes each one need an explicit
     // permission in a capability file, so no window gets a command by default.
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(

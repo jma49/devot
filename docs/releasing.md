@@ -147,6 +147,8 @@ Optional secrets turn on crash reporting in release builds, as `.env.local` does
 
 ## Building locally
 
+A local build keeps its notes and keychain items in `io.github.jma49.devot.local`, apart from an installed Devot's: only the release workflow compiles with `DEVOT_RELEASE_BUILD=1`, and `build.rs` stops a tag's release build on GitHub Actions without it (`E_RELEASE_BUILD_MARKER`). So never hand a local build to anyone as Devot: it would show none of their notes.
+
 With Xcode 26 or later, a local build makes the same bundles without the updater, ad-hoc signed and not notarized (with the command line tools alone it leaves out the layered app icon); the last three lines are the release workflow's check that the icon is in:
 
 ```sh

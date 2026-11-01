@@ -141,12 +141,12 @@ pub struct McpSetup {
     /// devot-mcp as `pnpm mcp:build` writes it in the checkout this app was
     /// built from, when it is there; none for a build made elsewhere.
     script: Option<String>,
-    /// The database to pass with `--db`: a debug build's only, since
-    /// devot-mcp opens the release app's by default.
+    /// The database to pass with `--db`: every build's but the release app's,
+    /// which devot-mcp opens by default.
     db: Option<String>,
 }
 
-fn mcp_setup(checkout: &Path, data_dir: &Path, debug: bool) -> McpSetup {
+fn mcp_setup(checkout: &Path, data_dir: &Path, release_app: bool) -> McpSetup {
     let script = checkout.join("dist-mcp").join("devot-mcp.mjs");
     let text = |path: &Path| path.to_str().map(String::from);
     McpSetup {
@@ -155,10 +155,10 @@ fn mcp_setup(checkout: &Path, data_dir: &Path, debug: bool) -> McpSetup {
         } else {
             None
         },
-        db: if debug {
-            text(&data_dir.join(crate::startup::DB_FILE))
-        } else {
+        db: if release_app {
             None
+        } else {
+            text(&data_dir.join(crate::startup::DB_FILE))
         },
     }
 }
@@ -172,7 +172,11 @@ pub fn settings_mcp_setup(app: AppHandle) -> Result<McpSetup, String> {
     // The crate is `src-tauri` inside the checkout.
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
     let checkout = manifest.parent().unwrap_or(manifest);
-    Ok(mcp_setup(checkout, &data_dir, cfg!(debug_assertions)))
+    Ok(mcp_setup(
+        checkout,
+        &data_dir,
+        crate::data_folder::Build::this() == crate::data_folder::Build::Release,
+    ))
 }
 
 /// Matches `TEMPLATES_BOOK_ID` in src/core/books.ts: the Templates notebook never counts.
@@ -245,11 +249,11 @@ mod tests {
     }
 
     #[test]
-    fn finds_devot_mcp_in_the_checkout_and_names_a_debug_database() {
+    fn finds_devot_mcp_in_the_checkout_and_names_any_database_but_the_release_apps() {
         let checkout = tempfile::tempdir().unwrap();
         let data = Path::new("/Users/me/Library/Application Support/io.github.jma49.devot.dev");
         assert_eq!(
-            mcp_setup(checkout.path(), data, false),
+            mcp_setup(checkout.path(), data, true),
             McpSetup {
                 script: None,
                 db: None
@@ -258,7 +262,7 @@ mod tests {
         let dist = checkout.path().join("dist-mcp");
         std::fs::create_dir(&dist).unwrap();
         std::fs::write(dist.join("devot-mcp.mjs"), "").unwrap();
-        let setup = mcp_setup(checkout.path(), data, true);
+        let setup = mcp_setup(checkout.path(), data, false);
         assert_eq!(setup.script.as_deref(), dist.join("devot-mcp.mjs").to_str(),);
         assert_eq!(
             setup.db.as_deref(),
