@@ -1,5 +1,7 @@
 # Developing Devot
 
+<!-- Temporary docs-only CI probe. -->
+
 How to build, run and test Devot from a checkout. The rules every change follows are in `CLAUDE.md`; the architecture and agreed decisions are in `docs/architecture.md`; how releases are made is in `docs/releasing.md`.
 
 ## Requirements
