@@ -177,11 +177,22 @@ test('the count on a selected filter row stays a number while the sidebar has th
 
   const count = filter(page, 'Active').locator('.source-count')
   await expect(count).toHaveText('1')
-  // With the sidebar focused the selected row is the accent wash with a bar on its left edge; the count
-  // keeps its colour and has no background, and the icon keeps its mask fill.
+  // With the sidebar focused the selected row stays the neutral fill, without a bar: the focus ring marks
+  // the keyboard. The count keeps its colour and has no background, and the icon keeps its mask fill.
   await expect(count).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(count).not.toHaveCSS('color', rgb(light['color.accent.on-fill']))
-  await expect(filter(page, 'Active')).toHaveCSS('box-shadow', /^rgb.* 5px 0px 0px 0px inset$/)
+  await expect(filter(page, 'Active')).toHaveCSS('box-shadow', 'none')
+  const neutralFill = await page.evaluate(() => {
+    const probe = document.body.appendChild(document.createElement('div'))
+    probe.style.backgroundColor = 'var(--color-fill-row-selected)'
+    const color = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return color
+  })
+  await expect(filter(page, 'Active')).toHaveCSS('background-color', neutralFill)
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Shift+Tab')
+  await expect(filter(page, 'Active')).toHaveCSS('outline-style', 'solid')
   await expect(filter(page, 'Active').locator('.icon')).not.toHaveCSS(
     'background-color',
     'rgba(0, 0, 0, 0)',

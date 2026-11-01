@@ -6300,6 +6300,11 @@ button.popup:focus-visible {
   display: none;
 }
 
+/* Centred in a column, the name would otherwise take its full width instead of an ellipsis. */
+:root[data-sidebar-material='on'] .list-header .headline {
+  max-width: 100%;
+}
+
 :root[data-sidebar-material='on'] .list-header .list-count {
   display: block;
   max-width: 100%;
@@ -6317,8 +6322,16 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .rows .row[data-open],
-:root[data-sidebar-material='on'] .sidebar:focus-within :is(.source, .books .book-row) {
+:root[data-sidebar-material='on']
+  .sidebar:focus-within
+  :is(.source, .books .book-row):not(.menu-target) {
   box-shadow: none;
+}
+
+:root[data-sidebar-material='on']
+  :is(.sidebar .source:focus-visible, .books li:focus-visible > .book-row):not(.menu-target) {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
 :root[data-sidebar-material='on'] .list-section:not(:first-child) {
@@ -6557,14 +6570,6 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .settings-nav-row {
   border-radius: var(--radius-sidebar-row);
-}
-
-:root[data-sidebar-material='on'] .settings[data-focused] .settings-nav-row[aria-selected='true'] {
-  background: color-mix(
-    in srgb,
-    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
-    transparent
-  );
 }
 
 :root[data-sidebar-material='on'] .settings-card {
