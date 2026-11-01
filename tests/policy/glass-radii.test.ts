@@ -16,7 +16,6 @@ function dimension(group: Record<string, DimensionToken>, name: string): number 
 }
 const radius = (name: string): number => dimension(tokens.radius, name)
 const size = (name: string): number => dimension(tokens.size, name)
-const GLASS_DIALOG_BUTTON_HEIGHT = 28
 const GLASS_PALETTE_FIELD_HEIGHT = 40
 
 describe('Glass radii are concentric: inner radius = outer radius - inset', () => {
@@ -32,7 +31,7 @@ describe('Glass radii are concentric: inner radius = outer radius - inset', () =
     [
       'dialog, button capsule',
       radius('glass-dialog') - size('glass-dialog-inset'),
-      GLASS_DIALOG_BUTTON_HEIGHT / 2,
+      size('glass-dialog-button') / 2,
     ],
     [
       'palette, field capsule',

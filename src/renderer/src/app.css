@@ -3730,6 +3730,12 @@ button {
   white-space: nowrap;
 }
 
+.import-folder-icon,
+.import-mapping-icon,
+.import-tree-summary {
+  display: none;
+}
+
 .import-counts {
   font-variant-numeric: tabular-nums;
 }
@@ -6085,6 +6091,7 @@ button.popup:focus-visible {
   --radius-popover: var(--radius-glass-popover);
   --radius-floating-bar: var(--radius-glass-floating-bar);
   --radius-dialog: var(--radius-glass-dialog);
+  --color-fill-backdrop: var(--color-fill-glass-backdrop);
 }
 
 :root[data-sidebar-material='on'] :is(.list, .content) {
@@ -6546,6 +6553,151 @@ button.popup:focus-visible {
   -webkit-backdrop-filter: var(--glass-backdrop);
   backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--glass-rim), var(--popover-shadow);
+}
+
+/* Sheets and dialogs: glass, with groups and buttons at the inset so they share the corners' centre;
+   their text sits a further step in. */
+:root[data-sidebar-material='on'] :is(.sheet, .confirm, .link-dialog) {
+  border-radius: var(--radius-glass-dialog);
+  background: var(--color-surface-popover);
+}
+
+:root[data-sidebar-material='on'] :is(.sheet, .confirm) {
+  padding: var(--size-glass-dialog-inset);
+}
+
+:root[data-sidebar-material='on']
+  :is(.sheet, .confirm, .sheet > form)
+  > :not(form, .import-tree, .confirm-actions) {
+  margin-inline: var(--space-5);
+}
+
+:root[data-sidebar-material='on'] :is(.sheet-title, .confirm-message) {
+  margin-block-start: var(--space-5);
+}
+
+:root[data-sidebar-material='on'] .sheet > :is(.pick-filter, .import-progress) {
+  width: calc(100% - 2 * var(--space-5));
+}
+
+:root[data-sidebar-material='on'] :is(.sheet, .confirm) .button {
+  height: var(--size-glass-dialog-button);
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-capsule);
+  box-shadow: var(--glass-rim);
+}
+
+:root[data-sidebar-material='on'] .link-dialog-title {
+  padding: calc(var(--size-glass-dialog-inset) + var(--space-5))
+    calc(var(--size-glass-dialog-inset) + var(--space-5)) var(--space-2);
+  border-bottom: 0;
+}
+
+:root[data-sidebar-material='on'] .link-dialog-fields {
+  padding: var(--size-glass-dialog-inset);
+}
+
+:root[data-sidebar-material='on'] .link-dialog-field {
+  border-radius: var(--radius-glass-group);
+  background: var(--color-fill-settings-card);
+}
+
+:root[data-sidebar-material='on'] .link-dialog-actions {
+  justify-content: flex-end;
+  padding: 0 var(--size-glass-dialog-inset) var(--size-glass-dialog-inset);
+  border-top: 0;
+  background: transparent;
+}
+
+:root[data-sidebar-material='on'] .link-dialog-button {
+  flex: none;
+  height: var(--size-glass-dialog-button);
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-capsule);
+  box-shadow: var(--glass-rim);
+  font-weight: var(--font-weight-regular);
+}
+
+:root[data-sidebar-material='on'] .link-dialog-insert {
+  box-shadow: none;
+}
+
+/* The tree sits above the note on how folders map, so the order differs from the source's, which
+   Classic keeps. */
+:root[data-sidebar-material='on'] dialog[open].sheet.import {
+  display: flex;
+  flex-direction: column;
+}
+
+:root[data-sidebar-material='on'] .import-mapping {
+  display: flex;
+  order: 1;
+  gap: var(--space-4);
+  margin-block: 0 var(--space-6);
+  color: var(--color-text-secondary);
+}
+
+:root[data-sidebar-material='on'] .sheet.import > .confirm-actions {
+  order: 2;
+}
+
+:root[data-sidebar-material='on'] .import-mapping-icon {
+  display: inline-flex;
+  flex: none;
+}
+
+:root[data-sidebar-material='on'] .import-tree {
+  max-height: calc(var(--size-glass-dialog-row) * 7);
+  margin-block-end: var(--space-6);
+  border-top: 0;
+  border-radius: var(--radius-glass-group);
+  background: var(--color-fill-settings-card);
+  box-shadow: inset 0 0 0 0.5px var(--color-line-separator);
+}
+
+:root[data-sidebar-material='on'] .import-folder-row {
+  box-sizing: border-box;
+  min-height: var(--size-glass-dialog-row);
+  padding-inline: calc(var(--space-5) + var(--space-7) * var(--import-depth, 0)) var(--space-6);
+  border-top: 0.5px solid var(--color-line-separator);
+  border-bottom: 0;
+}
+
+:root[data-sidebar-material='on'] .import-tree > .import-folder:first-child > .import-folder-row {
+  border-top: 0;
+}
+
+:root[data-sidebar-material='on'] .import-folder-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-text-secondary);
+}
+
+:root[data-sidebar-material='on'] .import-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: var(--size-glass-badge);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-capsule);
+  background: color-mix(
+    in srgb,
+    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
+    transparent
+  );
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+:root[data-sidebar-material='on'] .import-tree-summary {
+  display: inline;
+  order: -1;
+  margin-inline-end: auto;
+  padding-inline-start: var(--space-5);
+  align-self: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Settings shares the library's sheet and its rounded cutout for native glass. */

@@ -11,7 +11,7 @@ import {
 import type { ImportKind, ImportProblem, ImportReport, ImportScan } from '../../core'
 // Imported directly (not through the core index) so the main bundle does not
 // pull in the Markdown pipeline.
-import { importTree, isHtmlFile, type ImportFolder } from '../../core/importTree'
+import { importTree, isHtmlFile, notebookCount, type ImportFolder } from '../../core/importTree'
 import type { BookNode } from '../../core/books'
 import { bookOptions, filterBooks, firstBookMatch, NO_BOOK, type BookOption } from './BookPicker'
 import { countOf, fileSize, noteCount } from './format'
@@ -102,6 +102,9 @@ function FolderRows(props: { nodes: ImportFolder[]; depth: number; locale: strin
             className="import-folder-row"
             style={{ '--import-depth': props.depth } as CSSProperties}
           >
+            <span className="import-folder-icon">
+              <Icon name={node.notebook ? 'notebook' : 'import.folder'} size="sm" />
+            </span>
             <span className="import-folder-name">{node.name}</span>
             {node.notebook ? (
               <span className="import-badge">{t('import.notebookBadge')}</span>
@@ -132,6 +135,9 @@ function Preview(props: { scan: ImportScan; locale: string }) {
         })}
       </p>
       <p className="sheet-detail import-mapping">
+        <span className="import-mapping-icon">
+          <Icon name="import.hint" size="sm" />
+        </span>
         {t(scan.kind === 'folders' ? 'import.mapping.folders' : 'import.mapping.folder')}
       </p>
       <ul role="list" aria-label={t('import.treeLabel')} className="import-tree">
@@ -143,6 +149,18 @@ function Preview(props: { scan: ImportScan; locale: string }) {
       </ul>
       <Problems problems={scan.skipped} title="import.willSkip" />
     </>
+  )
+}
+
+function TreeSummary(props: { scan: ImportScan; locale: string }) {
+  const root = useMemo(() => importTree(props.scan), [props.scan])
+  return (
+    <span className="import-tree-summary">
+      {format(t('import.treeSummary'), {
+        books: countOf(notebookCount(root), props.locale, 'import.booksOne', 'import.booksOther'),
+        notes: noteCount(root.notes, props.locale),
+      })}
+    </span>
   )
 }
 
@@ -415,6 +433,7 @@ export function ImportDialog(props: {
               {t('import.continue')}
             </button>
           )}
+          <TreeSummary scan={scan} locale={locale} />
         </>
       )
     }

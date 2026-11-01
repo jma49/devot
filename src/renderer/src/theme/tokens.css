@@ -149,6 +149,9 @@
   --size-filter-icon-slot: 37.4px;
   --size-sidebar-inset: 8px;
   --size-glass-dialog-inset: 12px;
+  --size-glass-dialog-button: 28px;
+  --size-glass-dialog-row: 36px;
+  --size-glass-badge: 18px;
   --size-glass-palette-inset: 6px;
   --size-glass-popover-inset: 6px;
   --size-list-inset: 8px;
@@ -266,6 +269,7 @@
   --color-fill-tool-hover: rgb(28 27 25 / 0.09);
   --color-fill-hover: rgb(0 0 0 / 0.05);
   --color-fill-backdrop: rgb(0 0 0 / 0.3);
+  --color-fill-glass-backdrop: rgb(0 0 0 / 0.3);
   --color-fill-field: #ffffff;
   --color-fill-glass-control: rgb(255 255 255 / 0.72);
   --color-accent-fill: var(--system-accent-fill-light, #3472d6);
@@ -428,6 +432,7 @@
     --color-fill-tool-hover: rgb(235 232 226 / 0.12);
     --color-fill-hover: rgb(255 255 255 / 0.08);
     --color-fill-backdrop: rgb(0 0 0 / 0.3);
+    --color-fill-glass-backdrop: rgb(0 0 0 / 0.2);
     --color-fill-field: #171717;
     --color-fill-glass-control: rgb(60 60 66 / 0.62);
     --color-accent-fill: var(--system-accent-fill-dark, #4576b2);
@@ -591,6 +596,7 @@
   --color-fill-tool-hover: rgb(235 232 226 / 0.12);
   --color-fill-hover: rgb(255 255 255 / 0.08);
   --color-fill-backdrop: rgb(0 0 0 / 0.3);
+  --color-fill-glass-backdrop: rgb(0 0 0 / 0.2);
   --color-fill-field: #171717;
   --color-fill-glass-control: rgb(60 60 66 / 0.62);
   --color-accent-fill: var(--system-accent-fill-dark, #4576b2);
@@ -753,6 +759,7 @@
   --color-fill-tool-hover: rgb(28 27 25 / 0.09);
   --color-fill-hover: rgb(0 0 0 / 0.05);
   --color-fill-backdrop: rgb(0 0 0 / 0.3);
+  --color-fill-glass-backdrop: rgb(0 0 0 / 0.3);
   --color-fill-field: #ffffff;
   --color-fill-glass-control: rgb(255 255 255 / 0.72);
   --color-accent-fill: var(--system-accent-fill-light, #3472d6);
@@ -915,6 +922,7 @@
   --color-fill-tool-hover: rgb(31 30 29 / 0.09);
   --color-fill-hover: rgb(31 30 29 / 0.05);
   --color-fill-backdrop: rgb(31 30 29 / 0.3);
+  --color-fill-glass-backdrop: rgb(31 30 29 / 0.3);
   --color-fill-field: #ffffff;
   --color-fill-glass-control: rgb(255 255 255 / 0.72);
   --color-accent-fill: #3472d6;
@@ -1077,6 +1085,7 @@
     --color-fill-tool-hover: rgb(250 249 245 / 0.12);
     --color-fill-hover: rgb(250 249 245 / 0.08);
     --color-fill-backdrop: rgb(31 30 29 / 0.5);
+    --color-fill-glass-backdrop: rgb(31 30 29 / 0.35);
     --color-fill-field: #1f1e1d;
     --color-fill-glass-control: rgb(69 68 63 / 0.62);
     --color-accent-fill: #5884ba;
@@ -1240,6 +1249,7 @@
   --color-fill-tool-hover: rgb(250 249 245 / 0.12);
   --color-fill-hover: rgb(250 249 245 / 0.08);
   --color-fill-backdrop: rgb(31 30 29 / 0.5);
+  --color-fill-glass-backdrop: rgb(31 30 29 / 0.35);
   --color-fill-field: #1f1e1d;
   --color-fill-glass-control: rgb(69 68 63 / 0.62);
   --color-accent-fill: #5884ba;
@@ -1402,6 +1412,7 @@
   --color-fill-tool-hover: rgb(31 30 29 / 0.09);
   --color-fill-hover: rgb(31 30 29 / 0.05);
   --color-fill-backdrop: rgb(31 30 29 / 0.3);
+  --color-fill-glass-backdrop: rgb(31 30 29 / 0.3);
   --color-fill-field: #ffffff;
   --color-fill-glass-control: rgb(255 255 255 / 0.72);
   --color-accent-fill: #3472d6;
