@@ -40,7 +40,50 @@ permissions:
   contents: read
 
 jobs:
+  # Runs only committed scripts and the GitHub API, so the build below keeps
+  # no token while it runs the dependencies' code.
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # The documented gate, checked rather than remembered: the tag is a
+      # merged pull request's merge commit, the tree is that pull request
+      # head's tree, and CI passed on that head (docs/releasing.md).
+      - name: Check the merged pull request passed CI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          prs=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/pulls")
+          pr=$(jq -r --arg sha "$sha" \
+            '[.[] | select(.merged_at != null and .merge_commit_sha == $sha)] | first | .number // empty' <<< "$prs")
+          if [ -z "$pr" ]; then
+            echo "::error::E_RELEASE_NO_MERGED_PR: ${{ github.ref_name }} is not a merged pull request's merge commit."
+            exit 1
+          fi
+          head=$(jq -r --arg sha "$sha" \
+            '[.[] | select(.merged_at != null and .merge_commit_sha == $sha)] | first | .head.sha' <<< "$prs")
+          merge_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$sha" --jq .tree.sha)
+          head_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$head" --jq .tree.sha)
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$head&per_page=100")
+          green=$(jq -r 'any(.workflow_runs[]; .conclusion == "success")' <<< "$runs")
+          node scripts/release/release.ts ci-gate "$pr" "$merge_tree" "$head_tree" "$green" || {
+            echo "::error::CI has not passed on pull request #$pr's head ($head), or its tree differs from the tag."
+            exit 1
+          }
   build:
+    needs: verify
     # Apple Silicon with the macOS 26 SDK (minimumSystemVersion is 26.0).
     runs-on: macos-26
     timeout-minutes: 60

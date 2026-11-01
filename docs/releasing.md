@@ -20,6 +20,8 @@ Release only when both are true:
 1. CI is green on the head commit of the pull request that was merged. CI runs on pull requests only, not on `main`.
 2. The tree of `main` equals the tree of that head commit (`git diff --quiet <head commit> origin/main`), so the build is of exactly what CI checked.
 
+The release workflow checks both before it builds: the tag must be a merged pull request's merge commit, the merge tree must equal that pull request head's tree, and CI must have a successful run for that head. It fails with `E_RELEASE_NO_MERGED_PR`, `E_RELEASE_TREE_MISMATCH` or `E_RELEASE_CI_NOT_GREEN` otherwise, so a release cannot be made from a commit CI never checked.
+
 ## Release
 
 Write the notes in English, one line per issue the release closes (`- #148 Drag notes and notebooks out of the app as links`), then tag the merge commit with them and push the tag:
