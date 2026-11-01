@@ -41,6 +41,7 @@ import type { IconName } from './icons/symbols'
 import type { MessageKey } from './i18n'
 import { currentLocale, format as fill, t } from './i18n'
 import { Chevron } from './Chevron'
+import { watchScrollEdges } from './scrollEdge'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
 import { useNameLimit } from './nameLimit'
@@ -326,6 +327,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const allSelection: Selection = ws ? { kind: 'book', id: ws.book.id } : { kind: 'all' }
   const allKey = libraryRow(allSelection).key
   const nav = useRef<HTMLElement>(null)
+  const scroller = useRef<HTMLDivElement>(null)
+  useEffect(() => (scroller.current ? watchScrollEdges(scroller.current) : undefined), [])
   const shownWorkspace = useRef(ws?.book.id)
   useEffect(() => {
     const before = shownWorkspace.current
@@ -1248,7 +1251,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
           </>
         )}
       </ul>
-      <div className="sidebar-scroll">
+      <div ref={scroller} className="sidebar-scroll">
         {sectionHeader(
           'books',
           'notebooks-heading',
