@@ -3333,6 +3333,133 @@ pub fn user_temp_dir() -> Option<std::path::PathBuf> {
     Some(std::ffi::OsString::from_vec(buf).into())
 }
 
+/// The view's identifier, so a later call finds the glass it put there.
+const SIDEBAR_GLASS_ID: &str = "app.devot.sidebar-glass";
+/// NSWindowBelow: under the web view, over the window's material.
+const BELOW: isize = -1;
+/// NSViewMaxXMargin | NSViewHeightSizable: the sidebar keeps its width and place at the left and
+/// grows with the window's height, so a live resize needs no round trip to the page.
+const SIDEBAR_GLASS_RESIZING: usize = 4 | 16;
+
+/// Puts the system's glass (NSGlassEffectView, macOS 26) under the web view at `frame`, or takes it
+/// away for `None`. Main thread (`with_webview`). Whether the glass is there now: false where the
+/// system has no glass view, so the page draws its own tint.
+pub fn set_sidebar_glass(
+    webview: &tauri::webview::PlatformWebview,
+    frame: Option<crate::sidebar_glass::GlassFrame>,
+) -> bool {
+    let web_view: *mut AnyObject = webview.inner().cast();
+    guarded("W_NATIVE_SIDEBAR_GLASS_FAILED", || {
+        // SAFETY: `inner()` is the live WKWebView owned by the window; the call runs on the main
+        // thread (`with_webview`).
+        Some(unsafe { place_sidebar_glass(web_view, frame) })
+    })
+    .unwrap_or(false)
+}
+
+/// # Safety
+/// `web_view` must be null or point to a live `WKWebView`; main thread.
+unsafe fn place_sidebar_glass(
+    web_view: *mut AnyObject,
+    frame: Option<crate::sidebar_glass::GlassFrame>,
+) -> bool {
+    use objc2_foundation::{NSPoint, NSRect, NSSize};
+    if web_view.is_null() {
+        return false;
+    }
+    // SAFETY: every NSView responds to `superview`.
+    let superview: *mut AnyObject = unsafe { msg_send![web_view, superview] };
+    if superview.is_null() {
+        return false;
+    }
+    // SAFETY: `superview` is a live NSView.
+    let existing = unsafe { sidebar_glass_in(superview) };
+    let class = AnyClass::get(c"NSGlassEffectView");
+    let (Some(frame), Some(class)) = (frame, class) else {
+        if !existing.is_null() {
+            // SAFETY: `existing` is a live subview of `superview`.
+            let _: () = unsafe { msg_send![existing, removeFromSuperview] };
+        }
+        return false;
+    };
+    let glass = if existing.is_null() {
+        // SAFETY: NSGlassEffectView is an NSView: alloc and initWithFrame: make one, retained.
+        let made: *mut AnyObject = unsafe {
+            let made: *mut AnyObject = msg_send![class, alloc];
+            msg_send![made, initWithFrame: NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(0.0, 0.0))]
+        };
+        if made.is_null() {
+            return false;
+        }
+        let id = NSString::from_str(SIDEBAR_GLASS_ID);
+        // SAFETY: `made` is a live NSView; every NSView takes these. `addSubview:` retains it, so
+        // our own reference is released once it is in place.
+        unsafe {
+            let _: () = msg_send![made, setIdentifier: &*id];
+            let _: () = msg_send![made, setAutoresizingMask: SIDEBAR_GLASS_RESIZING];
+            let _: () = msg_send![
+                superview,
+                addSubview: made,
+                positioned: BELOW,
+                relativeTo: web_view
+            ];
+            let _: () = msg_send![made, release];
+        }
+        made
+    } else {
+        existing
+    };
+    // SAFETY: both are live NSViews; every NSView answers `frame` and `isFlipped`.
+    let (outer, flipped): (NSRect, Bool) =
+        unsafe { (msg_send![web_view, frame], msg_send![superview, isFlipped]) };
+    let (x, y, width, height) = crate::sidebar_glass::superview_rect(
+        (
+            outer.origin.x,
+            outer.origin.y,
+            outer.size.width,
+            outer.size.height,
+        ),
+        flipped.as_bool(),
+        &frame,
+    );
+    let rect = NSRect::new(NSPoint::new(x, y), NSSize::new(width, height));
+    // SAFETY: `glass` is a live NSView; `setCornerRadius:` is checked before use.
+    unsafe {
+        let _: () = msg_send![glass, setFrame: rect];
+        if responds(glass, sel!(setCornerRadius:)) {
+            let _: () = msg_send![glass, setCornerRadius: frame.radius];
+        }
+    }
+    true
+}
+
+/// # Safety
+/// `superview` must be a live NSView; main thread.
+unsafe fn sidebar_glass_in(superview: *mut AnyObject) -> *mut AnyObject {
+    let id = NSString::from_str(SIDEBAR_GLASS_ID);
+    // SAFETY: every NSView answers `subviews`, an NSArray of NSViews, and every NSView `identifier`
+    // (an NSString or nil).
+    unsafe {
+        let subviews: *mut AnyObject = msg_send![superview, subviews];
+        if subviews.is_null() {
+            return std::ptr::null_mut();
+        }
+        let count: usize = msg_send![subviews, count];
+        for index in 0..count {
+            let view: *mut AnyObject = msg_send![subviews, objectAtIndex: index];
+            let named: *mut AnyObject = msg_send![view, identifier];
+            if named.is_null() {
+                continue;
+            }
+            let same: Bool = msg_send![named, isEqualToString: &*id];
+            if same.as_bool() {
+                return view;
+            }
+        }
+    }
+    std::ptr::null_mut()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

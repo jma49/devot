@@ -61,7 +61,8 @@ it('things grow and shrink only through the scale variables, which Reduce Motion
   expect(
     // At rest a thing is at its own size (`scale: 1`).
     scales.filter(
-      (s) => !/var\(--(popover-(enter|exit)|dialog-enter|chip-enter)-scale\)|^scale: 1$/.test(s),
+      (s) =>
+        !/var\(--(popover-(enter|exit)|dialog-enter|chip-enter|press)-scale\)|^scale: 1$/.test(s),
     ),
   ).toEqual([])
 
@@ -70,6 +71,7 @@ it('things grow and shrink only through the scale variables, which Reduce Motion
   expect(css).toMatch(/--popover-exit-scale:\s*var\(--motion-scale-popover-exit\)/)
   expect(css).toMatch(/--dialog-enter-scale:\s*var\(--motion-scale-dialog-enter\)/)
   expect(css).toMatch(/--chip-enter-scale:\s*var\(--motion-scale-chip-enter\)/)
+  expect(css).toMatch(/--press-scale:\s*var\(--motion-scale-press\)/)
   // Reduce Motion is the root's `data-motion` (motionPreference.ts), never the media query alone.
   expect(css).not.toMatch(/prefers-reduced-motion/)
   const reduced = css.split(":root[data-motion='reduced']").slice(1).join('')
@@ -77,4 +79,5 @@ it('things grow and shrink only through the scale variables, which Reduce Motion
   expect(reduced).toMatch(/--popover-exit-scale:\s*1;/)
   expect(reduced).toMatch(/--dialog-enter-scale:\s*1;/)
   expect(reduced).toMatch(/--chip-enter-scale:\s*1;/)
+  expect(reduced).toMatch(/--press-scale:\s*1;/)
 })

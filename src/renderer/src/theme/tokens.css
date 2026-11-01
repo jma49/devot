@@ -62,6 +62,13 @@
   --radius-popover: 8px;
   --radius-floating-bar: 14px;
   --radius-dialog: 12px;
+  --radius-sidebar: 18px;
+  --radius-sidebar-row: 10px;
+  --radius-list-row: 12px;
+  --radius-note-info: 14px;
+  --radius-glass-popover: 14px;
+  --radius-glass-floating-bar: 18px;
+  --radius-glass-dialog: 20px;
   --size-settings-nav-row: 32px;
   --size-settings-row: 44px;
   --size-settings-row-sub: 56px;
@@ -134,6 +141,9 @@
   --size-float-separator-height: 20px;
   --size-filter-field-height: 30px;
   --size-filter-icon-slot: 37.4px;
+  --size-sidebar-inset: 8px;
+  --size-list-inset: 8px;
+  --size-toolbar-control: 32px;
   --motion-duration-color: 400ms;
   --motion-duration-ring: 200ms;
   --motion-duration-popover: 150ms;
@@ -156,6 +166,7 @@
   --motion-scale-popover-exit: 0.92;
   --motion-scale-dialog-enter: 0.8;
   --motion-scale-chip-enter: 0.5;
+  --motion-scale-press: 0.96;
   --motion-delay-tooltip: 400ms;
   --motion-delay-idle-hide: 3000ms;
   --motion-blur-dialog: 10px;
@@ -203,6 +214,10 @@
   --color-surface-window: #ffffff;
   --color-surface-popover: #ffffff;
   --color-surface-float-bar: #ffffff;
+  --color-surface-sheet: rgb(255 255 255 / 0.75);
+  --color-surface-glass: rgb(255 255 255 / 0.45);
+  --color-surface-glass-popover: rgb(255 255 255 / 0.78);
+  --color-surface-glass-float-bar: rgb(255 255 255 / 0.86);
   --color-ink-text: #000000;
   --color-ink-line: #171717;
   --color-text-primary: #212121;
@@ -221,6 +236,8 @@
   --color-line-shadow: rgb(0 0 0 / 0.14);
   --color-line-float-bar: rgb(23 23 23 / 0.1);
   --color-line-field: rgb(23 23 23 / 0.1);
+  --color-line-glass-edge: rgb(255 255 255 / 0.8);
+  --color-line-glass-highlight: rgb(255 255 255 / 0.95);
   --color-fill-track: rgb(23 23 23 / 0.055);
   --color-fill-scrollbar: rgb(23 23 23 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(7 87 131 / 0.2);
@@ -238,6 +255,7 @@
   --color-fill-hover: rgb(0 0 0 / 0.05);
   --color-fill-backdrop: rgb(0 0 0 / 0.3);
   --color-fill-field: #ffffff;
+  --color-fill-glass-control: rgb(255 255 255 / 0.72);
   --color-accent-fill: var(--system-accent-fill-light, #3472d6);
   --color-accent-text: var(--system-accent-text-light, #2856a2);
   --color-accent-hover: #2463eb;
@@ -310,6 +328,7 @@
   --color-shadow-popover-key: rgb(0 0 0 / 0.12);
   --color-shadow-popover-ambient: rgb(0 0 0 / 0.15);
   --color-shadow-float-bar: rgb(0 0 0 / 0.18);
+  --color-shadow-glass: rgb(20 32 50 / 0.1);
   --color-focus-ring: var(--system-accent-ring-light, rgb(52 114 214 / 0.79));
   --color-tag-text-red: #8f211b;
   --color-tag-text-orange: #784600;
@@ -357,6 +376,10 @@
     --color-surface-window: #000000;
     --color-surface-popover: #171717;
     --color-surface-float-bar: #2a2927;
+    --color-surface-sheet: rgb(18 18 18 / 0.55);
+    --color-surface-glass: rgb(255 255 255 / 0.06);
+    --color-surface-glass-popover: rgb(42 42 46 / 0.78);
+    --color-surface-glass-float-bar: rgb(44 44 48 / 0.86);
     --color-ink-text: #fafafa;
     --color-ink-line: #f5f5f5;
     --color-text-primary: #dbdbdb;
@@ -375,6 +398,8 @@
     --color-line-shadow: rgb(0 0 0 / 0.45);
     --color-line-float-bar: rgb(245 245 245 / 0.1);
     --color-line-field: rgb(245 245 245 / 0.1);
+    --color-line-glass-edge: rgb(255 255 255 / 0.14);
+    --color-line-glass-highlight: rgb(255 255 255 / 0.16);
     --color-fill-track: rgb(245 245 245 / 0.07);
     --color-fill-scrollbar: rgb(245 245 245 / 0.25);
     --color-fill-row-selected-unemphasized: rgb(145 195 253 / 0.2);
@@ -392,6 +417,7 @@
     --color-fill-hover: rgb(255 255 255 / 0.08);
     --color-fill-backdrop: rgb(0 0 0 / 0.3);
     --color-fill-field: #171717;
+    --color-fill-glass-control: rgb(60 60 66 / 0.62);
     --color-accent-fill: var(--system-accent-fill-dark, #4576b2);
     --color-accent-text: var(--system-accent-text-dark, #7ea6d8);
     --color-accent-hover: #2463eb;
@@ -464,6 +490,7 @@
     --color-shadow-popover-key: rgb(0 0 0 / 0.2);
     --color-shadow-popover-ambient: rgb(0 0 0 / 0.3);
     --color-shadow-float-bar: rgb(0 0 0 / 0.4);
+    --color-shadow-glass: rgb(0 0 0 / 0.35);
     --color-focus-ring: var(--system-accent-ring-dark, rgb(69 118 178 / 0.97));
     --color-tag-text-red: #ff958f;
     --color-tag-text-orange: #ffb440;
@@ -512,6 +539,10 @@
   --color-surface-window: #000000;
   --color-surface-popover: #171717;
   --color-surface-float-bar: #2a2927;
+  --color-surface-sheet: rgb(18 18 18 / 0.55);
+  --color-surface-glass: rgb(255 255 255 / 0.06);
+  --color-surface-glass-popover: rgb(42 42 46 / 0.78);
+  --color-surface-glass-float-bar: rgb(44 44 48 / 0.86);
   --color-ink-text: #fafafa;
   --color-ink-line: #f5f5f5;
   --color-text-primary: #dbdbdb;
@@ -530,6 +561,8 @@
   --color-line-shadow: rgb(0 0 0 / 0.45);
   --color-line-float-bar: rgb(245 245 245 / 0.1);
   --color-line-field: rgb(245 245 245 / 0.1);
+  --color-line-glass-edge: rgb(255 255 255 / 0.14);
+  --color-line-glass-highlight: rgb(255 255 255 / 0.16);
   --color-fill-track: rgb(245 245 245 / 0.07);
   --color-fill-scrollbar: rgb(245 245 245 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(145 195 253 / 0.2);
@@ -547,6 +580,7 @@
   --color-fill-hover: rgb(255 255 255 / 0.08);
   --color-fill-backdrop: rgb(0 0 0 / 0.3);
   --color-fill-field: #171717;
+  --color-fill-glass-control: rgb(60 60 66 / 0.62);
   --color-accent-fill: var(--system-accent-fill-dark, #4576b2);
   --color-accent-text: var(--system-accent-text-dark, #7ea6d8);
   --color-accent-hover: #2463eb;
@@ -619,6 +653,7 @@
   --color-shadow-popover-key: rgb(0 0 0 / 0.2);
   --color-shadow-popover-ambient: rgb(0 0 0 / 0.3);
   --color-shadow-float-bar: rgb(0 0 0 / 0.4);
+  --color-shadow-glass: rgb(0 0 0 / 0.35);
   --color-focus-ring: var(--system-accent-ring-dark, rgb(69 118 178 / 0.97));
   --color-tag-text-red: #ff958f;
   --color-tag-text-orange: #ffb440;
@@ -666,6 +701,10 @@
   --color-surface-window: #ffffff;
   --color-surface-popover: #ffffff;
   --color-surface-float-bar: #ffffff;
+  --color-surface-sheet: rgb(255 255 255 / 0.75);
+  --color-surface-glass: rgb(255 255 255 / 0.45);
+  --color-surface-glass-popover: rgb(255 255 255 / 0.78);
+  --color-surface-glass-float-bar: rgb(255 255 255 / 0.86);
   --color-ink-text: #000000;
   --color-ink-line: #171717;
   --color-text-primary: #212121;
@@ -684,6 +723,8 @@
   --color-line-shadow: rgb(0 0 0 / 0.14);
   --color-line-float-bar: rgb(23 23 23 / 0.1);
   --color-line-field: rgb(23 23 23 / 0.1);
+  --color-line-glass-edge: rgb(255 255 255 / 0.8);
+  --color-line-glass-highlight: rgb(255 255 255 / 0.95);
   --color-fill-track: rgb(23 23 23 / 0.055);
   --color-fill-scrollbar: rgb(23 23 23 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(7 87 131 / 0.2);
@@ -701,6 +742,7 @@
   --color-fill-hover: rgb(0 0 0 / 0.05);
   --color-fill-backdrop: rgb(0 0 0 / 0.3);
   --color-fill-field: #ffffff;
+  --color-fill-glass-control: rgb(255 255 255 / 0.72);
   --color-accent-fill: var(--system-accent-fill-light, #3472d6);
   --color-accent-text: var(--system-accent-text-light, #2856a2);
   --color-accent-hover: #2463eb;
@@ -773,6 +815,7 @@
   --color-shadow-popover-key: rgb(0 0 0 / 0.12);
   --color-shadow-popover-ambient: rgb(0 0 0 / 0.15);
   --color-shadow-float-bar: rgb(0 0 0 / 0.18);
+  --color-shadow-glass: rgb(20 32 50 / 0.1);
   --color-focus-ring: var(--system-accent-ring-light, rgb(52 114 214 / 0.79));
   --color-tag-text-red: #8f211b;
   --color-tag-text-orange: #784600;
@@ -820,6 +863,10 @@
   --color-surface-window: #ffffff;
   --color-surface-popover: #ffffff;
   --color-surface-float-bar: #ffffff;
+  --color-surface-sheet: rgb(253 252 248 / 0.75);
+  --color-surface-glass: rgb(255 255 255 / 0.45);
+  --color-surface-glass-popover: rgb(255 254 251 / 0.8);
+  --color-surface-glass-float-bar: rgb(255 254 251 / 0.88);
   --color-ink-text: #141413;
   --color-ink-line: #1f1e1d;
   --color-text-primary: #141413;
@@ -838,6 +885,8 @@
   --color-line-shadow: rgb(31 30 29 / 0.14);
   --color-line-float-bar: rgb(31 30 29 / 0.1);
   --color-line-field: rgb(31 30 29 / 0.1);
+  --color-line-glass-edge: rgb(255 255 255 / 0.8);
+  --color-line-glass-highlight: rgb(255 255 255 / 0.95);
   --color-fill-track: rgb(31 30 29 / 0.055);
   --color-fill-scrollbar: rgb(31 30 29 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(7 87 131 / 0.2);
@@ -855,6 +904,7 @@
   --color-fill-hover: rgb(31 30 29 / 0.05);
   --color-fill-backdrop: rgb(31 30 29 / 0.3);
   --color-fill-field: #ffffff;
+  --color-fill-glass-control: rgb(255 255 255 / 0.72);
   --color-accent-fill: #3472d6;
   --color-accent-text: #2856a2;
   --color-accent-hover: #2463eb;
@@ -927,6 +977,7 @@
   --color-shadow-popover-key: rgb(31 30 29 / 0.12);
   --color-shadow-popover-ambient: rgb(31 30 29 / 0.15);
   --color-shadow-float-bar: rgb(31 30 29 / 0.18);
+  --color-shadow-glass: rgb(42 36 26 / 0.1);
   --color-focus-ring: rgb(52 114 214 / 0.79);
   --color-tag-text-red: #832f27;
   --color-tag-text-orange: #784318;
@@ -974,6 +1025,10 @@
     --color-surface-window: #1f1e1d;
     --color-surface-popover: #353533;
     --color-surface-float-bar: #353533;
+    --color-surface-sheet: rgb(43 43 41 / 0.55);
+    --color-surface-glass: rgb(255 255 255 / 0.06);
+    --color-surface-glass-popover: rgb(49 49 47 / 0.8);
+    --color-surface-glass-float-bar: rgb(51 51 47 / 0.88);
     --color-ink-text: #faf9f5;
     --color-ink-line: #faf9f5;
     --color-text-primary: #faf9f5;
@@ -992,6 +1047,8 @@
     --color-line-shadow: rgb(31 30 29 / 0.45);
     --color-line-float-bar: rgb(250 249 245 / 0.1);
     --color-line-field: rgb(250 249 245 / 0.1);
+    --color-line-glass-edge: rgb(255 255 255 / 0.14);
+    --color-line-glass-highlight: rgb(255 255 255 / 0.16);
     --color-fill-track: rgb(250 249 245 / 0.07);
     --color-fill-scrollbar: rgb(250 249 245 / 0.25);
     --color-fill-row-selected-unemphasized: rgb(145 195 253 / 0.2);
@@ -1009,6 +1066,7 @@
     --color-fill-hover: rgb(250 249 245 / 0.08);
     --color-fill-backdrop: rgb(31 30 29 / 0.5);
     --color-fill-field: #1f1e1d;
+    --color-fill-glass-control: rgb(69 68 63 / 0.62);
     --color-accent-fill: #5884ba;
     --color-accent-text: #a2bfe3;
     --color-accent-hover: #2463eb;
@@ -1081,6 +1139,7 @@
     --color-shadow-popover-key: rgb(31 30 29 / 0.2);
     --color-shadow-popover-ambient: rgb(31 30 29 / 0.3);
     --color-shadow-float-bar: rgb(31 30 29 / 0.5);
+    --color-shadow-glass: rgb(0 0 0 / 0.35);
     --color-focus-ring: rgb(88 132 186 / 0.9);
     --color-tag-text-red: #f4c6c2;
     --color-tag-text-orange: #f5d0b6;
@@ -1129,6 +1188,10 @@
   --color-surface-window: #1f1e1d;
   --color-surface-popover: #353533;
   --color-surface-float-bar: #353533;
+  --color-surface-sheet: rgb(43 43 41 / 0.55);
+  --color-surface-glass: rgb(255 255 255 / 0.06);
+  --color-surface-glass-popover: rgb(49 49 47 / 0.8);
+  --color-surface-glass-float-bar: rgb(51 51 47 / 0.88);
   --color-ink-text: #faf9f5;
   --color-ink-line: #faf9f5;
   --color-text-primary: #faf9f5;
@@ -1147,6 +1210,8 @@
   --color-line-shadow: rgb(31 30 29 / 0.45);
   --color-line-float-bar: rgb(250 249 245 / 0.1);
   --color-line-field: rgb(250 249 245 / 0.1);
+  --color-line-glass-edge: rgb(255 255 255 / 0.14);
+  --color-line-glass-highlight: rgb(255 255 255 / 0.16);
   --color-fill-track: rgb(250 249 245 / 0.07);
   --color-fill-scrollbar: rgb(250 249 245 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(145 195 253 / 0.2);
@@ -1164,6 +1229,7 @@
   --color-fill-hover: rgb(250 249 245 / 0.08);
   --color-fill-backdrop: rgb(31 30 29 / 0.5);
   --color-fill-field: #1f1e1d;
+  --color-fill-glass-control: rgb(69 68 63 / 0.62);
   --color-accent-fill: #5884ba;
   --color-accent-text: #a2bfe3;
   --color-accent-hover: #2463eb;
@@ -1236,6 +1302,7 @@
   --color-shadow-popover-key: rgb(31 30 29 / 0.2);
   --color-shadow-popover-ambient: rgb(31 30 29 / 0.3);
   --color-shadow-float-bar: rgb(31 30 29 / 0.5);
+  --color-shadow-glass: rgb(0 0 0 / 0.35);
   --color-focus-ring: rgb(88 132 186 / 0.9);
   --color-tag-text-red: #f4c6c2;
   --color-tag-text-orange: #f5d0b6;
@@ -1283,6 +1350,10 @@
   --color-surface-window: #ffffff;
   --color-surface-popover: #ffffff;
   --color-surface-float-bar: #ffffff;
+  --color-surface-sheet: rgb(253 252 248 / 0.75);
+  --color-surface-glass: rgb(255 255 255 / 0.45);
+  --color-surface-glass-popover: rgb(255 254 251 / 0.8);
+  --color-surface-glass-float-bar: rgb(255 254 251 / 0.88);
   --color-ink-text: #141413;
   --color-ink-line: #1f1e1d;
   --color-text-primary: #141413;
@@ -1301,6 +1372,8 @@
   --color-line-shadow: rgb(31 30 29 / 0.14);
   --color-line-float-bar: rgb(31 30 29 / 0.1);
   --color-line-field: rgb(31 30 29 / 0.1);
+  --color-line-glass-edge: rgb(255 255 255 / 0.8);
+  --color-line-glass-highlight: rgb(255 255 255 / 0.95);
   --color-fill-track: rgb(31 30 29 / 0.055);
   --color-fill-scrollbar: rgb(31 30 29 / 0.25);
   --color-fill-row-selected-unemphasized: rgb(7 87 131 / 0.2);
@@ -1318,6 +1391,7 @@
   --color-fill-hover: rgb(31 30 29 / 0.05);
   --color-fill-backdrop: rgb(31 30 29 / 0.3);
   --color-fill-field: #ffffff;
+  --color-fill-glass-control: rgb(255 255 255 / 0.72);
   --color-accent-fill: #3472d6;
   --color-accent-text: #2856a2;
   --color-accent-hover: #2463eb;
@@ -1390,6 +1464,7 @@
   --color-shadow-popover-key: rgb(31 30 29 / 0.12);
   --color-shadow-popover-ambient: rgb(31 30 29 / 0.15);
   --color-shadow-float-bar: rgb(31 30 29 / 0.18);
+  --color-shadow-glass: rgb(42 36 26 / 0.1);
   --color-focus-ring: rgb(52 114 214 / 0.79);
   --color-tag-text-red: #832f27;
   --color-tag-text-orange: #784318;

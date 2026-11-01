@@ -132,6 +132,46 @@
           "hex": "#ffffff"
         },
         "$description": "The floating bars over the editor (the selection toolbar, the image size bar) and their notch."
+      },
+      "sheet": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.75
+        },
+        "$description": "Glass interface: the one wash the note list and the editor share over the window material, also the ring around the floating sidebar."
+      },
+      "glass": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.45
+        },
+        "$description": "Glass interface: the floating sidebar's tint over the sheet where the system draws no glass of its own (before macOS 26)."
+      },
+      "glass-popover": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.78
+        },
+        "$description": "Glass interface: popovers, tooltips, pickers and dialogs, over a blur of what is under them."
+      },
+      "glass-float-bar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.86
+        },
+        "$description": "Glass interface: the floating bars over the editor and their notch, a little more solid than a popover so the notch, drawn without blur, matches."
       }
     },
     "ink": {
@@ -347,6 +387,26 @@
           "alpha": 0.1
         },
         "$description": "The Filter field's 1px border."
+      },
+      "glass-edge": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.8
+        },
+        "$description": "Glass interface: the thin edge of a glass panel or control."
+      },
+      "glass-highlight": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.95
+        },
+        "$description": "Glass interface: the light along a glass panel's or control's top edge."
       }
     },
     "fill": {
@@ -511,6 +571,16 @@
           "hex": "#ffffff"
         },
         "$description": "The note list's Filter field."
+      },
+      "glass-control": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.72
+        },
+        "$description": "Glass interface: a toolbar button or segmented control floating over the sheet."
       }
     },
     "accent": {
@@ -1189,6 +1259,16 @@
           "alpha": 0.18
         },
         "$description": "The soft shadow under a floating bar."
+      },
+      "glass": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0784, 0.1255, 0.1961],
+          "hex": "#142032",
+          "alpha": 0.1
+        },
+        "$description": "Glass interface: the soft shadow under the floating sidebar and the toolbar controls."
       }
     },
     "focus": {

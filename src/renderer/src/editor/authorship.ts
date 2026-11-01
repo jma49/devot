@@ -196,6 +196,8 @@ const theme = EditorView.theme({
     padding: 'var(--space-1) var(--space-3)',
     borderRadius: 'var(--radius-popover)',
     background: 'var(--color-surface-popover)',
+    backdropFilter: 'var(--glass-backdrop, none)',
+    WebkitBackdropFilter: 'var(--glass-backdrop, none)',
     color: 'var(--color-text-primary)',
     boxShadow:
       '0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key), 0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient)',

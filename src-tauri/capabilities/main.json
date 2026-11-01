@@ -93,6 +93,7 @@
     "allow-editor-settings-set",
     "allow-font-read",
     "allow-sidebar-material-sync",
+    "allow-sidebar-glass",
     "allow-sidebar-menu-set",
     "allow-command-menu-set",
     "allow-keyboard-shortcuts-get",

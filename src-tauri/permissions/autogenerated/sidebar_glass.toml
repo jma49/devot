@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sidebar-glass"
+description = "Enables the sidebar_glass command without any pre-configured scope."
+commands.allow = ["sidebar_glass"]
+
+[[permission]]
+identifier = "deny-sidebar-glass"
+description = "Denies the sidebar_glass command without any pre-configured scope."
+commands.deny = ["sidebar_glass"]
