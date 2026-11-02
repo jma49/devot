@@ -3,6 +3,8 @@
 use std::path::Path;
 use std::process::Command;
 
+#[cfg(desktop)]
+use crate::note_window::Frame;
 use crate::storage::{BookRecord, Db};
 use crate::strings;
 #[cfg(desktop)]
@@ -64,6 +66,11 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
         // The page draws the toolbar and the sidebar itself, over the system's sidebar material.
         .transparent(true)
         .resizable(false);
+    #[cfg(desktop)]
+    let builder = match over_front_main(app) {
+        Some((x, y)) => builder.position(x, y),
+        None => builder.center(),
+    };
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(TitleBarStyle::Overlay)
@@ -87,6 +94,36 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
             crate::deep_link::settings_opened(app)
         }
         Err(_) => log::warn!("W_SETTINGS_OPEN_FAILED"),
+    }
+}
+
+/// Where Settings opens over the frontmost main window; none while that is hidden, minimized or full screen.
+#[cfg(desktop)]
+fn over_front_main(app: &AppHandle) -> Option<(f64, f64)> {
+    let main =
+        crate::main_windows::front_label(app).and_then(|label| app.get_webview_window(&label))?;
+    if !main.is_visible().unwrap_or(false) {
+        return None;
+    }
+    let frame = crate::note_window::frame_of(&tauri::Webview::window(main.as_ref()))?;
+    Some(centred_over(frame, &crate::note_window::screens(app)))
+}
+
+/// Centred on `main`, kept on the screen under `main`'s centre: a main window near a screen's edge
+/// must not push Settings, which cannot be resized, partly off it.
+#[cfg(desktop)]
+fn centred_over(main: Frame, screens: &[Frame]) -> (f64, f64) {
+    let (centre_x, centre_y) = (main.x + main.width / 2.0, main.y + main.height / 2.0);
+    let (x, y) = (centre_x - WIDTH / 2.0, centre_y - HEIGHT / 2.0);
+    let screen = screens.iter().find(|s| {
+        (s.x..s.x + s.width).contains(&centre_x) && (s.y..s.y + s.height).contains(&centre_y)
+    });
+    match screen {
+        Some(s) => (
+            x.min(s.x + s.width - WIDTH).max(s.x),
+            y.min(s.y + s.height - HEIGHT).max(s.y),
+        ),
+        None => (x, y),
     }
 }
 
@@ -254,6 +291,50 @@ pub fn main_window_show(app: AppHandle) -> Result<(), String> {
 mod tests {
     use super::*;
     use std::ffi::OsStr;
+
+    #[cfg(desktop)]
+    fn frame(x: f64, y: f64, width: f64, height: f64) -> Frame {
+        Frame {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    #[cfg(desktop)]
+    #[test]
+    fn opens_centred_on_the_main_window() {
+        let screen = frame(0.0, 0.0, 2560.0, 1440.0);
+        let main = frame(300.0, 200.0, 1400.0, 900.0);
+        assert_eq!(centred_over(main, &[screen]), (550.0, 310.0));
+    }
+
+    #[cfg(desktop)]
+    #[test]
+    fn a_main_window_at_a_screen_edge_keeps_settings_on_that_screen() {
+        let screens = [
+            frame(0.0, 0.0, 1440.0, 900.0),
+            frame(1440.0, 0.0, 1920.0, 1080.0),
+        ];
+        let small_at_right = frame(1100.0, 500.0, 320.0, 390.0);
+        assert_eq!(centred_over(small_at_right, &screens), (540.0, 220.0));
+        let small_at_left_of_second = frame(1450.0, 0.0, 320.0, 300.0);
+        assert_eq!(
+            centred_over(small_at_left_of_second, &screens),
+            (1440.0, 0.0)
+        );
+    }
+
+    #[cfg(desktop)]
+    #[test]
+    fn a_main_window_off_every_screen_still_gets_its_centre() {
+        let main = frame(5000.0, 5000.0, 1000.0, 800.0);
+        assert_eq!(
+            centred_over(main, &[frame(0.0, 0.0, 1440.0, 900.0)]),
+            (5050.0, 5060.0)
+        );
+    }
 
     #[test]
     fn add_licence_opens_settings_at_the_licence_pane() {
