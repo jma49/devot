@@ -346,12 +346,15 @@ fn licence_emitter(app: tauri::AppHandle) -> licence::Emit {
         if app.emit(licence::CHANGED_EVENT, snapshot).is_err() {
             log::warn!("W_LICENCE_EMIT_FAILED");
         }
-        let handle = app.clone();
-        if app
-            .run_on_main_thread(move || crate::plugins::menu::refresh(&handle))
-            .is_err()
+        #[cfg(desktop)]
         {
-            log::warn!("W_PLUGIN_MENU_FAILED");
+            let handle = app.clone();
+            if app
+                .run_on_main_thread(move || crate::plugins::menu::refresh(&handle))
+                .is_err()
+            {
+                log::warn!("W_PLUGIN_MENU_FAILED");
+            }
         }
     })
 }

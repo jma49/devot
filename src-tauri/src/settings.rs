@@ -5,7 +5,9 @@ use std::process::Command;
 
 use crate::storage::{BookRecord, Db};
 use crate::strings;
+#[cfg(desktop)]
 use tauri::utils::config::WindowEffectsConfig;
+#[cfg(desktop)]
 use tauri::utils::{WindowEffect, WindowEffectState};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 #[cfg(target_os = "macos")]
@@ -61,11 +63,6 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
         .inner_size(WIDTH, HEIGHT)
         // The page draws the toolbar and the sidebar itself, over the system's sidebar material.
         .transparent(true)
-        .effects(WindowEffectsConfig {
-            effects: vec![WindowEffect::Sidebar],
-            state: Some(WindowEffectState::FollowsWindowActiveState),
-            ..Default::default()
-        })
         .resizable(false);
     #[cfg(target_os = "macos")]
     let builder = builder
@@ -73,7 +70,14 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
         .hidden_title(true)
         .traffic_light_position(TRAFFIC_LIGHTS);
     #[cfg(desktop)]
-    let builder = builder.minimizable(false).maximizable(false);
+    let builder = builder
+        .effects(WindowEffectsConfig {
+            effects: vec![WindowEffect::Sidebar],
+            state: Some(WindowEffectState::FollowsWindowActiveState),
+            ..Default::default()
+        })
+        .minimizable(false)
+        .maximizable(false);
     let built = builder.build();
     match built {
         // Links from other apps wait until it closes (`deep_link`).
@@ -229,7 +233,11 @@ pub fn main_window_show(app: AppHandle) -> Result<(), String> {
     let Some(window) =
         crate::main_windows::front_label(&app).and_then(|label| app.get_webview_window(&label))
     else {
+        #[cfg(desktop)]
         return crate::main_windows::open(&app).map_err(String::from);
+        // A phone's one window cannot be reopened from here.
+        #[cfg(mobile)]
+        return Err("E_MAIN_WINDOW_MISSING".to_owned());
     };
     if window
         .show()
