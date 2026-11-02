@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
 
 async function newNote(page: Page, title: string, body: string) {
   const before = await page.getByRole('listbox', { name: 'Notes' }).getByRole('option').count()
@@ -44,10 +44,11 @@ interface Box {
   bottom: number
 }
 
-test('note text keeps one rhythm: spaces in quarter lines, headings on one scale', async ({
+test('Classic note text keeps one rhythm: spaces in quarter lines, headings on one scale', async ({
   page,
 }) => {
   await page.goto('/')
+  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
   await newNote(page, 'Rhythm', NOTE)
   await page
     .getByRole('group', { name: 'View mode' })
@@ -103,8 +104,11 @@ test('note text keeps one rhythm: spaces in quarter lines, headings on one scale
   })
 })
 
-test('the editor sizes heading lines on the same scale as the preview', async ({ page }) => {
+test('Classic: the editor sizes heading lines on the same scale as the preview', async ({
+  page,
+}) => {
   await page.goto('/')
+  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
   await newNote(page, 'Editor headings', '# One\n\n## Two\n\n### Three\n\n#### Four\n\n###### Six')
   const sizes = await page.locator('.cm-content').evaluate((content) => {
     type Style = { fontSize: string; lineHeight: string }

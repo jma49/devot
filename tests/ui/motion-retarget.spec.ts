@@ -237,7 +237,22 @@ function expectInside({ row, ghost, clip, visible }: Leaving) {
 
 test('a trashed row fades out exactly where it was, and only inside the list', async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 420 })
-  const titles = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten']
+  const titles = [
+    'One',
+    'Two',
+    'Three',
+    'Four',
+    'Five',
+    'Six',
+    'Seven',
+    'Eight',
+    'Nine',
+    'Ten',
+    'Eleven',
+    'Twelve',
+    'Thirteen',
+    'Fourteen',
+  ]
   for (const title of titles) await createNote(page, title)
   await noteRow(page, 'Seven').click()
   // Half of it under the list's top edge, where the header and the sort chip are.

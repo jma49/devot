@@ -6276,7 +6276,10 @@ button.popup:focus-visible {
   justify-items: start;
 }
 
-:root[data-sidebar-material='on'] .sidebar :is(.source, .book-row) > .source-label {
+:root[data-sidebar-material='on']
+  .sidebar
+  :is(.source, .book-row)
+  > :is(.source-label, .book-name-field) {
   justify-self: stretch;
 }
 
@@ -6708,19 +6711,14 @@ button.popup:focus-visible {
 }
 
 /* Out of the grid, so a meta line holding only the time adds no track or gap. */
-:root[data-sidebar-material='on']
-  .row-title
-  + .row-meta:not(:has(.row-meta-items > :not(.row-time))) {
+:root[data-sidebar-material='on'] .row-title + .row-meta[data-time-only] {
   position: absolute;
   top: 0;
   inset-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
   height: 0;
 }
 
-:root[data-sidebar-material='on']
-  .row-title
-  + .row-meta:not(:has(.row-meta-items > :not(.row-time)))
-  .row-time {
+:root[data-sidebar-material='on'] .row-title + .row-meta[data-time-only] .row-time {
   inset-inline-end: 0;
 }
 
@@ -6766,8 +6764,9 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .editor {
-  --editor-padding: 0 calc(var(--size-editor-keyline) - var(--space-3)) var(--trial-bar-inset, 0px)
-    calc(var(--size-editor-keyline) - var(--space-3));
+  --editor-overflow-y: scroll;
+  --editor-padding: 0 calc(var(--size-editor-keyline) - var(--space-3) - var(--size-scrollbar))
+    var(--trial-bar-inset, 0px) calc(var(--size-editor-keyline) - var(--space-3));
 }
 
 /* The scroll bar is always reserved and pulled out of the keyline, so blocks keep their right edge with or without overflow. */
@@ -6828,6 +6827,10 @@ button.popup:focus-visible {
 :root[data-sidebar-material='on'] .note-meta .chip {
   height: var(--size-note-pill);
   padding: 0 var(--size-note-pill-pad);
+  border: 0;
+}
+
+:root[data-sidebar-material='on'] .frontmatter-chip.tag-chip {
   border: 0;
 }
 

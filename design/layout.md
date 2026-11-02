@@ -17,7 +17,7 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 - **Toolbar:** every control is a 32 pt capsule centred on y = 26, the traffic lights' centre line. Toolbar groups start and end on the column's keylines.
 - **Sidebar depth:** a top-level notebook has no extra indent. Each deeper level steps 16, and the chevron hangs in the row's padding without pushing the row.
 - **Split view:** each pane uses the editor keyline inside its own width.
-- **Scroll bars:** `.rows` and `.preview` always reserve the scroll bar, pulled out of the keyline, so right edges stay put.
+- **Scroll bars:** `.rows`, `.preview` and the editor always reserve the scroll bar, pulled out of the keyline, so right edges stay put.
 - **Exceptions:** in focus mode the editor toolbar starts at `window-controls-inset`, and with the sidebar hidden the list toolbar keeps its start padding, so neither meets the traffic lights. The Settings toolbar keeps its own corner rule.
 
 ## Separators and captions
@@ -66,4 +66,5 @@ The house style for Mermaid, in the app and in exports. Colours are read from th
 - **Nodes:** `radius.diagram-node` (9), `color.fill.card`, a `size.diagram-node-edge` (0.5) edge in `color.line.hairline`, text in the UI font at footnote size (12) in `color.text.primary`.
 - **Edges:** `size.diagram-edge` (1) in `color.text.tertiary`, with arrowheads `size.diagram-arrow-length` (6) by `size.diagram-arrow-width` (8).
 - **Edge labels:** caption size (11), `color.text.secondary` on `color.surface.sheet`, `size.diagram-label-gap` (1) beside the line, not over it.
-- **Limit:** sequence diagrams follow the colours and font only.
+- **Data colours:** charts (pie, gantt, git graph, journey and the like) use the tag colours, opaque, since a card's translucent fill cannot tell series apart.
+- **Limits:** sequence diagrams follow the colours and font only. A label clears straight horizontal and vertical segments; on a slanted edge it may touch the line.

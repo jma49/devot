@@ -25,6 +25,12 @@ describe.each([
       text: tokens['color.text.primary'],
       label: tokens['color.text.secondary'],
       sheet: tokens['color.surface.sheet'],
+      series1: tokens['color.tag.blue'],
+      series2: tokens['color.tag.green'],
+      series3: tokens['color.tag.orange'],
+      series4: tokens['color.tag.purple'],
+      series5: tokens['color.tag.red'],
+      series6: tokens['color.tag.yellow'],
     })
   })
 
@@ -103,4 +109,17 @@ describe('an edge label beside its line', () => {
   it('leaves a label without a line where it is', () => {
     expect(besideLine([], box)).toEqual({ dx: 0, dy: 0 })
   })
+})
+
+it('charts keep distinct, opaque data colours', () => {
+  const v = diagramTheme(exportPalette, 'light', 'sans-serif').themeVariables as Record<
+    string,
+    string | boolean
+  >
+  const pies = [v.pie1, v.pie2, v.pie3, v.pie4, v.pie5, v.pie6]
+  expect(new Set(pies).size).toBe(6)
+  for (const colour of pies) expect(colour).toMatch(/^#[0-9a-f]{6}$/i)
+  expect(v.cScale0).not.toBe(v.cScale1)
+  expect(v.git0).not.toBe(v.git1)
+  expect(v.taskBkgColor).toMatch(/^#[0-9a-f]{6}$/i)
 })

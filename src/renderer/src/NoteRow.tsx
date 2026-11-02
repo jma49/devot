@@ -174,7 +174,17 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
       >
         <Marked text={title} pattern={titlePattern} />
       </span>
-      <span className="row-meta">
+      <span
+        className="row-meta"
+        data-time-only={
+          (n.status === 'none' &&
+            !progress &&
+            chips.length === 0 &&
+            !props.changedBy &&
+            !props.strip) ||
+          undefined
+        }
+      >
         <span className="row-meta-items">
           <time
             className="row-time"

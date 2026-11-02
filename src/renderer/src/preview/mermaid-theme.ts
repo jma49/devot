@@ -10,6 +10,12 @@ export interface DiagramPalette {
   text: string
   label: string
   sheet: string
+  series1: string
+  series2: string
+  series3: string
+  series4: string
+  series5: string
+  series6: string
 }
 
 const PALETTE_TOKENS = {
@@ -19,6 +25,12 @@ const PALETTE_TOKENS = {
   text: 'color.text.primary',
   label: 'color.text.secondary',
   sheet: 'color.surface.sheet',
+  series1: 'color.tag.blue',
+  series2: 'color.tag.green',
+  series3: 'color.tag.orange',
+  series4: 'color.tag.purple',
+  series5: 'color.tag.red',
+  series6: 'color.tag.yellow',
 } as const satisfies Record<keyof DiagramPalette, ThemeColor>
 
 /** Mermaid drops a theme variable with a `/`, so its variables are hex; themeCSS keeps the exact token. */
@@ -36,6 +48,12 @@ export function diagramPalette(read: (token: ThemeColor) => string): DiagramPale
     text: colour('text'),
     label: colour('label'),
     sheet: colour('sheet'),
+    series1: colour('series1'),
+    series2: colour('series2'),
+    series3: colour('series3'),
+    series4: colour('series4'),
+    series5: colour('series5'),
+    series6: colour('series6'),
   }
 }
 
@@ -56,14 +74,42 @@ export function diagramTheme(
     label: themeVariable(label),
     sheet: themeVariable(sheet),
   }
+  const series = [
+    palette.series1,
+    palette.series2,
+    palette.series3,
+    palette.series4,
+    palette.series5,
+    palette.series6,
+  ].map(themeVariable)
+  // Charts take their data colours from these. Flowcharts draw nodes from mainBkg and themeCSS.
+  const dataColours = (name: string, count: number) =>
+    Object.fromEntries(
+      Array.from({ length: count }, (_, i) => [`${name}${i}`, series[i % series.length]!]),
+    )
+  const pieColours = Object.fromEntries(
+    Array.from({ length: 12 }, (_, i) => [`pie${i + 1}`, series[i % series.length]!]),
+  )
   const themeVariables = {
+    ...pieColours,
+    ...dataColours('cScale', 12),
+    ...dataColours('git', 8),
+    ...dataColours('fillType', 8),
+    taskBkgColor: series[0]!,
+    activeTaskBkgColor: series[1]!,
+    doneTaskBkgColor: variable.label,
+    critBkgColor: series[4]!,
+    sectionBkgColor: variable.card,
+    sectionBkgColor2: variable.card,
+    altSectionBkgColor: variable.sheet,
+    excludeBkgColor: variable.card,
     darkMode: appearance === 'dark',
     fontFamily,
     fontSize: sizes['font.size.footnote'],
     background: variable.sheet,
-    primaryColor: variable.card,
-    secondaryColor: variable.card,
-    tertiaryColor: variable.card,
+    primaryColor: series[0]!,
+    secondaryColor: series[1]!,
+    tertiaryColor: series[2]!,
     mainBkg: variable.card,
     nodeBorder: variable.hairline,
     clusterBkg: variable.card,

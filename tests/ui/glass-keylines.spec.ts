@@ -148,3 +148,11 @@ test('Classic keeps its own edges', async ({ page }) => {
   await expect(page.locator('.title')).toHaveCSS('margin-left', '24px')
   await expect(page.locator('.list-filter')).toHaveCSS('padding-left', '12px')
 })
+
+test('the notebook name field fills the sidebar row', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'New Notebook' }).click()
+  const field = page.getByRole('textbox', { name: 'Notebook name' })
+  await expect(field).toBeVisible()
+  await expect(field).toHaveCSS('justify-self', 'stretch')
+})

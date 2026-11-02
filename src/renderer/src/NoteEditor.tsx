@@ -608,6 +608,7 @@ const frameStyles = (() => {
         .editor-scroll {
           box-sizing: border-box;
           overflow: auto;
+          overflow-y: var(--editor-overflow-y, auto);
           padding: var(--editor-padding);
         }
         .editor-scroll::-webkit-scrollbar {
