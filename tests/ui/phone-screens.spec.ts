@@ -142,7 +142,10 @@ test('Settings lists its sections and opens a pane', async ({ page }) => {
 
 async function openPane(page: Page, name: string) {
   await tabs(page).getByRole('button', { name: 'Settings' }).click()
-  await page.getByRole('region', { name: 'Settings' }).getByRole('button', { name }).click()
+  await page
+    .getByRole('region', { name: 'Settings' })
+    .getByRole('button', { name, exact: true })
+    .click()
   const pane = page.locator(`section.phone-screen[aria-label="${name}"]`)
   await expect(pane.locator('.settings-section')).toBeAttached()
   return pane
