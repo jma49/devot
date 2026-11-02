@@ -114,8 +114,14 @@ describe('colour maths', () => {
 
   it('reads hex, rgb() and a var() fallback', () => {
     expect(parseColor('#0e6b62')).toEqual({ rgb: [14, 107, 98], alpha: 1 })
-    expect(parseColor('#0e6b6280')).toEqual({ rgb: [14, 107, 98], alpha: 128 / 255 })
-    expect(parseColor('rgb(28 27 25 / 0.1)')).toEqual({ rgb: [28, 27, 25], alpha: 0.1 })
+    expect(parseColor('#0e6b6280')).toEqual({
+      rgb: [14, 107, 98],
+      alpha: 128 / 255,
+    })
+    expect(parseColor('rgb(28 27 25 / 0.1)')).toEqual({
+      rgb: [28, 27, 25],
+      alpha: 0.1,
+    })
     expect(parseColor('var(--system-accent-fill-light, #0e6b62)').rgb).toEqual([14, 107, 98])
     expect(() => parseColor('red')).toThrow('E_COLOR_UNREADABLE red')
   })
@@ -127,9 +133,15 @@ describe('colour maths', () => {
   })
 
   it('mixes as CSS color-mix does, weighing a translucent colour by its alpha', () => {
-    const half = mixSrgb({ rgb: [0, 0, 0], alpha: 1 }, 0.5, { rgb: WHITE, alpha: 1 })
+    const half = mixSrgb({ rgb: [0, 0, 0], alpha: 1 }, 0.5, {
+      rgb: WHITE,
+      alpha: 1,
+    })
     expect(half).toEqual({ rgb: [127.5, 127.5, 127.5], alpha: 1 })
-    const faint = mixSrgb({ rgb: [0, 0, 255], alpha: 1 }, 0.2, { rgb: [255, 0, 0], alpha: 0.2 })
+    const faint = mixSrgb({ rgb: [0, 0, 255], alpha: 1 }, 0.2, {
+      rgb: [255, 0, 0],
+      alpha: 0.2,
+    })
     expect(faint.alpha).toBeCloseTo(0.36, 5)
     expect(faint.rgb[2]).toBeCloseTo((255 * 0.2) / 0.36, 5)
   })
@@ -249,7 +261,10 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
       ...editorAndList.map((s) => over(theme, 'fill.track', s)),
       ...editorAndList.map((s) => over(theme, 'fill.row-selected-unemphasized', s)),
     ]
-    const diff: Record<string, string> = { done: 'diff.added', dropped: 'diff.removed' }
+    const diff: Record<string, string> = {
+      done: 'diff.added',
+      dropped: 'diff.removed',
+    }
     const text: Record<string, [Rgb, Rgb[]]> = {}
     const marks: Record<string, [Rgb, Rgb[]]> = {}
     for (const id of ['active', 'hold', 'done', 'dropped']) {
@@ -382,11 +397,9 @@ const SYSTEM_ACCENTS: Record<string, [string, string]> = {
 }
 
 describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme) => {
-  const plain = ['phone.background', 'phone.card', 'phone.elevated', 'phone.band'].map((s) =>
-    solid(theme, s),
-  )
+  const plain = ['phone.background', 'phone.card', 'phone.elevated'].map((s) => solid(theme, s))
   // Status marks and destructive rows sit on the page and on sheet cards, never on a grouped page's card.
-  const marked = ['phone.background', 'phone.elevated', 'phone.band'].map((s) => solid(theme, s))
+  const marked = ['phone.background', 'phone.elevated'].map((s) => solid(theme, s))
   const raised = over(theme, 'phone.swipe-surface', solid(theme, 'phone.background'))
   const glassOver = plain.map((s) => over(theme, 'phone.glass', s))
   const onAction = solid(theme, 'phone.on-action')
@@ -399,7 +412,7 @@ describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme
           solid(theme, 'phone.text'),
           plain.map((s) => over(theme, 'phone.bar', s)),
         ],
-        faint: [solid(theme, 'phone.text-faint'), [solid(theme, 'phone.background')]],
+        faint: [solid(theme, 'phone.text-faint'), [solid(theme, 'phone.background'), raised]],
         secondary: [solid(theme, 'phone.text-secondary'), [...plain, raised]],
         'section head': [solid(theme, 'phone.section-head'), [solid(theme, 'phone.background')]],
         destructive: [
@@ -481,7 +494,11 @@ describe('the system accent', () => {
         const backgrounds = selectionBackdrops(theme, selection)
         const link = read(`--system-accent-text-${appearance}`)
         expect(under(4.5, checkedOn(selectedText(theme, link), backgrounds))).toEqual([])
-        expect(under(3, { tertiary: [solid(theme, 'text.tertiary'), backgrounds] })).toEqual([])
+        expect(
+          under(3, {
+            tertiary: [solid(theme, 'text.tertiary'), backgrounds],
+          }),
+        ).toEqual([])
       },
     )
   })

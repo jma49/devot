@@ -157,7 +157,10 @@ function Stack(props: {
   dragging: boolean
   render: (route: PhoneRoute) => ReactNode
 }) {
-  const [leaving, setLeaving] = useState<{ route: PhoneRoute; index: number } | null>(null)
+  const [leaving, setLeaving] = useState<{
+    route: PhoneRoute
+    index: number
+  } | null>(null)
   const previous = useRef(props.routes)
   useLayoutEffect(() => {
     const before = previous.current
@@ -208,7 +211,12 @@ function BackSwipeZone(props: {
   onMove: (drag: number) => void
   onRelease: (pops: boolean) => void
 }) {
-  const start = useRef<{ x: number; lastX: number; lastTime: number; speed: number } | null>(null)
+  const start = useRef<{
+    x: number
+    lastX: number
+    lastTime: number
+    speed: number
+  } | null>(null)
   const move = (event: PointerEvent) => {
     const swipe = start.current
     if (!swipe) return
@@ -372,7 +380,12 @@ export function PhoneApp() {
         available={captureHere}
         bookId={topView?.kind === 'book' ? topView.id : null}
         onSaved={(id) => {
-          if (!listsNewNote) dispatch({ type: 'showNotes', view: { kind: 'all' }, status: 'all' })
+          if (!listsNewNote)
+            dispatch({
+              type: 'showNotes',
+              view: { kind: 'all' },
+              status: 'all',
+            })
           setArrivedId(id)
           haptic('soft')
         }}

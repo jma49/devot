@@ -64,22 +64,12 @@
         },
         "$description": "A grouped page's card."
       },
-      "band": {
-        "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [0.9686, 0.9686, 0.9686],
-          "hex": "#f7f7f7"
-        },
-        "$description": "Behind a pinned note's row."
-      },
       "swipe-surface": {
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.0, 0.0, 0.0],
-          "hex": "#000000",
-          "alpha": 0.05
+          "components": [0.9333, 0.9333, 0.9412],
+          "hex": "#eeeef0"
         },
         "$description": "A row raised by a swipe."
       },
@@ -89,7 +79,7 @@
           "colorSpace": "srgb",
           "components": [0.0, 0.0, 0.0],
           "hex": "#000000",
-          "alpha": 0.06
+          "alpha": 0.05
         },
         "$description": "A row under the finger."
       },
@@ -476,6 +466,26 @@
           "alpha": 0.75
         },
         "$description": "A field in the capture sheet."
+      },
+      "dash": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.14
+        },
+        "$description": "The dashed Show more button: its outline."
+      },
+      "dash-ink": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.18
+        },
+        "$description": "The dashed Show more button: its dashes."
       }
     },
     "icon": {

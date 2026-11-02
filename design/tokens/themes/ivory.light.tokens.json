@@ -64,15 +64,6 @@
         },
         "$description": "A grouped page's card."
       },
-      "band": {
-        "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [0.9804, 0.9765, 0.9608],
-          "hex": "#faf9f5"
-        },
-        "$description": "Behind a pinned note's row."
-      },
       "swipe-surface": {
         "$type": "color",
         "$value": {
@@ -476,6 +467,26 @@
           "alpha": 0.75
         },
         "$description": "A field in the capture sheet."
+      },
+      "dash": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.14
+        },
+        "$description": "The dashed Show more button: its outline."
+      },
+      "dash-ink": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.18
+        },
+        "$description": "The dashed Show more button: its dashes."
       }
     },
     "icon": {

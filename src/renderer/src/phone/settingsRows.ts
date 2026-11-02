@@ -19,7 +19,9 @@ export function licenceRow(
       label:
         days === null
           ? t('phone.settings.licence.trial')
-          : format(t('phone.settings.licence.trialDays'), { days: String(days) }),
+          : format(t('phone.settings.licence.trialDays'), {
+              days: String(days),
+            }),
       needsAttention: days !== null && days <= 3,
     }
   }

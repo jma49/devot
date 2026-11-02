@@ -11,15 +11,20 @@ describe('the phone layout tokens', () => {
     ['size.phone-glass-bar', 62],
     ['size.phone-lens-inset', 4],
     ['size.phone-editor-toolbar', 48],
-    ['size.phone-list-row', 76],
-    ['size.phone-avatar', 60],
+    ['size.phone-list-row', 62],
     ['size.phone-grouped-row', 44],
     ['size.phone-row-icon', 28],
     ['size.icon-phone-row', 21],
     ['size.icon-phone-status', 20],
-    ['size.phone-swipe-action', 50],
-    ['size.phone-swipe-open', 190],
-    ['size.phone-swipe-arm', 280],
+    ['size.phone-swipe-action', 52],
+    ['size.phone-swipe-action-height', 34],
+    ['size.phone-swipe-surface-inset', 3],
+    ['size.phone-section-head', 40],
+    ['size.phone-show-more', 52],
+    ['radius.phone-swipe-surface', 20],
+    ['radius.phone-peek', 26],
+    ['size.phone-swipe-open', 196],
+    ['size.phone-swipe-arm', 270],
     ['size.phone-grabber-width', 36],
     ['size.phone-grabber-height', 5],
     ['size.phone-screen-edge', 16],
@@ -42,7 +47,7 @@ describe('the phone layout tokens', () => {
     ['radius.phone-row-press', 16],
     ['radius.phone-sheet', 34],
     ['radius.phone-tile-card', 22],
-    ['radius.phone-menu-row', 16],
+    ['radius.phone-menu-row', 20],
   ] as const)('%s is %i', (token, value) => {
     expect(px(token)).toBe(value)
   })
@@ -65,6 +70,14 @@ describe('the phone layout tokens', () => {
       px('size.phone-topbar-band'),
     )
     expect(px('size.phone-content-top')).toBeGreaterThan(px('size.phone-topbar-band'))
+  })
+
+  it('adds the capsules up to the open width', () => {
+    expect(
+      px('size.phone-swipe-action') * 3 +
+        px('size.phone-swipe-gap') * 2 +
+        px('size.phone-swipe-inset') * 2,
+    ).toBe(px('size.phone-swipe-open'))
   })
 
   it('keeps every lens concentric with its bar', () => {
@@ -99,6 +112,14 @@ describe('the phone motion tokens', () => {
     expect(Number(sizes['motion.scale.phone-lens-y'])).toBe(0.86)
     expect(sizes['motion.duration.phone-capture']).toBe('560ms')
     expect(Number(sizes['motion.scale.phone-arrive'])).toBe(0.92)
+  })
+
+  it('dims a peek and a push as the spec does', () => {
+    expect(Number(sizes['opacity.phone-dim-peek'])).toBe(0.18)
+    expect(Number(sizes['opacity.phone-dim-push'])).toBe(0.08)
+    expect(Number(sizes['motion.scale.phone-peek-enter'])).toBe(0.86)
+    expect(sizes['motion.delay.phone-peek-bar']).toBe('90ms')
+    expect(sizes['motion.delay.phone-peek-menu']).toBe('50ms')
   })
 
   it('holds the three curves of the motion spec', () => {

@@ -10,6 +10,8 @@
   --phone-icon-pop-scale: var(--motion-scale-phone-icon-pop);
   --phone-bump-scale: var(--motion-scale-phone-bump);
   --phone-peek-enter-scale: var(--motion-scale-phone-peek-enter);
+  --phone-peek-bar-scale: var(--motion-scale-phone-peek-bar);
+  --phone-peek-menu-scale: var(--motion-scale-phone-peek-menu);
   --phone-compose-hidden-scale: var(--motion-scale-phone-compose-hidden);
   --phone-arrive-scale: var(--motion-scale-phone-arrive);
   /* At the design's 34 pt home indicator inset this is the 24 the prototype draws. */
@@ -349,6 +351,8 @@ button.phone-glass:active,
   --phone-icon-pop-scale: 1;
   --phone-bump-scale: 1;
   --phone-peek-enter-scale: 1;
+  --phone-peek-bar-scale: 1;
+  --phone-peek-menu-scale: 1;
   --phone-compose-hidden-scale: 1;
   --phone-arrive-scale: 1;
 }
@@ -590,25 +594,138 @@ button.phone-glass:active,
   list-style: none;
 }
 
-.phone-note-row {
-  position: relative;
-  background: var(--color-phone-background);
+.phone-note-section {
+  margin-bottom: 8px;
 }
 
-.phone-note-row[data-pinned] {
-  background: var(--color-phone-band);
+.phone-list-head-title {
+  margin: 0;
+  font: inherit;
+}
+
+/* Laid out 40 high, its target reaches 44 into the space around it. */
+.phone-list-head {
+  width: calc(100% - var(--size-phone-screen-edge) * 2);
+  min-height: var(--size-phone-target);
+  margin: calc((var(--size-phone-section-head) - var(--size-phone-target)) / 2)
+    var(--size-phone-screen-edge);
+  padding: 0 calc(var(--size-phone-list-edge) - var(--size-phone-screen-edge));
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+
+.phone-list-head-name {
+  font-size: calc(14px * var(--phone-text-scale, 1));
+  font-weight: 500;
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-list-head-count {
+  font-size: calc(12px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-faint);
+}
+
+.phone-list-head-rule {
+  flex: 1;
+  height: var(--size-phone-separator);
+  background: var(--color-phone-separator);
+}
+
+.phone-list-head-chevron {
+  display: flex;
+  color: var(--color-phone-text-faint);
+  transition: transform var(--motion-duration-phone-chevron) var(--motion-easing-phone-push);
+}
+
+.phone-list-head[data-collapsed] .phone-list-head-chevron {
+  transform: rotate(180deg);
+}
+
+.phone-show-more {
+  width: calc(100% - var(--size-phone-screen-edge) * 2);
+  min-height: var(--size-phone-show-more);
+  margin: 0 var(--size-phone-screen-edge);
+  padding: 2px 0 8px;
+  box-sizing: border-box;
+  display: flex;
+}
+
+.phone-show-more-label {
+  flex: 1;
+  min-height: 42px;
+  padding: 4px 12px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-phone-show-more);
+  border: 1px dashed var(--color-phone-dash-ink);
+  box-shadow: inset 0 0 0 1px var(--color-phone-dash);
+  font-size: calc(14px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-note-section-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
+    opacity var(--motion-duration-ring) var(--motion-easing-out),
+    visibility 0s;
+}
+
+/* A clip here would cut off a saved note flying in from below. */
+.phone-note-section-body:not(:has(.phone-note-row[data-arrived])) > .phone-note-list {
+  overflow: clip;
+}
+
+.phone-note-section-body > .phone-note-list {
+  min-height: 0;
+}
+
+.phone-note-section-body[data-collapsed] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition-delay: 0s, 0s, var(--phone-spring-gentle-duration);
+}
+
+.phone-note-row {
+  position: relative;
 }
 
 .phone-note-row[data-arrived] {
+  z-index: 1;
   animation:
-    phone-arrive var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
+    phone-arrive var(--motion-duration-phone-capture) var(--phone-spring-gentle),
+    phone-arrive-fade var(--motion-duration-ring) var(--motion-easing-out),
     phone-flash var(--motion-duration-phone-flash) var(--motion-easing-out);
+}
+
+.phone-note-row[data-arrived] ~ .phone-note-row,
+.phone-note-section:has(.phone-note-row[data-arrived]) ~ .phone-note-section {
+  animation: phone-shift var(--motion-duration-phone-capture) var(--phone-spring-gentle);
 }
 
 @keyframes phone-arrive {
   from {
     translate: 0 var(--size-phone-arrive-rise);
     scale: var(--phone-arrive-scale);
+  }
+}
+
+@keyframes phone-arrive-fade {
+  from {
+    opacity: var(--opacity-disabled);
+  }
+}
+
+@keyframes phone-shift {
+  from {
+    translate: 0 calc(var(--phone-arrived-height, var(--size-phone-list-row)) * -1);
   }
 }
 
@@ -631,11 +748,11 @@ button.phone-glass:active,
 .phone-note-content::before {
   content: '';
   position: absolute;
-  top: 4px;
-  bottom: 4px;
+  top: var(--size-phone-swipe-surface-inset);
+  bottom: var(--size-phone-swipe-surface-inset);
   left: -40px;
   right: 0;
-  border-radius: var(--radius-phone-card);
+  border-radius: var(--radius-phone-swipe-surface);
   background: var(--color-phone-swipe-surface);
   opacity: 0;
   transition: opacity var(--motion-duration-ring) var(--motion-easing-out);
@@ -653,83 +770,25 @@ button.phone-glass:active,
   position: relative;
   width: 100%;
   min-height: var(--size-phone-list-row);
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px var(--size-phone-list-edge);
+  display: block;
+  padding: 9px var(--size-phone-list-edge) 9px var(--size-phone-list-text);
   box-sizing: border-box;
   text-align: left;
 }
 
-.phone-note-row + .phone-note-row .phone-note-open::after {
-  content: '';
+.phone-note-mark {
   position: absolute;
-  top: 0;
-  left: calc(var(--size-phone-list-edge) + var(--size-phone-avatar) + 8px);
-  right: 0;
-  height: var(--size-phone-separator);
-  background: var(--color-phone-separator);
-}
-
-.phone-note-row:not([data-pinned]) + .phone-note-row .phone-note-open::after,
-.phone-note-row[data-pinned] + .phone-note-row[data-pinned] .phone-note-open::after {
-  display: block;
-}
-
-.phone-note-row[data-pinned] + .phone-note-row:not([data-pinned]) .phone-note-open::after {
-  display: none;
-}
-
-.phone-avatar-slot {
-  position: relative;
-  flex: none;
-  width: var(--size-phone-avatar);
-  height: var(--size-phone-avatar);
-}
-
-.phone-avatar {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
+  left: var(--size-phone-list-edge);
+  top: 12px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-phone-on-action);
-  background: linear-gradient(
-    160deg,
-    color-mix(in srgb, var(--avatar), var(--color-phone-on-action) 20%),
-    color-mix(in srgb, var(--avatar), var(--color-phone-scrim) 25%)
-  );
+  zoom: var(--phone-bar-text-scale, 1);
 }
 
-.phone-dove-avatar {
-  width: 32px;
-  height: 28px;
-  background: var(--color-phone-on-action);
-}
-
-.phone-status-badge {
-  position: absolute;
-  right: -3px;
-  bottom: -3px;
-  width: var(--size-phone-status-badge);
-  height: var(--size-phone-status-badge);
-  border-radius: 50%;
-  background: var(--color-phone-background);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.phone-note-row[data-pinned] .phone-status-badge {
-  background: var(--color-phone-band);
-}
-
-.phone-status-badge[data-bump='a'] {
+.phone-note-mark[data-bump='a'] {
   animation: phone-bump-a var(--phone-spring-bouncy-duration) var(--phone-spring-bouncy);
 }
 
-.phone-status-badge[data-bump='b'] {
+.phone-note-mark[data-bump='b'] {
   animation: phone-bump-b var(--phone-spring-bouncy-duration) var(--phone-spring-bouncy);
 }
 
@@ -765,23 +824,27 @@ button.phone-glass:active,
 }
 
 .phone-note-text {
-  flex: 1;
-  min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .phone-note-line {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
+}
+
+.phone-note-line:first-child {
+  align-items: baseline;
+  gap: 10px;
 }
 
 .phone-note-title {
   flex: 1;
   min-width: 0;
-  font-size: calc(16px * var(--phone-text-scale, 1));
-  font-weight: 600;
+  font-size: calc(17px * var(--phone-text-scale, 1));
+  line-height: calc(23px * var(--phone-text-scale, 1));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -790,32 +853,40 @@ button.phone-glass:active,
 .phone-note-time {
   flex: none;
   font-size: calc(14px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-faint);
+}
+
+/* Faint keeps 4.5:1 only on the page, not on the raised surface. */
+.phone-note-content[data-raised] .phone-note-time {
   color: var(--color-phone-text-secondary);
 }
 
 .phone-note-excerpt {
   flex: 1;
   min-width: 0;
-  font-size: calc(15px * var(--phone-text-scale, 1));
-  line-height: 1.33;
+  font-size: calc(14px * var(--phone-text-scale, 1));
+  line-height: calc(19px * var(--phone-text-scale, 1));
   color: var(--color-phone-text-secondary);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-.phone-note-tag {
-  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .phone-note-pin {
   flex: none;
+  display: flex;
   color: var(--color-phone-text-secondary);
 }
 
 .phone-app[data-text-size='accessibility'] {
   .phone-note-title {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .phone-note-excerpt {
     white-space: normal;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -842,9 +913,10 @@ button.phone-glass:active,
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   width: var(--stretch);
-  font-size: calc(12px * var(--phone-bar-text-scale, 1));
+  font-size: calc(11px * var(--phone-bar-text-scale, 1));
+  font-weight: 500;
   color: var(--color-phone-text-secondary);
   transform: scale(var(--phone-swipe-scale));
   transform-origin: 50% 35%;
@@ -854,10 +926,10 @@ button.phone-glass:active,
     width var(--phone-spring-gentle-duration) var(--phone-spring-gentle);
 }
 
-.phone-swipe-circle {
+.phone-swipe-capsule {
   width: var(--stretch);
-  height: var(--size-phone-swipe-action);
-  border-radius: calc(var(--size-phone-swipe-action) / 2);
+  height: var(--size-phone-swipe-action-height);
+  border-radius: calc(var(--size-phone-swipe-action-height) / 2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -866,15 +938,15 @@ button.phone-glass:active,
   transition: width var(--phone-spring-gentle-duration) var(--phone-spring-gentle);
 }
 
-.phone-swipe-action[data-action='pin'] .phone-swipe-circle {
+.phone-swipe-action[data-action='pin'] .phone-swipe-capsule {
   background: var(--color-phone-action-pin);
 }
 
-.phone-swipe-action[data-action='trash'] .phone-swipe-circle {
+.phone-swipe-action[data-action='trash'] .phone-swipe-capsule {
   background: var(--color-phone-action-trash);
 }
 
-.phone-swipe-action[data-action='done'] .phone-swipe-circle {
+.phone-swipe-action[data-action='done'] .phone-swipe-capsule {
   background: var(--color-phone-action-done);
 }
 
@@ -899,6 +971,7 @@ button.phone-glass:active,
     var(--phone-safe-top) + var(--size-phone-topbar-top) + var(--size-phone-nav-control) + 8px
   );
   right: var(--size-phone-screen-edge);
+  scale: 1;
   transition-delay: 0s;
   animation: phone-menu-in var(--motion-duration-popover) var(--motion-easing-move);
 }
@@ -942,7 +1015,11 @@ button.phone-glass:active,
 }
 
 .phone-peek-layer[data-shown] .phone-peek-dim {
-  background: color-mix(in srgb, var(--color-phone-scrim) 20%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--color-phone-scrim) calc(var(--opacity-phone-dim-peek) * 100%),
+    transparent
+  );
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
@@ -961,7 +1038,6 @@ button.phone-glass:active,
 .phone-peek > * {
   pointer-events: auto;
   opacity: 0;
-  scale: var(--phone-peek-enter-scale);
   transition:
     scale var(--phone-spring-bouncy-duration) var(--phone-spring-bouncy),
     opacity var(--motion-duration-popover) var(--motion-easing-out);
@@ -970,11 +1046,13 @@ button.phone-glass:active,
 .phone-peek-layer[data-shown] .phone-peek > * {
   opacity: 1;
   scale: 1;
+  translate: none;
 }
 
 .phone-peek-status {
   align-self: flex-start;
-  border-radius: var(--radius-phone-card);
+  scale: var(--phone-peek-bar-scale);
+  border-radius: var(--radius-phone-peek);
   padding: 4px 6px;
   display: flex;
   gap: 2px;
@@ -992,8 +1070,10 @@ button.phone-glass:active,
 }
 
 .phone-peek-card {
+  scale: var(--phone-peek-enter-scale);
+  translate: 0 30px;
   background: var(--color-phone-elevated);
-  border-radius: var(--radius-phone-card);
+  border-radius: var(--radius-phone-peek);
   padding: 20px;
   box-shadow: 0 24px 60px var(--color-phone-shadow-float);
   display: flex;
@@ -1002,6 +1082,7 @@ button.phone-glass:active,
   transform-origin: 50% 0;
   transition:
     scale var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
+    translate var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
     opacity var(--motion-duration-popover) var(--motion-easing-out);
 }
 
@@ -1026,8 +1107,9 @@ button.phone-glass:active,
 
 .phone-peek-menu {
   align-self: flex-end;
+  scale: var(--phone-peek-menu-scale);
   width: 250px;
-  border-radius: var(--radius-phone-card);
+  border-radius: var(--radius-phone-peek);
   padding: 6px;
   display: flex;
   flex-direction: column;
@@ -1039,6 +1121,9 @@ button.phone-glass:active,
   min-height: var(--size-phone-target);
   border-radius: var(--radius-phone-menu-row);
   padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   text-align: left;
 }
 
@@ -1729,9 +1814,35 @@ button.phone-chip::after {
     animation: phone-flash var(--motion-duration-phone-flash) var(--motion-easing-out);
   }
 
-  .phone-note-content,
+  .phone-note-row[data-arrived] ~ .phone-note-row,
+  .phone-note-section:has(.phone-note-row[data-arrived]) ~ .phone-note-section {
+    animation: none;
+  }
+
+  .phone-note-section-body {
+    transition:
+      opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out),
+      visibility 0s;
+  }
+
+  .phone-note-section-body[data-collapsed] {
+    transition-delay: 0s, var(--motion-duration-phone-crossfade);
+  }
+
+  .phone-list-head-chevron {
+    transition: none;
+  }
+
+  .phone-swipe-action {
+    transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
+  }
+
   .phone-sheet {
     transition-duration: var(--motion-duration-phone-crossfade);
+  }
+
+  .phone-note-content {
+    transition: none;
   }
 
   /* The circle and the sheet do not morph: each is simply there, fading in. */

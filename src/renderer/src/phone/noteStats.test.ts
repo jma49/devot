@@ -11,7 +11,11 @@ describe("a note's counts", () => {
   })
 
   it('counts characters without whitespace, and reads at least a minute', () => {
-    expect(noteStats('a b\nc')).toEqual({ words: 3, characters: 3, readingMinutes: 1 })
+    expect(noteStats('a b\nc')).toEqual({
+      words: 3,
+      characters: 3,
+      readingMinutes: 1,
+    })
     expect(noteStats('word '.repeat(401)).readingMinutes).toBe(3)
   })
 })

@@ -28,7 +28,9 @@ describe('the Licence row', () => {
   })
 
   it('asks for attention once the trial is over', () => {
-    const over = gated({ trial: { state: 'running', endsAt: DAY, code: null } })
+    const over = gated({
+      trial: { state: 'running', endsAt: DAY, code: null },
+    })
     expect(licenceRow(over, 2 * DAY).needsAttention).toBe(true)
   })
 })

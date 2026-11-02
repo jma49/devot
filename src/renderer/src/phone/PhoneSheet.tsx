@@ -19,7 +19,12 @@ export function PhoneSheet(props: {
 }) {
   const [shown, setShown] = useState(false)
   const [drag, setDrag] = useState<number | null>(null)
-  const start = useRef<{ y: number; lastY: number; at: number; speed: number } | null>(null)
+  const start = useRef<{
+    y: number
+    lastY: number
+    at: number
+    speed: number
+  } | null>(null)
   const closing = useRef(false)
   useEffect(() => {
     const frame = requestAnimationFrame(() => setShown(true))

@@ -9,14 +9,26 @@ test.use({
 const tabs = (page: Page) => page.getByRole('navigation', { name: 'Tabs' })
 const list = (page: Page) => page.getByRole('region', { name: 'All Notes' })
 const rows = (page: Page) => list(page).locator('.phone-note-row')
+const recent = (page: Page) => list(page).locator('[data-section="recent"] .phone-note-row')
+const section = (page: Page, key: string) => list(page).locator(`[data-section="${key}"]`)
 
 async function openNotes(page: Page): Promise<void> {
   await tabs(page).getByRole('button', { name: 'Notes' }).click()
-  await expect(rows(page).first()).toBeVisible()
+  await expect(recent(page).first()).toBeVisible()
+}
+
+/** Seeds the list with notes that the sections sort out, through the UI. */
+async function capture(page: Page, title: string): Promise<void> {
+  await page.getByRole('button', { name: 'New Note' }).click()
+  const sheet = page.getByRole('dialog', { name: 'New Note' })
+  await sheet.getByLabel('Title').fill(title)
+  await sheet.getByRole('button', { name: 'Save note' }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(rows(page).filter({ hasText: title })).toHaveCount(1)
 }
 
 async function swipeRow(page: Page, index: number, by: number): Promise<void> {
-  const box = (await rows(page).nth(index).boundingBox())!
+  const box = (await recent(page).nth(index).boundingBox())!
   const y = box.y + box.height / 2
   await page.mouse.move(box.x + box.width - 20, y)
   await page.mouse.down()
@@ -38,10 +50,61 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await openNotes(page)
     await expect(list(page).getByRole('heading', { level: 1 })).toHaveText('All Notes')
     await expect(list(page).getByText(/^\d+ notes$/)).toHaveCount(0)
-    const row = (await rows(page).first().locator('.phone-note-open').boundingBox())!
-    expect(row.height).toBeGreaterThanOrEqual(76)
+    const row = (await recent(page).first().locator('.phone-note-open').boundingBox())!
+    expect(row.height).toBeGreaterThanOrEqual(62)
+    expect(row.height).toBeLessThan(70)
   })
 }
+
+test('a row draws its status mark at 20, its text at 52 to 370, with no avatar', async ({
+  page,
+}) => {
+  await openNotes(page)
+  const row = recent(page).first()
+  await expect(list(page).locator('.phone-avatar')).toHaveCount(0)
+  expect((await row.locator('.phone-note-mark').boundingBox())!).toMatchObject({
+    x: 20,
+    width: 20,
+    height: 20,
+  })
+  const title = (await row.locator('.phone-note-title').boundingBox())!
+  const time = (await row.locator('.phone-note-time').boundingBox())!
+  expect(title.x).toBe(52)
+  expect(time.x + time.width).toBe(370)
+  await expect(row.locator('.phone-note-title')).toHaveCSS('font-weight', '400')
+  await expect(row.locator('.phone-note-title')).toHaveCSS('font-size', '17px')
+  await expect(row.locator('.phone-note-time')).toHaveCSS('font-size', '14px')
+  await expect(row.locator('.phone-note-excerpt')).toHaveCSS('white-space', 'nowrap')
+})
+
+test('a section head has a mono count and collapses its rows', async ({ page }) => {
+  await openNotes(page)
+  const head = section(page, 'recent').getByRole('button', { name: /Recent/ })
+  await expect(head).toHaveAttribute('aria-expanded', 'true')
+  await expect(head.locator('.phone-figures')).toHaveText(/^\d+$/)
+  const chevron = head.locator('.phone-list-head-chevron')
+  await expect(chevron).toHaveCSS('transform', 'none')
+  await head.click()
+  await expect(head).toHaveAttribute('aria-expanded', 'false')
+  await expect(recent(page).first()).toBeHidden()
+  await expect(chevron).not.toHaveCSS('transform', 'none')
+  await head.click()
+  await expect(recent(page).first()).toBeVisible()
+})
+
+test('Completed starts collapsed behind Show more, which opens it', async ({ page }) => {
+  await openNotes(page)
+  await swipeRow(page, 0, 370)
+  const completed = section(page, 'completed')
+  const more = completed.getByRole('button', {
+    name: /^Show more \(1 completed hidden\)$/,
+  })
+  await expect(more).toBeVisible()
+  await expect(completed.locator('.phone-note-row').first()).toBeHidden()
+  await more.click()
+  await expect(more).toHaveCount(0)
+  await expect(completed.locator('.phone-note-row').first()).toBeVisible()
+})
 
 async function chooseFilter(page: Page, name: RegExp): Promise<void> {
   await list(page).getByRole('button', { name: 'Status filter' }).click()
@@ -73,38 +136,79 @@ test('the filter keeps only notes in that status', async ({ page }) => {
   await list(page)
     .getByRole('button', { name: 'Close' })
     .click({ position: { x: 20, y: 400 } })
-  for (const badge of await list(page).locator('.phone-status-badge').all())
-    await expect(badge).toHaveAttribute('aria-label', 'Completed')
+  await expect(section(page, 'recent')).toHaveCount(0)
+  for (const mark of await list(page).locator('.phone-note-mark').all())
+    await expect(mark).toHaveAttribute('aria-label', 'Completed')
 })
 
 test('a row swiped past half stays open with its three actions', async ({ page }) => {
   await openNotes(page)
   await swipeRow(page, 0, 130)
-  const actions = rows(page).first().locator('.phone-swipe-action')
+  const row = recent(page).first()
+  const actions = row.locator('.phone-swipe-action')
   await expect(actions).toHaveCount(3)
   await expect(actions.nth(2)).toBeInViewport()
-  await expect(rows(page).first().locator('.phone-note-content')).toHaveAttribute('data-raised')
+  await expect(row.locator('.phone-note-content')).toHaveAttribute('data-raised')
+  await expect
+    .poll(async () => row.locator('.phone-note-open').boundingBox())
+    .toMatchObject({
+      x: -196,
+    })
+  const capsule = (await actions.nth(2).locator('.phone-swipe-capsule').boundingBox())!
+  expect(capsule).toMatchObject({ x: 328, width: 52, height: 34 })
+  await expect(actions.nth(2).locator('.phone-swipe-label')).toHaveCSS('font-size', '11px')
+  await expect(row.locator('.phone-note-content')).toHaveCSS(
+    'transform',
+    'matrix(1, 0, 0, 1, -196, 0)',
+  )
 })
 
-test('a row swiped past 280 completes its note', async ({ page }) => {
+test('tapping another row first closes the open one, and opens nothing', async ({ page }) => {
   await openNotes(page)
-  const title = (await rows(page).first().locator('.phone-note-title').textContent())!
-  // Past 190 the drag meets the 0.6 rubber band, so 280 needs about 340 of travel.
+  await swipeRow(page, 0, 130)
+  const content = recent(page).first().locator('.phone-note-content')
+  await expect(content).toHaveAttribute('data-raised')
+  await recent(page).nth(1).locator('.phone-note-open').click()
+  await expect(content).not.toHaveAttribute('data-raised')
+  await expect(list(page)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Note Info' })).toHaveCount(0)
+})
+
+test('a row swiped past 270 completes its note and moves it to Completed', async ({ page }) => {
+  await openNotes(page)
+  const title = (await recent(page).first().locator('.phone-note-title').textContent())!
+  // Past 196 the drag meets the 0.6 rubber band, so 270 needs about 320 of travel.
   await swipeRow(page, 0, 370)
-  await expect(
-    rows(page).filter({ hasText: title }).first().locator('.phone-status-badge'),
-  ).toHaveAttribute('aria-label', 'Completed')
+  const moved = section(page, 'completed').locator('.phone-note-row').filter({ hasText: title })
+  await expect(moved.locator('.phone-note-mark')).toHaveAttribute('aria-label', 'Completed')
+})
+
+test('a vertical drag on a row never swipes', async ({ page }) => {
+  await openNotes(page)
+  const box = (await recent(page).first().boundingBox())!
+  await page.mouse.move(box.x + 200, box.y + 20)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 190, box.y + 120, { steps: 8 })
+  await page.mouse.up()
+  await expect(recent(page).first().locator('.phone-note-content')).not.toHaveAttribute(
+    'data-raised',
+  )
 })
 
 test('a long press peeks, and the status bar sets the status', async ({ page }) => {
   await openNotes(page)
-  const box = (await rows(page).first().boundingBox())!
+  const box = (await recent(page).first().boundingBox())!
   await page.mouse.move(box.x + 100, box.y + box.height / 2)
   await page.mouse.down()
   await page.waitForTimeout(600)
   await page.mouse.up()
   const peek = page.getByRole('group', { name: 'Set Status' })
   await expect(peek).toBeVisible()
+  for (const name of ['Open', 'Pin', 'Move to…', 'Move to Trash']) {
+    await expect(
+      page.getByRole('menuitem', { name, exact: true }).locator('svg, .icon'),
+    ).toHaveCount(1)
+  }
   await peek.getByRole('button', { name: 'On Hold' }).click()
   await expect(peek).toHaveCount(0)
   await chooseFilter(page, /On Hold/)
@@ -113,7 +217,7 @@ test('a long press peeks, and the status bar sets the status', async ({ page }) 
 
 test('the row actions are offered without a gesture', async ({ page }) => {
   await openNotes(page)
-  await rows(page)
+  await recent(page)
     .first()
     .getByRole('button', { name: /^Actions for / })
     .evaluate((el) => (el as HTMLElement).click())
@@ -122,7 +226,7 @@ test('the row actions are offered without a gesture', async ({ page }) => {
 
 test('a note opens in Edit, switches to Preview and shows its info sheet', async ({ page }) => {
   await openNotes(page)
-  await rows(page).first().locator('.phone-note-open').click()
+  await recent(page).first().locator('.phone-note-open').click()
   const toggle = page.getByRole('button', { name: 'Preview', exact: true })
   await expect(toggle).toBeVisible()
   await toggle.click()
@@ -137,17 +241,45 @@ test('a note opens in Edit, switches to Preview and shows its info sheet', async
   await expect(sheet).toHaveCount(0)
 })
 
-test('capture grows from the new-note circle and saves a note to the top of the list', async ({
-  page,
-}) => {
+test('capture saves a note to the top of Recent, opening it first', async ({ page }) => {
   await openNotes(page)
+  await section(page, 'recent')
+    .getByRole('button', { name: /Recent/ })
+    .click()
+  await capture(page, 'Relay retention')
+  await expect(recent(page).first()).toBeVisible()
+  await expect(recent(page).first()).toContainText('Relay retention')
+})
+
+test('a note captured from the Library lands in Recent of All Notes', async ({ page }) => {
   await page.getByRole('button', { name: 'New Note' }).click()
   const sheet = page.getByRole('dialog', { name: 'New Note' })
-  await expect(sheet).toBeVisible()
-  await sheet.getByLabel('Title').fill('Relay retention')
+  await sheet.getByLabel('Title').fill('From the Library')
   await sheet.getByRole('button', { name: 'Save note' }).click()
-  await expect(sheet).toHaveCount(0)
-  await expect(rows(page).filter({ hasText: 'Relay retention' })).toHaveCount(1)
+  await expect(recent(page).first()).toContainText('From the Library')
+  await expect(tabs(page).getByRole('button', { name: 'Notes' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+})
+
+test.describe('with motion', () => {
+  test.use({ reducedMotion: 'no-preference' })
+
+  test('a saved note flies in and flashes, and the rows below shift', async ({ page }) => {
+    await openNotes(page)
+    await capture(page, 'Flying in')
+    const row = recent(page).filter({ hasText: 'Flying in' })
+    await expect(row).toHaveAttribute('data-arrived')
+    const names = await row.evaluate((el) => getComputedStyle(el).animationName)
+    expect(names).toContain('phone-arrive')
+    expect(names).toContain('phone-flash')
+    const below = await recent(page)
+      .nth(1)
+      .evaluate((el) => getComputedStyle(el).animationName)
+    expect(below).toBe('phone-shift')
+    await expect(row).not.toHaveAttribute('data-arrived')
+  })
 })
 
 test('Settings lists its sections and opens a pane', async ({ page }) => {
@@ -200,7 +332,9 @@ test('a phone Settings row puts its field under its label, full width, in iPhone
     label.boundingBox(),
     pane
       .locator('.settings-card')
-      .filter({ has: page.getByRole('combobox', { name: 'Unordered List Bullet' }) })
+      .filter({
+        has: page.getByRole('combobox', { name: 'Unordered List Bullet' }),
+      })
       .boundingBox(),
   ])
   expect(fieldBox!.y).toBeGreaterThanOrEqual(labelBox!.y + labelBox!.height)

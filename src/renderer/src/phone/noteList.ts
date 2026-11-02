@@ -11,6 +11,39 @@ export function orderNotes(notes: readonly NoteSummary[]): NoteSummary[] {
   return [...pinned, ...rest]
 }
 
+export type NoteSectionKey = 'pinned' | 'recent' | 'completed'
+
+export interface NoteSection {
+  readonly key: NoteSectionKey
+  readonly notes: readonly NoteSummary[]
+}
+
+/** The list's sections, newest first in each, leaving out an empty one. */
+export function noteSections(notes: readonly NoteSummary[]): NoteSection[] {
+  const ordered = [...notes].sort(newestFirst)
+  const sections: NoteSection[] = [
+    { key: 'pinned', notes: ordered.filter((n) => n.pinned) },
+    {
+      key: 'recent',
+      notes: ordered.filter((n) => !n.pinned && n.status !== 'completed'),
+    },
+    {
+      key: 'completed',
+      notes: ordered.filter((n) => !n.pinned && n.status === 'completed'),
+    },
+  ]
+  return sections.filter((section) => section.notes.length > 0)
+}
+
+export type SectionChoices = Readonly<Partial<Record<NoteSectionKey, boolean>>>
+
+/** Whether a section is collapsed: as chosen, else only Completed, unless that is what is filtered for. */
+export const sectionCollapsed = (
+  key: NoteSectionKey,
+  chosen: SectionChoices,
+  status: PhoneStatusFilter,
+): boolean => chosen[key] ?? (key === 'completed' && status !== 'completed')
+
 function withDescendants(id: string, books: readonly BookRecord[]): Set<string> {
   const found = new Set([id])
   let grew = true

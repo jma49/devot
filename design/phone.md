@@ -22,9 +22,10 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 
 ## Behaviour
 
-- The note list orders pinned notes first, then the rest, newest first in each, so a new note lands at the top of the unpinned ones.
+- Each note list section is newest first, so a new note lands at the top of Recent.
 - A move of more than 8 pt that is mostly horizontal starts a swipe; a vertical one scrolls and never swipes; a 420 ms hold without either peeks. An open row takes no peek.
-- Every row has a hidden "Actions for…" button that opens the peek's menu, so the swipe and peek actions need no gesture.
+- Every row has a hidden "Actions for…" button that opens the peek's menu, so the swipe and peek actions need no gesture. It stands in for VoiceOver custom actions, which a web view cannot declare.
+- A swipe raises the row on a surface (`radius.phone-swipe-surface`, `size.phone-swipe-surface-inset`). Its capsules are `size.phone-swipe-action` by `size.phone-swipe-action-height` with an 11 pt label under each; Pin stays `color.phone.action-pin`, darker than the design's orange so its glyph keeps 3:1.
 - Settings rows open the existing Settings panes in a phone screen. Mirror Folder, Integrations and Plugins show "On the Mac" and do not open.
 - In a phone screen a pane leaves out what only the Mac has (`useOnPhone`): the interface style, Glass Transparency and the system accent color (the phone always draws its own glass), and the board, activity strip, menu bar, updates, command line tool and folder buttons. Each row stacks its control under its label at the row's width; switches stay beside their label. Messages that name the Mac use the iPhone wording in `i18n/phone.ts`.
 
@@ -41,7 +42,11 @@ One page background, `color.phone.background`, on plain and grouped screens.
 
 Top bar: 44 high, `size.phone-topbar-top` below the safe area, 16 from each side. A title is 22 bold, left-aligned at x 20, or after a 44 back circle. On the right, one glass capsule of up to two `size.phone-capsule-button` by 44 buttons: Library has new notebook and search, Notes has filter and search, Settings has pair device and search. The filter button opens a menu of All, Active, On Hold and Done, and turns the accent colour while a filter is on.
 
-Plain lists sit at `size.phone-list-edge` (x 20 to 370). Text moves to `size.phone-list-text` (52) when status marks replace avatars; for now it follows the avatar.
+Plain lists sit at `size.phone-list-edge` (x 20 to 370), with text at `size.phone-list-text` (52).
+
+Note list: sections Pinned, Recent (not pinned, not completed) and Completed (not pinned, completed); a pinned completed note is in Pinned, and an empty section is left out. Templates and Trash are one flat list. A head (`size.phone-section-head`, drawn 40 in a 44 target) has the title, a mono count, a hairline and a chevron that turns when the section is collapsed. Completed starts collapsed, with a dashed Show more in a `size.phone-show-more` slot, unless the status filter is on Done. Collapsing lasts the session. A saved note opens Recent, and clears a filter that would hide it.
+
+A row is `size.phone-list-row`: a `size.icon-phone-status` status mark at x 20, the title 17 regular with the time in `.phone-figures` 14 `color.phone.text-faint` on the right, then the first tag in its colour, the excerpt 14 on one line and a pin glyph. Rows have no separators.
 
 Grouped pages: cards inset 16, `radius.phone-card`, `size.phone-card-inset` around their rows, no separators. Rows are 44 with `size.phone-row-pad`, and a pressed row fills to `radius.phone-row-press`. Group titles sit at x 26, 14 medium in `color.phone.text-secondary`.
 
@@ -59,7 +64,7 @@ Text follows the system's text size, up to the largest accessibility size.
 
 - Numbers in the specs are at the default size (Large). The scale is the computed size of `font: -apple-system-body` over 17, read at launch and on return to the foreground, and set on the root as `--phone-text-scale`; every font size and line height in the layout is its number times that scale.
 - Heights that hold text are minimums, so `size.phone-list-row`, `size.phone-grouped-row`, `size.phone-info-row`, `size.phone-smart-tile` and `size.phone-chip` grow with their text. Nothing is positioned by assuming a row height: the list measures its rows, and a saved note's neighbours shift by the height it really takes.
-- Text wraps rather than being cut wherever a row can grow. At the accessibility sizes the note list's title may take two lines, a row's time moves under its title and the four smart tiles become two rows of two. The list preview keeps its two lines.
+- Text wraps rather than being cut wherever a row can grow. At the accessibility sizes the note list's title may take two lines, a row's time moves under its title, its preview takes two lines, and the four smart tiles become two rows of two.
 - Icons beside text grow with it. Glass bars keep their heights and glyphs, because they sit in fixed places: the top bar's title stops at 1.35.
 - The note's editor and preview keep the text size chosen in Settings, and start from the system's scale until one is chosen.
 

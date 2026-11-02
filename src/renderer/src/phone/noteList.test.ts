@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { BookRecord, NoteStatus, NoteSummary } from '../../../core/storage'
-import { filterCounts, inView, orderNotes, withStatus } from './noteList'
+import {
+  filterCounts,
+  inView,
+  noteSections,
+  orderNotes,
+  sectionCollapsed,
+  withStatus,
+} from './noteList'
 
 let next = 0
 const note = (
@@ -59,6 +66,54 @@ describe('the note list order', () => {
   })
 })
 
+describe('the note list sections', () => {
+  const titled = (updatedAt: number, extra: Parameters<typeof note>[0] = {}) =>
+    note({ ...extra, updatedAt })
+  const keys = (notes: NoteSummary[]) => noteSections(notes).map((section) => section.key)
+
+  it('puts each note in one section, a pinned completed note in Pinned', () => {
+    const pinned = titled(1, { pinned: true })
+    const pinnedDone = titled(2, { pinned: true, status: 'completed' })
+    const active = titled(3, { status: 'active' })
+    const dropped = titled(4, { status: 'dropped' })
+    const plain = titled(5)
+    const done = titled(6, { status: 'completed' })
+    const [first, second, third] = noteSections([pinned, pinnedDone, active, dropped, plain, done])
+    expect(first!.key).toBe('pinned')
+    expect(first!.notes).toEqual([pinnedDone, pinned])
+    expect(second!.key).toBe('recent')
+    expect(second!.notes).toEqual([plain, dropped, active])
+    expect(third!.key).toBe('completed')
+    expect(third!.notes).toEqual([done])
+  })
+
+  it('orders newest first, then by id so the order is stable', () => {
+    const a = { ...titled(5), id: 'a' }
+    const b = { ...titled(5), id: 'b' }
+    const newer = titled(6)
+    expect(noteSections([b, a, newer])[0]!.notes).toEqual([newer, a, b])
+  })
+
+  it('leaves out empty sections', () => {
+    expect(keys([])).toEqual([])
+    expect(keys([titled(1)])).toEqual(['recent'])
+    expect(keys([titled(1, { status: 'completed' })])).toEqual(['completed'])
+  })
+
+  it('collapses only Completed by default, unless filtering for it', () => {
+    expect(sectionCollapsed('completed', {}, 'all')).toBe(true)
+    expect(sectionCollapsed('recent', {}, 'all')).toBe(false)
+    expect(sectionCollapsed('pinned', {}, 'all')).toBe(false)
+    expect(sectionCollapsed('completed', {}, 'completed')).toBe(false)
+  })
+
+  it('keeps what was chosen', () => {
+    expect(sectionCollapsed('completed', { completed: false }, 'all')).toBe(false)
+    expect(sectionCollapsed('recent', { recent: true }, 'all')).toBe(true)
+    expect(sectionCollapsed('completed', { completed: true }, 'completed')).toBe(true)
+  })
+})
+
 describe('what a view shows', () => {
   const books = [book('parent'), book('child', 'parent'), book('other')]
 
@@ -85,7 +140,12 @@ describe('the status filter', () => {
   ]
 
   it('counts each status live', () => {
-    expect(filterCounts(notes)).toEqual({ all: 5, active: 2, on_hold: 1, completed: 1 })
+    expect(filterCounts(notes)).toEqual({
+      all: 5,
+      active: 2,
+      on_hold: 1,
+      completed: 1,
+    })
   })
 
   it('keeps only the chosen status, or everything', () => {

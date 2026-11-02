@@ -191,6 +191,7 @@ export const LUCIDE_ICONS = {
   'phone.settings.licence': CreditCardIcon,
   'phone.settings.about': InfoIcon,
   'phone.disclosure': ChevronRightIcon,
+  'phone.section.chevron': ChevronUpIcon,
   'notes.all': NotepadTextIcon,
   'notes.pinned': PinIcon,
   'note.pinned': PinIcon,

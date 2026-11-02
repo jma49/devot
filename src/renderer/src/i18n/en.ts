@@ -30,6 +30,8 @@ export const en = {
   'phone.filter.all': 'All',
   'phone.filter.label': 'Status filter',
   'phone.list.empty': 'No notes here',
+  'phone.list.recent': 'Recent',
+  'phone.list.showMore': 'Show more ({count} completed hidden)',
   'phone.capture.title': 'Title',
   'phone.capture.note': 'Note',
   'phone.capture.save': 'Save note',

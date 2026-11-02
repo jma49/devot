@@ -129,7 +129,10 @@ export function PhoneNote(props: { store: PhoneStore; noteId: string; onBack: ()
   const typing = mode === 'edit' && keyboard.open
 
   const openNote = (id: string) =>
-    setHistory((h) => ({ ids: [...h.ids.slice(0, h.at + 1), id], at: h.at + 1 }))
+    setHistory((h) => ({
+      ids: [...h.ids.slice(0, h.at + 1), id],
+      at: h.at + 1,
+    }))
   const links: LinkSources = {
     find: async (query) => {
       const core = store.core
@@ -334,7 +337,9 @@ export function PhoneNote(props: { store: PhoneStore; noteId: string; onBack: ()
       <div
         className="phone-accessory"
         data-shown={typing || undefined}
-        style={{ bottom: `calc(${keyboard.height}px + var(--size-phone-sheet-inset))` }}
+        style={{
+          bottom: `calc(${keyboard.height}px + var(--size-phone-sheet-inset))`,
+        }}
       >
         <div
           role="toolbar"

@@ -62,6 +62,7 @@
     "phone.settings.licence": "creditcard",
     "phone.settings.about": "info.circle",
     "phone.disclosure": "chevron.right",
+    "phone.section.chevron": "chevron.up",
     "notes.all": "note.text",
     "notes.pinned": "pin",
     "note.pinned": "pin.fill",
