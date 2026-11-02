@@ -382,22 +382,46 @@ const SYSTEM_ACCENTS: Record<string, [string, string]> = {
 }
 
 describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme) => {
-  const plain = ['phone.background', 'phone.group', 'phone.card', 'phone.band'].map((s) =>
-    solid(theme, s),
-  )
+  const plain = ['phone.background', 'phone.card', 'phone.elevated'].map((s) => solid(theme, s))
+  // Status marks and destructive rows sit on the page and on sheet cards, never on a grouped page's card.
+  const marked = ['phone.background', 'phone.elevated'].map((s) => solid(theme, s))
   const raised = over(theme, 'phone.swipe-surface', solid(theme, 'phone.background'))
   const glassOver = plain.map((s) => over(theme, 'phone.glass', s))
-  const menuOver = plain.map((s) => over(theme, 'phone.menu', s))
   const onAction = solid(theme, 'phone.on-action')
 
   it('keeps text at 4.5:1 on its surfaces', () => {
     expect(
       under(4.5, {
-        primary: [solid(theme, 'text.primary'), [...plain, raised, ...glassOver, ...menuOver]],
+        primary: [solid(theme, 'phone.text'), [...plain, raised, ...glassOver]],
+        'top bar title': [
+          solid(theme, 'phone.text'),
+          plain.map((s) => over(theme, 'phone.bar', s)),
+        ],
+        faint: [solid(theme, 'phone.text-faint'), [solid(theme, 'phone.background')]],
+        grow: [solid(theme, 'phone.grow'), [solid(theme, 'phone.card')]],
+        ...Object.fromEntries(
+          Object.keys(theme)
+            .filter((k) => k.startsWith('color.tag-text.'))
+            .map((k) => [
+              `search chip ${k.slice('color.tag-text.'.length)}`,
+              [solid(theme, k.slice('color.'.length)), [solid(theme, 'phone.card')]],
+            ]),
+        ),
+        'found word': [
+          solid(theme, 'phone.text'),
+          [over(theme, 'phone.match', solid(theme, 'phone.background'))],
+        ],
         secondary: [solid(theme, 'phone.text-secondary'), [...plain, raised]],
-        'section head': [solid(theme, 'phone.section-head'), [solid(theme, 'phone.group')]],
-        destructive: [solid(theme, 'phone.destructive'), [solid(theme, 'phone.card'), ...menuOver]],
+        'section head': [solid(theme, 'phone.section-head'), [solid(theme, 'phone.background')]],
+        destructive: [
+          solid(theme, 'phone.destructive'),
+          [solid(theme, 'phone.elevated'), ...glassOver],
+        ],
         'accent text': [solid(theme, 'accent.text'), [solid(theme, 'phone.background')]],
+        'undo on its pill': [
+          solid(theme, 'phone.undo'),
+          plain.map((s) => over(theme, 'phone.lens', over(theme, 'phone.glass', s))),
+        ],
         'count on a badge': [onAction, [solid(theme, 'phone.badge')]],
       }),
     ).toEqual([])
@@ -406,14 +430,14 @@ describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme
   it('keeps marks at 3:1', () => {
     expect(
       under(3, {
-        'status active': [solid(theme, 'status.active-mark'), plain],
-        'status hold': [solid(theme, 'status.hold-mark'), plain],
-        'status done': [solid(theme, 'status.done-mark'), plain],
-        'status dropped': [solid(theme, 'status.dropped-mark'), plain],
+        'status active': [solid(theme, 'status.active-mark'), marked],
+        'status hold': [solid(theme, 'status.hold-mark'), marked],
+        'status done': [solid(theme, 'status.done-mark'), marked],
+        'status dropped': [solid(theme, 'status.dropped-mark'), marked],
         'glyph on pin': [onAction, [solid(theme, 'phone.action-pin')]],
         'glyph on trash': [onAction, [solid(theme, 'phone.action-trash')]],
         'glyph on done': [onAction, [solid(theme, 'phone.action-done')]],
-        'dove on the group': [solid(theme, 'phone.dove'), [solid(theme, 'phone.group')]],
+        'dove on the page': [solid(theme, 'phone.dove'), [solid(theme, 'phone.background')]],
       }),
     ).toEqual([])
   })

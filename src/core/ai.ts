@@ -390,7 +390,7 @@ export function createAiService(options: AiServiceOptions): AiService {
       // `book:` names only notebooks AI may see.
       const resolved = resolveSearch(clauses, { books: all, tags, nameable: [...books.values()] })
       if (!resolved) return []
-      const terms = highlightTerms(clauses).body
+      const terms = highlightTerms(clauses, tags).body
       const count = Math.min(Math.max(1, Math.floor(limit) || 1), MAX_AI_SEARCH_LIMIT)
       const found = await aiStorage.searchNotesInBooks(resolved, [...books.keys()], count)
       const hits: AiSearchHit[] = []

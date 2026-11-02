@@ -12,11 +12,13 @@ import {
   activitySince,
   buildStrips,
   loadActivity,
+  loadWriting,
   stripStart,
   systemOffset,
   type ActivityHeatmap,
   type OffsetAt,
   type StripDay,
+  type Writing,
 } from './activity'
 import {
   agentWriteRows,
@@ -58,6 +60,7 @@ import {
   textLength,
   type HistoryEntry,
 } from './revisions'
+import { countWords } from './words'
 import {
   excludeTemplates,
   parseSearch,
@@ -144,6 +147,14 @@ export interface SearchResult {
   capped: boolean
 }
 
+/** A status change that can be undone: the note before it, and the status clock and stored version it left. */
+export interface StatusUndo {
+  readonly status: NoteStatus
+  readonly updatedAt: number
+  readonly statusHlc: string
+  readonly bodyVersion: number
+}
+
 export interface NoteService {
   list(limit?: number): Promise<NoteSummary[]>
   create(title?: string, bookId?: string | null): Promise<string>
@@ -156,7 +167,12 @@ export interface NoteService {
   hold(id: string): void
   unhold(id: string): void
   /** Read without keeping the note in memory. Throws E_NOTE_NOT_FOUND. */
-  read(id: string): Promise<{ id: string; title: string; bodyMd: string; bookId: string | null }>
+  read(id: string): Promise<{
+    id: string
+    title: string
+    bodyMd: string
+    bookId: string | null
+  }>
   /** Untitled notes' list names: the first line of the body (see `headline`). Missing notes are left out. */
   headlines(ids: readonly string[]): Promise<Record<string, string>>
   /** List excerpts (see `listExcerpt`), pending edits included. Missing notes are left out. */
@@ -184,6 +200,10 @@ export interface NoteService {
   setTitle(id: string, title: string): Promise<void>
   setBook(id: string, bookId: string | null): Promise<void>
   setStatus(id: string, status: NoteStatus): Promise<void>
+  /** Writes now, like setStatus otherwise, and returns what `undoStatus` needs. */
+  setStatusUndoable(id: string, status: NoteStatus): Promise<StatusUndo>
+  /** Puts the status back only while it is still the one that change set, and the update time only when the note has not been written since: anything newer stays. */
+  undoStatus(id: string, undo: StatusUndo): Promise<void>
   /** Both dates take one new HLC so the change wins over older writes (schema v17). Throws E_NOTE_TIME_INVALID for a date that is not a whole, non-negative millisecond time, or an update before the creation. */
   setDates(id: string, dates: { createdAt?: number; updatedAt?: number }): Promise<void>
   setPinned(id: string, pinned: boolean): Promise<void>
@@ -268,6 +288,8 @@ export interface NoteService {
   markWritesSeen(id: string, writeIds: readonly string[]): Promise<void>
   /** Pending edits are saved and unversioned typing becomes a version, so it counts. */
   activity(now: number, offsetAt?: OffsetAt): Promise<ActivityHeatmap>
+  /** The phone's Activity screen, typing kept as a version first as for `activity`. */
+  writing(now: number, offsetAt?: OffsetAt): Promise<Writing>
   /** The list's activity strips of `ids` (at most MAX_BODY_IDS; see buildStrips), typing not kept as a version yet counted today. Reads only: nothing is saved. */
   noteActivity(
     ids: readonly string[],
@@ -391,7 +413,11 @@ const withNewer = (to: NoteRecord, from: NoteRecord): NoteRecord => ({
     : {}),
   // Newer hand-set dates are taken as they are (see NoteRecord.datesHlc).
   ...((from.datesHlc ?? '') > (to.datesHlc ?? '')
-    ? { createdAt: from.createdAt, updatedAt: from.updatedAt, datesHlc: from.datesHlc ?? '' }
+    ? {
+        createdAt: from.createdAt,
+        updatedAt: from.updatedAt,
+        datesHlc: from.datesHlc ?? '',
+      }
     : (to.datesHlc ?? '') > (from.datesHlc ?? '')
       ? {}
       : { updatedAt: Math.max(to.updatedAt, from.updatedAt) }),
@@ -406,7 +432,10 @@ const holdsMore = (doc: Y.Doc, stored: NoteRecord) => {
   return false
 }
 
-const asBody = (version: CompactableVersion) => ({ ...version, kind: 'body' as const })
+const asBody = (version: CompactableVersion) => ({
+  ...version,
+  kind: 'body' as const,
+})
 
 const byNote = (versions: readonly CompactableVersion[]) => {
   const notes = new Map<string, CompactableVersion[]>()
@@ -589,6 +618,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         ydoc,
         length: textLength(text),
         value,
+        words: countWords(text),
       })
       note.rev.lastText = text
     })
@@ -616,6 +646,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           ydoc: before.ydoc,
           length: textLength(before.text),
           value: latest === undefined ? BASELINE : null,
+          words: countWords(before.text),
         })
       }
       // A version taken meanwhile is newer.
@@ -679,7 +710,18 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           continue
         }
       }
-      enqueue(() => storage.putRevision({ id, noteId, kind, at, ydoc: null, length: null, value }))
+      enqueue(() =>
+        storage.putRevision({
+          id,
+          noteId,
+          kind,
+          at,
+          ydoc: null,
+          length: null,
+          value,
+          words: null,
+        }),
+      )
     }
   }
 
@@ -830,7 +872,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     for (const id of new Set(ids)) {
       const note = live.get(id)
       if (note)
-        found.push({ id, title: note.record.title, bodyMd: note.doc.getText(BODY).toString() })
+        found.push({
+          id,
+          title: note.record.title,
+          bodyMd: note.doc.getText(BODY).toString(),
+        })
       else stored.push(id)
     }
     const batches: Promise<NoteBody[]>[] = []
@@ -858,7 +904,10 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     }
     let reading = loading.get(id)
     if (!reading) {
-      const pending = { note: Promise.resolve() as unknown as Promise<Live>, users: 0 }
+      const pending = {
+        note: Promise.resolve() as unknown as Promise<Live>,
+        users: 0,
+      }
       pending.note = (async () => {
         try {
           await coldWrites.get(id)
@@ -921,7 +970,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
   }
 
   const retitle = (note: Live, title: string) => {
-    note.record = { ...note.record, title: clipTitle(title), titleHlc: clock.tick() }
+    note.record = {
+      ...note.record,
+      title: clipTitle(title),
+      titleHlc: clock.tick(),
+    }
     schedule(note)
     const { id, title: clipped, titleHlc } = note.record
     relay({ kind: 'title', noteId: id, title: clipped, hlc: titleHlc })
@@ -945,15 +998,25 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     }
     if (taken.length === 0) return false
     const noteId = note.record.id
-    tell({ kind: 'update', noteId, update: taken.length === 1 ? taken[0]! : Y.mergeUpdates(taken) })
+    tell({
+      kind: 'update',
+      noteId,
+      update: taken.length === 1 ? taken[0]! : Y.mergeUpdates(taken),
+    })
     return true
   }
 
   /** Merges the stored copy in: a Yjs merge, and the newer HLC of each metadata field. */
   const takeIn = (note: Live, stored: NoteRecord) => {
     const title = note.record.title
-    note.record = { ...withNewer(note.record, stored), bodyVersion: stored.bodyVersion }
-    note.saved = { ...withNewer(note.saved, stored), bodyVersion: stored.bodyVersion }
+    note.record = {
+      ...withNewer(note.record, stored),
+      bodyVersion: stored.bodyVersion,
+    }
+    note.saved = {
+      ...withNewer(note.saved, stored),
+      bodyVersion: stored.bodyVersion,
+    }
     takeOutside(note, stored.ydoc)
     if (note.record.title !== title) {
       const { id, title: taken, titleHlc } = note.record
@@ -992,7 +1055,12 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       if (seen === last.seen) continue
       last.seen = seen
       relay({ kind: 'update', noteId: id, data: stored.ydoc })
-      relay({ kind: 'title', noteId: id, title: clipTitle(stored.title), hlc: stored.titleHlc })
+      relay({
+        kind: 'title',
+        noteId: id,
+        title: clipTitle(stored.title),
+        hlc: stored.titleHlc,
+      })
     }
   }
 
@@ -1064,6 +1132,30 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
   const liveBook = async (bookId: string | null) =>
     bookId !== null && (await isLiveBook(bookId)) ? bookId : null
 
+  /** writeMeta for a note in memory. Returns the field's new HLC. */
+  const writeLive = async (note: Live, change: MetaChange): Promise<string> => {
+    const before = note.record
+    const at = clock.tick()
+    const field: MetaField = 'bookId' in change ? 'book' : 'status' in change ? 'status' : 'pinned'
+    note.record = {
+      ...note.record,
+      ...('bookId' in change ? { bookId: change.bookId, bookHlc: at } : {}),
+      ...('status' in change ? { status: change.status, statusHlc: at } : {}),
+      ...('pinned' in change ? { pinned: change.pinned, pinnedHlc: at } : {}),
+    }
+    try {
+      await exclusive(note, () => write(note))
+    } catch (error) {
+      // Not written: the field goes back, unless it changed again since.
+      if (hlcOf(note.record, field) === at) note.record = withField(note.record, before, field)
+      // The note's other changes stay pending, and are tried again.
+      if (dirty(note)) failed(note, error)
+      else settle(note)
+      throw error
+    }
+    return at
+  }
+
   /** writeMeta for a note not in memory: the stored record is rewritten with the field changed and its body as stored, so no Yjs document is built and the search index is left alone (schema v15). */
   // Writes of one note made this way go one at a time, and a load of it waits for them.
   const writeStored = (id: string, change: MetaChange): Promise<void> => {
@@ -1081,7 +1173,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           ...('pinned' in change ? { pinned: change.pinned, pinnedHlc: at } : {}),
           updatedAt: Math.max(now(), before.createdAt),
         }
-        keepBaseline(id, { ydoc: stored.ydoc, text: stored.bodyMd, at: stored.updatedAt })
+        keepBaseline(id, {
+          ydoc: stored.ydoc,
+          text: stored.bodyMd,
+          at: stored.updatedAt,
+        })
         await storage.putNote(record)
         recordEvents(undefined, before, record)
         sweep()
@@ -1359,6 +1455,49 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       })
     },
 
+    async setStatusUndoable(id, status) {
+      if (!NOTE_STATUSES.includes(status)) throw new Error('E_NOTE_STATUS_INVALID')
+      return using(id, async (note) => {
+        // Written first: an earlier edit is not part of this change, nor its time.
+        await save(note)
+        const { status: was, updatedAt } = note.record
+        const statusHlc = await writeLive(note, { status })
+        return {
+          status: was,
+          updatedAt,
+          statusHlc,
+          bodyVersion: note.record.bodyVersion,
+        }
+      })
+    },
+
+    async undoStatus(id, undo) {
+      if (!NOTE_STATUSES.includes(undo.status)) throw new Error('E_NOTE_STATUS_INVALID')
+      await using(id, async (note) => {
+        await save(note)
+        await exclusive(note, async () => {
+          // Sync writes storage directly: the note in memory may not have heard yet.
+          const stored = await getStored(id, { trashed: true })
+          if (stored) takeIn(note, stored)
+          if (note.record.statusHlc !== undo.statusHlc) return
+          const at = clock.tick()
+          const untouched = note.record.bodyVersion === undo.bodyVersion && !dirty(note)
+          note.record = {
+            ...note.record,
+            status: undo.status,
+            statusHlc: at,
+            ...(untouched ? { updatedAt: undo.updatedAt, datesHlc: at } : {}),
+          }
+          try {
+            await write(note)
+          } catch (error) {
+            failed(note, error)
+            throw error
+          }
+        })
+      })
+    },
+
     async setDates(id, dates) {
       const valid = (at: number | undefined) =>
         at === undefined || (Number.isSafeInteger(at) && at >= 0)
@@ -1369,7 +1508,12 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         const createdAt = dates.createdAt ?? note.record.createdAt
         const updatedAt = dates.updatedAt ?? note.record.updatedAt
         if (updatedAt < createdAt) throw new Error('E_NOTE_TIME_INVALID')
-        note.record = { ...note.record, createdAt, updatedAt, datesHlc: clock.tick() }
+        note.record = {
+          ...note.record,
+          createdAt,
+          updatedAt,
+          datesHlc: clock.tick(),
+        }
         await save(note)
       })
     },
@@ -1386,28 +1530,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         throw new Error('E_NOTE_STATUS_INVALID')
       }
       if (!live.has(id) && !loading.has(id)) return writeStored(id, change)
-      await using(id, async (note) => {
-        const before = note.record
-        const at = clock.tick()
-        const field: MetaField =
-          'bookId' in change ? 'book' : 'status' in change ? 'status' : 'pinned'
-        note.record = {
-          ...note.record,
-          ...('bookId' in change ? { bookId: change.bookId, bookHlc: at } : {}),
-          ...('status' in change ? { status: change.status, statusHlc: at } : {}),
-          ...('pinned' in change ? { pinned: change.pinned, pinnedHlc: at } : {}),
-        }
-        try {
-          await exclusive(note, () => write(note))
-        } catch (error) {
-          // Not written: the field goes back, unless it changed again since.
-          if (hlcOf(note.record, field) === at) note.record = withField(note.record, before, field)
-          // The note's other changes stay pending, and are tried again.
-          if (dirty(note)) failed(note, error)
-          else settle(note)
-          throw error
-        }
-      })
+      await using(id, (note) => writeLive(note, change))
     },
 
     checkBook: (bookId) => requireBook(bookId),
@@ -1440,7 +1563,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         clauses.some((c) => fields.includes(c.field))
       const [books, tags] = await Promise.all([
         scope?.bookId || needs('book', 'bookId') ? storage.listBooks() : [],
-        needs('tag', 'tagId') ? storage.listTags() : [],
+        needs('tag', 'tagId', 'hashtag') ? storage.listTags() : [],
       ])
       // `book:` and `bookId:` never name Templates.
       const nameable = books.filter((b) => b.id !== TEMPLATES_BOOK_ID)
@@ -1723,6 +1846,13 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       return loadActivity(storage, day, offsetAt)
     },
 
+    async writing(day, offsetAt) {
+      await saveAll()
+      for (const note of live.values()) takeVersion(note)
+      await revisionWork
+      return loadWriting(storage, day, offsetAt)
+    },
+
     async noteActivity(ids, at, offsetAt = systemOffset) {
       const revisions = await storage.listNoteActivity(ids, activitySince(stripStart(at, offsetAt)))
       const pending = new Map<string, number>()
@@ -1781,7 +1911,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       if (!note) return
       try {
         if (message.kind === 'want') {
-          relay({ kind: 'update', noteId: id, data: Y.encodeStateAsUpdate(note.doc, message.data) })
+          relay({
+            kind: 'update',
+            noteId: id,
+            data: Y.encodeStateAsUpdate(note.doc, message.data),
+          })
         } else if (message.kind === 'update') {
           // The window that made the change keeps the text from before it (see keepBaseline).
           if (takeOutside(note, message.data, RELAYED)) note.rev.checked = true

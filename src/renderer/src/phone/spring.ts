@@ -23,6 +23,8 @@ function applyTextScale(root: HTMLElement): void {
   probe.remove()
   root.style.setProperty('--phone-text-scale', String(scale))
   root.style.setProperty('--phone-bar-text-scale', String(Math.min(scale, BAR_TEXT_LIMIT)))
+  // An icon beside text grows with it, up to what its column holds, and never shrinks.
+  root.style.setProperty('--phone-icon-scale', String(Math.min(Math.max(scale, 1), BAR_TEXT_LIMIT)))
   root.dataset['textSize'] = isAccessibilitySize(scale) ? 'accessibility' : 'standard'
 }
 

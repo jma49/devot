@@ -15,6 +15,9 @@ import {
   bodyExcerpt,
   parseSearch,
   resolveSearch,
+  searchValue,
+  bookQuery,
+  tagQuery,
   MAX_TERM_CHARS,
   SEARCH_LIMIT,
   type BookRecord,
@@ -56,7 +59,11 @@ async function note(notes: NoteService, title: string, body: string, bookId: str
 const titles = async (notes: NoteService, query: string, scope?: SearchScope) =>
   (await notes.search(query, scope)).found.map((n) => n.title).sort()
 
-const any = (value: string, negate = false): SearchClause => ({ field: 'any', value, negate })
+const any = (value: string, negate = false): SearchClause => ({
+  field: 'any',
+  value,
+  negate,
+})
 
 // "\u540c\u6b65\u65b9\u6848" is a four-character Chinese phrase ("sync plan");
 // "\u540c\u6b65" is its two-character first word.
@@ -513,7 +520,13 @@ describe('qualifiers combined with full-text search on SQLite', () => {
     await s.notes.setStatus(ids.week, 'on_hold')
     await s.notes.setPinned(ids.editor, true)
     await s.notes.flush()
-    return { ...s, books: { work, projects, weekly }, tagIds: { sync }, ids, bookService: s.books }
+    return {
+      ...s,
+      books: { work, projects, weekly },
+      tagIds: { sync },
+      ids,
+      bookService: s.books,
+    }
   }
 
   it('narrows by notebook, including sub-notebooks, by name in any case', async () => {
@@ -550,7 +563,10 @@ describe('qualifiers combined with full-text search on SQLite', () => {
     ])
     expect(await titles(notes, 'plan pinned:true pinned:false')).toEqual([])
     expect(
-      await titles(notes, 'plan pinned:false', { bookId: null, filter: { kind: 'pinned' } }),
+      await titles(notes, 'plan pinned:false', {
+        bookId: null,
+        filter: { kind: 'pinned' },
+      }),
     ).toEqual([])
     expect(await titles(notes, `bookId:${books.work}`)).toEqual(['Editor plan', 'Relay plan'])
     expect(await titles(notes, `plan -bookId:${books.work}`)).toEqual(['Loose plan', 'Week 41'])
@@ -592,14 +608,23 @@ describe('qualifiers combined with full-text search on SQLite', () => {
       'Editor plan',
     ])
     expect(
-      await titles(notes, 'relay', { bookId: null, filter: { kind: 'status', status: 'on_hold' } }),
+      await titles(notes, 'relay', {
+        bookId: null,
+        filter: { kind: 'status', status: 'on_hold' },
+      }),
     ).toEqual(['Week 41'])
     const tagId = (await notes.list()).find((n) => n.title === 'Relay plan')!.tagIds[0]!
     expect(
-      await titles(notes, 'plan', { bookId: books.work, filter: { kind: 'tag', tagId } }),
+      await titles(notes, 'plan', {
+        bookId: books.work,
+        filter: { kind: 'tag', tagId },
+      }),
     ).toEqual(['Editor plan', 'Relay plan'])
     expect(
-      await titles(notes, 'plan -book:Projects', { bookId: books.work, filter: null }),
+      await titles(notes, 'plan -book:Projects', {
+        bookId: books.work,
+        filter: null,
+      }),
     ).toEqual(['Relay plan'])
   })
 
@@ -641,5 +666,151 @@ describe('qualifiers combined with full-text search on SQLite', () => {
     expect((await notes.search('\u00e4rger')).found[0]?.excerpt).toBe('Kein \u00c4rger im Team')
     expect((await notes.search('title:only')).found[0]?.excerpt).toBeUndefined()
     expect((await notes.search('only')).found[0]?.excerpt).toBeUndefined()
+  })
+})
+
+describe('the phone search syntax on SQLite', () => {
+  async function world() {
+    const s = setup()
+    const work = await s.books.create('Work', null)
+    const projects = await s.books.create('Projects', work)
+    const weekly = await s.books.create('Weekly notes', null)
+    const ids = {
+      relay: await note(s.notes, 'Relay plan', 'hibernation plan for the relay', work),
+      editor: await note(s.notes, 'Editor plan', 'use #include and a #1234 ticket', projects),
+      week: await note(s.notes, 'Week 41', 'plan the week; #sync tag spelled out', weekly),
+    }
+    await s.tags.addToNote(ids.relay, 'sync')
+    await s.tags.addToNote(ids.week, 'to read')
+    await s.notes.setStatus(ids.relay, 'active')
+    await s.notes.setStatus(ids.week, 'on_hold')
+    await s.notes.flush()
+    return s
+  }
+
+  it('reads is: as status:, with the same names and exclusion', async () => {
+    const { notes } = await world()
+    expect(await titles(notes, 'is:active')).toEqual(await titles(notes, 'status:active'))
+    expect(await titles(notes, 'is:active')).toEqual(['Relay plan'])
+    expect(await titles(notes, 'IS:"On Hold"')).toEqual(['Week 41'])
+    expect(await titles(notes, 'plan -is:active')).toEqual(['Editor plan', 'Week 41'])
+    expect(parseSearch('is:maybe')).toEqual([any('is:maybe')])
+  })
+
+  it('reads in: as book:, sub-notebooks included', async () => {
+    const { notes } = await world()
+    expect(await titles(notes, 'in:work')).toEqual(['Editor plan', 'Relay plan'])
+    expect(await titles(notes, 'in:Projects')).toEqual(['Editor plan'])
+    expect(await titles(notes, 'in:"weekly NOTES"')).toEqual(['Week 41'])
+    expect(await titles(notes, 'plan -in:Work')).toEqual(['Week 41'])
+    expect(await titles(notes, 'in:Nowhere')).toEqual([])
+    expect(parseSearch('in:')).toEqual([any('in:')])
+  })
+
+  it('reads #x as the tag when one has that name', async () => {
+    const { notes } = await world()
+    expect(await titles(notes, '#SYNC')).toEqual(['Relay plan'])
+    expect(await titles(notes, '#"to read"')).toEqual(['Week 41'])
+    expect(await titles(notes, 'plan -#sync')).toEqual(['Editor plan', 'Week 41'])
+    expect(await titles(notes, '#sync hibernation')).toEqual(['Relay plan'])
+  })
+
+  it('searches #x as text when no tag has that name', async () => {
+    const { notes } = await world()
+    expect(await titles(notes, '#include')).toEqual(['Editor plan'])
+    expect(await titles(notes, '#1234')).toEqual(['Editor plan'])
+    expect(await titles(notes, 'plan -#include')).toEqual(['Relay plan', 'Week 41'])
+    expect((await notes.search('#include')).found[0]?.excerpt).toContain('#include')
+    expect(await titles(notes, '#nothing')).toEqual([])
+  })
+
+  it('searches #x as text once its tag is gone', async () => {
+    const { notes, tags } = await world()
+    const sync = (await tags.list()).find((t) => t.name === 'sync')!
+    await tags.remove(sync.id)
+    expect(await titles(notes, '#sync')).toEqual(['Week 41'])
+  })
+
+  it('searches a quoted "#x" and a lone # as text, whatever tags exist', async () => {
+    const { notes } = await world()
+    expect(await titles(notes, '"#sync"')).toEqual(['Week 41'])
+    expect(parseSearch('#')).toEqual([any('#')])
+    expect(parseSearch('# plan')).toEqual([any('#'), any('plan')])
+    expect(parseSearch('#""')).toEqual([any('#""')])
+    expect(parseSearch('a#b')).toEqual([any('a#b')])
+  })
+
+  it('keeps a long #word within the limit of a text term', () => {
+    const long = '#' + 'x'.repeat(150)
+    const query = resolveSearch(parseSearch(long), { books: [], tags: [] })!
+    expect([...query.text[0]!.value]).toHaveLength(MAX_TERM_CHARS)
+    expect(query.text[0]!.value.startsWith('#x')).toBe(true)
+  })
+
+  it('marks #x in the text only when it was searched as text', () => {
+    const sync = { id: 't', name: 'sync', deletedAt: null } as TagRecord
+    const text = 'see #include and #sync'
+    const marked = (query: string, tags: TagRecord[]) => {
+      const terms = highlightTerms(parseSearch(query), tags)
+      return matchSegments(text, searchPattern(terms.body))
+        .filter((s) => s.match)
+        .map((s) => s.text)
+    }
+    expect(marked('#include', [sync])).toEqual(['#include'])
+    expect(marked('#sync', [sync])).toEqual([])
+    expect(marked('#sync', [])).toEqual(['#sync'])
+    expect(marked('-#include', [])).toEqual([])
+    expect(marked('is:active in:Work', [])).toEqual([])
+  })
+
+  it('quotes a value only when the parser needs it', () => {
+    expect(searchValue('Work')).toBe('Work')
+    expect(searchValue('Weekly notes')).toBe('"Weekly notes"')
+    expect(searchValue('"odd" one')).toBe(`'"odd" one'`)
+    for (const name of ['Work', 'Weekly notes', '"odd" one', "don't stop", 'a"b'])
+      expect(parseSearch(`in:${searchValue(name)}`)).toEqual([
+        { field: 'book', value: name, negate: false },
+      ])
+  })
+
+  it('names a tag or notebook in a query when the name parses back whole', () => {
+    const id = '0190a000-0000-7000-8000-000000000001'
+    expect(tagQuery({ id, name: 'Work' })).toBe('#Work')
+    expect(tagQuery({ id, name: 'Weekly notes' })).toBe('#"Weekly notes"')
+    expect(tagQuery({ id, name: `it's "big"` })).toBe(`#'it's "big"'`)
+    expect(bookQuery({ id, name: 'Weekly notes' })).toBe('in:"Weekly notes"')
+  })
+
+  it('falls back to the ID for a name no quoting can hold', () => {
+    const id = '0190a000-0000-7000-8000-000000000001'
+    const name = `Clients' "urgent"`
+    expect(parseSearch(`in:${searchValue(name)}`)).not.toEqual([
+      { field: 'book', value: name, negate: false },
+    ])
+    expect(tagQuery({ id, name })).toBe(`tagId:${id}`)
+    expect(bookQuery({ id, name })).toBe(`bookId:${id}`)
+  })
+
+  it.each([
+    'Work',
+    'Weekly notes',
+    '"odd" one',
+    "don't stop",
+    `Clients' "urgent"`,
+    `"both' kinds`,
+    `one' "two' three"`,
+  ])('finds the notes of a chip for %s, with more typed after it', async (name) => {
+    const { notes, books, tags } = setup()
+    const book = await books.create(name, null)
+    const inBook = await note(notes, 'In the book', 'plain', book)
+    const tagged = await note(notes, 'Tagged', 'plain')
+    await note(notes, 'Other', 'plain')
+    await tags.addToNote(tagged, name)
+    const tag = (await tags.list()).find((t) => t.name === name)!
+    expect(inBook).toBeTruthy()
+    expect(await titles(notes, tagQuery(tag))).toEqual(['Tagged'])
+    expect(await titles(notes, bookQuery({ id: book, name }))).toEqual(['In the book'])
+    expect(await titles(notes, `${tagQuery(tag)} plain`)).toEqual(['Tagged'])
+    expect(await titles(notes, `${bookQuery({ id: book, name })} plain`)).toEqual(['In the book'])
   })
 })

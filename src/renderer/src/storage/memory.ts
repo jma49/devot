@@ -156,12 +156,12 @@ function activityRevisions(since: number): ActivityRevision[] {
   const inOrder = read<StoredRevision>(REVISIONS)
     .filter((r) => r.kind === 'body' || r.kind === 'title')
     .sort((a, b) => a.at - b.at || (a.length ?? 0) - (b.length ?? 0) || (a.id < b.id ? -1 : 1))
-  const last = new Map<string, number>()
+  const last = new Map<string, { length: number; words: number | null }>()
   const revisions: ActivityRevision[] = []
   for (const r of inOrder) {
     const body = r.kind === 'body'
-    const previous = body ? (last.get(r.noteId) ?? null) : null
-    if (body && r.length !== null) last.set(r.noteId, r.length)
+    const before = body ? last.get(r.noteId) : undefined
+    if (body && r.length !== null) last.set(r.noteId, { length: r.length, words: r.words ?? null })
     // A baseline is only the version before the next one (BASELINE).
     if (r.at >= since && !(body && r.value !== null)) {
       revisions.push({
@@ -169,7 +169,9 @@ function activityRevisions(since: number): ActivityRevision[] {
         kind: body ? 'body' : 'title',
         at: r.at,
         length: r.length,
-        previous,
+        words: r.words ?? null,
+        previous: before?.length ?? null,
+        previousWords: before?.words ?? null,
       })
     }
   }
@@ -318,7 +320,7 @@ export const memoryStorage: StorageAdapter = {
       .filter((r) => r.noteId === noteId)
       .sort(newestFirst)
       .map((revision) => {
-        const { ydoc: _, ...summary } = revision
+        const { ydoc: _, words: __, ...summary } = revision
         return summary
       })
   },

@@ -96,29 +96,41 @@ export const SCHEMA_VERSION = migrations.length
  * statements as the Rust store (storage/mod.rs, list_activity). Each reads
  * a covering index of migration 0012, never a table row (rows hold Yjs
  * states): only what falls in the window, and for each body version the
- * one before it (versions are ordered by time, then length, then rowid).
+ * one before it (versions are ordered by time, then length, words and rowid).
  */
 export const ACTIVITY_SQL = {
   notes: `SELECT id, created_at AS createdAt FROM notes INDEXED BY notes_created
      WHERE purged_at IS NULL AND created_at >= @since`,
-  revisions: `SELECT r.note_id AS noteId, r.kind, r.at, r.length,
+  revisions: `SELECT r.note_id AS noteId, r.kind, r.at, r.length, r.words,
             CASE WHEN r.kind = 'body' THEN
               (SELECT p.length FROM revisions p INDEXED BY revisions_activity
                 WHERE p.note_id = r.note_id AND p.kind = 'body'
                   AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
-                ORDER BY p.at DESC, p.length DESC, p.rowid DESC LIMIT 1)
-            END AS previous
+                ORDER BY p.at DESC, p.length DESC, p.words DESC, p.rowid DESC LIMIT 1)
+            END AS previous,
+            CASE WHEN r.kind = 'body' THEN
+              (SELECT p.words FROM revisions p INDEXED BY revisions_activity
+                WHERE p.note_id = r.note_id AND p.kind = 'body'
+                  AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
+                ORDER BY p.at DESC, p.length DESC, p.words DESC, p.rowid DESC LIMIT 1)
+            END AS previousWords
      FROM revisions r INDEXED BY revisions_by_time
      WHERE r.at >= @since AND r.kind IN ('body', 'title')
        AND (r.kind = 'title' OR r.value IS NULL)`,
   /** The same, for the notes in `@ids` (a JSON array) only: each note's versions from `@since` on, from migration 0013's revisions_history. */
-  noteRevisions: `SELECT r.note_id AS noteId, r.kind, r.at, r.length,
+  noteRevisions: `SELECT r.note_id AS noteId, r.kind, r.at, r.length, r.words,
             CASE WHEN r.kind = 'body' THEN
               (SELECT p.length FROM revisions p INDEXED BY revisions_activity
                 WHERE p.note_id = r.note_id AND p.kind = 'body'
                   AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
-                ORDER BY p.at DESC, p.length DESC, p.rowid DESC LIMIT 1)
-            END AS previous
+                ORDER BY p.at DESC, p.length DESC, p.words DESC, p.rowid DESC LIMIT 1)
+            END AS previous,
+            CASE WHEN r.kind = 'body' THEN
+              (SELECT p.words FROM revisions p INDEXED BY revisions_activity
+                WHERE p.note_id = r.note_id AND p.kind = 'body'
+                  AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
+                ORDER BY p.at DESC, p.length DESC, p.words DESC, p.rowid DESC LIMIT 1)
+            END AS previousWords
      FROM revisions r INDEXED BY revisions_history
      WHERE r.note_id IN (SELECT value FROM json_each(@ids)) AND r.at >= @since
        AND r.kind IN ('body', 'title') AND (r.kind = 'title' OR r.value IS NULL)`,
@@ -405,6 +417,7 @@ interface RevisionRow {
   ydoc: Buffer | null
   length: number | null
   value: string | null
+  words: number | null
 }
 
 const toRevision = (row: RevisionRow): RevisionRecord => ({
@@ -415,6 +428,7 @@ const toRevision = (row: RevisionRow): RevisionRecord => ({
   ydoc: row.ydoc === null ? null : new Uint8Array(row.ydoc),
   length: row.length,
   value: row.value,
+  words: row.words,
 })
 
 interface TagRow {
@@ -659,11 +673,12 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const syncFilePut = db.prepare(SYNC_SQL.filePut)
   const syncFileDelete = db.prepare(SYNC_SQL.fileDelete)
   const putRevision = db.prepare(
-    `INSERT INTO revisions (id, note_id, kind, at, ydoc, length, value)
-     SELECT @id, @noteId, @kind, @at, @ydoc, @length, @value
+    `INSERT INTO revisions (id, note_id, kind, at, ydoc, length, value, words)
+     SELECT @id, @noteId, @kind, @at, @ydoc, @length, @value, @words
       WHERE EXISTS (SELECT 1 FROM notes WHERE id = @noteId AND purged_at IS NULL)
      ON CONFLICT (id) DO UPDATE SET
-       at = excluded.at, ydoc = excluded.ydoc, length = excluded.length, value = excluded.value
+       at = excluded.at, ydoc = excluded.ydoc, length = excluded.length, value = excluded.value,
+       words = excluded.words
      WHERE note_id = excluded.note_id AND kind = excluded.kind`,
   )
   const listRevisions = db.prepare<[{ noteId: string }], Omit<RevisionRow, 'ydoc'>>(

@@ -470,6 +470,7 @@ mod tests {
                 ydoc: Some(vec![1, 2, 3]),
                 length: Some(3),
                 value: Some(crate::storage::MERGE.into()),
+                words: None,
             })
             .unwrap();
         store

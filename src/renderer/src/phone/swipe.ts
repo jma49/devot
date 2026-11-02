@@ -3,6 +3,7 @@ import { sizes } from '../theme/tokens'
 const OPEN = Number.parseFloat(sizes['size.phone-swipe-open'])
 const ARM = Number.parseFloat(sizes['size.phone-swipe-arm'])
 const PEEK_MS = Number.parseFloat(sizes['motion.delay.phone-peek'])
+const ACTION = Number.parseFloat(sizes['size.phone-swipe-action'])
 const RUBBER = 0.6
 const RIGHTWARD = 0.15
 const SLOP = 8
@@ -19,6 +20,34 @@ export function swipeOffset(base: number, dx: number): number {
 }
 
 export const isArmed = (offset: number): boolean => offset < -ARM
+
+export interface SwipeActionLook {
+  readonly grown: number
+  readonly opacity: number
+  readonly width: number
+  readonly stretched: boolean
+}
+
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+const ACTION_STAGGER = 0.12
+const ACTION_SPAN = 0.76
+const STRETCH_MARGIN = 20
+const HIDDEN_SCALE = 0.2
+
+/** How action `index` of `count` looks at `offset`: the rightmost comes first, and once armed it takes over. */
+export function swipeActionLook(offset: number, index: number, count: number): SwipeActionLook {
+  const armed = isArmed(offset)
+  const last = index === count - 1
+  if (armed && !last) return { grown: HIDDEN_SCALE, opacity: 0, width: ACTION, stretched: false }
+  const progress = Math.min(2, Math.max(0, -offset / OPEN))
+  const shown = clamp01((progress - (count - 1 - index) * ACTION_STAGGER) / ACTION_SPAN)
+  return {
+    grown: shown,
+    opacity: Math.min(1, shown * 1.6),
+    width: armed ? Math.max(ACTION, -offset - STRETCH_MARGIN) : ACTION,
+    stretched: armed,
+  }
+}
 
 export type SwipeEnd = 'open' | 'closed' | 'complete'
 

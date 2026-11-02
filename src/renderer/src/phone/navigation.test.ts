@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  PHONE_TABS,
   initialNavigation,
   isPhoneLayout,
   layerPlacement,
@@ -22,6 +23,20 @@ describe('choosing the phone layout', () => {
 })
 
 describe('the navigation stacks', () => {
+  it('has four tabs in the order of the bar, and starts on Library', () => {
+    expect(PHONE_TABS).toEqual(['notes', 'library', 'activity', 'settings'])
+    expect(initialNavigation().tab).toBe('library')
+  })
+
+  it('gives Activity a stack with its own route id', () => {
+    const { stacks } = initialNavigation()
+    const ids = PHONE_TABS.map((tab) => stacks[tab][0]!.id)
+    expect(new Set(ids).size).toBe(4)
+    expect(screens(navigate(initialNavigation(), { type: 'selectTab', tab: 'activity' }))).toEqual([
+      'root',
+    ])
+  })
+
   it('keeps one stack per tab', () => {
     let state = navigate(initialNavigation(), { type: 'push', screen: 'list' })
     state = navigate(state, { type: 'selectTab', tab: 'settings' })
@@ -97,15 +112,15 @@ describe('where a layer sits', () => {
   })
 
   it('moves the layer below by 30% and dims it, undoing both as the swipe travels', () => {
-    expect(layerPlacement(0, 1, 0, 390)).toMatchObject({ x: '-30vw', dim: 0.1 })
+    expect(layerPlacement(0, 1, 0, 390)).toMatchObject({ x: '-30vw', dim: 0.08 })
     const half = layerPlacement(0, 1, 195, 390)
     expect(half.x).toBe('-15vw')
-    expect(half.dim).toBeCloseTo(0.05)
+    expect(half.dim).toBeCloseTo(0.04)
     expect(layerPlacement(0, 1, 390, 390)).toMatchObject({ x: '0vw', dim: 0 })
   })
 
   it('keeps deeper layers where they were', () => {
-    expect(layerPlacement(0, 2, 195, 390)).toMatchObject({ x: '-30vw', dim: 0.1 })
+    expect(layerPlacement(0, 2, 195, 390)).toMatchObject({ x: '-30vw', dim: 0.08 })
   })
 })
 

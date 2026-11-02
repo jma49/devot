@@ -17,7 +17,9 @@ import {
   type ShownPairing,
   type SyncDevice,
 } from '../sync'
+import { Icon } from '../icons/Icon'
 import { Setting } from './controls'
+import { useOnPhone } from './onPhone'
 
 // Settings > Sync's pairing, joining and devices (docs/adr/0008-sync-device-pairing.md). Rust holds
 // every key; the page shows a pairing code while it is on show and the recovery key until saved.
@@ -123,6 +125,7 @@ export function PairingRow(props: {
   const showButton = useRef<HTMLButtonElement>(null)
   const code = useRef<HTMLParagraphElement>(null)
   const { onDevicesChanged, onAnnounce, failed, focusRequest } = props
+  const onPhone = useOnPhone()
 
   useEffect(() => {
     if (shown) code.current?.focus()
@@ -229,7 +232,11 @@ export function PairingRow(props: {
       : 'syncSettings.pairWaiting'
 
   return (
-    <Setting label="syncSettings.pair" description={ended ? t(ended) : t('syncSettings.pairHint')}>
+    <Setting
+      label="syncSettings.pair"
+      description={ended ? t(ended) : t('syncSettings.pairHint')}
+      live={ended !== undefined}
+    >
       {shown ? (
         <div
           ref={block}
@@ -263,10 +270,11 @@ export function PairingRow(props: {
           <button
             ref={showButton}
             type="button"
-            className="button"
+            className={onPhone ? 'button phone-accent-button' : 'button'}
             disabled={opening || props.locked}
             onClick={show}
           >
+            {onPhone ? <Icon name="phone.pair" size="md" /> : null}
             {t('syncSettings.pairShow')}
           </button>
         </div>
@@ -404,6 +412,7 @@ export function DevicesRow(props: {
   const removeButtons = useRef(new Map<string, HTMLButtonElement>())
   const locale = currentLocale()
   const { onAnnounce, failed, refresh } = props
+  const onPhone = useOnPhone()
 
   useEffect(() => {
     let current = true
@@ -471,7 +480,11 @@ export function DevicesRow(props: {
 
   return (
     <>
-      <Setting label="syncSettings.devices" description={problem ?? t('syncSettings.devicesHint')}>
+      <Setting
+        label="syncSettings.devices"
+        description={problem ?? t(onPhone ? 'phone.sync.devicesHint' : 'syncSettings.devicesHint')}
+        live={problem !== undefined}
+      >
         {problem ? (
           <div className="settings-buttons">
             <button
@@ -506,6 +519,9 @@ export function DevicesRow(props: {
                     {device.current ? `${added} · ${t('syncSettings.thisDevice')}` : added}
                   </span>
                 </div>
+                {onPhone && device.current ? (
+                  <span className="phone-device-badge">{t('phone.sync.you')}</span>
+                ) : null}
                 {device.current ? null : (
                   <button
                     ref={(button) => {

@@ -44,6 +44,8 @@ pub fn haptic(kind: HapticKind) {
             HapticKind::Selection => UISelectionFeedbackGenerator::new(mtm).selectionChanged(),
             HapticKind::Success => UINotificationFeedbackGenerator::new(mtm)
                 .notificationOccurred(UINotificationFeedbackType::Success),
+            HapticKind::Warning => UINotificationFeedbackGenerator::new(mtm)
+                .notificationOccurred(UINotificationFeedbackType::Warning),
         }
         Some(())
     });

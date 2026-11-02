@@ -89,14 +89,27 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Push and pop:** rule 3. The new screen slides in from the right over `motion.duration.phone-push` on `motion.easing.phone-push`; the one below moves 30% left and dims `opacity.phone-dim-push`.
 - **Back swipe:** rule 1, then rule 3. The screen tracks the finger; past `size.phone-back-threshold` or on a flick it pops, otherwise it returns.
 - **Tab bar lens:** rule 4. It slides with `bouncy` and squashes to `motion.scale.phone-lens-x` by `motion.scale.phone-lens-y` over `motion.duration.phone-lens`; the selected icon pops over `motion.duration.phone-pop`.
-- **Status filter lens:** rule 4. It slides with `bouncy`; the filtered rows change at once (rule 2).
-- **Swipe actions:** rule 1, then rule 3. The row follows the finger, with 0.6 rubber band past `size.phone-swipe-open`; on release it settles on `motion.easing.phone-push`. The buttons grow with `bouncy`, the rightmost first; past `size.phone-swipe-arm` Done stretches over the others with `gentle`.
-- **Status badge:** rule 4. It bumps to `motion.scale.phone-bump` with `bouncy` when the status changes; its colour does not animate.
-- **Peek:** rule 3. After `motion.delay.phone-peek` the background blurs and dims, the card grows from `motion.scale.phone-peek-enter` with `gentle`, and the status bar and menu follow with `bouncy` after `motion.delay.phone-peek-bar` and `motion.delay.phone-peek-menu`.
+- **Note list sections and Library groups:** rule 3. A head's chevron turns over `motion.duration.phone-chevron` on `motion.easing.phone-push`; the section's rows fold away or open with `gentle` while fading over `motion.duration.ring`, and what is below follows. Show more goes at once as the rows open. Under Reduce Motion the rows crossfade and the chevron is simply turned.
+- **Activity week menu:** the same pop-up as the status filter menu. The stats and ranking change at once (rule 2).
+- **Status filter menu:** a pop-up from its button: grows and fades over `motion.duration.popover`, and closes at once. The filtered rows change at once (rule 2).
+- **Swipe actions:** rule 1, then rule 3. The row follows the finger, with 0.6 rubber band past `size.phone-swipe-open`; on release it settles on `motion.easing.phone-push`. The buttons grow with `bouncy`, the rightmost first; past `size.phone-swipe-arm` Done stretches over the others with `gentle`. Under Reduce Motion the row crossfades into place.
+- **Status mark:** rule 4. It bumps to `motion.scale.phone-bump` with `bouncy` when the status changes; its colour does not animate.
+- **Peek:** rule 3. After `motion.delay.phone-peek` the background blurs and dims, the card grows from `motion.scale.phone-peek-enter` and 30 pt below with `gentle`, and the status bar and menu follow with `bouncy`, from `motion.scale.phone-peek-bar` and `motion.scale.phone-peek-menu`, after `motion.delay.phone-peek-bar` and `motion.delay.phone-peek-menu`.
 - **Edit and Preview:** rule 3. The layers crossfade with a 6 px blur and an 8 pt lift on `gentle`; the toggle's icon turns in with `bouncy`.
 - **Sheets:** rule 3. A sheet rises with `gentle` and follows a drag down 1:1; past 120 pt or on a flick it closes.
-- **Capture:** rule 3. The new-note circle grows into the sheet with `gentle`, its contents fading in after `motion.delay.phone-capture-body`. A saved note rises into its row from 180 pt below with `gentle` and its row fades out of the accent wash over `motion.duration.phone-flash`. Under Reduce Motion only the wash shows.
-- **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` and brightens.
+- **Compose circle:** rule 3. Where it is not offered it fades and shrinks to `motion.scale.phone-compose-hidden` with `gentle`; where it is, it comes back the same way.
+- **Capture:** rule 3. The compose circle grows in place into the sheet with `gentle` over `motion.duration.phone-capture`, glass turning into the sheet, and its contents fade in after `motion.delay.phone-capture-body`. Saving collapses it the same way. A saved note flies into its row from `size.phone-arrive-rise` below at `motion.scale.phone-arrive` with `gentle`, the rows below shift by the height it really takes with `gentle`, and its row fades out of the accent wash over `motion.duration.phone-flash`. Under Reduce Motion the circle and the sheet crossfade, and only the wash shows on the row.
+- **Search:** rule 3. The overlay fades in over `motion.duration.phone-search`; the glass field grows leftwards from the search button, from `motion.scale.phone-search-field` of its width with `bouncy`, fading in over `motion.duration.phone-search-field`. Closing goes back the same way. Results and the chips change at once (rule 2). Reduce Motion leaves the crossfade.
+- **Undo toast:** rule 3. It rises `size.phone-toast-rise` and grows from `motion.scale.phone-toast` with `bouncy` while fading in over `motion.duration.ring`, and goes back the same way after `motion.duration.phone-toast`. A second action replaces it where it is. Under Reduce Motion it crossfades in place.
+- **Pane switch:** rule 4. The knob moves with `bouncy` and the track's colour fades, without bouncing. Under Reduce Motion the knob crossfades into place.
+- **Pane segmented control:** rule 4. The pill slides with `bouncy` to the chosen segment, with the `selection` haptic. Under Reduce Motion it moves at once with no spring.
+- **Pane slider:** rule 1. The thumb and fill follow the finger, and the glass or text changes as it goes.
+- **Detail sheet:** rule 3. It grows in with `gentle` like any sheet; Done and a drag down close it the same way.
+- **Settings search:** rule 2. The field and results appear at once, and results change as you type.
+- **Note mode toggle:** rule 4. The icon turns in with `bouncy` from a dip and -30 degrees. Edit and Preview crossfade over `motion.duration.ring` with a 6 px blur, the new one rising 8 pt with `gentle`. Under Reduce Motion both only fade, over `motion.duration.phone-crossfade`.
+- **Note bottom bar and formatting bar:** rule 2. As the keyboard rises the bottom bar fades and drops 20 pt with `gentle`, and the formatting bar fades in on the keyboard.
+- **Find bar:** rule 2. It appears at once on the keyboard, in the bottom bar's place, and matches change as you type.
+- **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` over `motion.duration.phone-glass-press` on `motion.easing.phone-push`, and brightens over `motion.duration.ring`.
 
 ## Stays instant
 

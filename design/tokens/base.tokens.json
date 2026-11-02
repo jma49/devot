@@ -4,60 +4,116 @@
     "tile": {
       "general": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [0.5569, 0.5569, 0.5765], "hex": "#8e8e93" }
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5569, 0.5569, 0.5765],
+          "hex": "#8e8e93"
+        }
       },
       "appearance": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [0.0392, 0.5176, 1], "hex": "#0a84ff" }
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0392, 0.5176, 1],
+          "hex": "#0a84ff"
+        }
       },
       "editing": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [1, 0.6235, 0.0392], "hex": "#ff9f0a" }
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 0.6235, 0.0392],
+          "hex": "#ff9f0a"
+        }
       },
       "preview": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [0.251, 0.7843, 0.8784], "hex": "#40c8e0" }
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.251, 0.7843, 0.8784],
+          "hex": "#40c8e0"
+        }
       },
       "keyboard": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [0.5569, 0.5569, 0.5765], "hex": "#8e8e93" }
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5569, 0.5569, 0.5765],
+          "hex": "#8e8e93"
+        }
       },
       "mirror": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [0.3686, 0.3608, 0.902], "hex": "#5e5ce6" }
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3686, 0.3608, 0.902],
+          "hex": "#5e5ce6"
+        }
       },
       "sync": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [0.1882, 0.8196, 0.3451], "hex": "#30d158" }
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1882, 0.8196, 0.3451],
+          "hex": "#30d158"
+        }
       },
       "ai": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [0.749, 0.3529, 0.949], "hex": "#bf5af2" }
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.749, 0.3529, 0.949],
+          "hex": "#bf5af2"
+        }
       },
       "integrations": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [1, 0.2157, 0.3725], "hex": "#ff375f" }
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 0.2157, 0.3725],
+          "hex": "#ff375f"
+        }
       },
       "plugins": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [1, 0.2706, 0.2275], "hex": "#ff453a" }
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 0.2706, 0.2275],
+          "hex": "#ff453a"
+        }
       },
       "usage": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [1, 0.8392, 0.0392], "hex": "#ffd60a" }
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 0.8392, 0.0392],
+          "hex": "#ffd60a"
+        }
       },
       "license": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [0.5569, 0.5569, 0.5765], "hex": "#8e8e93" }
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5569, 0.5569, 0.5765],
+          "hex": "#8e8e93"
+        }
       },
       "foreground": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [1, 1, 1], "hex": "#ffffff" },
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 1, 1],
+          "hex": "#ffffff"
+        },
         "$description": "The glyph on a coloured icon tile: white, except where the tile is light."
       },
       "foreground-contrast": {
         "$type": "color",
-        "$value": { "colorSpace": "srgb", "components": [0.1098, 0.1059, 0.098], "hex": "#1c1b19" },
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1098, 0.1059, 0.098],
+          "hex": "#1c1b19"
+        },
         "$description": "The glyph on the yellow icon tile, which white would disappear into."
       }
     },
@@ -988,8 +1044,24 @@
     }
   },
   "radius": {
-    "phone-card": { "$type": "dimension", "$value": { "value": 26, "unit": "px" } },
-    "phone-sheet": { "$type": "dimension", "$value": { "value": 34, "unit": "px" } },
+    "phone-heat-cell": {
+      "$type": "dimension",
+      "$value": { "value": 4, "unit": "px" },
+      "$description": "A day in the phone's heatmap."
+    },
+    "phone-heat-legend": {
+      "$type": "dimension",
+      "$value": { "value": 3, "unit": "px" },
+      "$description": "A shade in the phone heatmap's legend."
+    },
+    "phone-card": {
+      "$type": "dimension",
+      "$value": { "value": 22, "unit": "px" }
+    },
+    "phone-sheet": {
+      "$type": "dimension",
+      "$value": { "value": 34, "unit": "px" }
+    },
     "phone-sheet-card": {
       "$type": "dimension",
       "$value": { "value": 22, "unit": "px" },
@@ -1000,13 +1072,10 @@
       "$value": { "value": 20, "unit": "px" },
       "$description": "A field in the capture sheet, concentric with the sheet: 34 - 14. Design 24 and 22."
     },
-    "phone-tile-card": { "$type": "dimension", "$value": { "value": 22, "unit": "px" } },
-    "phone-row-tile": { "$type": "dimension", "$value": { "value": 8, "unit": "px" } },
-    "phone-row-tile-child": { "$type": "dimension", "$value": { "value": 7, "unit": "px" } },
     "phone-lens-bar": {
       "$type": "dimension",
-      "$value": { "value": 28, "unit": "px" },
-      "$description": "Concentric with the 64 bar: 32 - 4."
+      "$value": { "value": 27, "unit": "px" },
+      "$description": "Concentric with the 62 bar: 31 - 4."
     },
     "phone-lens-segmented": {
       "$type": "dimension",
@@ -1017,6 +1086,11 @@
       "$type": "dimension",
       "$value": { "value": 15, "unit": "px" },
       "$description": "Half of size.phone-chip."
+    },
+    "phone-row-press": {
+      "$type": "dimension",
+      "$value": { "value": 16, "unit": "px" },
+      "$description": "A grouped row's pressed fill."
     },
     "phone-menu-row": {
       "$type": "dimension",
@@ -1238,6 +1312,21 @@
         "unit": "px"
       },
       "$description": "Glass Settings cards and picture choices, concentric with the floating navigation."
+    },
+    "phone-swipe-surface": {
+      "$type": "dimension",
+      "$value": { "value": 20, "unit": "px" },
+      "$description": "A row raised by a swipe."
+    },
+    "phone-peek": {
+      "$type": "dimension",
+      "$value": { "value": 26, "unit": "px" },
+      "$description": "The peek card, its status bar and its menu."
+    },
+    "phone-show-more": {
+      "$type": "dimension",
+      "$value": { "value": 14, "unit": "px" },
+      "$description": "The dashed Show more button."
     }
   },
   "size": {
@@ -1251,29 +1340,68 @@
       "$value": { "value": 44, "unit": "px" },
       "$description": "The least tappable size: a smaller drawing extends its hit area to this."
     },
+    "phone-glass-rim": {
+      "$type": "dimension",
+      "$value": { "value": 1.2, "unit": "px" },
+      "$description": "The width of a glass control's gradient rim."
+    },
     "phone-glass-bar": {
       "$type": "dimension",
-      "$value": { "value": 64, "unit": "px" },
-      "$description": "The tab bar: 56 plus the lens inset on each side."
+      "$value": { "value": 62, "unit": "px" },
+      "$description": "The tab bar: 54 plus the lens inset on each side."
     },
-    "phone-lens-inset": { "$type": "dimension", "$value": { "value": 4, "unit": "px" } },
+    "phone-lens-inset": {
+      "$type": "dimension",
+      "$value": { "value": 4, "unit": "px" }
+    },
+    "phone-switch-width": {
+      "$type": "dimension",
+      "$value": { "value": 51, "unit": "px" },
+      "$description": "A pane switch."
+    },
+    "phone-switch-height": {
+      "$type": "dimension",
+      "$value": { "value": 31, "unit": "px" }
+    },
+    "phone-pane-segmented": {
+      "$type": "dimension",
+      "$value": { "value": 36, "unit": "px" },
+      "$description": "A pane segmented control, drawn smaller than its 44 target."
+    },
+    "phone-slider-track": {
+      "$type": "dimension",
+      "$value": { "value": 4, "unit": "px" }
+    },
+    "phone-slider-thumb-width": {
+      "$type": "dimension",
+      "$value": { "value": 38, "unit": "px" }
+    },
+    "phone-slider-thumb-height": {
+      "$type": "dimension",
+      "$value": { "value": 24, "unit": "px" }
+    },
+    "phone-sheet-done": {
+      "$type": "dimension",
+      "$value": { "value": 50, "unit": "px" },
+      "$description": "The detail sheet's full-width Done."
+    },
     "phone-segmented": {
       "$type": "dimension",
       "$value": { "value": 44, "unit": "px" },
       "$description": "The glass status filter."
     },
-    "phone-editor-toolbar": { "$type": "dimension", "$value": { "value": 48, "unit": "px" } },
+    "phone-editor-toolbar": {
+      "$type": "dimension",
+      "$value": { "value": 48, "unit": "px" }
+    },
     "phone-list-row": {
       "$type": "dimension",
-      "$value": { "value": 76, "unit": "px" },
-      "$description": "The least height, at the default text size: it grows with Dynamic Type (design/phone.md)."
+      "$value": { "value": 62, "unit": "px" },
+      "$description": "The least height, at the default text size: it grows with Dynamic Type."
     },
-    "phone-avatar": { "$type": "dimension", "$value": { "value": 60, "unit": "px" } },
-    "phone-status-badge": { "$type": "dimension", "$value": { "value": 24, "unit": "px" } },
-    "phone-status-ring": { "$type": "dimension", "$value": { "value": 15, "unit": "px" } },
     "phone-grouped-row": {
       "$type": "dimension",
-      "$value": { "value": 52, "unit": "px" },
+      "$value": { "value": 44, "unit": "px" },
       "$description": "The least height, at the default text size: it grows with Dynamic Type (design/phone.md)."
     },
     "phone-info-row": {
@@ -1281,29 +1409,42 @@
       "$value": { "value": 50, "unit": "px" },
       "$description": "A row in the note info sheet."
     },
-    "phone-row-tile": { "$type": "dimension", "$value": { "value": 30, "unit": "px" } },
-    "phone-row-tile-child": { "$type": "dimension", "$value": { "value": 26, "unit": "px" } },
     "phone-child-indent": {
       "$type": "dimension",
-      "$value": { "value": 30, "unit": "px" },
-      "$description": "How far a nested notebook's row moves in."
+      "$value": { "value": 40, "unit": "px" },
+      "$description": "Where a nested notebook's row starts, from the row's own left edge."
     },
-    "phone-smart-tile": { "$type": "dimension", "$value": { "value": 98, "unit": "px" } },
-    "phone-swipe-action": { "$type": "dimension", "$value": { "value": 50, "unit": "px" } },
-    "phone-swipe-gap": { "$type": "dimension", "$value": { "value": 10, "unit": "px" } },
-    "phone-swipe-inset": { "$type": "dimension", "$value": { "value": 10, "unit": "px" } },
+    "phone-swipe-action": {
+      "$type": "dimension",
+      "$value": { "value": 52, "unit": "px" },
+      "$description": "A swipe capsule, and the whole button with its label under it."
+    },
+    "phone-swipe-gap": {
+      "$type": "dimension",
+      "$value": { "value": 10, "unit": "px" }
+    },
+    "phone-swipe-inset": {
+      "$type": "dimension",
+      "$value": { "value": 10, "unit": "px" }
+    },
     "phone-swipe-open": {
       "$type": "dimension",
-      "$value": { "value": 190, "unit": "px" },
+      "$value": { "value": 196, "unit": "px" },
       "$description": "How far an open row sits from its place; past this the drag meets the rubber band."
     },
     "phone-swipe-arm": {
       "$type": "dimension",
-      "$value": { "value": 280, "unit": "px" },
+      "$value": { "value": 270, "unit": "px" },
       "$description": "Past this, releasing completes the note."
     },
-    "phone-grabber-width": { "$type": "dimension", "$value": { "value": 36, "unit": "px" } },
-    "phone-grabber-height": { "$type": "dimension", "$value": { "value": 5, "unit": "px" } },
+    "phone-grabber-width": {
+      "$type": "dimension",
+      "$value": { "value": 36, "unit": "px" }
+    },
+    "phone-grabber-height": {
+      "$type": "dimension",
+      "$value": { "value": 5, "unit": "px" }
+    },
     "phone-sheet-pad": {
       "$type": "dimension",
       "$value": { "value": 12, "unit": "px" },
@@ -1314,9 +1455,18 @@
       "$value": { "value": 14, "unit": "px" },
       "$description": "From the capture sheet's edge to its fields."
     },
-    "phone-sheet-inset": { "$type": "dimension", "$value": { "value": 8, "unit": "px" } },
-    "phone-screen-edge": { "$type": "dimension", "$value": { "value": 16, "unit": "px" } },
-    "phone-tab-inset": { "$type": "dimension", "$value": { "value": 20, "unit": "px" } },
+    "phone-sheet-inset": {
+      "$type": "dimension",
+      "$value": { "value": 8, "unit": "px" }
+    },
+    "phone-screen-edge": {
+      "$type": "dimension",
+      "$value": { "value": 16, "unit": "px" }
+    },
+    "phone-tab-inset": {
+      "$type": "dimension",
+      "$value": { "value": 16, "unit": "px" }
+    },
     "phone-tab-bottom": {
       "$type": "dimension",
       "$value": { "value": 24, "unit": "px" },
@@ -1324,22 +1474,64 @@
     },
     "phone-list-text": {
       "$type": "dimension",
-      "$value": { "value": 84, "unit": "px" },
-      "$description": "The note list's text column: edge, avatar and 8."
+      "$value": { "value": 52, "unit": "px" },
+      "$description": "The plain list's text column: edge 20, status mark 20 and 12."
     },
-    "phone-grouped-text": {
+    "phone-list-edge": {
       "$type": "dimension",
-      "$value": { "value": 61, "unit": "px" },
-      "$description": "A grouped row's text inside the card: inset, tile and 15."
+      "$value": { "value": 20, "unit": "px" },
+      "$description": "A plain list's side margin."
     },
-    "phone-separator": { "$type": "dimension", "$value": { "value": 0.5, "unit": "px" } },
-    "phone-badge": { "$type": "dimension", "$value": { "value": 18, "unit": "px" } },
-    "phone-chip": { "$type": "dimension", "$value": { "value": 30, "unit": "px" } },
-    "phone-app-icon": { "$type": "dimension", "$value": { "value": 88, "unit": "px" } },
-    "phone-edge-effect": {
+    "phone-card-inset": {
       "$type": "dimension",
-      "$value": { "value": 54, "unit": "px" },
-      "$description": "The blurred edge under a top bar."
+      "$value": { "value": 4, "unit": "px" },
+      "$description": "From a card's edge to its rows."
+    },
+    "phone-row-pad": {
+      "$type": "dimension",
+      "$value": { "value": 12, "unit": "px" },
+      "$description": "A grouped row's side padding."
+    },
+    "phone-group-title": {
+      "$type": "dimension",
+      "$value": { "value": 10, "unit": "px" },
+      "$description": "A group title's indent from its card, so 26 from the screen."
+    },
+    "phone-topbar-top": {
+      "$type": "dimension",
+      "$value": { "value": 12, "unit": "px" },
+      "$description": "From the safe area's top to the top bar."
+    },
+    "phone-topbar-band": {
+      "$type": "dimension",
+      "$value": { "value": 68, "unit": "px" },
+      "$description": "The frosted band's height below the safe area's top."
+    },
+    "phone-content-top": {
+      "$type": "dimension",
+      "$value": { "value": 80, "unit": "px" },
+      "$description": "Where content starts below the safe area's top."
+    },
+    "phone-capsule-button": {
+      "$type": "dimension",
+      "$value": { "value": 48, "unit": "px" },
+      "$description": "A button's width in a glass capsule."
+    },
+    "phone-separator": {
+      "$type": "dimension",
+      "$value": { "value": 0.5, "unit": "px" }
+    },
+    "phone-badge": {
+      "$type": "dimension",
+      "$value": { "value": 18, "unit": "px" }
+    },
+    "phone-chip": {
+      "$type": "dimension",
+      "$value": { "value": 30, "unit": "px" }
+    },
+    "phone-app-icon": {
+      "$type": "dimension",
+      "$value": { "value": 88, "unit": "px" }
     },
     "phone-back-zone": {
       "$type": "dimension",
@@ -1755,6 +1947,21 @@
         "value": 28,
         "unit": "px"
       }
+    },
+    "icon-phone-status": {
+      "$type": "dimension",
+      "$value": { "value": 20, "unit": "px" },
+      "$description": "A note's status mark on the phone."
+    },
+    "icon-phone-row": {
+      "$type": "dimension",
+      "$value": { "value": 21, "unit": "px" },
+      "$description": "A grouped row's line icon on the phone."
+    },
+    "phone-row-icon": {
+      "$type": "dimension",
+      "$value": { "value": 28, "unit": "px" },
+      "$description": "The column a grouped row's icon or dot is centred in."
     },
     "icon-sm": {
       "$type": "dimension",
@@ -2216,6 +2423,110 @@
         "unit": "px"
       },
       "$description": "Glass slider capsule handle width."
+    },
+    "phone-compose": {
+      "$type": "dimension",
+      "$value": { "value": 62, "unit": "px" },
+      "$description": "The glass compose circle beside the tab bar."
+    },
+    "phone-compose-gap": {
+      "$type": "dimension",
+      "$value": { "value": 10, "unit": "px" },
+      "$description": "Between the tab bar and the compose circle."
+    },
+    "phone-capture-height": {
+      "$type": "dimension",
+      "$value": { "value": 440, "unit": "px" },
+      "$description": "The capture sheet at the default text size."
+    },
+    "phone-capture-control": {
+      "$type": "dimension",
+      "$value": { "value": 40, "unit": "px" },
+      "$description": "Cancel and Save as drawn; their targets reach 44."
+    },
+    "phone-arrive-rise": {
+      "$type": "dimension",
+      "$value": { "value": 320, "unit": "px" },
+      "$description": "How far below its row a saved note starts."
+    },
+    "icon-phone-tab": {
+      "$type": "dimension",
+      "$value": { "value": 25, "unit": "px" },
+      "$description": "A tab bar icon."
+    },
+    "icon-phone-compose": {
+      "$type": "dimension",
+      "$value": { "value": 24, "unit": "px" },
+      "$description": "The compose circle's icon."
+    },
+    "phone-swipe-action-height": {
+      "$type": "dimension",
+      "$value": { "value": 34, "unit": "px" },
+      "$description": "A swipe capsule as drawn; with its label the target passes 44."
+    },
+    "phone-swipe-surface-inset": {
+      "$type": "dimension",
+      "$value": { "value": 3, "unit": "px" },
+      "$description": "From the row to the raised surface, top and bottom."
+    },
+    "phone-search-chip": {
+      "$type": "dimension",
+      "$value": { "value": 34, "unit": "px" },
+      "$description": "A search chip as drawn; its target reaches 44."
+    },
+    "phone-search-empty": {
+      "$type": "dimension",
+      "$value": { "value": 56, "unit": "px" }
+    },
+    "phone-heat-cell": {
+      "$type": "dimension",
+      "$value": { "value": 16, "unit": "px" },
+      "$description": "A day in the phone's heatmap."
+    },
+    "phone-heat-gap": {
+      "$type": "dimension",
+      "$value": { "value": 4, "unit": "px" },
+      "$description": "Between days in the phone's heatmap."
+    },
+    "phone-heat-legend": {
+      "$type": "dimension",
+      "$value": { "value": 11, "unit": "px" },
+      "$description": "A shade in the phone heatmap's legend."
+    },
+    "phone-section-head": {
+      "$type": "dimension",
+      "$value": { "value": 40, "unit": "px" },
+      "$description": "A collapsible section head as laid out; its target reaches 44."
+    },
+    "phone-show-more": {
+      "$type": "dimension",
+      "$value": { "value": 52, "unit": "px" },
+      "$description": "The slot of the dashed Show more button: 2 above, 42 drawn, 8 below."
+    },
+    "phone-toast": {
+      "$type": "dimension",
+      "$value": { "value": 48, "unit": "px" },
+      "$description": "The undo toast's height."
+    },
+    "phone-toast-bottom": {
+      "$type": "dimension",
+      "$value": { "value": 100, "unit": "px" },
+      "$description": "The undo toast above the bottom of the screen, at the design's home indicator inset."
+    },
+    "phone-toast-rise": {
+      "$type": "dimension",
+      "$value": { "value": 28, "unit": "px" },
+      "$description": "How far the undo toast rises as it appears."
+    },
+    "phone-toast-undo": {
+      "$type": "dimension",
+      "$value": { "value": 36, "unit": "px" },
+      "$description": "The Undo pill as drawn; its target reaches 44."
+    },
+    "icon-phone-toast": {
+      "$type": "dimension",
+      "$value": { "value": 19, "unit": "px" },
+      "$description": "The undo toast's icon."
     }
   },
   "motion": {
@@ -2237,6 +2548,10 @@
       "phone-push": {
         "$value": { "value": 500, "unit": "ms" },
         "$description": "A push, a pop and a row following a swipe's release."
+      },
+      "phone-glass-press": {
+        "$value": { "value": 320, "unit": "ms" },
+        "$description": "A glass control growing under the finger, and settling back."
       },
       "phone-crossfade": {
         "$value": { "value": 200, "unit": "ms" },
@@ -2347,6 +2662,31 @@
           "unit": "ms"
         },
         "$description": "The dim behind a modal dialog fading out as it closes."
+      },
+      "phone-capture": {
+        "$value": { "value": 560, "unit": "ms" },
+        "$description": "The compose circle growing into the capture sheet, on the gentle spring.",
+        "$type": "duration"
+      },
+      "phone-search": {
+        "$value": { "value": 220, "unit": "ms" },
+        "$description": "The search overlay fading in or out.",
+        "$type": "duration"
+      },
+      "phone-search-field": {
+        "$value": { "value": 160, "unit": "ms" },
+        "$description": "The search field fading in while it grows.",
+        "$type": "duration"
+      },
+      "phone-chevron": {
+        "$value": { "value": 320, "unit": "ms" },
+        "$description": "A section head's chevron turning.",
+        "$type": "duration"
+      },
+      "phone-toast": {
+        "$value": { "value": 4000, "unit": "ms" },
+        "$description": "How long the undo toast stays.",
+        "$type": "duration"
       }
     },
     "easing": {
@@ -2394,9 +2734,18 @@
         "$value": 1.08,
         "$description": "A glass control under the finger grows and brightens."
       },
-      "phone-lens-x": { "$value": 1.2, "$description": "A lens squashing as it moves, wider." },
-      "phone-lens-y": { "$value": 0.88, "$description": "A lens squashing as it moves, lower." },
-      "phone-peek-enter": { "$value": 0.86, "$description": "The size a peek card grows from." },
+      "phone-lens-x": {
+        "$value": 1.18,
+        "$description": "A lens squashing as it moves, wider."
+      },
+      "phone-lens-y": {
+        "$value": 0.86,
+        "$description": "A lens squashing as it moves, lower."
+      },
+      "phone-peek-enter": {
+        "$value": 0.86,
+        "$description": "The size a peek card grows from."
+      },
       "popover-enter": {
         "$value": 0.92,
         "$description": "The size a pop-up starts at before growing to full size."
@@ -2424,6 +2773,30 @@
       "segment-lift": {
         "$value": 1.06,
         "$description": "Glass interface: the size a segment's thumb lifts to while it is pressed or dragged."
+      },
+      "phone-compose-hidden": {
+        "$value": 0.6,
+        "$description": "The compose circle where it is not offered."
+      },
+      "phone-arrive": {
+        "$value": 0.92,
+        "$description": "A saved note as it starts flying into its row."
+      },
+      "phone-peek-bar": {
+        "$value": 0.4,
+        "$description": "The size the peek status bar grows from."
+      },
+      "phone-peek-menu": {
+        "$value": 0.35,
+        "$description": "The size the peek menu grows from."
+      },
+      "phone-toast": {
+        "$value": 0.9,
+        "$description": "The size the undo toast grows from."
+      },
+      "phone-search-field": {
+        "$value": 0.15,
+        "$description": "The width the search field grows from."
       }
     },
     "spring": {
@@ -2545,8 +2918,14 @@
   },
   "opacity": {
     "$type": "number",
-    "phone-dim-push": { "$value": 0.1, "$description": "How far a push dims the screen below." },
-    "phone-dim-peek": { "$value": 0.2, "$description": "How far a peek dims the background." },
+    "phone-dim-push": {
+      "$value": 0.08,
+      "$description": "How far a push dims the screen below."
+    },
+    "phone-dim-peek": {
+      "$value": 0.18,
+      "$description": "How far a peek dims the background."
+    },
     "phone-dim-sheet": {
       "$value": 0.25,
       "$description": "How far a sheet dims what is behind it."
@@ -2607,6 +2986,10 @@
     "headline-icon": {
       "$value": 0.8,
       "$description": "The icon before the note list header's view name, on the name's colour."
+    },
+    "phone-dim-capture": {
+      "$value": 0.16,
+      "$description": "How far the capture sheet dims what is behind it."
     }
   }
 }

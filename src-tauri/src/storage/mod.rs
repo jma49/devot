@@ -42,6 +42,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0021_agent_writes_unseen.sql"),
     include_str!("../../migrations/0022_sync_files.sql"),
     include_str!("../../migrations/0023_list_body_version.sql"),
+    include_str!("../../migrations/0024_revision_words.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -313,6 +314,9 @@ pub struct RevisionRecord {
     pub ydoc: Option<Vec<u8>>,
     pub length: Option<i64>,
     pub value: Option<String>,
+    /// `None` for an event and for a version taken before schema v24.
+    #[serde(default)]
+    pub words: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -375,7 +379,9 @@ pub struct ActivityRevision {
     pub kind: String,
     pub at: i64,
     pub length: Option<i64>,
+    pub words: Option<i64>,
     pub previous: Option<i64>,
+    pub previous_words: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -446,25 +452,37 @@ const AGENT_WRITES_PURGE_SQL: &str = "DELETE FROM agent_writes WHERE note_id = @
 const ACTIVITY_NOTES_SQL: &str =
     "SELECT id, created_at AS createdAt FROM notes INDEXED BY notes_created
      WHERE purged_at IS NULL AND created_at >= @since";
-const ACTIVITY_REVISIONS_SQL: &str = "SELECT r.note_id AS noteId, r.kind, r.at, r.length,
+const ACTIVITY_REVISIONS_SQL: &str = "SELECT r.note_id AS noteId, r.kind, r.at, r.length, r.words,
             CASE WHEN r.kind = 'body' THEN
               (SELECT p.length FROM revisions p INDEXED BY revisions_activity
                 WHERE p.note_id = r.note_id AND p.kind = 'body'
                   AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
-                ORDER BY p.at DESC, p.length DESC, p.rowid DESC LIMIT 1)
-            END AS previous
+                ORDER BY p.at DESC, p.length DESC, p.words DESC, p.rowid DESC LIMIT 1)
+            END AS previous,
+            CASE WHEN r.kind = 'body' THEN
+              (SELECT p.words FROM revisions p INDEXED BY revisions_activity
+                WHERE p.note_id = r.note_id AND p.kind = 'body'
+                  AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
+                ORDER BY p.at DESC, p.length DESC, p.words DESC, p.rowid DESC LIMIT 1)
+            END AS previousWords
      FROM revisions r INDEXED BY revisions_by_time
      WHERE r.at >= @since AND r.kind IN ('body', 'title')
        AND (r.kind = 'title' OR r.value IS NULL)";
 /// The same for the notes in `@ids` (a JSON array) only, the note list's activity strips: each
 /// note's versions from `@since` on, from migration 0013's covering index `revisions_history`.
-const NOTE_ACTIVITY_SQL: &str = "SELECT r.note_id AS noteId, r.kind, r.at, r.length,
+const NOTE_ACTIVITY_SQL: &str = "SELECT r.note_id AS noteId, r.kind, r.at, r.length, r.words,
             CASE WHEN r.kind = 'body' THEN
               (SELECT p.length FROM revisions p INDEXED BY revisions_activity
                 WHERE p.note_id = r.note_id AND p.kind = 'body'
                   AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
-                ORDER BY p.at DESC, p.length DESC, p.rowid DESC LIMIT 1)
-            END AS previous
+                ORDER BY p.at DESC, p.length DESC, p.words DESC, p.rowid DESC LIMIT 1)
+            END AS previous,
+            CASE WHEN r.kind = 'body' THEN
+              (SELECT p.words FROM revisions p INDEXED BY revisions_activity
+                WHERE p.note_id = r.note_id AND p.kind = 'body'
+                  AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
+                ORDER BY p.at DESC, p.length DESC, p.words DESC, p.rowid DESC LIMIT 1)
+            END AS previousWords
      FROM revisions r INDEXED BY revisions_history
      WHERE r.note_id IN (SELECT value FROM json_each(@ids)) AND r.at >= @since
        AND r.kind IN ('body', 'title') AND (r.kind = 'title' OR r.value IS NULL)";
@@ -1561,12 +1579,12 @@ impl Store {
     /// (src/mcp/sqlite.ts) runs the same statement.
     pub fn put_revision(&mut self, revision: &RevisionRecord) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO revisions (id, note_id, kind, at, ydoc, length, value)
-             SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7
+            "INSERT INTO revisions (id, note_id, kind, at, ydoc, length, value, words)
+             SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8
               WHERE EXISTS (SELECT 1 FROM notes WHERE id = ?2 AND purged_at IS NULL)
              ON CONFLICT (id) DO UPDATE SET
                at = excluded.at, ydoc = excluded.ydoc, length = excluded.length,
-               value = excluded.value
+               value = excluded.value, words = excluded.words
              WHERE note_id = excluded.note_id AND kind = excluded.kind",
             params![
                 revision.id,
@@ -1575,7 +1593,8 @@ impl Store {
                 revision.at,
                 revision.ydoc,
                 revision.length,
-                revision.value
+                revision.value,
+                revision.words
             ],
         )?;
         Ok(())
@@ -1598,7 +1617,7 @@ impl Store {
 
     pub fn get_revision(&self, id: &str) -> Result<Option<RevisionRecord>> {
         let mut statement = self.conn.prepare_cached(
-            "SELECT id, note_id, kind, at, ydoc, length, value FROM revisions WHERE id = ?1",
+            "SELECT id, note_id, kind, at, ydoc, length, value, words FROM revisions WHERE id = ?1",
         )?;
         Ok(statement
             .query_row([id], |row| {
@@ -1610,6 +1629,7 @@ impl Store {
                     ydoc: row.get(4)?,
                     length: row.get(5)?,
                     value: row.get(6)?,
+                    words: row.get(7)?,
                 })
             })
             .optional()?)
@@ -1734,7 +1754,9 @@ impl Store {
                     kind: row.get(1)?,
                     at: row.get(2)?,
                     length: row.get(3)?,
-                    previous: row.get(4)?,
+                    words: row.get(4)?,
+                    previous: row.get(5)?,
+                    previous_words: row.get(6)?,
                 })
             })?
             .collect::<rusqlite::Result<_>>()?;
@@ -1753,7 +1775,9 @@ impl Store {
                         kind: row.get(1)?,
                         at: row.get(2)?,
                         length: row.get(3)?,
-                        previous: row.get(4)?,
+                        words: row.get(4)?,
+                        previous: row.get(5)?,
+                        previous_words: row.get(6)?,
                     })
                 },
             )?

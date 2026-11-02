@@ -1,17 +1,34 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
-import type { BookRecord, NoteStatus, NoteSummary, TagRecord } from '../../../core/storage'
-import { BookIcon } from '../BookIcon'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
+import { matchSegments } from '../../../core/search'
+import type { NoteStatus, NoteSummary, TagRecord } from '../../../core/storage'
 import { noteDate } from '../format'
 import { displayTitle } from '../headlines'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
-import { doveMask } from './dove'
 import { haptic } from './haptics'
 import type { PhoneStatusFilter, PhoneView } from './library'
-import { filterCounts, inView, orderNotes, PHONE_FILTERS, withStatus } from './noteList'
+import {
+  filterCounts,
+  inView,
+  noteSections,
+  orderNotes,
+  PHONE_FILTERS,
+  sectionCollapsed,
+  withStatus,
+  type NoteSectionKey,
+  type SectionChoices,
+} from './noteList'
 import { NotebookPicker, STATUS_LABEL, StatusMark, statusTile } from './pickers'
-import { decideGesture, isArmed, PEEK_MS, release, swipeOffset, SWIPE_OPEN } from './swipe'
+import {
+  decideGesture,
+  isArmed,
+  PEEK_MS,
+  release,
+  swipeActionLook,
+  swipeOffset,
+  SWIPE_OPEN,
+} from './swipe'
 import type { PhoneData, PhoneStore } from './usePhoneData'
 
 const FILTER_LABEL: Readonly<Record<PhoneStatusFilter, MessageKey>> = {
@@ -23,11 +40,22 @@ const FILTER_LABEL: Readonly<Record<PhoneStatusFilter, MessageKey>> = {
 
 type RowAction = 'pin' | 'trash' | 'done'
 
-const ACTIONS: readonly { key: RowAction; icon: IconName }[] = [
-  { key: 'pin', icon: 'phone.swipe.pin' },
-  { key: 'trash', icon: 'phone.swipe.trash' },
-  { key: 'done', icon: 'phone.swipe.done' },
-]
+const ACTIONS: readonly RowAction[] = ['pin', 'trash', 'done']
+
+const actionIcon = (key: RowAction, note: NoteSummary): IconName =>
+  key === 'pin'
+    ? note.pinned
+      ? 'phone.swipe.unpin'
+      : 'phone.swipe.pin'
+    : key === 'trash'
+      ? 'phone.swipe.trash'
+      : 'phone.swipe.done'
+
+const SECTION_TITLE: Readonly<Record<NoteSectionKey, MessageKey>> = {
+  pinned: 'sidebar.pinned',
+  recent: 'phone.list.recent',
+  completed: 'status.completed',
+}
 
 const actionLabel = (key: RowAction, note: NoteSummary): string =>
   t(
@@ -40,35 +68,16 @@ const actionLabel = (key: RowAction, note: NoteSummary): string =>
         : 'phone.library.done',
   )
 
-export function Avatar(props: { book: BookRecord | undefined }) {
-  const color = props.book?.iconColor
-  return (
-    <span
-      className="phone-avatar"
-      style={{
-        ['--avatar' as string]: color ? `var(--color-tag-${color})` : 'var(--color-phone-dove)',
-      }}
-    >
-      {props.book ? (
-        <BookIcon icon={props.book.icon} color={null} size="lg" />
-      ) : (
-        <span aria-hidden="true" className="phone-dove phone-dove-avatar" style={doveMask} />
-      )}
-    </span>
-  )
-}
-
-function StatusBadge(props: { status: NoteStatus }) {
+function NoteMark(props: { status: NoteStatus }) {
   const [shown, setShown] = useState(props.status)
   const [bumps, setBumps] = useState(0)
   if (shown !== props.status) {
     setShown(props.status)
     setBumps((n) => n + 1)
   }
-  if (props.status === 'none') return null
   return (
     <span
-      className="phone-status-badge"
+      className="phone-note-mark"
       role="img"
       aria-label={t(STATUS_LABEL[props.status])}
       data-bump={bumps === 0 ? undefined : bumps % 2 ? 'a' : 'b'}
@@ -78,11 +87,26 @@ function StatusBadge(props: { status: NoteStatus }) {
   )
 }
 
+function Marked(props: { text: string; pattern: RegExp | null | undefined }) {
+  return matchSegments(props.text, props.pattern ?? null).map((segment, i) =>
+    segment.match ? (
+      <mark key={i} className="phone-match">
+        {segment.text}
+      </mark>
+    ) : (
+      segment.text
+    ),
+  )
+}
+
 interface RowProps {
   note: NoteSummary
   title: string
   excerpt: string
-  book: BookRecord | undefined
+  titlePattern?: RegExp | null
+  excerptPattern?: RegExp | null
+  /** Shown in place of the time, as a search result shows its notebook. */
+  meta?: string
   tag: TagRecord | undefined
   now: number
   open: boolean
@@ -96,7 +120,7 @@ interface RowProps {
   onAction: (key: RowAction) => void
 }
 
-function NoteRow(props: RowProps) {
+export function NoteRow(props: RowProps) {
   const { note } = props
   const [drag, setDrag] = useState<number | null>(null)
   const [pressed, setPressed] = useState(false)
@@ -207,41 +231,34 @@ function NoteRow(props: RowProps) {
     } else props.onOpenChange(outcome === 'open')
   }
 
-  const armed = isArmed(offset)
-  const progress = Math.min(2, Math.max(0, -offset / SWIPE_OPEN))
   return (
-    <li
-      className="phone-note-row"
-      data-pinned={note.pinned || undefined}
-      data-arrived={props.arrived || undefined}
-    >
+    <li className="phone-note-row" data-arrived={props.arrived || undefined}>
       {props.swipes && (
         <div className="phone-swipe-actions" aria-hidden={offset === 0 || undefined}>
-          {ACTIONS.map((action, i) => {
-            const shown = Math.min(1, Math.max(0, (progress - (2 - i) * 0.12) / 0.76))
-            const hidden = armed && action.key !== 'done'
+          {ACTIONS.map((key, i) => {
+            const look = swipeActionLook(offset, i, ACTIONS.length)
             return (
               <button
-                key={action.key}
+                key={key}
                 type="button"
                 tabIndex={offset === 0 ? -1 : 0}
                 className="phone-swipe-action"
-                data-action={action.key}
-                data-stretched={(armed && action.key === 'done') || undefined}
+                data-action={key}
+                data-stretched={look.stretched || undefined}
                 style={{
-                  ['--phone-swipe-scale' as string]: hidden ? 0.2 : shown,
-                  ['--stretch' as string]: `${armed && action.key === 'done' ? Math.max(50, -offset - 20) : 50}px`,
-                  opacity: hidden ? 0 : Math.min(1, shown * 1.6),
+                  ['--phone-swipe-scale' as string]: look.grown,
+                  ['--stretch' as string]: `${look.width}px`,
+                  opacity: look.opacity,
                 }}
                 onClick={() => {
                   props.onOpenChange(false)
-                  props.onAction(action.key)
+                  props.onAction(key)
                 }}
               >
-                <span className="phone-swipe-circle">
-                  <Icon name={action.icon} size="lg" />
+                <span className="phone-swipe-capsule">
+                  <Icon name={actionIcon(key, note)} size="toolbar" />
                 </span>
-                <span className="phone-swipe-label">{actionLabel(action.key, note)}</span>
+                <span className="phone-swipe-label">{actionLabel(key, note)}</span>
               </button>
             )
           })}
@@ -271,22 +288,24 @@ function NoteRow(props: RowProps) {
             else props.onOpen()
           }}
         >
-          <span className="phone-avatar-slot">
-            <Avatar book={props.book} />
-            <StatusBadge status={note.status} />
-          </span>
+          <NoteMark status={note.status} />
           <span className="phone-note-text">
             <span className="phone-note-line">
-              <span className="phone-note-title">{props.title}</span>
-              <span className="phone-note-time">
-                {noteDate(note.updatedAt, props.now, currentLocale())}
+              <span className="phone-note-title">
+                <Marked text={props.title} pattern={props.titlePattern} />
               </span>
+              {props.meta === undefined ? (
+                <span className="phone-note-time phone-figures">
+                  {noteDate(note.updatedAt, props.now, currentLocale())}
+                </span>
+              ) : (
+                <span className="phone-note-time phone-note-book phone-figures">{props.meta}</span>
+              )}
             </span>
             <span className="phone-note-line">
               <span className="phone-note-excerpt">
                 {props.tag && (
                   <span
-                    className="phone-note-tag"
                     style={{
                       color: props.tag.color
                         ? `var(--color-tag-text-${props.tag.color})`
@@ -296,7 +315,7 @@ function NoteRow(props: RowProps) {
                     #{props.tag.name}{' '}
                   </span>
                 )}
-                {props.excerpt}
+                <Marked text={props.excerpt} pattern={props.excerptPattern} />
               </span>
               {note.pinned && (
                 <span className="phone-note-pin" role="img" aria-label={t('sidebar.pinned')}>
@@ -352,7 +371,11 @@ function Peek(props: {
     <div className="phone-peek-layer" data-shown={shown || undefined}>
       <div className="phone-peek-dim" onClick={props.onClose} aria-hidden="true" />
       <div className="phone-peek" role="dialog" aria-modal="true" aria-label={props.title}>
-        <div role="group" aria-label={t('phone.setStatus')} className="phone-peek-status">
+        <div
+          role="group"
+          aria-label={t('phone.setStatus')}
+          className="phone-glass phone-peek-status"
+        >
           {(['active', 'on_hold', 'completed', 'dropped'] as const).map((status) => (
             <button
               key={status}
@@ -375,15 +398,18 @@ function Peek(props: {
           <h2 className="phone-peek-title">{props.title}</h2>
           <p className="phone-peek-excerpt">{props.excerpt}</p>
         </article>
-        <div role="menu" className="phone-peek-menu">
+        <div role="menu" className="phone-glass phone-peek-menu">
           <button type="button" role="menuitem" onClick={props.onOpen}>
             {t('phone.open')}
+            <Icon name="phone.open" size="phone-status" />
           </button>
           <button type="button" role="menuitem" onClick={() => props.onAction('pin')}>
             {actionLabel('pin', props.note)}
+            <Icon name={actionIcon('pin', props.note)} size="phone-status" />
           </button>
           <button type="button" role="menuitem" onClick={() => setMoving(true)}>
             {t('phone.moveTo')}
+            <Icon name="phone.move" size="phone-status" />
           </button>
           <button
             type="button"
@@ -392,6 +418,7 @@ function Peek(props: {
             onClick={() => props.onAction('trash')}
           >
             {t('note.moveToTrash')}
+            <Icon name="trash" size="phone-status" />
           </button>
         </div>
       </div>
@@ -399,7 +426,10 @@ function Peek(props: {
   )
 }
 
-function useExcerpts(data: PhoneData, notes: readonly NoteSummary[]): ReadonlyMap<string, string> {
+export function useExcerpts(
+  data: PhoneData,
+  notes: readonly NoteSummary[],
+): ReadonlyMap<string, string> {
   const [excerpts, setExcerpts] = useState<ReadonlyMap<string, string>>(() => new Map())
   const keys = notes.map((n) => `${n.id}:${n.bodyVersion}`).join(',')
   const ids = useMemo(() => (keys ? keys.split(',').map((key) => key.split(':')[0]!) : []), [keys])
@@ -420,6 +450,34 @@ function useExcerpts(data: PhoneData, notes: readonly NoteSummary[]): ReadonlyMa
   return excerpts
 }
 
+export function SectionHead(props: {
+  title: string
+  count?: number
+  collapsed: boolean
+  onToggle: () => void
+}) {
+  return (
+    <h2 className="phone-list-head-title">
+      <button
+        type="button"
+        className="phone-list-head"
+        aria-expanded={!props.collapsed}
+        data-collapsed={props.collapsed || undefined}
+        onClick={props.onToggle}
+      >
+        <span className="phone-list-head-name">{props.title}</span>
+        {props.count !== undefined && (
+          <span className="phone-list-head-count phone-figures">{props.count}</span>
+        )}
+        <span aria-hidden="true" className="phone-list-head-rule" />
+        <span aria-hidden="true" className="phone-list-head-chevron">
+          <Icon name="phone.section.chevron" size="sm" weight="medium" />
+        </span>
+      </button>
+    </h2>
+  )
+}
+
 export function PhoneNoteList(props: {
   data: PhoneStore
   view: PhoneView
@@ -428,7 +486,9 @@ export function PhoneNoteList(props: {
   arrivedId: string | null
   onBack?: () => void
   onOpenNote: (id: string) => void
-  topBarEnd?: ReactNode
+  onSearch: () => void
+  onTrash: (note: NoteSummary) => void
+  onComplete: (note: NoteSummary) => void
 }) {
   const { data } = props
   const [status, setStatus] = useState(props.status)
@@ -439,6 +499,17 @@ export function PhoneNoteList(props: {
   }
   const [openId, setOpenId] = useState<string | null>(null)
   const [peekId, setPeekId] = useState<string | null>(null)
+  const [filtering, setFiltering] = useState(false)
+  const [chosen, setChosen] = useState<SectionChoices>({})
+  const [shownArrival, setShownArrival] = useState(props.arrivedId)
+  if (shownArrival !== props.arrivedId) {
+    setShownArrival(props.arrivedId)
+    if (props.arrivedId !== null) {
+      setChosen((before) => ({ ...before, recent: false }))
+      if (status !== 'all' && status !== 'active') setStatus('all')
+    }
+  }
+  const scroller = useRef<HTMLDivElement>(null)
 
   const source = useMemo((): NoteSummary[] => {
     if (props.view.kind === 'templates') return [...data.templates]
@@ -460,61 +531,102 @@ export function PhoneNoteList(props: {
   const rows = useMemo(() => orderNotes(withStatus(source, status)), [source, status])
   const excerpts = useExcerpts(data, props.view.kind === 'trash' ? [] : rows)
   const swipes = props.view.kind !== 'trash' && props.view.kind !== 'templates'
-  const books = new Map(data.books.map((b) => [b.id, b]))
+  const sections = useMemo(() => noteSections(rows), [rows])
   const tags = new Map(data.tags.map((tag) => [tag.id, tag]))
   const titleOf = (n: NoteSummary) => displayTitle(n.title, excerpts.get(n.id)?.split('\n')[0])
 
   const act = (note: NoteSummary, key: RowAction) => {
-    const core = data.core
-    if (!core) return
     setPeekId(null)
-    if (key === 'pin') void core.setPinned(note.id, !note.pinned)
-    else if (key === 'trash') void core.trash(note.id).then(data.refresh)
-    else {
-      haptic('success')
-      void core.setStatus(note.id, 'completed')
-    }
+    if (key === 'pin') void data.core?.setPinned(note.id, !note.pinned)
+    else if (key === 'trash') props.onTrash(note)
+    else props.onComplete(note)
   }
   const peek = peekId ? rows.find((n) => n.id === peekId) : undefined
-  const index = PHONE_FILTERS.indexOf(status)
+  const hasArrived = props.arrivedId !== null && rows.some((n) => n.id === props.arrivedId)
+
+  useLayoutEffect(() => {
+    const scroll = scroller.current
+    if (!hasArrived || !scroll) return
+    const row = scroll.querySelector<HTMLElement>('.phone-note-row[data-arrived]')
+    if (!row) return
+    // The rows below shift by what it really takes, which Dynamic Type can change.
+    scroll.style.setProperty('--phone-arrived-height', `${row.offsetHeight}px`)
+    const topInset = Number.parseFloat(getComputedStyle(scroll).paddingTop)
+    if (scroll.scrollTop > row.offsetTop - topInset) scroll.scrollTop = row.offsetTop - topInset
+  }, [hasArrived])
+
+  const toggleSection = (key: NoteSectionKey) => {
+    setOpenId(null)
+    setChosen((before) => ({ ...before, [key]: !sectionCollapsed(key, before, status) }))
+  }
+  const renderRow = (note: NoteSummary) => (
+    <NoteRow
+      key={note.id}
+      note={note}
+      title={titleOf(note)}
+      excerpt={excerpts.get(note.id) ?? ''}
+      tag={note.tagIds.map((id) => tags.get(id)).find((tag) => tag?.deletedAt === null)}
+      now={data.loadedAt}
+      open={openId === note.id}
+      swipes={swipes}
+      arrived={props.arrivedId === note.id}
+      onOpenChange={(open) => setOpenId(open ? note.id : null)}
+      closeOthers={() => {
+        if (openId === null || openId === note.id) return false
+        setOpenId(null)
+        return true
+      }}
+      onOpen={() => props.onOpenNote(note.id)}
+      onPeek={() => {
+        setOpenId(null)
+        setPeekId(note.id)
+      }}
+      onAction={(key) => act(note, key)}
+    />
+  )
 
   return (
-    <section aria-label={props.title} className="phone-screen" data-surface="plain">
-      <div className="phone-scroll phone-list-scroll">
+    <section aria-label={props.title} className="phone-screen">
+      <div ref={scroller} className="phone-scroll phone-list-scroll">
         {rows.length === 0 ? (
           <p className="phone-list-empty">{t('phone.list.empty')}</p>
+        ) : !swipes ? (
+          <ul className="phone-note-list">{rows.map(renderRow)}</ul>
         ) : (
-          <ul className="phone-note-list">
-            {rows.map((note) => (
-              <NoteRow
-                key={note.id}
-                note={note}
-                title={titleOf(note)}
-                excerpt={excerpts.get(note.id) ?? ''}
-                book={note.bookId ? books.get(note.bookId) : undefined}
-                tag={note.tagIds.map((id) => tags.get(id)).find((tag) => tag?.deletedAt === null)}
-                now={data.loadedAt}
-                open={openId === note.id}
-                swipes={swipes}
-                arrived={props.arrivedId === note.id}
-                onOpenChange={(open) => setOpenId(open ? note.id : null)}
-                closeOthers={() => {
-                  if (openId === null || openId === note.id) return false
-                  setOpenId(null)
-                  return true
-                }}
-                onOpen={() => props.onOpenNote(note.id)}
-                onPeek={() => {
-                  setOpenId(null)
-                  setPeekId(note.id)
-                }}
-                onAction={(key) => act(note, key)}
-              />
-            ))}
-          </ul>
+          sections.map(({ key, notes }) => {
+            const collapsed = sectionCollapsed(key, chosen, status)
+            return (
+              <section key={key} className="phone-note-section" data-section={key}>
+                <SectionHead
+                  title={t(SECTION_TITLE[key])}
+                  count={notes.length}
+                  collapsed={collapsed}
+                  onToggle={() => toggleSection(key)}
+                />
+                {collapsed && key === 'completed' && (
+                  <button
+                    type="button"
+                    className="phone-show-more"
+                    onClick={() => toggleSection(key)}
+                  >
+                    <span className="phone-show-more-label">
+                      {format(t('phone.list.showMore'), { count: String(notes.length) })}
+                    </span>
+                  </button>
+                )}
+                <div
+                  className="phone-note-section-body"
+                  data-collapsed={collapsed || undefined}
+                  inert={collapsed}
+                >
+                  <ul className="phone-note-list">{notes.map(renderRow)}</ul>
+                </div>
+              </section>
+            )
+          })
         )}
       </div>
-      <div aria-hidden="true" className="phone-edge phone-edge-list" />
+      <div aria-hidden="true" className="phone-topbar-band" />
       <header className="phone-topbar">
         {props.onBack && (
           <button
@@ -526,46 +638,64 @@ export function PhoneNoteList(props: {
             <Icon name="nav.back" size="lg" />
           </button>
         )}
-        <h1 className="phone-topbar-title phone-list-title">
-          <span>{props.title}</span>
-          <span className="phone-list-count">
-            {format(t('phone.library.noteCount'), { count: String(counts.all) })}
-          </span>
-        </h1>
-        <span className="phone-topbar-spacer" />
-        {props.topBarEnd}
-        <span aria-hidden="true" className="phone-compose-slot" />
-      </header>
-      <div className="phone-glass phone-search" role="search">
-        <Icon name="search" size="sm" />
-        {t('search.placeholder')}
-      </div>
-      <div role="tablist" aria-label={t('phone.filter.label')} className="phone-glass phone-filter">
-        <span
-          aria-hidden="true"
-          className="phone-filter-lens"
-          style={{ transform: `translateX(${index * 100}%)` }}
-        />
-        {PHONE_FILTERS.map((filter) => (
+        <h1 className="phone-topbar-title">{props.title}</h1>
+        <div className="phone-glass phone-capsule">
           <button
-            key={filter}
             type="button"
-            role="tab"
-            aria-selected={filter === status}
-            className="phone-filter-tab"
-            onClick={() => {
-              if (filter !== status) haptic('selection')
-              setOpenId(null)
-              setStatus(filter)
-            }}
+            className="phone-capsule-button"
+            aria-label={t('phone.filter.label')}
+            aria-haspopup="menu"
+            aria-expanded={filtering}
+            data-active={status !== 'all' || undefined}
+            onClick={() => setFiltering((shown) => !shown)}
           >
-            {t(FILTER_LABEL[filter])}
-            {filter !== 'all' && counts[filter] > 0 && (
-              <span className="phone-filter-count">{counts[filter]}</span>
-            )}
+            <Icon name="phone.filter" size="lg" />
           </button>
-        ))}
-      </div>
+          <button
+            type="button"
+            className="phone-capsule-button"
+            aria-label={t('search.placeholder')}
+            onClick={props.onSearch}
+          >
+            <Icon name="search" size="lg" />
+          </button>
+        </div>
+      </header>
+      {filtering && (
+        <>
+          <button
+            type="button"
+            className="phone-filter-scrim"
+            aria-label={t('phone.close')}
+            onClick={() => setFiltering(false)}
+          />
+          <div
+            role="menu"
+            aria-label={t('phone.filter.label')}
+            className="phone-glass phone-peek-menu phone-filter-menu"
+          >
+            {PHONE_FILTERS.map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                role="menuitemradio"
+                aria-checked={filter === status}
+                className="phone-filter-item"
+                onClick={() => {
+                  if (filter !== status) haptic('selection')
+                  setOpenId(null)
+                  setStatus(filter)
+                  setFiltering(false)
+                }}
+              >
+                <span className="phone-filter-item-label">{t(FILTER_LABEL[filter])}</span>
+                <span className="phone-filter-item-count phone-figures">{counts[filter]}</span>
+                {filter === status && <Icon name="check" size="sm" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       {peek && (
         <Peek
           note={peek}
@@ -578,8 +708,12 @@ export function PhoneNoteList(props: {
             props.onOpenNote(peek.id)
           }}
           onStatus={(next) => {
-            haptic('selection')
             setPeekId(null)
+            if (next === 'completed') {
+              props.onComplete(peek)
+              return
+            }
+            haptic('selection')
             void data.core?.setStatus(peek.id, next)
           }}
           onAction={(key) => act(peek, key)}

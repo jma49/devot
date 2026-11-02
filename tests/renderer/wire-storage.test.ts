@@ -170,6 +170,7 @@ describe('the worker’s side', () => {
       ydoc: bytes(1000),
       length: 4,
       value: null,
+      words: null,
     }
     await storage.putRevision(revision)
     expect(await storage.getRevision('r1')).toEqual(revision)

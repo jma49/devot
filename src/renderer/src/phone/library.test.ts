@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BookRecord, NoteStatus, NoteSummary, TagRecord } from '../../../core/storage'
-import { libraryOf } from './library'
+import { libraryOf, notebookPath } from './library'
 
 const book = (id: string, sortKey: string, parentId: string | null = null): BookRecord => ({
   id,
@@ -50,18 +50,18 @@ const note = (
 })
 
 describe('the Library', () => {
-  it('counts the smart tiles from the notes', () => {
+  it('counts All Notes, Pinned, Active and Completed from the notes', () => {
     const notes = [
       note(null, { pinned: true, status: 'active' }),
       note(null, { status: 'active' }),
       note(null, { status: 'completed' }),
       note(null, { status: 'on_hold' }),
     ]
-    expect(libraryOf(notes, [], [], new Set()).tiles).toEqual({
+    expect(libraryOf(notes, [], [], new Set()).counts).toEqual({
       all: 4,
       pinned: 1,
       active: 2,
-      done: 1,
+      completed: 1,
     })
   })
 
@@ -74,6 +74,17 @@ describe('the Library', () => {
       ['child', 1, false, false],
       ['b', 0, false, false],
     ])
+  })
+
+  it('gives each level of nesting its own depth', () => {
+    const books = [book('a', 'a'), book('b', 'a', 'a'), book('c', 'a', 'b')]
+    const open = libraryOf([], books, [], new Set(['a', 'b'])).books
+    expect(open.map((r) => [r.id, r.depth])).toEqual([
+      ['a', 0],
+      ['b', 1],
+      ['c', 2],
+    ])
+    expect(libraryOf([], books, [], new Set(['b'])).books.map((r) => r.id)).toEqual(['a'])
   })
 
   it('counts a notebook with its descendants, and leaves deleted notebooks out', () => {
@@ -95,5 +106,24 @@ describe('the Library', () => {
       ['apple', 2],
       ['zebra', 1],
     ])
+  })
+})
+
+describe('notebookPath', () => {
+  const books = [
+    { id: 'a', name: 'Projects', parentId: null },
+    { id: 'b', name: 'Devot', parentId: 'a' },
+    { id: 'x', name: 'Loop', parentId: 'y' },
+    { id: 'y', name: 'Back', parentId: 'x' },
+  ]
+  it('names the path from the top', () => {
+    expect(notebookPath(books, 'b')).toBe('Projects / Devot')
+  })
+  it('is empty without a notebook', () => {
+    expect(notebookPath(books, null)).toBe('')
+    expect(notebookPath(books, 'gone')).toBe('')
+  })
+  it('stops at a cycle', () => {
+    expect(notebookPath(books, 'x')).toBe('Back / Loop')
   })
 })

@@ -158,9 +158,11 @@ export interface RevisionRecord {
   length: number | null
   /** Event: the new value ('1' / '0' for pinned). Body: BASELINE (revisions.ts) when it keeps the text the history began with, else null. */
   value: string | null
+  /** countWords of the text; null for an event and for a version taken before schema v24. */
+  words: number | null
 }
 
-export type RevisionSummary = Omit<RevisionRecord, 'ydoc'>
+export type RevisionSummary = Omit<RevisionRecord, 'ydoc' | 'words'>
 
 export interface CompactableVersion {
   noteId: string
@@ -179,8 +181,11 @@ export interface ActivityRevision {
   kind: 'body' | 'title'
   at: number
   length: number | null
-  /** The length of the previous body version (equal times break ties by storage order); null for the first. */
+  words: number | null
+  /** The length of the previous body version (equal times and lengths break ties by word count, which the covering index holds, then storage order); null for the first. */
   previous: number | null
+  /** That version's word count; null for the first too, and when it predates schema v24. */
+  previousWords: number | null
 }
 
 export interface ActivityData {

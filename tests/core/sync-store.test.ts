@@ -56,6 +56,7 @@ it('purges a note from sync keeping its revisions', async () => {
     ydoc: note.ydoc,
     length: 0,
     value: MERGE,
+    words: null,
   })
   await storage.syncPurge(id, 5, '0000000000000005-0000-mac')
   const [row] = await storage.syncRead([id])

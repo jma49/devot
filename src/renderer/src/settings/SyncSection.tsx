@@ -17,7 +17,9 @@ import {
   type SyncSnapshot,
   type SyncStateName,
 } from '../sync'
+import { PhoneGroup } from '../phone/PhoneControls'
 import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
+import { useOnPhone } from './onPhone'
 import { DevicesRow, JoinRows, PairingRow, RecoveryKeyPanel } from './SyncDevices'
 
 const SAY_AFTER_MS = 50
@@ -99,6 +101,7 @@ const WHY: Readonly<Record<string, MessageKey>> = {
 export function SyncSection() {
   const ids = useId()
   const id = (name: string) => `${ids}-${name}`
+  const onPhone = useOnPhone()
   const snapshot = useSyncSnapshot()
   const pauseOver = usePauseOver(snapshot.status.pausedUntil)
   const [url, setUrl] = useState<string>()
@@ -235,8 +238,8 @@ export function SyncSection() {
       ? 'syncSettings.secretRevokedHint'
       : 'syncSettings.secretAgainHint'
 
-  return (
-    <section className="settings-section" aria-labelledby="sync-title">
+  const header = (
+    <>
       <h2 id="sync-title" className="visually-hidden">
         {t('syncSettings.title')}
       </h2>
@@ -249,110 +252,248 @@ export function SyncSection() {
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
-      <SettingsSection title="syncSettings.title">
-        <SettingsNote>{t('syncSettings.detail')}</SettingsNote>
-        {locked ? (
-          <Setting
-            label="licenceSettings.title"
-            description={t(trialEnded ? 'licence.locked.syncTrialEnded' : 'licence.locked.sync')}
-          >
-            <div className="settings-buttons">
-              <LicenceButton />
-            </div>
-          </Setting>
-        ) : null}
+    </>
+  )
+  const lockedRow = (
+    <>
+      {locked ? (
         <Setting
-          label="syncSettings.relay"
-          description={t('syncSettings.relayHint')}
-          htmlFor={id('relay')}
-          descriptionId={id('relay-hint')}
+          label="licenceSettings.title"
+          description={t(trialEnded ? 'licence.locked.syncTrialEnded' : 'licence.locked.sync')}
+        >
+          <div className="settings-buttons">
+            <LicenceButton />
+          </div>
+        </Setting>
+      ) : null}
+    </>
+  )
+  const recoveryPanel = (
+    <>
+      {recoveryKey ? (
+        <RecoveryKeyPanel
+          recoveryKey={recoveryKey}
+          focus={keyFocus}
+          onDone={saved}
+          onAnnounce={announce}
+          failed={failed}
+        />
+      ) : null}
+    </>
+  )
+  const setupRows = (
+    <>
+      {snapshot.enrolled ? null : (
+        <JoinRows locked={locked} relayUrl={snapshot.relayUrl} onJoined={joined} failed={failed} />
+      )}
+      {asksSecret ? (
+        <Setting
+          label="syncSettings.secret"
+          description={t(secretHint)}
+          htmlFor={id('secret')}
+          descriptionId={id('secret-hint')}
         >
           <input
-            id={id('relay')}
-            type="url"
+            ref={secretInput}
+            id={id('secret')}
+            type="password"
             className="settings-number settings-text"
             spellCheck={false}
             autoComplete="off"
-            placeholder={t('syncSettings.relayPlaceholder')}
-            value={shownUrl}
-            aria-describedby={id('relay-hint')}
-            onChange={(e) => setUrl(e.currentTarget.value)}
-            onBlur={saveUrl}
+            value={secret}
+            aria-describedby={id('secret-hint')}
+            onChange={(e) => setSecret(e.currentTarget.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') saveUrl()
+              if (e.key === 'Enter') create()
+              if (e.key === 'Escape' && !snapshot.vault) backOut()
             }}
           />
+          <div className="settings-buttons">
+            {snapshot.vault ? null : (
+              <button type="button" className="button" onClick={backOut}>
+                {t('dialog.cancel')}
+              </button>
+            )}
+            <button
+              type="button"
+              className="button"
+              disabled={secret.trim() === '' || creating || locked}
+              onClick={create}
+            >
+              {t(snapshot.vault ? 'syncSettings.connect' : 'syncSettings.createVault')}
+            </button>
+          </div>
         </Setting>
-        {recoveryKey ? (
-          <RecoveryKeyPanel
-            recoveryKey={recoveryKey}
-            focus={keyFocus}
-            onDone={saved}
-            onAnnounce={announce}
-            failed={failed}
-          />
-        ) : null}
-        {snapshot.enrolled ? null : (
-          <JoinRows
-            locked={locked}
-            relayUrl={snapshot.relayUrl}
-            onJoined={joined}
-            failed={failed}
-          />
-        )}
-        {asksSecret ? (
-          <Setting
-            label="syncSettings.secret"
-            description={t(secretHint)}
-            htmlFor={id('secret')}
-            descriptionId={id('secret-hint')}
-          >
-            <input
-              ref={secretInput}
-              id={id('secret')}
-              type="password"
-              className="settings-number settings-text"
-              spellCheck={false}
-              autoComplete="off"
-              value={secret}
-              aria-describedby={id('secret-hint')}
-              onChange={(e) => setSecret(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') create()
-                if (e.key === 'Escape' && !snapshot.vault) backOut()
-              }}
-            />
-            <div className="settings-buttons">
-              {snapshot.vault ? null : (
-                <button type="button" className="button" onClick={backOut}>
-                  {t('dialog.cancel')}
-                </button>
+      ) : needsVault ? (
+        <Setting label="syncSettings.newVault" description={t('syncSettings.newVaultHint')}>
+          <div className="settings-buttons">
+            <button
+              ref={newVaultButton}
+              type="button"
+              className="button"
+              disabled={locked}
+              onClick={() => setFirstDevice(true)}
+            >
+              {t('syncSettings.newVaultStart')}
+            </button>
+          </div>
+        </Setting>
+      ) : null}
+    </>
+  )
+  const stateNotes = (
+    <>
+      {snapshot.enabled && snapshot.status.relayOutdated ? (
+        <SettingsNote>{t('syncSettings.relayOutdated')}</SettingsNote>
+      ) : null}
+      {snapshot.enabled &&
+      snapshot.status.unsyncedFiles &&
+      !(
+        snapshot.status.relayOutdated &&
+        snapshot.status.unsyncedFiles.code === 'E_SYNC_RELAY_OUTDATED'
+      ) ? (
+        <SettingsNote>
+          {snapshot.status.unsyncedFiles.code === 'E_SYNC_RELAY_OUTDATED'
+            ? countOf(
+                snapshot.status.unsyncedFiles.count,
+                locale,
+                'syncSettings.filesOutdatedOne',
+                'syncSettings.filesOutdatedOther',
+              )
+            : countOf(
+                snapshot.status.unsyncedFiles.count,
+                locale,
+                'syncSettings.filesFullOne',
+                'syncSettings.filesFullOther',
               )}
-              <button
-                type="button"
-                className="button"
-                disabled={secret.trim() === '' || creating || locked}
-                onClick={create}
-              >
-                {t(snapshot.vault ? 'syncSettings.connect' : 'syncSettings.createVault')}
-              </button>
-            </div>
-          </Setting>
-        ) : needsVault ? (
-          <Setting label="syncSettings.newVault" description={t('syncSettings.newVaultHint')}>
-            <div className="settings-buttons">
-              <button
-                ref={newVaultButton}
-                type="button"
-                className="button"
-                disabled={locked}
-                onClick={() => setFirstDevice(true)}
-              >
-                {t('syncSettings.newVaultStart')}
-              </button>
-            </div>
-          </Setting>
+        </SettingsNote>
+      ) : null}
+      {snapshot.enabled && snapshot.status.tooLarge > 0 ? (
+        <SettingsNote>
+          {countOf(
+            snapshot.status.tooLarge,
+            locale,
+            'syncSettings.tooLargeOne',
+            'syncSettings.tooLargeOther',
+          )}
+        </SettingsNote>
+      ) : null}
+      {snapshot.enabled && snapshot.status.skipped > 0 ? (
+        <SettingsNote>
+          {countOf(
+            snapshot.status.skipped,
+            locale,
+            'syncSettings.skippedOne',
+            'syncSettings.skippedOther',
+          )}
+        </SettingsNote>
+      ) : null}
+    </>
+  )
+
+  const relayRow = (hint: string) => (
+    <Setting
+      label="syncSettings.relay"
+      description={hint}
+      htmlFor={id('relay')}
+      descriptionId={id('relay-hint')}
+    >
+      <input
+        id={id('relay')}
+        type="url"
+        className="settings-number settings-text"
+        spellCheck={false}
+        autoComplete="off"
+        placeholder={t('syncSettings.relayPlaceholder')}
+        value={shownUrl}
+        aria-describedby={id('relay-hint')}
+        onChange={(e) => setUrl(e.currentTarget.value)}
+        onBlur={saveUrl}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') saveUrl()
+        }}
+      />
+    </Setting>
+  )
+
+  if (onPhone) {
+    const shown = snapshot.enabled ? snapshot.status.state : 'off'
+    const footnote = !snapshot.enabled
+      ? t('phone.sync.notesStay')
+      : snapshot.status.lastSync === null
+        ? t('syncSettings.neverSynced')
+        : format(t('phone.sync.lastSynced'), {
+            time: new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(
+              snapshot.status.lastSync,
+            ),
+          })
+    return (
+      <section className="settings-section" aria-labelledby="sync-title">
+        {header}
+        <PhoneGroup footnote={footnote}>
+          {lockedRow}
+          <SettingToggle
+            label="syncSettings.enabled"
+            description="phone.sync.hint"
+            checked={snapshot.enabled}
+            disabled={snapshot.relayUrl === ''}
+            onChange={(on) =>
+              void changeSync({ enabled: on }).then(
+                () => setError(undefined),
+                failed('syncSettings.changeFailed'),
+              )
+            }
+          />
+          {relayRow(t('phone.sync.relayHint'))}
+          {shown === 'idle' || shown === 'off' ? null : (
+            <Setting
+              live
+              label="syncSettings.status"
+              description={statusText(snapshot, pauseOver, locale)}
+            >
+              {null}
+            </Setting>
+          )}
+          {stateNotes}
+        </PhoneGroup>
+        {recoveryKey ? <PhoneGroup>{recoveryPanel}</PhoneGroup> : null}
+        {snapshot.enrolled ? null : <PhoneGroup>{setupRows}</PhoneGroup>}
+        {snapshot.enrolled ? (
+          <PhoneGroup>
+            <DevicesRow refresh={devicesVersion} onAnnounce={announce} failed={failed} />
+          </PhoneGroup>
         ) : null}
+        {snapshot.enrolled ? (
+          <PhoneGroup>
+            <PairingRow
+              locked={locked}
+              focusRequest={focusPairing}
+              onDevicesChanged={devicesChanged}
+              onAnnounce={announce}
+              failed={failed}
+            />
+          </PhoneGroup>
+        ) : null}
+        {snapshot.enrolled && !recoveryKey ? (
+          <PhoneGroup>
+            <Setting label="syncSettings.recovery" description={t('phone.sync.recoveryHint')}>
+              {null}
+            </Setting>
+          </PhoneGroup>
+        ) : null}
+      </section>
+    )
+  }
+
+  return (
+    <section className="settings-section" aria-labelledby="sync-title">
+      {header}
+      <SettingsSection title="syncSettings.title">
+        <SettingsNote>{t('syncSettings.detail')}</SettingsNote>
+        {lockedRow}
+        {relayRow(t('syncSettings.relayHint'))}
+        {recoveryPanel}
+        {setupRows}
         <SettingToggle
           label="syncSettings.enabled"
           description="syncSettings.enabledHint"
@@ -368,51 +509,7 @@ export function SyncSection() {
         <Setting label="syncSettings.status" description={statusText(snapshot, pauseOver, locale)}>
           {null}
         </Setting>
-        {snapshot.enabled && snapshot.status.relayOutdated ? (
-          <SettingsNote>{t('syncSettings.relayOutdated')}</SettingsNote>
-        ) : null}
-        {snapshot.enabled &&
-        snapshot.status.unsyncedFiles &&
-        !(
-          snapshot.status.relayOutdated &&
-          snapshot.status.unsyncedFiles.code === 'E_SYNC_RELAY_OUTDATED'
-        ) ? (
-          <SettingsNote>
-            {snapshot.status.unsyncedFiles.code === 'E_SYNC_RELAY_OUTDATED'
-              ? countOf(
-                  snapshot.status.unsyncedFiles.count,
-                  locale,
-                  'syncSettings.filesOutdatedOne',
-                  'syncSettings.filesOutdatedOther',
-                )
-              : countOf(
-                  snapshot.status.unsyncedFiles.count,
-                  locale,
-                  'syncSettings.filesFullOne',
-                  'syncSettings.filesFullOther',
-                )}
-          </SettingsNote>
-        ) : null}
-        {snapshot.enabled && snapshot.status.tooLarge > 0 ? (
-          <SettingsNote>
-            {countOf(
-              snapshot.status.tooLarge,
-              locale,
-              'syncSettings.tooLargeOne',
-              'syncSettings.tooLargeOther',
-            )}
-          </SettingsNote>
-        ) : null}
-        {snapshot.enabled && snapshot.status.skipped > 0 ? (
-          <SettingsNote>
-            {countOf(
-              snapshot.status.skipped,
-              locale,
-              'syncSettings.skippedOne',
-              'syncSettings.skippedOther',
-            )}
-          </SettingsNote>
-        ) : null}
+        {stateNotes}
         {snapshot.enrolled ? (
           <>
             <PairingRow

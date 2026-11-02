@@ -7,7 +7,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react'
-import { format, t, type MessageKey } from '../i18n'
+import { t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
 import { motionMs } from '../motionTiming'
@@ -24,26 +24,32 @@ import {
 } from './navigation'
 import { startPhoneRoot } from './spring'
 import type { PhoneView } from './library'
+import { PhoneActivity } from './PhoneActivity'
 import { PhoneLibrary } from './PhoneLibrary'
 import { usePhoneData, type PhoneData } from './usePhoneData'
 import { haptic } from './haptics'
 import { useLicence } from '../licence'
 import { licenceRow } from './settingsRows'
 import { PhoneCapture } from './PhoneCapture'
+import { applyGlassPrefs } from './glassPrefs'
 import { PhoneNote } from './PhoneNote'
 import { PhoneNoteList } from './PhoneNoteList'
+import { PhoneSearch } from './PhoneSearch'
+import { PhoneToast, useUndoToast } from './PhoneToast'
 import { PhoneSettings, PhoneSettingsPane } from './PhoneSettings'
 import './phone.css'
 
 const TAB_LABEL: Record<PhoneTab, MessageKey> = {
   notes: 'phone.tab.notes',
   library: 'phone.tab.library',
+  activity: 'phone.tab.activity',
   settings: 'phone.tab.settings',
 }
 
 const TAB_ICON: Record<PhoneTab, { rest: IconName; selected: IconName }> = {
   notes: { rest: 'phone.tab.notes', selected: 'phone.tab.notes.fill' },
   library: { rest: 'phone.tab.library', selected: 'phone.tab.library.fill' },
+  activity: { rest: 'phone.tab.activity', selected: 'phone.tab.activity.fill' },
   settings: { rest: 'phone.tab.settings', selected: 'phone.tab.settings.fill' },
 }
 
@@ -52,7 +58,6 @@ function TabBar(props: {
   x: string
   covered: boolean
   dragging: boolean
-  proposals: number
   needsAttention: boolean
   onSelect: (tab: PhoneTab) => void
 }) {
@@ -74,20 +79,13 @@ function TabBar(props: {
       />
       {PHONE_TABS.map((tab) => {
         const selected = tab === props.tab
-        const badge =
-          tab === 'notes' && props.proposals > 0
-            ? {
-                text: String(props.proposals),
-                label: format(t('phone.badge.proposals'), { count: String(props.proposals) }),
-              }
-            : tab === 'settings' && props.needsAttention
-              ? { text: '!', label: t('phone.badge.attention') }
-              : null
+        const attention = tab === 'settings' && props.needsAttention
         return (
           <button
             key={tab}
             type="button"
             className="phone-tab"
+            aria-label={t(TAB_LABEL[tab])}
             aria-current={selected ? 'page' : undefined}
             onClick={() => {
               if (!selected) setMoves((n) => n + 1)
@@ -98,14 +96,16 @@ function TabBar(props: {
               className="phone-tab-icon"
               data-move={selected && moves > 0 ? (moves % 2 ? 'a' : 'b') : undefined}
             >
-              <Icon name={selected ? TAB_ICON[tab].selected : TAB_ICON[tab].rest} size="lg" />
-              {badge && (
-                <span className="phone-badge" aria-label={badge.label}>
-                  {badge.text}
+              <Icon
+                name={selected ? TAB_ICON[tab].selected : TAB_ICON[tab].rest}
+                size="phone-tab"
+              />
+              {attention && (
+                <span className="phone-badge" role="img" aria-label={t('phone.badge.attention')}>
+                  !
                 </span>
               )}
             </span>
-            {t(TAB_LABEL[tab])}
           </button>
         )
       })}
@@ -155,6 +155,7 @@ function leavingDuration(): number {
 function Stack(props: {
   routes: readonly PhoneRoute[]
   active: boolean
+  covered: boolean
   drag: number
   width: number
   dragging: boolean
@@ -173,7 +174,7 @@ function Stack(props: {
   }, [props.routes])
   const top = props.routes.length - 1
   return (
-    <div className="phone-stack" hidden={!props.active}>
+    <div className="phone-stack" hidden={!props.active} inert={props.covered}>
       {props.routes.map((route, index) => {
         const { x, dim } = layerPlacement(index, top, props.drag, props.width)
         return (
@@ -279,7 +280,9 @@ export function PhoneApp() {
   const [drag, setDrag] = useState(0)
   const [dragging, setDragging] = useState(false)
   const [arrivedId, setArrivedId] = useState<string | null>(null)
+  const [searching, setSearching] = useState(false)
   const licence = useLicence()
+  const undoable = useUndoToast(store)
   const [now] = useState(() => Date.now())
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => (root.current ? startPhoneRoot(root.current) : undefined), [])
@@ -298,17 +301,20 @@ export function PhoneApp() {
   const topView =
     top.screen === 'list' ? top.view : state.tab === 'notes' ? state.notes.view : undefined
   const captureHere =
+    !searching &&
     drag === 0 &&
     (listed || (state.tab === 'library' && top.screen === 'root')) &&
     topView?.kind !== 'trash' &&
     topView?.kind !== 'templates'
+  const listsNewNote = listed && (topView?.kind === 'all' || topView?.kind === 'book')
   const pop = () => dispatch({ type: 'pop' })
+  const openSearch = () => setSearching(true)
 
   const render = (tab: PhoneTab, route: PhoneRoute) => {
     const index = state.stacks[tab].findIndex((r) => r.id === route.id)
     const onBack = index > 0 ? pop : undefined
     if (route.screen === 'note' && route.noteId)
-      return <PhoneNote store={store} noteId={route.noteId} onBack={pop} />
+      return <PhoneNote store={store} noteId={route.noteId} onBack={pop} onTrash={undoable.trash} />
     if (route.screen === 'pane' && route.pane)
       return <PhoneSettingsPane pane={route.pane} onBack={pop} />
     if (tab === 'library' && route.screen === 'root')
@@ -317,12 +323,20 @@ export function PhoneApp() {
           data={store}
           onShowNotes={(view, status) => dispatch({ type: 'showNotes', view, status })}
           onOpenList={(view) => dispatch({ type: 'push', screen: 'list', view })}
+          onSearch={openSearch}
           onNewNotebook={() => {
             void store.core
               ?.createBook(t('book.new'), null)
               .then(store.refresh)
               .catch(() => console.warn('W_PHONE_NEW_NOTEBOOK_FAILED'))
           }}
+        />
+      )
+    if (tab === 'activity')
+      return (
+        <PhoneActivity
+          data={store}
+          onOpenNote={(noteId) => dispatch({ type: 'push', screen: 'note', noteId })}
         />
       )
     if (tab === 'settings')
@@ -340,9 +354,14 @@ export function PhoneApp() {
         arrivedId={arrivedId}
         {...(onBack ? { onBack } : {})}
         onOpenNote={(noteId) => dispatch({ type: 'push', screen: 'note', noteId })}
+        onSearch={openSearch}
+        onTrash={undoable.trash}
+        onComplete={undoable.complete}
       />
     )
   }
+
+  useLayoutEffect(applyGlassPrefs, [])
 
   return (
     <div ref={root} className="phone-app">
@@ -351,6 +370,7 @@ export function PhoneApp() {
           key={tab}
           routes={state.stacks[tab]}
           active={tab === state.tab}
+          covered={searching}
           drag={tab === state.tab ? drag : 0}
           width={width}
           dragging={dragging}
@@ -360,9 +380,8 @@ export function PhoneApp() {
       <TabBar
         tab={state.tab}
         x={rootX}
-        covered={depth > 0}
+        covered={depth > 0 || searching}
         dragging={dragging}
-        proposals={0}
         needsAttention={licenceRow(licence, now).needsAttention}
         onSelect={(tab) => {
           if (tab !== state.tab) haptic('selection')
@@ -374,12 +393,22 @@ export function PhoneApp() {
         available={captureHere}
         bookId={topView?.kind === 'book' ? topView.id : null}
         onSaved={(id) => {
-          if (!listed) dispatch({ type: 'showNotes', view: { kind: 'all' }, status: 'all' })
+          if (!listsNewNote) dispatch({ type: 'showNotes', view: { kind: 'all' }, status: 'all' })
           setArrivedId(id)
           haptic('soft')
         }}
       />
-      {depth > 0 && (
+      <PhoneToast toast={undoable.toast} />
+      <PhoneSearch
+        store={store}
+        open={searching}
+        onClose={() => setSearching(false)}
+        onOpenNote={(noteId) => {
+          setSearching(false)
+          dispatch({ type: 'push', screen: 'note', noteId })
+        }}
+      />
+      {depth > 0 && !searching && (
         <BackSwipeZone
           onMove={(next) => {
             setDragging(true)

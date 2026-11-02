@@ -16,6 +16,10 @@ export function PhoneSheet(props: {
   onClose: () => void
   children: ReactNode
   tall?: boolean
+  /** No head: the contents bring their own title. */
+  plain?: boolean
+  /** A full-width glass button under the contents that closes the sheet. */
+  done?: string
 }) {
   const [shown, setShown] = useState(false)
   const [drag, setDrag] = useState<number | null>(null)
@@ -84,21 +88,45 @@ export function PhoneSheet(props: {
           onPointerCancel={end}
         >
           <span aria-hidden="true" className="phone-sheet-grabber" />
-          <div className="phone-sheet-head">
-            <h2 className="phone-sheet-title">{props.title}</h2>
-            <button
-              type="button"
-              className="phone-glass phone-sheet-close"
-              aria-label={t('phone.close')}
-              onClick={close}
-            >
-              <Icon name="phone.close" size="sm" />
-            </button>
-          </div>
+          {props.plain ? null : (
+            <div className="phone-sheet-head">
+              <h2 className="phone-sheet-title">{props.title}</h2>
+              <button
+                type="button"
+                className="phone-glass phone-sheet-close"
+                aria-label={t('phone.close')}
+                onClick={close}
+              >
+                <Icon name="phone.close" size="sm" />
+              </button>
+            </div>
+          )}
         </div>
-        <div className="phone-sheet-body">{props.children}</div>
+        <div className="phone-sheet-body">
+          {props.children}
+          {props.done && (
+            <button type="button" className="phone-glass phone-detail-done" onClick={close}>
+              {props.done}
+            </button>
+          )}
+        </div>
       </div>
     </div>
+  )
+}
+
+/** A long explanation that does not sit under its row: title, body and a full-width Done. */
+export function PhoneDetailSheet(props: { title: string; body: string; onClose: () => void }) {
+  return (
+    <PhoneSheet title={props.title} onClose={props.onClose} plain done={t('phone.hint.done')}>
+      <div className="phone-detail-head">
+        <span className="phone-detail-icon">
+          <Icon name="phone.info" size="md" />
+        </span>
+        <h2 className="phone-detail-title">{props.title}</h2>
+      </div>
+      <p className="phone-detail-body">{props.body}</p>
+    </PhoneSheet>
   )
 }
 

@@ -17,6 +17,7 @@ import { receiveStored, type Clock } from '../hlc'
 import { clipTitle } from '../noteLimits'
 import { isNotebookSymbol } from '../notebookIcons'
 import { MERGE, REVISION_EVERY_MS, textLength } from '../revisions'
+import { countWords } from '../words'
 import { quotaResetAt } from './protocol'
 import type { BookRecord, NoteRecord, StorageAdapter, TagRecord } from '../storage'
 import { isTagColor } from '../tags'
@@ -601,6 +602,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       ydoc: note.ydoc,
       length: textLength(note.bodyMd),
       value: MERGE,
+      words: countWords(note.bodyMd),
     })
   }
 

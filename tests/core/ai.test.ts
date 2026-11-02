@@ -773,6 +773,7 @@ describe('creating notes beside a long history', () => {
             ydoc: state,
             length: 4,
             value: null,
+            words: null,
           })
         }
       }

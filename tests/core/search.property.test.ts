@@ -267,7 +267,8 @@ function matches(n: ModelNote, c: SearchClause): boolean {
       return n.pinned === (c.value === 'true')
     case 'bookId':
     case 'tagId':
-      // IDs are not known when queries are drawn; the unit tests cover them.
+    case 'hashtag':
+      // IDs are not known when queries are drawn, and no drawn query has a `#`; the unit tests cover them.
       throw new Error('E_TEST_UNEXPECTED_FIELD')
   }
 }

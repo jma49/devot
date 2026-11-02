@@ -187,6 +187,7 @@ describe('compaction across clock steps, on SQLite', () => {
       ydoc,
       length: 0,
       value: null,
+      words: null,
     }))
     for (const version of versions) await right.storage.putRevision(version)
     await right.storage.compactRevisions([], NOW)

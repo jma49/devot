@@ -1,5 +1,7 @@
 import type { BookRecord, NoteStatus, NoteSummary, TagRecord } from '../../../core/storage'
 import { t, type MessageKey } from '../i18n'
+import { Icon } from '../icons/Icon'
+import type { IconName } from '../icons/symbols'
 import { PhoneSheet, SheetChoice } from './PhoneSheet'
 
 export const STATUS_LABEL: Readonly<Record<NoteStatus, MessageKey>> = {
@@ -20,14 +22,24 @@ export const statusTile = (status: NoteStatus): string =>
     status === 'on_hold' ? 'hold' : status === 'completed' ? 'done' : status
   })`
 
+const STATUS_SYMBOL: Readonly<Record<NoteStatus, IconName>> = {
+  none: 'phone.status.none',
+  active: 'phone.status.active',
+  on_hold: 'phone.status.onHold',
+  completed: 'phone.status.completed',
+  dropped: 'phone.status.dropped',
+}
+
 export function StatusMark(props: { status: NoteStatus }) {
   return (
     <span
       aria-hidden="true"
-      className="phone-status-ring"
-      data-filled={props.status === 'completed' || undefined}
+      className="phone-status-mark"
+      data-status={props.status}
       style={{ color: statusMark(props.status) }}
-    />
+    >
+      <Icon name={STATUS_SYMBOL[props.status]} size="phone-status" />
+    </span>
   )
 }
 

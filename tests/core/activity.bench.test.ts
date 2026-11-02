@@ -61,6 +61,7 @@ beforeAll(() => {
           ydoc: v === VERSIONS - 1 ? null : state,
           length: v === VERSIONS - 1 ? null : Math.floor(rand() * 3000),
           value: v === VERSIONS - 1 ? `Note ${i}` : null,
+          words: null,
         })
       }
     }

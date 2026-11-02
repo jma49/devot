@@ -2,57 +2,42 @@ import { useMemo, useState, type ReactNode } from 'react'
 import type { TagColor } from '../../../core/storage'
 import { BookIcon } from '../BookIcon'
 import { noteDate } from '../format'
-import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { currentLocale, format, t } from '../i18n'
 import { Icon } from '../icons/Icon'
-import type { IconName } from '../icons/symbols'
-import { doveMask } from './dove'
 import { libraryOf, type PhoneStatusFilter, type PhoneView } from './library'
+import { SectionHead } from './PhoneNoteList'
 import type { PhoneData } from './usePhoneData'
 
-const tileColor = (color: TagColor | null) =>
+const tagColor = (color: TagColor | null) =>
   color ? `var(--color-tag-${color})` : 'var(--color-phone-status-none)'
-
-function SmartTile(props: {
-  label: MessageKey
-  icon: IconName
-  count: number
-  color: string
-  onOpen: () => void
-}) {
-  return (
-    <button type="button" className="phone-smart-tile" onClick={props.onOpen}>
-      <span className="phone-smart-tile-icon" style={{ background: props.color }}>
-        <Icon name={props.icon} size="sm" />
-      </span>
-      <span className="phone-smart-tile-count">{props.count}</span>
-      <span className="phone-smart-tile-label">{t(props.label)}</span>
-    </button>
-  )
-}
 
 function GroupedRow(props: {
   name: string
   count?: number
-  tile: ReactNode
-  tileColor: string
-  child?: boolean
+  icon: ReactNode
+  depth?: number
   strong?: boolean
   onOpen: () => void
   disclosure?: { open: boolean; onToggle: () => void }
 }) {
   return (
-    <li className="phone-grouped-row" data-child={props.child || undefined}>
+    <li
+      className="phone-grouped-row"
+      data-child={props.depth ? true : undefined}
+      style={props.depth ? { ['--phone-row-depth' as string]: props.depth - 1 } : undefined}
+    >
+      {props.depth ? <span aria-hidden="true" className="phone-row-guide" /> : null}
       <button type="button" className="phone-grouped-open" onClick={props.onOpen}>
-        <span className="phone-row-tile" style={{ background: props.tileColor }}>
-          {props.tile}
-        </span>
+        <span className="phone-row-icon">{props.icon}</span>
         <span className="phone-grouped-label" data-strong={props.strong || undefined}>
           {props.name}
         </span>
-        {props.count !== undefined && <span className="phone-grouped-count">{props.count}</span>}
+        {props.count !== undefined && (
+          <span className="phone-grouped-count phone-figures">{props.count}</span>
+        )}
         {!props.disclosure && (
           <span className="phone-chevron">
-            <Icon name="phone.disclosure" size="xs" />
+            <Icon name="phone.disclosure" size="sm" weight="medium" />
           </span>
         )}
       </button>
@@ -69,18 +54,33 @@ function GroupedRow(props: {
           )}
           onClick={props.disclosure.onToggle}
         >
-          <Icon name={props.disclosure.open ? 'disclosure.open' : 'phone.disclosure'} size="xs" />
+          <Icon
+            name={props.disclosure.open ? 'disclosure.open' : 'phone.disclosure'}
+            size="sm"
+            weight="medium"
+          />
         </button>
       )}
     </li>
   )
 }
 
-function Section(props: { title?: string; children: ReactNode }) {
+function Group(props: {
+  title: string
+  collapsed: boolean
+  onToggle: () => void
+  children: ReactNode
+}) {
   return (
     <section className="phone-section" aria-label={props.title}>
-      {props.title && <h2 className="phone-section-head">{props.title}</h2>}
-      <ul className="phone-card">{props.children}</ul>
+      <SectionHead title={props.title} collapsed={props.collapsed} onToggle={props.onToggle} />
+      <div
+        className="phone-note-section-body phone-section-body"
+        data-collapsed={props.collapsed || undefined}
+        inert={props.collapsed}
+      >
+        <ul className="phone-card">{props.children}</ul>
+      </div>
     </section>
   )
 }
@@ -90,9 +90,11 @@ export function PhoneLibrary(props: {
   onShowNotes: (view: PhoneView, status: PhoneStatusFilter) => void
   onOpenList: (view: PhoneView) => void
   onNewNotebook: () => void
+  onSearch: () => void
 }) {
   const { data } = props
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
+  const [collapsed, setCollapsed] = useState({ books: false, tags: false })
   const library = useMemo(
     () => libraryOf(data.notes, data.books, data.tags, open, navigator.languages),
     [data.notes, data.books, data.tags, open],
@@ -112,121 +114,126 @@ export function PhoneLibrary(props: {
         : format(t('phone.library.backedUpAt'), {
             time: noteDate(data.lastBackup, data.loadedAt, currentLocale()),
           })
-  const notesCount = format(t('phone.library.noteCount'), { count: String(library.tiles.all) })
+  const notesCount = format(t('phone.library.noteCount'), { count: String(library.counts.all) })
 
   return (
-    <section aria-label={t('phone.tab.library')} className="phone-screen" data-surface="group">
+    <section aria-label={t('phone.tab.library')} className="phone-screen">
       <div className="phone-scroll phone-library">
-        <div className="phone-smart-tiles">
-          <SmartTile
-            label="sidebar.allNotes"
-            icon="phone.tile.all"
-            count={library.tiles.all}
-            color="var(--color-accent-fill)"
+        <ul className="phone-card" aria-label={t('phone.library.smart')}>
+          <GroupedRow
+            name={t('sidebar.allNotes')}
+            count={library.counts.all}
+            icon={<Icon name="phone.all" size="phone-row" />}
             onOpen={() => props.onShowNotes({ kind: 'all' }, 'all')}
           />
-          <SmartTile
-            label="sidebar.pinned"
-            icon="notes.pinned"
-            count={library.tiles.pinned}
-            color="var(--color-phone-action-pin)"
+          <GroupedRow
+            name={t('sidebar.pinned')}
+            count={library.counts.pinned}
+            icon={<Icon name="notes.pinned" size="phone-row" />}
             onOpen={() => props.onShowNotes({ kind: 'pinned' }, 'all')}
           />
-          <SmartTile
-            label="status.active"
-            icon="phone.tile.active"
-            count={library.tiles.active}
-            color="var(--color-status-active-mark)"
+          <GroupedRow
+            name={t('status.active')}
+            count={library.counts.active}
+            icon={<Icon name="phone.status.active" size="phone-row" />}
             onOpen={() => props.onShowNotes({ kind: 'all' }, 'active')}
           />
-          <SmartTile
-            label="phone.library.done"
-            icon="check"
-            count={library.tiles.done}
-            color="var(--color-phone-action-done)"
+          <GroupedRow
+            name={t('status.completed')}
+            count={library.counts.completed}
+            icon={<Icon name="phone.completed" size="phone-row" />}
             onOpen={() => props.onShowNotes({ kind: 'all' }, 'completed')}
           />
-        </div>
+        </ul>
 
         {library.books.length > 0 && (
-          <Section title={t('sidebar.notebooks')}>
+          <Group
+            title={t('sidebar.notebooks')}
+            collapsed={collapsed.books}
+            onToggle={() => setCollapsed((c) => ({ ...c, books: !c.books }))}
+          >
             {library.books.map((row) => (
               <GroupedRow
                 key={row.id}
                 name={row.name}
                 count={row.count}
-                child={row.depth > 0}
+                depth={row.depth}
                 strong={row.open}
-                tileColor={tileColor(row.color)}
-                tile={<BookIcon icon={row.icon} color={null} size="sm" />}
+                icon={<BookIcon icon={row.icon} color={null} size="phone-row" />}
                 onOpen={() => props.onOpenList({ kind: 'book', id: row.id })}
                 {...(row.hasChildren
                   ? { disclosure: { open: row.open, onToggle: () => toggle(row.id) } }
                   : {})}
               />
             ))}
-          </Section>
+          </Group>
         )}
 
         {library.tags.length > 0 && (
-          <Section title={t('sidebar.tags')}>
+          <Group
+            title={t('sidebar.tags')}
+            collapsed={collapsed.tags}
+            onToggle={() => setCollapsed((c) => ({ ...c, tags: !c.tags }))}
+          >
             {library.tags.map((row) => (
               <GroupedRow
                 key={row.id}
                 name={row.name}
                 count={row.count}
-                tileColor={tileColor(row.color)}
-                tile={<Icon name="phone.tag" size="sm" />}
+                icon={
+                  <span
+                    aria-hidden="true"
+                    className="phone-tag-dot"
+                    style={{ background: tagColor(row.color) }}
+                  />
+                }
                 onOpen={() => props.onOpenList({ kind: 'tag', id: row.id })}
               />
             ))}
-          </Section>
+          </Group>
         )}
 
-        <Section>
+        <ul className="phone-card">
           <GroupedRow
             name={t('sidebar.templates')}
             count={data.templates.length}
-            tileColor="var(--color-phone-status-none)"
-            tile={<Icon name="templates" size="sm" />}
+            icon={<Icon name="templates" size="phone-row" />}
             onOpen={() => props.onOpenList({ kind: 'templates' })}
           />
           <GroupedRow
             name={t('sidebar.trash')}
             count={data.trash.length}
-            tileColor="var(--color-phone-status-none)"
-            tile={<Icon name="trash" size="sm" />}
+            icon={<Icon name="trash" size="phone-row" />}
             onOpen={() => props.onOpenList({ kind: 'trash' })}
           />
-        </Section>
+        </ul>
 
-        <p className="phone-library-footer">{backup ? `${notesCount} · ${backup}` : notesCount}</p>
+        <p className="phone-library-footer phone-figures">
+          {backup ? `${notesCount} · ${backup}` : notesCount}
+        </p>
       </div>
-      <div aria-hidden="true" className="phone-edge phone-edge-tall" />
+      <div aria-hidden="true" className="phone-topbar-band" />
       <header className="phone-topbar">
-        <h1 className="phone-topbar-title phone-library-title">
-          <span aria-hidden="true" className="phone-dove" style={doveMask} />
-          {t('phone.tab.library')}
-        </h1>
-        <span className="phone-topbar-spacer" />
-        <button
-          type="button"
-          className="phone-glass phone-nav-control"
-          aria-label={t('book.new')}
-          onClick={props.onNewNotebook}
-        >
-          <Icon name="phone.notebook.new" size="lg" />
-        </button>
-        <span aria-hidden="true" className="phone-compose-slot" />
+        <h1 className="phone-topbar-title">{t('phone.tab.library')}</h1>
+        <div className="phone-glass phone-capsule">
+          <button
+            type="button"
+            className="phone-capsule-button"
+            aria-label={t('book.new')}
+            onClick={props.onNewNotebook}
+          >
+            <Icon name="phone.notebook.new" size="lg" />
+          </button>
+          <button
+            type="button"
+            className="phone-capsule-button"
+            aria-label={t('search.placeholder')}
+            onClick={props.onSearch}
+          >
+            <Icon name="search" size="lg" />
+          </button>
+        </div>
       </header>
-      <button
-        type="button"
-        className="phone-glass phone-search"
-        onClick={() => props.onShowNotes({ kind: 'all' }, 'all')}
-      >
-        <Icon name="search" size="sm" />
-        {t('search.placeholder')}
-      </button>
     </section>
   )
 }

@@ -9,41 +9,60 @@
   "color": {
     "phone": {
       "$description": "The iPhone layout (design/phone.md).",
+      "elevated": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        },
+        "$description": "What lifts off the page: sheet cards and the peek card."
+      },
+      "text": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0784, 0.0784, 0.0745],
+          "hex": "#141413"
+        },
+        "$description": "Text on phone surfaces."
+      },
+      "text-faint": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4471, 0.4431, 0.4196],
+          "hex": "#72716b"
+        },
+        "$description": "A row's time on the plain list. Design #9b9ba1 light and #6e6e74 dark, moved until 4.5:1 on the page background."
+      },
+      "bar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9804, 0.9765, 0.9608],
+          "hex": "#faf9f5",
+          "alpha": 0.78
+        },
+        "$description": "The frosted band behind a top bar."
+      },
       "background": {
-        "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [1.0, 1.0, 1.0],
-          "hex": "#ffffff"
-        },
-        "$description": "A plain screen: the note list and the note."
-      },
-      "group": {
-        "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [0.9608, 0.9569, 0.9294],
-          "hex": "#f5f4ed"
-        },
-        "$description": "Behind grouped lists."
-      },
-      "card": {
-        "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [1.0, 1.0, 1.0],
-          "hex": "#ffffff"
-        },
-        "$description": "A grouped card, a tile and the peek card."
-      },
-      "band": {
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
           "components": [0.9804, 0.9765, 0.9608],
           "hex": "#faf9f5"
         },
-        "$description": "Behind a pinned note's row."
+        "$description": "The one page background, plain and grouped."
+      },
+      "card": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9412, 0.9333, 0.902],
+          "hex": "#f0eee6"
+        },
+        "$description": "A grouped page's card."
       },
       "swipe-surface": {
         "$type": "color",
@@ -64,6 +83,25 @@
           "alpha": 0.06
         },
         "$description": "A row under the finger."
+      },
+      "match": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9608, 0.6235, 0.0392],
+          "hex": "#f59f0a",
+          "alpha": 0.28
+        },
+        "$description": "A found word's highlight behind the text in a phone search result."
+      },
+      "grow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0941, 0.4588, 0.2471],
+          "hex": "#18753f"
+        },
+        "$description": "The word growth on the phone's Activity screen. Darker than the design's #259f58, which keeps only 3.4:1 on a card; AA needs 4.5:1."
       },
       "flash": {
         "$type": "color",
@@ -101,9 +139,9 @@
           "colorSpace": "srgb",
           "components": [1.0, 1.0, 1.0],
           "hex": "#ffffff",
-          "alpha": 0.7
+          "alpha": 0.4
         },
-        "$description": "The fill of a glass control. Glass is for the navigation layer only, never content."
+        "$description": "The tint of a floating glass control. Glass is for floating controls only, never content."
       },
       "glass-highlight": {
         "$type": "color",
@@ -111,9 +149,9 @@
           "colorSpace": "srgb",
           "components": [1.0, 1.0, 1.0],
           "hex": "#ffffff",
-          "alpha": 0.95
+          "alpha": 0.98
         },
-        "$description": "The top highlight of a glass control."
+        "$description": "The inner highlight at the top left of a glass control."
       },
       "glass-lowlight": {
         "$type": "color",
@@ -121,9 +159,9 @@
           "colorSpace": "srgb",
           "components": [1.0, 1.0, 1.0],
           "hex": "#ffffff",
-          "alpha": 0.35
+          "alpha": 0.6
         },
-        "$description": "The bottom highlight of a glass control."
+        "$description": "The inner highlight at the bottom right of a glass control."
       },
       "glass-edge": {
         "$type": "color",
@@ -131,7 +169,7 @@
           "colorSpace": "srgb",
           "components": [0.1216, 0.1176, 0.1137],
           "hex": "#1f1e1d",
-          "alpha": 0.06
+          "alpha": 0.07
         },
         "$description": "The 0.5 pt edge of a glass control."
       },
@@ -143,7 +181,56 @@
           "hex": "#1f1e1d",
           "alpha": 0.08
         },
-        "$description": "The soft shadow under a glass control."
+        "$description": "The wide drop shadow under a glass control."
+      },
+      "glass-shadow-near": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.05
+        },
+        "$description": "The close drop shadow under a glass control."
+      },
+      "glass-glow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.45
+        },
+        "$description": "The soft inner glow of a glass control."
+      },
+      "glass-rim-a": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        },
+        "$description": "The bright end of a glass control's rim, at the top left."
+      },
+      "glass-rim-b": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.7
+        },
+        "$description": "The other end of a glass control's rim, at the bottom right."
+      },
+      "glass-sheen": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.55
+        },
+        "$description": "The radial sheen from the top left of a glass control."
       },
       "glass-opaque": {
         "$type": "color",
@@ -154,23 +241,13 @@
         },
         "$description": "What glass becomes under Reduce Transparency."
       },
-      "menu": {
-        "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [1.0, 1.0, 1.0],
-          "hex": "#ffffff",
-          "alpha": 0.88
-        },
-        "$description": "A peek menu or status bar."
-      },
       "sheet": {
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.9608, 0.9569, 0.9294],
-          "hex": "#f5f4ed",
-          "alpha": 0.94
+          "components": [0.9804, 0.9765, 0.9608],
+          "hex": "#faf9f5",
+          "alpha": 0.9
         },
         "$description": "A bottom sheet."
       },
@@ -191,7 +268,7 @@
           "components": [0.4118, 0.4078, 0.3843],
           "hex": "#696862"
         },
-        "$description": "Previews, captions and counts. Light: design #8a8a8e, moved toward black until 4.5:1 on the band and group."
+        "$description": "Previews, captions and counts. Light: design #76767b, moved toward black until 4.5:1 on the card and the raised row."
       },
       "section-head": {
         "$type": "color",
@@ -399,6 +476,45 @@
           "hex": "#adb1ba"
         },
         "$description": "A function key, in pictures of the keyboard."
+      },
+      "field": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.75
+        },
+        "$description": "A field in the capture sheet."
+      },
+      "dash": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.14
+        },
+        "$description": "The dashed Show more button: its outline."
+      },
+      "dash-ink": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.18
+        },
+        "$description": "The dashed Show more button: its dashes."
+      },
+      "undo": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1569, 0.3373, 0.6353],
+          "hex": "#2856a2"
+        },
+        "$description": "The toast's Undo label: `color.accent.text`."
       }
     },
     "icon": {
@@ -411,13 +527,22 @@
         "mirror": { "$value": "{color.tile.mirror}", "$type": "color" },
         "sync": { "$value": "{color.tile.sync}", "$type": "color" },
         "ai": { "$value": "{color.tile.ai}", "$type": "color" },
-        "integrations": { "$value": "{color.tile.integrations}", "$type": "color" },
+        "integrations": {
+          "$value": "{color.tile.integrations}",
+          "$type": "color"
+        },
         "plugins": { "$value": "{color.tile.plugins}", "$type": "color" },
         "usage": { "$value": "{color.tile.usage}", "$type": "color" },
         "license": { "$value": "{color.tile.license}", "$type": "color" }
       },
-      "tile-foreground": { "$value": "{color.tile.foreground}", "$type": "color" },
-      "tile-foreground-contrast": { "$value": "{color.tile.foreground-contrast}", "$type": "color" }
+      "tile-foreground": {
+        "$value": "{color.tile.foreground}",
+        "$type": "color"
+      },
+      "tile-foreground-contrast": {
+        "$value": "{color.tile.foreground-contrast}",
+        "$type": "color"
+      }
     },
     "qr": {
       "ground": {

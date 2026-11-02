@@ -281,6 +281,31 @@ button {
   height: var(--size-icon-toolbar);
 }
 
+.icon-phone-status {
+  width: var(--size-icon-phone-status);
+  height: var(--size-icon-phone-status);
+}
+
+.icon-phone-tab {
+  width: var(--size-icon-phone-tab);
+  height: var(--size-icon-phone-tab);
+}
+
+.icon-phone-compose {
+  width: var(--size-icon-phone-compose);
+  height: var(--size-icon-phone-compose);
+}
+
+.icon-phone-toast {
+  width: var(--size-icon-phone-toast);
+  height: var(--size-icon-phone-toast);
+}
+
+.icon-phone-row {
+  width: var(--size-icon-phone-row);
+  height: var(--size-icon-phone-row);
+}
+
 .icon-lg {
   width: var(--size-icon-lg);
   height: var(--size-icon-lg);
