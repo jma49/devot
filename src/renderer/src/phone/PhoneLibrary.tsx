@@ -91,6 +91,7 @@ export function PhoneLibrary(props: {
   onShowNotes: (view: PhoneView, status: PhoneStatusFilter) => void
   onOpenList: (view: PhoneView) => void
   onNewNotebook: () => void
+  onSearch: () => void
 }) {
   const { data } = props
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
@@ -217,7 +218,7 @@ export function PhoneLibrary(props: {
             type="button"
             className="phone-capsule-button"
             aria-label={t('search.placeholder')}
-            onClick={() => props.onShowNotes({ kind: 'all' }, 'all')}
+            onClick={props.onSearch}
           >
             <Icon name="search" size="lg" />
           </button>

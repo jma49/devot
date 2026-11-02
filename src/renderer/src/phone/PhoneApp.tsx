@@ -33,6 +33,7 @@ import { licenceRow } from './settingsRows'
 import { PhoneCapture } from './PhoneCapture'
 import { PhoneNote } from './PhoneNote'
 import { PhoneNoteList } from './PhoneNoteList'
+import { PhoneSearch } from './PhoneSearch'
 import { PhoneToast, useUndoToast } from './PhoneToast'
 import { PhoneSettings, PhoneSettingsPane } from './PhoneSettings'
 import './phone.css'
@@ -153,6 +154,7 @@ function leavingDuration(): number {
 function Stack(props: {
   routes: readonly PhoneRoute[]
   active: boolean
+  covered: boolean
   drag: number
   width: number
   dragging: boolean
@@ -171,7 +173,7 @@ function Stack(props: {
   }, [props.routes])
   const top = props.routes.length - 1
   return (
-    <div className="phone-stack" hidden={!props.active}>
+    <div className="phone-stack" hidden={!props.active} inert={props.covered}>
       {props.routes.map((route, index) => {
         const { x, dim } = layerPlacement(index, top, props.drag, props.width)
         return (
@@ -277,6 +279,7 @@ export function PhoneApp() {
   const [drag, setDrag] = useState(0)
   const [dragging, setDragging] = useState(false)
   const [arrivedId, setArrivedId] = useState<string | null>(null)
+  const [searching, setSearching] = useState(false)
   const licence = useLicence()
   const undoable = useUndoToast(store)
   const [now] = useState(() => Date.now())
@@ -297,12 +300,14 @@ export function PhoneApp() {
   const topView =
     top.screen === 'list' ? top.view : state.tab === 'notes' ? state.notes.view : undefined
   const captureHere =
+    !searching &&
     drag === 0 &&
     (listed || (state.tab === 'library' && top.screen === 'root')) &&
     topView?.kind !== 'trash' &&
     topView?.kind !== 'templates'
   const listsNewNote = listed && (topView?.kind === 'all' || topView?.kind === 'book')
   const pop = () => dispatch({ type: 'pop' })
+  const openSearch = () => setSearching(true)
 
   const render = (tab: PhoneTab, route: PhoneRoute) => {
     const index = state.stacks[tab].findIndex((r) => r.id === route.id)
@@ -317,6 +322,7 @@ export function PhoneApp() {
           data={store}
           onShowNotes={(view, status) => dispatch({ type: 'showNotes', view, status })}
           onOpenList={(view) => dispatch({ type: 'push', screen: 'list', view })}
+          onSearch={openSearch}
           onNewNotebook={() => {
             void store.core
               ?.createBook(t('book.new'), null)
@@ -341,6 +347,7 @@ export function PhoneApp() {
         arrivedId={arrivedId}
         {...(onBack ? { onBack } : {})}
         onOpenNote={(noteId) => dispatch({ type: 'push', screen: 'note', noteId })}
+        onSearch={openSearch}
         onTrash={undoable.trash}
         onComplete={undoable.complete}
       />
@@ -354,6 +361,7 @@ export function PhoneApp() {
           key={tab}
           routes={state.stacks[tab]}
           active={tab === state.tab}
+          covered={searching}
           drag={tab === state.tab ? drag : 0}
           width={width}
           dragging={dragging}
@@ -363,7 +371,7 @@ export function PhoneApp() {
       <TabBar
         tab={state.tab}
         x={rootX}
-        covered={depth > 0}
+        covered={depth > 0 || searching}
         dragging={dragging}
         needsAttention={licenceRow(licence, now).needsAttention}
         onSelect={(tab) => {
@@ -382,7 +390,16 @@ export function PhoneApp() {
         }}
       />
       <PhoneToast toast={undoable.toast} />
-      {depth > 0 && (
+      <PhoneSearch
+        store={store}
+        open={searching}
+        onClose={() => setSearching(false)}
+        onOpenNote={(noteId) => {
+          setSearching(false)
+          dispatch({ type: 'push', screen: 'note', noteId })
+        }}
+      />
+      {depth > 0 && !searching && (
         <BackSwipeZone
           onMove={(next) => {
             setDragging(true)

@@ -1102,12 +1102,12 @@ export function App() {
   )
   const resultsQuery = results?.search.query ?? ''
   const highlight = useMemo(() => {
-    const terms = highlightTerms(parseSearch(resultsQuery))
+    const terms = highlightTerms(parseSearch(resultsQuery), tags)
     return {
       title: searchPattern(terms.title),
       body: searchPattern(terms.body),
     }
-  }, [resultsQuery])
+  }, [resultsQuery, tags])
 
   const listedIds = useMemo(
     () =>

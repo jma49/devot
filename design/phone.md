@@ -57,6 +57,8 @@ Tab bar: four icon-only tabs (Notes, Library, Activity, Settings) in a `size.pho
 
 Capture: the circle grows in place into the sheet, `size.phone-sheet-inset` from the screen's sides and bottom, up to `size.phone-capture-height`. The keyboard does not move the layout, so the open sheet rides above it and shrinks to what is left under the safe area, and its contents scroll. A note saved where the list would not show it opens All Notes.
 
+Search: an overlay over the whole screen, including the tab bar. In the top bar's place, a 44 glass field and a 44 close circle. With no query: Recent, then chips (`size.phone-search-chip`, a 44 target) for Notebooks, Status and Tags, each filling the field with `in:`, `is:` or `#`. Recent searches stay in this device's `localStorage`, added on Return or on opening a result; they are never synced or logged. Results are note rows without swipes, found words in `color.phone.match`, the notebook in mono where the time goes, the excerpt moved to start a few words before the match, since one line holds far less than the core's excerpt. Settings' search button stays disabled until Settings has its panes.
+
 Undo toast: `size.phone-toast` high, centred, `size.phone-toast-bottom` above the bottom on the tab bar's safe-area logic, above the compose circle. The Undo pill (`size.phone-toast-undo`) reaches its 44 target inside the toast.
 
 The tab bar sits at the larger of `size.phone-tab-bottom` and the bottom safe area less 10, so 24 from the screen's edge at the design's 34 pt inset, clear of the home indicator on any iPhone.

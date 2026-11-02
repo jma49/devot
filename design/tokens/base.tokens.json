@@ -2436,6 +2436,15 @@
       "$value": { "value": 3, "unit": "px" },
       "$description": "From the row to the raised surface, top and bottom."
     },
+    "phone-search-chip": {
+      "$type": "dimension",
+      "$value": { "value": 34, "unit": "px" },
+      "$description": "A search chip as drawn; its target reaches 44."
+    },
+    "phone-search-empty": {
+      "$type": "dimension",
+      "$value": { "value": 56, "unit": "px" }
+    },
     "phone-section-head": {
       "$type": "dimension",
       "$value": { "value": 40, "unit": "px" },
@@ -2611,6 +2620,16 @@
         "$description": "The compose circle growing into the capture sheet, on the gentle spring.",
         "$type": "duration"
       },
+      "phone-search": {
+        "$value": { "value": 220, "unit": "ms" },
+        "$description": "The search overlay fading in or out.",
+        "$type": "duration"
+      },
+      "phone-search-field": {
+        "$value": { "value": 160, "unit": "ms" },
+        "$description": "The search field fading in while it grows.",
+        "$type": "duration"
+      },
       "phone-chevron": {
         "$value": { "value": 320, "unit": "ms" },
         "$description": "A section head's chevron turning.",
@@ -2726,6 +2745,10 @@
       "phone-toast": {
         "$value": 0.9,
         "$description": "The size the undo toast grows from."
+      },
+      "phone-search-field": {
+        "$value": 0.15,
+        "$description": "The width the search field grows from."
       }
     },
     "spring": {

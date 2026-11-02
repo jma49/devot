@@ -43,6 +43,8 @@ describe('the phone layout tokens', () => {
     ['size.phone-capture-height', 440],
     ['size.phone-arrive-rise', 320],
     ['size.phone-tab-bottom', 24],
+    ['size.phone-search-chip', 34],
+    ['size.phone-search-empty', 56],
     ['radius.phone-card', 22],
     ['radius.phone-row-press', 16],
     ['radius.phone-sheet', 34],

@@ -398,6 +398,18 @@ describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme
           plain.map((s) => over(theme, 'phone.bar', s)),
         ],
         faint: [solid(theme, 'phone.text-faint'), [solid(theme, 'phone.background')]],
+        ...Object.fromEntries(
+          Object.keys(theme)
+            .filter((k) => k.startsWith('color.tag-text.'))
+            .map((k) => [
+              `search chip ${k.slice('color.tag-text.'.length)}`,
+              [solid(theme, k.slice('color.'.length)), [solid(theme, 'phone.card')]],
+            ]),
+        ),
+        'found word': [
+          solid(theme, 'phone.text'),
+          [over(theme, 'phone.match', solid(theme, 'phone.background'))],
+        ],
         secondary: [solid(theme, 'phone.text-secondary'), [...plain, raised]],
         'section head': [solid(theme, 'phone.section-head'), [solid(theme, 'phone.background')]],
         destructive: [

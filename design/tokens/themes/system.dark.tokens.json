@@ -83,6 +83,16 @@
         },
         "$description": "A row under the finger."
       },
+      "match": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9608, 0.6235, 0.0392],
+          "hex": "#f59f0a",
+          "alpha": 0.35
+        },
+        "$description": "A found word's highlight behind the text in a phone search result."
+      },
       "flash": {
         "$type": "color",
         "$value": {

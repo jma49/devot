@@ -8,9 +8,9 @@ import { usePickerOpen } from './Picker'
 const SYNTAX = [
   { example: 'word  "a phrase"  \'a phrase\'', note: 'search.help.text' },
   { example: 'title:  body:', note: 'search.help.part' },
-  { example: 'book:Name', note: 'search.help.book' },
-  { example: 'tag:Name', note: 'search.help.tag' },
-  { example: 'status:Name', note: 'search.help.status' },
+  { example: 'book:Name  in:Name', note: 'search.help.book' },
+  { example: 'tag:Name  #Name', note: 'search.help.tag' },
+  { example: 'status:Name  is:Name', note: 'search.help.status' },
   { example: 'bookId:ID  tagId:ID', note: 'search.help.ids' },
   { example: 'pinned:true  pinned:false', note: 'search.help.pinned' },
   { example: '-word  -book:  -tag:  -status:  -pinned:', note: 'search.help.exclude' },

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
+import { matchSegments } from '../../../core/search'
 import type { NoteStatus, NoteSummary, TagRecord } from '../../../core/storage'
 import { noteDate } from '../format'
 import { displayTitle } from '../headlines'
@@ -86,10 +87,26 @@ function NoteMark(props: { status: NoteStatus }) {
   )
 }
 
+function Marked(props: { text: string; pattern: RegExp | null | undefined }) {
+  return matchSegments(props.text, props.pattern ?? null).map((segment, i) =>
+    segment.match ? (
+      <mark key={i} className="phone-match">
+        {segment.text}
+      </mark>
+    ) : (
+      segment.text
+    ),
+  )
+}
+
 interface RowProps {
   note: NoteSummary
   title: string
   excerpt: string
+  titlePattern?: RegExp | null
+  excerptPattern?: RegExp | null
+  /** Shown in place of the time, as a search result shows its notebook. */
+  meta?: string
   tag: TagRecord | undefined
   now: number
   open: boolean
@@ -103,7 +120,7 @@ interface RowProps {
   onAction: (key: RowAction) => void
 }
 
-function NoteRow(props: RowProps) {
+export function NoteRow(props: RowProps) {
   const { note } = props
   const [drag, setDrag] = useState<number | null>(null)
   const [pressed, setPressed] = useState(false)
@@ -274,10 +291,16 @@ function NoteRow(props: RowProps) {
           <NoteMark status={note.status} />
           <span className="phone-note-text">
             <span className="phone-note-line">
-              <span className="phone-note-title">{props.title}</span>
-              <span className="phone-note-time phone-figures">
-                {noteDate(note.updatedAt, props.now, currentLocale())}
+              <span className="phone-note-title">
+                <Marked text={props.title} pattern={props.titlePattern} />
               </span>
+              {props.meta === undefined ? (
+                <span className="phone-note-time phone-figures">
+                  {noteDate(note.updatedAt, props.now, currentLocale())}
+                </span>
+              ) : (
+                <span className="phone-note-time phone-note-book phone-figures">{props.meta}</span>
+              )}
             </span>
             <span className="phone-note-line">
               <span className="phone-note-excerpt">
@@ -292,7 +315,7 @@ function NoteRow(props: RowProps) {
                     #{props.tag.name}{' '}
                   </span>
                 )}
-                {props.excerpt}
+                <Marked text={props.excerpt} pattern={props.excerptPattern} />
               </span>
               {note.pinned && (
                 <span className="phone-note-pin" role="img" aria-label={t('sidebar.pinned')}>
@@ -403,7 +426,10 @@ function Peek(props: {
   )
 }
 
-function useExcerpts(data: PhoneData, notes: readonly NoteSummary[]): ReadonlyMap<string, string> {
+export function useExcerpts(
+  data: PhoneData,
+  notes: readonly NoteSummary[],
+): ReadonlyMap<string, string> {
   const [excerpts, setExcerpts] = useState<ReadonlyMap<string, string>>(() => new Map())
   const keys = notes.map((n) => `${n.id}:${n.bodyVersion}`).join(',')
   const ids = useMemo(() => (keys ? keys.split(',').map((key) => key.split(':')[0]!) : []), [keys])
@@ -458,6 +484,7 @@ export function PhoneNoteList(props: {
   arrivedId: string | null
   onBack?: () => void
   onOpenNote: (id: string) => void
+  onSearch: () => void
   onTrash: (note: NoteSummary) => void
   onComplete: (note: NoteSummary) => void
 }) {
@@ -626,7 +653,7 @@ export function PhoneNoteList(props: {
             type="button"
             className="phone-capsule-button"
             aria-label={t('search.placeholder')}
-            disabled
+            onClick={props.onSearch}
           >
             <Icon name="search" size="lg" />
           </button>

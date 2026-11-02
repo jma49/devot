@@ -1440,7 +1440,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         clauses.some((c) => fields.includes(c.field))
       const [books, tags] = await Promise.all([
         scope?.bookId || needs('book', 'bookId') ? storage.listBooks() : [],
-        needs('tag', 'tagId') ? storage.listTags() : [],
+        needs('tag', 'tagId', 'hashtag') ? storage.listTags() : [],
       ])
       // `book:` and `bookId:` never name Templates.
       const nameable = books.filter((b) => b.id !== TEMPLATES_BOOK_ID)

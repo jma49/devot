@@ -2,9 +2,10 @@
 //
 //   word  "a phrase"       the title or body contains it (case-insensitive substring)
 //   title:word  body:word  only the title, or only the body, contains it
-//   book:Name              the note is in that notebook or one of its sub-notebooks
+//   book:Name  in:Name     the note is in that notebook or one of its sub-notebooks
 //   tag:Name               the note has that tag
-//   status:Name            the note has that status (an ID such as on_hold, or a name such as "On Hold")
+//   #Name                  the note has that tag, or if no tag has that name, contains the text #Name
+//   status:Name  is:Name   the note has that status (an ID such as on_hold, or a name such as "On Hold")
 //   bookId:ID  tagId:ID    like book: and tag:, by ID (a malformed ID is searched as text)
 //   pinned:true|false      the note is pinned (or not); yes, no, 1 and 0 also work
 //   -anything              excludes what the clause matches
@@ -42,6 +43,7 @@ export type SearchField =
   | 'body'
   | 'book'
   | 'tag'
+  | 'hashtag'
   | 'status'
   | 'bookId'
   | 'tagId'
@@ -62,8 +64,10 @@ const QUALIFIERS = new Map<string, SearchField>([
   ['title', 'title'],
   ['body', 'body'],
   ['book', 'book'],
+  ['in', 'book'],
   ['tag', 'tag'],
   ['status', 'status'],
+  ['is', 'status'],
   ['bookid', 'bookId'],
   ['tagid', 'tagId'],
   ['pinned', 'pinned'],
@@ -91,6 +95,7 @@ export function pinnedFromValue(value: string): 'true' | 'false' | null {
 const MAX_CHARS: Partial<Record<SearchField, number>> = {
   book: MAX_BOOK_NAME_CHARS,
   tag: MAX_TAG_NAME_CHARS,
+  hashtag: MAX_TAG_NAME_CHARS,
 }
 
 const clip = (value: string, field: SearchField = 'any') =>
@@ -142,6 +147,11 @@ export function parseSearch(query: string): SearchClause[] {
     let qualified = false
     if (opensPhrase()) {
       value = quoted()
+    } else if (text[at] === '#' && at + 1 < text.length && !SPACE.test(text[at + 1]!)) {
+      qualified = true
+      field = 'hashtag'
+      at += 1
+      value = opensPhrase() ? quoted() : word()
     } else {
       const key = QUALIFIER.exec(text.slice(at, at + 12))
       const name = key?.[1] ? QUALIFIERS.get(key[1].toLowerCase()) : undefined
@@ -177,11 +187,30 @@ export function parseSearch(query: string): SearchClause[] {
   return clauses
 }
 
-export function highlightTerms(clauses: readonly SearchClause[]): {
+/** A value as a query would spell it, so that it parses back whole after a qualifier or `#`. */
+export function searchValue(value: string): string {
+  if (!SPACE.test(value) && value[0] !== '"' && value[0] !== "'") return value
+  return value.includes('"') ? `'${value}'` : `"${value}"`
+}
+
+type SettledClause = SearchClause & { field: Exclude<SearchField, 'hashtag'> }
+
+/** `#x` is known only here, where the tags are: the parser cannot tell a tag from `#include`. */
+function settleHashtag(clause: SearchClause, tags: readonly TagRecord[]): SettledClause {
+  if (clause.field !== 'hashtag') return clause as SettledClause
+  return tags.some((t) => sameName(t.name, clause.value))
+    ? { ...clause, field: 'tag' }
+    : { ...clause, field: 'any', value: clip(`#${clause.value}`) }
+}
+
+export function highlightTerms(
+  clauses: readonly SearchClause[],
+  tags: readonly TagRecord[] = [],
+): {
   title: string[]
   body: string[]
 } {
-  const positive = clauses.filter((c) => !c.negate)
+  const positive = clauses.map((c) => settleHashtag(c, tags)).filter((c) => !c.negate)
   const of = (fields: SearchField[]) =>
     positive.filter((c) => fields.includes(c.field)).map((c) => c.value)
   return { title: of(['any', 'title']), body: of(['any', 'body']) }
@@ -417,7 +446,8 @@ export function resolveSearch(
   if (filter?.kind === 'tag') sets.push({ kind: 'tag', ids: [filter.tagId], negate: false })
   if (filter?.kind === 'pinned') pinned = true
 
-  for (const c of clauses) {
+  for (const clause of clauses) {
+    const c = settleHashtag(clause, tags)
     if (c.field === 'any' || c.field === 'title' || c.field === 'body') {
       text.push({ field: c.field, value: c.value, negate: c.negate })
       continue
