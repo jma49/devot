@@ -13,10 +13,12 @@ import { invoke } from '../ipc'
 import { useEffect } from 'react'
 import { commandMenuKeys, defaultKeys } from './registry'
 import { subscribeKeymap } from './shortcutSettings'
+import { hasDesktopShell } from '../platform'
 
 let tail: Promise<unknown> = Promise.resolve()
 
-export function queueMenuCall<T>(call: () => Promise<T>): Promise<T> {
+export function queueMenuCall<T>(call: () => Promise<T>): Promise<T | undefined> {
+  if (!hasDesktopShell) return Promise.resolve(undefined)
   const run = tail.then(call)
   tail = run.catch(() => undefined)
   return run

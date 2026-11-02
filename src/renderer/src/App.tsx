@@ -1,4 +1,5 @@
 import { isScrolled } from './scrollEdge'
+import { hasDesktopShell } from './platform'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type {
   BatchChange,
@@ -2890,6 +2891,7 @@ export function App() {
   })
   // The menu item is shared by the main windows, so the one in front says what it shows.
   useEffect(() => {
+    if (!hasDesktopShell) return
     const say = () =>
       void invoke('sidebar_menu_set', { shown: sidebarShown }).catch(() =>
         console.warn('W_SIDEBAR_MENU_SET_FAILED'),
