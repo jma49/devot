@@ -38,6 +38,7 @@ use format::{
     Payload, Revocations, VerifyError, verify_activation, verify_licence, verify_revocations,
 };
 pub(crate) use keys::PublicKeys;
+#[cfg(desktop)]
 pub(crate) use revoked::refresh_from_site as refresh_revocations;
 pub(crate) use store::{KeyStore, Keychain, LICENCE_ACCOUNT, REVOCATIONS_FILE, TRIAL_ACCOUNT};
 use trial::Record;

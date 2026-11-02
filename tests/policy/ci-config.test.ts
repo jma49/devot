@@ -50,6 +50,22 @@ it('every cargo step of the CI rust job is a step of pnpm rust:check', () => {
   expect(scripts['rust:check']).toContain('cargo deny check')
 })
 
+it('CI compiles the app for iOS and the Rust gate waits for it', () => {
+  // No other job builds the phone's `cfg` branches, and they need Apple's SDK.
+  const ios = job('ios-check')
+  expect(ios).toContain('runs-on: macos-')
+  expect(ios).toContain("needs.changes.outputs.rust != 'false'")
+  expect(ios).toContain("needs.changes.outputs.docs_only != 'true'")
+  expect(ios).toContain('targets: aarch64-apple-ios-sim')
+  expect(commands(ios)).toContain(
+    'cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings',
+  )
+  const gate = job('rust')
+  expect(gate).toContain('needs: [changes, rust-check, ios-check, deny]')
+  expect(gate).toContain('IOS: ${{ needs.ios-check.result }}')
+  expect(gate).toContain('for result in "$CHANGES" "$RUST" "$IOS" "$DENY"')
+})
+
 it('a pull request without web changes still gets a policy run with all of Vitest', () => {
   const trigger = workflow.slice(0, workflow.indexOf('\njobs:'))
   expect(trigger).not.toMatch(/paths-ignore/)

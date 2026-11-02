@@ -51,9 +51,10 @@ sha2 = "0.10"
 rustix = { version = "1.1", default-features = false, features = ["std", "fs", "process"] }
 tauri-plugin-updater = "2"
 # Plugin packages as `.zip` archives (`plugins::package`), deflate through
-# flate2's Rust backend, already in the tree. Read entry by entry, never
-# through `extract` (no links, no permission bits).
+# flate2's Rust backend, named here because no other dependency selects it on iOS.
+# Read entry by entry, never through `extract` (no links, no permission bits).
 zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # devot:// links from other apps (`deep_link`), and a second launch handing
 # its arguments to the running Devot instead of opening the data folder.
 tauri-plugin-deep-link = "2"
