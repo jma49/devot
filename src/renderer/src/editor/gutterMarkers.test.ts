@@ -1,7 +1,7 @@
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
 import { EditorState, type ChangeSpec } from '@codemirror/state'
 import { gutterLineClass, GutterMarker } from '@codemirror/view'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { codeBlocks } from './codeBlocks'
 import { markerField, type MarkerScan } from './gutterMarkers'
 import { markdownLineStyles } from './lineStyles'
@@ -175,6 +175,15 @@ describe('the gutter line classes under random edits', () => {
 })
 
 describe('scanning for the gutter line classes', () => {
+  // CodeMirror parses for a time budget read off Date.now, and a partial tree changes what a scan
+  // looks at: stopped clocks make the counts the same at any speed.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   function counting() {
     let looked = 0
     const scan: MarkerScan = (state, from, to, mark) => {
