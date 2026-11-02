@@ -1476,7 +1476,7 @@
     "sidebar-footer": {
       "$type": "dimension",
       "$value": { "value": 36, "unit": "px" },
-      "$description": "The Glass sidebar's footer capsule: size.sidebar-inset + 36 / 2 = 26, the value of radius.window."
+      "$description": "The Glass sidebar's footer, with radius.sidebar-row corners, concentric with the sidebar."
     },
     "scrollbar": {
       "$type": "dimension",

@@ -155,7 +155,9 @@ test('depth steps 16 px, keeps each chevron inside its row, and guides down the 
   expect(guide.color).toBe(separator)
 })
 
-test('the footer is a 36 px capsule 8 px from the sidebar edges', async ({ page }) => {
+test('the footer is 36 px high, 8 px from the sidebar edges, with the row radius', async ({
+  page,
+}) => {
   await setUp(page)
   const side = await box(sidebar(page))
   const footer = await box(sidebar(page).locator('.footer-toggle'))
@@ -163,6 +165,7 @@ test('the footer is a 36 px capsule 8 px from the sidebar edges', async ({ page 
   expect(footer.x - side.x).toBe(8)
   expect(side.x + side.width - (footer.x + footer.width)).toBe(8)
   expect(side.y + side.height - (footer.y + footer.height)).toBe(8)
+  await expect(sidebar(page).locator('.footer-toggle')).toHaveCSS('border-radius', '10px')
 })
 
 test('Classic keeps its rows, depth and footer, with no fade or guide', async ({ page }) => {

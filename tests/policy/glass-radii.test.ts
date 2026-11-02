@@ -56,8 +56,11 @@ describe('Glass radii are concentric: inner radius = outer radius - inset', () =
     expect(sidebar?.body.get('padding-block-end')).toBe('var(--size-sidebar-inset)')
   })
 
-  it('keeps the sidebar footer capsule at the documented sum of inset and half its height', () => {
-    expect(size('sidebar-footer')).toBe(36)
-    expect(size('sidebar-inset') + size('sidebar-footer') / 2).toBe(radius('window'))
+  it('rounds the sidebar footer like a row, concentric with the sidebar, never as a capsule', () => {
+    const rules = cssRules(readFileSync('src/renderer/src/app.css', 'utf8'))
+    const footer = rules.find(
+      (r) => r.selector === ":root[data-sidebar-material='on'] .footer-toggle",
+    )
+    expect(footer?.body.get('border-radius')).toBe('var(--radius-sidebar-row)')
   })
 })
