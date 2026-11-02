@@ -45,5 +45,7 @@ it('gives the native glass no tint in light and a tint in dark', () => {
   )
   expect(tints).toHaveLength(8)
   expect(tints.filter((tint) => tint === null)).toHaveLength(4)
-  for (const tint of tints) if (tint) expect(tint).toMatch(/^#[0-9a-f]{8}$/)
+  expect(tints.filter((tint) => tint !== null).every((tint) => /^#[0-9a-f]{8}$/.test(tint))).toBe(
+    true,
+  )
 })
