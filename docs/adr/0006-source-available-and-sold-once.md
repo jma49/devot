@@ -104,11 +104,10 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
 
 Issue #360 settled that a license is bought once and unlocks sync and AI in every version, with no renewal: the key carries no date that ends it, the Worker sells one Price, and the updater offers every update the same way to everyone.
 
-Issue #362 replaced "free but for sync and AI" and "there is no trial" with the 30-day trial and the read-only mode after it, described above.
+Issue #362 replaced "free but for sync and AI" and "there is no trial" with the three-day trial and the read-only mode after it, described above.
 
 ADR 0009 amends "all of the buyer's devices" and "a licence works offline forever": a licence is activated on up to three devices, each with a 30-day signed lease, and a key bought before that change gets a 30-day migration window.
 
 The trial is now 30 days instead of three, to let people try Devot long enough to move their notes in. Its length is applied to the start already kept in the keychain, so a device whose three days had run out gets the rest of the 30 when it updates.
-||||||| parent of a4f8131 (feat: check licences only in the release workflow's build)
 
 Only the release workflow's build checks licences. A build made from source gates nothing, so anyone unwilling to pay can build Devot themselves, within the source license. The sale is the signed and notarised app, its updates and support for the work, as Risks 1 already says.
