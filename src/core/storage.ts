@@ -182,7 +182,7 @@ export interface ActivityRevision {
   at: number
   length: number | null
   words: number | null
-  /** The length of the previous body version (equal times break ties by storage order); null for the first. */
+  /** The length of the previous body version (equal times and lengths break ties by word count, which the covering index holds, then storage order); null for the first. */
   previous: number | null
   /** That version's word count; null for the first too, and when it predates schema v24. */
   previousWords: number | null

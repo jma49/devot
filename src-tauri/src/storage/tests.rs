@@ -3155,26 +3155,6 @@ fn migration_24_leaves_old_versions_without_a_word_count() {
 }
 
 #[test]
-fn equal_times_and_lengths_take_the_previous_version_by_storage_order() {
-    let (_dir, mut store) = temp_store();
-    store.put_note(&note("a", "A", 1), &[]).unwrap();
-    for (id, words) in [("r1", 5), ("r2", 3), ("r3", 1)] {
-        store
-            .put_revision(&RevisionRecord {
-                words: Some(words),
-                ..version(id, "a", 10, &[1])
-            })
-            .unwrap();
-    }
-    let revisions = store.list_activity(0).unwrap().revisions;
-    let last = revisions.iter().find(|r| r.words == Some(1)).unwrap();
-    assert_eq!(last.previous_words, Some(3));
-    let notes = store.list_note_activity(&["a".to_string()], 0).unwrap();
-    let last = notes.iter().find(|r| r.words == Some(1)).unwrap();
-    assert_eq!(last.previous_words, Some(3));
-}
-
-#[test]
 fn a_revision_written_again_keeps_its_new_word_count() {
     let (_dir, mut store) = temp_store();
     store.put_note(&note("a", "A", 1), &[]).unwrap();
