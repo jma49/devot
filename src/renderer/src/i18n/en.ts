@@ -102,7 +102,7 @@ export const en = {
   'phone.settings.closeSearch': 'Close search',
   'phone.settings.trial': 'Trial',
   'phone.settings.trialEnds':
-    'Your trial ends on {date}. After that every note stays readable and exportable; editing needs a licence. A licence is bought once and covers your Mac and this iPhone.',
+    'Your trial ends on {date}. After that every note stays readable and exportable; editing needs a license. A license is bought once and covers your Mac and this iPhone.',
   'phone.hint.about': 'About {name}',
   'phone.hint.done': 'Done',
   'phone.appearance.interface': 'Interface',
@@ -134,7 +134,7 @@ export const en = {
   'phone.ai.keyHint':
     'The key is stored in the keychain on this iPhone and never synced or logged.',
   'phone.ai.suggestHint':
-    'While you type, Devot suggests the next edit as grey text. Tap the sparkle in the formatting bar to accept it, or keep typing to ignore it.',
+    'While you type, Devot suggests the next edit as gray text. Tap the sparkle in the formatting bar to accept it, or keep typing to ignore it.',
   'sidebar.label': 'Sidebar',
   'sidebar.allNotes': 'All Notes',
   'sidebar.workspaceLabel': 'Workspace {name}',
