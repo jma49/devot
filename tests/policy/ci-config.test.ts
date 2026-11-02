@@ -66,6 +66,19 @@ it('CI compiles the app for iOS and the Rust gate waits for it', () => {
   expect(gate).toContain('for result in "$CHANGES" "$RUST" "$IOS" "$DENY"')
 })
 
+it('the updater plugin is not a phone dependency', () => {
+  // It turns on reqwest's rustls without a provider, and `tauri ios dev` then panics at launch.
+  const manifest = read('src-tauri/Cargo.toml')
+  const desktop = manifest.indexOf(
+    '[target.\'cfg(not(any(target_os = "android", target_os = "ios")))\'.dependencies]',
+  )
+  const plugin = manifest.indexOf('tauri-plugin-updater =')
+  const nextTable = manifest.indexOf('\n[', desktop + 1)
+  expect(desktop).toBeGreaterThan(-1)
+  expect(plugin).toBeGreaterThan(desktop)
+  expect(plugin).toBeLessThan(nextTable)
+})
+
 it('a pull request without web changes still gets a policy run with all of Vitest', () => {
   const trigger = workflow.slice(0, workflow.indexOf('\njobs:'))
   expect(trigger).not.toMatch(/paths-ignore/)
