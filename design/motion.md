@@ -101,6 +101,11 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Capture:** rule 3. The compose circle grows in place into the sheet with `gentle` over `motion.duration.phone-capture`, glass turning into the sheet, and its contents fade in after `motion.delay.phone-capture-body`. Saving collapses it the same way. A saved note flies into its row from `size.phone-arrive-rise` below at `motion.scale.phone-arrive` with `gentle`, the rows below shift by the height it really takes with `gentle`, and its row fades out of the accent wash over `motion.duration.phone-flash`. Under Reduce Motion the circle and the sheet crossfade, and only the wash shows on the row.
 - **Search:** rule 3. The overlay fades in over `motion.duration.phone-search`; the glass field grows leftwards from the search button, from `motion.scale.phone-search-field` of its width with `bouncy`, fading in over `motion.duration.phone-search-field`. Closing goes back the same way. Results and the chips change at once (rule 2). Reduce Motion leaves the crossfade.
 - **Undo toast:** rule 3. It rises `size.phone-toast-rise` and grows from `motion.scale.phone-toast` with `bouncy` while fading in over `motion.duration.ring`, and goes back the same way after `motion.duration.phone-toast`. A second action replaces it where it is. Under Reduce Motion it crossfades in place.
+- **Pane switch:** rule 4. The knob moves with `bouncy` and the track's colour fades, without bouncing. Under Reduce Motion the knob crossfades into place.
+- **Pane segmented control:** rule 4. The pill slides with `bouncy` to the chosen segment, with the `selection` haptic. Under Reduce Motion it moves at once with no spring.
+- **Pane slider:** rule 1. The thumb and fill follow the finger, and the glass or text changes as it goes.
+- **Detail sheet:** rule 3. It grows in with `gentle` like any sheet; Done and a drag down close it the same way.
+- **Settings search:** rule 2. The field and results appear at once, and results change as you type.
 - **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` over `motion.duration.phone-glass-press` on `motion.easing.phone-push`, and brightens over `motion.duration.ring`.
 
 ## Stays instant

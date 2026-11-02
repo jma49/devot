@@ -390,20 +390,19 @@ async function openPane(page: Page, name: string) {
   await tabs(page).getByRole('button', { name: 'Settings' }).click()
   await page
     .getByRole('region', { name: 'Settings' })
-    .getByRole('button', { name, exact: true })
+    .getByRole('button', { name: new RegExp(`^${name}`) })
     .click()
   const pane = page.locator(`section.phone-screen[aria-label="${name}"]`)
   await expect(pane.locator('.settings-section')).toBeAttached()
   return pane
 }
 
-test('Appearance on a phone leaves out the Mac window style, transparency and accent', async ({
+test('Appearance on a phone has its own interface control and no system accent', async ({
   page,
 }) => {
   const pane = await openPane(page, 'Appearance')
   await expect(pane.getByText('Color scheme')).toBeVisible()
   await expect(pane.getByText('Interface style')).toHaveCount(0)
-  await expect(pane.getByText('Glass Transparency')).toHaveCount(0)
   await expect(pane.getByText('Use the System Accent Color')).toHaveCount(0)
 })
 

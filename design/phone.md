@@ -13,6 +13,7 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 - Colour on glass marks what is selected only: the accent on the selected tab, the caret's violet on AI. The compose circle's icon is in the text colour.
 - Curves share a centre: a capsule is height / 2, and an inner radius is the outer radius minus the inset. This wins over a design value: fields in the capture sheet are 20 (design 24 and 22). A grouped row's pressed fill is the exception: `radius.phone-row-press` 16 in a 22 card.
 - CSS draws the glass (ADR 0010).
+- Appearance's Interface and Glass Transparency are this iPhone's own choice, in `devot.phone.interfaceStyle` and `devot.phone.glassTransparency` in the webview's storage, never the Mac's settings and never synced (`phone/glassPrefs.ts`). Classic takes the same path as Reduce Transparency. Transparency moves `.phone-glass`'s tint: -100 is `color.phone.glass-opaque`, 0 the design, 100 half the tint's opacity. Reduce Transparency wins over both.
 
 ## Touch
 
@@ -27,8 +28,9 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 - Every row has a hidden "Actions for…" button that opens the peek's menu, so the swipe and peek actions need no gesture. It stands in for VoiceOver custom actions, which a web view cannot declare.
 - A swipe raises the row on a surface (`radius.phone-swipe-surface`, `size.phone-swipe-surface-inset`). Its capsules are `size.phone-swipe-action` by `size.phone-swipe-action-height` with an 11 pt label under each; Pin stays `color.phone.action-pin`, darker than the design's orange so its glyph keeps 3:1.
 - Trashing or completing a note (swipe, peek or note info) shows the undo toast for `motion.duration.phone-toast`. Undo puts the note back as it was, its place in the list too (`phone/undo.ts`: a status write moves `updatedAt`, so it restores that as well). A second action replaces the toast and the first stays done. Completing a note already completed does nothing. Only a note's status picker changes a status without one.
-- Settings rows open the existing Settings panes in a phone screen. Mirror Folder, Integrations and Plugins show "On the Mac" and do not open.
-- In a phone screen a pane leaves out what only the Mac has (`useOnPhone`): the interface style, Glass Transparency and the system accent color (the phone always draws its own glass), and the board, activity strip, menu bar, updates, command line tool and folder buttons. Each row stacks its control under its label at the row's width; switches stay beside their label. Messages that name the Mac use the iPhone wording in `i18n/phone.ts`.
+- Settings rows open the existing Settings panes in a phone screen. Mirror, Integrations, Local HTTP API and Plugins show "On the Mac" and do not open.
+- In a phone screen a pane leaves out what only the Mac has (`useOnPhone`): the Mac's interface style and transparency, the system accent color, and the board, activity strip, menu bar, updates, command line tool and folder buttons. Each row stacks its control under its label at the row's width; switches stay beside their label. Messages that name the Mac use the iPhone wording in `i18n/phone.ts`.
+- A long explanation never sits under a row: `Setting`, `SettingToggle` and a section's footnote draw an info button in a phone pane (`ShowHint`), which opens the detail sheet. A description that is the row's value or state (`live`) stays in the row. A group has at most a one-line footnote.
 
 ## Accessibility
 
@@ -61,7 +63,13 @@ Tab bar: four icon-only tabs (Notes, Library, Activity, Settings) in a `size.pho
 
 Capture: the circle grows in place into the sheet, `size.phone-sheet-inset` from the screen's sides and bottom, up to `size.phone-capture-height`. The keyboard does not move the layout, so the open sheet rides above it and shrinks to what is left under the safe area, and its contents scroll. A note saved where the list would not show it opens All Notes.
 
-Search: an overlay over the whole screen, including the tab bar. In the top bar's place, a 44 glass field and a 44 close circle. With no query: Recent, then chips (`size.phone-search-chip`, a 44 target) for Notebooks, Status and Tags, each filling the field with `in:`, `is:` or `#`. Recent searches stay in this device's `localStorage`, added on Return or on opening a result; they are never synced or logged. Results are note rows without swipes, found words in `color.phone.match`, the notebook in mono where the time goes, the excerpt moved to start a few words before the match, since one line holds far less than the core's excerpt. Settings' search button stays disabled until Settings has its panes.
+Search: an overlay over the whole screen, including the tab bar. In the top bar's place, a 44 glass field and a 44 close circle. With no query: Recent, then chips (`size.phone-search-chip`, a 44 target) for Notebooks, Status and Tags, each filling the field with `in:`, `is:` or `#`. Recent searches stay in this device's `localStorage`, added on Return or on opening a result; they are never synced or logged. Results are note rows without swipes, found words in `color.phone.match`, the notebook in mono where the time goes, the excerpt moved to start a few words before the match, since one line holds far less than the core's excerpt.
+
+Settings: a card with the app row (dove tile, version and licence state, a badge when the licence needs attention; it opens the trial sheet during a trial and the Licence pane otherwise); General (General, Appearance, Editing, Preview, Keyboard); Sync & storage (Sync, Mirror); AI & integrations (AI, Integrations, Local HTTP API, Plugins); a card of Usage and Licence; a mono build footer. Its search button opens a glass field that filters the panes that open on a phone, by name. There is no Backups or About row: neither has a pane on the phone.
+
+Panes: controls sit in grouped cards. A switch is `size.phone-switch-width` by `size.phone-switch-height`, in the accent colour. A segmented control is `size.phone-pane-segmented` high on `color.phone.lens` in a 44 target, with a `color.phone.elevated` pill. A slider has a `size.phone-slider-track` track with an accent fill and a `size.phone-slider-thumb-width` by `size.phone-slider-thumb-height` thumb in a 44 target. The text size slider keeps the setting's full range, 10 to 32. Sync: the switch and relay with a one-line footnote, then setup rows until enrolled, then Devices (mono date, a "You" badge on this device), pairing and Recovery Key. AI: the provider segmented control and its endpoint, model and key, then next edit suggestions. The theme pickers stay; there are no accent swatches.
+
+Detail sheet: a sheet with a `color.phone.lens` circle holding the info icon, a 20 bold title, the body 16/24 in `color.phone.text-secondary`, and a full-width glass Done, `size.phone-sheet-done` high.
 
 Undo toast: `size.phone-toast` high, centred, `size.phone-toast-bottom` above the bottom on the tab bar's safe-area logic, above the compose circle. The Undo pill (`size.phone-toast-undo`) reaches its 44 target inside the toast.
 
@@ -79,7 +87,7 @@ Text follows the system's text size, up to the largest accessibility size.
 
 ## Icons
 
-SF Symbols only, through `symbol_png` (ADR 0001), monochrome in the text colour. Settings and Library rows have no coloured tile: a `size.icon-phone-row` line icon sits in a `size.phone-row-icon` column, a tag in the same column shows a dot in its colour. A selected tab uses its `.fill` symbol. The synced double tick is `check` drawn twice.
+SF Symbols only, through `symbol_png` (ADR 0001), monochrome in the text colour. A device is drawn with a generic shape (`phone.devices`), never a symbol that depicts an Apple product. Settings and Library rows have no coloured tile: a `size.icon-phone-row` line icon sits in a `size.phone-row-icon` column, a tag in the same column shows a dot in its colour. A selected tab uses its `.fill` symbol. The synced double tick is `check` drawn twice.
 
 Weights: `regular` at 18 pt and above, and `medium` for chevrons of 14 pt and below, the closest symbol weights to the design's 1.8 and 2.2 strokes.
 

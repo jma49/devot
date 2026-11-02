@@ -11,7 +11,9 @@ import { licenceEntitlements, startLicence, useLicence, useTrialOver } from '../
 import { LicenceButton } from '../LicenceLocked'
 import { loadAiSettings, removeAiKey, saveAiKey, saveAiSettings } from './aiProviders'
 import { SUGGEST_AFTER_CHARS, SUGGEST_BEFORE_CHARS } from '../../../core/aiSuggest'
+import { PhoneGroup, PhoneSegmented } from '../phone/PhoneControls'
 import { Select, Setting, SettingsSection, SettingToggle } from './controls'
+import { useOnPhone } from './onPhone'
 
 const NAMES: Record<AiProviderId, MessageKey> = {
   anthropic: 'aiSettings.provider.anthropic',
@@ -35,6 +37,7 @@ const draftsOf = (view: AiSettingsView): Drafts => ({
 export function AiSection() {
   const ids = useId()
   const id = (name: string) => `${ids}-${name}`
+  const onPhone = useOnPhone()
   const [view, setView] = useState<AiSettingsView>()
   const [drafts, setDrafts] = useState<Drafts>()
   const [keys, setKeys] = useState<Record<AiProviderId, string>>({ anthropic: '', openai: '' })
@@ -144,6 +147,185 @@ export function AiSection() {
     if (loadError || saveError) errorsRef.current?.scrollIntoView({ block: 'nearest' })
   }, [loadError, saveError])
 
+  const providerRows = (provider: AiProviderId) => {
+    if (!view || !drafts) return null
+    const shown = view[provider]
+    const name = t(NAMES[provider])
+    const field = (part: string) => id(`${provider}-${part}`)
+    const ownKeyError = keyError?.provider === provider ? keyError.code : undefined
+    const canSave = keys[provider].trim() !== '' && shown.key !== 'unavailable'
+    const canRemove = shown.key === 'set' || shown.key === 'unknown'
+    const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') commit()
+    }
+    return (
+      <>
+        <Setting
+          label="aiSettings.endpoint"
+          description={t('aiSettings.endpointHint')}
+          htmlFor={field('endpoint')}
+          descriptionId={field('endpoint-hint')}
+        >
+          <input
+            id={field('endpoint')}
+            type="text"
+            className="settings-number settings-text"
+            spellCheck={false}
+            autoComplete="off"
+            value={drafts[provider].endpoint}
+            placeholder={shown.defaultEndpoint}
+            aria-describedby={field('endpoint-hint')}
+            onChange={(e) => editDraft(provider, 'endpoint', e.currentTarget.value)}
+            onBlur={() => commit()}
+            onKeyDown={onEnter}
+          />
+        </Setting>
+        <Setting
+          label="aiSettings.model"
+          description={t(
+            shown.defaultModel ? 'aiSettings.modelHint' : 'aiSettings.modelRequiredHint',
+          )}
+          htmlFor={field('model')}
+          descriptionId={field('model-hint')}
+        >
+          <input
+            id={field('model')}
+            type="text"
+            className="settings-number settings-text"
+            spellCheck={false}
+            autoComplete="off"
+            value={drafts[provider].model}
+            placeholder={shown.defaultModel}
+            aria-describedby={field('model-hint')}
+            onChange={(e) => editDraft(provider, 'model', e.currentTarget.value)}
+            onBlur={() => commit()}
+            onKeyDown={onEnter}
+          />
+        </Setting>
+        <Setting
+          label="aiSettings.key"
+          description={
+            onPhone
+              ? t('phone.ai.keyHint')
+              : `${t(KEY_STATES[shown.key])} ${t('aiSettings.keyHint')}`
+          }
+          htmlFor={field('key')}
+          descriptionId={field('key-hint')}
+        >
+          <input
+            id={field('key')}
+            type="password"
+            className="settings-number settings-text"
+            spellCheck={false}
+            autoComplete="off"
+            aria-label={format(t('aiSettings.keyLabel'), { provider: name })}
+            aria-describedby={
+              ownKeyError ? `${field('key-hint')} ${field('key-error')}` : field('key-hint')
+            }
+            disabled={shown.key === 'unavailable'}
+            value={keys[provider]}
+            onChange={(e) => {
+              const value = e.currentTarget.value
+              setKeys((now) => ({ ...now, [provider]: value }))
+              if (ownKeyError) setKeyError(undefined)
+            }}
+          />
+          {onPhone ? <p className="settings-hint">{t(KEY_STATES[shown.key])}</p> : null}
+          {/* The refused key is reported beside the field it belongs to, not only above the pane. */}
+          {ownKeyError ? (
+            <p id={field('key-error')} role="alert" className="settings-error">
+              {format(t('aiSettings.keyFailed'), { code: ownKeyError })}
+            </p>
+          ) : null}
+          <div className="settings-buttons">
+            {/* aria-disabled, not disabled: a disabled button would drop the keyboard when it turns. */}
+            <button
+              type="button"
+              className="button"
+              aria-disabled={!canSave}
+              onClick={() => {
+                if (canSave)
+                  void changeKey(
+                    provider,
+                    saveAiKey(provider, keys[provider]),
+                    'aiSettings.keySaved',
+                  )
+              }}
+            >
+              {t('aiSettings.saveKey')}
+            </button>
+            <button
+              type="button"
+              className="button"
+              aria-disabled={!canRemove}
+              onClick={() => {
+                if (canRemove)
+                  void changeKey(provider, removeAiKey(provider), 'aiSettings.keyRemoved')
+              }}
+            >
+              {t('aiSettings.removeKey')}
+            </button>
+          </div>
+        </Setting>
+      </>
+    )
+  }
+
+  if (onPhone) {
+    return (
+      <section className="settings-section" aria-labelledby="ai-title">
+        <h2 id="ai-title" className="visually-hidden">
+          {t('aiSettings.title')}
+        </h2>
+        <div ref={errorsRef}>
+          {errors.map((text) => (
+            <p key={text} role="alert" className="settings-error">
+              {text}
+            </p>
+          ))}
+        </div>
+        <p className="visually-hidden" role="status" aria-live="polite">
+          {announcement}
+        </p>
+        {licenceEntitlements.has('aiProviders') ? null : (
+          <PhoneGroup>
+            <Setting
+              live
+              label="licenceSettings.title"
+              description={t(trialEnded ? 'licence.locked.aiTrialEnded' : 'licence.locked.ai')}
+            >
+              <div className="settings-buttons">
+                <LicenceButton />
+              </div>
+            </Setting>
+          </PhoneGroup>
+        )}
+        {view && drafts ? (
+          <>
+            <PhoneGroup>
+              <PhoneSegmented
+                label={t('phone.ai.provider')}
+                hint={t('aiSettings.detail')}
+                value={view.active}
+                options={AI_PROVIDERS.map((p) => ({ value: p, label: t(NAMES[p]) }))}
+                onChange={(active) => commit(active)}
+              />
+              {providerRows(view.active)}
+            </PhoneGroup>
+            <PhoneGroup title={t('phone.ai.features')}>
+              <SettingToggle
+                label="aiSettings.suggestOnIdle"
+                description="phone.ai.suggestHint"
+                checked={view.suggestOnIdle}
+                onChange={setSuggestOnIdle}
+              />
+            </PhoneGroup>
+          </>
+        ) : null}
+      </section>
+    )
+  }
+
   return (
     <section className="settings-section" aria-labelledby="ai-title">
       <h2 id="ai-title" className="visually-hidden">
@@ -207,123 +389,11 @@ export function AiSection() {
               onChange={setSuggestOnIdle}
             />
           </SettingsSection>
-          {AI_PROVIDERS.map((provider) => {
-            const shown = view[provider]
-            const name = t(NAMES[provider])
-            const field = (part: string) => id(`${provider}-${part}`)
-            const ownKeyError = keyError?.provider === provider ? keyError.code : undefined
-            const canSave = keys[provider].trim() !== '' && shown.key !== 'unavailable'
-            const canRemove = shown.key === 'set' || shown.key === 'unknown'
-            const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
-              if (e.key === 'Enter') commit()
-            }
-            return (
-              <SettingsSection key={provider} title={NAMES[provider]}>
-                <Setting
-                  label="aiSettings.endpoint"
-                  description={t('aiSettings.endpointHint')}
-                  htmlFor={field('endpoint')}
-                  descriptionId={field('endpoint-hint')}
-                >
-                  <input
-                    id={field('endpoint')}
-                    type="text"
-                    className="settings-number settings-text"
-                    spellCheck={false}
-                    autoComplete="off"
-                    value={drafts[provider].endpoint}
-                    placeholder={shown.defaultEndpoint}
-                    aria-describedby={field('endpoint-hint')}
-                    onChange={(e) => editDraft(provider, 'endpoint', e.currentTarget.value)}
-                    onBlur={() => commit()}
-                    onKeyDown={onEnter}
-                  />
-                </Setting>
-                <Setting
-                  label="aiSettings.model"
-                  description={t(
-                    shown.defaultModel ? 'aiSettings.modelHint' : 'aiSettings.modelRequiredHint',
-                  )}
-                  htmlFor={field('model')}
-                  descriptionId={field('model-hint')}
-                >
-                  <input
-                    id={field('model')}
-                    type="text"
-                    className="settings-number settings-text"
-                    spellCheck={false}
-                    autoComplete="off"
-                    value={drafts[provider].model}
-                    placeholder={shown.defaultModel}
-                    aria-describedby={field('model-hint')}
-                    onChange={(e) => editDraft(provider, 'model', e.currentTarget.value)}
-                    onBlur={() => commit()}
-                    onKeyDown={onEnter}
-                  />
-                </Setting>
-                <Setting
-                  label="aiSettings.key"
-                  description={`${t(KEY_STATES[shown.key])} ${t('aiSettings.keyHint')}`}
-                  htmlFor={field('key')}
-                  descriptionId={field('key-hint')}
-                >
-                  <input
-                    id={field('key')}
-                    type="password"
-                    className="settings-number settings-text"
-                    spellCheck={false}
-                    autoComplete="off"
-                    aria-label={format(t('aiSettings.keyLabel'), { provider: name })}
-                    aria-describedby={
-                      ownKeyError ? `${field('key-hint')} ${field('key-error')}` : field('key-hint')
-                    }
-                    disabled={shown.key === 'unavailable'}
-                    value={keys[provider]}
-                    onChange={(e) => {
-                      const value = e.currentTarget.value
-                      setKeys((now) => ({ ...now, [provider]: value }))
-                      if (ownKeyError) setKeyError(undefined)
-                    }}
-                  />
-                  {/* The refused key is reported beside the field it belongs to, not only above the pane. */}
-                  {ownKeyError ? (
-                    <p id={field('key-error')} role="alert" className="settings-error">
-                      {format(t('aiSettings.keyFailed'), { code: ownKeyError })}
-                    </p>
-                  ) : null}
-                  <div className="settings-buttons">
-                    {/* aria-disabled, not disabled: a disabled button would drop the keyboard when it turns. */}
-                    <button
-                      type="button"
-                      className="button"
-                      aria-disabled={!canSave}
-                      onClick={() => {
-                        if (canSave)
-                          void changeKey(
-                            provider,
-                            saveAiKey(provider, keys[provider]),
-                            'aiSettings.keySaved',
-                          )
-                      }}
-                    >
-                      {t('aiSettings.saveKey')}
-                    </button>
-                    <button
-                      type="button"
-                      className="button"
-                      aria-disabled={!canRemove}
-                      onClick={() => {
-                        if (canRemove)
-                          void changeKey(provider, removeAiKey(provider), 'aiSettings.keyRemoved')
-                      }}
-                    >
-                      {t('aiSettings.removeKey')}
-                    </button>
-                  </div>
-                </Setting>
-              </SettingsSection>
-            )
-          })}
+          {AI_PROVIDERS.map((provider) => (
+            <SettingsSection key={provider} title={NAMES[provider]}>
+              {providerRows(provider)}
+            </SettingsSection>
+          ))}
         </>
       ) : null}
     </section>

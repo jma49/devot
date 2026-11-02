@@ -37,6 +37,13 @@ import { useTypedNumber } from './typedNumber'
 import type { IconName } from '../icons/symbols'
 import { useDraggedNumber } from './draggedNumber'
 import { useOnPhone } from './onPhone'
+import {
+  TRANSPARENCY_MAX,
+  TRANSPARENCY_STEP,
+  setGlassPrefs,
+  useGlassPrefs,
+} from '../phone/glassPrefs'
+import { PhoneGroup, PhoneSegmented, PhoneSlider } from '../phone/PhoneControls'
 import type { Appearance } from '../theme/appearance'
 
 /** The font size description: what it is, and the keys in effect (or the palette's commands when one has no key). */
@@ -295,12 +302,138 @@ export function AppearanceSection() {
     stored: settings.windowTransparency,
     store: (windowTransparency) => change({ windowTransparency }),
   })
+  const textSize = useDraggedNumber({
+    stored: settings.fontSize,
+    store: (size) => change({ fontSize: size }),
+  })
+  const phoneGlass = useGlassPrefs()
   const style = interfaceStyle(settings)
   const themes = { light: settings.lightTheme, dark: settings.darkTheme }
-  // The iPhone layout draws its own glass: the window style and transparency are the Mac's.
-  const glass = style === 'glass' && !onPhone
+  const glass = style === 'glass'
   const modeTitle = (appearance: Appearance) =>
     appearance === shown ? t('appearanceSettings.modeActive') : undefined
+
+  if (onPhone) {
+    return (
+      <section className="settings-section" aria-labelledby="appearance-title">
+        <h2 id="appearance-title" className="visually-hidden">
+          {t('appearanceSettings.title')}
+        </h2>
+        {error ? (
+          <p role="alert" className="settings-error">
+            {format(t('appearanceSettings.failed'), { code: error })}
+          </p>
+        ) : null}
+        <PhoneGroup>
+          <PhoneSegmented
+            label={t('appearanceSettings.colorScheme')}
+            value={settings.appearance}
+            options={SCHEMES.map((choice) => ({ value: choice, label: t(SCHEME_LABELS[choice]) }))}
+            onChange={(appearance) => change({ appearance })}
+          />
+        </PhoneGroup>
+        <PhoneGroup>
+          <PhoneSegmented
+            label={t('phone.appearance.interface')}
+            hint={t('phone.appearance.interfaceHint')}
+            value={phoneGlass.style}
+            options={[
+              { value: 'glass', label: t('phone.appearance.glass') },
+              { value: 'classic', label: t('phone.appearance.classic') },
+            ]}
+            onChange={(chosen) => setGlassPrefs({ style: chosen })}
+          />
+          {phoneGlass.style === 'glass' ? (
+            <PhoneSlider
+              label={t('phone.appearance.transparency')}
+              hint={t('phone.appearance.transparencyHint')}
+              min={-TRANSPARENCY_MAX}
+              max={TRANSPARENCY_MAX}
+              step={TRANSPARENCY_STEP}
+              value={phoneGlass.transparency}
+              minLabel={t('phone.appearance.solid')}
+              maxLabel={t('phone.appearance.clear')}
+              valueText={signed.format(phoneGlass.transparency)}
+              onChange={(transparency) => setGlassPrefs({ transparency })}
+            />
+          ) : null}
+        </PhoneGroup>
+        <SettingsSection title="appearanceSettings.lightMode" titleSuffix={modeTitle('light')}>
+          <ThemePicker
+            appearance="light"
+            chosen={settings.lightTheme}
+            onChoose={(lightTheme) => change({ lightTheme })}
+          />
+        </SettingsSection>
+        <SettingsSection title="appearanceSettings.darkMode" titleSuffix={modeTitle('dark')}>
+          <ThemePicker
+            appearance="dark"
+            chosen={settings.darkTheme}
+            onChoose={(darkTheme) => change({ darkTheme })}
+          />
+        </SettingsSection>
+        <PhoneGroup title={t('phone.appearance.editor')}>
+          <PhoneSlider
+            label={t('phone.appearance.textSize')}
+            min={FONT_SIZE_MIN}
+            max={FONT_SIZE_MAX}
+            step={1}
+            value={textSize.value}
+            minLabel={t('phone.appearance.textSizeSmall')}
+            maxLabel={t('phone.appearance.textSizeSmall')}
+            valueText={String(textSize.value)}
+            onChange={textSize.drag}
+            onRelease={textSize.release}
+          />
+          <FontFamilySetting
+            slot="note"
+            label="editorSettings.noteFont"
+            settings={settings}
+            change={change}
+            id={id}
+          />
+          <FontChoice slot="note" settings={settings} change={change} id={id} />
+          <Setting
+            label="appearanceSettings.previewFontSize"
+            description={t('previewSettings.fontSizeHint')}
+            htmlFor={id('preview-size')}
+            descriptionId={id('preview-size-hint')}
+          >
+            <NumberStepper
+              id={id('preview-size')}
+              value={previewSize.value}
+              min={FONT_SIZE_MIN}
+              max={FONT_SIZE_MAX}
+              onType={previewSize.type}
+              onLeave={previewSize.leave}
+              describedBy={id('preview-size-hint')}
+            />
+          </Setting>
+        </PhoneGroup>
+        <SettingsSection title="appearanceSettings.groupMotion">
+          <Setting
+            label="appearanceSettings.animations"
+            description={t('appearanceSettings.animationsHint')}
+            htmlFor={id('animations')}
+            descriptionId={id('animations-hint')}
+          >
+            <Select
+              id={id('animations')}
+              value={settings.animations}
+              aria-describedby={id('animations-hint')}
+              onChange={(e) => change({ animations: e.currentTarget.value as AnimationsChoice })}
+            >
+              {ANIMATIONS.map((choice) => (
+                <option key={choice} value={choice}>
+                  {t(ANIMATION_LABELS[choice])}
+                </option>
+              ))}
+            </Select>
+          </Setting>
+        </SettingsSection>
+      </section>
+    )
+  }
 
   return (
     <section className="settings-section" aria-labelledby="appearance-title">
@@ -314,7 +447,7 @@ export function AppearanceSection() {
       ) : null}
       <SettingsSection
         title="appearanceSettings.groupAppearance"
-        footnote={onPhone ? undefined : t('appearanceSettings.interfaceStyleNote')}
+        footnote={t('appearanceSettings.interfaceStyleNote')}
       >
         <div className="choice-groups">
           <div className="choice-group" role="radiogroup" aria-labelledby={id('scheme')}>
@@ -342,34 +475,32 @@ export function AppearanceSection() {
               ))}
             </div>
           </div>
-          {onPhone ? null : <span className="choice-divider" aria-hidden="true" />}
-          {onPhone ? null : (
-            <div className="choice-group" role="radiogroup" aria-labelledby={id('style')}>
-              <span id={id('style')} className="choice-group-label">
-                {t('appearanceSettings.interfaceStyle')}
-              </span>
-              <div className="choice-items">
-                {INTERFACE_STYLES.map((choice) => (
-                  <Choice
-                    key={choice}
-                    group={id('style-choice')}
-                    checked={style === choice}
-                    onChange={() => change(interfaceStylePatch(choice))}
-                    label={t(STYLE_LABELS[choice])}
-                    className="thumb-choice"
-                  >
-                    <span className="choice-thumb" aria-hidden="true">
-                      <WindowThumb
-                        appearance={shown}
-                        theme={themes[shown]}
-                        glass={choice === 'glass'}
-                      />
-                    </span>
-                  </Choice>
-                ))}
-              </div>
+          <span className="choice-divider" aria-hidden="true" />
+          <div className="choice-group" role="radiogroup" aria-labelledby={id('style')}>
+            <span id={id('style')} className="choice-group-label">
+              {t('appearanceSettings.interfaceStyle')}
+            </span>
+            <div className="choice-items">
+              {INTERFACE_STYLES.map((choice) => (
+                <Choice
+                  key={choice}
+                  group={id('style-choice')}
+                  checked={style === choice}
+                  onChange={() => change(interfaceStylePatch(choice))}
+                  label={t(STYLE_LABELS[choice])}
+                  className="thumb-choice"
+                >
+                  <span className="choice-thumb" aria-hidden="true">
+                    <WindowThumb
+                      appearance={shown}
+                      theme={themes[shown]}
+                      glass={choice === 'glass'}
+                    />
+                  </span>
+                </Choice>
+              ))}
             </div>
-          )}
+          </div>
         </div>
         {glass ? (
           <Setting
@@ -406,7 +537,7 @@ export function AppearanceSection() {
             </span>
           </Setting>
         ) : null}
-        {!onPhone && themeFollowsSystemAccent(themeInEffect(settings, shown)) ? (
+        {themeFollowsSystemAccent(themeInEffect(settings, shown)) ? (
           <SettingToggle
             label="appearanceSettings.systemAccent"
             description="appearanceSettings.systemAccentHint"

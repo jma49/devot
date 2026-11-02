@@ -1,12 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { LICENCE_UNKNOWN, type LicenceSnapshot } from '../licence'
-import { licenceRow } from './settingsRows'
+import { licenceRow, paneMatches } from './settingsRows'
 
 const DAY = 24 * 60 * 60 * 1000
 const gated = (patch: Partial<LicenceSnapshot>): LicenceSnapshot => ({
   ...LICENCE_UNKNOWN,
   gated: true,
   ...patch,
+})
+
+describe('paneMatches', () => {
+  const panes = [{ name: 'General' }, { name: 'Sync' }]
+  it('finds a pane by any part of its name, ignoring case', () => {
+    expect(paneMatches(panes, ' SYN')).toEqual([{ name: 'Sync' }])
+  })
+  it('finds all for no query and none for no match', () => {
+    expect(paneMatches(panes, '')).toHaveLength(2)
+    expect(paneMatches(panes, 'x')).toEqual([])
+  })
 })
 
 describe('the Licence row', () => {

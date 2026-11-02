@@ -25,3 +25,9 @@ export function licenceRow(
   }
   return { label: t('phone.settings.licence.attention'), needsAttention: true }
 }
+
+/** Panes whose name holds the query, in their order; an empty query finds them all. */
+export function paneMatches<T extends { name: string }>(panes: readonly T[], query: string): T[] {
+  const wanted = query.trim().toLocaleLowerCase()
+  return panes.filter((pane) => pane.name.toLocaleLowerCase().includes(wanted))
+}

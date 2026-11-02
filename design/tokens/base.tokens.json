@@ -1354,6 +1354,37 @@
       "$type": "dimension",
       "$value": { "value": 4, "unit": "px" }
     },
+    "phone-switch-width": {
+      "$type": "dimension",
+      "$value": { "value": 51, "unit": "px" },
+      "$description": "A pane switch."
+    },
+    "phone-switch-height": {
+      "$type": "dimension",
+      "$value": { "value": 31, "unit": "px" }
+    },
+    "phone-pane-segmented": {
+      "$type": "dimension",
+      "$value": { "value": 36, "unit": "px" },
+      "$description": "A pane segmented control, drawn smaller than its 44 target."
+    },
+    "phone-slider-track": {
+      "$type": "dimension",
+      "$value": { "value": 4, "unit": "px" }
+    },
+    "phone-slider-thumb-width": {
+      "$type": "dimension",
+      "$value": { "value": 38, "unit": "px" }
+    },
+    "phone-slider-thumb-height": {
+      "$type": "dimension",
+      "$value": { "value": 24, "unit": "px" }
+    },
+    "phone-sheet-done": {
+      "$type": "dimension",
+      "$value": { "value": 50, "unit": "px" },
+      "$description": "The detail sheet's full-width Done."
+    },
     "phone-segmented": {
       "$type": "dimension",
       "$value": { "value": 44, "unit": "px" },

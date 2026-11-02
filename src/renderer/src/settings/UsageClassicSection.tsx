@@ -98,6 +98,7 @@ export function UsageClassicSection() {
       ))}
       <SettingsSection title="usage.eventsTitle" footnote={t('usage.limits')}>
         <Setting
+          live
           label="usage.eventsLabel"
           description={
             events === undefined

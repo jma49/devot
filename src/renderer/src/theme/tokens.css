@@ -117,6 +117,13 @@
   --size-phone-glass-rim: 1.2px;
   --size-phone-glass-bar: 62px;
   --size-phone-lens-inset: 4px;
+  --size-phone-switch-width: 51px;
+  --size-phone-switch-height: 31px;
+  --size-phone-pane-segmented: 36px;
+  --size-phone-slider-track: 4px;
+  --size-phone-slider-thumb-width: 38px;
+  --size-phone-slider-thumb-height: 24px;
+  --size-phone-sheet-done: 50px;
   --size-phone-segmented: 44px;
   --size-phone-editor-toolbar: 48px;
   --size-phone-list-row: 62px;

@@ -31,6 +31,7 @@ import { haptic } from './haptics'
 import { useLicence } from '../licence'
 import { licenceRow } from './settingsRows'
 import { PhoneCapture } from './PhoneCapture'
+import { applyGlassPrefs } from './glassPrefs'
 import { PhoneNote } from './PhoneNote'
 import { PhoneNoteList } from './PhoneNoteList'
 import { PhoneSearch } from './PhoneSearch'
@@ -359,6 +360,8 @@ export function PhoneApp() {
       />
     )
   }
+
+  useLayoutEffect(applyGlassPrefs, [])
 
   return (
     <div ref={root} className="phone-app">

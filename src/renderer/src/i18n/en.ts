@@ -88,6 +88,49 @@ export const en = {
   'phone.settings.licence.trial': 'Trial',
   'phone.settings.licence.trialDays': 'Trial, {days} days left',
   'phone.settings.licence.attention': 'Needs attention',
+  'phone.settings.group.general': 'General',
+  'phone.settings.group.sync': 'Sync & storage',
+  'phone.settings.group.ai': 'AI & integrations',
+  'phone.settings.build': 'Devot {version}',
+  'phone.settings.on': 'On',
+  'phone.settings.off': 'Off',
+  'phone.settings.noResults': 'No matching settings',
+  'phone.settings.closeSearch': 'Close search',
+  'phone.settings.trial': 'Trial',
+  'phone.settings.trialEnds':
+    'Your trial ends on {date}. After that every note stays readable and exportable; editing needs a licence. A licence is bought once and covers your Mac and this iPhone.',
+  'phone.hint.about': 'About {name}',
+  'phone.hint.done': 'Done',
+  'phone.appearance.interface': 'Interface',
+  'phone.appearance.interfaceHint':
+    'Glass lets the background show through bars and controls. Classic uses solid surfaces everywhere, as Reduce Transparency does.',
+  'phone.appearance.glass': 'Glass',
+  'phone.appearance.classic': 'Classic',
+  'phone.appearance.transparency': 'Glass Transparency',
+  'phone.appearance.transparencyHint':
+    'How much of the background shows through glass, from solid to twice as clear as designed.',
+  'phone.appearance.solid': 'Solid',
+  'phone.appearance.clear': 'Clear',
+  'phone.appearance.editor': 'Editor',
+  'phone.appearance.textSize': 'Text size',
+  'phone.appearance.textSizeSmall': 'A',
+  'phone.sync.hint':
+    'Notes are encrypted on this iPhone and travel through your relay as ciphertext. The relay never holds the vault key, so it cannot read them. Turning sync off keeps every note here.',
+  'phone.sync.relayHint':
+    'The relay passes encrypted changes between your devices and keeps them until each one has caught up. It is one you run yourself.',
+  'phone.sync.devicesHint':
+    'Every paired device holds the same vault key. Remove a device you no longer use; a removed device cannot rejoin without pairing again.',
+  'phone.sync.recoveryHint':
+    'The recovery key restores your vault on a new device if every paired device is lost. Devot cannot recover it for you, so keep it somewhere safe.',
+  'phone.sync.lastSynced': 'Last synced {time}',
+  'phone.sync.notesStay': 'Notes stay on this iPhone',
+  'phone.sync.you': 'You',
+  'phone.ai.provider': 'Provider',
+  'phone.ai.features': 'Features',
+  'phone.ai.keyHint':
+    'The key is stored in the keychain on this iPhone and never synced or logged.',
+  'phone.ai.suggestHint':
+    'While you type, Devot suggests the next edit as grey text. Tap the sparkle in the formatting bar to accept it, or keep typing to ignore it.',
   'sidebar.label': 'Sidebar',
   'sidebar.allNotes': 'All Notes',
   'sidebar.workspaceLabel': 'Workspace {name}',
