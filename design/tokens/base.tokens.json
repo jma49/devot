@@ -1263,11 +1263,19 @@
       "$description": "The glass status filter."
     },
     "phone-editor-toolbar": { "$type": "dimension", "$value": { "value": 48, "unit": "px" } },
-    "phone-list-row": { "$type": "dimension", "$value": { "value": 76, "unit": "px" } },
+    "phone-list-row": {
+      "$type": "dimension",
+      "$value": { "value": 76, "unit": "px" },
+      "$description": "The least height, at the default text size: it grows with Dynamic Type (design/phone.md)."
+    },
     "phone-avatar": { "$type": "dimension", "$value": { "value": 60, "unit": "px" } },
     "phone-status-badge": { "$type": "dimension", "$value": { "value": 24, "unit": "px" } },
     "phone-status-ring": { "$type": "dimension", "$value": { "value": 15, "unit": "px" } },
-    "phone-grouped-row": { "$type": "dimension", "$value": { "value": 52, "unit": "px" } },
+    "phone-grouped-row": {
+      "$type": "dimension",
+      "$value": { "value": 52, "unit": "px" },
+      "$description": "The least height, at the default text size: it grows with Dynamic Type (design/phone.md)."
+    },
     "phone-info-row": {
       "$type": "dimension",
       "$value": { "value": 50, "unit": "px" },

@@ -25,6 +25,16 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 - Reduce Motion turns every movement into a `motion.duration.phone-crossfade` crossfade; Reduce Transparency turns glass into `color.phone.glass-opaque`.
 - Layout comes from `env(safe-area-inset-*)`, never fixed top and bottom offsets.
 
+## Dynamic Type
+
+Text follows the system's text size, up to the largest accessibility size.
+
+- Numbers in the specs are at the default size (Large). The scale is the computed size of `font: -apple-system-body` over 17, read at launch and on return to the foreground, and set on the root as `--phone-text-scale`; every font size and line height in the layout is its number times that scale.
+- Heights that hold text are minimums, so `size.phone-list-row`, `size.phone-grouped-row`, `size.phone-info-row`, `size.phone-smart-tile` and `size.phone-chip` grow with their text. Nothing is positioned by assuming a row height: the list measures its rows, and a saved note's neighbours shift by the height it really takes.
+- Text wraps rather than being cut wherever a row can grow. At the accessibility sizes the note list's title may take two lines, a row's time moves under its title and the four smart tiles become two rows of two. The list preview keeps its two lines.
+- Icons beside text grow with it. Glass bars keep their heights and glyphs, because they sit in fixed places: the tab bar's labels and the status filter stop at 1.35, and a long press on a tab bar item shows its label enlarged.
+- The note's editor and preview keep the text size chosen in Settings, and start from the system's scale until one is chosen.
+
 ## Icons
 
 SF Symbols only, through `symbol_png` (ADR 0001). A selected tab uses its `.fill` symbol. The synced double tick is `check` drawn twice.

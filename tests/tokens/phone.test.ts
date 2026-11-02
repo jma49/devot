@@ -100,6 +100,10 @@ describe('the phone symbols', () => {
     }
   })
 
+  it('specifies Dynamic Type', () => {
+    expect(readFileSync('design/phone.md', 'utf8')).toContain('--phone-text-scale')
+  })
+
   it('records the spec beside the other design rules', () => {
     expect(readFileSync('design/README.md', 'utf8')).toContain('[phone.md](phone.md)')
   })
