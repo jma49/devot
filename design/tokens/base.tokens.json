@@ -1974,6 +1974,11 @@
       "$value": { "value": 11, "unit": "px" },
       "$description": "Glass interface: the room under a note row's last line."
     },
+    "settings-footnote-line": {
+      "$type": "dimension",
+      "$value": { "value": 16, "unit": "px" },
+      "$description": "The line height of a footnote under a Settings card; its info icon centres on the first line."
+    },
     "list-keyline-outer": {
       "$type": "dimension",
       "$value": {

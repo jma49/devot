@@ -202,6 +202,7 @@ export const sizes = {
   "size.list-section-gap": "14px",
   "size.footnote-rule": "48px",
   "size.list-row-padding-bottom": "11px",
+  "size.settings-footnote-line": "16px",
   "size.list-keyline-outer": "12px",
   "size.list-keyline-inner": "24px",
   "size.toolbar-control": "32px",
