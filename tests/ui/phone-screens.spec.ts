@@ -324,16 +324,22 @@ test.describe('the undo toast', () => {
   })
 })
 
-test('a note opens in Edit, switches to Preview and shows its info sheet', async ({ page }) => {
+test('an empty note opens in Edit', async ({ page }) => {
+  await openNotes(page)
+  await capture(page, 'Nothing yet')
+  await rows(page).filter({ hasText: 'Nothing yet' }).locator('.phone-note-open').click()
+  await expect(page.getByRole('button', { name: 'Preview', exact: true })).toBeVisible()
+})
+
+test('a note with text opens in Preview, switches to Edit and shows its info sheet', async ({
+  page,
+}) => {
   await openNotes(page)
   await recent(page).first().locator('.phone-note-open').click()
-  const toggle = page.getByRole('button', { name: 'Preview', exact: true })
-  await expect(toggle).toBeVisible()
+  const toggle = page.getByRole('button', { name: 'Edit', exact: true })
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
   await toggle.click()
-  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  )
+  await expect(page.getByRole('button', { name: 'Preview', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Note Info' }).click()
   const sheet = page.getByRole('dialog', { name: 'Note Info' })
   await expect(sheet.getByText('Words')).toBeVisible()

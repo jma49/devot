@@ -71,7 +71,7 @@ Panes: controls sit in grouped cards. A switch is `size.phone-switch-width` by `
 
 Detail sheet: a sheet with a `color.phone.lens` circle holding the info icon, a 20 bold title, the body 16/24 in `color.phone.text-secondary`, and a full-width glass Done, `size.phone-sheet-done` high.
 
-Note: the top bar has a back circle, the notebook's path in mono, and a capsule of the mode toggle and info. Below it the title 26 bold, the chips, then the edit time and word count in `.phone-figures`; there is no per-note sync state. The bottom has a glass capsule of Back and Forward, a find circle and, in Edit, an AI circle with its sparkle in the caret colour. While typing the bottom fades and the formatting bar sits on the keyboard, with a hide-keyboard circle.
+Note: a note opens in Preview, and an empty one in Edit. The top bar has a back circle, the notebook's path in mono, and a capsule of the mode toggle and info. Below it the title 26 bold, the chips, then the edit time and word count in `.phone-figures`; there is no per-note sync state. The bottom has a glass capsule of Back and Forward, a find circle and, in Edit, an AI circle with its sparkle in the caret colour. While typing the bottom fades and the formatting bar sits on the keyboard, with a hide-keyboard circle.
 
 Find: the editor's own find, in a glass bar on the keyboard with a mono count, previous, next and a close circle. It switches a note in Preview to Edit.
 

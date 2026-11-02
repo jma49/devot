@@ -38,16 +38,17 @@ test('the mode toggle swaps Edit and Preview, and the sparkle leaves in Preview'
   const toEdit = note(page).getByRole('button', { name: 'Edit', exact: true })
   const toPreview = note(page).getByRole('button', { name: 'Preview', exact: true })
   const ai = note(page).getByRole('button', { name: 'Suggest with AI' })
-  await expect(ai).toBeVisible()
-  await toPreview.click()
-  await expect(toEdit).toBeVisible()
-  await expect(ai).toHaveCount(0)
   await expect(note(page).locator('.phone-note-preview')).toHaveAttribute('data-shown', 'true')
+  await expect(ai).toHaveCount(0)
   await toEdit.click()
+  await expect(ai).toBeVisible()
   await expect(note(page).locator('.phone-note-preview')).not.toHaveAttribute('data-shown', 'true')
+  await toPreview.click()
+  await expect(note(page).locator('.phone-note-preview')).toHaveAttribute('data-shown', 'true')
 })
 
 test('bottom controls reach 44 points', async ({ page }) => {
+  await note(page).getByRole('button', { name: 'Edit', exact: true }).click()
   for (const name of ['Find in Note', 'Suggest with AI', 'Previous Note', 'Next Note']) {
     const box = (await note(page).getByRole('button', { name }).boundingBox())!
     expect(box.width).toBeGreaterThanOrEqual(44)
@@ -72,6 +73,7 @@ test('find uses the editor: it counts matches, steps and closes', async ({ page 
 test('typing shows the formatting bar on the keyboard and hides the bottom bar', async ({
   page,
 }) => {
+  await note(page).getByRole('button', { name: 'Edit', exact: true }).click()
   await page.evaluate(() => {
     const viewport = window.visualViewport!
     Object.defineProperty(viewport, 'height', { value: window.innerHeight - 300 })

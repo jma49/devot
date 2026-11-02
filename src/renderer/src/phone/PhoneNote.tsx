@@ -180,7 +180,7 @@ export function PhoneNote(props: {
   const noteId = history.ids[history.at]!
   const note =
     store.notes.find((n) => n.id === noteId) ?? store.templates.find((n) => n.id === noteId)
-  const [mode, setMode] = useState<'edit' | 'preview'>('edit')
+  const [mode, setMode] = useState<'edit' | 'preview'>('preview')
   const [toggles, setToggles] = useState(0)
   const [text, setText] = useState('')
   const [sheet, setSheet] = useState<Sheet>(null)
@@ -192,6 +192,11 @@ export function PhoneNote(props: {
   const showAlertMenu = useAlertMenu()
   const keyboard = useKeyboard()
   const typing = mode === 'edit' && keyboard.open && !finding
+  const showText = (body: string) => {
+    setText(body)
+    // An empty note has nothing to read, so it opens ready to write.
+    if (body === '') setMode('edit')
+  }
 
   const suggester = useMemo(() => {
     const core = store.core
@@ -329,7 +334,7 @@ export function PhoneNote(props: {
               noteId={noteId}
               autoFocus={false}
               hidden={mode === 'preview'}
-              onText={setText}
+              onText={showText}
               links={links}
               showAlertMenu={showAlertMenu}
               handleRef={editor}
