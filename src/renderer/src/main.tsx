@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { invoke } from './ipc'
 import { App } from './App'
 import { isPhoneLayout } from './phone/navigation'
-import { resolveLocale, setLocale } from './i18n'
+import { resolveLocale, setIPhoneWording, setLocale } from './i18n'
 import { watchCompositions } from './ime'
 import { startCrashReporting } from './crash'
 import { forwardConsole, forwardUncaught, type LogEntry } from './log'
@@ -33,6 +33,7 @@ if (sentryDsn) {
 }
 
 setLocale(resolveLocale(navigator.languages))
+setIPhoneWording(isPhoneLayout(navigator.userAgent))
 // Before any key handler: the key that ends a composition is the input method's.
 watchCompositions(window)
 startEditorSettings()

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { format, resolveLocale, setLocale, t } from '.'
+import { format, resolveLocale, setIPhoneWording, setLocale, t } from '.'
 import { en } from './en'
+import { enPhone } from './phone'
 
 describe('i18n', () => {
   it('falls back to English for unsupported languages', () => {
@@ -17,6 +18,22 @@ describe('i18n', () => {
     expect(t('noteList.newNote')).toBe('New Note')
     setLocale('en')
     expect(t('note.untitled')).toBe('Untitled')
+  })
+
+  it('words messages that name the Mac for the iPhone layout, and back', () => {
+    setIPhoneWording(true)
+    expect(t('usage.storage')).toBe('Stored on this iPhone')
+    expect(t('noteList.newNote')).toBe('New Note')
+    setIPhoneWording(false)
+    expect(t('usage.storage')).toBe('Stored on this Mac')
+  })
+
+  it('has an iPhone wording only for messages that exist, and none names the Mac', () => {
+    const entries = Object.entries(enPhone)
+    expect(entries.filter(([key]) => !(key in en))).toEqual([])
+    expect(
+      entries.filter(([, text]) => /\bMac\b|macOS|System Settings|desktop/.test(text)),
+    ).toEqual([])
   })
 
   it('fills placeholders with values taken as plain text', () => {

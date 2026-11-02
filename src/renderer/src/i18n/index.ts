@@ -2,6 +2,7 @@
 // catalog to `catalogs` and nothing else changes in UI code.
 import { fillPlaceholders } from '../../../core/text'
 import { en, type MessageKey, type Messages } from './en'
+import { enPhone } from './phone'
 
 export type { MessageKey } from './en'
 
@@ -31,8 +32,15 @@ export function currentLocale(): string {
   return activeLocale
 }
 
+let wording: Partial<Messages> = {}
+
+/** Words messages that name the Mac for the iPhone layout (English only so far). */
+export function setIPhoneWording(on: boolean): void {
+  wording = on ? enPhone : {}
+}
+
 export function t(key: MessageKey): string {
-  return active[key] ?? en[key]
+  return (activeLocale === SOURCE_LOCALE ? wording[key] : undefined) ?? active[key] ?? en[key]
 }
 
 /**

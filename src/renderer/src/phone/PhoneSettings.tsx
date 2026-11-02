@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { useLicence } from '../licence'
+import { OnPhone } from '../settings/onPhone'
 import { PANE_TABS, PANE_TILES, type PaneId } from '../settings/panes'
 import { doveMask } from './dove'
 import { licenceRow } from './settingsRows'
@@ -164,7 +165,7 @@ export function PhoneSettingsPane(props: { pane: string; onBack: () => void }) {
   return (
     <section aria-label={title} className="phone-screen" data-surface="group">
       <div className="phone-scroll phone-settings-pane settings-window">
-        {Section && <Section />}
+        <OnPhone.Provider value={true}>{Section && <Section />}</OnPhone.Provider>
       </div>
       <div aria-hidden="true" className="phone-edge" />
       <header className="phone-topbar">
