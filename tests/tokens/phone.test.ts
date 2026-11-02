@@ -50,6 +50,12 @@ describe('the phone layout tokens', () => {
     expect(px('size.phone-segmented') / 2 - inset).toBe(px('radius.phone-lens-segmented'))
   })
 
+  it('keeps what sits in a sheet concentric with the sheet', () => {
+    const sheet = px('radius.phone-sheet')
+    expect(sheet - px('size.phone-sheet-pad')).toBe(px('radius.phone-sheet-card'))
+    expect(sheet - px('size.phone-capture-pad')).toBe(px('radius.phone-capture-field'))
+  })
+
   it('gives every tappable control a target of at least 44 points', () => {
     for (const token of [
       'size.phone-target',

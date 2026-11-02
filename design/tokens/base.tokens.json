@@ -990,6 +990,16 @@
   "radius": {
     "phone-card": { "$type": "dimension", "$value": { "value": 26, "unit": "px" } },
     "phone-sheet": { "$type": "dimension", "$value": { "value": 34, "unit": "px" } },
+    "phone-sheet-card": {
+      "$type": "dimension",
+      "$value": { "value": 22, "unit": "px" },
+      "$description": "A card in the note info sheet, concentric with the sheet: 34 - 12. Design 26."
+    },
+    "phone-capture-field": {
+      "$type": "dimension",
+      "$value": { "value": 20, "unit": "px" },
+      "$description": "A field in the capture sheet, concentric with the sheet: 34 - 14. Design 24 and 22."
+    },
     "phone-tile-card": { "$type": "dimension", "$value": { "value": 22, "unit": "px" } },
     "phone-row-tile": { "$type": "dimension", "$value": { "value": 8, "unit": "px" } },
     "phone-row-tile-child": { "$type": "dimension", "$value": { "value": 7, "unit": "px" } },
@@ -1286,6 +1296,16 @@
     },
     "phone-grabber-width": { "$type": "dimension", "$value": { "value": 36, "unit": "px" } },
     "phone-grabber-height": { "$type": "dimension", "$value": { "value": 5, "unit": "px" } },
+    "phone-sheet-pad": {
+      "$type": "dimension",
+      "$value": { "value": 12, "unit": "px" },
+      "$description": "From the note info sheet's edge to its cards."
+    },
+    "phone-capture-pad": {
+      "$type": "dimension",
+      "$value": { "value": 14, "unit": "px" },
+      "$description": "From the capture sheet's edge to its fields."
+    },
     "phone-sheet-inset": { "$type": "dimension", "$value": { "value": 8, "unit": "px" } },
     "phone-screen-edge": { "$type": "dimension", "$value": { "value": 16, "unit": "px" } },
     "phone-tab-inset": { "$type": "dimension", "$value": { "value": 20, "unit": "px" } },

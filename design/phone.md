@@ -9,7 +9,7 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 - Glass is the navigation layer only: the tab bar, top bar controls, the status filter, the note's bottom bar and the keyboard's accessory bar. Rows, cards, tiles and the note itself are never glass, and glass never sits on glass.
 - Content runs the full height of the screen and scrolls under the glass, with the blurred edge effect (`size.phone-edge-effect`) under each top bar.
 - Colour on glass marks what is selected or the screen's main action only: the accent on the selected tab and the new-note circle, the caret's violet on AI.
-- Curves share a centre: a capsule is height / 2, and an inner radius is the outer radius minus the inset.
+- Curves share a centre: a capsule is height / 2, and an inner radius is the outer radius minus the inset. This wins over a design value: cards in the note info sheet are 22 (design 26), and fields in the capture sheet are 20 (design 24 and 22).
 - CSS draws the glass for now (ADR 0010).
 
 ## Touch
