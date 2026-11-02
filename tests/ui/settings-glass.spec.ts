@@ -146,3 +146,24 @@ for (const sidebarMaterial of [true, false]) {
     expect(knob + 2 * inset).toBeLessThanOrEqual(track)
   })
 }
+
+test('a footnote sits close under its card, with its icon on the first line', async ({ page }) => {
+  await openSettings(page, 'Appearance')
+  const note = page.locator('.settings-footnote').first()
+  await expect(note).toBeVisible()
+  const { gap, offCentre } = await note.evaluate((el) => {
+    const box = (e: Element) => e.getBoundingClientRect()
+    const card = el.previousElementSibling!
+    const icon = box(el.querySelector('.icon')!)
+    const text = box(el.querySelector('span:last-child')!)
+    const line = Number.parseFloat(
+      getComputedStyle(el.querySelector('span:last-child')!).lineHeight,
+    )
+    return {
+      gap: box(el).top - box(card).bottom,
+      offCentre: Math.abs(icon.top + icon.height / 2 - (text.top + line / 2)),
+    }
+  })
+  expect(gap).toBe(8)
+  expect(offCentre).toBeLessThanOrEqual(0.5)
+})

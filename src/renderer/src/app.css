@@ -4278,12 +4278,16 @@ button {
 }
 
 .settings-section .settings-footnote {
-  margin-bottom: 0;
+  margin: var(--space-4) 0 0;
+}
+
+.settings-footnote > span {
+  line-height: var(--size-settings-footnote-line);
 }
 
 .settings-footnote > .icon {
   flex: none;
-  margin-top: var(--space-1);
+  margin-top: calc((var(--size-settings-footnote-line) - var(--size-icon-sm)) / 2);
 }
 
 /* Every one-line row is one height, and every row with a description another; a description that wraps adds its lines. */

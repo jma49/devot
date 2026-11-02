@@ -26,6 +26,10 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 - One caption style for the sidebar and the list (`.section-header`, `.list-section`): caption size (11), semibold, tertiary text, no icon.
 - Footnotes on screen start with a 48 pt hairline (`size.footnote-rule`) on the text's edge, with text at footnote size (12) in secondary. Print keeps the full-width rule.
 
+## Settings footnotes
+
+A note under a card belongs to it: 8 below the card, about 24 above the next section's title. Its icon starts on the caption line (16 from the card's edge) and centres on the text's first line.
+
 ## Note rows
 
 - A grid with gap 4, so a missing line leaves no hole. Padding 10 top, 11 bottom, 12 sides. Rows sit 2 apart, with no separators.
