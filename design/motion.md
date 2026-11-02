@@ -20,18 +20,19 @@ Native menus and other system-drawn things keep the system's motion.
 
 ## Which motion
 
-| What happens                                       | Motion                  | Duration                                         | Curve          |
-| -------------------------------------------------- | ----------------------- | ------------------------------------------------ | -------------- |
-| Hover, selection, focus: colour                    | fade                    | `hover`, or `quick` on sidebar and Settings rows | `out`, `quick` |
-| Press                                              | shrink to `scale.press` | `quick`                                          | `move`         |
-| Press released, segment's thumb                    | return, slide           | `settle`                                         | `spring`       |
-| Two-state change (chevron, section, switch's knob) | turn, unfold, slide     | `toggle`                                         | `move`         |
-| Pane, row or card changing place                   | slide                   | `slide`                                          | `move`         |
-| Something growing                                  | size                    | `grow`                                           | `move`         |
-| Pop-up from an anchor                              | grow and fade           | `popover`                                        | `move`         |
-| Modal dialog                                       | grow, unblur and fade   | `dialog`                                         | `move`         |
-| Content replaced in place (List or Board)          | fade in only            | `popover` or `toggle`                            | `standard`     |
-| Colour meant to be noticed                         | fade                    | `color`                                          | `standard`     |
+| What happens                                       | Motion                  | Duration                                         | Curve                                            |
+| -------------------------------------------------- | ----------------------- | ------------------------------------------------ | ------------------------------------------------ |
+| Hover, selection, focus: colour                    | fade                    | `hover`, or `quick` on sidebar and Settings rows | `out`, `quick`                                   |
+| Press                                              | shrink to `scale.press` | `quick`                                          | `move`                                           |
+| Press released                                     | return                  | `settle`                                         | `spring`                                         |
+| Segment's thumb lifted, settling                   | lift, slide             | spring's own                                     | `motion.spring.lift-*`, `motion.spring.settle-*` |
+| Two-state change (chevron, section, switch's knob) | turn, unfold, slide     | `toggle`                                         | `move`                                           |
+| Pane, row or card changing place                   | slide                   | `slide`                                          | `move`                                           |
+| Something growing                                  | size                    | `grow`                                           | `move`                                           |
+| Pop-up from an anchor                              | grow and fade           | `popover`                                        | `move`                                           |
+| Modal dialog                                       | grow, unblur and fade   | `dialog`                                         | `move`                                           |
+| Content replaced in place (List or Board)          | fade in only            | `popover` or `toggle`                            | `standard`                                       |
+| Colour meant to be noticed                         | fade                    | `color`                                          | `standard`                                       |
 
 ## Springiness
 
@@ -68,13 +69,13 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 ## Interactions
 
 - **Buttons, tools, pop-up buttons, segments, a field's clear button:** shrink to `motion.scale.press` while pressed, and spring back on release. Editor floating bar buttons and rows do not: their pressed state is a fill.
-- **Segmented controls:** the pressed look takes its new place at once, and a copy of it slides there on top (`segmentSlide.ts`) on a settling spring. Pressing the pressed segment picks the copy up: it can be dragged to another segment, in both interfaces, and the choice applies on release. In Glass it also lifts to `motion.scale.segment-lift`; a Classic toolbar's frame would clip that, so Classic does not lift. A control that remounts on the change gives the place it came from; another view never slides it. A pressed segment does not shrink.
+- **Segmented controls:** the pressed look takes its new place at once, and a copy of it slides there on top (`segmentSlide.ts`) on a settling spring. Pressing the pressed segment picks the copy up: it can be dragged to another segment, in both interfaces, and the choice applies on release. In Glass it also lifts to `motion.scale.segment-lift`; a Classic toolbar's frame would clip that, so Classic does not lift. A control that remounts on the change gives the place it came from; another view never slides it. A pressed segment does not shrink. A thumb moving between segments of different widths animates its width (a known exception to compositor only).
 - **Switch:** the knob widens by `motion.scale.knob-press` while pressed, away from the side it rests on, and stays a capsule. It animates width (small; a known exception to compositor only).
 - **Task checkbox in the preview:** shrinks while pressed; the item's colour fades over `motion.duration.toggle`. The strike-through appears at once. A note that opens never plays this.
 - **Status dot:** its colour fades over `motion.duration.toggle`.
 - **Edit, Split and Preview:** a pane that comes slides in from its own side while it fades, and a pane that stays slides to its new place, over `motion.duration.slide`. Widths change at once; a pane that goes leaves at once. Reduced motion: the new pane only fades, over `motion.duration.toggle`.
 - **List and Board:** the new body fades in over `motion.duration.popover`, in the same view only.
-- **Board cards:** one that changes column flies there on a copy above the columns, as a column would clip it; the others slide as rows do (`rowMotion.ts`).
+- **Board cards:** one that changes column flies there on a copy above the columns, as a column would clip it, when both ends can be seen (otherwise it is simply there); the others slide as rows do (`rowMotion.ts`).
 - **Settings:** a section fades in and rises `space.4` over `motion.duration.toggle`, without the rise under reduced motion; its row's fill eases over `motion.duration.quick`.
 - **Dragging:** a drop line fades in and a column's or row's highlight eases over `motion.duration.quick`. The other rows stay where they are: moving them would change what is under the pointer, and the zones that tell before, into and after apart.
 - **Image viewer:** opens and closes as a modal dialog does. **Plugin panel:** opens as one and closes at once, because a closing copy would run its frame again.

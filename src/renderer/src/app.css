@@ -2404,9 +2404,11 @@ button {
   box-shadow: none !important;
 }
 
-.segment-thumb.segment-thumb {
+.segmented > .segment.segment-thumb {
   position: absolute;
   z-index: 0;
+  box-sizing: border-box;
+  padding: 0;
   border-left-color: transparent;
   pointer-events: none;
   transition: none;
@@ -6402,8 +6404,10 @@ button.popup:focus-visible {
     box-shadow var(--motion-duration-hover) var(--motion-easing-out),
     color var(--motion-duration-hover) var(--motion-easing-out),
     opacity var(--motion-duration-hover) var(--motion-easing-out),
-    scale var(--motion-duration-quick) var(--motion-easing-move),
-    outline-color var(--motion-duration-quick) var(--motion-easing-quick);
+    outline-color var(--motion-duration-quick) var(--motion-easing-quick),
+    outline-offset var(--motion-duration-quick) var(--motion-easing-quick),
+    scale var(--press-duration, var(--motion-duration-settle))
+      var(--press-easing, var(--motion-easing-spring));
 }
 
 :root[data-sidebar-material='on'] .toolbar .tool:hover:not(:disabled, [aria-disabled='true']) {
@@ -7046,6 +7050,26 @@ button.popup:focus-visible {
   translate: calc(
       var(--size-glass-switch-width) - var(--size-glass-switch-knob-width) - 2 *
         var(--size-switch-inset)
+    )
+    0;
+}
+
+:root[data-sidebar-material='on'] .setting-toggle input[role='switch']::after {
+  --knob: var(--size-glass-switch-knob-width);
+}
+
+:root[data-sidebar-material='on']
+  .setting-toggle
+  input[role='switch']:active:not(:disabled)::after {
+  width: calc(var(--knob) + var(--knob-extra));
+}
+
+:root[data-sidebar-material='on']
+  .setting-toggle
+  input[role='switch']:checked:active:not(:disabled)::after {
+  translate: calc(
+      var(--size-glass-switch-width) - var(--size-glass-switch-knob-width) - 2 *
+        var(--size-switch-inset) - var(--knob-extra)
     )
     0;
 }

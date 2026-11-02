@@ -1922,7 +1922,7 @@
           "value": 300,
           "unit": "ms"
         },
-        "$description": "A small control settling by motion.easing.spring: a press released, a segment's thumb arriving."
+        "$description": "A press released, settling by motion.easing.spring."
       },
       "insert": {
         "$value": {
@@ -2002,7 +2002,7 @@
     },
     "spring": {
       "$type": "number",
-      "$description": "A segment's thumb under the pointer. Damping ratios (1 has no overshoot) and responses in seconds, drawn by springEasing (motionTiming.ts).",
+      "$description": "A segment's thumb under the pointer. Damping ratios (above 0, below 1) and responses in seconds, drawn by springEasing (motionTiming.ts).",
       "lift-damping": { "$value": 0.71 },
       "lift-response": { "$value": 0.3 },
       "settle-damping": { "$value": 0.8 },

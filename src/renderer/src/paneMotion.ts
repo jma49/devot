@@ -245,10 +245,10 @@ export const paneEnterFrames = (pane: ModePane): Keyframe[] => [
 ]
 
 export function enteringPanes(from: Mode, to: Mode): ModePane[] {
-  const shows = (mode: Mode): ModePane[] =>
+  const panesOf = (mode: Mode): ModePane[] =>
     mode === 'split' ? ['editor', 'preview'] : mode === 'edit' ? ['editor'] : ['preview']
-  const before = shows(from)
-  return shows(to).filter((pane) => !before.includes(pane))
+  const before = panesOf(from)
+  return panesOf(to).filter((pane) => !before.includes(pane))
 }
 
 const fadeIn = (el: Element | null, duration: DurationToken): void => {

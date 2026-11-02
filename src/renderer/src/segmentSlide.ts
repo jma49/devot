@@ -41,28 +41,43 @@ function thumbOf(group: HTMLElement, at: HTMLElement): HTMLElement {
   return thumb
 }
 
+// A control that remounts on the change starts its thumb where the old one was dropped.
+let carried: { x: number; lift: number } | null = null
+
 const drawn = (thumb: HTMLElement) => {
   const m = new DOMMatrixReadOnly(getComputedStyle(thumb).transform)
   return { x: m.m41, lift: m.m11 }
 }
 
-function moveThumb(thumb: HTMLElement, x: number, lift: number, spring: SpringToken): Animation {
+function moveThumb(
+  thumb: HTMLElement,
+  x: number,
+  lift: number,
+  spring: SpringToken,
+  width = thumb.offsetWidth,
+): Animation {
   const from = drawn(thumb)
+  const fromWidth = thumb.offsetWidth
   for (const animation of thumb.getAnimations()) animation.cancel()
   const to = thumbTransform(x, lift)
   thumb.style.transform = to
-  return thumb.animate([{ transform: thumbTransform(from.x, from.lift) }, { transform: to }], {
-    ...springTiming(spring),
-  })
+  thumb.style.width = `${width}px`
+  return thumb.animate(
+    [
+      { transform: thumbTransform(from.x, from.lift), width: `${fromWidth}px` },
+      { transform: to, width: `${width}px` },
+    ],
+    springTiming(spring),
+  )
 }
 
-function settle(group: HTMLElement, thumb: HTMLElement, x: number): void {
+function settle(group: HTMLElement, thumb: HTMLElement, target: HTMLElement): void {
   const done = () => {
     if (!thumb.isConnected || thumb.dataset['held'] !== undefined) return
     thumb.remove()
     delete group.dataset['sliding']
   }
-  const animation = moveThumb(thumb, x, 1, 'settle')
+  const animation = moveThumb(thumb, target.offsetLeft, 1, 'settle', target.offsetWidth)
   animation.addEventListener('finish', done)
 }
 
@@ -83,19 +98,25 @@ function slideThumb(group: HTMLElement, from: number, to: number): void {
   const target = segments[to]
   if (!start || !target) return
   const thumb = thumbOf(group, start)
+  if (carried) thumb.style.transform = thumbTransform(carried.x, carried.lift)
+  carried = null
   delete thumb.dataset['held']
-  settle(group, thumb, target.offsetLeft)
+  settle(group, thumb, target)
 }
 
 function watchThumbDrag(group: HTMLElement): () => void {
   let held: { id: number; startX: number; baseX: number; moved: boolean } | null = null
+  let dragClick = false
   const down = (event: PointerEvent) => {
+    dragClick = false
+    carried = null
     if (event.button !== 0 || motionReduced() || typeof group.animate !== 'function') return
     const on = (event.target as Element).closest<HTMLElement>('.segment')
     if (!on || on.getAttribute('aria-pressed') !== 'true' || on.parentElement !== group) return
     if (on.hasAttribute('disabled')) return
     const thumb = thumbOf(group, on)
     thumb.dataset['held'] = ''
+    group.setPointerCapture(event.pointerId)
     held = { id: event.pointerId, startX: event.clientX, baseX: on.offsetLeft, moved: false }
     moveThumb(thumb, on.offsetLeft, liftScale(group), 'lift')
   }
@@ -107,7 +128,6 @@ function watchThumbDrag(group: HTMLElement): () => void {
     if (!held.moved) {
       if (Math.abs(dx) < DRAG_START_PX) return
       held.moved = true
-      group.setPointerCapture(event.pointerId)
     }
     const segments = segmentsOf(group)
     const last = segments.at(-1)
@@ -125,24 +145,38 @@ function watchThumbDrag(group: HTMLElement): () => void {
     delete thumb.dataset['held']
     const segments = segmentsOf(group)
     const pressed = segments.findIndex((s) => s.getAttribute('aria-pressed') === 'true')
-    const index = moved
-      ? segmentAt(
-          segments.map((s) => s.offsetLeft),
-          thumb.offsetWidth,
-          drawn(thumb).x,
-        )
-      : pressed
+    const at = drawn(thumb)
+    const index =
+      moved && event.type === 'pointerup'
+        ? segmentAt(
+            segments.map((s) => s.offsetLeft),
+            thumb.offsetWidth,
+            at.x,
+          )
+        : pressed
     const target = segments[index]
-    if (event.type === 'pointerup' && moved && target && index !== pressed) target.click()
-    // A click that changed the selection has set the thumb moving.
-    if (thumb.getAnimations().length === 0 && segments[pressed])
-      settle(group, thumb, segments[pressed].offsetLeft)
+    if (!target) return dropThumb(group)
+    dragClick = moved
+    if (index !== pressed) {
+      carried = at
+      target.click()
+    }
+    settle(group, thumb, target)
   }
+  // The browser's own click after a drag lands on whatever is under the pointer, which may not be
+  // the segment the thumb was dropped on.
+  const click = (event: MouseEvent) => {
+    if (!dragClick || !event.isTrusted) return
+    dragClick = false
+    event.stopPropagation()
+  }
+  group.addEventListener('click', click, true)
   group.addEventListener('pointerdown', down)
   group.addEventListener('pointermove', move)
   group.addEventListener('pointerup', up)
   group.addEventListener('pointercancel', up)
   return () => {
+    group.removeEventListener('click', click, true)
     group.removeEventListener('pointerdown', down)
     group.removeEventListener('pointermove', move)
     group.removeEventListener('pointerup', up)
@@ -165,8 +199,19 @@ export function useSegmentSlide(
     if (group.current && before >= 0 && before !== selected)
       slideThumb(group.current, before, selected)
   }, [group, seen, selected])
+  const watching = useRef<{ el: HTMLElement; stop: () => void } | null>(null)
+  // The group may mount after the control does (a section still loading).
   useEffect(() => {
     const el = group.current
-    return el ? watchThumbDrag(el) : undefined
-  }, [group])
+    if (watching.current?.el === el) return
+    watching.current?.stop()
+    watching.current = el ? { el, stop: watchThumbDrag(el) } : null
+  })
+  useEffect(
+    () => () => {
+      watching.current?.stop()
+      watching.current = null
+    },
+    [],
+  )
 }

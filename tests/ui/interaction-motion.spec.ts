@@ -74,6 +74,31 @@ test('dragging the thumb to another segment selects it', async ({ page }) => {
   await expect(page.locator('.segment-thumb')).toHaveCount(0)
 })
 
+test('a quick click on the pressed segment leaves no thumb behind', async ({ page }) => {
+  await openApp(page)
+  await newNote(page).click()
+  const group = page.getByRole('group', { name: 'View mode' })
+  await group.getByRole('button', { pressed: true }).click()
+  await expect(page.locator('.segment-thumb')).toHaveCount(0)
+  await expect(group).not.toHaveAttribute('data-sliding')
+})
+
+test('a drag released outside the control settles, and the next click selects what it hits', async ({
+  page,
+}) => {
+  await openApp(page)
+  await newNote(page).click()
+  const group = page.getByRole('group', { name: 'View mode' })
+  const from = await group.getByRole('button', { pressed: true }).boundingBox()
+  await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(from!.x + from!.width / 2, from!.y + 200, { steps: 4 })
+  await page.mouse.up()
+  await expect(page.locator('.segment-thumb')).toHaveCount(0)
+  await group.getByRole('button', { name: 'Split' }).click()
+  await expect(group.getByRole('button', { pressed: true })).toHaveAccessibleName('Split')
+})
+
 test('the pane that comes with a mode change slides in', async ({ page }) => {
   await openApp(page)
   await newNote(page).click()

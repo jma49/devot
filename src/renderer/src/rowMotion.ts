@@ -189,18 +189,27 @@ function leaveCopy(box: RowBox, attr: string): HTMLElement | null {
   return copy
 }
 
-// A row's own column would clip it on the way, so a copy over the columns makes the journey.
-function flyToColumn(
-  row: RowBox,
-  dx: number,
-  dy: number,
-  attr: string,
-  container: HTMLElement,
-): void {
+const flights = new WeakMap<HTMLElement, HTMLElement>()
+
+// A row's own column would clip it on the way, so a copy over the columns makes the journey. Only
+// when both ends can be seen: a copy has nothing to clip it to the board.
+function flyToColumn(row: RowBox, was: RowBox, attr: string, container: HTMLElement): void {
+  const seen = (box: RowBox) =>
+    box.parent instanceof Element &&
+    box.parent.isConnected &&
+    clipInset(box.rect, visibleEdges(box.parent)) !== null
+  if (!seen(row) || !seen(was)) return
+  const earlier = flights.get(row.el)
+  const from = earlier?.getBoundingClientRect() ?? was.rect
+  earlier?.remove()
   const copy = placedCopy(row.el, row.rect, attr, container, null)
+  flights.set(row.el, copy)
   const timing = rowMoveTiming()
   row.el.animate([{ opacity: 0 }, { opacity: 0 }], timing)
-  const flight = copy.animate(flightFrames(dx, dy), timing)
+  const flight = copy.animate(
+    flightFrames(Math.round(from.left - row.rect.left), Math.round(from.top - row.rect.top)),
+    timing,
+  )
   const done = () => copy.remove()
   flight.addEventListener('finish', done)
   flight.addEventListener('cancel', done)
@@ -225,7 +234,7 @@ function play(
     const dy = Math.round(was.top - box.top)
     const dx = Math.round(was.left - box.left)
     if (dx !== 0) {
-      flyToColumn(box, dx, dy, attr, container)
+      flyToColumn(box, was, attr, container)
       continue
     }
     if (dy !== 0) box.el.animate(moveFrames(dy), { ...rowMoveTiming(), composite: 'add' })
