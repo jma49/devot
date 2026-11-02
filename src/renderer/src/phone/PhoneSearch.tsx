@@ -1,7 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { errorCode } from '../../../core/errors'
 import { TEMPLATES_BOOK_ID } from '../../../core/books'
-import { highlightTerms, parseSearch, searchPattern, searchValue } from '../../../core/search'
+import {
+  bookQuery,
+  highlightTerms,
+  parseSearch,
+  searchPattern,
+  tagQuery,
+} from '../../../core/search'
 import type { NoteStatus, NoteSummary, TagColor } from '../../../core/storage'
 import { displayTitle } from '../headlines'
 import { format, t } from '../i18n'
@@ -121,7 +127,10 @@ export function PhoneSearch(props: {
   const rows = useMemo(() => shown?.found ?? [], [shown])
   const patterns = useMemo(() => {
     const terms = highlightTerms(parseSearch(shown?.query ?? ''), store.tags)
-    return { title: searchPattern(terms.title), body: searchPattern(terms.body) }
+    return {
+      title: searchPattern(terms.title),
+      body: searchPattern(terms.body),
+    }
   }, [shown?.query, store.tags])
   const listExcerpts = useExcerpts(store, rows)
   const bookName = useMemo(() => new Map(store.books.map((b) => [b.id, b.name])), [store.books])
@@ -163,7 +172,7 @@ export function PhoneSearch(props: {
                     key={book.id}
                     label={book.name}
                     dot={dotColor(book.iconColor)}
-                    onPick={() => fill(`in:${searchValue(book.name)} `)}
+                    onPick={() => fill(`${bookQuery(book)} `)}
                   />
                 ))}
               </ChipGroup>
@@ -186,7 +195,7 @@ export function PhoneSearch(props: {
                     label={`#${tag.name}`}
                     dot={dotColor(tag.color)}
                     {...(tag.color ? { ink: `var(--color-tag-text-${tag.color})` } : {})}
-                    onPick={() => fill(`#${searchValue(tag.name)} `)}
+                    onPick={() => fill(`${tagQuery(tag)} `)}
                   />
                 ))}
               </ChipGroup>

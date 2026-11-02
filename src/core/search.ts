@@ -193,6 +193,23 @@ export function searchValue(value: string): string {
   return value.includes('"') ? `'${value}'` : `"${value}"`
 }
 
+const parsesBack = (query: string, field: SearchField, name: string) => {
+  const [clause, ...rest] = parseSearch(query)
+  return rest.length === 0 && clause?.field === field && clause.value === name
+}
+
+/** A query for this tag: by name, or by ID when no quoting holds the name (`Clients' "urgent"`). */
+export function tagQuery(tag: { id: string; name: string }): string {
+  const named = `#${searchValue(tag.name)}`
+  return parsesBack(named, 'hashtag', tag.name) ? named : `tagId:${tag.id}`
+}
+
+/** A query for this notebook: by name, or by ID when no quoting holds the name. */
+export function bookQuery(book: { id: string; name: string }): string {
+  const named = `in:${searchValue(book.name)}`
+  return parsesBack(named, 'book', book.name) ? named : `bookId:${book.id}`
+}
+
 type SettledClause = SearchClause & { field: Exclude<SearchField, 'hashtag'> }
 
 /** `#x` is known only here, where the tags are: the parser cannot tell a tag from `#include`. */
@@ -342,7 +359,12 @@ function placeIn(text: string, terms: readonly string[]) {
     const at = folded.indexOf(wanted)
     if (at < 0) continue
     const from = codePointsBack(text, at, EXCERPT_BEFORE)
-    return { text, from, at, before: codePointsBetween(text, from, at, EXCERPT_BEFORE) }
+    return {
+      text,
+      from,
+      at,
+      before: codePointsBetween(text, from, at, EXCERPT_BEFORE),
+    }
   }
   return undefined
 }
@@ -440,7 +462,11 @@ export function resolveSearch(
   let pinned: boolean | null = null
 
   if (scope?.bookId)
-    sets.push({ kind: 'book', ids: [...bookWithDescendants(books, scope.bookId)], negate: false })
+    sets.push({
+      kind: 'book',
+      ids: [...bookWithDescendants(books, scope.bookId)],
+      negate: false,
+    })
   const filter = scope?.filter
   if (filter?.kind === 'status') sets.push({ kind: 'status', ids: [filter.status], negate: false })
   if (filter?.kind === 'tag') sets.push({ kind: 'tag', ids: [filter.tagId], negate: false })

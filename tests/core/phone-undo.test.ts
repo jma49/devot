@@ -25,12 +25,12 @@ function setup() {
   const notes = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
   const tags = createTagService({ storage, clock, newId })
   const core: UndoCore = {
-    setStatus: notes.setStatus,
-    setNoteDates: notes.setDates,
+    setStatusUndoable: notes.setStatusUndoable,
+    undoStatus: notes.undoStatus,
     trash: notes.trash,
     restore: notes.restore,
   }
-  return { storage, books, notes, tags, core }
+  return { storage, clock, newId, books, notes, tags, core }
 }
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 5))
@@ -137,5 +137,91 @@ describe('undoing a complete', () => {
     const { notes, core, id, note, before } = await seeded('completed', false)
     expect(completeNote(core, note)).toBeNull()
     expect(await summary(notes, id)).toEqual(before)
+  })
+})
+
+describe('undoing a complete after something newer', () => {
+  const completed = async (status: NoteStatus = 'active') => {
+    const ctx = await seeded(status, false)
+    const undo = completeNote(ctx.core, ctx.note)!
+    await undo.done
+    await tick()
+    return { ...ctx, undo, afterAction: await summary(ctx.notes, ctx.id) }
+  }
+
+  it('restores the status but keeps the time of a saved edit', async () => {
+    const { notes, core, storage, id, undo, before } = await completed()
+    await notes.setBody(id, 'Keep sixty days.')
+    await notes.flush()
+    const edited = await summary(notes, id)
+    await tick()
+    await undoNote(core, undo)
+    const after = await summary(notes, id)
+    expect(after.status).toBe(before.status)
+    expect(after.updatedAt).toBeGreaterThanOrEqual(edited.updatedAt)
+    expect((await storage.getNote(id))!.bodyMd).toBe('Keep sixty days.')
+  })
+
+  it('counts an edit still waiting to be saved', async () => {
+    const { notes, core, storage, id, undo, before, afterAction } = await completed()
+    await notes.setBody(id, 'Keep sixty days.')
+    await undoNote(core, undo)
+    const after = await summary(notes, id)
+    expect(after.status).toBe(before.status)
+    expect(after.updatedAt).toBeGreaterThanOrEqual(afterAction.updatedAt)
+    expect((await storage.getNote(id))!.bodyMd).toBe('Keep sixty days.')
+  })
+
+  it('counts any other write of the note', async () => {
+    const { notes, core, id, undo, before, afterAction } = await completed()
+    await notes.setPinned(id, true)
+    await notes.flush()
+    await undoNote(core, undo)
+    const after = await summary(notes, id)
+    expect(after).toMatchObject({ status: before.status, pinned: true })
+    expect(after.updatedAt).toBeGreaterThanOrEqual(afterAction.updatedAt)
+  })
+
+  it('leaves a newer status set here, and its time', async () => {
+    const { notes, core, id, undo } = await completed()
+    await notes.setStatus(id, 'dropped')
+    await notes.flush()
+    const newer = await summary(notes, id)
+    await tick()
+    await undoNote(core, undo)
+    expect(await summary(notes, id)).toEqual(newer)
+  })
+
+  it('leaves a newer status that arrived in storage while the note is in memory', async () => {
+    const { storage, newId, notes, core, id, undo } = await completed()
+    const device = createNoteService({
+      storage,
+      clock: createClock('mac'),
+      newId,
+    })
+    await device.setStatus(id, 'on_hold')
+    await device.release(id)
+    const arrived = await storage.getNote(id)
+    await tick()
+    await undoNote(core, undo)
+    expect(await summary(notes, id)).toMatchObject({
+      status: 'on_hold',
+      updatedAt: arrived!.updatedAt,
+    })
+    expect((await storage.getNote(id))!.statusHlc).toBe(arrived!.statusHlc)
+  })
+
+  it('does not undo an edit made before the complete, along with it', async () => {
+    const { notes, core, id, note, before } = await seeded('active', false)
+    await notes.setBody(id, 'Keep sixty days.')
+    const undo = completeNote(core, note)!
+    await undo.done
+    const saved = (await summary(notes, id)).updatedAt
+    await tick()
+    await undoNote(core, undo)
+    const after = await summary(notes, id)
+    expect(after.status).toBe(before.status)
+    expect(after.updatedAt).toBeLessThanOrEqual(saved)
+    expect(after.updatedAt).toBeGreaterThan(before.updatedAt)
   })
 })

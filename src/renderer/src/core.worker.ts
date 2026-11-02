@@ -41,6 +41,7 @@ import {
   type PreviewOptions,
   type RenderPluginBlock,
   type SearchScope,
+  type StatusUndo,
   type StorageAdapter,
   type TagColor,
   type WelcomeContent,
@@ -68,7 +69,9 @@ forwardWorkerLogs(self, (message) => self.postMessage(message))
 
 /** The core's info lines (I_AUTHORSHIP_*), which the console does not forward: codes and IDs only. */
 const logInfo = (code: string, ...ids: string[]) =>
-  self.postMessage({ workerLog: { level: 'info', code, ids } } satisfies WorkerLogMessage)
+  self.postMessage({
+    workerLog: { level: 'info', code, ids },
+  } satisfies WorkerLogMessage)
 
 let service: NoteService | undefined
 let books: BookService | undefined
@@ -83,7 +86,11 @@ let mirrorStorage: StorageAdapter | undefined
 let httpApi: AiService | undefined
 let sync: SyncEngine | undefined
 let syncParts:
-  | { storage: StorageAdapter; clock: ReturnType<typeof createClock>; newId: () => string }
+  | {
+      storage: StorageAdapter
+      clock: ReturnType<typeof createClock>
+      newId: () => string
+    }
   | undefined
 // One piece renderer for the window's life, so piece keys never repeat; the plugins' renderers change under it.
 let previewRegistry = createPreviewRegistry({ builtins: true })
@@ -142,7 +149,9 @@ export const coreApi = {
       onSaveProblems: (saveProblems) =>
         self.postMessage({ saveProblems } satisfies SaveProblemsMessage),
       relay: (message) =>
-        self.postMessage({ noteRelay: toWireRelay(message, toBase64) } satisfies RelayOut),
+        self.postMessage({
+          noteRelay: toWireRelay(message, toBase64),
+        } satisfies RelayOut),
       onTakenIn: (takenIn) => self.postMessage({ takenIn } satisfies RelayOut),
       compact: !options.lean,
       log: logInfo,
@@ -214,6 +223,8 @@ export const coreApi = {
   setTitle: (id: string, title: string) => required().setTitle(id, title),
   setBook: (id: string, bookId: string | null) => required().setBook(id, bookId),
   setStatus: (id: string, status: NoteStatus) => required().setStatus(id, status),
+  setStatusUndoable: (id: string, status: NoteStatus) => required().setStatusUndoable(id, status),
+  undoStatus: (id: string, undo: StatusUndo) => required().undoStatus(id, undo),
   setPinned: (id: string, pinned: boolean) => required().setPinned(id, pinned),
   setNoteDates: (id: string, dates: { createdAt?: number; updatedAt?: number }) =>
     required().setDates(id, dates),
@@ -298,7 +309,10 @@ export const coreApi = {
     if (!newId) throw new Error('E_CORE_NOT_READY')
     stopImport = false
     const prepare = preparerOffThread(
-      () => new Worker(new URL('./import.worker.ts', import.meta.url), { type: 'module' }),
+      () =>
+        new Worker(new URL('./import.worker.ts', import.meta.url), {
+          type: 'module',
+        }),
       preparerHere(newId),
       () => console.warn('W_IMPORT_WORKER_FAILED'),
     )
@@ -348,14 +362,22 @@ export const coreApi = {
     // The page sends `render` as a proxy; the one before is let go so its port closes.
     ;(pluginRender as Comlink.Remote<RenderPluginBlock> | undefined)?.[Comlink.releaseProxy]()
     pluginRender = render
-    previewRegistry = createPreviewRegistry({ builtins: true, plugins: { specs, render } })
+    previewRegistry = createPreviewRegistry({
+      builtins: true,
+      plugins: { specs, render },
+    })
     pluginRevision += 1
   },
   /** Prepares the mirror (once); nothing runs until `mirrorReconcile`. */
   startMirror: (host: MirrorHost, untitled: string, logFailure: (code: string) => void) => {
     if (mirror || !mirrorStorage) return
     // Failures reach the app's log through the window (codes only).
-    mirror = createMirrorRunner({ storage: mirrorStorage, host, untitled, onError: logFailure })
+    mirror = createMirrorRunner({
+      storage: mirrorStorage,
+      host,
+      untitled,
+      onError: logFailure,
+    })
   },
   /** A full pass soon, unless one for Rust's `generation` ran already. */
   mirrorReconcile: (generation?: number) => mirror?.reconcile(generation),

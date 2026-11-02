@@ -12,8 +12,10 @@ const rows = (page: Page) => list(page).locator('.phone-note-row')
 const recent = (page: Page) => list(page).locator('[data-section="recent"] .phone-note-row')
 const section = (page: Page, key: string) => list(page).locator(`[data-section="${key}"]`)
 
+// Startup writes the welcome note unpinned, pins it, then writes the example: the list has settled once both sections show.
 async function openNotes(page: Page): Promise<void> {
   await tabs(page).getByRole('button', { name: 'Notes' }).click()
+  await expect(section(page, 'pinned')).toBeVisible()
   await expect(recent(page).first()).toBeVisible()
 }
 
@@ -101,7 +103,9 @@ test('Completed starts collapsed behind Show more, which opens it', async ({ pag
   await openNotes(page)
   await swipeRow(page, 0, 370)
   const completed = section(page, 'completed')
-  const more = completed.getByRole('button', { name: /^Show more \(1 completed hidden\)$/ })
+  const more = completed.getByRole('button', {
+    name: /^Show more \(1 completed hidden\)$/,
+  })
   await expect(more).toBeVisible()
   await expect(completed.locator('.phone-note-row').first()).toBeHidden()
   await more.click()
@@ -348,6 +352,8 @@ test('capture saves a note to the top of Recent, opening it first', async ({ pag
 })
 
 test('a note captured from the Library lands in Recent of All Notes', async ({ page }) => {
+  await openNotes(page)
+  await tabs(page).getByRole('button', { name: 'Library' }).click()
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: 'New Note' })
   await sheet.getByLabel('Title').fill('From the Library')
@@ -427,7 +433,9 @@ test('a phone Settings row puts its field under its label, full width, in iPhone
     label.boundingBox(),
     pane
       .locator('.settings-card')
-      .filter({ has: page.getByRole('combobox', { name: 'Unordered List Bullet' }) })
+      .filter({
+        has: page.getByRole('combobox', { name: 'Unordered List Bullet' }),
+      })
       .boundingBox(),
   ])
   expect(fieldBox!.y).toBeGreaterThanOrEqual(labelBox!.y + labelBox!.height)
