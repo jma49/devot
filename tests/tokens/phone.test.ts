@@ -8,7 +8,7 @@ const px = (token: keyof typeof sizes): number => Number.parseFloat(sizes[token]
 describe('the phone layout tokens', () => {
   it.each([
     ['size.phone-nav-control', 44],
-    ['size.phone-glass-bar', 64],
+    ['size.phone-glass-bar', 62],
     ['size.phone-lens-inset', 4],
     ['size.phone-editor-toolbar', 48],
     ['size.phone-list-row', 76],
@@ -32,7 +32,11 @@ describe('the phone layout tokens', () => {
     ['size.phone-topbar-band', 68],
     ['size.phone-content-top', 80],
     ['size.phone-capsule-button', 48],
-    ['size.phone-tab-inset', 20],
+    ['size.phone-tab-inset', 16],
+    ['size.phone-compose', 62],
+    ['size.phone-compose-gap', 10],
+    ['size.phone-capture-height', 440],
+    ['size.phone-arrive-rise', 320],
     ['size.phone-tab-bottom', 24],
     ['radius.phone-card', 22],
     ['radius.phone-row-press', 16],
@@ -41,6 +45,13 @@ describe('the phone layout tokens', () => {
     ['radius.phone-menu-row', 16],
   ] as const)('%s is %i', (token, value) => {
     expect(px(token)).toBe(value)
+  })
+
+  it('fits the tab bar and the compose circle on a 390 screen', () => {
+    const inset = px('size.phone-tab-inset')
+    const compose = px('size.phone-compose')
+    expect(390 - inset * 2 - compose - px('size.phone-compose-gap')).toBe(286)
+    expect(390 - inset - compose).toBe(312)
   })
 
   it('puts a grouped row 32 from the screen and a group title 26', () => {
@@ -83,6 +94,13 @@ describe('the phone layout tokens', () => {
 })
 
 describe('the phone motion tokens', () => {
+  it('squashes the lens as the spec does and takes 560 ms over capture', () => {
+    expect(Number(sizes['motion.scale.phone-lens-x'])).toBe(1.18)
+    expect(Number(sizes['motion.scale.phone-lens-y'])).toBe(0.86)
+    expect(sizes['motion.duration.phone-capture']).toBe('560ms')
+    expect(Number(sizes['motion.scale.phone-arrive'])).toBe(0.92)
+  })
+
   it('holds the three curves of the motion spec', () => {
     expect(sizes['motion.easing.phone-push']).toBe('cubic-bezier(0.23, 1, 0.32, 1)')
     expect(sizes['motion.duration.phone-push']).toBe('500ms')

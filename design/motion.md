@@ -95,7 +95,8 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Peek:** rule 3. After `motion.delay.phone-peek` the background blurs and dims, the card grows from `motion.scale.phone-peek-enter` with `gentle`, and the status bar and menu follow with `bouncy` after `motion.delay.phone-peek-bar` and `motion.delay.phone-peek-menu`.
 - **Edit and Preview:** rule 3. The layers crossfade with a 6 px blur and an 8 pt lift on `gentle`; the toggle's icon turns in with `bouncy`.
 - **Sheets:** rule 3. A sheet rises with `gentle` and follows a drag down 1:1; past 120 pt or on a flick it closes.
-- **Capture:** rule 3. The new-note circle grows into the sheet with `gentle`, its contents fading in after `motion.delay.phone-capture-body`. A saved note rises into its row from 180 pt below with `gentle` and its row fades out of the accent wash over `motion.duration.phone-flash`. Under Reduce Motion only the wash shows.
+- **Compose circle:** rule 3. Where it is not offered it fades and shrinks to `motion.scale.phone-compose-hidden` with `gentle`; where it is, it comes back the same way.
+- **Capture:** rule 3. The compose circle grows in place into the sheet with `gentle` over `motion.duration.phone-capture`, glass turning into the sheet, and its contents fade in after `motion.delay.phone-capture-body`. Saving collapses it the same way. A saved note flies into its row from `size.phone-arrive-rise` below at `motion.scale.phone-arrive` with `gentle`, the rows below shift by the height it really takes with `gentle`, and its row fades out of the accent wash over `motion.duration.phone-flash`. Under Reduce Motion the circle and the sheet crossfade, and only the wash shows on the row.
 - **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` over `motion.duration.phone-glass-press` on `motion.easing.phone-push`, and brightens over `motion.duration.ring`.
 
 ## Stays instant

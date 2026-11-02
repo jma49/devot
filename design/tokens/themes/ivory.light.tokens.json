@@ -466,6 +466,16 @@
           "hex": "#adb1ba"
         },
         "$description": "A function key, in pictures of the keyboard."
+      },
+      "field": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.75
+        },
+        "$description": "A field in the capture sheet."
       }
     },
     "icon": {
@@ -478,13 +488,22 @@
         "mirror": { "$value": "{color.tile.mirror}", "$type": "color" },
         "sync": { "$value": "{color.tile.sync}", "$type": "color" },
         "ai": { "$value": "{color.tile.ai}", "$type": "color" },
-        "integrations": { "$value": "{color.tile.integrations}", "$type": "color" },
+        "integrations": {
+          "$value": "{color.tile.integrations}",
+          "$type": "color"
+        },
         "plugins": { "$value": "{color.tile.plugins}", "$type": "color" },
         "usage": { "$value": "{color.tile.usage}", "$type": "color" },
         "license": { "$value": "{color.tile.license}", "$type": "color" }
       },
-      "tile-foreground": { "$value": "{color.tile.foreground}", "$type": "color" },
-      "tile-foreground-contrast": { "$value": "{color.tile.foreground-contrast}", "$type": "color" }
+      "tile-foreground": {
+        "$value": "{color.tile.foreground}",
+        "$type": "color"
+      },
+      "tile-foreground-contrast": {
+        "$value": "{color.tile.foreground-contrast}",
+        "$type": "color"
+      }
     },
     "qr": {
       "ground": {

@@ -10,6 +10,10 @@
   --phone-icon-pop-scale: var(--motion-scale-phone-icon-pop);
   --phone-bump-scale: var(--motion-scale-phone-bump);
   --phone-peek-enter-scale: var(--motion-scale-phone-peek-enter);
+  --phone-compose-hidden-scale: var(--motion-scale-phone-compose-hidden);
+  --phone-arrive-scale: var(--motion-scale-phone-arrive);
+  /* At the design's 34 pt home indicator inset this is the 24 the prototype draws. */
+  --phone-tab-bottom: max(var(--size-phone-tab-bottom), calc(env(safe-area-inset-bottom) - 10px));
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -216,15 +220,17 @@ button.phone-glass:active,
   position: absolute;
   z-index: 2;
   left: var(--size-phone-tab-inset);
-  right: var(--size-phone-tab-inset);
-  /* At the design's 34 pt home indicator inset this is the 24 the prototype draws. */
-  bottom: max(var(--size-phone-tab-bottom), calc(env(safe-area-inset-bottom) - 10px));
+  width: calc(
+    100% - var(--size-phone-tab-inset) * 2 - var(--size-phone-compose) -
+      var(--size-phone-compose-gap)
+  );
+  bottom: var(--phone-tab-bottom);
   height: var(--size-phone-glass-bar);
   padding: var(--size-phone-lens-inset);
   box-sizing: border-box;
   border-radius: calc(var(--size-phone-glass-bar) / 2);
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   transition: transform var(--motion-duration-phone-push) var(--motion-easing-phone-push);
 }
 
@@ -237,7 +243,7 @@ button.phone-glass:active,
   top: var(--size-phone-lens-inset);
   bottom: var(--size-phone-lens-inset);
   left: var(--size-phone-lens-inset);
-  width: calc((100% - var(--size-phone-lens-inset) * 2) / 3);
+  width: calc((100% - var(--size-phone-lens-inset) * 2) / 4);
   border-radius: var(--radius-phone-lens-bar);
   background: var(--color-phone-lens);
   transition: transform var(--phone-spring-bouncy-duration) var(--phone-spring-bouncy);
@@ -267,17 +273,12 @@ button.phone-glass:active,
   position: relative;
   min-height: var(--size-phone-target);
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
-  font-size: calc(10px * var(--phone-bar-text-scale, 1));
-  font-weight: 500;
 }
 
 .phone-tab[aria-current='page'] {
   color: var(--color-accent-text);
-  font-weight: 600;
 }
 
 .phone-tab-icon {
@@ -348,6 +349,8 @@ button.phone-glass:active,
   --phone-icon-pop-scale: 1;
   --phone-bump-scale: 1;
   --phone-peek-enter-scale: 1;
+  --phone-compose-hidden-scale: 1;
+  --phone-arrive-scale: 1;
 }
 
 /* Every movement becomes a crossfade: layers stay in place, and one that comes or goes fades. */
@@ -604,8 +607,8 @@ button.phone-glass:active,
 
 @keyframes phone-arrive {
   from {
-    translate: 0 180px;
-    scale: var(--popover-enter-scale);
+    translate: 0 var(--size-phone-arrive-rise);
+    scale: var(--phone-arrive-scale);
   }
 }
 
@@ -1441,44 +1444,50 @@ button.phone-chip::after {
 }
 
 .phone-capture-dim[data-shown] {
-  opacity: var(--opacity-phone-dim-peek);
+  opacity: var(--opacity-phone-dim-capture);
   pointer-events: auto;
 }
 
 .phone-capture {
+  --phone-capture-time: var(--motion-duration-phone-capture) var(--phone-spring-gentle);
   position: absolute;
   z-index: 20;
-  top: calc(
-    100% - max(var(--size-phone-tab-bottom), calc(env(safe-area-inset-bottom) - 10px)) -
-      var(--size-phone-glass-bar) - var(--size-phone-nav-control) - 12px
-  );
-  right: var(--size-phone-list-edge);
-  width: var(--size-phone-nav-control);
-  height: var(--size-phone-nav-control);
-  border-radius: calc(var(--size-phone-nav-control) / 2);
+  right: var(--size-phone-tab-inset);
+  bottom: var(--phone-tab-bottom);
+  width: var(--size-phone-compose);
+  height: var(--size-phone-compose);
+  border-radius: calc(var(--size-phone-compose) / 2);
   overflow: hidden;
   transition:
+    scale var(--phone-capture-time),
     transform var(--motion-duration-phone-glass-press) var(--motion-easing-phone-push),
     filter var(--motion-duration-ring) var(--motion-easing-out),
-    width var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
-    height var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
-    top var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
-    right var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
-    border-radius var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
-    background var(--motion-duration-phone-push) var(--motion-easing-out),
+    width var(--phone-capture-time),
+    height var(--phone-capture-time),
+    right var(--phone-capture-time),
+    bottom var(--phone-capture-time),
+    border-radius var(--phone-capture-time),
+    background var(--motion-duration-phone-capture) var(--motion-easing-out),
     opacity var(--motion-duration-ring) var(--motion-easing-out);
 }
 
 .phone-capture[data-hidden] {
   opacity: 0;
+  scale: var(--phone-compose-hidden-scale);
   pointer-events: none;
 }
 
 .phone-capture[data-open] {
-  top: calc(var(--phone-safe-top) - 4px);
   right: var(--size-phone-sheet-inset);
+  /* The layout viewport stays put under the keyboard, so the sheet rides above it, and shrinks to fit what is left. */
+  bottom: calc(var(--size-phone-sheet-inset) + var(--phone-keyboard, 0px));
   width: calc(100% - var(--size-phone-sheet-inset) * 2);
-  height: calc(384px * min(var(--phone-text-scale, 1), 1.35));
+  height: min(
+    calc(var(--size-phone-capture-height) * var(--phone-bar-text-scale, 1)),
+    calc(
+      100% - var(--phone-safe-top) - var(--size-phone-sheet-inset) * 2 - var(--phone-keyboard, 0px)
+    )
+  );
   border-radius: var(--radius-phone-sheet);
   background: var(--color-phone-sheet);
   backdrop-filter: blur(30px) saturate(1.8);
@@ -1501,9 +1510,9 @@ button.phone-chip::after {
 .phone-capture-fab {
   position: absolute;
   top: 0;
-  right: 0;
-  width: var(--size-phone-nav-control);
-  height: var(--size-phone-nav-control);
+  left: 0;
+  width: var(--size-phone-compose);
+  height: var(--size-phone-compose);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1520,22 +1529,24 @@ button.phone-chip::after {
   top: 0;
   left: 0;
   width: calc(100vw - var(--size-phone-sheet-inset) * 2);
+  max-height: 100%;
+  overflow-y: auto;
   padding: var(--size-phone-capture-pad);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 12px;
   opacity: 0;
-  translate: 0 -16px;
+  translate: 0 20px;
   transition:
     opacity var(--motion-duration-ring) var(--motion-easing-out),
-    translate var(--phone-spring-gentle-duration) var(--phone-spring-gentle);
+    translate var(--phone-capture-time);
 }
 
 .phone-capture[data-open] .phone-capture-body {
   opacity: 1;
   translate: none;
-  transition-delay: var(--motion-delay-phone-capture-body);
+  transition-delay: var(--motion-delay-phone-capture-body), 0s;
 }
 
 .phone-capture-head {
@@ -1549,14 +1560,17 @@ button.phone-chip::after {
 }
 
 .phone-capture-cancel {
-  min-height: var(--size-phone-target);
+  height: var(--size-phone-capture-control);
   padding: 0 16px;
-  border-radius: calc(var(--size-phone-target) / 2);
+  border-radius: calc(var(--size-phone-capture-control) / 2);
+  font-size: calc(16px * var(--phone-bar-text-scale, 1));
+  font-weight: 500;
 }
 
 .phone-capture-save {
-  width: var(--size-phone-target);
-  height: var(--size-phone-target);
+  position: relative;
+  width: var(--size-phone-capture-control);
+  height: var(--size-phone-capture-control);
   border-radius: 50%;
   background: var(--color-accent-fill);
   color: var(--color-accent-on-fill);
@@ -1565,34 +1579,50 @@ button.phone-chip::after {
   justify-content: center;
 }
 
+/* Glass has taken its pseudo-elements, so a control drawn under 44 extends its target on a child. */
+.phone-hit {
+  position: absolute;
+  inset: calc((var(--size-phone-capture-control) - var(--size-phone-target)) / 2);
+}
+
 .phone-capture-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .phone-capture-field > span {
-  padding-left: 14px;
+  padding-left: 12px;
   font-size: calc(13px * var(--phone-text-scale, 1));
-  text-transform: uppercase;
-  color: var(--color-phone-section-head);
+  font-weight: 500;
+  color: var(--color-phone-text-secondary);
 }
 
 .phone-capture-field input,
 .phone-capture-field textarea {
   border: 0;
   border-radius: var(--radius-phone-capture-field);
-  background: var(--color-phone-card);
-  padding: 12px 16px;
+  background: var(--color-phone-field);
+  padding: 12px 14px;
   color: var(--color-text-editor);
   font: inherit;
+  font-size: calc(16px * var(--phone-text-scale, 1));
+  line-height: calc(22px * var(--phone-text-scale, 1));
   outline: none;
   resize: none;
 }
 
+.phone-capture .phone-chip {
+  background: var(--color-phone-field);
+}
+
 .phone-capture-field input {
-  min-height: 48px;
+  min-height: 46px;
+  padding-block: 0;
+  box-sizing: border-box;
+  font-size: calc(17px * var(--phone-text-scale, 1));
   font-weight: 600;
+  color: var(--color-phone-text);
 }
 
 /* Settings */
@@ -1700,13 +1730,39 @@ button.phone-chip::after {
   }
 
   .phone-note-content,
-  .phone-sheet,
-  .phone-capture {
+  .phone-sheet {
     transition-duration: var(--motion-duration-phone-crossfade);
+  }
+
+  /* The circle and the sheet do not morph: each is simply there, fading in. */
+  .phone-capture {
+    transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
+    animation: phone-capture-fade-a var(--motion-duration-phone-crossfade) var(--motion-easing-out);
+  }
+
+  .phone-capture[data-open] {
+    animation-name: phone-capture-fade-b;
+  }
+
+  .phone-capture-body {
+    translate: none;
+    transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
   }
 
   .phone-note-layer {
     filter: none;
     translate: none;
+  }
+}
+
+@keyframes phone-capture-fade-a {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes phone-capture-fade-b {
+  from {
+    opacity: 0;
   }
 }

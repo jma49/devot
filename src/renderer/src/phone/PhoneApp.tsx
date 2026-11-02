@@ -7,7 +7,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react'
-import { format, t, type MessageKey } from '../i18n'
+import { t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
 import { motionMs } from '../motionTiming'
@@ -24,6 +24,7 @@ import {
 } from './navigation'
 import { startPhoneRoot } from './spring'
 import type { PhoneView } from './library'
+import { PhoneActivity } from './PhoneActivity'
 import { PhoneLibrary } from './PhoneLibrary'
 import { usePhoneData, type PhoneData } from './usePhoneData'
 import { haptic } from './haptics'
@@ -38,12 +39,14 @@ import './phone.css'
 const TAB_LABEL: Record<PhoneTab, MessageKey> = {
   notes: 'phone.tab.notes',
   library: 'phone.tab.library',
+  activity: 'phone.tab.activity',
   settings: 'phone.tab.settings',
 }
 
 const TAB_ICON: Record<PhoneTab, { rest: IconName; selected: IconName }> = {
   notes: { rest: 'phone.tab.notes', selected: 'phone.tab.notes.fill' },
   library: { rest: 'phone.tab.library', selected: 'phone.tab.library.fill' },
+  activity: { rest: 'phone.tab.activity', selected: 'phone.tab.activity.fill' },
   settings: { rest: 'phone.tab.settings', selected: 'phone.tab.settings.fill' },
 }
 
@@ -52,7 +55,6 @@ function TabBar(props: {
   x: string
   covered: boolean
   dragging: boolean
-  proposals: number
   needsAttention: boolean
   onSelect: (tab: PhoneTab) => void
 }) {
@@ -74,20 +76,13 @@ function TabBar(props: {
       />
       {PHONE_TABS.map((tab) => {
         const selected = tab === props.tab
-        const badge =
-          tab === 'notes' && props.proposals > 0
-            ? {
-                text: String(props.proposals),
-                label: format(t('phone.badge.proposals'), { count: String(props.proposals) }),
-              }
-            : tab === 'settings' && props.needsAttention
-              ? { text: '!', label: t('phone.badge.attention') }
-              : null
+        const attention = tab === 'settings' && props.needsAttention
         return (
           <button
             key={tab}
             type="button"
             className="phone-tab"
+            aria-label={t(TAB_LABEL[tab])}
             aria-current={selected ? 'page' : undefined}
             onClick={() => {
               if (!selected) setMoves((n) => n + 1)
@@ -98,14 +93,16 @@ function TabBar(props: {
               className="phone-tab-icon"
               data-move={selected && moves > 0 ? (moves % 2 ? 'a' : 'b') : undefined}
             >
-              <Icon name={selected ? TAB_ICON[tab].selected : TAB_ICON[tab].rest} size="lg" />
-              {badge && (
-                <span className="phone-badge" aria-label={badge.label}>
-                  {badge.text}
+              <Icon
+                name={selected ? TAB_ICON[tab].selected : TAB_ICON[tab].rest}
+                size="phone-tab"
+              />
+              {attention && (
+                <span className="phone-badge" role="img" aria-label={t('phone.badge.attention')}>
+                  !
                 </span>
               )}
             </span>
-            {t(TAB_LABEL[tab])}
           </button>
         )
       })}
@@ -302,6 +299,7 @@ export function PhoneApp() {
     (listed || (state.tab === 'library' && top.screen === 'root')) &&
     topView?.kind !== 'trash' &&
     topView?.kind !== 'templates'
+  const listsNewNote = listed && (topView?.kind === 'all' || topView?.kind === 'book')
   const pop = () => dispatch({ type: 'pop' })
 
   const render = (tab: PhoneTab, route: PhoneRoute) => {
@@ -325,6 +323,7 @@ export function PhoneApp() {
           }}
         />
       )
+    if (tab === 'activity') return <PhoneActivity />
     if (tab === 'settings')
       return (
         <PhoneSettings onOpenPane={(pane) => dispatch({ type: 'push', screen: 'pane', pane })} />
@@ -362,7 +361,6 @@ export function PhoneApp() {
         x={rootX}
         covered={depth > 0}
         dragging={dragging}
-        proposals={0}
         needsAttention={licenceRow(licence, now).needsAttention}
         onSelect={(tab) => {
           if (tab !== state.tab) haptic('selection')
@@ -374,7 +372,7 @@ export function PhoneApp() {
         available={captureHere}
         bookId={topView?.kind === 'book' ? topView.id : null}
         onSaved={(id) => {
-          if (!listed) dispatch({ type: 'showNotes', view: { kind: 'all' }, status: 'all' })
+          if (!listsNewNote) dispatch({ type: 'showNotes', view: { kind: 'all' }, status: 'all' })
           setArrivedId(id)
           haptic('soft')
         }}

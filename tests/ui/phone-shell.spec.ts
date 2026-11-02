@@ -37,15 +37,67 @@ test.beforeEach(async ({ page }) => {
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`shows three tabs with Library selected, ${colorScheme}`, async ({ page }) => {
+  test(`shows four icon-only tabs with Library selected, ${colorScheme}`, async ({ page }) => {
     await page.emulateMedia({ colorScheme })
-    await expect(tabs(page).getByRole('button')).toHaveCount(3)
+    await expect(tabs(page).getByRole('button')).toHaveCount(4)
     await expect(tab(page, 'Library')).toHaveAttribute('aria-current', 'page')
+    for (const name of ['Notes', 'Library', 'Activity', 'Settings']) {
+      await expect(tab(page, name)).toHaveText('')
+    }
     const box = await tabs(page).boundingBox()
-    expect(box).toMatchObject({ x: 20, width: 350, height: 64 })
+    expect(box).toMatchObject({ x: 16, width: 286, height: 62 })
     expect(box!.y + box!.height).toBe(844 - 24)
+    const lens = tabs(page).locator('.phone-tabbar-lens')
+    await expect(lens).toHaveCSS('border-radius', '27px')
+    expect((await lens.boundingBox())!.height).toBe(54)
   })
 }
+
+test('the compose circle sits beside the tab bar and leaves Activity and Settings', async ({
+  page,
+}) => {
+  const compose = page.getByRole('button', { name: 'New Note' })
+  expect(await compose.boundingBox()).toMatchObject({ x: 312, width: 62, height: 62 })
+  expect((await compose.boundingBox())!.y).toBe(844 - 24 - 62)
+  for (const name of ['Activity', 'Settings']) {
+    await tab(page, name).click()
+    await expect(page.locator('.phone-capture')).toHaveAttribute('data-hidden')
+  }
+  await tab(page, 'Notes').click()
+  await expect(page.locator('.phone-capture')).not.toHaveAttribute('data-hidden')
+})
+
+test('Activity has a top bar and moves the lens to the third place', async ({ page }) => {
+  await tab(page, 'Activity').click()
+  const screen = page.getByRole('region', { name: 'Activity' })
+  await expect(screen.getByRole('heading', { level: 1 })).toHaveText('Activity')
+  await expect(tab(page, 'Activity')).toHaveAttribute('aria-current', 'page')
+  const [lens, button] = await Promise.all([
+    tabs(page).locator('.phone-tabbar-lens').boundingBox(),
+    tab(page, 'Activity').boundingBox(),
+  ])
+  expect(lens!.x).toBeCloseTo(button!.x, 0)
+})
+
+test('the capture sheet grows from the circle, 374 by 440, and goes back', async ({ page }) => {
+  await page.getByRole('button', { name: 'New Note' }).click()
+  const sheet = page.getByRole('dialog', { name: 'New Note' })
+  await expect(sheet).toBeVisible()
+  await expect
+    .poll(async () => sheet.boundingBox())
+    .toMatchObject({
+      x: 8,
+      y: 396,
+      width: 374,
+      height: 440,
+    })
+  await expect(sheet).toHaveCSS('border-radius', '34px')
+  await sheet.getByRole('button', { name: 'Cancel' }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect
+    .poll(async () => page.locator('.phone-capture').boundingBox())
+    .toMatchObject({ x: 312, width: 62, height: 62 })
+})
 
 test('keeps a stack per tab, and tapping the current tab pops to its root', async ({ page }) => {
   await openTemplates(page)

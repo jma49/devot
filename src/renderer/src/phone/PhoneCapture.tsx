@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { STATUS_LABEL, statusTile } from './pickers'
+import { useKeyboard } from './useKeyboard'
 import type { PhoneStore } from './usePhoneData'
 
-/** The accent new-note circle, which grows in place into the capture sheet. */
+/** The glass compose circle, which grows in place into the capture sheet. */
 export function PhoneCapture(props: {
   store: PhoneStore
   available: boolean
@@ -16,6 +17,7 @@ export function PhoneCapture(props: {
   const [body, setBody] = useState('')
   const [saving, setSaving] = useState(false)
   const field = useRef<HTMLInputElement>(null)
+  const keyboard = useKeyboard()
   useEffect(() => {
     if (open) field.current?.focus({ preventScroll: true })
   }, [open])
@@ -28,11 +30,12 @@ export function PhoneCapture(props: {
     setSaving(true)
     try {
       const id = await core.capture(title.trim(), body, props.bookId)
-      await core.setStatus(id, 'active')
       setOpen(false)
       setTitle('')
       setBody('')
+      // Before the status write, whose refresh would otherwise show the row before it can arrive.
       props.onSaved(id)
+      await core.setStatus(id, 'active')
     } catch {
       console.warn('W_PHONE_CAPTURE_FAILED')
     } finally {
@@ -55,6 +58,9 @@ export function PhoneCapture(props: {
         role={open ? 'dialog' : undefined}
         aria-modal={open || undefined}
         aria-label={open ? t('noteList.newNote') : undefined}
+        style={
+          keyboard.open ? { ['--phone-keyboard' as string]: `${keyboard.height}px` } : undefined
+        }
       >
         <button
           type="button"
@@ -63,7 +69,7 @@ export function PhoneCapture(props: {
           tabIndex={open || !shown ? -1 : 0}
           onClick={() => setOpen(true)}
         >
-          <Icon name="note.new" size="lg" />
+          <Icon name="note.new" size="phone-compose" />
         </button>
         <form
           className="phone-capture-body"
@@ -79,6 +85,7 @@ export function PhoneCapture(props: {
               className="phone-glass phone-capture-cancel"
               onClick={() => setOpen(false)}
             >
+              <span aria-hidden="true" className="phone-hit" />
               {t('dialog.cancel')}
             </button>
             <span className="phone-capture-title">{t('noteList.newNote')}</span>
@@ -88,7 +95,8 @@ export function PhoneCapture(props: {
               aria-label={t('phone.capture.save')}
               disabled={saving || (!title.trim() && !body.trim())}
             >
-              <Icon name="phone.save" size="md" />
+              <span aria-hidden="true" className="phone-hit" />
+              <Icon name="phone.save" size="toolbar" />
             </button>
           </div>
           <label className="phone-capture-field">
@@ -97,7 +105,7 @@ export function PhoneCapture(props: {
           </label>
           <label className="phone-capture-field">
             <span>{t('phone.capture.note')}</span>
-            <textarea rows={4} value={body} onChange={(event) => setBody(event.target.value)} />
+            <textarea rows={5} value={body} onChange={(event) => setBody(event.target.value)} />
           </label>
           <div className="phone-chips">
             <span className="phone-chip phone-chip-strong">

@@ -1,8 +1,8 @@
 import { sizes } from '../theme/tokens'
 import type { PhoneStatusFilter, PhoneView } from './library'
 
-export type PhoneTab = 'notes' | 'library' | 'settings'
-export const PHONE_TABS: readonly PhoneTab[] = ['notes', 'library', 'settings']
+export type PhoneTab = 'notes' | 'library' | 'activity' | 'settings'
+export const PHONE_TABS: readonly PhoneTab[] = ['notes', 'library', 'activity', 'settings']
 
 export type PhoneScreen = 'root' | 'list' | 'note' | 'pane'
 
@@ -37,9 +37,10 @@ export const initialNavigation = (): PhoneNavigation => ({
   stacks: {
     notes: [{ id: 0, screen: 'root' }],
     library: [{ id: 1, screen: 'root' }],
-    settings: [{ id: 2, screen: 'root' }],
+    activity: [{ id: 2, screen: 'root' }],
+    settings: [{ id: 3, screen: 'root' }],
   },
-  nextId: 3,
+  nextId: 4,
   notes: { view: { kind: 'all' }, status: 'all' },
 })
 

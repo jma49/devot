@@ -16,7 +16,7 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 
 ## Touch
 
-- Every target is at least `size.phone-target` (44 pt). A smaller drawing keeps its size and extends its hit area: the formatting bar's buttons (38 by 40), the sheet's close and capture's Cancel and Save (40), and the note's chips (30).
+- Every target is at least `size.phone-target` (44 pt). A smaller drawing keeps its size and extends its hit area: the formatting bar's buttons (38 by 40), the sheet's close and capture's Cancel and Save (`size.phone-capture-control`, on a `.phone-hit` child), and the note's chips (30).
 - A back swipe starts from the left edge and tracks the finger; every push can be undone by it. A vertical scroll never starts a swipe.
 - Anything a gesture does is reachable without it: swipe actions and the peek's actions are also VoiceOver custom actions.
 
@@ -47,7 +47,9 @@ Grouped pages: cards inset 16, `radius.phone-card`, `size.phone-card-inset` arou
 
 Times, counts and stats use `.phone-figures`: mono, tabular figures.
 
-Until the compose button moves beside the tab bar, the new-note circle rests above the tab bar's right end.
+Tab bar: four icon-only tabs (Notes, Library, Activity, Settings) in a `size.phone-glass-bar` glass bar at x 16, as wide as the screen leaves beside the `size.phone-compose` glass circle: 286 on a 390 screen, with the circle at x 312. The selected tab has a lens (inset 4, `radius.phone-lens-bar`) and a filled icon; Settings shows a badge when the licence needs attention. The circle is offered on the Notes and Library screens that can take a new note, and hidden on Activity, Settings, Templates, Trash, a note and a pane.
+
+Capture: the circle grows in place into the sheet, `size.phone-sheet-inset` from the screen's sides and bottom, up to `size.phone-capture-height`. The keyboard does not move the layout, so the open sheet rides above it and shrinks to what is left under the safe area, and its contents scroll. A note saved where the list would not show it opens All Notes.
 
 The tab bar sits at the larger of `size.phone-tab-bottom` and the bottom safe area less 10, so 24 from the screen's edge at the design's 34 pt inset, clear of the home indicator on any iPhone.
 
@@ -58,7 +60,7 @@ Text follows the system's text size, up to the largest accessibility size.
 - Numbers in the specs are at the default size (Large). The scale is the computed size of `font: -apple-system-body` over 17, read at launch and on return to the foreground, and set on the root as `--phone-text-scale`; every font size and line height in the layout is its number times that scale.
 - Heights that hold text are minimums, so `size.phone-list-row`, `size.phone-grouped-row`, `size.phone-info-row`, `size.phone-smart-tile` and `size.phone-chip` grow with their text. Nothing is positioned by assuming a row height: the list measures its rows, and a saved note's neighbours shift by the height it really takes.
 - Text wraps rather than being cut wherever a row can grow. At the accessibility sizes the note list's title may take two lines, a row's time moves under its title and the four smart tiles become two rows of two. The list preview keeps its two lines.
-- Icons beside text grow with it. Glass bars keep their heights and glyphs, because they sit in fixed places: the tab bar's labels and the top bar's title stop at 1.35, and a long press on a tab bar item shows its label enlarged.
+- Icons beside text grow with it. Glass bars keep their heights and glyphs, because they sit in fixed places: the top bar's title stops at 1.35.
 - The note's editor and preview keep the text size chosen in Settings, and start from the system's scale until one is chosen.
 
 ## Icons

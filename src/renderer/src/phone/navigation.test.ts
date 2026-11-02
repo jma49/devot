@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  PHONE_TABS,
   initialNavigation,
   isPhoneLayout,
   layerPlacement,
@@ -22,6 +23,20 @@ describe('choosing the phone layout', () => {
 })
 
 describe('the navigation stacks', () => {
+  it('has four tabs in the order of the bar, and starts on Library', () => {
+    expect(PHONE_TABS).toEqual(['notes', 'library', 'activity', 'settings'])
+    expect(initialNavigation().tab).toBe('library')
+  })
+
+  it('gives Activity a stack with its own route id', () => {
+    const { stacks } = initialNavigation()
+    const ids = PHONE_TABS.map((tab) => stacks[tab][0]!.id)
+    expect(new Set(ids).size).toBe(4)
+    expect(screens(navigate(initialNavigation(), { type: 'selectTab', tab: 'activity' }))).toEqual([
+      'root',
+    ])
+  })
+
   it('keeps one stack per tab', () => {
     let state = navigate(initialNavigation(), { type: 'push', screen: 'list' })
     state = navigate(state, { type: 'selectTab', tab: 'settings' })

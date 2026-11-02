@@ -98,7 +98,7 @@
           "colorSpace": "srgb",
           "components": [0.2706, 0.4627, 0.698],
           "hex": "#4576b2",
-          "alpha": 0.3
+          "alpha": 0.25
         },
         "$description": "The wash on a newly saved note's row."
       },
@@ -108,7 +108,7 @@
           "colorSpace": "srgb",
           "components": [1.0, 1.0, 1.0],
           "hex": "#ffffff",
-          "alpha": 0.12
+          "alpha": 0.13
         },
         "$description": "The selected item's pill in a glass bar."
       },
@@ -466,6 +466,16 @@
           "hex": "#3a3a3c"
         },
         "$description": "A function key, in pictures of the keyboard."
+      },
+      "field": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.07
+        },
+        "$description": "A field in the capture sheet."
       }
     },
     "icon": {
@@ -478,13 +488,22 @@
         "mirror": { "$value": "{color.tile.mirror}", "$type": "color" },
         "sync": { "$value": "{color.tile.sync}", "$type": "color" },
         "ai": { "$value": "{color.tile.ai}", "$type": "color" },
-        "integrations": { "$value": "{color.tile.integrations}", "$type": "color" },
+        "integrations": {
+          "$value": "{color.tile.integrations}",
+          "$type": "color"
+        },
         "plugins": { "$value": "{color.tile.plugins}", "$type": "color" },
         "usage": { "$value": "{color.tile.usage}", "$type": "color" },
         "license": { "$value": "{color.tile.license}", "$type": "color" }
       },
-      "tile-foreground": { "$value": "{color.tile.foreground}", "$type": "color" },
-      "tile-foreground-contrast": { "$value": "{color.tile.foreground-contrast}", "$type": "color" }
+      "tile-foreground": {
+        "$value": "{color.tile.foreground}",
+        "$type": "color"
+      },
+      "tile-foreground-contrast": {
+        "$value": "{color.tile.foreground-contrast}",
+        "$type": "color"
+      }
     },
     "qr": {
       "ground": {
