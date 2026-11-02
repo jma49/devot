@@ -32,11 +32,14 @@ pub fn haptic(kind: HapticKind) {
                 } else {
                     UIImpactFeedbackStyle::Soft
                 };
-                UIImpactFeedbackGenerator::initWithStyle(
+                // Its replacement, `feedbackGeneratorWithStyle_forView`, needs the web view, which this
+                // command does not hold; the deprecated initializer still plays on every supported iOS.
+                #[allow(deprecated)]
+                let generator = UIImpactFeedbackGenerator::initWithStyle(
                     UIImpactFeedbackGenerator::alloc(mtm),
                     style,
-                )
-                .impactOccurred();
+                );
+                generator.impactOccurred();
             }
             HapticKind::Selection => UISelectionFeedbackGenerator::new(mtm).selectionChanged(),
             HapticKind::Success => UINotificationFeedbackGenerator::new(mtm)
