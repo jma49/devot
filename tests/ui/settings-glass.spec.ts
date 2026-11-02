@@ -126,3 +126,23 @@ for (const appearance of ['light', 'dark'] as const) {
     await expect(page.locator('.settings-card').first()).toHaveCSS('border-radius', '12px')
   })
 }
+
+for (const sidebarMaterial of [true, false]) {
+  test(`a switch's knob stays inside its track in ${sidebarMaterial ? 'Glass' : 'Classic'}`, async ({
+    page,
+  }) => {
+    await openSettings(page, 'Appearance')
+    await changeEditorSettingsElsewhere(page, { sidebarMaterial })
+    const toggle = page.getByRole('switch').first()
+    await expect(toggle).toBeVisible()
+    const { track, knob, inset } = await toggle.evaluate((el) => {
+      const after = getComputedStyle(el, '::after')
+      return {
+        track: el.getBoundingClientRect().height,
+        knob: Number.parseFloat(after.height),
+        inset: Number.parseFloat(after.top),
+      }
+    })
+    expect(knob + 2 * inset).toBeLessThanOrEqual(track)
+  })
+}
