@@ -141,9 +141,19 @@
           "colorSpace": "srgb",
           "components": [0.1686, 0.1686, 0.1608],
           "hex": "#2b2b29",
-          "alpha": 0.55
+          "alpha": 0.7
         },
         "$description": "Glass interface: the one wash the note list and the editor share over the window material, also the ring around the floating sidebar."
+      },
+      "glass-tint": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1333, 0.1333, 0.1216],
+          "hex": "#22221f",
+          "alpha": 0.45
+        },
+        "$description": "Glass interface: the tint on the system's sidebar glass, so it sits one step above the sheet. Not measured on a device yet."
       },
       "glass": {
         "$type": "color",
@@ -151,7 +161,7 @@
           "colorSpace": "srgb",
           "components": [1.0, 1.0, 1.0],
           "hex": "#ffffff",
-          "alpha": 0.1
+          "alpha": 0.05
         },
         "$description": "Glass interface: the floating sidebar's tint over the sheet where the system draws no glass of its own (before macOS 26)."
       },

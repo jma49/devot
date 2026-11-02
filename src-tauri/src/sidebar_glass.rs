@@ -10,13 +10,31 @@ const MAX_POINTS: f64 = 100_000.0;
 const MAX_RADIUS: f64 = 1_000.0;
 
 /// In points from the web view's top-left corner.
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct GlassFrame {
     pub x: f64,
     pub y: f64,
     pub width: f64,
     pub height: f64,
     pub radius: f64,
+    /// An sRGB `#RRGGBBAA` colour for the system's glass, or `None` for its own.
+    #[serde(default)]
+    pub tint: Option<String>,
+}
+
+/// Red, green, blue and alpha from 0 to 1 for a `#RRGGBBAA` colour.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn tint_components(tint: &str) -> Option<(f64, f64, f64, f64)> {
+    let digits = tint.strip_prefix('#')?;
+    if digits.len() != 8 || !digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    let part = |at: usize| {
+        u8::from_str_radix(&digits[at..at + 2], 16)
+            .ok()
+            .map(|value| f64::from(value) / 255.0)
+    };
+    Some((part(0)?, part(2)?, part(4)?, part(6)?))
 }
 
 pub fn checked(frame: Option<GlassFrame>) -> Result<Option<GlassFrame>, &'static str> {
@@ -27,7 +45,11 @@ pub fn checked(frame: Option<GlassFrame>) -> Result<Option<GlassFrame>, &'static
         && within(frame.y, 0.0, MAX_POINTS)
         && within(frame.width, 1.0, MAX_POINTS)
         && within(frame.height, 1.0, MAX_POINTS)
-        && within(frame.radius, 0.0, MAX_RADIUS);
+        && within(frame.radius, 0.0, MAX_RADIUS)
+        && frame
+            .tint
+            .as_deref()
+            .is_none_or(|tint| tint_components(tint).is_some());
     if fits {
         Ok(Some(frame))
     } else {
@@ -92,6 +114,44 @@ mod tests {
             width: 200.0,
             height: 684.0,
             radius: 18.0,
+            tint: None,
+        }
+    }
+
+    fn tinted(tint: &str) -> GlassFrame {
+        GlassFrame {
+            tint: Some(String::from(tint)),
+            ..frame()
+        }
+    }
+
+    #[test]
+    fn takes_a_full_srgb_tint_and_reads_its_components() {
+        let good = tinted("#FF008040");
+        assert_eq!(checked(Some(good.clone())), Ok(Some(good)));
+        assert_eq!(
+            tint_components("#ff008040"),
+            Some((1.0, 0.0, 128.0 / 255.0, 64.0 / 255.0))
+        );
+    }
+
+    #[test]
+    fn refuses_a_tint_that_is_not_nine_characters_of_hex() {
+        for bad in [
+            "",
+            "#",
+            "#fff",
+            "#ffffff",
+            "ffffffff0",
+            "#ggffffff",
+            "#ffffffff0",
+            "#\u{e9}ffffff",
+        ] {
+            assert_eq!(
+                checked(Some(tinted(bad))),
+                Err("E_SIDEBAR_GLASS_FRAME_INVALID"),
+                "{bad:?}"
+            );
         }
     }
 

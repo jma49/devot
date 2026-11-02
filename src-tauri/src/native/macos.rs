@@ -3430,6 +3430,23 @@ unsafe fn place_sidebar_glass(
             let _: () = msg_send![glass, setCornerRadius: frame.radius];
         }
     }
+    let components = frame
+        .tint
+        .as_deref()
+        .and_then(crate::sidebar_glass::tint_components);
+    // SAFETY: `glass` is a live NSView; `setTintColor:` is checked before use and takes an NSColor
+    // or nil. The colour is autoreleased, and the view retains it.
+    unsafe {
+        if responds(glass, sel!(setTintColor:)) {
+            let color: *mut AnyObject = match (components, AnyClass::get(c"NSColor")) {
+                (Some((red, green, blue, alpha)), Some(class)) => {
+                    msg_send![class, colorWithSRGBRed: red, green: green, blue: blue, alpha: alpha]
+                }
+                _ => std::ptr::null_mut(),
+            };
+            let _: () = msg_send![glass, setTintColor: color];
+        }
+    }
     true
 }
 

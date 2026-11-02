@@ -145,6 +145,16 @@
         },
         "$description": "Glass interface: the one wash the note list and the editor share over the window material, also the ring around the floating sidebar."
       },
+      "glass-tint": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 1, 1],
+          "hex": "#ffffff",
+          "alpha": 0
+        },
+        "$description": "Glass interface: the tint on the system's sidebar glass; none in light."
+      },
       "glass": {
         "$type": "color",
         "$value": {
