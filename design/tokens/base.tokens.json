@@ -1820,6 +1820,11 @@
       "$value": { "value": 48, "unit": "px" },
       "$description": "Glass interface: the length of the hairline that opens a preview's footnotes, on the text's left edge."
     },
+    "list-row-padding-bottom": {
+      "$type": "dimension",
+      "$value": { "value": 11, "unit": "px" },
+      "$description": "Glass interface: the room under a note row's last line."
+    },
     "list-keyline-outer": {
       "$type": "dimension",
       "$value": {

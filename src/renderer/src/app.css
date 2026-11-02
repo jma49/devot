@@ -6622,39 +6622,70 @@ button.popup:focus-visible {
 /* A row: the title with its time at the end of the line, then the rest of its details, then two
    lines of its text. The time leaves its line, which goes when nothing else is on it. */
 :root[data-sidebar-material='on'] .row {
+  --row-title-line: calc(var(--font-size-body) * 1.3);
   position: relative;
-  padding-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
-  padding-bottom: var(--space-6);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: var(--space-2);
+  padding: var(--space-5) calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer))
+    var(--size-list-row-padding-bottom);
   border-bottom: 0;
   border-radius: var(--radius-list-row);
 }
 
 :root[data-sidebar-material='on'] .row-title {
-  margin-bottom: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: var(--row-title-line);
   padding-inline-end: calc(var(--space-10) * 2);
   -webkit-line-clamp: 1;
   line-clamp: 1;
 }
 
+:root[data-sidebar-material='on'] .row-meta {
+  font-size: var(--font-size-caption);
+}
+
 :root[data-sidebar-material='on'] .row-time {
   position: absolute;
-  top: var(--space-6);
+  top: var(--space-5);
   inset-inline-end: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
-  font-size: var(--font-size-footnote);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--row-title-line);
+}
+
+/* A strut at the title's size puts the smaller time on the title's baseline. */
+:root[data-sidebar-material='on'] .row-time::before {
+  content: '\200b';
+  font-size: var(--font-size-body);
 }
 
 :root[data-sidebar-material='on'] .row > .row-meta:first-child {
   margin-top: 0;
-  min-height: calc(var(--space-6) * 2);
+  min-height: var(--row-title-line);
+}
+
+/* Out of the grid, so a meta line holding only the time adds no track or gap. */
+:root[data-sidebar-material='on']
+  .row-title
+  + .row-meta:not(:has(.row-meta-items > :not(.row-time))) {
+  position: absolute;
+  top: 0;
+  inset-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
+  height: 0;
 }
 
 :root[data-sidebar-material='on']
   .row-title
-  + .row-meta:has(.row-meta-items > .row-time:only-child) {
-  height: 0;
+  + .row-meta:not(:has(.row-meta-items > :not(.row-time)))
+  .row-time {
+  inset-inline-end: 0;
 }
 
 :root[data-sidebar-material='on'] .row-excerpt {
+  padding: 0;
+  line-height: 1.45;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
