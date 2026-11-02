@@ -6864,7 +6864,7 @@ button.popup:focus-visible {
 :root[data-sidebar-material='on'] .note-meta .tag-input:focus {
   background: transparent;
   box-shadow: none;
-  outline: 1px dashed var(--color-focus-ring);
+  outline: var(--size-focus-ring) dashed var(--color-focus-ring);
 }
 
 /* The label sizes the field at rest, so the whole of "+ Tag" and its padding is the hit area. */

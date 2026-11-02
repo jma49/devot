@@ -73,7 +73,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
       const overlaps = await svg.evaluate((root) => {
         const box = root.querySelector('.edgeLabel rect.background')!.getBoundingClientRect()
-        const scale = root.getBoundingClientRect().width / root.viewBox.baseVal.width
+        const scale =
+          root.getBoundingClientRect().width /
+          (root as unknown as SVGSVGElement).viewBox.baseVal.width
         const path = root.querySelector<SVGPathElement>('[data-id="L_B_C_0"].flowchart-link')!
         const matrix = path.getScreenCTM()!
         const length = path.getTotalLength()

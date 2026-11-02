@@ -94,7 +94,7 @@ test('Add Tag is plain tertiary text at rest and shows a dashed ring on the keyb
   await input.focus()
   await expect(label).toBeHidden()
   await expect(input).toHaveCSS('outline-style', 'dashed')
-  await expect(input).toHaveCSS('outline-width', '1px')
+  await expect(input).toHaveCSS('outline-width', '2px')
   await expect(input).toHaveCSS('outline-color', await tokenColour(page, '--color-focus-ring'))
   await expect(input).toHaveCSS('border-top-width', '0px')
 

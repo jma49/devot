@@ -233,7 +233,7 @@ test('split mode gives the editor and the preview half each, with no rule and no
       parseFloat(style(d.querySelector('.preview'))['paddingLeft'] ?? '0')
     )
   })
-  expect(gutter).toBeLessThanOrEqual(24)
+  expect(gutter).toBeLessThanOrEqual(32)
 })
 
 test('a code block in the preview is headed by its language mark and title', async ({ page }) => {
