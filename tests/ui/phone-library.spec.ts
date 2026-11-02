@@ -31,6 +31,16 @@ for (const colorScheme of ['light', 'dark'] as const) {
   })
 }
 
+test('draws row icons without a tile, in the text colour', async ({ page }) => {
+  const icon = library(page).locator('.phone-row-icon').first()
+  await expect(icon).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  const [iconColor, textColor] = await Promise.all([
+    icon.evaluate((el) => getComputedStyle(el).color),
+    library(page).evaluate((el) => getComputedStyle(el).color),
+  ])
+  expect(iconColor).toBe(textColor)
+})
+
 test('counts every note on the All tile', async ({ page }) => {
   const count = library(page).locator('.phone-smart-tile-count').first()
   await expect.poll(async () => Number(await count.textContent())).toBeGreaterThan(0)

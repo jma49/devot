@@ -14,7 +14,9 @@ describe('the phone layout tokens', () => {
     ['size.phone-list-row', 76],
     ['size.phone-avatar', 60],
     ['size.phone-grouped-row', 44],
-    ['size.phone-row-tile', 30],
+    ['size.phone-row-icon', 28],
+    ['size.icon-phone-row', 21],
+    ['size.icon-phone-status', 20],
     ['size.phone-swipe-action', 50],
     ['size.phone-swipe-open', 190],
     ['size.phone-swipe-arm', 280],
@@ -36,7 +38,6 @@ describe('the phone layout tokens', () => {
     ['radius.phone-row-press', 16],
     ['radius.phone-sheet', 34],
     ['radius.phone-tile-card', 22],
-    ['radius.phone-row-tile', 8],
     ['radius.phone-menu-row', 16],
   ] as const)('%s is %i', (token, value) => {
     expect(px(token)).toBe(value)
@@ -125,9 +126,32 @@ describe('the phone colour tokens', () => {
 describe('the phone symbols', () => {
   it('pairs each tab icon with its filled symbol', () => {
     const symbols: Record<string, string> = symbolsJson.symbols
-    for (const tab of ['notes', 'library', 'settings']) {
+    for (const tab of ['notes', 'library', 'activity', 'settings']) {
       expect(symbols[`phone.tab.${tab}.fill`]).toBe(`${symbols[`phone.tab.${tab}`]}.fill`)
     }
+  })
+
+  it('draws the five status marks as line symbols', () => {
+    const symbols: Record<string, string> = symbolsJson.symbols
+    expect(symbols['phone.status.active']).toBe('circle')
+    expect(symbols['phone.status.onHold']).toBe('pause.circle')
+    expect(symbols['phone.status.completed']).toBe('checkmark.circle.fill')
+    expect(symbols['phone.status.dropped']).toBe('xmark.circle')
+    expect(symbols['phone.status.none']).toBe('circle.dashed')
+  })
+
+  it('leaves the Mac its filled status symbols', () => {
+    expect(symbolsJson.symbols['status.active']).toBe('play.circle.fill')
+    expect(symbolsJson.symbols['status.onHold']).toBe('pause.circle.fill')
+    expect(symbolsJson.symbols['status.dropped']).toBe('xmark.circle.fill')
+  })
+
+  it('has no tiled symbols or tile tokens left', () => {
+    const names = Object.keys(symbolsJson.symbols)
+    expect(names.filter((name) => name.startsWith('phone.tile.'))).toEqual([])
+    expect(
+      Object.keys(sizes).filter((name) => /phone-row-tile|phone-status-ring/.test(name)),
+    ).toEqual([])
   })
 
   it('specifies Dynamic Type', () => {

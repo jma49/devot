@@ -3,7 +3,8 @@ import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { useLicence } from '../licence'
 import { OnPhone } from '../settings/onPhone'
-import { PANE_TABS, PANE_TILES, type PaneId } from '../settings/panes'
+import type { IconName } from '../icons/symbols'
+import { PANE_TABS, type PaneId } from '../settings/panes'
 import { doveMask } from './dove'
 import { licenceRow } from './settingsRows'
 
@@ -15,9 +16,23 @@ interface Row {
   readonly macOnly?: boolean
 }
 
+const PANE_ICONS: Readonly<Record<PaneId, IconName>> = {
+  general: 'phone.settings.general',
+  appearance: 'phone.settings.appearance',
+  editing: 'phone.settings.editing',
+  preview: 'phone.settings.preview',
+  keyboard: 'phone.settings.keyboard',
+  mirror: 'phone.settings.mirror',
+  sync: 'phone.settings.sync',
+  ai: 'phone.settings.ai',
+  integrations: 'phone.settings.integrations',
+  plugins: 'phone.settings.plugins',
+  usage: 'phone.settings.usage',
+  licence: 'phone.settings.licence',
+}
+
 function SettingsRow(props: { row: Row; onOpen: (pane: PaneId) => void }) {
   const { row } = props
-  const tile = PANE_TILES[row.pane]
   return (
     <li className="phone-grouped-row">
       <button
@@ -26,11 +41,8 @@ function SettingsRow(props: { row: Row; onOpen: (pane: PaneId) => void }) {
         disabled={row.macOnly}
         onClick={() => props.onOpen(row.pane)}
       >
-        <span
-          className="phone-row-tile"
-          style={{ background: tile.color, ...(tile.foreground ? { color: tile.foreground } : {}) }}
-        >
-          <Icon name={tile.icon} size="sm" />
+        <span className="phone-row-icon">
+          <Icon name={PANE_ICONS[row.pane]} size="phone-row" />
         </span>
         <span className="phone-grouped-label">{t(PANE_TABS[row.pane].label)}</span>
         {row.alert && (
@@ -45,7 +57,7 @@ function SettingsRow(props: { row: Row; onOpen: (pane: PaneId) => void }) {
         )}
         {!row.macOnly && (
           <span className="phone-chevron">
-            <Icon name="phone.disclosure" size="xs" />
+            <Icon name="phone.disclosure" size="xs" weight="medium" />
           </span>
         )}
       </button>

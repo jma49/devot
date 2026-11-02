@@ -281,6 +281,16 @@ button {
   height: var(--size-icon-toolbar);
 }
 
+.icon-phone-status {
+  width: var(--size-icon-phone-status);
+  height: var(--size-icon-phone-status);
+}
+
+.icon-phone-row {
+  width: var(--size-icon-phone-row);
+  height: var(--size-icon-phone-row);
+}
+
 .icon-lg {
   width: var(--size-icon-lg);
   height: var(--size-icon-lg);

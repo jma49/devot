@@ -8,20 +8,19 @@ import type { IconName } from '../icons/symbols'
 import { libraryOf, type PhoneStatusFilter, type PhoneView } from './library'
 import type { PhoneData } from './usePhoneData'
 
-const tileColor = (color: TagColor | null) =>
+const tagColor = (color: TagColor | null) =>
   color ? `var(--color-tag-${color})` : 'var(--color-phone-status-none)'
 
 function SmartTile(props: {
   label: MessageKey
   icon: IconName
   count: number
-  color: string
   onOpen: () => void
 }) {
   return (
     <button type="button" className="phone-smart-tile" onClick={props.onOpen}>
-      <span className="phone-smart-tile-icon" style={{ background: props.color }}>
-        <Icon name={props.icon} size="sm" />
+      <span className="phone-smart-tile-icon">
+        <Icon name={props.icon} size="phone-row" />
       </span>
       <span className="phone-smart-tile-count phone-figures">{props.count}</span>
       <span className="phone-smart-tile-label">{t(props.label)}</span>
@@ -32,8 +31,7 @@ function SmartTile(props: {
 function GroupedRow(props: {
   name: string
   count?: number
-  tile: ReactNode
-  tileColor: string
+  icon: ReactNode
   child?: boolean
   strong?: boolean
   onOpen: () => void
@@ -42,9 +40,7 @@ function GroupedRow(props: {
   return (
     <li className="phone-grouped-row" data-child={props.child || undefined}>
       <button type="button" className="phone-grouped-open" onClick={props.onOpen}>
-        <span className="phone-row-tile" style={{ background: props.tileColor }}>
-          {props.tile}
-        </span>
+        <span className="phone-row-icon">{props.icon}</span>
         <span className="phone-grouped-label" data-strong={props.strong || undefined}>
           {props.name}
         </span>
@@ -53,7 +49,7 @@ function GroupedRow(props: {
         )}
         {!props.disclosure && (
           <span className="phone-chevron">
-            <Icon name="phone.disclosure" size="xs" />
+            <Icon name="phone.disclosure" size="xs" weight="medium" />
           </span>
         )}
       </button>
@@ -70,7 +66,11 @@ function GroupedRow(props: {
           )}
           onClick={props.disclosure.onToggle}
         >
-          <Icon name={props.disclosure.open ? 'disclosure.open' : 'phone.disclosure'} size="xs" />
+          <Icon
+            name={props.disclosure.open ? 'disclosure.open' : 'phone.disclosure'}
+            size="xs"
+            weight="medium"
+          />
         </button>
       )}
     </li>
@@ -121,30 +121,26 @@ export function PhoneLibrary(props: {
         <div className="phone-smart-tiles">
           <SmartTile
             label="sidebar.allNotes"
-            icon="phone.tile.all"
+            icon="phone.all"
             count={library.tiles.all}
-            color="var(--color-accent-fill)"
             onOpen={() => props.onShowNotes({ kind: 'all' }, 'all')}
           />
           <SmartTile
             label="sidebar.pinned"
             icon="notes.pinned"
             count={library.tiles.pinned}
-            color="var(--color-phone-action-pin)"
             onOpen={() => props.onShowNotes({ kind: 'pinned' }, 'all')}
           />
           <SmartTile
             label="status.active"
-            icon="phone.tile.active"
+            icon="phone.status.active"
             count={library.tiles.active}
-            color="var(--color-status-active-mark)"
             onOpen={() => props.onShowNotes({ kind: 'all' }, 'active')}
           />
           <SmartTile
             label="phone.library.done"
-            icon="check"
+            icon="phone.completed"
             count={library.tiles.done}
-            color="var(--color-phone-action-done)"
             onOpen={() => props.onShowNotes({ kind: 'all' }, 'completed')}
           />
         </div>
@@ -158,8 +154,7 @@ export function PhoneLibrary(props: {
                 count={row.count}
                 child={row.depth > 0}
                 strong={row.open}
-                tileColor={tileColor(row.color)}
-                tile={<BookIcon icon={row.icon} color={null} size="sm" />}
+                icon={<BookIcon icon={row.icon} color={null} size="phone-row" />}
                 onOpen={() => props.onOpenList({ kind: 'book', id: row.id })}
                 {...(row.hasChildren
                   ? { disclosure: { open: row.open, onToggle: () => toggle(row.id) } }
@@ -176,8 +171,13 @@ export function PhoneLibrary(props: {
                 key={row.id}
                 name={row.name}
                 count={row.count}
-                tileColor={tileColor(row.color)}
-                tile={<Icon name="phone.tag" size="sm" />}
+                icon={
+                  <span
+                    aria-hidden="true"
+                    className="phone-tag-dot"
+                    style={{ background: tagColor(row.color) }}
+                  />
+                }
                 onOpen={() => props.onOpenList({ kind: 'tag', id: row.id })}
               />
             ))}
@@ -188,15 +188,13 @@ export function PhoneLibrary(props: {
           <GroupedRow
             name={t('sidebar.templates')}
             count={data.templates.length}
-            tileColor="var(--color-phone-status-none)"
-            tile={<Icon name="templates" size="sm" />}
+            icon={<Icon name="templates" size="phone-row" />}
             onOpen={() => props.onOpenList({ kind: 'templates' })}
           />
           <GroupedRow
             name={t('sidebar.trash')}
             count={data.trash.length}
-            tileColor="var(--color-phone-status-none)"
-            tile={<Icon name="trash" size="sm" />}
+            icon={<Icon name="trash" size="phone-row" />}
             onOpen={() => props.onOpenList({ kind: 'trash' })}
           />
         </Section>

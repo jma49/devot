@@ -63,4 +63,8 @@ Text follows the system's text size, up to the largest accessibility size.
 
 ## Icons
 
-SF Symbols only, through `symbol_png` (ADR 0001). A selected tab uses its `.fill` symbol. The synced double tick is `check` drawn twice.
+SF Symbols only, through `symbol_png` (ADR 0001), monochrome in the text colour. Settings and Library rows have no coloured tile: a `size.icon-phone-row` line icon sits in a `size.phone-row-icon` column, a tag in the same column shows a dot in its colour. A selected tab uses its `.fill` symbol. The synced double tick is `check` drawn twice.
+
+Weights: `regular` at 18 pt and above, and `medium` for chevrons of 14 pt and below, the closest symbol weights to the design's 1.8 and 2.2 strokes.
+
+Status marks are `size.icon-phone-status` symbols in the status colours (`phone.status.*`): active `circle`, on hold `pause.circle`, completed `checkmark.circle.fill` with a white check, dropped `xmark.circle`, no status `circle.dashed`. The Mac's `status.*` symbols stay filled.

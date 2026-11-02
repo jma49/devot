@@ -1001,8 +1001,6 @@
       "$description": "A field in the capture sheet, concentric with the sheet: 34 - 14. Design 24 and 22."
     },
     "phone-tile-card": { "$type": "dimension", "$value": { "value": 22, "unit": "px" } },
-    "phone-row-tile": { "$type": "dimension", "$value": { "value": 8, "unit": "px" } },
-    "phone-row-tile-child": { "$type": "dimension", "$value": { "value": 7, "unit": "px" } },
     "phone-lens-bar": {
       "$type": "dimension",
       "$value": { "value": 28, "unit": "px" },
@@ -1280,7 +1278,6 @@
     },
     "phone-avatar": { "$type": "dimension", "$value": { "value": 60, "unit": "px" } },
     "phone-status-badge": { "$type": "dimension", "$value": { "value": 24, "unit": "px" } },
-    "phone-status-ring": { "$type": "dimension", "$value": { "value": 15, "unit": "px" } },
     "phone-grouped-row": {
       "$type": "dimension",
       "$value": { "value": 44, "unit": "px" },
@@ -1291,8 +1288,6 @@
       "$value": { "value": 50, "unit": "px" },
       "$description": "A row in the note info sheet."
     },
-    "phone-row-tile": { "$type": "dimension", "$value": { "value": 30, "unit": "px" } },
-    "phone-row-tile-child": { "$type": "dimension", "$value": { "value": 26, "unit": "px" } },
     "phone-child-indent": {
       "$type": "dimension",
       "$value": { "value": 30, "unit": "px" },
@@ -1795,6 +1790,21 @@
         "value": 28,
         "unit": "px"
       }
+    },
+    "icon-phone-status": {
+      "$type": "dimension",
+      "$value": { "value": 20, "unit": "px" },
+      "$description": "A note's status mark on the phone."
+    },
+    "icon-phone-row": {
+      "$type": "dimension",
+      "$value": { "value": 21, "unit": "px" },
+      "$description": "A grouped row's line icon on the phone."
+    },
+    "phone-row-icon": {
+      "$type": "dimension",
+      "$value": { "value": 28, "unit": "px" },
+      "$description": "The column a grouped row's icon or dot is centred in."
     },
     "icon-sm": {
       "$type": "dimension",

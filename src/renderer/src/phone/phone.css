@@ -434,18 +434,11 @@ button.phone-glass:active,
 }
 
 .phone-smart-tile-icon,
-.phone-row-tile {
+.phone-row-icon {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-phone-on-action);
-}
-
-.phone-smart-tile-icon {
-  width: var(--size-phone-row-tile);
-  height: var(--size-phone-row-tile);
-  border-radius: 50%;
 }
 
 .phone-smart-tile-count {
@@ -509,18 +502,14 @@ button.phone-glass:active,
   padding-left: calc(var(--size-phone-row-pad) + var(--size-phone-child-indent));
 }
 
-.phone-row-tile {
-  width: var(--size-phone-row-tile);
-  height: var(--size-phone-row-tile);
-  margin-right: 7px;
-  border-radius: var(--radius-phone-row-tile);
+.phone-row-icon {
+  width: var(--size-phone-row-icon);
+  height: var(--size-phone-row-icon);
 }
 
-.phone-grouped-row[data-child] .phone-row-tile {
-  width: var(--size-phone-row-tile-child);
-  height: var(--size-phone-row-tile-child);
-  margin: 0 9px 0 2px;
-  border-radius: var(--radius-phone-row-tile-child);
+.phone-row-icon > .phone-tag-dot {
+  width: 10px;
+  height: 10px;
 }
 
 .phone-grouped-label {
@@ -753,17 +742,23 @@ button.phone-glass:active,
   }
 }
 
-.phone-status-ring {
+.phone-status-mark {
+  position: relative;
+  isolation: isolate;
   flex: none;
-  width: var(--size-phone-status-ring);
-  height: var(--size-phone-status-ring);
-  box-sizing: border-box;
-  border-radius: 50%;
-  border: 3.5px solid currentColor;
+  display: flex;
+  width: var(--size-icon-phone-status);
+  height: var(--size-icon-phone-status);
 }
 
-.phone-status-ring[data-filled] {
-  background: currentColor;
+/* A symbol is a mask, so its check is a hole: this disc shows white through it. */
+.phone-status-mark[data-status='completed']::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  border-radius: 50%;
+  background: var(--color-phone-on-action);
 }
 
 .phone-note-text {
@@ -1265,12 +1260,6 @@ button.phone-chip::after {
 
 .phone-chip-strong {
   font-weight: 600;
-}
-
-.phone-chip-strong .phone-status-ring {
-  width: 8px;
-  height: 8px;
-  border-width: 4px;
 }
 
 .phone-chip[data-tag] {

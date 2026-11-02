@@ -23,7 +23,16 @@ const cache = createSymbolCache((name, pointSize, weight) =>
   invoke<string>('symbol_png', { name, pointSize, weight }),
 )
 
-const BOXES = { xs: 10, sm: 14, md: 17, toolbar: 18, lg: 22, title: 17 } as const
+const BOXES = {
+  xs: 10,
+  sm: 14,
+  md: 17,
+  toolbar: 18,
+  'phone-status': 20,
+  'phone-row': 21,
+  lg: 22,
+  title: 17,
+} as const
 
 async function compose(
   rendered: string,
