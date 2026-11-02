@@ -159,31 +159,7 @@ The preview draws its blocks from their own theme tokens: `color.code-block.*` a
 
 ## Motion
 
-Floating things move by the `motion.*` tokens; a policy test rejects literal durations and curves in UI code.
-
-Principles every motion follows, now and in new work:
-
-- **One curve for movement.** Whatever moves, grows, unfolds or turns uses `motion.easing.move`: a critically damped spring drawn as a curve. It is already moving fast in its first frame, so the window answers at once; it settles softly and never overshoots. Ease-in-out (`motion.easing.standard`) is for opacity and colour only; hover and focus keep their own quick curves.
-- **Interruptible.** A change that comes while a move is under way carries on from where things are seen, at the speed they have: a slide adds to the one under way (`composite: 'add'`, measured without it by `drawnOffset`), and a fade turns back from how opaque it is. Nothing jumps or restarts from rest.
-- **Final state first.** The layout takes its new state at once; the motion plays from the old place to it on top (transforms), and is removed when it ends.
-- **Compositor only.** Motion animates `transform` and `opacity`. Widths, paddings and heights change at once, and whatever they move slides there by a transform. A section opening and the backlinks expanding still animate their height (small areas; each is a known exception).
-- **One speed factor.** Every timing comes from `motionTiming.ts`. In a development build `localStorage['devot.motionScale'] = '5'` plays all of it (the stylesheet's durations too) five times slower, to watch motion closely.
-- **Waiting things wait in place.** A motion that starts after a delay holds its first frame (`fill: 'backwards'`) until it starts.
-
-- Hover, press and selection: a control's fill, colour and edge ease over `motion.duration.hover` (180 ms, `motion.easing.out`); a sidebar row's over `motion.duration.quick` (100 ms, `motion.easing.quick`). A focus ring closes in on its control's edge as it comes, its colour and offset over `motion.duration.quick`, and so does a field's edge. Two-state changes (a disclosure chevron turning, a section opening) take `motion.duration.toggle` (200 ms); colour changes meant to be noticed take `motion.duration.color` (400 ms), and so do the panes' washes and edges when the theme or appearance changes.
-- Hiding or showing the sidebar (or entering focus mode): the pane that goes or comes fades and leaves or takes its room at once, and the panes that stay slide to their new places over `motion.duration.slide` (380 ms, `motion.easing.move`). A toolbar's room for the traffic lights opens at once, and the toolbar items it moves slide to their places with the panes.
-- Rows: the sidebar's notebooks and tags that come, go or move fade and slide over `motion.duration.slide` (`motion.easing.move`), and its rows slide 80 px as a workspace opens or closes. A note that comes into or leaves the note list fades in or out where it is, over `motion.duration.insert` (300 ms), while the notes after it slide to their new places over `motion.duration.slide`, as do notes that change order. Only a small change to the list's own data moves (`rowMotion.ts`): another view, scrolling or a section opening never does.
-- Sizes: the image viewer between Fit and Actual Size, a progress bar filling and the backlinks opening move over `motion.duration.grow` (300 ms, `motion.easing.move`); a tag chip just added grows from `motion.scale.chip-enter` as it fades in.
-- A toolbar button's tooltip shows after the pointer rests `motion.delay.tooltip` (400 ms) and hides at once.
-
-- Floating bar buttons (selection toolbar, image size bar): under the pointer and pressed look the same, a `color.line.control` ring over `color.fill.tool-hover`. The text colour eases over `motion.duration.color` (`motion.easing.standard`), the ring over `motion.duration.ring` (`motion.easing.out`); the fill snaps.
-- Pop-ups we place ourselves (pickers, tag suggestions, toolbar tooltips, a bar button's tooltip) grow from `motion.scale.popover-enter` out of their notch or anchor while they fade in, over `motion.duration.popover`, on their own layer. They rest on the two-layer `shadow.popover-*` shadow in the `color.shadow.popover-*` colours; menus (pickers, tag suggestions) have a 1px hairline edge and `radius.card` corners, and toolbar tooltips a notch pointing at their button.
-- Pop-ups CodeMirror places (the floating bars, completion lists) only fade, over `motion.duration.fade`: CodeMirror places a tooltip from its measured box, which a growing one would throw off. A code block's copy button grows from `motion.scale.popover-enter` as it fades in, over `motion.duration.toggle`.
-- Menus (pickers, tag suggestions) also unfold from the edge they hang from over `motion.duration.toggle`, and fold back as they fade out.
-- Modal dialogs grow from `motion.scale.dialog-enter` out of a `motion.blur.dialog` blur as they fade in, over `motion.duration.dialog`; closing, they blur and fade out over the same time while the dim fades out over `motion.duration.backdrop-exit` (400 ms), from as dark as it had become (its fade in lasts `motion.duration.backdrop`), played by an inert copy (`dialogMotion.ts`).
-- Closing runs the opening backwards: pickers, tag suggestions and tooltips shrink to `motion.scale.popover-exit` toward the same notch or anchor while they fade out, over `motion.duration.popover`; floating bars and completion lists only fade out, over `motion.duration.fade`. The pop-up itself goes at once, so focus, keys and the accessibility tree move on without waiting; an inert copy that assistive tech does not see plays the motion where it was (`closing.ts`), and a pop-up that opens again replaces its copy.
-- Settings > Appearance > Motion > Animations (Always, the default; Follow System; Off) decides whether motion is reduced, shown on the root as `data-motion` (`motionPreference.ts`); every rule below for Reduce Motion reads it (`:root[data-motion='reduced']` in CSS, `motionReduced()` in code), never the system's media query alone.
-- Reduced motion sets `--popover-enter-scale`, `--popover-exit-scale`, `--dialog-enter-scale` and `--chip-enter-scale` to 1 and the dialog blur to none (`app.css`), and stops chevrons turning, sections, menus and rows sliding or unfolding, and dialogs' closing copies: everything fades or shows at once, nothing grows, shrinks, turns or slides.
+Every motion follows the spec in [motion.md](motion.md).
 
 ## Themes
 

@@ -145,7 +145,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   authorship: true,
   autoDownloadUpdates: true,
   menuBar: false,
-  animations: 'always',
+  animations: 'system',
   pagePaper: 'a4',
   pageMargins: 'normal',
   pageHeaderLeft: '',

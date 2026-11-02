@@ -9,6 +9,8 @@
   --dialog-blur: var(--motion-blur-dialog);
   --chip-enter-scale: var(--motion-scale-chip-enter);
   --press-scale: var(--motion-scale-press);
+  --knob-press-scale: var(--motion-scale-knob-press);
+  --section-enter-shift: var(--space-4);
   --bar-enter-shift: var(--space-4);
   --popover-shadow:
     0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key),
@@ -22,6 +24,8 @@
   --dialog-blur: 0px;
   --chip-enter-scale: 1;
   --press-scale: 1;
+  --knob-press-scale: 1;
+  --section-enter-shift: 0px;
   --bar-enter-shift: 0px;
 }
 
@@ -125,9 +129,16 @@
 dialog[open].confirm,
 dialog[open].sheet,
 dialog[open].link-dialog,
-dialog[open].palette {
+dialog[open].palette,
+dialog[open].image-viewer,
+dialog[open].plugin-panel {
   transform-origin: center;
   animation: dialog-in var(--motion-duration-dialog) var(--motion-easing-move);
+}
+
+.image-viewer::backdrop,
+.plugin-panel::backdrop {
+  animation: fade-in var(--motion-duration-popover) var(--motion-easing-standard);
 }
 
 .confirm::backdrop,
@@ -347,7 +358,6 @@ button {
   .tag-suggestion,
   .palette-row,
   .history-row,
-  .settings-tab,
   .builtin-row,
   .button,
   .search-field,
@@ -385,7 +395,18 @@ button {
     color var(--motion-duration-hover) var(--motion-easing-out),
     opacity var(--motion-duration-hover) var(--motion-easing-out),
     outline-color var(--motion-duration-quick) var(--motion-easing-quick),
-    outline-offset var(--motion-duration-quick) var(--motion-easing-quick);
+    outline-offset var(--motion-duration-quick) var(--motion-easing-quick),
+    scale var(--press-duration, var(--motion-duration-settle))
+      var(--press-easing, var(--motion-easing-spring));
+}
+
+:is(.tool, .button, .popup, .segment:not([aria-pressed='true']), .search-clear):active:not(
+    :disabled,
+    [aria-disabled='true']
+  ) {
+  --press-duration: var(--motion-duration-quick);
+  --press-easing: var(--motion-easing-move);
+  scale: var(--press-scale);
 }
 
 :root[data-motion='reduced'] :is(.tool, .button, .popup, .segment, .search-clear) {
@@ -840,6 +861,7 @@ button {
 
 .drop-before::before,
 .drop-after::after {
+  animation: fade-in var(--motion-duration-quick) var(--motion-easing-quick);
   content: '';
   position: absolute;
   inset-inline: 0;
@@ -1667,6 +1689,10 @@ button {
   background: var(--color-fill-track);
 }
 
+.board-column {
+  transition: box-shadow var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
 .board-column[data-drop] {
   box-shadow: inset 0 0 0 var(--size-focus-ring) var(--color-accent-fill);
 }
@@ -2013,6 +2039,7 @@ button {
   height: var(--space-4);
   border-radius: var(--radius-capsule);
   background: var(--status-mark);
+  transition: background-color var(--motion-duration-toggle) var(--motion-easing-standard);
 }
 
 .tag-editor {
@@ -2354,6 +2381,37 @@ button {
   background: var(--color-fill-segment-on);
   box-shadow: 0 0 0 0.5px var(--color-line-hairline);
   color: var(--color-text-primary);
+}
+
+.segmented {
+  touch-action: pan-y;
+}
+
+:root[data-sidebar-material='on'] .segmented {
+  --segment-lift: var(--motion-scale-segment-lift);
+  overflow: visible;
+}
+
+.segmented[data-sliding] {
+  position: relative;
+  isolation: isolate;
+}
+
+.segmented[data-sliding] > .segment:not(.segment-thumb) {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.segmented > .segment.segment-thumb {
+  position: absolute;
+  z-index: 0;
+  box-sizing: border-box;
+  padding: 0;
+  border-left-color: transparent;
+  pointer-events: none;
+  transition: none;
 }
 
 .panes {
@@ -4041,6 +4099,18 @@ button {
   font-weight: var(--font-weight-regular);
   line-height: var(--size-settings-tile);
   text-align: left;
+  transition: background-color var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
+@keyframes section-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--section-enter-shift));
+  }
+}
+
+.settings-pane-body {
+  animation: section-in var(--motion-duration-toggle) var(--motion-easing-move);
 }
 
 .settings-nav-row:hover {
@@ -4741,16 +4811,24 @@ button {
 }
 
 .setting-toggle input[role='switch']::after {
+  --knob: calc(var(--size-switch-height) - 2 * var(--size-switch-inset));
+  --knob-extra: calc(var(--knob) * (var(--knob-press-scale) - 1));
   content: '';
   position: absolute;
   top: var(--size-switch-inset);
   left: var(--size-switch-inset);
-  width: calc(var(--size-switch-height) - 2 * var(--size-switch-inset));
-  height: calc(var(--size-switch-height) - 2 * var(--size-switch-inset));
-  border-radius: 50%;
+  width: var(--knob);
+  height: var(--knob);
+  border-radius: var(--radius-capsule);
   background: var(--color-switch-handle);
   box-shadow: 0 1px 2px var(--color-shadow-popover-key);
-  transition: translate var(--motion-duration-toggle) var(--motion-easing-move);
+  transition:
+    translate var(--motion-duration-toggle) var(--motion-easing-move),
+    width var(--motion-duration-settle) var(--motion-easing-spring);
+}
+
+.setting-toggle input[role='switch']:active:not(:disabled)::after {
+  width: calc(var(--knob) + var(--knob-extra));
 }
 
 .setting-toggle input[role='switch']:checked {
@@ -4760,6 +4838,10 @@ button {
 
 .setting-toggle input[role='switch']:checked::after {
   translate: calc(var(--size-switch-width) - var(--size-switch-height)) 0;
+}
+
+.setting-toggle input[role='switch']:checked:active:not(:disabled)::after {
+  translate: calc(var(--size-switch-width) - var(--size-switch-height) - var(--knob-extra)) 0;
 }
 
 .setting-toggle input[role='switch']:focus-visible {
@@ -6322,8 +6404,10 @@ button.popup:focus-visible {
     box-shadow var(--motion-duration-hover) var(--motion-easing-out),
     color var(--motion-duration-hover) var(--motion-easing-out),
     opacity var(--motion-duration-hover) var(--motion-easing-out),
-    scale var(--motion-duration-quick) var(--motion-easing-move),
-    outline-color var(--motion-duration-quick) var(--motion-easing-quick);
+    outline-color var(--motion-duration-quick) var(--motion-easing-quick),
+    outline-offset var(--motion-duration-quick) var(--motion-easing-quick),
+    scale var(--press-duration, var(--motion-duration-settle))
+      var(--press-easing, var(--motion-easing-spring));
 }
 
 :root[data-sidebar-material='on'] .toolbar .tool:hover:not(:disabled, [aria-disabled='true']) {
@@ -6966,6 +7050,26 @@ button.popup:focus-visible {
   translate: calc(
       var(--size-glass-switch-width) - var(--size-glass-switch-knob-width) - 2 *
         var(--size-switch-inset)
+    )
+    0;
+}
+
+:root[data-sidebar-material='on'] .setting-toggle input[role='switch']::after {
+  --knob: var(--size-glass-switch-knob-width);
+}
+
+:root[data-sidebar-material='on']
+  .setting-toggle
+  input[role='switch']:active:not(:disabled)::after {
+  width: calc(var(--knob) + var(--knob-extra));
+}
+
+:root[data-sidebar-material='on']
+  .setting-toggle
+  input[role='switch']:checked:active:not(:disabled)::after {
+  translate: calc(
+      var(--size-glass-switch-width) - var(--size-glass-switch-knob-width) - 2 *
+        var(--size-switch-inset) - var(--knob-extra)
     )
     0;
 }

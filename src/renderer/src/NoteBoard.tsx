@@ -54,6 +54,7 @@ import type { WriterRef } from './authorshipLabels'
 import { ChangedBy, STATUS_ICONS } from './NoteRow'
 import { usePaneResize } from './paneResize'
 import { BOARD_PANE } from './paneWidth'
+import { useRowMotion } from './rowMotion'
 import { useStable } from './stable'
 
 interface Props {
@@ -203,6 +204,14 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
 
   const idBase = useId()
   const board = useRef<HTMLElement>(null)
+  useRowMotion(
+    () => board.current,
+    'data-note-id',
+    order,
+    props.view,
+    'grow',
+    columns.map((column) => column.notes.length).join(),
+  )
   const cards = useRef(new Map<string, HTMLLIElement>())
   const focusFirstColumn = () => board.current?.querySelector<HTMLElement>('.board-cards')?.focus()
   /** Gives `id`'s card the keyboard and scrolls it into view; a card a long board has not rendered renders first. */

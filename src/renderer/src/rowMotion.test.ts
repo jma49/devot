@@ -4,6 +4,7 @@ import {
   enterFrames,
   leaveFrames,
   MAX_ROW_CHANGES,
+  flightFrames,
   moveFrames,
   playsChange,
   rowChange,
@@ -83,4 +84,11 @@ describe('a leaving row drawn only where the list shows', () => {
   it('is not drawn at all once scrolled out of sight', () => {
     expect(clipInset(box, { top: 160, right: 400, bottom: 900, left: 0 })).toBeNull()
   })
+})
+
+it('a card changing column flies from where it was to its place', () => {
+  expect(flightFrames(-200, 30)).toEqual([
+    { transform: 'translate(-200px, 30px)' },
+    { transform: 'translate(0px, 0px)' },
+  ])
 })
