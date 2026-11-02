@@ -12,7 +12,7 @@ import {
   type StorageAdapter,
   type TagColor,
 } from './storage'
-import { charCount, trimWhitespace } from './text'
+import { charCount, trimWhitespace, wellFormed } from './text'
 
 export const MAX_BOOK_NAME_CHARS = 200
 
@@ -70,7 +70,7 @@ export function bookIcon(book: Pick<BookRecord, 'icon' | 'iconColor'>): {
 }
 
 function cleanName(name: string): string {
-  const trimmed = trimWhitespace(name)
+  const trimmed = trimWhitespace(wellFormed(name))
   if (!trimmed || trimmed.includes('\n') || charCount(trimmed) > MAX_BOOK_NAME_CHARS) {
     throw new Error('E_BOOK_NAME_INVALID')
   }

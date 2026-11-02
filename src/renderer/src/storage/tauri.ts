@@ -29,8 +29,7 @@ export const tauriWire: WireStorage = {
     const { agentWrites, ...record } = note
     return invoke('note_put', { note: record, links, writes: agentWrites })
   },
-  // The Rust command applies its own result limit.
-  searchNotes: (query) => invoke<NoteSummary[]>('notes_search', { query }),
+  searchNotes: (query, limit) => invoke<NoteSummary[]>('notes_search', { query, limit }),
   listTrash: () => invoke<TrashedNote[]>('notes_trash_list'),
   // The bytes travel as the raw request body, the rest in headers.
   putFile: (meta, data) =>
