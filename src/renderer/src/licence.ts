@@ -1,5 +1,5 @@
 // The licence in a window (src-tauri/src/licence). Rust checks the key, keeps it in the keychain,
-// runs the three-day trial and, without a valid licence once the trial is over, refuses every write
+// runs the 30-day trial and, without a valid licence once the trial is over, refuses every write
 // of user content, sync and AI; windows read its state (never the key) to show what is locked. After every change Rust sends `devot://licence-changed` with the state to every window,
 // which re-sends it in the page as `devot:licence-changed` (the UI tests send that one).
 import { useSyncExternalStore } from 'react'

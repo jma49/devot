@@ -38,7 +38,7 @@ export interface LicenceEntitlements {
   readonly enforced: boolean
   readonly state: LicenceState
   readonly plan: Plan | null
-  /** The three-day trial; unknown counts as ended. */
+  /** The 30-day trial; unknown counts as ended. */
   readonly trial?: TrialState | null
   /** This device's seat: a key alone is not enough once seats are managed. */
   readonly activation?: 'active' | 'required' | 'expired' | null

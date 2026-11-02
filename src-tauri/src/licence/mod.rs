@@ -2,7 +2,7 @@
 //! The licence): a signed key checked offline against the public keys the build holds, kept in the
 //! keychain. Its state is none, valid, revoked (in the last verified revocation list) or invalid
 //! (with its code). A valid licence unlocks every version.
-//! Without one, a three-day trial (`trial`) unlocks the same; once it is over, notes are read-only
+//! Without one, a 30-day trial (`trial`) unlocks the same; once it is over, notes are read-only
 //! and every write of user content is refused (`require_write`, which the database's write gate
 //! asks).
 //! While the build holds no production key nothing is gated and the trial never starts, so a

@@ -9,7 +9,7 @@ import {
   type TestWindow,
 } from './fixtures'
 
-// The three-day trial: while it runs everything works; once it is over without a licence, notes are
+// The 30-day trial: while it runs everything works; once it is over without a licence, notes are
 // read-only, one bar says so with Buy and Add Licence, and Settings > Licence says how long is left.
 // Rust is faked in the page; `devot:licence-changed` is what Rust's change event becomes there.
 
