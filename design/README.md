@@ -167,6 +167,10 @@ Every motion follows the spec in [motion.md](motion.md).
 
 Keylines, captions, note rows, strokes, the note type scale and diagrams follow the spec in [layout.md](layout.md).
 
+## iPhone layout
+
+The iPhone's glass, touch targets and accessibility follow the spec in [phone.md](phone.md).
+
 ## Themes
 
 - **Default**: Devot's palette in the appearance chosen in Settings (the system's by default), optionally with the system accent.

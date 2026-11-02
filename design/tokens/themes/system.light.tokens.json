@@ -7,6 +7,400 @@
     }
   },
   "color": {
+    "phone": {
+      "$description": "The iPhone layout (design/phone.md).",
+      "background": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        },
+        "$description": "A plain screen: the note list and the note."
+      },
+      "group": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.949, 0.949, 0.9686],
+          "hex": "#f2f2f7"
+        },
+        "$description": "Behind grouped lists."
+      },
+      "card": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        },
+        "$description": "A grouped card, a tile and the peek card."
+      },
+      "band": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9686, 0.9686, 0.9686],
+          "hex": "#f7f7f7"
+        },
+        "$description": "Behind a pinned note's row."
+      },
+      "swipe-surface": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.05
+        },
+        "$description": "A row raised by a swipe."
+      },
+      "pressed": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.06
+        },
+        "$description": "A row under the finger."
+      },
+      "flash": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2039, 0.4471, 0.8392],
+          "hex": "#3472d6",
+          "alpha": 0.14
+        },
+        "$description": "The wash on a newly saved note's row."
+      },
+      "lens": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.06
+        },
+        "$description": "The selected item's pill in a glass bar."
+      },
+      "chip": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.05
+        },
+        "$description": "A neutral chip."
+      },
+      "glass": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.7
+        },
+        "$description": "The fill of a glass control. Glass is for the navigation layer only, never content."
+      },
+      "glass-highlight": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.95
+        },
+        "$description": "The top highlight of a glass control."
+      },
+      "glass-lowlight": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.35
+        },
+        "$description": "The bottom highlight of a glass control."
+      },
+      "glass-edge": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.06
+        },
+        "$description": "The 0.5 pt edge of a glass control."
+      },
+      "glass-shadow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.08
+        },
+        "$description": "The soft shadow under a glass control."
+      },
+      "glass-opaque": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9765, 0.9765, 0.9765],
+          "hex": "#f9f9f9"
+        },
+        "$description": "What glass becomes under Reduce Transparency."
+      },
+      "menu": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.88
+        },
+        "$description": "A peek menu or status bar."
+      },
+      "sheet": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.949, 0.949, 0.9686],
+          "hex": "#f2f2f7",
+          "alpha": 0.94
+        },
+        "$description": "A bottom sheet."
+      },
+      "separator": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2353, 0.2353, 0.2627],
+          "hex": "#3c3c43",
+          "alpha": 0.2
+        },
+        "$description": "A 0.5 pt row separator."
+      },
+      "text-secondary": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4314, 0.4314, 0.4471],
+          "hex": "#6e6e72"
+        },
+        "$description": "Previews, captions and counts. Light: design #8a8a8e, moved toward black until 4.5:1 on the band and group."
+      },
+      "section-head": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4275, 0.4275, 0.4471],
+          "hex": "#6d6d72"
+        },
+        "$description": "A section's title over the grouped background."
+      },
+      "chevron": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7686, 0.7686, 0.7804],
+          "hex": "#c4c4c7"
+        },
+        "$description": "A disclosure chevron and the sheet grabber: decoration on a row that says what it does, so no contrast pair."
+      },
+      "dove": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0549, 0.4196, 0.3843],
+          "hex": "#0e6b62"
+        },
+        "$description": "The dove beside the Library title."
+      },
+      "scrim": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000"
+        },
+        "$description": "The black a push, a peek or a sheet dims with, at opacity.phone-dim-*."
+      },
+      "shadow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.12
+        },
+        "$description": "The shadow a pushed screen casts to its left."
+      },
+      "shadow-float": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.25
+        },
+        "$description": "The shadow under a peek card, a menu or a sheet."
+      },
+      "on-action": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        },
+        "$description": "A glyph or count on a coloured action, a badge or the accent."
+      },
+      "action-pin": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.851, 0.498, 0.0],
+          "hex": "#d97f00"
+        },
+        "$description": "Pin. Design #ff9500, moved toward black until a white glyph has 3:1."
+      },
+      "action-trash": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.2314, 0.1882],
+          "hex": "#ff3b30"
+        },
+        "$description": "Trash."
+      },
+      "action-done": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1451, 0.6235, 0.3451],
+          "hex": "#259f58"
+        },
+        "$description": "Done. Dark: design #34c06a, moved toward black until a white glyph has 3:1."
+      },
+      "badge": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.8745, 0.2039, 0.1647],
+          "hex": "#df342a"
+        },
+        "$description": "A tab bar badge. Design #ff3b30, moved toward black until its white count has 4.5:1."
+      },
+      "badge-ring": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff",
+          "alpha": 0.9
+        },
+        "$description": "The 2 pt ring around a badge, in the bar's colour."
+      },
+      "destructive": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.8314, 0.1882, 0.1529],
+          "hex": "#d43027"
+        },
+        "$description": "Text of a destructive row. Design #ff3b30, moved only as far as 4.5:1 on a card and a menu needs."
+      },
+      "status-none": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5569, 0.5569, 0.5765],
+          "hex": "#8e8e93"
+        },
+        "$description": "The mark of a note with no status."
+      },
+      "status-tile-active": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2627, 0.549, 0.9255],
+          "hex": "#438cec",
+          "alpha": 0.12
+        },
+        "$description": "A chip or peek button for Active."
+      },
+      "status-tile-hold": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7804, 0.4745, 0.0196],
+          "hex": "#c77905",
+          "alpha": 0.12
+        },
+        "$description": "A chip or peek button for On hold."
+      },
+      "status-tile-done": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1451, 0.6235, 0.3451],
+          "hex": "#259f58",
+          "alpha": 0.12
+        },
+        "$description": "A chip or peek button for Completed."
+      },
+      "status-tile-dropped": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9176, 0.3529, 0.3255],
+          "hex": "#ea5a53",
+          "alpha": 0.12
+        },
+        "$description": "A chip or peek button for Dropped."
+      },
+      "status-tile-none": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0, 0.0, 0.0],
+          "hex": "#000000",
+          "alpha": 0.05
+        },
+        "$description": "A chip for no status."
+      },
+      "keyboard": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.8392, 0.8471, 0.8706],
+          "hex": "#d6d8de",
+          "alpha": 0.92
+        },
+        "$description": "Behind keys, in pictures of the keyboard; the app itself shows the system's."
+      },
+      "key": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 1.0, 1.0],
+          "hex": "#ffffff"
+        },
+        "$description": "A letter key, in pictures of the keyboard."
+      },
+      "key-alt": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6784, 0.6941, 0.7294],
+          "hex": "#adb1ba"
+        },
+        "$description": "A function key, in pictures of the keyboard."
+      }
+    },
     "icon": {
       "tile": {
         "general": { "$value": "{color.tile.general}", "$type": "color" },

@@ -381,6 +381,44 @@ const SYSTEM_ACCENTS: Record<string, [string, string]> = {
   'pure yellow': ['#ffff00', '#ffff00'],
 }
 
+describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme) => {
+  const plain = ['phone.background', 'phone.group', 'phone.card', 'phone.band'].map((s) =>
+    solid(theme, s),
+  )
+  const raised = over(theme, 'phone.swipe-surface', solid(theme, 'phone.background'))
+  const glassOver = plain.map((s) => over(theme, 'phone.glass', s))
+  const menuOver = plain.map((s) => over(theme, 'phone.menu', s))
+  const onAction = solid(theme, 'phone.on-action')
+
+  it('keeps text at 4.5:1 on its surfaces', () => {
+    expect(
+      under(4.5, {
+        primary: [solid(theme, 'text.primary'), [...plain, raised, ...glassOver, ...menuOver]],
+        secondary: [solid(theme, 'phone.text-secondary'), [...plain, raised]],
+        'section head': [solid(theme, 'phone.section-head'), [solid(theme, 'phone.group')]],
+        destructive: [solid(theme, 'phone.destructive'), [solid(theme, 'phone.card'), ...menuOver]],
+        'accent text': [solid(theme, 'accent.text'), [solid(theme, 'phone.background')]],
+        'count on a badge': [onAction, [solid(theme, 'phone.badge')]],
+      }),
+    ).toEqual([])
+  })
+
+  it('keeps marks at 3:1', () => {
+    expect(
+      under(3, {
+        'status active': [solid(theme, 'status.active-mark'), plain],
+        'status hold': [solid(theme, 'status.hold-mark'), plain],
+        'status done': [solid(theme, 'status.done-mark'), plain],
+        'status dropped': [solid(theme, 'status.dropped-mark'), plain],
+        'glyph on pin': [onAction, [solid(theme, 'phone.action-pin')]],
+        'glyph on trash': [onAction, [solid(theme, 'phone.action-trash')]],
+        'glyph on done': [onAction, [solid(theme, 'phone.action-done')]],
+        'dove on the group': [solid(theme, 'phone.dove'), [solid(theme, 'phone.group')]],
+      }),
+    ).toEqual([])
+  })
+})
+
 describe('the system accent', () => {
   function applied(lightHex: string, darkHex: string) {
     const props = new Map<string, string>()
