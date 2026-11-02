@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
 test.use({
@@ -19,6 +19,15 @@ async function dragEdge(page: Page, to: number, restMs = 0): Promise<void> {
   if (restMs > 0) await page.waitForTimeout(restMs)
   await page.mouse.up()
 }
+
+const rootScale = (page: Page, name: string) =>
+  page
+    .locator('.phone-app')
+    .evaluate((el, prop) => Number(getComputedStyle(el).getPropertyValue(prop) || 1), name)
+const textScale = (page: Page) => rootScale(page, '--phone-text-scale')
+const barScale = (page: Page) => rootScale(page, '--phone-bar-text-scale')
+const cssPx = (locator: Locator, prop: 'fontSize') =>
+  locator.evaluate((el, name) => Number.parseFloat(getComputedStyle(el)[name]), prop)
 
 const openTemplates = (page: Page) => page.getByRole('button', { name: 'Templates' }).click()
 
@@ -106,7 +115,7 @@ test.describe('the top bar', () => {
       const title = screen.getByRole('heading', { level: 1 })
       const box = (await title.boundingBox())!
       expect(box.x).toBe(20)
-      await expect(title).toHaveCSS('font-size', '22px')
+      expect(await cssPx(title, 'fontSize')).toBeCloseTo(22 * (await barScale(page)), 1)
       await expect(title).toHaveCSS('font-weight', '700')
       await expect(title).toHaveCSS('text-align', /start|left/)
       await expect(title.locator('*')).toHaveCount(0)
@@ -146,6 +155,10 @@ test.describe('the top bar', () => {
 })
 
 test('a grouped page uses the grid: card 16, row 32, group title 26, 44 rows', async ({ page }) => {
+  await page.addInitScript(() => {
+    ;(globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome = true
+  })
+  await page.goto('/')
   const screen = page.getByRole('region', { name: 'Library' })
   const card = screen.locator('.phone-card').first()
   await expect(card).toHaveCSS('border-radius', '22px')
@@ -157,7 +170,7 @@ test('a grouped page uses the grid: card 16, row 32, group title 26, 44 rows', a
   await expect(row).toHaveCSS('padding-left', '12px')
   const head = screen.locator('.phone-section-head').first()
   expect((await head.boundingBox())!.x).toBe(26)
-  await expect(head).toHaveCSS('font-size', '14px')
+  expect(await cssPx(head, 'fontSize')).toBeCloseTo(14 * (await textScale(page)), 1)
   await expect(head).toHaveCSS('font-weight', '500')
   await expect(head).toHaveCSS('text-transform', 'none')
 })
