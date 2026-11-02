@@ -106,13 +106,13 @@ export const ACTIVITY_SQL = {
               (SELECT p.length FROM revisions p INDEXED BY revisions_activity
                 WHERE p.note_id = r.note_id AND p.kind = 'body'
                   AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
-                ORDER BY p.at DESC, p.length DESC, p.words DESC, p.rowid DESC LIMIT 1)
+                ORDER BY p.at DESC, p.length DESC, p.rowid DESC LIMIT 1)
             END AS previous,
             CASE WHEN r.kind = 'body' THEN
               (SELECT p.words FROM revisions p INDEXED BY revisions_activity
                 WHERE p.note_id = r.note_id AND p.kind = 'body'
                   AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
-                ORDER BY p.at DESC, p.length DESC, p.words DESC, p.rowid DESC LIMIT 1)
+                ORDER BY p.at DESC, p.length DESC, p.rowid DESC LIMIT 1)
             END AS previousWords
      FROM revisions r INDEXED BY revisions_by_time
      WHERE r.at >= @since AND r.kind IN ('body', 'title')
@@ -123,13 +123,13 @@ export const ACTIVITY_SQL = {
               (SELECT p.length FROM revisions p INDEXED BY revisions_activity
                 WHERE p.note_id = r.note_id AND p.kind = 'body'
                   AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
-                ORDER BY p.at DESC, p.length DESC, p.words DESC, p.rowid DESC LIMIT 1)
+                ORDER BY p.at DESC, p.length DESC, p.rowid DESC LIMIT 1)
             END AS previous,
             CASE WHEN r.kind = 'body' THEN
               (SELECT p.words FROM revisions p INDEXED BY revisions_activity
                 WHERE p.note_id = r.note_id AND p.kind = 'body'
                   AND (p.at, p.length, p.rowid) < (r.at, r.length, r.rowid)
-                ORDER BY p.at DESC, p.length DESC, p.words DESC, p.rowid DESC LIMIT 1)
+                ORDER BY p.at DESC, p.length DESC, p.rowid DESC LIMIT 1)
             END AS previousWords
      FROM revisions r INDEXED BY revisions_history
      WHERE r.note_id IN (SELECT value FROM json_each(@ids)) AND r.at >= @since
