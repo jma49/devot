@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
-import doveUrl from '../../../../design/app-icon/dove-small.svg?url'
 import type { BookRecord, NoteStatus, NoteSummary, TagRecord } from '../../../core/storage'
 import { BookIcon } from '../BookIcon'
 import { noteDate } from '../format'
@@ -7,6 +6,7 @@ import { displayTitle } from '../headlines'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
+import { doveMask } from './dove'
 import { haptic } from './haptics'
 import type { PhoneStatusFilter, PhoneView } from './library'
 import { filterCounts, inView, orderNotes, PHONE_FILTERS, withStatus } from './noteList'
@@ -52,11 +52,7 @@ export function Avatar(props: { book: BookRecord | undefined }) {
       {props.book ? (
         <BookIcon icon={props.book.icon} color={null} size="lg" />
       ) : (
-        <span
-          aria-hidden="true"
-          className="phone-dove phone-dove-avatar"
-          style={{ maskImage: `url(${doveUrl})`, WebkitMaskImage: `url(${doveUrl})` }}
-        />
+        <span aria-hidden="true" className="phone-dove phone-dove-avatar" style={doveMask} />
       )}
     </span>
   )

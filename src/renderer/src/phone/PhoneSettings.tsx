@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import doveUrl from '../../../../design/app-icon/dove-small.svg?url'
 import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { useLicence } from '../licence'
 import { PANE_TABS, PANE_TILES, type PaneId } from '../settings/panes'
+import { doveMask } from './dove'
 import { licenceRow } from './settingsRows'
 
 interface Row {
@@ -96,7 +96,7 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
               role="img"
               aria-label={t('phone.settings.appName')}
               className="phone-dove phone-dove-large"
-              style={{ maskImage: `url(${doveUrl})`, WebkitMaskImage: `url(${doveUrl})` }}
+              style={doveMask}
             />
           </span>
           <span className="phone-settings-name">{t('phone.settings.appName')}</span>
