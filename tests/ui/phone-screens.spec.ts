@@ -180,7 +180,10 @@ test('a phone Settings row puts its field under its label, full width, in iPhone
   const [fieldBox, labelBox, cardBox] = await Promise.all([
     field.boundingBox(),
     label.boundingBox(),
-    pane.locator('.settings-card').filter({ has: field }).boundingBox(),
+    pane
+      .locator('.settings-card')
+      .filter({ has: page.getByRole('combobox', { name: 'Unordered List Bullet' }) })
+      .boundingBox(),
   ])
   expect(fieldBox!.y).toBeGreaterThanOrEqual(labelBox!.y + labelBox!.height)
   expect(fieldBox!.width).toBeGreaterThan(cardBox!.width * 0.8)
