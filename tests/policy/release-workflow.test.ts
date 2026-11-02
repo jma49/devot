@@ -28,6 +28,12 @@ function step(name: string): string {
 }
 
 describe('the release workflow', () => {
+  it('saves no Rust cache: a tag cache serves no later tag and crowds out main', () => {
+    const build = job('build')
+    expect(build).toContain('Swatinem/rust-cache@')
+    expect(build).toMatch(/rust-cache@[^\n]*\n(?: {8,}.*\n)*? {10}save-if: false\n/)
+  })
+
   it('uploads only feeds it wrote, never an empty placeholder (GitHub refuses one)', () => {
     const feeds = step('Update the feeds')
     expect(feeds).not.toMatch(/(^|\s): >|touch /m)
