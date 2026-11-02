@@ -141,8 +141,7 @@ describe('charts', () => {
   it('draw a pie without an outer ring or see-through slices', () => {
     expect(v.pieOpacity).toBe('1')
     expect(v.pieOuterStrokeWidth).toBe('0px')
-    expect(v.pieStrokeWidth).toBe('2px')
-    expect(v.pieStrokeColor).toBe(hex(light['color.surface.editor']))
+    expect(v.pieStrokeWidth).toBe('0px')
   })
 
   it('never fall back to a tag colour', () => {

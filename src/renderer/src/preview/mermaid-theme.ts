@@ -133,7 +133,7 @@ export function diagramTheme(
     ...dataColours('actor', 6),
     pieOpacity: '1',
     pieStrokeColor: variable.ground,
-    pieStrokeWidth: '2px',
+    pieStrokeWidth: '0px',
     pieOuterStrokeColor: variable.ground,
     pieOuterStrokeWidth: '0px',
     pieSectionTextColor: variable.onSeries,
@@ -285,6 +285,9 @@ export function diagramTheme(
     .doneCritText0, .doneCritText1, .doneCritText2, .doneCritText3 {
       fill: ${label} !important;
     }
+    .commit-label-bkg {
+      fill: none;
+    }
     .pieOuterCircle {
       fill: none;
     }
@@ -376,6 +379,43 @@ export function labelledTicks(positions: readonly number[], width: number): numb
   return kept
 }
 
+/** Cuts the gaps between pie slices out of the drawing, so what shows through them is the real surface: glass has no colour a line could match. */
+function cutPieGaps(root: Element): void {
+  const slices = Array.from(root.querySelectorAll('path.pieCircle'))
+  const parent = slices[0]?.parentElement
+  if (!parent) return
+  const svgNs = root.namespaceURI
+  const make = (name: string) => root.ownerDocument.createElementNS(svgNs, name)
+  const mask = make('mask')
+  mask.id = `${root.id}-pie-gaps`
+  const reach = '10000'
+  const bounds = {
+    x: `-${reach}`,
+    y: `-${reach}`,
+    width: `${2 * Number(reach)}`,
+    height: `${2 * Number(reach)}`,
+  }
+  mask.setAttribute('maskUnits', 'userSpaceOnUse')
+  for (const [name, value] of Object.entries(bounds)) mask.setAttribute(name, value)
+  const kept = make('rect')
+  for (const [name, value] of Object.entries(bounds)) kept.setAttribute(name, value)
+  kept.setAttribute('fill', 'white')
+  mask.append(kept)
+  for (const slice of slices) {
+    const cut = make('path')
+    cut.setAttribute('d', slice.getAttribute('d') ?? '')
+    cut.setAttribute('fill', 'none')
+    cut.setAttribute('stroke', 'black')
+    cut.setAttribute('stroke-width', String(parseFloat(sizes['space.1'])))
+    mask.append(cut)
+  }
+  const group = make('g')
+  group.setAttribute('mask', `url(#${mask.id})`)
+  parent.insertBefore(group, slices[0]!)
+  group.append(...slices)
+  parent.insertBefore(mask, group)
+}
+
 const translation = (el: Element) => {
   const match = /translate\(\s*(-?[\d.]+)[\s,]+(-?[\d.]+)\s*\)/.exec(
     el.getAttribute('transform') ?? '',
@@ -394,8 +434,8 @@ function linePoints(path: Element | null): Point[] {
 
 /**
  * What Mermaid has no setting for: moves each edge label beside its line,
- * growing the drawing to hold it, shrinks the arrowheads, drops the gantt date
- * labels that would collide and lays the today line under the bars. A drawing
+ * growing the drawing to hold it, shrinks the arrowheads, cuts the gaps in a
+ * pie, drops the gantt date labels that would collide and lays the today line under the bars. A drawing
  * that cannot be read comes back as it was.
  */
 export function finishDrawing(markup: string): string {
@@ -408,6 +448,8 @@ export function finishDrawing(markup: string): string {
     marker.setAttribute('markerWidth', String(parseFloat(sizes['size.diagram-arrow-length'])))
     marker.setAttribute('markerHeight', String(parseFloat(sizes['size.diagram-arrow-width'])))
   }
+
+  cutPieGaps(root)
 
   const ticks = Array.from(root.querySelectorAll('.grid .tick'))
     .map((tick) => ({ tick, x: translation(tick)?.x ?? 0 }))
