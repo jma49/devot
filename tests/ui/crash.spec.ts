@@ -64,7 +64,10 @@ test('a command that fails unhandled reaches the log and Sentry with its code', 
   // Rust rejects with its code as a string, and more after it.
   await page.evaluate(() => {
     const w = globalThis as unknown as TestWindow
-    w.devotIpcMocks = { backup_restore: { error: 'E_STORAGE_SCHEMA_TOO_NEW v13' } }
+    w.devotIpcMocks = {
+      ...w.devotIpcMocks,
+      backup_restore: { error: 'E_STORAGE_SCHEMA_TOO_NEW v13' },
+    }
   })
   await page.addScriptTag({
     type: 'module',
