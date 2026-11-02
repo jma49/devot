@@ -65,6 +65,7 @@
   --radius-sidebar: 18px;
   --radius-sidebar-row: 10px;
   --radius-list-row: 12px;
+  --radius-quote-bar: 2px;
   --radius-note-info: 14px;
   --radius-glass-popover: 18px;
   --radius-glass-floating-bar: 18px;
@@ -98,6 +99,9 @@
   --size-board-editor-min-width: 380px;
   --size-board-column-min-width: 150px;
   --size-pane-resize-handle: 4px;
+  --size-quote-bar: 3px;
+  --size-alert-pad-top: 11px;
+  --size-alert-pad-inline: 14px;
   --size-list-focus-bar: 5px;
   --size-list-row-inset: 15px;
   --size-drag-card-min-width: 60px;
@@ -211,6 +215,8 @@
   --opacity-tag-fill-active: 0.2;
   --opacity-tag-border-active: 0.3;
   --opacity-tag-dot: 0.3;
+  --opacity-alert-fill: 0.08;
+  --opacity-alert-edge: 0.2;
   --opacity-filter-icon: 0.3;
   --opacity-headline-icon: 0.8;
   --color-icon-tile-general: #8e8e93;

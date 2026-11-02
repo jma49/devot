@@ -100,11 +100,16 @@ export function lineStyles(
           const kind = ALERT_LABEL.exec(label)?.[1]?.toLowerCase() as AlertKind | undefined
           // A quote inside another is already on the outer one's lines.
           const nested = node.parent?.name === 'Blockquote'
-          if (kind && !nested) {
+          if (nested) return
+          const end = doc.lineAt(node.to).from
+          const shape = kind ? 'cm-md-alert' : 'cm-md-quote'
+          if (kind) {
             lines(node.from, node.to, `cm-md-quote cm-md-alert cm-md-alert-${kind}`)
             const start = first.from + first.text.indexOf('[')
             mark(start, start + kind.length + 3, `cm-md-alert-label cm-md-alert-${kind}`)
-          } else if (!nested) lines(node.from, node.to, 'cm-md-quote')
+          } else lines(node.from, node.to, 'cm-md-quote')
+          lines(first.from, first.from, `${shape}-first`)
+          lines(end, end, `${shape}-last`)
           return
         }
         case 'Table': {
@@ -188,6 +193,30 @@ const plugin = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 )
 
+// Rules inside the editor's shadow root cannot see the root element's attribute (WebKit has no
+// `:host-context`), so the editor carries a copy. `view.dom` keeps it: CodeMirror rewrites only
+// the attributes it set itself.
+const glassMaterial = ViewPlugin.fromClass(
+  class {
+    private readonly observer: MutationObserver
+    constructor(view: EditorView) {
+      const root = view.dom.ownerDocument.documentElement
+      const follow = () => {
+        const material = root.dataset['sidebarMaterial']
+        if (material) view.dom.dataset['sidebarMaterial'] = material
+        else delete view.dom.dataset['sidebarMaterial']
+        view.requestMeasure()
+      }
+      this.observer = new MutationObserver(follow)
+      this.observer.observe(root, { attributeFilter: ['data-sidebar-material'] })
+      follow()
+    }
+    destroy() {
+      this.observer.disconnect()
+    }
+  },
+)
+
 // Gutter numbers sit on a heading's baseline: with the heading's line height, a baseline
 // moves 0.35 of the size difference (half of ascent minus descent in the editor's fonts).
 class HeadingGutter extends GutterMarker {
@@ -244,14 +273,20 @@ const BODY_SIZE = 'var(--editor-font-size, var(--font-size-body))'
 const headingSize = (level: HeadingLevel) => `calc(var(--note-heading-h${level}) * ${BODY_SIZE})`
 const BOX_BORDER = `1px solid ${token('code-block-border')}`
 /** A quote's bar, drawn inside the border that holds the text's indent. */
-const QUOTE_BAR = '3px'
+const QUOTE_BAR = 'var(--size-quote-bar)'
 /** The border: the bar, then the space between it and the text (the rest is padding). */
 const QUOTE_INSET = `calc(${QUOTE_BAR} + ${BOX_PAD})`
 /** The padding box starts after the border, so the bar sits a border's width before it. */
 const QUOTE_BAR_LEFT = `calc(-1 * ${QUOTE_BAR} - ${BOX_PAD})`
 
+const glass = (selector: string) => `&[data-sidebar-material='on'] ${selector}`
+const alertMix = (strength: string) =>
+  `color-mix(in srgb, var(--alert-color) calc(var(--opacity-alert-${strength}) * 100%), transparent)`
+const ALERT_EDGE = `1px solid ${alertMix('edge')}`
+
 const alertColours = Object.fromEntries(
   ALERT_KINDS.flatMap((kind) => [
+    [`.cm-md-alert-${kind}.cm-md-quote`, { '--alert-color': token(`alert-${kind}`) }],
     [`.cm-md-alert-${kind}.cm-md-quote::before`, { backgroundColor: token(`alert-${kind}`) }],
     [
       `.cm-md-alert-label.cm-md-alert-${kind}, .cm-md-alert-label.cm-md-alert-${kind} *`,
@@ -325,6 +360,39 @@ const theme = EditorView.theme({
   },
   '.cm-md-alert-label, .cm-md-alert-label *': { textDecoration: 'none' },
   ...alertColours,
+  [glass('.cm-md-quote-first::before')]: {
+    top: 'var(--space-1)',
+    borderTopLeftRadius: 'var(--radius-quote-bar)',
+    borderTopRightRadius: 'var(--radius-quote-bar)',
+  },
+  [glass('.cm-md-quote-last::before')]: {
+    bottom: 'var(--space-1)',
+    borderBottomLeftRadius: 'var(--radius-quote-bar)',
+    borderBottomRightRadius: 'var(--radius-quote-bar)',
+  },
+  [glass('.cm-md-alert')]: { paddingRight: `calc(${BOX_PAD} + ${BOX_INSET})` },
+  // A tint over the active line would take an alert label under 4.5:1 (contrast.test.ts).
+  [glass('.cm-activeLine.cm-md-alert')]: { backgroundColor: 'transparent' },
+  // One tint per line, closed by the outer lines. Under the selection layer (z-index -1), so
+  // selected text keeps its contrast; the line must stay out of its own stacking context for that.
+  [glass('.cm-md-alert.cm-md-quote::before')]: {
+    right: BOX_PAD,
+    width: 'auto',
+    zIndex: '-2',
+    backgroundColor: alertMix('fill'),
+    borderLeft: ALERT_EDGE,
+    borderRight: ALERT_EDGE,
+  },
+  [glass('.cm-md-alert-first.cm-md-quote::before')]: {
+    borderTop: ALERT_EDGE,
+    borderTopLeftRadius: 'var(--radius-list-row)',
+    borderTopRightRadius: 'var(--radius-list-row)',
+  },
+  [glass('.cm-md-alert-last.cm-md-quote::before')]: {
+    borderBottom: ALERT_EDGE,
+    borderBottomLeftRadius: 'var(--radius-list-row)',
+    borderBottomRightRadius: 'var(--radius-list-row)',
+  },
   '.cm-md-table': {
     position: 'relative',
     zIndex: '0',
@@ -358,4 +426,4 @@ const theme = EditorView.theme({
   '.cm-md-table-header': { fontWeight: 'var(--font-weight-bold)' },
 })
 
-export const markdownLineStyles = [plugin, headingGutter, theme]
+export const markdownLineStyles = [plugin, glassMaterial, headingGutter, theme]
