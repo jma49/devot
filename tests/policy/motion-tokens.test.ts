@@ -62,7 +62,7 @@ it('things grow and shrink only through the scale variables, which Reduce Motion
     // At rest a thing is at its own size (`scale: 1`). A segment's thumb lifts by --segment-lift, read in segmentSlide.ts and not used under Reduce Motion.
     scales.filter(
       (s) =>
-        !/var\(--(popover-(enter|exit)|dialog-enter|chip-enter|press)-scale\)|^scale: 1$|^scale\(\$\{lift\}\)/.test(
+        !/var\(--(popover-(enter|exit)|dialog-enter|chip-enter|press|phone-[a-z-]+)-scale\)|^scale: 1$|^scale\(\$\{lift\}\)/.test(
           s,
         ),
     ),
@@ -82,6 +82,12 @@ it('things grow and shrink only through the scale variables, which Reduce Motion
   expect(reduced).toMatch(/--dialog-enter-scale:\s*1;/)
   expect(reduced).toMatch(/--chip-enter-scale:\s*1;/)
   expect(reduced).toMatch(/--press-scale:\s*1;/)
+
+  const phone = readFileSync(`${UI_ROOT}/phone/phone.css`, 'utf8')
+  const phoneReduced = phone.split(":root[data-motion='reduced'] .phone-app")[1] ?? ''
+  for (const [, name] of phone.matchAll(/(--phone-[a-z-]+-scale): var\(--motion-scale/g)) {
+    expect(phoneReduced).toContain(`${name}: 1;`)
+  }
 })
 
 it('the spring overshoots only slightly, and the movement curve never does', () => {

@@ -2222,6 +2222,14 @@
     "$description": "How things move: hover, toggles, colour changes and pop-ups each have one duration, and Reduce Motion drops every movement (app.css).",
     "duration": {
       "$type": "duration",
+      "phone-lens": {
+        "$value": { "value": 520, "unit": "ms" },
+        "$description": "A lens squashing as it moves."
+      },
+      "phone-pop": {
+        "$value": { "value": 450, "unit": "ms" },
+        "$description": "A selected tab's icon popping."
+      },
       "phone-push": {
         "$value": { "value": 500, "unit": "ms" },
         "$description": "A push, a pop and a row following a swipe's release."
@@ -2366,6 +2374,14 @@
     },
     "scale": {
       "$type": "number",
+      "phone-icon-dip": {
+        "$value": 0.87,
+        "$description": "A selected tab's icon dipping before it pops."
+      },
+      "phone-icon-pop": {
+        "$value": 1.1,
+        "$description": "A selected tab's icon at the top of its pop."
+      },
       "phone-glass-press": {
         "$value": 1.08,
         "$description": "A glass control under the finger grows and brightens."

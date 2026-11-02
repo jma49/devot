@@ -1,7 +1,8 @@
-import { StrictMode } from 'react'
+import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { invoke } from './ipc'
 import { App } from './App'
+import { isPhoneLayout } from './phone/navigation'
 import { resolveLocale, setLocale } from './i18n'
 import { watchCompositions } from './ime'
 import { startCrashReporting } from './crash'
@@ -48,11 +49,19 @@ if (!DEVOT_UI_TEST) {
     .catch(() => console.warn('W_SYSTEM_ACCENT_FAILED'))
 }
 
+const PhoneApp = lazy(() => import('./phone/PhoneApp').then((m) => ({ default: m.PhoneApp })))
+
 const root = document.getElementById('root')
 if (!root) throw new Error('E_RENDERER_ROOT_MISSING')
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    {isPhoneLayout(navigator.userAgent) ? (
+      <Suspense>
+        <PhoneApp />
+      </Suspense>
+    ) : (
+      <App />
+    )}
   </StrictMode>,
 )
