@@ -71,7 +71,7 @@ function dayLabels(heatmap: ActivityHeatmap, locale: string): string[] {
  * read: the first week is labelled unless the next label is too close, and
  * the last two weeks are not (a name would run past the grid).
  */
-function monthLabels(first: number, weeks: number, locale: string): string[] {
+export function monthLabels(first: number, weeks: number, locale: string): string[] {
   const month = (week: number) => new Date((first + week * 7) * DAY_MS).getUTCMonth()
   const labels = Array.from({ length: weeks }, (_, week) =>
     week > 0 && week < weeks - 2 && month(week) !== month(week - 1)

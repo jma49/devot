@@ -1044,6 +1044,16 @@
     }
   },
   "radius": {
+    "phone-heat-cell": {
+      "$type": "dimension",
+      "$value": { "value": 4, "unit": "px" },
+      "$description": "A day in the phone's heatmap."
+    },
+    "phone-heat-legend": {
+      "$type": "dimension",
+      "$value": { "value": 3, "unit": "px" },
+      "$description": "A shade in the phone heatmap's legend."
+    },
     "phone-card": {
       "$type": "dimension",
       "$value": { "value": 22, "unit": "px" }
@@ -2436,6 +2446,21 @@
     "phone-search-empty": {
       "$type": "dimension",
       "$value": { "value": 56, "unit": "px" }
+    },
+    "phone-heat-cell": {
+      "$type": "dimension",
+      "$value": { "value": 16, "unit": "px" },
+      "$description": "A day in the phone's heatmap."
+    },
+    "phone-heat-gap": {
+      "$type": "dimension",
+      "$value": { "value": 4, "unit": "px" },
+      "$description": "Between days in the phone's heatmap."
+    },
+    "phone-heat-legend": {
+      "$type": "dimension",
+      "$value": { "value": 11, "unit": "px" },
+      "$description": "A shade in the phone heatmap's legend."
     },
     "phone-section-head": {
       "$type": "dimension",

@@ -2,6 +2,7 @@
 // processing. Plain TypeScript only. It must not import @tauri-apps/*,
 // better-sqlite3 or Node built-ins (enforced by .oxlintrc.json).
 export * from './activity'
+export * from './words'
 export * from './batch'
 export * from './ai'
 export * from './aiProvider'

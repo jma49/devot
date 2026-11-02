@@ -24,6 +24,8 @@ pub struct RevisionDto {
     pub ydoc: Option<String>,
     pub length: Option<i64>,
     pub value: Option<String>,
+    #[serde(default)]
+    pub words: Option<i64>,
 }
 
 impl From<RevisionRecord> for RevisionDto {
@@ -36,6 +38,7 @@ impl From<RevisionRecord> for RevisionDto {
             at: revision.at,
             length: revision.length,
             value: revision.value,
+            words: revision.words,
         }
     }
 }
@@ -72,6 +75,13 @@ impl RevisionDto {
             if !marker || !self.length.is_some_and(|n| n >= 0) {
                 return Err("E_REVISION_BODY_INVALID");
             }
+            // A word holds at least one character.
+            if self
+                .words
+                .is_some_and(|n| n < 0 || self.length.is_some_and(|length| n > length))
+            {
+                return Err("E_REVISION_WORDS_INVALID");
+            }
             let ydoc = STANDARD
                 .decode(self.ydoc.as_deref().unwrap_or_default().as_bytes())
                 .map_err(|_| "E_REVISION_YDOC_INVALID")?;
@@ -80,7 +90,7 @@ impl RevisionDto {
             }
             Some(ydoc)
         } else {
-            if self.ydoc.is_some() || self.length.is_some() {
+            if self.ydoc.is_some() || self.length.is_some() || self.words.is_some() {
                 return Err("E_REVISION_EVENT_INVALID");
             }
             if !valid_event_value(&self.kind, self.value.as_deref()) {
@@ -96,6 +106,7 @@ impl RevisionDto {
             ydoc,
             length: self.length,
             value: self.value,
+            words: self.words,
         })
     }
 }
@@ -240,6 +251,7 @@ mod tests {
             ydoc: Some(STANDARD.encode([1, 2, 3])),
             length: Some(3),
             value: None,
+            words: Some(2),
         }
     }
 
@@ -249,6 +261,7 @@ mod tests {
             ydoc: None,
             length: None,
             value: value.map(String::from),
+            words: None,
             ..body()
         }
     }
@@ -287,7 +300,28 @@ mod tests {
     #[test]
     fn rejects_bad_revisions() {
         type Case = (RevisionDto, &'static str);
-        let cases: [Case; 15] = [
+        let cases: [Case; 18] = [
+            (
+                RevisionDto {
+                    words: Some(-1),
+                    ..body()
+                },
+                "E_REVISION_WORDS_INVALID",
+            ),
+            (
+                RevisionDto {
+                    words: Some(4),
+                    ..body()
+                },
+                "E_REVISION_WORDS_INVALID",
+            ),
+            (
+                RevisionDto {
+                    words: Some(1),
+                    ..event("title", Some("T"))
+                },
+                "E_REVISION_EVENT_INVALID",
+            ),
             (
                 RevisionDto {
                     id: "x".into(),

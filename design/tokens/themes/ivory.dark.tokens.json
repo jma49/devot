@@ -93,6 +93,15 @@
         },
         "$description": "A found word's highlight behind the text in a phone search result."
       },
+      "grow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.2039, 0.7529, 0.4157],
+          "hex": "#34c06a"
+        },
+        "$description": "The word growth on the phone's Activity screen."
+      },
       "flash": {
         "$type": "color",
         "$value": {

@@ -2195,3 +2195,156 @@ button.phone-chip::after {
     opacity: 0;
   }
 }
+
+/* Activity */
+
+.phone-capsule-text {
+  width: auto;
+  padding: 0 14px;
+  gap: 4px;
+  font-size: calc(15px * var(--phone-text-scale, 1));
+  font-weight: 500;
+}
+
+.phone-heat-card {
+  padding: 16px 16px 14px;
+  border-radius: var(--radius-phone-card);
+  background: var(--color-phone-card);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.phone-heat-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  column-gap: 8px;
+}
+
+.phone-heat-title {
+  margin: 0;
+  font-size: calc(15px * var(--phone-text-scale, 1));
+  font-weight: 600;
+}
+
+.phone-heat-note {
+  font-size: calc(12px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-heat-months,
+.phone-heat-grid {
+  display: grid;
+  grid-template-columns: repeat(15, minmax(0, var(--size-phone-heat-cell)));
+  column-gap: var(--size-phone-heat-gap);
+}
+
+.phone-heat-months {
+  font-size: calc(11px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+  white-space: nowrap;
+}
+
+.phone-heat-grid {
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, var(--size-phone-heat-cell));
+  row-gap: var(--size-phone-heat-gap);
+}
+
+.phone-heat-cell {
+  border-radius: var(--radius-phone-heat-cell);
+}
+
+.phone-heat-cell[data-level='0'],
+.phone-heat-swatch[data-level='0'] {
+  background: var(--color-activity-level-0);
+}
+
+.phone-heat-cell[data-level='1'],
+.phone-heat-swatch[data-level='1'] {
+  background: var(--color-activity-level-1);
+}
+
+.phone-heat-cell[data-level='2'],
+.phone-heat-swatch[data-level='2'] {
+  background: var(--color-activity-level-2);
+}
+
+.phone-heat-cell[data-level='3'],
+.phone-heat-swatch[data-level='3'] {
+  background: var(--color-activity-level-3);
+}
+
+.phone-heat-cell[data-level='4'],
+.phone-heat-swatch[data-level='4'] {
+  background: var(--color-activity-level-4);
+}
+
+.phone-heat-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--size-phone-heat-gap);
+  font-size: calc(11px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-heat-swatch {
+  width: var(--size-phone-heat-legend);
+  height: var(--size-phone-heat-legend);
+  border-radius: var(--radius-phone-heat-legend);
+}
+
+/* Three in a row at the default size; larger text stacks them rather than cutting a figure. */
+.phone-stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(calc(100px * var(--phone-text-scale, 1)), 1fr));
+  gap: 10px;
+}
+
+.phone-stat {
+  padding: 12px 14px;
+  border-radius: var(--radius-phone-card);
+  background: var(--color-phone-card);
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.phone-stat-value {
+  margin: 0;
+  font-size: calc(22px * var(--phone-text-scale, 1));
+  font-weight: 500;
+  letter-spacing: -0.5px;
+  overflow-wrap: anywhere;
+}
+
+.phone-stat-label {
+  font-size: calc(12px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-ranked-place {
+  min-width: 16px;
+  font-size: calc(13px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-ranked-growth {
+  font-size: calc(14px * var(--phone-text-scale, 1));
+  color: var(--color-phone-grow);
+}
+
+.phone-ranked-empty {
+  min-height: var(--size-phone-grouped-row);
+  padding: 6px calc(var(--size-phone-row-pad) + var(--size-phone-card-inset));
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  font-size: calc(15px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}

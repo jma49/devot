@@ -93,6 +93,15 @@
         },
         "$description": "A found word's highlight behind the text in a phone search result."
       },
+      "grow": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0941, 0.4588, 0.2471],
+          "hex": "#18753f"
+        },
+        "$description": "The word growth on the phone's Activity screen. Darker than the design's #259f58, which keeps only 3.4:1 on a card; AA needs 4.5:1."
+      },
       "flash": {
         "$type": "color",
         "$value": {

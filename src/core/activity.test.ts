@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ACTIVITY_LEVELS,
   activitySince,
   buildHeatmap,
+  buildWriting,
+  dailyWords,
   DAY_MS,
+  dayStreak,
   HEATMAP_WEEKS,
   heatmapStart,
   localDay,
+  mostEdited,
+  notesEdited,
   weekday,
+  weekSpan,
+  wordsIn,
   type OffsetAt,
 } from './activity'
 import type { ActivityData, ActivityRevision } from './storage'
@@ -129,9 +137,25 @@ describe('the heatmap grid', () => {
 
 const note = (id: string, createdAt: number) => ({ id, createdAt })
 const body = (noteId: string, when: number, length: number, previous: number | null) =>
-  ({ noteId, kind: 'body', at: when, length, previous }) satisfies ActivityRevision
+  ({
+    noteId,
+    kind: 'body',
+    at: when,
+    length,
+    words: null,
+    previous,
+    previousWords: null,
+  }) satisfies ActivityRevision
 const title = (noteId: string, when: number) =>
-  ({ noteId, kind: 'title', at: when, length: null, previous: null }) satisfies ActivityRevision
+  ({
+    noteId,
+    kind: 'title',
+    at: when,
+    length: null,
+    words: null,
+    previous: null,
+    previousWords: null,
+  }) satisfies ActivityRevision
 
 describe('counting activity per day', () => {
   const today = dayOf(2026, 10, 7)
@@ -234,5 +258,163 @@ describe('counting activity per day', () => {
     expect(same.days.filter((d) => d.level > 0).map((d) => d.level)).toEqual([4, 4])
     const lone = build({ revisions: [body('a', noon(today), 3, 0)] })
     expect(lone.days.at(-1)?.level).toBe(4)
+  })
+})
+
+describe('counting words for the phone', () => {
+  const zone: OffsetAt = () => 0
+  const today = dayOf(2026, 10, 7) // a Wednesday
+  const now = today * DAY_MS + 12 * 3_600_000
+  const earlyOn = (day: number) => day * DAY_MS + 3_600_000
+  const version = (
+    noteId: string,
+    day: number,
+    words: number | null,
+    previousWords: number | null,
+    previous: number | null = previousWords,
+  ): ActivityRevision => ({
+    noteId,
+    kind: 'body',
+    at: earlyOn(day),
+    length: (words ?? 0) * 5,
+    words,
+    previous,
+    previousWords,
+  })
+  const monday = today - 2
+  const data = (
+    revisions: ActivityRevision[],
+    notes: { id: string; createdAt: number }[] = [],
+  ) => ({
+    notes,
+    revisions,
+  })
+
+  it('counts a day by how far words moved, from empty for a first version', () => {
+    const { days } = buildHeatmap(
+      data([version('a', today, 10, null), version('a', today, 4, 10)]),
+      now,
+      zone,
+    )
+    expect(days.at(-1)!.words).toBe(16)
+  })
+
+  it('counts no words for a version from before v24, nor for the first one after it', () => {
+    const old = version('a', today, null, null, 400)
+    const firstAfter = version('b', today, 90, null, 400)
+    const next = version('b', today, 95, 90)
+    const { days } = buildHeatmap(data([old, firstAfter, next]), now, zone)
+    expect(days.at(-1)!.words).toBe(5)
+    expect(days.at(-1)!.edited).toBe(2)
+    expect(mostEdited([old, firstAfter, next], weekSpan(today, 'this'), zone)).toEqual([
+      { noteId: 'b', words: 5 },
+    ])
+  })
+
+  it('takes 15 weeks ending today, shaded by words among those days', () => {
+    const days = dailyWords(
+      buildHeatmap(
+        data([version('a', today, 100, null), version('b', today - 1, 1, null)]),
+        now,
+        zone,
+      ),
+    )
+    expect(days).toHaveLength(14 * 7 + 3)
+    expect(days[0]!.day).toBe(monday - 14 * 7)
+    expect(weekday(days[0]!.day)).toBe(0)
+    expect(days.at(-1)!.level).toBe(ACTIVITY_LEVELS)
+    expect(days.at(-2)!.level).toBe(2)
+    expect(days[0]!.level).toBe(0)
+  })
+
+  it('leaves out a shade for a day older than the 15 weeks', () => {
+    const old = version('a', monday - 15 * 7, 9000, null)
+    const days = dailyWords(buildHeatmap(data([old, version('a', today, 1, null)]), now, zone))
+    expect(days.at(-1)!.level).toBe(ACTIVITY_LEVELS)
+  })
+
+  it('spans this week to today and last week whole', () => {
+    expect(weekSpan(today, 'this')).toEqual({ from: monday, to: today })
+    expect(weekSpan(today, 'last')).toEqual({
+      from: monday - 7,
+      to: monday - 1,
+    })
+  })
+
+  it('adds up a span of words, and only that span', () => {
+    const { days } = buildHeatmap(
+      data([version('a', monday - 1, 7, null), version('a', monday, 10, 7)]),
+      now,
+      zone,
+    )
+    expect(wordsIn(days, weekSpan(today, 'this'))).toBe(3)
+    expect(wordsIn(days, weekSpan(today, 'last'))).toBe(7)
+  })
+
+  it('counts a streak back from today, which may still be empty', () => {
+    const day = (n: number, edited = 1) => ({
+      day: n,
+      created: 0,
+      edited,
+      chars: 0,
+      words: 0,
+      level: 0,
+    })
+    const yesterday = [day(today - 3), day(today - 2, 0), day(today - 1)]
+    expect(dayStreak(yesterday, today, today)).toBe(1)
+    expect(dayStreak([...yesterday, day(today)], today, today)).toBe(2)
+    expect(dayStreak(yesterday, today - 2, today)).toBe(0)
+    expect(dayStreak(yesterday, today - 3, today)).toBe(1)
+    expect(dayStreak([], today, today)).toBe(0)
+  })
+
+  it('counts a created note towards a streak', () => {
+    const { days } = buildHeatmap(data([], [{ id: 'n', createdAt: earlyOn(today) }]), now, zone)
+    expect(dayStreak(days, today, today)).toBe(1)
+  })
+
+  it('counts each edited note once in a span, a rename too', () => {
+    const revisions = [
+      version('a', monday, 5, null),
+      version('a', today, 6, 5),
+      { ...version('b', today, null, null), kind: 'title' as const },
+      version('c', monday - 1, 5, null),
+    ]
+    expect(notesEdited(revisions, weekSpan(today, 'this'), zone)).toBe(2)
+  })
+
+  it('ranks notes by net growth and leaves out those that did not grow', () => {
+    const revisions = [
+      version('small', today, 5, null),
+      version('big', monday, 100, 40),
+      version('big', today, 90, 100),
+      version('shrunk', today, 1, 50),
+      version('before', monday - 1, 900, null),
+    ]
+    expect(mostEdited(revisions, weekSpan(today, 'this'), zone)).toEqual([
+      { noteId: 'big', words: 50 },
+      { noteId: 'small', words: 5 },
+    ])
+  })
+
+  it('gives each week its own stats', () => {
+    const writing = buildWriting(
+      data([version('a', monday - 1, 8, null), version('a', today, 10, 8)]),
+      now,
+      zone,
+    )
+    expect(writing.first).toBe(monday - 14 * 7)
+    expect(writing.weeks.this).toEqual({
+      words: 2,
+      streak: 1,
+      notesEdited: 1,
+      mostEdited: [{ noteId: 'a', words: 2 }],
+    })
+    expect(writing.weeks.last).toEqual({
+      words: 8,
+      streak: 1,
+      notesEdited: 1,
+      mostEdited: [{ noteId: 'a', words: 8 }],
+    })
   })
 })

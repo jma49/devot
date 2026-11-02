@@ -398,6 +398,7 @@ describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme
           plain.map((s) => over(theme, 'phone.bar', s)),
         ],
         faint: [solid(theme, 'phone.text-faint'), [solid(theme, 'phone.background')]],
+        grow: [solid(theme, 'phone.grow'), [solid(theme, 'phone.card')]],
         ...Object.fromEntries(
           Object.keys(theme)
             .filter((k) => k.startsWith('color.tag-text.'))

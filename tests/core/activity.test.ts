@@ -346,8 +346,8 @@ describe('the UI tests’ memory adapter', () => {
     const fromMemory = await run(memoryStorage)
     expect(fromSqlite.notes).toHaveLength(4)
     expect(fromSqlite.revisions).toHaveLength(5)
-    expect(fromSqlite.revisions.join()).toContain('"length":13,"previous":3')
-    expect(fromSqlite.revisions.join()).toContain('"length":8,"previous":7')
+    expect(fromSqlite.revisions.join()).toContain('"length":13,"words":')
+    expect(fromSqlite.revisions.join()).toContain('"length":8,"words":')
     expect(fromMemory).toEqual(fromSqlite)
   })
 
@@ -364,5 +364,22 @@ describe('the UI tests’ memory adapter', () => {
       expect(await storage.listActivity(NOW - DAY_MS)).toEqual({ notes: [], revisions: [] })
       expect((await storage.listActivity(NOW - 11 * DAY_MS)).notes).toHaveLength(1)
     }
+  })
+})
+
+describe('word counts in SQLite', () => {
+  it('stores a version with its words and reads them with the previous version', async () => {
+    const { storage, notes } = service()
+    const id = await notes.create('Plan')
+    await notes.setBody(id, 'one two')
+    await notes.activity(NOW, UTC)
+    time += HOUR
+    await notes.setBody(id, 'one two \u540c\u6b65')
+    const writing = await notes.writing(time, UTC)
+    const stored = (await storage.listActivity(0)).revisions.filter((r) => r.kind === 'body')
+    expect(stored[0]).toMatchObject({ words: 2, previousWords: null })
+    expect(stored.at(-1)).toMatchObject({ words: 4, previousWords: 2 })
+    expect(writing.weeks.this.words).toBe(4)
+    expect(writing.weeks.this.mostEdited).toEqual([{ noteId: id, words: 4 }])
   })
 })

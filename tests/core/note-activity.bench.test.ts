@@ -72,6 +72,7 @@ beforeAll(() => {
           ydoc: state,
           length: Math.floor(rand() * 3000),
           value: null,
+          words: null,
         })
       }
     }

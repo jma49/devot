@@ -331,7 +331,13 @@ export function PhoneApp() {
           }}
         />
       )
-    if (tab === 'activity') return <PhoneActivity />
+    if (tab === 'activity')
+      return (
+        <PhoneActivity
+          data={store}
+          onOpenNote={(noteId) => dispatch({ type: 'push', screen: 'note', noteId })}
+        />
+      )
     if (tab === 'settings')
       return (
         <PhoneSettings onOpenPane={(pane) => dispatch({ type: 'push', screen: 'pane', pane })} />

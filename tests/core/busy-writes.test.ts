@@ -99,6 +99,7 @@ it('every write waits out another writer', async () => {
           ydoc: new Uint8Array([0, 0]),
           length: 0,
           value: null,
+          words: null,
         }),
     ],
     ['deleteRevisions', () => storage.deleteRevisions('a', ['r'])],

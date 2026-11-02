@@ -94,7 +94,15 @@ const strip = async (notes: NoteService, id: string) =>
 const idle = { edits: 0, chars: 0 }
 
 const version = (noteId: string, at: number, length: number, previous: number | null) =>
-  ({ noteId, kind: 'body', at, length, previous }) satisfies ActivityRevision
+  ({
+    noteId,
+    kind: 'body',
+    at,
+    length,
+    words: null,
+    previous,
+    previousWords: null,
+  }) satisfies ActivityRevision
 
 describe('an activity strip', () => {
   it('covers the last fourteen local days, today last', () => {
@@ -291,8 +299,8 @@ describe('the UI tests’ memory adapter', () => {
     const fromSqlite = await run(sqlite())
     const fromMemory = await run(memoryStorage)
     expect(fromSqlite).toHaveLength(3)
-    expect(fromSqlite.join()).toContain('"length":13,"previous":3')
-    expect(fromSqlite.join()).toContain('"length":8,"previous":7')
+    expect(fromSqlite.join()).toContain('"length":13,"words":')
+    expect(fromSqlite.join()).toContain('"length":8,"words":')
     expect(fromMemory).toEqual(fromSqlite)
   })
 })

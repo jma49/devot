@@ -55,6 +55,7 @@ fn version(id: &str, note_id: &str, at: i64, ydoc: &[u8]) -> RevisionRecord {
         ydoc: Some(ydoc.to_vec()),
         length: Some(ydoc.len() as i64),
         value: None,
+        words: None,
     }
 }
 
@@ -67,6 +68,7 @@ fn event(id: &str, note_id: &str, kind: &str, at: i64, value: Option<&str>) -> R
         ydoc: None,
         length: None,
         value: value.map(String::from),
+        words: None,
     }
 }
 
@@ -2764,7 +2766,9 @@ fn lists_activity_since_a_time() {
         kind: kind.into(),
         at,
         length,
+        words: None,
         previous,
+        previous_words: None,
     };
     assert_eq!(
         data.revisions,
@@ -2815,7 +2819,9 @@ fn lists_the_activity_of_the_notes_asked_for() {
         kind: kind.into(),
         at,
         length,
+        words: None,
         previous,
+        previous_words: None,
     };
     let mut found = store
         .list_note_activity(&["a".into(), "zz".into()], 100)
@@ -3098,4 +3104,72 @@ fn a_purged_note_leaves_no_text_in_the_file() {
         "the search index keeps {} trigrams",
         left.len()
     );
+}
+
+#[test]
+fn migration_24_leaves_old_versions_without_a_word_count() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    {
+        let conn = Connection::open(&path).unwrap();
+        for (index, sql) in MIGRATIONS.iter().take(23).enumerate() {
+            conn.execute_batch(sql).unwrap();
+            conn.pragma_update(None, "user_version", index as u32 + 1)
+                .unwrap();
+        }
+        conn.execute(
+            "INSERT INTO notes (id, title, title_hlc, body_md, ydoc, created_at, updated_at)
+             VALUES ('a', 'A', 'h', 'x', x'00', 1, 1)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO revisions (id, note_id, kind, at, ydoc, length, value)
+             VALUES ('r1', 'a', 'body', 10, x'01', 40, NULL)",
+            [],
+        )
+        .unwrap();
+    }
+    let mut store = Store::open(&path).unwrap();
+    assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
+    assert_eq!(store.get_revision("r1").unwrap().unwrap().words, None);
+
+    store
+        .put_revision(&RevisionRecord {
+            words: Some(9),
+            ..version("r2", "a", 20, &[1, 2, 3])
+        })
+        .unwrap();
+    assert_eq!(store.get_revision("r2").unwrap().unwrap().words, Some(9));
+
+    let revisions = store.list_activity(0).unwrap().revisions;
+    let old = revisions.iter().find(|r| r.at == 10).unwrap();
+    assert_eq!(
+        (old.words, old.previous, old.previous_words),
+        (None, None, None)
+    );
+    let after = revisions.iter().find(|r| r.at == 20).unwrap();
+    assert_eq!(after.words, Some(9));
+    assert_eq!(after.previous, Some(40));
+    assert_eq!(after.previous_words, None);
+}
+
+#[test]
+fn a_revision_written_again_keeps_its_new_word_count() {
+    let (_dir, mut store) = temp_store();
+    store.put_note(&note("a", "A", 1), &[]).unwrap();
+    let first = RevisionRecord {
+        words: Some(1),
+        ..version("r1", "a", 10, &[1])
+    };
+    store.put_revision(&first).unwrap();
+    store
+        .put_revision(&RevisionRecord {
+            words: Some(5),
+            ..first.clone()
+        })
+        .unwrap();
+    let revisions = store.list_note_activity(&["a".to_string()], 0).unwrap();
+    assert_eq!(revisions.len(), 1);
+    assert_eq!(revisions[0].words, Some(5));
 }

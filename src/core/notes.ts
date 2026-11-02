@@ -12,11 +12,13 @@ import {
   activitySince,
   buildStrips,
   loadActivity,
+  loadWriting,
   stripStart,
   systemOffset,
   type ActivityHeatmap,
   type OffsetAt,
   type StripDay,
+  type Writing,
 } from './activity'
 import {
   agentWriteRows,
@@ -58,6 +60,7 @@ import {
   textLength,
   type HistoryEntry,
 } from './revisions'
+import { countWords } from './words'
 import {
   excludeTemplates,
   parseSearch,
@@ -268,6 +271,8 @@ export interface NoteService {
   markWritesSeen(id: string, writeIds: readonly string[]): Promise<void>
   /** Pending edits are saved and unversioned typing becomes a version, so it counts. */
   activity(now: number, offsetAt?: OffsetAt): Promise<ActivityHeatmap>
+  /** The phone's Activity screen, typing kept as a version first as for `activity`. */
+  writing(now: number, offsetAt?: OffsetAt): Promise<Writing>
   /** The list's activity strips of `ids` (at most MAX_BODY_IDS; see buildStrips), typing not kept as a version yet counted today. Reads only: nothing is saved. */
   noteActivity(
     ids: readonly string[],
@@ -589,6 +594,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         ydoc,
         length: textLength(text),
         value,
+        words: countWords(text),
       })
       note.rev.lastText = text
     })
@@ -616,6 +622,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           ydoc: before.ydoc,
           length: textLength(before.text),
           value: latest === undefined ? BASELINE : null,
+          words: countWords(before.text),
         })
       }
       // A version taken meanwhile is newer.
@@ -679,7 +686,18 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           continue
         }
       }
-      enqueue(() => storage.putRevision({ id, noteId, kind, at, ydoc: null, length: null, value }))
+      enqueue(() =>
+        storage.putRevision({
+          id,
+          noteId,
+          kind,
+          at,
+          ydoc: null,
+          length: null,
+          value,
+          words: null,
+        }),
+      )
     }
   }
 
@@ -1721,6 +1739,13 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       for (const note of live.values()) takeVersion(note)
       await revisionWork
       return loadActivity(storage, day, offsetAt)
+    },
+
+    async writing(day, offsetAt) {
+      await saveAll()
+      for (const note of live.values()) takeVersion(note)
+      await revisionWork
+      return loadWriting(storage, day, offsetAt)
     },
 
     async noteActivity(ids, at, offsetAt = systemOffset) {

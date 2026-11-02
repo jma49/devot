@@ -260,6 +260,7 @@ export const coreApi = {
   authoredNotes: () => required().authoredNotes(),
   markWritesSeen: (id: string, writeIds: string[]) => required().markWritesSeen(id, writeIds),
   activity: (now: number) => required().activity(now),
+  writing: (now: number) => required().writing(now),
   noteActivity: (ids: string[], now: number) => required().noteActivity(ids, now),
   mergeStored: () => required().mergeStored(),
   /** What another window's core relayed (see NoteService.receive). */

@@ -118,6 +118,7 @@ const version = (n: number, noteId: string, at: number, value: string | null = n
     ydoc: new Uint8Array([0, 0]),
     length: 0,
     value,
+    words: null,
   }) satisfies RevisionRecord
 
 const event = (n: number, noteId: string, at: number) =>
@@ -129,6 +130,7 @@ const event = (n: number, noteId: string, at: number) =>
     ydoc: null,
     length: null,
     value: 'T',
+    words: null,
   }) satisfies RevisionRecord
 
 /** a: two versions, one in 200..300; b: one before 300, one after; c: two before 200; d: one version and an event; e: one beside a baseline, which compaction keeps. */

@@ -205,6 +205,7 @@ describe('taking versions', () => {
       ydoc: null,
       length: null,
       value: '0',
+      words: null,
     })
     expect(await storage.listRevisions(id)).toEqual([])
   })
@@ -220,6 +221,7 @@ describe('compaction', () => {
       ydoc,
       length: 4,
       value: null,
+      words: null,
     }))
 
   it('sweeps after a save, at most once an hour', async () => {
@@ -473,7 +475,16 @@ describe('the SQLite adapter', () => {
     const b = await notes.create('B')
     const id = '0192a6f0-0000-7000-8000-0000000000e1'
     const title = (noteId: string, value: string, kind: 'title' | 'status' = 'title') =>
-      storage.putRevision({ id, noteId, kind, at: time, ydoc: null, length: null, value })
+      storage.putRevision({
+        id,
+        noteId,
+        kind,
+        at: time,
+        ydoc: null,
+        length: null,
+        value,
+        words: null,
+      })
     await title(a, 'Dra')
     await title(a, 'Draft')
     await title(b, 'Other')
