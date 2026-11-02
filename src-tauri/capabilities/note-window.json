@@ -33,6 +33,7 @@
     "allow-open-external",
     "allow-licence-get",
     "allow-settings-open-licence",
+    "allow-crash-reports-get",
     "allow-link-title",
     "allow-github-snippet",
     "allow-log-write",

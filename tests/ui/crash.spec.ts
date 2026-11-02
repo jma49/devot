@@ -10,6 +10,10 @@ async function startSentry(page: Page): Promise<string[]> {
     sent.push(route.request().postData() ?? '')
     await route.fulfill({ status: 200, body: '{}' })
   })
+  await page.addInitScript(() => {
+    const w = window as unknown as { devotIpcMocks?: Record<string, unknown> }
+    w.devotIpcMocks = { ...w.devotIpcMocks, crash_reports_get: { available: true, on: true } }
+  })
   await page.goto('/')
   await page.addScriptTag({
     type: 'module',
@@ -60,7 +64,10 @@ test('a command that fails unhandled reaches the log and Sentry with its code', 
   // Rust rejects with its code as a string, and more after it.
   await page.evaluate(() => {
     const w = globalThis as unknown as TestWindow
-    w.devotIpcMocks = { backup_restore: { error: 'E_STORAGE_SCHEMA_TOO_NEW v13' } }
+    w.devotIpcMocks = {
+      ...w.devotIpcMocks,
+      backup_restore: { error: 'E_STORAGE_SCHEMA_TOO_NEW v13' },
+    }
   })
   await page.addScriptTag({
     type: 'module',

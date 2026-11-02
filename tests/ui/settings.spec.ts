@@ -880,3 +880,28 @@ test('the selected pane turns a lighter grey, not a colour, while the window is 
   await page.locator('main.settings').evaluate((el) => el.removeAttribute('data-focused'))
   await expect(row).toHaveCSS('background-color', await token('--color-fill-row-selected-inactive'))
 })
+
+test('crash reports stay off until chosen', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { devotIpcMocks?: Record<string, unknown> }
+    w.devotIpcMocks = {
+      crash_reports_get: { available: true, on: false },
+      crash_reports_set: { available: true, on: true },
+    }
+  })
+  await page.goto('/settings.html')
+  const toggle = page.getByRole('switch', { name: 'Send Crash Reports' })
+  await expect(toggle).not.toBeChecked()
+  await toggle.click()
+  await expect(toggle).toBeChecked()
+  expect(await calls(page, 'crash_reports_set')).toHaveLength(1)
+})
+
+test('a build that can send no crash reports does not offer them', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { devotIpcMocks?: Record<string, unknown> }
+    w.devotIpcMocks = { crash_reports_get: { available: false, on: false } }
+  })
+  await page.goto('/settings.html')
+  await expect(page.getByRole('switch', { name: 'Send Crash Reports' })).toHaveCount(0)
+})

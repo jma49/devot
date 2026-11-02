@@ -1,11 +1,12 @@
-// Crash reporting for the UI: uncaught errors go to Sentry, only in builds
-// made with DEVOT_SENTRY_DSN set. Every event passes `scrubEvent`, which
+// Crash reporting for the UI: once the user turns it on, uncaught errors go to Sentry, only in
+// builds made with DEVOT_SENTRY_DSN set. Every event passes `scrubEvent`, which
 // builds a new event from a fixed list of fields and keeps each value only in
 // the shape its field must have (a code, an error type, a code location, a
 // source map debug ID, release and system details); everything else is left
 // out, so note titles, bodies, attachments and user names never leave the
 // machine. The Rust side does the same (src-tauri/src/crash_scrub.rs).
 import type { ErrorEvent, Exception, StackFrame } from '@sentry/browser'
+import { crashReports } from './crashReports'
 
 const REDACTED = '<redacted>'
 const CODE_PREFIX = /^[EWI]_[A-Z0-9_]{1,62}(?![A-Za-z0-9_])/
@@ -175,12 +176,24 @@ export function crashEnvironment(tauriDebug: string | undefined): 'production' |
   return tauriDebug === 'false' ? 'production' : 'development'
 }
 
+/** Asks at every event, so turning reports off in Settings holds for every open window. */
+export async function eventToSend(
+  event: ErrorEvent,
+  chosen: () => Promise<boolean>,
+): Promise<ErrorEvent | null> {
+  try {
+    return (await chosen()) ? scrubEvent(event) : null
+  } catch {
+    return null
+  }
+}
+
 type SentryBrowser = typeof import('@sentry/browser')
 let started: SentryBrowser | undefined
 
 /**
  * Reports a failure that happened elsewhere (the core worker's uncaught
- * errors) by its code alone. Nothing happens in a build without a DSN.
+ * errors) by its code alone. Nothing is sent without a DSN and the user's choice.
  */
 export function reportCode(code: string) {
   started?.captureException(new Error(code))
@@ -213,6 +226,6 @@ export async function startCrashReporting(dsn: string | undefined, release: stri
     ],
     maxBreadcrumbs: 0,
     beforeBreadcrumb: () => null,
-    beforeSend: scrubEvent,
+    beforeSend: (event) => eventToSend(event, async () => (await crashReports())?.on === true),
   })
 }
