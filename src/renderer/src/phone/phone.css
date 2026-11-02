@@ -341,3 +341,215 @@ button.phone-glass:active {
     -webkit-backdrop-filter: none;
   }
 }
+
+.phone-topbar-spacer {
+  flex: 1;
+}
+
+.phone-search {
+  position: absolute;
+  top: calc(var(--phone-safe-top) + var(--size-phone-nav-control) + 12px);
+  left: var(--size-phone-screen-edge);
+  right: var(--size-phone-screen-edge);
+  min-height: var(--size-phone-nav-control);
+  border-radius: calc(var(--size-phone-nav-control) / 2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--color-phone-text-secondary);
+  font-size: calc(17px * var(--phone-text-scale, 1));
+}
+
+.phone-edge-tall {
+  height: calc(var(--phone-safe-top) + var(--size-phone-nav-control) * 2 + 26px);
+}
+
+.phone-scroll.phone-library {
+  padding-top: calc(var(--phone-safe-top) + var(--size-phone-nav-control) * 2 + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.phone-library-title {
+  gap: 6px;
+}
+
+.phone-dove {
+  width: calc(26px * var(--phone-bar-text-scale, 1));
+  height: calc(23px * var(--phone-bar-text-scale, 1));
+  background: var(--color-phone-dove);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+
+.phone-smart-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.phone-smart-tile {
+  min-height: var(--size-phone-smart-tile);
+  padding: 12px 4px 11px;
+  box-sizing: border-box;
+  border-radius: var(--radius-phone-tile-card);
+  background: var(--color-phone-card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.phone-smart-tile-icon,
+.phone-row-tile {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-phone-on-action);
+}
+
+.phone-smart-tile-icon {
+  width: var(--size-phone-row-tile);
+  height: var(--size-phone-row-tile);
+  border-radius: 50%;
+}
+
+.phone-smart-tile-count {
+  font-size: calc(21px * var(--phone-text-scale, 1));
+  line-height: 1.15;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.phone-smart-tile-label {
+  font-size: calc(12px * var(--phone-text-scale, 1));
+  font-weight: 500;
+  color: var(--color-phone-text-secondary);
+  text-align: center;
+}
+
+.phone-section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.phone-section-head {
+  margin: 0 0 0 var(--size-phone-screen-edge);
+  font-size: calc(13px * var(--phone-text-scale, 1));
+  font-weight: 400;
+  text-transform: uppercase;
+  color: var(--color-phone-section-head);
+}
+
+.phone-card {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--radius-phone-card);
+  background: var(--color-phone-card);
+  overflow: hidden;
+}
+
+.phone-grouped-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.phone-grouped-row + .phone-grouped-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: var(--size-phone-grouped-text);
+  right: 0;
+  height: var(--size-phone-separator);
+  background: var(--color-phone-separator);
+}
+
+.phone-grouped-row[data-child] + .phone-grouped-row::before,
+.phone-grouped-row[data-child]::before {
+  left: calc(var(--size-phone-grouped-text) + var(--size-phone-child-indent));
+}
+
+.phone-grouped-open {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--size-phone-grouped-row);
+  padding: 6px var(--size-phone-screen-edge);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+
+.phone-grouped-row[data-child] > .phone-grouped-open {
+  padding-left: calc(var(--size-phone-screen-edge) + var(--size-phone-child-indent));
+}
+
+.phone-row-tile {
+  width: var(--size-phone-row-tile);
+  height: var(--size-phone-row-tile);
+  margin-right: 7px;
+  border-radius: var(--radius-phone-row-tile);
+}
+
+.phone-grouped-row[data-child] .phone-row-tile {
+  width: var(--size-phone-row-tile-child);
+  height: var(--size-phone-row-tile-child);
+  margin: 0 9px 0 2px;
+  border-radius: var(--radius-phone-row-tile-child);
+}
+
+.phone-grouped-label {
+  flex: 1;
+  min-width: 0;
+  font-size: calc(17px * var(--phone-text-scale, 1));
+  overflow-wrap: anywhere;
+}
+
+.phone-grouped-label[data-strong] {
+  font-weight: 600;
+}
+
+.phone-grouped-count {
+  font-size: calc(17px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.phone-chevron,
+.phone-disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-phone-chevron);
+}
+
+.phone-disclosure {
+  flex: none;
+  width: var(--size-phone-target);
+  margin-left: calc(var(--size-phone-screen-edge) * -1);
+}
+
+.phone-library-footer {
+  margin: 0;
+  text-align: center;
+  font-size: calc(13px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+/* At the accessibility text sizes four tiles no longer fit a row. */
+.phone-app[data-text-size='accessibility'] {
+  .phone-smart-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

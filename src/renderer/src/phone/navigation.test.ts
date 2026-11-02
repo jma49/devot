@@ -6,6 +6,7 @@ import {
   navigate,
   releasePops,
   releaseSpeed,
+  isAccessibilitySize,
   textScaleFrom,
 } from './navigation'
 
@@ -51,6 +52,27 @@ describe('the navigation stacks', () => {
   })
 })
 
+describe('a smart tile', () => {
+  it("opens the Notes tab at its root with the tile's filter", () => {
+    let state = navigate(initialNavigation(), { type: 'selectTab', tab: 'notes' })
+    state = navigate(state, { type: 'push', screen: 'note' })
+    state = navigate(state, { type: 'selectTab', tab: 'library' })
+    state = navigate(state, { type: 'showNotes', view: { kind: 'all' }, status: 'completed' })
+    expect(state.tab).toBe('notes')
+    expect(screens(state)).toEqual(['root'])
+    expect(state.notes).toEqual({ view: { kind: 'all' }, status: 'completed' })
+  })
+
+  it('keeps the view a pushed list was opened with', () => {
+    const state = navigate(initialNavigation(), {
+      type: 'push',
+      screen: 'list',
+      view: { kind: 'book', id: 'b1' },
+    })
+    expect(state.stacks.library[1]?.view).toEqual({ kind: 'book', id: 'b1' })
+  })
+})
+
 describe('a back swipe', () => {
   it('pops past the threshold, or on a fast flick, and springs back otherwise', () => {
     expect(releasePops(111, 0)).toBe(true)
@@ -91,6 +113,11 @@ describe('the Dynamic Type scale', () => {
   it('is the body size over the default 17', () => {
     expect(textScaleFrom(17)).toBe(1)
     expect(textScaleFrom(34)).toBe(2)
+  })
+
+  it('marks the accessibility sizes, from a 28 point body', () => {
+    expect(isAccessibilitySize(textScaleFrom(23))).toBe(false)
+    expect(isAccessibilitySize(textScaleFrom(28))).toBe(true)
   })
 
   it('stays at the default when the size cannot be read', () => {

@@ -23,6 +23,9 @@ import {
   type PhoneTab,
 } from './navigation'
 import { startPhoneRoot } from './spring'
+import type { PhoneView } from './library'
+import { PhoneLibrary } from './PhoneLibrary'
+import { usePhoneData, type PhoneData } from './usePhoneData'
 import './phone.css'
 
 const TAB_LABEL: Record<PhoneTab, MessageKey> = {
@@ -271,26 +274,35 @@ export function PhoneScreen(props: {
   )
 }
 
+function viewTitle(view: PhoneView | undefined, data: PhoneData): string {
+  switch (view?.kind) {
+    case 'pinned':
+      return t('sidebar.pinned')
+    case 'book':
+      return data.books.find((b) => b.id === view.id)?.name ?? t('sidebar.notebooks')
+    case 'tag':
+      return data.tags.find((tag) => tag.id === view.id)?.name ?? t('sidebar.tags')
+    case 'templates':
+      return t('sidebar.templates')
+    case 'trash':
+      return t('sidebar.trash')
+    default:
+      return t('sidebar.allNotes')
+  }
+}
+
 function PlaceholderScreen(props: {
   route: PhoneRoute
   tab: PhoneTab
   depth: number
-  onPush: (screen: 'list' | 'note') => void
+  title: string
+  onPush: (screen: 'note') => void
   onBack: () => void
 }) {
   const { screen } = props.route
   const title =
-    screen === 'note'
-      ? t('phone.note')
-      : screen === 'list'
-        ? t('sidebar.allNotes')
-        : t(TAB_LABEL[props.tab])
-  const next =
-    screen === 'note' || props.tab === 'settings'
-      ? null
-      : screen === 'root' && props.tab === 'library'
-        ? 'list'
-        : 'note'
+    screen === 'note' ? t('phone.note') : screen === 'list' ? props.title : t(TAB_LABEL[props.tab])
+  const next = screen === 'note' || props.tab === 'settings' ? null : 'note'
   return (
     <PhoneScreen
       title={title}
@@ -299,7 +311,7 @@ function PlaceholderScreen(props: {
     >
       {next && (
         <button type="button" className="phone-row" onClick={() => props.onPush(next)}>
-          {next === 'list' ? t('sidebar.allNotes') : t('phone.note')}
+          {t('phone.note')}
         </button>
       )}
     </PhoneScreen>
@@ -308,6 +320,7 @@ function PlaceholderScreen(props: {
 
 export function PhoneApp() {
   const [state, dispatch] = useReducer(navigate, undefined, initialNavigation)
+  const data = usePhoneData()
   const [drag, setDrag] = useState(0)
   const [dragging, setDragging] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -327,15 +340,30 @@ export function PhoneApp() {
           drag={tab === state.tab ? drag : 0}
           width={width}
           dragging={dragging}
-          render={(route) => (
-            <PlaceholderScreen
-              route={route}
-              tab={tab}
-              depth={state.stacks[tab].findIndex((r) => r.id === route.id)}
-              onPush={(screen) => dispatch({ type: 'push', screen })}
-              onBack={() => dispatch({ type: 'pop' })}
-            />
-          )}
+          render={(route) =>
+            tab === 'library' && route.screen === 'root' ? (
+              <PhoneLibrary
+                data={data}
+                onShowNotes={(view, status) => dispatch({ type: 'showNotes', view, status })}
+                onOpenList={(view) => dispatch({ type: 'push', screen: 'list', view })}
+                onNewNotebook={() => {
+                  void data.core
+                    ?.createBook(t('book.new'), null)
+                    .then(data.refresh)
+                    .catch(() => console.warn('W_PHONE_NEW_NOTEBOOK_FAILED'))
+                }}
+              />
+            ) : (
+              <PlaceholderScreen
+                route={route}
+                tab={tab}
+                depth={state.stacks[tab].findIndex((r) => r.id === route.id)}
+                title={viewTitle(route.screen === 'root' ? state.notes.view : route.view, data)}
+                onPush={(screen) => dispatch({ type: 'push', screen })}
+                onBack={() => dispatch({ type: 'pop' })}
+              />
+            )
+          }
         />
       ))}
       <TabBar

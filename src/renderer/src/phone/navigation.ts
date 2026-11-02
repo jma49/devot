@@ -1,4 +1,5 @@
 import { sizes } from '../theme/tokens'
+import type { PhoneStatusFilter, PhoneView } from './library'
 
 export type PhoneTab = 'notes' | 'library' | 'settings'
 export const PHONE_TABS: readonly PhoneTab[] = ['notes', 'library', 'settings']
@@ -8,17 +9,21 @@ export type PhoneScreen = 'root' | 'list' | 'note'
 export interface PhoneRoute {
   readonly id: number
   readonly screen: PhoneScreen
+  readonly view?: PhoneView
 }
 
 export interface PhoneNavigation {
   readonly tab: PhoneTab
   readonly stacks: Readonly<Record<PhoneTab, readonly PhoneRoute[]>>
   readonly nextId: number
+  /** What the Notes tab's root lists, set by a smart tile. */
+  readonly notes: { readonly view: PhoneView; readonly status: PhoneStatusFilter }
 }
 
 export type PhoneNavigationAction =
   | { readonly type: 'selectTab'; readonly tab: PhoneTab }
-  | { readonly type: 'push'; readonly screen: PhoneScreen }
+  | { readonly type: 'push'; readonly screen: PhoneScreen; readonly view?: PhoneView }
+  | { readonly type: 'showNotes'; readonly view: PhoneView; readonly status: PhoneStatusFilter }
   | { readonly type: 'pop' }
 
 // An iPad's layout is out of scope, and an iPhone keeps this layout turned sideways.
@@ -32,6 +37,7 @@ export const initialNavigation = (): PhoneNavigation => ({
     settings: [{ id: 2, screen: 'root' }],
   },
   nextId: 3,
+  notes: { view: { kind: 'all' }, status: 'all' },
 })
 
 export function navigate(state: PhoneNavigation, action: PhoneNavigationAction): PhoneNavigation {
@@ -45,8 +51,22 @@ export function navigate(state: PhoneNavigation, action: PhoneNavigationAction):
       return action.tab === state.tab ? withStack(stack.slice(0, 1)) : { ...state, tab: action.tab }
     case 'push':
       return {
-        ...withStack([...stack, { id: state.nextId, screen: action.screen }]),
+        ...withStack([
+          ...stack,
+          {
+            id: state.nextId,
+            screen: action.screen,
+            ...(action.view ? { view: action.view } : {}),
+          },
+        ]),
         nextId: state.nextId + 1,
+      }
+    case 'showNotes':
+      return {
+        ...state,
+        tab: 'notes',
+        stacks: { ...state.stacks, notes: state.stacks.notes.slice(0, 1) },
+        notes: { view: action.view, status: action.status },
       }
     case 'pop':
       return stack.length > 1 ? withStack(stack.slice(0, -1)) : state
@@ -82,6 +102,11 @@ export function layerPlacement(
 }
 
 const DEFAULT_BODY_POINTS = 17
+
+// The smallest accessibility text size has a 28 pt body; the largest standard one, 23.
+const ACCESSIBILITY_SCALE = 28 / 17
+
+export const isAccessibilitySize = (textScale: number): boolean => textScale >= ACCESSIBILITY_SCALE
 
 export const textScaleFrom = (bodyPoints: number): number =>
   bodyPoints > 0 ? bodyPoints / DEFAULT_BODY_POINTS : 1
