@@ -6,6 +6,7 @@ it('Reduce Transparency turns phone glass opaque and stops its blur', () => {
   const reduced = css.split('prefers-reduced-transparency: reduce')[1] ?? ''
   expect(reduced).toContain('background: var(--color-phone-glass-opaque)')
   expect(reduced).toContain('backdrop-filter: none')
+  expect(reduced).toMatch(/\.phone-topbar-band \{\s*background: var\(--color-phone-background\)/)
 })
 
 it('lets the iPhone lay out edge to edge, and keeps pinch zoom', () => {

@@ -125,6 +125,7 @@ export const LUCIDE_ICONS = {
   'phone.tab.settings.fill': SettingsIcon,
   'phone.notebook.new': FolderPlusIcon,
   'phone.pair': QrCodeIcon,
+  'phone.filter': ListFilterIcon,
   'phone.info': InfoIcon,
   'phone.close': XIcon,
   'phone.keyboard.hide': KeyboardOffIcon,

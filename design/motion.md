@@ -89,7 +89,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Push and pop:** rule 3. The new screen slides in from the right over `motion.duration.phone-push` on `motion.easing.phone-push`; the one below moves 30% left and dims `opacity.phone-dim-push`.
 - **Back swipe:** rule 1, then rule 3. The screen tracks the finger; past `size.phone-back-threshold` or on a flick it pops, otherwise it returns.
 - **Tab bar lens:** rule 4. It slides with `bouncy` and squashes to `motion.scale.phone-lens-x` by `motion.scale.phone-lens-y` over `motion.duration.phone-lens`; the selected icon pops over `motion.duration.phone-pop`.
-- **Status filter lens:** rule 4. It slides with `bouncy`; the filtered rows change at once (rule 2).
+- **Status filter menu:** a pop-up from its button: grows and fades over `motion.duration.popover`, and closes at once. The filtered rows change at once (rule 2).
 - **Swipe actions:** rule 1, then rule 3. The row follows the finger, with 0.6 rubber band past `size.phone-swipe-open`; on release it settles on `motion.easing.phone-push`. The buttons grow with `bouncy`, the rightmost first; past `size.phone-swipe-arm` Done stretches over the others with `gentle`.
 - **Status badge:** rule 4. It bumps to `motion.scale.phone-bump` with `bouncy` when the status changes; its colour does not animate.
 - **Peek:** rule 3. After `motion.delay.phone-peek` the background blurs and dims, the card grows from `motion.scale.phone-peek-enter` with `gentle`, and the status bar and menu follow with `bouncy` after `motion.delay.phone-peek-bar` and `motion.delay.phone-peek-menu`.

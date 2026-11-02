@@ -5,7 +5,6 @@ import { noteDate } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
-import { doveMask } from './dove'
 import { libraryOf, type PhoneStatusFilter, type PhoneView } from './library'
 import type { PhoneData } from './usePhoneData'
 
@@ -24,7 +23,7 @@ function SmartTile(props: {
       <span className="phone-smart-tile-icon" style={{ background: props.color }}>
         <Icon name={props.icon} size="sm" />
       </span>
-      <span className="phone-smart-tile-count">{props.count}</span>
+      <span className="phone-smart-tile-count phone-figures">{props.count}</span>
       <span className="phone-smart-tile-label">{t(props.label)}</span>
     </button>
   )
@@ -49,7 +48,9 @@ function GroupedRow(props: {
         <span className="phone-grouped-label" data-strong={props.strong || undefined}>
           {props.name}
         </span>
-        {props.count !== undefined && <span className="phone-grouped-count">{props.count}</span>}
+        {props.count !== undefined && (
+          <span className="phone-grouped-count phone-figures">{props.count}</span>
+        )}
         {!props.disclosure && (
           <span className="phone-chevron">
             <Icon name="phone.disclosure" size="xs" />
@@ -115,7 +116,7 @@ export function PhoneLibrary(props: {
   const notesCount = format(t('phone.library.noteCount'), { count: String(library.tiles.all) })
 
   return (
-    <section aria-label={t('phone.tab.library')} className="phone-screen" data-surface="group">
+    <section aria-label={t('phone.tab.library')} className="phone-screen">
       <div className="phone-scroll phone-library">
         <div className="phone-smart-tiles">
           <SmartTile
@@ -202,31 +203,28 @@ export function PhoneLibrary(props: {
 
         <p className="phone-library-footer">{backup ? `${notesCount} · ${backup}` : notesCount}</p>
       </div>
-      <div aria-hidden="true" className="phone-edge phone-edge-tall" />
+      <div aria-hidden="true" className="phone-topbar-band" />
       <header className="phone-topbar">
-        <h1 className="phone-topbar-title phone-library-title">
-          <span aria-hidden="true" className="phone-dove" style={doveMask} />
-          {t('phone.tab.library')}
-        </h1>
-        <span className="phone-topbar-spacer" />
-        <button
-          type="button"
-          className="phone-glass phone-nav-control"
-          aria-label={t('book.new')}
-          onClick={props.onNewNotebook}
-        >
-          <Icon name="phone.notebook.new" size="lg" />
-        </button>
-        <span aria-hidden="true" className="phone-compose-slot" />
+        <h1 className="phone-topbar-title">{t('phone.tab.library')}</h1>
+        <div className="phone-glass phone-capsule">
+          <button
+            type="button"
+            className="phone-capsule-button"
+            aria-label={t('book.new')}
+            onClick={props.onNewNotebook}
+          >
+            <Icon name="phone.notebook.new" size="lg" />
+          </button>
+          <button
+            type="button"
+            className="phone-capsule-button"
+            aria-label={t('search.placeholder')}
+            onClick={() => props.onShowNotes({ kind: 'all' }, 'all')}
+          >
+            <Icon name="search" size="lg" />
+          </button>
+        </div>
       </header>
-      <button
-        type="button"
-        className="phone-glass phone-search"
-        onClick={() => props.onShowNotes({ kind: 'all' }, 'all')}
-      >
-        <Icon name="search" size="sm" />
-        {t('search.placeholder')}
-      </button>
     </section>
   )
 }

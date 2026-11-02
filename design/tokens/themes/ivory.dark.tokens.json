@@ -9,23 +9,51 @@
   "color": {
     "phone": {
       "$description": "The iPhone layout (design/phone.md).",
-      "background": {
+      "elevated": {
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.149, 0.149, 0.1412],
-          "hex": "#262624"
+          "components": [0.1882, 0.1882, 0.1804],
+          "hex": "#30302e"
         },
-        "$description": "A plain screen: the note list and the note."
+        "$description": "What lifts off the page: sheet cards and the peek card."
       },
-      "group": {
+      "text": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.9804, 0.9765, 0.9608],
+          "hex": "#faf9f5"
+        },
+        "$description": "Text on phone surfaces."
+      },
+      "text-faint": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.5412, 0.5373, 0.5059],
+          "hex": "#8a8981"
+        },
+        "$description": "A row's time on the plain list. Design #9b9ba1 light and #6e6e74 dark, moved until 4.5:1 on the page background."
+      },
+      "bar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.6
+        },
+        "$description": "The frosted band behind a top bar."
+      },
+      "background": {
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
           "components": [0.1216, 0.1176, 0.1137],
           "hex": "#1f1e1d"
         },
-        "$description": "Behind grouped lists."
+        "$description": "The one page background, plain and grouped."
       },
       "card": {
         "$type": "color",
@@ -34,7 +62,7 @@
           "components": [0.1882, 0.1882, 0.1804],
           "hex": "#30302e"
         },
-        "$description": "A grouped card, a tile and the peek card."
+        "$description": "A grouped page's card."
       },
       "band": {
         "$type": "color",
@@ -169,7 +197,7 @@
           "colorSpace": "srgb",
           "components": [0.1216, 0.1176, 0.1137],
           "hex": "#1f1e1d",
-          "alpha": 0.94
+          "alpha": 0.9
         },
         "$description": "A bottom sheet."
       },
@@ -190,7 +218,7 @@
           "components": [0.6706, 0.6627, 0.6353],
           "hex": "#aba9a2"
         },
-        "$description": "Previews, captions and counts. Light: design #8a8a8e, moved toward black until 4.5:1 on the band and group."
+        "$description": "Previews, captions and counts. Light: design #76767b, moved toward black until 4.5:1 on the card and the raised row."
       },
       "section-head": {
         "$type": "color",

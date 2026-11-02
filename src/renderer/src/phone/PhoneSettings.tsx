@@ -89,7 +89,7 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
   ]
   const summary = version ? `${version} · ${state.label}` : state.label
   return (
-    <section aria-label={t('settings.title')} className="phone-screen" data-surface="group">
+    <section aria-label={t('settings.title')} className="phone-screen">
       <div className="phone-scroll phone-settings">
         <div className="phone-settings-head">
           <span className="phone-app-icon">
@@ -111,26 +111,27 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
           </ul>
         ))}
       </div>
-      <div aria-hidden="true" className="phone-edge" />
+      <div aria-hidden="true" className="phone-topbar-band" />
       <header className="phone-topbar">
-        <button
-          type="button"
-          className="phone-glass phone-nav-control"
-          aria-label={t('phone.settings.pair')}
-          onClick={() => props.onOpenPane('sync')}
-        >
-          <Icon name="phone.pair" size="lg" />
-        </button>
         <h1 className="phone-topbar-title">{t('settings.title')}</h1>
-        <span className="phone-topbar-spacer" />
-        <button
-          type="button"
-          className="phone-glass phone-nav-control"
-          aria-label={t('settings.search')}
-          disabled
-        >
-          <Icon name="search" size="lg" />
-        </button>
+        <div className="phone-glass phone-capsule">
+          <button
+            type="button"
+            className="phone-capsule-button"
+            aria-label={t('phone.settings.pair')}
+            onClick={() => props.onOpenPane('sync')}
+          >
+            <Icon name="phone.pair" size="lg" />
+          </button>
+          <button
+            type="button"
+            className="phone-capsule-button"
+            aria-label={t('settings.search')}
+            disabled
+          >
+            <Icon name="search" size="lg" />
+          </button>
+        </div>
       </header>
     </section>
   )
@@ -163,11 +164,11 @@ export function PhoneSettingsPane(props: { pane: string; onBack: () => void }) {
   }, [pane])
   const title = PANE_TABS[pane] ? t(PANE_TABS[pane].label) : t('settings.title')
   return (
-    <section aria-label={title} className="phone-screen" data-surface="group">
+    <section aria-label={title} className="phone-screen">
       <div className="phone-scroll phone-settings-pane settings-window">
         <OnPhone.Provider value={true}>{Section && <Section />}</OnPhone.Provider>
       </div>
-      <div aria-hidden="true" className="phone-edge" />
+      <div aria-hidden="true" className="phone-topbar-band" />
       <header className="phone-topbar">
         <button
           type="button"

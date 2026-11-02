@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import type { BookRecord, NoteStatus, NoteSummary, TagRecord } from '../../../core/storage'
 import { BookIcon } from '../BookIcon'
 import { noteDate } from '../format'
@@ -278,7 +278,7 @@ function NoteRow(props: RowProps) {
           <span className="phone-note-text">
             <span className="phone-note-line">
               <span className="phone-note-title">{props.title}</span>
-              <span className="phone-note-time">
+              <span className="phone-note-time phone-figures">
                 {noteDate(note.updatedAt, props.now, currentLocale())}
               </span>
             </span>
@@ -428,7 +428,6 @@ export function PhoneNoteList(props: {
   arrivedId: string | null
   onBack?: () => void
   onOpenNote: (id: string) => void
-  topBarEnd?: ReactNode
 }) {
   const { data } = props
   const [status, setStatus] = useState(props.status)
@@ -439,6 +438,7 @@ export function PhoneNoteList(props: {
   }
   const [openId, setOpenId] = useState<string | null>(null)
   const [peekId, setPeekId] = useState<string | null>(null)
+  const [filtering, setFiltering] = useState(false)
 
   const source = useMemo((): NoteSummary[] => {
     if (props.view.kind === 'templates') return [...data.templates]
@@ -476,10 +476,9 @@ export function PhoneNoteList(props: {
     }
   }
   const peek = peekId ? rows.find((n) => n.id === peekId) : undefined
-  const index = PHONE_FILTERS.indexOf(status)
 
   return (
-    <section aria-label={props.title} className="phone-screen" data-surface="plain">
+    <section aria-label={props.title} className="phone-screen">
       <div className="phone-scroll phone-list-scroll">
         {rows.length === 0 ? (
           <p className="phone-list-empty">{t('phone.list.empty')}</p>
@@ -514,7 +513,7 @@ export function PhoneNoteList(props: {
           </ul>
         )}
       </div>
-      <div aria-hidden="true" className="phone-edge phone-edge-list" />
+      <div aria-hidden="true" className="phone-topbar-band" />
       <header className="phone-topbar">
         {props.onBack && (
           <button
@@ -526,46 +525,64 @@ export function PhoneNoteList(props: {
             <Icon name="nav.back" size="lg" />
           </button>
         )}
-        <h1 className="phone-topbar-title phone-list-title">
-          <span>{props.title}</span>
-          <span className="phone-list-count">
-            {format(t('phone.library.noteCount'), { count: String(counts.all) })}
-          </span>
-        </h1>
-        <span className="phone-topbar-spacer" />
-        {props.topBarEnd}
-        <span aria-hidden="true" className="phone-compose-slot" />
-      </header>
-      <div className="phone-glass phone-search" role="search">
-        <Icon name="search" size="sm" />
-        {t('search.placeholder')}
-      </div>
-      <div role="tablist" aria-label={t('phone.filter.label')} className="phone-glass phone-filter">
-        <span
-          aria-hidden="true"
-          className="phone-filter-lens"
-          style={{ transform: `translateX(${index * 100}%)` }}
-        />
-        {PHONE_FILTERS.map((filter) => (
+        <h1 className="phone-topbar-title">{props.title}</h1>
+        <div className="phone-glass phone-capsule">
           <button
-            key={filter}
             type="button"
-            role="tab"
-            aria-selected={filter === status}
-            className="phone-filter-tab"
-            onClick={() => {
-              if (filter !== status) haptic('selection')
-              setOpenId(null)
-              setStatus(filter)
-            }}
+            className="phone-capsule-button"
+            aria-label={t('phone.filter.label')}
+            aria-haspopup="menu"
+            aria-expanded={filtering}
+            data-active={status !== 'all' || undefined}
+            onClick={() => setFiltering((shown) => !shown)}
           >
-            {t(FILTER_LABEL[filter])}
-            {filter !== 'all' && counts[filter] > 0 && (
-              <span className="phone-filter-count">{counts[filter]}</span>
-            )}
+            <Icon name="phone.filter" size="lg" />
           </button>
-        ))}
-      </div>
+          <button
+            type="button"
+            className="phone-capsule-button"
+            aria-label={t('search.placeholder')}
+            disabled
+          >
+            <Icon name="search" size="lg" />
+          </button>
+        </div>
+      </header>
+      {filtering && (
+        <>
+          <button
+            type="button"
+            className="phone-filter-scrim"
+            aria-label={t('phone.close')}
+            onClick={() => setFiltering(false)}
+          />
+          <div
+            role="menu"
+            aria-label={t('phone.filter.label')}
+            className="phone-peek-menu phone-filter-menu"
+          >
+            {PHONE_FILTERS.map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                role="menuitemradio"
+                aria-checked={filter === status}
+                className="phone-filter-item"
+                onClick={() => {
+                  if (filter !== status) haptic('selection')
+                  setOpenId(null)
+                  setStatus(filter)
+                  setFiltering(false)
+                }}
+              >
+                <span className="phone-filter-item-label">{t(FILTER_LABEL[filter])}</span>
+                <span className="phone-filter-item-count phone-figures">{counts[filter]}</span>
+                {filter === status && <Icon name="check" size="sm" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       {peek && (
         <Peek
           note={peek}

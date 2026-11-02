@@ -83,7 +83,7 @@ function InfoSheet(props: {
       <dl className="phone-card phone-info-stats">
         {strip.map(([label, value]) => (
           <div key={label} className="phone-info-stat">
-            <dd>{value}</dd>
+            <dd className="phone-figures">{value}</dd>
             <dt>{label}</dt>
           </div>
         ))}
@@ -151,7 +151,7 @@ export function PhoneNote(props: { store: PhoneStore; noteId: string; onBack: ()
 
   if (!note || !store.core)
     return (
-      <section aria-label={t('phone.note')} className="phone-screen" data-surface="plain">
+      <section aria-label={t('phone.note')} className="phone-screen">
         <header className="phone-topbar">
           <button
             type="button"
@@ -175,11 +175,7 @@ export function PhoneNote(props: { store: PhoneStore; noteId: string; onBack: ()
   const back = () => (history.at > 0 ? setHistory((h) => ({ ...h, at: h.at - 1 })) : props.onBack())
 
   return (
-    <section
-      aria-label={note.title || t('note.untitled')}
-      className="phone-screen"
-      data-surface="plain"
-    >
+    <section aria-label={note.title || t('note.untitled')} className="phone-screen">
       <div className="phone-scroll phone-note-scroll">
         <input
           className="phone-note-heading"
@@ -267,7 +263,7 @@ export function PhoneNote(props: { store: PhoneStore; noteId: string; onBack: ()
           </div>
         </div>
       </div>
-      <div aria-hidden="true" className="phone-edge" />
+      <div aria-hidden="true" className="phone-topbar-band" />
       <header className="phone-topbar">
         <button
           type="button"

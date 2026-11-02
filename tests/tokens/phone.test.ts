@@ -13,7 +13,7 @@ describe('the phone layout tokens', () => {
     ['size.phone-editor-toolbar', 48],
     ['size.phone-list-row', 76],
     ['size.phone-avatar', 60],
-    ['size.phone-grouped-row', 52],
+    ['size.phone-grouped-row', 44],
     ['size.phone-row-tile', 30],
     ['size.phone-swipe-action', 50],
     ['size.phone-swipe-open', 190],
@@ -21,27 +21,38 @@ describe('the phone layout tokens', () => {
     ['size.phone-grabber-width', 36],
     ['size.phone-grabber-height', 5],
     ['size.phone-screen-edge', 16],
+    ['size.phone-list-edge', 20],
+    ['size.phone-list-text', 52],
+    ['size.phone-card-inset', 4],
+    ['size.phone-row-pad', 12],
+    ['size.phone-group-title', 10],
+    ['size.phone-topbar-top', 12],
+    ['size.phone-topbar-band', 68],
+    ['size.phone-content-top', 80],
+    ['size.phone-capsule-button', 48],
     ['size.phone-tab-inset', 20],
     ['size.phone-tab-bottom', 24],
-    ['radius.phone-card', 26],
+    ['radius.phone-card', 22],
+    ['radius.phone-row-press', 16],
     ['radius.phone-sheet', 34],
     ['radius.phone-tile-card', 22],
     ['radius.phone-row-tile', 8],
-    ['radius.phone-menu-row', 20],
+    ['radius.phone-menu-row', 16],
   ] as const)('%s is %i', (token, value) => {
     expect(px(token)).toBe(value)
   })
 
-  it('builds the note list text column from the edge, the avatar and the gap', () => {
-    expect(px('size.phone-screen-edge') + px('size.phone-avatar') + 8).toBe(
-      px('size.phone-list-text'),
-    )
+  it('puts a grouped row 32 from the screen and a group title 26', () => {
+    const card = px('size.phone-screen-edge')
+    expect(card + px('size.phone-card-inset') + px('size.phone-row-pad')).toBe(32)
+    expect(card + px('size.phone-group-title')).toBe(26)
   })
 
-  it('builds the grouped row text column from the row inset, the tile and the gap', () => {
-    expect(px('size.phone-screen-edge') + px('size.phone-row-tile') + 15).toBe(
-      px('size.phone-grouped-text'),
+  it('keeps content clear of the band', () => {
+    expect(px('size.phone-topbar-top') + px('size.phone-nav-control')).toBeLessThan(
+      px('size.phone-topbar-band'),
     )
+    expect(px('size.phone-content-top')).toBeGreaterThan(px('size.phone-topbar-band'))
   })
 
   it('keeps every lens concentric with its bar', () => {
@@ -89,6 +100,16 @@ describe('the phone colour tokens', () => {
     ['ivory dark', ivoryDark],
   ] as const)('%s has an opaque glass fallback for Reduce Transparency', (_name, theme) => {
     expect(theme['color.phone.glass-opaque']).toMatch(/^#[0-9a-f]{6}$/)
+    expect(theme['color.phone.background']).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  it('takes the design colours of the system theme', () => {
+    expect(light['color.phone.background']).toBe('#fafafa')
+    expect(light['color.phone.card']).toBe('#f0f0f2')
+    expect(light['color.phone.text']).toBe('#111111')
+    expect(dark['color.phone.background']).toBe('#000000')
+    expect(dark['color.phone.card']).toBe('#1c1c1e')
+    expect(dark['color.phone.text']).toBe('#f5f5f7')
   })
 })
 

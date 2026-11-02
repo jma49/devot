@@ -33,26 +33,46 @@ test.beforeEach(async ({ page }) => {
 })
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`the note list shows rows, a count and the status filter, ${colorScheme}`, async ({
-    page,
-  }) => {
+  test(`the note list shows rows and a title with no count, ${colorScheme}`, async ({ page }) => {
     await page.emulateMedia({ colorScheme })
     await openNotes(page)
-    await expect(list(page).getByRole('tablist', { name: 'Status filter' })).toBeVisible()
-    await expect(list(page).getByRole('tab')).toHaveCount(4)
-    await expect(list(page).getByText(/^\d+ notes$/)).toBeVisible()
+    await expect(list(page).getByRole('heading', { level: 1 })).toHaveText('All Notes')
+    await expect(list(page).getByText(/^\d+ notes$/)).toHaveCount(0)
     const row = (await rows(page).first().locator('.phone-note-open').boundingBox())!
     expect(row.height).toBeGreaterThanOrEqual(76)
   })
 }
 
-test('the filter keeps only notes in that status', async ({ page }) => {
+async function chooseFilter(page: Page, name: RegExp): Promise<void> {
+  await list(page).getByRole('button', { name: 'Status filter' }).click()
+  await list(page).getByRole('menuitemradio', { name }).click()
+}
+
+test('the filter menu offers four choices and closes when tapped outside', async ({ page }) => {
   await openNotes(page)
-  await list(page).getByRole('tab', { name: /Done/ }).click()
-  await expect(list(page).getByRole('tab', { name: /Done/ })).toHaveAttribute(
-    'aria-selected',
+  await list(page).getByRole('button', { name: 'Status filter' }).click()
+  await expect(list(page).getByRole('menuitemradio')).toHaveCount(4)
+  await expect(list(page).getByRole('menuitemradio', { name: /All/ })).toHaveAttribute(
+    'aria-checked',
     'true',
   )
+  await list(page)
+    .getByRole('button', { name: 'Close' })
+    .click({ position: { x: 20, y: 400 } })
+  await expect(list(page).getByRole('menu')).toHaveCount(0)
+})
+
+test('the filter keeps only notes in that status', async ({ page }) => {
+  await openNotes(page)
+  await chooseFilter(page, /Done/)
+  await list(page).getByRole('button', { name: 'Status filter' }).click()
+  await expect(list(page).getByRole('menuitemradio', { name: /Done/ })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  )
+  await list(page)
+    .getByRole('button', { name: 'Close' })
+    .click({ position: { x: 20, y: 400 } })
   for (const badge of await list(page).locator('.phone-status-badge').all())
     await expect(badge).toHaveAttribute('aria-label', 'Completed')
 })
@@ -87,9 +107,7 @@ test('a long press peeks, and the status bar sets the status', async ({ page }) 
   await expect(peek).toBeVisible()
   await peek.getByRole('button', { name: 'On Hold' }).click()
   await expect(peek).toHaveCount(0)
-  await list(page)
-    .getByRole('tab', { name: /On Hold/ })
-    .click()
+  await chooseFilter(page, /On Hold/)
   await expect(rows(page)).not.toHaveCount(0)
 })
 

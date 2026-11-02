@@ -91,3 +91,89 @@ test('every tab and back button is at least 44 points and labelled', async ({ pa
     expect(box!.width).toBeGreaterThanOrEqual(44)
   }
 })
+
+test.describe('the top bar', () => {
+  const screens = [
+    ['Library', 'New Notebook', 'Search'],
+    ['Notes', 'Status filter', 'Search'],
+    ['Settings', 'Pair a device', 'Search Settings'],
+  ] as const
+
+  for (const [tabName, first, second] of screens) {
+    test(`${tabName} has a left title and one capsule of two buttons`, async ({ page }) => {
+      await tab(page, tabName).evaluate((el) => (el as HTMLElement).click())
+      const screen = page.locator('.phone-stack:not([hidden]) section.phone-screen').last()
+      const title = screen.getByRole('heading', { level: 1 })
+      const box = (await title.boundingBox())!
+      expect(box.x).toBe(20)
+      await expect(title).toHaveCSS('font-size', '22px')
+      await expect(title).toHaveCSS('font-weight', '700')
+      await expect(title).toHaveCSS('text-align', /start|left/)
+      await expect(title.locator('*')).toHaveCount(0)
+
+      const capsule = screen.locator('.phone-topbar .phone-capsule')
+      await expect(capsule).toHaveCount(1)
+      const capsuleBox = (await capsule.boundingBox())!
+      expect(capsuleBox).toMatchObject({ y: 12, height: 44, width: 96 })
+      expect(capsuleBox.x + capsuleBox.width).toBe(374)
+      for (const name of [first, second]) {
+        const button = (await capsule.getByRole('button', { name, exact: true }).boundingBox())!
+        expect(button).toMatchObject({ width: 48, height: 44 })
+      }
+    })
+  }
+
+  test('a pushed screen puts its title after a 44 back circle', async ({ page }) => {
+    await openTemplates(page)
+    const screen = page.getByRole('region', { name: 'Templates' })
+    expect(await screen.getByRole('button', { name: 'Back' }).boundingBox()).toMatchObject({
+      x: 16,
+      width: 44,
+      height: 44,
+    })
+    expect((await screen.getByRole('heading', { level: 1 }).boundingBox())!.x).toBe(74)
+  })
+
+  test('a frosted band sits behind the bar and content starts below it', async ({ page }) => {
+    const screen = page.getByRole('region', { name: 'Library' })
+    const band = screen.locator('.phone-topbar-band')
+    expect(await band.boundingBox()).toMatchObject({ y: 0, height: 68, width: 390 })
+    const filter = await band.evaluate((el) => getComputedStyle(el).backdropFilter)
+    expect(filter).toBe('blur(20px) saturate(1.8)')
+    const scroll = screen.locator('.phone-scroll')
+    await expect(scroll).toHaveCSS('padding-top', '80px')
+  })
+})
+
+test('a grouped page uses the grid: card 16, row 32, group title 26, 44 rows', async ({ page }) => {
+  const screen = page.getByRole('region', { name: 'Library' })
+  const card = screen.locator('.phone-card').first()
+  await expect(card).toHaveCSS('border-radius', '22px')
+  expect((await card.boundingBox())!.x).toBe(16)
+  const row = card.locator('.phone-grouped-open').first()
+  const box = (await row.boundingBox())!
+  expect(box.x).toBe(20)
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  await expect(row).toHaveCSS('padding-left', '12px')
+  const head = screen.locator('.phone-section-head').first()
+  expect((await head.boundingBox())!.x).toBe(26)
+  await expect(head).toHaveCSS('font-size', '14px')
+  await expect(head).toHaveCSS('font-weight', '500')
+  await expect(head).toHaveCSS('text-transform', 'none')
+})
+
+test('counts use the shared mono figures', async ({ page }) => {
+  const count = page.getByRole('region', { name: 'Library' }).locator('.phone-figures').first()
+  await expect(count).toHaveCSS('font-variant-numeric', 'tabular-nums')
+  await expect(count).toHaveCSS('font-family', /monospace/)
+})
+
+test('one background behind every page', async ({ page }) => {
+  const color = (name: string) =>
+    page
+      .locator(`section.phone-screen[aria-label="${name}"]`)
+      .evaluate((el) => getComputedStyle(el).backgroundColor)
+  const library = await color('Library')
+  await tab(page, 'Notes').evaluate((el) => (el as HTMLElement).click())
+  expect(await color('All Notes')).toBe(library)
+})
