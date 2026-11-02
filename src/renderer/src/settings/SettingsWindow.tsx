@@ -321,7 +321,7 @@ export function SettingsWindow() {
           aria-labelledby={tabId(pane)}
           onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
         >
-          <div className="settings-pane-body">
+          <div key={pane} className="settings-pane-body">
             <ToolbarEnd.Provider value={toolbarEnd}>
               <Section />
             </ToolbarEnd.Provider>

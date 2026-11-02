@@ -13,6 +13,7 @@ import { SettingsSection } from './controls'
 import { usageActivity, usageDayInstant, type UsagePeriod } from '../../../core/usageActivity'
 import { dayDate } from '../format'
 import { Icon } from '../icons/Icon'
+import { useSegmentSlide } from '../segmentSlide'
 
 const LABELS: Record<UsageEventName, MessageKey> = {
   'note.created': 'usage.event.note.created',
@@ -37,6 +38,8 @@ function GlassUsageSection() {
   const [clearError, setClearError] = useState<string>()
   const locale = currentLocale()
   const [period, setPeriod] = useState<UsagePeriod>(30)
+  const rangeGroup = useRef<HTMLDivElement>(null)
+  useSegmentSlide(rangeGroup, ([7, 30, 90] as const).indexOf(period))
   const [eventType, setEventType] = useState('')
   const [now, setNow] = useState(Date.now)
   const request = useRef(0)
@@ -170,7 +173,7 @@ function GlassUsageSection() {
       ) : (
         <>
           <div className="usage-filters">
-            <div className="segmented" role="group" aria-label={t('usage.range')}>
+            <div ref={rangeGroup} className="segmented" role="group" aria-label={t('usage.range')}>
               {([7, 30, 90] as const).map((days) => (
                 <button
                   key={days}

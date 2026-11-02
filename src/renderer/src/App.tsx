@@ -63,7 +63,16 @@ import { AiSuggestNotice } from './AiSuggestNotice'
 import { ImageActionNotice, ImageNotice } from './ImageNotice'
 import { MAX_LINK_NOTES } from './linkCompletion'
 import { useNarrowWindow } from './narrowWindow'
-import { measurePanes, movePanes, type PaneBoxes, shownPanes } from './paneMotion'
+import {
+  fadeInListBody,
+  measureModePanes,
+  measurePanes,
+  type ModeBoxes,
+  movePanes,
+  type PaneBoxes,
+  playModeChange,
+  shownPanes,
+} from './paneMotion'
 import { ExportNotice, failureOf, type ExportFailure } from './ExportNotice'
 import { SaveNotice } from './SaveNotice'
 import { isImeKey } from './ime'
@@ -2981,6 +2990,23 @@ export function App() {
     if (to === 'editor') editorRef.current?.focus()
     else if (to === 'preview') document.querySelector<HTMLElement>('main .preview')?.focus()
   }, [mode])
+  const [modeSeen, setModeSeen] = useState(mode)
+  const modeChange = useRef<{ from: Mode; before: ModeBoxes } | null>(null)
+  if (modeSeen !== mode) {
+    modeChange.current = { from: modeSeen, before: measureModePanes() }
+    setModeSeen(mode)
+  }
+  useLayoutEffect(() => {
+    const change = modeChange.current
+    modeChange.current = null
+    if (change) playModeChange(change.from, modeSeen, change.before)
+  }, [modeSeen])
+  const layoutSeen = useRef({ view: listView, board: boardShown })
+  useLayoutEffect(() => {
+    const was = layoutSeen.current
+    layoutSeen.current = { view: listView, board: boardShown }
+    if (was.view === listView && was.board !== boardShown) fadeInListBody()
+  }, [listView, boardShown])
   const togglePreview = () => {
     const from = document.activeElement
     const next =
@@ -3377,11 +3403,12 @@ export function App() {
       canBoard ? (
         <LayoutControl
           layout={boardShown ? 'board' : 'list'}
+          view={listView}
           onChange={changeLayoutFromControl}
           takesKeyboard={layoutTakesKeyboard}
         />
       ) : undefined,
-    [canBoard, boardShown, changeLayoutFromControl, layoutTakesKeyboard],
+    [canBoard, boardShown, listView, changeLayoutFromControl, layoutTakesKeyboard],
   )
   const openFromList = useStable((id: string) => void select(id))
   const createFromList = useStable(() => void create())

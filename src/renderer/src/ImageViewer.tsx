@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { format, t } from './i18n'
 import { resizeFrom } from './resizeMotion'
+import { useSegmentSlide } from './segmentSlide'
 
 export interface ViewedImage {
   src: string
@@ -18,6 +19,8 @@ export function ImageViewer({ image, onClose }: { image: ViewedImage; onClose: (
   const dialog = useRef<HTMLDialogElement>(null)
   const close = useRef<HTMLButtonElement>(null)
   const [actual, setActual] = useState(false)
+  const zoomGroup = useRef<HTMLDivElement>(null)
+  useSegmentSlide(zoomGroup, actual ? 1 : 0)
   const shown = useRef<HTMLImageElement>(null)
   const zoomedFrom = useRef<DOMRect | null>(null)
   const zoom = (next: (was: boolean) => boolean) => {
@@ -83,7 +86,7 @@ export function ImageViewer({ image, onClose }: { image: ViewedImage; onClose: (
       }}
     >
       <div className="image-viewer-bar">
-        <div className="segmented" role="group" aria-label={t('imageViewer.zoom')}>
+        <div ref={zoomGroup} className="segmented" role="group" aria-label={t('imageViewer.zoom')}>
           <button
             type="button"
             className="segment image-viewer-zoom"

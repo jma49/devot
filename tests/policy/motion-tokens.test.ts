@@ -59,10 +59,12 @@ it('things grow and shrink only through the scale variables, which Reduce Motion
     .flatMap((file) => readFileSync(file, 'utf8').match(/(?<![\w-])scale[:(][^;\n]*/g) ?? [])
   expect(scales.length).toBeGreaterThan(0)
   expect(
-    // At rest a thing is at its own size (`scale: 1`).
+    // At rest a thing is at its own size (`scale: 1`). A segment's thumb lifts by --segment-lift, read in segmentSlide.ts and not used under Reduce Motion.
     scales.filter(
       (s) =>
-        !/var\(--(popover-(enter|exit)|dialog-enter|chip-enter|press)-scale\)|^scale: 1$/.test(s),
+        !/var\(--(popover-(enter|exit)|dialog-enter|chip-enter|press)-scale\)|^scale: 1$|^scale\(\$\{lift\}\)/.test(
+          s,
+        ),
     ),
   ).toEqual([])
 
@@ -80,4 +82,28 @@ it('things grow and shrink only through the scale variables, which Reduce Motion
   expect(reduced).toMatch(/--dialog-enter-scale:\s*1;/)
   expect(reduced).toMatch(/--chip-enter-scale:\s*1;/)
   expect(reduced).toMatch(/--press-scale:\s*1;/)
+})
+
+it('the spring overshoots only slightly, and the movement curve never does', () => {
+  const peak = ([, y1, , y2]: readonly number[]) => {
+    let top = 0
+    for (let s = 0; s <= 1; s += 0.001) {
+      const y = 3 * (1 - s) ** 2 * s * y1! + 3 * (1 - s) * s ** 2 * y2! + s ** 3
+      top = Math.max(top, y)
+    }
+    return top
+  }
+  const easing = (name: string) => {
+    const tokens = JSON.parse(readFileSync('design/tokens/base.tokens.json', 'utf8'))
+    return tokens.motion.easing[name].$value as number[]
+  }
+  expect(peak(easing('spring'))).toBeGreaterThan(1)
+  expect(peak(easing('spring'))).toBeLessThanOrEqual(1.05)
+  expect(peak(easing('move'))).toBeLessThanOrEqual(1)
+})
+
+it('the motion spec is what the design system and the project rules point to', () => {
+  expect(readFileSync('design/motion.md', 'utf8')).toMatch(/^# Motion/)
+  expect(readFileSync('design/README.md', 'utf8')).toContain('(motion.md)')
+  expect(readFileSync('CLAUDE.md', 'utf8')).toContain('design/motion.md')
 })

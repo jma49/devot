@@ -54,3 +54,31 @@ export function drawnOffset(el: Element): { x: number; y: number } {
   const m = new DOMMatrixReadOnly(transform)
   return { x: m.m41, y: m.m42 }
 }
+
+const SPRING_SAMPLES = 48
+const SPRING_REST = 0.002
+
+/** A damped spring (damping ratio under 1, response in seconds) as a CSS `linear()` curve and the time it takes to settle. */
+export function springEasing(damping: number, response: number): { easing: string; ms: number } {
+  const natural = (2 * Math.PI) / response
+  const decay = damping * natural
+  const damped = natural * Math.sqrt(1 - damping * damping)
+  const seconds = Math.log(1 / SPRING_REST) / decay
+  const points = Array.from({ length: SPRING_SAMPLES + 1 }, (_, i) => {
+    const t = (seconds * i) / SPRING_SAMPLES
+    const left =
+      Math.exp(-decay * t) * (Math.cos(damped * t) + (decay / damped) * Math.sin(damped * t))
+    return i === SPRING_SAMPLES ? '1' : (1 - left).toFixed(4)
+  })
+  return { easing: `linear(${points.join(', ')})`, ms: seconds * 1000 }
+}
+
+export type SpringToken = 'lift' | 'settle'
+
+export function springTiming(token: SpringToken, factor = motionScale()): KeyframeAnimationOptions {
+  const { easing, ms } = springEasing(
+    Number(sizes[`motion.spring.${token}-damping`]),
+    Number(sizes[`motion.spring.${token}-response`]),
+  )
+  return { duration: ms * factor, easing }
+}

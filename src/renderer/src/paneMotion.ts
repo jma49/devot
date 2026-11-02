@@ -8,7 +8,8 @@
 // centres slide with the panes. A change during another adds to the moves
 // under way instead of restarting them. Reduce Motion shows the change at once.
 import { motionReduced } from './motionPreference'
-import { drawnOffset, motionTiming } from './motionTiming'
+import type { Mode } from './ModeControl'
+import { type DurationToken, drawnOffset, motionTiming } from './motionTiming'
 
 export const PANES = ['sidebar', 'list', 'content'] as const
 export type Pane = (typeof PANES)[number]
@@ -229,4 +230,63 @@ export function movePanes(before: PaneBoxes, shown: Record<Pane, boolean>): void
       if (still) play(still, { frames: slideFrames(-dx), add: true, fade: false }, pane)
     }
   }
+}
+
+export type ModePane = 'editor' | 'preview'
+const MODE_PANES: readonly ModePane[] = ['editor', 'preview']
+const PANE_ENTER_SHIFT_PX = 40
+
+export const paneEnterFrames = (pane: ModePane): Keyframe[] => [
+  {
+    opacity: 0,
+    transform: `translateX(${pane === 'editor' ? -PANE_ENTER_SHIFT_PX : PANE_ENTER_SHIFT_PX}px)`,
+  },
+  { opacity: 1, transform: 'translateX(0px)' },
+]
+
+export function enteringPanes(from: Mode, to: Mode): ModePane[] {
+  const panesOf = (mode: Mode): ModePane[] =>
+    mode === 'split' ? ['editor', 'preview'] : mode === 'edit' ? ['editor'] : ['preview']
+  const before = panesOf(from)
+  return panesOf(to).filter((pane) => !before.includes(pane))
+}
+
+const fadeIn = (el: Element | null, duration: DurationToken): void => {
+  if (typeof el?.animate !== 'function') return
+  el.animate([{ opacity: 0 }, { opacity: 1 }], motionTiming(duration, 'motion.easing.standard'))
+}
+
+const modePane = (pane: ModePane) => document.querySelector<HTMLElement>(`.panes > .${pane}`)
+
+export type ModeBoxes = Partial<Record<ModePane, number>>
+
+export function measureModePanes(): ModeBoxes {
+  const boxes: ModeBoxes = {}
+  for (const pane of MODE_PANES) {
+    const el = modePane(pane)
+    if (el && shows(el)) boxes[pane] = layoutLeft(el)
+  }
+  return boxes
+}
+
+export function playModeChange(from: Mode, to: Mode, before: ModeBoxes): void {
+  const entering = enteringPanes(from, to)
+  const reduced = motionReduced()
+  const timing = paneTiming()
+  for (const pane of MODE_PANES) {
+    const el = modePane(pane)
+    if (!el || !shows(el) || typeof el.animate !== 'function') continue
+    if (entering.includes(pane)) {
+      if (reduced) fadeIn(el, 'motion.duration.toggle')
+      else el.animate(paneEnterFrames(pane), timing)
+      continue
+    }
+    const was = before[pane]
+    const dx = was === undefined ? 0 : Math.round(was - layoutLeft(el))
+    if (dx !== 0 && !reduced) el.animate(slideFrames(dx), { ...timing, composite: 'add' })
+  }
+}
+
+export function fadeInListBody(): void {
+  fadeIn(document.querySelector('.list .board-columns, .list .rows'), 'motion.duration.popover')
 }

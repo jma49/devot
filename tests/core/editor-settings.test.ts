@@ -78,7 +78,7 @@ describe('editor settings', () => {
       authorship: true,
       autoDownloadUpdates: true,
       menuBar: false,
-      animations: 'always',
+      animations: 'system',
       // A4 with page numbers at the foot of each page.
       pagePaper: 'a4',
       pageMargins: 'normal',
