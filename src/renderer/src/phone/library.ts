@@ -12,11 +12,11 @@ export type PhoneView =
 
 export type PhoneStatusFilter = 'all' | 'active' | 'on_hold' | 'completed'
 
-export interface LibraryTiles {
+export interface LibraryCounts {
   readonly all: number
   readonly pinned: number
   readonly active: number
-  readonly done: number
+  readonly completed: number
 }
 
 export interface LibraryBookRow {
@@ -38,7 +38,7 @@ export interface LibraryTagRow {
 }
 
 export interface Library {
-  readonly tiles: LibraryTiles
+  readonly counts: LibraryCounts
   readonly books: readonly LibraryBookRow[]
   readonly tags: readonly LibraryTagRow[]
 }
@@ -101,11 +101,11 @@ export function libraryOf(
     for (const id of new Set(note.tagIds)) perTag.set(id, (perTag.get(id) ?? 0) + 1)
 
   return {
-    tiles: {
+    counts: {
       all: notes.length,
       pinned: notes.filter((n) => n.pinned).length,
       active: notes.filter((n) => n.status === 'active').length,
-      done: notes.filter((n) => n.status === 'completed').length,
+      completed: notes.filter((n) => n.status === 'completed').length,
     },
     books: rows,
     tags: tags

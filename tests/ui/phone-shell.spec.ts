@@ -220,7 +220,7 @@ test('a grouped page uses the grid: card 16, row 32, group title 26, 44 rows', a
   expect(box.x).toBe(20)
   expect(box.height).toBeGreaterThanOrEqual(44)
   await expect(row).toHaveCSS('padding-left', '12px')
-  const head = screen.locator('.phone-section-head').first()
+  const head = screen.locator('.phone-list-head-name').first()
   expect((await head.boundingBox())!.x).toBe(26)
   expect(await cssPx(head, 'fontSize')).toBeCloseTo(14 * (await textScale(page)), 1)
   await expect(head).toHaveCSS('font-weight', '500')

@@ -50,18 +50,18 @@ const note = (
 })
 
 describe('the Library', () => {
-  it('counts the smart tiles from the notes', () => {
+  it('counts All Notes, Pinned, Active and Completed from the notes', () => {
     const notes = [
       note(null, { pinned: true, status: 'active' }),
       note(null, { status: 'active' }),
       note(null, { status: 'completed' }),
       note(null, { status: 'on_hold' }),
     ]
-    expect(libraryOf(notes, [], [], new Set()).tiles).toEqual({
+    expect(libraryOf(notes, [], [], new Set()).counts).toEqual({
       all: 4,
       pinned: 1,
       active: 2,
-      done: 1,
+      completed: 1,
     })
   })
 
@@ -74,6 +74,17 @@ describe('the Library', () => {
       ['child', 1, false, false],
       ['b', 0, false, false],
     ])
+  })
+
+  it('gives each level of nesting its own depth', () => {
+    const books = [book('a', 'a'), book('b', 'a', 'a'), book('c', 'a', 'b')]
+    const open = libraryOf([], books, [], new Set(['a', 'b'])).books
+    expect(open.map((r) => [r.id, r.depth])).toEqual([
+      ['a', 0],
+      ['b', 1],
+      ['c', 2],
+    ])
+    expect(libraryOf([], books, [], new Set(['b'])).books.map((r) => r.id)).toEqual(['a'])
   })
 
   it('counts a notebook with its descendants, and leaves deleted notebooks out', () => {

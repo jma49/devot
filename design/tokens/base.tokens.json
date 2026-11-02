@@ -1062,10 +1062,6 @@
       "$value": { "value": 20, "unit": "px" },
       "$description": "A field in the capture sheet, concentric with the sheet: 34 - 14. Design 24 and 22."
     },
-    "phone-tile-card": {
-      "$type": "dimension",
-      "$value": { "value": 22, "unit": "px" }
-    },
     "phone-lens-bar": {
       "$type": "dimension",
       "$value": { "value": 27, "unit": "px" },
@@ -1374,12 +1370,8 @@
     },
     "phone-child-indent": {
       "$type": "dimension",
-      "$value": { "value": 30, "unit": "px" },
-      "$description": "How far a nested notebook's row moves in."
-    },
-    "phone-smart-tile": {
-      "$type": "dimension",
-      "$value": { "value": 98, "unit": "px" }
+      "$value": { "value": 40, "unit": "px" },
+      "$description": "Where a nested notebook's row starts, from the row's own left edge."
     },
     "phone-swipe-action": {
       "$type": "dimension",

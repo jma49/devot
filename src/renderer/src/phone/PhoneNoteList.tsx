@@ -450,9 +450,9 @@ export function useExcerpts(
   return excerpts
 }
 
-function NoteSectionHead(props: {
+export function SectionHead(props: {
   title: string
-  count: number
+  count?: number
   collapsed: boolean
   onToggle: () => void
 }) {
@@ -466,7 +466,9 @@ function NoteSectionHead(props: {
         onClick={props.onToggle}
       >
         <span className="phone-list-head-name">{props.title}</span>
-        <span className="phone-list-head-count phone-figures">{props.count}</span>
+        {props.count !== undefined && (
+          <span className="phone-list-head-count phone-figures">{props.count}</span>
+        )}
         <span aria-hidden="true" className="phone-list-head-rule" />
         <span aria-hidden="true" className="phone-list-head-chevron">
           <Icon name="phone.section.chevron" size="sm" weight="medium" />
@@ -595,7 +597,7 @@ export function PhoneNoteList(props: {
             const collapsed = sectionCollapsed(key, chosen, status)
             return (
               <section key={key} className="phone-note-section" data-section={key}>
-                <NoteSectionHead
+                <SectionHead
                   title={t(SECTION_TITLE[key])}
                   count={notes.length}
                   collapsed={collapsed}

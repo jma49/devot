@@ -51,6 +51,8 @@ A row is `size.phone-list-row`: a `size.icon-phone-status` status mark at x 20, 
 
 Grouped pages: cards inset 16, `radius.phone-card`, `size.phone-card-inset` around their rows, no separators. Rows are 44 with `size.phone-row-pad`, and a pressed row fills to `radius.phone-row-press`. Group titles sit at x 26, 14 medium in `color.phone.text-secondary`.
 
+Library: a card of All Notes, Pinned, Active and Completed, each opening Notes filtered; then Notebooks and Tags under section heads like the note list's, without a count, and collapsing for the session; a card of Templates and Trash; a mono footer. A nested row starts at `size.phone-child-indent`, a further 28 for each level below, with a 1 pt guide through its parent's icon column; an open parent's chevron points down. Counts are in `color.phone.text-secondary` where the design has faint, which keeps 4.5:1 only on the page, not on a card.
+
 Times, counts and stats use `.phone-figures`: mono, tabular figures.
 
 Tab bar: four icon-only tabs (Notes, Library, Activity, Settings) in a `size.phone-glass-bar` glass bar at x 16, as wide as the screen leaves beside the `size.phone-compose` glass circle: 286 on a 390 screen, with the circle at x 312. The selected tab has a lens (inset 4, `radius.phone-lens-bar`) and a filled icon; Settings shows a badge when the licence needs attention. The circle is offered on the Notes and Library screens that can take a new note, and hidden on Activity, Settings, Templates, Trash, a note and a pane.
@@ -68,8 +70,8 @@ The tab bar sits at the larger of `size.phone-tab-bottom` and the bottom safe ar
 Text follows the system's text size, up to the largest accessibility size.
 
 - Numbers in the specs are at the default size (Large). The scale is the computed size of `font: -apple-system-body` over 17, read at launch and on return to the foreground, and set on the root as `--phone-text-scale`; every font size and line height in the layout is its number times that scale.
-- Heights that hold text are minimums, so `size.phone-list-row`, `size.phone-grouped-row`, `size.phone-info-row`, `size.phone-smart-tile` and `size.phone-chip` grow with their text. Nothing is positioned by assuming a row height: the list measures its rows, and a saved note's neighbours shift by the height it really takes.
-- Text wraps rather than being cut wherever a row can grow. At the accessibility sizes the note list's title may take two lines, a row's time moves under its title, its preview takes two lines, and the four smart tiles become two rows of two.
+- Heights that hold text are minimums, so `size.phone-list-row`, `size.phone-grouped-row`, `size.phone-info-row` and `size.phone-chip` grow with their text. Nothing is positioned by assuming a row height: the list measures its rows, and a saved note's neighbours shift by the height it really takes.
+- Text wraps rather than being cut wherever a row can grow. At the accessibility sizes the note list's title may take two lines, a row's time moves under its title, and its preview takes two lines.
 - Icons beside text grow with it. Glass bars keep their heights and glyphs, because they sit in fixed places: the top bar's title stops at 1.35.
 - The note's editor and preview keep the text size chosen in Settings, and start from the system's scale until one is chosen.
 

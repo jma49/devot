@@ -124,6 +124,7 @@ test('words find notes, highlighted, and a result opens its note', async ({ page
 
 test('in: lists a notebook and shows its name on the row', async ({ page }) => {
   const name = (await library(page)
+    .getByRole('region', { name: 'Notebooks' })
     .locator('.phone-grouped-open .phone-grouped-label')
     .first()
     .textContent())!

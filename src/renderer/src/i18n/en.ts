@@ -11,6 +11,7 @@ export const en = {
   'phone.note': 'Note',
   'phone.badge.attention': 'Needs attention',
   'phone.library.done': 'Done',
+  'phone.library.smart': 'Smart lists',
   'phone.library.expand': 'Show notebooks in {name}',
   'phone.library.collapse': 'Hide notebooks in {name}',
   'phone.library.noteCount': '{count} notes',

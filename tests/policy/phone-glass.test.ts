@@ -37,7 +37,7 @@ it('puts no coloured tile behind a Settings or Library row icon', () => {
   for (const file of ['PhoneSettings.tsx', 'PhoneLibrary.tsx']) {
     const source = readFileSync(`src/renderer/src/phone/${file}`, 'utf8')
     expect(source).not.toMatch(/PANE_TILES|phone-row-tile|tileColor/)
-    expect(source).not.toContain('phone-smart-tile-icon" style')
+    expect(source).not.toContain('phone-row-icon" style')
   }
 })
 

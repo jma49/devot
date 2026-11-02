@@ -2,43 +2,31 @@ import { useMemo, useState, type ReactNode } from 'react'
 import type { TagColor } from '../../../core/storage'
 import { BookIcon } from '../BookIcon'
 import { noteDate } from '../format'
-import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { currentLocale, format, t } from '../i18n'
 import { Icon } from '../icons/Icon'
-import type { IconName } from '../icons/symbols'
 import { libraryOf, type PhoneStatusFilter, type PhoneView } from './library'
+import { SectionHead } from './PhoneNoteList'
 import type { PhoneData } from './usePhoneData'
 
 const tagColor = (color: TagColor | null) =>
   color ? `var(--color-tag-${color})` : 'var(--color-phone-status-none)'
 
-function SmartTile(props: {
-  label: MessageKey
-  icon: IconName
-  count: number
-  onOpen: () => void
-}) {
-  return (
-    <button type="button" className="phone-smart-tile" onClick={props.onOpen}>
-      <span className="phone-smart-tile-icon">
-        <Icon name={props.icon} size="phone-row" />
-      </span>
-      <span className="phone-smart-tile-count phone-figures">{props.count}</span>
-      <span className="phone-smart-tile-label">{t(props.label)}</span>
-    </button>
-  )
-}
-
 function GroupedRow(props: {
   name: string
   count?: number
   icon: ReactNode
-  child?: boolean
+  depth?: number
   strong?: boolean
   onOpen: () => void
   disclosure?: { open: boolean; onToggle: () => void }
 }) {
   return (
-    <li className="phone-grouped-row" data-child={props.child || undefined}>
+    <li
+      className="phone-grouped-row"
+      data-child={props.depth ? true : undefined}
+      style={props.depth ? { ['--phone-row-depth' as string]: props.depth - 1 } : undefined}
+    >
+      {props.depth ? <span aria-hidden="true" className="phone-row-guide" /> : null}
       <button type="button" className="phone-grouped-open" onClick={props.onOpen}>
         <span className="phone-row-icon">{props.icon}</span>
         <span className="phone-grouped-label" data-strong={props.strong || undefined}>
@@ -49,7 +37,7 @@ function GroupedRow(props: {
         )}
         {!props.disclosure && (
           <span className="phone-chevron">
-            <Icon name="phone.disclosure" size="xs" weight="medium" />
+            <Icon name="phone.disclosure" size="sm" weight="medium" />
           </span>
         )}
       </button>
@@ -68,7 +56,7 @@ function GroupedRow(props: {
         >
           <Icon
             name={props.disclosure.open ? 'disclosure.open' : 'phone.disclosure'}
-            size="xs"
+            size="sm"
             weight="medium"
           />
         </button>
@@ -77,11 +65,22 @@ function GroupedRow(props: {
   )
 }
 
-function Section(props: { title?: string; children: ReactNode }) {
+function Group(props: {
+  title: string
+  collapsed: boolean
+  onToggle: () => void
+  children: ReactNode
+}) {
   return (
     <section className="phone-section" aria-label={props.title}>
-      {props.title && <h2 className="phone-section-head">{props.title}</h2>}
-      <ul className="phone-card">{props.children}</ul>
+      <SectionHead title={props.title} collapsed={props.collapsed} onToggle={props.onToggle} />
+      <div
+        className="phone-note-section-body phone-section-body"
+        data-collapsed={props.collapsed || undefined}
+        inert={props.collapsed}
+      >
+        <ul className="phone-card">{props.children}</ul>
+      </div>
     </section>
   )
 }
@@ -95,6 +94,7 @@ export function PhoneLibrary(props: {
 }) {
   const { data } = props
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
+  const [collapsed, setCollapsed] = useState({ books: false, tags: false })
   const library = useMemo(
     () => libraryOf(data.notes, data.books, data.tags, open, navigator.languages),
     [data.notes, data.books, data.tags, open],
@@ -114,46 +114,50 @@ export function PhoneLibrary(props: {
         : format(t('phone.library.backedUpAt'), {
             time: noteDate(data.lastBackup, data.loadedAt, currentLocale()),
           })
-  const notesCount = format(t('phone.library.noteCount'), { count: String(library.tiles.all) })
+  const notesCount = format(t('phone.library.noteCount'), { count: String(library.counts.all) })
 
   return (
     <section aria-label={t('phone.tab.library')} className="phone-screen">
       <div className="phone-scroll phone-library">
-        <div className="phone-smart-tiles">
-          <SmartTile
-            label="sidebar.allNotes"
-            icon="phone.all"
-            count={library.tiles.all}
+        <ul className="phone-card" aria-label={t('phone.library.smart')}>
+          <GroupedRow
+            name={t('sidebar.allNotes')}
+            count={library.counts.all}
+            icon={<Icon name="phone.all" size="phone-row" />}
             onOpen={() => props.onShowNotes({ kind: 'all' }, 'all')}
           />
-          <SmartTile
-            label="sidebar.pinned"
-            icon="notes.pinned"
-            count={library.tiles.pinned}
+          <GroupedRow
+            name={t('sidebar.pinned')}
+            count={library.counts.pinned}
+            icon={<Icon name="notes.pinned" size="phone-row" />}
             onOpen={() => props.onShowNotes({ kind: 'pinned' }, 'all')}
           />
-          <SmartTile
-            label="status.active"
-            icon="phone.status.active"
-            count={library.tiles.active}
+          <GroupedRow
+            name={t('status.active')}
+            count={library.counts.active}
+            icon={<Icon name="phone.status.active" size="phone-row" />}
             onOpen={() => props.onShowNotes({ kind: 'all' }, 'active')}
           />
-          <SmartTile
-            label="phone.library.done"
-            icon="phone.completed"
-            count={library.tiles.done}
+          <GroupedRow
+            name={t('status.completed')}
+            count={library.counts.completed}
+            icon={<Icon name="phone.completed" size="phone-row" />}
             onOpen={() => props.onShowNotes({ kind: 'all' }, 'completed')}
           />
-        </div>
+        </ul>
 
         {library.books.length > 0 && (
-          <Section title={t('sidebar.notebooks')}>
+          <Group
+            title={t('sidebar.notebooks')}
+            collapsed={collapsed.books}
+            onToggle={() => setCollapsed((c) => ({ ...c, books: !c.books }))}
+          >
             {library.books.map((row) => (
               <GroupedRow
                 key={row.id}
                 name={row.name}
                 count={row.count}
-                child={row.depth > 0}
+                depth={row.depth}
                 strong={row.open}
                 icon={<BookIcon icon={row.icon} color={null} size="phone-row" />}
                 onOpen={() => props.onOpenList({ kind: 'book', id: row.id })}
@@ -162,11 +166,15 @@ export function PhoneLibrary(props: {
                   : {})}
               />
             ))}
-          </Section>
+          </Group>
         )}
 
         {library.tags.length > 0 && (
-          <Section title={t('sidebar.tags')}>
+          <Group
+            title={t('sidebar.tags')}
+            collapsed={collapsed.tags}
+            onToggle={() => setCollapsed((c) => ({ ...c, tags: !c.tags }))}
+          >
             {library.tags.map((row) => (
               <GroupedRow
                 key={row.id}
@@ -182,10 +190,10 @@ export function PhoneLibrary(props: {
                 onOpen={() => props.onOpenList({ kind: 'tag', id: row.id })}
               />
             ))}
-          </Section>
+          </Group>
         )}
 
-        <Section>
+        <ul className="phone-card">
           <GroupedRow
             name={t('sidebar.templates')}
             count={data.templates.length}
@@ -198,9 +206,11 @@ export function PhoneLibrary(props: {
             icon={<Icon name="trash" size="phone-row" />}
             onOpen={() => props.onOpenList({ kind: 'trash' })}
           />
-        </Section>
+        </ul>
 
-        <p className="phone-library-footer">{backup ? `${notesCount} · ${backup}` : notesCount}</p>
+        <p className="phone-library-footer phone-figures">
+          {backup ? `${notesCount} · ${backup}` : notesCount}
+        </p>
       </div>
       <div aria-hidden="true" className="phone-topbar-band" />
       <header className="phone-topbar">
