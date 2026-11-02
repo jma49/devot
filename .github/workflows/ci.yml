@@ -176,8 +176,28 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # WebKit's system packages are 139 MB from an Ubuntu mirror that is sometimes slow. apt
+      # checks each restored package against its index and downloads any that changed.
+      - id: image
+        run: echo "id=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+      - id: apt
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          key: playwright-apt-${{ steps.image.outputs.id }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: playwright-apt-${{ steps.image.outputs.id }}-
+      - if: steps.apt.outputs.cache-matched-key != ''
+        run: sudo cp ~/apt-archives/*.deb /var/cache/apt/archives/
       - run: pnpm exec playwright install --with-deps webkit
       - run: pnpm test:ui --add-reporter=json --shard=${{ matrix.partitioned && '1/1' || format('{0}/{1}', matrix.shard, matrix.shards) }}
+      - if: ${{ !cancelled() && github.ref == 'refs/heads/main' && matrix.shard == 1 && matrix.project == 'webkit' && steps.apt.outputs.cache-hit != 'true' }}
+        run: mkdir -p ~/apt-archives && find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/apt-archives {} +
+      - if: ${{ !cancelled() && github.ref == 'refs/heads/main' && matrix.shard == 1 && matrix.project == 'webkit' && steps.apt.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          key: ${{ steps.apt.outputs.cache-primary-key }}
       # Also after a green run: a test that failed once and passed on retry
       # leaves its trace here, which is the evidence for a flake.
       - if: ${{ !cancelled() }}
