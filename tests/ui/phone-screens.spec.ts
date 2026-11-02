@@ -142,6 +142,6 @@ test('every enabled button on the note list is at least 44 points', async ({ pag
     if (await button.evaluate((el) => el.classList.contains('phone-visually-hidden'))) continue
     const box = await button.boundingBox()
     if (!box || box.width === 0) continue
-    expect(box.height, await button.getAttribute('aria-label')).toBeGreaterThanOrEqual(44)
+    expect(box.height, (await button.getAttribute('aria-label')) ?? '').toBeGreaterThanOrEqual(44)
   }
 })
