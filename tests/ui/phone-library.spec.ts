@@ -64,10 +64,12 @@ test('a notebook opens its list, and the back button returns', async ({ page }) 
 })
 
 test('the new-notebook button adds a notebook', async ({ page }) => {
-  const rows = library(page).locator('.phone-grouped-open')
-  const before = await rows.count()
-  await library(page).getByRole('button', { name: 'New Notebook' }).click()
-  await expect(rows).toHaveCount(before + 1)
+  // The button does nothing until the core has started, which the first notebook shows.
+  await expect(library(page).getByRole('heading', { name: 'Notebooks' })).toBeVisible()
+  const added = library(page).locator('.phone-grouped-open').filter({ hasText: 'New Notebook' })
+  await expect(added).toHaveCount(0)
+  await library(page).getByRole('button', { name: 'New Notebook', exact: true }).click()
+  await expect(added).toHaveCount(1)
 })
 
 test('every button in the Library is at least 44 points', async ({ page }) => {

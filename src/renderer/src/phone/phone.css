@@ -672,6 +672,8 @@ button.phone-glass:active,
 
 .phone-note-section-body {
   display: grid;
+  /* Without this the column takes the width of the longest unwrapped excerpt. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 1fr;
   transition:
     grid-template-rows var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
@@ -783,7 +785,10 @@ button.phone-glass:active,
   left: var(--size-phone-list-edge);
   top: 12px;
   display: flex;
-  zoom: var(--phone-bar-text-scale, 1);
+}
+
+.phone-note-mark .phone-status-mark {
+  zoom: var(--phone-icon-scale, 1);
 }
 
 .phone-note-mark[data-bump='a'] {

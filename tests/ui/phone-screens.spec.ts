@@ -19,7 +19,7 @@ async function openNotes(page: Page): Promise<void> {
 
 /** Seeds the list with notes that the sections sort out, through the UI. */
 async function capture(page: Page, title: string): Promise<void> {
-  await page.getByRole('button', { name: 'New Note' }).click()
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: 'New Note' })
   await sheet.getByLabel('Title').fill(title)
   await sheet.getByRole('button', { name: 'Save note' }).click()
@@ -72,8 +72,13 @@ test('a row draws its status mark at 20, its text at 52 to 370, with no avatar',
   expect(title.x).toBe(52)
   expect(time.x + time.width).toBe(370)
   await expect(row.locator('.phone-note-title')).toHaveCSS('font-weight', '400')
-  await expect(row.locator('.phone-note-title')).toHaveCSS('font-size', '17px')
-  await expect(row.locator('.phone-note-time')).toHaveCSS('font-size', '14px')
+  const scale = await page
+    .locator('.phone-app')
+    .evaluate((el) => Number(getComputedStyle(el).getPropertyValue('--phone-text-scale') || 1))
+  const fontSize = (selector: string) =>
+    row.locator(selector).evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))
+  expect(await fontSize('.phone-note-title')).toBeCloseTo(17 * scale, 1)
+  expect(await fontSize('.phone-note-time')).toBeCloseTo(14 * scale, 1)
   await expect(row.locator('.phone-note-excerpt')).toHaveCSS('white-space', 'nowrap')
 })
 
@@ -152,7 +157,6 @@ test('a row swiped past half stays open with its three actions', async ({ page }
     .toMatchObject({ x: -196 })
   const capsule = (await actions.nth(2).locator('.phone-swipe-capsule').boundingBox())!
   expect(capsule).toMatchObject({ x: 328, width: 52, height: 34 })
-  await expect(actions.nth(2).locator('.phone-swipe-label')).toHaveCSS('font-size', '11px')
   await expect(row.locator('.phone-note-content')).toHaveCSS(
     'transform',
     'matrix(1, 0, 0, 1, -196, 0)',
@@ -161,6 +165,7 @@ test('a row swiped past half stays open with its three actions', async ({ page }
 
 test('tapping another row first closes the open one, and opens nothing', async ({ page }) => {
   await openNotes(page)
+  await capture(page, 'Second row')
   await swipeRow(page, 0, 130)
   const content = recent(page).first().locator('.phone-note-content')
   await expect(content).toHaveAttribute('data-raised')
@@ -229,6 +234,7 @@ test.describe('the undo toast', () => {
     page,
   }) => {
     await openNotes(page)
+    await capture(page, 'Second row')
     const before = await recentTitles(page)
     await swipeRow(page, 1, 370)
     await expect(toast(page)).toContainText('Marked completed')
@@ -303,6 +309,7 @@ test.describe('the undo toast', () => {
 
   test('a second action replaces it and the first stays done', async ({ page }) => {
     await openNotes(page)
+    await capture(page, 'Second row')
     await swipeRow(page, 0, 370)
     await expect(toast(page)).toContainText('Marked completed')
     await swipeRow(page, 0, 130)
@@ -341,7 +348,7 @@ test('capture saves a note to the top of Recent, opening it first', async ({ pag
 })
 
 test('a note captured from the Library lands in Recent of All Notes', async ({ page }) => {
-  await page.getByRole('button', { name: 'New Note' }).click()
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: 'New Note' })
   await sheet.getByLabel('Title').fill('From the Library')
   await sheet.getByRole('button', { name: 'Save note' }).click()

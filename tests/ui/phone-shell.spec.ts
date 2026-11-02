@@ -56,7 +56,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 test('the compose circle sits beside the tab bar and leaves Activity and Settings', async ({
   page,
 }) => {
-  const compose = page.getByRole('button', { name: 'New Note' })
+  const compose = page.getByRole('button', { name: 'New Note', exact: true })
   expect(await compose.boundingBox()).toMatchObject({ x: 312, width: 62, height: 62 })
   expect((await compose.boundingBox())!.y).toBe(844 - 24 - 62)
   for (const name of ['Activity', 'Settings']) {
@@ -80,17 +80,17 @@ test('Activity has a top bar and moves the lens to the third place', async ({ pa
 })
 
 test('the capture sheet grows from the circle, 374 by 440, and goes back', async ({ page }) => {
-  await page.getByRole('button', { name: 'New Note' }).click()
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: 'New Note' })
   await expect(sheet).toBeVisible()
+  // 440 at the default text size, and the test browser's system text is smaller.
+  const height = 440 * (await barScale(page))
   await expect
-    .poll(async () => sheet.boundingBox())
-    .toMatchObject({
-      x: 8,
-      y: 396,
-      width: 374,
-      height: 440,
+    .poll(async () => {
+      const box = (await sheet.boundingBox())!
+      return [box.x, box.width, Math.round(box.height), Math.round(box.y)]
     })
+    .toEqual([8, 374, Math.round(height), Math.round(844 - 8 - height)])
   await expect(sheet).toHaveCSS('border-radius', '34px')
   await sheet.getByRole('button', { name: 'Cancel' }).click()
   await expect(sheet).toHaveCount(0)
