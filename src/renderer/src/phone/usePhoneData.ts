@@ -43,8 +43,10 @@ async function newestBackup(): Promise<number | null | undefined> {
   }
 }
 
+export type PhoneStore = PhoneData & { readonly refresh: () => void }
+
 /** The phone's one core: started once, every list reloaded after each write. */
-export function usePhoneData(): PhoneData & { refresh: () => void } {
+export function usePhoneData(): PhoneStore {
   const [data, setData] = useState<PhoneData>(EMPTY)
   const coreRef = useRef<Core | null>(null)
 

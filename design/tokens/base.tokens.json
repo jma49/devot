@@ -2222,6 +2222,10 @@
     "$description": "How things move: hover, toggles, colour changes and pop-ups each have one duration, and Reduce Motion drops every movement (app.css).",
     "duration": {
       "$type": "duration",
+      "phone-flash": {
+        "$value": { "value": 1200, "unit": "ms" },
+        "$description": "A newly saved note's row in the accent wash, fading."
+      },
       "phone-lens": {
         "$value": { "value": 520, "unit": "ms" },
         "$description": "A lens squashing as it moves."
@@ -2374,6 +2378,10 @@
     },
     "scale": {
       "$type": "number",
+      "phone-bump": {
+        "$value": 1.6,
+        "$description": "A status badge at the top of its bump when the status changes."
+      },
       "phone-icon-dip": {
         "$value": 0.87,
         "$description": "A selected tab's icon dipping before it pops."
@@ -2432,6 +2440,18 @@
     },
     "delay": {
       "$type": "duration",
+      "phone-peek-bar": {
+        "$value": { "value": 90, "unit": "ms" },
+        "$description": "The peek's status bar follows the card by this much."
+      },
+      "phone-peek-menu": {
+        "$value": { "value": 50, "unit": "ms" },
+        "$description": "The peek's menu follows the card by this much."
+      },
+      "phone-capture-body": {
+        "$value": { "value": 120, "unit": "ms" },
+        "$description": "The capture sheet's contents fade in this long after it starts to grow."
+      },
       "phone-peek": {
         "$value": { "value": 420, "unit": "ms" },
         "$description": "The hold before a long press lifts a peek card."

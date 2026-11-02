@@ -221,6 +221,7 @@ export function PhoneLibrary(props: {
         >
           <Icon name="phone.notebook.new" size="lg" />
         </button>
+        <span aria-hidden="true" className="phone-compose-slot" />
       </header>
       <button
         type="button"

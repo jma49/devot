@@ -57,7 +57,7 @@ import { noteHighlighting } from './editor/highlighting'
 import { systemMenus, systemMenusAvailable } from './editor/systemMenu'
 import type { Suggester } from '../../core/aiSuggest'
 import { aiEditStart, useAiMenu, type AiEditChoice, type StartAiEdit } from './editor/aiMenu'
-import { ghostText, suggestAt } from './editor/ghostText'
+import { acceptSpec, ghostText, suggestAt } from './editor/ghostText'
 import { imageSizeBar } from './editor/ImageSizeBar'
 import { tableToolbar } from './editor/TableToolbar'
 import { linkTooltip } from './editor/linkTooltip'
@@ -194,6 +194,8 @@ export interface EditorHandle {
   ) => Promise<boolean>
   pastePlain: () => Promise<void>
   suggest: () => void
+  /** Takes the inline suggestion shown at the caret; false when none is shown. */
+  acceptSuggestion: () => boolean
   runLine: (id: CommandId) => void
   pasteUrlAs: () => Promise<void>
   imageAtCursor: () => ImageMenuTarget | null
@@ -1234,6 +1236,11 @@ export function NoteEditor({
           suggest: () => {
             ready.focus()
             suggestAt(ready)
+          },
+          acceptSuggestion: () => {
+            const spec = acceptSpec(ready.state)
+            if (spec) ready.dispatch(spec)
+            return spec !== null
           },
           runLine: (id) => {
             ready.focus()

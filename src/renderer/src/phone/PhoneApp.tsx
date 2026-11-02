@@ -26,6 +26,13 @@ import { startPhoneRoot } from './spring'
 import type { PhoneView } from './library'
 import { PhoneLibrary } from './PhoneLibrary'
 import { usePhoneData, type PhoneData } from './usePhoneData'
+import { haptic } from './haptics'
+import { useLicence } from '../licence'
+import { licenceRow } from './settingsRows'
+import { PhoneCapture } from './PhoneCapture'
+import { PhoneNote } from './PhoneNote'
+import { PhoneNoteList } from './PhoneNoteList'
+import { PhoneSettings, PhoneSettingsPane } from './PhoneSettings'
 import './phone.css'
 
 const TAB_LABEL: Record<PhoneTab, MessageKey> = {
@@ -247,33 +254,6 @@ function BackSwipeZone(props: {
   )
 }
 
-export function PhoneScreen(props: {
-  title: string
-  surface: 'plain' | 'group'
-  onBack?: () => void
-  children?: ReactNode
-}) {
-  return (
-    <section aria-label={props.title} className="phone-screen" data-surface={props.surface}>
-      <div className="phone-scroll">{props.children}</div>
-      <div aria-hidden="true" className="phone-edge" />
-      <header className="phone-topbar">
-        {props.onBack && (
-          <button
-            type="button"
-            className="phone-glass phone-nav-control"
-            aria-label={t('phone.back')}
-            onClick={props.onBack}
-          >
-            <Icon name="nav.back" size="lg" />
-          </button>
-        )}
-        <h1 className="phone-topbar-title">{props.title}</h1>
-      </header>
-    </section>
-  )
-}
-
 function viewTitle(view: PhoneView | undefined, data: PhoneData): string {
   switch (view?.kind) {
     case 'pinned':
@@ -291,44 +271,78 @@ function viewTitle(view: PhoneView | undefined, data: PhoneData): string {
   }
 }
 
-function PlaceholderScreen(props: {
-  route: PhoneRoute
-  tab: PhoneTab
-  depth: number
-  title: string
-  onPush: (screen: 'note') => void
-  onBack: () => void
-}) {
-  const { screen } = props.route
-  const title =
-    screen === 'note' ? t('phone.note') : screen === 'list' ? props.title : t(TAB_LABEL[props.tab])
-  const next = screen === 'note' || props.tab === 'settings' ? null : 'note'
-  return (
-    <PhoneScreen
-      title={title}
-      surface={screen === 'root' && props.tab !== 'notes' ? 'group' : 'plain'}
-      {...(props.depth > 0 ? { onBack: props.onBack } : {})}
-    >
-      {next && (
-        <button type="button" className="phone-row" onClick={() => props.onPush(next)}>
-          {t('phone.note')}
-        </button>
-      )}
-    </PhoneScreen>
-  )
-}
+const ARRIVAL_MS = 1200
 
 export function PhoneApp() {
   const [state, dispatch] = useReducer(navigate, undefined, initialNavigation)
-  const data = usePhoneData()
+  const store = usePhoneData()
   const [drag, setDrag] = useState(0)
   const [dragging, setDragging] = useState(false)
+  const [arrivedId, setArrivedId] = useState<string | null>(null)
+  const licence = useLicence()
+  const [now] = useState(() => Date.now())
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => (root.current ? startPhoneRoot(root.current) : undefined), [])
+  useEffect(() => {
+    if (arrivedId === null) return
+    const timer = setTimeout(() => setArrivedId(null), ARRIVAL_MS)
+    return () => clearTimeout(timer)
+  }, [arrivedId])
 
   const width = window.innerWidth
-  const depth = state.stacks[state.tab].length - 1
+  const stack = state.stacks[state.tab]
+  const depth = stack.length - 1
+  const top = stack[depth]!
   const rootX = depth === 0 ? '0vw' : layerPlacement(0, depth, drag, width).x
+  const listed = top.screen === 'list' || (state.tab === 'notes' && top.screen === 'root')
+  const topView =
+    top.screen === 'list' ? top.view : state.tab === 'notes' ? state.notes.view : undefined
+  const captureHere =
+    drag === 0 &&
+    (listed || (state.tab === 'library' && top.screen === 'root')) &&
+    topView?.kind !== 'trash' &&
+    topView?.kind !== 'templates'
+  const pop = () => dispatch({ type: 'pop' })
+
+  const render = (tab: PhoneTab, route: PhoneRoute) => {
+    const index = state.stacks[tab].findIndex((r) => r.id === route.id)
+    const onBack = index > 0 ? pop : undefined
+    if (route.screen === 'note' && route.noteId)
+      return <PhoneNote store={store} noteId={route.noteId} onBack={pop} />
+    if (route.screen === 'pane' && route.pane)
+      return <PhoneSettingsPane pane={route.pane} onBack={pop} />
+    if (tab === 'library' && route.screen === 'root')
+      return (
+        <PhoneLibrary
+          data={store}
+          onShowNotes={(view, status) => dispatch({ type: 'showNotes', view, status })}
+          onOpenList={(view) => dispatch({ type: 'push', screen: 'list', view })}
+          onNewNotebook={() => {
+            void store.core
+              ?.createBook(t('book.new'), null)
+              .then(store.refresh)
+              .catch(() => console.warn('W_PHONE_NEW_NOTEBOOK_FAILED'))
+          }}
+        />
+      )
+    if (tab === 'settings')
+      return (
+        <PhoneSettings onOpenPane={(pane) => dispatch({ type: 'push', screen: 'pane', pane })} />
+      )
+    const view =
+      route.screen === 'root' ? state.notes.view : (route.view ?? { kind: 'all' as const })
+    return (
+      <PhoneNoteList
+        data={store}
+        view={view}
+        status={route.screen === 'root' ? state.notes.status : 'all'}
+        title={viewTitle(view, store)}
+        arrivedId={arrivedId}
+        {...(onBack ? { onBack } : {})}
+        onOpenNote={(noteId) => dispatch({ type: 'push', screen: 'note', noteId })}
+      />
+    )
+  }
 
   return (
     <div ref={root} className="phone-app">
@@ -340,30 +354,7 @@ export function PhoneApp() {
           drag={tab === state.tab ? drag : 0}
           width={width}
           dragging={dragging}
-          render={(route) =>
-            tab === 'library' && route.screen === 'root' ? (
-              <PhoneLibrary
-                data={data}
-                onShowNotes={(view, status) => dispatch({ type: 'showNotes', view, status })}
-                onOpenList={(view) => dispatch({ type: 'push', screen: 'list', view })}
-                onNewNotebook={() => {
-                  void data.core
-                    ?.createBook(t('book.new'), null)
-                    .then(data.refresh)
-                    .catch(() => console.warn('W_PHONE_NEW_NOTEBOOK_FAILED'))
-                }}
-              />
-            ) : (
-              <PlaceholderScreen
-                route={route}
-                tab={tab}
-                depth={state.stacks[tab].findIndex((r) => r.id === route.id)}
-                title={viewTitle(route.screen === 'root' ? state.notes.view : route.view, data)}
-                onPush={(screen) => dispatch({ type: 'push', screen })}
-                onBack={() => dispatch({ type: 'pop' })}
-              />
-            )
-          }
+          render={(route) => render(tab, route)}
         />
       ))}
       <TabBar
@@ -372,8 +363,21 @@ export function PhoneApp() {
         covered={depth > 0}
         dragging={dragging}
         proposals={0}
-        needsAttention={false}
-        onSelect={(tab) => dispatch({ type: 'selectTab', tab })}
+        needsAttention={licenceRow(licence, now).needsAttention}
+        onSelect={(tab) => {
+          if (tab !== state.tab) haptic('selection')
+          dispatch({ type: 'selectTab', tab })
+        }}
+      />
+      <PhoneCapture
+        store={store}
+        available={captureHere}
+        bookId={topView?.kind === 'book' ? topView.id : null}
+        onSaved={(id) => {
+          if (!listed) dispatch({ type: 'showNotes', view: { kind: 'all' }, status: 'all' })
+          setArrivedId(id)
+          haptic('soft')
+        }}
       />
       {depth > 0 && (
         <BackSwipeZone
@@ -384,7 +388,7 @@ export function PhoneApp() {
           onRelease={(pops) => {
             setDragging(false)
             setDrag(0)
-            if (pops) dispatch({ type: 'pop' })
+            if (pops) pop()
           }}
         />
       )}

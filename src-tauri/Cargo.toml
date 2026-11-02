@@ -224,11 +224,15 @@ objc2-ui-kit = { version = "0.3", default-features = false, features = [
   "block2",
   "objc2-core-foundation",
   "UIColor",
+  "UIFeedbackGenerator",
   "UIGraphicsImageRenderer",
   "UIGraphicsRenderer",
   "UIImage",
   "UIImageConfiguration",
   "UIImageSymbolConfiguration",
+  "UIImpactFeedbackGenerator",
+  "UINotificationFeedbackGenerator",
+  "UISelectionFeedbackGenerator",
   "UITraitCollection",
 ] }
 

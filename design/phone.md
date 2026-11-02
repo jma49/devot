@@ -18,6 +18,13 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 - A back swipe starts from the left edge and tracks the finger; every push can be undone by it. A vertical scroll never starts a swipe.
 - Anything a gesture does is reachable without it: swipe actions and the peek's actions are also VoiceOver custom actions.
 
+## Behaviour
+
+- The note list orders pinned notes first, then the rest, newest first in each, so a new note lands at the top of the unpinned ones.
+- A move of more than 8 pt that is mostly horizontal starts a swipe; a vertical one scrolls and never swipes; a 420 ms hold without either peeks. An open row takes no peek.
+- Every row has a hidden "Actions for…" button that opens the peek's menu, so the swipe and peek actions need no gesture.
+- Settings rows open the existing Settings panes in a phone screen. Mirror Folder, Integrations and Plugins show "On the Mac" and do not open.
+
 ## Accessibility
 
 - Every icon-only button has a label from the message catalog.

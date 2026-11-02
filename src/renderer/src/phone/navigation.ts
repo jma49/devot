@@ -4,12 +4,15 @@ import type { PhoneStatusFilter, PhoneView } from './library'
 export type PhoneTab = 'notes' | 'library' | 'settings'
 export const PHONE_TABS: readonly PhoneTab[] = ['notes', 'library', 'settings']
 
-export type PhoneScreen = 'root' | 'list' | 'note'
+export type PhoneScreen = 'root' | 'list' | 'note' | 'pane'
 
 export interface PhoneRoute {
   readonly id: number
   readonly screen: PhoneScreen
   readonly view?: PhoneView
+  readonly noteId?: string
+  /** A Settings pane's id. */
+  readonly pane?: string
 }
 
 export interface PhoneNavigation {
@@ -22,7 +25,7 @@ export interface PhoneNavigation {
 
 export type PhoneNavigationAction =
   | { readonly type: 'selectTab'; readonly tab: PhoneTab }
-  | { readonly type: 'push'; readonly screen: PhoneScreen; readonly view?: PhoneView }
+  | ({ readonly type: 'push' } & Omit<PhoneRoute, 'id'>)
   | { readonly type: 'showNotes'; readonly view: PhoneView; readonly status: PhoneStatusFilter }
   | { readonly type: 'pop' }
 
@@ -53,11 +56,7 @@ export function navigate(state: PhoneNavigation, action: PhoneNavigationAction):
       return {
         ...withStack([
           ...stack,
-          {
-            id: state.nextId,
-            screen: action.screen,
-            ...(action.view ? { view: action.view } : {}),
-          },
+          (({ type: _type, ...route }) => ({ ...route, id: state.nextId }))(action),
         ]),
         nextId: state.nextId + 1,
       }
