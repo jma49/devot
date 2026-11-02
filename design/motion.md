@@ -98,6 +98,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Sheets:** rule 3. A sheet rises with `gentle` and follows a drag down 1:1; past 120 pt or on a flick it closes.
 - **Compose circle:** rule 3. Where it is not offered it fades and shrinks to `motion.scale.phone-compose-hidden` with `gentle`; where it is, it comes back the same way.
 - **Capture:** rule 3. The compose circle grows in place into the sheet with `gentle` over `motion.duration.phone-capture`, glass turning into the sheet, and its contents fade in after `motion.delay.phone-capture-body`. Saving collapses it the same way. A saved note flies into its row from `size.phone-arrive-rise` below at `motion.scale.phone-arrive` with `gentle`, the rows below shift by the height it really takes with `gentle`, and its row fades out of the accent wash over `motion.duration.phone-flash`. Under Reduce Motion the circle and the sheet crossfade, and only the wash shows on the row.
+- **Undo toast:** rule 3. It rises `size.phone-toast-rise` and grows from `motion.scale.phone-toast` with `bouncy` while fading in over `motion.duration.ring`, and goes back the same way after `motion.duration.phone-toast`. A second action replaces it where it is. Under Reduce Motion it crossfades in place.
 - **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` over `motion.duration.phone-glass-press` on `motion.easing.phone-push`, and brightens over `motion.duration.ring`.
 
 ## Stays instant

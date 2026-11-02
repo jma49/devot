@@ -282,6 +282,11 @@
   --size-phone-swipe-surface-inset: 3px;
   --size-phone-section-head: 40px;
   --size-phone-show-more: 52px;
+  --size-phone-toast: 48px;
+  --size-phone-toast-bottom: 100px;
+  --size-phone-toast-rise: 28px;
+  --size-phone-toast-undo: 36px;
+  --size-icon-phone-toast: 19px;
   --motion-duration-phone-flash: 1200ms;
   --motion-duration-phone-lens: 520ms;
   --motion-duration-phone-pop: 450ms;
@@ -305,6 +310,7 @@
   --motion-duration-backdrop-exit: 400ms;
   --motion-duration-phone-capture: 560ms;
   --motion-duration-phone-chevron: 320ms;
+  --motion-duration-phone-toast: 4000ms;
   --motion-easing-phone-push: cubic-bezier(0.23, 1, 0.32, 1);
   --motion-easing-standard: cubic-bezier(0.42, 0, 0.58, 1);
   --motion-easing-out: cubic-bezier(0, 0, 0.58, 1);
@@ -329,6 +335,7 @@
   --motion-scale-phone-arrive: 0.92;
   --motion-scale-phone-peek-bar: 0.4;
   --motion-scale-phone-peek-menu: 0.35;
+  --motion-scale-phone-toast: 0.9;
   --motion-spring-gentle-damping: 0.75;
   --motion-spring-gentle-response: 0.36;
   --motion-spring-bouncy-damping: 0.62;
@@ -419,6 +426,7 @@
   --color-phone-field: rgb(255 255 255 / 0.75);
   --color-phone-dash: rgb(0 0 0 / 0.14);
   --color-phone-dash-ink: rgb(0 0 0 / 0.18);
+  --color-phone-undo: #2856a2;
   --color-icon-tile-general: #8e8e93;
   --color-icon-tile-appearance: #0a84ff;
   --color-icon-tile-editing: #ff9f0a;
@@ -647,6 +655,7 @@
     --color-phone-field: rgb(255 255 255 / 0.07);
     --color-phone-dash: rgb(255 255 255 / 0.18);
     --color-phone-dash-ink: rgb(255 255 255 / 0.22);
+    --color-phone-undo: #8cb0de;
     --color-icon-tile-general: #8e8e93;
     --color-icon-tile-appearance: #0a84ff;
     --color-icon-tile-editing: #ff9f0a;
@@ -876,6 +885,7 @@
   --color-phone-field: rgb(255 255 255 / 0.07);
   --color-phone-dash: rgb(255 255 255 / 0.18);
   --color-phone-dash-ink: rgb(255 255 255 / 0.22);
+  --color-phone-undo: #8cb0de;
   --color-icon-tile-general: #8e8e93;
   --color-icon-tile-appearance: #0a84ff;
   --color-icon-tile-editing: #ff9f0a;
@@ -1104,6 +1114,7 @@
   --color-phone-field: rgb(255 255 255 / 0.75);
   --color-phone-dash: rgb(0 0 0 / 0.14);
   --color-phone-dash-ink: rgb(0 0 0 / 0.18);
+  --color-phone-undo: #2856a2;
   --color-icon-tile-general: #8e8e93;
   --color-icon-tile-appearance: #0a84ff;
   --color-icon-tile-editing: #ff9f0a;
@@ -1332,6 +1343,7 @@
   --color-phone-field: rgb(255 255 255 / 0.75);
   --color-phone-dash: rgb(0 0 0 / 0.14);
   --color-phone-dash-ink: rgb(0 0 0 / 0.18);
+  --color-phone-undo: #2856a2;
   --color-icon-tile-general: #8e8e93;
   --color-icon-tile-appearance: #0a84ff;
   --color-icon-tile-editing: #ff9f0a;
@@ -1560,6 +1572,7 @@
     --color-phone-field: rgb(255 255 255 / 0.07);
     --color-phone-dash: rgb(255 255 255 / 0.18);
     --color-phone-dash-ink: rgb(255 255 255 / 0.22);
+    --color-phone-undo: #a2bfe3;
     --color-icon-tile-general: #8e8e93;
     --color-icon-tile-appearance: #0a84ff;
     --color-icon-tile-editing: #ff9f0a;
@@ -1789,6 +1802,7 @@
   --color-phone-field: rgb(255 255 255 / 0.07);
   --color-phone-dash: rgb(255 255 255 / 0.18);
   --color-phone-dash-ink: rgb(255 255 255 / 0.22);
+  --color-phone-undo: #a2bfe3;
   --color-icon-tile-general: #8e8e93;
   --color-icon-tile-appearance: #0a84ff;
   --color-icon-tile-editing: #ff9f0a;
@@ -2017,6 +2031,7 @@
   --color-phone-field: rgb(255 255 255 / 0.75);
   --color-phone-dash: rgb(0 0 0 / 0.14);
   --color-phone-dash-ink: rgb(0 0 0 / 0.18);
+  --color-phone-undo: #2856a2;
   --color-icon-tile-general: #8e8e93;
   --color-icon-tile-appearance: #0a84ff;
   --color-icon-tile-editing: #ff9f0a;

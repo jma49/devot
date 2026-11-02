@@ -29,6 +29,7 @@ const BOXES = {
   md: 17,
   toolbar: 18,
   'phone-status': 20,
+  'phone-toast': 19,
   'phone-compose': 24,
   'phone-tab': 25,
   'phone-row': 21,

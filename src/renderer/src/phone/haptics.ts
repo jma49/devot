@@ -1,6 +1,6 @@
 import { invoke } from '../ipc'
 
-export type HapticKind = 'light' | 'soft' | 'selection' | 'success'
+export type HapticKind = 'light' | 'soft' | 'selection' | 'success' | 'warning'
 
 /** Plays a haptic on the iPhone; Rust does nothing on the Mac. A failure is only logged. */
 export function haptic(kind: HapticKind): void {

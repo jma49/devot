@@ -114,6 +114,13 @@ describe('the phone motion tokens', () => {
     expect(Number(sizes['motion.scale.phone-arrive'])).toBe(0.92)
   })
 
+  it('keeps the toast 4 s and rising 100 above the bottom', () => {
+    expect(sizes['motion.duration.phone-toast']).toBe('4000ms')
+    expect(Number(sizes['motion.scale.phone-toast'])).toBe(0.9)
+    expect(px('size.phone-toast-bottom')).toBe(100)
+    expect(px('size.phone-toast')).toBe(48)
+  })
+
   it('dims a peek and a push as the spec does', () => {
     expect(Number(sizes['opacity.phone-dim-peek'])).toBe(0.18)
     expect(Number(sizes['opacity.phone-dim-push'])).toBe(0.08)

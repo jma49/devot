@@ -112,7 +112,12 @@ function InfoSheet(props: {
 
 type Sheet = 'info' | 'notebook' | 'status' | 'tags' | null
 
-export function PhoneNote(props: { store: PhoneStore; noteId: string; onBack: () => void }) {
+export function PhoneNote(props: {
+  store: PhoneStore
+  noteId: string
+  onBack: () => void
+  onTrash: (note: NoteSummary) => void
+}) {
   const { store } = props
   const [history, setHistory] = useState({ ids: [props.noteId], at: 0 })
   const noteId = history.ids[history.at]!
@@ -380,7 +385,7 @@ export function PhoneNote(props: { store: PhoneStore; noteId: string; onBack: ()
           onClose={() => setSheet(null)}
           onTrash={() => {
             setSheet(null)
-            void core.trash(note.id).then(store.refresh)
+            props.onTrash(note)
             props.onBack()
           }}
         />

@@ -26,6 +26,7 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 - A move of more than 8 pt that is mostly horizontal starts a swipe; a vertical one scrolls and never swipes; a 420 ms hold without either peeks. An open row takes no peek.
 - Every row has a hidden "Actions for…" button that opens the peek's menu, so the swipe and peek actions need no gesture. It stands in for VoiceOver custom actions, which a web view cannot declare.
 - A swipe raises the row on a surface (`radius.phone-swipe-surface`, `size.phone-swipe-surface-inset`). Its capsules are `size.phone-swipe-action` by `size.phone-swipe-action-height` with an 11 pt label under each; Pin stays `color.phone.action-pin`, darker than the design's orange so its glyph keeps 3:1.
+- Trashing or completing a note (swipe, peek or note info) shows the undo toast for `motion.duration.phone-toast`. Undo puts the note back as it was, its place in the list too (`phone/undo.ts`: a status write moves `updatedAt`, so it restores that as well). A second action replaces the toast and the first stays done. Completing a note already completed does nothing. Only a note's status picker changes a status without one.
 - Settings rows open the existing Settings panes in a phone screen. Mirror Folder, Integrations and Plugins show "On the Mac" and do not open.
 - In a phone screen a pane leaves out what only the Mac has (`useOnPhone`): the interface style, Glass Transparency and the system accent color (the phone always draws its own glass), and the board, activity strip, menu bar, updates, command line tool and folder buttons. Each row stacks its control under its label at the row's width; switches stay beside their label. Messages that name the Mac use the iPhone wording in `i18n/phone.ts`.
 
@@ -55,6 +56,8 @@ Times, counts and stats use `.phone-figures`: mono, tabular figures.
 Tab bar: four icon-only tabs (Notes, Library, Activity, Settings) in a `size.phone-glass-bar` glass bar at x 16, as wide as the screen leaves beside the `size.phone-compose` glass circle: 286 on a 390 screen, with the circle at x 312. The selected tab has a lens (inset 4, `radius.phone-lens-bar`) and a filled icon; Settings shows a badge when the licence needs attention. The circle is offered on the Notes and Library screens that can take a new note, and hidden on Activity, Settings, Templates, Trash, a note and a pane.
 
 Capture: the circle grows in place into the sheet, `size.phone-sheet-inset` from the screen's sides and bottom, up to `size.phone-capture-height`. The keyboard does not move the layout, so the open sheet rides above it and shrinks to what is left under the safe area, and its contents scroll. A note saved where the list would not show it opens All Notes.
+
+Undo toast: `size.phone-toast` high, centred, `size.phone-toast-bottom` above the bottom on the tab bar's safe-area logic, above the compose circle. The Undo pill (`size.phone-toast-undo`) reaches its 44 target inside the toast.
 
 The tab bar sits at the larger of `size.phone-tab-bottom` and the bottom safe area less 10, so 24 from the screen's edge at the design's 34 pt inset, clear of the home indicator on any iPhone.
 

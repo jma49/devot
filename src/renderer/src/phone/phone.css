@@ -13,6 +13,7 @@
   --phone-peek-bar-scale: var(--motion-scale-phone-peek-bar);
   --phone-peek-menu-scale: var(--motion-scale-phone-peek-menu);
   --phone-compose-hidden-scale: var(--motion-scale-phone-compose-hidden);
+  --phone-toast-scale: var(--motion-scale-phone-toast);
   --phone-arrive-scale: var(--motion-scale-phone-arrive);
   /* At the design's 34 pt home indicator inset this is the 24 the prototype draws. */
   --phone-tab-bottom: max(var(--size-phone-tab-bottom), calc(env(safe-area-inset-bottom) - 10px));
@@ -354,6 +355,7 @@ button.phone-glass:active,
   --phone-peek-bar-scale: 1;
   --phone-peek-menu-scale: 1;
   --phone-compose-hidden-scale: 1;
+  --phone-toast-scale: 1;
   --phone-arrive-scale: 1;
 }
 
@@ -1710,6 +1712,76 @@ button.phone-chip::after {
   color: var(--color-phone-text);
 }
 
+/* Undo toast */
+
+.phone-toast {
+  position: absolute;
+  z-index: 22;
+  left: 50%;
+  bottom: calc(
+    var(--size-phone-toast-bottom) + var(--phone-tab-bottom) - var(--size-phone-tab-bottom)
+  );
+  min-height: var(--size-phone-toast);
+  max-width: calc(100% - var(--size-phone-screen-edge) * 2);
+  padding: 0 6px 0 14px;
+  box-sizing: border-box;
+  border-radius: calc(var(--size-phone-toast) / 2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  translate: -50% var(--size-phone-toast-rise);
+  scale: var(--phone-toast-scale);
+  transition:
+    translate var(--phone-spring-bouncy-duration) var(--phone-spring-bouncy),
+    scale var(--phone-spring-bouncy-duration) var(--phone-spring-bouncy),
+    opacity var(--motion-duration-ring) var(--motion-easing-out),
+    visibility 0s var(--motion-duration-ring);
+}
+
+.phone-toast[data-shown] {
+  opacity: 1;
+  visibility: visible;
+  translate: -50% 0;
+  scale: 1;
+  transition-delay: 0s;
+}
+
+.phone-toast-text {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: calc(15px * var(--phone-bar-text-scale, 1));
+  font-weight: 500;
+}
+
+.phone-toast-icon {
+  flex: none;
+  display: flex;
+}
+
+.phone-toast-undo {
+  flex: none;
+  min-height: var(--size-phone-target);
+  display: flex;
+  align-items: center;
+}
+
+.phone-toast-undo-pill {
+  height: var(--size-phone-toast-undo);
+  padding: 0 14px;
+  border-radius: calc(var(--size-phone-toast-undo) / 2);
+  background: var(--color-phone-lens);
+  display: flex;
+  align-items: center;
+  font-size: calc(15px * var(--phone-bar-text-scale, 1));
+  font-weight: 600;
+  color: var(--color-phone-undo);
+}
+
 /* Settings */
 
 .phone-scroll.phone-settings {
@@ -1843,6 +1915,13 @@ button.phone-chip::after {
 
   .phone-note-content {
     transition: none;
+  }
+
+  .phone-toast {
+    translate: -50% 0;
+    transition:
+      opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out),
+      visibility 0s var(--motion-duration-phone-crossfade);
   }
 
   /* The circle and the sheet do not morph: each is simply there, fading in. */

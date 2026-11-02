@@ -458,6 +458,8 @@ export function PhoneNoteList(props: {
   arrivedId: string | null
   onBack?: () => void
   onOpenNote: (id: string) => void
+  onTrash: (note: NoteSummary) => void
+  onComplete: (note: NoteSummary) => void
 }) {
   const { data } = props
   const [status, setStatus] = useState(props.status)
@@ -505,15 +507,10 @@ export function PhoneNoteList(props: {
   const titleOf = (n: NoteSummary) => displayTitle(n.title, excerpts.get(n.id)?.split('\n')[0])
 
   const act = (note: NoteSummary, key: RowAction) => {
-    const core = data.core
-    if (!core) return
     setPeekId(null)
-    if (key === 'pin') void core.setPinned(note.id, !note.pinned)
-    else if (key === 'trash') void core.trash(note.id).then(data.refresh)
-    else {
-      haptic('success')
-      void core.setStatus(note.id, 'completed')
-    }
+    if (key === 'pin') void data.core?.setPinned(note.id, !note.pinned)
+    else if (key === 'trash') props.onTrash(note)
+    else props.onComplete(note)
   }
   const peek = peekId ? rows.find((n) => n.id === peekId) : undefined
   const hasArrived = props.arrivedId !== null && rows.some((n) => n.id === props.arrivedId)
@@ -682,8 +679,12 @@ export function PhoneNoteList(props: {
             props.onOpenNote(peek.id)
           }}
           onStatus={(next) => {
-            haptic('selection')
             setPeekId(null)
+            if (next === 'completed') {
+              props.onComplete(peek)
+              return
+            }
+            haptic('selection')
             void data.core?.setStatus(peek.id, next)
           }}
           onAction={(key) => act(peek, key)}

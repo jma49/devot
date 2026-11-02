@@ -405,6 +405,10 @@ describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme
           [solid(theme, 'phone.elevated'), ...glassOver],
         ],
         'accent text': [solid(theme, 'accent.text'), [solid(theme, 'phone.background')]],
+        'undo on its pill': [
+          solid(theme, 'phone.undo'),
+          plain.map((s) => over(theme, 'phone.lens', over(theme, 'phone.glass', s))),
+        ],
         'count on a badge': [onAction, [solid(theme, 'phone.badge')]],
       }),
     ).toEqual([])

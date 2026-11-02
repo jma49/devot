@@ -220,6 +220,99 @@ test('the row actions are offered without a gesture', async ({ page }) => {
   await expect(page.getByRole('menuitem', { name: 'Move to Trash' })).toBeVisible()
 })
 
+test.describe('the undo toast', () => {
+  const toast = (page: Page) => page.getByRole('status')
+  const undo = (page: Page) => toast(page).getByRole('button', { name: 'Undo' })
+  const recentTitles = (page: Page) => recent(page).locator('.phone-note-title').allTextContents()
+
+  test('rises 100 above the bottom after a complete, and Undo keeps the note in its place', async ({
+    page,
+  }) => {
+    await openNotes(page)
+    const before = await recentTitles(page)
+    await swipeRow(page, 1, 370)
+    await expect(toast(page)).toContainText('Marked completed')
+    await expect(section(page, 'completed')).toBeVisible()
+    await expect
+      .poll(async () => {
+        const box = (await toast(page).boundingBox())!
+        return Math.round(box.y + box.height)
+      })
+      .toBe(844 - 100)
+    const target = (await undo(page).boundingBox())!
+    expect(target.height).toBeGreaterThanOrEqual(44)
+    await undo(page).click()
+    await expect(toast(page)).toBeHidden()
+    await expect(section(page, 'completed')).toHaveCount(0)
+    await expect.poll(() => recentTitles(page)).toEqual(before)
+  })
+
+  test('says Moved to Trash after the swipe capsule, and Undo restores the row', async ({
+    page,
+  }) => {
+    await openNotes(page)
+    const before = await recentTitles(page)
+    await swipeRow(page, 0, 130)
+    await recent(page).first().locator('.phone-swipe-action[data-action="trash"]').click()
+    await expect(toast(page)).toContainText('Moved to Trash')
+    await expect.poll(() => recentTitles(page)).not.toEqual(before)
+    await undo(page).click()
+    await expect.poll(() => recentTitles(page)).toEqual(before)
+  })
+
+  test('follows the peek menu and its status bar', async ({ page }) => {
+    await openNotes(page)
+    const actions = recent(page)
+      .first()
+      .getByRole('button', { name: /^Actions for / })
+    await actions.evaluate((el) => (el as HTMLElement).click())
+    await page
+      .getByRole('group', { name: 'Set Status' })
+      .getByRole('button', { name: 'Completed' })
+      .click()
+    await expect(toast(page)).toContainText('Marked completed')
+    await undo(page).click()
+    await actions.evaluate((el) => (el as HTMLElement).click())
+    await page.getByRole('menuitem', { name: 'Move to Trash' }).click()
+    await expect(toast(page)).toContainText('Moved to Trash')
+  })
+
+  test('outlives the note screen when trashing from its info sheet', async ({ page }) => {
+    await openNotes(page)
+    const title = (await recent(page).first().locator('.phone-note-title').textContent())!
+    await recent(page).first().locator('.phone-note-open').click()
+    await page.getByRole('button', { name: 'Note Info' }).click()
+    await page
+      .getByRole('dialog', { name: 'Note Info' })
+      .getByRole('button', { name: 'Move to Trash' })
+      .click()
+    await expect(toast(page)).toContainText('Moved to Trash')
+    await undo(page).click()
+    await expect(recent(page).filter({ hasText: title })).toHaveCount(1)
+  })
+
+  test('hides by itself after 4 s, leaving the action done', async ({ page }) => {
+    await openNotes(page)
+    await swipeRow(page, 0, 370)
+    await expect(toast(page)).toBeVisible()
+    await page.waitForTimeout(3000)
+    await expect(toast(page)).toBeVisible()
+    await expect(toast(page)).toBeHidden({ timeout: 2500 })
+    await expect(section(page, 'completed')).toBeVisible()
+  })
+
+  test('a second action replaces it and the first stays done', async ({ page }) => {
+    await openNotes(page)
+    await swipeRow(page, 0, 370)
+    await expect(toast(page)).toContainText('Marked completed')
+    await swipeRow(page, 0, 130)
+    await recent(page).first().locator('.phone-swipe-action[data-action="trash"]').click()
+    await expect(toast(page)).toContainText('Moved to Trash')
+    await undo(page).click()
+    await expect(section(page, 'completed')).toBeVisible()
+  })
+})
+
 test('a note opens in Edit, switches to Preview and shows its info sheet', async ({ page }) => {
   await openNotes(page)
   await recent(page).first().locator('.phone-note-open').click()

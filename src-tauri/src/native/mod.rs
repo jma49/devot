@@ -305,6 +305,7 @@ pub enum HapticKind {
     Soft,
     Selection,
     Success,
+    Warning,
 }
 
 fn haptic_kind(kind: &str) -> Result<HapticKind, &'static str> {
@@ -313,6 +314,7 @@ fn haptic_kind(kind: &str) -> Result<HapticKind, &'static str> {
         "soft" => Ok(HapticKind::Soft),
         "selection" => Ok(HapticKind::Selection),
         "success" => Ok(HapticKind::Success),
+        "warning" => Ok(HapticKind::Warning),
         _ => Err("E_HAPTIC_KIND_INVALID"),
     }
 }
@@ -930,11 +932,12 @@ pub async fn editor_menu_popup(
 mod tests {
 
     #[test]
-    fn haptic_takes_only_its_four_kinds() {
+    fn haptic_takes_only_its_five_kinds() {
         assert_eq!(haptic_kind("light"), Ok(HapticKind::Light));
         assert_eq!(haptic_kind("soft"), Ok(HapticKind::Soft));
         assert_eq!(haptic_kind("selection"), Ok(HapticKind::Selection));
         assert_eq!(haptic_kind("success"), Ok(HapticKind::Success));
+        assert_eq!(haptic_kind("warning"), Ok(HapticKind::Warning));
         for bad in ["", "heavy", "LIGHT", "light "] {
             assert_eq!(haptic_kind(bad), Err("E_HAPTIC_KIND_INVALID"));
         }

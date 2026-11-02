@@ -2445,6 +2445,31 @@
       "$type": "dimension",
       "$value": { "value": 52, "unit": "px" },
       "$description": "The slot of the dashed Show more button: 2 above, 42 drawn, 8 below."
+    },
+    "phone-toast": {
+      "$type": "dimension",
+      "$value": { "value": 48, "unit": "px" },
+      "$description": "The undo toast's height."
+    },
+    "phone-toast-bottom": {
+      "$type": "dimension",
+      "$value": { "value": 100, "unit": "px" },
+      "$description": "The undo toast above the bottom of the screen, at the design's home indicator inset."
+    },
+    "phone-toast-rise": {
+      "$type": "dimension",
+      "$value": { "value": 28, "unit": "px" },
+      "$description": "How far the undo toast rises as it appears."
+    },
+    "phone-toast-undo": {
+      "$type": "dimension",
+      "$value": { "value": 36, "unit": "px" },
+      "$description": "The Undo pill as drawn; its target reaches 44."
+    },
+    "icon-phone-toast": {
+      "$type": "dimension",
+      "$value": { "value": 19, "unit": "px" },
+      "$description": "The undo toast's icon."
     }
   },
   "motion": {
@@ -2590,6 +2615,11 @@
         "$value": { "value": 320, "unit": "ms" },
         "$description": "A section head's chevron turning.",
         "$type": "duration"
+      },
+      "phone-toast": {
+        "$value": { "value": 4000, "unit": "ms" },
+        "$description": "How long the undo toast stays.",
+        "$type": "duration"
       }
     },
     "easing": {
@@ -2692,6 +2722,10 @@
       "phone-peek-menu": {
         "$value": 0.35,
         "$description": "The size the peek menu grows from."
+      },
+      "phone-toast": {
+        "$value": 0.9,
+        "$description": "The size the undo toast grows from."
       }
     },
     "spring": {

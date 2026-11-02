@@ -296,6 +296,11 @@ button {
   height: var(--size-icon-phone-compose);
 }
 
+.icon-phone-toast {
+  width: var(--size-icon-phone-toast);
+  height: var(--size-icon-phone-toast);
+}
+
 .icon-phone-row {
   width: var(--size-icon-phone-row);
   height: var(--size-icon-phone-row);

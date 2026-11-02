@@ -33,6 +33,7 @@ import { licenceRow } from './settingsRows'
 import { PhoneCapture } from './PhoneCapture'
 import { PhoneNote } from './PhoneNote'
 import { PhoneNoteList } from './PhoneNoteList'
+import { PhoneToast, useUndoToast } from './PhoneToast'
 import { PhoneSettings, PhoneSettingsPane } from './PhoneSettings'
 import './phone.css'
 
@@ -277,6 +278,7 @@ export function PhoneApp() {
   const [dragging, setDragging] = useState(false)
   const [arrivedId, setArrivedId] = useState<string | null>(null)
   const licence = useLicence()
+  const undoable = useUndoToast(store)
   const [now] = useState(() => Date.now())
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => (root.current ? startPhoneRoot(root.current) : undefined), [])
@@ -306,7 +308,7 @@ export function PhoneApp() {
     const index = state.stacks[tab].findIndex((r) => r.id === route.id)
     const onBack = index > 0 ? pop : undefined
     if (route.screen === 'note' && route.noteId)
-      return <PhoneNote store={store} noteId={route.noteId} onBack={pop} />
+      return <PhoneNote store={store} noteId={route.noteId} onBack={pop} onTrash={undoable.trash} />
     if (route.screen === 'pane' && route.pane)
       return <PhoneSettingsPane pane={route.pane} onBack={pop} />
     if (tab === 'library' && route.screen === 'root')
@@ -339,6 +341,8 @@ export function PhoneApp() {
         arrivedId={arrivedId}
         {...(onBack ? { onBack } : {})}
         onOpenNote={(noteId) => dispatch({ type: 'push', screen: 'note', noteId })}
+        onTrash={undoable.trash}
+        onComplete={undoable.complete}
       />
     )
   }
@@ -377,6 +381,7 @@ export function PhoneApp() {
           haptic('soft')
         }}
       />
+      <PhoneToast toast={undoable.toast} />
       {depth > 0 && (
         <BackSwipeZone
           onMove={(next) => {

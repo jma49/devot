@@ -487,6 +487,11 @@
           "alpha": 0.22
         },
         "$description": "The dashed Show more button: its dashes."
+      },
+      "undo": {
+        "$type": "color",
+        "$value": { "colorSpace": "srgb", "components": [0.6353, 0.749, 0.8902], "hex": "#a2bfe3" },
+        "$description": "The toast's Undo label: `color.accent.text`."
       }
     },
     "icon": {
