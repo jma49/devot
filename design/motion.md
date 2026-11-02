@@ -89,6 +89,13 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Push and pop:** rule 3. The new screen slides in from the right over `motion.duration.phone-push` on `motion.easing.phone-push`; the one below moves 30% left and dims `opacity.phone-dim-push`.
 - **Back swipe:** rule 1, then rule 3. The screen tracks the finger; past `size.phone-back-threshold` or on a flick it pops, otherwise it returns.
 - **Tab bar lens:** rule 4. It slides with `bouncy` and squashes to `motion.scale.phone-lens-x` by `motion.scale.phone-lens-y` over `motion.duration.phone-lens`; the selected icon pops over `motion.duration.phone-pop`.
+- **Status filter lens:** rule 4. It slides with `bouncy`; the filtered rows change at once (rule 2).
+- **Swipe actions:** rule 1, then rule 3. The row follows the finger, with 0.6 rubber band past `size.phone-swipe-open`; on release it settles on `motion.easing.phone-push`. The buttons grow with `bouncy`, the rightmost first; past `size.phone-swipe-arm` Done stretches over the others with `gentle`.
+- **Status badge:** rule 4. It bumps to `motion.scale.phone-bump` with `bouncy` when the status changes; its colour does not animate.
+- **Peek:** rule 3. After `motion.delay.phone-peek` the background blurs and dims, the card grows from `motion.scale.phone-peek-enter` with `gentle`, and the status bar and menu follow with `bouncy` after `motion.delay.phone-peek-bar` and `motion.delay.phone-peek-menu`.
+- **Edit and Preview:** rule 3. The layers crossfade with a 6 px blur and an 8 pt lift on `gentle`; the toggle's icon turns in with `bouncy`.
+- **Sheets:** rule 3. A sheet rises with `gentle` and follows a drag down 1:1; past 120 pt or on a flick it closes.
+- **Capture:** rule 3. The new-note circle grows into the sheet with `gentle`, its contents fading in after `motion.delay.phone-capture-body`. A saved note rises into its row from 180 pt below with `gentle` and its row fades out of the accent wash over `motion.duration.phone-flash`. Under Reduce Motion only the wash shows.
 - **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` and brightens.
 
 ## Stays instant

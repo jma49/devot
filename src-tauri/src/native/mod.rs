@@ -297,6 +297,38 @@ pub async fn symbol_png(
     }
 }
 
+/// A tap the phone layout asks the device to play: `light` as a card lifts, `soft` as a saved note
+/// lands, `selection` as a choice changes, `success` as a note is completed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HapticKind {
+    Light,
+    Soft,
+    Selection,
+    Success,
+}
+
+fn haptic_kind(kind: &str) -> Result<HapticKind, &'static str> {
+    match kind {
+        "light" => Ok(HapticKind::Light),
+        "soft" => Ok(HapticKind::Soft),
+        "selection" => Ok(HapticKind::Selection),
+        "success" => Ok(HapticKind::Success),
+        _ => Err("E_HAPTIC_KIND_INVALID"),
+    }
+}
+
+/// Plays a haptic on iOS, where UIKit's generators must run on the main thread; nothing elsewhere.
+#[tauri::command]
+pub fn haptic<R: tauri::Runtime>(app: tauri::AppHandle<R>, kind: String) -> Result<(), String> {
+    let kind = haptic_kind(&kind).map_err(String::from)?;
+    #[cfg(target_os = "ios")]
+    app.run_on_main_thread(move || ios::haptic(kind))
+        .map_err(|_| String::from("E_HAPTIC_UNAVAILABLE"))?;
+    #[cfg(not(target_os = "ios"))]
+    let _ = (app, kind);
+    Ok(())
+}
+
 /// Longest text the clipboard command accepts: as much as a note may hold,
 /// as a paste takes, so Copy Note Links on any selection a library allows
 /// (and any code block) fits.
@@ -896,6 +928,18 @@ pub async fn editor_menu_popup(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn haptic_takes_only_its_four_kinds() {
+        assert_eq!(haptic_kind("light"), Ok(HapticKind::Light));
+        assert_eq!(haptic_kind("soft"), Ok(HapticKind::Soft));
+        assert_eq!(haptic_kind("selection"), Ok(HapticKind::Selection));
+        assert_eq!(haptic_kind("success"), Ok(HapticKind::Success));
+        for bad in ["", "heavy", "LIGHT", "light "] {
+            assert_eq!(haptic_kind(bad), Err("E_HAPTIC_KIND_INVALID"));
+        }
+    }
+
     use super::*;
 
     fn item(id: &str, text: &str) -> EditorMenuEntry {

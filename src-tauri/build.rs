@@ -39,6 +39,7 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "symbol_png",
+            "haptic",
             "system_accent",
             "clipboard_write_text",
             "clipboard_read_text",

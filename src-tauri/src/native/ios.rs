@@ -12,7 +12,39 @@ use objc2_ui_kit::{
     UIImageSymbolWeight, UITraitCollection,
 };
 
-use super::guarded;
+use super::{HapticKind, guarded};
+
+/// On the main thread only (`native::haptic` sends it there); off it, nothing plays.
+pub fn haptic(kind: HapticKind) {
+    use objc2::{MainThreadMarker, MainThreadOnly};
+    use objc2_ui_kit::{
+        UIImpactFeedbackGenerator, UIImpactFeedbackStyle, UINotificationFeedbackGenerator,
+        UINotificationFeedbackType, UISelectionFeedbackGenerator,
+    };
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    let _ = guarded("W_NATIVE_HAPTIC_FAILED", || {
+        match kind {
+            HapticKind::Light | HapticKind::Soft => {
+                let style = if kind == HapticKind::Light {
+                    UIImpactFeedbackStyle::Light
+                } else {
+                    UIImpactFeedbackStyle::Soft
+                };
+                UIImpactFeedbackGenerator::initWithStyle(
+                    UIImpactFeedbackGenerator::alloc(mtm),
+                    style,
+                )
+                .impactOccurred();
+            }
+            HapticKind::Selection => UISelectionFeedbackGenerator::new(mtm).selectionChanged(),
+            HapticKind::Success => UINotificationFeedbackGenerator::new(mtm)
+                .notificationOccurred(UINotificationFeedbackType::Success),
+        }
+        Some(())
+    });
+}
 
 /// One call at a time (`native::render_one_at_a_time`) on a blocking thread, where UIKit's images
 /// and image renderers may be used. The symbol is laid out for a display scale of 1, on whole points
