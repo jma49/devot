@@ -180,6 +180,30 @@ function expectDimFadesFrom(samples: Sample[], atClose: number) {
 }
 
 /**
+ * Notes the scroll offset `copy` has as it appears: the copy is gone once it has faded, which on a
+ * loaded runner can be before a read from the test arrives.
+ */
+async function noteCopyOffset(scroller: Locator, copy: string) {
+  await scroller.evaluate((el, selector) => {
+    const root = el.getRootNode() as unknown as {
+      querySelector(selector: string): { scrollTop: number } | null
+    }
+    const seen = new MutationObserver(() => {
+      const found = root.querySelector(selector)
+      if (!found) return
+      ;(globalThis as unknown as { devotCopyTop: number }).devotCopyTop = found.scrollTop
+      seen.disconnect()
+    })
+    seen.observe(root as unknown as Node, { childList: true, subtree: true })
+  }, copy)
+}
+
+const notedCopyOffset = (page: Page) =>
+  expect.poll(() =>
+    page.evaluate(() => (globalThis as unknown as { devotCopyTop?: number }).devotCopyTop),
+  )
+
+/**
  * Ends `el`'s entrance, so the samples start from a settled page. Finished rather than awaited: a
  * loaded runner can leave it short of 1 for seconds, and WebKit can start a modal's animation again.
  */
@@ -413,9 +437,9 @@ test('the palette fades out where its results were scrolled to', async ({ page }
     return el.scrollTop
   })
   expect(top).toBeGreaterThan(0)
+  await noteCopyOffset(results, 'dialog.palette[data-closing] .palette-results')
   await page.mouse.click(2, 2)
-  const copy = page.locator('dialog.palette[data-closing] .palette-results')
-  expect(await copy.evaluate((el) => el.scrollTop)).toBe(top)
+  await notedCopyOffset(page).toBe(top)
 })
 
 test('a completion list fades out where it was scrolled to', async ({ page }) => {
@@ -434,7 +458,7 @@ test('a completion list fades out where it was scrolled to', async ({ page }) =>
     return el.scrollTop
   })
   expect(top).toBeGreaterThan(0)
+  await noteCopyOffset(list, '.cm-tooltip-autocomplete[data-closing] > ul')
   await page.keyboard.press('Escape')
-  const copy = page.locator('.cm-tooltip-autocomplete[data-closing] > ul')
-  expect(await copy.evaluate((el) => el.scrollTop)).toBe(top)
+  await notedCopyOffset(page).toBe(top)
 })
