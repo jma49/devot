@@ -49,7 +49,7 @@ export function PhoneCapture(props: {
         onClick={() => setOpen(false)}
       />
       <div
-        className="phone-capture"
+        className="phone-glass phone-capture"
         data-open={open || undefined}
         data-hidden={!shown || undefined}
         role={open ? 'dialog' : undefined}

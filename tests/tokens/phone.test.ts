@@ -103,6 +103,15 @@ describe('the phone colour tokens', () => {
     expect(theme['color.phone.background']).toMatch(/^#[0-9a-f]{6}$/)
   })
 
+  it('takes the glass of the design in the system theme', () => {
+    expect(light['color.phone.glass']).toBe('rgb(255 255 255 / 0.4)')
+    expect(dark['color.phone.glass']).toBe('rgb(40 40 44 / 0.32)')
+    expect(light['color.phone.glass-sheen']).toBe('rgb(255 255 255 / 0.55)')
+    expect(dark['color.phone.glass-rim-a']).toBe('rgb(255 255 255 / 0.38)')
+    expect(sizes['motion.duration.phone-glass-press']).toBe('320ms')
+    expect(px('size.phone-glass-rim')).toBe(1.2)
+  })
+
   it('takes the design colours of the system theme', () => {
     expect(light['color.phone.background']).toBe('#fafafa')
     expect(light['color.phone.card']).toBe('#f0f0f2')

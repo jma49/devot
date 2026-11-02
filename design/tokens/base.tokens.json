@@ -1256,6 +1256,11 @@
       "$value": { "value": 44, "unit": "px" },
       "$description": "The least tappable size: a smaller drawing extends its hit area to this."
     },
+    "phone-glass-rim": {
+      "$type": "dimension",
+      "$value": { "value": 1.2, "unit": "px" },
+      "$description": "The width of a glass control's gradient rim."
+    },
     "phone-glass-bar": {
       "$type": "dimension",
       "$value": { "value": 64, "unit": "px" },
@@ -2272,6 +2277,10 @@
       "phone-push": {
         "$value": { "value": 500, "unit": "ms" },
         "$description": "A push, a pop and a row following a swipe's release."
+      },
+      "phone-glass-press": {
+        "$value": { "value": 320, "unit": "ms" },
+        "$description": "A glass control growing under the finger, and settling back."
       },
       "phone-crossfade": {
         "$value": { "value": 200, "unit": "ms" },

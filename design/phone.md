@@ -6,11 +6,13 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 
 ## Glass
 
-- Glass is the navigation layer only: the tab bar, top bar controls, the note's bottom bar and the keyboard's accessory bar. Rows, cards, tiles and the note itself are never glass, and glass never sits on glass.
+- Glass is on floating controls only: the tab bar, top bar buttons and capsules, the compose circle, the note's bottom bar, the keyboard's accessory bar, menus, toasts and sheets' buttons. Rows, cards and the note itself are never glass, and glass never sits on glass.
+- `.phone-glass` is the one recipe: the `color.phone.glass` tint, `blur(10px) saturate(1.9) brightness(1.04)`, a 0.5 edge, inner highlights, inner glow, two drop shadows, a `size.phone-glass-rim` gradient rim (`::before`) and a radial sheen (`::after`). The pseudo-elements are taken: a glass control extends its hit area on a child.
+- A pressed glass control grows to `motion.scale.phone-glass-press` and brightens to 1.05.
 - Content runs the full height of the screen and scrolls under the glass, with the frosted band under each top bar: `size.phone-topbar-band` below the safe area, `blur(20px) saturate(1.8)`, `color.phone.bar`, a 0.5 hairline in `color.phone.separator`. Content starts `size.phone-content-top` below the safe area. Reduce Transparency makes the band opaque.
-- Colour on glass marks what is selected or the screen's main action only: the accent on the selected tab and the new-note circle, the caret's violet on AI.
+- Colour on glass marks what is selected only: the accent on the selected tab, the caret's violet on AI. The compose circle's icon is in the text colour.
 - Curves share a centre: a capsule is height / 2, and an inner radius is the outer radius minus the inset. This wins over a design value: fields in the capture sheet are 20 (design 24 and 22). A grouped row's pressed fill is the exception: `radius.phone-row-press` 16 in a 22 card.
-- CSS draws the glass for now (ADR 0010).
+- CSS draws the glass (ADR 0010).
 
 ## Touch
 
@@ -30,7 +32,7 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 
 - Every icon-only button has a label from the message catalog.
 - Text keeps 4.5:1 and marks 3:1 (`src/renderer/src/theme/contrast.test.ts`). Colours moved from their design values to meet that say so in their token's description.
-- Reduce Motion turns every movement into a `motion.duration.phone-crossfade` crossfade; Reduce Transparency turns glass into `color.phone.glass-opaque` and the top band into `color.phone.background`.
+- Reduce Motion turns every movement into a `motion.duration.phone-crossfade` crossfade; Reduce Transparency turns glass into `color.phone.glass-opaque`, without its rim, sheen and inner light, and the top band into `color.phone.background`.
 - Layout comes from `env(safe-area-inset-*)`, never fixed top and bottom offsets.
 
 ## Layout

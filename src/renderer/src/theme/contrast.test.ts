@@ -389,13 +389,12 @@ describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme
   const marked = ['phone.background', 'phone.elevated', 'phone.band'].map((s) => solid(theme, s))
   const raised = over(theme, 'phone.swipe-surface', solid(theme, 'phone.background'))
   const glassOver = plain.map((s) => over(theme, 'phone.glass', s))
-  const menuOver = plain.map((s) => over(theme, 'phone.menu', s))
   const onAction = solid(theme, 'phone.on-action')
 
   it('keeps text at 4.5:1 on its surfaces', () => {
     expect(
       under(4.5, {
-        primary: [solid(theme, 'phone.text'), [...plain, raised, ...glassOver, ...menuOver]],
+        primary: [solid(theme, 'phone.text'), [...plain, raised, ...glassOver]],
         'top bar title': [
           solid(theme, 'phone.text'),
           plain.map((s) => over(theme, 'phone.bar', s)),
@@ -405,7 +404,7 @@ describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme
         'section head': [solid(theme, 'phone.section-head'), [solid(theme, 'phone.background')]],
         destructive: [
           solid(theme, 'phone.destructive'),
-          [solid(theme, 'phone.elevated'), ...menuOver],
+          [solid(theme, 'phone.elevated'), ...glassOver],
         ],
         'accent text': [solid(theme, 'accent.text'), [solid(theme, 'phone.background')]],
         'count on a badge': [onAction, [solid(theme, 'phone.badge')]],

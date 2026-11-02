@@ -96,7 +96,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Edit and Preview:** rule 3. The layers crossfade with a 6 px blur and an 8 pt lift on `gentle`; the toggle's icon turns in with `bouncy`.
 - **Sheets:** rule 3. A sheet rises with `gentle` and follows a drag down 1:1; past 120 pt or on a flick it closes.
 - **Capture:** rule 3. The new-note circle grows into the sheet with `gentle`, its contents fading in after `motion.delay.phone-capture-body`. A saved note rises into its row from 180 pt below with `gentle` and its row fades out of the accent wash over `motion.duration.phone-flash`. Under Reduce Motion only the wash shows.
-- **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` and brightens.
+- **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` over `motion.duration.phone-glass-press` on `motion.easing.phone-push`, and brightens over `motion.duration.ring`.
 
 ## Stays instant
 

@@ -352,7 +352,11 @@ function Peek(props: {
     <div className="phone-peek-layer" data-shown={shown || undefined}>
       <div className="phone-peek-dim" onClick={props.onClose} aria-hidden="true" />
       <div className="phone-peek" role="dialog" aria-modal="true" aria-label={props.title}>
-        <div role="group" aria-label={t('phone.setStatus')} className="phone-peek-status">
+        <div
+          role="group"
+          aria-label={t('phone.setStatus')}
+          className="phone-glass phone-peek-status"
+        >
           {(['active', 'on_hold', 'completed', 'dropped'] as const).map((status) => (
             <button
               key={status}
@@ -375,7 +379,7 @@ function Peek(props: {
           <h2 className="phone-peek-title">{props.title}</h2>
           <p className="phone-peek-excerpt">{props.excerpt}</p>
         </article>
-        <div role="menu" className="phone-peek-menu">
+        <div role="menu" className="phone-glass phone-peek-menu">
           <button type="button" role="menuitem" onClick={props.onOpen}>
             {t('phone.open')}
           </button>
@@ -559,7 +563,7 @@ export function PhoneNoteList(props: {
           <div
             role="menu"
             aria-label={t('phone.filter.label')}
-            className="phone-peek-menu phone-filter-menu"
+            className="phone-glass phone-peek-menu phone-filter-menu"
           >
             {PHONE_FILTERS.map((filter) => (
               <button

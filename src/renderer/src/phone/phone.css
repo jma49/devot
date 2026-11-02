@@ -32,25 +32,64 @@
 }
 
 .phone-glass {
+  position: relative;
+  isolation: isolate;
   background: var(--color-phone-glass);
-  backdrop-filter: blur(20px) saturate(1.9);
-  -webkit-backdrop-filter: blur(20px) saturate(1.9);
+  backdrop-filter: blur(10px) saturate(1.9) brightness(1.04);
+  -webkit-backdrop-filter: blur(10px) saturate(1.9) brightness(1.04);
   box-shadow:
-    inset 0 1px 1px var(--color-phone-glass-highlight),
-    inset 0 -1px 1px var(--color-phone-glass-lowlight),
-    0 0 0 var(--size-phone-separator) var(--color-phone-glass-edge),
-    0 6px 20px var(--color-phone-glass-shadow);
+    inset 0 0 0 var(--size-phone-separator) var(--color-phone-glass-edge),
+    inset 1.5px 1.5px 1px -1px var(--color-phone-glass-highlight),
+    inset -1.5px -1.5px 1px -1px var(--color-phone-glass-lowlight),
+    inset 0 0 16px var(--color-phone-glass-glow),
+    0 8px 24px var(--color-phone-glass-shadow),
+    0 1px 3px var(--color-phone-glass-shadow-near);
+}
+
+.phone-glass::before,
+.phone-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.phone-glass::before {
+  padding: var(--size-phone-glass-rim);
+  background: linear-gradient(
+    135deg,
+    var(--color-phone-glass-rim-a),
+    transparent 34%,
+    transparent 66%,
+    var(--color-phone-glass-rim-b)
+  );
+  -webkit-mask:
+    linear-gradient(var(--color-phone-text) 0 0) content-box,
+    linear-gradient(var(--color-phone-text) 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.phone-glass::after {
+  background: radial-gradient(
+    120% 90% at 22% -10%,
+    var(--color-phone-glass-sheen),
+    transparent 55%
+  );
 }
 
 button.phone-glass {
   transition:
-    transform var(--motion-duration-settle) var(--motion-easing-phone-push),
+    transform var(--motion-duration-phone-glass-press) var(--motion-easing-phone-push),
     filter var(--motion-duration-ring) var(--motion-easing-out);
 }
 
-button.phone-glass:active {
+button.phone-glass:active,
+.phone-capture:not([data-open]):has(> .phone-capture-fab:active) {
   transform: scale(var(--phone-glass-press-scale));
-  filter: brightness(1.06);
+  filter: brightness(1.05);
 }
 
 .phone-stack {
@@ -335,6 +374,15 @@ button.phone-glass:active {
     background: var(--color-phone-glass-opaque);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    box-shadow:
+      inset 0 0 0 var(--size-phone-separator) var(--color-phone-glass-edge),
+      0 8px 24px var(--color-phone-glass-shadow),
+      0 1px 3px var(--color-phone-glass-shadow-near);
+  }
+
+  .phone-glass::before,
+  .phone-glass::after {
+    display: none;
   }
 
   .phone-topbar-band {
@@ -926,14 +974,6 @@ button.phone-glass:active {
   scale: 1;
 }
 
-.phone-peek-status,
-.phone-peek-menu {
-  background: var(--color-phone-menu);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  box-shadow: 0 10px 30px var(--color-phone-shadow-float);
-}
-
 .phone-peek-status {
   align-self: flex-start;
   border-radius: var(--radius-phone-card);
@@ -1041,8 +1081,8 @@ button.phone-glass:active {
   max-height: calc(100% - var(--phone-safe-top) - 24px);
   border-radius: var(--radius-phone-sheet);
   background: var(--color-phone-sheet);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
+  backdrop-filter: blur(30px) saturate(1.8);
+  -webkit-backdrop-filter: blur(30px) saturate(1.8);
   box-shadow:
     inset 0 1px 1px var(--color-phone-glass-lowlight),
     0 -10px 40px var(--color-phone-shadow);
@@ -1428,9 +1468,9 @@ button.phone-chip::after {
   height: var(--size-phone-nav-control);
   border-radius: calc(var(--size-phone-nav-control) / 2);
   overflow: hidden;
-  background: var(--color-accent-fill);
-  box-shadow: inset 0 1px 1px var(--color-phone-glass-lowlight);
   transition:
+    transform var(--motion-duration-phone-glass-press) var(--motion-easing-phone-push),
+    filter var(--motion-duration-ring) var(--motion-easing-out),
     width var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
     height var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
     top var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
@@ -1452,8 +1492,21 @@ button.phone-chip::after {
   height: calc(384px * min(var(--phone-text-scale, 1), 1.35));
   border-radius: var(--radius-phone-sheet);
   background: var(--color-phone-sheet);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(30px) saturate(1.8);
+  -webkit-backdrop-filter: blur(30px) saturate(1.8);
+  box-shadow:
+    inset 0 1px 1px var(--color-phone-glass-lowlight),
+    0 -10px 40px var(--color-phone-shadow);
+}
+
+.phone-capture::before,
+.phone-capture::after {
+  transition: opacity var(--motion-duration-ring) var(--motion-easing-out);
+}
+
+.phone-capture[data-open]::before,
+.phone-capture[data-open]::after {
+  opacity: 0;
 }
 
 .phone-capture-fab {
@@ -1465,7 +1518,6 @@ button.phone-chip::after {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-accent-on-fill);
   transition: opacity var(--motion-duration-popover) var(--motion-easing-out);
 }
 
@@ -1646,9 +1698,7 @@ button.phone-chip::after {
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .phone-sheet,
-  .phone-capture[data-open],
-  .phone-peek-status,
-  .phone-peek-menu {
+  .phone-capture[data-open] {
     background: var(--color-phone-glass-opaque);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
