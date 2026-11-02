@@ -15,6 +15,7 @@ test('fades scrolled editor and preview independently, and restores the Classic 
   await mode.getByRole('button', { name: 'Preview', exact: true }).click()
   const panes = page.locator('.panes')
   const preview = page.locator('.preview')
+  await expect(preview.getByRole('heading', { name: 'Section 99' })).toBeAttached()
   await preview.evaluate((el) => {
     el.scrollTop = 100
   })

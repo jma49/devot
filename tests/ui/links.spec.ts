@@ -232,7 +232,9 @@ test('a link survives renaming its target', async ({ page }) => {
   await page.keyboard.press('Enter')
   await expect(body(page)).toContainText('devot://note/')
 
-  await noteRows(page).filter({ hasText: 'Groceries' }).click()
+  await noteRows(page)
+    .filter({ has: page.locator('.row-title, .row-headline', { hasText: 'Groceries' }) })
+    .click()
   await page.getByRole('textbox', { name: 'Title' }).fill('Food')
   await noteRows(page).filter({ hasText: 'Weekly plan' }).click()
   await page.getByRole('button', { name: 'Preview' }).click()

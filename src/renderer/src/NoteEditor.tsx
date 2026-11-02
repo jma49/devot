@@ -72,7 +72,7 @@ import {
   takeEarlyKeys,
   type EarlyKeysTicket,
 } from './editor/earlyKeys'
-import { editorScrollPane } from './editor/scrollPane'
+import { editorLayoutWatch, editorScrollPane } from './editor/scrollPane'
 import { insertCommand, insertKeymap, type InsertId } from './editor/insert'
 import { imageActions, imageAt, imageSizeChange, viewImageAt } from './editor/images'
 import { TABLE_COMMANDS, inTable, tableKeymap, type TableCommandId } from './editor/tableCommands'
@@ -1121,6 +1121,7 @@ export function NoteEditor({
             EditorView.contentAttributes.of({
               'aria-label': t('note.bodyLabel'),
             }),
+            editorLayoutWatch,
             EditorView.updateListener.of((update) => {
               if (!update.selectionSet && !update.docChanged) return
               if (update.docChanged && place.top) {

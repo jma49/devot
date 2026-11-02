@@ -987,6 +987,11 @@ mod tests {
 
     const HANG_CEILING: Duration = Duration::from_secs(120);
 
+    fn grows_linearly(small: Duration, large: Duration) -> bool {
+        // Timer noise below a millisecond says nothing about growth.
+        large.as_secs_f64() / small.max(Duration::from_millis(1)).as_secs_f64() < 11.0
+    }
+
     /// Four times the size takes about four times as long (sixteen times for quadratic work; the
     /// limit is in between), whatever the machine's speed or load. Then runs the full `size` once,
     /// under a ceiling that only a hang reaches.
@@ -1001,11 +1006,9 @@ mod tests {
             small = small.min(best_of_five(&work, &small_input));
             large = large.min(best_of_five(&work, &large_input));
         }
-        // Timer noise below a millisecond says nothing about growth.
-        let growth = large.as_secs_f64() / small.max(Duration::from_millis(1)).as_secs_f64();
         assert!(
-            growth < 11.0,
-            "four times the input took {growth:.1} times as long ({small:?} to {large:?})"
+            grows_linearly(small, large),
+            "four times the input went from {small:?} to {large:?}"
         );
         let started = Instant::now();
         work(&make(size));
@@ -1018,23 +1021,19 @@ mod tests {
 
     #[test]
     fn the_growth_check_tells_quadratic_from_linear() {
-        let make = |n: usize| "a".repeat(n);
-        let linear = |text: &str| {
-            std::hint::black_box(text.bytes().filter(|b| *b == b'a').count());
-        };
-        assert_linear(linear, make, 4_000_000);
-        let quadratic = |text: &str| {
-            let bytes = text.as_bytes();
-            let mut same = 0usize;
-            for a in bytes {
-                for b in bytes {
-                    same += usize::from(a == b);
-                }
-            }
-            std::hint::black_box(same);
-        };
-        let failed = std::panic::catch_unwind(|| assert_linear(quadratic, make, 40_000));
-        assert!(failed.is_err(), "quadratic work passed the check");
+        let ms = Duration::from_millis;
+        assert!(grows_linearly(ms(10), ms(40)), "linear growth");
+        assert!(grows_linearly(ms(10), ms(109)), "just under the limit");
+        assert!(!grows_linearly(ms(10), ms(110)), "at the limit");
+        assert!(!grows_linearly(ms(10), ms(160)), "quadratic growth");
+        assert!(
+            grows_linearly(Duration::from_micros(100), ms(4)),
+            "timer noise in the small run"
+        );
+        assert!(
+            !grows_linearly(Duration::from_micros(100), ms(16)),
+            "quadratic growth from a small run under the timer's noise"
+        );
     }
 
     #[test]

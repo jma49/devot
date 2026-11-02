@@ -137,6 +137,23 @@ test('a sidebar asked for in a narrow window is hidden again after a trip throug
   await expect(showSidebar(page)).toBeVisible()
 })
 
+test('the window follows its width when the media query reports no change', async ({ page }) => {
+  await page.addInitScript(() => {
+    const proto = (
+      globalThis as unknown as {
+        MediaQueryList: { prototype: { addEventListener: (...args: unknown[]) => void } }
+      }
+    ).MediaQueryList.prototype
+    proto.addEventListener = () => {}
+  })
+  await openNote(page, 800, 'note')
+  await expect(page.locator('.window')).toHaveAttribute('data-narrow')
+  await page.setViewportSize({ width: 1280, height: 700 })
+  await expect(page.locator('.window')).not.toHaveAttribute('data-narrow')
+  await page.setViewportSize({ width: 800, height: 700 })
+  await expect(page.locator('.window')).toHaveAttribute('data-narrow')
+})
+
 test('a sidebar the user hid stays hidden in a wide window', async ({ page }) => {
   await openNote(page, 1280, 'note')
   await page.getByRole('button', { name: 'Hide Sidebar' }).click()

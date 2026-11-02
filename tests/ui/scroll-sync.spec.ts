@@ -158,6 +158,27 @@ test('scrolling the preview brings the editor to the same line', async ({ page }
   await expect.poll(() => editorOffset(page, '## Section 25').then(near)).toBe(true)
 })
 
+test('the editor lines up again when its lines turn out taller than it guessed', async ({
+  page,
+}) => {
+  await openLongNote(page)
+  await scrollPreviewTo(page, 'Section 70')
+  await expect.poll(() => editorOffset(page, '## Section 70').then(near)).toBe(true)
+  await page.locator('[data-devot-part="editor-body"]').evaluate((host) => {
+    const root = (host as unknown as { shadowRoot: { append(node: unknown): void } }).shadowRoot
+    const doc = (
+      globalThis as unknown as {
+        document: { createElement(tag: string): { textContent: string } }
+      }
+    ).document
+    const style = doc.createElement('style')
+    style.textContent = '.cm-line { padding-bottom: 8px !important; }'
+    root.append(style)
+  })
+  await expect.poll(() => editorOffset(page, '## Section 70').then(near)).toBe(true)
+  expect(near(await previewOffset(page, 'Section 70'))).toBe(true)
+})
+
 test('a wheel over either pane scrolls both, and the follower never scrolls back', async ({
   page,
 }) => {
