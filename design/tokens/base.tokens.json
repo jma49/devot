@@ -1084,6 +1084,14 @@
       },
       "$description": "Glass interface: the floating sidebar, concentric with the window's corner at size.sidebar-inset from its edge."
     },
+    "diagram-bar": {
+      "$type": "dimension",
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      },
+      "$description": "A gantt bar's corners in a Mermaid diagram."
+    },
     "diagram-node": {
       "$type": "dimension",
       "$value": {
@@ -1417,6 +1425,30 @@
         "unit": "px"
       },
       "$description": "An arrowhead's length along its edge in a Mermaid diagram."
+    },
+    "diagram-git-line": {
+      "$type": "dimension",
+      "$value": {
+        "value": 3,
+        "unit": "px"
+      },
+      "$description": "A branch line in a Mermaid git graph."
+    },
+    "diagram-git-commit": {
+      "$type": "dimension",
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      },
+      "$description": "A commit's radius in a Mermaid git graph."
+    },
+    "diagram-git-merge": {
+      "$type": "dimension",
+      "$value": {
+        "value": 3,
+        "unit": "px"
+      },
+      "$description": "The dot inside a merge commit in a Mermaid git graph."
     },
     "diagram-arrow-width": {
       "$type": "dimension",

@@ -12,6 +12,13 @@ export interface RenderRequest {
   fontFamily: string
   fontSize: string
   palette: DiagramPalette
+  /** The width to draw for, when the drawing follows it. */
+  width?: number
+}
+
+/** Only a gantt chart spreads over the width it is given; others draw to their own size. */
+export function followsWidth(source: string): boolean {
+  return /^\s*(?:---[\s\S]*?---\s*)?(?:%%[^\n]*\n\s*)*gantt\b/.test(source)
 }
 
 export const READY = 'devot-mermaid-ready'
@@ -41,6 +48,7 @@ export function isRenderRequest(data: unknown): data is RenderRequest {
     (r.appearance === 'light' || r.appearance === 'dark') &&
     typeof r.fontFamily === 'string' &&
     typeof r.fontSize === 'string' &&
+    (r.width === undefined || (Number.isFinite(r.width) && r.width > 0)) &&
     typeof r.palette === 'object' &&
     r.palette !== null &&
     Object.values(r.palette).every((colour) => typeof colour === 'string')

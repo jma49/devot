@@ -11,7 +11,7 @@ import {
   type FrameMessage,
   type RenderRequest,
 } from './preview/mermaid-protocol'
-import { diagramTheme, finishDrawing } from './preview/mermaid-theme'
+import { diagramConfig, diagramTheme, finishDrawing } from './preview/mermaid-theme'
 import './mermaid-frame.css'
 
 let port: MessagePort | undefined
@@ -30,6 +30,7 @@ async function draw(request: RenderRequest): Promise<void> {
     theme: 'base',
     fontFamily: request.fontFamily,
     ...diagramTheme(request.palette, request.appearance, request.fontFamily),
+    ...diagramConfig(request.width),
     htmlLabels: false,
     flowchart: { htmlLabels: false },
   })

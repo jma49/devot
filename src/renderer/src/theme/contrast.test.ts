@@ -190,6 +190,19 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     expect(under(3, icons)).toEqual([])
   })
 
+  it('draws chart labels at 4.5:1 on the marks they sit on', () => {
+    const series = [1, 2, 3, 4, 5, 6].map((n) => solid(theme, `chart.series-${n}`))
+    const bars = ['task', 'active', 'crit'].map((name) => solid(theme, `chart.bar-${name}`))
+    const done = backdrops(theme).map((b) => composite(colour(theme, 'fill.card'), b))
+    expect(
+      under(4.5, {
+        'on a series': [solid(theme, 'chart.on-series'), series],
+        'on a bar': [solid(theme, 'chart.on-bar'), bars],
+        'on a done bar': [solid(theme, 'text.secondary'), done],
+      }),
+    ).toEqual([])
+  })
+
   it('draws popup text at 4.5:1 on the popover and its selected row', () => {
     // The slash menu, completion popups and the floating toolbar: labels are
     // primary, group headers secondary, key hints tertiary. On the selected

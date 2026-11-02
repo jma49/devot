@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { parseColor, toHex } from '../theme/contrast'
 import { dark, ivoryDark, ivoryLight, light, sizes } from '../theme/tokens'
-import { besideLine, diagramPalette, diagramTheme, exportPalette } from './mermaid-theme'
+import {
+  besideLine,
+  diagramConfig,
+  diagramPalette,
+  diagramTheme,
+  exportPalette,
+  labelledTicks,
+} from './mermaid-theme'
 
 const hex = (token: string) => {
   const { rgb, alpha } = parseColor(token)
@@ -24,13 +31,18 @@ describe.each([
       edge: tokens['color.text.tertiary'],
       text: tokens['color.text.primary'],
       label: tokens['color.text.secondary'],
-      sheet: tokens['color.surface.sheet'],
-      series1: tokens['color.tag.blue'],
-      series2: tokens['color.tag.green'],
-      series3: tokens['color.tag.orange'],
-      series4: tokens['color.tag.purple'],
-      series5: tokens['color.tag.red'],
-      series6: tokens['color.tag.yellow'],
+      ground: tokens['color.surface.editor'],
+      series1: tokens['color.chart.series-1'],
+      series2: tokens['color.chart.series-2'],
+      series3: tokens['color.chart.series-3'],
+      series4: tokens['color.chart.series-4'],
+      series5: tokens['color.chart.series-5'],
+      series6: tokens['color.chart.series-6'],
+      onSeries: tokens['color.chart.on-series'],
+      barTask: tokens['color.chart.bar-task'],
+      barActive: tokens['color.chart.bar-active'],
+      barCrit: tokens['color.chart.bar-crit'],
+      onBar: tokens['color.chart.on-bar'],
     })
   })
 
@@ -38,9 +50,9 @@ describe.each([
     const allowed = new Set(Object.values(palette))
     const allowedVariables = new Set(Object.values(palette).map(hex))
     const colours = Object.entries(themeVariables)
-      .filter(([key]) => !['fontFamily', 'fontSize', 'darkMode'].includes(key))
+      .filter(([, value]) => typeof value === 'string' && value.startsWith('#'))
       .map(([, value]) => value)
-    expect(colours.length).toBeGreaterThan(0)
+    expect(colours.length).toBeGreaterThan(100)
     for (const colour of colours) expect(allowedVariables).toContain(colour)
     for (const colour of themeCSS.match(/rgba?\([^)]*\)|#[0-9a-f]{3,8}\b/gi) ?? [])
       expect(allowed).toContain(colour)
@@ -111,15 +123,48 @@ describe('an edge label beside its line', () => {
   })
 })
 
-it('charts keep distinct, opaque data colours', () => {
+describe('charts', () => {
   const v = diagramTheme(exportPalette, 'light', 'sans-serif').themeVariables as Record<
     string,
     string | boolean
   >
-  const pies = [v.pie1, v.pie2, v.pie3, v.pie4, v.pie5, v.pie6]
-  expect(new Set(pies).size).toBe(6)
-  for (const colour of pies) expect(colour).toMatch(/^#[0-9a-f]{6}$/i)
-  expect(v.cScale0).not.toBe(v.cScale1)
-  expect(v.git0).not.toBe(v.git1)
-  expect(v.taskBkgColor).toMatch(/^#[0-9a-f]{6}$/i)
+
+  it('keep distinct, opaque data colours', () => {
+    const pies = [v.pie1, v.pie2, v.pie3, v.pie4, v.pie5, v.pie6]
+    expect(new Set(pies).size).toBe(6)
+    for (const colour of pies) expect(colour).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(v.cScale0).not.toBe(v.cScale1)
+    expect(v.git0).not.toBe(v.git1)
+    expect(v.taskBkgColor).toMatch(/^#[0-9a-f]{6}$/i)
+  })
+
+  it('draw a pie without an outer ring or see-through slices', () => {
+    expect(v.pieOpacity).toBe('1')
+    expect(v.pieOuterStrokeWidth).toBe('0px')
+    expect(v.pieStrokeWidth).toBe('2px')
+    expect(v.pieStrokeColor).toBe(hex(light['color.surface.editor']))
+  })
+
+  it('never fall back to a tag colour', () => {
+    const tags = Object.entries(light)
+      .filter(([key]) => key.startsWith('color.tag.'))
+      .map(([, value]) => hex(value))
+    for (const colour of Object.values(v)) expect(tags).not.toContain(colour)
+  })
+})
+
+describe('a gantt chart', () => {
+  it('is drawn for the width it is shown in, with short dates', () => {
+    expect(diagramConfig(480).gantt).toMatchObject({ useWidth: 480, axisFormat: '%b %-d' })
+  })
+
+  it('keeps the width of an exported page when no width is given', () => {
+    expect(diagramConfig().gantt.useWidth).toBe(parseFloat(sizes['size.reading-width']))
+  })
+
+  it('labels only the ticks that do not collide', () => {
+    expect(labelledTicks([0, 20, 40, 60, 80, 100], 30)).toEqual([0, 40, 80])
+    expect(labelledTicks([0, 100, 200], 30)).toEqual([0, 100, 200])
+    expect(labelledTicks([], 30)).toEqual([])
+  })
 })

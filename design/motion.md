@@ -34,6 +34,8 @@ Native menus and other system-drawn things keep the system's motion.
 | Content replaced in place (List or Board)          | fade in only            | `popover` or `toggle`                            | `standard`                                       |
 | Colour meant to be noticed                         | fade                    | `color`                                          | `standard`                                       |
 
+A diagram redrawn for a new pane width (a gantt chart) has no motion: it follows the pane, and the new drawing replaces the old one once the pane has settled.
+
 ## Springiness
 
 `motion.easing.move` has no overshoot and stays the curve for everything that travels. `motion.easing.spring` overshoots by about 3% and is for a press released. A segment's thumb under the pointer uses real springs (`motion.spring.*`, drawn by `springEasing`), with little overshoot. Apple's own controls respond more strongly to touch than to a trackpad, so even this stays slight on a Mac. Never use it on panes, rows, dialogs or menus. Reduced motion turns it off with the rest. Devot follows the system's Reduce Motion by default.

@@ -9,13 +9,18 @@ export interface DiagramPalette {
   edge: string
   text: string
   label: string
-  sheet: string
+  ground: string
   series1: string
   series2: string
   series3: string
   series4: string
   series5: string
   series6: string
+  onSeries: string
+  barTask: string
+  barActive: string
+  barCrit: string
+  onBar: string
 }
 
 const PALETTE_TOKENS = {
@@ -24,13 +29,18 @@ const PALETTE_TOKENS = {
   edge: 'color.text.tertiary',
   text: 'color.text.primary',
   label: 'color.text.secondary',
-  sheet: 'color.surface.sheet',
-  series1: 'color.tag.blue',
-  series2: 'color.tag.green',
-  series3: 'color.tag.orange',
-  series4: 'color.tag.purple',
-  series5: 'color.tag.red',
-  series6: 'color.tag.yellow',
+  ground: 'color.surface.editor',
+  series1: 'color.chart.series-1',
+  series2: 'color.chart.series-2',
+  series3: 'color.chart.series-3',
+  series4: 'color.chart.series-4',
+  series5: 'color.chart.series-5',
+  series6: 'color.chart.series-6',
+  onSeries: 'color.chart.on-series',
+  barTask: 'color.chart.bar-task',
+  barActive: 'color.chart.bar-active',
+  barCrit: 'color.chart.bar-crit',
+  onBar: 'color.chart.on-bar',
 } as const satisfies Record<keyof DiagramPalette, ThemeColor>
 
 /** Mermaid drops a theme variable with a `/`, so its variables are hex; themeCSS keeps the exact token. */
@@ -40,73 +50,129 @@ function themeVariable(token: string): string {
 }
 
 export function diagramPalette(read: (token: ThemeColor) => string): DiagramPalette {
-  const colour = (name: keyof DiagramPalette) => read(PALETTE_TOKENS[name]).trim()
-  return {
-    card: colour('card'),
-    hairline: colour('hairline'),
-    edge: colour('edge'),
-    text: colour('text'),
-    label: colour('label'),
-    sheet: colour('sheet'),
-    series1: colour('series1'),
-    series2: colour('series2'),
-    series3: colour('series3'),
-    series4: colour('series4'),
-    series5: colour('series5'),
-    series6: colour('series6'),
-  }
+  const keys = Object.keys(PALETTE_TOKENS) as (keyof DiagramPalette)[]
+  return Object.fromEntries(
+    keys.map((name) => [name, read(PALETTE_TOKENS[name]).trim()]),
+  ) as unknown as DiagramPalette
 }
 
 /** Exported and printed pages show a diagram on a light surface in every appearance. */
 export const exportPalette = diagramPalette((token) => light[token])
+
+const AXIS_LABEL_GAP = 8
+/** Wider than most of a short date in the caption font, so an estimate never lets two touch. */
+const AXIS_LABEL_WIDTH = 42
+
+/**
+ * Settings that are not colours. A gantt chart spreads over the width it is
+ * given, so one drawn wider than its pane would shrink to fit, type and all.
+ */
+export function diagramConfig(width = parseFloat(sizes['size.reading-width'])) {
+  return {
+    gantt: {
+      useWidth: width,
+      axisFormat: '%b %-d',
+      barHeight: 20,
+      barGap: 5,
+      topPadding: 44,
+      fontSize: parseFloat(sizes['font.size.caption']),
+      sectionFontSize: parseFloat(sizes['font.size.caption']),
+    },
+    // Mermaid's default is a foreignObject, which the preview drops.
+    journey: { textPlacement: 'tspan' },
+  }
+}
 
 export function diagramTheme(
   palette: DiagramPalette,
   appearance: 'light' | 'dark',
   fontFamily: string,
 ) {
-  const { card, hairline, edge, text, label, sheet } = palette
+  const { card, hairline, edge, text, label, onSeries } = palette
   const variable = {
     card: themeVariable(card),
     hairline: themeVariable(hairline),
     edge: themeVariable(edge),
     text: themeVariable(text),
     label: themeVariable(label),
-    sheet: themeVariable(sheet),
+    ground: themeVariable(palette.ground),
+    onSeries: themeVariable(onSeries),
+    onBar: themeVariable(palette.onBar),
   }
-  const series = [
+  const seriesTokens = [
     palette.series1,
     palette.series2,
     palette.series3,
     palette.series4,
     palette.series5,
     palette.series6,
-  ].map(themeVariable)
-  // Charts take their data colours from these. Flowcharts draw nodes from mainBkg and themeCSS.
-  const dataColours = (name: string, count: number) =>
+  ]
+  const series = seriesTokens.map(themeVariable)
+  const dataColours = (name: string, count: number, first = 0) =>
     Object.fromEntries(
-      Array.from({ length: count }, (_, i) => [`${name}${i}`, series[i % series.length]!]),
+      Array.from({ length: count }, (_, i) => [`${name}${i + first}`, series[i % series.length]!]),
     )
-  const pieColours = Object.fromEntries(
-    Array.from({ length: 12 }, (_, i) => [`pie${i + 1}`, series[i % series.length]!]),
-  )
+  const every = (name: string, count: number, colour: string) =>
+    Object.fromEntries(Array.from({ length: count }, (_, i) => [`${name}${i}`, colour]))
+  const bar = {
+    task: themeVariable(palette.barTask),
+    active: themeVariable(palette.barActive),
+    crit: themeVariable(palette.barCrit),
+  }
+  const captionSize = sizes['font.size.caption']
   const themeVariables = {
-    ...pieColours,
+    ...dataColours('pie', 12, 1),
     ...dataColours('cScale', 12),
+    ...dataColours('cScaleInv', 12),
+    ...dataColours('cScalePeer', 12),
+    ...every('cScaleLabel', 12, variable.onSeries),
     ...dataColours('git', 8),
+    ...every('gitInv', 8, variable.onSeries),
+    ...every('gitBranchLabel', 8, variable.onSeries),
     ...dataColours('fillType', 8),
-    taskBkgColor: series[0]!,
-    activeTaskBkgColor: series[1]!,
-    doneTaskBkgColor: variable.label,
-    critBkgColor: series[4]!,
-    sectionBkgColor: variable.card,
-    sectionBkgColor2: variable.card,
-    altSectionBkgColor: variable.sheet,
+    ...dataColours('actor', 6),
+    pieOpacity: '1',
+    pieStrokeColor: variable.ground,
+    pieStrokeWidth: '2px',
+    pieOuterStrokeColor: variable.ground,
+    pieOuterStrokeWidth: '0px',
+    pieSectionTextColor: variable.onSeries,
+    pieSectionTextSize: captionSize,
+    pieTitleTextColor: variable.text,
+    pieTitleTextSize: sizes['font.size.body'],
+    pieLegendTextColor: variable.label,
+    pieLegendTextSize: captionSize,
+    commitLabelColor: variable.label,
+    commitLabelBackground: variable.ground,
+    commitLabelFontSize: captionSize,
+    tagLabelColor: variable.label,
+    tagLabelBackground: variable.ground,
+    tagLabelBorder: variable.hairline,
+    tagLabelFontSize: captionSize,
+    taskBkgColor: bar.task,
+    taskBorderColor: bar.task,
+    activeTaskBkgColor: bar.active,
+    activeTaskBorderColor: bar.active,
+    doneTaskBkgColor: variable.card,
+    doneTaskBorderColor: variable.card,
+    critBkgColor: bar.crit,
+    critBorderColor: bar.crit,
+    taskTextColor: variable.onBar,
+    taskTextDarkColor: variable.onBar,
+    taskTextLightColor: variable.onBar,
+    taskTextClickableColor: variable.onBar,
+    taskTextOutsideColor: variable.text,
+    todayLineColor: variable.edge,
+    gridColor: variable.hairline,
+    sectionBkgColor: variable.ground,
+    sectionBkgColor2: variable.ground,
+    altSectionBkgColor: variable.ground,
     excludeBkgColor: variable.card,
+    faceColor: variable.ground,
     darkMode: appearance === 'dark',
     fontFamily,
     fontSize: sizes['font.size.footnote'],
-    background: variable.sheet,
+    background: variable.ground,
     primaryColor: series[0]!,
     secondaryColor: series[1]!,
     tertiaryColor: series[2]!,
@@ -125,7 +191,7 @@ export function diagramTheme(
     tertiaryTextColor: variable.text,
     nodeTextColor: variable.text,
     titleColor: variable.text,
-    edgeLabelBackground: variable.sheet,
+    edgeLabelBackground: variable.ground,
     actorBkg: variable.card,
     actorBorder: variable.hairline,
     actorTextColor: variable.text,
@@ -140,6 +206,10 @@ export function diagramTheme(
     noteBorderColor: variable.hairline,
     noteTextColor: variable.text,
   }
+  // Mermaid numbers a section's colour one above its class.
+  const sectionFills = seriesTokens
+    .map((colour, i) => `.section-${i - 1} .node-bkg { fill: ${colour} !important; }`)
+    .join('\n')
   const themeCSS = `
     .node .label-container, .node .label-container path {
       fill: ${card};
@@ -165,12 +235,95 @@ export function diagramTheme(
       stroke: ${edge};
     }
     .edgeLabel text, .edgeLabel tspan {
-      font-size: ${sizes['font.size.caption']};
+      font-size: ${captionSize};
       fill: ${label};
     }
     .edgeLabel rect.background {
-      fill: ${sheet};
+      fill: none;
+    }
+    line {
+      stroke: ${edge} !important;
+      stroke-width: ${sizes['size.diagram-edge']} !important;
+    }
+    rect.section {
+      opacity: 0 !important;
+    }
+    .grid .tick line {
+      stroke: ${hairline} !important;
       opacity: 1;
+    }
+    .grid path {
+      stroke: none;
+    }
+    .grid .tick text {
+      fill: ${edge};
+      font-size: ${captionSize};
+    }
+    .sectionTitle, .sectionTitle0, .sectionTitle1, .sectionTitle2, .sectionTitle3 {
+      fill: ${label};
+      font-size: ${captionSize};
+      font-weight: 600;
+    }
+    .titleText {
+      fill: ${text};
+      font-size: ${sizes['font.size.body']};
+      font-weight: 600;
+    }
+    rect.task {
+      stroke: none !important;
+      stroke-width: 0 !important;
+      rx: ${sizes['radius.diagram-bar']};
+      ry: ${sizes['radius.diagram-bar']};
+    }
+    .taskText, .taskTextOutsideRight, .taskTextOutsideLeft {
+      font-size: ${captionSize} !important;
+    }
+    .done0, .done1, .done2, .done3, .doneCrit0, .doneCrit1, .doneCrit2, .doneCrit3 {
+      fill: ${card} !important;
+    }
+    .doneText0, .doneText1, .doneText2, .doneText3,
+    .doneCritText0, .doneCritText1, .doneCritText2, .doneCritText3 {
+      fill: ${label} !important;
+    }
+    .pieOuterCircle {
+      fill: none;
+    }
+    .slice {
+      font-weight: 500;
+    }
+    .legend text {
+      fill: ${label};
+    }
+    .arrow {
+      stroke-width: ${sizes['size.diagram-git-line']} !important;
+    }
+    .commit-bullets circle {
+      r: ${sizes['size.diagram-git-commit']};
+    }
+    .commit-bullets circle.commit-merge {
+      r: ${sizes['size.diagram-git-merge']};
+    }
+    .eventWrapper {
+      filter: none;
+    }
+    .mindmap-node .node-bkg, .timeline-node .node-bkg, rect.task-line {
+      stroke: none;
+    }
+    .mindmap-node line, .mindmap-node .node-line-0, .mindmap-node [class*="node-line"] {
+      stroke: none !important;
+    }
+    ${sectionFills}
+    .section-root .node-bkg {
+      fill: ${card} !important;
+    }
+    .mindmap-node text, .mindmap-node tspan, .timeline-node text, .timeline-node tspan,
+    [class*="section-"] text, [class*="section-"] tspan,
+    [class*="task-type"] ~ text, [class*="task-type"] ~ text tspan,
+    [class*="section-type"] ~ text, [class*="section-type"] ~ text tspan {
+      fill: ${onSeries} !important;
+    }
+    .section-root text, .section-root tspan {
+      fill: ${text} !important;
     }
   `
   return { themeVariables, themeCSS }
@@ -215,6 +368,14 @@ export function besideLine(points: readonly Point[], box: Box): { dx: number; dy
     : { dx: box.width / 2 + gap, dy: 0 }
 }
 
+/** The tick positions that keep a label when each label is `width` wide: the first, then each one clear of the last. */
+export function labelledTicks(positions: readonly number[], width: number): number[] {
+  const kept: number[] = []
+  for (const x of positions)
+    if (kept.length === 0 || x - kept[kept.length - 1]! >= width + AXIS_LABEL_GAP) kept.push(x)
+  return kept
+}
+
 const translation = (el: Element) => {
   const match = /translate\(\s*(-?[\d.]+)[\s,]+(-?[\d.]+)\s*\)/.exec(
     el.getAttribute('transform') ?? '',
@@ -233,8 +394,9 @@ function linePoints(path: Element | null): Point[] {
 
 /**
  * What Mermaid has no setting for: moves each edge label beside its line,
- * growing the drawing to hold it, and shrinks the arrowheads. A drawing that
- * cannot be read comes back as it was.
+ * growing the drawing to hold it, shrinks the arrowheads, drops the gantt date
+ * labels that would collide and lays the today line under the bars. A drawing
+ * that cannot be read comes back as it was.
  */
 export function finishDrawing(markup: string): string {
   const parsed = new DOMParser().parseFromString(markup, 'image/svg+xml')
@@ -245,6 +407,26 @@ export function finishDrawing(markup: string): string {
     if (!/-point(End|Start)(-margin)?$/.test(marker.id)) continue
     marker.setAttribute('markerWidth', String(parseFloat(sizes['size.diagram-arrow-length'])))
     marker.setAttribute('markerHeight', String(parseFloat(sizes['size.diagram-arrow-width'])))
+  }
+
+  const ticks = Array.from(root.querySelectorAll('.grid .tick'))
+    .map((tick) => ({ tick, x: translation(tick)?.x ?? 0 }))
+    .sort((a, b) => a.x - b.x)
+  const kept = new Set(
+    labelledTicks(
+      ticks.map(({ x }) => x),
+      AXIS_LABEL_WIDTH,
+    ),
+  )
+  for (const { tick, x } of ticks) if (!kept.has(x)) tick.querySelector('text')?.remove()
+
+  const today = root.querySelector('.today')
+  const bars = root.querySelector('rect.task')?.parentElement
+  if (today && bars) {
+    let line: Element = today
+    while (line.parentElement && line.parentElement !== bars.parentElement)
+      line = line.parentElement
+    if (line.parentElement) bars.before(line)
   }
 
   const view = (root.getAttribute('viewBox') ?? '').split(/[\s,]+/).map(Number)
@@ -262,12 +444,16 @@ export function finishDrawing(markup: string): string {
     const line = root.querySelector(
       `[data-id="${CSS.escape(id)}"].flowchart-link, [data-id="${CSS.escape(id)}"][data-edge]`,
     )
+    // Mermaid sets the label's box off its own origin: the distance is measured from the box's middle.
+    const shift = translation(inner) ?? { x: 0, y: 0 }
+    const middleX = shift.x + Number(background.getAttribute('x')) + width / 2
+    const middleY = shift.y + Number(background.getAttribute('y')) + height / 2
     const { dx, dy } = besideLine(linePoints(line), { ...at, width, height })
-    const x = at.x + dx
-    const y = at.y + dy
+    const x = at.x + dx - middleX
+    const y = at.y + dy - middleY
     outer.setAttribute('transform', `translate(${x}, ${y})`)
-    right = Math.max(right, x + width / 2)
-    bottom = Math.max(bottom, y + height / 2)
+    right = Math.max(right, x + middleX + width / 2)
+    bottom = Math.max(bottom, y + middleY + height / 2)
   }
   if (view.length === 4 && view.every(Number.isFinite)) {
     const width = right - view[0]!
