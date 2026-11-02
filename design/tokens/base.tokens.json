@@ -988,6 +988,41 @@
     }
   },
   "radius": {
+    "phone-card": { "$type": "dimension", "$value": { "value": 26, "unit": "px" } },
+    "phone-sheet": { "$type": "dimension", "$value": { "value": 34, "unit": "px" } },
+    "phone-sheet-card": {
+      "$type": "dimension",
+      "$value": { "value": 22, "unit": "px" },
+      "$description": "A card in the note info sheet, concentric with the sheet: 34 - 12. Design 26."
+    },
+    "phone-capture-field": {
+      "$type": "dimension",
+      "$value": { "value": 20, "unit": "px" },
+      "$description": "A field in the capture sheet, concentric with the sheet: 34 - 14. Design 24 and 22."
+    },
+    "phone-tile-card": { "$type": "dimension", "$value": { "value": 22, "unit": "px" } },
+    "phone-row-tile": { "$type": "dimension", "$value": { "value": 8, "unit": "px" } },
+    "phone-row-tile-child": { "$type": "dimension", "$value": { "value": 7, "unit": "px" } },
+    "phone-lens-bar": {
+      "$type": "dimension",
+      "$value": { "value": 28, "unit": "px" },
+      "$description": "Concentric with the 64 bar: 32 - 4."
+    },
+    "phone-lens-segmented": {
+      "$type": "dimension",
+      "$value": { "value": 18, "unit": "px" },
+      "$description": "Concentric with the 44 control: 22 - 4."
+    },
+    "phone-chip": {
+      "$type": "dimension",
+      "$value": { "value": 15, "unit": "px" },
+      "$description": "Half of size.phone-chip."
+    },
+    "phone-menu-row": {
+      "$type": "dimension",
+      "$value": { "value": 20, "unit": "px" },
+      "$description": "Concentric with the 26 menu: 26 - 6."
+    },
     "settings-row": {
       "$type": "dimension",
       "$value": { "value": 8, "unit": "px" }
@@ -1206,6 +1241,121 @@
     }
   },
   "size": {
+    "phone-nav-control": {
+      "$type": "dimension",
+      "$value": { "value": 44, "unit": "px" },
+      "$description": "A round glass control in a top bar."
+    },
+    "phone-target": {
+      "$type": "dimension",
+      "$value": { "value": 44, "unit": "px" },
+      "$description": "The least tappable size: a smaller drawing extends its hit area to this."
+    },
+    "phone-glass-bar": {
+      "$type": "dimension",
+      "$value": { "value": 64, "unit": "px" },
+      "$description": "The tab bar: 56 plus the lens inset on each side."
+    },
+    "phone-lens-inset": { "$type": "dimension", "$value": { "value": 4, "unit": "px" } },
+    "phone-segmented": {
+      "$type": "dimension",
+      "$value": { "value": 44, "unit": "px" },
+      "$description": "The glass status filter."
+    },
+    "phone-editor-toolbar": { "$type": "dimension", "$value": { "value": 48, "unit": "px" } },
+    "phone-list-row": {
+      "$type": "dimension",
+      "$value": { "value": 76, "unit": "px" },
+      "$description": "The least height, at the default text size: it grows with Dynamic Type (design/phone.md)."
+    },
+    "phone-avatar": { "$type": "dimension", "$value": { "value": 60, "unit": "px" } },
+    "phone-status-badge": { "$type": "dimension", "$value": { "value": 24, "unit": "px" } },
+    "phone-status-ring": { "$type": "dimension", "$value": { "value": 15, "unit": "px" } },
+    "phone-grouped-row": {
+      "$type": "dimension",
+      "$value": { "value": 52, "unit": "px" },
+      "$description": "The least height, at the default text size: it grows with Dynamic Type (design/phone.md)."
+    },
+    "phone-info-row": {
+      "$type": "dimension",
+      "$value": { "value": 50, "unit": "px" },
+      "$description": "A row in the note info sheet."
+    },
+    "phone-row-tile": { "$type": "dimension", "$value": { "value": 30, "unit": "px" } },
+    "phone-row-tile-child": { "$type": "dimension", "$value": { "value": 26, "unit": "px" } },
+    "phone-child-indent": {
+      "$type": "dimension",
+      "$value": { "value": 30, "unit": "px" },
+      "$description": "How far a nested notebook's row moves in."
+    },
+    "phone-smart-tile": { "$type": "dimension", "$value": { "value": 98, "unit": "px" } },
+    "phone-swipe-action": { "$type": "dimension", "$value": { "value": 50, "unit": "px" } },
+    "phone-swipe-gap": { "$type": "dimension", "$value": { "value": 10, "unit": "px" } },
+    "phone-swipe-inset": { "$type": "dimension", "$value": { "value": 10, "unit": "px" } },
+    "phone-swipe-open": {
+      "$type": "dimension",
+      "$value": { "value": 190, "unit": "px" },
+      "$description": "How far an open row sits from its place; past this the drag meets the rubber band."
+    },
+    "phone-swipe-arm": {
+      "$type": "dimension",
+      "$value": { "value": 280, "unit": "px" },
+      "$description": "Past this, releasing completes the note."
+    },
+    "phone-grabber-width": { "$type": "dimension", "$value": { "value": 36, "unit": "px" } },
+    "phone-grabber-height": { "$type": "dimension", "$value": { "value": 5, "unit": "px" } },
+    "phone-sheet-pad": {
+      "$type": "dimension",
+      "$value": { "value": 12, "unit": "px" },
+      "$description": "From the note info sheet's edge to its cards."
+    },
+    "phone-capture-pad": {
+      "$type": "dimension",
+      "$value": { "value": 14, "unit": "px" },
+      "$description": "From the capture sheet's edge to its fields."
+    },
+    "phone-sheet-inset": { "$type": "dimension", "$value": { "value": 8, "unit": "px" } },
+    "phone-screen-edge": { "$type": "dimension", "$value": { "value": 16, "unit": "px" } },
+    "phone-tab-inset": { "$type": "dimension", "$value": { "value": 20, "unit": "px" } },
+    "phone-tab-bottom": {
+      "$type": "dimension",
+      "$value": { "value": 24, "unit": "px" },
+      "$description": "From the tab bar to the home indicator's inset."
+    },
+    "phone-list-text": {
+      "$type": "dimension",
+      "$value": { "value": 84, "unit": "px" },
+      "$description": "The note list's text column: edge, avatar and 8."
+    },
+    "phone-grouped-text": {
+      "$type": "dimension",
+      "$value": { "value": 61, "unit": "px" },
+      "$description": "A grouped row's text inside the card: inset, tile and 15."
+    },
+    "phone-separator": { "$type": "dimension", "$value": { "value": 0.5, "unit": "px" } },
+    "phone-badge": { "$type": "dimension", "$value": { "value": 18, "unit": "px" } },
+    "phone-chip": { "$type": "dimension", "$value": { "value": 30, "unit": "px" } },
+    "phone-app-icon": { "$type": "dimension", "$value": { "value": 88, "unit": "px" } },
+    "phone-edge-effect": {
+      "$type": "dimension",
+      "$value": { "value": 54, "unit": "px" },
+      "$description": "The blurred edge under a top bar."
+    },
+    "phone-back-zone": {
+      "$type": "dimension",
+      "$value": { "value": 24, "unit": "px" },
+      "$description": "The left edge a back swipe starts from."
+    },
+    "phone-back-threshold": {
+      "$type": "dimension",
+      "$value": { "value": 110, "unit": "px" },
+      "$description": "How far a back swipe travels before release pops."
+    },
+    "phone-push-offset": {
+      "$type": "dimension",
+      "$value": { "value": 117, "unit": "px" },
+      "$description": "How far the screen below a push moves left: 30% of 390."
+    },
     "settings-nav-row": {
       "$type": "dimension",
       "$value": { "value": 32, "unit": "px" },
@@ -2072,6 +2222,14 @@
     "$description": "How things move: hover, toggles, colour changes and pop-ups each have one duration, and Reduce Motion drops every movement (app.css).",
     "duration": {
       "$type": "duration",
+      "phone-push": {
+        "$value": { "value": 500, "unit": "ms" },
+        "$description": "A push, a pop and a row following a swipe's release."
+      },
+      "phone-crossfade": {
+        "$value": { "value": 200, "unit": "ms" },
+        "$description": "What every phone movement becomes under Reduce Motion."
+      },
       "color": {
         "$value": {
           "value": 400,
@@ -2181,6 +2339,10 @@
     },
     "easing": {
       "$type": "cubicBezier",
+      "phone-push": {
+        "$value": [0.23, 1, 0.32, 1],
+        "$description": "A push and a pop on the phone."
+      },
       "standard": {
         "$value": [0.42, 0, 0.58, 1],
         "$description": "Eases in and out (CSS ease-in-out)."
@@ -2204,6 +2366,13 @@
     },
     "scale": {
       "$type": "number",
+      "phone-glass-press": {
+        "$value": 1.08,
+        "$description": "A glass control under the finger grows and brightens."
+      },
+      "phone-lens-x": { "$value": 1.2, "$description": "A lens squashing as it moves, wider." },
+      "phone-lens-y": { "$value": 0.88, "$description": "A lens squashing as it moves, lower." },
+      "phone-peek-enter": { "$value": 0.86, "$description": "The size a peek card grows from." },
       "popover-enter": {
         "$value": 0.92,
         "$description": "The size a pop-up starts at before growing to full size."
@@ -2235,6 +2404,10 @@
     },
     "spring": {
       "$type": "number",
+      "gentle-damping": { "$value": 0.75 },
+      "gentle-response": { "$value": 0.36 },
+      "bouncy-damping": { "$value": 0.62 },
+      "bouncy-response": { "$value": 0.42 },
       "$description": "A segment's thumb under the pointer. Damping ratios (above 0, below 1) and responses in seconds, drawn by springEasing (motionTiming.ts).",
       "lift-damping": { "$value": 0.71 },
       "lift-response": { "$value": 0.3 },
@@ -2243,6 +2416,10 @@
     },
     "delay": {
       "$type": "duration",
+      "phone-peek": {
+        "$value": { "value": 420, "unit": "ms" },
+        "$description": "The hold before a long press lifts a peek card."
+      },
       "$description": "How long something waits before it shows.",
       "tooltip": {
         "$value": {
@@ -2332,6 +2509,12 @@
   },
   "opacity": {
     "$type": "number",
+    "phone-dim-push": { "$value": 0.1, "$description": "How far a push dims the screen below." },
+    "phone-dim-peek": { "$value": 0.2, "$description": "How far a peek dims the background." },
+    "phone-dim-sheet": {
+      "$value": 0.25,
+      "$description": "How far a sheet dims what is behind it."
+    },
     "$description": "How strongly a colour shows: tag chips mix their tag colour with transparent at these strengths, in both appearances.",
     "disabled": {
       "$value": 0.45,
