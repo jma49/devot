@@ -1,11 +1,11 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import doveUrl from '../../../../design/app-icon/dove-small.svg?url'
 import type { TagColor } from '../../../core/storage'
 import { BookIcon } from '../BookIcon'
 import { noteDate } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
+import { doveMask } from './dove'
 import { libraryOf, type PhoneStatusFilter, type PhoneView } from './library'
 import type { PhoneData } from './usePhoneData'
 
@@ -205,11 +205,7 @@ export function PhoneLibrary(props: {
       <div aria-hidden="true" className="phone-edge phone-edge-tall" />
       <header className="phone-topbar">
         <h1 className="phone-topbar-title phone-library-title">
-          <span
-            aria-hidden="true"
-            className="phone-dove"
-            style={{ maskImage: `url(${doveUrl})`, WebkitMaskImage: `url(${doveUrl})` }}
-          />
+          <span aria-hidden="true" className="phone-dove" style={doveMask} />
           {t('phone.tab.library')}
         </h1>
         <span className="phone-topbar-spacer" />

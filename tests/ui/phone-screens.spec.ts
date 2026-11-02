@@ -140,6 +140,21 @@ test('Settings lists its sections and opens a pane', async ({ page }) => {
   await expect(page.locator('section.phone-screen[aria-label="General"]')).toBeVisible()
 })
 
+test('no Settings or Library card clips its rows', async ({ page }) => {
+  for (const tab of ['Settings', 'Library']) {
+    await tabs(page).getByRole('button', { name: tab }).click()
+    const cards = page.getByRole('region', { name: tab }).locator('.phone-card')
+    await expect(cards.first()).toBeVisible()
+    for (const card of await cards.all()) {
+      const { client, content } = await card.evaluate((el) => ({
+        client: el.clientHeight,
+        content: el.scrollHeight,
+      }))
+      expect(content, tab).toBeLessThanOrEqual(client)
+    }
+  }
+})
+
 test('every enabled button on the note list is at least 44 points', async ({ page }) => {
   await openNotes(page)
   for (const button of await list(page).locator('button:visible:not([disabled])').all()) {

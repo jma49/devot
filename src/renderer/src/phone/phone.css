@@ -110,6 +110,11 @@ button.phone-glass:active {
   overscroll-behavior: contain;
 }
 
+/* A scroll screen laid out as a flex column would otherwise shrink its cards (overflow: hidden) to the screen's height and clip their rows. */
+.phone-scroll > * {
+  flex-shrink: 0;
+}
+
 .phone-edge {
   position: absolute;
   inset: 0 0 auto;
