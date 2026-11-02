@@ -683,13 +683,13 @@ fn neither_the_key_nor_the_licensee_reaches_a_log_or_a_debug_line() {
 }
 
 #[test]
-fn the_first_launch_of_a_gated_build_begins_a_three_day_trial_kept_in_the_keychain() {
+fn the_first_launch_of_a_gated_build_begins_a_thirty_day_trial_kept_in_the_keychain() {
     let s = first_launch(true);
     assert_eq!(
         s.trial_view(),
         TrialView {
             state: trial::TrialState::Running,
-            ends_at: Some(START + 72 * HOUR),
+            ends_at: Some(START + 30 * 24 * HOUR),
             code: None,
         }
     );
@@ -701,7 +701,7 @@ fn the_first_launch_of_a_gated_build_begins_a_three_day_trial_kept_in_the_keycha
     let sent = serde_json::to_value(s.licence.snapshot()).expect("json");
     assert_eq!(
         sent["trial"],
-        json!({ "state": "running", "endsAt": START + 72 * HOUR, "code": null })
+        json!({ "state": "running", "endsAt": START + 30 * 24 * HOUR, "code": null })
     );
 }
 
@@ -712,7 +712,7 @@ fn a_later_launch_and_a_reinstall_keep_the_trial_begun_first() {
     let item = Arc::clone(&first.trial);
     let again = setup_with(tempfile::tempdir().expect("dir"), true, item);
     again.at(START + 24 * HOUR);
-    assert_eq!(again.trial_view().ends_at, Some(START + 72 * HOUR));
+    assert_eq!(again.trial_view().ends_at, Some(START + 30 * 24 * HOUR));
     assert_eq!(again.trial_view().state, trial::TrialState::Running);
     // Each launch records the latest time seen.
     assert_eq!(
@@ -725,7 +725,7 @@ fn a_later_launch_and_a_reinstall_keep_the_trial_begun_first() {
 fn once_the_trial_ran_out_user_content_sync_and_ai_are_refused() {
     let s = first_launch(true);
     s.licence.snapshot();
-    s.at(START + 72 * HOUR);
+    s.at(START + 30 * 24 * HOUR);
     assert_eq!(s.trial_view().state, trial::TrialState::Ended);
     assert_eq!(s.licence.require(), Err(REQUIRED));
     assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
@@ -736,7 +736,7 @@ fn once_the_trial_ran_out_user_content_sync_and_ai_are_refused() {
 fn a_note_being_saved_as_the_trial_ends_still_lands_for_a_few_minutes() {
     let s = first_launch(true);
     s.licence.snapshot();
-    let end = START + 72 * HOUR;
+    let end = START + 30 * 24 * HOUR;
     s.at(end + trial::GRACE_MS - 1);
     assert_eq!(s.licence.require_write(Write::Body), Ok(()));
     assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
@@ -901,7 +901,7 @@ fn the_latest_time_seen_is_written_every_ten_minutes_and_the_end_is_announced_on
     s.licence.tick();
     assert_eq!(s.kept_trial().map(|r| r.seen), Some(START + 10 * 60_000));
     assert_eq!(s.emitted.lock().expect("emitted").len(), 1);
-    s.at(START + 72 * HOUR);
+    s.at(START + 30 * 24 * HOUR);
     s.licence.tick();
     s.licence.tick();
     let emitted = s.emitted.lock().expect("emitted");
@@ -941,7 +941,10 @@ fn a_denied_trial_read_neither_begins_a_new_trial_nor_locks_out_a_licence() {
 
     s.trial.unreadable.store(false, Ordering::SeqCst);
     s.licence.tick();
-    assert_eq!(s.trial_view().ends_at, Some(START - 2 * HOUR + 72 * HOUR));
+    assert_eq!(
+        s.trial_view().ends_at,
+        Some(START - 2 * HOUR + 30 * 24 * HOUR)
+    );
 }
 
 #[test]

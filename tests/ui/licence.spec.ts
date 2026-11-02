@@ -78,7 +78,7 @@ test.describe('Settings > Licence', () => {
     await fakeRust(page, none())
     await openSettings(page, 'License')
     const panel = page.getByRole('tabpanel')
-    await expect(panel).toContainText('Devot works fully for a three-day trial')
+    await expect(panel).toContainText('Devot works fully for a 30-day trial')
     await expect(panel).toContainText('No license is added.')
     await expect(panel).toContainText('The trial has ended, so notes are read-only')
     const field = panel.getByRole('textbox', { name: 'License Key' })

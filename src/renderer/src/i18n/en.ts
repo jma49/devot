@@ -927,7 +927,7 @@ title: Daily Report {{date}}
   'sync.notice.tooLargeOther': '{count} notes are too large to sync and stay on this device only.',
   'licenceSettings.title': 'License',
   'licenceSettings.detail':
-    'Devot works fully for a three-day trial. After it, notes can still be read, searched, copied and exported, but editing them, sync and AI need a Devot license. A license is bought once, checked on this device without going online, and unlocks everything in every version of Devot, with nothing to renew.',
+    'Devot works fully for a 30-day trial. After it, notes can still be read, searched, copied and exported, but editing them, sync and AI need a Devot license. A license is bought once, checked on this device without going online, and unlocks everything in every version of Devot, with nothing to renew.',
   'licenceSettings.ungated':
     'This build of Devot does not check licenses, so everything works without one.',
   'licenceSettings.status': 'Status',

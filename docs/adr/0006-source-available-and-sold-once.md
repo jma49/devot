@@ -107,3 +107,5 @@ Issue #360 settled that a license is bought once and unlocks sync and AI in ever
 Issue #362 replaced "free but for sync and AI" and "there is no trial" with the three-day trial and the read-only mode after it, described above.
 
 ADR 0009 amends "all of the buyer's devices" and "a licence works offline forever": a licence is activated on up to three devices, each with a 30-day signed lease, and a key bought before that change gets a 30-day migration window.
+
+The trial is now 30 days instead of three, to let people try Devot long enough to move their notes in. Its length is applied to the start already kept in the keychain, so a device whose three days had run out gets the rest of the 30 when it updates.

@@ -1,4 +1,4 @@
-//! The three-day trial of a build that checks licences (docs/adr/0006-source-available-and-sold-once.md,
+//! The 30-day trial of a build that checks licences (docs/adr/0006-source-available-and-sold-once.md,
 //! The trial). It starts the first time such a build opens, and its start and the latest time seen
 //! live in the keychain, which outlives a reinstall. A clock set back more than an hour before the
 //! latest time seen ends it for good, so turning the clock back never extends it.
@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 const MINUTE_MS: i64 = 60_000;
 const HOUR_MS: i64 = 60 * MINUTE_MS;
-pub(crate) const LENGTH_MS: i64 = 72 * HOUR_MS;
+pub(crate) const LENGTH_MS: i64 = 30 * 24 * HOUR_MS;
 /// How far behind the latest time seen the clock may be: a correction, not a reset.
 pub(crate) const SET_BACK_MS: i64 = HOUR_MS;
 /// How long after the end a note's text is still written, so a save in flight lands.
@@ -126,12 +126,12 @@ mod tests {
     const START: i64 = 1_790_000_000_000;
 
     #[test]
-    fn a_fresh_trial_runs_for_seventy_two_hours() {
+    fn a_fresh_trial_runs_for_thirty_days() {
         let record = Record::first(START);
         assert!(record.running(START));
         assert!(record.running(START + LENGTH_MS - 1));
         assert!(!record.running(START + LENGTH_MS));
-        assert_eq!(record.ends_at(), START + 72 * 3_600_000);
+        assert_eq!(record.ends_at(), START + 30 * 24 * 3_600_000);
     }
 
     #[test]
