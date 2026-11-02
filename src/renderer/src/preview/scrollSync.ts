@@ -173,6 +173,9 @@ export function syncScrolling(
   let check: { pane: ScrollPane; top: number; tries: number } | undefined
   let handle: number | undefined
 
+  const seen = new Map<ScrollPane, number>()
+  const note = (pane: ScrollPane) => seen.set(pane, pane.element.scrollTop)
+
   const schedule = (pane: ScrollPane, laidOut = false) => {
     // A pane that shrank reports the scroll it was clamped to; that is no lead.
     if (relayout && pane !== leader) return
@@ -208,6 +211,7 @@ export function syncScrolling(
     const after = target.scrollTop
     if (after === before) return
     expected.set(to, after)
+    note(to)
     const tries = again ? again.tries + 1 : 0
     if (tries < 2) {
       check = { pane: from, top: from.element.scrollTop, tries }
@@ -220,6 +224,7 @@ export function syncScrolling(
     const before = el.scrollTop
     el.scrollTop = top
     if (el.scrollTop !== before) expected.set(pane, el.scrollTop)
+    note(pane)
   }
   const exact = new Map<ScrollPane, number>()
 
@@ -249,6 +254,7 @@ export function syncScrolling(
   }
 
   const onScroll = (pane: ScrollPane) => () => {
+    note(pane)
     const want = expected.get(pane)
     if (want !== undefined) {
       expected.delete(pane)
@@ -271,6 +277,7 @@ export function syncScrolling(
     stops.push(() => target.removeEventListener(type, listener, { capture }))
   }
   for (const pane of [first, second]) {
+    note(pane)
     listen(pane.element, 'scroll', onScroll(pane))
     listen(pane.element, 'wheel', onWheel(pane), { passive: false })
     listen(
@@ -284,6 +291,11 @@ export function syncScrolling(
     )
     for (const type of WORK) listen(pane.element, type, () => (current = pane), { capture: true })
     const stopLayout = pane.onLayout?.(() => {
+      // Drawing lines just scrolled to also changes heights: that scroll's own event still leads.
+      if (pane.element.scrollTop !== seen.get(pane)) {
+        note(pane)
+        return
+      }
       if (current !== pane) schedule(other(pane), true)
     })
     if (stopLayout) stops.push(stopLayout)

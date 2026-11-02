@@ -397,6 +397,17 @@ describe('syncScrolling', () => {
     expect(preview.element.scrollTop).toBe(2900)
   })
 
+  it('a scroll whose lines change height as they draw still leads', () => {
+    const { editor, preview, flush } = setup({ lead: 'second' })
+    flush()
+    editor.set(400)
+    editor.relayout()
+    editor.fire()
+    flush()
+    expect(editor.element.scrollTop).toBe(400)
+    expect(preview.element.scrollTop).toBeGreaterThan(0)
+  })
+
   it('starts from the preview when it was being read', () => {
     const { editor, preview, flush } = setup({ lead: 'second' })
     preview.set(300)
