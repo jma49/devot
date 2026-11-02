@@ -20,6 +20,8 @@ async function dragEdge(page: Page, to: number, restMs = 0): Promise<void> {
   await page.mouse.up()
 }
 
+const openTemplates = (page: Page) => page.getByRole('button', { name: 'Templates' }).click()
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
   await expect(tabs(page)).toBeVisible()
@@ -37,18 +39,18 @@ for (const colorScheme of ['light', 'dark'] as const) {
 }
 
 test('keeps a stack per tab, and tapping the current tab pops to its root', async ({ page }) => {
-  await page.getByRole('button', { name: 'All Notes' }).click()
-  await expect(page.getByRole('region', { name: 'All Notes' })).toBeVisible()
+  await openTemplates(page)
+  await expect(page.getByRole('region', { name: 'Templates' })).toBeVisible()
   await tab(page, 'Settings').evaluate((el) => (el as HTMLElement).click())
   await expect(page.getByRole('region', { name: 'Settings' })).toBeVisible()
   await tab(page, 'Library').click()
-  await expect(page.getByRole('region', { name: 'All Notes' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Templates' })).toBeVisible()
   await tab(page, 'Library').evaluate((el) => (el as HTMLElement).click())
   await expect(page.getByRole('button', { name: 'Back' })).toHaveCount(0)
 })
 
 test('the back button pops', async ({ page }) => {
-  await page.getByRole('button', { name: 'All Notes' }).click()
+  await openTemplates(page)
   await page.getByRole('button', { name: 'Back' }).click()
   await expect(page.getByTestId('phone-back-zone')).toHaveCount(0)
 })
@@ -57,20 +59,20 @@ test.describe('with motion', () => {
   test.use({ reducedMotion: 'no-preference' })
 
   test('a push slides in and moves the screen below 30%', async ({ page }) => {
-    await page.getByRole('button', { name: 'All Notes' }).click()
+    await openTemplates(page)
     const below = page.locator('.phone-stack:not([hidden]) > .phone-layer').first()
     await expect.poll(async () => (await below.boundingBox())?.x).toBeCloseTo(-117, 0)
   })
 
   test('a back swipe under the threshold springs back', async ({ page }) => {
-    await page.getByRole('button', { name: 'All Notes' }).click()
+    await openTemplates(page)
     await page.waitForTimeout(600)
     await dragEdge(page, 80, 200)
     await expect(page.getByTestId('phone-back-zone')).toHaveCount(1)
   })
 
   test('a back swipe past the threshold pops', async ({ page }) => {
-    await page.getByRole('button', { name: 'All Notes' }).click()
+    await openTemplates(page)
     await page.waitForTimeout(600)
     await dragEdge(page, 200)
     await expect(page.getByTestId('phone-back-zone')).toHaveCount(0)
@@ -78,7 +80,7 @@ test.describe('with motion', () => {
 })
 
 test('every tab and back button is at least 44 points and labelled', async ({ page }) => {
-  await page.getByRole('button', { name: 'All Notes' }).click()
+  await openTemplates(page)
   const back = await page.getByRole('button', { name: 'Back' }).boundingBox()
   expect(back!.width).toBeGreaterThanOrEqual(44)
   expect(back!.height).toBeGreaterThanOrEqual(44)

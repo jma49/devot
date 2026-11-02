@@ -1,6 +1,6 @@
 import { motionScale, springEasing } from '../motionTiming'
 import { sizes } from '../theme/tokens'
-import { textScaleFrom } from './navigation'
+import { isAccessibilitySize, textScaleFrom } from './navigation'
 
 export type PhoneSpring = 'gentle' | 'bouncy'
 
@@ -23,6 +23,7 @@ function applyTextScale(root: HTMLElement): void {
   probe.remove()
   root.style.setProperty('--phone-text-scale', String(scale))
   root.style.setProperty('--phone-bar-text-scale', String(Math.min(scale, BAR_TEXT_LIMIT)))
+  root.dataset['textSize'] = isAccessibilitySize(scale) ? 'accessibility' : 'standard'
 }
 
 /** Puts the springs and the text scale on the phone layout's root, and follows the text size. */
