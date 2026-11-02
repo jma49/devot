@@ -3,6 +3,7 @@ import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
 import {
   createIslandMounter,
   createIslandRegistry,
+  drawingWidth,
   type IslandContent,
   type PreviewIsland,
 } from './islands'
@@ -351,5 +352,20 @@ describe('createIslandMounter', () => {
       nextFrame()
       expect(requests.map((r) => r.source)).toEqual(['b'])
     })
+  })
+})
+
+describe('the width an island draws for', () => {
+  it('rounds down to a step, so the drawing fits and a drag draws seldom', () => {
+    expect(drawingWidth(419)).toBe(400)
+    expect(drawingWidth(400)).toBe(400)
+  })
+
+  it('has a floor: a chart narrower than that would hold nothing', () => {
+    expect(drawingWidth(200)).toBe(320)
+  })
+
+  it('has no answer for an element without a width', () => {
+    expect(drawingWidth(0)).toBeUndefined()
   })
 })

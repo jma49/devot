@@ -13,6 +13,7 @@ import type { IslandContent, IslandContext, PreviewIsland } from './islands'
 import { keptAnswers } from './kept'
 import {
   diagramName,
+  followsWidth,
   isFrameMessage,
   labelDiagram,
   MAX_SOURCE_LENGTH,
@@ -117,14 +118,15 @@ async function renderInFrame(
   appearance: IslandContext['appearance'],
   palette: DiagramPalette,
   signal?: AbortSignal,
+  width?: number,
 ): Promise<Answer> {
   const font = diagramFont()
   for (;;) {
     const answer = await drawn(
-      JSON.stringify([appearance, palette, font.fontFamily, font.fontSize, source]),
+      JSON.stringify([appearance, palette, font.fontFamily, font.fontSize, width, source]),
       () => {
         const turn = queue.then((): Answer | Promise<Answer> =>
-          signal?.aborted ? { type: 'skipped' } : ask(source, appearance, palette, font),
+          signal?.aborted ? { type: 'skipped' } : ask(source, appearance, palette, font, width),
         )
         queue = turn
         return turn
@@ -145,6 +147,7 @@ function ask(
   appearance: IslandContext['appearance'],
   palette: DiagramPalette,
   font: Font,
+  width?: number,
 ): Promise<Answer> {
   const id = (counter += 1)
   return new Promise<Answer>((resolve) => {
@@ -164,7 +167,15 @@ function ask(
         if (!waiting.has(id)) return
         clearTimeout(timer)
         timer = setTimeout(expire, TIMEOUT_MS)
-        const request: RenderRequest = { type: 'render', id, source, appearance, palette, ...font }
+        const request: RenderRequest = {
+          type: 'render',
+          id,
+          source,
+          appearance,
+          palette,
+          ...font,
+          ...(width === undefined ? {} : { width }),
+        }
         target.postMessage(request)
       },
       () => answer({ type: 'failed', reason: 'render' }),
@@ -254,10 +265,10 @@ function diagramLabel(source: string): string {
 
 async function render(
   source: string,
-  { appearance, signal }: IslandContext,
+  { appearance, signal, width }: IslandContext,
 ): Promise<IslandContent> {
   if (source.length > MAX_SOURCE_LENGTH) return errorContent('parse')
-  const answer = await renderInFrame(source, appearance, shownPalette(appearance), signal)
+  const answer = await renderInFrame(source, appearance, shownPalette(appearance), signal, width)
   if (answer.type === 'skipped') return { node: document.createTextNode('') }
   if (answer.type !== 'rendered') {
     logFailure(answer.reason)
@@ -304,5 +315,6 @@ export async function mermaidMarkup(source: string): Promise<string | null> {
 export const mermaidIsland: PreviewIsland = {
   kind: 'mermaid',
   apiVersion: PREVIEW_API_VERSION,
+  followsWidth,
   render,
 }

@@ -62,7 +62,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       expect(await computed(label, 'font-size')).toBe('11px')
       expect(await computed(label, 'fill')).toBe(await token(page, '--color-text-secondary'))
       const background = svg.locator('.edgeLabel rect.background').first()
-      expect(await computed(background, 'fill')).toBe(await token(page, '--color-surface-sheet'))
+      expect(await computed(background, 'fill')).toBe('none')
     })
 
     test('an edge label sits beside its line and arrowheads are small', async ({ page }) => {

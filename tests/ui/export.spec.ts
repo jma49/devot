@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { Page } from '@playwright/test'
+import { light } from '../../src/renderer/src/theme/tokens'
 import {
   clipboardWrites,
   expect,
@@ -323,6 +324,46 @@ test('an exported page keeps a diagram on a light surface in the dark, and a hei
     })
   expect(overflow).toBeLessThanOrEqual(0)
   await view.close()
+})
+
+test('an exported chart keeps the light chart colours in the dark, at the page width', async ({
+  page,
+  context,
+}) => {
+  const pie = '```mermaid\npie\n  "A" : 60\n  "B" : 40\n```\n'
+  const gantt =
+    '```mermaid\ngantt\n  dateFormat YYYY-MM-DD\n  section S\n  Work on it :a, 2026-01-01, 30d\n  Done :done, b, 2026-01-20, 30d\n```\n'
+  await createNote(page, 'Charts', `${pie}\n${gantt}`)
+  await mockExport(page, { export_begin: { id: 4, fileName: 'Charts.html' } })
+  await pickFromNoteMenu(page, 'Charts', 'Export as HTML…')
+  await expect
+    .poll(async () => (await calls(page, 'export_write')).length, { timeout: 20_000 })
+    .toBe(1)
+  const html = ((await calls(page, 'export_write'))[0]!.args as { text: string }).text
+
+  const view = await context.newPage()
+  await view.emulateMedia({ colorScheme: 'dark' })
+  await view.setContent(html, { waitUntil: 'load' })
+  const looks = await view.evaluate(() => {
+    const style = (selector: string) => {
+      const { fill, opacity, strokeWidth } = getComputedStyle(document.querySelector(selector)!)
+      return { fill, opacity, strokeWidth }
+    }
+    return {
+      slice: style('.pieCircle'),
+      ring: style('.pieOuterCircle'),
+      bar: style('rect.task'),
+      barText: style('rect.task ~ text, .taskText'),
+    }
+  })
+  const rgb = (hex: string) =>
+    `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`
+  expect(looks.slice.fill).toBe(rgb(light['color.chart.series-1']))
+  expect(looks.slice.opacity).toBe('1')
+  expect(looks.ring.strokeWidth).toBe('0px')
+  expect(looks.bar.fill).toBe(rgb(light['color.chart.bar-task']))
+  expect(looks.bar.strokeWidth).toBe('0px')
+  expect(looks.barText.fill).toBe(rgb(light['color.chart.on-bar']))
 })
 
 test('Print right after the preview opens draws every diagram', async ({ page }) => {

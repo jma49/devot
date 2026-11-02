@@ -1109,6 +1109,107 @@
         "$description": "Background of a line removed since a version (revision history)."
       }
     },
+    "chart": {
+      "series-1": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.3686, 0.5216, 0.7216],
+          "hex": "#5e85b8"
+        },
+        "$description": "Chart series 1, blue. Series alternate deep and pale so neighbours differ in lightness, for colour-blind readers and greyscale print."
+      },
+      "series-2": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7569, 0.6549, 0.4863],
+          "hex": "#c1a77c"
+        },
+        "$description": "Chart series 2, sand. Series alternate deep and pale so neighbours differ in lightness, for colour-blind readers and greyscale print."
+      },
+      "series-3": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6078, 0.4431, 0.6471],
+          "hex": "#9b71a5"
+        },
+        "$description": "Chart series 3, plum. Series alternate deep and pale so neighbours differ in lightness, for colour-blind readers and greyscale print."
+      },
+      "series-4": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4902, 0.7255, 0.6745],
+          "hex": "#7db9ac"
+        },
+        "$description": "Chart series 4, teal. Series alternate deep and pale so neighbours differ in lightness, for colour-blind readers and greyscale print."
+      },
+      "series-5": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.702, 0.4314, 0.3882],
+          "hex": "#b36e63"
+        },
+        "$description": "Chart series 5, clay. Series alternate deep and pale so neighbours differ in lightness, for colour-blind readers and greyscale print."
+      },
+      "series-6": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.6471, 0.6941, 0.5137],
+          "hex": "#a5b183"
+        },
+        "$description": "Chart series 6, sage. Series alternate deep and pale so neighbours differ in lightness, for colour-blind readers and greyscale print."
+      },
+      "on-series": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0784, 0.0784, 0.0784],
+          "hex": "#141414"
+        },
+        "$description": "Text on a chart series: 4.5:1 on all six."
+      },
+      "bar-task": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1765, 0.2863, 0.4275],
+          "hex": "#2d496d"
+        },
+        "$description": "A gantt task."
+      },
+      "bar-active": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0275, 0.3294, 0.2863],
+          "hex": "#075449"
+        },
+        "$description": "An active gantt task."
+      },
+      "bar-crit": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.4078, 0.2196, 0.1922],
+          "hex": "#683831"
+        },
+        "$description": "A critical gantt task."
+      },
+      "on-bar": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.902, 0.902, 0.902],
+          "hex": "#e6e6e6"
+        },
+        "$description": "Text on a gantt bar: 4.5:1 on all three."
+      }
+    },
     "activity": {
       "level-0": {
         "$type": "color",

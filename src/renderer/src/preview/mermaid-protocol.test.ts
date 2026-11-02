@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { diagramName, isFrameMessage, labelDiagram } from './mermaid-protocol'
+import {
+  diagramName,
+  followsWidth,
+  isFrameMessage,
+  isRenderRequest,
+  labelDiagram,
+} from './mermaid-protocol'
 
 describe('isFrameMessage', () => {
   it('accepts a drawing and a failure with its reason', () => {
@@ -66,5 +72,36 @@ describe('labelDiagram', () => {
     expect(attrs.get('aria-label')).toBe('Diagram: Plan')
     expect(attrs.get('role')).toBe('img')
     expect(attrs.has('aria-labelledby')).toBe(false)
+  })
+})
+
+describe('a drawing that follows its width', () => {
+  it('is a gantt chart, however its source opens', () => {
+    expect(followsWidth('gantt\n  title Plan')).toBe(true)
+    expect(followsWidth('  %% plan\n  gantt\n')).toBe(true)
+    expect(followsWidth('---\ntitle: Plan\n---\ngantt\n')).toBe(true)
+  })
+
+  it('is no other diagram', () => {
+    expect(followsWidth('flowchart LR\n  gantt --> B')).toBe(false)
+  })
+})
+
+describe('a render request', () => {
+  const request = {
+    type: 'render',
+    id: 1,
+    source: 'gantt',
+    appearance: 'light',
+    fontFamily: 'UI',
+    fontSize: '12px',
+    palette: {},
+  }
+
+  it('takes a positive width or none', () => {
+    expect(isRenderRequest(request)).toBe(true)
+    expect(isRenderRequest({ ...request, width: 480 })).toBe(true)
+    expect(isRenderRequest({ ...request, width: 0 })).toBe(false)
+    expect(isRenderRequest({ ...request, width: '480' })).toBe(false)
   })
 })

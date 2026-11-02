@@ -14,6 +14,8 @@ export interface IslandContext {
   theme?: string
   /** Aborted once a newer render for the same element starts, or the element goes. */
   signal?: AbortSignal | undefined
+  /** The width the element has, for an island whose `followsWidth` says its drawing depends on it. */
+  width?: number | undefined
 }
 
 export interface IslandContent {
@@ -29,6 +31,8 @@ export interface IslandContent {
 export interface PreviewIsland {
   kind: string
   apiVersion: typeof PREVIEW_API_VERSION
+  /** This source's drawing depends on the element's width: it is drawn again when that changes. */
+  followsWidth?(source: string): boolean
   render(source: string, context: IslandContext): Promise<IslandContent>
 }
 
@@ -54,6 +58,16 @@ export function createIslandRegistry(initial: readonly PreviewIsland[] = []): Is
   return registry
 }
 
+const WIDTH_STEP = 40
+const NARROWEST = 320
+const RESIZE_SETTLE_MS = 150
+
+/** Rounded down, so the drawing fits; the step stops a pane drag from drawing at every pixel. Below the floor it shrinks to fit. */
+export function drawingWidth(available: number): number | undefined {
+  if (available <= 0) return undefined
+  return Math.max(NARROWEST, Math.floor(available / WIDTH_STEP) * WIDTH_STEP)
+}
+
 interface Slot {
   key: string
   pending?: AbortController | undefined
@@ -62,6 +76,7 @@ interface Slot {
   /** Failures so far, and when the next try may start: a failure that may pass is not retried on every patch. */
   attempts: number
   retryAt: number
+  width?: number | undefined
 }
 
 export interface IslandMounter {
@@ -94,6 +109,16 @@ export function createIslandMounter(
   let retryTimer: ReturnType<typeof setTimeout> | undefined
   let retryDue = 0
   let lastContext: IslandContext | undefined
+  let settle: ReturnType<typeof setTimeout> | undefined
+  const remount = () => {
+    if (lastHost && lastContext) mount(lastHost, lastContext, onRendered)
+  }
+  let widths: ResizeObserver | undefined
+  const widthObserver = () =>
+    (widths ??= new ResizeObserver(() => {
+      clearTimeout(settle)
+      settle = setTimeout(remount, RESIZE_SETTLE_MS)
+    }))
 
   const release = (slot: Slot) => {
     slot.pending?.abort()
@@ -154,7 +179,7 @@ export function createIslandMounter(
     retryTimer = setTimeout(
       () => {
         retryTimer = undefined
-        if (lastHost && lastContext) mount(lastHost, lastContext, onRendered)
+        remount()
       },
       Math.max(0, soonest - now),
     )
@@ -174,10 +199,11 @@ export function createIslandMounter(
     island: PreviewIsland,
     source: string,
     context: IslandContext,
+    width: number | undefined,
   ) => {
     const request = slot.pending
     const current = () => slots.get(el) === slot && slot.pending === request
-    island.render(source, { ...context, signal: request?.signal }).then(
+    island.render(source, { ...context, signal: request?.signal, width }).then(
       (content) => {
         // A newer render for this element won the race, or the element
         // is gone: drop this one.
@@ -216,19 +242,26 @@ export function createIslandMounter(
         release(slot)
         slots.delete(el)
         waiting.delete(el)
+        widths?.unobserve(el)
       }
     }
     for (const el of host.querySelectorAll(`[${ISLAND_ATTRIBUTE}]`)) {
       const kind = el.getAttribute(ISLAND_ATTRIBUTE) ?? ''
       const source = el.getAttribute('data-island-source') ?? ''
-      const key = `${context.appearance}\n${context.theme ?? ''}\n${source}`
+      const island = registry.get(kind)
       const known = slots.get(el)
+      const follows = island?.followsWidth?.(source) === true
+      // A pane that is hidden has no width: what is drawn stays until it is shown.
+      const width = follows ? (drawingWidth(el.clientWidth) ?? known?.width) : undefined
+      const key = `${context.appearance}\n${context.theme ?? ''}\n${width ?? ''}\n${source}`
       // A failure that may pass waits out its backoff; a source that changed
       // starts over at once.
       if (known?.key === key && (!known.retry || known.retryAt > Date.now())) continue
-      const island = registry.get(kind)
       if (!island) continue
       const slot: Slot = known ?? { key, retry: false, attempts: 0, retryAt: 0 }
+      slot.width = width
+      if (follows) widthObserver().observe(el)
+      else widths?.unobserve(el)
       if (slot.key !== key) {
         slot.key = key
         slot.attempts = 0
@@ -238,8 +271,8 @@ export function createIslandMounter(
       slot.retry = false
       slot.pending?.abort()
       slot.pending = new AbortController()
-      if (scroller) waiting.set(el, () => render(el, slot, island, source, context))
-      else render(el, slot, island, source, context)
+      if (scroller) waiting.set(el, () => render(el, slot, island, source, context, width))
+      else render(el, slot, island, source, context, width)
     }
     if (scroller) {
       watch()
@@ -259,6 +292,8 @@ export function createIslandMounter(
       if (retryTimer !== undefined) clearTimeout(retryTimer)
       retryTimer = undefined
       unwatch()
+      clearTimeout(settle)
+      widths?.disconnect()
     },
   }
 }
