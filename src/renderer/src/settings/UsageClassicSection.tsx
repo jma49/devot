@@ -175,6 +175,7 @@ export function UsageClassicSection() {
       ) : null}
       {confirming ? (
         <ConfirmDialog
+          destructive
           message={t('usage.confirmClear')}
           detail={t('usage.confirmClearDetail')}
           confirm={t('usage.confirm')}

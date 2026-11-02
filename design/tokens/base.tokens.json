@@ -1706,6 +1706,46 @@
       },
       "$description": "Glass interface: the height of a palette row, a capsule when selected."
     },
+    "glass-alert-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 300,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the card of a destructive confirm."
+    },
+    "glass-alert-icon": {
+      "$type": "dimension",
+      "$value": {
+        "value": 52,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the icon tile of a destructive confirm."
+    },
+    "glass-alert-button": {
+      "$type": "dimension",
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a destructive confirm's full-width capsule."
+    },
+    "glass-popover-row": {
+      "$type": "dimension",
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a row or search field in a popover; half of it is less than radius.glass-menu-row, so its ends read as rounded, not a capsule."
+    },
+    "glass-popover-notch": {
+      "$type": "dimension",
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the side of the square turned to make a picker's notch."
+    },
     "glass-popover-inset": {
       "$type": "dimension",
       "$value": {

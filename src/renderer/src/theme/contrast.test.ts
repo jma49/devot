@@ -275,6 +275,17 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     expect(worst(solid(theme, 'text.destructive'), faces)).toBeGreaterThanOrEqual(4.5)
   })
 
+  it('draws the label of a filled destructive button at 4.5:1', () => {
+    expect(
+      contrastRatio(solid(theme, 'text.on-destructive'), solid(theme, 'fill.destructive')),
+    ).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('draws the icon on the destructive tile at 3:1, on every surface', () => {
+    const tiles = backdrops(theme, ['fill.destructive-tile'])
+    expect(worst(solid(theme, 'text.destructive'), tiles)).toBeGreaterThanOrEqual(3)
+  })
+
   it('draws editor text, secondary text and every syntax and alert colour at 4.5:1 on the editor, also on the active line', () => {
     const editor = solid(theme, 'surface.editor')
     const lines = [editor, over(theme, 'editor.active-line', editor)]

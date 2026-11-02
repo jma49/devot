@@ -9,7 +9,8 @@ import {
   type RefObject,
 } from 'react'
 import { closingRef } from './closing'
-import { placeDropdown } from './dropdownPlacement'
+import { dropdownNotchX, placeDropdown } from './dropdownPlacement'
+import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
 
 export interface PickerOption {
@@ -110,11 +111,20 @@ export function PickerList(props: {
       a,
       { width: panel.offsetWidth, height: panel.offsetHeight },
       { width: window.innerWidth, height: window.innerHeight },
-      { gap: px('--space-2') || 4, margin: px('--size-popover-margin') || 8 },
+      { gap: px('--picker-gap') || px('--space-2') || 4, margin: px('--size-popover-margin') || 8 },
     )
     panel.dataset['side'] = p.side
     panel.style.left = `${p.shift}px`
     panel.style.setProperty('--picker-room', `${p.room}px`)
+    panel.style.setProperty(
+      '--picker-notch-x',
+      `${dropdownNotchX({
+        anchorWidth: a.width,
+        shift: p.shift,
+        panelWidth: panel.offsetWidth,
+        clear: px('--radius-popover') + px('--size-glass-popover-notch'),
+      })}px`,
+    )
   }, [])
   useEffect(() => {
     if (shownActive < 0) return
@@ -147,27 +157,32 @@ export function PickerList(props: {
   return (
     <div ref={pickerRef} className="picker-popover" onKeyDown={onKeyDown}>
       {props.search ? (
-        <input
-          ref={field}
-          type="search"
-          className="picker-search"
-          role="combobox"
-          aria-label={props.search.placeholder}
-          aria-expanded="true"
-          aria-controls={listId}
-          aria-autocomplete="list"
-          aria-activedescendant={activeId}
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          placeholder={props.search.placeholder}
-          value={props.search.query}
-          onChange={(e) => {
-            const next = e.target.value
-            props.search?.onQuery(next)
-            setActiveOption(props.search?.pick?.(next))
-          }}
-        />
+        <div className="picker-search-field">
+          <span className="picker-search-icon">
+            <Icon name="search" size="sm" />
+          </span>
+          <input
+            ref={field}
+            type="search"
+            className="picker-search"
+            role="combobox"
+            aria-label={props.search.placeholder}
+            aria-expanded="true"
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeId}
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            placeholder={props.search.placeholder}
+            value={props.search.query}
+            onChange={(e) => {
+              const next = e.target.value
+              props.search?.onQuery(next)
+              setActiveOption(props.search?.pick?.(next))
+            }}
+          />
+        </div>
       ) : null}
       <ul
         ref={list}
