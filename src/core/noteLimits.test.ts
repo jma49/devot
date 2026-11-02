@@ -21,7 +21,7 @@ describe('clipTitle', () => {
       `${'x'.repeat(MAX_TITLE_CHARS - 1)}${smile}`,
     )
     // A lone surrogate becomes U+FFFD, one character, before the cut.
-    expect(clipTitle('\ud800'.repeat(MAX_TITLE_CHARS + 1))).toBe('�'.repeat(MAX_TITLE_CHARS))
+    expect(clipTitle('\ud800'.repeat(MAX_TITLE_CHARS + 1))).toBe('\ufffd'.repeat(MAX_TITLE_CHARS))
   })
 })
 
