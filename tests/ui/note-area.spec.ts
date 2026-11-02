@@ -136,7 +136,7 @@ test('the notebook, status and tags share one compact line, worked by click and 
   await expect(chip).toHaveCount(0)
   await expect(status).toHaveText('Tag work removed.')
 
-  await expect(page.locator('.title')).toHaveCSS('font-size', '24px')
+  await expect(page.locator('.title')).toHaveCSS('font-size', '28px')
   const toolbarBox = await toolbar(page).boundingBox()
   const titleBox = await page.locator('.title').boundingBox()
   if (!toolbarBox || !titleBox) throw new Error('no title')

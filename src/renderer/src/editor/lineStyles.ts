@@ -298,10 +298,10 @@ const alertColours = Object.fromEntries(
  * The styles: a mark's class reaches the highlight spans inside it (`x *`),
  * whose own colour would otherwise win.
  */
-const gutterDrop = (level: HeadingLevel) => ({
+const gutterDrop = (size: string, line: string) => ({
   boxSizing: 'border-box',
-  lineHeight: `calc(${headingSize(level)} * var(--note-line-height-heading))`,
-  paddingTop: `max(0px, calc((${headingSize(level)} - ${BODY_SIZE}) * 0.35))`,
+  lineHeight: line,
+  paddingTop: `max(0px, calc((${size} - ${BODY_SIZE}) * 0.35))`,
 })
 
 const headingStyles = Object.fromEntries(
@@ -310,12 +310,42 @@ const headingStyles = Object.fromEntries(
       `.cm-md-h${level}`,
       { fontSize: headingSize(level), lineHeight: 'var(--note-line-height-heading)' },
     ],
-    [`.cm-gutterElement.cm-md-gutter-h${level}`, gutterDrop(level)],
+    [
+      `.cm-gutterElement.cm-md-gutter-h${level}`,
+      gutterDrop(
+        headingSize(level),
+        `calc(${headingSize(level)} * var(--note-line-height-heading))`,
+      ),
+    ],
+  ]),
+)
+
+/** One point of the Glass scale at the reader's editor font size. */
+const GLASS_PT = `calc(${BODY_SIZE} / var(--note-heading-glass-editor-reference))`
+const glassScale = (level: number, name: 'size' | 'line') =>
+  `calc(var(--note-heading-glass-h${level}-${name}) * ${GLASS_PT})`
+const GLASS_LEVELS = [1, 2, 3] as const
+
+const glassHeadingStyles = Object.fromEntries(
+  GLASS_LEVELS.flatMap((level) => [
+    [
+      glass(`.cm-md-h${level}`),
+      {
+        fontSize: glassScale(level, 'size'),
+        lineHeight: glassScale(level, 'line'),
+        ...(level === 3 ? { fontWeight: 'var(--font-weight-semibold)' } : {}),
+      },
+    ],
+    [
+      glass(`.cm-gutterElement.cm-md-gutter-h${level}`),
+      gutterDrop(glassScale(level, 'size'), glassScale(level, 'line')),
+    ],
   ]),
 )
 
 const theme = EditorView.theme({
   ...headingStyles,
+  ...glassHeadingStyles,
   '.cm-gutterElement.cm-md-gutter-table': {
     boxSizing: 'border-box',
     paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`,

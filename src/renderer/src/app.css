@@ -6744,6 +6744,18 @@ button.popup:focus-visible {
   padding-inline: var(--size-editor-keyline);
 }
 
+:root[data-sidebar-material='on'] .title {
+  margin-bottom: calc(var(--note-space-title-below) * 1px);
+  font-size: calc(var(--note-heading-glass-title-size) * 1px);
+  line-height: calc(var(--note-heading-glass-title-line) * 1px);
+  letter-spacing: calc(var(--note-heading-glass-title-tracking) * 1px);
+}
+
+/* The pills keep their space-4 margin for the editor; the preview adds the rest. */
+:root[data-sidebar-material='on'] .preview {
+  padding-top: calc(var(--note-space-pills-below) * 1px - var(--space-4));
+}
+
 :root[data-sidebar-material='on'] .note-meta > .picker:first-child {
   margin-inline-start: 0;
 }

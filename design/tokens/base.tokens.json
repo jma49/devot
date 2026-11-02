@@ -814,6 +814,55 @@
       },
       "h6": {
         "$value": 0.8
+      },
+      "glass": {
+        "$description": "Glass interface: the reading view's type scale, in points at the default font size settings. The preview scales it by its font size over preview-reference, the editor by its font size over editor-reference.",
+        "preview-reference": {
+          "$value": 15,
+          "$description": "The default preview font size the scale is drawn at."
+        },
+        "editor-reference": {
+          "$value": 13,
+          "$description": "The default editor font size the scale is drawn at."
+        },
+        "title-size": {
+          "$value": 28,
+          "$description": "The note title, bold."
+        },
+        "title-line": {
+          "$value": 34
+        },
+        "title-tracking": {
+          "$value": -0.4,
+          "$description": "The title's letter spacing, in points."
+        },
+        "h1-size": {
+          "$value": 22,
+          "$description": "A first-level heading in the body."
+        },
+        "h1-line": {
+          "$value": 28
+        },
+        "h2-size": {
+          "$value": 19
+        },
+        "h2-line": {
+          "$value": 24
+        },
+        "h3-size": {
+          "$value": 16,
+          "$description": "A third-level heading, semibold."
+        },
+        "h3-line": {
+          "$value": 22
+        },
+        "body-size": {
+          "$value": 14
+        },
+        "body-line": {
+          "$value": 1.6,
+          "$description": "The body's line height, in multiples of its size."
+        }
       }
     },
     "size": {
@@ -836,6 +885,34 @@
       "$type": "number",
       "$value": 0.2,
       "$description": "How far under the text a link's underline sits, in em: clear of the letters, near enough to read as theirs."
+    },
+    "space": {
+      "$type": "number",
+      "$description": "Glass interface: vertical space in the reading view, in points at the default font size (scaled like note.heading.glass).",
+      "paragraph": {
+        "$value": 12,
+        "$description": "Between paragraphs and other text blocks."
+      },
+      "h2-above": {
+        "$value": 26
+      },
+      "h2-below": {
+        "$value": 8
+      },
+      "h3-above": {
+        "$value": 20
+      },
+      "h3-below": {
+        "$value": 6
+      },
+      "title-below": {
+        "$value": 10,
+        "$description": "From the title to the pills row (fixed)."
+      },
+      "pills-below": {
+        "$value": 22,
+        "$description": "From the pills row to the body (fixed)."
+      }
     }
   },
   "space": {
