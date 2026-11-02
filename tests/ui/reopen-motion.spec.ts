@@ -179,9 +179,19 @@ function expectDimFadesFrom(samples: Sample[], atClose: number) {
   expect(rises, trace).toEqual([])
 }
 
-/** Waits until `el` has finished growing in, so the samples start from a settled page. */
+/**
+ * Ends `el`'s entrance, so the samples start from a settled page. Finished rather than awaited: a
+ * loaded runner can leave it short of 1 for seconds, and WebKit can start a modal's animation again.
+ */
 async function settled(el: Locator) {
-  await expect.poll(() => el.evaluate((node) => getComputedStyle(node).opacity)).toBe('1')
+  await expect
+    .poll(() =>
+      el.evaluate((node) => {
+        for (const animation of node.getAnimations()) animation.finish()
+        return getComputedStyle(node).opacity
+      }),
+    )
+    .toBe('1')
 }
 
 test('Escape then Command-K opens the palette again over its fading copy', async ({ page }) => {
