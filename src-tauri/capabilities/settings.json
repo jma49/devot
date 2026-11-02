@@ -26,6 +26,8 @@
     "allow-sidebar-glass",
     "allow-settings-open-data-folder",
     "allow-settings-show-backups",
+    "allow-crash-reports-get",
+    "allow-crash-reports-set",
     "allow-update-status",
     "allow-update-check",
     "allow-settings-mcp-setup",

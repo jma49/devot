@@ -527,6 +527,10 @@ title: Daily Report {{date}}
     'Where Devot keeps your notes, attachments, backups, logs and settings on this Mac.',
   'generalSettings.openFailed': 'The data folder could not be opened ({code}).',
   'generalSettings.backups': 'Backups',
+  'generalSettings.crashReports': 'Send Crash Reports',
+  'generalSettings.crashReportsHint':
+    'Off by default. When on, a crash sends error codes and code locations so it can be fixed, never note text, titles or file names. Native crashes are caught from the next launch.',
+  'generalSettings.crashReportsFailed': 'The crash report setting could not be saved ({code}).',
   'generalSettings.showBackups': 'Show Backups\u2026',
   'generalSettings.backupsFailed': 'The backups could not be shown ({code}).',
   'generalSettings.commandLine': 'Command Line',

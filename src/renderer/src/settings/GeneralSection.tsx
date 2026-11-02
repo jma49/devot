@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, useSyncExternalStore } from 'react'
 import { errorCode } from '../backups'
+import { crashReports, type CrashReports } from '../crashReports'
 import { shortcutLabel } from '../commands/keys'
 import { QUICK_CAPTURE_KEY } from '../commands/registry'
 import type { ListDatesStyle } from '../../../core/editorSettings'
@@ -13,6 +14,7 @@ import {
   cliToolStatus,
   installCliTool,
   openDataFolder,
+  setCrashReports,
   showBackups,
   uninstallCliTool,
   type CliToolState,
@@ -47,6 +49,17 @@ export function GeneralSection() {
     cliToolStatus().then(
       (status) => live && setCliTool(status),
       () => console.warn('W_CLI_TOOL_STATUS_FAILED'),
+    )
+    return () => {
+      live = false
+    }
+  }, [])
+  const [reports, setReports] = useState<CrashReports | null>(null)
+  useEffect(() => {
+    let live = true
+    crashReports().then(
+      (state) => live && setReports(state),
+      () => console.warn('W_CRASH_REPORTS_STATUS_FAILED'),
     )
     return () => {
       live = false
@@ -185,6 +198,16 @@ export function GeneralSection() {
             {t('generalSettings.showBackups')}
           </button>
         </Setting>
+        {reports?.available ? (
+          <SettingToggle
+            label="generalSettings.crashReports"
+            description="generalSettings.crashReportsHint"
+            checked={reports.on}
+            onChange={(on) =>
+              run(() => setCrashReports(on).then(setReports), 'generalSettings.crashReportsFailed')
+            }
+          />
+        ) : null}
       </SettingsSection>
       <SettingsSection title="generalSettings.commandLine">
         <Setting

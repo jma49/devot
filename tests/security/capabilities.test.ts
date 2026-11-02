@@ -110,6 +110,8 @@ describe('Tauri command permissions', () => {
       'allow-clipboard-write-secret',
       // Settings > Integrations copies devot-mcp's configs.
       'allow-clipboard-write-text',
+      'allow-crash-reports-get',
+      'allow-crash-reports-set',
       'allow-editor-settings-get',
       'allow-editor-settings-set',
       'allow-font-import',
@@ -237,6 +239,7 @@ describe('Tauri command permissions', () => {
       'allow-books-list',
       'allow-clipboard-read-text',
       'allow-clipboard-write-text',
+      'allow-crash-reports-get',
       'allow-editor-menu-popup',
       'allow-editor-settings-get',
       'allow-file-put',

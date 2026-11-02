@@ -203,7 +203,7 @@ Use the Node that ran `pnpm install` (`which node` prints its path): better-sqli
 
 ## Crash reports
 
-Crash reports are off unless a build is made with a Sentry DSN. Release builds may carry one; a build from a fresh clone has none, sends nothing and starts no crash reporter. Reports carry codes and IDs, never note content. Setting it up for your own builds: `docs/development.md`, Crash reporting in local builds.
+Crash reports are off until you turn them on in Settings > General, and turning them off deletes any not yet sent. They carry error codes and code locations, never note text. A build from a fresh clone has no Sentry DSN, sends nothing and starts no crash reporter. Setting it up for your own builds: `docs/development.md`, Crash reporting in local builds.
 
 ## Development
 

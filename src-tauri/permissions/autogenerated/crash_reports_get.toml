@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-crash-reports-get"
+description = "Enables the crash_reports_get command without any pre-configured scope."
+commands.allow = ["crash_reports_get"]
+
+[[permission]]
+identifier = "deny-crash-reports-get"
+description = "Denies the crash_reports_get command without any pre-configured scope."
+commands.deny = ["crash_reports_get"]

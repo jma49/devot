@@ -10,6 +10,10 @@ async function startSentry(page: Page): Promise<string[]> {
     sent.push(route.request().postData() ?? '')
     await route.fulfill({ status: 200, body: '{}' })
   })
+  await page.addInitScript(() => {
+    const w = window as unknown as { devotIpcMocks?: Record<string, unknown> }
+    w.devotIpcMocks = { ...w.devotIpcMocks, crash_reports_get: { available: true, on: true } }
+  })
   await page.goto('/')
   await page.addScriptTag({
     type: 'module',
