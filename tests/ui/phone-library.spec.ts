@@ -32,12 +32,10 @@ for (const colorScheme of ['light', 'dark'] as const) {
 }
 
 test('counts every note on the All tile', async ({ page }) => {
-  const shown = await page.evaluate(async () => {
-    const tiles = document.querySelectorAll('.phone-smart-tile-count')
-    return Number(tiles[0]?.textContent)
-  })
+  const count = library(page).locator('.phone-smart-tile-count').first()
+  await expect.poll(async () => Number(await count.textContent())).toBeGreaterThan(0)
+  const shown = await count.textContent()
   await expect(library(page).getByText(`${shown} notes`, { exact: false })).toBeVisible()
-  expect(shown).toBeGreaterThan(0)
 })
 
 test('a smart tile opens the Notes tab', async ({ page }) => {
