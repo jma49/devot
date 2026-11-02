@@ -20,8 +20,8 @@ describe('clipTitle', () => {
     expect(clipTitle(`${'x'.repeat(MAX_TITLE_CHARS - 1)}${smile}${smile}`)).toBe(
       `${'x'.repeat(MAX_TITLE_CHARS - 1)}${smile}`,
     )
-    // A lone surrogate is one character, as it is once it reaches Rust.
-    expect(clipTitle('\ud800'.repeat(MAX_TITLE_CHARS + 1))).toBe('\ud800'.repeat(MAX_TITLE_CHARS))
+    // A lone surrogate becomes U+FFFD, one character, before the cut.
+    expect(clipTitle('\ud800'.repeat(MAX_TITLE_CHARS + 1))).toBe('�'.repeat(MAX_TITLE_CHARS))
   })
 })
 
