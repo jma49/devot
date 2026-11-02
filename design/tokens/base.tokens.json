@@ -1023,6 +1023,14 @@
       },
       "$description": "Glass interface: a note row's highlight, inset from the list's edges."
     },
+    "inline-code": {
+      "$type": "dimension",
+      "$value": {
+        "value": 5,
+        "unit": "px"
+      },
+      "$description": "Glass interface: inline code in notes, a filled chip with no border."
+    },
     "quote-bar": {
       "$type": "dimension",
       "$value": {
@@ -1129,6 +1137,22 @@
       "$type": "dimension",
       "$value": { "value": 28, "unit": "px" },
       "$description": "A capsule control in Settings: the search field, Back and Forward, pop-ups, buttons, segmented controls and steppers."
+    },
+    "note-pill": {
+      "$type": "dimension",
+      "$value": {
+        "value": 26,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the height of the note's notebook, status and tag pills, and of the tag field."
+    },
+    "note-pill-pad": {
+      "$type": "dimension",
+      "$value": {
+        "value": 10,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a note pill's padding at each side."
     },
     "settings-swatch-width": {
       "$type": "dimension",

@@ -2098,6 +2098,10 @@ button {
   background: var(--color-fill-hover);
 }
 
+.tag-field-short {
+  display: none;
+}
+
 .tag-field-plus {
   position: absolute;
   inset-block: 0;
@@ -6744,19 +6748,103 @@ button.popup:focus-visible {
   margin-inline-start: 0;
 }
 
+:root[data-sidebar-material='on'] .note-meta {
+  gap: var(--space-3);
+}
+
 :root[data-sidebar-material='on'] .note-meta .popup {
-  height: var(--size-settings-control);
-  padding-inline: var(--space-5);
-  border: 1px solid var(--color-line-hairline);
-  background: var(--color-fill-track);
+  height: var(--size-note-pill);
+  padding-inline: var(--size-note-pill-pad);
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-card);
+}
+
+:root[data-sidebar-material='on'] .note-meta .popup:hover {
+  background: var(--color-fill-tool-hover);
+}
+
+:root[data-sidebar-material='on'] .note-meta .popup:active {
+  background: var(--color-fill-row-selected);
 }
 
 :root[data-sidebar-material='on'] .status-empty-mark {
   display: inline-flex;
 }
 
+:root[data-sidebar-material='on'] .note-meta .tag-editor {
+  gap: var(--space-3);
+  margin-inline-start: 0;
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip {
+  height: var(--size-note-pill);
+  padding: 0 var(--size-note-pill-pad);
+  border: 0;
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip:not(.tag-chip) {
+  background: var(--color-fill-card);
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip:not(.tag-chip):is(:hover, :active) {
+  background: var(--color-fill-tool-hover);
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip-remove {
+  width: var(--size-note-pill-pad);
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-field {
+  display: inline-grid;
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-field > :is(.tag-input, .tag-field-short) {
+  grid-area: 1 / 1;
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-field-plus {
+  display: none;
+}
+
 :root[data-sidebar-material='on'] .note-meta .tag-input {
-  height: var(--size-settings-control);
+  height: var(--size-note-pill);
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-capsule);
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-input:focus {
+  background: transparent;
+  box-shadow: none;
+  outline: 1px dashed var(--color-focus-ring);
+}
+
+/* The label sizes the field at rest, so the whole of "+ Tag" and its padding is the hit area. */
+:root[data-sidebar-material='on'] .note-meta .tag-input:placeholder-shown:not(:focus) {
+  width: 0;
+  min-width: 100%;
+  padding-inline: 0;
+  border: 0;
+  background: transparent;
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-input:placeholder-shown:not(:focus):hover {
+  background: var(--color-fill-hover);
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-input:placeholder-shown:not(:focus)::placeholder {
+  color: transparent;
+}
+
+:root[data-sidebar-material='on']
+  .note-meta
+  .tag-input:placeholder-shown:not(:focus)
+  ~ .tag-field-short {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: var(--space-4);
+  color: var(--color-text-tertiary);
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 :root[data-sidebar-material='on'] .note-info-field {

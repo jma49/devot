@@ -25,7 +25,7 @@ import { iconElement } from '../icons/Icon'
 import { blockUnit, codeStyle, nextLine } from './codeIndent'
 import { context, TOOLBAR_PARSE_MS } from './formatContext'
 import { barsMayShow } from './barRules'
-import { BOX_INSET, BOX_MARGIN, BOX_PAD } from './boxes'
+import { BOX_INSET, BOX_MARGIN, BOX_PAD, glass } from './boxes'
 import { buttonIn, motionKeyframes } from './motion'
 import { withLook } from './popupLook'
 import { toolbarStateExtension } from './toolbarState'
@@ -548,6 +548,15 @@ const theme = EditorView.theme({
     borderBottom: '1px solid var(--color-code-block-border)',
     borderBottomLeftRadius: 'var(--radius-button)',
     borderBottomRightRadius: 'var(--radius-button)',
+  },
+  [glass('.cm-line.cm-codeblock::before')]: { border: '0' },
+  [glass('.cm-line.cm-codeblock-first::before')]: {
+    borderTopLeftRadius: 'var(--radius-list-row)',
+    borderTopRightRadius: 'var(--radius-list-row)',
+  },
+  [glass('.cm-line.cm-codeblock-last::before')]: {
+    borderBottomLeftRadius: 'var(--radius-list-row)',
+    borderBottomRightRadius: 'var(--radius-list-row)',
   },
   // The active line's tint follows the block's shape. On the line itself it
   // squares off the box's rounded corners and fills the box's margins at the

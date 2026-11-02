@@ -90,6 +90,7 @@ export const en = {
   'note.statusValue': 'Status: {status}',
   'note.tagsLabel': 'Tags',
   'note.addTag': 'Add Tag',
+  'note.addTagShort': '+ Tag',
   'note.more': 'More',
   'note.removeTag': 'Remove Tag',
   'note.removeTagNamed': 'Remove Tag {name}',

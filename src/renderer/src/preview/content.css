@@ -876,6 +876,18 @@
   border-radius: 0;
 }
 
+:root[data-sidebar-material='on'] .preview :is(pre, .code-block) {
+  border: 0;
+}
+
+:root[data-sidebar-material='on'] .preview .code-header {
+  border-bottom: 0;
+}
+
+:root[data-sidebar-material='on'] .preview :not(pre) > code {
+  border-radius: var(--radius-inline-code);
+}
+
 :root[data-sidebar-material='on'] .preview blockquote {
   position: relative;
   padding-left: var(--space-8);

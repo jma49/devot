@@ -65,6 +65,7 @@
   --radius-sidebar: 18px;
   --radius-sidebar-row: 10px;
   --radius-list-row: 12px;
+  --radius-inline-code: 5px;
   --radius-quote-bar: 2px;
   --radius-note-info: 14px;
   --radius-glass-popover: 18px;
@@ -80,6 +81,8 @@
   --size-settings-row-sub: 56px;
   --size-settings-tile: 22px;
   --size-settings-control: 28px;
+  --size-note-pill: 26px;
+  --size-note-pill-pad: 10px;
   --size-settings-swatch-width: 100px;
   --size-settings-swatch-height: 62px;
   --size-settings-thumb-width: 76px;

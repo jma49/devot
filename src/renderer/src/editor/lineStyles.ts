@@ -17,7 +17,7 @@ import {
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { ALERT_KINDS, type AlertKind } from './blocks'
 import { markerField, scanMarkers, type MarkerScan } from './gutterMarkers'
-import { BOX_INSET, BOX_MARGIN, BOX_PAD } from './boxes'
+import { BOX_INSET, BOX_MARGIN, BOX_PAD, glass } from './boxes'
 
 export interface LineStyle {
   from: number
@@ -279,7 +279,6 @@ const QUOTE_INSET = `calc(${QUOTE_BAR} + ${BOX_PAD})`
 /** The padding box starts after the border, so the bar sits a border's width before it. */
 const QUOTE_BAR_LEFT = `calc(-1 * ${QUOTE_BAR} - ${BOX_PAD})`
 
-const glass = (selector: string) => `&[data-sidebar-material='on'] ${selector}`
 const alertMix = (strength: string) =>
   `color-mix(in srgb, var(--alert-color) calc(var(--opacity-alert-${strength}) * 100%), transparent)`
 const ALERT_EDGE = `1px solid ${alertMix('edge')}`
@@ -330,6 +329,7 @@ const theme = EditorView.theme({
     borderRadius: 'var(--radius-mark)',
     padding: '0 var(--space-1)',
   },
+  [glass('.cm-md-code')]: { border: '0', borderRadius: 'var(--radius-inline-code)' },
   '.cm-md-mark-tag, .cm-md-mark-tag *': {
     color: token('syntax-markup'),
     fontSize: '0.85em',
