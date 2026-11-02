@@ -34,7 +34,7 @@ test('Settings has its groups, and what lives on the Mac says so and does not op
   for (const title of ['General', 'Sync & storage', 'AI & integrations']) {
     await expect(root(page).getByRole('heading', { name: title, exact: true })).toBeVisible()
   }
-  for (const name of ['Mirror', 'Integrations', 'Local HTTP API', 'Plugins']) {
+  for (const name of ['Keyboard', 'Mirror', 'Integrations', 'Local HTTP API', 'Plugins']) {
     const row = root(page).getByRole('button', { name: new RegExp(`^${name}`) })
     await expect(row).toBeDisabled()
     await expect(row).toContainText('On the Mac')
