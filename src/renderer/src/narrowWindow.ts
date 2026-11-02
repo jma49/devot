@@ -6,10 +6,11 @@ import { sizes } from './theme/tokens'
 // until it is asked for (App.tsx).
 const NARROW = `(width < ${sizes['size.sidebar-collapse-width']})`
 
+// WebKit can skip a MediaQueryList's `change` and leave a kept list's `matches`
+// stale, while `resize` and a new list stay right.
 function subscribe(onChange: () => void) {
-  const query = matchMedia(NARROW)
-  query.addEventListener('change', onChange)
-  return () => query.removeEventListener('change', onChange)
+  window.addEventListener('resize', onChange)
+  return () => window.removeEventListener('resize', onChange)
 }
 
 export const useNarrowWindow = () =>
