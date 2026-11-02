@@ -9,15 +9,24 @@ function declaredCommands(): string[] {
 }
 
 interface Capability {
+  identifier: string
+  platforms?: string[]
   windows: string[]
   permissions: (string | { identifier: string })[]
 }
 
-function capabilities(): Capability[] {
+function allCapabilities(): Capability[] {
   const dir = 'src-tauri/capabilities'
   return readdirSync(dir)
     .filter((f) => f.endsWith('.json'))
     .map((f) => JSON.parse(readFileSync(`${dir}/${f}`, 'utf8')) as Capability)
+}
+
+const iosOnly = (c: Capability) => c.platforms?.length === 1 && c.platforms[0] === 'iOS'
+
+// The Mac's windows: every capability but the iPhone's, which is checked on its own below.
+function capabilities(): Capability[] {
+  return allCapabilities().filter((c) => !iosOnly(c))
 }
 
 const permissionIds = (c: Capability) =>
@@ -26,7 +35,7 @@ const permissionIds = (c: Capability) =>
 function grantedAppPermissions(): string[] {
   return [
     ...new Set(
-      capabilities()
+      allCapabilities()
         .flatMap(permissionIds)
         .filter((p) => !p.includes(':')),
     ),
@@ -449,5 +458,30 @@ describe('Tauri command permissions', () => {
     ]) {
       expect(windowsWith(`allow-${command}`)).toEqual(['main'])
     }
+  })
+})
+
+describe('the iPhone capability', () => {
+  const phone = allCapabilities().filter(iosOnly)
+  const settings = allCapabilities().find((c) => c.identifier === 'settings')!
+
+  it('is one capability, for the main window on iOS only', () => {
+    expect(phone.map((c) => [c.identifier, c.platforms, c.windows])).toEqual([
+      ['phone', ['iOS'], ['main']],
+    ])
+  })
+
+  it('grants only what the Settings window already has', () => {
+    const allowed = new Set(permissionIds(settings))
+    expect(permissionIds(phone[0]!).filter((p) => !allowed.has(p))).toEqual([])
+  })
+
+  it('leaves out what touches the Mac, plugins or the local HTTP API', () => {
+    const desktop = permissionIds(phone[0]!).filter((p) =>
+      /cli-tool|plugin-|data-folder|mirror-|http-api|font-import|main-window|update-|start-dragging|sidebar-glass/.test(
+        p,
+      ),
+    )
+    expect(desktop).toEqual([])
   })
 })
