@@ -63,7 +63,7 @@ PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/ui-report.json pnpm test:ui --reporter=json
 node scripts/ci/ui-timings.ts scripts/ci/ui-durations.json /tmp/ui-report.json
 ```
 
-Specs the file does not know cost as much as the slowest known spec, so a new file is spread rather than piled onto one shard.
+Specs the file does not know cost as much as the median known spec. Pricing them at the slowest spec instead left a few new files each holding a shard's worth of planned work, so the measured shards ran far longer than those shards.
 
 `pnpm test:ui` still runs both complete projects locally. To run an exact selection with only its server:
 

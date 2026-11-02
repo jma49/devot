@@ -136,7 +136,8 @@ export function planUi(
     const measured = matching
       .map((file) => durations[file])
       .filter((ms): ms is number => ms !== undefined && ms > 0)
-    const fallback = measured.length ? Math.max(...measured) : 1
+    const sorted = [...measured].sort((a, b) => a - b)
+    const fallback = sorted.length ? sorted[sorted.length >> 1]! : 1
     const cost = (file: string) => durations[file] || fallback
     const total = matching.reduce((ms, file) => ms + cost(file), 0)
     const shards = measured.length

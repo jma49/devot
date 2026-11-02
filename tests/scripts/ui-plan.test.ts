@@ -170,6 +170,20 @@ it('uses measured work to schedule a full run in at most fourteen shards', () =>
   expect(plan.matrix.include.flatMap((job) => job.files).sort()).toEqual([...files].sort())
 })
 
+it('prices an unmeasured spec at the median measured spec, not the slowest', () => {
+  const measured = Array.from({ length: 8 }, (_, i) => `tests/ui/measured-${i}.spec.ts`)
+  const durations: Record<string, number> = Object.fromEntries(
+    measured.map((file) => [file, 100_000]),
+  )
+  durations[measured[0]!] = 1_100_000
+  const unmeasured = ['tests/ui/new-a.spec.ts', 'tests/ui/new-b.spec.ts']
+  const files = [...measured, ...unmeasured]
+  const jobs = planUi(files, files, false, durations).matrix.include
+  // Priced at the slowest, the unmeasured pair would need 5 shards and sit alone on them.
+  expect(jobs).toHaveLength(4)
+  expect(jobs.find((job) => job.files.includes(measured[0]!))!.files).toEqual([measured[0]])
+})
+
 it('retains new specs and deterministic assignments when durations are missing', () => {
   const files = Array.from({ length: 13 }, (_, i) => `tests/ui/feature-${i}.spec.ts`)
   const durations = { [files[0]!]: 100, [files[1]!]: 10 }
