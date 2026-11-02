@@ -49,7 +49,6 @@ sha2 = "0.10"
 # to a file can be swapped for a link after Devot looked. File system calls
 # only; already in the tree through tempfile (native-tls).
 rustix = { version = "1.1", default-features = false, features = ["std", "fs", "process"] }
-tauri-plugin-updater = "2"
 # Plugin packages as `.zip` archives (`plugins::package`), deflate through
 # flate2's Rust backend, named here because no other dependency selects it on iOS.
 # Read entry by entry, never through `extract` (no links, no permission bits).
@@ -77,6 +76,9 @@ tungstenite = { version = "0.30", default-features = false, features = ["handsha
 qrcode = { version = "0.14", default-features = false }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+# Off a phone: it turns on reqwest's rustls without a crypto provider, and Tauri's dev server
+# proxy on a phone then panics at launch building its reqwest client.
+tauri-plugin-updater = "2"
 # Quick capture's shortcut, registered from Rust alone while menu bar mode is
 # on (`menu_bar`); no window is granted the plugin's commands.
 tauri-plugin-global-shortcut = "2"
