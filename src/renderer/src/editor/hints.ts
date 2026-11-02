@@ -155,6 +155,7 @@ const theme = EditorView.theme({
   },
   // Sits outside the scroller, so it takes the editor's font itself, centred on the first line.
   '.cm-empty-hint': {
+    flexWrap: 'wrap',
     position: 'absolute',
     display: 'flex',
     alignItems: 'center',

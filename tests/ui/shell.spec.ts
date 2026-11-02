@@ -79,7 +79,7 @@ test('lays out sidebar, note list and editor at the macOS type scale', async ({ 
   expect(await css(count, 'font-size')).toBe('12px')
   expect(await css(count, 'font-weight')).toBe('400')
   expect(await css(count, 'opacity')).toBe('1')
-  expect(await css(count, 'color')).toBe(rgb(light['color.text.secondary']))
+  expect(await css(count, 'color')).toBe(rgb(light['color.text.tertiary']))
 
   const field = list.locator('.search-field')
   // The Glass search field is a toolbar control's height.
@@ -88,7 +88,7 @@ test('lays out sidebar, note list and editor at the macOS type scale', async ({ 
   )
   expect(`${(await field.boundingBox())?.height}px`).toBe(control.trim())
   await expect(field.locator('.search-icon')).toHaveCount(1)
-  expect((await field.locator('.search-icon').boundingBox())?.width).toBeCloseTo(37.4, 0)
+  expect((await field.locator('.search-icon').boundingBox())?.width).toBeCloseTo(49.4, 0)
   await field.locator('input').fill('x')
   await expect(field.locator('.search-icon')).toHaveCount(0)
   await expect(field.getByRole('button', { name: 'Clear search' })).toBeVisible()

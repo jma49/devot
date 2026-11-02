@@ -6454,7 +6454,6 @@ button.popup:focus-visible {
 :root[data-sidebar-material='on'] .window[data-focus] .editor-toolbar {
   padding-inline-start: var(--size-window-controls-inset);
 }
-
 /* As far from the window's right edge as from its top, so the last control shares the window corner's centre. */
 :root[data-sidebar-material='on'] .settings-toolbar {
   padding-inline-end: calc((var(--size-toolbar-height) - var(--size-toolbar-control)) / 2);
