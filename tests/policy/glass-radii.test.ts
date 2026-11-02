@@ -77,11 +77,10 @@ describe('Glass radii are concentric: inner radius = outer radius - inset', () =
     expect(footer?.body.get('border-radius')).toBe('var(--radius-capsule)')
   })
 
-  it('sets toolbar controls as far from the right edge as from the top', () => {
+  it('sets settings toolbar controls as far from the right edge as from the top', () => {
     const rules = cssRules(readFileSync('src/renderer/src/app.css', 'utf8'))
     const bars = rules.find(
-      (r) =>
-        r.selector === ":root[data-sidebar-material='on'] :is(.editor-toolbar, .settings-toolbar)",
+      (r) => r.selector === ":root[data-sidebar-material='on'] .settings-toolbar",
     )
     expect(bars?.body.get('padding-inline-end')).toBe(
       'calc((var(--size-toolbar-height) - var(--size-toolbar-control)) / 2)',

@@ -6259,7 +6259,21 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .sidebar :is(.source, .section-header) {
-  padding-inline-start: var(--space-5);
+  padding-inline-start: var(--size-sidebar-row-padding);
+}
+
+/* A fixed first column, so an icon's width cannot move its label. */
+:root[data-sidebar-material='on'] .sidebar :is(.source, .book-row) {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: calc(var(--size-sidebar-icon-slot) - var(--space-3)) minmax(0, 1fr);
+  grid-auto-columns: auto;
+  column-gap: var(--space-3);
+  justify-items: start;
+}
+
+:root[data-sidebar-material='on'] .sidebar :is(.source, .book-row) > .source-label {
+  justify-self: stretch;
 }
 
 /* The sidebar's selection is neutral, focused or not; the note list keeps the accent. */
@@ -6273,14 +6287,14 @@ button.popup:focus-visible {
   background: var(--color-fill-row-selected);
 }
 
-/* Every notebook keeps room for a chevron before its icon, so no chevron leaves the row's rounded box. */
 :root[data-sidebar-material='on'] .books li {
-  --book-indent: calc(var(--space-5) + var(--space-6) + var(--book-depth, 0) * var(--space-7));
+  --book-indent: calc(var(--size-sidebar-row-padding) + var(--book-depth, 0) * var(--space-7));
 }
 
 :root[data-sidebar-material='on'] .book-row > .disclosure {
   position: absolute;
-  inset-inline-start: calc(var(--book-indent) - var(--space-6) - var(--space-2));
+  inset-inline-start: calc(var(--book-indent) - var(--size-sidebar-row-padding));
+  width: var(--size-sidebar-row-padding);
   height: 100%;
 }
 
@@ -6384,8 +6398,16 @@ button.popup:focus-visible {
   border-bottom: 0;
 }
 
+:root[data-sidebar-material='on'] .editor-toolbar {
+  padding-inline: var(--size-editor-keyline);
+}
+
+:root[data-sidebar-material='on'] .window[data-focus] .editor-toolbar {
+  padding-inline-start: var(--size-window-controls-inset);
+}
+
 /* As far from the window's right edge as from its top, so the last control shares the window corner's centre. */
-:root[data-sidebar-material='on'] :is(.editor-toolbar, .settings-toolbar) {
+:root[data-sidebar-material='on'] .settings-toolbar {
   padding-inline-end: calc((var(--size-toolbar-height) - var(--size-toolbar-control)) / 2);
 }
 
@@ -6487,10 +6509,25 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .list-filter {
+  padding-inline: var(--size-list-keyline-outer);
   border-bottom-color: transparent;
 }
 
+:root[data-sidebar-material='on'] .list .toolbar {
+  padding-inline-end: var(--size-list-keyline-outer);
+}
+
+:root[data-sidebar-material='on'] .window:not([data-sidebar-hidden]) .list .toolbar {
+  padding-inline-start: var(--size-list-keyline-outer);
+}
+
+:root[data-sidebar-material='on'] .list-filter .search-icon {
+  justify-content: flex-start;
+  padding-inline-start: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
+}
+
 :root[data-sidebar-material='on'] .sort-chip {
+  padding-inline-start: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer) - 1px);
   border-color: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-footnote);
@@ -6548,9 +6585,12 @@ button.popup:focus-visible {
   white-space: nowrap;
 }
 
+/* The scroll bar is always reserved and pulled out of the keyline, so rows keep their right edge with or without overflow. */
 :root[data-sidebar-material='on'] .rows {
   gap: var(--space-1);
-  padding-inline: var(--size-list-inset);
+  padding-inline: var(--size-list-keyline-outer)
+    calc(var(--size-list-keyline-outer) - var(--size-scrollbar));
+  overflow-y: scroll;
 }
 
 :root[data-sidebar-material='on'] .rows .row[data-open],
@@ -6564,6 +6604,10 @@ button.popup:focus-visible {
   :is(.sidebar .source:focus-visible, .books li:focus-visible > .book-row):not(.menu-target) {
   outline: var(--size-focus-ring) solid var(--color-focus-ring);
   outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
+:root[data-sidebar-material='on'] .list-section {
+  padding-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
 }
 
 :root[data-sidebar-material='on'] .list-section:not(:first-child) {
@@ -6585,6 +6629,7 @@ button.popup:focus-visible {
    lines of its text. The time leaves its line, which goes when nothing else is on it. */
 :root[data-sidebar-material='on'] .row {
   position: relative;
+  padding-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
   padding-bottom: var(--space-6);
   border-bottom: 0;
   border-radius: var(--radius-list-row);
@@ -6600,7 +6645,7 @@ button.popup:focus-visible {
 :root[data-sidebar-material='on'] .row-time {
   position: absolute;
   top: var(--space-6);
-  inset-inline-end: var(--size-list-row-inset);
+  inset-inline-end: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
   font-size: var(--font-size-footnote);
 }
 
@@ -6642,7 +6687,32 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .title {
+  margin-inline: var(--size-editor-keyline);
   font-weight: var(--font-weight-bold);
+}
+
+:root[data-sidebar-material='on'] .note-meta {
+  margin-inline: var(--size-editor-keyline);
+}
+
+:root[data-sidebar-material='on'] .window[data-focus] .content > :is(.title, .note-meta) {
+  padding-inline: var(--size-editor-keyline);
+}
+
+:root[data-sidebar-material='on'] .editor {
+  --editor-padding: 0 calc(var(--size-editor-keyline) - var(--space-3)) var(--trial-bar-inset, 0px)
+    calc(var(--size-editor-keyline) - var(--space-3));
+}
+
+/* The scroll bar is always reserved and pulled out of the keyline, so blocks keep their right edge with or without overflow. */
+:root[data-sidebar-material='on'] .preview {
+  padding-inline: var(--size-editor-keyline)
+    calc(var(--size-editor-keyline) - var(--size-scrollbar));
+  overflow-y: scroll;
+}
+
+:root[data-sidebar-material='on'] .history-overlay {
+  padding-inline: var(--size-editor-keyline);
 }
 
 :root[data-sidebar-material='on'] .note-meta > .picker:first-child {

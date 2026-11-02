@@ -1010,7 +1010,7 @@
     "sidebar-row": {
       "$type": "dimension",
       "$value": {
-        "value": 12,
+        "value": 10,
         "unit": "px"
       },
       "$description": "Glass interface: a sidebar row's highlight, concentric with radius.sidebar at size.sidebar-row-inset."
@@ -1475,8 +1475,8 @@
     },
     "sidebar-footer": {
       "$type": "dimension",
-      "$value": { "value": 24, "unit": "px" },
-      "$description": "The Glass sidebar's footer capsule: size.sidebar-row-inset + 24 / 2 = radius.sidebar, so it shares a centre with the sidebar's corners."
+      "$value": { "value": 20, "unit": "px" },
+      "$description": "The Glass sidebar's footer capsule: size.sidebar-row-inset + 20 / 2 = radius.sidebar, so it shares a centre with the sidebar's corners."
     },
     "scrollbar": {
       "$type": "dimension",
@@ -1685,10 +1685,26 @@
     "sidebar-row-inset": {
       "$type": "dimension",
       "$value": {
-        "value": 6,
+        "value": 8,
         "unit": "px"
       },
       "$description": "Glass interface: the room between a sidebar's edges and its rows and footer; radius.sidebar minus this is radius.sidebar-row."
+    },
+    "sidebar-row-padding": {
+      "$type": "dimension",
+      "$value": {
+        "value": 10,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a sidebar row's start padding, which puts every icon and caption 18 from the sidebar edge; a chevron hangs inside it."
+    },
+    "sidebar-icon-slot": {
+      "$type": "dimension",
+      "$value": {
+        "value": 26,
+        "unit": "px"
+      },
+      "$description": "Glass interface: from a sidebar row's icon to its label, which puts every label 44 from the sidebar edge whatever the icon's width."
     },
     "glass-dialog-inset": {
       "$type": "dimension",
@@ -1794,21 +1810,37 @@
       },
       "$description": "Glass interface: the padding inside a popover; radius.glass-popover minus this is radius.glass-menu-row."
     },
-    "list-inset": {
+    "list-keyline-outer": {
       "$type": "dimension",
       "$value": {
-        "value": 8,
+        "value": 12,
         "unit": "px"
       },
-      "$description": "Glass interface: how far note rows sit in from the list's edges."
+      "$description": "Glass interface: the note list's outer keyline, from its left edge and from the divider: the search field, row highlights and the sort row's right end."
+    },
+    "list-keyline-inner": {
+      "$type": "dimension",
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the note list's text keyline, from its left edge: the sort label, section captions and row text."
     },
     "toolbar-control": {
       "$type": "dimension",
       "$value": {
-        "value": 36,
+        "value": 32,
         "unit": "px"
       },
       "$description": "Glass interface: the height of a toolbar control, and a round toolbar button's width."
+    },
+    "editor-keyline": {
+      "$type": "dimension",
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the editor column's one keyline, from the divider and from the window edge: toolbar groups, title, pills, text and blocks."
     },
     "glass-switch-width": {
       "$type": "dimension",
