@@ -1722,6 +1722,10 @@ button.phone-chip::after {
   width: 100%;
 }
 
+.phone-settings-pane .select > select {
+  flex: 1;
+}
+
 .phone-settings-pane .choice-groups,
 .phone-settings-pane .choice-items {
   flex-wrap: wrap;
