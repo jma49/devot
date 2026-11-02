@@ -25,6 +25,10 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 - Reduce Motion turns every movement into a `motion.duration.phone-crossfade` crossfade; Reduce Transparency turns glass into `color.phone.glass-opaque`.
 - Layout comes from `env(safe-area-inset-*)`, never fixed top and bottom offsets.
 
+## Layout
+
+The tab bar sits at the larger of `size.phone-tab-bottom` and the bottom safe area less 10, so 24 from the screen's edge at the design's 34 pt inset, clear of the home indicator on any iPhone.
+
 ## Dynamic Type
 
 Text follows the system's text size, up to the largest accessibility size.

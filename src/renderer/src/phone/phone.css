@@ -1,0 +1,343 @@
+.phone-app {
+  --phone-safe-top: env(safe-area-inset-top);
+  --phone-glass-press-scale: var(--motion-scale-phone-glass-press);
+  --phone-lens-x-scale: var(--motion-scale-phone-lens-x);
+  --phone-lens-y-scale: var(--motion-scale-phone-lens-y);
+  --phone-icon-dip-scale: var(--motion-scale-phone-icon-dip);
+  --phone-icon-pop-scale: var(--motion-scale-phone-icon-pop);
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--color-phone-group);
+  color: var(--color-text-primary);
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: calc(17px * var(--phone-text-scale, 1));
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* :where keeps this reset below every control's own class. */
+:where(.phone-app) button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+.phone-glass {
+  background: var(--color-phone-glass);
+  backdrop-filter: blur(20px) saturate(1.9);
+  -webkit-backdrop-filter: blur(20px) saturate(1.9);
+  box-shadow:
+    inset 0 1px 1px var(--color-phone-glass-highlight),
+    inset 0 -1px 1px var(--color-phone-glass-lowlight),
+    0 0 0 var(--size-phone-separator) var(--color-phone-glass-edge),
+    0 6px 20px var(--color-phone-glass-shadow);
+}
+
+button.phone-glass {
+  transition:
+    transform var(--motion-duration-settle) var(--motion-easing-phone-push),
+    filter var(--motion-duration-ring) var(--motion-easing-out);
+}
+
+button.phone-glass:active {
+  transform: scale(var(--phone-glass-press-scale));
+  filter: brightness(1.06);
+}
+
+.phone-stack {
+  position: absolute;
+  inset: 0;
+}
+
+.phone-stack[hidden] {
+  display: none;
+}
+
+.phone-layer {
+  position: absolute;
+  inset: 0;
+  transition: transform var(--motion-duration-phone-push) var(--motion-easing-phone-push);
+  will-change: transform;
+}
+
+.phone-layer + .phone-layer {
+  box-shadow: -10px 0 30px var(--color-phone-shadow);
+}
+
+.phone-layer[data-dragging] {
+  transition: none;
+}
+
+.phone-layer-dim {
+  position: absolute;
+  inset: 0;
+  background: var(--color-phone-scrim);
+  pointer-events: none;
+  transition: opacity var(--motion-duration-phone-push) var(--motion-easing-phone-push);
+}
+
+.phone-layer[data-dragging] > .phone-layer-dim {
+  transition: none;
+}
+
+.phone-screen {
+  position: absolute;
+  inset: 0;
+  background: var(--color-phone-background);
+}
+
+.phone-screen[data-surface='group'] {
+  background: var(--color-phone-group);
+}
+
+.phone-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: calc(
+      var(--phone-safe-top) + var(--size-phone-edge-effect) + var(--size-phone-screen-edge)
+    )
+    var(--size-phone-screen-edge)
+    calc(var(--size-phone-glass-bar) + var(--size-phone-tab-bottom) * 2);
+  box-sizing: border-box;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+
+.phone-edge {
+  position: absolute;
+  inset: 0 0 auto;
+  height: calc(var(--phone-safe-top) + var(--size-phone-edge-effect));
+  pointer-events: none;
+  background: linear-gradient(
+    var(--color-phone-background) 64%,
+    color-mix(in srgb, var(--color-phone-background), transparent)
+  );
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  mask-image: linear-gradient(var(--color-phone-scrim) 55%, transparent);
+  -webkit-mask-image: linear-gradient(var(--color-phone-scrim) 55%, transparent);
+}
+
+.phone-screen[data-surface='group'] > .phone-edge {
+  background: linear-gradient(
+    var(--color-phone-group) 62%,
+    color-mix(in srgb, var(--color-phone-group), transparent)
+  );
+}
+
+.phone-topbar {
+  position: absolute;
+  top: var(--phone-safe-top);
+  left: var(--size-phone-screen-edge);
+  right: var(--size-phone-screen-edge);
+  height: var(--size-phone-nav-control);
+  display: flex;
+  align-items: center;
+}
+
+.phone-topbar-title {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: inherit;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.phone-nav-control {
+  position: relative;
+  width: var(--size-phone-nav-control);
+  height: var(--size-phone-nav-control);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phone-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--size-phone-grouped-row);
+  padding: 0 var(--size-phone-screen-edge);
+  box-sizing: border-box;
+  border-radius: var(--radius-phone-card);
+  background: var(--color-phone-card);
+  text-align: left;
+}
+
+.phone-tabbar {
+  position: absolute;
+  z-index: 2;
+  left: var(--size-phone-tab-inset);
+  right: var(--size-phone-tab-inset);
+  /* At the design's 34 pt home indicator inset this is the 24 the prototype draws. */
+  bottom: max(var(--size-phone-tab-bottom), calc(env(safe-area-inset-bottom) - 10px));
+  height: var(--size-phone-glass-bar);
+  padding: var(--size-phone-lens-inset);
+  box-sizing: border-box;
+  border-radius: calc(var(--size-phone-glass-bar) / 2);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  transition: transform var(--motion-duration-phone-push) var(--motion-easing-phone-push);
+}
+
+.phone-tabbar[data-dragging] {
+  transition: none;
+}
+
+.phone-tabbar-lens {
+  position: absolute;
+  top: var(--size-phone-lens-inset);
+  bottom: var(--size-phone-lens-inset);
+  left: var(--size-phone-lens-inset);
+  width: calc((100% - var(--size-phone-lens-inset) * 2) / 3);
+  border-radius: var(--radius-phone-lens-bar);
+  background: var(--color-phone-lens);
+  transition: transform var(--phone-spring-bouncy-duration) var(--phone-spring-bouncy);
+}
+
+.phone-tabbar-lens[data-move='a'] {
+  animation: phone-lens-squash-a var(--motion-duration-phone-lens) var(--motion-easing-out);
+}
+
+.phone-tabbar-lens[data-move='b'] {
+  animation: phone-lens-squash-b var(--motion-duration-phone-lens) var(--motion-easing-out);
+}
+
+@keyframes phone-lens-squash-a {
+  35% {
+    scale: var(--phone-lens-x-scale) var(--phone-lens-y-scale);
+  }
+}
+
+@keyframes phone-lens-squash-b {
+  35% {
+    scale: var(--phone-lens-x-scale) var(--phone-lens-y-scale);
+  }
+}
+
+.phone-tab {
+  position: relative;
+  min-height: var(--size-phone-target);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font-size: calc(10px * var(--phone-bar-text-scale, 1));
+  font-weight: 500;
+}
+
+.phone-tab[aria-current='page'] {
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+
+.phone-tab-icon {
+  position: relative;
+  display: flex;
+}
+
+.phone-tab-icon[data-move='a'] {
+  animation: phone-icon-pop-a var(--motion-duration-phone-pop) var(--phone-spring-bouncy);
+}
+
+.phone-tab-icon[data-move='b'] {
+  animation: phone-icon-pop-b var(--motion-duration-phone-pop) var(--phone-spring-bouncy);
+}
+
+@keyframes phone-icon-pop-a {
+  30% {
+    scale: var(--phone-icon-dip-scale);
+  }
+  65% {
+    scale: var(--phone-icon-pop-scale);
+  }
+}
+
+@keyframes phone-icon-pop-b {
+  30% {
+    scale: var(--phone-icon-dip-scale);
+  }
+  65% {
+    scale: var(--phone-icon-pop-scale);
+  }
+}
+
+.phone-badge {
+  position: absolute;
+  left: 17px;
+  top: -3px;
+  min-width: var(--size-phone-badge);
+  height: var(--size-phone-badge);
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: calc(var(--size-phone-badge) / 2);
+  background: var(--color-phone-badge);
+  box-shadow: 0 0 0 2px var(--color-phone-badge-ring);
+  color: var(--color-phone-on-action);
+  font-size: calc(12px * var(--phone-bar-text-scale, 1));
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phone-back-zone {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  top: calc(var(--phone-safe-top) + var(--size-phone-edge-effect));
+  bottom: calc(var(--size-phone-glass-bar) + var(--size-phone-tab-bottom));
+  width: var(--size-phone-back-zone);
+  touch-action: none;
+}
+
+:root[data-motion='reduced'] .phone-app {
+  --phone-glass-press-scale: 1;
+  --phone-lens-x-scale: 1;
+  --phone-lens-y-scale: 1;
+  --phone-icon-dip-scale: 1;
+  --phone-icon-pop-scale: 1;
+}
+
+/* Every movement becomes a crossfade: layers stay in place, and one that comes or goes fades. */
+:root[data-motion='reduced'] .phone-layer {
+  transform: none !important;
+  transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
+}
+
+:root[data-motion='reduced'] .phone-layer[data-away] {
+  opacity: 0;
+}
+
+:root[data-motion='reduced'] .phone-tabbar {
+  transform: none !important;
+  transition: none;
+}
+
+:root[data-motion='reduced'] .phone-tabbar-lens {
+  transition: none;
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .phone-glass {
+    background: var(--color-phone-glass-opaque);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .phone-edge {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

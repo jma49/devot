@@ -82,6 +82,15 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **Dragging:** a drop line fades in and a column's or row's highlight eases over `motion.duration.quick`. The other rows stay where they are: moving them would change what is under the pointer, and the zones that tell before, into and after apart.
 - **Image viewer:** opens and closes as a modal dialog does. **Plugin panel:** opens as one and closes at once, because a closing copy would run its frame again.
 
+## iPhone
+
+The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by `phoneSpring` (`phone/spring.ts`) and set on the phone root. Positions follow the finger and can be interrupted; only selecting and dropping may overshoot; colour and opacity never bounce. Reduce Motion turns every movement into a `motion.duration.phone-crossfade` crossfade and every scale to 1.
+
+- **Push and pop:** rule 3. The new screen slides in from the right over `motion.duration.phone-push` on `motion.easing.phone-push`; the one below moves 30% left and dims `opacity.phone-dim-push`.
+- **Back swipe:** rule 1, then rule 3. The screen tracks the finger; past `size.phone-back-threshold` or on a flick it pops, otherwise it returns.
+- **Tab bar lens:** rule 4. It slides with `bouncy` and squashes to `motion.scale.phone-lens-x` by `motion.scale.phone-lens-y` over `motion.duration.phone-lens`; the selected icon pops over `motion.duration.phone-pop`.
+- **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` and brightens.
+
 ## Stays instant
 
 Another note; another view; palette results; the editor's floating bars; a pane being resized; a window's theme or appearance changing (`data-appearance-changing` turns transitions off, because WKWebView can keep half-transitioned layers when a background window changes theme); text folding (it would animate height inside CodeMirror's measured layout).

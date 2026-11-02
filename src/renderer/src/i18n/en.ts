@@ -1,6 +1,14 @@
 // English UI strings: the source locale. Every other locale translates
 // these keys; a missing translation falls back to English.
 export const en = {
+  'phone.tabs': 'Tabs',
+  'phone.tab.notes': 'Notes',
+  'phone.tab.library': 'Library',
+  'phone.tab.settings': 'Settings',
+  'phone.back': 'Back',
+  'phone.note': 'Note',
+  'phone.badge.proposals': '{count} AI edit proposals',
+  'phone.badge.attention': 'Needs attention',
   'sidebar.label': 'Sidebar',
   'sidebar.allNotes': 'All Notes',
   'sidebar.workspaceLabel': 'Workspace {name}',
