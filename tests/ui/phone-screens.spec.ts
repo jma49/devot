@@ -137,7 +137,7 @@ test('Settings lists its sections and opens a pane', async ({ page }) => {
   const settings = page.getByRole('region', { name: 'Settings' })
   await expect(settings.getByRole('button', { name: /Appearance/ })).toBeVisible()
   await settings.getByRole('button', { name: /General/ }).click()
-  await expect(page.getByRole('region', { name: 'General' })).toBeVisible()
+  await expect(page.locator('section.phone-screen[aria-label="General"]')).toBeVisible()
 })
 
 test('every enabled button on the note list is at least 44 points', async ({ page }) => {
