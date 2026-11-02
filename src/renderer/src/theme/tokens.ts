@@ -170,6 +170,8 @@ export const sizes = {
   "size.glass-popover-row": "32px",
   "size.glass-popover-notch": "14px",
   "size.glass-popover-inset": "6px",
+  "size.list-section-gap": "14px",
+  "size.footnote-rule": "48px",
   "size.list-keyline-outer": "12px",
   "size.list-keyline-inner": "24px",
   "size.toolbar-control": "32px",

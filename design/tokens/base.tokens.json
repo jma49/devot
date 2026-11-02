@@ -1810,6 +1810,16 @@
       },
       "$description": "Glass interface: the padding inside a popover; radius.glass-popover minus this is radius.glass-menu-row."
     },
+    "list-section-gap": {
+      "$type": "dimension",
+      "$value": { "value": 14, "unit": "px" },
+      "$description": "Glass interface: the extra room above a note list section's caption, which separates sections without a rule."
+    },
+    "footnote-rule": {
+      "$type": "dimension",
+      "$value": { "value": 48, "unit": "px" },
+      "$description": "Glass interface: the length of the hairline that opens a preview's footnotes, on the text's left edge."
+    },
     "list-keyline-outer": {
       "$type": "dimension",
       "$value": {

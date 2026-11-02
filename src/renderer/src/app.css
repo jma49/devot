@@ -6368,10 +6368,11 @@ button.popup:focus-visible {
   transition: none;
 }
 
-:root[data-sidebar-material='on'] .section-header {
-  font-size: var(--font-size-footnote);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
+/* One caption style for the sidebar and the note list. */
+:root[data-sidebar-material='on'] :is(.section-header, .list-section) {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
 }
 
 :root[data-sidebar-material='on'] .footer-toggle {
@@ -6610,19 +6611,12 @@ button.popup:focus-visible {
   padding-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
 }
 
-:root[data-sidebar-material='on'] .list-section:not(:first-child) {
-  position: relative;
-  margin-top: var(--space-4);
-  padding-top: var(--space-6);
+:root[data-sidebar-material='on'] .list-section > :is(.icon, .icon-svg) {
+  display: none;
 }
 
-:root[data-sidebar-material='on'] .list-section:not(:first-child)::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  inset-inline: var(--size-list-row-inset);
-  height: 1px;
-  background: var(--color-line-separator);
+:root[data-sidebar-material='on'] .list-section:not(:first-child) {
+  padding-top: calc(var(--space-4) + var(--size-list-section-gap));
 }
 
 /* A row: the title with its time at the end of the line, then the rest of its details, then two
@@ -6778,6 +6772,26 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .note-backlinks[open] > summary::before {
   rotate: 135deg;
+}
+
+/* Screen only: printing keeps the full-width rule. */
+@media screen {
+  :root[data-sidebar-material='on'] .preview .footnotes {
+    position: relative;
+    border-top: 0;
+    /* 12 at the default preview size (15 / 13.5 scale), and it still follows the size setting. */
+    font-size: calc(var(--font-size-footnote) * var(--preview-scale, 1) * 0.9);
+  }
+
+  :root[data-sidebar-material='on'] .preview .footnotes::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--size-footnote-rule);
+    height: 1px;
+    background: var(--color-line-hairline);
+  }
 }
 
 :root[data-sidebar-material='on'] .preview :is(h1, h2) {
