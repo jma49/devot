@@ -14,7 +14,8 @@
 //! updater: it never checks on its own, and a manual check says updates are unavailable.
 
 use crate::exit;
-use crate::licence::{self, Licence};
+use crate::licence::Licence;
+use crate::licence::schedule::{CHECK_EVERY, Checks, FIRST_CHECK, WAKE_EVERY, due};
 use serde::Serialize;
 use serde_json::Value;
 use std::future::Future;
@@ -27,12 +28,8 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 
 pub const STATUS_EVENT: &str = "devot://update-status";
 const FEED_BASE: &str = "https://github.com/jma49/devot/releases/download/updater";
-const FIRST_CHECK: Duration = Duration::from_secs(30);
-const CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 /// Betas ship several times a day.
 const CHECK_EVERY_BETA: Duration = Duration::from_secs(60 * 60);
-/// Wall-clock time, so a Mac that slept through the day checks soon after it wakes.
-const WAKE_EVERY: Duration = Duration::from_secs(15 * 60);
 /// The updater sets no timeout of its own, and a hung request would keep any later check out.
 const STALL_LIMIT: Duration = Duration::from_secs(60);
 
@@ -172,10 +169,6 @@ fn check_every(channel: Channel) -> Duration {
         Channel::Stable => CHECK_EVERY,
         Channel::Beta => CHECK_EVERY_BETA,
     }
-}
-
-fn due(last: Option<SystemTime>, now: SystemTime, every: Duration) -> bool {
-    last.is_none_or(|at| now.duration_since(at).is_ok_and(|gone| gone >= every) || now < at)
 }
 
 fn due_now(app: &AppHandle) -> bool {
@@ -580,21 +573,10 @@ pub fn start(app: &AppHandle) {
         .name("devot-updates".into())
         .spawn(move || {
             std::thread::sleep(FIRST_CHECK);
-            let mut last_revocations = None;
-            let mut last_seat = None;
+            let mut checks = Checks::default();
             loop {
-                if let Some(licence) = &licence
-                    && due(last_revocations, SystemTime::now(), CHECK_EVERY)
-                    && licence.wants_revocations()
-                    && licence::refresh_revocations(licence)
-                {
-                    last_revocations = Some(SystemTime::now());
-                }
-                if let Some(licence) = &licence
-                    && due(last_seat, SystemTime::now(), CHECK_EVERY)
-                    && licence.refresh_activation_if_due()
-                {
-                    last_seat = Some(SystemTime::now());
+                if let Some(licence) = &licence {
+                    checks.run(licence);
                 }
                 if updater && due_now(&app) {
                     tauri::async_runtime::block_on(check(app.clone(), None));

@@ -16,6 +16,7 @@ mod device;
 mod format;
 mod keys;
 mod revoked;
+pub(crate) mod schedule;
 mod store;
 #[cfg(test)]
 pub(crate) mod testing;
@@ -38,8 +39,6 @@ use format::{
     Payload, Revocations, VerifyError, verify_activation, verify_licence, verify_revocations,
 };
 pub(crate) use keys::PublicKeys;
-#[cfg(desktop)]
-pub(crate) use revoked::refresh_from_site as refresh_revocations;
 pub(crate) use store::{KeyStore, Keychain, LICENCE_ACCOUNT, REVOCATIONS_FILE, TRIAL_ACCOUNT};
 use trial::Record;
 pub(crate) use trial::TrialView;

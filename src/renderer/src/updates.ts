@@ -6,6 +6,7 @@
 // window after each change, which the page re-sends as `devot:update-status`
 // (the UI tests send that one). An older revision never replaces a newer one.
 import { useSyncExternalStore } from 'react'
+import { hasDesktopShell } from './platform'
 import { format, t, type MessageKey } from './i18n'
 import { invoke } from './ipc'
 
@@ -181,6 +182,7 @@ const subscribe = (listener: () => void) => {
 let started = false
 
 export function startUpdateStatus(): void {
+  if (!hasDesktopShell) return
   if (started) return
   started = true
   window.addEventListener(UPDATE_STATUS, (e) =>
@@ -206,8 +208,10 @@ export function useUpdateStatus(): UpdateStatus {
 }
 
 /** Checks for an update now; the outcome comes as a status (a failure to ask is only logged). */
-export const checkForUpdates = (): Promise<void> =>
-  invoke<void>('update_check').catch(() => console.warn('W_UPDATE_CHECK_FAILED'))
+export const checkForUpdates = async (): Promise<void> => {
+  if (!hasDesktopShell) return
+  await invoke<void>('update_check').catch(() => console.warn('W_UPDATE_CHECK_FAILED'))
+}
 
 export const downloadUpdate = (): Promise<void> => invoke('update_download')
 

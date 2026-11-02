@@ -465,6 +465,8 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     start_http_api(app, data_dir);
     #[cfg(desktop)]
     updates::start(app.handle());
+    #[cfg(mobile)]
+    licence::schedule::start(app.handle());
     Ok(())
 }
 
