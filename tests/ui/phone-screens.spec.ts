@@ -427,25 +427,15 @@ test('General on a phone leaves out the menu bar, updates and command line tool'
   }
 })
 
-test('a phone Settings row puts its field under its label, full width, in iPhone words', async ({
-  page,
-}) => {
+test('a phone Settings row keeps a select beside its label, in iPhone words', async ({ page }) => {
   const pane = await openPane(page, 'Editing')
   const field = pane.getByRole('combobox', { name: 'Unordered List Bullet' })
   const label = pane.getByText('Unordered List Bullet', { exact: true })
   await expect(field).toBeVisible()
-  const [fieldBox, labelBox, cardBox] = await Promise.all([
-    field.boundingBox(),
-    label.boundingBox(),
-    pane
-      .locator('.settings-card')
-      .filter({
-        has: page.getByRole('combobox', { name: 'Unordered List Bullet' }),
-      })
-      .boundingBox(),
-  ])
-  expect(fieldBox!.y).toBeGreaterThanOrEqual(labelBox!.y + labelBox!.height)
-  expect(fieldBox!.width).toBeGreaterThan(cardBox!.width * 0.8)
+  const [fieldBox, labelBox] = await Promise.all([field.boundingBox(), label.boundingBox()])
+  expect(fieldBox!.x).toBeGreaterThan(labelBox!.x + labelBox!.width)
+  expect(fieldBox!.y).toBeLessThan(labelBox!.y + labelBox!.height)
+  expect(fieldBox!.height).toBeGreaterThanOrEqual(44)
   await expect(pane.getByText('These settings apply only on this iPhone.')).toBeVisible()
 })
 

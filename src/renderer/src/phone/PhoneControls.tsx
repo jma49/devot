@@ -99,6 +99,8 @@ export function PhoneSlider(props: {
   minLabel: string
   maxLabel: string
   valueText?: string
+  /** The ends are one glyph, small and large, not words. */
+  glyphEnds?: boolean
   onChange: (value: number) => void
   onRelease?: () => void
 }) {
@@ -107,7 +109,7 @@ export function PhoneSlider(props: {
   return (
     <div className="phone-control">
       <ControlHead id={id} label={props.label} hint={props.hint} />
-      <div className="phone-slider-row">
+      <div className="phone-slider-row" data-glyph-ends={props.glyphEnds || undefined}>
         <span className="phone-slider-end">{props.minLabel}</span>
         <input
           type="range"

@@ -24,6 +24,14 @@ async function openPane(page: Page, name: string): Promise<Locator> {
   return pane
 }
 
+async function rightPadding(control: Locator): Promise<number> {
+  const [box, card] = await Promise.all([
+    control.boundingBox(),
+    control.locator('xpath=ancestor::*[contains(@class,"settings-card")]').boundingBox(),
+  ])
+  return card!.x + card!.width - (box!.x + box!.width)
+}
+
 const glassOpaque = (page: Page) =>
   tabs(page).evaluate((bar) => getComputedStyle(bar).backdropFilter === 'none')
 
@@ -213,4 +221,153 @@ test('the Sync pane lists devices, marks this one and offers pairing', async ({ 
   await expect(pane.locator('.phone-accent-button')).toBeVisible()
   await pane.getByRole('button', { name: 'About Recovery Key' }).click()
   await expect(page.getByRole('dialog', { name: 'Recovery Key' })).toBeVisible()
+})
+
+test('a stepper and a select sit on their label row, at the row right padding', async ({
+  page,
+}) => {
+  const pane = await openPane(page, 'Appearance')
+  for (const [role, name, control] of [
+    ['spinbutton', 'Preview Font Size', '.stepper'],
+    ['combobox', 'Animations', '.select'],
+  ] as const) {
+    const row = pane.locator('.setting').filter({ has: page.getByRole(role, { name }) })
+    const box = row.locator(control)
+    const [label, drawn] = await Promise.all([
+      row.locator('.setting-label').boundingBox(),
+      box.boundingBox(),
+    ])
+    expect(drawn!.x).toBeGreaterThan(label!.x + label!.width)
+    expect(Math.abs(drawn!.y + drawn!.height / 2 - (label!.y + label!.height / 2))).toBeLessThan(2)
+    expect(await rightPadding(box)).toBeCloseTo(12, 0)
+    expect((await row.boundingBox())!.height).toBeCloseTo(44, 0)
+  }
+})
+
+test('a select draws its chosen value at its own width and stays a native 44 target', async ({
+  page,
+}) => {
+  const pane = await openPane(page, 'Appearance')
+  const select = pane.getByRole('combobox', { name: 'Animations' })
+  const box = (await select.boundingBox())!
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  await select.selectOption('off')
+  const value = select.locator('xpath=..').locator('.select-value')
+  await expect(value).toHaveText('Off')
+  expect((await select.boundingBox())!.width).toBeLessThan(box.width)
+})
+
+test('a free-text field stacks under its label at the row width', async ({ page }) => {
+  const pane = await openPane(page, 'Sync')
+  const field = pane.getByRole('textbox', { name: 'Relay' })
+  const label = pane.getByText('Relay', { exact: true })
+  const [box, labelBox] = await Promise.all([field.boundingBox(), label.boundingBox()])
+  expect(box!.y).toBeGreaterThanOrEqual(labelBox!.y + labelBox!.height)
+  expect(box!.width).toBe(390 - 2 * 16 - 2 * 12)
+})
+
+test('theme thumbs share one size and one set of columns, and choosing moves nothing', async ({
+  page,
+}) => {
+  const pane = await openPane(page, 'Appearance')
+  const boxes = (group: string) =>
+    pane.getByRole('radiogroup', { name: group }).evaluate((row) =>
+      [...row.querySelectorAll('.choice')].map((choice) => {
+        const thumb = choice.querySelector('.phone-theme-thumb')!.getBoundingClientRect()
+        const name = choice.querySelector('.choice-name')!.getBoundingClientRect()
+        return { x: thumb.x, width: thumb.width, height: thumb.height, nameX: name.x }
+      }),
+    )
+  const light = await boxes('Light Mode Theme')
+  const dark = await boxes('Dark Mode Theme')
+  expect(light).toHaveLength(6)
+  expect(dark.map((b) => b.x)).toEqual(light.map((b) => b.x))
+  expect(new Set(light.map((b) => `${b.width}x${b.height}`)).size).toBe(1)
+  const ring = await pane
+    .getByRole('radiogroup', { name: 'Light Mode Theme' })
+    .locator('.choice-frame')
+    .first()
+    .evaluate((frame) => {
+      const thumb = frame.firstElementChild!.getBoundingClientRect()
+      const box = frame.getBoundingClientRect()
+      const inset = parseFloat(getComputedStyle(frame, '::after').left)
+      return { left: thumb.x - box.x, top: thumb.y - box.y, inset }
+    })
+  expect(ring.left).toBe(0)
+  expect(ring.top).toBe(0)
+  expect(ring.inset).toBe(-4)
+  await pane
+    .getByRole('radiogroup', { name: 'Light Mode Theme' })
+    .getByRole('radio', { name: 'Tide' })
+    .check({ force: true })
+  await expect(
+    pane.getByRole('radiogroup', { name: 'Light Mode Theme' }).getByRole('radio', { name: 'Tide' }),
+  ).toBeChecked()
+  expect(await boxes('Light Mode Theme')).toEqual(light)
+})
+
+function seedUsage(page: Page, count: number) {
+  return page.addInitScript((events) => {
+    const now = Date.now()
+    const names = ['note.created', 'search.run', 'import.finished']
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      usage_list: () =>
+        Array.from({ length: events }, (_, i) => ({
+          id: i + 1,
+          at: now - i * 3_600_000,
+          name: names[i % 3],
+          properties: {},
+        })),
+    }
+  }, count)
+}
+
+test('no label in the Usage type list wraps, and numbers share a right edge', async ({ page }) => {
+  await seedUsage(page, 9)
+  const pane = await openPane(page, 'Usage')
+  const rows = pane.locator('.phone-usage-types li')
+  await expect(rows).toHaveCount(3)
+  const heights = await pane
+    .locator('.phone-usage-type')
+    .evaluateAll((labels) =>
+      labels.map(
+        (label) =>
+          label.getBoundingClientRect().height / parseFloat(getComputedStyle(label).fontSize),
+      ),
+    )
+  for (const lines of heights) expect(lines).toBeLessThan(1.6)
+  const rights = await pane
+    .locator('.phone-usage-count')
+    .evaluateAll((counts) => counts.map((c) => c.getBoundingClientRect().right))
+  expect(new Set(rights).size).toBe(1)
+  const borders = await rows.evaluateAll((items) =>
+    items.map((item) => getComputedStyle(item).borderTopWidth),
+  )
+  expect(new Set(borders)).toEqual(new Set(['0px']))
+})
+
+test('Usage with no events shows one empty state and no zero rows', async ({ page }) => {
+  await seedUsage(page, 0)
+  const pane = await openPane(page, 'Usage')
+  await expect(pane.getByText('No recorded events in this period.')).toHaveCount(1)
+  await expect(pane.locator('.phone-usage-types')).toHaveCount(0)
+  await expect(pane.getByText(/^Shading is relative/)).toHaveCount(0)
+  const clear = pane.getByRole('button', { name: /^Clear Usage Data/ })
+  await expect(clear).toHaveAttribute('aria-disabled', 'true')
+  expect((await clear.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  expect(await clear.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
+})
+
+test('the Usage heat map legend stays inside its card at 390 pt', async ({ page }) => {
+  await seedUsage(page, 9)
+  const pane = await openPane(page, 'Usage')
+  const legend = (await pane.locator('.usage-legend').boundingBox())!
+  const card = (await pane.locator('.settings-card').filter({ hasText: 'Fewer' }).boundingBox())!
+  expect(legend.x).toBeGreaterThanOrEqual(card.x)
+  expect(legend.x + legend.width).toBeLessThanOrEqual(card.x + card.width)
+})
+
+test('a General pane with nothing to set says so', async ({ page }) => {
+  const pane = await openPane(page, 'General')
+  await expect(pane.getByText('Nothing here to set on this iPhone.')).toBeVisible()
 })

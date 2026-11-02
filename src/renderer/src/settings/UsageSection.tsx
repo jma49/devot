@@ -9,7 +9,9 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { clearUsage, listUsage } from '../usage'
-import { SettingsSection } from './controls'
+import { Select, Setting, SettingsSection } from './controls'
+import { useOnPhone } from './onPhone'
+import { PhoneSegmented } from '../phone/PhoneControls'
 import { usageActivity, usageDayInstant, type UsagePeriod } from '../../../core/usageActivity'
 import { dayDate } from '../format'
 import { Icon } from '../icons/Icon'
@@ -36,6 +38,7 @@ function GlassUsageSection() {
   const [confirming, setConfirming] = useState(false)
   const [readError, setReadError] = useState<string>()
   const [clearError, setClearError] = useState<string>()
+  const onPhone = useOnPhone()
   const locale = currentLocale()
   const [period, setPeriod] = useState<UsagePeriod>(30)
   const rangeGroup = useRef<HTMLDivElement>(null)
@@ -148,6 +151,362 @@ function GlassUsageSection() {
       events: countOf(day.count, locale, 'usage.eventsOne', 'usage.eventsOther'),
     })
 
+  const stats = (
+    <div className="usage-stats" role="group" aria-label={t('usage.overview')}>
+      <div className="usage-stat">
+        <span>{t('usage.total')}</span>
+        <strong>{number(data.total)}</strong>
+        <small>{t('usage.periodDetail')}</small>
+        <svg
+          className="usage-spark"
+          viewBox="0 0 240 26"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <polyline
+            points={data.days
+              .map((day, i) => `${(i / (period - 1)) * 240},${24 - (day.count / max) * 22}`)
+              .join(' ')}
+          />
+        </svg>
+      </div>
+      <div className="usage-stat">
+        <span>{t('usage.active')}</span>
+        <strong>
+          {number(data.activeDays)}
+          <small>{format(t('usage.ofDays'), { days: number(period) })}</small>
+        </strong>
+        <small>{format(t('usage.dayShare'), { percent: percent(data.activeDays / period) })}</small>
+        <div
+          className="usage-days"
+          role="img"
+          aria-label={t('usage.calendar')}
+          style={{ gridTemplateColumns: `repeat(${period}, minmax(0, 1fr))` }}
+        >
+          {data.days.map((day) => (
+            <span
+              key={day.day}
+              title={dailyTitle(day)}
+              className={`activity-level-${day.count ? 3 : 0}`}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="usage-stat">
+        <span>{t('usage.notes')}</span>
+        <strong>{number(data.notes)}</strong>
+        <small>{t('usage.periodDetail')}</small>
+      </div>
+    </div>
+  )
+  const dailyChart = (
+    <svg
+      className="usage-daily"
+      viewBox={onPhone ? '30 0 750 102' : '0 0 780 125'}
+      preserveAspectRatio={onPhone ? 'none' : undefined}
+      role="img"
+      aria-label={t('usage.byDay')}
+    >
+      {[0, 0.5, 1].map((fraction) => (
+        <g key={fraction}>
+          <line
+            className="usage-gridline"
+            x1="30"
+            x2="778"
+            y1={100 - fraction * 96}
+            y2={100 - fraction * 96}
+          />
+          <text x="24" y={103 - fraction * 96} textAnchor="end">
+            {number(Math.round(max * fraction))}
+          </text>
+        </g>
+      ))}
+      {data.days.map((day, i) => (
+        <rect
+          key={day.day}
+          className={`usage-bar${day.count === 0 ? ' usage-bar-empty' : ''}`}
+          x={32 + (i * 746) / period}
+          y={100 - (day.count / max) * 96}
+          width={Math.max(1, 746 / period - 6)}
+          height={Math.max(1, (day.count / max) * 96)}
+          rx="3"
+        >
+          <title>{dailyTitle(day)}</title>
+        </rect>
+      ))}
+      <line
+        className="usage-average"
+        x1="30"
+        x2="778"
+        y1={100 - (data.average / max) * 96}
+        y2={100 - (data.average / max) * 96}
+      />
+      {[0, Math.floor((period - 1) / 2), period - 1].map((i, n) => (
+        <text
+          key={i}
+          x={n === 0 ? 30 : n === 1 ? 404 : 778}
+          y="119"
+          textAnchor={n === 0 ? 'start' : n === 1 ? 'middle' : 'end'}
+        >
+          {new Intl.DateTimeFormat(locale, {
+            month: 'short',
+            day: 'numeric',
+            timeZone: 'UTC',
+          }).format(usageDayInstant(data.days[i]!.day))}
+        </text>
+      ))}
+    </svg>
+  )
+  const heatmap = (
+    <div className="usage-heat" role="group" aria-label={t('usage.byHour')}>
+      {data.hours.map((row, day) => (
+        <div className="usage-heat-row" key={day}>
+          <span className="usage-weekday">{weekdays[day]}</span>
+          {row.map((n, h) => {
+            const text = format(t('usage.hourEvents'), {
+              day: weekdays[day]!,
+              hour: hour(h),
+              events: countOf(n, locale, 'usage.eventsOne', 'usage.eventsOther'),
+            })
+            return (
+              <span
+                key={h}
+                className={`usage-cell activity-level-${n ? Math.max(1, Math.ceil((n / heatMax) * 4)) : 0}`}
+                tabIndex={0}
+                title={text}
+                aria-label={text}
+              />
+            )
+          })}
+        </div>
+      ))}
+      <div className="usage-heat-row usage-hours">
+        <span />
+        {Array.from({ length: 24 }, (_, i) => (
+          <span key={i}>{i % 6 === 0 ? hour(i) : ''}</span>
+        ))}
+      </div>
+    </div>
+  )
+  const peak = data.peak
+    ? format(t('usage.peak'), {
+        day: weekdays[data.peak.weekday]!,
+        hour: hour(data.peak.hour),
+        events: countOf(data.peak.count, locale, 'usage.eventsOne', 'usage.eventsOther'),
+      })
+    : t('usage.noPeriod')
+  const eventList =
+    shown && events && count > 0 ? (
+      <SettingsSection
+        title="usage.list"
+        footnote={
+          count > SHOWN
+            ? format(t('usage.newest'), { shown: formats.number.format(SHOWN) })
+            : undefined
+        }
+      >
+        <ol className="usage-events" aria-label={t('usage.list')}>
+          {events.slice(0, SHOWN).map((e) => (
+            <li key={e.id}>
+              <time dateTime={new Date(e.at).toISOString()}>{formats.time.format(e.at)}</time>
+              <span className="usage-name">{label(e.name)}</span>
+              <code className="usage-properties">{properties(e)}</code>
+            </li>
+          ))}
+        </ol>
+      </SettingsSection>
+    ) : null
+  const confirmDialog = confirming ? (
+    <ConfirmDialog
+      destructive
+      message={t('usage.confirmClear')}
+      detail={t('usage.confirmClearDetail')}
+      confirm={t('usage.confirm')}
+      onConfirm={() => void clear()}
+      onCancel={() => setConfirming(false)}
+    />
+  ) : null
+  const typeOptions = (
+    <>
+      <option value="">{t('usage.all')}</option>
+      {[
+        ...new Set([
+          ...Object.keys(USAGE_EVENTS),
+          ...types.map((row) => row.name),
+          ...(eventType ? [eventType] : []),
+        ]),
+      ].map((name) => (
+        <option key={name} value={name}>
+          {label(name)}
+        </option>
+      ))}
+    </>
+  )
+  const typeIcon = (name: string) =>
+    name === 'note.created'
+      ? 'note.new'
+      : name === 'search.run'
+        ? 'search'
+        : name === 'import.finished'
+          ? 'usage.import'
+          : 'settings.usage'
+  const axisDays = [0, Math.floor((period - 1) / 2), period - 1]
+  const dayAxis = (i: number) =>
+    new Intl.DateTimeFormat(locale, {
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'UTC',
+    }).format(usageDayInstant(data.days[i]!.day))
+  const errorList = errors.map((text) => (
+    <p key={text} role="alert" className="settings-error">
+      {text}
+    </p>
+  ))
+
+  if (onPhone) {
+    return (
+      <section
+        className="settings-section usage-dashboard"
+        aria-labelledby="usage-title"
+        aria-busy={events === undefined && !readError}
+      >
+        <h2 id="usage-title" className="visually-hidden">
+          {t('usage.title')}
+        </h2>
+        {errorList}
+        {events === undefined ? (
+          readError ? null : (
+            <p role="status">{t('usage.loading')}</p>
+          )
+        ) : (
+          <>
+            <SettingsSection title="usage.overview" footnote={t('usage.privacy')}>
+              <PhoneSegmented
+                label={t('usage.range')}
+                value={String(period)}
+                options={([7, 30, 90] as const).map((days) => ({
+                  value: String(days),
+                  label: format(t('usage.period'), { days: number(days) }),
+                }))}
+                onChange={(days) => setPeriod(Number(days) as UsagePeriod)}
+              />
+              <Setting label="usage.filter" description="" htmlFor="usage-filter">
+                <Select
+                  id="usage-filter"
+                  value={eventType}
+                  onChange={(e) => setEventType(e.target.value)}
+                >
+                  {typeOptions}
+                </Select>
+              </Setting>
+            </SettingsSection>
+            <div>
+              {stats}
+              <p className="phone-footnote phone-figures">{dateRange}</p>
+            </div>
+            {data.total === 0 ? (
+              <div className="settings-card phone-usage-empty">
+                <p>{t('usage.noPeriod')}</p>
+                <p>{t('usage.sparse')}</p>
+              </div>
+            ) : (
+              <>
+                <SettingsSection title="usage.activity" footnote={t('usage.heatDetail')}>
+                  <div className="phone-usage-chart">
+                    <div className="usage-chart-heading">
+                      <h4>{t('usage.byDay')}</h4>
+                      <span className="phone-figures">
+                        {format(t('usage.average'), {
+                          count: new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(
+                            data.average,
+                          ),
+                        })}
+                      </span>
+                    </div>
+                    {dailyChart}
+                    <div className="phone-usage-axis phone-figures" aria-hidden="true">
+                      {axisDays.map((i) => (
+                        <span key={i}>{dayAxis(i)}</span>
+                      ))}
+                    </div>
+                    <div className="usage-chart-heading">
+                      <h4>{t('usage.byHour')}</h4>
+                      <span>{t('usage.localTime')}</span>
+                    </div>
+                    {heatmap}
+                    <p className="phone-usage-peak">{peak}</p>
+                    <span className="usage-legend">
+                      {t('usage.fewer')}
+                      {[0, 1, 2, 3, 4].map((n) => (
+                        <i key={n} className={`activity-level-${n}`} />
+                      ))}
+                      {t('usage.more')}
+                    </span>
+                  </div>
+                </SettingsSection>
+                <SettingsSection title="usage.byType" footnote={t('usage.share')}>
+                  <ul className="phone-usage-types" aria-label={t('usage.byType')}>
+                    {breakdown.map((row) => {
+                      const share = row.count / data.total
+                      return (
+                        <li key={row.name}>
+                          <Icon size="md" name={typeIcon(row.name)} />
+                          <span className="phone-usage-type">{typeLabel(row.name)}</span>
+                          <span className="usage-type-track" aria-hidden="true">
+                            <i style={{ width: `${share * 100}%` }} />
+                          </span>
+                          <span className="phone-figures phone-usage-count">
+                            {number(row.count)}
+                          </span>
+                          <span className="phone-figures phone-usage-share">{percent(share)}</span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </SettingsSection>
+                {data.total < 2 ? <p className="phone-footnote">{t('usage.sparse')}</p> : null}
+              </>
+            )}
+          </>
+        )}
+        <SettingsSection
+          title="usage.storage"
+          footnote={`${t('usage.limits')} ${t('usage.retained')}`}
+        >
+          <div className="setting">
+            <span className="setting-label">{t('usage.total')}</span>
+            <span className="phone-figures phone-usage-capacity">
+              {format(t('usage.capacity'), { count: number(count), limit: number(10000) })}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="phone-action-row"
+            aria-expanded={shown && count > 0}
+            aria-disabled={count === 0}
+            onClick={() => {
+              if (count > 0) setShown((s) => !s)
+            }}
+          >
+            {shown && count > 0 ? t('usage.hide') : t('usage.show')}
+          </button>
+          <button
+            type="button"
+            className="phone-action-row phone-action-destructive"
+            aria-disabled={count === 0}
+            onClick={() => {
+              if (count > 0) setConfirming(true)
+            }}
+          >
+            {t('usage.clear')}
+          </button>
+        </SettingsSection>
+        {eventList}
+        {confirmDialog}
+      </section>
+    )
+  }
+
   return (
     <section
       className="settings-section usage-dashboard"
@@ -161,11 +520,7 @@ function GlassUsageSection() {
         <Icon name="usage.private" size="sm" />
         {t('usage.privacy')}
       </p>
-      {errors.map((text) => (
-        <p key={text} role="alert" className="settings-error">
-          {text}
-        </p>
-      ))}
+      {errorList}
       {events === undefined ? (
         readError ? null : (
           <p role="status">{t('usage.loading')}</p>
@@ -193,68 +548,10 @@ function GlassUsageSection() {
               value={eventType}
               onChange={(e) => setEventType(e.target.value)}
             >
-              <option value="">{t('usage.all')}</option>
-              {[
-                ...new Set([
-                  ...Object.keys(USAGE_EVENTS),
-                  ...types.map((row) => row.name),
-                  ...(eventType ? [eventType] : []),
-                ]),
-              ].map((name) => (
-                <option key={name} value={name}>
-                  {label(name)}
-                </option>
-              ))}
+              {typeOptions}
             </select>
           </div>
-          <div className="usage-stats" role="group" aria-label={t('usage.overview')}>
-            <div className="usage-stat">
-              <span>{t('usage.total')}</span>
-              <strong>{number(data.total)}</strong>
-              <small>{t('usage.periodDetail')}</small>
-              <svg
-                className="usage-spark"
-                viewBox="0 0 240 26"
-                preserveAspectRatio="none"
-                aria-hidden="true"
-              >
-                <polyline
-                  points={data.days
-                    .map((day, i) => `${(i / (period - 1)) * 240},${24 - (day.count / max) * 22}`)
-                    .join(' ')}
-                />
-              </svg>
-            </div>
-            <div className="usage-stat">
-              <span>{t('usage.active')}</span>
-              <strong>
-                {number(data.activeDays)}
-                <small>{format(t('usage.ofDays'), { days: number(period) })}</small>
-              </strong>
-              <small>
-                {format(t('usage.dayShare'), { percent: percent(data.activeDays / period) })}
-              </small>
-              <div
-                className="usage-days"
-                role="img"
-                aria-label={t('usage.calendar')}
-                style={{ gridTemplateColumns: `repeat(${period}, minmax(0, 1fr))` }}
-              >
-                {data.days.map((day) => (
-                  <span
-                    key={day.day}
-                    title={dailyTitle(day)}
-                    className={`activity-level-${day.count ? 3 : 0}`}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="usage-stat">
-              <span>{t('usage.notes')}</span>
-              <strong>{number(data.notes)}</strong>
-              <small>{t('usage.periodDetail')}</small>
-            </div>
-          </div>
+          {stats}
           <div className="usage-section-heading">
             <h3>{t('usage.activity')}</h3>
             <span>{countOf(data.total, locale, 'usage.eventsOne', 'usage.eventsOther')}</span>
@@ -270,109 +567,14 @@ function GlassUsageSection() {
                 })}
               </span>
             </div>
-            <svg
-              className="usage-daily"
-              viewBox="0 0 780 125"
-              role="img"
-              aria-label={t('usage.byDay')}
-            >
-              {[0, 0.5, 1].map((fraction) => (
-                <g key={fraction}>
-                  <line
-                    className="usage-gridline"
-                    x1="30"
-                    x2="778"
-                    y1={100 - fraction * 96}
-                    y2={100 - fraction * 96}
-                  />
-                  <text x="24" y={103 - fraction * 96} textAnchor="end">
-                    {number(Math.round(max * fraction))}
-                  </text>
-                </g>
-              ))}
-              {data.days.map((day, i) => (
-                <rect
-                  key={day.day}
-                  className={`usage-bar${day.count === 0 ? ' usage-bar-empty' : ''}`}
-                  x={32 + (i * 746) / period}
-                  y={100 - (day.count / max) * 96}
-                  width={Math.max(1, 746 / period - 6)}
-                  height={Math.max(1, (day.count / max) * 96)}
-                  rx="3"
-                >
-                  <title>{dailyTitle(day)}</title>
-                </rect>
-              ))}
-              <line
-                className="usage-average"
-                x1="30"
-                x2="778"
-                y1={100 - (data.average / max) * 96}
-                y2={100 - (data.average / max) * 96}
-              />
-              {[0, Math.floor((period - 1) / 2), period - 1].map((i, n) => (
-                <text
-                  key={i}
-                  x={n === 0 ? 30 : n === 1 ? 404 : 778}
-                  y="119"
-                  textAnchor={n === 0 ? 'start' : n === 1 ? 'middle' : 'end'}
-                >
-                  {new Intl.DateTimeFormat(locale, {
-                    month: 'short',
-                    day: 'numeric',
-                    timeZone: 'UTC',
-                  }).format(usageDayInstant(data.days[i]!.day))}
-                </text>
-              ))}
-            </svg>
+            {dailyChart}
             <div className="usage-chart-heading usage-heat-heading">
               <h4>{t('usage.byHour')}</h4>
               <span>{t('usage.localTime')}</span>
             </div>
-            <div className="usage-heat" role="group" aria-label={t('usage.byHour')}>
-              {data.hours.map((row, day) => (
-                <div className="usage-heat-row" key={day}>
-                  <span className="usage-weekday">{weekdays[day]}</span>
-                  {row.map((n, h) => {
-                    const text = format(t('usage.hourEvents'), {
-                      day: weekdays[day]!,
-                      hour: hour(h),
-                      events: countOf(n, locale, 'usage.eventsOne', 'usage.eventsOther'),
-                    })
-                    return (
-                      <span
-                        key={h}
-                        className={`usage-cell activity-level-${n ? Math.max(1, Math.ceil((n / heatMax) * 4)) : 0}`}
-                        tabIndex={0}
-                        title={text}
-                        aria-label={text}
-                      />
-                    )
-                  })}
-                </div>
-              ))}
-              <div className="usage-heat-row usage-hours">
-                <span />
-                {Array.from({ length: 24 }, (_, i) => (
-                  <span key={i}>{i % 6 === 0 ? hour(i) : ''}</span>
-                ))}
-              </div>
-            </div>
+            {heatmap}
             <div className="usage-heat-footer">
-              <span>
-                {data.peak
-                  ? format(t('usage.peak'), {
-                      day: weekdays[data.peak.weekday]!,
-                      hour: hour(data.peak.hour),
-                      events: countOf(
-                        data.peak.count,
-                        locale,
-                        'usage.eventsOne',
-                        'usage.eventsOther',
-                      ),
-                    })
-                  : t('usage.noPeriod')}
-              </span>
+              <span>{peak}</span>
               <span className="usage-legend">
                 {t('usage.fewer')}
                 {[0, 1, 2, 3, 4].map((n) => (
@@ -407,18 +609,7 @@ function GlassUsageSection() {
                   <tr key={row.name}>
                     <td>
                       <span className="usage-type-label">
-                        <Icon
-                          size="sm"
-                          name={
-                            row.name === 'note.created'
-                              ? 'note.new'
-                              : row.name === 'search.run'
-                                ? 'search'
-                                : row.name === 'import.finished'
-                                  ? 'usage.import'
-                                  : 'settings.usage'
-                          }
-                        />
+                        <Icon size="sm" name={typeIcon(row.name)} />
                         {typeLabel(row.name)}
                       </span>
                     </td>
@@ -482,41 +673,14 @@ function GlassUsageSection() {
         </div>
       </div>
       <p className="usage-footnote">{t('usage.retained')}</p>
-      {shown && events && count > 0 ? (
-        <SettingsSection
-          title="usage.list"
-          footnote={
-            count > SHOWN
-              ? format(t('usage.newest'), { shown: formats.number.format(SHOWN) })
-              : undefined
-          }
-        >
-          <ol className="usage-events" aria-label={t('usage.list')}>
-            {events.slice(0, SHOWN).map((e) => (
-              <li key={e.id}>
-                <time dateTime={new Date(e.at).toISOString()}>{formats.time.format(e.at)}</time>
-                <span className="usage-name">{label(e.name)}</span>
-                <code className="usage-properties">{properties(e)}</code>
-              </li>
-            ))}
-          </ol>
-        </SettingsSection>
-      ) : null}
-      {confirming ? (
-        <ConfirmDialog
-          destructive
-          message={t('usage.confirmClear')}
-          detail={t('usage.confirmClearDetail')}
-          confirm={t('usage.confirm')}
-          onConfirm={() => void clear()}
-          onCancel={() => setConfirming(false)}
-        />
-      ) : null}
+      {eventList}
+      {confirmDialog}
     </section>
   )
 }
 
 export function UsageSection() {
   const glass = useEditorSetting('sidebarMaterial')
-  return glass ? <GlassUsageSection /> : <UsageClassicSection />
+  const onPhone = useOnPhone()
+  return glass || onPhone ? <GlassUsageSection /> : <UsageClassicSection />
 }

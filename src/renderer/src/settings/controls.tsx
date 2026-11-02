@@ -2,6 +2,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ComponentProps,
@@ -13,7 +14,7 @@ import type { EditorSettings } from '../../../core/editorSettings'
 import { errorCode } from '../backups'
 import { changeEditorSettings } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
-import { ShowHint } from './onPhone'
+import { ShowHint, useOnPhone } from './onPhone'
 
 /**
  * Stores a change to the settings (see editorSettings.ts); returns the error
@@ -92,9 +93,21 @@ export function SettingsSection({
 
 /** A pop-up as a capsule: the value, then a round button with the up and down chevron. */
 export function Select(props: ComponentProps<'select'>) {
+  const onPhone = useOnPhone()
+  const select = useRef<HTMLSelectElement>(null)
+  const [shown, setShown] = useState('')
+  // A select is as wide as its widest option; a phone row shows the chosen one's text at its own width, under the invisible native control.
+  useLayoutEffect(() => {
+    if (onPhone) setShown(select.current?.selectedOptions[0]?.text ?? '')
+  }, [onPhone, props.value, props.children])
   return (
     <span className="select">
-      <select {...props} />
+      <select ref={select} {...props} />
+      {onPhone ? (
+        <span className="select-value" aria-hidden="true">
+          {shown}
+        </span>
+      ) : null}
       <span className="select-chevron" aria-hidden="true">
         <Icon name="popup" size="sm" />
       </span>

@@ -1087,6 +1087,11 @@
       "$value": { "value": 15, "unit": "px" },
       "$description": "Half of size.phone-chip."
     },
+    "phone-theme-thumb": {
+      "$type": "dimension",
+      "$value": { "value": 10, "unit": "px" },
+      "$description": "A theme thumb; its ring adds the gap and its own width, on one centre."
+    },
     "phone-row-press": {
       "$type": "dimension",
       "$value": { "value": 16, "unit": "px" },
@@ -1491,6 +1496,54 @@
       "$type": "dimension",
       "$value": { "value": 12, "unit": "px" },
       "$description": "A grouped row's side padding."
+    },
+    "phone-group-gap": {
+      "$type": "dimension",
+      "$value": { "value": 20, "unit": "px" },
+      "$description": "Between a pane's groups."
+    },
+    "phone-stepper-height": {
+      "$type": "dimension",
+      "$value": { "value": 32, "unit": "px" },
+      "$description": "A pane stepper's capsule, in a 44 target."
+    },
+    "phone-stepper-button": {
+      "$type": "dimension",
+      "$value": { "value": 44, "unit": "px" },
+      "$description": "The width of a pane stepper's - and +."
+    },
+    "phone-stepper-field": {
+      "$type": "dimension",
+      "$value": { "value": 36, "unit": "px" },
+      "$description": "The width of a pane stepper's number."
+    },
+    "phone-theme-thumb-width": {
+      "$type": "dimension",
+      "$value": { "value": 44, "unit": "px" },
+      "$description": "A theme thumb's width: with its ring, 52 of a 390 screen's six columns."
+    },
+    "phone-theme-thumb-height": {
+      "$type": "dimension",
+      "$value": { "value": 56, "unit": "px" }
+    },
+    "phone-theme-ring-gap": {
+      "$type": "dimension",
+      "$value": { "value": 2, "unit": "px" },
+      "$description": "From a theme thumb to the ring around it."
+    },
+    "phone-theme-ring": {
+      "$type": "dimension",
+      "$value": { "value": 2, "unit": "px" }
+    },
+    "phone-usage-bar": {
+      "$type": "dimension",
+      "$value": { "value": 44, "unit": "px" },
+      "$description": "The most a share bar takes in the Usage list; the label comes first."
+    },
+    "phone-usage-chart": {
+      "$type": "dimension",
+      "$value": { "value": 96, "unit": "px" },
+      "$description": "The Usage pane's daily chart."
     },
     "phone-group-title": {
       "$type": "dimension",
