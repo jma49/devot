@@ -6291,6 +6291,48 @@ button.popup:focus-visible {
   background: var(--color-fill-row-selected);
 }
 
+/* Accent marks the selected row only. Status marks, a notebook's own colour and a drop target keep theirs. */
+:root[data-sidebar-material='on']
+  .sidebar
+  :is(.source:not([class*='status-']), .sidebar-workspace-title, .book-row):not(.drop-fill)
+  .icon:not(.book-icon-colored, .disclosure *, .book-ai *) {
+  background-color: var(--color-text-secondary);
+}
+
+:root[data-sidebar-material='on']
+  .sidebar
+  :is(.source:not([class*='status-']), .sidebar-workspace-title, .book-row):not(.drop-fill)
+  .icon-svg:not(.book-icon-colored, .disclosure *, .book-ai *) {
+  color: var(--color-text-secondary);
+}
+
+:root[data-sidebar-material='on']
+  .sidebar
+  :is(
+    .source:not([class*='status-'])[aria-pressed='true'],
+    .source[aria-current='true'],
+    .books [aria-selected='true'] > .book-row
+  ):not(.drop-fill)
+  .icon:not(.book-icon-colored, .disclosure *, .book-ai *) {
+  background-color: var(--color-accent-text);
+}
+
+:root[data-sidebar-material='on']
+  .sidebar
+  :is(
+    .source:not([class*='status-'])[aria-pressed='true'],
+    .source[aria-current='true'],
+    .books [aria-selected='true'] > .book-row
+  ):not(.drop-fill)
+  .icon-svg:not(.book-icon-colored, .disclosure *, .book-ai *) {
+  color: var(--color-accent-text);
+}
+
+:root[data-sidebar-material='on'] .sidebar :not(.drop-fill) > .source-count {
+  color: var(--color-text-tertiary);
+}
+
+/* Every notebook keeps room for a chevron before its icon, so no chevron leaves the row's rounded box. */
 :root[data-sidebar-material='on'] .books li {
   --book-indent: calc(var(--size-sidebar-row-padding) + var(--book-depth, 0) * var(--space-7));
 }
@@ -6447,10 +6489,6 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .toolbar .tool:active:not(:disabled, [aria-disabled='true']) {
   scale: var(--press-scale);
-}
-
-:root[data-sidebar-material='on'] .toolbar .tool[aria-pressed='true'] {
-  color: var(--color-accent-text);
 }
 
 /* Back and Forward share one capsule, as in Settings. */
