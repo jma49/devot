@@ -25,10 +25,12 @@ ROW_WIDTH=1600
 GAP=24
 TOLERANCE=0.005
 
-# rounded_edge <variant> <width>: radius 16 px and edge 2 px at the 1600 px row size, scaled to <width>.
+# rounded_edge <variant> <width> <drawn> <source>: edge 2 px at the 1600 px row size, scaled to
+# <width>; the radius follows the clip, drawn <drawn> px wide from <source> px of 2x frames: the
+# frames hold the real window, whose 26 pt corner has the wallpaper outside it, so it rounds 27 pt.
 rounded_edge() {
-  local variant=$1 width=$2 r b
-  r=$(awk "BEGIN { print 16 * $width / $ROW_WIDTH }")
+  local variant=$1 width=$2 drawn=$3 source=$4 r b
+  r=$(awk "BEGIN { print 54 * $drawn / $source }")
   b=$(awk "BEGIN { print 2 * $width / $ROW_WIDTH }")
   local dx="max(0,max($r-X-0.5,X+0.5-(W-$r)))"
   local dy="max(0,max($r-Y-0.5,Y+0.5-(H-$r)))"
@@ -137,7 +139,7 @@ single() {
   height=$(awk "BEGIN { printf \"%d\", $width * $sh / $sw + 0.5 }")
   mkdir -p "$dir"
   ffmpeg -v error -threads 4 -framerate 30 -i "$frames/$slot/$variant/%05d.png" -filter_threads 4 \
-    -vf "fps=$FPS,$(crop_filter "$slot")scale=$width:$height:flags=lanczos,$(rounded_edge "$variant" "$width")" \
+    -vf "fps=$FPS,$(crop_filter "$slot")scale=$width:$height:flags=lanczos,$(rounded_edge "$variant" "$width" "$width" "$sw")" \
     -threads 4 "$dir/%04d.png"
   encode "$dir" "$target"
   check_length "$target" "$(find "$dir" -name '*.png' | wc -l | tr -d ' ')"
@@ -166,8 +168,8 @@ row() {
     -framerate 30 -i "$frames/$left/$variant/%05d.png" \
     -framerate 30 -i "$frames/$right/$variant/%05d.png" \
     -f lavfi -i "color=c=black@0:s=$((lw + GAP + rw))x$height:r=$FPS,format=rgba" \
-    -filter_complex "[0:v]fps=$FPS,$(crop_filter "$left")scale=$lw:$height:flags=lanczos,$(rounded_edge "$variant" "$ROW_WIDTH"),tpad=stop_mode=clone:stop=${total}[a];\
-[1:v]fps=$FPS,$(crop_filter "$right")scale=$rw:$height:flags=lanczos,$(rounded_edge "$variant" "$ROW_WIDTH"),tpad=stop_mode=clone:stop=${total}[b];\
+    -filter_complex "[0:v]fps=$FPS,$(crop_filter "$left")scale=$lw:$height:flags=lanczos,$(rounded_edge "$variant" "$ROW_WIDTH" "$lw" "$lsw"),tpad=stop_mode=clone:stop=${total}[a];\
+[1:v]fps=$FPS,$(crop_filter "$right")scale=$rw:$height:flags=lanczos,$(rounded_edge "$variant" "$ROW_WIDTH" "$rw" "$rsw"),tpad=stop_mode=clone:stop=${total}[b];\
 [2:v][a]overlay=0:0:format=auto[c];[c][b]overlay=$((lw + GAP)):0:format=auto,format=rgba[o]" \
     -map "[o]" -frames:v "$total" -threads 4 "$dir/%04d.png"
   encode "$dir" "$target"
