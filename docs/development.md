@@ -17,6 +17,8 @@ pnpm dev                              # run the app with hot reload
 pnpm check                            # everything CI runs, plus the dependency audit
 ```
 
+A build you make yourself checks no license: everything works without one (`README.md`, License). To make an app you can keep in Applications, follow Building locally in `docs/releasing.md`.
+
 Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Application Support/io.github.jma49.devot.dev`, apart from the release app's `io.github.jma49.devot`, so development never touches the notes of an installed Devot. A release build made here (`pnpm build`) keeps its data and keychain items in `io.github.jma49.devot.local`: only the release workflow builds with `DEVOT_RELEASE_BUILD=1`, which names them after the installed app. Scripts that start the app never use the release folder (`docs/architecture.md`, App data folder).
 
 ## Scripts

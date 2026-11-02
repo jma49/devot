@@ -3,10 +3,11 @@
 use ed25519_dalek::VerifyingKey;
 
 use super::format::{KeyRing, from_base64url};
+use crate::data_folder::Build;
 
 /// `kid` and the raw 32-byte Ed25519 public key, base64url without padding, as
 /// `pnpm --filter @devot/licence keygen` prints it. A new key ships here in a release before the
-/// Worker signs anything with it. While this is empty nothing is gated.
+/// Worker signs anything with it.
 pub(crate) const PRODUCTION: &[(&str, &str)] =
     &[("2026-10", "42sdmCprN4kN4z-YHZR9nqey9U4QMSO1ieGTFbeiBS8")];
 
@@ -24,13 +25,19 @@ pub(crate) fn decode_key(raw: &str) -> Option<VerifyingKey> {
     VerifyingKey::from_bytes(&bytes).ok()
 }
 
+/// Only the release workflow's build checks licences: anyone may build Devot from source and use
+/// it in full (docs/adr/0006-source-available-and-sold-once.md).
+pub(crate) fn gates(build: Build, holds_production_key: bool) -> bool {
+    matches!(build, Build::Release) && holds_production_key
+}
+
 impl PublicKeys {
     pub(crate) fn built_in() -> Self {
         #[cfg(any(test, debug_assertions))]
         let entries: Vec<(&str, &str)> = PRODUCTION.iter().copied().chain([TEST]).collect();
         #[cfg(not(any(test, debug_assertions)))]
         let entries: Vec<(&str, &str)> = PRODUCTION.to_vec();
-        Self::new(&entries, !PRODUCTION.is_empty())
+        Self::new(&entries, gates(Build::this(), !PRODUCTION.is_empty()))
     }
 
     /// `gated`: whether editing, sync and AI need a licence or the trial at all.

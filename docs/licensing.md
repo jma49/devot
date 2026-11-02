@@ -180,7 +180,7 @@ The row has no purchase, so nothing mails or shows it; deleting it restores the 
 
 `src-tauri/src/licence/` checks keys exactly as Formats says (`ed25519-dalek`, strict verification), keeps the key in the keychain beside the AI keys and reports one state: none, valid, revoked or invalid (with its code). A valid license unlocks every version; the build's date plays no part.
 
-With a production key in the build, the first launch begins a 30-day trial, kept in the keychain beside the license (its start and the latest time seen), so reinstalling does not start it again and setting the clock back more than an hour ends it. While it runs everything works. Once it is over, unless the state is valid, notes are read-only: every write of user content is refused, sync refuses to create a vault or connect, and AI refuses to send (`E_LICENCE_REQUIRED`). A note's text being saved as the trial ends is still written for five minutes. The separate devot-mcp CLI writes the database itself and is not covered (it is not shipped). docs/architecture.md (Licences) has the details.
+In the release workflow's build, the first launch begins a 30-day trial, kept in the keychain beside the license (its start and the latest time seen), so reinstalling does not start it again and setting the clock back more than an hour ends it. While it runs everything works. Once it is over, unless the state is valid, notes are read-only: every write of user content is refused, sync refuses to create a vault or connect, and AI refuses to send (`E_LICENCE_REQUIRED`). A note's text being saved as the trial ends is still written for five minutes. The separate devot-mcp CLI writes the database itself and is not covered (it is not shipped). docs/architecture.md (Licences) has the details.
 
 ### Seats
 
@@ -194,7 +194,7 @@ The app trusts the public keys in `PRODUCTION` in `src-tauri/src/licence/keys.rs
 pub(crate) const PRODUCTION: &[(&str, &str)] = &[("2026-10", "<the public key keygen printed>")];
 ```
 
-Release that build before the Worker signs anything with the key. While `PRODUCTION` is empty nothing is gated and no trial starts: a release made before your keys exist works as before, with everything open to everyone. The first release with a key starts each device's 30-day trial at its first launch, and gates editing, sync and AI once the trial is over. The test key (kid `test`, from `licence/test-vectors.json`) is trusted only by test and debug builds, never by a release, and a test fails if a production entry reuses it or does not decode to an Ed25519 key. To drop a leaked key, remove its entry and release.
+Release that build before the Worker signs anything with the key. Only the release workflow's build (`DEVOT_RELEASE_BUILD=1`) with a production key gates anything: while `PRODUCTION` is empty, and in every debug or local build, nothing is gated and no trial starts, so anyone who builds Devot from source can use all of it. The first release with a key starts each device's trial at its first launch, and gates editing, sync and AI once the trial is over. The test key (kid `test`, from `licence/test-vectors.json`) is trusted only by test and debug builds, never by a release, and a test fails if a production entry reuses it or does not decode to an Ed25519 key. To drop a leaked key, remove its entry and release.
 
 ### Revocations
 
