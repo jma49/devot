@@ -120,19 +120,24 @@ button.phone-glass:active {
   inset: 0 0 auto;
   height: calc(var(--phone-safe-top) + var(--size-phone-edge-effect));
   pointer-events: none;
+  /* Solid behind the top bar's title, so text scrolled under it never shows through; it fades out below the bar. */
+  --phone-edge-solid: calc(var(--phone-safe-top) + var(--size-phone-nav-control) - 8px);
   background: linear-gradient(
-    var(--color-phone-background) 64%,
+    var(--color-phone-background) var(--phone-edge-solid),
     color-mix(in srgb, var(--color-phone-background), transparent)
   );
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  mask-image: linear-gradient(var(--color-phone-scrim) 55%, transparent);
-  -webkit-mask-image: linear-gradient(var(--color-phone-scrim) 55%, transparent);
+  mask-image: linear-gradient(var(--color-phone-scrim) var(--phone-edge-solid), transparent);
+  -webkit-mask-image: linear-gradient(
+    var(--color-phone-scrim) var(--phone-edge-solid),
+    transparent
+  );
 }
 
 .phone-screen[data-surface='group'] > .phone-edge {
   background: linear-gradient(
-    var(--color-phone-group) 62%,
+    var(--color-phone-group) var(--phone-edge-solid),
     color-mix(in srgb, var(--color-phone-group), transparent)
   );
 }
@@ -1696,6 +1701,30 @@ button.phone-chip::after {
 .phone-settings-pane {
   user-select: text;
   -webkit-user-select: text;
+}
+
+/* The Mac's panes put a control beside its label; a phone is too narrow, so a row stacks them and the control takes the row's width. Switches stay beside their label. */
+.phone-settings-pane .setting:not(.setting-toggle) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+.phone-settings-pane .setting:not(.setting-toggle) .setting-control {
+  align-items: stretch;
+  min-width: 0;
+}
+
+.phone-settings-pane .settings-text,
+.phone-settings-pane
+  .setting-control:has(> .settings-text)
+  > :is(.settings-buttons, .settings-error) {
+  width: 100%;
+}
+
+.phone-settings-pane .choice-groups,
+.phone-settings-pane .choice-items {
+  flex-wrap: wrap;
 }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {

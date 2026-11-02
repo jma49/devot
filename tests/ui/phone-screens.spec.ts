@@ -140,6 +140,49 @@ test('Settings lists its sections and opens a pane', async ({ page }) => {
   await expect(page.locator('section.phone-screen[aria-label="General"]')).toBeVisible()
 })
 
+async function openPane(page: Page, name: string) {
+  await tabs(page).getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('region', { name: 'Settings' }).getByRole('button', { name }).click()
+  const pane = page.locator(`section.phone-screen[aria-label="${name}"]`)
+  await expect(pane.locator('.settings-section')).toBeAttached()
+  return pane
+}
+
+test('Appearance on a phone leaves out the Mac window style, transparency and accent', async ({
+  page,
+}) => {
+  const pane = await openPane(page, 'Appearance')
+  await expect(pane.getByText('Color scheme')).toBeVisible()
+  await expect(pane.getByText('Interface style')).toHaveCount(0)
+  await expect(pane.getByText('Glass Transparency')).toHaveCount(0)
+  await expect(pane.getByText('Use the System Accent Color')).toHaveCount(0)
+})
+
+test('General on a phone leaves out the menu bar, updates and command line tool', async ({
+  page,
+}) => {
+  const pane = await openPane(page, 'General')
+  for (const title of ['Menu Bar', 'Updates', 'Command Line']) {
+    await expect(pane.getByRole('heading', { name: title })).toHaveCount(0)
+  }
+})
+
+test('a phone Settings row puts its field under its label, full width, in iPhone words', async ({
+  page,
+}) => {
+  const pane = await openPane(page, 'AI')
+  const field = pane.getByRole('textbox', { name: 'Endpoint' }).first()
+  const label = pane.getByText('Endpoint', { exact: true }).first()
+  const [fieldBox, labelBox, cardBox] = await Promise.all([
+    field.boundingBox(),
+    label.boundingBox(),
+    pane.locator('.settings-card').filter({ has: field }).boundingBox(),
+  ])
+  expect(fieldBox!.y).toBeGreaterThanOrEqual(labelBox!.y + labelBox!.height)
+  expect(fieldBox!.width).toBeGreaterThan(cardBox!.width * 0.8)
+  await expect(pane.getByText(/server on this iPhone/).first()).toBeVisible()
+})
+
 test('no Settings or Library card clips its rows', async ({ page }) => {
   for (const tab of ['Settings', 'Library']) {
     await tabs(page).getByRole('button', { name: tab }).click()

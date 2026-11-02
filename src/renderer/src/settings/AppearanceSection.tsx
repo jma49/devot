@@ -36,6 +36,7 @@ import { FontChoice, FontFamilySetting } from './FontChoice'
 import { useTypedNumber } from './typedNumber'
 import type { IconName } from '../icons/symbols'
 import { useDraggedNumber } from './draggedNumber'
+import { useOnPhone } from './onPhone'
 import type { Appearance } from '../theme/appearance'
 
 /** The font size description: what it is, and the keys in effect (or the palette's commands when one has no key). */
@@ -268,6 +269,7 @@ function ThemePicker({
 export function AppearanceSection() {
   const settings = useEditorSettings()
   const shown = useAppearance()
+  const onPhone = useOnPhone()
   const [error, change] = useSettingsChange()
   useKeymap()
   const ids = useId()
@@ -295,7 +297,8 @@ export function AppearanceSection() {
   })
   const style = interfaceStyle(settings)
   const themes = { light: settings.lightTheme, dark: settings.darkTheme }
-  const glass = style === 'glass'
+  // The iPhone layout draws its own glass: the window style and transparency are the Mac's.
+  const glass = style === 'glass' && !onPhone
   const modeTitle = (appearance: Appearance) =>
     appearance === shown ? t('appearanceSettings.modeActive') : undefined
 
@@ -311,7 +314,7 @@ export function AppearanceSection() {
       ) : null}
       <SettingsSection
         title="appearanceSettings.groupAppearance"
-        footnote={t('appearanceSettings.interfaceStyleNote')}
+        footnote={onPhone ? undefined : t('appearanceSettings.interfaceStyleNote')}
       >
         <div className="choice-groups">
           <div className="choice-group" role="radiogroup" aria-labelledby={id('scheme')}>
@@ -339,32 +342,34 @@ export function AppearanceSection() {
               ))}
             </div>
           </div>
-          <span className="choice-divider" aria-hidden="true" />
-          <div className="choice-group" role="radiogroup" aria-labelledby={id('style')}>
-            <span id={id('style')} className="choice-group-label">
-              {t('appearanceSettings.interfaceStyle')}
-            </span>
-            <div className="choice-items">
-              {INTERFACE_STYLES.map((choice) => (
-                <Choice
-                  key={choice}
-                  group={id('style-choice')}
-                  checked={style === choice}
-                  onChange={() => change(interfaceStylePatch(choice))}
-                  label={t(STYLE_LABELS[choice])}
-                  className="thumb-choice"
-                >
-                  <span className="choice-thumb" aria-hidden="true">
-                    <WindowThumb
-                      appearance={shown}
-                      theme={themes[shown]}
-                      glass={choice === 'glass'}
-                    />
-                  </span>
-                </Choice>
-              ))}
+          {onPhone ? null : <span className="choice-divider" aria-hidden="true" />}
+          {onPhone ? null : (
+            <div className="choice-group" role="radiogroup" aria-labelledby={id('style')}>
+              <span id={id('style')} className="choice-group-label">
+                {t('appearanceSettings.interfaceStyle')}
+              </span>
+              <div className="choice-items">
+                {INTERFACE_STYLES.map((choice) => (
+                  <Choice
+                    key={choice}
+                    group={id('style-choice')}
+                    checked={style === choice}
+                    onChange={() => change(interfaceStylePatch(choice))}
+                    label={t(STYLE_LABELS[choice])}
+                    className="thumb-choice"
+                  >
+                    <span className="choice-thumb" aria-hidden="true">
+                      <WindowThumb
+                        appearance={shown}
+                        theme={themes[shown]}
+                        glass={choice === 'glass'}
+                      />
+                    </span>
+                  </Choice>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
         {glass ? (
           <Setting
@@ -401,7 +406,7 @@ export function AppearanceSection() {
             </span>
           </Setting>
         ) : null}
-        {themeFollowsSystemAccent(themeInEffect(settings, shown)) ? (
+        {!onPhone && themeFollowsSystemAccent(themeInEffect(settings, shown)) ? (
           <SettingToggle
             label="appearanceSettings.systemAccent"
             description="appearanceSettings.systemAccentHint"

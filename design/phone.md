@@ -24,6 +24,7 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 - A move of more than 8 pt that is mostly horizontal starts a swipe; a vertical one scrolls and never swipes; a 420 ms hold without either peeks. An open row takes no peek.
 - Every row has a hidden "Actions for…" button that opens the peek's menu, so the swipe and peek actions need no gesture.
 - Settings rows open the existing Settings panes in a phone screen. Mirror Folder, Integrations and Plugins show "On the Mac" and do not open.
+- In a phone screen a pane leaves out what only the Mac has (`useOnPhone`): the interface style, Glass Transparency and the system accent color (the phone always draws its own glass), and the board, activity strip, menu bar, updates, command line tool and folder buttons. Each row stacks its control under its label at the row's width; switches stay beside their label. Messages that name the Mac use the iPhone wording in `i18n/phone.ts`.
 
 ## Accessibility
 
