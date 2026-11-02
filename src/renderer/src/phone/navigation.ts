@@ -106,7 +106,7 @@ const DEFAULT_BODY_POINTS = 17
 // The smallest accessibility text size has a 28 pt body; the largest standard one, 23.
 const ACCESSIBILITY_SCALE = 28 / 17
 
-export const isAccessibilitySize = (scale: number): boolean => scale >= ACCESSIBILITY_SCALE
+export const isAccessibilitySize = (textScale: number): boolean => textScale >= ACCESSIBILITY_SCALE
 
 export const textScaleFrom = (bodyPoints: number): number =>
   bodyPoints > 0 ? bodyPoints / DEFAULT_BODY_POINTS : 1
