@@ -691,6 +691,7 @@ export const NoteList = memo(function NoteList(props: Props) {
         preview={details.get(n.id)?.excerpt || undefined}
         progress={details.get(n.id)?.progress || undefined}
         strip={details.get(n.id)?.strip}
+        stripExpected={props.activity !== undefined}
         now={now}
         locale={locale}
         dates={dates}

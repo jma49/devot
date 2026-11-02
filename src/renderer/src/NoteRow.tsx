@@ -109,6 +109,8 @@ export interface RowProps {
   progress: string | undefined
   /** The note's activity strip; none while it is hidden or not read yet. */
   strip?: readonly StripDay[] | undefined
+  /** A strip is on its way or showing: the meta line keeps its room, so the row does not change height when it arrives. */
+  stripExpected?: boolean | undefined
   /** The newest writer of the note's unseen agent writes (ADR 0007), as the UI names it. */
   changedBy?: WriterRef | undefined
   now: number
@@ -174,7 +176,18 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
       >
         <Marked text={title} pattern={titlePattern} />
       </span>
-      <span className="row-meta">
+      <span
+        className="row-meta"
+        data-time-only={
+          (n.status === 'none' &&
+            !progress &&
+            chips.length === 0 &&
+            !props.changedBy &&
+            !props.strip &&
+            !props.stripExpected) ||
+          undefined
+        }
+      >
         <span className="row-meta-items">
           <time
             className="row-time"

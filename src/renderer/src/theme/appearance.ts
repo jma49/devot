@@ -42,6 +42,9 @@ export function shownAppearance(root: AppearanceTarget = rootTarget()): Appearan
   return matchMedia(DARK).matches ? 'dark' : 'light'
 }
 
+export const shownTheme = (root: AppearanceTarget = rootTarget()): string =>
+  root.dataset['theme'] ?? ''
+
 /** Marks the root with the chosen appearance, then with the theme chosen for the appearance that shows. */
 export function applyAppearanceSettings(
   settings: Pick<EditorSettings, 'appearance' | 'lightTheme' | 'darkTheme'>,

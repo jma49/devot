@@ -117,7 +117,7 @@ test('a long title keeps to one line, then is cut off', async ({ page }) => {
   await expect(long).toHaveCSS('-webkit-line-clamp', '1')
   const rowBox = await noteRow(page, 'Short').boundingBox()
   const titleBox = await short.boundingBox()
-  expect(Math.round((titleBox?.x ?? 0) - (rowBox?.x ?? 0))).toBe(15)
+  expect(Math.round((titleBox?.x ?? 0) - (rowBox?.x ?? 0))).toBe(12)
 })
 
 test('dragging several notes shows a card with their titles, and the count past four', async ({

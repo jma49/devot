@@ -254,7 +254,7 @@ test('search results keep their relevance order until another order is picked', 
 
 test('a new note is scrolled into view when the order puts it at the bottom', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 420 })
-  for (let i = 1; i <= 8; i++) await createNote(page, `Note ${i}`)
+  for (let i = 1; i <= 14; i++) await createNote(page, `Note ${i}`)
   await sortBy(page, 'Date Created (Oldest First)')
   await expect(rowTitles(page).first()).toHaveText('Note 1')
   const overflow = () =>
@@ -264,7 +264,7 @@ test('a new note is scrolled into view when the order puts it at the bottom', as
 
   // The editor takes the keyboard; the new row, last in this order, still shows.
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
-  await expect(noteRows(page)).toHaveCount(9)
+  await expect(noteRows(page)).toHaveCount(15)
   const created = noteRows(page).last()
   await expect(created).toHaveAttribute('aria-selected', 'true')
   await expect(titleField(page)).toHaveValue('')

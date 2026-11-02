@@ -141,7 +141,7 @@ test('toolbar buttons sit on the toolbar centre line, and so do the traffic ligh
   expect(Math.abs(lights.y - 2 - barCentre)).toBeLessThanOrEqual(2)
 })
 
-test('Glass toolbar glyphs share an 18 point box in 36 point capsules', async ({ page }) => {
+test('Glass toolbar glyphs share an 18 point box in 32 point capsules', async ({ page }) => {
   await newNote(page, 'Plan')
   const toolbar = page.locator('.editor-toolbar')
   for (const name of ['Focus Mode', 'Back', 'Forward', 'More']) {
@@ -154,12 +154,12 @@ test('Glass toolbar glyphs share an 18 point box in 36 point capsules', async ({
   const modes = toolbar.getByRole('group', { name: 'View mode' })
   const modesBox = await box(modes)
   expect(modesBox.width).toBe(136)
-  expect(modesBox.height).toBe(36)
+  expect(modesBox.height).toBe(32)
   const offsets = new Set<string>()
   for (const segment of await modes.getByRole('button').all()) {
     const b = await box(segment)
     expect(b.width).toBe(44)
-    expect(b.height).toBe(32)
+    expect(b.height).toBe(28)
     const icon = await box(segment.locator('.icon'))
     expect(icon.width).toBe(18)
     expect(Number.isInteger(icon.x) && Number.isInteger(icon.y)).toBe(true)
@@ -308,8 +308,8 @@ test('a note row insets its title and meta line by the same amount on both sides
     const b = await box(row.locator(part).first())
     const start = Math.round(b.x - rowBox.x)
     const end = Math.round(rowBox.x + rowBox.width - (b.x + b.width))
-    expect(start, part).toBe(15)
-    expect(end, part).toBe(15)
+    expect(start, part).toBe(12)
+    expect(end, part).toBe(12)
   }
 })
 
@@ -329,7 +329,7 @@ test('sidebar rows step 30 px with no gap', async ({ page }) => {
 
   const source = sidebar.locator('.source').first()
   const footer = sidebar.locator('.footer-toggle')
-  expect((await box(footer)).height).toBe(24)
+  expect((await box(footer)).height).toBe(20)
   const padding = (l: Locator) => l.evaluate((el) => getComputedStyle(el).paddingLeft)
   expect(await padding(footer)).toBe(await padding(source))
 })

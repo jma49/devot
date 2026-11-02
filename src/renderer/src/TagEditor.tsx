@@ -223,6 +223,9 @@ export function TagEditor(props: {
             }
           }}
         />
+        <span className="tag-field-short" aria-hidden="true">
+          {t('note.addTagShort')}
+        </span>
         <span className="tag-field-plus" aria-hidden="true">
           <Icon name="stepper.more" size="xs" />
         </span>

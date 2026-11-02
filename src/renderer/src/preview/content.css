@@ -876,6 +876,60 @@
   border-radius: 0;
 }
 
+:root[data-sidebar-material='on'] .preview :is(pre, .code-block) {
+  border: 0;
+}
+
+:root[data-sidebar-material='on'] .preview .code-header {
+  border-bottom: 0;
+}
+
+:root[data-sidebar-material='on'] .preview :not(pre) > code {
+  border-radius: var(--radius-inline-code);
+}
+
+/* One point of the scale at the reader's preview size. :where keeps the
+   rules below at the base rules' specificity, so first, last and stacked
+   headings keep their own margins. */
+:root[data-sidebar-material='on'] .preview {
+  --note-pt: calc(var(--note-font-size) / var(--note-heading-glass-preview-reference));
+  --note-line: calc(
+    var(--note-heading-glass-body-size) * var(--note-pt) * var(--note-heading-glass-body-line)
+  );
+  font-size: calc(var(--note-heading-glass-body-size) * var(--note-pt));
+  line-height: var(--note-heading-glass-body-line);
+}
+
+:where(:root[data-sidebar-material='on'])
+  .preview
+  :where(p, ul, ol, dl, blockquote, details, .alert) {
+  margin-bottom: calc(var(--note-space-paragraph) * var(--note-pt));
+}
+
+:where(:root[data-sidebar-material='on']) .preview :is(h1, h2, h3) {
+  padding-bottom: 0;
+}
+
+:where(:root[data-sidebar-material='on']) .preview h1 {
+  font-size: calc(var(--note-heading-glass-h1-size) * var(--note-pt));
+  line-height: calc(var(--note-heading-glass-h1-line) * var(--note-pt));
+}
+
+:where(:root[data-sidebar-material='on']) .preview h2 {
+  margin-top: calc(var(--note-space-h2-above) * var(--note-pt));
+  margin-bottom: calc(var(--note-space-h2-below) * var(--note-pt));
+  font-size: calc(var(--note-heading-glass-h2-size) * var(--note-pt));
+  line-height: calc(var(--note-heading-glass-h2-line) * var(--note-pt));
+}
+
+:where(:root[data-sidebar-material='on']) .preview h3 {
+  margin-top: calc(var(--note-space-h3-above) * var(--note-pt));
+  margin-bottom: calc(var(--note-space-h3-below) * var(--note-pt));
+  font-size: calc(var(--note-heading-glass-h3-size) * var(--note-pt));
+  line-height: calc(var(--note-heading-glass-h3-line) * var(--note-pt));
+  font-weight: var(--font-weight-semibold);
+}
+
 :root[data-sidebar-material='on'] .preview blockquote {
   position: relative;
   padding-left: var(--space-8);

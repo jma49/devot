@@ -113,13 +113,13 @@ test('the notebook, status and tags share one compact line, worked by click and 
 
   const add = page.getByRole('combobox', { name: 'Add Tag' })
   await expect(add).toHaveAttribute('placeholder', 'Add Tag')
-  await expect(add).toHaveCSS('border-top-style', 'dashed')
-  await expect(meta.locator('.tag-field-plus')).toBeVisible()
+  await expect(add).toHaveCSS('border-top-width', '0px')
+  await expect(meta.locator('.tag-field-short')).toHaveText('+ Tag')
   await add.fill('work')
   await add.press('Enter')
   const chip = meta.locator('.chip', { hasText: 'work' })
-  await expect(chip).toHaveCSS('border-top-style', 'solid')
-  await expect(chip).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await expect(chip).toHaveCSS('border-top-width', '0px')
+  await expect(chip).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await add.press('Backspace')
   await expect(chip).toHaveAttribute('data-selected', 'true')
   const status = meta.getByRole('group', { name: 'Tags' }).getByRole('status')
@@ -136,7 +136,7 @@ test('the notebook, status and tags share one compact line, worked by click and 
   await expect(chip).toHaveCount(0)
   await expect(status).toHaveText('Tag work removed.')
 
-  await expect(page.locator('.title')).toHaveCSS('font-size', '24px')
+  await expect(page.locator('.title')).toHaveCSS('font-size', '28px')
   const toolbarBox = await toolbar(page).boundingBox()
   const titleBox = await page.locator('.title').boundingBox()
   if (!toolbarBox || !titleBox) throw new Error('no title')
@@ -233,7 +233,7 @@ test('split mode gives the editor and the preview half each, with no rule and no
       parseFloat(style(d.querySelector('.preview'))['paddingLeft'] ?? '0')
     )
   })
-  expect(gutter).toBeLessThanOrEqual(24)
+  expect(gutter).toBeLessThanOrEqual(32)
 })
 
 test('a code block in the preview is headed by its language mark and title', async ({ page }) => {

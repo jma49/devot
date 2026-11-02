@@ -102,6 +102,12 @@ it('the spring overshoots only slightly, and the movement curve never does', () 
   expect(peak(easing('move'))).toBeLessThanOrEqual(1)
 })
 
+it('the layout spec is what the design system and the project rules point to', () => {
+  expect(readFileSync('design/layout.md', 'utf8')).toMatch(/^# Glass layout/)
+  expect(readFileSync('design/README.md', 'utf8')).toContain('(layout.md)')
+  expect(readFileSync('CLAUDE.md', 'utf8')).toContain('design/layout.md')
+})
+
 it('the motion spec is what the design system and the project rules point to', () => {
   expect(readFileSync('design/motion.md', 'utf8')).toMatch(/^# Motion/)
   expect(readFileSync('design/README.md', 'utf8')).toContain('(motion.md)')

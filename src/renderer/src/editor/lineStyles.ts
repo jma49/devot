@@ -17,7 +17,7 @@ import {
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { ALERT_KINDS, type AlertKind } from './blocks'
 import { markerField, scanMarkers, type MarkerScan } from './gutterMarkers'
-import { BOX_INSET, BOX_MARGIN, BOX_PAD } from './boxes'
+import { BOX_INSET, BOX_MARGIN, BOX_PAD, glass } from './boxes'
 
 export interface LineStyle {
   from: number
@@ -279,7 +279,6 @@ const QUOTE_INSET = `calc(${QUOTE_BAR} + ${BOX_PAD})`
 /** The padding box starts after the border, so the bar sits a border's width before it. */
 const QUOTE_BAR_LEFT = `calc(-1 * ${QUOTE_BAR} - ${BOX_PAD})`
 
-const glass = (selector: string) => `&[data-sidebar-material='on'] ${selector}`
 const alertMix = (strength: string) =>
   `color-mix(in srgb, var(--alert-color) calc(var(--opacity-alert-${strength}) * 100%), transparent)`
 const ALERT_EDGE = `1px solid ${alertMix('edge')}`
@@ -299,10 +298,10 @@ const alertColours = Object.fromEntries(
  * The styles: a mark's class reaches the highlight spans inside it (`x *`),
  * whose own colour would otherwise win.
  */
-const gutterDrop = (level: HeadingLevel) => ({
+const gutterDrop = (size: string, line: string) => ({
   boxSizing: 'border-box',
-  lineHeight: `calc(${headingSize(level)} * var(--note-line-height-heading))`,
-  paddingTop: `max(0px, calc((${headingSize(level)} - ${BODY_SIZE}) * 0.35))`,
+  lineHeight: line,
+  paddingTop: `max(0px, calc((${size} - ${BODY_SIZE}) * 0.35))`,
 })
 
 const headingStyles = Object.fromEntries(
@@ -311,12 +310,42 @@ const headingStyles = Object.fromEntries(
       `.cm-md-h${level}`,
       { fontSize: headingSize(level), lineHeight: 'var(--note-line-height-heading)' },
     ],
-    [`.cm-gutterElement.cm-md-gutter-h${level}`, gutterDrop(level)],
+    [
+      `.cm-gutterElement.cm-md-gutter-h${level}`,
+      gutterDrop(
+        headingSize(level),
+        `calc(${headingSize(level)} * var(--note-line-height-heading))`,
+      ),
+    ],
+  ]),
+)
+
+/** One point of the Glass scale at the reader's editor font size. */
+const GLASS_PT = `calc(${BODY_SIZE} / var(--note-heading-glass-editor-reference))`
+const glassScale = (level: number, name: 'size' | 'line') =>
+  `calc(var(--note-heading-glass-h${level}-${name}) * ${GLASS_PT})`
+const GLASS_LEVELS = [1, 2, 3] as const
+
+const glassHeadingStyles = Object.fromEntries(
+  GLASS_LEVELS.flatMap((level) => [
+    [
+      glass(`.cm-md-h${level}`),
+      {
+        fontSize: glassScale(level, 'size'),
+        lineHeight: glassScale(level, 'line'),
+        ...(level === 3 ? { fontWeight: 'var(--font-weight-semibold)' } : {}),
+      },
+    ],
+    [
+      glass(`.cm-gutterElement.cm-md-gutter-h${level}`),
+      gutterDrop(glassScale(level, 'size'), glassScale(level, 'line')),
+    ],
   ]),
 )
 
 const theme = EditorView.theme({
   ...headingStyles,
+  ...glassHeadingStyles,
   '.cm-gutterElement.cm-md-gutter-table': {
     boxSizing: 'border-box',
     paddingTop: `calc(${BOX_MARGIN} + ${BOX_PAD})`,
@@ -330,6 +359,7 @@ const theme = EditorView.theme({
     borderRadius: 'var(--radius-mark)',
     padding: '0 var(--space-1)',
   },
+  [glass('.cm-md-code')]: { border: '0', borderRadius: 'var(--radius-inline-code)' },
   '.cm-md-mark-tag, .cm-md-mark-tag *': {
     color: token('syntax-markup'),
     fontSize: '0.85em',

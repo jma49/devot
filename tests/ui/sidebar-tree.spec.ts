@@ -112,9 +112,9 @@ test('every row shares one inset, radius and left edge, whatever its depth', asy
   ]
   for (const target of rows) {
     const edges = await box(target)
-    expect(edges.x - side.x).toBe(6)
-    expect(side.x + side.width - (edges.x + edges.width)).toBe(6)
-    await expect(target).toHaveCSS('border-radius', '12px')
+    expect(edges.x - side.x).toBe(8)
+    expect(side.x + side.width - (edges.x + edges.width)).toBe(8)
+    await expect(target).toHaveCSS('border-radius', '10px')
   }
 })
 
@@ -155,22 +155,22 @@ test('depth steps 16 px, keeps each chevron inside its row, and guides down the 
   expect(guide.color).toBe(separator)
 })
 
-test('the footer is a 24 px capsule 6 px from the sidebar edges, concentric with its corners', async ({
+test('the footer is a 20 px capsule 8 px from the sidebar edges, concentric with its corners', async ({
   page,
 }) => {
   await setUp(page)
   const side = await box(sidebar(page))
   const toggle = sidebar(page).locator('.footer-toggle')
   const footer = await box(toggle)
-  expect(footer.height).toBe(24)
-  expect(footer.x - side.x).toBe(6)
-  expect(side.x + side.width - (footer.x + footer.width)).toBe(6)
-  expect(side.y + side.height - (footer.y + footer.height)).toBe(6)
+  expect(footer.height).toBe(20)
+  expect(footer.x - side.x).toBe(8)
+  expect(side.x + side.width - (footer.x + footer.width)).toBe(8)
+  expect(side.y + side.height - (footer.y + footer.height)).toBe(8)
   const radius = await toggle.evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius))
-  expect(radius).toBeGreaterThanOrEqual(12)
+  expect(radius).toBeGreaterThanOrEqual(10)
 })
 
-test('the last toolbar control sits as far from the right edge as from the top', async ({
+test('the editor toolbar ends on the keyline, its controls centred in its height', async ({
   page,
 }) => {
   await setUp(page)
@@ -178,9 +178,9 @@ test('the last toolbar control sits as far from the right edge as from the top',
   const outer = await box(bar)
   const width = page.viewportSize()?.width ?? 0
   expect(outer.x + outer.width).toBe(width)
-  await expect(bar).toHaveCSS('padding-right', '8px')
+  await expect(bar).toHaveCSS('padding-right', '32px')
   const control = await box(bar.locator('button').first())
-  expect(control.y - outer.y).toBe(8)
+  expect(control.y - outer.y).toBe(10)
 })
 
 test('Classic keeps its rows, depth and footer, with no fade or guide', async ({ page }) => {

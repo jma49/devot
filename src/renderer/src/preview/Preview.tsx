@@ -1,5 +1,13 @@
 import { invoke } from '../ipc'
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type MouseEvent,
+} from 'react'
 import type { NoteLinkTarget, PreviewLabels, PreviewNote } from '../../../core'
 import { NOTES_LOADED } from '../externalChanges'
 import { noteLinks } from '../../../core/links'
@@ -28,6 +36,7 @@ import { useText, type TextStore } from '../textStore'
 import type { FindTarget } from '../find/target'
 import { format, t } from '../i18n'
 import { useAppearance } from '../icons/Icon'
+import { shownTheme, subscribeAppearance } from '../theme/appearance'
 import { patchPieces, type ShownPiece } from './dom'
 import { previewFindTarget } from './find'
 import { createIslandMounter, createIslandRegistry } from './islands'
@@ -182,7 +191,8 @@ export function Preview({
   const [loadedEmbeds, setLoadedEmbeds] = useState<string[]>([])
   const [refusedLink, setRefusedLink] = useState<string>()
   const appearance = useAppearance()
-  const appearanceNow = useRef(appearance)
+  const theme = useSyncExternalStore(subscribeAppearance, shownTheme, () => '')
+  const islandContext = useRef({ appearance, theme })
   const scroll = useRef<PreviewScrollPane | null>(null)
   const [mounter] = useState(() =>
     createIslandMounter(islands, { scroller: (body) => body.parentElement }),
@@ -294,7 +304,7 @@ export function Preview({
           return
         }
         shown.current = input.markdown
-        mounter.mount(host.current, { appearance: appearanceNow.current }, islandRendered)
+        mounter.mount(host.current, islandContext.current, islandRendered)
         const blocks = codeBlocks(host.current)
         setCodes((now) => (sameList(now, blocks) ? now : blocks))
         scroll.current?.changed(lineCount(input.markdown))
@@ -314,9 +324,10 @@ export function Preview({
   }, [core, mounter, keepRestoring])
 
   useEffect(() => {
-    appearanceNow.current = appearance
-    if (host.current) mounter.mount(host.current, { appearance }, () => scroll.current?.changed())
-  }, [appearance, mounter])
+    islandContext.current = { appearance, theme }
+    if (host.current)
+      mounter.mount(host.current, islandContext.current, () => scroll.current?.changed())
+  }, [appearance, theme, mounter])
 
   useEffect(() => (host.current ? watchMissingImages(host.current) : undefined), [])
 

@@ -2098,6 +2098,10 @@ button {
   background: var(--color-fill-hover);
 }
 
+.tag-field-short {
+  display: none;
+}
+
 .tag-field-plus {
   position: absolute;
   inset-block: 0;
@@ -6259,7 +6263,24 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .sidebar :is(.source, .section-header) {
-  padding-inline-start: var(--space-5);
+  padding-inline-start: var(--size-sidebar-row-padding);
+}
+
+/* A fixed first column, so an icon's width cannot move its label. */
+:root[data-sidebar-material='on'] .sidebar :is(.source, .book-row) {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: calc(var(--size-sidebar-icon-slot) - var(--space-3)) minmax(0, 1fr);
+  grid-auto-columns: auto;
+  column-gap: var(--space-3);
+  justify-items: start;
+}
+
+:root[data-sidebar-material='on']
+  .sidebar
+  :is(.source, .book-row)
+  > :is(.source-label, .book-name-field) {
+  justify-self: stretch;
 }
 
 /* The sidebar's selection is neutral, focused or not; the note list keeps the accent. */
@@ -6273,14 +6294,55 @@ button.popup:focus-visible {
   background: var(--color-fill-row-selected);
 }
 
-/* Every notebook keeps room for a chevron before its icon, so no chevron leaves the row's rounded box. */
+/* Accent marks the selected row only. Status marks, a notebook's own colour and a drop target keep theirs. */
+:root[data-sidebar-material='on']
+  .sidebar
+  :is(.source:not([class*='status-']), .sidebar-workspace-title, .book-row):not(.drop-fill)
+  .icon:not(.book-icon-colored, .disclosure *, .book-ai *) {
+  background-color: var(--color-text-secondary);
+}
+
+:root[data-sidebar-material='on']
+  .sidebar
+  :is(.source:not([class*='status-']), .sidebar-workspace-title, .book-row):not(.drop-fill)
+  .icon-svg:not(.book-icon-colored, .disclosure *, .book-ai *) {
+  color: var(--color-text-secondary);
+}
+
+:root[data-sidebar-material='on']
+  .sidebar
+  :is(
+    .source:not([class*='status-'])[aria-pressed='true'],
+    .source[aria-current='true'],
+    .books [aria-selected='true'] > .book-row
+  ):not(.drop-fill)
+  .icon:not(.book-icon-colored, .disclosure *, .book-ai *) {
+  background-color: var(--color-accent-text);
+}
+
+:root[data-sidebar-material='on']
+  .sidebar
+  :is(
+    .source:not([class*='status-'])[aria-pressed='true'],
+    .source[aria-current='true'],
+    .books [aria-selected='true'] > .book-row
+  ):not(.drop-fill)
+  .icon-svg:not(.book-icon-colored, .disclosure *, .book-ai *) {
+  color: var(--color-accent-text);
+}
+
+:root[data-sidebar-material='on'] .sidebar :not(.drop-fill) > .source-count {
+  color: var(--color-text-tertiary);
+}
+
 :root[data-sidebar-material='on'] .books li {
-  --book-indent: calc(var(--space-5) + var(--space-6) + var(--book-depth, 0) * var(--space-7));
+  --book-indent: calc(var(--size-sidebar-row-padding) + var(--book-depth, 0) * var(--space-7));
 }
 
 :root[data-sidebar-material='on'] .book-row > .disclosure {
   position: absolute;
-  inset-inline-start: calc(var(--book-indent) - var(--space-6) - var(--space-2));
+  inset-inline-start: calc(var(--book-indent) - var(--size-sidebar-row-padding));
+  width: var(--size-sidebar-row-padding);
   height: 100%;
 }
 
@@ -6354,10 +6416,11 @@ button.popup:focus-visible {
   transition: none;
 }
 
-:root[data-sidebar-material='on'] .section-header {
-  font-size: var(--font-size-footnote);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
+/* One caption style for the sidebar and the note list. */
+:root[data-sidebar-material='on'] :is(.section-header, .list-section) {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
 }
 
 :root[data-sidebar-material='on'] .footer-toggle {
@@ -6384,8 +6447,15 @@ button.popup:focus-visible {
   border-bottom: 0;
 }
 
+:root[data-sidebar-material='on'] .editor-toolbar {
+  padding-inline: var(--size-editor-keyline);
+}
+
+:root[data-sidebar-material='on'] .window[data-focus] .editor-toolbar {
+  padding-inline-start: var(--size-window-controls-inset);
+}
 /* As far from the window's right edge as from its top, so the last control shares the window corner's centre. */
-:root[data-sidebar-material='on'] :is(.editor-toolbar, .settings-toolbar) {
+:root[data-sidebar-material='on'] .settings-toolbar {
   padding-inline-end: calc((var(--size-toolbar-height) - var(--size-toolbar-control)) / 2);
 }
 
@@ -6420,10 +6490,6 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .toolbar .tool:active:not(:disabled, [aria-disabled='true']) {
   scale: var(--press-scale);
-}
-
-:root[data-sidebar-material='on'] .toolbar .tool[aria-pressed='true'] {
-  color: var(--color-accent-text);
 }
 
 /* Back and Forward share one capsule, as in Settings. */
@@ -6487,10 +6553,25 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .list-filter {
+  padding-inline: var(--size-list-keyline-outer);
   border-bottom-color: transparent;
 }
 
+:root[data-sidebar-material='on'] .list .toolbar {
+  padding-inline-end: var(--size-list-keyline-outer);
+}
+
+:root[data-sidebar-material='on'] .window:not([data-sidebar-hidden]) .list .toolbar {
+  padding-inline-start: var(--size-list-keyline-outer);
+}
+
+:root[data-sidebar-material='on'] .list-filter .search-icon {
+  justify-content: flex-start;
+  padding-inline-start: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
+}
+
 :root[data-sidebar-material='on'] .sort-chip {
+  padding-inline-start: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer) - 1px);
   border-color: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-footnote);
@@ -6548,9 +6629,12 @@ button.popup:focus-visible {
   white-space: nowrap;
 }
 
+/* The scroll bar is always reserved and pulled out of the keyline, so rows keep their right edge with or without overflow. */
 :root[data-sidebar-material='on'] .rows {
   gap: var(--space-1);
-  padding-inline: var(--size-list-inset);
+  padding-inline: var(--size-list-keyline-outer)
+    calc(var(--size-list-keyline-outer) - var(--size-scrollbar));
+  overflow-y: scroll;
 }
 
 :root[data-sidebar-material='on'] .rows .row[data-open],
@@ -6566,56 +6650,84 @@ button.popup:focus-visible {
   outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
-:root[data-sidebar-material='on'] .list-section:not(:first-child) {
-  position: relative;
-  margin-top: var(--space-4);
-  padding-top: var(--space-6);
+:root[data-sidebar-material='on'] .list-section {
+  padding-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
 }
 
-:root[data-sidebar-material='on'] .list-section:not(:first-child)::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  inset-inline: var(--size-list-row-inset);
-  height: 1px;
-  background: var(--color-line-separator);
+:root[data-sidebar-material='on'] .list-section > :is(.icon, .icon-svg) {
+  display: none;
+}
+
+:root[data-sidebar-material='on'] .list-section:not(:first-child) {
+  padding-top: calc(var(--space-4) + var(--size-list-section-gap));
 }
 
 /* A row: the title with its time at the end of the line, then the rest of its details, then two
    lines of its text. The time leaves its line, which goes when nothing else is on it. */
 :root[data-sidebar-material='on'] .row {
+  --row-title-line: calc(var(--font-size-body) * 1.3);
   position: relative;
-  padding-bottom: var(--space-6);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: var(--space-2);
+  padding: var(--space-5) calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer))
+    var(--size-list-row-padding-bottom);
   border-bottom: 0;
   border-radius: var(--radius-list-row);
 }
 
 :root[data-sidebar-material='on'] .row-title {
-  margin-bottom: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: var(--row-title-line);
   padding-inline-end: calc(var(--space-10) * 2);
   -webkit-line-clamp: 1;
   line-clamp: 1;
 }
 
+:root[data-sidebar-material='on'] .row-meta {
+  font-size: var(--font-size-caption);
+}
+
 :root[data-sidebar-material='on'] .row-time {
   position: absolute;
-  top: var(--space-6);
-  inset-inline-end: var(--size-list-row-inset);
-  font-size: var(--font-size-footnote);
+  top: var(--space-5);
+  inset-inline-end: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+  line-height: var(--row-title-line);
+}
+
+/* A strut at the title's size puts the smaller time on the title's baseline. */
+:root[data-sidebar-material='on'] .row-time::before {
+  content: '\200b';
+  font-size: var(--font-size-body);
+}
+
+:root[data-sidebar-material='on'] .row-meta:not([data-time-only]) {
+  min-height: calc(var(--font-size-caption) * 1.3);
 }
 
 :root[data-sidebar-material='on'] .row > .row-meta:first-child {
   margin-top: 0;
-  min-height: calc(var(--space-6) * 2);
+  min-height: var(--row-title-line);
 }
 
-:root[data-sidebar-material='on']
-  .row-title
-  + .row-meta:has(.row-meta-items > .row-time:only-child) {
+/* Out of the grid, so a meta line holding only the time adds no track or gap. */
+:root[data-sidebar-material='on'] .row-title + .row-meta[data-time-only] {
+  position: absolute;
+  top: 0;
+  inset-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
   height: 0;
 }
 
+:root[data-sidebar-material='on'] .row-title + .row-meta[data-time-only] .row-time {
+  inset-inline-end: 0;
+}
+
 :root[data-sidebar-material='on'] .row-excerpt {
+  padding: 0;
+  line-height: 1.45;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -6642,26 +6754,152 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .title {
+  margin-inline: var(--size-editor-keyline);
   font-weight: var(--font-weight-bold);
+}
+
+:root[data-sidebar-material='on'] .note-meta {
+  margin-inline: var(--size-editor-keyline);
+}
+
+:root[data-sidebar-material='on'] .window[data-focus] .content > :is(.title, .note-meta) {
+  padding-inline: var(--size-editor-keyline);
+}
+
+:root[data-sidebar-material='on'] .editor {
+  --editor-overflow-y: scroll;
+  --editor-padding: 0 calc(var(--size-editor-keyline) - var(--space-3) - var(--size-scrollbar))
+    var(--trial-bar-inset, 0px) calc(var(--size-editor-keyline) - var(--space-3));
+}
+
+/* The scroll bar is always reserved and pulled out of the keyline, so blocks keep their right edge with or without overflow. */
+:root[data-sidebar-material='on'] .preview {
+  padding-inline: var(--size-editor-keyline)
+    calc(var(--size-editor-keyline) - var(--size-scrollbar));
+  overflow-y: scroll;
+}
+
+:root[data-sidebar-material='on'] .history-overlay {
+  padding-inline: var(--size-editor-keyline);
+}
+
+:root[data-sidebar-material='on'] .title {
+  margin-bottom: calc(var(--note-space-title-below) * 1px);
+  font-size: calc(var(--note-heading-glass-title-size) * 1px);
+  line-height: calc(var(--note-heading-glass-title-line) * 1px);
+  letter-spacing: calc(var(--note-heading-glass-title-tracking) * 1px);
+}
+
+/* The pills keep their space-4 margin for the editor; the preview adds the rest. */
+:root[data-sidebar-material='on'] .preview {
+  padding-top: calc(var(--note-space-pills-below) * 1px - var(--space-4));
 }
 
 :root[data-sidebar-material='on'] .note-meta > .picker:first-child {
   margin-inline-start: 0;
 }
 
+:root[data-sidebar-material='on'] .note-meta {
+  gap: var(--space-3);
+}
+
 :root[data-sidebar-material='on'] .note-meta .popup {
-  height: var(--size-settings-control);
-  padding-inline: var(--space-5);
-  border: 1px solid var(--color-line-hairline);
-  background: var(--color-fill-track);
+  height: var(--size-note-pill);
+  padding-inline: var(--size-note-pill-pad);
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-card);
+}
+
+:root[data-sidebar-material='on'] .note-meta .popup:hover {
+  background: var(--color-fill-tool-hover);
+}
+
+:root[data-sidebar-material='on'] .note-meta .popup:active {
+  background: var(--color-fill-row-selected);
 }
 
 :root[data-sidebar-material='on'] .status-empty-mark {
   display: inline-flex;
 }
 
+:root[data-sidebar-material='on'] .note-meta .tag-editor {
+  gap: var(--space-3);
+  margin-inline-start: 0;
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip {
+  height: var(--size-note-pill);
+  padding: 0 var(--size-note-pill-pad);
+  border: 0;
+}
+
+:root[data-sidebar-material='on'] .frontmatter-chip.tag-chip {
+  border: 0;
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip:not(.tag-chip) {
+  background: var(--color-fill-card);
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip:not(.tag-chip):is(:hover, :active) {
+  background: var(--color-fill-tool-hover);
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip-remove {
+  width: var(--size-note-pill-pad);
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-field {
+  display: inline-grid;
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-field > :is(.tag-input, .tag-field-short) {
+  grid-area: 1 / 1;
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-field-plus {
+  display: none;
+}
+
 :root[data-sidebar-material='on'] .note-meta .tag-input {
-  height: var(--size-settings-control);
+  height: var(--size-note-pill);
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-capsule);
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-input:focus {
+  background: transparent;
+  box-shadow: none;
+  outline: var(--size-focus-ring) dashed var(--color-focus-ring);
+}
+
+/* The label sizes the field at rest, so the whole of "+ Tag" and its padding is the hit area. */
+:root[data-sidebar-material='on'] .note-meta .tag-input:placeholder-shown:not(:focus) {
+  width: 0;
+  min-width: 100%;
+  padding-inline: 0;
+  border: 0;
+  background: transparent;
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-input:placeholder-shown:not(:focus):hover {
+  background: var(--color-fill-hover);
+}
+
+:root[data-sidebar-material='on'] .note-meta .tag-input:placeholder-shown:not(:focus)::placeholder {
+  color: transparent;
+}
+
+:root[data-sidebar-material='on']
+  .note-meta
+  .tag-input:placeholder-shown:not(:focus)
+  ~ .tag-field-short {
+  display: inline-flex;
+  align-items: center;
+  padding-inline: var(--space-4);
+  color: var(--color-text-tertiary);
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 :root[data-sidebar-material='on'] .note-info-field {
@@ -6708,6 +6946,26 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .note-backlinks[open] > summary::before {
   rotate: 135deg;
+}
+
+/* Screen only: printing keeps the full-width rule. */
+@media screen {
+  :root[data-sidebar-material='on'] .preview .footnotes {
+    position: relative;
+    border-top: 0;
+    /* 12 at the default preview size (15 / 13.5 scale), and it still follows the size setting. */
+    font-size: calc(var(--font-size-footnote) * var(--preview-scale, 1) * 0.9);
+  }
+
+  :root[data-sidebar-material='on'] .preview .footnotes::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--size-footnote-rule);
+    height: 1px;
+    background: var(--color-line-hairline);
+  }
 }
 
 :root[data-sidebar-material='on'] .preview :is(h1, h2) {

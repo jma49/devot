@@ -8,7 +8,7 @@
 // external links are dropped.
 import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
 import { format as fill, t } from '../i18n'
-import { sizes } from '../theme/tokens'
+import { dark, light, sizes, type ThemeColor } from '../theme/tokens'
 import type { IslandContent, IslandContext, PreviewIsland } from './islands'
 import { keptAnswers } from './kept'
 import {
@@ -22,6 +22,7 @@ import {
   type FrameMessage,
   type RenderRequest,
 } from './mermaid-protocol'
+import { diagramPalette, exportPalette, type DiagramPalette } from './mermaid-theme'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 const XLINK_NS = 'http://www.w3.org/1999/xlink'
@@ -83,20 +84,19 @@ interface Font {
   fontSize: string
 }
 
-/** The preview's own font, which a diagram measures its text with. */
-function previewFont(): Font {
-  const preview = document.querySelector('.preview') ?? document.body
-  const { fontFamily, fontSize } = getComputedStyle(preview)
-  return { fontFamily, fontSize }
+/** Diagrams use the UI font everywhere: a drawing measured in another font would not fit its boxes. */
+export function diagramFont(): Font {
+  return { fontFamily: sizes['font.family.ui'], fontSize: sizes['font.size.footnote'] }
 }
 
-/**
- * The exported page's font. The page's stylesheet sets the same tokens, and
- * `devot export`'s page has no stylesheet of its own: a drawing measured in
- * WebKit's serif would not be the page's.
- */
-export function exportFont(): Font {
-  return { fontFamily: sizes['font.family.ui'], fontSize: sizes['font.size.preview'] }
+/** The tokens as they are now, in the appearance and theme on screen. */
+function shownPalette(appearance: IslandContext['appearance']): DiagramPalette {
+  const style = getComputedStyle(document.documentElement)
+  const fallback = appearance === 'dark' ? dark : light
+  return diagramPalette(
+    (token: ThemeColor) =>
+      style.getPropertyValue(`--${token.replaceAll('.', '-')}`).trim() || fallback[token],
+  )
 }
 
 /** A diagram drawn once for a theme and font is not drawn again. */
@@ -115,16 +115,16 @@ const drawn = keptAnswers<Answer>(
 async function renderInFrame(
   source: string,
   appearance: IslandContext['appearance'],
+  palette: DiagramPalette,
   signal?: AbortSignal,
-  font?: Font,
 ): Promise<Answer> {
-  const measured = font ?? previewFont()
+  const font = diagramFont()
   for (;;) {
     const answer = await drawn(
-      JSON.stringify([appearance, measured.fontFamily, measured.fontSize, source]),
+      JSON.stringify([appearance, palette, font.fontFamily, font.fontSize, source]),
       () => {
         const turn = queue.then((): Answer | Promise<Answer> =>
-          signal?.aborted ? { type: 'skipped' } : ask(source, appearance, measured),
+          signal?.aborted ? { type: 'skipped' } : ask(source, appearance, palette, font),
         )
         queue = turn
         return turn
@@ -140,7 +140,12 @@ async function renderInFrame(
  * still loading has a limit of its own, so a slow start is not taken for a
  * failed drawing.
  */
-function ask(source: string, appearance: IslandContext['appearance'], font: Font): Promise<Answer> {
+function ask(
+  source: string,
+  appearance: IslandContext['appearance'],
+  palette: DiagramPalette,
+  font: Font,
+): Promise<Answer> {
   const id = (counter += 1)
   return new Promise<Answer>((resolve) => {
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -159,7 +164,7 @@ function ask(source: string, appearance: IslandContext['appearance'], font: Font
         if (!waiting.has(id)) return
         clearTimeout(timer)
         timer = setTimeout(expire, TIMEOUT_MS)
-        const request: RenderRequest = { type: 'render', id, source, appearance, ...font }
+        const request: RenderRequest = { type: 'render', id, source, appearance, palette, ...font }
         target.postMessage(request)
       },
       () => answer({ type: 'failed', reason: 'render' }),
@@ -252,7 +257,7 @@ async function render(
   { appearance, signal }: IslandContext,
 ): Promise<IslandContent> {
   if (source.length > MAX_SOURCE_LENGTH) return errorContent('parse')
-  const answer = await renderInFrame(source, appearance, signal)
+  const answer = await renderInFrame(source, appearance, shownPalette(appearance), signal)
   if (answer.type === 'skipped') return { node: document.createTextNode('') }
   if (answer.type !== 'rendered') {
     logFailure(answer.reason)
@@ -275,7 +280,7 @@ async function render(
  */
 export async function mermaidMarkup(source: string): Promise<string | null> {
   if (source.length > MAX_SOURCE_LENGTH) return null
-  const answer = await renderInFrame(source, 'light', undefined, exportFont())
+  const answer = await renderInFrame(source, 'light', exportPalette)
   if (answer.type === 'skipped') return null
   if (answer.type !== 'rendered') {
     logFailure(answer.reason)

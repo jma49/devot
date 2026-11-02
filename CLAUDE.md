@@ -17,6 +17,7 @@ Rules here hold for every contributor; add shared rules here. Personal or machin
 - Tests that touch WebKit must run on the main thread: put them in a `harness = false` test under `src-tauri/tests/`.
 - Error messages and logs carry codes and IDs, never note content.
 - Components use theme design tokens only, never primitives or colour literals (`design/README.md`); after editing tokens, run `pnpm tokens` (CI fails when its output is stale).
+- Glass layout follows `design/layout.md`: keylines, one stroke rule, one caption style, the note type scale. A new element in the Glass interface snaps to them, and a new rule goes there.
 - Motion follows `design/motion.md`: every new or changed interaction is classified there before it is built, and the spec is updated with it.
 - UI text is English and comes from the i18n message catalog by key; never inline a user-facing string. No CJK characters anywhere in tracked files (a test enforces it); write CJK test data with `\u` escapes.
 - Rust tools come from rustup. A non-interactive shell may not read your shell profile: put rustup's `bin` folder on `PATH` before running `cargo` (with Homebrew's rustup, `$(brew --prefix rustup)/bin`). The git hooks add the usual locations themselves.

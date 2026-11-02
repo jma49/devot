@@ -142,6 +142,7 @@ test('Export as HTML… writes a page of its own: the preview, styled, images an
     /<div class="alert alert-note"><p class="alert-title">(<svg[^>]*>.*?<\/svg>)?Note<\/p>/,
   )
   expect(html).toMatch(/<div class="island island-mermaid"><svg[^>]*>/)
+  expect(html).toMatch(/rx:\s*9px/)
   expect(html).not.toMatch(/<script|data-source-line|data-devot-island/)
   expect(args.images).toHaveLength(1)
   const [image] = args.images as { placeholder: string; fileId: string }[]

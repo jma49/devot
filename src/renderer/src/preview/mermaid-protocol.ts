@@ -2,6 +2,7 @@
 // announces itself with `ready` through window messaging; the preview answers
 // with a private MessagePort, and every request and reply then goes through
 // that port only.
+import type { DiagramPalette } from './mermaid-theme'
 
 export interface RenderRequest {
   type: 'render'
@@ -10,6 +11,7 @@ export interface RenderRequest {
   appearance: 'light' | 'dark'
   fontFamily: string
   fontSize: string
+  palette: DiagramPalette
 }
 
 export const READY = 'devot-mermaid-ready'
@@ -38,7 +40,10 @@ export function isRenderRequest(data: unknown): data is RenderRequest {
     r.source.length <= MAX_SOURCE_LENGTH &&
     (r.appearance === 'light' || r.appearance === 'dark') &&
     typeof r.fontFamily === 'string' &&
-    typeof r.fontSize === 'string'
+    typeof r.fontSize === 'string' &&
+    typeof r.palette === 'object' &&
+    r.palette !== null &&
+    Object.values(r.palette).every((colour) => typeof colour === 'string')
   )
 }
 

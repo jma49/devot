@@ -814,6 +814,55 @@
       },
       "h6": {
         "$value": 0.8
+      },
+      "glass": {
+        "$description": "Glass interface: the reading view's type scale, in points at the default font size settings. The preview scales it by its font size over preview-reference, the editor by its font size over editor-reference.",
+        "preview-reference": {
+          "$value": 15,
+          "$description": "The default preview font size the scale is drawn at."
+        },
+        "editor-reference": {
+          "$value": 13,
+          "$description": "The default editor font size the scale is drawn at."
+        },
+        "title-size": {
+          "$value": 28,
+          "$description": "The note title, bold."
+        },
+        "title-line": {
+          "$value": 34
+        },
+        "title-tracking": {
+          "$value": -0.4,
+          "$description": "The title's letter spacing, in points."
+        },
+        "h1-size": {
+          "$value": 22,
+          "$description": "A first-level heading in the body."
+        },
+        "h1-line": {
+          "$value": 28
+        },
+        "h2-size": {
+          "$value": 19
+        },
+        "h2-line": {
+          "$value": 24
+        },
+        "h3-size": {
+          "$value": 16,
+          "$description": "A third-level heading, semibold."
+        },
+        "h3-line": {
+          "$value": 22
+        },
+        "body-size": {
+          "$value": 14
+        },
+        "body-line": {
+          "$value": 1.6,
+          "$description": "The body's line height, in multiples of its size."
+        }
       }
     },
     "size": {
@@ -836,6 +885,34 @@
       "$type": "number",
       "$value": 0.2,
       "$description": "How far under the text a link's underline sits, in em: clear of the letters, near enough to read as theirs."
+    },
+    "space": {
+      "$type": "number",
+      "$description": "Glass interface: vertical space in the reading view, in points at the default font size (scaled like note.heading.glass).",
+      "paragraph": {
+        "$value": 12,
+        "$description": "Between paragraphs and other text blocks."
+      },
+      "h2-above": {
+        "$value": 26
+      },
+      "h2-below": {
+        "$value": 8
+      },
+      "h3-above": {
+        "$value": 20
+      },
+      "h3-below": {
+        "$value": 6
+      },
+      "title-below": {
+        "$value": 10,
+        "$description": "From the title to the pills row (fixed)."
+      },
+      "pills-below": {
+        "$value": 22,
+        "$description": "From the pills row to the body (fixed)."
+      }
     }
   },
   "space": {
@@ -1007,10 +1084,18 @@
       },
       "$description": "Glass interface: the floating sidebar, concentric with the window's corner at size.sidebar-inset from its edge."
     },
+    "diagram-node": {
+      "$type": "dimension",
+      "$value": {
+        "value": 9,
+        "unit": "px"
+      },
+      "$description": "A node's corners in a Mermaid diagram."
+    },
     "sidebar-row": {
       "$type": "dimension",
       "$value": {
-        "value": 12,
+        "value": 10,
         "unit": "px"
       },
       "$description": "Glass interface: a sidebar row's highlight, concentric with radius.sidebar at size.sidebar-row-inset."
@@ -1022,6 +1107,14 @@
         "unit": "px"
       },
       "$description": "Glass interface: a note row's highlight, inset from the list's edges."
+    },
+    "inline-code": {
+      "$type": "dimension",
+      "$value": {
+        "value": 5,
+        "unit": "px"
+      },
+      "$description": "Glass interface: inline code in notes, a filled chip with no border."
     },
     "quote-bar": {
       "$type": "dimension",
@@ -1129,6 +1222,22 @@
       "$type": "dimension",
       "$value": { "value": 28, "unit": "px" },
       "$description": "A capsule control in Settings: the search field, Back and Forward, pop-ups, buttons, segmented controls and steppers."
+    },
+    "note-pill": {
+      "$type": "dimension",
+      "$value": {
+        "value": 26,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the height of the note's notebook, status and tag pills, and of the tag field."
+    },
+    "note-pill-pad": {
+      "$type": "dimension",
+      "$value": {
+        "value": 10,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a note pill's padding at each side."
     },
     "settings-swatch-width": {
       "$type": "dimension",
@@ -1284,6 +1393,46 @@
         "unit": "px"
       },
       "$description": "Glass interface: the space at the sides of an alert card."
+    },
+    "diagram-node-edge": {
+      "$type": "dimension",
+      "$value": {
+        "value": 0.5,
+        "unit": "px"
+      },
+      "$description": "The hairline edge of a node in a Mermaid diagram."
+    },
+    "diagram-edge": {
+      "$type": "dimension",
+      "$value": {
+        "value": 1,
+        "unit": "px"
+      },
+      "$description": "The stroke of a normal edge in a Mermaid diagram."
+    },
+    "diagram-arrow-length": {
+      "$type": "dimension",
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      },
+      "$description": "An arrowhead's length along its edge in a Mermaid diagram."
+    },
+    "diagram-arrow-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      },
+      "$description": "An arrowhead's width across its edge in a Mermaid diagram."
+    },
+    "diagram-label-gap": {
+      "$type": "dimension",
+      "$value": {
+        "value": 1,
+        "unit": "px"
+      },
+      "$description": "The room between an edge and the box of its label in a Mermaid diagram."
     },
     "list-focus-bar": {
       "$type": "dimension",
@@ -1475,8 +1624,8 @@
     },
     "sidebar-footer": {
       "$type": "dimension",
-      "$value": { "value": 24, "unit": "px" },
-      "$description": "The Glass sidebar's footer capsule: size.sidebar-row-inset + 24 / 2 = radius.sidebar, so it shares a centre with the sidebar's corners."
+      "$value": { "value": 20, "unit": "px" },
+      "$description": "The Glass sidebar's footer capsule: size.sidebar-row-inset + 20 / 2 = radius.sidebar, so it shares a centre with the sidebar's corners."
     },
     "scrollbar": {
       "$type": "dimension",
@@ -1685,10 +1834,26 @@
     "sidebar-row-inset": {
       "$type": "dimension",
       "$value": {
-        "value": 6,
+        "value": 8,
         "unit": "px"
       },
       "$description": "Glass interface: the room between a sidebar's edges and its rows and footer; radius.sidebar minus this is radius.sidebar-row."
+    },
+    "sidebar-row-padding": {
+      "$type": "dimension",
+      "$value": {
+        "value": 10,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a sidebar row's start padding, which puts every icon and caption 18 from the sidebar edge; a chevron hangs inside it."
+    },
+    "sidebar-icon-slot": {
+      "$type": "dimension",
+      "$value": {
+        "value": 26,
+        "unit": "px"
+      },
+      "$description": "Glass interface: from a sidebar row's icon to its label, which puts every label 44 from the sidebar edge whatever the icon's width."
     },
     "glass-dialog-inset": {
       "$type": "dimension",
@@ -1794,21 +1959,52 @@
       },
       "$description": "Glass interface: the padding inside a popover; radius.glass-popover minus this is radius.glass-menu-row."
     },
-    "list-inset": {
+    "list-section-gap": {
+      "$type": "dimension",
+      "$value": { "value": 14, "unit": "px" },
+      "$description": "Glass interface: the extra room above a note list section's caption, which separates sections without a rule."
+    },
+    "footnote-rule": {
+      "$type": "dimension",
+      "$value": { "value": 48, "unit": "px" },
+      "$description": "Glass interface: the length of the hairline that opens a preview's footnotes, on the text's left edge."
+    },
+    "list-row-padding-bottom": {
+      "$type": "dimension",
+      "$value": { "value": 11, "unit": "px" },
+      "$description": "Glass interface: the room under a note row's last line."
+    },
+    "list-keyline-outer": {
       "$type": "dimension",
       "$value": {
-        "value": 8,
+        "value": 12,
         "unit": "px"
       },
-      "$description": "Glass interface: how far note rows sit in from the list's edges."
+      "$description": "Glass interface: the note list's outer keyline, from its left edge and from the divider: the search field, row highlights and the sort row's right end."
+    },
+    "list-keyline-inner": {
+      "$type": "dimension",
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the note list's text keyline, from its left edge: the sort label, section captions and row text."
     },
     "toolbar-control": {
       "$type": "dimension",
       "$value": {
-        "value": 36,
+        "value": 32,
         "unit": "px"
       },
       "$description": "Glass interface: the height of a toolbar control, and a round toolbar button's width."
+    },
+    "editor-keyline": {
+      "$type": "dimension",
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the editor column's one keyline, from the divider and from the window edge: toolbar groups, title, pills, text and blocks."
     },
     "glass-switch-width": {
       "$type": "dimension",
