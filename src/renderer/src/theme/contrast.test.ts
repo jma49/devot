@@ -9,7 +9,7 @@ import {
   type Rgb,
   type Rgba,
 } from './contrast'
-import { dark, ivoryDark, ivoryLight, light } from './tokens'
+import { dark, ivoryDark, ivoryLight, light, sizes } from './tokens'
 import { applyAccent, cardBackdrops, SELECTION_CONTRAST, type StyleTarget } from './accent'
 
 // WCAG AA, from the token values: text needs 4.5:1, graphics 3:1. The pairs
@@ -266,6 +266,21 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     expect(under(4.5, pairs)).toEqual([])
   })
 
+  it('draws Glass alert titles at 4.5:1 on their tinted card', () => {
+    // The editor's active line gives way to the card and a selection paints over the tint, so
+    // the card only ever lies on these; the selection is held to 4.5:1 with the other editor text.
+    const editor = solid(theme, 'surface.editor')
+    const beneath = [editor, over(theme, 'surface.sheet', editor)]
+    const fill = Number(sizes['opacity.alert.fill'])
+    const titles: Record<string, [Rgb, Rgb[]]> = Object.fromEntries(
+      ['note', 'tip', 'important', 'warning', 'caution'].map((kind) => {
+        const rgb = solid(theme, `alert.${kind}`)
+        return [kind, [rgb, beneath.map((b) => composite({ rgb, alpha: fill }, b))]]
+      }),
+    )
+    expect(under(4.5, titles)).toEqual([])
+  })
+
   it('draws the destructive label at 4.5:1, also on a raised button face', () => {
     const faces = backdrops(theme).flatMap((s) => [
       s,
@@ -273,6 +288,17 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
       over(theme, 'fill.track', s),
     ])
     expect(worst(solid(theme, 'text.destructive'), faces)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('draws the label of a filled destructive button at 4.5:1', () => {
+    expect(
+      contrastRatio(solid(theme, 'text.on-destructive'), solid(theme, 'fill.destructive')),
+    ).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('draws the icon on the destructive tile at 3:1, on every surface', () => {
+    const tiles = backdrops(theme, ['fill.destructive-tile'])
+    expect(worst(solid(theme, 'text.destructive'), tiles)).toBeGreaterThanOrEqual(3)
   })
 
   it('draws editor text, secondary text and every syntax and alert colour at 4.5:1 on the editor, also on the active line', () => {

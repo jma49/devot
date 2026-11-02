@@ -228,6 +228,7 @@ export function PluginsSection() {
       {staged ? <Review staged={staged} onInstall={install} onCancel={cancel} /> : null}
       {removing ? (
         <ConfirmDialog
+          destructive
           message={format(t('plugins.removeConfirm'), { name: removing.manifest.name })}
           detail={t('plugins.removeDetail')}
           confirm={t('plugins.removeButton')}

@@ -3012,6 +3012,11 @@ button {
   gap: var(--space-4);
 }
 
+/* Only Glass draws it. */
+.confirm-icon {
+  display: none;
+}
+
 .link-dialog {
   box-sizing: border-box;
   width: var(--size-link-dialog-width);
@@ -5475,6 +5480,15 @@ button.popup:focus-visible {
   font: inherit;
 }
 
+/* Only Glass shows the magnifier and needs the box around the field. */
+.picker-search-field {
+  display: contents;
+}
+
+.picker-search-icon {
+  display: none;
+}
+
 .picker-search::-webkit-search-cancel-button {
   display: none;
 }
@@ -6137,8 +6151,8 @@ button.popup:focus-visible {
 :root[data-sidebar-material='on'] .sidebar {
   z-index: 1;
   margin: var(--size-sidebar-inset);
-  padding-inline: var(--size-sidebar-inset);
-  padding-block-end: var(--size-sidebar-inset);
+  padding-inline: var(--size-sidebar-row-inset);
+  padding-block-end: var(--size-sidebar-row-inset);
   border-right: 0;
   border-radius: var(--radius-sidebar);
   background-color: transparent;
@@ -6286,6 +6300,11 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .toolbar {
   border-bottom: 0;
+}
+
+/* As far from the window's right edge as from its top, so the last control shares the window corner's centre. */
+:root[data-sidebar-material='on'] :is(.editor-toolbar, .settings-toolbar) {
+  padding-inline-end: calc((var(--size-toolbar-height) - var(--size-toolbar-control)) / 2);
 }
 
 :root[data-sidebar-material='on'] .toolbar .tool {
@@ -6617,6 +6636,80 @@ button.popup:focus-visible {
   text-transform: none;
 }
 
+:root[data-sidebar-material='on'] .palette {
+  padding: var(--size-glass-palette-inset);
+  border-radius: var(--radius-glass-dialog);
+  background: var(--color-surface-glass-popover);
+}
+
+:root[data-sidebar-material='on'] .palette-field {
+  height: var(--size-glass-palette-field);
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-glass-control);
+}
+
+:root[data-sidebar-material='on'] .palette-field:focus-within {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px var(--color-focus-ring),
+    0 0 0 var(--space-2)
+      color-mix(
+        in srgb,
+        var(--color-focus-ring) calc(var(--opacity-list-selected) * 100%),
+        transparent
+      );
+}
+
+:root[data-sidebar-material='on'] .palette-results {
+  max-height: calc(var(--size-glass-palette-row) * 9);
+}
+
+:root[data-sidebar-material='on'] .palette-group {
+  padding: var(--space-3) var(--space-6) var(--space-2);
+}
+
+:root[data-sidebar-material='on'] .palette-row {
+  height: var(--size-glass-palette-row);
+  padding: 0 var(--space-6) 0 calc(var(--space-6) + var(--palette-depth, 0) * var(--space-7));
+  border-radius: var(--radius-capsule);
+}
+
+:root[data-sidebar-material='on'] :is(.palette-key, .palette-keys kbd) {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: var(--space-8);
+  height: var(--space-8);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-button);
+  background: var(--color-fill-track);
+  color: var(--color-text-secondary);
+}
+
+:root[data-sidebar-material='on'] .palette-row[aria-selected='true'] .palette-key {
+  border-color: transparent;
+  background: color-mix(
+    in srgb,
+    var(--color-accent-on-fill) calc(var(--opacity-list-selected) * 100%),
+    transparent
+  );
+  color: var(--color-accent-on-fill);
+}
+
+:root[data-sidebar-material='on'] .palette-keys {
+  padding: var(--space-3) var(--space-6) var(--space-2);
+}
+
+:root[data-sidebar-material='on'] .palette-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 /* Floating surfaces: popovers, tooltips, pickers, the palette, dialogs and sheets lie over a blur of
    what is under them, with the glass rim. The editor's own popups (in its shadow root) read
    --glass-backdrop and the surface tokens above. */
@@ -6625,7 +6718,7 @@ button.popup:focus-visible {
     .tool-tip,
     .palette,
     .tag-suggestions,
-    .picker-list,
+    .picker-popover,
     .more-menu-list,
     .search-help,
     .confirm,
@@ -6792,7 +6885,8 @@ button.popup:focus-visible {
   position: relative;
   z-index: 1;
   margin: var(--size-sidebar-inset);
-  padding-top: calc(var(--size-toolbar-height) - var(--size-sidebar-inset));
+  padding: calc(var(--size-toolbar-height) - var(--size-sidebar-inset))
+    var(--size-sidebar-row-inset) var(--size-sidebar-row-inset);
   border: 0;
   border-radius: var(--radius-sidebar);
   background-color: transparent;
@@ -6874,6 +6968,200 @@ button.popup:focus-visible {
         var(--size-switch-inset)
     )
     0;
+}
+
+/* A confirm that loses something for good: a centred card. The action is drawn above Cancel by
+   reversing the row, so the keyboard keeps the document order. */
+:root[data-sidebar-material='on'] .confirm-destructive {
+  box-sizing: border-box;
+  width: var(--size-glass-alert-width);
+  padding: calc(var(--space-7) + var(--space-3)) var(--space-7) var(--space-7);
+  text-align: center;
+}
+
+:root[data-sidebar-material='on'] .confirm.confirm-destructive > .confirm-icon {
+  display: grid;
+  place-items: center;
+  width: var(--size-glass-alert-icon);
+  height: var(--size-glass-alert-icon);
+  margin: 0 auto var(--space-6);
+  border-radius: var(--radius-glass-group);
+  background: var(--color-fill-destructive-tile);
+  color: var(--color-text-destructive);
+}
+
+:root[data-sidebar-material='on'] .confirm.confirm-destructive > .confirm-message {
+  margin: 0 0 var(--space-3);
+  font-weight: var(--font-weight-bold);
+}
+
+:root[data-sidebar-material='on'] .confirm.confirm-destructive > .confirm-detail {
+  margin: 0 var(--space-2) var(--space-7);
+  font-size: var(--font-size-footnote);
+}
+
+:root[data-sidebar-material='on'] .confirm.confirm-destructive > .confirm-actions {
+  flex-direction: column-reverse;
+  gap: var(--space-4);
+}
+
+:root[data-sidebar-material='on'] .confirm-destructive .confirm-actions .button {
+  flex: none;
+  width: 100%;
+  height: var(--size-glass-alert-button);
+  padding: 0 var(--space-7);
+}
+
+:root[data-sidebar-material='on'] .confirm-destructive .confirm-actions .button-destructive {
+  background: var(--color-fill-destructive);
+  box-shadow: none;
+  color: var(--color-text-on-destructive);
+}
+
+:root[data-sidebar-material='on'] .confirm-destructive .confirm-actions .button-destructive:hover {
+  background: color-mix(in srgb, var(--color-fill-destructive), var(--color-text-primary) 6%);
+}
+
+:root[data-sidebar-material='on'] .confirm-destructive .confirm-actions .button-destructive:active {
+  background: color-mix(in srgb, var(--color-fill-destructive), var(--color-text-primary) 12%);
+}
+
+/* Pickers and menus drawn by the page. A picker's list scrolls inside it, so the panel itself can
+   show its notch outside its edge. */
+:root[data-sidebar-material='on'] :is(.picker-popover, .tag-suggestions, .more-menu-list) {
+  padding: var(--size-glass-popover-inset);
+  border: 0;
+  border-radius: var(--radius-glass-popover);
+  background: var(--color-surface-popover);
+}
+
+:root[data-sidebar-material='on'] .picker-popover {
+  --picker-gap: var(--space-6);
+  top: calc(100% + var(--picker-gap));
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+:root[data-sidebar-material='on'] .picker-popover[data-side='above'] {
+  top: auto;
+  bottom: calc(100% + var(--picker-gap));
+}
+
+:root[data-sidebar-material='on'] .picker-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* A turned square, clipped to the half outside the panel so the two translucent fills never overlap. */
+:root[data-sidebar-material='on'] .picker-popover::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--size-glass-popover-notch) / -2);
+  left: calc(var(--picker-notch-x, 50%) - var(--size-glass-popover-notch) / 2);
+  box-sizing: border-box;
+  width: var(--size-glass-popover-notch);
+  height: var(--size-glass-popover-notch);
+  border-top: 0.5px solid var(--color-line-glass-edge);
+  border-left: 0.5px solid var(--color-line-glass-edge);
+  background: var(--color-surface-popover);
+  transform: rotate(45deg);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  pointer-events: none;
+}
+
+:root[data-sidebar-material='on'] .picker-popover[data-side='above']::before {
+  top: auto;
+  bottom: calc(var(--size-glass-popover-notch) / -2);
+  border: 0;
+  border-right: 0.5px solid var(--color-line-glass-edge);
+  border-bottom: 0.5px solid var(--color-line-glass-edge);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+:root[data-sidebar-material='on'] .picker-search-field {
+  position: relative;
+  display: block;
+  flex: none;
+}
+
+:root[data-sidebar-material='on'] .picker-search-icon {
+  position: absolute;
+  top: calc((var(--size-glass-popover-row) - var(--size-icon-sm)) / 2);
+  left: var(--space-5);
+  display: flex;
+  color: var(--color-text-secondary);
+  pointer-events: none;
+}
+
+:root[data-sidebar-material='on'] .picker-search {
+  height: var(--size-glass-popover-row);
+  padding: 0 var(--space-5) 0 calc(var(--space-5) + var(--size-icon-sm) + var(--space-3));
+  border: 0;
+  border-radius: var(--radius-glass-menu-row);
+}
+
+:root[data-sidebar-material='on'] :is(.picker-option, .tag-suggestion) {
+  height: var(--size-glass-popover-row);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-glass-menu-row);
+}
+
+:root[data-sidebar-material='on']
+  :is(.picker-option, .tag-suggestion):is(:hover, [aria-selected='true']) {
+  background: color-mix(
+    in srgb,
+    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
+    transparent
+  );
+}
+
+/* Names still start where the typed text does, with this panel's padding and rows. */
+:root[data-sidebar-material='on'] .tag-suggestions {
+  left: calc(
+    -1 *
+      (
+        var(--size-glass-popover-inset) + var(--space-5) + var(--space-4) + var(--space-3) -
+          var(--space-2)
+      )
+  );
+}
+
+:root[data-sidebar-material='on'] .more-menu-item {
+  height: var(--size-glass-popover-row);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-glass-menu-row);
+}
+
+:root[data-sidebar-material='on']
+  .more-menu-item:is(:hover, :focus-visible):not([aria-disabled='true']) {
+  background: color-mix(
+    in srgb,
+    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
+    transparent
+  );
+  color: var(--color-text-primary);
+}
+
+/* A note's hover card is a tooltip too, and keeps its own shape. */
+:root[data-sidebar-material='on'] .tool-tip:not(.note-card-pop) {
+  flex-direction: row;
+  gap: var(--space-4);
+  border-radius: var(--radius-glass-tooltip);
+  color: var(--color-text-primary);
+}
+
+:root[data-sidebar-material='on'] .tool-tip:not(.note-card-pop)::before {
+  display: none;
+}
+
+:root[data-sidebar-material='on'] .tool-tip-key {
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--color-fill-settings-card);
+  box-shadow: inset 0 0 0 0.5px var(--color-line-hairline);
 }
 
 /* Accessibility preferences override every translucent surface, including shadow-root popups

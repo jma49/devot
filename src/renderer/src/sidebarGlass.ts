@@ -11,6 +11,7 @@ export interface GlassFrame {
   width: number
   height: number
   radius: number
+  tint: string | null
 }
 
 export interface SidebarBox {
@@ -39,15 +40,34 @@ export function sidebarSurround(
   return `path(evenodd, '${outer}${hole}')`
 }
 
+const hexPart = (value: number) => Math.round(value).toString(16).padStart(2, '0')
+
+/** The hex colour the system's glass takes for a tint token; null for a transparent or unreadable one. */
+export function glassTint(token: string): string | null {
+  const parts = /^rgb\((\d+) (\d+) (\d+)(?: \/ ([\d.]+))?\)$/.exec(token.trim())
+  if (!parts) return null
+  const alpha = parts[4] === undefined ? 1 : Number(parts[4])
+  if (alpha === 0) return null
+  const channels = [Number(parts[1]), Number(parts[2]), Number(parts[3]), alpha * 255]
+  return `#${channels.map(hexPart).join('')}`
+}
+
 export function glassFrame(
   box: SidebarBox | undefined,
-  shown: { material: boolean; visible: boolean },
+  shown: { material: boolean; visible: boolean; tint?: string | null },
 ): GlassFrame | null {
   if (!box || !shown.material || !shown.visible) return null
   const width = Math.round(box.width)
   const height = Math.round(box.height)
   if (width < 1 || height < 1) return null
-  return { x: Math.round(box.left), y: Math.round(box.top), width, height, radius: RADIUS }
+  return {
+    x: Math.round(box.left),
+    y: Math.round(box.top),
+    width,
+    height,
+    radius: RADIUS,
+    tint: shown.tint ?? null,
+  }
 }
 
 export function sameFrame(a: GlassFrame | null | undefined, b: GlassFrame | null): boolean {
@@ -58,7 +78,8 @@ export function sameFrame(a: GlassFrame | null | undefined, b: GlassFrame | null
     a.y === b.y &&
     a.width === b.width &&
     a.height === b.height &&
-    a.radius === b.radius
+    a.radius === b.radius &&
+    a.tint === b.tint
   )
 }
 
@@ -82,6 +103,7 @@ function measure(doc: Document): GlassFrame | null {
   return glassFrame(sidebar?.getBoundingClientRect(), {
     material: root.dataset['sidebarMaterial'] === 'on',
     visible,
+    tint: glassTint(getComputedStyle(root).getPropertyValue('--color-surface-glass-tint')),
   })
 }
 
@@ -158,14 +180,24 @@ export function startSidebarGlass(doc: Document = document): void {
   })
   changed.observe(root, {
     attributes: true,
-    attributeFilter: ['data-sidebar-material', 'data-sidebar-hidden', 'data-focus'],
+    attributeFilter: [
+      'data-sidebar-material',
+      'data-sidebar-hidden',
+      'data-focus',
+      'data-appearance',
+      'data-theme',
+    ],
     childList: true,
     subtree: true,
   })
   // Panes slide by transforms (paneMotion.ts), which no observer reports: measure where they settle.
   doc.addEventListener('transitionend', schedule)
   doc.addEventListener('animationend', schedule)
-  for (const query of ['(prefers-reduced-transparency: reduce)', '(prefers-contrast: more)']) {
+  for (const query of [
+    '(prefers-reduced-transparency: reduce)',
+    '(prefers-contrast: more)',
+    '(prefers-color-scheme: dark)',
+  ]) {
     doc.defaultView?.matchMedia(query).addEventListener('change', schedule)
   }
   schedule()

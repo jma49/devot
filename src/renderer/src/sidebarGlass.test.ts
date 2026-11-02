@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { glassFrame, sameFrame, showNativeGlass } from './sidebarGlass'
+import { glassFrame, glassTint, sameFrame, showNativeGlass } from './sidebarGlass'
 
 const box = { left: 8, top: 8, width: 200.4, height: 683.6 }
 
@@ -11,7 +11,13 @@ describe('glassFrame', () => {
       width: 200,
       height: 684,
       radius: 18,
+      tint: null,
     })
+  })
+
+  it('carries the tint the page asks for', () => {
+    const frame = glassFrame(box, { material: true, visible: true, tint: '#14161c73' })
+    expect(frame?.tint).toBe('#14161c73')
   })
 
   it('asks for none while the window material is off or the sidebar is not shown', () => {
@@ -44,5 +50,22 @@ describe('showNativeGlass', () => {
     expect(root.dataset['nativeGlass']).toBe('on')
     showNativeGlass(root, false)
     expect(root.dataset['nativeGlass']).toBeUndefined()
+  })
+})
+
+describe('glassTint', () => {
+  it('turns a token into #rrggbbaa, and transparent into no tint', () => {
+    expect(glassTint('rgb(20 22 28 / 0.45)')).toBe('#14161c73')
+    expect(glassTint('rgb(20 22 28)')).toBe('#14161cff')
+    expect(glassTint('rgb(255 255 255 / 0)')).toBeNull()
+    expect(glassTint('')).toBeNull()
+  })
+})
+
+describe('sameFrame and the tint', () => {
+  it('resends when only the tint changes', () => {
+    const shown = { material: true, visible: true }
+    const dark = glassFrame(box, { ...shown, tint: '#14161c73' })
+    expect(sameFrame(glassFrame(box, shown), dark)).toBe(false)
   })
 })

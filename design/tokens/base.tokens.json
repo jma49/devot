@@ -1010,10 +1010,10 @@
     "sidebar-row": {
       "$type": "dimension",
       "$value": {
-        "value": 10,
+        "value": 12,
         "unit": "px"
       },
-      "$description": "Glass interface: a sidebar row's highlight, concentric with radius.sidebar at size.sidebar-inset."
+      "$description": "Glass interface: a sidebar row's highlight, concentric with radius.sidebar at size.sidebar-row-inset."
     },
     "list-row": {
       "$type": "dimension",
@@ -1022,6 +1022,14 @@
         "unit": "px"
       },
       "$description": "Glass interface: a note row's highlight, inset from the list's edges."
+    },
+    "quote-bar": {
+      "$type": "dimension",
+      "$value": {
+        "value": 2,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the ends of a quote's bar."
     },
     "note-info": {
       "$type": "dimension",
@@ -1253,6 +1261,30 @@
       },
       "$description": "The strip on a resizable pane's right edge (sidebar, note list) that resizes it."
     },
+    "quote-bar": {
+      "$type": "dimension",
+      "$value": {
+        "value": 3,
+        "unit": "px"
+      },
+      "$description": "A quote's bar in the editor and, in the Glass interface, the preview."
+    },
+    "alert-pad-top": {
+      "$type": "dimension",
+      "$value": {
+        "value": 11,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the space above an alert card's title."
+    },
+    "alert-pad-inline": {
+      "$type": "dimension",
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the space at the sides of an alert card."
+    },
     "list-focus-bar": {
       "$type": "dimension",
       "$value": {
@@ -1443,8 +1475,8 @@
     },
     "sidebar-footer": {
       "$type": "dimension",
-      "$value": { "value": 36, "unit": "px" },
-      "$description": "The Glass sidebar's footer capsule: size.sidebar-inset + 36 / 2 = 26, the value of radius.window."
+      "$value": { "value": 24, "unit": "px" },
+      "$description": "The Glass sidebar's footer capsule: size.sidebar-row-inset + 24 / 2 = radius.sidebar, so it shares a centre with the sidebar's corners."
     },
     "scrollbar": {
       "$type": "dimension",
@@ -1648,7 +1680,15 @@
         "value": 8,
         "unit": "px"
       },
-      "$description": "Glass interface: the room between the floating sidebar and the window's edges and the note list, and between the sidebar's edge and its rows."
+      "$description": "Glass interface: the room between the floating sidebar and the window's edges and the note list; radius.window minus this is radius.sidebar."
+    },
+    "sidebar-row-inset": {
+      "$type": "dimension",
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the room between a sidebar's edges and its rows and footer; radius.sidebar minus this is radius.sidebar-row."
     },
     "glass-dialog-inset": {
       "$type": "dimension",
@@ -1688,7 +1728,63 @@
         "value": 6,
         "unit": "px"
       },
-      "$description": "Glass interface: the padding inside the palette; radius.glass-dialog minus this is half of its 40 px field."
+      "$description": "Glass interface: the padding inside the palette; radius.glass-dialog minus this is half of size.glass-palette-field."
+    },
+    "glass-palette-field": {
+      "$type": "dimension",
+      "$value": {
+        "value": 40,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the height of the palette's capsule field."
+    },
+    "glass-palette-row": {
+      "$type": "dimension",
+      "$value": {
+        "value": 38,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the height of a palette row, a capsule when selected."
+    },
+    "glass-alert-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 300,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the card of a destructive confirm."
+    },
+    "glass-alert-icon": {
+      "$type": "dimension",
+      "$value": {
+        "value": 52,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the icon tile of a destructive confirm."
+    },
+    "glass-alert-button": {
+      "$type": "dimension",
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a destructive confirm's full-width capsule."
+    },
+    "glass-popover-row": {
+      "$type": "dimension",
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      },
+      "$description": "Glass interface: a row or search field in a popover; half of it is less than radius.glass-menu-row, so its ends read as rounded, not a capsule."
+    },
+    "glass-popover-notch": {
+      "$type": "dimension",
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the side of the square turned to make a picker's notch."
     },
     "glass-popover-inset": {
       "$type": "dimension",
@@ -2013,6 +2109,16 @@
       "dot": {
         "$value": 0.3,
         "$description": "A tag colour dot's fill; its edge is the solid tag colour."
+      }
+    },
+    "alert": {
+      "fill": {
+        "$value": 0.08,
+        "$description": "Glass interface: an alert's background, its alert colour at this strength."
+      },
+      "edge": {
+        "$value": 0.2,
+        "$description": "Glass interface: an alert's 1 px edge, its alert colour at this strength."
       }
     },
     "filter-icon": {

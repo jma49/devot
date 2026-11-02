@@ -140,9 +140,19 @@
           "colorSpace": "srgb",
           "components": [0.0706, 0.0706, 0.0706],
           "hex": "#121212",
-          "alpha": 0.55
+          "alpha": 0.7
         },
         "$description": "Glass interface: the one wash the note list and the editor share over the window material, also the ring around the floating sidebar."
+      },
+      "glass-tint": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0784, 0.0863, 0.1098],
+          "hex": "#14161c",
+          "alpha": 0.45
+        },
+        "$description": "Glass interface: the tint on the system's sidebar glass, so it sits one step above the sheet. Not measured on a device yet."
       },
       "glass": {
         "$type": "color",
@@ -150,7 +160,7 @@
           "colorSpace": "srgb",
           "components": [1.0, 1.0, 1.0],
           "hex": "#ffffff",
-          "alpha": 0.1
+          "alpha": 0.05
         },
         "$description": "Glass interface: the floating sidebar's tint over the sheet where the system draws no glass of its own (before macOS 26)."
       },
@@ -196,6 +206,15 @@
       }
     },
     "text": {
+      "on-destructive": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 1, 1],
+          "hex": "#ffffff"
+        },
+        "$description": "The label on color.fill.destructive."
+      },
       "primary": {
         "$type": "color",
         "$value": {
@@ -411,6 +430,25 @@
       }
     },
     "fill": {
+      "destructive": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7686, 0.2157, 0.1843],
+          "hex": "#c4372f"
+        },
+        "$description": "Behind white text: the destructive action of a Glass alert. Darker than the status mark so its label keeps 4.5:1."
+      },
+      "destructive-tile": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1.0, 0.4196, 0.3882],
+          "hex": "#ff6b63",
+          "alpha": 0.16
+        },
+        "$description": "Glass interface: the tinted tile behind a destructive alert's icon."
+      },
       "track": {
         "$type": "color",
         "$value": {

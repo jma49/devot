@@ -71,8 +71,8 @@ test.describe('with the system in dark', () => {
 
 /** The sheet the note list and the editor share over the window material, per theme and appearance. */
 const SHEET = {
-  default: { light: 'rgba(255, 255, 255, 0.75)', dark: 'rgba(18, 18, 18, 0.55)' },
-  ivory: { light: 'rgba(253, 252, 248, 0.75)', dark: 'rgba(43, 43, 41, 0.55)' },
+  default: { light: 'rgba(255, 255, 255, 0.75)', dark: 'rgba(18, 18, 18, 0.7)' },
+  ivory: { light: 'rgba(253, 252, 248, 0.75)', dark: 'rgba(43, 43, 41, 0.7)' },
 } as const
 const SURFACES = {
   default: {

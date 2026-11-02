@@ -89,10 +89,20 @@ describe('editor line styles', () => {
   it('draws quotes with a bar and alerts in their kind', () => {
     const doc = '> plain\n\n> [!WARNING]\n> careful\n'
     const lines = lineClasses(doc)
-    expect(lines[1]).toBe('cm-md-quote')
-    expect(lines[3]).toBe('cm-md-quote cm-md-alert cm-md-alert-warning')
-    expect(lines[4]).toBe('cm-md-quote cm-md-alert cm-md-alert-warning')
+    expect(lines[1]).toBe('cm-md-quote cm-md-quote-first cm-md-quote-last')
+    expect(lines[3]).toBe('cm-md-quote cm-md-alert cm-md-alert-warning cm-md-alert-first')
+    expect(lines[4]).toBe('cm-md-quote cm-md-alert cm-md-alert-warning cm-md-alert-last')
     expect(marked(doc, 'cm-md-alert-label')).toEqual(['[!WARNING]'])
+  })
+
+  it('marks only the outer lines of a long quote or alert', () => {
+    const lines = lineClasses('> a\n> b\n> c\n\n> [!NOTE]\n> d\n> e\n')
+    expect(lines[1]).toBe('cm-md-quote cm-md-quote-first')
+    expect(lines[2]).toBe('cm-md-quote')
+    expect(lines[3]).toBe('cm-md-quote cm-md-quote-last')
+    expect(lines[5]).toBe('cm-md-quote cm-md-alert cm-md-alert-note cm-md-alert-first')
+    expect(lines[6]).toBe('cm-md-quote cm-md-alert cm-md-alert-note')
+    expect(lines[7]).toBe('cm-md-quote cm-md-alert cm-md-alert-note cm-md-alert-last')
   })
 
   it('boxes a table and makes its header row bold', () => {

@@ -23,8 +23,8 @@ const SURFACES = {
   },
   dark: {
     sidebar: { material: CLEAR, opaque: 'rgb(23, 23, 23)' },
-    list: { material: 'rgba(18, 18, 18, 0.55)', opaque: 'rgb(17, 17, 17)' },
-    editor: { material: 'rgba(18, 18, 18, 0.55)', opaque: 'rgb(10, 10, 10)' },
+    list: { material: 'rgba(18, 18, 18, 0.7)', opaque: 'rgb(17, 17, 17)' },
+    editor: { material: 'rgba(18, 18, 18, 0.7)', opaque: 'rgb(10, 10, 10)' },
     window: 'rgb(0, 0, 0)',
   },
 } as const

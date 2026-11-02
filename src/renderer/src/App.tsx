@@ -4273,6 +4273,7 @@ export function App() {
       ) : null}
       {clearing !== undefined ? (
         <ConfirmDialog
+          destructive
           message={t('authorship.clearMessage')}
           detail={t('authorship.clearDetail')}
           confirm={t('authorship.clear')}
@@ -4303,6 +4304,7 @@ export function App() {
       ) : null}
       {confirm?.kind === 'tag' ? (
         <ConfirmDialog
+          destructive
           message={format(t('tag.confirmDelete'), { name: confirm.name })}
           detail={format(t('tag.deleteDetail'), {
             notes: noteCount(confirm.count, currentLocale()),
@@ -4313,6 +4315,7 @@ export function App() {
         />
       ) : confirm?.kind === 'book' ? (
         <ConfirmDialog
+          destructive
           message={format(t('book.confirmDelete'), { name: confirm.name })}
           detail={bookDeleteDetail(confirm.subs, confirm.notes)}
           confirm={t('bookMenu.delete')}
@@ -4322,6 +4325,7 @@ export function App() {
         />
       ) : confirm ? (
         <ConfirmDialog
+          destructive
           message={
             confirm.kind === 'empty'
               ? format(t('trash.confirmEmpty'), {

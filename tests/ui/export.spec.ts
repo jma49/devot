@@ -643,3 +643,37 @@ test('a page setup that cannot be saved stops the print and names the code', asy
   )
   expect(await calls(page, 'note_print')).toHaveLength(0)
 })
+
+test('Exported and printed pages keep the plain quote and alert bars while Glass is on', async ({
+  page,
+}) => {
+  await createNote(page, 'Plan', '> A quote\n\n> [!NOTE]\n> Check.\n\n> [!TIP]\n> Try.\n')
+  await expect(page.locator(':root')).toHaveAttribute('data-sidebar-material', 'on')
+  await mockExport(page, { export_begin: { id: 3, fileName: 'Plan.html' } })
+  await pickFromNoteMenu(page, 'Plan', 'Export as HTML…')
+  await expect.poll(async () => (await calls(page, 'export_finish')).length).toBe(1)
+  const exported = ((await calls(page, 'export_write'))[0]!.args as { text: string }).text
+  await pickFromNoteMenu(page, 'Plan', 'Print…')
+  await confirmPageSetup(page, 'Print…')
+  await expect.poll(async () => (await calls(page, 'note_print')).length).toBe(1)
+  const printed = ((await calls(page, 'note_print'))[0]!.args as { html: string }).html
+
+  for (const html of [exported, printed]) {
+    await page.setContent(html)
+    await expect(page.locator(':root')).not.toHaveAttribute('data-sidebar-material')
+    const quote = page.locator('blockquote')
+    await expect(quote).toHaveCSS('border-left-width', '3px')
+    await expect(quote).toHaveCSS('padding-left', '12px')
+    expect(
+      await quote.evaluate((el) => getComputedStyle(el, '::before').getPropertyValue('content')),
+    ).toBe('none')
+    for (const kind of ['note', 'tip']) {
+      const alert = page.locator(`.alert-${kind}`)
+      await expect(alert).toHaveCSS('border-left-width', '3px')
+      await expect(alert).toHaveCSS('border-radius', '0px')
+      await expect(alert).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+      await expect(alert).toHaveCSS('box-shadow', 'none')
+      await expect(alert).toHaveCSS('padding', '2px 0px 2px 12px')
+    }
+  }
+})

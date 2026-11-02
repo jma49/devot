@@ -26,3 +26,17 @@ export function placeDropdown(
   const left = Math.max(limits.margin, Math.min(anchor.left, most))
   return { side, shift: left - anchor.left, room }
 }
+
+/**
+ * Where a dropdown's notch sits along its top or bottom edge: under the middle
+ * of its button, or as near as the panel's rounded corners allow.
+ */
+export function dropdownNotchX(place: {
+  anchorWidth: number
+  shift: number
+  panelWidth: number
+  clear: number
+}): number {
+  const { anchorWidth, shift, panelWidth, clear } = place
+  return Math.max(clear, Math.min(anchorWidth / 2 - shift, panelWidth - clear))
+}

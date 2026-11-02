@@ -1,17 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { t } from './i18n'
+import { Icon } from './icons/Icon'
 
 /**
- * A modal confirmation for a destructive action. Escape or Cancel declines.
- * Cancel takes the keyboard, so Return declines too; with `confirmFirst`
- * the confirming button does, and Return confirms. When it goes away, focus returns to whatever had it before it opened, if
- * that is still on the page and nothing else took focus meanwhile.
+ * A modal confirmation. Escape or Cancel declines. Cancel takes the keyboard,
+ * so Return declines too; with `confirmFirst` the confirming button does, and
+ * Return confirms. When it goes away, focus returns to whatever had it before
+ * it opened, if that is still on the page and nothing else took focus meanwhile.
+ *
+ * `destructive` marks an action that loses something for good: in Glass it
+ * draws as a centred card, the action above Cancel. The buttons stay in this
+ * document order either way, so the keyboard does not change.
  */
 export function ConfirmDialog(props: {
   message: string
   detail: string
   confirm: string
   confirmFirst?: boolean
+  destructive?: boolean
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -40,7 +46,7 @@ export function ConfirmDialog(props: {
   return (
     <dialog
       ref={dialog}
-      className="confirm"
+      className={props.destructive ? 'confirm confirm-destructive' : 'confirm'}
       aria-labelledby="confirm-message"
       aria-describedby="confirm-detail"
       onCancel={(e) => {
@@ -48,6 +54,11 @@ export function ConfirmDialog(props: {
         props.onCancel()
       }}
     >
+      {props.destructive ? (
+        <span className="confirm-icon">
+          <Icon name="trash" size="lg" />
+        </span>
+      ) : null}
       <p id="confirm-message" className="confirm-message">
         {props.message}
       </p>

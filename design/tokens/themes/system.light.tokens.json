@@ -143,6 +143,16 @@
         },
         "$description": "Glass interface: the one wash the note list and the editor share over the window material, also the ring around the floating sidebar."
       },
+      "glass-tint": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 1, 1],
+          "hex": "#ffffff",
+          "alpha": 0
+        },
+        "$description": "Glass interface: the tint on the system's sidebar glass; none in light."
+      },
       "glass": {
         "$type": "color",
         "$value": {
@@ -195,6 +205,15 @@
       }
     },
     "text": {
+      "on-destructive": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [1, 1, 1],
+          "hex": "#ffffff"
+        },
+        "$description": "The label on color.fill.destructive."
+      },
       "primary": {
         "$type": "color",
         "$value": {
@@ -410,6 +429,25 @@
       }
     },
     "fill": {
+      "destructive": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7686, 0.2157, 0.1843],
+          "hex": "#c4372f"
+        },
+        "$description": "Behind white text: the destructive action of a Glass alert. Darker than the status mark so its label keeps 4.5:1."
+      },
+      "destructive-tile": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.7686, 0.2157, 0.1843],
+          "hex": "#c4372f",
+          "alpha": 0.12
+        },
+        "$description": "Glass interface: the tinted tile behind a destructive alert's icon."
+      },
       "track": {
         "$type": "color",
         "$value": {

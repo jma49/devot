@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { placeDropdown } from './dropdownPlacement'
+import { dropdownNotchX, placeDropdown } from './dropdownPlacement'
 
 const view = { width: 800, height: 600 }
 const limits = { gap: 4, margin: 8 }
@@ -46,5 +46,22 @@ describe('placeDropdown', () => {
       limits,
     )
     expect(p.room).toBe(0)
+  })
+})
+
+describe('dropdownNotchX', () => {
+  const clear = 28
+
+  it('points at the middle of the button', () => {
+    expect(dropdownNotchX({ anchorWidth: 137, shift: 0, panelWidth: 280, clear })).toBe(68.5)
+  })
+
+  it('follows the button when the panel was moved sideways', () => {
+    expect(dropdownNotchX({ anchorWidth: 100, shift: -40, panelWidth: 280, clear })).toBe(90)
+  })
+
+  it('stays on the straight part of the edge', () => {
+    expect(dropdownNotchX({ anchorWidth: 20, shift: 0, panelWidth: 280, clear })).toBe(28)
+    expect(dropdownNotchX({ anchorWidth: 900, shift: 0, panelWidth: 280, clear })).toBe(252)
   })
 })

@@ -329,7 +329,7 @@ test('sidebar rows step 30 px with no gap', async ({ page }) => {
 
   const source = sidebar.locator('.source').first()
   const footer = sidebar.locator('.footer-toggle')
-  expect((await box(footer)).height).toBe(36)
+  expect((await box(footer)).height).toBe(24)
   const padding = (l: Locator) => l.evaluate((el) => getComputedStyle(el).paddingLeft)
   expect(await padding(footer)).toBe(await padding(source))
 })
