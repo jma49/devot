@@ -1,4 +1,4 @@
-This is your library. Everything you write stays on this Mac, in a database in the app's data folder (Application Support), and nothing is sent anywhere. Delete this notebook whenever you like: it will not come back.
+This is your library. Everything you write stays on this device, in a database in the app's data folder, and nothing is sent anywhere. Delete this notebook whenever you like: it will not come back.
 
 ## Organize
 
@@ -11,7 +11,7 @@ This is your library. Everything you write stays on this Mac, in a database in t
 
 ## Write
 
-Each note has three views, in the View menu: _Show Editor_, _Show Editor and Preview_ and _Preview_. The editor shows your Markdown with its syntax highlighted; the preview shows the result and scrolls along with the editor.
+Each note has three views: _Show Editor_, _Show Editor and Preview_ and _Preview_. The editor shows your Markdown with its syntax highlighted; the preview shows the result and scrolls along with the editor.
 
 | Do this                       | Press                                                                           |
 | ----------------------------- | ------------------------------------------------------------------------------- |

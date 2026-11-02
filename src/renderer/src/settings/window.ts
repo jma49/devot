@@ -1,6 +1,7 @@
 // What the Settings window asks of Rust beyond the settings themselves
 // (src-tauri/src/settings.rs, cli_tool.rs).
 import { invoke } from '../ipc'
+import { asCrashReports, type CrashReports } from '../crashReports'
 import { asMcpSetup, type McpSetup } from './mcpConfigs'
 
 export function openDataFolder(): Promise<void> {
@@ -9,6 +10,10 @@ export function openDataFolder(): Promise<void> {
 
 export function showBackups(): Promise<void> {
   return invoke('settings_show_backups')
+}
+
+export async function setCrashReports(on: boolean): Promise<CrashReports | null> {
+  return asCrashReports(await invoke<unknown>('crash_reports_set', { on }))
 }
 
 export async function mcpSetup(): Promise<McpSetup> {

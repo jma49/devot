@@ -1,6 +1,6 @@
 import type { ErrorEvent } from '@sentry/browser'
 import { describe, expect, it } from 'vitest'
-import { crashEnvironment, scrubEvent } from './crash'
+import { crashEnvironment, eventToSend, scrubEvent } from './crash'
 
 const NOTE = 'buy oat milk'
 const TITLE = 'Diary 2026'
@@ -267,5 +267,23 @@ describe('crashEnvironment', () => {
     expect(crashEnvironment('true')).toBe('development')
     expect(crashEnvironment('false')).toBe('production')
     expect(crashEnvironment(undefined)).toBe('development')
+  })
+})
+
+describe('eventToSend', () => {
+  const event = (): ErrorEvent => ({ type: undefined, message: SECRET })
+
+  it('sends nothing unless reports are on', async () => {
+    expect(await eventToSend(event(), () => Promise.resolve(false))).toBeNull()
+  })
+
+  it('sends nothing when the choice cannot be read', async () => {
+    expect(await eventToSend(event(), () => Promise.reject(new Error('E_X')))).toBeNull()
+  })
+
+  it('scrubs what it sends', async () => {
+    const sent = await eventToSend(event(), () => Promise.resolve(true))
+    expect(sent).not.toBeNull()
+    assertNoneLeft(sent)
   })
 })

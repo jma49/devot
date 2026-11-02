@@ -7,6 +7,7 @@
   "permissions": [
     "allow-editor-settings-get",
     "allow-editor-settings-set",
+    "allow-crash-reports-set",
     "allow-fonts-list",
     "allow-fonts-installed",
     "allow-font-read",

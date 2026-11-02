@@ -4,14 +4,79 @@
 //! `crash_scrub::scrub_event` first, which rebuilds it from an allowlist of
 //! fields (codes, type names, code locations, addresses inside the binaries
 //! it lists), so note titles, bodies and user names never leave the machine.
+//! Nothing is sent until the user turns reports on in Settings > General.
 
+use crate::atomic_file::{Place, TempFile};
 use crate::crash_reporter;
 use crate::crash_scrub::scrub_event;
-use std::path::Path;
-use std::sync::Arc;
+use serde::Serialize;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock};
 
 const DSN: Option<&str> = option_env!("DEVOT_SENTRY_DSN");
 pub(crate) const RELEASE: &str = concat!("devot@", env!("CARGO_PKG_VERSION"));
+const CHOICE_FILE: &str = "crash-reports-on";
+
+// A panic before the data folder is known is dropped: the choice cannot be read yet.
+static CHOSEN: AtomicBool = AtomicBool::new(cfg!(test));
+static DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+fn chosen_in(data_dir: &Path) -> bool {
+    data_dir.join(CHOICE_FILE).is_file()
+}
+
+/// Turning reports off also deletes those saved but not yet sent.
+fn save_choice(data_dir: &Path, on: bool) -> io::Result<()> {
+    let file = data_dir.join(CHOICE_FILE);
+    if on {
+        return TempFile::create(data_dir.join(format!("{CHOICE_FILE}.partial")))?
+            .persist(&file, Place::Replace);
+    }
+    match std::fs::remove_file(file) {
+        Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e),
+        _ => {}
+    }
+    delete_pending(data_dir)
+}
+
+fn delete_pending(data_dir: &Path) -> io::Result<()> {
+    match std::fs::remove_dir_all(data_dir.join(crash_reporter::DIR)) {
+        Err(e) if e.kind() != io::ErrorKind::NotFound => Err(e),
+        _ => Ok(()),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct CrashReports {
+    /// False in a build without a DSN, which can send nothing.
+    pub available: bool,
+    pub on: bool,
+}
+
+fn crash_reports_now() -> CrashReports {
+    CrashReports {
+        available: dsn().is_some(),
+        on: dsn().is_some() && CHOSEN.load(Ordering::SeqCst),
+    }
+}
+
+#[tauri::command]
+pub fn crash_reports_get() -> CrashReports {
+    crash_reports_now()
+}
+
+#[tauri::command]
+pub fn crash_reports_set(on: bool) -> Result<CrashReports, String> {
+    if dsn().is_none() {
+        return Err("E_CRASH_REPORTS_UNAVAILABLE".into());
+    }
+    let dir = DATA_DIR.get().ok_or("E_CRASH_REPORTS_NOT_READY")?;
+    save_choice(dir, on).map_err(|_| "E_CRASH_REPORTS_SAVE".to_owned())?;
+    CHOSEN.store(on, Ordering::SeqCst);
+    Ok(crash_reports_now())
+}
 
 pub fn init() -> Option<sentry::ClientInitGuard> {
     let dsn = dsn()?;
@@ -27,7 +92,9 @@ fn options() -> sentry::ClientOptions {
     options.send_default_pii = false;
     options.max_breadcrumbs = 0;
     options.before_breadcrumb = Some(Arc::new(|_| None));
-    options.before_send = Some(Arc::new(|event| Some(scrub_event(event))));
+    options.before_send = Some(Arc::new(|event| {
+        CHOSEN.load(Ordering::SeqCst).then(|| scrub_event(event))
+    }));
     options
 }
 
@@ -45,6 +112,16 @@ fn dsn() -> Option<&'static str> {
 }
 
 pub fn start_native(data_dir: &Path) {
+    let _ = DATA_DIR.set(data_dir.to_owned());
+    let chosen = chosen_in(data_dir);
+    CHOSEN.store(chosen, Ordering::SeqCst);
+    if !chosen {
+        // Written by a reporter still running when reports were turned off.
+        if delete_pending(data_dir).is_err() {
+            log::warn!("W_CRASH_REPORTS_DELETE_FAILED");
+        }
+        return;
+    }
     let Some(dsn) = dsn() else {
         return;
     };
@@ -80,6 +157,27 @@ pub fn reporter_main(args: &[std::ffi::OsString]) -> Option<i32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reports_stay_off_until_chosen() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(!chosen_in(dir.path()));
+        save_choice(dir.path(), true).unwrap();
+        assert!(chosen_in(dir.path()));
+    }
+
+    #[test]
+    fn turning_reports_off_deletes_those_not_yet_sent() {
+        let dir = tempfile::tempdir().unwrap();
+        save_choice(dir.path(), true).unwrap();
+        let pending = dir.path().join(crash_reporter::DIR);
+        std::fs::create_dir_all(&pending).unwrap();
+        std::fs::write(pending.join("report.json"), b"{}").unwrap();
+        save_choice(dir.path(), false).unwrap();
+        assert!(!chosen_in(dir.path()));
+        assert!(!pending.exists());
+        save_choice(dir.path(), false).unwrap();
+    }
     use sentry::protocol::{Event, Exception, Level, Mechanism};
 
     #[derive(Default)]

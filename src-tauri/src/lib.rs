@@ -79,7 +79,7 @@ pub fn cli_main() -> Option<i32> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Sentry first, so its panic hook sees every panic; off without a DSN.
+    // Sentry first, so its panic hook sees every panic; it sends only what the user chose to.
     let _crash_reporting = crash::init();
     let context = data_folder::context();
     let builder = tauri::Builder::default();
@@ -196,6 +196,8 @@ pub fn run() {
             usage::usage_clear,
             settings::settings_open_data_folder,
             settings::settings_show_backups,
+            crash::crash_reports_get,
+            crash::crash_reports_set,
             settings::settings_open_licence,
             settings::settings_mcp_setup,
             settings::settings_ai_access_summary,
@@ -466,6 +468,8 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     start_http_api(app, data_dir);
     #[cfg(desktop)]
     updates::start(app.handle());
+    #[cfg(mobile)]
+    licence::schedule::start(app.handle());
     Ok(())
 }
 

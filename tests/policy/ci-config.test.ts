@@ -120,6 +120,21 @@ it('uses the setup caches only where the job installs those dependencies', () =>
   expect(job('deny')).not.toContain('Swatinem/rust-cache@')
 })
 
+it('reuses the browser packages but still installs them, and saves them once from main', () => {
+  const ui = job('ui')
+  const restore = ui.indexOf('actions/cache/restore@')
+  const install = ui.indexOf('run: pnpm exec playwright install --with-deps webkit')
+  const save = ui.indexOf('actions/cache/save@')
+  expect(restore).toBeGreaterThan(0)
+  expect(install).toBeGreaterThan(restore)
+  expect(save).toBeGreaterThan(install)
+  const saving = ui.slice(ui.lastIndexOf('- if:', save), save)
+  expect(saving).toContain("github.ref == 'refs/heads/main'")
+  expect(saving).toContain('matrix.shard == 1')
+  expect(saving).toContain("matrix.project == 'webkit'")
+  expect(saving).toContain("steps.apt.outputs.cache-hit != 'true'")
+})
+
 it('the web check fails when the quick checks, a UI shard or the change detection fails', () => {
   // `web` is a required check that sums up the jobs and runs even when they were skipped,
   // so a skipped job cannot read as passing a failed one.

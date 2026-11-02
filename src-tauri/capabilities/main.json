@@ -27,6 +27,7 @@
     "allow-licence-get",
     "allow-licence-set",
     "allow-settings-open-licence",
+    "allow-crash-reports-get",
     "allow-sync-get",
     "allow-sync-connect",
     "allow-sync-pull",

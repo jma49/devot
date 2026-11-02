@@ -65,7 +65,7 @@ PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/ui-report.json pnpm test:ui --reporter=json
 node scripts/ci/ui-timings.ts scripts/ci/ui-durations.json /tmp/ui-report.json
 ```
 
-Specs the file does not know cost as much as the slowest known spec, so a new file is spread rather than piled onto one shard.
+Specs the file does not know cost as much as the median known spec. Pricing them at the slowest spec instead left a few new files each holding a shard's worth of planned work, so the measured shards ran far longer than those shards.
 
 `pnpm test:ui` still runs both complete projects locally. To run an exact selection with only its server:
 
@@ -97,7 +97,7 @@ pnpm tauri ios build --debug --target aarch64-sim  # src-tauri/gen/apple/build/a
 pnpm tauri ios dev                               # run on a simulator or a connected iPhone
 ```
 
-Menus, updates, the Settings window, folder pickers and the single-instance socket are desktop only (`cfg(desktop)`); their commands are not registered on a phone. Running on your own iPhone needs a signing team: add your Apple ID in Xcode > Settings > Accounts, then set `bundle.iOS.developmentTeam` or `APPLE_DEVELOPMENT_TEAM`. A free personal team works for your own device; its profile lasts seven days.
+Menus, updates, the Settings window, folder pickers and the single-instance socket are desktop only (`cfg(desktop)`); their commands are not registered on a phone, and the UI does not call them for menus or updates (`hasDesktopShell`, `src/renderer/src/platform.ts`). The licence's daily checks run on a phone too (`licence/schedule.rs`). Running on your own iPhone needs a signing team: add your Apple ID in Xcode > Settings > Accounts, then set `bundle.iOS.developmentTeam` or `APPLE_DEVELOPMENT_TEAM`. A free personal team works for your own device; its profile lasts seven days.
 
 SF Symbols are drawn through UIKit on a phone (`src-tauri/src/native/ios.rs`), so both icon styles work there. Its tests run inside a booted simulator, from `src-tauri`: `CARGO_TARGET_AARCH64_APPLE_IOS_SIM_RUNNER="xcrun simctl spawn booted" cargo test --target aarch64-apple-ios-sim --lib native::` (the filter leaves out desktop-only tests that start processes or open sockets, which fail in the simulator). CI only compiles for iOS (`ios-check`), so run them by hand after changing `ios.rs`. The notebook icon catalog is checked against macOS 26 only: on iOS before 26 (the app runs from 15) a newer symbol name can be missing, and the notebook shows the default icon.
 

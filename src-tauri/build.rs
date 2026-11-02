@@ -180,6 +180,8 @@ fn main() {
             "settings_open_data_folder",
             "settings_show_backups",
             "settings_open_licence",
+            "crash_reports_get",
+            "crash_reports_set",
             "update_status",
             "update_check",
             "update_download",
