@@ -23,14 +23,8 @@ export function noteSections(notes: readonly NoteSummary[]): NoteSection[] {
   const ordered = [...notes].sort(newestFirst)
   const sections: NoteSection[] = [
     { key: 'pinned', notes: ordered.filter((n) => n.pinned) },
-    {
-      key: 'recent',
-      notes: ordered.filter((n) => !n.pinned && n.status !== 'completed'),
-    },
-    {
-      key: 'completed',
-      notes: ordered.filter((n) => !n.pinned && n.status === 'completed'),
-    },
+    { key: 'recent', notes: ordered.filter((n) => !n.pinned && n.status !== 'completed') },
+    { key: 'completed', notes: ordered.filter((n) => !n.pinned && n.status === 'completed') },
   ]
   return sections.filter((section) => section.notes.length > 0)
 }

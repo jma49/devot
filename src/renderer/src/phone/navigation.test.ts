@@ -69,17 +69,10 @@ describe('the navigation stacks', () => {
 
 describe('a smart tile', () => {
   it("opens the Notes tab at its root with the tile's filter", () => {
-    let state = navigate(initialNavigation(), {
-      type: 'selectTab',
-      tab: 'notes',
-    })
+    let state = navigate(initialNavigation(), { type: 'selectTab', tab: 'notes' })
     state = navigate(state, { type: 'push', screen: 'note' })
     state = navigate(state, { type: 'selectTab', tab: 'library' })
-    state = navigate(state, {
-      type: 'showNotes',
-      view: { kind: 'all' },
-      status: 'completed',
-    })
+    state = navigate(state, { type: 'showNotes', view: { kind: 'all' }, status: 'completed' })
     expect(state.tab).toBe('notes')
     expect(screens(state)).toEqual(['root'])
     expect(state.notes).toEqual({ view: { kind: 'all' }, status: 'completed' })
@@ -119,21 +112,15 @@ describe('where a layer sits', () => {
   })
 
   it('moves the layer below by 30% and dims it, undoing both as the swipe travels', () => {
-    expect(layerPlacement(0, 1, 0, 390)).toMatchObject({
-      x: '-30vw',
-      dim: 0.1,
-    })
+    expect(layerPlacement(0, 1, 0, 390)).toMatchObject({ x: '-30vw', dim: 0.08 })
     const half = layerPlacement(0, 1, 195, 390)
     expect(half.x).toBe('-15vw')
-    expect(half.dim).toBeCloseTo(0.05)
+    expect(half.dim).toBeCloseTo(0.04)
     expect(layerPlacement(0, 1, 390, 390)).toMatchObject({ x: '0vw', dim: 0 })
   })
 
   it('keeps deeper layers where they were', () => {
-    expect(layerPlacement(0, 2, 195, 390)).toMatchObject({
-      x: '-30vw',
-      dim: 0.1,
-    })
+    expect(layerPlacement(0, 2, 195, 390)).toMatchObject({ x: '-30vw', dim: 0.08 })
   })
 })
 

@@ -20,20 +20,13 @@ export interface PhoneNavigation {
   readonly stacks: Readonly<Record<PhoneTab, readonly PhoneRoute[]>>
   readonly nextId: number
   /** What the Notes tab's root lists, set by a smart tile. */
-  readonly notes: {
-    readonly view: PhoneView
-    readonly status: PhoneStatusFilter
-  }
+  readonly notes: { readonly view: PhoneView; readonly status: PhoneStatusFilter }
 }
 
 export type PhoneNavigationAction =
   | { readonly type: 'selectTab'; readonly tab: PhoneTab }
   | ({ readonly type: 'push' } & Omit<PhoneRoute, 'id'>)
-  | {
-      readonly type: 'showNotes'
-      readonly view: PhoneView
-      readonly status: PhoneStatusFilter
-    }
+  | { readonly type: 'showNotes'; readonly view: PhoneView; readonly status: PhoneStatusFilter }
   | { readonly type: 'pop' }
 
 // An iPad's layout is out of scope, and an iPhone keeps this layout turned sideways.
@@ -105,10 +98,7 @@ export function layerPlacement(
 ): { x: string; dim: number } {
   if (index === top) return { x: `${drag}px`, dim: 0 }
   const progress = index === top - 1 ? 1 - Math.min(1, drag / width) : 1
-  return {
-    x: `${PUSHED_BELOW_VW * -progress}vw`.replace('-0vw', '0vw'),
-    dim: DIM_BELOW * progress,
-  }
+  return { x: `${PUSHED_BELOW_VW * -progress}vw`.replace('-0vw', '0vw'), dim: DIM_BELOW * progress }
 }
 
 const DEFAULT_BODY_POINTS = 17

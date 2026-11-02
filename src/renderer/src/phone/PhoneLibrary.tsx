@@ -113,9 +113,7 @@ export function PhoneLibrary(props: {
         : format(t('phone.library.backedUpAt'), {
             time: noteDate(data.lastBackup, data.loadedAt, currentLocale()),
           })
-  const notesCount = format(t('phone.library.noteCount'), {
-    count: String(library.tiles.all),
-  })
+  const notesCount = format(t('phone.library.noteCount'), { count: String(library.tiles.all) })
 
   return (
     <section aria-label={t('phone.tab.library')} className="phone-screen">
@@ -159,12 +157,7 @@ export function PhoneLibrary(props: {
                 icon={<BookIcon icon={row.icon} color={null} size="phone-row" />}
                 onOpen={() => props.onOpenList({ kind: 'book', id: row.id })}
                 {...(row.hasChildren
-                  ? {
-                      disclosure: {
-                        open: row.open,
-                        onToggle: () => toggle(row.id),
-                      },
-                    }
+                  ? { disclosure: { open: row.open, onToggle: () => toggle(row.id) } }
                   : {})}
               />
             ))}

@@ -96,9 +96,7 @@ test('Completed starts collapsed behind Show more, which opens it', async ({ pag
   await openNotes(page)
   await swipeRow(page, 0, 370)
   const completed = section(page, 'completed')
-  const more = completed.getByRole('button', {
-    name: /^Show more \(1 completed hidden\)$/,
-  })
+  const more = completed.getByRole('button', { name: /^Show more \(1 completed hidden\)$/ })
   await expect(more).toBeVisible()
   await expect(completed.locator('.phone-note-row').first()).toBeHidden()
   await more.click()
@@ -151,9 +149,7 @@ test('a row swiped past half stays open with its three actions', async ({ page }
   await expect(row.locator('.phone-note-content')).toHaveAttribute('data-raised')
   await expect
     .poll(async () => row.locator('.phone-note-open').boundingBox())
-    .toMatchObject({
-      x: -196,
-    })
+    .toMatchObject({ x: -196 })
   const capsule = (await actions.nth(2).locator('.phone-swipe-capsule').boundingBox())!
   expect(capsule).toMatchObject({ x: 328, width: 52, height: 34 })
   await expect(actions.nth(2).locator('.phone-swipe-label')).toHaveCSS('font-size', '11px')
@@ -332,9 +328,7 @@ test('a phone Settings row puts its field under its label, full width, in iPhone
     label.boundingBox(),
     pane
       .locator('.settings-card')
-      .filter({
-        has: page.getByRole('combobox', { name: 'Unordered List Bullet' }),
-      })
+      .filter({ has: page.getByRole('combobox', { name: 'Unordered List Bullet' }) })
       .boundingBox(),
   ])
   expect(fieldBox!.y).toBeGreaterThanOrEqual(labelBox!.y + labelBox!.height)

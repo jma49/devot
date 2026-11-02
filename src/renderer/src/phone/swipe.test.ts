@@ -53,18 +53,9 @@ describe('the swipe capsules', () => {
   })
 
   it('stretches Done over the others once armed', () => {
-    expect(swipeActionLook(-271, 2, 3)).toMatchObject({
-      width: 251,
-      stretched: true,
-    })
-    expect(swipeActionLook(-271, 1, 3)).toMatchObject({
-      opacity: 0,
-      stretched: false,
-    })
-    expect(swipeActionLook(-271, 0, 3)).toMatchObject({
-      opacity: 0,
-      stretched: false,
-    })
+    expect(swipeActionLook(-271, 2, 3)).toMatchObject({ width: 251, stretched: true })
+    expect(swipeActionLook(-271, 1, 3)).toMatchObject({ opacity: 0, stretched: false })
+    expect(swipeActionLook(-271, 0, 3)).toMatchObject({ opacity: 0, stretched: false })
   })
 })
 

@@ -140,12 +140,7 @@ describe('the status filter', () => {
   ]
 
   it('counts each status live', () => {
-    expect(filterCounts(notes)).toEqual({
-      all: 5,
-      active: 2,
-      on_hold: 1,
-      completed: 1,
-    })
+    expect(filterCounts(notes)).toEqual({ all: 5, active: 2, on_hold: 1, completed: 1 })
   })
 
   it('keeps only the chosen status, or everything', () => {

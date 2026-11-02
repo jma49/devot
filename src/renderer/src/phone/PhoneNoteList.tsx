@@ -169,12 +169,7 @@ function NoteRow(props: RowProps) {
     const dx = event.clientX - p.x
     const dy = event.clientY - p.y
     if (p.mode === 'pending') {
-      const mode = decideGesture({
-        dx,
-        dy,
-        heldMs: event.timeStamp - p.at,
-        open: props.open,
-      })
+      const mode = decideGesture({ dx, dy, heldMs: event.timeStamp - p.at, open: props.open })
       if (mode === 'scroll') {
         clearTimeout(p.timer)
         p.mode = 'scroll'
@@ -532,14 +527,11 @@ export function PhoneNoteList(props: {
     scroll.style.setProperty('--phone-arrived-height', `${row.offsetHeight}px`)
     const topInset = Number.parseFloat(getComputedStyle(scroll).paddingTop)
     if (scroll.scrollTop > row.offsetTop - topInset) scroll.scrollTop = row.offsetTop - topInset
-  }, [hasArrived, props.arrivedId])
+  }, [hasArrived])
 
   const toggleSection = (key: NoteSectionKey) => {
     setOpenId(null)
-    setChosen((before) => ({
-      ...before,
-      [key]: !sectionCollapsed(key, before, status),
-    }))
+    setChosen((before) => ({ ...before, [key]: !sectionCollapsed(key, before, status) }))
   }
   const renderRow = (note: NoteSummary) => (
     <NoteRow
@@ -592,9 +584,7 @@ export function PhoneNoteList(props: {
                     onClick={() => toggleSection(key)}
                   >
                     <span className="phone-show-more-label">
-                      {format(t('phone.list.showMore'), {
-                        count: String(notes.length),
-                      })}
+                      {format(t('phone.list.showMore'), { count: String(notes.length) })}
                     </span>
                   </button>
                 )}
