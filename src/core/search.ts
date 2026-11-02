@@ -88,7 +88,6 @@ export function pinnedFromValue(value: string): 'true' | 'false' | null {
   return null
 }
 
-/** Replaces each lone surrogate (it cannot cross to storage as text) with U+FFFD. */
 const MAX_CHARS: Partial<Record<SearchField, number>> = {
   book: MAX_BOOK_NAME_CHARS,
   tag: MAX_TAG_NAME_CHARS,

@@ -13,7 +13,7 @@ import {
   type TagColor,
   type TagRecord,
 } from './storage'
-import { charCount, trimWhitespace } from './text'
+import { charCount, trimWhitespace, wellFormed } from './text'
 
 export const MAX_TAG_NAME_CHARS = 100
 
@@ -36,7 +36,7 @@ export interface TagService {
 }
 
 export function cleanTagName(name: string): string {
-  const trimmed = trimWhitespace(name)
+  const trimmed = trimWhitespace(wellFormed(name))
   if (!trimmed || /[\r\n]/.test(trimmed) || charCount(trimmed) > MAX_TAG_NAME_CHARS) {
     throw new Error('E_TAG_NAME_INVALID')
   }

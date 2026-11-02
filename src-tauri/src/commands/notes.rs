@@ -223,7 +223,8 @@ fn validate_links(links: &[String]) -> Result<(), &'static str> {
 const MAX_SEARCH_CONDITIONS: usize = 12;
 const MAX_TERM_CHARS: usize = 100;
 const MAX_SEARCH_IDS: usize = 10_000;
-const SEARCH_LIMIT: u32 = 200;
+/// One more than the list shows (SEARCH_LIMIT in src/core/search.ts), so the core can tell a capped search.
+const MAX_SEARCH_LIMIT: u32 = 201;
 
 fn validate_query(query: &NoteQuery) -> Result<(), &'static str> {
     if query.text.len() + query.sets.len() > MAX_SEARCH_CONDITIONS {
@@ -247,10 +248,23 @@ fn validate_query(query: &NoteQuery) -> Result<(), &'static str> {
     Ok(())
 }
 
+fn validate_search_limit(limit: u32) -> Result<(), &'static str> {
+    if (1..=MAX_SEARCH_LIMIT).contains(&limit) {
+        Ok(())
+    } else {
+        Err("E_SEARCH_LIMIT_INVALID")
+    }
+}
+
 #[tauri::command]
-pub async fn notes_search(db: State<'_, Db>, query: NoteQuery) -> Result<Vec<NoteSummary>, String> {
+pub async fn notes_search(
+    db: State<'_, Db>,
+    query: NoteQuery,
+    limit: u32,
+) -> Result<Vec<NoteSummary>, String> {
     validate_query(&query).map_err(String::from)?;
-    db.call(move |store| store.search_notes(&query, SEARCH_LIMIT))
+    validate_search_limit(limit).map_err(String::from)?;
+    db.call(move |store| store.search_notes(&query, limit))
         .await
         .map_err(|e| e.to_string())
 }
@@ -553,6 +567,17 @@ mod tests {
         assert_eq!(
             check(vec![], vec![set("book", &[ID; MAX_SEARCH_IDS + 1])]),
             Err("E_SEARCH_IDS_INVALID")
+        );
+    }
+
+    #[test]
+    fn validates_the_search_limit() {
+        assert_eq!(validate_search_limit(1), Ok(()));
+        assert_eq!(validate_search_limit(MAX_SEARCH_LIMIT), Ok(()));
+        assert_eq!(validate_search_limit(0), Err("E_SEARCH_LIMIT_INVALID"));
+        assert_eq!(
+            validate_search_limit(MAX_SEARCH_LIMIT + 1),
+            Err("E_SEARCH_LIMIT_INVALID")
         );
     }
 

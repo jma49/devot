@@ -234,6 +234,15 @@ describe('titles', () => {
     expect((await storage.getNote(made))?.title).toBe('y'.repeat(MAX_TITLE_CHARS))
   })
 
+  it('hold no lone surrogate, so storage can parse the record', async () => {
+    const { notes, storage } = service(freshPath())
+    const id = await notes.create('half \ud800')
+    await notes.setTitle(id, 'again \udc00 and \ud800')
+    await notes.flush()
+    expect((await storage.getNote(id))?.title).toBe('again \ufffd and \ufffd')
+    expect((await storage.getNote(await notes.create('half \ud800')))?.title).toBe('half \ufffd')
+  })
+
   it('over the limit in storage do not stop the note from saving', async () => {
     const { notes, storage } = service(freshPath())
     const id = await notes.create('Short')

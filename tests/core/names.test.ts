@@ -95,6 +95,16 @@ describe('one whitespace rule for names (as Rust trims)', () => {
   })
 })
 
+describe('names hold no lone surrogate', () => {
+  it('replaces one in a tag or notebook name, so storage can parse the record', async () => {
+    const { tags, books } = setup()
+    const tag = await tags.ensure('t\ud800')
+    expect((await tags.list()).find((t) => t.id === tag)?.name).toBe('t\ufffd')
+    const book = await books.create('b\udc00', null)
+    expect((await books.list()).find((b) => b.id === book)?.name).toBe('b\ufffd')
+  })
+})
+
 describe('name limits are counted in code points', () => {
   it('clips to a number of code points, never splitting a pair', () => {
     const astral = '\u{1f600}'

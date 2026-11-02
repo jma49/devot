@@ -209,6 +209,13 @@ describe('the page’s side', () => {
     expect(invoke).toHaveBeenLastCalledWith('notes_bodies', { ids: ['a', 'b'] })
   })
 
+  it('sends the asked search limit to the Rust command', async () => {
+    const query = { text: [], sets: [], pinned: false }
+    vi.mocked(invoke).mockResolvedValueOnce([])
+    await tauriStorage.searchNotes(query, 201)
+    expect(invoke).toHaveBeenLastCalledWith('notes_search', { query, limit: 201 })
+  })
+
   it('costs the UI thread no work for each byte of a 4 MiB state', async (context) => {
     const record: WireNote = { ...note(), ydoc: toBase64(bytes(4 * MIB)) }
     vi.mocked(invoke).mockResolvedValue(record)

@@ -10,6 +10,7 @@ import {
 } from './authorship'
 import { MAX_NOTE_LINKS, noteLinks } from './links'
 import type { NoteRecord } from './storage'
+import { wellFormed } from './text'
 
 export const MAX_TITLE_CHARS = 1000
 export const MAX_BODY_BYTES = 32 * 1024 * 1024
@@ -33,7 +34,7 @@ function cutAt(text: string, max: number): number {
 }
 
 export function clipTitle(title: string): string {
-  const line = title.replace(/\r\n?|\n/g, ' ')
+  const line = wellFormed(title).replace(/\r\n?|\n/g, ' ')
   return line.slice(0, cutAt(line, MAX_TITLE_CHARS))
 }
 

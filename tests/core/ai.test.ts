@@ -594,6 +594,32 @@ describe('editing notes', () => {
     expect(await s.storage.noteTags(ids.priv)).toEqual([{ id: hidden, name: 'Layoffs-2027' }])
   })
 
+  it('changes nothing when a tag name is refused alongside a title and a body', async () => {
+    const s = setup()
+    const { ids } = await world(s)
+    await s.tags.addToNote(ids.priv, 'Layoffs-2027')
+    const before = await s.ai.read(ids.shared)
+
+    await expect(
+      s.ai.update({
+        id: ids.shared,
+        title: 'Renamed',
+        body: { markdown: 'Changed' },
+        tags: ['Layoffs-2027'],
+      }),
+    ).rejects.toThrow('E_TAG_NAME_INVALID')
+
+    expect(await s.ai.read(ids.shared)).toEqual(before)
+  })
+
+  it('stores a title and a tag name without lone surrogates, so the note can still be saved', async () => {
+    const s = setup()
+    const { ids } = await world(s)
+    const updated = await s.ai.update({ id: ids.shared, title: 'x\ud800', tags: ['t\udc00'] })
+    expect(updated.title).toBe('x\ufffd')
+    expect(updated.tags).toEqual(['t\ufffd'])
+  })
+
   it('merges with edits the app holds of the open note', async () => {
     const s = setup()
     const { ids } = await world(s)

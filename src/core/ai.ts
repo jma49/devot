@@ -31,7 +31,7 @@ import {
   type StorageAdapter,
 } from './storage'
 import { cleanTagName, createTagService, sameName } from './tags'
-import { lineFeeds, trimWhitespace } from './text'
+import { lineFeeds, trimWhitespace, wellFormed } from './text'
 
 export const AI_SEARCH_LIMIT = 20
 export const MAX_AI_SEARCH_LIMIT = 50
@@ -223,7 +223,7 @@ export function snippet(text: string, terms: readonly string[], radius = SNIPPET
 const notFound = () => new Error('E_NOTE_NOT_FOUND')
 
 function cleanTitle(title: string): string {
-  const clean = title.trim()
+  const clean = wellFormed(title).trim()
   if (!clean || /[\r\n]/.test(clean) || [...clean].length > MAX_TITLE_CHARS) {
     throw new Error('E_NOTE_TITLE_INVALID')
   }
@@ -335,24 +335,29 @@ export function createAiService(options: AiServiceOptions): AiService {
     )
   }
 
+  /** Reusing a tag only hidden notebooks have would confirm its name, so the name is refused before anything is written. */
+  const refuseHiddenTags = async (noteId: string, wanted: readonly string[]) => {
+    const current = await aiStorage.noteTags(noteId)
+    const missing = wanted.filter((name) => !current.some((tag) => sameName(tag.name, name)))
+    if (missing.length === 0) return
+    const visibleTags = await aiStorage.tagsInBooks([...(await allowed()).keys()])
+    const live = (await tagService.list()).filter((tag) => tag.deletedAt === null)
+    for (const name of missing) {
+      if (
+        !visibleTags.some((tag) => sameName(tag.name, name)) &&
+        live.some((tag) => sameName(tag.name, name))
+      ) {
+        throw new Error('E_TAG_NAME_INVALID')
+      }
+    }
+  }
+
   /** A name an existing visible tag has, in any case, puts that tag on the note (tag names are unique). */
   const setTags = async (noteId: string, wanted: readonly string[]) => {
     const current = await aiStorage.noteTags(noteId)
     const books = await allowed()
     const visibleTags = await aiStorage.tagsInBooks([...books.keys()])
     const missing = wanted.filter((name) => !current.some((tag) => sameName(tag.name, name)))
-    if (missing.length > 0) {
-      const live = (await tagService.list()).filter((tag) => tag.deletedAt === null)
-      for (const name of missing) {
-        // Reusing a tag only hidden notebooks have would confirm its name, so the name is refused.
-        if (
-          !visibleTags.some((tag) => sameName(tag.name, name)) &&
-          live.some((tag) => sameName(tag.name, name))
-        ) {
-          throw new Error('E_TAG_NAME_INVALID')
-        }
-      }
-    }
     for (const tag of current) {
       if (!wanted.some((name) => sameName(name, tag.name))) {
         await tagService.removeFromNote(noteId, tag.id)
@@ -471,6 +476,7 @@ export function createAiService(options: AiServiceOptions): AiService {
         const retitled = newTitle !== undefined && newTitle !== record.title
         const moved = target.id !== record.bookId
         const restatused = status !== undefined && status !== record.status
+        if (wantedTags !== undefined) await refuseHiddenTags(id, wantedTags)
         const retagged = wantedTags !== undefined && (await tagsChange(id, wantedTags))
         const fields: WriteField[] = [
           ...(retitled ? (['title'] as const) : []),
@@ -516,7 +522,7 @@ export function createAiService(options: AiServiceOptions): AiService {
     async createNotebook({ name, parent }) {
       return atomically(async () => {
         const parentBook = parent === undefined ? undefined : await resolveBook(parent)
-        const clean = trimWhitespace(name)
+        const clean = trimWhitespace(wellFormed(name))
         // Notebooks are named in calls by exact name: a second one of a name
         // AI can see would make that name ambiguous.
         if ([...(await allowed()).values()].some((b) => b.name === clean)) {
