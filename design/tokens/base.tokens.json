@@ -1084,6 +1084,14 @@
       },
       "$description": "Glass interface: the floating sidebar, concentric with the window's corner at size.sidebar-inset from its edge."
     },
+    "diagram-node": {
+      "$type": "dimension",
+      "$value": {
+        "value": 9,
+        "unit": "px"
+      },
+      "$description": "A node's corners in a Mermaid diagram."
+    },
     "sidebar-row": {
       "$type": "dimension",
       "$value": {
@@ -1385,6 +1393,46 @@
         "unit": "px"
       },
       "$description": "Glass interface: the space at the sides of an alert card."
+    },
+    "diagram-node-edge": {
+      "$type": "dimension",
+      "$value": {
+        "value": 0.5,
+        "unit": "px"
+      },
+      "$description": "The hairline edge of a node in a Mermaid diagram."
+    },
+    "diagram-edge": {
+      "$type": "dimension",
+      "$value": {
+        "value": 1,
+        "unit": "px"
+      },
+      "$description": "The stroke of a normal edge in a Mermaid diagram."
+    },
+    "diagram-arrow-length": {
+      "$type": "dimension",
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      },
+      "$description": "An arrowhead's length along its edge in a Mermaid diagram."
+    },
+    "diagram-arrow-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      },
+      "$description": "An arrowhead's width across its edge in a Mermaid diagram."
+    },
+    "diagram-label-gap": {
+      "$type": "dimension",
+      "$value": {
+        "value": 1,
+        "unit": "px"
+      },
+      "$description": "The room between an edge and the box of its label in a Mermaid diagram."
     },
     "list-focus-bar": {
       "$type": "dimension",

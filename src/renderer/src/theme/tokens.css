@@ -83,6 +83,7 @@
   --radius-floating-bar: 14px;
   --radius-dialog: 12px;
   --radius-sidebar: 18px;
+  --radius-diagram-node: 9px;
   --radius-sidebar-row: 10px;
   --radius-list-row: 12px;
   --radius-inline-code: 5px;
@@ -125,6 +126,11 @@
   --size-quote-bar: 3px;
   --size-alert-pad-top: 11px;
   --size-alert-pad-inline: 14px;
+  --size-diagram-node-edge: 0.5px;
+  --size-diagram-edge: 1px;
+  --size-diagram-arrow-length: 6px;
+  --size-diagram-arrow-width: 8px;
+  --size-diagram-label-gap: 1px;
   --size-list-focus-bar: 5px;
   --size-list-row-inset: 15px;
   --size-drag-card-min-width: 60px;

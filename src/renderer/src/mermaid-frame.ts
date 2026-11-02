@@ -11,6 +11,7 @@ import {
   type FrameMessage,
   type RenderRequest,
 } from './preview/mermaid-protocol'
+import { diagramTheme, finishDrawing } from './preview/mermaid-theme'
 import './mermaid-frame.css'
 
 let port: MessagePort | undefined
@@ -20,15 +21,15 @@ let queue: Promise<void> = Promise.resolve()
 const reply = (message: FrameMessage) => port?.postMessage(message)
 
 async function draw(request: RenderRequest): Promise<void> {
-  // Mermaid measures text in this document: give it the preview's font.
+  // Mermaid measures text in this document: give it the diagram's font.
   document.body.style.fontFamily = request.fontFamily
   document.body.style.fontSize = request.fontSize
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',
-    theme: request.appearance === 'dark' ? 'dark' : 'neutral',
+    theme: 'base',
     fontFamily: request.fontFamily,
-    themeVariables: { fontFamily: request.fontFamily, fontSize: request.fontSize },
+    ...diagramTheme(request.palette, request.appearance, request.fontFamily),
     htmlLabels: false,
     flowchart: { htmlLabels: false },
   })
@@ -38,7 +39,7 @@ async function draw(request: RenderRequest): Promise<void> {
   document.body.appendChild(container)
   try {
     const { svg } = await mermaid.render(`devot-mermaid-${request.id}`, request.source, container)
-    reply({ type: 'rendered', id: request.id, svg })
+    reply({ type: 'rendered', id: request.id, svg: finishDrawing(svg) })
   } catch {
     // Only a drawing that failed is checked for an error in its source, so a
     // diagram that draws is parsed once. A source that parses but cannot be

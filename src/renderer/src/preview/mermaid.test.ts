@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { sizes } from '../theme/tokens'
-import { exportFont } from './mermaid'
+import { diagramFont } from './mermaid'
 
-describe('the font of an exported diagram', () => {
-  it("is the one the exported page sets, not the hidden window's default", () => {
-    expect(exportFont()).toEqual({
+describe('the font of a diagram', () => {
+  it("is the UI font at the diagram's size, not the hidden window's default", () => {
+    expect(diagramFont()).toEqual({
       fontFamily: sizes['font.family.ui'],
-      fontSize: sizes['font.size.preview'],
+      fontSize: sizes['font.size.footnote'],
     })
-    expect(exportFont().fontFamily).not.toBe('')
+    expect(diagramFont().fontFamily).not.toBe('')
   })
 })

@@ -6332,7 +6332,6 @@ button.popup:focus-visible {
   color: var(--color-text-tertiary);
 }
 
-/* Every notebook keeps room for a chevron before its icon, so no chevron leaves the row's rounded box. */
 :root[data-sidebar-material='on'] .books li {
   --book-indent: calc(var(--size-sidebar-row-padding) + var(--book-depth, 0) * var(--space-7));
 }
