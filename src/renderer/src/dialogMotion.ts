@@ -17,7 +17,13 @@ import {
 } from './closing'
 import { motionReduced } from './motionPreference'
 
-const DIALOG_KINDS = ['dialog.confirm', 'dialog.sheet', 'dialog.link-dialog', 'dialog.palette']
+const DIALOG_KINDS = [
+  'dialog.confirm',
+  'dialog.sheet',
+  'dialog.link-dialog',
+  'dialog.palette',
+  'dialog.image-viewer',
+]
 /** The dialogs that open with motion (app.css), so close with it too. */
 export const MOVING_DIALOGS = DIALOG_KINDS.join(', ')
 const DIMMING = '.confirm, .sheet, .link-dialog'

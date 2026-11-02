@@ -343,8 +343,17 @@
   text-decoration: line-through;
 }
 
+.preview li:has(> input[type='checkbox'], > p > input[type='checkbox']) {
+  transition: color var(--motion-duration-toggle) var(--motion-easing-standard);
+}
+
 .preview input[data-task-at] {
   cursor: pointer;
+  transition: scale var(--motion-duration-settle) var(--motion-easing-spring);
+}
+
+.preview input[data-task-at]:active {
+  scale: var(--press-scale);
 }
 
 .preview img {

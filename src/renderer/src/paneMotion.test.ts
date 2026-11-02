@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { paneAnimations, paneMoves, paneTiming, riderMoves, shownPanes } from './paneMotion'
+import {
+  enteringPanes,
+  paneEnterFrames,
+  paneAnimations,
+  paneMoves,
+  paneTiming,
+  riderMoves,
+  shownPanes,
+} from './paneMotion'
 
 const box = (left: number, shown = true) => ({ left, shown })
 
@@ -194,5 +202,22 @@ describe('which panes show', () => {
       list: false,
       content: true,
     })
+  })
+})
+
+describe('paneEnterFrames', () => {
+  it('brings a pane in from its own side', () => {
+    expect(paneEnterFrames('preview')[0]?.['transform']).toBe('translateX(40px)')
+    expect(paneEnterFrames('editor')[0]?.['transform']).toBe('translateX(-40px)')
+  })
+})
+
+describe('enteringPanes', () => {
+  it('names only the panes the new mode adds', () => {
+    expect(enteringPanes('edit', 'split')).toEqual(['preview'])
+    expect(enteringPanes('preview', 'split')).toEqual(['editor'])
+    expect(enteringPanes('edit', 'preview')).toEqual(['preview'])
+    expect(enteringPanes('split', 'edit')).toEqual([])
+    expect(enteringPanes('edit', 'edit')).toEqual([])
   })
 })

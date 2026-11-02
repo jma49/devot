@@ -3,11 +3,15 @@ import { t, type MessageKey } from './i18n'
 import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
 import type { ListLayout } from './lastState'
+import { useSegmentSlide } from './segmentSlide'
 
 const LAYOUTS: { layout: ListLayout; icon: IconName; label: MessageKey; title: MessageKey }[] = [
   { layout: 'list', icon: 'layout.list', label: 'layout.list', title: 'command.showList' },
   { layout: 'board', icon: 'layout.board', label: 'layout.board', title: 'command.showBoard' },
 ]
+
+// A switch mounts a new control, so the thumb's last place outlives the old one.
+const lastSegment: { view: string; index: number } = { view: '', index: -1 }
 
 /**
  * The List and Board segments. The list and the board each render their own
@@ -17,16 +21,30 @@ const LAYOUTS: { layout: ListLayout; icon: IconName; label: MessageKey; title: M
  */
 export function LayoutControl(props: {
   layout: ListLayout
+  view: string
   onChange: (layout: ListLayout, keyboard: boolean) => void
   takesKeyboard?: () => boolean
 }) {
   const pressed = useRef<HTMLButtonElement>(null)
+  const group = useRef<HTMLDivElement>(null)
+  const index = LAYOUTS.findIndex((l) => l.layout === props.layout)
+  const from = useRef(lastSegment.view === props.view ? lastSegment.index : index)
+  useSegmentSlide(group, index, from)
+  useLayoutEffect(() => {
+    lastSegment.view = props.view
+    lastSegment.index = index
+  }, [props.view, index])
   const { takesKeyboard } = props
   useLayoutEffect(() => {
     if (takesKeyboard?.()) pressed.current?.focus()
   }, [takesKeyboard])
   return (
-    <div className="segmented layout-control" role="group" aria-label={t('layout.label')}>
+    <div
+      ref={group}
+      className="segmented layout-control"
+      role="group"
+      aria-label={t('layout.label')}
+    >
       {LAYOUTS.map((l) => (
         <button
           key={l.layout}

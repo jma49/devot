@@ -58,6 +58,11 @@ export const moveFrames = (dy: number): Keyframe[] => [
   { transform: 'translateY(0px)' },
 ]
 
+export const flightFrames = (dx: number, dy: number): Keyframe[] => [
+  { transform: `translate(${dx}px, ${dy}px)` },
+  { transform: 'translate(0px, 0px)' },
+]
+
 export const enterFrames: Keyframe[] = [{ opacity: 0 }, { opacity: 1 }]
 
 /** `from`: how opaque the row is drawn as it goes, so one still fading in never brightens. */
@@ -109,6 +114,7 @@ function visibleEdges(parent: Element): Edges {
 interface RowBox {
   el: HTMLElement
   top: number
+  left: number
   rect: DOMRect
   parent: Node | null
   next: Node | null
@@ -118,15 +124,19 @@ interface RowBox {
 type Snapshot = Map<string, RowBox>
 
 function snapshot(container: HTMLElement, attr: string, leaving?: ReadonlySet<string>): Snapshot {
-  const base = container.getBoundingClientRect().top - container.scrollTop
+  const box = container.getBoundingClientRect()
+  const base = box.top - container.scrollTop
+  const baseLeft = box.left - container.scrollLeft
   const rows: Snapshot = new Map()
   for (const el of container.querySelectorAll<HTMLElement>(`[${attr}]`)) {
     const key = el.getAttribute(attr)
     if (key === null || el.closest('[data-closing]')) continue
     const rect = el.getBoundingClientRect()
+    const drawn = drawnOffset(el)
     rows.set(key, {
       el,
-      top: rect.top - drawnOffset(el).y - base,
+      top: rect.top - drawn.y - base,
+      left: rect.left - drawn.x - baseLeft,
       rect,
       parent: el.parentNode,
       next: el.nextSibling,
@@ -136,12 +146,14 @@ function snapshot(container: HTMLElement, attr: string, leaving?: ReadonlySet<st
   return rows
 }
 
-function leaveCopy(box: RowBox, attr: string): HTMLElement | null {
-  const parent = box.parent
-  if (!(parent instanceof Element) || !parent.isConnected) return null
-  const clip = clipInset(box.rect, visibleEdges(parent))
-  if (!clip) return null
-  const copy = box.el.cloneNode(true) as HTMLElement
+function placedCopy(
+  el: HTMLElement,
+  rect: DOMRect,
+  attr: string,
+  parent: Element,
+  next: Node | null,
+): HTMLElement {
+  const copy = el.cloneNode(true) as HTMLElement
   // Not a row any more: nothing looks it up by its key.
   copy.removeAttribute(attr)
   for (const node of [copy, ...Array.from(copy.querySelectorAll('[id]'))])
@@ -151,21 +163,47 @@ function leaveCopy(box: RowBox, attr: string): HTMLElement | null {
   copy.inert = true
   copy.style.position = 'fixed'
   copy.style.boxSizing = 'border-box'
-  copy.style.left = `${box.rect.left}px`
-  copy.style.top = `${box.rect.top}px`
-  copy.style.width = `${box.rect.width}px`
-  copy.style.height = `${box.rect.height}px`
+  copy.style.left = `${rect.left}px`
+  copy.style.top = `${rect.top}px`
+  copy.style.width = `${rect.width}px`
+  copy.style.height = `${rect.height}px`
   copy.style.margin = '0'
   copy.style.pointerEvents = 'none'
-  copy.style.clipPath = clip
-  parent.insertBefore(copy, box.next?.parentNode === parent ? box.next : null)
+  parent.insertBefore(copy, next?.parentNode === parent ? next : null)
   // A transformed ancestor, not the window, may place a fixed box.
   const placed = copy.getBoundingClientRect()
-  if (placed.left !== box.rect.left || placed.top !== box.rect.top) {
-    copy.style.left = `${2 * box.rect.left - placed.left}px`
-    copy.style.top = `${2 * box.rect.top - placed.top}px`
+  if (placed.left !== rect.left || placed.top !== rect.top) {
+    copy.style.left = `${2 * rect.left - placed.left}px`
+    copy.style.top = `${2 * rect.top - placed.top}px`
   }
   return copy
+}
+
+function leaveCopy(box: RowBox, attr: string): HTMLElement | null {
+  const parent = box.parent
+  if (!(parent instanceof Element) || !parent.isConnected) return null
+  const clip = clipInset(box.rect, visibleEdges(parent))
+  if (!clip) return null
+  const copy = placedCopy(box.el, box.rect, attr, parent, box.next)
+  copy.style.clipPath = clip
+  return copy
+}
+
+// A row's own column would clip it on the way, so a copy over the columns makes the journey.
+function flyToColumn(
+  row: RowBox,
+  dx: number,
+  dy: number,
+  attr: string,
+  container: HTMLElement,
+): void {
+  const copy = placedCopy(row.el, row.rect, attr, container, null)
+  const timing = rowMoveTiming()
+  row.el.animate([{ opacity: 0 }, { opacity: 0 }], timing)
+  const flight = copy.animate(flightFrames(dx, dy), timing)
+  const done = () => copy.remove()
+  flight.addEventListener('finish', done)
+  flight.addEventListener('cancel', done)
 }
 
 function play(
@@ -185,6 +223,11 @@ function play(
     const was = before.get(key)
     if (!was) continue
     const dy = Math.round(was.top - box.top)
+    const dx = Math.round(was.left - box.left)
+    if (dx !== 0) {
+      flyToColumn(box, dx, dy, attr, container)
+      continue
+    }
     if (dy !== 0) box.el.animate(moveFrames(dy), { ...rowMoveTiming(), composite: 'add' })
   }
   for (const key of change.left) {
@@ -209,24 +252,28 @@ export function useRowMotion(
   keys: readonly string[],
   scope: string,
   motion: RowMotion,
+  // A board's order can stay the same while a card changes column.
+  grouping = '',
 ): void {
   const [seen, setSeen] = useState<{
     keys: readonly string[]
     scope: string
+    grouping: string
     play: { el: HTMLElement; before: Snapshot; change: RowChange } | null
-  }>({ keys, scope, play: null })
+  }>({ keys, scope, grouping, play: null })
   // Compared by content: an equal list in a new array is no change (and no render).
-  if (seen.scope !== scope || !sameKeys(seen.keys, keys)) {
+  if (seen.scope !== scope || seen.grouping !== grouping || !sameKeys(seen.keys, keys)) {
     const el = container()
     let next: { el: HTMLElement; before: Snapshot; change: RowChange } | null = null
     if (el && seen.scope === scope && !motionReduced()) {
-      const change = rowChange(seen.keys, keys)
+      const keysChange = rowChange(seen.keys, keys)
+      const change = seen.grouping === grouping ? keysChange : { ...keysChange, reordered: true }
       // Read while the window still shows the rows where they were.
       if (playsChange(change, keys.length - change.entered.size)) {
         next = { el, before: snapshot(el, attr, change.left), change }
       }
     }
-    setSeen({ keys, scope, play: next })
+    setSeen({ keys, scope, grouping, play: next })
   }
   useLayoutEffect(() => {
     if (seen.play) play(seen.play.el, attr, seen.play.before, seen.play.change, motion)

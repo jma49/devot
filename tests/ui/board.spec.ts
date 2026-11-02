@@ -419,3 +419,29 @@ test('Home, End and the Page keys move the keyboard across the board', async ({ 
   await page.keyboard.press('PageUp')
   await expect(card(page, 'Delta')).toBeFocused()
 })
+
+test('a card changing column flies there on a copy above the columns', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await layout(page, 'Board').click()
+  const card = page.locator('[data-note-id]').filter({ hasText: 'Alpha' }).first()
+  await card.focus()
+  await page.evaluate(() => {
+    const w = globalThis as unknown as { devotFlight?: string }
+    new MutationObserver((_, observer) => {
+      const copy = document.querySelector('[data-closing="row"]')
+      if (!copy) return
+      observer.disconnect()
+      const flight = copy.getAnimations()[0]
+      w.devotFlight = flight
+        ? String((flight.effect as KeyframeEffect).getKeyframes()[0]?.['transform'])
+        : ''
+    }).observe(document.body, { childList: true, subtree: true })
+  })
+  await page.keyboard.press('Meta+Control+ArrowRight')
+  await expect
+    .poll(() =>
+      page.evaluate(() => (globalThis as unknown as { devotFlight?: string }).devotFlight ?? ''),
+    )
+    .toMatch(/translate\(-\d/)
+  await expect(page.locator('[data-closing="row"]')).toHaveCount(0)
+})

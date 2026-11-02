@@ -1917,6 +1917,13 @@
         },
         "$description": "A change that should feel immediate: a sidebar row under the pointer, a focus ring arriving."
       },
+      "settle": {
+        "$value": {
+          "value": 300,
+          "unit": "ms"
+        },
+        "$description": "A small control settling by motion.easing.spring: a press released, a segment's thumb arriving."
+      },
       "insert": {
         "$value": {
           "value": 300,
@@ -1953,6 +1960,10 @@
         "$value": [0.38, 0.7, 0.125, 1],
         "$description": "Everything that moves, grows or turns: a critically damped spring (no overshoot) drawn as a curve. It is already moving fast in its first frame, so a change answers at once, and settles softly."
       },
+      "spring": {
+        "$value": [0.3, 1.3, 0.5, 1],
+        "$description": "Only for a small control under the pointer settling (a press released, a segment's thumb): a slight overshoot, about 3%. Everything else moves by motion.easing.move."
+      },
       "quick": {
         "$value": [0.25, 0.1, 0.25, 1],
         "$description": "A quick start that settles softly (CSS ease)."
@@ -1978,8 +1989,24 @@
       },
       "press": {
         "$value": 0.96,
-        "$description": "Glass interface: the size a toolbar control shrinks to while it is pressed, springing back on release."
+        "$description": "The size a button, tool or segment shrinks to while it is pressed, springing back on release."
+      },
+      "knob-press": {
+        "$value": 1.25,
+        "$description": "How much wider a switch's knob grows while it is pressed."
+      },
+      "segment-lift": {
+        "$value": 1.06,
+        "$description": "Glass interface: the size a segment's thumb lifts to while it is pressed or dragged."
       }
+    },
+    "spring": {
+      "$type": "number",
+      "$description": "A segment's thumb under the pointer. Damping ratios (1 has no overshoot) and responses in seconds, drawn by springEasing (motionTiming.ts).",
+      "lift-damping": { "$value": 0.71 },
+      "lift-response": { "$value": 0.3 },
+      "settle-damping": { "$value": 0.8 },
+      "settle-response": { "$value": 0.4 }
     },
     "delay": {
       "$type": "duration",
