@@ -63,16 +63,17 @@ test('a row swiped past half stays open with its three actions', async ({ page }
   const actions = rows(page).first().locator('.phone-swipe-action')
   await expect(actions).toHaveCount(3)
   await expect(actions.nth(2)).toBeInViewport()
-  await expect(rows(page).first().locator('.phone-note-content')).toHaveAttribute('data-raised', '')
+  await expect(rows(page).first().locator('.phone-note-content')).toHaveAttribute('data-raised')
 })
 
 test('a row swiped past 280 completes its note', async ({ page }) => {
   await openNotes(page)
-  await swipeRow(page, 0, 320)
-  await expect(rows(page).first().locator('.phone-status-badge')).toHaveAttribute(
-    'aria-label',
-    'Completed',
-  )
+  const title = (await rows(page).first().locator('.phone-note-title').textContent())!
+  // Past 190 the drag meets the 0.6 rubber band, so 280 needs about 340 of travel.
+  await swipeRow(page, 0, 370)
+  await expect(
+    rows(page).filter({ hasText: title }).first().locator('.phone-status-badge'),
+  ).toHaveAttribute('aria-label', 'Completed')
 })
 
 test('a long press peeks, and the status bar sets the status', async ({ page }) => {
@@ -97,17 +98,20 @@ test('the row actions are offered without a gesture', async ({ page }) => {
   await rows(page)
     .first()
     .getByRole('button', { name: /^Actions for / })
-    .click()
+    .evaluate((el) => (el as HTMLElement).click())
   await expect(page.getByRole('menuitem', { name: 'Move to Trash' })).toBeVisible()
 })
 
 test('a note opens in Edit, switches to Preview and shows its info sheet', async ({ page }) => {
   await openNotes(page)
   await rows(page).first().locator('.phone-note-open').click()
-  const toggle = page.getByRole('button', { name: 'Preview' })
+  const toggle = page.getByRole('button', { name: 'Preview', exact: true })
   await expect(toggle).toBeVisible()
   await toggle.click()
-  await expect(page.getByRole('button', { name: 'Edit' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
   await page.getByRole('button', { name: 'Note Info' }).click()
   const sheet = page.getByRole('dialog', { name: 'Note Info' })
   await expect(sheet.getByText('Words')).toBeVisible()

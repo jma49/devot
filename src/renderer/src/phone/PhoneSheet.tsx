@@ -69,6 +69,8 @@ export function PhoneSheet(props: {
         <div
           className="phone-sheet-handle"
           onPointerDown={(event) => {
+            // A capture would take the click from a button in the handle (Close).
+            if ((event.target as Element).closest('button')) return
             event.currentTarget.setPointerCapture(event.pointerId)
             start.current = {
               y: event.clientY,
