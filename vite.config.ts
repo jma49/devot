@@ -7,7 +7,8 @@ export default defineConfig({
   root: 'src/renderer',
   plugins: [react()],
   clearScreen: false,
-  server: { port: 5173, strictPort: true },
+  // A phone reaches this Mac by its network address, which `tauri ios dev` passes here.
+  server: { host: process.env.TAURI_DEV_HOST || false, port: 5173, strictPort: true },
   // DEVOT_SENTRY_DSN turns on crash reporting (see src/renderer/src/crash.ts).
   // It comes from the environment or `.env.local` at the repository root.
   envDir: fileURLToPath(new URL('.', import.meta.url)),
