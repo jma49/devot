@@ -569,7 +569,7 @@ test('the command palette is styled and runs commands under the policy', async (
   await expect(selected).toContainText('Focus Mode')
   await expect(selected).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(selected.locator('mark').first()).toHaveCSS('font-weight', '600')
-  await expect(palette).toHaveCSS('border-radius', '8px')
+  await expect(palette).toHaveCSS('border-radius', '26px')
   await field.press('Enter')
   await expect(palette).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Focus Mode' })).toHaveAttribute(
