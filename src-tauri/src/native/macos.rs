@@ -43,6 +43,55 @@ const RESOURCE_HINT_FEATURES: &[&str] = &[
     "SpeculationRulesPrefetchEnabled",
 ];
 
+/// The Glass sidebar's corner plus its inset (`radius.window` in the design tokens).
+const WINDOW_CORNER_RADIUS: f64 = 26.0;
+
+/// macOS 26 gives a window with no native toolbar a 16 pt corner, tighter than the 18 pt sidebar
+/// inset 8 pt inside it, so the two curves cross. A window with a toolbar gets the larger corner the
+/// Glass sidebar and toolbar controls are concentric with; this asks for that corner directly. An
+/// empty NSToolbar does not change it and moves the traffic lights. Without the private setter the
+/// window keeps the system's corner.
+pub fn round_window_corner(window: &tauri::WebviewWindow) {
+    let target = window.clone();
+    let result = window.run_on_main_thread(move || {
+        let Some(ns_window) = target.ns_window().ok().filter(|w| !w.is_null()) else {
+            log::warn!("W_NATIVE_WINDOW_CORNER_NO_WINDOW");
+            return;
+        };
+        let set = guarded("W_NATIVE_WINDOW_CORNER_FAILED", || {
+            // SAFETY: `ns_window()` is the window's live NSWindow, and this runs on the main
+            // thread; the private setter is checked with respondsToSelector: before use.
+            unsafe { set_window_corner(ns_window.cast(), WINDOW_CORNER_RADIUS) }.then_some(())
+        })
+        .is_some();
+        if !set {
+            log::warn!("W_NATIVE_WINDOW_CORNER_UNAVAILABLE");
+        }
+    });
+    if result.is_err() {
+        log::warn!("W_NATIVE_WINDOW_CORNER_UNAVAILABLE");
+    }
+}
+
+/// # Safety
+/// `window` must be null or a live NSWindow; main thread.
+unsafe fn set_window_corner(window: *mut AnyObject, radius: f64) -> bool {
+    // SAFETY: `window` is null or a live NSWindow (caller contract).
+    if window.is_null() || !unsafe { responds(window, sel!(_setCornerRadius:)) } {
+        return false;
+    }
+    // SAFETY: `_setCornerRadius:` takes a CGFloat and is checked above. The window server keeps the
+    // old corner until the frame is redrawn: setting the style mask to itself and invalidating the
+    // shadow (both public NSWindow API) redraws it.
+    unsafe {
+        let _: () = msg_send![window, _setCornerRadius: radius];
+        let mask: usize = msg_send![window, styleMask];
+        let _: () = msg_send![window, setStyleMask: mask];
+        let _: () = msg_send![window, invalidateShadow];
+    }
+    true
+}
+
 /// Per web view: every main window needs it.
 pub fn unlock_high_refresh_rate(window: &tauri::WebviewWindow) {
     set_main_window_feature(

@@ -77,7 +77,11 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
     let built = builder.build();
     match built {
         // Links from other apps wait until it closes (`deep_link`).
-        Ok(_) => crate::deep_link::settings_opened(app),
+        Ok(_window) => {
+            #[cfg(target_os = "macos")]
+            crate::native::macos::round_window_corner(&_window);
+            crate::deep_link::settings_opened(app)
+        }
         Err(_) => log::warn!("W_SETTINGS_OPEN_FAILED"),
     }
 }

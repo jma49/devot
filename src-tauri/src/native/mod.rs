@@ -58,6 +58,7 @@ fn is_main_window(ns_window: *const std::ffi::c_void) -> bool {
 pub fn main_window_built(window: &tauri::WebviewWindow) {
     #[cfg(target_os = "macos")]
     {
+        macos::round_window_corner(window);
         macos::unlock_high_refresh_rate(window);
         macos::turn_off_peer_connections(window);
         macos::turn_off_resource_hints(window);

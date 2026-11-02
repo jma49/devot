@@ -1010,10 +1010,10 @@
     "sidebar-row": {
       "$type": "dimension",
       "$value": {
-        "value": 10,
+        "value": 12,
         "unit": "px"
       },
-      "$description": "Glass interface: a sidebar row's highlight, concentric with radius.sidebar at size.sidebar-inset."
+      "$description": "Glass interface: a sidebar row's highlight, concentric with radius.sidebar at size.sidebar-row-inset."
     },
     "list-row": {
       "$type": "dimension",
@@ -1475,8 +1475,8 @@
     },
     "sidebar-footer": {
       "$type": "dimension",
-      "$value": { "value": 36, "unit": "px" },
-      "$description": "The Glass sidebar's footer, with radius.sidebar-row corners, concentric with the sidebar."
+      "$value": { "value": 24, "unit": "px" },
+      "$description": "The Glass sidebar's footer capsule: size.sidebar-row-inset + 24 / 2 = radius.sidebar, so it shares a centre with the sidebar's corners."
     },
     "scrollbar": {
       "$type": "dimension",
@@ -1680,7 +1680,15 @@
         "value": 8,
         "unit": "px"
       },
-      "$description": "Glass interface: the room between the floating sidebar and the window's edges and the note list, and between the sidebar's edge and its rows."
+      "$description": "Glass interface: the room between the floating sidebar and the window's edges and the note list; radius.window minus this is radius.sidebar."
+    },
+    "sidebar-row-inset": {
+      "$type": "dimension",
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the room between a sidebar's edges and its rows and footer; radius.sidebar minus this is radius.sidebar-row."
     },
     "glass-dialog-inset": {
       "$type": "dimension",

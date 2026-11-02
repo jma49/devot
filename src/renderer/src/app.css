@@ -6151,8 +6151,8 @@ button.popup:focus-visible {
 :root[data-sidebar-material='on'] .sidebar {
   z-index: 1;
   margin: var(--size-sidebar-inset);
-  padding-inline: var(--size-sidebar-inset);
-  padding-block-end: var(--size-sidebar-inset);
+  padding-inline: var(--size-sidebar-row-inset);
+  padding-block-end: var(--size-sidebar-row-inset);
   border-right: 0;
   border-radius: var(--radius-sidebar);
   background-color: transparent;
@@ -6282,7 +6282,7 @@ button.popup:focus-visible {
   height: var(--size-sidebar-footer);
   padding-inline: var(--space-5) var(--space-3);
   border: 1px solid var(--color-line-glass-edge);
-  border-radius: var(--radius-sidebar-row);
+  border-radius: var(--radius-capsule);
   color: var(--color-text-primary);
 }
 
@@ -6300,6 +6300,11 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .toolbar {
   border-bottom: 0;
+}
+
+/* As far from the window's right edge as from its top, so the last control shares the window corner's centre. */
+:root[data-sidebar-material='on'] :is(.editor-toolbar, .settings-toolbar) {
+  padding-inline-end: calc((var(--size-toolbar-height) - var(--size-toolbar-control)) / 2);
 }
 
 :root[data-sidebar-material='on'] .toolbar .tool {
@@ -6880,7 +6885,8 @@ button.popup:focus-visible {
   position: relative;
   z-index: 1;
   margin: var(--size-sidebar-inset);
-  padding-top: calc(var(--size-toolbar-height) - var(--size-sidebar-inset));
+  padding: calc(var(--size-toolbar-height) - var(--size-sidebar-inset))
+    var(--size-sidebar-row-inset) var(--size-sidebar-row-inset);
   border: 0;
   border-radius: var(--radius-sidebar);
   background-color: transparent;
