@@ -138,6 +138,8 @@ export const LUCIDE_ICONS = {
   'phone.tab.settings.fill': SettingsIcon,
   'phone.notebook.new': FolderPlusIcon,
   'phone.pair': QrCodeIcon,
+  'phone.find.previous': ChevronUpIcon,
+  'phone.find.next': ChevronDownIcon,
   'phone.filter': ListFilterIcon,
   'phone.info': InfoIcon,
   'phone.close': XIcon,

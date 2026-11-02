@@ -35,6 +35,8 @@
     "phone.clock": "clock",
     "phone.history": "clock.arrow.circlepath",
     "phone.link": "link",
+    "phone.find.previous": "chevron.up",
+    "phone.find.next": "chevron.down",
     "phone.share": "square.and.arrow.up",
     "phone.move": "arrow.forward.folder",
     "phone.open": "arrow.up.forward.square",

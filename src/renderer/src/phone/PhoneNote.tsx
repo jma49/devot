@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createAiGenerator } from '../../../core/aiProvider'
+import { createSuggester } from '../../../core/aiSuggest'
 import type { NoteSummary } from '../../../core/storage'
+import { aiTransport } from '../ai'
+import { aiSuggestFailure } from '../aiEditView'
+import { licenceEntitlements } from '../licence'
+import { loadAiSettings } from '../settings/aiProviders'
 import { useAlertMenu } from '../editor/alertMenu'
 import { noteDate } from '../format'
 import { format, currentLocale, t } from '../i18n'
@@ -7,9 +13,13 @@ import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
 import type { LinkSources } from '../linkCompletion'
 import { NoteEditor, type EditorHandle } from '../NoteEditor'
+import { listDevices, useSyncSnapshot } from '../sync'
+import type { FindTarget } from '../find/target'
 import { Preview } from '../preview/Preview'
 import type { FormatId } from '../editor/formats'
+import { notebookPath } from './library'
 import { noteStats } from './noteStats'
+import { PhoneFindBar } from './PhoneFindBar'
 import {
   NotebookPicker,
   STATUS_LABEL,
@@ -18,7 +28,7 @@ import {
   statusTile,
   TagPicker,
 } from './pickers'
-import { PhoneSheet, SheetChoice } from './PhoneSheet'
+import { PhoneDetailSheet, PhoneSheet, SheetChoice } from './PhoneSheet'
 import type { PhoneStore } from './usePhoneData'
 import { useKeyboard } from './useKeyboard'
 
@@ -41,16 +51,26 @@ const FORMATS: readonly {
   { id: 'link', icon: 'format.link', label: 'format.link' },
 ]
 
+const rowIcon = (name: IconName) => (
+  <span className="phone-row-icon">
+    <Icon name={name} size="phone-row" />
+  </span>
+)
+
 function InfoSheet(props: {
   store: PhoneStore
   note: NoteSummary
   text: string
   onClose: () => void
   onTrash: () => void
+  onOpenNote: (id: string) => void
 }) {
   const { store, note } = props
+  const sync = useSyncSnapshot()
   const [revisions, setRevisions] = useState<number | null>(null)
-  const [backlinks, setBacklinks] = useState<number | null>(null)
+  const [backlinks, setBacklinks] = useState<readonly NoteSummary[] | null>(null)
+  const [devices, setDevices] = useState<number | null>(null)
+  const [linksOpen, setLinksOpen] = useState(false)
   useEffect(() => {
     const core = store.core
     if (!core) return
@@ -59,13 +79,23 @@ function InfoSheet(props: {
       .then(([history, links]) => {
         if (!alive) return
         setRevisions(history.length)
-        setBacklinks(links.length)
+        setBacklinks(links)
       })
       .catch(() => console.warn('W_PHONE_INFO_FAILED'))
     return () => {
       alive = false
     }
   }, [store.core, note.id])
+  useEffect(() => {
+    if (!sync.enrolled) return
+    let alive = true
+    void listDevices()
+      .then((found) => alive && setDevices(found.length))
+      .catch(() => console.warn('W_PHONE_DEVICES_FAILED'))
+    return () => {
+      alive = false
+    }
+  }, [sync.enrolled])
   const stats = noteStats(props.text)
   const book = store.books.find((b) => b.id === note.bookId)
   const when = (at: number) => noteDate(at, store.loadedAt, currentLocale())
@@ -89,20 +119,47 @@ function InfoSheet(props: {
         ))}
       </dl>
       <ul className="phone-card">
-        <SheetChoice label={t('phone.info.notebook')} value={book?.name ?? t('phone.noNotebook')} />
-        <SheetChoice label={t('phone.info.created')} value={when(note.createdAt)} />
-        <SheetChoice label={t('phone.info.modified')} value={when(note.updatedAt)} />
-      </ul>
-      <ul className="phone-card">
         <SheetChoice
-          label={t('phone.info.history')}
-          value={revisions === null ? '' : String(revisions)}
+          lead={rowIcon('notebook')}
+          label={t('phone.info.notebook')}
+          value={book?.name ?? t('phone.noNotebook')}
         />
         <SheetChoice
-          label={t('phone.info.backlinks')}
-          value={backlinks === null ? '' : String(backlinks)}
+          lead={rowIcon('phone.calendar')}
+          label={t('phone.info.created')}
+          value={when(note.createdAt)}
         />
+        <SheetChoice
+          lead={rowIcon('phone.clock')}
+          label={t('phone.info.modified')}
+          value={when(note.updatedAt)}
+        />
+        {devices !== null && (
+          <SheetChoice
+            lead={rowIcon('phone.devices')}
+            label={t('phone.info.devices')}
+            value={String(devices)}
+          />
+        )}
       </ul>
+      {backlinks !== null && (
+        <ul className="phone-card">
+          <SheetChoice
+            lead={rowIcon('phone.link')}
+            label={t('phone.info.backlinks')}
+            value={String(backlinks.length)}
+            {...(backlinks.length > 0 ? { onPick: () => setLinksOpen((open) => !open) } : {})}
+          />
+          {linksOpen &&
+            backlinks.map((link) => (
+              <SheetChoice
+                key={link.id}
+                label={link.title || t('note.untitled')}
+                onPick={() => props.onOpenNote(link.id)}
+              />
+            ))}
+        </ul>
+      )}
       <ul className="phone-card">
         <SheetChoice label={t('note.moveToTrash')} destructive onPick={props.onTrash} />
       </ul>
@@ -128,10 +185,29 @@ export function PhoneNote(props: {
   const [text, setText] = useState('')
   const [sheet, setSheet] = useState<Sheet>(null)
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
+  const [suggestFailure, setSuggestFailure] = useState<string>()
+  const [finding, setFinding] = useState(false)
+  const [findTarget, setFindTarget] = useState<FindTarget | null>(null)
   const editor = useRef<EditorHandle | null>(null)
   const showAlertMenu = useAlertMenu()
   const keyboard = useKeyboard()
-  const typing = mode === 'edit' && keyboard.open
+  const typing = mode === 'edit' && keyboard.open && !finding
+
+  const suggester = useMemo(() => {
+    const core = store.core
+    if (!core) return undefined
+    return createSuggester({
+      generator: createAiGenerator({
+        storage: { listBooks: () => core.listBooks() },
+        transport: aiTransport,
+        entitlements: licenceEntitlements,
+      }),
+      bookOf: async (id) => (await core.read(id)).bookId,
+      listBooks: () => core.listBooks(),
+      settings: loadAiSettings,
+      entitlements: licenceEntitlements,
+    })
+  }, [store.core])
 
   const openNote = (id: string) =>
     setHistory((h) => ({ ids: [...h.ids.slice(0, h.at + 1), id], at: h.at + 1 }))
@@ -172,6 +248,7 @@ export function PhoneNote(props: {
 
   const core = store.core
   const book = store.books.find((b) => b.id === note.bookId)
+  const crumb = notebookPath(store.books, note.bookId)
   const tags = note.tagIds
     .map((id) => store.tags.find((tag) => tag.id === id))
     .filter((tag) => tag !== undefined && tag.deletedAt === null)
@@ -238,7 +315,7 @@ export function PhoneNote(props: {
             {t('phone.note.tag')}
           </button>
         </div>
-        <p className="phone-note-caption">
+        <p className="phone-note-caption phone-figures">
           {format(t('phone.note.caption'), {
             time: noteDate(note.updatedAt, store.loadedAt, currentLocale()),
             count: stats.words.toLocaleString(currentLocale()),
@@ -257,6 +334,9 @@ export function PhoneNote(props: {
               showAlertMenu={showAlertMenu}
               handleRef={editor}
               onOpenNote={openNote}
+              onFind={setFindTarget}
+              suggester={suggester}
+              onSuggestFailed={setSuggestFailure}
             />
           </div>
           <div
@@ -278,7 +358,7 @@ export function PhoneNote(props: {
         >
           <Icon name="nav.back" size="lg" />
         </button>
-        <span className="phone-topbar-spacer" />
+        <span className="phone-note-crumb phone-figures">{crumb}</span>
         <div className="phone-glass phone-capsule">
           <button
             type="button"
@@ -304,7 +384,7 @@ export function PhoneNote(props: {
           </button>
         </div>
       </header>
-      <div className="phone-note-bottom" data-hidden={typing || undefined}>
+      <div className="phone-note-bottom" data-hidden={typing || finding || undefined}>
         <div className="phone-glass phone-capsule phone-capsule-tall">
           <button
             type="button"
@@ -327,14 +407,25 @@ export function PhoneNote(props: {
         <span className="phone-topbar-spacer" />
         <button
           type="button"
-          className="phone-glass phone-ai"
-          aria-label={t('phone.note.suggest')}
-          disabled={mode !== 'edit'}
-          onClick={() => editor.current?.suggest()}
+          className="phone-glass phone-note-circle"
+          aria-label={t('phone.note.find')}
+          onClick={() => {
+            setMode('edit')
+            setFinding(true)
+          }}
         >
-          <Icon name="format.ai" size="sm" />
-          {t('phone.note.ai')}
+          <Icon name="search" size="md" />
         </button>
+        {mode === 'edit' && (
+          <button
+            type="button"
+            className="phone-glass phone-note-circle phone-note-ai"
+            aria-label={t('phone.note.suggest')}
+            onClick={() => editor.current?.suggest()}
+          >
+            <Icon name="format.ai" size="md" />
+          </button>
+        )}
       </div>
       <div
         className="phone-accessory"
@@ -377,6 +468,20 @@ export function PhoneNote(props: {
           <Icon name="phone.keyboard.hide" size="md" />
         </button>
       </div>
+      {suggestFailure && (
+        <PhoneDetailSheet
+          title={t('phone.note.suggest')}
+          body={aiSuggestFailure(suggestFailure)}
+          onClose={() => setSuggestFailure(undefined)}
+        />
+      )}
+      {finding && (
+        <PhoneFindBar
+          target={findTarget}
+          keyboardHeight={keyboard.height}
+          onClose={() => setFinding(false)}
+        />
+      )}
       {sheet === 'info' && (
         <InfoSheet
           store={store}
@@ -387,6 +492,10 @@ export function PhoneNote(props: {
             setSheet(null)
             props.onTrash(note)
             props.onBack()
+          }}
+          onOpenNote={(id) => {
+            setSheet(null)
+            openNote(id)
           }}
         />
       )}

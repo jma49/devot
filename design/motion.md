@@ -106,6 +106,9 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Pane slider:** rule 1. The thumb and fill follow the finger, and the glass or text changes as it goes.
 - **Detail sheet:** rule 3. It grows in with `gentle` like any sheet; Done and a drag down close it the same way.
 - **Settings search:** rule 2. The field and results appear at once, and results change as you type.
+- **Note mode toggle:** rule 4. The icon turns in with `bouncy` from a dip and -30 degrees. Edit and Preview crossfade over `motion.duration.ring` with a 6 px blur, the new one rising 8 pt with `gentle`. Under Reduce Motion both only fade, over `motion.duration.phone-crossfade`.
+- **Note bottom bar and formatting bar:** rule 2. As the keyboard rises the bottom bar fades and drops 20 pt with `gentle`, and the formatting bar fades in on the keyboard.
+- **Find bar:** rule 2. It appears at once on the keyboard, in the bottom bar's place, and matches change as you type.
 - **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` over `motion.duration.phone-glass-press` on `motion.easing.phone-push`, and brightens over `motion.duration.ring`.
 
 ## Stays instant

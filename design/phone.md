@@ -71,6 +71,12 @@ Panes: controls sit in grouped cards. A switch is `size.phone-switch-width` by `
 
 Detail sheet: a sheet with a `color.phone.lens` circle holding the info icon, a 20 bold title, the body 16/24 in `color.phone.text-secondary`, and a full-width glass Done, `size.phone-sheet-done` high.
 
+Note: the top bar has a back circle, the notebook's path in mono, and a capsule of the mode toggle and info. Below it the title 26 bold, the chips, then the edit time and word count in `.phone-figures`; there is no per-note sync state. The bottom has a glass capsule of Back and Forward, a find circle and, in Edit, an AI circle with its sparkle in the caret colour. While typing the bottom fades and the formatting bar sits on the keyboard, with a hide-keyboard circle.
+
+Find: the editor's own find, in a glass bar on the keyboard with a mono count, previous, next and a close circle. It switches a note in Preview to Edit.
+
+Note info: the sheet has the stats in mono, icon rows for notebook, created, modified and, on an enrolled device, synced devices; backlinks, which opens the linking notes when there are any; and Move to Trash, with the undo toast. There is no revision history or export row: neither has a phone screen yet.
+
 Undo toast: `size.phone-toast` high, centred, `size.phone-toast-bottom` above the bottom on the tab bar's safe-area logic, above the compose circle. The Undo pill (`size.phone-toast-undo`) reaches its 44 target inside the toast.
 
 The tab bar sits at the larger of `size.phone-tab-bottom` and the bottom safe area less 10, so 24 from the screen's edge at the design's 34 pt inset, clear of the home indicator on any iPhone.

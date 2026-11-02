@@ -1694,16 +1694,61 @@ button.phone-chip::after {
   pointer-events: none;
 }
 
-.phone-ai {
-  min-height: var(--size-phone-editor-toolbar);
-  padding: 0 16px;
+.phone-note-circle {
+  flex: none;
+  width: var(--size-phone-editor-toolbar);
+  height: var(--size-phone-editor-toolbar);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phone-note-ai {
+  color: var(--color-editor-caret);
+}
+
+.phone-note-crumb {
+  flex: 1;
+  min-width: 0;
+  padding: 0 10px;
+  font-size: calc(13px * var(--phone-bar-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.phone-find {
+  position: absolute;
+  z-index: 3;
+  left: var(--size-phone-sheet-inset);
+  right: var(--size-phone-sheet-inset);
+  height: var(--size-phone-editor-toolbar);
+  display: flex;
+  gap: 8px;
+}
+
+.phone-find-bar {
+  flex: 1;
+  min-width: 0;
+  padding: 0 4px 0 16px;
   border-radius: calc(var(--size-phone-editor-toolbar) / 2);
   display: flex;
   align-items: center;
-  gap: 6px;
-  color: var(--color-editor-caret);
-  font-size: calc(15px * var(--phone-bar-text-scale, 1));
-  font-weight: 600;
+  gap: 2px;
+}
+
+.phone-find-bar .phone-search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.phone-find-count {
+  flex: none;
+  padding: 0 4px;
+  font-size: calc(13px * var(--phone-bar-text-scale, 1));
+  color: var(--color-phone-text-secondary);
 }
 
 .phone-accessory {
@@ -2575,6 +2620,12 @@ button.phone-chip::after {
   .phone-note-layer {
     filter: none;
     translate: none;
+    transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
+  }
+
+  .phone-mode-toggle[data-turn='a'] > *,
+  .phone-mode-toggle[data-turn='b'] > * {
+    animation: phone-capture-fade-a var(--motion-duration-phone-crossfade) var(--motion-easing-out);
   }
 }
 
