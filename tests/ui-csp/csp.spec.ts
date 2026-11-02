@@ -85,6 +85,9 @@ test('the [[ link popup is styled and positioned under the policy', async ({ pag
   await start(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await page.getByRole('textbox', { name: 'Title' }).fill('Target')
+  await expect(
+    page.getByRole('listbox', { name: 'Notes' }).getByRole('option', { name: /Target/ }),
+  ).toBeVisible()
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await page.getByRole('textbox', { name: 'Note body' }).click()
   await page.keyboard.type('[[')
