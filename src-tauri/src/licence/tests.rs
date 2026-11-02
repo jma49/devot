@@ -5,12 +5,13 @@ use std::sync::{Arc, Mutex};
 use serde_json::{Value, json};
 
 use super::format::{verify_licence, verify_revocations};
-use super::keys::{PRODUCTION, TEST, decode_key};
+use super::keys::{PRODUCTION, TEST, decode_key, gates};
 use super::store::MemoryKey;
 use super::testing::{
     ID, LICENSEE, key, licence_json, sign, sign_raw, test_keys, trial_over, vectors,
 };
 use super::*;
+use crate::data_folder::Build;
 
 fn str_of<'a>(value: &'a Value, field: &str) -> &'a str {
     value[field].as_str().expect(field)
@@ -113,9 +114,17 @@ fn production_keys_decode_and_are_never_the_test_key() {
 }
 
 #[test]
-fn the_built_in_keys_gate_only_once_a_production_key_ships() {
+fn only_the_release_workflows_build_with_a_production_key_gates() {
+    assert!(gates(Build::Release, true));
+    assert!(!gates(Build::Release, false));
+    assert!(!gates(Build::Local, true));
+    assert!(!gates(Build::Debug, true));
+}
+
+#[test]
+fn the_built_in_keys_verify_a_key_in_a_test_build() {
     let keys = PublicKeys::built_in();
-    assert_eq!(keys.gated(), !PRODUCTION.is_empty());
+    assert!(!keys.gated());
     // Test and debug builds hold the test key too.
     assert!(verify_licence(&key(ID), &keys).is_ok());
 }
