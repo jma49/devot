@@ -37,7 +37,7 @@ export const en = {
   'phone.open': 'Open',
   'phone.moveTo': 'Move to…',
   'phone.noNotebook': 'No Notebook',
-  'phone.noTags': 'No tags yet: add one on the Mac or in a note’s front matter.',
+  'phone.noTags': 'No tags yet. Type a name above to create one.',
   'phone.status': 'Status',
   'phone.setStatus': 'Set Status',
   'phone.rowActions': 'Actions for {title}',
