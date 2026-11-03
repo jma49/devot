@@ -55,6 +55,8 @@
     "allow-tag-put",
     "allow-note-tag-put",
     "allow-note-tag-get",
+    "allow-saved-searches-list",
+    "allow-saved-search-put",
     "allow-notes-trash-list",
     "allow-note-purge",
     "allow-revision-put",

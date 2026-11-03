@@ -125,6 +125,22 @@ export interface NoteTagRecord {
   hlc: string
 }
 
+/** A saved search (schema v25): a name and a query in the search field's syntax, kept as typed. */
+export interface SavedSearchRecord {
+  id: string
+  name: string
+  nameHlc: string
+  query: string
+  queryHlc: string
+  /** Rows show in key order, equal keys in ID order (order.ts); '' for one never placed. */
+  sortKey: string
+  sortKeyHlc: string
+  createdAt: number
+  updatedAt: number
+  deletedAt: number | null
+  deletedHlc: string | null
+}
+
 export interface BookRecord {
   id: string
   name: string
@@ -228,6 +244,9 @@ export interface StorageAdapter {
   putBook(book: BookRecord): Promise<void>
   listTags(): Promise<TagRecord[]>
   putTag(tag: TagRecord): Promise<void>
+  /** Live ones, in key order (then by ID). */
+  listSavedSearches(): Promise<SavedSearchRecord[]>
+  putSavedSearch(search: SavedSearchRecord): Promise<void>
   putNoteTag(link: NoteTagRecord): Promise<void>
   /** On or off, with its HLC; null when never written. */
   getNoteTag(noteId: string, tagId: string): Promise<NoteTagRecord | null>

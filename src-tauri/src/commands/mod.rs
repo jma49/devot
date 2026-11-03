@@ -8,6 +8,7 @@ pub mod files;
 pub mod images;
 pub mod notes;
 pub mod revisions;
+pub mod saved_searches;
 pub mod search_index;
 pub mod sync;
 pub mod tags;

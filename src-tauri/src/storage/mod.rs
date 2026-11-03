@@ -43,6 +43,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0022_sync_files.sql"),
     include_str!("../../migrations/0023_list_body_version.sql"),
     include_str!("../../migrations/0024_revision_words.sql"),
+    include_str!("../../migrations/0025_saved_searches.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -245,6 +246,24 @@ pub struct TagRecord {
     /// Empty when the colour was never set.
     #[serde(default)]
     pub color_hlc: String,
+}
+
+/// A saved search (schema v25): a name and a query in the search field's syntax, kept as typed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedSearchRecord {
+    pub id: String,
+    pub name: String,
+    pub name_hlc: String,
+    pub query: String,
+    pub query_hlc: String,
+    /// Orders the rows by hand (src/core/order.ts); empty for one never placed.
+    pub sort_key: String,
+    pub sort_key_hlc: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub deleted_at: Option<i64>,
+    pub deleted_hlc: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -972,6 +991,23 @@ fn summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
 /// every other condition are put in rank order first (`ranked`) and the scan reads them in that
 /// order, so it stops once a page is full instead of reading every match's body (#48). Ties go to
 /// the newer note, then by ID.
+/// A `saved_searches` row in column order, as `list_saved_searches` and sync read it.
+pub(crate) fn saved_search(row: &rusqlite::Row<'_>) -> rusqlite::Result<SavedSearchRecord> {
+    Ok(SavedSearchRecord {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        name_hlc: row.get(2)?,
+        query: row.get(3)?,
+        query_hlc: row.get(4)?,
+        sort_key: row.get(5)?,
+        sort_key_hlc: row.get(6)?,
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
+        deleted_at: row.get(9)?,
+        deleted_hlc: row.get(10)?,
+    })
+}
+
 fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>) {
     let mut values: Vec<String> = Vec::new();
     // Numbered parameters: the SQL is built out of order.
@@ -1519,6 +1555,56 @@ impl Store {
                 tag.deleted_hlc,
                 tag.color,
                 tag.color_hlc
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_saved_searches(&self) -> Result<Vec<SavedSearchRecord>> {
+        let mut statement = self.conn.prepare_cached(
+            "SELECT id, name, name_hlc, query, query_hlc, sort_key, sort_key_hlc, created_at,
+                    updated_at, deleted_at, deleted_hlc
+             FROM saved_searches WHERE deleted_at IS NULL ORDER BY sort_key, id",
+        )?;
+        let rows = statement.query_map([], saved_search)?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Merges per field by HLC like a tag; equal sort key clocks take the greater key, as
+    /// notebooks do.
+    pub fn put_saved_search(&mut self, search: &SavedSearchRecord) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO saved_searches (id, name, name_hlc, query, query_hlc, sort_key,
+                                         sort_key_hlc, created_at, updated_at, deleted_at,
+                                         deleted_hlc)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT (id) DO UPDATE SET
+               name = CASE WHEN excluded.name_hlc > name_hlc THEN excluded.name ELSE name END,
+               name_hlc = MAX(excluded.name_hlc, name_hlc),
+               query = CASE WHEN excluded.query_hlc > query_hlc THEN excluded.query ELSE query END,
+               query_hlc = MAX(excluded.query_hlc, query_hlc),
+               sort_key = CASE WHEN excluded.sort_key_hlc > sort_key_hlc
+                                 OR (excluded.sort_key_hlc = sort_key_hlc
+                                     AND excluded.sort_key > sort_key)
+                               THEN excluded.sort_key ELSE sort_key END,
+               sort_key_hlc = MAX(excluded.sort_key_hlc, sort_key_hlc),
+               deleted_at = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
+                                 THEN excluded.deleted_at ELSE deleted_at END,
+               deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
+                                  THEN excluded.deleted_hlc ELSE deleted_hlc END,
+               updated_at = MAX(excluded.updated_at, updated_at)",
+            params![
+                search.id,
+                search.name,
+                search.name_hlc,
+                search.query,
+                search.query_hlc,
+                search.sort_key,
+                search.sort_key_hlc,
+                search.created_at,
+                search.updated_at,
+                search.deleted_at,
+                search.deleted_hlc
             ],
         )?;
         Ok(())
