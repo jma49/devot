@@ -34,7 +34,6 @@ export interface SavedSearchService {
   create(name: string, query: string): Promise<string>
   rename(id: string, name: string): Promise<void>
   setQuery(id: string, query: string): Promise<void>
-  /** Moves the row before or after another one. */
   place(id: string, targetId: string, where: 'before' | 'after'): Promise<void>
   remove(id: string): Promise<void>
 }

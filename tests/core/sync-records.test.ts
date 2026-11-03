@@ -312,6 +312,11 @@ describe('saved search records', () => {
     expect(stampsOf(record)).toEqual([hlc(1), hlc(1), hlc(1), ''])
   })
 
+  it('carry a sort key as long as placing a row may make one', () => {
+    const record = search({ sortKey: `a0${'V'.repeat(1000)}` })
+    expect(decodeRecord(ID, encodeRecord(record))).toEqual(record)
+  })
+
   it('refuse a query longer than a record may carry or a malformed stamp', () => {
     const bytes = (patch: Record<string, unknown>) => {
       const head = new TextEncoder().encode(JSON.stringify({ ...search(), ...patch }))

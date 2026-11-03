@@ -22,6 +22,7 @@ import { UUID_V7 } from '../ids'
 import { BODY, seedClient } from '../notes'
 import { sha256Hex } from '../sha256'
 import { NOTE_STATUSES, type NoteStatus } from '../storage'
+import { MAX_SORT_KEY_LENGTH } from '../order'
 
 export type SyncKind = 'note' | 'book' | 'tag' | 'file' | 'search'
 
@@ -341,6 +342,9 @@ function readTag(h: Record<string, unknown>): TagState {
 }
 
 const isQuery = (v: unknown): v is string => typeof v === 'string' && v.length <= 4000
+/** As long as a placed row's key may grow before its siblings are renumbered (slotKeys). */
+const isSearchKey = (v: unknown): v is string =>
+  typeof v === 'string' && v.length <= MAX_SORT_KEY_LENGTH
 
 function readSearch(h: Record<string, unknown>): SearchState {
   const valid =
@@ -348,7 +352,7 @@ function readSearch(h: Record<string, unknown>): SearchState {
     isOptionalHlc(h['nameHlc']) &&
     isQuery(h['query']) &&
     isOptionalHlc(h['queryHlc']) &&
-    isShort(h['sortKey']) &&
+    isSearchKey(h['sortKey']) &&
     isOptionalHlc(h['sortKeyHlc']) &&
     isTime(h['createdAt']) &&
     isTime(h['updatedAt']) &&
