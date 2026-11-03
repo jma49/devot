@@ -1,4 +1,4 @@
-import { countWords } from '../../../core/words'
+import { noteCounts } from '../../../core/noteCounts'
 
 const WORDS_A_MINUTE = 200
 
@@ -9,10 +9,6 @@ export interface NoteStats {
 }
 
 export function noteStats(markdown: string): NoteStats {
-  const words = countWords(markdown)
-  return {
-    words,
-    characters: [...markdown].filter((c) => !/\s/u.test(c)).length,
-    readingMinutes: Math.max(1, Math.ceil(words / WORDS_A_MINUTE)),
-  }
+  const { words, characters } = noteCounts(markdown)
+  return { words, characters, readingMinutes: Math.max(1, Math.ceil(words / WORDS_A_MINUTE)) }
 }
