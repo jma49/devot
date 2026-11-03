@@ -1,0 +1,14 @@
+{
+  "name": "devot",
+  "owner": {
+    "name": "Devot"
+  },
+  "description": "Read and edit notes in Devot on this Mac from Claude.",
+  "plugins": [
+    {
+      "name": "devot",
+      "source": "./",
+      "description": "Search, read and edit Devot notes, only in notebooks that allow AI access. Needs Devot on this Mac."
+    }
+  ]
+}
