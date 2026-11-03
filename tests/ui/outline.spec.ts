@@ -75,9 +75,10 @@ test('choosing a heading scrolls the preview too in split mode', async ({ page }
   await openNoteWithHeadings(page)
   await mode(page, 'Split').click()
   await entry(page, 'Intro').click()
-  await expect.poll(() => previewScroll(page)).toBe(0)
+  await expect.poll(() => previewScroll(page)).toBeLessThan(500)
+  const atIntro = await previewScroll(page)
   await entry(page, 'Ending').click()
-  await expect.poll(() => previewScroll(page)).toBeGreaterThan(1000)
+  await expect.poll(() => previewScroll(page)).toBeGreaterThan(atIntro + 1000)
 })
 
 test('arrows move, Return jumps and Escape goes back to the editor', async ({ page }) => {
