@@ -856,7 +856,10 @@ export function App() {
 
   const tree = useMemo(() => buildBookTree(books), [books])
   useEffect(() => publishNotebooks(choicesFromTree(tree)), [tree])
-  useEffect(() => publishTemplates(templates.map(({ id, title }) => ({ id, title }))), [templates])
+  useEffect(
+    () => publishTemplates(templates.map((n) => ({ id: n.id, title: n.title }))),
+    [templates],
+  )
   const counts = useKept(
     useMemo(() => bookCounts(notes, books), [notes, books]),
     sameCounts,
