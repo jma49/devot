@@ -1059,14 +1059,14 @@ test('Preview has synced scrolling; its font size sits in Appearance', async ({ 
 test('Integrations says when no notebook allows AI access and offers the picker', async ({
   page,
 }) => {
-  await page.addInitScript(() => {
+  await page.addInitScript((setup) => {
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = {
-      settings_mcp_setup: setupWith(),
+      settings_mcp_setup: setup,
       settings_ai_access_summary: { notebooks: 3, allowed: 0 },
       main_window_show: null,
     }
-  })
+  }, setupWith())
   await openSettings(page, 'Integrations')
   const prompt = page.getByRole('dialog', { name: 'No notebook allows AI access' })
   await expect(prompt).toBeVisible()
@@ -1079,13 +1079,13 @@ test('Integrations says when no notebook allows AI access and offers the picker'
 })
 
 test('Later keeps the AI access prompt quiet for the Settings window', async ({ page }) => {
-  await page.addInitScript(() => {
+  await page.addInitScript((setup) => {
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = {
-      settings_mcp_setup: setupWith(),
+      settings_mcp_setup: setup,
       settings_ai_access_summary: { notebooks: 2, allowed: 0 },
     }
-  })
+  }, setupWith())
   await openSettings(page, 'Integrations')
   const prompt = page.getByRole('dialog', { name: 'No notebook allows AI access' })
   await prompt.getByRole('button', { name: 'Later' }).click()
@@ -1097,14 +1097,14 @@ test('Later keeps the AI access prompt quiet for the Settings window', async ({ 
 })
 
 test('Integrations offers a way to create a notebook when there is none', async ({ page }) => {
-  await page.addInitScript(() => {
+  await page.addInitScript((setup) => {
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = {
-      settings_mcp_setup: setupWith(),
+      settings_mcp_setup: setup,
       settings_ai_access_summary: { notebooks: 0, allowed: 0 },
       main_window_show: null,
     }
-  })
+  }, setupWith())
   await openSettings(page, 'Integrations')
   const prompt = page.getByRole('dialog', { name: 'No notebook allows AI access' })
   await expect(prompt).toContainText('Devot has no notebooks yet')
