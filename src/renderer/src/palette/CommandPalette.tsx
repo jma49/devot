@@ -15,6 +15,7 @@ import { useEditorSetting } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { BookIcon } from '../BookIcon'
+import { TagDot } from '../TagEditor'
 import { isImeKey } from '../ime'
 import type { IconName } from '../icons/symbols'
 import {
@@ -369,6 +370,10 @@ export function CommandPalette(props: {
                 >
                   {r.bookIcon ? (
                     <BookIcon icon={r.bookIcon.icon} color={r.bookIcon.color} size="sm" />
+                  ) : r.tagColor ? (
+                    <span className="tag-dot-box">
+                      <TagDot color={r.tagColor} />
+                    </span>
                   ) : (
                     <Icon
                       name={

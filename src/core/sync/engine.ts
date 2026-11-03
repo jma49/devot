@@ -20,7 +20,7 @@ import { MERGE, REVISION_EVERY_MS, textLength } from '../revisions'
 import { countWords } from '../words'
 import { quotaResetAt } from './protocol'
 import type { BookRecord, NoteRecord, StorageAdapter, TagRecord } from '../storage'
-import { isTagColor } from '../tags'
+import { isTagColor, isTagColorValue } from '../tags'
 import {
   bodyPrint,
   decodeRecord,
@@ -288,7 +288,7 @@ const tagRecordOf = (state: TagState): TagRecord => ({
   updatedAt: state.updatedAt,
   deletedAt: state.deletedAt,
   deletedHlc: state.deletedHlc || null,
-  color: isTagColor(state.color) ? state.color : null,
+  color: isTagColorValue(state.color) ? state.color : null,
   colorHlc: state.colorHlc,
 })
 

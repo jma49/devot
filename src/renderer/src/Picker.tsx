@@ -61,6 +61,33 @@ export function usePickerOpen(box: RefObject<HTMLElement | null>) {
 
 const pickerRef = closingRef('scale', 'picker-popover')
 
+/** Flipped over its anchor (its parent) when there is no room below, kept inside the window, and no taller than the room left. */
+export function placePickerPanel(panel: HTMLElement) {
+  const anchor = panel.parentElement
+  if (!anchor) return
+  const css = getComputedStyle(panel)
+  const px = (name: string) => Number.parseFloat(css.getPropertyValue(name))
+  const a = anchor.getBoundingClientRect()
+  const p = placeDropdown(
+    a,
+    { width: panel.offsetWidth, height: panel.offsetHeight },
+    { width: window.innerWidth, height: window.innerHeight },
+    { gap: px('--picker-gap') || px('--space-2') || 4, margin: px('--size-popover-margin') || 8 },
+  )
+  panel.dataset['side'] = p.side
+  panel.style.left = `${p.shift}px`
+  panel.style.setProperty('--picker-room', `${p.room}px`)
+  panel.style.setProperty(
+    '--picker-notch-x',
+    `${dropdownNotchX({
+      anchorWidth: a.width,
+      shift: p.shift,
+      panelWidth: panel.offsetWidth,
+      clear: px('--radius-popover') + px('--size-glass-popover-notch'),
+    })}px`,
+  )
+}
+
 /**
  * A pop-over list under a pop-up button: Up, Down, Home and End move
  * through it, Return picks, Escape closes; the trigger gets the keyboard
@@ -98,33 +125,9 @@ export function PickerList(props: {
     if (field.current) field.current.focus()
     else list.current?.focus()
   }, [])
-  // Measured once it is on the page: flipped over the button when there is
-  // no room below, kept inside the window, and no taller than the room left.
   useLayoutEffect(() => {
     const panel = list.current?.closest<HTMLElement>('.picker-popover')
-    const anchor = panel?.parentElement
-    if (!panel || !anchor) return
-    const css = getComputedStyle(panel)
-    const px = (name: string) => Number.parseFloat(css.getPropertyValue(name))
-    const a = anchor.getBoundingClientRect()
-    const p = placeDropdown(
-      a,
-      { width: panel.offsetWidth, height: panel.offsetHeight },
-      { width: window.innerWidth, height: window.innerHeight },
-      { gap: px('--picker-gap') || px('--space-2') || 4, margin: px('--size-popover-margin') || 8 },
-    )
-    panel.dataset['side'] = p.side
-    panel.style.left = `${p.shift}px`
-    panel.style.setProperty('--picker-room', `${p.room}px`)
-    panel.style.setProperty(
-      '--picker-notch-x',
-      `${dropdownNotchX({
-        anchorWidth: a.width,
-        shift: p.shift,
-        panelWidth: panel.offsetWidth,
-        clear: px('--radius-popover') + px('--size-glass-popover-notch'),
-      })}px`,
-    )
+    if (panel) placePickerPanel(panel)
   }, [])
   useEffect(() => {
     if (shownActive < 0) return

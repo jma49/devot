@@ -18,6 +18,7 @@ import { fullDate, rowDate } from './format'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
+import { tagColorStyle } from './tagColorStyle'
 import { chipClass, TagDot } from './TagEditor'
 import { WriterLabel } from './WriterLabel'
 
@@ -208,7 +209,12 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
           ) : null}
           {progress ? <TaskProgress {...progress} /> : null}
           {chips.map((c) => (
-            <span key={c.id} className={chipClass(c.color)} dir="auto">
+            <span
+              key={c.id}
+              className={chipClass(c.color)}
+              style={tagColorStyle(c.color)}
+              dir="auto"
+            >
               {c.color ? <TagDot color={c.color} /> : null}
               {c.name}
             </span>

@@ -152,6 +152,32 @@ test('a tag row has a 10 point dot and a count', async ({ page }) => {
   await expect(tags.locator('.phone-tag-dot')).toBeHidden()
 })
 
+test('a custom tag colour draws its dot as given', async ({ page }) => {
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'devot.test.tags',
+      JSON.stringify([
+        {
+          id: 'seeded-tag',
+          name: 'seeded',
+          nameHlc: '',
+          createdAt: 0,
+          updatedAt: 0,
+          deletedAt: null,
+          deletedHlc: null,
+          color: '#ff00aa',
+          colorHlc: '',
+        },
+      ]),
+    )
+  })
+  await page.reload()
+  await expect(group(page, 'Tags').locator('.phone-tag-dot')).toHaveCSS(
+    'background-color',
+    'rgb(255, 0, 170)',
+  )
+})
+
 test('every button in the Library is at least 44 points', async ({ page }) => {
   for (const button of await library(page).getByRole('button').all()) {
     const box = await button.boundingBox()

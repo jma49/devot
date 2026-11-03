@@ -1513,6 +1513,34 @@ button.phone-grouped-open:active:not(:disabled) {
   width: 12px;
   height: 12px;
   border-radius: 50%;
+  background: var(--tag-color, var(--color-phone-status-none));
+}
+
+.phone-tag-field {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--size-phone-target);
+  margin-bottom: var(--space-6);
+  padding: 0 var(--space-6);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-phone-card);
+  color: inherit;
+  font: inherit;
+}
+
+.phone-app .tag-swatches {
+  gap: 0;
+  justify-content: flex-start;
+}
+
+.phone-app .tag-swatch {
+  width: var(--size-phone-target);
+  height: var(--size-phone-target);
+}
+
+.phone-row-tag {
+  color: var(--tag-text, var(--color-phone-text-secondary));
 }
 
 .phone-info-stats {
@@ -1656,8 +1684,12 @@ button.phone-grouped-open:active:not(:disabled) {
 }
 
 .phone-chip[data-tag] {
-  background: color-mix(in srgb, var(--chip-tag) calc(var(--opacity-tag-fill) * 100%), transparent);
-  color: var(--chip-tag-text);
+  background: color-mix(
+    in srgb,
+    var(--tag-color) calc(var(--opacity-tag-fill) * 100%),
+    transparent
+  );
+  color: var(--tag-text);
 }
 
 .phone-chip-dashed {

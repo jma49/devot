@@ -5,6 +5,7 @@ import { noteDate } from '../format'
 import { displayTitle } from '../headlines'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
+import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import type { IconName } from '../icons/symbols'
 import { haptic } from './haptics'
 import type { PhoneStatusFilter, PhoneView } from './library'
@@ -306,11 +307,8 @@ export function NoteRow(props: RowProps) {
               <span className="phone-note-excerpt">
                 {props.tag && (
                   <span
-                    style={{
-                      color: props.tag.color
-                        ? `var(--color-tag-text-${props.tag.color})`
-                        : 'var(--color-phone-text-secondary)',
-                    }}
+                    className={`phone-row-tag ${tagColorClass(props.tag.color)}`}
+                    style={tagColorStyle(props.tag.color)}
                   >
                     #{props.tag.name}{' '}
                   </span>

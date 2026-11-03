@@ -651,16 +651,6 @@ button {
   color: var(--status-mark);
 }
 
-.tag-row .icon {
-  -webkit-mask-size: 55%;
-  mask-size: 55%;
-}
-
-.tag-row .icon-svg {
-  box-sizing: border-box;
-  padding: calc(var(--size-icon-md) * 0.225);
-}
-
 .tag-color-red {
   --tag-color: var(--color-tag-red);
   --tag-text: var(--color-tag-text-red);
@@ -709,14 +699,53 @@ button {
   --tag-icon: var(--color-tag-icon-gray);
 }
 
+:root {
+  --appearance-dark: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-appearance='light']) {
+    --appearance-dark: 1;
+  }
+}
+
+:root[data-appearance='dark'],
+[data-appearance-preview='dark'] {
+  --appearance-dark: 1;
+}
+
+:root[data-appearance='light'],
+[data-appearance-preview='light'] {
+  --appearance-dark: 0;
+}
+
+/* The derived colours come from tagColorStyle.ts; a chip from note text has only the colour, so its label stays in the primary ink. */
+.tag-color-custom {
+  --tag-color: var(--tag-custom);
+  --tag-text: color-mix(
+    in srgb,
+    var(--tag-custom-text-dark, var(--color-text-primary)) calc(var(--appearance-dark) * 100%),
+    var(--tag-custom-text-light, var(--color-text-primary))
+  );
+  --tag-icon: color-mix(
+    in srgb,
+    var(--tag-custom-icon-dark, var(--tag-custom)) calc(var(--appearance-dark) * 100%),
+    var(--tag-custom-icon-light, var(--tag-custom))
+  );
+}
+
 .tag-dot {
   flex-shrink: 0;
   box-sizing: border-box;
   width: var(--space-4);
   height: var(--space-4);
-  border: 1px solid var(--tag-color);
   border-radius: var(--radius-capsule);
-  background: color-mix(in srgb, var(--tag-color) calc(var(--opacity-tag-dot) * 100%), transparent);
+  background: var(--tag-color);
+  box-shadow: inset 0 0 0 1px var(--color-line-control);
+}
+
+.tag-dot-plain {
+  --tag-color: var(--color-text-tertiary);
 }
 
 .tag-dot-box {
@@ -1193,6 +1222,196 @@ button {
 .tag-swatch .tag-dot {
   width: var(--space-7);
   height: var(--space-7);
+}
+
+.tag-swatch-custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+}
+
+.tag-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  width: calc(var(--space-10) * 9);
+}
+
+.tag-menu-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.tag-menu-item:focus {
+  outline: none;
+  background: var(--color-fill-hover);
+}
+
+.tag-menu-check {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon-sm);
+}
+
+.tag-menu-separator {
+  height: 1px;
+  margin: var(--space-2) var(--space-4);
+  background: var(--color-line-hairline);
+}
+
+.tag-menu-swatches {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-3);
+}
+
+.tag-menu-swatch:hover {
+  background: var(--color-fill-hover);
+}
+
+.tag-menu-swatch:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: 0;
+}
+
+.tag-menu-swatch .tag-dot,
+.tag-menu-swatch .tag-swatch-none {
+  width: var(--space-7);
+  height: var(--space-7);
+}
+
+.quick-tag {
+  width: calc(var(--space-10) * 9);
+}
+
+.quick-tag-field {
+  flex: none;
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: var(--space-2);
+}
+
+.quick-tag .picker-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quick-tag .tag-swatches {
+  justify-content: space-between;
+  gap: 0;
+  margin: var(--space-2) 0 0;
+}
+
+.quick-tag .tag-swatch .tag-dot,
+.quick-tag .tag-swatch-none {
+  width: var(--space-7);
+  height: var(--space-7);
+}
+
+.color-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-2);
+}
+
+.color-picker-spectrum,
+.color-picker-hue {
+  position: relative;
+  border-radius: var(--radius-button);
+  box-shadow: inset 0 0 0 1px var(--color-line-hairline);
+  cursor: default;
+  touch-action: none;
+  user-select: none;
+}
+
+.color-picker-spectrum {
+  height: calc(var(--space-10) * 4);
+}
+
+.color-picker-hue {
+  height: var(--space-7);
+}
+
+.color-picker-handle {
+  position: absolute;
+  top: 50%;
+  box-sizing: border-box;
+  width: var(--space-7);
+  height: var(--space-7);
+  border: 2px solid var(--color-surface-editor);
+  border-radius: var(--radius-capsule);
+  box-shadow: 0 0 0 1px var(--color-line-hairline);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.color-picker-spectrum:focus-visible,
+.color-picker-hue:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: var(--size-focus-ring);
+}
+
+.color-picker-hex {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.color-picker-hex .pick-filter {
+  flex: 1;
+  min-width: 0;
+}
+
+.color-picker-hex .pick-filter[aria-invalid='true'] {
+  border-color: var(--color-text-destructive);
+}
+
+.color-picker-hex-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+}
+
+.color-picker-error {
+  margin: 0;
+  color: var(--color-text-destructive);
+  font-size: var(--font-size-footnote);
+}
+
+.color-picker-previews {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.color-picker-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: var(--space-4) var(--space-2);
+  border-radius: var(--radius-button);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+}
+
+.color-picker .confirm-actions {
+  margin: 0;
+}
+
+.phone-app .color-picker-hue,
+.phone-app .color-picker-hex input,
+.phone-app .color-picker .button {
+  min-height: var(--size-phone-target);
 }
 
 .tag-swatch-none {
@@ -1836,10 +2055,6 @@ button {
   flex-wrap: wrap;
   gap: var(--space-1);
   min-width: 0;
-}
-
-.card-tag-plain {
-  --tag-color: var(--color-text-tertiary);
 }
 
 /* Drawn off screen for the drag image (listDrag.ts); the holder's padding is its distance from the pointer. */
@@ -7491,6 +7706,11 @@ button.popup:focus-visible {
   border-right: 0.5px solid var(--color-line-glass-edge);
   border-bottom: 0.5px solid var(--color-line-glass-edge);
   clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+/* Placed at the pointer, so it has no button to point at. */
+:root[data-sidebar-material='on'] .tag-menu::before {
+  content: none;
 }
 
 :root[data-sidebar-material='on'] .picker-search-field {

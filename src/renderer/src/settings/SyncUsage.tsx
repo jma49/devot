@@ -66,7 +66,7 @@ function Unavailable({ reading, retry }: { reading: UsageReading | null; retry: 
         ? t('syncSettings.usage.old')
         : format(t('syncSettings.usage.failed'), { code: failed.code })
   return (
-    <Setting live label="syncSettings.usage.title" description={text}>
+    <Setting label="syncSettings.usage.title" description={text}>
       {failed && failed.why !== 'old' ? (
         <div className="settings-buttons">
           <button type="button" className="button" onClick={retry}>
@@ -97,16 +97,16 @@ export function UsageRows({ snapshot }: { snapshot: SyncSnapshot }) {
   const note = capNote(view, locale)
   return (
     <>
-      <Setting live label="syncSettings.usage.records" description={shown.records}>
+      <Setting label="syncSettings.usage.records" description={shown.records}>
         {null}
       </Setting>
-      <Setting live label="syncSettings.usage.images" description={shown.images}>
+      <Setting label="syncSettings.usage.images" description={shown.images}>
         {null}
       </Setting>
-      <Setting live label="syncSettings.usage.total" description={shown.total}>
+      <Setting label="syncSettings.usage.total" description={shown.total}>
         {null}
       </Setting>
-      <Setting live label="syncSettings.usage.room" description={shown.room}>
+      <Setting label="syncSettings.usage.room" description={shown.room}>
         {null}
       </Setting>
       {warn ? <SettingsNote>{warn}</SettingsNote> : null}

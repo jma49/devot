@@ -239,6 +239,14 @@ export const COMMANDS = [
     scope: 'noteList',
     keys: [],
   },
+  // Bare, so it is only outside the editor; the dispatcher leaves it to a text field too.
+  {
+    id: 'note.quickTag',
+    label: 'quickTag.command',
+    group: 'note',
+    scope: 'outsideEditor',
+    keys: ['T'],
+  },
   {
     id: 'note.removeTag',
     label: 'batch.removeTag',
@@ -1478,6 +1486,7 @@ const CHANGES_NOTES: ReadonlySet<CommandId> = new Set<CommandId>([
   'note.pin',
   'note.trash',
   'note.addTag',
+  'note.quickTag',
   'note.removeTag',
   'note.clearAuthorship',
   'note.newFromSelection',

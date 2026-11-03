@@ -6,6 +6,11 @@ import {
   createIdGenerator,
   createNoteService,
   createTagService,
+  customTagColorProperties,
+  isTagColor,
+  isTagColorValue,
+  normalizeTagColor,
+  tagColorClass,
   filterNotes,
   noteGroups,
   statusCounts,
@@ -104,11 +109,44 @@ describe('tag colours on SQLite', () => {
   it('refuses a colour outside the palette and an unknown tag', async () => {
     const { notes, tags } = setup()
     const id = await tags.addToNote(await notes.create('A'), 'idea')
-    for (const color of ['magenta', 'Red', '#ff0000', '']) {
+    for (const color of ['magenta', 'Red', '#ff000', '#ff00000', '#ff000g', '#ff0000;', '']) {
       await expect(tags.setColor(id, color as never)).rejects.toThrow('E_TAG_COLOR_INVALID')
     }
     await expect(tags.setColor('0192a6f0-0000-7000-8000-0000000000ff', 'red')).rejects.toThrow(
       'E_TAG_NOT_FOUND',
+    )
+  })
+
+  it('takes a custom colour, stored in lowercase, which survives a reopen', async () => {
+    const { notes, tags, storage } = setup()
+    const id = await tags.addToNote(await notes.create('A'), 'idea')
+    await tags.setColor(id, '#FF00AA')
+    expect(await tags.list()).toMatchObject([{ id, color: '#ff00aa' }])
+    const row = storage.db.prepare('SELECT color FROM tags WHERE id = ?').get(id)
+    expect(row).toEqual({ color: '#ff00aa' })
+  })
+
+  it('tells the palette from a custom colour, and does not take one for the other', () => {
+    expect(isTagColor('#ff00aa')).toBe(false)
+    expect(isTagColor('red')).toBe(true)
+    expect(isTagColorValue('#ff00aa')).toBe(true)
+    expect(isTagColorValue('#FF00AA')).toBe(false)
+    expect(isTagColorValue('red')).toBe(true)
+    expect(isTagColorValue('teal')).toBe(false)
+    expect(normalizeTagColor('#FF00AA')).toBe('#ff00aa')
+    expect(normalizeTagColor('RED')).toBeNull()
+    expect(tagColorClass('#ff00aa')).toBe('tag-color-custom')
+    expect(tagColorClass('red')).toBe('tag-color-red')
+    expect(customTagColorProperties('#ff00aa')).toEqual({ dataTagColor: '#ff00aa' })
+    expect(customTagColorProperties('red')).toEqual({})
+    expect(customTagColorProperties('#ff00aa;x' as never)).toEqual({})
+  })
+
+  it('refuses a custom colour on a notebook icon', async () => {
+    const { books } = setup()
+    const id = await books.create('Work', null)
+    await expect(books.setIcon(id, 'folder', '#ff00aa' as never)).rejects.toThrow(
+      'E_BOOK_ICON_INVALID',
     )
   })
 
