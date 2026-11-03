@@ -127,3 +127,40 @@ test('the date button takes the keyboard back after Escape or a saved date', asy
   )
   await expect(button('created')).toBeFocused()
 })
+
+test('the card keeps its edges and leaves room above the backlinks', async ({ page }) => {
+  await newNote(page, 'Target', 'The linked note')
+  await newNote(page, 'Source', 'Links to ')
+  await page.keyboard.type('[[Targ')
+  await page
+    .locator('.cm-tooltip-autocomplete li')
+    .filter({ hasText: /^Target/ })
+    .first()
+    .click()
+  await showPreview(page)
+  // The source's row also shows the link's name, and it sorts first as the newer note.
+  const rows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
+  const summary = preview(page).locator('.note-backlinks > summary')
+  // The link is stored when the source saves, so the target may need opening again.
+  await expect(async () => {
+    await rows.first().click()
+    await rows.last().click()
+    await expect(summary).toBeVisible({ timeout: 1000 })
+  }).toPass()
+
+  const box = (await card(page).boundingBox())!
+  const title = (await summary.boundingBox())!
+  expect(Math.abs(title.x - box.x)).toBeLessThanOrEqual(1)
+  expect(title.y - (box.y + box.height)).toBeGreaterThanOrEqual(12)
+
+  const label = (await card(page).locator('.note-info-label').first().boundingBox())!
+  const textX = await card(page)
+    .locator('.note-info-date')
+    .first()
+    .evaluate((el) => {
+      const range = document.createRange()
+      range.selectNodeContents(el)
+      return range.getBoundingClientRect().x
+    })
+  expect(Math.abs(textX - label.x)).toBeLessThanOrEqual(1)
+})
