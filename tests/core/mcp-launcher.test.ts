@@ -8,6 +8,8 @@ import { tempDir } from '../support/temp-dirs'
 
 const LAUNCHER = readFileSync('src-tauri/mcp/devot-mcp.sh', 'utf8')
 
+const quoted = (text: string) => `'${text.replaceAll("'", "'\\''")}'`
+
 function replacedOnce(text: string, from: string, to: string): string {
   expect(text.split(from)).toHaveLength(2)
   return text.replace(from, () => to)
@@ -29,15 +31,15 @@ function run(options: { spotlight?: string[]; arg?: string; home?: string } = {}
   const mdfind = join(root, 'mdfind')
   writeFileSync(
     mdfind,
-    `#!/bin/sh\nprintf '%s\\n' ${(options.spotlight ?? []).map((p) => `'${p}'`).join(' ')}\n`,
+    `#!/bin/sh\nprintf '%s\\n' ${(options.spotlight ?? []).map(quoted).join(' ')}\n`,
   )
   chmodSync(mdfind, 0o755)
   let script = replacedOnce(
     LAUNCHER,
     ' /Applications/Devot.app ',
-    ` ${join(root, 'Applications/Devot.app')} `,
+    ` ${quoted(join(root, 'Applications/Devot.app'))} `,
   )
-  script = replacedOnce(script, '/usr/bin/mdfind', mdfind)
+  script = replacedOnce(script, '/usr/bin/mdfind', quoted(mdfind))
   const path = join(root, 'devot-mcp.sh')
   writeFileSync(path, script)
   const result = spawnSync('/bin/sh', [path, ...(options.arg ? [options.arg] : [])], {
