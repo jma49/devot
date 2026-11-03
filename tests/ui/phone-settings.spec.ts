@@ -285,6 +285,7 @@ test('a select draws its chosen value at its own width and stays a native 44 tar
 
 test('a free-text field stacks under its label at the row width', async ({ page }) => {
   const pane = await openPane(page, 'Sync')
+  await pane.getByRole('button', { name: 'This Is My First Device' }).click()
   const field = pane.getByRole('textbox', { name: 'Relay' })
   const label = pane.getByText('Relay', { exact: true })
   const [box, labelBox] = await Promise.all([field.boundingBox(), label.boundingBox()])
