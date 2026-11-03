@@ -1,5 +1,6 @@
 import { useId, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { haptic } from './haptics'
+import { figureParts } from './figures'
 
 /** A pane's card, with an optional group title and at most a one-line footnote. */
 export function PhoneGroup(props: { title?: string; footnote?: string; children: ReactNode }) {
@@ -30,6 +31,8 @@ function ControlHead(props: { id: string; label: string; description?: string | 
 
 export function PhoneSegmented<T extends string>(props: {
   label: string
+  /** The choices name what they set, as a period's days do: the label is for assistive tech only. */
+  labelHidden?: boolean | undefined
   description?: string | undefined
   value: T
   options: readonly { value: T; label: string }[]
@@ -59,10 +62,12 @@ export function PhoneSegmented<T extends string>(props: {
   }
   return (
     <div className="phone-control">
-      <ControlHead id={id} label={props.label} description={props.description} />
+      {props.labelHidden ? null : (
+        <ControlHead id={id} label={props.label} description={props.description} />
+      )}
       <div
         role="radiogroup"
-        aria-labelledby={id}
+        {...(props.labelHidden ? { 'aria-label': props.label } : { 'aria-labelledby': id })}
         className="phone-segmented"
         style={{ '--segments': props.options.length, '--segment': index } as CSSProperties}
         onKeyDown={onKeyDown}
@@ -125,5 +130,18 @@ export function PhoneSlider(props: {
         <span className="phone-slider-end">{props.maxLabel}</span>
       </div>
     </div>
+  )
+}
+
+/** A message whose filled values take the figures style, its words staying in the body font. */
+export function WithFigures(props: { template: string; values: Record<string, string> }) {
+  return figureParts(props.template, props.values).map((part, index) =>
+    part.figure ? (
+      <span key={index} className="phone-figures">
+        {part.text}
+      </span>
+    ) : (
+      part.text
+    ),
   )
 }

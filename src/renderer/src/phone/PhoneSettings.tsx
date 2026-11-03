@@ -69,15 +69,17 @@ function SettingsRow(props: { row: Row; onOpen: (pane: PaneId) => void }) {
         <span className="phone-row-icon">
           <Icon name={row.icon} size="phone-row" />
         </span>
-        <span className="phone-grouped-label">{t(row.label)}</span>
+        <span className="phone-grouped-text">
+          <span className="phone-grouped-label">{t(row.label)}</span>
+          {(row.value || onMac) && (
+            <span className="phone-grouped-count">
+              {onMac ? t('phone.settings.onMac') : row.value}
+            </span>
+          )}
+        </span>
         {row.alert && (
           <span className="phone-alert-badge" aria-label={t('phone.badge.attention')}>
             !
-          </span>
-        )}
-        {(row.value || onMac) && (
-          <span className="phone-grouped-count">
-            {onMac ? t('phone.settings.onMac') : row.value}
           </span>
         )}
         {!onMac && (

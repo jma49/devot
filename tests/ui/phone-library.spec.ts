@@ -186,3 +186,48 @@ test('every button in the Library is at least 44 points', async ({ page }) => {
     expect(box.width, await button.innerText()).toBeGreaterThanOrEqual(44)
   }
 })
+
+test('a deeply nested notebook keeps room for its name', async ({ page }) => {
+  await page.evaluate(() => {
+    const books = Array.from({ length: 7 }, (_, i) => ({
+      id: `deep-${i}`,
+      name: `Long notebook name with a research title ${i}`,
+      nameHlc: '',
+      parentId: i ? `deep-${i - 1}` : null,
+      parentHlc: '',
+      sortKey: 'a0',
+      sortHlc: '',
+      createdAt: 0,
+      updatedAt: 0,
+      deletedAt: null,
+      deletedHlc: null,
+      icon: null,
+      iconColor: null,
+      iconHlc: '',
+    }))
+    localStorage.setItem('devot.test.books', JSON.stringify(books))
+  })
+  await page.reload()
+  const notebooks = group(page, 'Notebooks')
+  for (let level = 0; level < 6; level++) {
+    await notebooks
+      .getByRole('button', { name: /^Show notebooks in/ })
+      .first()
+      .click()
+  }
+  const deepest = notebooks.locator('.phone-grouped-row').filter({ hasText: 'research title 6' })
+  await expect(deepest).toBeVisible()
+  for (const scale of ['1', '2']) {
+    await page.locator('.phone-app').evaluate((app, value) => {
+      const shell = app as unknown as {
+        style: CSSStyleDeclaration
+        dataset: Record<string, string>
+      }
+      shell.style.setProperty('--phone-text-scale', value)
+      if (value === '1') delete shell.dataset['textSize']
+      else shell.dataset['textSize'] = 'accessibility'
+    }, scale)
+    const label = (await deepest.locator('.phone-grouped-label').boundingBox())!
+    expect(label.width).toBeGreaterThanOrEqual(120)
+  }
+})

@@ -426,16 +426,65 @@ test('no label in the Usage type list wraps, and numbers share a right edge', as
   expect(new Set(borders)).toEqual(new Set(['0px']))
 })
 
-test('Usage with no events shows one empty state and no zero rows', async ({ page }) => {
+test('Usage with nothing stored shows one compact empty state and nothing to act on', async ({
+  page,
+}) => {
   await seedUsage(page, 0)
   const pane = await openPane(page, 'Usage')
+  await expect(pane.getByText('No usage events are stored.')).toHaveCount(1)
+  await expect(pane.locator('.settings-card')).toHaveCount(0)
+  await expect(pane.getByRole('radiogroup')).toHaveCount(0)
+  await expect(pane.getByRole('button', { name: /^(Show Events|Clear Usage Data)/ })).toHaveCount(0)
+})
+
+test('a period with no events gives way to one empty state, and the stored ones stay actionable', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      usage_list: () => [
+        { id: 1, at: Date.now() - 20 * 86_400_000, name: 'search.run', properties: {} },
+      ],
+    }
+  })
+  const pane = await openPane(page, 'Usage')
+  await pane.getByRole('radio', { name: '7 Days' }).click()
   await expect(pane.getByText('No recorded events in this period.')).toHaveCount(1)
-  await expect(pane.locator('.phone-usage-types')).toHaveCount(0)
-  await expect(pane.getByText(/^Shading is relative/)).toHaveCount(0)
+  await expect(pane.locator('.phone-usage-types, .usage-heat, .usage-daily')).toHaveCount(0)
+  await expect(pane.locator('.settings-card')).toHaveCount(1)
+  await expect(pane.getByRole('button', { name: /^Clear Usage Data/ })).toBeEnabled()
+})
+
+test('Usage actions are rows in the accent colour, the destructive one in its colour, under one footnote', async ({
+  page,
+}) => {
+  await seedUsage(page, 9)
+  const pane = await openPane(page, 'Usage')
+  const colours = await pane.evaluate((el) => {
+    const probe = document.createElement('span')
+    el.append(probe)
+    const resolve = (value: string) => {
+      probe.style.color = value
+      return getComputedStyle(probe).color
+    }
+    const seen = {
+      accent: resolve('var(--color-accent-text)'),
+      destructive: resolve('var(--color-phone-destructive)'),
+    }
+    probe.remove()
+    return seen
+  })
+  const show = pane.getByRole('button', { name: 'Show Events' })
   const clear = pane.getByRole('button', { name: /^Clear Usage Data/ })
-  await expect(clear).toHaveAttribute('aria-disabled', 'true')
-  expect((await clear.boundingBox())!.height).toBeGreaterThanOrEqual(44)
-  expect(await clear.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
+  for (const [row, colour] of [
+    [show, colours.accent],
+    [clear, colours.destructive],
+  ] as const) {
+    await expect(row).not.toHaveAttribute('aria-disabled')
+    expect(await row.evaluate((el) => getComputedStyle(el).color)).toBe(colour)
+    expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  }
+  await expect(pane.locator('.phone-footnote')).toHaveCount(1)
 })
 
 test('the Usage heat map legend stays inside its card at 390 pt', async ({ page }) => {
@@ -476,25 +525,37 @@ test('a pane does not repeat its screen title as its first section title', async
   }
 })
 
-test('Usage stats are full-width rows in one card, figures on the right edge', async ({ page }) => {
+test('Usage figures are the body font with tabular figures: one hero over a grid of three', async ({
+  page,
+}) => {
   await seedUsage(page, 9)
   const pane = await openPane(page, 'Usage')
-  const stats = pane.locator('.usage-stat')
-  await expect(stats).toHaveCount(3)
-  const boxes = await stats.evaluateAll((rows) =>
-    rows.map((row) => {
-      const box = row.getBoundingClientRect()
-      const figure = row.querySelector('strong')!.getBoundingClientRect()
-      return { x: box.x, y: box.y, width: box.width, height: box.height, right: figure.right }
-    }),
-  )
-  expect(new Set(boxes.map((box) => box.x)).size).toBe(1)
-  expect(new Set(boxes.map((box) => box.y)).size).toBe(3)
-  expect(new Set(boxes.map((box) => box.right)).size).toBe(1)
-  for (const box of boxes) {
-    expect(box.width).toBe(390 - 2 * 16 - 2 * 12)
-    expect(box.height).toBeGreaterThanOrEqual(44)
+  await expect(pane.locator('.phone-figures')).toHaveCount(0)
+  const body = await pane
+    .locator('.setting-label', { hasText: 'Events' })
+    .evaluate((el) => getComputedStyle(el).fontFamily)
+  for (const figure of [
+    pane.locator('.phone-usage-hero strong'),
+    pane.locator('.phone-usage-grid dd').first(),
+    pane.locator('.phone-usage-range'),
+    pane.locator('.phone-usage-count').first(),
+    pane.locator('.phone-usage-capacity'),
+  ]) {
+    const style = await figure.evaluate((el) => ({
+      family: getComputedStyle(el).fontFamily,
+      numeric: getComputedStyle(el).fontVariantNumeric,
+    }))
+    expect(style).toEqual({ family: body, numeric: 'tabular-nums' })
   }
+  await expect(pane.locator('.phone-usage-hero strong')).toHaveText('9')
+  const cells = await pane
+    .locator('.phone-usage-grid > div')
+    .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().y))
+  expect(cells).toHaveLength(3)
+  expect(new Set(cells).size).toBe(1)
+  const segmented = (await pane.getByRole('radiogroup', { name: 'Time period' }).boundingBox())!
+  expect(segmented.width).toBeCloseTo(390 - 2 * 16, 0)
+  await expect(pane.getByText('Time period', { exact: true })).toHaveCount(0)
 })
 
 test('a long select value is cut with an ellipsis, in its row, beside its whole label', async ({
@@ -509,9 +570,7 @@ test('a long select value is cut with an ellipsis, in its row, beside its whole 
   const pane = await openPane(page, 'Usage')
   const select = pane.getByRole('combobox', { name: 'Event type' })
   await select.selectOption(long)
-  const row = pane
-    .locator('.setting')
-    .filter({ has: page.getByRole('combobox', { name: 'Event type' }) })
+  const row = pane.locator('.phone-usage-filters')
   const value = row.locator('.select-value')
   await expect(value).toContainText('very-long-event-name')
   const seen = await value.evaluate((el) => ({
@@ -520,17 +579,17 @@ test('a long select value is cut with an ellipsis, in its row, beside its whole 
     wrap: getComputedStyle(el).whiteSpace,
   }))
   expect(seen).toEqual({ cut: true, overflow: 'ellipsis', wrap: 'nowrap' })
-  const [label, drawn, card] = await Promise.all([
-    row.locator('.setting-label').evaluate((el) => ({
+  const [range, drawn] = await Promise.all([
+    row.locator('.phone-usage-range').evaluate((el) => ({
       right: el.getBoundingClientRect().right,
+      bottom: el.getBoundingClientRect().bottom,
       whole: el.scrollWidth <= el.clientWidth,
     })),
     row.locator('.select').boundingBox(),
-    row.locator('xpath=ancestor::*[contains(@class,"settings-card")]').boundingBox(),
   ])
-  expect(label.whole).toBe(true)
-  expect(drawn!.x).toBeGreaterThanOrEqual(label.right)
-  expect(drawn!.x + drawn!.width).toBeLessThanOrEqual(card!.x + card!.width - 12 + 0.5)
+  expect(range.whole).toBe(true)
+  expect(drawn!.x >= range.right || drawn!.y >= range.bottom - 1).toBe(true)
+  expect(drawn!.x + drawn!.width).toBeLessThanOrEqual(390 - 16 + 0.5)
 })
 
 test.describe('License, Usage and disabled switches', () => {
@@ -572,7 +631,7 @@ test.describe('License, Usage and disabled switches', () => {
   }
 
   const firstCardTop = async (pane: Locator) =>
-    (await pane.locator('.settings-card').first().boundingBox())!.y
+    (await pane.locator('.settings-card, .phone-usage-controls').first().boundingBox())!.y
 
   test('License and Usage start where other panes do, with no empty head', async ({ page }) => {
     await seedLicence(page)
@@ -611,7 +670,7 @@ test.describe('License, Usage and disabled switches', () => {
     }
   })
 
-  test('at twice the text size Usage stacks its period and chart headings', async ({ page }) => {
+  test('at twice the text size Usage stacks its period and its figures', async ({ page }) => {
     await seedUsage(page, 9)
     const pane = await openPaneAtDoubleText(page, 'Usage')
     const segments = pane.getByRole('radio')
@@ -629,9 +688,13 @@ test.describe('License, Usage and disabled switches', () => {
     expect(pill.y).toBeCloseTo(boxes[1]!.y, 0)
     expect(pill.height).toBeCloseTo(boxes[1]!.height, 0)
 
-    const day = (await pane.getByRole('heading', { name: 'By day' }).boundingBox())!
-    const average = (await pane.getByText(/^Average /).boundingBox())!
-    expect(average.y).toBeGreaterThanOrEqual(day.y + day.height - 1)
+    const cells = await pane
+      .locator('.phone-usage-grid > div')
+      .evaluateAll((items) => items.map((item) => item.getBoundingClientRect()))
+    for (const [i, cell] of cells.entries())
+      if (i > 0) expect(cell.y).toBeGreaterThanOrEqual(cells[i - 1]!.bottom - 1)
+    const select = (await pane.locator('.phone-usage-filters .select').boundingBox())!
+    expect(select.x + select.width).toBeLessThanOrEqual(390 - 16 + 0.5)
   })
 
   test('a disabled switch stays at full opacity and differs from an off one', async ({ page }) => {
@@ -683,8 +746,9 @@ test('the Sync pane shows what the relay holds, with the room left and a warning
   await expect(pane.getByText('Notes and Other Records')).toBeVisible()
   await expect(pane.getByText('1 GB of 3 GB')).toBeVisible()
   await expect(pane.getByText('3.3 GB of 4 GB')).toBeVisible()
-  await expect(pane.getByText(/^700 MB\. Images can use 700 MB of that\./)).toBeVisible()
-  await expect(pane.getByText(/The relay’s storage is more than 80% full/)).toBeVisible()
+  await expect(pane.getByText('700 MB, images up to 700 MB', { exact: true })).toBeVisible()
+  await expect(pane.getByText(/^The relay is over 80% full\./)).toBeVisible()
+  await expect(pane.getByText(/^Holds up to/)).toHaveCount(0)
 })
 
 test('a phone without sync asks first or another device, then shows only that path', async ({
@@ -699,4 +763,157 @@ test('a phone without sync asks first or another device, then shows only that pa
   await pane.getByRole('button', { name: 'This Is My First Device' }).click()
   await expect(pane.getByRole('textbox', { name: 'Relay' })).toBeVisible()
   await expect(pane.getByRole('textbox', { name: 'Join With a Code' })).toHaveCount(0)
+})
+
+test('buttons in a card stay inside it, with corners concentric to the card', async ({ page }) => {
+  const pane = await openPane(page, 'Sync')
+  const buttons = pane.locator('.settings-card .settings-buttons .button:visible')
+  await expect(buttons.first()).toBeVisible()
+  for (const button of await buttons.all()) {
+    const card = button.locator('xpath=ancestor::*[contains(@class, "settings-card")][1]')
+    const [box, cardBox] = [(await button.boundingBox())!, (await card.boundingBox())!]
+    expect(box.x + box.width).toBeLessThanOrEqual(cardBox.x + cardBox.width)
+    const { radius, expected } = await button.evaluate((el) => {
+      const style = getComputedStyle(el)
+      const probe = document.createElement('div')
+      probe.style.width = 'calc(var(--radius-phone-card) - var(--size-phone-row-pad))'
+      el.append(probe)
+      const value = probe.getBoundingClientRect().width
+      probe.remove()
+      return { radius: parseFloat(style.borderTopLeftRadius), expected: value }
+    })
+    expect(radius).toBeCloseTo(expected, 0)
+    expect(await button.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+  }
+})
+
+/** A token expression's length in px, resolved where `el` is. */
+const resolved = (target: Locator, expression: string) =>
+  target.evaluate((el, value) => {
+    const probe = document.createElement('div')
+    probe.style.width = value
+    el.parentElement!.append(probe)
+    const width = probe.getBoundingClientRect().width
+    probe.remove()
+    return width
+  }, expression)
+
+const radius = (target: Locator) =>
+  target.evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius))
+
+test('segmented controls and steppers in a card are concentric with it', async ({ page }) => {
+  const inner = 'calc(var(--radius-phone-card) - var(--size-phone-row-pad))'
+  const appearance = await openPane(page, 'Appearance')
+  const segmented = appearance.locator('.settings-card .phone-segmented').first()
+  await expect(segmented).toBeVisible()
+  expect(await radius(segmented)).toBeCloseTo(await resolved(segmented, inner), 0)
+  const pill = segmented.locator('.phone-segmented-pill')
+  expect(await radius(pill)).toBeCloseTo((await resolved(segmented, inner)) - 3, 0)
+
+  const editing = await openPane(page, 'Editing')
+  const stepper = editing.locator('.settings-card .stepper').first()
+  await expect(stepper).toBeVisible()
+  expect(await radius(stepper)).toBeCloseTo(await resolved(stepper, inner), 0)
+})
+
+test('a button that removes something is in the destructive colour', async ({ page }) => {
+  await page.addInitScript(() => {
+    const provider = (endpoint: string) => ({
+      endpoint,
+      model: '',
+      defaultEndpoint: endpoint,
+      defaultModel: 'm',
+      key: 'set',
+    })
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      ai_settings_get: () => ({
+        active: 'anthropic',
+        suggestOnIdle: false,
+        anthropic: provider('https://a.example'),
+        openai: provider('https://o.example'),
+      }),
+      licence_get: () => ({
+        gated: true,
+        state: 'valid',
+        code: null,
+        id: 'DEVOT-0123',
+        licensee: 'Ada',
+        plan: 'pro',
+      }),
+      sync_get: () => ({
+        relayUrl: 'https://relay.example',
+        enabled: true,
+        vault: true,
+        enrolled: true,
+        status: { state: 'idle', lastSync: 1_700_000_000_000, code: null, pausedUntil: null },
+      }),
+      sync_devices: () => [
+        { id: 'd1', label: 'This phone', created: 1_700_000_000_000, current: true },
+        { id: 'd2', label: 'Desk', created: 1_690_000_000_000, current: false },
+      ],
+      sync_recovery_key: () => null,
+    }
+  })
+  const destructive = async (button: Locator) => {
+    await expect(button).toBeVisible()
+    const [color, expected] = await button.evaluate((el) => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--color-phone-destructive)'
+      el.parentElement!.append(probe)
+      const value = getComputedStyle(probe).color
+      probe.remove()
+      return [getComputedStyle(el).color, value]
+    })
+    expect(color).toBe(expected)
+  }
+  await destructive((await openPane(page, 'Sync')).getByRole('button', { name: /^Remove Desk/ }))
+  await destructive((await openPane(page, 'AI')).getByRole('button', { name: 'Remove Key' }))
+  await destructive(
+    (await openPane(page, 'License')).getByRole('button', { name: 'Remove License…' }),
+  )
+})
+
+test('a device shows when it was added, its date in figures, and no This Device', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      sync_get: () => ({
+        relayUrl: 'https://relay.example',
+        enabled: true,
+        vault: true,
+        enrolled: true,
+        status: { state: 'idle', lastSync: 1_700_000_000_000, code: null, pausedUntil: null },
+      }),
+      sync_devices: () => [
+        { id: 'd1', label: 'This phone', created: 1_700_000_000_000, current: true },
+      ],
+      sync_recovery_key: () => null,
+    }
+  })
+  const pane = await openPane(page, 'Sync')
+  const meta = pane.locator('.sync-device .setting-description')
+  await expect(meta).toHaveText(/^Added \S/)
+  await expect(meta).not.toContainText('This Device')
+  await expect(meta).not.toHaveCSS('font-family', /mono|Menlo/i)
+  await expect(meta.locator('.phone-figures')).toHaveCSS('font-family', /mono|Menlo/i)
+  await expect(meta.locator('.phone-figures')).not.toContainText('Added')
+})
+
+test('at twice the text size a Settings row puts its value under its whole label', async ({
+  page,
+}) => {
+  await openSettings(page)
+  await page.locator('.phone-app').evaluate((app) => {
+    const shell = app as unknown as { style: CSSStyleDeclaration; dataset: Record<string, string> }
+    shell.style.setProperty('--phone-text-scale', '2')
+    shell.dataset['textSize'] = 'accessibility'
+  })
+  const row = root(page).getByRole('button', { name: /^Keyboard/ })
+  const [label, value] = await Promise.all([
+    row.locator('.phone-grouped-label').boundingBox(),
+    row.locator('.phone-grouped-count').boundingBox(),
+  ])
+  expect(label!.height).toBeLessThan(17 * 2 * 1.5)
+  expect(value!.y).toBeGreaterThanOrEqual(label!.y + label!.height - 1)
 })

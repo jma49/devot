@@ -257,6 +257,7 @@ export function AiSection() {
             <button
               type="button"
               className="button"
+              data-destructive
               aria-disabled={!canRemove}
               onClick={() => {
                 if (canRemove)
