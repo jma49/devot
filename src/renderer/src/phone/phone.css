@@ -2696,7 +2696,23 @@ button.phone-grouped-open:active:not(:disabled) {
 
 .phone-app .phone-settings-pane.settings-window .settings-card .button {
   height: auto;
-  border-radius: calc(var(--size-phone-target) / 2);
+  /* Concentric with the card, as the text fields are. */
+  border-radius: calc(var(--radius-phone-card) - var(--size-phone-row-pad));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Side by side while both fit; a pair that doesn't fit stacks, each at the row's width. */
+.phone-app .phone-settings-pane.settings-window .settings-card .settings-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.phone-app .phone-settings-pane.settings-window .settings-card .settings-buttons > * {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .phone-app
@@ -3057,6 +3073,10 @@ button.phone-grouped-open:active:not(:disabled) {
     flex: none;
     align-items: stretch;
     margin-left: 0;
+  }
+
+  .phone-app .phone-settings-pane.settings-window .settings-card .settings-buttons {
+    flex-direction: column;
   }
 
   .phone-settings-pane .settings-buttons {

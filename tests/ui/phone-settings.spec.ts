@@ -700,3 +700,25 @@ test('a phone without sync asks first or another device, then shows only that pa
   await expect(pane.getByRole('textbox', { name: 'Relay' })).toBeVisible()
   await expect(pane.getByRole('textbox', { name: 'Join With a Code' })).toHaveCount(0)
 })
+
+test('buttons in a card stay inside it, with corners concentric to the card', async ({ page }) => {
+  const pane = await openPane(page, 'Sync')
+  const buttons = pane.locator('.settings-card .settings-buttons .button:visible')
+  await expect(buttons.first()).toBeVisible()
+  for (const button of await buttons.all()) {
+    const card = button.locator('xpath=ancestor::*[contains(@class, "settings-card")][1]')
+    const [box, cardBox] = [(await button.boundingBox())!, (await card.boundingBox())!]
+    expect(box.x + box.width).toBeLessThanOrEqual(cardBox.x + cardBox.width)
+    const { radius, expected } = await button.evaluate((el) => {
+      const style = getComputedStyle(el)
+      const probe = document.createElement('div')
+      probe.style.width = 'calc(var(--radius-phone-card) - var(--size-phone-row-pad))'
+      el.append(probe)
+      const value = probe.getBoundingClientRect().width
+      probe.remove()
+      return { radius: parseFloat(style.borderTopLeftRadius), expected: value }
+    })
+    expect(radius).toBeCloseTo(expected, 0)
+    expect(await button.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+  }
+})
