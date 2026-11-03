@@ -119,7 +119,7 @@ export async function mockTauri(page: Page): Promise<void> {
       value: {
         invoke: async (cmd: string, args: Record<string, unknown>) => {
           w.devotIpcCalls.push({ cmd, args })
-          if (cmd === 'symbol_png') return png
+          if (cmd === 'symbol_png' && w.devotIpcMocks?.['symbol_png'] === undefined) return png
           if (cmd === 'log_write') return null
           const mock = w.devotIpcMocks?.[cmd]
           if (mock !== undefined) {

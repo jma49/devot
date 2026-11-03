@@ -62,6 +62,16 @@ async function compose(
 }
 
 const placed = new Map<string, Promise<SymbolImage>>()
+const drawn = new Map<string, SymbolImage>()
+
+const placedKey = (
+  symbol: string,
+  box: number,
+  appearance: Appearance,
+  ratio: number,
+  weight: SymbolWeight = 'regular',
+  title = false,
+) => `${symbol}@${box}x${ratio}/${appearance}/${weight}/${title}`
 
 function placedSymbol(
   symbol: string,
@@ -71,7 +81,7 @@ function placedSymbol(
   weight: SymbolWeight = 'regular',
   title = false,
 ): Promise<SymbolImage> {
-  const key = `${symbol}@${box}x${ratio}/${appearance}/${weight}/${title}`
+  const key = placedKey(symbol, box, appearance, ratio, weight, title)
   let entry = placed.get(key)
   if (!entry) {
     entry = (async () =>
@@ -81,7 +91,10 @@ function placedSymbol(
         ratio,
         title,
       ))()
-    entry.catch(() => placed.delete(key))
+    entry.then(
+      (image) => drawn.set(key, image),
+      () => placed.delete(key),
+    )
     placed.set(key, entry)
   }
   return entry
@@ -172,6 +185,12 @@ export function ToolIcon({ name, size = 'lg' }: { name: IconName; size?: IconSiz
 
 export type IconSize = keyof typeof BOXES
 
+/** Renders `symbols` ahead of showing them, so they draw in their first frame; a symbol that fails is only retried when shown. */
+export function preloadSymbols(symbols: readonly string[], size: IconSize) {
+  for (const symbol of symbols)
+    placedSymbol(symbol, BOXES[size], shownAppearance(), currentRatio()).catch(() => {})
+}
+
 /** `lazy` renders only once it scrolls into view (a long grid of symbols); `fallback` is drawn when the symbol cannot be rendered. */
 export function SymbolIcon({
   symbol,
@@ -192,6 +211,10 @@ export function SymbolIcon({
   const box = BOXES[size]
   const ratio = useSyncExternalStore(subscribeRatio, currentRatio, () => 2)
   const [image, setImage] = useState<SymbolImage>()
+  const ready = drawn.get(placedKey(symbol, box, appearance, ratio, weight, size === 'title'))
+  const painted = ready ?? image
+  // Read once: an icon that mounted already drawn must not fade in later.
+  const [arrives] = useState(ready === undefined)
   const span = useRef<HTMLSpanElement>(null)
   const [visible, setVisible] = useState(!lazy)
 
@@ -233,8 +256,10 @@ export function SymbolIcon({
       ref={span}
       className={`icon icon-${size}${className ? ` ${className}` : ''}`}
       data-symbol={symbol}
+      data-pending={painted ? undefined : ''}
+      data-arrives={arrives ? '' : undefined}
       aria-hidden="true"
-      style={image ? symbolStyle(image) : { maskImage: 'none', WebkitMaskImage: 'none' }}
+      style={painted ? symbolStyle(painted) : undefined}
     />
   )
 }
@@ -255,9 +280,11 @@ export function iconElement(name: IconName, box: number): HTMLElement {
   span.style.width = `${box}px`
   span.style.height = `${box}px`
   span.dataset['symbol'] = symbol
+  span.dataset['pending'] = ''
   span.setAttribute('aria-hidden', 'true')
   placedSymbol(symbol, box, shownAppearance(), currentRatio()).then(
     (image) => {
+      delete span.dataset['pending']
       // React's names to CSS's (`WebkitMaskImage` is `-webkit-mask-image`).
       for (const [key, value] of Object.entries(symbolStyle(image)))
         span.style.setProperty(

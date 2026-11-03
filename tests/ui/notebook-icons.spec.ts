@@ -10,6 +10,9 @@ import {
   type TestWindow,
 } from './fixtures'
 
+const ONE_PIXEL_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
   tree(page).getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })
@@ -160,6 +163,44 @@ test('Escape and Cancel leave the icon; the keyboard walks the grid and Return p
   await page.keyboard.press('Enter')
   await expect(dialog(page)).toHaveCount(0)
   await expect(rowIcon(page, 'Work')).toHaveAttribute('data-symbol', 'person.fill')
+})
+
+test('a symbol paints nothing until its image is in; a category switch keeps the grid box and shows rendered symbols at once', async ({
+  page,
+}) => {
+  await openIconDialog(page, 'Work')
+  const box = dialog(page).locator('.icon-grid-box')
+  const height = await box.evaluate((el) => el.getBoundingClientRect().height)
+  await expect(cell(page, 'person').locator('.icon')).not.toHaveAttribute('data-pending', '')
+
+  await page.evaluate(() => {
+    const w = globalThis as unknown as TestWindow & { releaseSymbols?: (png: string) => void }
+    const held = new Promise<string>((resolve) => {
+      w.releaseSymbols = resolve
+    })
+    w.devotIpcMocks = { ...w.devotIpcMocks, symbol_png: () => held }
+  })
+  await dialog(page).getByRole('radio', { name: 'Green' }).click()
+  await tab(page, 'Travel').click()
+  const pending = cell(page, 'airplane').locator('.icon')
+  await expect(pending).toHaveAttribute('data-pending', '')
+  // Coloured, and still nothing is painted.
+  await expect(pending).toHaveClass(/book-icon-colored/)
+  await expect(pending).toBeHidden()
+  expect(await box.evaluate((el) => el.getBoundingClientRect().height)).toBe(height)
+
+  await page.evaluate((png) => {
+    ;(globalThis as unknown as { releaseSymbols: (png: string) => void }).releaseSymbols(png)
+  }, ONE_PIXEL_PNG)
+  await expect(pending).toBeVisible()
+  await expect(pending).not.toHaveAttribute('data-pending', '')
+  // The config turns Reduce Motion on.
+  expect(await pending.evaluate((el) => getComputedStyle(el).animationName)).toBe('none')
+
+  await tab(page, 'People').click()
+  await expect(cell(page, 'person').locator('.icon')).not.toHaveAttribute('data-pending', '')
+  expect(await cell(page, 'person').locator('.icon').getAttribute('data-arrives')).toBeNull()
+  expect(await box.evaluate((el) => el.getBoundingClientRect().height)).toBe(height)
 })
 
 test('only the symbols in view are rendered', async ({ page }) => {

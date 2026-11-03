@@ -244,6 +244,11 @@ button {
   mask-position: center;
 }
 
+/* Hidden rather than unpainted: colour rules on `.icon` (a notebook's colour, a pressed cell) must not show a square either. */
+.icon[data-pending] {
+  visibility: hidden;
+}
+
 .icon-svg {
   display: inline-block;
   flex-shrink: 0;
@@ -5834,6 +5839,7 @@ button.popup:focus-visible {
 .icon-grid-box {
   height: calc(var(--size-dialog-row) * 9);
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: var(--space-4) 0;
 }
 
@@ -5845,6 +5851,14 @@ button.popup:focus-visible {
 
 .icon-cell {
   aspect-ratio: 1;
+}
+
+.icon-grid .icon[data-arrives]:not([data-pending]) {
+  animation: fade-in var(--motion-duration-popover) var(--motion-easing-standard);
+}
+
+:root[data-motion='reduced'] .icon-grid .icon[data-arrives] {
+  animation: none;
 }
 
 .icon-grid-empty {

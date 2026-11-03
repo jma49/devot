@@ -12,7 +12,7 @@ import type { TagColor } from '../../core/storage'
 import { bookIconClass } from './BookIcon'
 import { t, type MessageKey } from './i18n'
 import { isImeKey } from './ime'
-import { SymbolIcon } from './icons/Icon'
+import { preloadSymbols, SymbolIcon } from './icons/Icon'
 import { ColorSwatches } from './ColorSwatches'
 import { columnsOf, gridStep } from './iconGrid'
 
@@ -74,6 +74,12 @@ export function NotebookIconDialog(props: {
     setCategory(id)
     search('')
   }
+
+  const preloadCategory = (id: NotebookIconCategory) =>
+    preloadSymbols(
+      symbolsInCategory(id).map((s) => s.name),
+      'lg',
+    )
 
   const onGridKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const cells = [...(grid.current?.children ?? [])] as HTMLElement[]
@@ -155,6 +161,8 @@ export function NotebookIconDialog(props: {
               aria-label={categoryLabel(id)}
               title={categoryLabel(id)}
               onClick={() => pickTab(id)}
+              onPointerEnter={() => preloadCategory(id)}
+              onFocus={() => preloadCategory(id)}
             >
               <SymbolIcon symbol={CATEGORY_ICONS[id]} size="md" />
             </button>

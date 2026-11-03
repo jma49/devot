@@ -80,6 +80,7 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **Board cards:** one that changes column flies there on a copy above the columns, as a column would clip it, when both ends can be seen (otherwise it is simply there); the others slide as rows do (`rowMotion.ts`).
 - **Settings:** a section fades in and rises `space.4` over `motion.duration.toggle`, without the rise under reduced motion; its row's fill eases over `motion.duration.quick`.
 - **Dragging:** a drop line fades in and a column's or row's highlight eases over `motion.duration.quick`. The other rows stay where they are: moving them would change what is under the pointer, and the zones that tell before, into and after apart.
+- **Notebook icon picker's categories:** rule 2. The grid changes at once, in a box of fixed height; symbols already rendered show in their first frame and the rest fade in where they stand over `motion.duration.popover` on `motion.easing.standard` as their images arrive, painting nothing before. A category's symbols are rendered ahead when the pointer or focus reaches its tab. Reduced motion: they show without fading.
 - **Image viewer:** opens and closes as a modal dialog does. **Plugin panel:** opens as one and closes at once, because a closing copy would run its frame again.
 
 ## iPhone
