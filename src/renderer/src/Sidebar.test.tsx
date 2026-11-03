@@ -157,6 +157,41 @@ describe('Sidebar sections', () => {
   })
 })
 
+describe('Saved searches in the sidebar', () => {
+  const searches = [
+    { id: 's1', name: 'In flight', count: 3 },
+    { id: 's2', name: 'Mentions', count: null },
+  ]
+
+  it('sit between Status and Tags, each with its count, none for one with text', () => {
+    const html = render(sectionStore(memory(), 'main'), [book], { savedSearches: searches })
+    const positions = order(html, ['Status', 'Saved Searches', 'In flight', 'Mentions', 'Tags'])
+    expect(positions.every(([, at]) => at >= 0)).toBe(true)
+    const at = positions.map(([, each]) => each)
+    expect(at).toEqual([...at].sort((a, b) => a - b))
+    expect(html).toMatch(/In flight<\/span><span class="source-count">3</)
+    expect(html).toMatch(/Mentions<\/span><\/button>/)
+  })
+
+  it('shows the one the search field runs as pressed', () => {
+    const html = render(sectionStore(memory(), 'main'), [book], {
+      savedSearches: searches,
+      activeSearch: 's2',
+    })
+    expect(html).toMatch(/data-sidebar-row="search:s2" tabindex="0"[^>]*aria-pressed="true"/)
+    expect(html).toMatch(/data-sidebar-row="search:s1" tabindex="-1"[^>]*aria-pressed="false"/)
+  })
+
+  it('has no section without saved searches, and folds like the others', () => {
+    expect(render(sectionStore(memory(), 'main'))).not.toContain('Saved Searches')
+    const storage = memory()
+    sectionStore(storage, 'main').save(new Set(['searches']))
+    const folded = render(sectionStore(storage, 'main'), [book], { savedSearches: searches })
+    expect(folded).toContain('aria-label="Expand Saved Searches"')
+    expect(folded).not.toContain('In flight')
+  })
+})
+
 describe('Sidebar in a workspace', () => {
   const top: BookNode = { ...book, id: 'w0', name: 'Work' }
   const space: BookNode = { ...book, id: 'w1', name: 'Projects', parentId: 'w0', depth: 1 }

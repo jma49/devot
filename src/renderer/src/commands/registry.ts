@@ -30,6 +30,7 @@ export type CommandScope =
   | 'trashList'
   | 'notebookRow'
   | 'tagRow'
+  | 'savedSearchRow'
   | 'sidebarRow'
 
 /** The scope each scope lies within; keys of a scope also work in its parent. */
@@ -44,6 +45,7 @@ const SCOPE_PARENT: Readonly<Record<CommandScope, CommandScope | null>> = {
   trashList: 'list',
   notebookRow: 'sidebar',
   tagRow: 'sidebar',
+  savedSearchRow: 'sidebar',
   sidebarRow: 'sidebar',
 }
 
@@ -578,6 +580,30 @@ export const COMMANDS = [
     palette: false,
   },
   {
+    id: 'savedSearch.rename',
+    label: 'savedSearchMenu.rename',
+    group: 'search',
+    scope: 'savedSearchRow',
+    keys: ['F2'],
+    palette: false,
+  },
+  {
+    id: 'savedSearch.edit',
+    label: 'savedSearchMenu.edit',
+    group: 'search',
+    scope: 'savedSearchRow',
+    keys: [],
+    palette: false,
+  },
+  {
+    id: 'savedSearch.delete',
+    label: 'savedSearchMenu.delete',
+    group: 'search',
+    scope: 'savedSearchRow',
+    keys: ['Backspace', 'Delete'],
+    palette: false,
+  },
+  {
     id: 'view.allNotes',
     label: 'command.showAllNotes',
     group: 'view',
@@ -734,6 +760,13 @@ export const COMMANDS = [
     group: 'search',
     scope: 'window',
     keys: ['Mod+Alt+Shift+F'],
+  },
+  {
+    id: 'search.save',
+    label: 'command.saveSearch',
+    group: 'search',
+    scope: 'window',
+    keys: [],
   },
   {
     id: 'search.fromList',
@@ -1532,6 +1565,10 @@ const CHANGES_NOTES: ReadonlySet<CommandId> = new Set<CommandId>([
   'tag.rename',
   'tag.settings',
   'tag.delete',
+  'search.save',
+  'savedSearch.rename',
+  'savedSearch.edit',
+  'savedSearch.delete',
   'edit.pastePlain',
   'edit.pasteUrlAs',
   'edit.plainNewline',

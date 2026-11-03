@@ -102,3 +102,16 @@ export function sameCounts<K>(a: ReadonlyMap<K, number>, b: ReadonlyMap<K, numbe
   for (const [key, count] of a) if (b.get(key) !== count) return false
   return true
 }
+
+type SearchRow = { id: string; name: string; count: number | null }
+
+/** The saved search rows show the same: a note write that changes no count renders no sidebar. */
+export function sameSearchRows(a: readonly SearchRow[], b: readonly SearchRow[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((row, i) => {
+      const other = b[i]
+      return other?.id === row.id && other.name === row.name && other.count === row.count
+    })
+  )
+}
