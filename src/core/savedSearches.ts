@@ -74,7 +74,8 @@ const stamps = (s: SavedSearchRecord) => [s.nameHlc, s.queryHlc, s.sortKeyHlc, s
 /**
  * The saved searches whose query names `tag`, each with the query it needs once the tag is called
  * `name`, so that it matches the same notes. A tag put by ID is spelled so when the name would make
- * the query too long, and a query that cannot be kept in the limit is left as it is.
+ * the query too long; throws E_TAG_RENAME_SEARCH_TOO_LONG when a query cannot be kept in the limit
+ * either way, so that no rename leaves a search pointing at nothing.
  */
 export function retargetSavedSearches(
   searches: readonly SavedSearchRecord[],
@@ -90,7 +91,9 @@ export function retargetSavedSearches(
     if (charCount(query) > MAX_SAVED_SEARCH_QUERY_CHARS) {
       query = renameTagInQuery(search.query, tag, name, true)
     }
-    if (query === search.query || charCount(query) > MAX_SAVED_SEARCH_QUERY_CHARS) continue
+    if (charCount(query) > MAX_SAVED_SEARCH_QUERY_CHARS)
+      throw new Error('E_TAG_RENAME_SEARCH_TOO_LONG')
+    if (query === search.query) continue
     retargeted.push({
       ...search,
       query,

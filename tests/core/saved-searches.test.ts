@@ -375,14 +375,39 @@ describe('renaming a tag a saved search names', () => {
     expect((await searches.list()).find((s) => s.id === id)?.query).toBe('tag:work')
   })
 
-  it('spells the tag by ID when the name would make the query too long, and leaves a query that cannot fit', async () => {
+  it('spells the tag by ID when the name would make the query too long', async () => {
     const { searches, tags } = setup()
     const tag = await tags.ensure('work')
     const room = await searches.create('Room', `${'w'.repeat(940)} tag:work`)
-    const full = await searches.create('Full', `${'w'.repeat(990)} tag:work`)
     await tags.rename(tag, 'n'.repeat(90))
-    const saved = Object.fromEntries((await searches.list()).map((s) => [s.id, s.query]))
-    expect(saved[room]).toBe(`${'w'.repeat(940)} tagId:${tag}`)
-    expect(saved[full]).toBe(`${'w'.repeat(990)} tag:work`)
+    expect((await searches.list())[0]?.query).toBe(`${'w'.repeat(940)} tagId:${tag}`)
+    expect(room).toBe((await searches.list())[0]?.id)
+  })
+
+  it('refuses the rename, changing nothing, when a query could not keep naming the tag', async () => {
+    const { searches, tags } = setup()
+    const tag = await tags.ensure('work')
+    const small = await searches.create('Small', 'tag:work')
+    await searches.create('Full', `${'w'.repeat(990)} tag:work`)
+    await expect(tags.rename(tag, 'n'.repeat(90))).rejects.toThrow('E_TAG_RENAME_SEARCH_TOO_LONG')
+    expect((await tags.list())[0]?.name).toBe('work')
+    expect((await searches.list()).find((s) => s.id === small)?.query).toBe('tag:work')
+  })
+
+  it('does not let a clause run into the next when a quoted name is replaced', async () => {
+    const { searches, tags } = setup()
+    const tag = await tags.ensure('work')
+    await searches.create('Glued', 'tag:"work"title:plan')
+    await tags.rename(tag, 'office')
+    expect((await searches.list())[0]?.query).toBe('tag:office title:plan')
+  })
+
+  it('keeps both rewrites when two tags in one query are renamed at once', async () => {
+    const { searches, tags } = setup()
+    const work = await tags.ensure('work')
+    const home = await tags.ensure('home')
+    await searches.create('Both', 'tag:work tag:home')
+    await Promise.all([tags.rename(work, 'office'), tags.rename(home, 'house')])
+    expect((await searches.list())[0]?.query).toBe('tag:office tag:house')
   })
 })

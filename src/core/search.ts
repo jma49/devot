@@ -264,7 +264,10 @@ export function renameTagInQuery(
   for (const { clause, start, end } of scanSearch(text).reverse()) {
     if (clause.field !== 'tag' && clause.field !== 'hashtag') continue
     if (!sameName(clause.value, tag.name)) continue
-    text = text.slice(0, start) + spelled + text.slice(end)
+    // `tag:"a"title:x` is two clauses; the new value must not run into the one after it.
+    const next = text[end]
+    const apart = next !== undefined && !SPACE.test(next) ? ' ' : ''
+    text = text.slice(0, start) + spelled + apart + text.slice(end)
   }
   return text
 }
