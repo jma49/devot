@@ -1,8 +1,18 @@
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
+import { isImeKey } from '../ime'
 import { motionMs } from '../motionTiming'
+import { holdModal, isTopModal } from './modal'
 
 const DISMISS_TRAVEL = 120
 const DISMISS_SPEED = 0.5
@@ -11,7 +21,11 @@ const DISMISS_SPEED = 0.5
 export const sheetCloses = (travel: number, speed: number): boolean =>
   travel > DISMISS_TRAVEL || (speed > DISMISS_SPEED && travel > 24)
 
-/** A bottom sheet: grows in with `gentle`, and a drag down on its top closes it. */
+/**
+ * A modal bottom sheet: grows in with `gentle`, and a drag down on its top or Escape closes it.
+ * While open it holds the keyboard and the rest of the app is inert; closed, it gives the
+ * keyboard back to what had it.
+ */
 export function PhoneSheet(props: {
   title: string
   onClose: () => void
@@ -26,9 +40,34 @@ export function PhoneSheet(props: {
   const [drag, setDrag] = useState<number | null>(null)
   const start = useRef<{ y: number; lastY: number; at: number; speed: number } | null>(null)
   const closing = useRef(false)
+  const layer = useRef<HTMLDivElement>(null)
+  const dialog = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const frame = requestAnimationFrame(() => setShown(true))
     return () => cancelAnimationFrame(frame)
+  }, [])
+  useLayoutEffect(() => {
+    const own = layer.current
+    const sheet = dialog.current
+    if (!own || !sheet) return
+    const trigger = document.activeElement
+    const release = holdModal(own)
+    sheet.focus({ preventScroll: true })
+    // A control that goes away with the focus (the tag sheet swapping in its colour picker)
+    // drops it to the page: the sheet takes it back.
+    const regain = new MutationObserver(() => {
+      const active = document.activeElement
+      if ((active === null || active === document.body) && isTopModal(own)) {
+        sheet.focus({ preventScroll: true })
+      }
+    })
+    regain.observe(sheet, { childList: true, subtree: true })
+    return () => {
+      regain.disconnect()
+      release()
+      if (trigger instanceof HTMLElement && trigger.isConnected)
+        trigger.focus({ preventScroll: true })
+    }
   }, [])
   const close = () => {
     if (closing.current) return
@@ -53,10 +92,29 @@ export function PhoneSheet(props: {
     if (event.type === 'pointerup' && sheetCloses(event.clientY - s.y, s.speed)) close()
     else setDrag(null)
   }
+  const onKey = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || isImeKey(event.nativeEvent)) return
+    // A sheet opened from this one is a child in React, so its keys would reach this one too.
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      close()
+    } else if (event.key === 'Tab' && dialog.current) {
+      // WebKit leaves buttons out of Tab unless the system says otherwise, and past the last
+      // control Tab would leave the page: the sheet moves the keyboard round its own controls.
+      event.preventDefault()
+      event.stopPropagation()
+      const controls = tabbable(dialog.current)
+      const at = controls.indexOf(document.activeElement as HTMLElement)
+      const step = event.shiftKey ? -1 : 1
+      const next = at === -1 ? (event.shiftKey ? controls.length - 1 : 0) : at + step
+      controls.at(next % controls.length)?.focus()
+    }
+  }
   // A screen's layer is its own stacking context under the tab bar and the compose circle.
   const host = document.querySelector('.phone-app') ?? document.body
   return createPortal(
-    <div className="phone-sheet-layer">
+    <div ref={layer} className="phone-sheet-layer">
       <div
         className="phone-sheet-dim"
         data-shown={shown || undefined}
@@ -64,9 +122,12 @@ export function PhoneSheet(props: {
         aria-hidden="true"
       />
       <div
+        ref={dialog}
         role="dialog"
         aria-modal="true"
         aria-label={props.title}
+        tabIndex={-1}
+        onKeyDown={onKey}
         className="phone-sheet"
         data-shown={shown || undefined}
         data-tall={props.tall || undefined}
@@ -116,6 +177,18 @@ export function PhoneSheet(props: {
       </div>
     </div>,
     host,
+  )
+}
+
+const TABBABLE = 'button, input, select, textarea, a[href], [tabindex]'
+
+function tabbable(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(TABBABLE)).filter(
+    (el) =>
+      el.tabIndex >= 0 &&
+      !(el as HTMLButtonElement).disabled &&
+      !el.closest('[inert]') &&
+      el.getClientRects().length > 0,
   )
 }
 

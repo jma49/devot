@@ -100,3 +100,77 @@ test('note info and the note pickers are whole, on the note screen', async ({ pa
   const move = page.getByRole('dialog', { name: 'Move to…' })
   await expectWholeSheet(page, move, move.getByRole('button').last())
 })
+
+const focusIn = (sheet: Locator) =>
+  sheet.evaluate((el) => {
+    const active = el.ownerDocument.activeElement
+    return active !== null && el.contains(active)
+  })
+
+async function expectTabStaysIn(page: Page, sheet: Locator, presses: number): Promise<void> {
+  for (let i = 0; i < presses; i++) {
+    await page.keyboard.press('Tab')
+    expect(await focusIn(sheet)).toBe(true)
+  }
+  await page.keyboard.press('Shift+Tab')
+  expect(await focusIn(sheet)).toBe(true)
+}
+
+async function openNoteScreen(page: Page): Promise<Locator> {
+  await page.addInitScript(() => {
+    ;(globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome = true
+  })
+  await page.goto('/')
+  await tabs(page).getByRole('button', { name: 'Notes' }).click()
+  await page.locator('[data-section="recent"] .phone-note-open').first().click()
+  const note = page.locator('section.phone-screen:has(.phone-note-scroll)')
+  await expect(note.locator('.cm-content')).toBeAttached()
+  return note
+}
+
+test('a sheet takes the keyboard, keeps Tab inside, and Escape gives it back to its trigger', async ({
+  page,
+}) => {
+  const note = await openNoteScreen(page)
+  const trigger = note.getByRole('button', { name: 'Note Info' })
+  await trigger.focus()
+  await page.keyboard.press('Enter')
+  const info = page.getByRole('dialog', { name: 'Note Info' })
+  await expect(info).toBeVisible()
+  await expect.poll(() => focusIn(info)).toBe(true)
+  await expectTabStaysIn(page, info, 12)
+  const behind = () => trigger.evaluate((el) => el.closest('[inert]') !== null)
+  expect(await behind()).toBe(true)
+
+  await page.keyboard.press('Escape')
+  await expect(info).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+  expect(await behind()).toBe(false)
+})
+
+test('the tag sheet keeps the keyboard through its colour picker; Escape closes the picker first', async ({
+  page,
+}) => {
+  const note = await openNoteScreen(page)
+  const trigger = note.locator('.phone-chip-target:has(.phone-chip-dashed)')
+  await trigger.focus()
+  await page.keyboard.press('Enter')
+  const sheet = page.getByRole('dialog', { name: 'Tags' })
+  await expect.poll(() => focusIn(sheet)).toBe(true)
+  await sheet.getByRole('textbox', { name: 'Tag name' }).fill('fresh')
+  await sheet.getByRole('radio', { name: 'Custom Color' }).focus()
+  await page.keyboard.press('Enter')
+  const hue = sheet.getByRole('slider', { name: 'Hue' })
+  await expect(hue).toBeVisible()
+  await expect.poll(() => focusIn(sheet)).toBe(true)
+  await expectTabStaysIn(page, sheet, 6)
+
+  await page.keyboard.press('Escape')
+  await expect(hue).toHaveCount(0)
+  await expect(sheet).toBeVisible()
+  await expect.poll(() => focusIn(sheet)).toBe(true)
+
+  await page.keyboard.press('Escape')
+  await expect(sheet).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+})
