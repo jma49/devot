@@ -116,6 +116,7 @@ export const en = {
   'phone.appearance.solid': 'Solid',
   'phone.appearance.clear': 'Clear',
   'phone.appearance.editor': 'Editor',
+  'phone.general.empty': 'Nothing here to set on this iPhone.',
   'phone.appearance.textSize': 'Text size',
   'phone.appearance.textSizeSmall': 'A',
   'phone.sync.hint':
@@ -124,8 +125,6 @@ export const en = {
     'The relay passes encrypted changes between your devices and keeps them until each one has caught up. It is one you run yourself.',
   'phone.sync.devicesHint':
     'Every paired device holds the same vault key. Remove a device you no longer use; a removed device cannot rejoin without pairing again.',
-  'phone.sync.recoveryHint':
-    'The recovery key restores your vault on a new device if every paired device is lost. Devot cannot recover it for you, so keep it somewhere safe.',
   'phone.sync.lastSynced': 'Last synced {time}',
   'phone.sync.notesStay': 'Notes stay on this iPhone',
   'phone.sync.you': 'You',
