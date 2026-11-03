@@ -172,14 +172,16 @@ function useReadingLine(
     let frame = 0
     const read = () => {
       frame = 0
-      setTop(Math.floor(preview.topLine() + 0.5))
+      setTop(Math.floor(preview.topLine() + 0.01))
     }
     const onScroll = () => {
       if (frame === 0) frame = requestAnimationFrame(read)
     }
     read()
     preview.element.addEventListener('scroll', onScroll, { passive: true })
+    const unlisten = preview.onLayout?.(onScroll)
     return () => {
+      unlisten?.()
       cancelAnimationFrame(frame)
       preview.element.removeEventListener('scroll', onScroll)
     }

@@ -260,6 +260,7 @@ import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
 import { useHistoryBar } from './HistoryBar'
 import { LiveCountsFooter, countsStore } from './CountsFooter'
 import { OutlinePanel, lineStore } from './outline/OutlinePanel'
+import { scrollPreviewTo } from './outline/room'
 import { useOutlineRoom } from './outline/useOutlineRoom'
 import { inNotes, markSeen, unseenOf, useAgentWrites } from './agentWrites'
 import { AuthorshipNotice } from './AuthorshipNotice'
@@ -2671,7 +2672,7 @@ export function App() {
   }
   const jumpToHeading = (line: number) => {
     editorRef.current?.goToLine(line, 'start', false)
-    if (mode !== 'edit' && previewPane) previewPane.element.scrollTop = previewPane.offsetOf(line)
+    if (mode !== 'edit' && previewPane) scrollPreviewTo(previewPane, line)
   }
   const authorshipShown = useEditorSetting('authorship')
   // A restored version, an accepted AI edit or a plugin write reaches the editor only while it
