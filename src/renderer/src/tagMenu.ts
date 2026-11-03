@@ -1,7 +1,6 @@
-// The tag context menu: a native menu with the tag actions, shown for a tag
-// row in the sidebar. Its actions are registry commands (labels and keys);
-// the Colour submenu only picks a colour.
-import { TAG_COLORS, type TagColor, type TagColorValue } from '../../core/storage'
+// The tag menu's table: its actions are registry commands (labels and keys). `TagMenuPanel.tsx` draws
+// it with the colour swatches, which a native menu cannot show.
+import type { TagColorValue } from '../../core/storage'
 import type { KeyPress } from './commands/keys'
 import { commandMatches, type CommandId } from './commands/registry'
 import {
@@ -11,16 +10,7 @@ import {
   type MenuGroups,
 } from './contextMenu'
 
-/** `color` names the Colour submenu; its items pick `color.none` or `color.<id>`. */
-export type TagAction =
-  | 'rename'
-  | 'settings'
-  | 'color'
-  | 'color.none'
-  | `color.${TagColor}`
-  | 'filter'
-  | 'copyId'
-  | 'delete'
+export type TagAction = 'rename' | 'settings' | 'filter' | 'copyId' | 'delete'
 
 export interface TagMenuTarget {
   id: string
@@ -30,18 +20,7 @@ export interface TagMenuTarget {
   inWorkspace?: boolean
 }
 
-const COLOR_ITEMS: MenuEntry<TagAction, TagMenuTarget>[] = [
-  { action: 'color.none', label: 'tagColor.none', checked: (tag) => tag.color === null },
-  ...TAG_COLORS.map((color): MenuEntry<TagAction, TagMenuTarget> => ({
-    action: `color.${color}`,
-    label: `tagColor.${color}`,
-    checked: (tag) => tag.color === color,
-  })),
-]
-
-type CommandAction = Exclude<TagAction, `color${string}`>
-
-export const TAG_COMMANDS: Readonly<Record<CommandAction, CommandId>> = {
+export const TAG_COMMANDS: Readonly<Record<TagAction, CommandId>> = {
   rename: 'tag.rename',
   settings: 'tag.settings',
   filter: 'tag.filter',
@@ -50,30 +29,21 @@ export const TAG_COMMANDS: Readonly<Record<CommandAction, CommandId>> = {
 }
 
 const entry = (
-  action: CommandAction,
+  action: TagAction,
   more: CommandEntryOptions<TagAction, TagMenuTarget> = {},
 ): MenuEntry<TagAction, TagMenuTarget> =>
   commandEntry<TagAction, TagMenuTarget>(action, TAG_COMMANDS[action], more)
 
+/** The swatch row follows the first group. Rename is F2 only: Tag Settings holds the name. */
 export const TAG_MENU: MenuGroups<TagAction, TagMenuTarget> = [
-  // Rename is F2 only: Tag Settings holds the name.
-  [
-    entry('settings'),
-    { action: 'color', label: 'tagMenu.color', edits: true, submenu: COLOR_ITEMS },
-  ],
+  [entry('settings')],
   [entry('filter', { checked: (tag) => tag.filtered })],
   [entry('copyId')],
   [entry('delete', { shown: (tag) => !tag.inWorkspace })],
 ]
 
-export function colorOfAction(action: TagAction): TagColor | null | undefined {
-  if (action === 'color.none') return null
-  const id = action.startsWith('color.') ? action.slice('color.'.length) : undefined
-  return TAG_COLORS.find((color) => color === id)
-}
-
-export function tagShortcut(e: KeyPress): CommandAction | undefined {
-  return (Object.keys(TAG_COMMANDS) as CommandAction[]).find((action) =>
+export function tagShortcut(e: KeyPress): TagAction | undefined {
+  return (Object.keys(TAG_COMMANDS) as TagAction[]).find((action) =>
     commandMatches(TAG_COMMANDS[action], e),
   )
 }

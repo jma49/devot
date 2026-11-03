@@ -1,10 +1,11 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { MAX_TAG_NAME_CHARS } from '../../core/tags'
+import { isCustomTagColor, MAX_TAG_NAME_CHARS } from '../../core/tags'
 import type { TagColorValue, TagRecord } from '../../core/storage'
 import { trimWhitespace } from '../../core/text'
 import { t } from './i18n'
 import { isImeKey } from './ime'
 import { useNameLimit } from './nameLimit'
+import { ColorPicker } from './ColorPicker'
 import { ColorSwatches } from './ColorSwatches'
 
 export function TagSettingsDialog(props: {
@@ -16,6 +17,7 @@ export function TagSettingsDialog(props: {
   const dialog = useRef<HTMLDialogElement>(null)
   const [name, setName] = useState(tag.name)
   const [color, setColor] = useState<TagColorValue | null>(tag.color)
+  const [picking, setPicking] = useState(false)
   const limit = useNameLimit(name, MAX_TAG_NAME_CHARS, setName)
   useLayoutEffect(() => {
     const el = dialog.current
@@ -69,8 +71,20 @@ export function TagSettingsDialog(props: {
         onChange={setColor}
         label={t('tagMenu.color')}
         noneLabel={t('tagColor.none')}
+        onCustom={() => setPicking(true)}
       />
-      <div className="confirm-actions">
+      {picking ? (
+        <ColorPicker
+          value={isCustomTagColor(color) ? color : null}
+          tagName={clean || tag.name}
+          onDone={(hex) => {
+            setColor(hex)
+            setPicking(false)
+          }}
+          onCancel={() => setPicking(false)}
+        />
+      ) : null}
+      <div className="confirm-actions" hidden={picking}>
         <button type="button" className="button" onClick={props.onCancel}>
           {t('dialog.cancel')}
         </button>

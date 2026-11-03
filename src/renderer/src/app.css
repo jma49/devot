@@ -736,7 +736,7 @@ button {
   height: var(--space-4);
   border-radius: var(--radius-capsule);
   background: var(--tag-color);
-  box-shadow: inset 0 0 0 1px var(--color-line-hairline);
+  box-shadow: inset 0 0 0 1px var(--color-line-control);
 }
 
 .tag-dot-plain {
@@ -1217,6 +1217,176 @@ button {
 .tag-swatch .tag-dot {
   width: var(--space-7);
   height: var(--space-7);
+}
+
+.tag-swatch-custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+}
+
+.tag-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  width: calc(var(--space-10) * 9);
+}
+
+.tag-menu-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.tag-menu-item:focus {
+  outline: none;
+  background: var(--color-fill-hover);
+}
+
+.tag-menu-check {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon-sm);
+}
+
+.tag-menu-separator {
+  height: 1px;
+  margin: var(--space-2) var(--space-4);
+  background: var(--color-line-hairline);
+}
+
+.tag-menu-swatches {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-3);
+}
+
+.tag-menu-swatch:hover {
+  background: var(--color-fill-hover);
+}
+
+.tag-menu-swatch:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: 0;
+}
+
+.tag-menu-swatch .tag-dot,
+.tag-menu-swatch .tag-swatch-none {
+  width: var(--space-7);
+  height: var(--space-7);
+}
+
+.color-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-2);
+}
+
+.color-picker-spectrum,
+.color-picker-hue {
+  position: relative;
+  border-radius: var(--radius-button);
+  box-shadow: inset 0 0 0 1px var(--color-line-hairline);
+  cursor: default;
+  touch-action: none;
+  user-select: none;
+}
+
+.color-picker-spectrum {
+  height: calc(var(--space-10) * 4);
+}
+
+.color-picker-hue {
+  height: var(--space-7);
+}
+
+.color-picker-handle {
+  position: absolute;
+  top: 50%;
+  box-sizing: border-box;
+  width: var(--space-7);
+  height: var(--space-7);
+  border: 2px solid var(--color-surface-editor);
+  border-radius: var(--radius-capsule);
+  box-shadow: 0 0 0 1px var(--color-line-hairline);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.color-picker-spectrum:focus-visible,
+.color-picker-hue:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: var(--size-focus-ring);
+}
+
+.color-picker-hex {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.color-picker-hex .pick-filter {
+  flex: 1;
+  min-width: 0;
+}
+
+.color-picker-hex .pick-filter[aria-invalid='true'] {
+  border-color: var(--color-text-destructive);
+}
+
+.color-picker-hex-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-footnote);
+}
+
+.color-picker-error {
+  margin: 0;
+  color: var(--color-text-destructive);
+  font-size: var(--font-size-footnote);
+}
+
+.color-picker-previews {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.color-picker-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: var(--space-4) var(--space-2);
+  border-radius: var(--radius-button);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
+}
+
+.color-picker .confirm-actions {
+  margin: 0;
+}
+
+.phone-app .color-picker-hue,
+.phone-app .color-picker-hex input,
+.phone-app .color-picker .button {
+  min-height: var(--size-phone-target);
+}
+
+.phone-app .color-picker-handle {
+  width: var(--size-phone-target);
+  height: var(--size-phone-target);
+  background-clip: content-box;
+  padding: var(--space-6);
+  border: 0;
+  box-shadow: none;
 }
 
 .tag-swatch-none {
@@ -7494,6 +7664,11 @@ button.popup:focus-visible {
   border-right: 0.5px solid var(--color-line-glass-edge);
   border-bottom: 0.5px solid var(--color-line-glass-edge);
   clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+/* Placed at the pointer, so it has no button to point at. */
+:root[data-sidebar-material='on'] .tag-menu::before {
+  content: none;
 }
 
 :root[data-sidebar-material='on'] .picker-search-field {

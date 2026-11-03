@@ -56,7 +56,8 @@ import {
   type TrashRowAction,
   type TrashRowTarget,
 } from './sourceMenu'
-import { TAG_MENU, colorOfAction, tagShortcut, type TagAction, type TagMenuTarget } from './tagMenu'
+import { TagMenu } from './TagMenuPanel'
+import { tagShortcut, type TagAction, type TagMenuTarget } from './tagMenu'
 import { usePaneResize } from './paneResize'
 import { SIDEBAR_PANE } from './paneWidth'
 import { MoveBookDialog } from './MoveBookDialog'
@@ -410,7 +411,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const [editingTag, setEditingTag] = useState<string>()
   const [menuTarget, setMenuTarget] = useState<string>()
 
-  const [tagMenuTarget, setTagMenuTarget] = useState<string>()
+  const [tagMenu, setTagMenu] = useState<{ id: string; at: MenuPoint }>()
   const [rowMenuTarget, setRowMenuTarget] = useState<string>()
   const [noteDrop, setNoteDrop] = useState<string>()
 
@@ -458,7 +459,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     label: ReactNode,
     count: number,
     extra?: string,
-    tag?: { color: TagColorValue | null; onMenu: () => void },
+    tag?: { color: TagColorValue | null; onMenu: (at: MenuPoint) => void },
     /** An agent's row counts its unseen changes, and none when there are none. */
     unseen?: boolean,
   ) => {
@@ -484,7 +485,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
         onMouseDown={keepFocusOnMenu}
         onContextMenu={(e) => {
           e.preventDefault()
-          if (tag) tag.onMenu()
+          if (tag) tag.onMenu({ x: e.clientX, y: e.clientY })
           else if (filter.kind === 'pinned' || filter.kind === 'status') {
             void openFilterRowMenu(key, filter)
           }
@@ -714,8 +715,6 @@ export const Sidebar = memo(function Sidebar(props: Props) {
 
   const runTagAction = (action: TagAction, tag: TagMenuTarget) => {
     if (props.readOnly && !(action === 'filter' || action === 'copyId')) return
-    const color = colorOfAction(action)
-    if (color !== undefined) return props.onSetTagColor(tag.id, color)
     switch (action) {
       case 'rename':
         return setEditingTag(tag.id)
@@ -733,18 +732,18 @@ export const Sidebar = memo(function Sidebar(props: Props) {
         return props.onDeleteTag(tag.id)
     }
   }
-  const showTagMenu = useContextMenu('tag', TAG_MENU, runTagAction)
   const tagTarget = (tag: TagRecord): TagMenuTarget => ({
     id: tag.id,
     color: tag.color,
     filtered: sameFilter(props.filter, { kind: 'tag', tagId: tag.id }),
     inWorkspace: ws !== undefined,
   })
-  const openTagMenu = async (tag: TagRecord, at?: MenuPoint) => {
-    setTagMenuTarget(tag.id)
-    await showTagMenu(tagTarget(tag), at)
-    setTagMenuTarget((id) => (id === tag.id ? undefined : id))
+  const openTagMenu = (tag: TagRecord, at?: MenuPoint) => {
+    const row = document.querySelector(`[data-motion-key="tag:${tag.id}"]`)
+    const place = at ?? below(row) ?? { x: 0, y: 0 }
+    setTagMenu({ id: tag.id, at: place })
   }
+  const shownTagMenu = props.tags.find((tag) => tag.id === tagMenu?.id)
 
   /** A right-click (or Control-click) on a menu row leaves the keyboard where it was. */
   const keepFocusOnMenu = (e: { button: number; ctrlKey: boolean; preventDefault(): void }) => {
@@ -791,7 +790,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     },
     tag: (id, at) => {
       const tag = props.tags.find((each) => each.id === id)
-      if (tag) void openTagMenu(tag, at)
+      if (tag) openTagMenu(tag, at)
     },
   }))
 
@@ -1349,7 +1348,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                       if (heldCommandKey(e)) return e.preventDefault()
                       if (commandMatches('sidebar.rowMenu', e)) {
                         e.preventDefault()
-                        return void openTagMenu(tag, below(e.target as Element))
+                        return openTagMenu(tag, below(e.target as Element))
                       }
                       const action = tagShortcut(e)
                       // A workspace deletes no tag (Backspace there does nothing).
@@ -1380,10 +1379,10 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                         'tag',
                         tag.name,
                         props.tagCounts.get(tag.id) ?? 0,
-                        `tag-row${tagMenuTarget === tag.id ? ' menu-target' : ''}`,
+                        `tag-row${tagMenu?.id === tag.id ? ' menu-target' : ''}`,
                         {
                           color: tag.color,
-                          onMenu: () => void openTagMenu(tag),
+                          onMenu: (at) => openTagMenu(tag, at),
                         },
                       )
                     )}
@@ -1471,6 +1470,17 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             setIconBookId(undefined)
           }}
           onCancel={() => setIconBookId(undefined)}
+        />
+      ) : null}
+      {shownTagMenu && tagMenu ? (
+        <TagMenu
+          tag={{ ...tagTarget(shownTagMenu), name: shownTagMenu.name }}
+          at={tagMenu.at}
+          onAction={(action) => runTagAction(action, tagTarget(shownTagMenu))}
+          onColor={(color) => {
+            if (!props.readOnly) props.onSetTagColor(shownTagMenu.id, color)
+          }}
+          onClose={() => setTagMenu(undefined)}
         />
       ) : null}
       {settingsTag ? (

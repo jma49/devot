@@ -76,6 +76,7 @@ test('Change Icon picks a catalog symbol in a colour; it shows in the sidebar, p
   await tab(page, 'Nature').click()
   await expect(search(page)).toHaveValue('')
   await expect(tab(page, 'Nature')).toHaveAttribute('aria-selected', 'true')
+  await expect(dialog(page).getByRole('radio', { name: 'Custom Color' })).toHaveCount(0)
   await dialog(page).getByRole('radio', { name: 'Green' }).click()
   await cell(page, 'leaf').click()
   await expect(dialog(page)).toHaveCount(0)
