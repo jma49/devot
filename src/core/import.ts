@@ -9,8 +9,12 @@
 // - The title is the first level-one heading, else the file name without its extension (an HTML file's `<title>` comes first).
 // - An HTML file is sanitized and converted to Markdown (htmlImport.ts) first. Embedded `data:` images become attachments; content the conversion dropped, or an
 //   image that could not be stored, is listed as not imported.
-// - Local images become attachments and only their destinations are rewritten to `devot://file/<id>`, keeping a size preset (`img.png#half`). Everything else is
-//   kept as-is, including `[[...]]`. Remote images stay links. A local image whose link cannot be found in the text is listed as not imported.
+// - Local images become attachments and only their destinations are rewritten to `devot://file/<id>`, keeping a size preset (`img.png#half`). Remote images
+//   stay links. A local image whose link cannot be found in the text is listed as not imported.
+// - Wiki-style links (wikiLinks.ts), unless turned off: once every note exists, `[[Title]]` becomes a note link to the imported note of that file name or
+//   title, else to a library note of that title (case and diacritics aside, a folder prefix only choosing between notes of the same name), and `![[image.png]]`
+//   an attachment of the import folder's image of that name. A link not found stays as written and is counted. Code and links' own text are left alone.
+// - Everything else is kept as-is.
 // - Line breaks become LF: the editor counts a CRLF as one character and the Yjs text as two, so a CR would make every later edit land in the wrong place.
 // - A file that fails part-way leaves no note behind (nor notebooks made only for it): it is listed as not imported.
 // - Nothing is written before `importMarkdown` runs. Bodies reach the note as Yjs operations (`NoteService.setBody`), never by writing the snapshot.
@@ -36,6 +40,16 @@ import type { NoteStatus, StorageAdapter } from './storage'
 import type { TagService } from './tags'
 import { MAX_TAG_NAME_CHARS } from './tags'
 import { charCount, lineFeeds, replaceRanges, trimWhitespace, type TextEdit } from './text'
+import { noteLink } from './links'
+import {
+  embeddedImage,
+  parseWikiTarget,
+  titleKey,
+  wikiLinksOf,
+  wikiShownText,
+  type WikiLink,
+  type WikiTarget,
+} from './wikiLinks'
 
 export type ImportKind = 'folder' | 'folders' | 'files'
 
@@ -77,6 +91,10 @@ export interface ImportReport {
   noteIds: Record<string, string>
   books: number
   attachments: number
+  /** Wiki-style links made into note links or attachments. */
+  links: number
+  /** Wiki-style links left as written: nothing of that name was found. */
+  unresolvedLinks: number
   problems: ImportProblem[]
 }
 
@@ -96,6 +114,8 @@ export interface ImportOptions {
   stopped?: () => boolean
   /** Where files are converted and parsed; in this thread when left out. */
   prepare?: ImportPreparer
+  /** False keeps wiki-style links as written; on when left out. */
+  wikiLinks?: boolean
 }
 
 /** What a file becomes before anything is written: all the parsing an import does. */
@@ -110,9 +130,13 @@ export interface PreparedImport {
   dropped: string[]
 }
 
-export interface ImageLinks {
+interface FoundImages {
   links: ImageLink[]
   unlocated: string[]
+}
+
+export interface ImageLinks extends FoundImages {
+  wiki: WikiLink[]
 }
 
 export interface ImportPreparer {
@@ -666,13 +690,16 @@ export function prepareImportFile(raw: string, path: string, newId?: () => strin
     title: own.title ?? (html?.title ? clipTitle(html.title) : titleOf(tree, path)),
     meta: own.meta,
     text: own.body,
-    images: imagesOf(tree, own.body),
+    images: { ...imagesOf(tree, own.body), wiki: wikiLinksOf(tree, own.body) },
     embedded: html?.images ?? [],
     dropped: html?.dropped ?? [],
   }
 }
 
-export const imagesIn = (text: string): ImageLinks => imagesOf(parse(text), text)
+export function imagesIn(text: string): ImageLinks {
+  const tree = parse(text)
+  return { ...imagesOf(tree, text), wiki: wikiLinksOf(tree, text) }
+}
 
 export const preparerHere = (newId: () => string): ImportPreparer => ({
   file: async (raw, path, withImages) =>
@@ -684,7 +711,7 @@ export function unlocatedImages(markdown: string): string[] {
   return imagesOf(parse(markdown), markdown).unlocated
 }
 
-function imagesOf(tree: Root, markdown: string): ImageLinks {
+function imagesOf(tree: Root, markdown: string): FoundImages {
   const inline: ImageLink[] = []
   const unlocated: string[] = []
   const used = new Set<string>()
@@ -787,6 +814,12 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   let imported = 0
   let attachments = 0
   const noteIds: Record<string, string> = {}
+  const convertLinks = options.wikiLinks !== false
+  const findImage = imageFinder(scan)
+  const importedNotes: ImportedNote[] = []
+  const linked: LinkedNote[] = []
+  let converted = 0
+  let unresolved = 0
   const paths = scan.files.map((f) => f.path)
   const total = paths.length
   await onProgress?.(0, total)
@@ -831,6 +864,20 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
       }
 
       const files = new Map<string, string | null>()
+      const attach = async (target: string): Promise<string | null> => {
+        if (!files.has(target)) {
+          const fileId = newId()
+          try {
+            await source.attach(target, { id: fileId, noteId })
+            files.set(target, fileId)
+            stored += 1
+          } catch (error) {
+            files.set(target, null)
+            found.push({ path, image: target, code: errorCode(error, 'E_IMPORT_FAILED') })
+          }
+        }
+        return files.get(target) ?? null
+      }
       const edits: TextEdit[] = []
       for (const url of images.unlocated) {
         const target = resolve(path, url)
@@ -847,25 +894,36 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
           found.push({ path, image: link.url, code: 'E_IMPORT_PATH_OUTSIDE' })
           continue
         }
-        if (!files.has(target.path)) {
-          const fileId = newId()
-          try {
-            await source.attach(target.path, { id: fileId, noteId })
-            files.set(target.path, fileId)
-            stored += 1
-          } catch (error) {
-            files.set(target.path, null)
-            found.push({ path, image: target.path, code: errorCode(error, 'E_IMPORT_FAILED') })
-          }
-        }
-        const fileId = files.get(target.path)
+        const fileId = await attach(target.path)
         if (fileId) {
           // A size preset (`#half`) stays on the attachment's link.
           const dest = withImageSize(fileUri(fileId), splitImageSize(link.url).size)
           edits.push({ start: link.start, end: link.end, text: dest })
         }
       }
-      await notes.setBody(noteId, replaceRanges(text, edits))
+      const pending: PendingLink[] = []
+      let embeds = 0
+      let missing = 0
+      for (const link of convertLinks ? images.wiki : []) {
+        const target = parseWikiTarget(link.inner, link.embed)
+        const image = link.embed ? findImage(path, target.path) : null
+        if (image) {
+          const fileId = await attach(image)
+          if (!fileId) continue
+          edits.push({
+            start: link.start,
+            end: link.end,
+            text: embeddedImage(target, fileUri(fileId)),
+          })
+          embeds += 1
+        } else if (link.embed && LOOKS_LIKE_IMAGE.test(target.path)) {
+          missing += 1
+        } else {
+          pending.push({ start: link.start, end: link.end, target })
+        }
+      }
+      const body = replaceRanges(text, edits)
+      await notes.setBody(noteId, body)
       if (meta.status !== null && meta.status !== 'none') await notes.setStatus(noteId, meta.status)
       // Tags last: a tag made for a note that then failed would stay unused.
       for (const tag of meta.tags) await tags.addToNote(noteId, tag)
@@ -873,12 +931,44 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
       imported += 1
       noteIds[path] = noteId
       attachments += stored
+      converted += embeds
+      unresolved += missing
+      importedNotes.push({ path, id: noteId, title: prepared.title })
+      if (pending.length > 0)
+        linked.push({ path, id: noteId, text: body, links: shifted(pending, edits) })
       problems.push(...found)
     } catch (error) {
       problems.push({ path, code: errorCode(error, 'E_IMPORT_FAILED') })
       if (!(await discard(id, made))) problems.push({ path, code: 'E_IMPORT_INCOMPLETE' })
     }
     await onProgress?.(index + 1, total)
+  }
+
+  // Second pass: every imported note now has its ID.
+  const findNote = noteFinder(importedNotes, scan.kind, notes)
+  for (const note of linked) {
+    const edits: TextEdit[] = []
+    for (const link of note.links) {
+      const shown = wikiShownText(link.target)
+      const id = link.target.path === '' ? note.id : await findNote(note.path, link.target)
+      if (id !== null && shown !== '') {
+        edits.push({ start: link.start, end: link.end, text: noteLink(shown, id) })
+      }
+    }
+    try {
+      // A note opened and changed meanwhile keeps its links as written rather than lose that change.
+      if (edits.length > 0 && (await notes.read(note.id)).bodyMd === note.text) {
+        await notes.setBody(note.id, replaceRanges(note.text, edits))
+        await notes.release(note.id)
+        converted += edits.length
+        unresolved += note.links.length - edits.length
+      } else {
+        unresolved += note.links.length
+      }
+    } catch (error) {
+      unresolved += note.links.length
+      problems.push({ path: note.path, code: errorCode(error, 'E_IMPORT_FAILED') })
+    }
   }
 
   /** Takes back a failed file's note (purging also deletes its attachments) and the notebooks made only for it. False when that fails. */
@@ -907,6 +997,119 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
     noteIds,
     books: madeBooks.length,
     attachments,
+    links: converted,
+    unresolvedLinks: unresolved,
     problems,
   }
+}
+
+const LOOKS_LIKE_IMAGE = /\.(?:png|jpe?g|gif|webp|avif|hei[cf]|svg|bmp|tiff?)$/i
+
+interface PendingLink {
+  start: number
+  end: number
+  target: WikiTarget
+}
+
+interface ImportedNote {
+  path: string
+  id: string
+  title: string
+}
+
+interface LinkedNote {
+  path: string
+  id: string
+  /** The body as the first pass stored it. */
+  text: string
+  links: PendingLink[]
+}
+
+/** The links' places once `edits` (which never overlap them) are made. */
+function shifted(links: PendingLink[], edits: readonly TextEdit[]): PendingLink[] {
+  return links.map((link) => {
+    let delta = 0
+    for (const edit of edits) {
+      if (edit.end <= link.start) delta += edit.text.length - (edit.end - edit.start)
+    }
+    return { ...link, start: link.start + delta, end: link.end + delta }
+  })
+}
+
+/** For several folders or files each path starts with its own folder, the top a link's `/` and a name are read from. */
+const rootOf = (kind: ImportKind, path: string) => (kind === 'folder' ? '' : path.split('/')[0]!)
+
+const fileKey = (path: string) => composed(path).toLowerCase()
+
+/** The import's image a wiki embed names: by its path from the note's folder, then from the top, then the nearest of that file name. */
+function imageFinder(scan: ImportScan) {
+  const byPath = new Map<string, string>()
+  const byName = new Map<string, string[]>()
+  for (const { path } of scan.images) {
+    byPath.set(fileKey(path), path)
+    const name = fileKey(path.split('/').pop()!)
+    byName.set(name, [...(byName.get(name) ?? []), path])
+  }
+  return (from: string, written: string): string | null => {
+    const root = rootOf(scan.kind, from)
+    for (const base of [from, root === '' ? '_' : `${root}/_`]) {
+      const near = resolveImagePath(base, written)
+      const found = near === null ? undefined : byPath.get(fileKey(near))
+      if (found) return found
+    }
+    const named = (byName.get(fileKey(written.split('/').pop()!)) ?? []).filter(
+      (path) => rootOf(scan.kind, path) === root,
+    )
+    const folder = folderOf(from)
+    return (
+      named.find((path) => folderOf(path) === folder) ??
+      named.toSorted((a, b) => a.split('/').length - b.split('/').length)[0] ??
+      null
+    )
+  }
+}
+
+/** The note a wiki link names: an imported note of that file name, else of that title, else a library note of that title. */
+function noteFinder(imported: ImportedNote[], kind: ImportKind, notes: NoteService) {
+  const byFile = new Map<string, ImportedNote[]>()
+  const byTitle = new Map<string, ImportedNote[]>()
+  const add = (map: Map<string, ImportedNote[]>, key: string, note: ImportedNote) => {
+    if (key !== '') map.set(key, [...(map.get(key) ?? []), note])
+  }
+  for (const note of imported) {
+    add(byFile, titleKey(baseName(note.path)), note)
+    add(byTitle, titleKey(note.title), note)
+  }
+  let library: Promise<Map<string, string>> | undefined
+  const libraryTitles = async () => {
+    const titles = new Map<string, string>()
+    for (const note of await notes.list()) {
+      const key = titleKey(note.title)
+      if (key !== '' && !titles.has(key)) titles.set(key, note.id)
+    }
+    return titles
+  }
+  return async (from: string, target: WikiTarget): Promise<string | null> => {
+    const name = titleKey(target.name)
+    const named = byFile.get(name) ?? byTitle.get(name)
+    if (named) return nearest(named, from, target, kind).id
+    library ??= libraryTitles()
+    return (await library).get(name) ?? null
+  }
+}
+
+function nearest(named: ImportedNote[], from: string, target: WikiTarget, kind: ImportKind) {
+  const written = titleKey(target.path)
+  const inFolder = target.path.includes('/')
+    ? named.filter((note) => {
+        const key = titleKey(note.path.replace(/\.[^./]+$/, ''))
+        return key === written || key.endsWith(`/${written}`)
+      })
+    : []
+  const pool = inFolder.length > 0 ? inFolder : named
+  return (
+    pool.find((note) => folderOf(note.path) === folderOf(from)) ??
+    pool.find((note) => rootOf(kind, note.path) === rootOf(kind, from)) ??
+    pool[0]!
+  )
 }

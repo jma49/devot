@@ -92,7 +92,7 @@ import {
 } from './headerMenus'
 import { TagSettingsDialog } from './TagSettingsDialog'
 import { PageSetupDialog, type PageSetup } from './PageSetupDialog'
-import { ImportDialog, type ImportJob } from './ImportDialog'
+import { ImportDialog, type ImportChoices, type ImportJob } from './ImportDialog'
 import { forgetScanFound, setScanFound } from './importProgress'
 import {
   IMPORT_FAILED,
@@ -783,13 +783,14 @@ export function App() {
       scan: ImportScan,
       destination: string | null,
       progress: (done: number, total: number) => void,
+      options: ImportChoices,
     ) => {
       const c = coreRef.current
       if (!c) throw new Error('E_CORE_NOT_READY')
       try {
         await saveEdits(c)
         const started = performance.now()
-        const report = await runImport(c, scan, destination, progress)
+        const report = await runImport(c, scan, destination, progress, options.wikiLinks)
         track('import.finished', {
           notes: report?.notes ?? 0,
           notebooks: report?.books ?? 0,
@@ -3469,7 +3470,7 @@ export function App() {
       const listed = await c.listBooks()
       const to = openDestination(link.notebook, listed, editorSettings().defaultNotebook)
       const destination = to.kind === 'create' ? await c.createBook(to.name, null) : to.id
-      const report = await startImport(link.scan, destination, () => {})
+      const report = await startImport(link.scan, destination, () => {}, { wikiLinks: true })
       const id = report ? firstImported(report.noteIds, link.scan.files, link.first) : undefined
       if (!id) {
         setLinkNotice('importFailed')

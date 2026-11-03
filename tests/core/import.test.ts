@@ -515,7 +515,7 @@ describe('Markdown folder import', () => {
   it('keeps the source text: only image destinations change, and they map back', async () => {
     const { sqlite, services } = await setup()
     const { source, attached } = sourceFor(sqlite)
-    await importMarkdown({ ...services, scan: scanOf(SAMPLE), source })
+    await importMarkdown({ ...services, scan: scanOf(SAMPLE), source, wikiLinks: false })
     for (const [path, title] of Object.entries(TITLES)) {
       // Line breaks are the one other change (see the next test).
       const original = lineFeeds(SAMPLE[path]!)
@@ -598,9 +598,14 @@ describe('Markdown folder import', () => {
     }
   })
 
-  it('keeps [[...]] as plain text: no note links are made', async () => {
+  it('keeps [[...]] as plain text with wiki links turned off: no note links are made', async () => {
     const { sqlite, services } = await setup()
-    await importMarkdown({ ...services, scan: scanOf(SAMPLE), source: sourceFor(sqlite).source })
+    await importMarkdown({
+      ...services,
+      scan: scanOf(SAMPLE),
+      source: sourceFor(sqlite).source,
+      wikiLinks: false,
+    })
     const inbox = await noteByTitle(sqlite, 'Inbox')
     expect(inbox.record.bodyMd).toBe(SAMPLE['Inbox.md'])
     expect(sqlite.db.prepare('SELECT count(*) AS n FROM links').get()).toEqual({ n: 0 })
@@ -758,6 +763,8 @@ describe('Markdown folder import', () => {
       noteIds: {},
       books: 0,
       attachments: 0,
+      links: 0,
+      unresolvedLinks: 0,
       problems: [],
     })
     const files = { 'Good.md': '# Good\n', 'Bad/One.md': '', 'Bad/Deeper/Two.md': '' }

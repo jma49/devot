@@ -4123,6 +4123,18 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+.import-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+
+.import-option input {
+  margin: 0;
+  accent-color: var(--color-accent-fill);
+}
+
 .import-progress {
   display: block;
   width: 100%;

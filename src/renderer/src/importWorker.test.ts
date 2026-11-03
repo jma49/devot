@@ -11,7 +11,7 @@ const prepared = (title: string): PreparedImport => ({
   title,
   meta: { title: null, notebook: null, tags: [], status: null },
   text: '',
-  images: { links: [], unlocated: [] },
+  images: { links: [], unlocated: [], wiki: [] },
   embedded: [],
   dropped: [],
 })
@@ -48,7 +48,7 @@ const here = (): ImportPreparer & { asked: string[] } => {
     },
     links: async (text) => {
       asked.push(text)
-      return { links: [], unlocated: [text] }
+      return { links: [], unlocated: [text], wiki: [] }
     },
   }
 }
@@ -66,7 +66,7 @@ describe('preparing imported files off the core worker', () => {
       { kind: 'file', raw: '# A', path: 'a.md', withImages: true, id: 1 },
       { kind: 'links', text: 'text', id: 2 },
     ])
-    const links: ImageLinks = { links: [], unlocated: ['x.png'] }
+    const links: ImageLinks = { links: [], unlocated: ['x.png'], wiki: [] }
     worker.emit('message', { id: 2, value: links })
     worker.emit('message', { id: 1, value: prepared('A') })
     await expect(second).resolves.toEqual(links)
@@ -97,7 +97,7 @@ describe('preparing imported files off the core worker', () => {
       failed,
     )
     await expect(prepare.file('# A', 'a.md', true)).resolves.toEqual(prepared('here a.md'))
-    await expect(prepare.links('t')).resolves.toEqual({ links: [], unlocated: ['t'] })
+    await expect(prepare.links('t')).resolves.toEqual({ links: [], unlocated: ['t'], wiki: [] })
     expect(local.asked).toEqual(['a.md', 't'])
     expect(failed).toHaveBeenCalledTimes(1)
   })

@@ -316,6 +316,7 @@ export const coreApi = {
     destination: string | null,
     source: ImportSource,
     onProgress: (done: number, total: number) => void,
+    wikiLinks = true,
   ) => {
     if (!newId) throw new Error('E_CORE_NOT_READY')
     stopImport = false
@@ -339,6 +340,7 @@ export const coreApi = {
       onProgress,
       stopped: () => stopImport,
       prepare,
+      wikiLinks,
     })
     importing = run.catch(() => undefined).finally(prepare.close)
     return run

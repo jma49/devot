@@ -87,3 +87,17 @@ describe('ImportDialog folder list', () => {
     for (const list of lists) expect(list).toContain('role="list"')
   })
 })
+
+describe('ImportDialog wiki links option', () => {
+  it('is on by default where Import is pressed', () => {
+    for (const html of [render(scan('folder', BOOK)), render(scan('files'))]) {
+      expect(html).toMatch(
+        /<label class="import-option"><input type="checkbox" checked=""\/>Convert \[\[wiki links\]\]/,
+      )
+    }
+  })
+
+  it('is left for the destination step when a folder has no notebook preset', () => {
+    expect(render(scan('folder'))).not.toContain('import-option')
+  })
+})

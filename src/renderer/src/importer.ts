@@ -36,6 +36,7 @@ export async function runImport(
   scan: ImportScan,
   destination: string | null,
   onProgress: (done: number, total: number) => void,
+  wikiLinks = true,
 ): Promise<ImportReport | null> {
   const source: ImportSource = {
     read: (path) => invoke<string>('import_read', { id: scan.id, path }),
@@ -54,6 +55,7 @@ export async function runImport(
       destination,
       Comlink.proxy(source),
       Comlink.proxy(onProgress),
+      wikiLinks,
     )
   } finally {
     await finishImport(scan.id)

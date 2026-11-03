@@ -88,6 +88,7 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **The background menu bar item:** native, placed and removed by the system, with no motion of ours. A Devot that starts in the background shows no window and so plays nothing; its main window, once opened, opens as at launch.
 - **Dragging:** a drop line fades in and a column's or row's highlight eases over `motion.duration.quick`. The other rows stay where they are: moving them would change what is under the pointer, and the zones that tell before, into and after apart.
 - **Notebook icon picker's categories:** rule 2. The grid changes at once, in a box of fixed height; symbols already rendered show in their first frame and the rest fade in where they stand over `motion.duration.popover` on `motion.easing.standard` as their images arrive, painting nothing before. A category's symbols are rendered ahead when the pointer or focus reaches its tab. Reduced motion: they show without fading.
+- **Import sheet's wiki links checkbox:** rule 2. A system checkbox: it changes at once, with no motion of ours. The summary's count of links kept as text appears with the rest of the summary.
 - **Image viewer:** opens and closes as a modal dialog does. **Plugin panel:** opens as one and closes at once, because a closing copy would run its frame again.
 
 ## iPhone
