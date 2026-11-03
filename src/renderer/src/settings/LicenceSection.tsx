@@ -197,6 +197,7 @@ export function LicenceSection() {
             <button
               type="button"
               className="button"
+              data-destructive
               aria-disabled={!held}
               onClick={() => {
                 if (held) setConfirming(true)

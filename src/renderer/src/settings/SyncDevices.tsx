@@ -18,6 +18,7 @@ import {
   type SyncDevice,
 } from '../sync'
 import { Icon } from '../icons/Icon'
+import { WithFigures } from '../phone/PhoneControls'
 import { Setting } from './controls'
 import { useOnPhone } from './onPhone'
 
@@ -525,7 +526,16 @@ export function DevicesRow(props: {
                 <div className="setting-text">
                   <span className="setting-label">{device.label}</span>
                   <span className="setting-description">
-                    {device.current ? `${added} · ${t('syncSettings.thisDevice')}` : added}
+                    {onPhone ? (
+                      <WithFigures
+                        template={t('syncSettings.deviceAdded')}
+                        values={{ date: day(device.created, locale) }}
+                      />
+                    ) : device.current ? (
+                      `${added} · ${t('syncSettings.thisDevice')}`
+                    ) : (
+                      added
+                    )}
                   </span>
                 </div>
                 {onPhone && device.current ? (
@@ -539,6 +549,7 @@ export function DevicesRow(props: {
                     }}
                     type="button"
                     className="button"
+                    data-destructive
                     aria-label={format(t('syncSettings.deviceRemoveLabel'), {
                       name: device.label,
                       date: day(device.created, locale),

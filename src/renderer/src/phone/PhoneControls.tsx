@@ -1,5 +1,6 @@
 import { useId, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { haptic } from './haptics'
+import { figureParts } from './figures'
 
 /** A pane's card, with an optional group title and at most a one-line footnote. */
 export function PhoneGroup(props: { title?: string; footnote?: string; children: ReactNode }) {
@@ -129,5 +130,18 @@ export function PhoneSlider(props: {
         <span className="phone-slider-end">{props.maxLabel}</span>
       </div>
     </div>
+  )
+}
+
+/** A message whose filled values take the figures style, its words staying in the body font. */
+export function WithFigures(props: { template: string; values: Record<string, string> }) {
+  return figureParts(props.template, props.values).map((part, index) =>
+    part.figure ? (
+      <span key={index} className="phone-figures">
+        {part.text}
+      </span>
+    ) : (
+      part.text
+    ),
   )
 }

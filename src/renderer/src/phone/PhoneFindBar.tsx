@@ -1,7 +1,8 @@
 import { useEffect, useState, type KeyboardEvent } from 'react'
-import { format, t } from '../i18n'
+import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { NO_MATCHES, type FindStatus, type FindTarget } from '../find/target'
+import { WithFigures } from './PhoneControls'
 
 /** The editor's find, in a glass bar above the keyboard. */
 export function PhoneFindBar(props: {
@@ -33,12 +34,15 @@ export function PhoneFindBar(props: {
     }
     if (event.key === 'Escape') close()
   }
-  const count = query
-    ? format(t('phone.find.count'), {
+  const count = query ? (
+    <WithFigures
+      template={t('phone.find.count')}
+      values={{
         current: String(status.current === null ? 0 : status.current + 1),
         total: String(status.total),
-      })
-    : ''
+      }}
+    />
+  ) : null
   const none = status.total === 0
   return (
     <div
@@ -56,7 +60,7 @@ export function PhoneFindBar(props: {
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={onKeyDown}
         />
-        <output className="phone-find-count phone-figures">{count}</output>
+        <output className="phone-find-count">{count}</output>
         <button
           type="button"
           className="phone-accessory-button"
