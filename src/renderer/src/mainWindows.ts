@@ -48,6 +48,7 @@ export function reportingWrites(storage: WireStorage, onWrote: () => void): Wire
     copyFiles: after((noteId, copies) => storage.copyFiles(noteId, copies)),
     putBook: after((book) => storage.putBook(book)),
     putTag: after((tag) => storage.putTag(tag)),
+    putSavedSearch: after((search) => storage.putSavedSearch(search)),
     putNoteTag: after((link) => storage.putNoteTag(link)),
     markAgentWritesSeen: afterChange((noteId, writeIds) =>
       storage.markAgentWritesSeen(noteId, writeIds),

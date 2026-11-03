@@ -22,18 +22,21 @@ import type {
   NoteSummary,
   NoteTagRecord,
   RevisionRecord,
+  SavedSearchRecord,
   StorageAdapter,
   TagRecord,
 } from '../../../core'
 import { checkUpload, fileUri, type FileMeta } from '../../../core/files'
 import { checkNote } from '../../../core/noteLimits'
 import { bodyExcerpt, excerptTerms } from '../../../core/search'
+import { savedSearchOrder } from '../../../core/savedSearches'
 import { isTagColor, isTagColorValue } from '../../../core/tags'
 
 const NOTES = 'devot.test.notes'
 const BOOKS = 'devot.test.books'
 const TAGS = 'devot.test.tags'
 const NOTE_TAGS = 'devot.test.noteTags'
+const SAVED_SEARCHES = 'devot.test.savedSearches'
 const FILES = 'devot.test.files'
 const REVISIONS = 'devot.test.revisions'
 const COMPACTION = 'devot.test.compaction'
@@ -129,6 +132,26 @@ function mergeTag(current: TagRecord | undefined, next: TagRecord): TagRecord {
     ...newer(current, next, 'name', 'nameHlc'),
     ...newer(current, next, 'color', 'colorHlc'),
     ...newer(current, next, 'deletedAt', 'deletedHlc'),
+  }
+}
+
+function mergeSavedSearch(
+  current: SavedSearchRecord | undefined,
+  next: SavedSearchRecord,
+): SavedSearchRecord {
+  if (!current) return next
+  const sortKey =
+    next.sortKeyHlc > current.sortKeyHlc ||
+    (next.sortKeyHlc === current.sortKeyHlc && next.sortKey > current.sortKey)
+      ? { sortKey: next.sortKey, sortKeyHlc: next.sortKeyHlc }
+      : {}
+  return {
+    ...current,
+    updatedAt: Math.max(current.updatedAt, next.updatedAt),
+    ...newer(current, next, 'name', 'nameHlc'),
+    ...newer(current, next, 'query', 'queryHlc'),
+    ...newer(current, next, 'deletedAt', 'deletedHlc'),
+    ...sortKey,
   }
 }
 
@@ -481,6 +504,22 @@ export const memoryStorage: StorageAdapter = {
       tag,
     )
     localStorage.setItem(TAGS, JSON.stringify([...all.filter((t) => t.id !== tag.id), next]))
+  },
+  async listSavedSearches() {
+    return read<SavedSearchRecord>(SAVED_SEARCHES)
+      .filter((s) => s.deletedAt === null)
+      .sort(savedSearchOrder)
+  },
+  async putSavedSearch(search) {
+    const all = read<SavedSearchRecord>(SAVED_SEARCHES)
+    const next = mergeSavedSearch(
+      all.find((s) => s.id === search.id),
+      search,
+    )
+    localStorage.setItem(
+      SAVED_SEARCHES,
+      JSON.stringify([...all.filter((s) => s.id !== search.id), next]),
+    )
   },
   async putNoteTag(link) {
     const all = read<NoteTagRecord>(NOTE_TAGS)

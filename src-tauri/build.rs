@@ -76,6 +76,8 @@ fn main() {
             "tag_put",
             "note_tag_put",
             "note_tag_get",
+            "saved_searches_list",
+            "saved_search_put",
             "app_exit_ready",
             "app_exit_cancel",
             "open_external",

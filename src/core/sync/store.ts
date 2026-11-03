@@ -1,8 +1,14 @@
 // What the sync engine keeps in the database beside the notes (schema v19, migrations/0019_sync.sql),
-// and the reads it needs that the rest of the core does not: raw rows, deleted notebooks and tags
-// and purged notes included. The Rust store and the better-sqlite3 adapter implement it alike.
+// and the reads it needs that the rest of the core does not: raw rows, deleted notebooks, tags
+// and saved searches and purged notes included. The Rust store and the better-sqlite3 adapter implement it alike.
 
-import type { BookRecord, NoteRecord, NoteTagRecord, TagRecord } from '../storage'
+import type {
+  BookRecord,
+  NoteRecord,
+  NoteTagRecord,
+  SavedSearchRecord,
+  TagRecord,
+} from '../storage'
 import type { SyncKind } from './records'
 
 export interface SyncEntry {
@@ -50,6 +56,8 @@ export interface SyncLocal {
   tag: TagRecord | null
   /** A purged file has none: its entry is the tombstone. */
   file: SyncFileMeta | null
+  /** Deleted ones too. */
+  search: SavedSearchRecord | null
 }
 
 export type SyncEntryWrite = Omit<SyncEntry, 'edits'>

@@ -19,7 +19,13 @@ import { isNotebookIcon } from '../notebookIcons'
 import { MERGE, REVISION_EVERY_MS, textLength } from '../revisions'
 import { countWords } from '../words'
 import { quotaResetAt } from './protocol'
-import type { BookRecord, NoteRecord, StorageAdapter, TagRecord } from '../storage'
+import type {
+  BookRecord,
+  NoteRecord,
+  SavedSearchRecord,
+  StorageAdapter,
+  TagRecord,
+} from '../storage'
 import { isTagColor, isTagColorValue } from '../tags'
 import {
   bodyPrint,
@@ -36,6 +42,7 @@ import {
   type MergedNote,
   type NoteState,
   type SyncRecord,
+  type SearchState,
   type TagState,
 } from './records'
 import {
@@ -217,6 +224,21 @@ const tagStateOf = (tag: TagRecord): TagState => ({
   colorHlc: tag.colorHlc,
 })
 
+const searchStateOf = (search: SavedSearchRecord): SearchState => ({
+  kind: 'search',
+  id: search.id,
+  name: search.name,
+  nameHlc: search.nameHlc,
+  query: search.query,
+  queryHlc: search.queryHlc,
+  sortKey: search.sortKey,
+  sortKeyHlc: search.sortKeyHlc,
+  createdAt: search.createdAt,
+  updatedAt: search.updatedAt,
+  deletedAt: search.deletedAt,
+  deletedHlc: search.deletedHlc ?? '',
+})
+
 const fileStateOf = (file: SyncFileMeta): FileState => ({
   kind: 'file',
   id: file.id,
@@ -235,6 +257,7 @@ function stateOf(local: SyncLocal | undefined, bodyHlc: string): SyncRecord | nu
   if (local?.book) return bookStateOf(local.book)
   if (local?.tag) return tagStateOf(local.tag)
   if (local?.file) return fileStateOf(local.file)
+  if (local?.search) return searchStateOf(local.search)
   // An attachment with an entry and no row was purged: the entry is its tombstone.
   if (local?.entry?.kind === 'file') return tombstoneFile(local.id)
   return null
@@ -290,6 +313,20 @@ const tagRecordOf = (state: TagState): TagRecord => ({
   deletedHlc: state.deletedHlc || null,
   color: isTagColorValue(state.color) ? state.color : null,
   colorHlc: state.colorHlc,
+})
+
+const searchRecordOf = (state: SearchState): SavedSearchRecord => ({
+  id: state.id,
+  name: state.name,
+  nameHlc: state.nameHlc,
+  query: state.query,
+  queryHlc: state.queryHlc,
+  sortKey: state.sortKey,
+  sortKeyHlc: state.sortKeyHlc,
+  createdAt: state.createdAt,
+  updatedAt: state.updatedAt,
+  deletedAt: state.deletedAt,
+  deletedHlc: state.deletedHlc || null,
 })
 
 export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
@@ -634,6 +671,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     if (record.kind === 'file') return writeFile(local, record, remote as FileState)
     if (record.kind === 'book') return storage.putBook(bookRecordOf(record))
     if (record.kind === 'tag') return storage.putTag(tagRecordOf(record))
+    if (record.kind === 'search') return storage.putSavedSearch(searchRecordOf(record))
     const row = local?.note
     if (record.purged) {
       if (!row || row.purged) return
