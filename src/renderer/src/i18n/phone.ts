@@ -47,7 +47,6 @@ export const enPhone: Partial<Messages> = {
   'syncSettings.secretAgainHint': 'Asked once to create your vault, not kept',
   'syncSettings.secretRevokedHint': 'Device removed; enter once to sign back in',
   'syncSettings.recoveryHint': 'Save it now; Devot will not show it again',
-  'syncSettings.newVaultHint': 'First device only; others join with a code',
   'syncSettings.pairHint': 'Works once, for 10 minutes',
   'syncSettings.joinCodeHint': 'From another device, or its QR link',
   'syncSettings.joinRecoveryHint': 'The key you saved when setting up sync',
