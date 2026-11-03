@@ -439,3 +439,71 @@ test.describe('which mode a note opens in', () => {
     await expect(modeOf(page)).toHaveAttribute('data-mode', 'edit')
   })
 })
+
+test('an unbroken long tag stays on screen, cut with an ellipsis, in a 44 target', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as { id: string }[]
+    const tag = {
+      id: 'long-tag',
+      name: 'abcdefghijklmnop'.repeat(4),
+      nameHlc: '',
+      createdAt: 0,
+      updatedAt: 0,
+      deletedAt: null,
+      deletedHlc: null,
+      color: 'blue',
+      colorHlc: '',
+    }
+    localStorage.setItem('devot.test.tags', JSON.stringify([tag]))
+    localStorage.setItem(
+      'devot.test.noteTags',
+      JSON.stringify(notes.map((n) => ({ noteId: n.id, tagId: tag.id, present: true, hlc: '' }))),
+    )
+  })
+  await page.reload()
+  await openFirstNote(page)
+  const target = note(page).locator('.phone-chip-target:has([data-tag])')
+  await expect(target).toHaveCount(1)
+  const box = (await target.boundingBox())!
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width)
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  const text = target.locator('.phone-chip-text')
+  await expect(text).toHaveCSS('text-overflow', 'ellipsis')
+  expect(await text.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
+})
+
+test('the find count draws its numbers as figures and its words in the body font', async ({
+  page,
+}) => {
+  await note(page).getByRole('button', { name: 'Find in Note' }).click()
+  await note(page).getByRole('searchbox', { name: 'Find in Note' }).fill('e')
+  const count = note(page).locator('.phone-find-count')
+  await expect(count).toHaveText(/^\d+ of \d+$/)
+  await expect(count).not.toHaveCSS('font-family', /mono|Menlo/i)
+  const figures = count.locator('.phone-figures')
+  await expect(figures).toHaveCount(2)
+  for (const figure of await figures.all()) {
+    await expect(figure).toHaveText(/^\d+$/)
+    await expect(figure).toHaveCSS('font-family', /mono|Menlo/i)
+  }
+})
+
+test('the tag field is concentric with the sheet', async ({ page }) => {
+  await note(page).locator('.phone-chip-target:has(.phone-chip-dashed)').click()
+  const field = page
+    .getByRole('dialog', { name: 'Tags' })
+    .getByRole('textbox', { name: 'Tag name' })
+  await expect(field).toBeVisible()
+  const { radius, expected } = await field.evaluate((el) => {
+    const probe = document.createElement('div')
+    probe.style.width = 'calc(var(--radius-phone-sheet) - var(--size-phone-sheet-pad))'
+    el.parentElement!.append(probe)
+    const width = probe.getBoundingClientRect().width
+    probe.remove()
+    return { radius: parseFloat(getComputedStyle(el).borderTopLeftRadius), expected: width }
+  })
+  expect(radius).toBeCloseTo(expected, 0)
+})

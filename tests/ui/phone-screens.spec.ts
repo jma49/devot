@@ -219,6 +219,32 @@ test.describe('under Reduce Motion', () => {
   })
 })
 
+test('at twice the text size every peek action is on screen', async ({ page }) => {
+  await openNotes(page)
+  await page.locator('.phone-app').evaluate((app) => {
+    const shell = app as unknown as { style: CSSStyleDeclaration; dataset: Record<string, string> }
+    shell.style.setProperty('--phone-text-scale', '2')
+    shell.dataset['textSize'] = 'accessibility'
+  })
+  await recent(page)
+    .first()
+    .getByRole('button', { name: /^Actions for / })
+    .evaluate((el) => (el as HTMLElement).click())
+  const menu = page.locator('.phone-peek-menu')
+  await expect(menu).toBeVisible()
+  const height = await page.evaluate(() => innerHeight)
+  const drawn = (await menu.boundingBox())!
+  expect(drawn.y + drawn.height).toBeLessThanOrEqual(height)
+  const items = menu.getByRole('menuitem')
+  await expect(items.first()).toBeVisible()
+  for (const item of await items.all()) {
+    await item.evaluate((el) => el.scrollIntoView({ block: 'nearest' }))
+    const box = (await item.boundingBox())!
+    expect(box.y).toBeGreaterThanOrEqual(0)
+    expect(box.y + box.height).toBeLessThanOrEqual(height)
+  }
+})
+
 test.describe('the peek with motion', () => {
   test.use({ reducedMotion: 'no-preference' })
 

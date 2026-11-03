@@ -220,12 +220,14 @@ export function SheetChoice(props: {
   const contents = (
     <>
       {props.lead}
-      <span className="phone-grouped-label">{props.label}</span>
-      {props.value !== undefined && (
-        <span className={`phone-grouped-count${props.figures ? ' phone-figures' : ''}`}>
-          {props.value}
-        </span>
-      )}
+      <span className="phone-grouped-text">
+        <span className="phone-grouped-label">{props.label}</span>
+        {props.value !== undefined && (
+          <span className={`phone-grouped-count${props.figures ? ' phone-figures' : ''}`}>
+            {props.value}
+          </span>
+        )}
+      </span>
       {props.selected && (
         <span className="phone-sheet-check">
           <Icon name="check" size="sm" />

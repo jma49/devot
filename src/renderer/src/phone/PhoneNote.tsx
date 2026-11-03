@@ -299,7 +299,7 @@ export function PhoneNote(props: {
           <button type="button" className="phone-chip-target" onClick={() => setSheet('notebook')}>
             <span className="phone-chip">
               <Icon name="notebook" size="sm" />
-              {book?.name ?? t('phone.noNotebook')}
+              <span className="phone-chip-text">{book?.name ?? t('phone.noNotebook')}</span>
               <Icon name="popup.chevron" size="xs" />
             </span>
           </button>
@@ -325,7 +325,7 @@ export function PhoneNote(props: {
                 data-tag={tag!.color ?? undefined}
                 style={tagColorStyle(tag!.color)}
               >
-                {tag!.name}
+                <span className="phone-chip-text">{tag!.name}</span>
               </span>
             </button>
           ))}

@@ -746,8 +746,9 @@ test('the Sync pane shows what the relay holds, with the room left and a warning
   await expect(pane.getByText('Notes and Other Records')).toBeVisible()
   await expect(pane.getByText('1 GB of 3 GB')).toBeVisible()
   await expect(pane.getByText('3.3 GB of 4 GB')).toBeVisible()
-  await expect(pane.getByText(/^700 MB\. Images can use 700 MB of that\./)).toBeVisible()
-  await expect(pane.getByText(/The relay’s storage is more than 80% full/)).toBeVisible()
+  await expect(pane.getByText('700 MB, images up to 700 MB', { exact: true })).toBeVisible()
+  await expect(pane.getByText(/^The relay is over 80% full\./)).toBeVisible()
+  await expect(pane.getByText(/^Holds up to/)).toHaveCount(0)
 })
 
 test('a phone without sync asks first or another device, then shows only that path', async ({
@@ -784,4 +785,135 @@ test('buttons in a card stay inside it, with corners concentric to the card', as
     expect(radius).toBeCloseTo(expected, 0)
     expect(await button.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
   }
+})
+
+/** A token expression's length in px, resolved where `el` is. */
+const resolved = (target: Locator, expression: string) =>
+  target.evaluate((el, value) => {
+    const probe = document.createElement('div')
+    probe.style.width = value
+    el.parentElement!.append(probe)
+    const width = probe.getBoundingClientRect().width
+    probe.remove()
+    return width
+  }, expression)
+
+const radius = (target: Locator) =>
+  target.evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius))
+
+test('segmented controls and steppers in a card are concentric with it', async ({ page }) => {
+  const inner = 'calc(var(--radius-phone-card) - var(--size-phone-row-pad))'
+  const appearance = await openPane(page, 'Appearance')
+  const segmented = appearance.locator('.settings-card .phone-segmented').first()
+  await expect(segmented).toBeVisible()
+  expect(await radius(segmented)).toBeCloseTo(await resolved(segmented, inner), 0)
+  const pill = segmented.locator('.phone-segmented-pill')
+  expect(await radius(pill)).toBeCloseTo((await resolved(segmented, inner)) - 3, 0)
+
+  const editing = await openPane(page, 'Editing')
+  const stepper = editing.locator('.settings-card .stepper').first()
+  await expect(stepper).toBeVisible()
+  expect(await radius(stepper)).toBeCloseTo(await resolved(stepper, inner), 0)
+})
+
+test('a button that removes something is in the destructive colour', async ({ page }) => {
+  await page.addInitScript(() => {
+    const provider = (endpoint: string) => ({
+      endpoint,
+      model: '',
+      defaultEndpoint: endpoint,
+      defaultModel: 'm',
+      key: 'set',
+    })
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      ai_settings_get: () => ({
+        active: 'anthropic',
+        suggestOnIdle: false,
+        anthropic: provider('https://a.example'),
+        openai: provider('https://o.example'),
+      }),
+      licence_get: () => ({
+        gated: true,
+        state: 'valid',
+        code: null,
+        id: 'DEVOT-0123',
+        licensee: 'Ada',
+        plan: 'pro',
+      }),
+      sync_get: () => ({
+        relayUrl: 'https://relay.example',
+        enabled: true,
+        vault: true,
+        enrolled: true,
+        status: { state: 'idle', lastSync: 1_700_000_000_000, code: null, pausedUntil: null },
+      }),
+      sync_devices: () => [
+        { id: 'd1', label: 'This phone', created: 1_700_000_000_000, current: true },
+        { id: 'd2', label: 'Desk', created: 1_690_000_000_000, current: false },
+      ],
+      sync_recovery_key: () => null,
+    }
+  })
+  const destructive = async (button: Locator) => {
+    await expect(button).toBeVisible()
+    const [color, expected] = await button.evaluate((el) => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--color-phone-destructive)'
+      el.parentElement!.append(probe)
+      const value = getComputedStyle(probe).color
+      probe.remove()
+      return [getComputedStyle(el).color, value]
+    })
+    expect(color).toBe(expected)
+  }
+  await destructive((await openPane(page, 'Sync')).getByRole('button', { name: /^Remove Desk/ }))
+  await destructive((await openPane(page, 'AI')).getByRole('button', { name: 'Remove Key' }))
+  await destructive(
+    (await openPane(page, 'License')).getByRole('button', { name: 'Remove License…' }),
+  )
+})
+
+test('a device shows when it was added, its date in figures, and no This Device', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      sync_get: () => ({
+        relayUrl: 'https://relay.example',
+        enabled: true,
+        vault: true,
+        enrolled: true,
+        status: { state: 'idle', lastSync: 1_700_000_000_000, code: null, pausedUntil: null },
+      }),
+      sync_devices: () => [
+        { id: 'd1', label: 'This phone', created: 1_700_000_000_000, current: true },
+      ],
+      sync_recovery_key: () => null,
+    }
+  })
+  const pane = await openPane(page, 'Sync')
+  const meta = pane.locator('.sync-device .setting-description')
+  await expect(meta).toHaveText(/^Added \S/)
+  await expect(meta).not.toContainText('This Device')
+  await expect(meta).not.toHaveCSS('font-family', /mono|Menlo/i)
+  await expect(meta.locator('.phone-figures')).toHaveCSS('font-family', /mono|Menlo/i)
+  await expect(meta.locator('.phone-figures')).not.toContainText('Added')
+})
+
+test('at twice the text size a Settings row puts its value under its whole label', async ({
+  page,
+}) => {
+  await openSettings(page)
+  await page.locator('.phone-app').evaluate((app) => {
+    const shell = app as unknown as { style: CSSStyleDeclaration; dataset: Record<string, string> }
+    shell.style.setProperty('--phone-text-scale', '2')
+    shell.dataset['textSize'] = 'accessibility'
+  })
+  const row = root(page).getByRole('button', { name: /^Keyboard/ })
+  const [label, value] = await Promise.all([
+    row.locator('.phone-grouped-label').boundingBox(),
+    row.locator('.phone-grouped-count').boundingBox(),
+  ])
+  expect(label!.height).toBeLessThan(17 * 2 * 1.5)
+  expect(value!.y).toBeGreaterThanOrEqual(label!.y + label!.height - 1)
 })
