@@ -35,6 +35,34 @@ async function rightPadding(control: Locator): Promise<number> {
 const glassOpaque = (page: Page) =>
   tabs(page).evaluate((bar) => getComputedStyle(bar).backdropFilter === 'none')
 
+test('an ended trial shows on the Settings tab and its License row at launch', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      ...w.devotIpcMocks,
+      licence_get: () => ({
+        gated: true,
+        state: 'none',
+        code: null,
+        id: null,
+        licensee: null,
+        plan: null,
+        trial: { state: 'ended', endsAt: Date.now() - 86_400_000, code: null },
+      }),
+    }
+  })
+  await page.goto('/')
+  await expect(
+    tabs(page)
+      .getByRole('button', { name: 'Settings' })
+      .getByRole('img', { name: 'Needs attention' }),
+  ).toBeVisible()
+  await tabs(page).getByRole('button', { name: 'Settings' }).click()
+  await expect(root(page).getByRole('button', { name: /^License/ })).toContainText(
+    'Needs attention',
+  )
+})
+
 test('Settings has its groups, and what lives on the Mac says so and does not open', async ({
   page,
 }) => {

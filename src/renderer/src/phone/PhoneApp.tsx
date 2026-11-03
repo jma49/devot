@@ -28,7 +28,7 @@ import { PhoneActivity } from './PhoneActivity'
 import { PhoneLibrary } from './PhoneLibrary'
 import { usePhoneData, type PhoneData } from './usePhoneData'
 import { haptic } from './haptics'
-import { useLicence } from '../licence'
+import { startLicence, useLicence } from '../licence'
 import { licenceRow } from './settingsRows'
 import { PhoneCapture } from './PhoneCapture'
 import { applyGlassPrefs } from './glassPrefs'
@@ -286,6 +286,7 @@ export function PhoneApp() {
   const [now] = useState(() => Date.now())
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => (root.current ? startPhoneRoot(root.current) : undefined), [])
+  useEffect(() => startLicence(), [])
   useEffect(() => {
     if (arrivedId === null) return
     const timer = setTimeout(() => setArrivedId(null), ARRIVAL_MS)

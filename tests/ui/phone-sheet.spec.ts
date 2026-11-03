@@ -55,12 +55,6 @@ async function openTrial(page: Page): Promise<Locator> {
   await seedTrial(page)
   await page.goto('/')
   await tabs(page).getByRole('button', { name: 'Settings' }).click()
-  // The License pane is what reads the licence in this layout.
-  await page.getByRole('button', { name: /^License/ }).click()
-  const pane = page.locator('section.phone-screen[aria-label="License"]')
-  await expect(pane.locator('.settings-section')).toBeAttached()
-  await pane.getByRole('button', { name: 'Back' }).click()
-  await expect(pane).toHaveCount(0)
   await page.locator('.phone-app-row').click()
   return page.getByRole('dialog', { name: 'Trial' })
 }
