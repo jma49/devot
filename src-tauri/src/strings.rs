@@ -4,6 +4,7 @@
 pub const APP_NAME: &str = "Devot";
 pub const MENU_FILE: &str = "File";
 pub const NEW_WINDOW: &str = "New Window";
+pub const OPEN_TODAY: &str = "Open Today’s Note";
 pub const MENU_IMPORT: &str = "Import";
 pub const MENU_EXPORT: &str = "Export";
 pub const EXPORT_ALL_MARKDOWN: &str = "All Notes as Markdown…";
@@ -141,7 +142,7 @@ Usage:
                                        Write a Markdown file (- reads standard
                                        input) as a page, OUT.pdf or OUT.html,
                                        without showing a window
-  devot append ID|--title TITLE [--heading H] [--prepend] [--stdin | TEXT]
+  devot append ID|--title TITLE|--today [--heading H] [--prepend] [--stdin | TEXT]
                                        Add TEXT (or standard input) to a note in
                                        the running Devot: at the end of the
                                        section under heading H, or of the note
@@ -154,6 +155,8 @@ Options:
   -o, --output OUT   Where export writes: a path ending in .pdf or .html
   --simple           Export bare HTML, without styles (.html only)
   --title TITLE      The note to append to, by its title, instead of its ID
+  --today            Append to today's note, made when missing (Settings >
+                     General > Daily Notes)
   --heading H        The heading whose section takes the text (any case, with
                      or without its # marks); the note must have it
   --prepend          Put the text at the start of the section instead
@@ -183,7 +186,7 @@ pub const CLI_APPEND_NOT_TEXT: &str =
     "the text to append is not UTF-8 text (E_APPEND_TEXT_INVALID)";
 pub const CLI_READ_FAILED: &str = "cannot read {path}";
 pub const CLI_READ_STDIN_FAILED: &str = "cannot read standard input (E_CLI_STDIN_UNREADABLE)";
-pub const CLI_APPEND_TARGET: &str = "append needs a note ID, or --title TITLE";
+pub const CLI_APPEND_TARGET: &str = "append needs one note: an ID, --title TITLE or --today";
 pub const CLI_APPEND_NOTE_ID: &str = "not a note ID: {id}";
 pub const CLI_APPEND_TEXT: &str = "append takes one TEXT (quote it), or --stdin";
 pub const CLI_APPEND_TEXT_EMPTY: &str = "the text to append is empty (E_APPEND_TEXT_EMPTY)";

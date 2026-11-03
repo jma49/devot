@@ -3,6 +3,7 @@ import { hasDesktopShell } from './platform'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type {
   BatchChange,
+  DailyNotesSettings,
   BookRecord,
   ExportReport,
   ImportScan,
@@ -272,7 +273,12 @@ import { createAiGenerator } from '../../core/aiProvider'
 import { createSuggester } from '../../core/aiSuggest'
 import { loadAiSettings } from './settings/aiProviders'
 import { Activity, useActivityMenu } from './Activity'
-import { choicesFromTree, notebookForNewNote, publishNotebooks } from './notebookChoices'
+import {
+  choicesFromTree,
+  notebookForNewNote,
+  publishNotebooks,
+  publishTemplates,
+} from './notebookChoices'
 import {
   agentFilter,
   Sidebar,
@@ -302,6 +308,12 @@ interface Search {
 const SEARCH_SETTLED_MS = 1000
 
 export const SHOW_PALETTE = 'devot:show-palette'
+export const OPEN_TODAY = 'devot:open-today'
+
+const dailySettings = (): DailyNotesSettings => {
+  const { dailyNotebook, dailyTemplate, dailyTitleFormat } = editorSettings()
+  return { dailyNotebook, dailyTemplate, dailyTitleFormat }
+}
 
 export const TOGGLE_PREVIEW = 'devot:toggle-preview'
 export const SHOW_SPLIT = 'devot:show-split'
@@ -844,6 +856,7 @@ export function App() {
 
   const tree = useMemo(() => buildBookTree(books), [books])
   useEffect(() => publishNotebooks(choicesFromTree(tree)), [tree])
+  useEffect(() => publishTemplates(templates.map(({ id, title }) => ({ id, title }))), [templates])
   const counts = useKept(
     useMemo(() => bookCounts(notes, books), [notes, books]),
     sameCounts,
@@ -2153,6 +2166,26 @@ export function App() {
     await select(id, { keyboard: true })
   }
 
+  /** Finds or makes today's note (dailyNotes.ts) and opens it; one outside the workspace leaves it. */
+  const openToday = async () => {
+    if (!core) return
+    await saveEdits(core)
+    let opened: { id: string; created: boolean; bookId: string | null }
+    try {
+      opened = await core.openTodaysNote(dailySettings(), Date.now(), editing)
+    } catch (e) {
+      setChangeNotice(errorCode(e))
+      return
+    }
+    if (opened.created) track('note.created', { from: 'today' })
+    if (workspaceIds && !(opened.bookId !== null && workspaceIds.has(opened.bookId))) {
+      setWorkspace(null)
+    }
+    await showMade(core, opened.id, await refresh(core))
+    if (opened.created && mode === 'preview') setMode('edit')
+    await select(opened.id, { keyboard: true })
+  }
+
   /** Fills the open note from a template without making a new one; the open editor takes in the core's writes like another process's. */
   const fillFromTemplate = async (templateId: string, noteId: string) => {
     setPicking(undefined)
@@ -2689,7 +2722,11 @@ export function App() {
     const take = cliAppendHost({
       run: async (request) => {
         if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
-        const id = await resolveAppendTarget(request.target, () => core.list())
+        const id = await resolveAppendTarget(
+          request.target,
+          () => core.list(),
+          async () => (await core.openTodaysNote(dailySettings(), Date.now(), true)).id,
+        )
         const update = await core.appendToNote(id, request.text, {
           position: request.position,
           ...(request.heading === null ? {} : { heading: request.heading }),
@@ -3288,6 +3325,7 @@ export function App() {
     handlers['note.newFromTemplate'] = {
       run: () => setPicking({ recent: recentTemplates.load() }),
     }
+    handlers['note.today'] = { run: openToday }
   }
   if (openNote && !selectedIsTemplate && editingAllowed()) {
     handlers['note.quickTag'] = { run: () => setQuickTagNote(openNote.id) }
@@ -3383,6 +3421,7 @@ export function App() {
   useWindowCommands(commands)
   useFormatMenu(commands)
   useCommandMenu()
+  useMenuEvent('devot://open-today', OPEN_TODAY, () => void commands['note.today']?.run())
 
   // What the palette lists. Notebooks, tags and notes are only gathered
   // while it is open, and again only when they change.
@@ -3565,6 +3604,12 @@ export function App() {
     }
     if (link.kind === 'import') {
       if (editing) void importHandedOver(link)
+      else setLinkNotice('commandUnavailable')
+      return
+    }
+    if (link.kind === 'today') {
+      const handler = commands['note.today']
+      if (handler) void handler.run()
       else setLinkNotice('commandUnavailable')
       return
     }

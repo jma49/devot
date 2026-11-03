@@ -1,5 +1,5 @@
 // Links other apps open: `devot://note/<id>` opens a note,
-// `devot://command/<id>` runs one of `URL_COMMANDS` and
+// `devot://command/<id>` runs one of `URL_COMMANDS`, `devot://today` opens today's note and
 // `devot://licence?key=<key>` offers a licence (`devot-dev://` in a debug
 // build). Rust checks every URL and sends the main window only what it
 // asks for, as a link (`src-tauri/src/deep_link.rs`); the window reads it
@@ -38,6 +38,7 @@ export type UrlCommand = (typeof URL_COMMANDS)[number]
 export type DeepLink =
   | { readonly kind: 'note'; readonly id: string }
   | { readonly kind: 'command'; readonly id: UrlCommand }
+  | { readonly kind: 'today' }
   /** Files from the `devot` command (src-tauri/src/cli.rs); no URL makes one. */
   | {
       readonly kind: 'import'
@@ -111,6 +112,7 @@ export function readDeepLink(value: unknown): DeepLink | undefined {
   const { kind, id } = value as { kind?: unknown; id?: unknown }
   if (kind === 'note' && typeof id === 'string' && UUID_V7.test(id)) return { kind, id }
   if (kind === 'command' && isUrlCommand(id)) return { kind, id }
+  if (kind === 'today' && id === undefined) return { kind }
   if (kind === 'licence') return readLicenceLink(value as Record<string, unknown>)
   if (kind === 'import') {
     const { scan, notebook, first } = value as Record<string, unknown>
@@ -126,7 +128,9 @@ const linkKey = (link: DeepLink) =>
     ? `import:${link.scan.id}`
     : link.kind === 'licence'
       ? `licence:${link.key ?? link.code ?? ''}`
-      : `${link.kind}:${link.id}`
+      : link.kind === 'today'
+        ? 'today'
+        : `${link.kind}:${link.id}`
 
 export type NoteTarget =
   | { readonly kind: 'listed' }

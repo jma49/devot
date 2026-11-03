@@ -1,6 +1,8 @@
 // Editor settings: how the note editor looks and behaves on this device, plus the window's sidebar material (Settings > Appearance). A local preference, never note
 // data: Rust keeps them in their own file (src-tauri/src/editor_settings.rs, which checks the same lists and ranges as this module) and they never sync.
 
+import { DAILY_TITLE_FORMATS, type DailyTitleFormat } from './dailyNotes'
+
 export type FontFamilyId =
   | 'system'
   | 'mono'
@@ -69,6 +71,10 @@ export interface EditorSettings {
   highlightTrailingWhitespace: boolean
   previewFontSize: number
   defaultNotebook: string | null
+  /** Today's note (dailyNotes.ts): its notebook, the template it is made from, and its title's format. */
+  dailyNotebook: string | null
+  dailyTemplate: string | null
+  dailyTitleFormat: DailyTitleFormat
   listDates: ListDatesStyle
   /** Boards show a Dropped column; off, dropped notes are left off them. */
   boardDropped: boolean
@@ -143,6 +149,9 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   highlightTrailingWhitespace: false,
   previewFontSize: 15,
   defaultNotebook: null,
+  dailyNotebook: null,
+  dailyTemplate: null,
+  dailyTitleFormat: 'iso',
   listDates: 'relative',
   boardDropped: true,
   activityStrip: true,
@@ -312,6 +321,9 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   highlightTrailingWhitespace: isFlag,
   previewFontSize: wholeIn(FONT_SIZE_MIN, FONT_SIZE_MAX),
   defaultNotebook: isNotebookId,
+  dailyNotebook: isNotebookId,
+  dailyTemplate: isNotebookId,
+  dailyTitleFormat: oneOf(DAILY_TITLE_FORMATS),
   listDates: oneOf(LIST_DATES_STYLES),
   boardDropped: isFlag,
   activityStrip: isFlag,

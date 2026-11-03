@@ -652,6 +652,15 @@ title: Daily Report {{date}}
   'generalSettings.defaultNotebookHint':
     'The notebook a new note goes to when the view shown has no notebook.',
   'generalSettings.noNotebook': 'None',
+  'generalSettings.dailyNotes': 'Daily Notes',
+  'generalSettings.dailyNotebook': 'Notebook',
+  'generalSettings.dailyNotebookHint':
+    'Where Open Today\u2019s Note finds the day\u2019s note, and makes it when it is missing.',
+  'generalSettings.dailyTemplate': 'Template',
+  'generalSettings.dailyTemplateHint': 'The template a new day\u2019s note is made from.',
+  'generalSettings.noTemplate': 'None (an empty note)',
+  'generalSettings.dailyTitleFormat': 'Title',
+  'generalSettings.dailyTitleFormatHint': 'How the day\u2019s note is titled.',
   'generalSettings.listDates': 'Note List Dates',
   'generalSettings.listDatesHint':
     'Whether the note list shows how long ago a note changed, or its date.',
@@ -1799,6 +1808,7 @@ title: Daily Report {{date}}
   'command.leaveWorkspace': 'Leave Workspace',
   'command.showTemplates': 'Show Templates',
   'command.newFromTemplate': 'New Note from Template\u2026',
+  'command.openToday': 'Open Today\u2019s Note',
   'command.modeEdit': 'Show Editor',
   'command.modeToggle': 'Toggle Editor and Preview',
   'command.modeSplit': 'Show Editor and Preview',

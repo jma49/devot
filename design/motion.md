@@ -90,6 +90,7 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **Dragging:** a drop line fades in and a column's or row's highlight eases over `motion.duration.quick`. The other rows stay where they are: moving them would change what is under the pointer, and the zones that tell before, into and after apart.
 - **Notebook icon picker's categories:** rule 2. The grid changes at once, in a box of fixed height; symbols already rendered show in their first frame and the rest fade in where they stand over `motion.duration.popover` on `motion.easing.standard` as their images arrive, painting nothing before. A category's symbols are rendered ahead when the pointer or focus reaches its tab. Reduced motion: they show without fading.
 - **Import sheet's wiki links checkbox:** rule 2. A system checkbox: it changes at once, with no motion of ours. The summary's count of links kept as text appears with the rest of the summary.
+- **Open Today's Note:** rule 2. The day's note opens as another note does, and a workspace it is outside goes at once, as leaving a workspace always does; a note just made shows its row as a new note's does. Its Settings rows (General > Daily Notes) are pop-ups with the Settings row fill.
 - **Image viewer:** opens and closes as a modal dialog does. **Plugin panel:** opens as one and closes at once, because a closing copy would run its frame again.
 
 ## iPhone

@@ -3,7 +3,7 @@
 //! (`settings`), Check for Updates becomes Restart to Update once one is downloaded (`updates`),
 //! Export Diagnostics writes a file (`diagnostics`), File > Import asks for what to import
 //! (`import`), and the Format menu is in `format_menu`.
-//! View items and Backups ask the main window to show their dialog or change its view. Their
+//! File > Open Today's Note, View items and Backups ask the main window to show their dialog or change its view. Their
 //! accelerators are the command registry's default keys (`src/renderer/src/commands/registry.ts`,
 //! compared by a test) until the main window sets the keys in effect (`command_menu_set`). Hide
 //! Sidebar is relabelled Show Sidebar while the sidebar is hidden (`sidebar_menu_set`). Synced
@@ -48,11 +48,14 @@ pub const TOGGLE_PREVIEW_ID: &str = "devot.togglePreview";
 pub const TOGGLE_PREVIEW_EVENT: &str = "devot://toggle-preview";
 pub const SPLIT_ID: &str = "devot.split";
 pub const SHOW_SPLIT_EVENT: &str = "devot://show-split";
+pub const OPEN_TODAY_ID: &str = "devot.today";
+pub const OPEN_TODAY_EVENT: &str = "devot://open-today";
 
 pub struct SidebarMenuItem(MenuItem<Wry>);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MenuPlace {
+    File,
     View,
     App,
 }
@@ -101,6 +104,11 @@ pub const COMMAND_ITEMS: &[CommandItem] = &[
         place: MenuPlace::App,
         command: "app.backups",
         titles: &[strings::BACKUPS],
+    },
+    CommandItem {
+        place: MenuPlace::File,
+        command: "note.today",
+        titles: &[strings::OPEN_TODAY],
     },
 ];
 
@@ -189,11 +197,16 @@ async fn clear_command_keys(app: &AppHandle) -> bool {
                 .flat_map(|item| item.titles.iter().copied())
                 .collect()
         };
-        let (view, app_menu) = (titles_in(MenuPlace::View), titles_in(MenuPlace::App));
+        let (file, view, app_menu) = (
+            titles_in(MenuPlace::File),
+            titles_in(MenuPlace::View),
+            titles_in(MenuPlace::App),
+        );
         let (reply, answer) = tokio::sync::oneshot::channel();
         let sent = app.run_on_main_thread(move || {
             let _ = reply.send(
-                crate::native::macos::clear_item_key_equivalents(strings::MENU_VIEW, &view)
+                crate::native::macos::clear_item_key_equivalents(strings::MENU_FILE, &file)
+                    & crate::native::macos::clear_item_key_equivalents(strings::MENU_VIEW, &view)
                     & crate::native::macos::clear_app_menu_key_equivalents(&app_menu),
             );
         });
@@ -303,6 +316,9 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .accelerator("Shift+CmdOrCtrl+N")
         .build(app)?;
     let backups = MenuItemBuilder::with_id(BACKUPS_ID, strings::BACKUPS).build(app)?;
+    let today = MenuItemBuilder::with_id(OPEN_TODAY_ID, strings::OPEN_TODAY)
+        .accelerator("Alt+CmdOrCtrl+T")
+        .build(app)?;
     let (title, enabled) = updates::menu_item(&app.state::<updates::Updates>().status().state);
     let check_updates = MenuItemBuilder::with_id(UPDATES_ID, title)
         .enabled(enabled)
@@ -346,6 +362,7 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .build()?;
     let file = SubmenuBuilder::new(app, strings::MENU_FILE)
         .item(&new_window)
+        .item(&today)
         .separator()
         .item(&import)
         .item(&export)
@@ -429,6 +446,7 @@ pub fn install(app: &App) -> tauri::Result<()> {
                 CommandMenuItem::Plain(split.clone()),
                 CommandMenuItem::Check(sync_scroll.clone()),
                 CommandMenuItem::Plain(backups.clone()),
+                CommandMenuItem::Plain(today.clone()),
             ])
             .collect(),
     ));
@@ -509,6 +527,10 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     } else if event.id() == HISTORY_ID {
         if crate::main_windows::emit_front(app, SHOW_HISTORY_EVENT, ()).is_err() {
             log::warn!("W_HISTORY_MENU_EMIT_FAILED");
+        }
+    } else if event.id() == OPEN_TODAY_ID {
+        if crate::main_windows::emit_front(app, OPEN_TODAY_EVENT, ()).is_err() {
+            log::warn!("W_OPEN_TODAY_MENU_EMIT_FAILED");
         }
     } else if event.id() == PALETTE_ID {
         if crate::main_windows::emit_front(app, SHOW_PALETTE_EVENT, ()).is_err() {
@@ -755,7 +777,8 @@ mod tests {
                 "view.togglePreview",
                 "view.split",
                 "view.syncScroll",
-                "app.backups"
+                "app.backups",
+                "note.today"
             ]
         );
         let places: Vec<_> = COMMAND_ITEMS.iter().map(|item| item.place).collect();
@@ -768,7 +791,8 @@ mod tests {
                 MenuPlace::View,
                 MenuPlace::View,
                 MenuPlace::View,
-                MenuPlace::App
+                MenuPlace::App,
+                MenuPlace::File
             ]
         );
         assert_eq!(COMMAND_ITEMS[6].titles, [strings::BACKUPS]);
@@ -801,6 +825,7 @@ mod tests {
                 ("view.split", None),
                 ("view.syncScroll", None),
                 ("app.backups", None),
+                ("note.today", None),
             ]
         );
         let plan = plan_command_keys(&keys(&[("palette.open", Some("Ctrl+F5"))])).unwrap();

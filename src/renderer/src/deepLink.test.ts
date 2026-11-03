@@ -11,6 +11,7 @@ describe('readDeepLink', () => {
       kind: 'command',
       id: 'view.trash',
     })
+    expect(readDeepLink({ kind: 'today' })).toEqual({ kind: 'today' })
   })
 
   it('takes nothing else', () => {
@@ -25,6 +26,7 @@ describe('readDeepLink', () => {
       { kind: 'command', id: 'trash.empty' },
       { kind: 'file', id: ID },
       { kind: 'note' },
+      { kind: 'today', id: ID },
     ]) {
       expect(readDeepLink(value)).toBeUndefined()
     }

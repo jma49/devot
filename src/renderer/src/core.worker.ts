@@ -3,6 +3,7 @@ import * as Comlink from 'comlink'
 import {
   type AppendOptions,
   applyBatch,
+  type DailyNotesSettings,
   captureNote,
   createAiService,
   newWriter,
@@ -19,6 +20,7 @@ import {
   exportMarkdown,
   importMarkdown,
   observeWrites,
+  openTodaysNote,
   planExport,
   preparerHere,
   renderPreview,
@@ -304,6 +306,15 @@ export const coreApi = {
     requiredTemplates().apply(id, { now }, bookId),
   applyTemplateTo: (id: string, noteId: string, now: number) =>
     requiredTemplates().applyTo(id, noteId, { now }),
+  openTodaysNote: (settings: DailyNotesSettings, now: number, create: boolean) =>
+    openTodaysNote({
+      notes: required(),
+      templates: requiredTemplates(),
+      books: requiredBooks(),
+      settings,
+      at: now,
+      create,
+    }),
   listBooks: () => requiredBooks().list(),
   createBook: (name: string, parentId: string | null) => requiredBooks().create(name, parentId),
   renameBook: (id: string, name: string) => requiredBooks().rename(id, name),

@@ -69,6 +69,8 @@ pub(crate) struct Export {
 pub(crate) enum Target {
     Id(String),
     Title(String),
+    /// Today's note, made when missing, as Open Today's Note does.
+    Today,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -279,6 +281,7 @@ fn looks_like_option(arg: &str) -> bool {
 fn parse_append(args: &[String]) -> Result<AppendCommand, Usage> {
     let mut positional = Vec::new();
     let mut title = None;
+    let mut today = false;
     let mut heading = None;
     let mut position = Position::Append;
     let mut stdin = false;
@@ -292,6 +295,8 @@ fn parse_append(args: &[String]) -> Result<AppendCommand, Usage> {
             position = Position::Prepend;
         } else if options && arg == "--stdin" {
             stdin = true;
+        } else if options && arg == "--today" {
+            today = true;
         } else if options && let Some(text) = option_value(args, &mut at, "--title")? {
             title = Some(
                 title_text(&text).ok_or_else(|| Usage(strings::CLI_APPEND_TITLE_INVALID.into()))?,
@@ -309,9 +314,11 @@ fn parse_append(args: &[String]) -> Result<AppendCommand, Usage> {
         at += 1;
     }
     let mut positional = positional.into_iter();
-    let target = match title {
-        Some(title) => Target::Title(title),
-        None => {
+    let target = match (title, today) {
+        (Some(_), true) => return Err(Usage(strings::CLI_APPEND_TARGET.into())),
+        (Some(title), false) => Target::Title(title),
+        (None, true) => Target::Today,
+        (None, false) => {
             let id = positional
                 .next()
                 .ok_or_else(|| Usage(strings::CLI_APPEND_TARGET.into()))?;
@@ -371,6 +378,7 @@ pub(crate) fn append_handoff_args(append: &Append) -> Vec<String> {
     match &append.target {
         Target::Id(id) => args.extend(["--id".to_owned(), id.clone()]),
         Target::Title(title) => args.extend(["--title".to_owned(), title.clone()]),
+        Target::Today => args.push("--today".to_owned()),
     }
     if let Some(heading) = &append.heading {
         args.extend(["--heading".to_owned(), heading.clone()]);
@@ -389,6 +397,7 @@ pub(crate) fn parse_append_handoff(args: &[String]) -> Option<Append> {
             (Target::Id(id.clone()), rest)
         }
         [flag, title, rest @ ..] if flag == "--title" => (Target::Title(title_text(title)?), rest),
+        [flag, rest @ ..] if flag == "--today" => (Target::Today, rest),
         _ => return None,
     };
     let (heading, rest) = match rest {
@@ -1033,6 +1042,15 @@ mod tests {
             }))
         );
         assert_eq!(
+            run(&["append", "--today", "--heading", "Log", "- done"]),
+            Ok(Request::Append(AppendCommand {
+                target: Target::Today,
+                heading: Some("Log".into()),
+                position: Position::Append,
+                text: AppendText::Given("- done".into()),
+            }))
+        );
+        assert_eq!(
             run(&["append", NOTE_ID, "-"]).map(|r| match r {
                 Request::Append(a) => a.text,
                 _ => unreachable!(),
@@ -1062,6 +1080,14 @@ mod tests {
         );
         assert_eq!(
             refused(&["append", NOTE_ID, "--stdin", "a"]),
+            strings::CLI_APPEND_TEXT
+        );
+        assert_eq!(
+            refused(&["append", "--today", "--title", "Day", "a"]),
+            strings::CLI_APPEND_TARGET
+        );
+        assert_eq!(
+            refused(&["append", "--today", NOTE_ID, "a"]),
             strings::CLI_APPEND_TEXT
         );
         assert_eq!(
@@ -1117,6 +1143,15 @@ mod tests {
         let mut launch = vec!["devot".to_owned()];
         launch.extend(append_handoff_args(&plain));
         assert_eq!(parse_append_handoff(&launch), Some(plain));
+        let today = Append {
+            target: Target::Today,
+            heading: None,
+            position: Position::Append,
+            text: "x".into(),
+        };
+        let mut launch = vec!["devot".to_owned()];
+        launch.extend(append_handoff_args(&today));
+        assert_eq!(parse_append_handoff(&launch), Some(today));
         for list in [
             &["devot"][..],
             &["devot", APPEND_FLAG],
