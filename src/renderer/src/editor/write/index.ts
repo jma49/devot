@@ -15,7 +15,7 @@ import type { LoadPreview } from '../../notePreview'
 import { inlineImagesHidden } from '../images'
 import { writeBlockKeys } from './blockKeys'
 import { writeBlocks } from './blocks'
-import { writeRenderer, type WriteRenderer } from './rendered'
+import { imageDoubleClick, writeRenderer, type WriteRenderer } from './rendered'
 import { selectedIn } from './focus'
 import { selectedKey, writeRanges, type Selected, type WriteRange } from './rules'
 import { writeTheme } from './theme'
@@ -173,6 +173,7 @@ export interface WriteModeOptions {
 export function writeMode(options: WriteModeOptions = {}): Extension {
   return [
     marks,
+    imageDoubleClick,
     clickedWords(),
     writeBlocks,
     writeBlockKeys,

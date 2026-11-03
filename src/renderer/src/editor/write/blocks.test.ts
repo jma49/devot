@@ -81,7 +81,7 @@ describe('rendered blocks in Write mode', () => {
   const doc = `Top\n${IMAGE}\n\n$$\nx^2\n$$\nEnd`
   const math = doc.indexOf('$$')
 
-  /** Each block decoration as `from-to kind look`, `-` for one standing over its source. */
+  /** Each block decoration as `from-to kind look`; an open one is a point under its source. */
   function rendered(state: EditorState): string[] {
     const out: string[] = []
     for (const source of state.facet(EditorView.decorations)) {
@@ -101,12 +101,20 @@ describe('rendered blocks in Write mode', () => {
     ])
   })
 
-  it('stand over their source while the caret is inside, focused', () => {
+  it('show their source with the rendering under it while the caret is in them, focused', () => {
     const state = stateOf(doc, math + 4).update({ effects: setWriteFocus.of(true) }).state
     expect(rendered(state)).toEqual([
       `4-${4 + IMAGE.length} image closed`,
-      `${math}-${math} math open`,
+      `${math + 9}-${math + 9} math open`,
     ])
+  })
+
+  it('open for a caret at the start or end of their source', () => {
+    const focus = { effects: setWriteFocus.of(true) }
+    const start = stateOf(doc, 4).update(focus).state
+    expect(rendered(start)[0]).toBe(`${4 + IMAGE.length}-${4 + IMAGE.length} image open`)
+    const end = stateOf(doc, math + 9).update(focus).state
+    expect(rendered(end)[1]).toBe(`${math + 9}-${math + 9} math open`)
   })
 
   it('show a selection over them whole', () => {

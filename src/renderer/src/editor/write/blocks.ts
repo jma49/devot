@@ -81,14 +81,14 @@ export const frontMatterRule: BlockRule = (state, revealed) => {
 
 /**
  * Images, formulas, diagrams and embeds as the preview shows them. A closed
- * block takes its lines; an open one keeps its rendering over its source.
+ * block takes its lines; an open one shows its source with the rendering under it.
  */
 export const renderedBlockRule: BlockRule = (state) =>
   writeBlocksOf(state).map((block) => {
     const look = blockLook(state, block)
     const widget = new RenderedBlockWidget(block, look)
     return look === 'open'
-      ? Decoration.widget({ widget, block: true, side: -1 }).range(block.from)
+      ? Decoration.widget({ widget, block: true, side: 1 }).range(block.to)
       : Decoration.replace({ widget, block: true }).range(block.from, block.to)
   })
 

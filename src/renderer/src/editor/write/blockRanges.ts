@@ -1,6 +1,6 @@
 // Write mode's rendered blocks: which lines an image, a formula, a diagram or
-// an embed takes, whether the selection opens it, and how the caret treats a
-// closed one as a single unit. Pure: read from the syntax tree and the
+// an embed takes, whether the selection opens it, and how the arrows and
+// Backspace treat a closed one. Pure: read from the syntax tree and the
 // selection, so the rules are tested over Markdown without an editor.
 import { syntaxTree } from '@codemirror/language'
 import {
@@ -46,6 +46,12 @@ function isMathLine(text: string): boolean {
     line.endsWith('$$') &&
     line.slice(2, -2).trim() !== ''
   )
+}
+
+/** Where a click on an image puts the caret: at the end of its alt text. */
+export function imageEntry(image: { from: number; text: string }): number {
+  const altEnd = image.text.lastIndexOf('](')
+  return image.from + (altEnd > 0 ? altEnd : 2)
 }
 
 const cache = new WeakMap<Text, { tree: Tree; blocks: WriteBlock[] }>()
@@ -154,9 +160,7 @@ function scan(state: EditorState, tree: Tree): WriteBlock[] {
       rest = rest.slice(0, image.from - from) + rest.slice(image.to - from)
     }
     if (rest.trim() !== '') return
-    const head = images[0]!
-    const altEnd = head.text.lastIndexOf('](')
-    block('image', i, i, head.from + (altEnd > 0 ? altEnd : 2))
+    block('image', i, i, imageEntry(images[0]!))
   }
 
   function html(node: SyntaxNode, i: number) {
@@ -166,23 +170,23 @@ function scan(state: EditorState, tree: Tree): WriteBlock[] {
   }
 }
 
-const inside = (block: WriteBlock, pos: number) => block.from < pos && pos < block.to
+const within = (block: WriteBlock, pos: number) => block.from <= pos && pos <= block.to
 
 /**
- * A caret strictly inside a block, or a selection end there, opens it (a caret
- * only while the editor has the keyboard, as for the marks); one at its edge
- * leaves it closed, before or after it. A selection over all of it selects it.
+ * A caret in a block, its edges included, opens it (only while the editor has
+ * the keyboard, as for the marks), and so does a selection that meets it; a
+ * selection over all of it selects it instead.
  */
 export function blockLook(state: EditorState, block: WriteBlock): BlockLook {
   const focused = state.field(writeFocus, false) ?? false
   let selected = false
   for (const range of state.selection.ranges) {
     if (range.empty) {
-      if (focused && inside(block, range.head)) return 'open'
+      if (focused && within(block, range.head)) return 'open'
       continue
     }
-    if (inside(block, range.anchor) || inside(block, range.head)) return 'open'
     if (range.from <= block.from && range.to >= block.to) selected = true
+    else if (range.from <= block.to && range.to >= block.from) return 'open'
   }
   return selected ? 'selected' : 'closed'
 }
@@ -234,8 +238,8 @@ function remove(state: EditorState, block: WriteBlock): TransactionSpec {
 }
 
 /**
- * Backspace: after a block (at its edge, or at the start of a line of text
- * right under it) it selects the block; with the block selected it deletes it.
+ * Backspace at the start of a line of text right under a closed block selects
+ * the block; with the block selected it deletes it.
  */
 export function blockBackspace(state: EditorState): TransactionSpec | null {
   if (state.readOnly) return null
@@ -243,79 +247,54 @@ export function blockBackspace(state: EditorState): TransactionSpec | null {
   if (selected) return remove(state, selected)
   const pos = singleCaret(state)
   if (pos === null || pos === 0) return null
-  const atEdge = closedBlockAt(state, pos)
-  if (atEdge && atEdge.to === pos) return select(atEdge)
   const line = state.doc.lineAt(pos)
   if (line.from !== pos || line.length === 0) return null
   const above = closedBlockAt(state, pos - 1)
   return above && above.to === pos - 1 ? select(above) : null
 }
 
-/** Delete, the other way: before a block, or at the end of a line of text right over it. */
+/** Delete, the other way: at the end of a line of text right over a closed block. */
 export function blockDelete(state: EditorState): TransactionSpec | null {
   if (state.readOnly) return null
   const selected = selectedBlock(state)
   if (selected) return remove(state, selected)
   const pos = singleCaret(state)
   if (pos === null || pos === state.doc.length) return null
-  const atEdge = closedBlockAt(state, pos)
-  if (atEdge && atEdge.from === pos) return select(atEdge)
   const line = state.doc.lineAt(pos)
   if (line.to !== pos || line.length === 0) return null
   const below = closedBlockAt(state, pos + 1)
   return below && below.from === pos + 1 ? select(below) : null
 }
 
-/** Return before a block makes a line over it, after it or on it selected a line under it; the caret goes to the new line. */
+/** Return with a block selected makes a line under it, and the caret goes there. */
 export function blockEnter(state: EditorState): TransactionSpec | null {
   if (state.readOnly) return null
   const selected = selectedBlock(state)
-  const pos = selected ? selected.to : singleCaret(state)
-  if (pos === null) return null
-  const block = selected ?? closedBlockAt(state, pos)
-  if (!block) return null
-  if (pos === block.from) {
-    return {
-      changes: { from: pos, insert: '\n' },
-      selection: { anchor: pos },
-      userEvent: 'input',
-      scrollIntoView: true,
-    }
-  }
-  if (pos !== block.to) return null
+  if (!selected) return null
   return {
-    changes: { from: pos, insert: '\n' },
-    selection: { anchor: pos + 1 },
+    changes: { from: selected.to, insert: '\n' },
+    selection: { anchor: selected.to + 1 },
     userEvent: 'input',
     scrollIntoView: true,
   }
 }
 
 /**
- * Where an up or down arrow lands once closed blocks are stepped over:
- * `target` is where the caret would go without them. A move that would come
- * into a block goes on to the line past it, at the column it started from (to
- * the block's edge when the note ends there).
+ * Where an up or down arrow lands: `target` is where the caret would go. A
+ * move off a line into the closed block right under it enters its source at
+ * its start, and one into the block right over it at its end.
  */
-export function stepOverBlocks(
+export function enterBlock(
   state: EditorState,
   range: SelectionRange,
   target: number,
   forward: boolean,
 ): number {
-  const head = range.head
-  let block = closedBlockAt(state, target)
-  if (!block || inside(block, head)) return target
-  if (forward ? head > block.from : head < block.to) return target
-  const doc = state.doc
-  const column = head - doc.lineAt(head).from
-  // Blocks one under the other are stepped over together.
-  for (;;) {
-    if (forward ? block.to >= doc.length : block.from === 0) return forward ? block.to : block.from
-    const line = doc.lineAt(forward ? block.to + 1 : block.from - 1)
-    const pos = line.from + Math.min(column, line.length)
-    const next = closedBlockAt(state, pos)
-    if (!next) return pos
-    block = next
-  }
+  const line = state.doc.lineAt(range.head)
+  if (forward ? target <= line.to : target >= line.from) return target
+  const edge = forward ? line.to + 1 : line.from - 1
+  if (edge < 0 || edge > state.doc.length) return target
+  const block = closedBlockAt(state, edge)
+  if (!block || edge !== (forward ? block.from : block.to)) return target
+  return forward ? block.from : block.to
 }

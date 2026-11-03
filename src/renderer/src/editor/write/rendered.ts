@@ -4,7 +4,9 @@
 // (preview/dom.ts), so no HTML from the note reaches the editor any other way;
 // diagrams are the preview's islands. A box keeps the height its block had
 // last, or the one its image is known to have, until its content is in place.
-import { Facet } from '@codemirror/state'
+// A click puts the caret in the block's source; a double click on an image
+// opens the viewer.
+import { Facet, type Extension } from '@codemirror/state'
 import { EditorView, WidgetType } from '@codemirror/view'
 import type { RootContent } from 'hast'
 import { isMissingImage, watchMissingImages } from '../../missingImages'
@@ -14,7 +16,7 @@ import { createIslandMounter, ISLAND_ATTRIBUTE, type IslandMounter } from '../..
 import { shownAppearance, shownTheme, subscribeAppearance } from '../../theme/appearance'
 import { findImages, imageActions } from '../images'
 import { parseImageMarkdown } from '../../../../core/images'
-import { writeBlocksOf, type BlockLook, type WriteBlock } from './blockRanges'
+import { imageEntry, writeBlocksOf, type BlockLook, type WriteBlock } from './blockRanges'
 
 export interface WriteRenderer {
   /** `markdown` as the preview renders it: the sanitised tree of its blocks. */
@@ -104,6 +106,35 @@ function parseLine(source: string): { url: string; size: string }[] {
   }
   return out
 }
+
+/** How far the pointer may move between the clicks of a double click, in pixels. */
+const CLICK_SLOP = 4
+
+/**
+ * The image the last click went to. Its click shows its source over it, which
+ * moves it down: a double click opens it wherever the second click lands.
+ */
+let clicked: { view: EditorView; src: string; alt: string; x: number; y: number } | null = null
+
+function openClicked(view: EditorView, event: MouseEvent): boolean {
+  const at = clicked
+  if (
+    event.detail !== 2 ||
+    at?.view !== view ||
+    Math.abs(event.clientX - at.x) > CLICK_SLOP ||
+    Math.abs(event.clientY - at.y) > CLICK_SLOP
+  )
+    return false
+  clicked = null
+  event.preventDefault()
+  view.state.facet(imageActions)?.open({ src: at.src, alt: at.alt })
+  return true
+}
+
+/** The second click of a double click on an image may land on the source the first one showed. */
+export const imageDoubleClick: Extension = EditorView.domEventHandlers({
+  mousedown: (event, view) => event.button === 0 && openClicked(view, event),
+})
 
 interface Drawn {
   key: string
@@ -263,41 +294,47 @@ export class RenderedBlockWidget extends WidgetType {
       subscribeAppearance(() => shown.mounter.mount(body, context(), () => view.requestMeasure())),
     )
 
+    const imageAt = (img: HTMLImageElement, now: WriteBlock) => {
+      const index = Array.prototype.indexOf.call(body.querySelectorAll('img'), img)
+      return findImages(view.state, now.from, now.to)[index] ?? null
+    }
     box.addEventListener('mousedown', (event) => {
       if (event.button !== 0) return
       event.preventDefault()
+      if (openClicked(view, event)) return
       const target = event.target as Element
-      if (target instanceof HTMLImageElement || target.closest('[data-embed-load]')) return
+      clicked = null
+      if (target.closest('[data-embed-load]')) return
       const now = blockOf(view, box)
       if (!now) return
-      view.dispatch({ selection: { anchor: now.entry }, userEvent: 'select.pointer' })
+      let entry = now.entry
+      if (target instanceof HTMLImageElement) {
+        const image = imageAt(target, now)
+        if (image) entry = imageEntry(image)
+        if (!isMissingImage(target)) {
+          const src = target.currentSrc || target.src
+          clicked = { view, src, alt: target.alt, x: event.clientX, y: event.clientY }
+        }
+      }
+      view.dispatch({ selection: { anchor: entry }, userEvent: 'select.pointer' })
       view.focus()
     })
     box.addEventListener('click', (event) => {
-      const target = event.target as Element
-      const load = target.closest('[data-embed-load]')
-      if (load) {
-        const src = load.closest('[data-embed-src]')?.getAttribute('data-embed-src')
-        if (!src) return
-        const embeds = embedsOf(view)
-        if (!embeds.includes(src)) loadedEmbeds.set(view, [...embeds, src])
-        draw(embedsOf(view))
-        return
-      }
-      if (!(target instanceof HTMLImageElement) || isMissingImage(target)) return
-      view.state
-        .facet(imageActions)
-        ?.open({ src: target.currentSrc || target.src, alt: target.alt })
+      const load = (event.target as Element).closest('[data-embed-load]')
+      if (!load) return
+      const src = load.closest('[data-embed-src]')?.getAttribute('data-embed-src')
+      if (!src) return
+      const embeds = embedsOf(view)
+      if (!embeds.includes(src)) loadedEmbeds.set(view, [...embeds, src])
+      draw(embedsOf(view))
     })
     box.addEventListener('contextmenu', (event) => {
       const target = event.target
       if (!(target instanceof HTMLImageElement)) return
       const now = blockOf(view, box)
       const actions = view.state.facet(imageActions)
-      if (!now || !actions) return
-      const index = Array.prototype.indexOf.call(body.querySelectorAll('img'), target)
-      const image = findImages(view.state, now.from, now.to)[index]
-      if (!image) return
+      const image = now && actions ? imageAt(target, now) : null
+      if (!image || !actions) return
       event.preventDefault()
       actions.menu(image, { x: event.clientX, y: event.clientY })
     })

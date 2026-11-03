@@ -7,7 +7,7 @@ import {
   blockDelete,
   blockEnter,
   blockLook,
-  stepOverBlocks,
+  enterBlock,
   writeBlocksOf,
   type WriteBlock,
 } from './blockRanges'
@@ -120,18 +120,22 @@ describe('when a block shows its source', () => {
     expect(blockLook(stateOf(doc, at, false), block())).toBe('closed')
   })
 
-  it('stays closed with the caret at its edges', () => {
-    expect(blockLook(stateOf(doc, block().from), block())).toBe('closed')
-    expect(blockLook(stateOf(doc, block().to), block())).toBe('closed')
+  it('opens for a caret at its start or end, and stays closed for one on the lines around it', () => {
+    expect(blockLook(stateOf(doc, block().from), block())).toBe('open')
+    expect(blockLook(stateOf(doc, block().to), block())).toBe('open')
+    expect(blockLook(stateOf(doc, block().from - 1), block())).toBe('closed')
+    expect(blockLook(stateOf(doc, block().to + 1), block())).toBe('closed')
   })
 
-  it('is selected under a selection over all of it, and opens for one ending inside it', () => {
+  it('is selected under a selection over all of it, and opens for one that meets it', () => {
     const { from, to } = block()
     expect(blockLook(stateOf(doc, EditorSelection.single(from, to)), block())).toBe('selected')
     expect(blockLook(stateOf(doc, EditorSelection.single(0, doc.length), false), block())).toBe(
       'selected',
     )
     expect(blockLook(stateOf(doc, EditorSelection.single(0, from + 2)), block())).toBe('open')
+    expect(blockLook(stateOf(doc, EditorSelection.single(0, from)), block())).toBe('open')
+    expect(blockLook(stateOf(doc, EditorSelection.single(0, from - 1)), block())).toBe('closed')
   })
 })
 
@@ -140,17 +144,13 @@ describe('the caret and a closed block', () => {
   const state = stateOf(doc)
   const { from, to } = only(state)
 
-  it('Backspace after it selects it, then deletes it with its line', () => {
-    const selected = apply(stateOf(doc, to), blockBackspace(stateOf(doc, to)))
+  it('Backspace at the start of the text line under it selects it, then deletes it with its line', () => {
+    const at = stateOf(doc, to + 1)
+    const selected = apply(at, blockBackspace(at))
     expect(caret(selected)).toEqual([from, to])
     const gone = apply(selected, blockBackspace(selected))
     expect(gone.doc.toString()).toBe('Top\nEnd')
     expect(caret(gone)).toBe(from)
-  })
-
-  it('Backspace at the start of the text line under it selects it', () => {
-    const at = stateOf(doc, to + 1)
-    expect(caret(apply(at, blockBackspace(at)))).toEqual([from, to])
   })
 
   it('Backspace on an empty line under it deletes the line as usual', () => {
@@ -166,21 +166,13 @@ describe('the caret and a closed block', () => {
     expect(apply(selected, blockBackspace(selected)).doc.toString()).toBe('Top')
   })
 
-  it('Delete before it, or at the end of the text line over it, selects it', () => {
-    const before = stateOf(doc, from)
-    expect(caret(apply(before, blockDelete(before)))).toEqual([from, to])
+  it('Delete at the end of the text line over it selects it', () => {
     const over = stateOf(doc, from - 1)
     expect(caret(apply(over, blockDelete(over)))).toEqual([from, to])
     expect(blockDelete(stateOf(doc, 1))).toBeNull()
   })
 
-  it('Return before it or after it makes a line there, and the caret goes to it', () => {
-    const above = apply(stateOf(doc, from), blockEnter(stateOf(doc, from)))
-    expect(above.doc.toString()).toBe(`Top\n\n${IMAGE}\nEnd`)
-    expect(caret(above)).toBe(from)
-    const below = apply(stateOf(doc, to), blockEnter(stateOf(doc, to)))
-    expect(below.doc.toString()).toBe(`Top\n${IMAGE}\n\nEnd`)
-    expect(caret(below)).toBe(to + 1)
+  it('Return with it selected makes a line under it, and the caret goes to it', () => {
     const selected = stateOf(doc, EditorSelection.single(from, to))
     const after = apply(selected, blockEnter(selected))
     expect(after.doc.toString()).toBe(`Top\n${IMAGE}\n\nEnd`)
@@ -188,46 +180,51 @@ describe('the caret and a closed block', () => {
   })
 
   it('leaves keys alone inside an open block and with several carets', () => {
-    expect(blockBackspace(stateOf(doc, from + 3))).toBeNull()
-    expect(blockEnter(stateOf(doc, from + 3))).toBeNull()
+    for (const at of [from, from + 3, to]) {
+      expect(blockBackspace(stateOf(doc, at))).toBeNull()
+      expect(blockDelete(stateOf(doc, at))).toBeNull()
+      expect(blockEnter(stateOf(doc, at))).toBeNull()
+    }
     const two = stateOf(
       doc,
-      EditorSelection.create([EditorSelection.cursor(to), EditorSelection.cursor(1)]),
+      EditorSelection.create([EditorSelection.cursor(to + 1), EditorSelection.cursor(1)]),
     )
     expect(blockBackspace(two)).toBeNull()
   })
 
-  it('arrows step over it to the line past it, at the same column', () => {
+  it('ArrowDown from the line over it enters its source at the start, ArrowUp from under it at the end', () => {
     const down = stateOf(doc, 2)
-    expect(stepOverBlocks(down, down.selection.main, from + 2, true)).toBe(to + 1 + 2)
+    expect(enterBlock(down, down.selection.main, to + 1 + 2, true)).toBe(from)
+    expect(enterBlock(down, down.selection.main, from + 2, true)).toBe(from)
     const up = stateOf(doc, to + 3)
-    expect(stepOverBlocks(up, up.selection.main, to, false)).toBe(2)
-    const edge = stateOf(doc, from)
-    expect(stepOverBlocks(edge, edge.selection.main, to, true)).toBe(to + 1)
+    expect(enterBlock(up, up.selection.main, 2, false)).toBe(to)
+    expect(enterBlock(up, up.selection.main, to, false)).toBe(to)
   })
 
-  it('arrows stop at its edge where the note ends or starts with it', () => {
+  it('arrows enter a block at the start or end of the note', () => {
     const last = `Top\n${IMAGE}`
     const block = only(stateOf(last))
     const down = stateOf(last, 1)
-    expect(stepOverBlocks(down, down.selection.main, block.from + 1, true)).toBe(block.to)
+    expect(enterBlock(down, down.selection.main, block.to, true)).toBe(block.from)
     const first = `${IMAGE}\nEnd`
     const top = only(stateOf(first))
     const up = stateOf(first, top.to + 2)
-    expect(stepOverBlocks(up, up.selection.main, top.to, false)).toBe(0)
+    expect(enterBlock(up, up.selection.main, 0, false)).toBe(top.to)
   })
 
-  it('arrows step over blocks one under the other together', () => {
+  it('arrows go from one block into the next one under it', () => {
     const two = `Top\n${IMAGE}\n${WEB}\nEnd`
     const [first, second] = writeBlocksOf(stateOf(two))
-    const down = stateOf(two, 2)
-    expect(stepOverBlocks(down, down.selection.main, first!.from + 2, true)).toBe(second!.to + 3)
-    const up = stateOf(two, second!.to + 3)
-    expect(stepOverBlocks(up, up.selection.main, second!.from, false)).toBe(2)
+    const inFirst = stateOf(two, first!.to)
+    expect(enterBlock(inFirst, inFirst.selection.main, second!.to, true)).toBe(second!.from)
   })
 
-  it('arrows move as usual where no block is in the way', () => {
+  it('arrows move as usual inside a line, inside an open block and where no block is near', () => {
     const plain = stateOf('a\nb\nc', 0)
-    expect(stepOverBlocks(plain, plain.selection.main, 2, true)).toBe(2)
+    expect(enterBlock(plain, plain.selection.main, 2, true)).toBe(2)
+    const open = stateOf(doc, from + 3)
+    expect(enterBlock(open, open.selection.main, to + 2, true)).toBe(to + 2)
+    const wrapped = stateOf(doc, 1)
+    expect(enterBlock(wrapped, wrapped.selection.main, 3, true)).toBe(3)
   })
 })

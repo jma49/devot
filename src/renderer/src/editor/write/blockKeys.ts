@@ -1,8 +1,8 @@
-// The keys around Write mode's rendered blocks (blockRanges.ts): a closed
-// block is one unit for the caret.
+// The keys around Write mode's rendered blocks (blockRanges.ts): the arrows
+// enter a closed block's source, Backspace and Delete select it first.
 import { EditorSelection, Prec, type Extension } from '@codemirror/state'
 import { keymap, type Command } from '@codemirror/view'
-import { blockBackspace, blockDelete, blockEnter, stepOverBlocks } from './blockRanges'
+import { blockBackspace, blockDelete, blockEnter, enterBlock } from './blockRanges'
 
 const run =
   (make: typeof blockEnter): Command =>
@@ -21,10 +21,10 @@ const vertical =
     const selection = EditorSelection.create(
       state.selection.ranges.map((range) => {
         const next = view.moveVertically(range, forward)
-        const head = stepOverBlocks(state, range, next.head, forward)
+        const head = enterBlock(state, range, next.head, forward)
         if (head === next.head) return next
         moved = true
-        return EditorSelection.cursor(head, forward ? -1 : 1)
+        return EditorSelection.cursor(head, forward ? 1 : -1)
       }),
       state.selection.mainIndex,
     )
