@@ -72,6 +72,8 @@ function ChipGroup(props: { title: string; children: ReactNode }) {
 export function PhoneSearch(props: {
   store: PhoneStore
   open: boolean
+  /** A saved search's query, run on open without raising the keyboard. */
+  query?: string | undefined
   onClose: () => void
   onOpenNote: (id: string) => void
 }) {
@@ -92,7 +94,7 @@ export function PhoneSearch(props: {
   if (shownOpen !== props.open) {
     setShownOpen(props.open)
     if (props.open) {
-      setQuery('')
+      setQuery(props.query ?? '')
       setResults(null)
       setRecent(readRecentSearches(recentStore()))
     }
@@ -102,13 +104,13 @@ export function PhoneSearch(props: {
   useLayoutEffect(() => {
     if (props.open) {
       opener.current = document.activeElement as HTMLElement | null
-      input.current?.focus()
+      if (!props.query) input.current?.focus()
       return
     }
     input.current?.blur()
     opener.current?.focus({ preventScroll: true })
     opener.current = null
-  }, [props.open])
+  }, [props.open, props.query])
 
   useEffect(() => {
     const core = store.core

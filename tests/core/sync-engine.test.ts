@@ -11,6 +11,7 @@ import {
   createClock,
   createIdGenerator,
   createNoteService,
+  createSavedSearchService,
   createTagService,
   MERGE,
   newWriter,
@@ -84,6 +85,7 @@ async function device(
     app?.windows[0]?.notes ?? createNoteService({ storage, clock, newId, saveDelayMs: 5 })
   const books = createBookService({ storage, clock, newId })
   const tags = createTagService({ storage, clock, newId })
+  const savedSearches = createSavedSearchService({ storage, clock, newId })
   const credentials = { relay, token }
   const transport = new RelayTransport({
     url: () => credentials.relay.host.url,
@@ -121,6 +123,7 @@ async function device(
     notes,
     books,
     tags,
+    savedSearches,
     clock,
     engine: startEngine(),
     transport,
@@ -350,6 +353,47 @@ describe('sync between two devices', () => {
     await settle(a, b)
     expect((await b.tags.list()).find((t) => t.id === tag)).toBeUndefined()
     await sameNote(a, b, id)
+  })
+
+  it('syncs saved searches with their order, name, query and deletion', async () => {
+    const { a, b } = await pair()
+    const work = await a.savedSearches.create('Open work', 'is:active tag:work')
+    const reading = await a.savedSearches.create('Reading', '#reading')
+    await settle(a, b)
+    expect((await b.savedSearches.list()).map((s) => [s.id, s.name, s.query])).toEqual([
+      [work, 'Open work', 'is:active tag:work'],
+      [reading, 'Reading', '#reading'],
+    ])
+    await b.savedSearches.rename(work, 'Work')
+    await b.savedSearches.setQuery(reading, 'tag:reading pinned:false')
+    await b.savedSearches.place(reading, work, 'before')
+    await settle(b, a)
+    expect((await a.savedSearches.list()).map((s) => [s.name, s.query])).toEqual([
+      ['Reading', 'tag:reading pinned:false'],
+      ['Work', 'is:active tag:work'],
+    ])
+    await a.savedSearches.remove(reading)
+    await settle(a, b)
+    expect((await b.savedSearches.list()).map((s) => s.name)).toEqual(['Work'])
+    await b.restart()
+    expect((await b.savedSearches.list()).map((s) => s.name)).toEqual(['Work'])
+    expect(b.engine.status()).toMatchObject({ state: 'idle', skipped: 0 })
+  })
+
+  it('sends the saved searches a tag rename rewrote as ordinary edits', async () => {
+    const { a, b } = await pair()
+    const tag = await a.tags.ensure('work')
+    const named = await a.savedSearches.create('Open work', 'is:active -tag:work')
+    const other = await a.savedSearches.create('Reading', 'tag:reading')
+    await settle(a, b)
+    await b.tags.rename(tag, 'Big Clients')
+    await settle(b, a)
+    const queries = async (side: typeof a) =>
+      Object.fromEntries((await side.savedSearches.list()).map((s) => [s.id, s.query]))
+    const expected = { [named]: 'is:active -tag:"Big Clients"', [other]: 'tag:reading' }
+    expect(await queries(a)).toEqual(expected)
+    expect(await queries(b)).toEqual(expected)
+    expect(a.engine.status()).toMatchObject({ state: 'idle', skipped: 0 })
   })
 
   it('catches up after the relay was away', async () => {

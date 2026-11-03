@@ -6,7 +6,7 @@
 use rusqlite::{OptionalExtension, named_params};
 use serde::{Deserialize, Serialize};
 
-use super::{BookRecord, NoteRecord, NoteTagRecord, Result, Store, TagRecord};
+use super::{BookRecord, NoteRecord, NoteTagRecord, Result, SavedSearchRecord, Store, TagRecord};
 
 const SYNC_PENDING_SQL: &str = "SELECT id, edits FROM sync_records WHERE edits <> synced AND id > @after ORDER BY id LIMIT @limit";
 const SYNC_PENDING_COUNT_SQL: &str = "SELECT COUNT(*) AS n FROM sync_records WHERE edits <> synced";
@@ -99,9 +99,10 @@ pub struct SyncLocal {
     pub tag: Option<TagRecord>,
     /// Absent for a purged file: its entry is the tombstone.
     pub file: Option<SyncFile>,
+    pub search: Option<SavedSearchRecord>,
 }
 
-pub const SYNC_KINDS: [&str; 4] = ["note", "book", "tag", "file"];
+pub const SYNC_KINDS: [&str; 5] = ["note", "book", "tag", "file", "search"];
 
 impl Store {
     pub fn sync_pending(&self, after: &str, limit: u32) -> Result<Vec<SyncPending>> {
@@ -158,6 +159,11 @@ impl Store {
         } else {
             None
         };
+        let search = if note.is_none() && book.is_none() && tag.is_none() && file.is_none() {
+            self.sync_search(id)?
+        } else {
+            None
+        };
         Ok(SyncLocal {
             id: id.to_owned(),
             entry,
@@ -165,7 +171,20 @@ impl Store {
             book,
             tag,
             file,
+            search,
         })
+    }
+
+    fn sync_search(&self, id: &str) -> Result<Option<SavedSearchRecord>> {
+        Ok(self
+            .conn
+            .prepare_cached(
+                "SELECT id, name, name_hlc, query, query_hlc, sort_key, sort_key_hlc, created_at,
+                        updated_at, deleted_at, deleted_hlc
+                 FROM saved_searches WHERE id = ?1",
+            )?
+            .query_row([id], super::saved_search)
+            .optional()?)
     }
 
     fn sync_file(&self, id: &str) -> Result<Option<SyncFile>> {

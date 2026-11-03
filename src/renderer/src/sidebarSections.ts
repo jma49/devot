@@ -1,12 +1,12 @@
-// The sidebar sections a window keeps collapsed (Notebooks, Status, Tags, Agents). Like focus
+// The sidebar sections a window keeps collapsed (Notebooks, Status, Saved Searches, Tags, Agents). Like focus
 // mode and the hidden sidebar this is a view preference of one window: it
 // lives in the webview's local storage under the window's label, never in
 // the note database, and never syncs.
 import { current } from './focus'
 
-export type CollapsibleSection = 'books' | 'status' | 'tags' | 'agents'
+export type CollapsibleSection = 'books' | 'status' | 'searches' | 'tags' | 'agents'
 
-const SECTIONS: readonly CollapsibleSection[] = ['books', 'status', 'tags', 'agents']
+const SECTIONS: readonly CollapsibleSection[] = ['books', 'status', 'searches', 'tags', 'agents']
 
 type KeyValue = Pick<Storage, 'getItem' | 'setItem'>
 

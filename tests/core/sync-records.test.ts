@@ -8,11 +8,14 @@ import {
   fingerprint,
   mergeBook,
   mergeNote,
+  mergeSearch,
   mergeTag,
+  stampsOf,
   textOf,
   tombstone,
   type BookState,
   type NoteState,
+  type SearchState,
   type TagState,
 } from '../../src/core/sync/records'
 
@@ -281,5 +284,74 @@ describe('merging notebooks and tags', () => {
     expect(mergeTag(custom, older).record).toMatchObject({ name: 'every day', color: '#ff00aa' })
     expect(mergeTag(older, tag({ color: 'red', colorHlc: hlc(1) })).record.colorHlc).toBe(hlc(2))
     expect(mergeTag(custom, tag({ color: 'red', colorHlc: hlc(4) })).record.color).toBe('red')
+  })
+})
+
+describe('saved search records', () => {
+  const search = (patch: Partial<SearchState> = {}): SearchState => ({
+    kind: 'search',
+    id: ID,
+    name: 'Open work',
+    nameHlc: hlc(1),
+    query: 'is:active tag:work',
+    queryHlc: hlc(1),
+    sortKey: 'a0',
+    sortKeyHlc: hlc(1),
+    createdAt: 1,
+    updatedAt: 1,
+    deletedAt: null,
+    deletedHlc: '',
+    ...patch,
+  })
+
+  it('round-trip through their bytes and fingerprint their fields', () => {
+    const record = search({ query: 'in:"Weekly notes" #\u540c\u6b65 -pinned:true' })
+    expect(decodeRecord(ID, encodeRecord(record))).toEqual(record)
+    expect(fingerprint(record)).toBe(fingerprint({ ...record }))
+    expect(fingerprint(record)).not.toBe(fingerprint(search({ query: 'is:active' })))
+    expect(stampsOf(record)).toEqual([hlc(1), hlc(1), hlc(1), ''])
+  })
+
+  it('carry a sort key as long as placing a row may make one', () => {
+    const record = search({ sortKey: `a0${'V'.repeat(1000)}` })
+    expect(decodeRecord(ID, encodeRecord(record))).toEqual(record)
+  })
+
+  it('refuse a query longer than a record may carry or a malformed stamp', () => {
+    const bytes = (patch: Record<string, unknown>) => {
+      const head = new TextEncoder().encode(JSON.stringify({ ...search(), ...patch }))
+      const out = new Uint8Array(5 + head.length)
+      out[0] = 1
+      new DataView(out.buffer).setUint32(1, head.length)
+      out.set(head, 5)
+      return out
+    }
+    expect(() => decodeRecord(ID, bytes({ query: 'q'.repeat(4001) }))).toThrow(
+      'E_SYNC_RECORD_INVALID',
+    )
+    expect(() => decodeRecord(ID, bytes({ queryHlc: 'yesterday' }))).toThrow(
+      'E_SYNC_RECORD_INVALID',
+    )
+    expect(() => decodeRecord(ID, bytes({ sortKey: 7 }))).toThrow('E_SYNC_RECORD_INVALID')
+  })
+
+  it('take each field\u2019s newer value, and the greater key at equal clocks', () => {
+    const merged = mergeSearch(
+      search({ name: 'Work', nameHlc: hlc(3), sortKey: 'a0', sortKeyHlc: hlc(2) }),
+      search({ query: 'is:active', queryHlc: hlc(4), sortKey: 'b0', sortKeyHlc: hlc(2) }),
+    )
+    expect(merged.record).toMatchObject({
+      name: 'Work',
+      nameHlc: hlc(3),
+      query: 'is:active',
+      queryHlc: hlc(4),
+      sortKey: 'b0',
+    })
+    expect(merged).toMatchObject({ localNews: true, remoteNews: true })
+    const same = mergeSearch(search(), search())
+    expect(same).toMatchObject({ localNews: false, remoteNews: false })
+    const deleted = mergeSearch(search({ deletedAt: 5, deletedHlc: hlc(5) }), search())
+    expect(deleted.record.deletedAt).toBe(5)
+    expect(deleted).toMatchObject({ localNews: true, remoteNews: false })
   })
 })

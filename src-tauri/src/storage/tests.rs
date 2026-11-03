@@ -3254,3 +3254,153 @@ fn a_revision_written_again_keeps_its_new_word_count() {
     assert_eq!(revisions.len(), 1);
     assert_eq!(revisions[0].words, Some(5));
 }
+
+fn saved_search(id: &str, name: &str, name_hlc: &str) -> SavedSearchRecord {
+    SavedSearchRecord {
+        id: id.into(),
+        name: name.into(),
+        name_hlc: name_hlc.into(),
+        query: "is:active".into(),
+        query_hlc: name_hlc.into(),
+        sort_key: "a0".into(),
+        sort_key_hlc: name_hlc.into(),
+        created_at: 1,
+        updated_at: 1,
+        deleted_at: None,
+        deleted_hlc: None,
+    }
+}
+
+#[test]
+fn stores_saved_searches_in_key_order_and_merges_them_per_field() {
+    let (_dir, mut store) = temp_store();
+    let mut second = saved_search("s2", "Reading", "0000000000000010-0000-a");
+    second.sort_key = "a1".into();
+    store.put_saved_search(&second).unwrap();
+    store
+        .put_saved_search(&saved_search("s1", "Open work", "0000000000000010-0000-a"))
+        .unwrap();
+    let names: Vec<String> = store
+        .list_saved_searches()
+        .unwrap()
+        .into_iter()
+        .map(|s| s.name)
+        .collect();
+    assert_eq!(names, ["Open work", "Reading"], "by sort key, then ID");
+
+    let mut renamed = saved_search("s1", "Work", "0000000000000030-0000-b");
+    renamed.query = "stale".into();
+    renamed.query_hlc = "0000000000000005-0000-b".into();
+    store.put_saved_search(&renamed).unwrap();
+    let kept = &store.list_saved_searches().unwrap()[0];
+    assert_eq!(kept.name, "Work", "the newer name wins");
+    assert_eq!(kept.query, "is:active", "the older query loses");
+    assert_eq!(kept.query_hlc, "0000000000000010-0000-a");
+
+    let mut moved = saved_search("s1", "Old", "0000000000000001-0000-a");
+    moved.sort_key = "a2".into();
+    moved.sort_key_hlc = "0000000000000030-0000-b".into();
+    store.put_saved_search(&moved).unwrap();
+    let kept = &store.list_saved_searches().unwrap()[1];
+    assert_eq!(kept.name, "Work");
+    assert_eq!(kept.sort_key, "a2", "equal clocks take the greater key");
+
+    let mut deleted = saved_search("s1", "Work", "0000000000000030-0000-b");
+    deleted.deleted_at = Some(9);
+    deleted.deleted_hlc = Some("0000000000000040-0000-b".into());
+    store.put_saved_search(&deleted).unwrap();
+    assert_eq!(store.list_saved_searches().unwrap().len(), 1);
+    let entry: String = store
+        .conn
+        .query_row("SELECT kind FROM sync_records WHERE id = 's1'", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(entry, "search", "every write marks the record for sync");
+}
+
+#[test]
+fn renaming_a_tag_writes_it_and_its_saved_searches_together() {
+    let (_dir, mut store) = temp_store();
+    let hlc = "0000000000000010-0000-a";
+    let newer = "0000000000000020-0000-a";
+    let tag = |name: &str, name_hlc: &str| TagRecord {
+        id: "t1".into(),
+        name: name.into(),
+        name_hlc: name_hlc.into(),
+        created_at: 1,
+        updated_at: 1,
+        deleted_at: None,
+        deleted_hlc: None,
+        color: None,
+        color_hlc: String::new(),
+    };
+    store.put_tag(&tag("work", hlc)).unwrap();
+    store
+        .put_saved_search(&saved_search("s1", "Work", hlc))
+        .unwrap();
+    let mut rewritten = saved_search("s1", "Work", hlc);
+    rewritten.query = "tag:office".into();
+    rewritten.query_hlc = newer.into();
+    store
+        .rename_tag(&tag("office", newer), &[rewritten.clone()])
+        .unwrap();
+    assert_eq!(store.list_tags().unwrap()[0].name, "office");
+    assert_eq!(store.list_saved_searches().unwrap()[0].query, "tag:office");
+
+    let mut broken = rewritten.clone();
+    broken.id = "s2".into();
+    broken.sort_key = "a1".into();
+    broken.query = "tag:later".into();
+    let mut clash = tag("later", "0000000000000030-0000-a");
+    clash.id = "t1".into();
+    // A refused search write takes the tag write back with it.
+    store.conn.execute_batch("CREATE TRIGGER fail_search BEFORE INSERT ON saved_searches WHEN NEW.id = 's2' BEGIN SELECT RAISE(ABORT, 'refused'); END;").unwrap();
+    assert!(store.rename_tag(&clash, &[broken]).is_err());
+    assert_eq!(
+        store.list_tags().unwrap()[0].name,
+        "office",
+        "the tag write was rolled back"
+    );
+    assert_eq!(store.list_saved_searches().unwrap().len(), 1);
+}
+
+#[test]
+fn the_saved_searches_migration_keeps_the_sync_state_and_records() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    {
+        let conn = Connection::open(&path).unwrap();
+        for (index, sql) in MIGRATIONS.iter().take(24).enumerate() {
+            conn.execute_batch(sql).unwrap();
+            conn.pragma_update(None, "user_version", index as u32 + 1)
+                .unwrap();
+        }
+        conn.execute(
+            "INSERT INTO sync_state (key, value) VALUES ('since', '60'), ('epoch', 'e1')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sync_records (id, kind, version, fingerprint, synced)
+             VALUES ('t1', 'tag', 3, 'f', 1)",
+            [],
+        )
+        .unwrap();
+    }
+    let store = Store::open(&path).unwrap();
+    assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
+    assert_eq!(
+        store.sync_state().unwrap(),
+        vec![
+            ("epoch".to_string(), "e1".to_string()),
+            ("since".to_string(), "60".to_string())
+        ]
+    );
+    let entry = store.sync_read(&["t1".to_string()]).unwrap().remove(0);
+    assert_eq!(
+        entry.entry.map(|e| (e.kind, e.version)),
+        Some(("tag".into(), 3))
+    );
+    assert!(store.sync_pending("", 10).unwrap().is_empty());
+}

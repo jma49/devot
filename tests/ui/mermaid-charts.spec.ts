@@ -148,28 +148,47 @@ for (const [name, appearance, theme] of THEMES) {
             .filter((bar) => !bar.enough)
         })
         .toEqual([])
-      for (const bar of await barContrasts(svgs.nth(0))) expect(bar.stroke).toBe('0px')
-
-      const pie = svgs.nth(1)
-      const slice = pie.locator('.pieCircle').first()
-      expect(await computed(slice, 'opacity')).toBe('1')
-      expect(await computed(slice, 'stroke-width')).toBe('0px')
-      const gaps = await pie.evaluate((root) => {
-        const group = root.querySelector('.pieCircle')!.parentElement!
-        const reference = /url\(["']?#([^"')]+)/.exec(group.getAttribute('mask') ?? '')?.[1]
-        const mask = reference ? root.querySelector(`[id="${reference}"]`) : null
-        const cuts = Array.from(mask?.querySelectorAll('path') ?? [])
-        return {
-          slices: root.querySelectorAll('.pieCircle').length,
-          cuts: cuts.length,
-          width: cuts[0]?.getAttribute('stroke-width'),
-        }
-      })
-      expect(gaps).toEqual({ slices: 4, cuts: 4, width: '2' })
-      expect(await computed(pie.locator('.pieOuterCircle'), 'stroke-width')).toBe('0px')
-      expect(await computed(pie.locator('.legend rect').first(), 'opacity')).toBe('1')
-      const legend = await computed(pie.locator('.legend rect').first(), 'fill')
-      expect(await computed(slice, 'fill')).toBe(legend)
+      // A theme change swaps in a new drawing; a style read from the old one, detached, is empty.
+      await expect
+        .poll(async () =>
+          (await barContrasts(svgs.nth(0)))
+            .filter((bar) => bar.stroke !== '0px')
+            .map((bar) => bar.id),
+        )
+        .toEqual([])
+      await expect
+        .poll(() =>
+          svgs.nth(1).evaluate((root) => {
+            if (!root.isConnected) return null
+            const view = root.ownerDocument.defaultView as Window
+            const style = (selector: string, property: string) =>
+              view.getComputedStyle(root.querySelector(selector)!).getPropertyValue(property)
+            const group = root.querySelector('.pieCircle')!.parentElement!
+            const reference = /url\(["']?#([^"')]+)/.exec(group.getAttribute('mask') ?? '')?.[1]
+            const mask = reference ? root.querySelector(`[id="${reference}"]`) : null
+            const cuts = Array.from(mask?.querySelectorAll('path') ?? [])
+            return {
+              sliceOpacity: style('.pieCircle', 'opacity'),
+              sliceStroke: style('.pieCircle', 'stroke-width'),
+              slices: root.querySelectorAll('.pieCircle').length,
+              cuts: cuts.length,
+              cutWidth: cuts[0]?.getAttribute('stroke-width'),
+              outerStroke: style('.pieOuterCircle', 'stroke-width'),
+              legendOpacity: style('.legend rect', 'opacity'),
+              sliceMatchesLegend: style('.pieCircle', 'fill') === style('.legend rect', 'fill'),
+            }
+          }),
+        )
+        .toEqual({
+          sliceOpacity: '1',
+          sliceStroke: '0px',
+          slices: 4,
+          cuts: 4,
+          cutWidth: '2',
+          outerStroke: '0px',
+          legendOpacity: '1',
+          sliceMatchesLegend: true,
+        })
     })
   })
 }

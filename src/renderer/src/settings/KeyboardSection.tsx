@@ -34,6 +34,7 @@ const SCOPES: Readonly<Record<Exclude<CommandScope, 'window'>, MessageKey>> = {
   trashList: 'shortcuts.scope.trashList',
   notebookRow: 'shortcuts.scope.notebookRow',
   tagRow: 'shortcuts.scope.tagRow',
+  savedSearchRow: 'shortcuts.scope.savedSearchRow',
   sidebarRow: 'shortcuts.scope.sidebarRow',
 }
 

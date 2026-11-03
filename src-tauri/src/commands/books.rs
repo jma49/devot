@@ -9,7 +9,7 @@ const MAX_SORT_KEY_LEN: usize = 1024;
 const KEY_DIGITS: &str = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 /// Mirrors `isSortKey` in src/core/order.ts.
-fn valid_sort_key(key: &str) -> bool {
+pub(super) fn valid_sort_key(key: &str) -> bool {
     let bytes = key.as_bytes();
     let integer_len = match bytes.first() {
         Some(head @ b'a'..=b'z') => usize::from(head - b'a') + 2,

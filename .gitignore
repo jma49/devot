@@ -41,3 +41,5 @@ CLAUDE.local.md
 dist-test/
 dist-bench/
 dist-bench-app/
+
+.vitest/
