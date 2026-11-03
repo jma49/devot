@@ -15,6 +15,7 @@
     "scripts",
     "vite.config.ts",
     "vite.mcp.config.ts",
+    "vite.mcp-helper.config.ts",
     "vite.ui-test.config.ts",
     "vitest.config.ts",
     "playwright.config.ts"

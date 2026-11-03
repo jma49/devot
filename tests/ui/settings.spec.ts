@@ -263,25 +263,60 @@ test('General opens the data folder and the Backups dialog', async ({ page }) =>
   await expect(general.getByRole('alert')).toHaveCount(0)
 })
 
+const HELPER = '/Applications/My Apps/Devot.app/Contents/Helpers/devot-mcp'
+const DEV_DB = '/Users/me/Library/Application Support/io.github.jma49.devot.dev/devot.sqlite'
+const CODEX_PREVIEW = `[mcp_servers.devot]\ncommand = "${HELPER}"\nargs = []\n`
+
+function clientStatus(client: string, path: string, state: string, extra: object = {}) {
+  return {
+    client,
+    path,
+    backup: `${path}.devot-backup`,
+    state,
+    code: null,
+    missing: false,
+    preview: `the entry for ${client}`,
+    ...extra,
+  }
+}
+
+function setupWith(states: { claudeCode?: string; codex?: string; claudeDesktop?: string } = {}) {
+  return {
+    helper: HELPER,
+    db: null,
+    temporary: false,
+    clients: [
+      clientStatus('claudeCode', '/Users/me/.claude.json', states.claudeCode ?? 'notConnected'),
+      clientStatus('codex', '/Users/me/.codex/config.toml', states.codex ?? 'notConnected', {
+        preview: CODEX_PREVIEW,
+      }),
+      clientStatus(
+        'claudeDesktop',
+        '/Users/me/Library/Application Support/Claude/claude_desktop_config.json',
+        states.claudeDesktop ?? 'notConnected',
+      ),
+    ],
+  }
+}
+
 test('Integrations offers devot-mcp configs to copy for each client', async ({ page }) => {
-  const script = '/Users/me/Code/devot/dist-mcp/devot-mcp.mjs'
-  const db = '/Users/me/Library/Application Support/io.github.jma49.devot.dev/devot.sqlite'
   await page.addInitScript(
     (setup) => {
       const w = globalThis as unknown as TestWindow
       w.devotIpcMocks = { settings_mcp_setup: setup }
     },
-    { script, db },
+    { ...setupWith(), db: DEV_DB },
   )
   await openSettings(page, 'Integrations')
   const claude = page.getByRole('region', { name: 'Claude Code' })
-  const command = `claude mcp add --scope user devot -- node ${script} --db '${db}'`
+  const command = `claude mcp add --scope user devot -- '${HELPER}' --db '${DEV_DB}'`
   await expect(claude.locator('code')).toHaveText(command)
   await expect(page.getByRole('region', { name: 'Codex' })).toContainText('[mcp_servers.devot]')
+  await expect(page.getByRole('region', { name: 'Claude Desktop' })).toContainText('"mcpServers"')
   await expect(page.getByRole('region', { name: 'Other MCP Clients' })).toContainText(
     '"mcpServers"',
   )
-  await expect(page.getByRole('tabpanel')).toContainText('from the Devot checkout')
+  await expect(page.getByRole('tabpanel')).toContainText('nothing else needs to be installed')
 
   await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
   await expect(page.getByRole('tabpanel').getByRole('status').first()).toHaveText(
@@ -296,21 +331,209 @@ test('Integrations offers devot-mcp configs to copy for each client', async ({ p
   for (const call of setups) expect(call).toEqual({ cmd: 'settings_mcp_setup', args: {} })
 })
 
-test('Integrations shows a path to replace when devot-mcp is not beside this build', async ({
+test('Connect shows what it will write and where, and writes only once confirmed', async ({
   page,
 }) => {
-  await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
-    w.devotIpcMocks = { settings_mcp_setup: { script: null, db: null } }
-  })
-  await openSettings(page, 'Integrations')
-  await expect(page.getByRole('tabpanel')).toContainText('pnpm mcp:build')
-  await expect(page.getByRole('region', { name: 'Codex' })).toContainText(
-    'args = ["/path/to/devot/dist-mcp/devot-mcp.mjs"]',
+  await page.addInitScript(
+    ({ setup, connected }) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_mcp_connect: connected,
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+      }
+    },
+    {
+      setup: setupWith(),
+      connected: clientStatus('codex', '/Users/me/.codex/config.toml', 'connected', {
+        preview: CODEX_PREVIEW,
+      }),
+    },
   )
+  await openSettings(page, 'Integrations')
+  const codex = page.getByRole('region', { name: 'Codex' })
+  await expect(codex).toContainText('Not connected.')
+  await codex.getByRole('button', { name: 'Connect Codex' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Connect Codex?' })
+  await expect(dialog).toContainText('/Users/me/.codex/config.toml.devot-backup')
+  await expect(dialog.locator('code')).toHaveText(CODEX_PREVIEW)
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(await calls(page, 'settings_mcp_connect')).toEqual([])
+
+  await codex.getByRole('button', { name: 'Connect Codex' }).click()
+  await dialog.getByRole('button', { name: 'Connect', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(codex).toContainText('Connected through /Users/me/.codex/config.toml.')
+  await expect(page.getByRole('tabpanel').getByRole('status').first()).toHaveText(
+    'Codex is connected. Restart it if it is running.',
+  )
+  expect(await calls(page, 'settings_mcp_connect')).toEqual([
+    { cmd: 'settings_mcp_connect', args: { client: 'codex' } },
+  ])
+  await expect(codex.getByRole('button', { name: 'Disconnect Codex' })).toBeVisible()
 })
 
-test('Integrations still offers configs, with a path to replace, when Rust cannot say', async ({
+test('Disconnect names the file, removes only on confirming and reports a refusal', async ({
+  page,
+}) => {
+  await page.addInitScript(
+    (setup) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_mcp_disconnect: { error: 'E_MCP_CONFIG_CHANGED' },
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+      }
+    },
+    setupWith({ claudeCode: 'connected' }),
+  )
+  await openSettings(page, 'Integrations')
+  const claude = page.getByRole('region', { name: 'Claude Code' })
+  await claude.getByRole('button', { name: 'Disconnect Claude Code' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Disconnect Claude Code?' })
+  await expect(dialog).toContainText('removes only its devot entry from /Users/me/.claude.json')
+  await dialog.getByRole('button', { name: 'Disconnect', exact: true }).click()
+  await expect(page.getByRole('tabpanel').getByRole('alert')).toHaveText(
+    'The client’s configuration was not changed (E_MCP_CONFIG_CHANGED).',
+  )
+  await expect(claude).toContainText('Connected through')
+})
+
+test('A moved app, a foreign entry and an unreadable file each say what to do', async ({
+  page,
+}) => {
+  await page.addInitScript(
+    (setup) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+      }
+    },
+    {
+      ...setupWith(),
+      clients: [
+        clientStatus('claudeCode', '/Users/me/.claude.json', 'stale'),
+        clientStatus('codex', '/Users/me/.codex/config.toml', 'other'),
+        clientStatus('claudeDesktop', '/x/claude_desktop_config.json', 'unreadable', {
+          code: 'E_MCP_CONFIG_UNPARSABLE',
+        }),
+      ],
+    },
+  )
+  await openSettings(page, 'Integrations')
+  const claude = page.getByRole('region', { name: 'Claude Code' })
+  await expect(claude).toContainText('points at a copy of Devot that has moved')
+  await expect(claude.getByRole('button', { name: 'Reconnect Claude Code' })).toBeEnabled()
+  const codex = page.getByRole('region', { name: 'Codex' })
+  await expect(codex.getByRole('button', { name: 'Replace Codex' })).toBeEnabled()
+  const desktop = page.getByRole('region', { name: 'Claude Desktop' })
+  await expect(desktop).toContainText('could not be read (E_MCP_CONFIG_UNPARSABLE)')
+  await expect(desktop.getByRole('button', { name: 'Connect Claude Desktop' })).toHaveCount(0)
+  await expect(
+    desktop.getByRole('button', { name: 'Copy the Claude Desktop configuration' }),
+  ).toBeEnabled()
+})
+
+test('Connect waits until Devot is installed, while configs stay available', async ({ page }) => {
+  await page.addInitScript(
+    (setup) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+      }
+    },
+    { ...setupWith(), temporary: true },
+  )
+  await openSettings(page, 'Integrations')
+  await expect(page.getByRole('tabpanel')).toContainText('Move it to Applications')
+  const desktop = page.getByRole('region', { name: 'Claude Desktop' })
+  await expect(desktop.getByRole('button', { name: 'Connect Claude Desktop' })).toBeDisabled()
+  await expect(desktop.getByRole('button', { name: 'Install as Extension' })).toBeDisabled()
+  await expect(
+    desktop.getByRole('button', { name: 'Copy the Claude Desktop configuration' }),
+  ).toBeEnabled()
+})
+
+test('Install as Extension opens the bundle, and says when it cannot', async ({ page }) => {
+  await page.addInitScript((setup) => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      settings_mcp_setup: setup,
+      settings_mcp_open_extension: { error: 'E_MCP_EXTENSION_OPEN_FAILED' },
+      settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+    }
+  }, setupWith())
+  await openSettings(page, 'Integrations')
+  const desktop = page.getByRole('region', { name: 'Claude Desktop' })
+  await desktop.getByRole('button', { name: 'Install as Extension' }).click()
+  await expect(page.getByRole('tabpanel').getByRole('alert')).toContainText(
+    'E_MCP_EXTENSION_OPEN_FAILED',
+  )
+  expect(await calls(page, 'settings_mcp_open_extension')).toHaveLength(1)
+})
+
+test('Connecting with no notebook allowed leads on to choosing one', async ({ page }) => {
+  await page.addInitScript(
+    ({ setup, connected }) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_mcp_connect: connected,
+        settings_ai_access_summary: { notebooks: 3, allowed: 0 },
+      }
+    },
+    {
+      setup: setupWith(),
+      connected: clientStatus('codex', '/Users/me/.codex/config.toml', 'connected'),
+    },
+  )
+  await openSettings(page, 'Integrations')
+  await page.getByRole('dialog').getByRole('button', { name: 'Later' }).click()
+  const codex = page.getByRole('region', { name: 'Codex' })
+  await codex.getByRole('button', { name: 'Connect Codex' }).click()
+  await page
+    .getByRole('dialog', { name: 'Connect Codex?' })
+    .getByRole('button', { name: 'Connect', exact: true })
+    .click()
+  await expect(page.getByRole('dialog', { name: 'No notebook allows AI access' })).toBeVisible()
+})
+
+test('Integrations shows the installed path when this build has no helper', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      settings_mcp_setup: {
+        helper: null,
+        db: null,
+        temporary: false,
+        clients: [
+          {
+            client: 'codex',
+            path: '/Users/me/.codex/config.toml',
+            backup: '/Users/me/.codex/config.toml.devot-backup',
+            state: 'notConnected',
+            code: null,
+            missing: true,
+            preview: null,
+          },
+        ],
+      },
+    }
+  })
+  await openSettings(page, 'Integrations')
+  await expect(page.getByRole('tabpanel')).toContainText('pnpm mcp:helper')
+  const codex = page.getByRole('region', { name: 'Codex' })
+  await expect(codex).toContainText(
+    'command = "/Applications/Devot.app/Contents/Helpers/devot-mcp"',
+  )
+  await expect(codex.getByRole('button', { name: 'Connect Codex' })).toBeDisabled()
+})
+
+test('Integrations still offers configs, with the installed path, when Rust cannot say', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -323,14 +546,14 @@ test('Integrations still offers configs, with a path to replace, when Rust canno
   await expect(pane.getByRole('alert')).toHaveText(
     'Devot could not find devot-mcp (E_DATA_FOLDER_UNAVAILABLE).',
   )
-  await expect(pane).toContainText('pnpm mcp:build')
   const claude = page.getByRole('region', { name: 'Claude Code' })
-  await expect(claude.locator('code')).toContainText('/path/to/devot/dist-mcp/devot-mcp.mjs')
+  await expect(claude.locator('code')).toContainText(
+    '/Applications/Devot.app/Contents/Helpers/devot-mcp',
+  )
   await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
   await expect(pane.getByRole('status').first()).toHaveText(
     'The Claude Code configuration was copied.',
   )
-  await expect(pane.getByRole('alert')).toContainText('E_DATA_FOLDER_UNAVAILABLE')
 })
 
 test('General installs and removes the devot command, showing whether it is there', async ({
@@ -761,7 +984,12 @@ test('Integrations says when no notebook allows AI access and offers the picker'
   await page.addInitScript(() => {
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = {
-      settings_mcp_setup: { script: '/Users/me/Code/devot/dist-mcp/devot-mcp.mjs', db: null },
+      settings_mcp_setup: {
+        helper: '/Applications/Devot.app/Contents/Helpers/devot-mcp',
+        db: null,
+        temporary: false,
+        clients: [],
+      },
       settings_ai_access_summary: { notebooks: 3, allowed: 0 },
       main_window_show: null,
     }
@@ -781,7 +1009,7 @@ test('Later keeps the AI access prompt quiet for the Settings window', async ({ 
   await page.addInitScript(() => {
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = {
-      settings_mcp_setup: { script: null, db: null },
+      settings_mcp_setup: { helper: null, db: null, temporary: false, clients: [] },
       settings_ai_access_summary: { notebooks: 2, allowed: 0 },
     }
   })
@@ -799,7 +1027,7 @@ test('Integrations offers a way to create a notebook when there is none', async 
   await page.addInitScript(() => {
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = {
-      settings_mcp_setup: { script: null, db: null },
+      settings_mcp_setup: { helper: null, db: null, temporary: false, clients: [] },
       settings_ai_access_summary: { notebooks: 0, allowed: 0 },
       main_window_show: null,
     }

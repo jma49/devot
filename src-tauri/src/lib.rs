@@ -33,6 +33,7 @@ mod licence;
 mod link_info;
 mod logs;
 mod main_windows;
+mod mcp_clients;
 #[cfg(desktop)]
 mod menu;
 #[cfg(desktop)]
@@ -199,7 +200,10 @@ pub fn run() {
             crash::crash_reports_get,
             crash::crash_reports_set,
             settings::settings_open_licence,
-            settings::settings_mcp_setup,
+            mcp_clients::settings_mcp_setup,
+            mcp_clients::settings_mcp_connect,
+            mcp_clients::settings_mcp_disconnect,
+            mcp_clients::settings_mcp_open_extension,
             settings::settings_ai_access_summary,
             settings::main_window_show,
             cli_tool::cli_tool_status,

@@ -1183,11 +1183,12 @@ title: Daily Report {{date}}
   'aiSettings.keyFailed': 'The key could not be changed ({code}).',
   'integrations.title': 'Integrations',
   'integrations.detail':
-    'devot-mcp lets Claude Code, Codex and other MCP clients search, read, create, edit and trash your notes. It sees only notebooks with Allow AI Access on, and Devot keeps the text from before each edit in the note\u2019s Revision History. It runs with Node, whether Devot is open or not.',
-  'integrations.script':
-    'These configs run devot-mcp from the Devot checkout this app was built from.',
-  'integrations.noScript':
-    'Build devot-mcp in a Devot checkout (pnpm install, then pnpm mcp:build), and put the path of its dist-mcp/devot-mcp.mjs in place of the one below.',
+    'devot-mcp lets Claude Code, Codex and other MCP clients search, read, create, edit and trash your notes. It sees only notebooks with Allow AI Access on, and Devot keeps the text from before each edit in the note\u2019s Revision History. It ships inside Devot and runs whether Devot is open or not.',
+  'integrations.helper': 'Devot includes devot-mcp, so nothing else needs to be installed.',
+  'integrations.noHelper':
+    'This build has no devot-mcp. Run pnpm mcp:helper in the checkout, then open this pane again. The configs below show where an installed Devot keeps it.',
+  'integrations.temporary':
+    'Devot is running from a disk image or a temporary copy. Move it to Applications and open it again before connecting a client.',
   'integrations.setupFailed': 'Devot could not find devot-mcp ({code}).',
   'integrations.noAiAccessTitle': 'No notebook allows AI access',
   'integrations.noAiAccess':
@@ -1199,19 +1200,49 @@ title: Daily Report {{date}}
   'integrations.openDevot': 'Open Devot',
   'integrations.mcpTitle': 'devot-mcp',
   'integrations.accessLabel': 'AI Access',
-  'integrations.scriptLabel': 'Configs',
+  'integrations.helperLabel': 'Helper',
   'integrations.aiAccessCount': '{allowed} of {notebooks} notebooks allow AI access.',
   'integrations.claudeCode': 'Claude Code',
-  'integrations.claudeCodeHint': 'Run this command in Terminal.',
+  'integrations.claudeCodeHint': 'Or run this command in Terminal.',
   'integrations.codex': 'Codex',
-  'integrations.codexHint': 'Add this to ~/.codex/config.toml.',
+  'integrations.codexHint': 'Or add this to ~/.codex/config.toml.',
+  'integrations.claudeDesktop': 'Claude Desktop',
+  'integrations.claudeDesktopHint':
+    'Or add this to claude_desktop_config.json, or install Devot as an extension; use one of these, not both.',
   'integrations.json': 'Other MCP Clients',
-  'integrations.jsonHint':
-    'Add this to the client\u2019s MCP configuration file (mcpServers). If the client cannot find node, put its full path instead (which node in Terminal prints it).',
+  'integrations.jsonHint': 'Add this to the client\u2019s MCP configuration file (mcpServers).',
   'integrations.copy': 'Copy',
   'integrations.copyLabel': 'Copy the {client} configuration',
   'integrations.copied': 'The {client} configuration was copied.',
   'integrations.copyFailed': 'The configuration could not be copied ({code}).',
+  'integrations.stateNotConnected': 'Not connected.',
+  'integrations.stateConnected': 'Connected through {path}. Restart {client} if it is running.',
+  'integrations.stateStale':
+    '{path} points at a copy of Devot that has moved. Reconnect to use this one.',
+  'integrations.stateOther':
+    '{path} has a devot entry that this Devot did not write. Replace it to use this one.',
+  'integrations.stateUnreadable':
+    '{path} could not be read ({code}), so Devot leaves it alone. Fix the file, or copy the configuration below once it is valid.',
+  'integrations.connect': 'Connect',
+  'integrations.reconnect': 'Reconnect',
+  'integrations.replace': 'Replace',
+  'integrations.disconnect': 'Disconnect',
+  'integrations.cancel': 'Cancel',
+  'integrations.changeLabel': '{action} {client}',
+  'integrations.confirmConnect': 'Connect {client}?',
+  'integrations.confirmConnectDetail':
+    'Devot adds this to {path}. Everything else in the file stays, and the file as it is now is kept at {backup}.',
+  'integrations.confirmCreateDetail': 'Devot creates {path} with this in it.',
+  'integrations.confirmDisconnect': 'Disconnect {client}?',
+  'integrations.confirmDisconnectDetail':
+    'Devot removes only its devot entry from {path}. Everything else in the file stays, and the file as it is now is kept at {backup}.',
+  'integrations.connected': '{client} is connected. Restart it if it is running.',
+  'integrations.disconnected': '{client} is disconnected. Restart it if it is running.',
+  'integrations.changeFailed': 'The client\u2019s configuration was not changed ({code}).',
+  'integrations.openExtension': 'Install as Extension\u2026',
+  'integrations.extensionOpened': 'Devot was opened as an extension. Continue in Claude Desktop.',
+  'integrations.extensionFailed':
+    'The extension could not be opened ({code}). Is Claude Desktop installed?',
   'httpApi.title': 'Local HTTP API',
   'httpApi.detail':
     'Scripts and other apps on this Mac can read and write notes through a local HTTP API while Devot runs. They see only notebooks with Allow AI Access on, and every request needs the token.',

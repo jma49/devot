@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { defineConfig } from 'vitest/config'
 
 const include = ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}']
@@ -24,6 +25,26 @@ export default defineConfig({
         test: { name: 'fast', include, exclude: slow, sequence: { groupOrder: 0 } },
       },
       { extends: true, test: { name: 'slow', include: slow, sequence: { groupOrder: 1 } } },
+      // The helper inside Devot.app runs on Node's SQLite: the same behaviour, checked on that driver.
+      {
+        extends: true,
+        resolve: {
+          alias: {
+            'better-sqlite3': resolve(import.meta.dirname, 'src/mcp/nodeSqlite.ts'),
+          },
+        },
+        test: {
+          name: 'node-sqlite',
+          env: { DEVOT_SQLITE_DRIVER: 'node' },
+          include: [
+            'tests/mcp/server.test.ts',
+            'tests/core/ai.test.ts',
+            'tests/core/ai-storage.test.ts',
+            'tests/core/busy-writes.test.ts',
+          ],
+          sequence: { groupOrder: 0 },
+        },
+      },
     ],
   },
 })

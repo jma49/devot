@@ -28,6 +28,7 @@ Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Appl
 | `pnpm build`                    | Release build: `src-tauri/target/release/bundle/macos/Devot.app`                                             |
 | `pnpm ui:dev` / `pnpm ui:build` | The UI alone, in a browser                                                                                   |
 | `pnpm mcp:build`                | Build devot-mcp into `dist-mcp/devot-mcp.mjs`                                                                |
+| `pnpm mcp:helper`               | Build the helper the app ships into `dist-mcp-helper/devot-mcp` (macOS; downloads a pinned Node once)        |
 | `pnpm ui:release`               | The UI for a release build; uploads source maps to Sentry when set up                                        |
 | `pnpm sentry:debug-files`       | Upload the release build's debug symbols to Sentry when set up                                               |
 | `pnpm test` / `pnpm test:watch` | Vitest                                                                                                       |
@@ -118,7 +119,7 @@ Stack only changes that depend on each other: the same tokens, the same styleshe
 | ------------------------ | ------------------------------------------------------------- |
 | `src/renderer`           | React UI (runs in the webview)                                |
 | `src/core`               | Core library: plain TypeScript, no Tauri, no Node built-ins   |
-| `src/mcp`                | devot-mcp (Node): the MCP tools and the better-sqlite3 store  |
+| `src/mcp`                | devot-mcp: the MCP tools and the SQLite store (both drivers)  |
 | `src-tauri`              | Rust app: commands, storage, native macOS code (`src/native`) |
 | `relay`                  | Sync relay, deployed on its own (`docs/sync-relay.md`)        |
 | `src-tauri/capabilities` | Which window may call which command                           |

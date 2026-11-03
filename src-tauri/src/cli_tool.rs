@@ -103,16 +103,6 @@ fn needs_prompt(error: &std::io::Error) -> bool {
     )
 }
 
-/// A link into a disk image or a translocated copy breaks once the image is ejected or the app
-/// is moved, so the tool installs only from a copy that stays put. Both are read-only volumes; an
-/// app on a second disk (also under `/Volumes`) is not.
-fn temporary_location(script: &Path, read_only: impl FnOnce(&Path) -> bool) -> bool {
-    script
-        .components()
-        .any(|part| part.as_os_str() == "AppTranslocation")
-        || read_only(script)
-}
-
 /// Linked beside its place and renamed over it; `prompt` when the folder is not writable.
 pub fn install_at(
     link: &Path,
@@ -133,7 +123,7 @@ fn install_from(
     read_only: impl FnOnce(&Path) -> bool,
     prompt: impl FnOnce(Command) -> Result<(), &'static str>,
 ) -> Result<(), &'static str> {
-    if temporary_location(script, read_only) {
+    if crate::mcp_clients::temporary_location(script, read_only) {
         return Err("E_CLI_APP_NOT_IN_APPLICATIONS");
     }
     if state_of(link, Some(script)) == State::Installed {
@@ -268,7 +258,7 @@ mod tests {
             "/Users/a/AppTranslocationNotes/Devot.app/Contents/Resources/bin/devot",
         ] {
             assert!(
-                !temporary_location(Path::new(script), |_| false),
+                !crate::mcp_clients::temporary_location(Path::new(script), |_| false),
                 "{script}"
             );
         }

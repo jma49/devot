@@ -67,14 +67,23 @@ const HINTS: Record<string, string> = {
   E_STORAGE_NOT_FOUND: 'No Devot database at this path. Open Devot once, or pass --db <path>.',
   E_STORAGE_SCHEMA_TOO_OLD:
     'The database is from an older Devot. Open Devot once so it can upgrade the database.',
-  E_STORAGE_SCHEMA_TOO_NEW: 'The database is from a newer Devot. Update devot-mcp.',
+  E_STORAGE_SCHEMA_TOO_NEW: 'The database is from a newer Devot. Update Devot or devot-mcp.',
   E_STORAGE_BUSY: 'Devot is busy writing. Try again.',
   E_STORAGE_OPEN_FAILED: 'The Devot database could not be opened. Check the --db path.',
   E_STORAGE_MODULE_FAILED:
-    'The Devot database module could not load with this Node. Run devot-mcp with the Node that installed it, or reinstall it.',
+    'The Devot database module could not load. Reinstall Devot, or run devot-mcp with the Node that installed it.',
 }
 
 const CODE = /^E_[A-Z0-9_]+$/
+
+/** What may only mean that nothing is visible yet, so a client should hear why. */
+const INVISIBLE = new Set(['E_NOTE_NOT_FOUND', 'E_BOOK_NOT_FOUND'])
+
+/** Adds the way to allow AI access to an empty answer when no notebook allows it. */
+async function withAccessHint<T extends object>(ai: AiService, answer: T, empty: boolean) {
+  if (!empty || (await ai.notebooks()).length > 0) return answer
+  return { ...answer, hint: NO_NOTEBOOKS_HINT }
+}
 
 /** The error code of a failure; anything else is internal. */
 export function errorCode(error: unknown): string {
@@ -101,6 +110,7 @@ const noteJson = (note: AiNote) => ({
 })
 
 const NOTE_ID = z.string().max(100)
+const READS = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const
 const WRITES = { readOnlyHint: false, openWorldHint: false } as const
 
 interface UpdateArgs {
@@ -156,6 +166,14 @@ export function createServer({ service, log }: ServerOptions): McpServer {
     },
   )
 
+  const noNotebooks = async () => {
+    try {
+      return (await service().notebooks()).length === 0
+    } catch {
+      return false
+    }
+  }
+
   /** Runs a tool; a failure becomes an error result with its code. */
   const run =
     <A>(tool: string, work: (ai: AiService, args: A) => Promise<unknown>) =>
@@ -166,7 +184,8 @@ export function createServer({ service, log }: ServerOptions): McpServer {
         const code = errorCode(error)
         log('W_MCP_TOOL_FAILED', tool, code)
         const hint = HINTS[code] ?? 'Devot could not complete the request.'
-        return { isError: true, content: [{ type: 'text', text: `${code}: ${hint}` }] }
+        const access = INVISIBLE.has(code) && (await noNotebooks()) ? ` ${NO_NOTEBOOKS_HINT}` : ''
+        return { isError: true, content: [{ type: 'text', text: `${code}: ${hint}${access}` }] }
       }
     }
 
@@ -177,7 +196,7 @@ export function createServer({ service, log }: ServerOptions): McpServer {
       description:
         'Lists the Devot notebooks that allow AI access, with their IDs and how many notes ' +
         'each holds. Notes can only be created in these notebooks.',
-      annotations: { readOnlyHint: true, openWorldHint: false },
+      annotations: READS,
     },
     run('list_notebooks', async (ai) => {
       const notebooks = await ai.notebooks()
@@ -210,16 +229,17 @@ export function createServer({ service, log }: ServerOptions): McpServer {
           .optional()
           .describe(`Most results to return (default ${AI_SEARCH_LIMIT})`),
       },
-      annotations: { readOnlyHint: true, openWorldHint: false },
+      annotations: READS,
     },
     run(
       'search_notes',
-      async (ai, { query, limit }: { query: string; limit?: number | undefined }) => ({
-        results: (await ai.search(query, limit)).map((hit) => ({
+      async (ai, { query, limit }: { query: string; limit?: number | undefined }) => {
+        const results = (await ai.search(query, limit)).map((hit) => ({
           ...hit,
           updatedAt: iso(hit.updatedAt),
-        })),
-      }),
+        }))
+        return withAccessHint(ai, { results }, results.length === 0)
+      },
     ),
   )
 
@@ -231,7 +251,7 @@ export function createServer({ service, log }: ServerOptions): McpServer {
         'Reads one note by ID: its Markdown, title, notebook, status, pinned state, tags ' +
         'and times. Only notes in notebooks that allow AI access can be read.',
       inputSchema: { id: z.string().max(100).describe('The note ID (from search_notes)') },
-      annotations: { readOnlyHint: true, openWorldHint: false },
+      annotations: READS,
     },
     run('read_note', async (ai, { id }: { id: string }) => noteJson(await ai.read(id))),
   )
@@ -243,9 +263,12 @@ export function createServer({ service, log }: ServerOptions): McpServer {
       description:
         'Lists the tags on notes in notebooks that allow AI access, by name, with how many ' +
         'of those notes carry each.',
-      annotations: { readOnlyHint: true, openWorldHint: false },
+      annotations: READS,
     },
-    run('list_tags', async (ai) => ({ tags: await ai.tags() })),
+    run('list_tags', async (ai) => {
+      const tags = await ai.tags()
+      return withAccessHint(ai, { tags }, tags.length === 0)
+    }),
   )
 
   server.registerTool(
@@ -264,12 +287,7 @@ export function createServer({ service, log }: ServerOptions): McpServer {
         markdown: z.string().describe('The note body, in Markdown'),
         notebook: z.string().min(1).max(500).describe('A notebook ID or exact name'),
       },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: false,
-      },
+      annotations: { ...WRITES, destructiveHint: false, idempotentHint: false },
     },
     run('create_note', async (ai, input: { title: string; markdown: string; notebook: string }) => {
       const created = await ai.create(input)
@@ -316,7 +334,8 @@ export function createServer({ service, log }: ServerOptions): McpServer {
           .describe('All tag names the note should have ([] removes every tag)'),
         status: z.enum(NOTE_STATUSES).optional(),
       },
-      annotations: { ...WRITES, destructiveHint: false, idempotentHint: false },
+      // A whole new body or tag list replaces what was there, even with the text kept in the history.
+      annotations: { ...WRITES, destructiveHint: true, idempotentHint: false },
     },
     run('update_note', async (ai, args: UpdateArgs) => {
       const note = await ai.update(toUpdate(args))

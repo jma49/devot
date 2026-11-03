@@ -41,5 +41,6 @@ CLAUDE.local.md
 dist-test/
 dist-mcp/
 dist-mcp-test/
+dist-mcp-helper/
 dist-bench/
 dist-bench-app/

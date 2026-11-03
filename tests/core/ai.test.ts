@@ -375,12 +375,17 @@ describe('creating notes', () => {
  * on stop, the writes made and the longest (database wait included).
  */
 async function appWriter(path: string, bookId: string) {
-  const driver = createRequire(import.meta.url).resolve('better-sqlite3')
+  // Two copies of SQLite in one process break each other's file locks, so the worker uses this project's.
+  const driver =
+    process.env['DEVOT_SQLITE_DRIVER'] === 'node'
+      ? null
+      : createRequire(import.meta.url).resolve('better-sqlite3')
   const worker = new Worker(
     `const { parentPort, workerData } = require('node:worker_threads')
-    const Database = require(workerData.driver)
-    const db = new Database(workerData.path)
-    db.pragma('busy_timeout = 5000')
+    const db = workerData.driver
+      ? new (require(workerData.driver))(workerData.path)
+      : new (require('node:sqlite').DatabaseSync)(workerData.path)
+    db.exec('PRAGMA busy_timeout = 5000')
     const write = db.prepare('UPDATE books SET updated_at = updated_at WHERE id = ?')
     let stop = false
     let longest = 0

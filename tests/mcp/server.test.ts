@@ -2,8 +2,8 @@
 // in the trash or in no notebook are invisible to every tool.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import {
@@ -81,7 +81,22 @@ describe('devot-mcp tools', () => {
     const readOnly = tools.filter((t) => t.annotations?.readOnlyHint).map((t) => t.name)
     expect(readOnly.sort()).toEqual(['list_notebooks', 'list_tags', 'read_note', 'search_notes'])
     const destructive = tools.filter((t) => t.annotations?.destructiveHint).map((t) => t.name)
-    expect(destructive).toEqual(['trash_note'])
+    expect(destructive.sort()).toEqual(['trash_note', 'update_note'])
+    expect(tools.filter((tool) => !tool.title).map((tool) => tool.name)).toEqual([])
+    for (const tool of tools) {
+      expect(tool.annotations).toMatchObject({
+        readOnlyHint: readOnly.includes(tool.name),
+        destructiveHint: destructive.includes(tool.name),
+        openWorldHint: false,
+      })
+    }
+    const listed = JSON.parse(
+      readFileSync(
+        resolve(import.meta.dirname, '../../src-tauri/mcp-extension/tools.json'),
+        'utf8',
+      ),
+    ) as { name: string }[]
+    expect(listed.map((tool) => tool.name).sort()).toEqual(tools.map((tool) => tool.name).sort())
     const update = tools.find((t) => t.name === 'update_note')!
     expect(Object.keys(update.inputSchema.properties ?? {}).sort()).toEqual([
       'id',
@@ -110,6 +125,36 @@ describe('devot-mcp tools', () => {
     expect(await call(client, 'list_notebooks')).toEqual({
       value: { notebooks: [], hint: NO_NOTEBOOKS_HINT },
     })
+    expect(await call(client, 'search_notes', { query: 'kiwi' })).toEqual({
+      value: { results: [], hint: NO_NOTEBOOKS_HINT },
+    })
+    expect(await call(client, 'list_tags')).toEqual({
+      value: { tags: [], hint: NO_NOTEBOOKS_HINT },
+    })
+    for (const failed of [
+      await call(client, 'read_note', { id: 'nope' }),
+      await call(client, 'update_note', { id: 'nope', title: 'New' }),
+      await call(client, 'trash_note', { id: 'nope' }),
+    ]) {
+      expect(failed.error).toMatch(/^E_NOTE_NOT_FOUND: /)
+      expect(failed.error).toContain(NO_NOTEBOOKS_HINT)
+    }
+    const created = await call(client, 'create_note', {
+      title: 'A',
+      markdown: 'b',
+      notebook: 'Shared',
+    })
+    expect(created.error).toMatch(/^E_BOOK_NOT_FOUND: /)
+    expect(created.error).toContain(NO_NOTEBOOKS_HINT)
+  })
+
+  it('adds no hint once a notebook allows AI access', async () => {
+    const world = await makeWorld()
+    const { client } = await connect(world.path)
+    expect((await call(client, 'search_notes', { query: 'nothing-like-it' })).value).toEqual({
+      results: [],
+    })
+    expect((await call(client, 'read_note', { id: 'nope' })).error).not.toContain(NO_NOTEBOOKS_HINT)
   })
 
   it('finds and reads only visible notes', async () => {

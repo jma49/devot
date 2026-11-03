@@ -86,11 +86,12 @@ function throwawayCertificate(): string {
 function adHocApp(): string {
   const dir = tempDir('devot-sign-app-')
   const contents = join(dir, 'Devot.app', 'Contents')
-  for (const sub of ['MacOS', 'Frameworks', 'Resources/bin'])
+  for (const sub of ['MacOS', 'Helpers', 'Frameworks', 'Resources/bin'])
     mkdirSync(join(contents, sub), { recursive: true })
   writeFileSync(join(dir, 'main.c'), 'int main(void) { return 0; }\n')
   writeFileSync(join(dir, 'extra.c'), 'int extra(void) { return 1; }\n')
   tool('cc', ['-o', join(contents, 'MacOS', 'devot'), join(dir, 'main.c')])
+  tool('cc', ['-o', join(contents, 'Helpers', 'devot-mcp'), join(dir, 'main.c')])
   tool('cc', [
     '-dynamiclib',
     '-o',
@@ -114,6 +115,7 @@ function adHocApp(): string {
 `,
   )
   tool('codesign', ['--force', '--sign', '-', join(contents, 'Frameworks', 'libextra.dylib')])
+  tool('codesign', ['--force', '--sign', '-', join(contents, 'Helpers', 'devot-mcp')])
   tool('codesign', ['--force', '--sign', '-', '--options', 'runtime', join(dir, 'Devot.app')])
   return join(dir, 'Devot.app')
 }
@@ -189,6 +191,7 @@ describe.skipIf(process.platform !== 'darwin')('signing on a Mac', () => {
       tool('codesign', ['--verify', '--deep', '--strict', signed])
       expectSignedCode(signed)
       expectSignedCode(join(signed, 'Contents', 'Frameworks', 'libextra.dylib'))
+      expectSignedCode(join(signed, 'Contents', 'Helpers', 'devot-mcp'))
 
       const dmg = join(run.out, 'Devot.dmg')
       tool('codesign', ['--verify', '--strict', dmg])

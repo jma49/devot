@@ -140,7 +140,7 @@ The folder is written by Devot and never read back: edit notes in Devot.
 
 ## Claude and other MCP clients (devot-mcp)
 
-devot-mcp lets Claude Code, Codex, Claude Desktop and other MCP clients work with your notes. It is a small Node program that clients start over stdio. It reads and writes Devot's database directly, so it works whether Devot is open or not; its changes appear in an open Devot within a second, merged into a note you are editing without moving the caret or touching your undo history.
+devot-mcp lets Claude Code, Codex, Claude Desktop and other MCP clients work with your notes. It ships inside Devot.app, needs no Node or checkout, and clients start it over stdio. It reads and writes Devot's database directly, so it works whether Devot is open or not; its changes appear in an open Devot within a second, merged into a note you are editing without moving the caret or touching your undo history.
 
 **Only notebooks with Allow AI Access on are visible.** Right-click a notebook in the sidebar and choose Allow AI Access; a sparkle marks the notebooks that have it. The switch is per notebook: a sub-notebook needs its own. Notes in the Trash and notes in no notebook are never visible.
 
@@ -161,45 +161,37 @@ Edits apply directly. Before each one, Devot keeps the note's text as it was in 
 
 ### Set it up
 
-devot-mcp runs from a checkout of this repository (requirements in `docs/development.md`). Build it once, and again after pulling changes:
+Run Devot once first, so the database exists and is up to date; devot-mcp never creates or upgrades the database. Move Devot to Applications, since clients keep its path.
+
+Open **Settings > Integrations** and choose **Connect** for Claude Code, Codex or Claude Desktop. Devot shows the exact text and the file before writing, leaves everything else in that file alone, and keeps the old file beside it with the suffix `.devot-backup`. **Disconnect** removes only Devot's entry. Restart the client afterwards. Claude Desktop can also take Devot as an extension (**Install as Extension…**); use one way or the other. After moving Devot, the pane offers **Reconnect**.
+
+The same pane shows configs to copy for these and other clients, with the real path:
 
 ```sh
-pnpm install
-pnpm mcp:build        # writes dist-mcp/devot-mcp.mjs
+claude mcp add --scope user devot -- /Applications/Devot.app/Contents/Helpers/devot-mcp
 ```
-
-Run Devot once first, so the database exists and is up to date; devot-mcp never creates or upgrades the database. It reads the release app's `~/Library/Application Support/io.github.jma49.devot/devot.sqlite`; pass `--db <path>` to use another file, such as a debug build's in `io.github.jma49.devot.dev`.
-
-Settings > Integrations in Devot shows these configs ready to copy, with the checkout's path filled in when the app was built from it.
-
-**Claude Code** (run from the repository root; `claude mcp list` shows whether it connected):
-
-```sh
-claude mcp add --scope user devot -- node "$PWD/dist-mcp/devot-mcp.mjs"
-```
-
-**Codex:** add this to `~/.codex/config.toml`:
 
 ```toml
+# ~/.codex/config.toml
 [mcp_servers.devot]
-command = "node"
-args = ["/absolute/path/to/devot/dist-mcp/devot-mcp.mjs"]
+command = "/Applications/Devot.app/Contents/Helpers/devot-mcp"
+args = []
 ```
-
-**Claude Desktop:** add this to `~/Library/Application Support/Claude/claude_desktop_config.json` (Settings > Developer > Edit Config), with absolute paths, then restart Claude Desktop:
 
 ```json
 {
   "mcpServers": {
     "devot": {
-      "command": "/absolute/path/to/node",
-      "args": ["/absolute/path/to/devot/dist-mcp/devot-mcp.mjs"]
+      "command": "/Applications/Devot.app/Contents/Helpers/devot-mcp",
+      "args": []
     }
   }
 }
 ```
 
-Use the Node that ran `pnpm install` (`which node` prints its path): better-sqlite3 is a native module built for that version. devot-mcp writes its logs (codes and IDs only, never note text) to stderr; errors returned to the client start with a code such as `E_STORAGE_SCHEMA_TOO_OLD`.
+It reads the release app's `~/Library/Application Support/io.github.jma49.devot/devot.sqlite`; pass `--db <path>` to use another file. devot-mcp writes its logs (codes and IDs only, never note text) to stderr; errors returned to the client start with a code such as `E_STORAGE_SCHEMA_TOO_OLD`.
+
+To run it from a checkout instead, see `docs/development.md` (`pnpm mcp:helper`, or `pnpm mcp:build` and `node dist-mcp/devot-mcp.mjs`).
 
 ## Crash reports
 

@@ -3,6 +3,7 @@
 // Devot running. stdout carries MCP messages only; logs go to stderr as
 // codes and IDs, never note content.
 //
+//   Devot.app/Contents/Helpers/devot-mcp [--db <path to devot.sqlite>]
 //   node dist-mcp/devot-mcp.mjs [--db <path to devot.sqlite>]
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { randomBytes } from 'node:crypto'
@@ -31,6 +32,7 @@ Usage: devot-mcp [--db <path>]
   --db <path>   Devot's database (default: ${DEFAULT_DB})
   --help        Show this help
   --version     Show the version
+  --self-check  Run the database engine on a temporary database and exit
 
 Only notebooks with Allow AI Access on are visible.
 `
@@ -39,12 +41,26 @@ const log: Log = (code, ...ids) => {
   process.stderr.write(`devot-mcp ${[code, ...ids].join(' ')}\n`)
 }
 
+/** What the release build runs on the signed-to-be helper: the engine, full-text search and functions. */
+function selfCheck(): void {
+  const adapter = openSqliteAdapter(':memory:')
+  try {
+    if (adapter.schemaVersion() !== SCHEMA_VERSION) throw new Error('E_MCP_SELF_CHECK_FAILED')
+  } finally {
+    adapter.close()
+  }
+}
+
 function parseArgs(argv: readonly string[]): { db: string } | { exit: string; code: number } {
   let db = DEFAULT_DB
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
     if (arg === '--help' || arg === '-h') return { exit: USAGE, code: 0 }
     if (arg === '--version') return { exit: `${SERVER_VERSION}\n`, code: 0 }
+    if (arg === '--self-check') {
+      selfCheck()
+      return { exit: `ok v${SCHEMA_VERSION}\n`, code: 0 }
+    }
     if (arg === '--db' && argv[i + 1]) db = argv[(i += 1)]!
     else if (arg?.startsWith('--db=') && arg.length > 5) db = arg.slice(5)
     else return { exit: `E_MCP_USAGE\n\n${USAGE}`, code: 2 }

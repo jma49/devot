@@ -156,6 +156,8 @@ jobs:
           # The layered icon: without a working actool the bundler only logs and leaves it out.
           test -s "$app/Contents/Resources/Assets.car"
           plutil -extract CFBundleIconName raw "$app/Contents/Info.plist"
+          # The MCP helper runs from the bundle under the hardened runtime, with no entitlements.
+          "$app/Contents/Helpers/devot-mcp" --self-check
           # ditto keeps the bundle's symlinks and extended attributes, which an
           # artifact of the bare folder would lose.
           mkdir handover

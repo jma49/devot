@@ -1,7 +1,7 @@
 // devot-mcp as an npm package: `pnpm mcp:build` writes its manifest and
 // README beside the bundle, so `dist-mcp/` is the package as it would be
-// published (`npm publish` there). Not published yet: Settings > Integrations
-// runs devot-mcp from a checkout.
+// published (`npm publish` there). Not published yet: the app ships its own
+// helper (scripts/mcp/build-helper.ts).
 import { SERVER_VERSION } from './version'
 
 /** The fields of Devot's own package.json the manifest takes. */

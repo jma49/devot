@@ -6,7 +6,7 @@
     "beforeDevCommand": "pnpm vite",
     "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "pnpm ui:release",
-    "beforeBundleCommand": "pnpm sentry:debug-files",
+    "beforeBundleCommand": "pnpm mcp:helper && pnpm sentry:debug-files",
     "frontendDist": "../dist"
   },
   "app": {
@@ -68,7 +68,10 @@
       "icons/icon.icns",
       "icons/AppIcon.icon"
     ],
-    "macOS": { "minimumSystemVersion": "26.0" },
+    "macOS": {
+      "minimumSystemVersion": "26.0",
+      "files": { "Helpers/devot-mcp": "../dist-mcp-helper/devot-mcp" }
+    },
     "resources": { "cli/devot": "bin/devot" }
   }
 }

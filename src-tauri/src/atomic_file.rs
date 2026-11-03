@@ -495,6 +495,11 @@ impl TempFile {
         Err(taken)
     }
 
+    /// Before the bytes go in, so a config that holds secrets is never readable by others.
+    pub fn set_mode(&mut self, permissions: std::fs::Permissions) -> io::Result<()> {
+        self.file.set_permissions(permissions)
+    }
+
     pub fn write_all(&mut self, bytes: &[u8]) -> io::Result<()> {
         self.file.write_all(bytes)
     }

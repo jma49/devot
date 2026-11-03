@@ -1,0 +1,13 @@
+[
+  { "name": "list_notebooks", "description": "Lists the notebooks that allow AI access." },
+  { "name": "search_notes", "description": "Searches notes in notebooks that allow AI access." },
+  { "name": "read_note", "description": "Reads one note as Markdown." },
+  { "name": "list_tags", "description": "Lists the tags on visible notes." },
+  { "name": "create_note", "description": "Creates a note in a notebook that allows AI access." },
+  {
+    "name": "update_note",
+    "description": "Changes a note's title, body, notebook, tags or status."
+  },
+  { "name": "trash_note", "description": "Moves a note to the Trash." },
+  { "name": "create_notebook", "description": "Creates a notebook with AI access on." }
+]

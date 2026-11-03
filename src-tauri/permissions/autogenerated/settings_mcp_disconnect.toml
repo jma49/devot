@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-settings-mcp-disconnect"
+description = "Enables the settings_mcp_disconnect command without any pre-configured scope."
+commands.allow = ["settings_mcp_disconnect"]
+
+[[permission]]
+identifier = "deny-settings-mcp-disconnect"
+description = "Denies the settings_mcp_disconnect command without any pre-configured scope."
+commands.deny = ["settings_mcp_disconnect"]
