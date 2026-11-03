@@ -207,6 +207,32 @@ test('shows the table bar above the grid, at its left edge, without covering the
   expect(Math.abs(box!.x - head!.x)).toBeLessThanOrEqual(1)
 })
 
+test('pins the table bar to the top of the visible editor once the header scrolls out', async ({
+  page,
+}) => {
+  const rows = Array.from({ length: 60 }, (_, n) => `| row${n + 1} | ${n + 1} |`)
+  await createNote(page, 'Long', `Above\n\n| Item | Qty |\n| --- | --: |\n${rows.join('\n')}`)
+  await intoCell(page, 'row60')
+  await expect(bar(page)).toBeVisible()
+  const scroller = page.locator('[data-devot-part="editor-scroll"]')
+  await scroller.evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+  })
+  const view = (await scroller.boundingBox())!
+  const caretCell = cells(page).filter({ hasText: /^row60$/ })
+  await expect
+    .poll(async () =>
+      Math.abs(((await page.locator('.cm-table-bar').boundingBox())?.y ?? -1000) - view.y),
+    )
+    .toBeLessThanOrEqual(2)
+  const head = (await page.locator('.cm-wm-row-head .cm-wm-cell').first().boundingBox())!
+  expect(head.y + head.height).toBeLessThanOrEqual(view.y)
+  const box = (await page.locator('.cm-table-bar').boundingBox())!
+  const row = (await caretCell.boundingBox())!
+  expect(box.y + box.height).toBeLessThanOrEqual(row.y)
+  expect(row.y + row.height).toBeLessThanOrEqual(view.y + view.height)
+})
+
 test('shows the source while several cursors are in the table', async ({ page }) => {
   await createNote(page, 'Cursors', NOTE)
   await intoCell(page, 'Tea')
