@@ -82,6 +82,18 @@
     "call": { "op": "notes.update", "note": "{note}", "args": { "markdown": "A new body.\n" } }
   },
   {
+    "name": "append under a heading",
+    "method": "POST",
+    "target": "/v1/notes/{note}/append",
+    "body": { "text": "Also lime.", "position": "append" },
+    "status": 200,
+    "call": {
+      "op": "notes.append",
+      "note": "{note}",
+      "args": { "text": "Also lime.", "position": "append" }
+    }
+  },
+  {
     "name": "move a note to the Trash",
     "method": "DELETE",
     "target": "/v1/notes/{note}",

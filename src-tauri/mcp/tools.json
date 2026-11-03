@@ -194,6 +194,52 @@
     }
   },
   {
+    "name": "append_to_note",
+    "title": "Append to a note",
+    "description": "Adds text to a note in a notebook that allows AI access without rewriting its body: at the end of the section under a heading (heading, matched by its text in any case; the section ends before the next heading of the same or a higher level), or at the end of the note. position prepend puts it at the start of the section instead. The text goes on a line of its own unless separator is none. A heading the note does not have is an error. Returns the note as read_note would.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "The note ID"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The Markdown to add"
+        },
+        "heading": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "The heading whose section takes the text, as in the note (its # marks may be left out)"
+        },
+        "position": {
+          "type": "string",
+          "enum": ["append", "prepend"],
+          "description": "At the end of the section (default) or at its start"
+        },
+        "separator": {
+          "type": "string",
+          "enum": ["newline", "none"],
+          "description": "newline (default) starts a new line for the text; none joins it to the line it lands on"
+        }
+      },
+      "required": ["id", "text"]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "execution": {
+      "taskSupport": "forbidden"
+    }
+  },
+  {
     "name": "trash_note",
     "title": "Move a note to the Trash",
     "description": "Moves a note in a notebook that allows AI access to the Trash. It is not deleted: the owner can restore it from the Trash in Devot.",

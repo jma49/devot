@@ -9,14 +9,24 @@ use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager, Runtime};
 
+use crate::commands::notes::{MAX_TITLE_CHARS, valid_note_id};
+use crate::single_instance::Answered;
 use crate::{deep_link, import, single_instance, startup, strings};
 
 pub const FLAG: &str = "--cli";
 pub(crate) const OPEN_FLAG: &str = "--devot-open";
+/// A hand-off of `devot append`, answered with its outcome (`cli_append`).
+pub(crate) const APPEND_FLAG: &str = "--devot-append";
 /// As the first argument: a launch the MCP bridge asked for (`background`).
 pub(crate) const BACKGROUND_FLAG: &str = "--devot-background";
 pub(crate) const MAX_OPEN_FILES: usize = 100;
 const MAX_NOTEBOOK_CHARS: usize = 200;
+/// MAX_HEADING_CHARS in `src/core/append.ts`.
+const MAX_HEADING_CHARS: usize = 500;
+/// Well within the socket's message limit (`single_instance::MAX_MESSAGE`).
+pub(crate) const MAX_APPEND_BYTES: usize = 512 * 1024;
+/// An append runs through the window first, as the HTTP API's 15 s allow, before it is answered.
+const APPEND_ANSWER_TIMEOUT: Duration = Duration::from_secs(20);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Open {
@@ -53,12 +63,66 @@ pub(crate) struct Export {
     pub simple: bool,
 }
 
+/// The note `devot append` names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Target {
+    Id(String),
+    Title(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Position {
+    Append,
+    Prepend,
+}
+
+impl Position {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Position::Append => "append",
+            Position::Prepend => "prepend",
+        }
+    }
+
+    fn parse(text: &str) -> Option<Self> {
+        match text {
+            "append" => Some(Position::Append),
+            "prepend" => Some(Position::Prepend),
+            _ => None,
+        }
+    }
+}
+
+/// What `devot append` hands over, its text read already.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Append {
+    pub target: Target,
+    pub heading: Option<String>,
+    pub position: Position,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum AppendText {
+    Given(String),
+    Stdin,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AppendCommand {
+    pub target: Target,
+    pub heading: Option<String>,
+    pub position: Position,
+    pub text: AppendText,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Request {
     Help,
     Launch,
     Open(Open),
     Export(Export),
+    Append(AppendCommand),
     /// The MCP bridge over stdio (`mcp_bridge`).
     Mcp,
 }
@@ -75,11 +139,23 @@ fn usage(template: &str, key: &str, value: &str) -> Usage {
     Usage(fill(template, key, value))
 }
 
+fn one_line(text: &str, max_chars: usize) -> Option<String> {
+    let text = text.trim();
+    let chars = text.chars().count();
+    ((1..=max_chars).contains(&chars) && !text.chars().any(char::is_control))
+        .then(|| text.to_owned())
+}
+
 fn notebook_name(name: &str) -> Option<String> {
-    let name = name.trim();
-    let chars = name.chars().count();
-    ((1..=MAX_NOTEBOOK_CHARS).contains(&chars) && !name.chars().any(char::is_control))
-        .then(|| name.to_owned())
+    one_line(name, MAX_NOTEBOOK_CHARS)
+}
+
+fn heading_text(heading: &str) -> Option<String> {
+    one_line(heading, MAX_HEADING_CHARS)
+}
+
+fn title_text(title: &str) -> Option<String> {
+    one_line(title, MAX_TITLE_CHARS)
 }
 
 /// `--opt VALUE` or `--opt=VALUE`; moves `at` past what it took.
@@ -109,6 +185,7 @@ pub(crate) fn parse(args: &[String], cwd: &Path) -> Result<Request, Usage> {
     match args.first().map(String::as_str) {
         None => Ok(Request::Launch),
         Some("export") => parse_export(&args[1..], cwd).map(Request::Export),
+        Some("append") => parse_append(&args[1..]).map(Request::Append),
         Some("mcp") if args.len() == 1 => Ok(Request::Mcp),
         Some(_) => parse_open(args, cwd).map(Request::Open),
     }
@@ -193,6 +270,151 @@ fn parse_export(args: &[String], cwd: &Path) -> Result<Export, Usage> {
     })
 }
 
+/// A list item's text (`- done`) or a lone `-` is text, not an option.
+fn looks_like_option(arg: &str) -> bool {
+    arg.starts_with('-') && arg.chars().nth(1).is_some_and(|c| !c.is_whitespace())
+}
+
+fn parse_append(args: &[String]) -> Result<AppendCommand, Usage> {
+    let mut positional = Vec::new();
+    let mut title = None;
+    let mut heading = None;
+    let mut position = Position::Append;
+    let mut stdin = false;
+    let mut at = 0;
+    let mut options = true;
+    while at < args.len() {
+        let arg = &args[at];
+        if options && arg == "--" {
+            options = false;
+        } else if options && arg == "--prepend" {
+            position = Position::Prepend;
+        } else if options && arg == "--stdin" {
+            stdin = true;
+        } else if options && let Some(text) = option_value(args, &mut at, "--title")? {
+            title = Some(
+                title_text(&text).ok_or_else(|| Usage(strings::CLI_APPEND_TITLE_INVALID.into()))?,
+            );
+        } else if options && let Some(text) = option_value(args, &mut at, "--heading")? {
+            heading = Some(
+                heading_text(&text)
+                    .ok_or_else(|| Usage(strings::CLI_APPEND_HEADING_INVALID.into()))?,
+            );
+        } else if options && looks_like_option(arg) {
+            return Err(usage(strings::CLI_UNKNOWN_OPTION, "option", arg));
+        } else {
+            positional.push(arg.clone());
+        }
+        at += 1;
+    }
+    let mut positional = positional.into_iter();
+    let target = match title {
+        Some(title) => Target::Title(title),
+        None => {
+            let id = positional
+                .next()
+                .ok_or_else(|| Usage(strings::CLI_APPEND_TARGET.into()))?;
+            if !valid_note_id(&id) {
+                return Err(usage(strings::CLI_APPEND_NOTE_ID, "id", &id));
+            }
+            Target::Id(id)
+        }
+    };
+    let text = match (positional.next(), stdin) {
+        (Some(text), false) => AppendText::Given(text),
+        (None, true) => AppendText::Stdin,
+        _ => return Err(Usage(strings::CLI_APPEND_TEXT.into())),
+    };
+    if positional.next().is_some() {
+        return Err(Usage(strings::CLI_APPEND_TEXT.into()));
+    }
+    Ok(AppendCommand {
+        target,
+        heading,
+        position,
+        text,
+    })
+}
+
+/// The text as it goes over the socket: not empty, within the limit, and without the byte that
+/// ends an argument there.
+fn check_append_text(text: &str) -> Result<(), String> {
+    if text.trim().is_empty() {
+        return Err(strings::CLI_APPEND_TEXT_EMPTY.into());
+    }
+    if text.len() > MAX_APPEND_BYTES {
+        return Err(strings::CLI_APPEND_TEXT_TOO_LARGE.into());
+    }
+    if text.contains('\0') {
+        return Err(strings::CLI_APPEND_TEXT_NUL.into());
+    }
+    Ok(())
+}
+
+fn read_stdin() -> Result<String, String> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::io::stdin()
+        .lock()
+        .take(MAX_APPEND_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| strings::CLI_READ_STDIN_FAILED.to_owned())?;
+    if bytes.len() > MAX_APPEND_BYTES {
+        return Err(strings::CLI_APPEND_TEXT_TOO_LARGE.into());
+    }
+    String::from_utf8(bytes).map_err(|_| strings::CLI_INPUT_NOT_TEXT.to_owned())
+}
+
+pub(crate) fn append_handoff_args(append: &Append) -> Vec<String> {
+    let mut args = vec![APPEND_FLAG.to_owned()];
+    match &append.target {
+        Target::Id(id) => args.extend(["--id".to_owned(), id.clone()]),
+        Target::Title(title) => args.extend(["--title".to_owned(), title.clone()]),
+    }
+    if let Some(heading) = &append.heading {
+        args.extend(["--heading".to_owned(), heading.clone()]);
+    }
+    args.extend(["--position".to_owned(), append.position.as_str().to_owned()]);
+    args.push("--".to_owned());
+    args.push(append.text.clone());
+    args
+}
+
+/// Exactly what [`append_handoff_args`] writes, after the binary's path.
+pub(crate) fn parse_append_handoff(args: &[String]) -> Option<Append> {
+    let rest = args.get(1..)?.strip_prefix(&[APPEND_FLAG.to_owned()])?;
+    let (target, rest) = match rest {
+        [flag, id, rest @ ..] if flag == "--id" && valid_note_id(id) => {
+            (Target::Id(id.clone()), rest)
+        }
+        [flag, title, rest @ ..] if flag == "--title" => (Target::Title(title_text(title)?), rest),
+        _ => return None,
+    };
+    let (heading, rest) = match rest {
+        [flag, heading, rest @ ..] if flag == "--heading" => (Some(heading_text(heading)?), rest),
+        rest => (None, rest),
+    };
+    let [flag, position, dash, text] = rest else {
+        return None;
+    };
+    if flag != "--position" || dash != "--" {
+        return None;
+    }
+    let position = Position::parse(position)?;
+    check_append_text(text).ok()?;
+    Some(Append {
+        target,
+        heading,
+        position,
+        text: text.clone(),
+    })
+}
+
+/// False when `args` are not a hand-off of `devot append`.
+pub(crate) fn hands_off_append(args: &[String]) -> bool {
+    args.get(1).map(String::as_str) == Some(APPEND_FLAG)
+}
+
 fn check_open(open: &Open) -> Result<(), String> {
     for file in &open.files {
         let shown = file.display().to_string();
@@ -253,6 +475,14 @@ fn bundle_of(exe: &Path) -> Option<&Path> {
         .filter(|app| app.extension().is_some_and(|e| e == "app"))
 }
 
+/// Why a hand-off did not go through: a code of this command's own, or the outcome the running
+/// Devot answered a request with (`Answered::Refused`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Failure {
+    Code(&'static str),
+    Refused(String),
+}
+
 /// Writes to the socket ourselves instead of spawning a second instance. Devot ignores `open -a`'s
 /// arguments while it runs, even while another call is still launching it, so the files always go
 /// through the socket: a running Devot that does not answer there fails the command, and one this
@@ -273,6 +503,24 @@ fn hand_off(args: &[String]) -> Result<(), &'static str> {
     )
 }
 
+/// As `hand_off`, for a request the running Devot answers with its outcome.
+fn hand_off_append(append: &Append) -> Result<(), Failure> {
+    let exe = std::env::current_exe().map_err(|_| Failure::Code("E_CLI_APP_NOT_FOUND"))?;
+    let identifier = crate::data_folder::context().config().identifier.clone();
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let message = handoff_message(&cwd, &exe, &append_handoff_args(append));
+    let send =
+        || single_instance::send_answered(&identifier, message.as_bytes(), APPEND_ANSWER_TIMEOUT);
+    hand_off_answered(
+        send(),
+        true,
+        || data_folder(&identifier).is_some_and(|dir| startup::folder_held(&dir)),
+        || launch_command(&exe),
+        send,
+        LAUNCH_ANSWER_TIMEOUT,
+    )
+}
+
 /// A first launch can wait on the system checking the app before it runs.
 const LAUNCH_ANSWER_TIMEOUT: Duration = Duration::from_secs(30);
 const LAUNCH_POLL: Duration = Duration::from_millis(50);
@@ -285,25 +533,59 @@ fn hand_off_with(
     mut send_again: impl FnMut() -> Result<bool, &'static str>,
     within: Duration,
 ) -> Result<(), &'static str> {
-    if sent? {
-        return Ok(());
+    let taken = |sent: bool| {
+        if sent {
+            Answered::Taken
+        } else {
+            Answered::NoListener
+        }
+    };
+    match hand_off_answered(
+        sent.map(taken),
+        has_args,
+        running,
+        launch,
+        || send_again().map(taken),
+        within,
+    ) {
+        Ok(()) => Ok(()),
+        Err(Failure::Code(code)) => Err(code),
+        Err(Failure::Refused(_)) => Err("E_CLI_HANDOFF_REFUSED"),
+    }
+}
+
+fn hand_off_answered(
+    sent: Result<Answered, &'static str>,
+    has_args: bool,
+    running: impl FnOnce() -> bool,
+    launch: impl FnOnce() -> Result<(), &'static str>,
+    mut send_again: impl FnMut() -> Result<Answered, &'static str>,
+    within: Duration,
+) -> Result<(), Failure> {
+    let outcome = |answered: Answered| match answered {
+        Answered::NoListener => None,
+        Answered::Taken => Some(Ok(())),
+        Answered::Refused(code) => Some(Err(Failure::Refused(code))),
+    };
+    if let Some(done) = outcome(sent.map_err(Failure::Code)?) {
+        return done;
     }
     // With nothing to hand over, launching just brings a running Devot forward.
     if !has_args {
-        return launch();
+        return launch().map_err(Failure::Code);
     }
     if running() {
-        return Err("E_CLI_HANDOFF_UNREACHABLE");
+        return Err(Failure::Code("E_CLI_HANDOFF_UNREACHABLE"));
     }
-    launch()?;
+    launch().map_err(Failure::Code)?;
     let deadline = Instant::now() + within;
     while Instant::now() < deadline {
         std::thread::sleep(LAUNCH_POLL);
-        if send_again()? {
-            return Ok(());
+        if let Some(done) = outcome(send_again().map_err(Failure::Code)?) {
+            return done;
         }
     }
-    Err("E_CLI_LAUNCH_UNANSWERED")
+    Err(Failure::Code("E_CLI_LAUNCH_UNANSWERED"))
 }
 
 /// Where Tauri puts `app_data_dir` on macOS.
@@ -402,8 +684,47 @@ pub fn main(args: &[OsString]) -> i32 {
             }
             hand_off(&handoff_args(&open))
         }
+        Request::Append(command) => {
+            let text = match command.text {
+                AppendText::Given(text) => text,
+                AppendText::Stdin => match read_stdin() {
+                    Ok(text) => text,
+                    Err(message) => return failed(&message),
+                },
+            };
+            if let Err(message) = check_append_text(&text) {
+                return failed(&message);
+            }
+            let append = Append {
+                target: command.target,
+                heading: command.heading,
+                position: command.position,
+                text,
+            };
+            return append_status(hand_off_append(&append));
+        }
     };
     launch_status(launched)
+}
+
+/// The outcome the running Devot answered, by its code; the hand-off's own codes as `launch_status`.
+fn append_status(appended: Result<(), Failure>) -> i32 {
+    match appended {
+        Ok(()) => 0,
+        Err(Failure::Code(code)) => launch_status(Err(code)),
+        Err(Failure::Refused(code)) => failed(&append_message(&code)),
+    }
+}
+
+fn append_message(code: &str) -> String {
+    let template = match code {
+        "E_HEADING_NOT_FOUND" => strings::CLI_APPEND_HEADING_NOT_FOUND,
+        "E_NOTE_NOT_FOUND" => strings::CLI_APPEND_NOTE_NOT_FOUND,
+        "E_NOTE_TITLE_AMBIGUOUS" => strings::CLI_APPEND_TITLE_AMBIGUOUS,
+        "E_LICENCE_REQUIRED" => strings::CLI_APPEND_READ_ONLY,
+        _ => strings::CLI_APPEND_FAILED,
+    };
+    fill(template, "code", code)
 }
 
 /// A running Devot that does not take the hand-off (quitting, or not answering) fails the command.
@@ -685,6 +1006,286 @@ mod tests {
                 "--",
                 "/a.md"
             ]
+        );
+    }
+
+    const NOTE_ID: &str = "01890a5d-ac96-774b-bcce-b302099a8057";
+
+    #[test]
+    fn reads_an_append() {
+        assert_eq!(
+            run(&["append", NOTE_ID, "--heading", "Log", "- done"]),
+            Ok(Request::Append(AppendCommand {
+                target: Target::Id(NOTE_ID.into()),
+                heading: Some("Log".into()),
+                position: Position::Append,
+                text: AppendText::Given("- done".into()),
+            }))
+        );
+        assert_eq!(
+            run(&["append", "--title", " Day ", "--prepend", "--stdin"]),
+            Ok(Request::Append(AppendCommand {
+                target: Target::Title("Day".into()),
+                heading: None,
+                position: Position::Prepend,
+                text: AppendText::Stdin,
+            }))
+        );
+        assert_eq!(
+            run(&["append", NOTE_ID, "-"]).map(|r| match r {
+                Request::Append(a) => a.text,
+                _ => unreachable!(),
+            }),
+            Ok(AppendText::Given("-".into()))
+        );
+        assert_eq!(
+            run(&["append", "--heading=## Log", NOTE_ID, "--", "-dash"]),
+            Ok(Request::Append(AppendCommand {
+                target: Target::Id(NOTE_ID.into()),
+                heading: Some("## Log".into()),
+                position: Position::Append,
+                text: AppendText::Given("-dash".into()),
+            }))
+        );
+    }
+
+    #[test]
+    fn refuses_an_append_it_cannot_make() {
+        let refused = |list: &[&str]| run(list).unwrap_err().0;
+        assert_eq!(refused(&["append"]), strings::CLI_APPEND_TARGET);
+        assert_eq!(refused(&["append", "nope", "x"]), "not a note ID: nope");
+        assert_eq!(refused(&["append", NOTE_ID]), strings::CLI_APPEND_TEXT);
+        assert_eq!(
+            refused(&["append", NOTE_ID, "a", "b"]),
+            strings::CLI_APPEND_TEXT
+        );
+        assert_eq!(
+            refused(&["append", NOTE_ID, "--stdin", "a"]),
+            strings::CLI_APPEND_TEXT
+        );
+        assert_eq!(
+            refused(&["append", "--title", "", "a"]),
+            strings::CLI_APPEND_TITLE_INVALID
+        );
+        assert_eq!(
+            refused(&["append", NOTE_ID, "--heading", "a\nb", "x"]),
+            strings::CLI_APPEND_HEADING_INVALID
+        );
+        assert_eq!(
+            refused(&["append", NOTE_ID, "--heading"]),
+            "--heading needs a value"
+        );
+        assert_eq!(
+            refused(&["append", NOTE_ID, "-x", "a"]),
+            "unknown option -x"
+        );
+        assert_eq!(
+            check_append_text(" \n"),
+            Err(strings::CLI_APPEND_TEXT_EMPTY.into())
+        );
+        assert_eq!(
+            check_append_text(&"a".repeat(MAX_APPEND_BYTES + 1)),
+            Err(strings::CLI_APPEND_TEXT_TOO_LARGE.into())
+        );
+        assert_eq!(
+            check_append_text("a\0b"),
+            Err(strings::CLI_APPEND_TEXT_NUL.into())
+        );
+        assert_eq!(check_append_text("- ok\n"), Ok(()));
+    }
+
+    #[test]
+    fn an_append_hand_off_reads_back_as_it_was_written_and_takes_its_own_shape_only() {
+        let append = Append {
+            target: Target::Title("Day".into()),
+            heading: Some("Log".into()),
+            position: Position::Prepend,
+            text: "- one\n- two".into(),
+        };
+        let mut launch = vec!["devot".to_owned()];
+        launch.extend(append_handoff_args(&append));
+        assert!(hands_off_append(&launch));
+        assert!(!hands_off_files(&launch));
+        assert_eq!(parse_append_handoff(&launch), Some(append));
+        let plain = Append {
+            target: Target::Id(NOTE_ID.into()),
+            heading: None,
+            position: Position::Append,
+            text: "x".into(),
+        };
+        let mut launch = vec!["devot".to_owned()];
+        launch.extend(append_handoff_args(&plain));
+        assert_eq!(parse_append_handoff(&launch), Some(plain));
+        for list in [
+            &["devot"][..],
+            &["devot", APPEND_FLAG],
+            &[
+                "devot",
+                APPEND_FLAG,
+                "--id",
+                "nope",
+                "--position",
+                "append",
+                "--",
+                "x",
+            ],
+            &[
+                "devot",
+                APPEND_FLAG,
+                "--id",
+                NOTE_ID,
+                "--position",
+                "middle",
+                "--",
+                "x",
+            ],
+            &[
+                "devot",
+                APPEND_FLAG,
+                "--id",
+                NOTE_ID,
+                "--position",
+                "append",
+                "x",
+            ],
+            &[
+                "devot",
+                APPEND_FLAG,
+                "--id",
+                NOTE_ID,
+                "--position",
+                "append",
+                "--",
+                " ",
+            ],
+            &[
+                "devot",
+                APPEND_FLAG,
+                "--title",
+                "",
+                "--position",
+                "append",
+                "--",
+                "x",
+            ],
+            &[
+                "devot",
+                APPEND_FLAG,
+                "--id",
+                NOTE_ID,
+                "--heading",
+                "",
+                "--position",
+                "append",
+                "--",
+                "x",
+            ],
+            &[
+                "devot",
+                APPEND_FLAG,
+                "--id",
+                NOTE_ID,
+                "--position",
+                "append",
+                "--",
+                "x",
+                "y",
+            ],
+        ] {
+            assert_eq!(parse_append_handoff(&args(list)), None, "{list:?}");
+        }
+    }
+
+    /// A Devot that runs the request and answers with its outcome, as the single-instance listener does.
+    fn answering(socket: &Path, outcome: &'static [u8]) -> std::thread::JoinHandle<Vec<u8>> {
+        use std::io::{Read, Write};
+        let listener = std::os::unix::net::UnixListener::bind(socket).unwrap();
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut message = Vec::new();
+            loop {
+                let mut byte = [0u8; 1];
+                match stream.read(&mut byte) {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        message.push(byte[0]);
+                        if message.ends_with(b"\0--\0- done") {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+            stream.write_all(outcome).unwrap();
+            message
+        })
+    }
+
+    #[test]
+    fn an_append_goes_through_the_socket_and_fails_with_the_code_the_running_devot_answers() {
+        let dir = tempfile::tempdir().unwrap();
+        let uid = crate::atomic_file::effective_uid();
+        let append = Append {
+            target: Target::Id(NOTE_ID.into()),
+            heading: Some("Log".into()),
+            position: Position::Append,
+            text: "- done".into(),
+        };
+        let message = handoff_message(
+            Path::new("/w"),
+            Path::new("/Applications/Devot.app/Contents/MacOS/devot"),
+            &append_handoff_args(&append),
+        );
+        let send = |socket: &Path| {
+            single_instance::send_answered_to(
+                socket,
+                message.as_bytes(),
+                uid,
+                Duration::from_secs(5),
+            )
+        };
+        let refusing = dir.path().join("refusing.sock");
+        let reader = answering(&refusing, b"\x15E_HEADING_NOT_FOUND");
+        let sent = send(&refusing);
+        let (_, argv) = String::from_utf8(reader.join().unwrap())
+            .unwrap()
+            .split_once("\0\0")
+            .map(|(cwd, rest)| (cwd.to_owned(), rest.to_owned()))
+            .unwrap();
+        let read: Vec<String> = argv.split('\0').map(String::from).collect();
+        assert_eq!(parse_append_handoff(&read), Some(append.clone()));
+        let failed = hand_off_answered(
+            sent,
+            true,
+            || unreachable!(),
+            || unreachable!(),
+            || unreachable!(),
+            Duration::ZERO,
+        );
+        assert_eq!(failed, Err(Failure::Refused("E_HEADING_NOT_FOUND".into())));
+        assert_eq!(append_status(failed), 1);
+        assert_eq!(
+            append_message("E_HEADING_NOT_FOUND"),
+            "the note has no such heading (E_HEADING_NOT_FOUND)"
+        );
+        assert_eq!(append_message("E_ODD"), "append failed (E_ODD)");
+
+        let taking = dir.path().join("taking.sock");
+        let reader = answering(&taking, b"\x06");
+        let done = hand_off_answered(
+            send(&taking),
+            true,
+            || unreachable!(),
+            || unreachable!(),
+            || unreachable!(),
+            Duration::ZERO,
+        );
+        reader.join().unwrap();
+        assert_eq!(done, Ok(()));
+        assert_eq!(append_status(done), 0);
+        assert_eq!(
+            append_status(Err(Failure::Code("E_CLI_HANDOFF_UNREACHABLE"))),
+            1
         );
     }
 

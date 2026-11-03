@@ -659,6 +659,42 @@ fn checks_arguments_before_the_core_sees_them() {
             Some(json!({ "name": "n".repeat(801) }).to_string()),
             (400, "E_BOOK_NAME_INVALID"),
         ),
+        (
+            "GET",
+            format!("{note}/append"),
+            None,
+            (405, "E_HTTP_METHOD_NOT_ALLOWED"),
+        ),
+        (
+            "POST",
+            "/v1/notes/not-an-id/append".into(),
+            Some(r#"{"text":"x"}"#.into()),
+            (404, "E_NOTE_NOT_FOUND"),
+        ),
+        (
+            "POST",
+            format!("{note}/append"),
+            Some(r#"{"text":"  "}"#.into()),
+            (400, "E_APPEND_TEXT_EMPTY"),
+        ),
+        (
+            "POST",
+            format!("{note}/append"),
+            Some(r#"{"text":"x","position":"middle"}"#.into()),
+            (400, "E_HTTP_BODY_INVALID"),
+        ),
+        (
+            "POST",
+            format!("{note}/append"),
+            Some(r#"{"text":"x","heading":""}"#.into()),
+            (409, "E_HEADING_NOT_FOUND"),
+        ),
+        (
+            "POST",
+            format!("{note}/append"),
+            Some(json!({ "text": "x", "heading": "h".repeat(501) }).to_string()),
+            (409, "E_HEADING_NOT_FOUND"),
+        ),
     ];
     for (method, target, body, expected) in cases {
         let response = authorized(&api, method, &target, body.as_deref());
@@ -679,6 +715,8 @@ fn answers_what_the_core_answers_with_codes_alone() {
         ("E_NOTE_NOT_FOUND", 404),
         ("E_BOOK_NAME_TAKEN", 409),
         ("E_AI_PATCH_NOT_FOUND", 409),
+        ("E_HEADING_NOT_FOUND", 409),
+        ("E_APPEND_TEXT_EMPTY", 400),
         ("E_NOTE_TITLE_INVALID", 400),
         ("E_STORAGE_BUSY", 503),
         ("E_HTTP_API_TIMEOUT", 504),
@@ -826,6 +864,7 @@ fn routes_each_request_of_the_contract_to_its_call() {
         Op::NotesCreate,
         Op::NotesRead,
         Op::NotesUpdate,
+        Op::NotesAppend,
         Op::NotesTrash,
     ] {
         assert!(routed.contains(op.as_str()), "{}", op.as_str());
@@ -1072,6 +1111,7 @@ fn once_the_trial_is_over_writes_are_refused_before_the_window_is_asked() {
         Op::NotebooksCreate,
         Op::NotesCreate,
         Op::NotesUpdate,
+        Op::NotesAppend,
         Op::NotesTrash,
     ] {
         assert_eq!(

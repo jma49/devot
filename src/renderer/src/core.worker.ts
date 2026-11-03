@@ -1,6 +1,7 @@
 // Runs the core library off the UI thread; the page passes in a storage adapter (Tauri commands are only reachable from the page).
 import * as Comlink from 'comlink'
 import {
+  type AppendOptions,
   applyBatch,
   captureNote,
   createAiService,
@@ -275,6 +276,8 @@ export const coreApi = {
     required().applyAiEdit(id, edit),
   applyPluginEdit: (id: string, edit: { base: string; markdown: string }) =>
     required().applyPluginEdit(id, edit),
+  appendToNote: (id: string, text: string, options: AppendOptions) =>
+    required().appendToNote(id, text, options),
   undoAgentWrites: (id: string, writer: { kind: WriterKind; name: string }) =>
     required().undoAgentWrites(id, writer),
   clearAuthorship: (id: string) => required().clearAuthorship(id),

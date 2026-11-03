@@ -59,6 +59,10 @@ fn hint(code: &str) -> String {
         "E_AI_PATCH_AMBIGUOUS" => {
             "A patch find text occurs more than once in the note body. Include more surrounding text so it matches once."
         }
+        "E_HEADING_NOT_FOUND" => {
+            "The note has no heading with this text. Read the note and copy a heading as it is there, or leave heading out to add at the end of the note."
+        }
+        "E_APPEND_TEXT_EMPTY" => "The text to add is empty.",
         "E_AI_TAGS_TOO_MANY" => {
             return format!("A note may be given at most {MAX_TAGS} tags at once.");
         }
@@ -178,6 +182,11 @@ fn request_of(tool: &str, args: &Map<String, Value>) -> Result<ApiRequest, &'sta
         "read_note" => request("GET", &note_target(args), None),
         "create_note" => request("POST", "/v1/notes", Some(Value::Object(args.clone()))),
         "update_note" => request("PATCH", &note_target(args), Some(without_id(args))),
+        "append_to_note" => request(
+            "POST",
+            &format!("{}/append", note_target(args)),
+            Some(without_id(args)),
+        ),
         "trash_note" => request("DELETE", &note_target(args), None),
         "create_notebook" => request("POST", "/v1/notebooks", Some(Value::Object(args.clone()))),
         _ => return Err("E_MCP_INTERNAL"),
@@ -405,6 +414,7 @@ fn log_written(tool: &str, value: &Value, log: &(dyn Fn(&str) + Sync)) {
     let code = match tool {
         "create_note" => "I_MCP_NOTE_CREATED",
         "update_note" => "I_MCP_NOTE_UPDATED",
+        "append_to_note" => "I_MCP_NOTE_APPENDED",
         "trash_note" => "I_MCP_NOTE_TRASHED",
         "create_notebook" => "I_MCP_NOTEBOOK_CREATED",
         _ => return,
@@ -464,7 +474,7 @@ mod tests {
     }
 
     #[test]
-    fn declares_the_eight_tools_with_titles_annotations_and_schemas() {
+    fn declares_the_nine_tools_with_titles_annotations_and_schemas() {
         let tools = Script::default().tools().list();
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert_eq!(
@@ -476,6 +486,7 @@ mod tests {
                 "list_tags",
                 "create_note",
                 "update_note",
+                "append_to_note",
                 "trash_note",
                 "create_notebook"
             ]
@@ -493,6 +504,8 @@ mod tests {
         }
         assert_eq!(hints("trash_note")["destructiveHint"], true);
         assert_eq!(hints("update_note")["readOnlyHint"], false);
+        assert_eq!(hints("append_to_note")["readOnlyHint"], false);
+        assert_eq!(hints("append_to_note")["destructiveHint"], false);
     }
 
     #[test]
@@ -534,6 +547,15 @@ mod tests {
                 "PATCH",
                 format!("/v1/notes/{id}"),
                 Some(json!({ "tags": [], "status": "active" })),
+            ),
+            (
+                "append_to_note",
+                json!({ "id": id, "text": "- lime", "heading": "Plan", "position": "prepend", "separator": "none" }),
+                "POST",
+                format!("/v1/notes/{id}/append"),
+                Some(
+                    json!({ "text": "- lime", "heading": "Plan", "position": "prepend", "separator": "none" }),
+                ),
             ),
             (
                 "trash_note",
@@ -635,6 +657,24 @@ mod tests {
             ("update_note", json!({ "id": "x", "status": "someday" })),
             ("update_note", json!({ "id": "x", "tags": ["a", 1] })),
             ("update_note", json!({ "id": "x", "title": null })),
+            ("append_to_note", json!({ "id": "x" })),
+            ("append_to_note", json!({ "id": "x", "text": "" })),
+            (
+                "append_to_note",
+                json!({ "id": "x", "text": "t", "heading": "" }),
+            ),
+            (
+                "append_to_note",
+                json!({ "id": "x", "text": "t", "heading": "h".repeat(501) }),
+            ),
+            (
+                "append_to_note",
+                json!({ "id": "x", "text": "t", "position": "middle" }),
+            ),
+            (
+                "append_to_note",
+                json!({ "id": "x", "text": "t", "separator": "space" }),
+            ),
         ];
         for (tool, args) in bad {
             let script = Script::default();
@@ -698,6 +738,8 @@ mod tests {
             "E_AI_PATCHES_INVALID",
             "E_AI_PATCH_NOT_FOUND",
             "E_AI_PATCH_AMBIGUOUS",
+            "E_HEADING_NOT_FOUND",
+            "E_APPEND_TEXT_EMPTY",
             "E_AI_TAGS_TOO_MANY",
             "E_TAG_NAME_INVALID",
             "E_BOOK_NAME_INVALID",
@@ -739,7 +781,10 @@ mod tests {
     fn an_unknown_tool_is_an_error_result_and_logs_hold_no_content() {
         let lines = Mutex::new(Vec::new());
         let log = |line: &str| lines.lock().unwrap().push(line.to_string());
-        let script = Script::answering(vec![Ok(json!({ "id": "n1", "title": "Secret title" }))]);
+        let script = Script::answering(vec![
+            Ok(json!({ "id": "n1", "title": "Secret title" })),
+            Ok(json!({ "id": "n1", "markdown": "Secret line" })),
+        ]);
         let result = script.tools().call("nope", json!({}), &log);
         assert_eq!(result["isError"], true);
         script.tools().call(
@@ -747,7 +792,19 @@ mod tests {
             json!({ "title": "Secret title", "markdown": "Secret body", "notebook": "N" }),
             &log,
         );
+        script.tools().call(
+            "append_to_note",
+            json!({ "id": "n1", "text": "Secret line", "heading": "Secret heading" }),
+            &log,
+        );
         let lines = lines.into_inner().unwrap();
-        assert_eq!(lines, ["W_MCP_TOOL_UNKNOWN", "I_MCP_NOTE_CREATED n1"]);
+        assert_eq!(
+            lines,
+            [
+                "W_MCP_TOOL_UNKNOWN",
+                "I_MCP_NOTE_CREATED n1",
+                "I_MCP_NOTE_APPENDED n1"
+            ]
+        );
     }
 }

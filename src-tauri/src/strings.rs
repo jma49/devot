@@ -140,6 +140,10 @@ Usage:
                                        Write a Markdown file (- reads standard
                                        input) as a page, OUT.pdf or OUT.html,
                                        without showing a window
+  devot append ID|--title TITLE [--heading H] [--prepend] [--stdin | TEXT]
+                                       Add TEXT (or standard input) to a note in
+                                       the running Devot: at the end of the
+                                       section under heading H, or of the note
   devot mcp                            Serve AI tools over stdio (MCP), through
                                        the running Devot
 
@@ -148,6 +152,11 @@ Options:
                      none); without it, into the default notebook
   -o, --output OUT   Where export writes: a path ending in .pdf or .html
   --simple           Export bare HTML, without styles (.html only)
+  --title TITLE      The note to append to, by its title, instead of its ID
+  --heading H        The heading whose section takes the text (any case, with
+                     or without its # marks); the note must have it
+  --prepend          Put the text at the start of the section instead
+  --stdin            Read the text from standard input
   -h, --help         Show this help
 
 Exit status: 0 when done, 1 when it failed, 2 when the command was not
@@ -170,6 +179,22 @@ pub const CLI_OUTPUT_INVALID: &str = "cannot write to {path} ({code})";
 pub const CLI_INPUT_TOO_LARGE: &str = "the Markdown is larger than 10 MB";
 pub const CLI_INPUT_NOT_TEXT: &str = "the Markdown is not UTF-8 text";
 pub const CLI_READ_FAILED: &str = "cannot read {path}";
+pub const CLI_READ_STDIN_FAILED: &str = "cannot read standard input";
+pub const CLI_APPEND_TARGET: &str = "append needs a note ID, or --title TITLE";
+pub const CLI_APPEND_NOTE_ID: &str = "not a note ID: {id}";
+pub const CLI_APPEND_TEXT: &str = "append takes one TEXT (quote it), or --stdin";
+pub const CLI_APPEND_TEXT_EMPTY: &str = "the text to append is empty";
+pub const CLI_APPEND_TEXT_TOO_LARGE: &str = "the text to append is larger than 512 KB";
+pub const CLI_APPEND_TEXT_NUL: &str = "the text to append holds a NUL character";
+pub const CLI_APPEND_HEADING_INVALID: &str = "a heading takes 1 to 500 characters, on one line";
+pub const CLI_APPEND_TITLE_INVALID: &str = "a title takes 1 to 1000 characters, on one line";
+pub const CLI_APPEND_FAILED: &str = "append failed ({code})";
+pub const CLI_APPEND_HEADING_NOT_FOUND: &str = "the note has no such heading ({code})";
+pub const CLI_APPEND_NOTE_NOT_FOUND: &str = "no such note ({code})";
+pub const CLI_APPEND_TITLE_AMBIGUOUS: &str =
+    "several notes have this title; pass the note ID ({code})";
+pub const CLI_APPEND_READ_ONLY: &str =
+    "Devot's trial has ended, so it is read-only without a licence ({code})";
 pub const CLI_LAUNCH_FAILED: &str = "Devot could not be started ({code})";
 pub const CLI_HANDOFF_UNREACHABLE: &str =
     "Devot is open but did not take the request; quit Devot and run the command again ({code})";

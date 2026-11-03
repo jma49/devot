@@ -285,6 +285,7 @@ import { restartNow, useUpdates } from './UpdateNotice'
 import { checkForUpdates } from './updates'
 import { track } from './usage'
 import { HTTP_API_DONE_TEST, HTTP_API_EVENT, httpApiHost } from './httpApiHost'
+import { CLI_APPEND_EVENT, cliAppendHost, resolveAppendTarget } from './cliAppend'
 import { QUICK_CAPTURE_EVENT, answerCapture, readCaptureRequest } from './quickCaptureHost'
 
 const EXPORT_ALL = 'devot:export-all'
@@ -2655,6 +2656,33 @@ export function App() {
   const applyToOpenNote = useStable((noteId: string, update: Uint8Array) => {
     if (editorRef.current?.noteId === noteId) restoreRef.current?.(update)
   })
+  // `devot append`: this window's core puts the text in the note, and the open editor takes it as one undo step (cliAppend.ts).
+  useEffect(() => {
+    if (!core || DEVOT_UI_TEST) return
+    let stopped = false
+    let unlisten: (() => void) | undefined
+    const take = cliAppendHost({
+      run: async (request) => {
+        if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
+        const id = await resolveAppendTarget(request.target, () => core.list())
+        const update = await core.appendToNote(id, request.text, {
+          position: request.position,
+          ...(request.heading === null ? {} : { heading: request.heading }),
+        })
+        applyToOpenNote(id, update)
+        await refresh(core)
+      },
+      reply: (id, error) => invoke('cli_append_done', { id, error }),
+    })
+    void listenHere<unknown>(CLI_APPEND_EVENT, (e) => void take(e.payload)).then((stop) => {
+      if (stopped) stop()
+      else unlisten = stop
+    })
+    return () => {
+      stopped = true
+      unlisten?.()
+    }
+  }, [core, refresh, applyToOpenNote])
   const historyBar = useHistoryBar({
     core,
     noteId: selected,

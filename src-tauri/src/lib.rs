@@ -10,6 +10,7 @@ mod backups;
 #[path = "../build_env.rs"]
 mod build_env;
 mod cli;
+mod cli_append;
 mod cli_export;
 mod cli_tool;
 mod commands;
@@ -283,6 +284,7 @@ pub fn run() {
             #[cfg(desktop)]
             updates::update_restart,
             deep_link::deep_link_take,
+            cli_append::cli_append_done,
             note_relay::note_relay_send,
             #[cfg(desktop)]
             main_windows::main_window_new,
@@ -317,6 +319,7 @@ pub fn run() {
         .manage(import::Imports::default())
         .manage(export::Exports::default())
         .manage(deep_link::DeepLinks::default())
+        .manage(cli_append::Appends::default())
         .manage(main_windows::MainWindows::default())
         .on_page_load(deep_link::on_page_load)
         .on_window_event(|window, event| {

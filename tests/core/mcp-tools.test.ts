@@ -9,6 +9,7 @@ import {
   MAX_AI_SEARCH_LIMIT,
   MAX_AI_TAGS,
 } from '../../src/core/ai'
+import { APPEND_POSITIONS, APPEND_SEPARATORS, MAX_HEADING_CHARS } from '../../src/core/append'
 import { MAX_WRITER_NAME_CHARS } from '../../src/core/authorship'
 import { MAX_BOOK_NAME_CHARS } from '../../src/core/books'
 import { MAX_NOTE_LINKS } from '../../src/core/links'
@@ -39,7 +40,7 @@ const rustConst = (source: string, name: string) => {
 }
 
 describe('the tool list', () => {
-  it('has the eight tools, each with its title and annotations', () => {
+  it('has the nine tools, each with its title and annotations', () => {
     expect(tools.map((t) => t.name)).toEqual([
       'list_notebooks',
       'search_notes',
@@ -47,6 +48,7 @@ describe('the tool list', () => {
       'list_tags',
       'create_note',
       'update_note',
+      'append_to_note',
       'trash_note',
       'create_notebook',
     ])
@@ -74,6 +76,11 @@ describe('the tool list', () => {
     expect(tool('create_notebook').inputSchema.properties['name']!['maxLength']).toBe(
       MAX_BOOK_NAME_CHARS * 4,
     )
+    const append = tool('append_to_note')
+    expect(append.inputSchema.required).toEqual(['id', 'text'])
+    expect(append.inputSchema.properties['heading']!['maxLength']).toBe(MAX_HEADING_CHARS)
+    expect(append.inputSchema.properties['position']!['enum']).toEqual([...APPEND_POSITIONS])
+    expect(append.inputSchema.properties['separator']!['enum']).toEqual([...APPEND_SEPARATORS])
   })
 
   it('tells clients the limits the core holds them to', () => {
@@ -84,6 +91,7 @@ describe('the tool list', () => {
     expect(rustConst(tryTools, 'MAX_TAGS')).toBe(MAX_AI_TAGS)
     const routes = read('src-tauri/src/http_api/routes.rs')
     expect(rustConst(routes, 'MAX_MARKDOWN_BYTES')).toBe(MAX_AI_BODY_BYTES)
+    expect(rustConst(routes, 'MAX_HEADING_CHARS')).toBe(MAX_HEADING_CHARS)
     expect(rustConst(routes, 'MAX_CLIENT_NAME_CHARS')).toBe(MAX_WRITER_NAME_CHARS)
     const notes = read('src-tauri/src/commands/notes.rs')
     expect(rustConst(notes, 'MAX_BODY_BYTES')).toBe(MAX_BODY_BYTES)

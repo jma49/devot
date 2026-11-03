@@ -13,6 +13,7 @@
 // keepBaseline in notes.ts), so History can bring it back. Each write is
 // recorded with its writer in the note's document (authorship.ts, ADR 0007).
 
+import { appendedBody, type AppendOptions } from './append'
 import type { Log, WriteField, Writer } from './authorship'
 import { buildBookTree, createBookService, flattenBookTree, TEMPLATES_BOOK_ID } from './books'
 import type { Clock } from './hlc'
@@ -180,6 +181,11 @@ export interface AiNoteUpdate {
   status?: NoteStatus
 }
 
+export interface AiNoteAppend extends AppendOptions {
+  id: string
+  text: string
+}
+
 export interface AiTag {
   name: string
   notes: number
@@ -193,6 +199,8 @@ export interface AiService {
   create(input: AiNewNote): Promise<{ id: string; title: string; notebook: AiNotebookRef }>
   /** Keeps the body as it was as a version first; returns the note as it is after the change. */
   update(input: AiNoteUpdate): Promise<AiNote>
+  /** Puts text under a heading, or at the end or start of the note (appendInsertion), as a write of the whole body; returns the note after it. */
+  append(input: AiNoteAppend): Promise<AiNote>
   /** Never deletes for good. */
   trash(id: string): Promise<{ id: string; title: string }>
   tags(): Promise<AiTag[]>
@@ -497,6 +505,27 @@ export function createAiService(options: AiServiceOptions): AiService {
           await notes.release(id)
         }
         if (wantedTags !== undefined) await setTags(id, wantedTags)
+      })
+      return service.read(id)
+    },
+
+    async append({ id, text, heading, position, separator }) {
+      checkBody(lineFeeds(text))
+      await atomically(async () => {
+        await visible(id)
+        const where: AppendOptions = {
+          position,
+          ...(heading === undefined ? {} : { heading }),
+          ...(separator === undefined ? {} : { separator }),
+        }
+        // Placed in the text as the note's document holds it, which the edit is the difference from.
+        const markdown = appendedBody((await notes.read(id)).bodyMd, text, where)
+        checkBody(markdown, MAX_BODY_BYTES)
+        try {
+          await notes.agentWrite(id, { writer: options.writer(), markdown, fields: [] })
+        } finally {
+          await notes.release(id)
+        }
       })
       return service.read(id)
     },

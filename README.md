@@ -146,16 +146,17 @@ Claude Code, Codex, Claude Desktop and other MCP clients can work with your note
 
 Settings > Integrations > AI Tools says how many notebooks allow it, with **Choose…** to change that, and when none does it offers to turn it on. The picker there (also in the Command Palette as **AI Access for Several Notebooks…**) switches several notebooks at once, with Undo.
 
-| Tool              | What it does                                                    |
-| ----------------- | --------------------------------------------------------------- |
-| `list_notebooks`  | The notebooks it can see                                        |
-| `search_notes`    | Full-text search, with snippets                                 |
-| `read_note`       | A note's Markdown and metadata                                  |
-| `list_tags`       | The tags                                                        |
-| `create_note`     | A note in an allowed notebook, by ID or exact name              |
-| `update_note`     | Title, the whole body or exact passages, notebook, tags, status |
-| `trash_note`      | Moves a note to the Trash                                       |
-| `create_notebook` | A notebook with Allow AI Access on                              |
+| Tool              | What it does                                                          |
+| ----------------- | --------------------------------------------------------------------- |
+| `list_notebooks`  | The notebooks it can see                                              |
+| `search_notes`    | Full-text search, with snippets                                       |
+| `read_note`       | A note's Markdown and metadata                                        |
+| `list_tags`       | The tags                                                              |
+| `create_note`     | A note in an allowed notebook, by ID or exact name                    |
+| `update_note`     | Title, the whole body or exact passages, notebook, tags, status       |
+| `append_to_note`  | Text at the end or start of a section under a heading, or of the note |
+| `trash_note`      | Moves a note to the Trash                                             |
+| `create_notebook` | A notebook with Allow AI Access on                                    |
 
 Edits apply directly. Before each one, Devot keeps the note's text as it was in its Revision History (the note's menu), so you can restore it.
 

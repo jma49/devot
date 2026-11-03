@@ -38,7 +38,7 @@ export function clipTitle(title: string): string {
   return line.slice(0, cutAt(line, MAX_TITLE_CHARS))
 }
 
-function overBytes(text: string, max: number): boolean {
+export function overBytes(text: string, max: number): boolean {
   // A UTF-16 unit is at most three bytes in UTF-8: count only when it may not fit.
   if (text.length * 3 <= max) return false
   return new TextEncoder().encode(text).length > max
