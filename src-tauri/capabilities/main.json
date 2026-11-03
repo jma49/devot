@@ -53,6 +53,7 @@
     "allow-book-put",
     "allow-tags-list",
     "allow-tag-put",
+    "allow-tag-rename",
     "allow-note-tag-put",
     "allow-note-tag-get",
     "allow-saved-searches-list",

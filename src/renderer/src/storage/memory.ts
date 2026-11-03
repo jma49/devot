@@ -505,6 +505,10 @@ export const memoryStorage: StorageAdapter = {
     )
     localStorage.setItem(TAGS, JSON.stringify([...all.filter((t) => t.id !== tag.id), next]))
   },
+  async renameTag(tag, searches) {
+    await memoryStorage.putTag(tag)
+    for (const search of searches) await memoryStorage.putSavedSearch(search)
+  },
   async listSavedSearches() {
     return read<SavedSearchRecord>(SAVED_SEARCHES)
       .filter((s) => s.deletedAt === null)

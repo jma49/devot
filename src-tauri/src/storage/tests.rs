@@ -3320,6 +3320,52 @@ fn stores_saved_searches_in_key_order_and_merges_them_per_field() {
 }
 
 #[test]
+fn renaming_a_tag_writes_it_and_its_saved_searches_together() {
+    let (_dir, mut store) = temp_store();
+    let hlc = "0000000000000010-0000-a";
+    let newer = "0000000000000020-0000-a";
+    let tag = |name: &str, name_hlc: &str| TagRecord {
+        id: "t1".into(),
+        name: name.into(),
+        name_hlc: name_hlc.into(),
+        created_at: 1,
+        updated_at: 1,
+        deleted_at: None,
+        deleted_hlc: None,
+        color: None,
+        color_hlc: String::new(),
+    };
+    store.put_tag(&tag("work", hlc)).unwrap();
+    store
+        .put_saved_search(&saved_search("s1", "Work", hlc))
+        .unwrap();
+    let mut rewritten = saved_search("s1", "Work", hlc);
+    rewritten.query = "tag:office".into();
+    rewritten.query_hlc = newer.into();
+    store
+        .rename_tag(&tag("office", newer), &[rewritten.clone()])
+        .unwrap();
+    assert_eq!(store.list_tags().unwrap()[0].name, "office");
+    assert_eq!(store.list_saved_searches().unwrap()[0].query, "tag:office");
+
+    let mut broken = rewritten.clone();
+    broken.id = "s2".into();
+    broken.sort_key = "a1".into();
+    broken.query = "tag:later".into();
+    let mut clash = tag("later", "0000000000000030-0000-a");
+    clash.id = "t1".into();
+    // A refused search write takes the tag write back with it.
+    store.conn.execute_batch("CREATE TRIGGER fail_search BEFORE INSERT ON saved_searches WHEN NEW.id = 's2' BEGIN SELECT RAISE(ABORT, 'refused'); END;").unwrap();
+    assert!(store.rename_tag(&clash, &[broken]).is_err());
+    assert_eq!(
+        store.list_tags().unwrap()[0].name,
+        "office",
+        "the tag write was rolled back"
+    );
+    assert_eq!(store.list_saved_searches().unwrap().len(), 1);
+}
+
+#[test]
 fn the_saved_searches_migration_keeps_the_sync_state_and_records() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("devot.sqlite");

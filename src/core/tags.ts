@@ -4,6 +4,7 @@
 
 import { notesInBook } from './books'
 import { receiveStored, type Clock } from './hlc'
+import { retargetSavedSearches } from './savedSearches'
 import {
   TAG_COLORS,
   type BookRecord,
@@ -14,9 +15,10 @@ import {
   type TagColorValue,
   type TagRecord,
 } from './storage'
+import { MAX_TAG_NAME_CHARS, sameName } from './tagNames'
 import { charCount, trimWhitespace, wellFormed } from './text'
 
-export const MAX_TAG_NAME_CHARS = 100
+export { MAX_TAG_NAME_CHARS, sameName }
 
 export interface TagServiceOptions {
   storage: StorageAdapter
@@ -71,9 +73,6 @@ export const tagColorClass = (color: TagColorValue) =>
 /** A custom colour on a preview element, as `preview/dom.ts` reads it (the CSP forbids style attributes). */
 export const customTagColorProperties = (color: TagColorValue | null | undefined) =>
   isCustomTagColor(color) ? { dataTagColor: color } : {}
-
-export const sameName = (a: string, b: string) =>
-  a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0
 
 const tagStamps = (t: TagRecord) => [t.nameHlc, t.colorHlc, t.deletedHlc]
 
@@ -150,7 +149,22 @@ export function createTagService(options: TagServiceOptions): TagService {
       if (all.some((t) => t.id !== id && sameName(t.name, clean))) {
         throw new Error('E_TAG_NAME_TAKEN')
       }
-      await write({ ...tag, name: clean, nameHlc: clock.tick() })
+      const searches = retargetSavedSearches(
+        await storage.listSavedSearches(),
+        tag,
+        clean,
+        clock,
+        now(),
+      )
+      await storage.renameTag(
+        {
+          ...tag,
+          name: clean,
+          nameHlc: clock.tick(),
+          updatedAt: Math.max(now(), tag.createdAt),
+        },
+        searches,
+      )
     },
 
     async setColor(id, color) {

@@ -342,6 +342,7 @@ describe('Tauri command permissions', () => {
       'saved_search_put',
       'saved_searches_list',
       'tag_put',
+      'tag_rename',
     ]
     const reached = [
       ...invoked('src/renderer/src/storage/tauri.ts').filter((c) => !mainOnly.includes(c)),

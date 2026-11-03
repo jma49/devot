@@ -1115,6 +1115,12 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     async putTag(tag) {
       putTag.run(tag)
     },
+    async renameTag(tag, searches) {
+      db.transaction(() => {
+        putTag.run(tag)
+        for (const search of searches) putSavedSearch.run(search)
+      })()
+    },
     listSavedSearches: async () => savedSearches.all().map(toSavedSearch),
     async putSavedSearch(record) {
       putSavedSearch.run(record)
