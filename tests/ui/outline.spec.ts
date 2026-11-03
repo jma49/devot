@@ -67,14 +67,15 @@ test('the heading holding the caret is marked as the caret moves', async ({ page
   await entry(page, 'Middle').click()
   await expect(entry(page, 'Middle')).toHaveAttribute('aria-current', 'location')
   await body(page).click()
-  await page.keyboard.press('ControlOrMeta+ArrowUp')
+  await page.keyboard.press('ControlOrMeta+Home')
   await expect(entry(page, 'Intro')).toHaveAttribute('aria-current', 'location')
 })
 
 test('choosing a heading scrolls the preview too in split mode', async ({ page }) => {
   await openNoteWithHeadings(page)
   await mode(page, 'Split').click()
-  expect(await previewScroll(page)).toBe(0)
+  await entry(page, 'Intro').click()
+  await expect.poll(() => previewScroll(page)).toBe(0)
   await entry(page, 'Ending').click()
   await expect.poll(() => previewScroll(page)).toBeGreaterThan(1000)
 })
@@ -107,6 +108,6 @@ test('a folded heading hides what is under it, and stays folded for the note', a
 test('is hidden in focus mode', async ({ page }) => {
   await openNoteWithHeadings(page)
   await expect(outline(page)).toBeVisible()
-  await page.keyboard.press('ControlOrMeta+Shift+d')
+  await page.getByRole('button', { name: 'Focus Mode' }).click()
   await expect(outline(page)).toHaveCount(0)
 })
