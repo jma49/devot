@@ -114,13 +114,25 @@ const CLICK_SLOP = 4
  * The image the last click went to. Its click shows its source over it, which
  * moves it down: a double click opens it wherever the second click lands.
  */
-let clicked: { view: EditorView; src: string; alt: string; x: number; y: number } | null = null
+let clicked: {
+  view: EditorView
+  src: string
+  alt: string
+  x: number
+  y: number
+  time: number
+} | null = null
+
+/** Longer than any double-click interval the system allows. */
+const DOUBLE_CLICK_MS = 1000
 
 function openClicked(view: EditorView, event: MouseEvent): boolean {
   const at = clicked
+  if (event.detail <= 1) clicked = null
   if (
     event.detail !== 2 ||
     at?.view !== view ||
+    event.timeStamp - at.time > DOUBLE_CLICK_MS ||
     Math.abs(event.clientX - at.x) > CLICK_SLOP ||
     Math.abs(event.clientY - at.y) > CLICK_SLOP
   )
@@ -154,7 +166,8 @@ function setLook(box: HTMLElement, look: BlockLook): void {
 /** The block this widget stands for now: positions move as the note changes. */
 function blockOf(view: EditorView, box: HTMLElement): WriteBlock | null {
   const at = view.posAtDOM(box)
-  return writeBlocksOf(view.state).find((b) => b.from === at) ?? null
+  // A closed block's widget stands at its start, an open one's under its source.
+  return writeBlocksOf(view.state).find((b) => b.from === at || b.to === at) ?? null
 }
 
 export class RenderedBlockWidget extends WidgetType {
@@ -303,7 +316,6 @@ export class RenderedBlockWidget extends WidgetType {
       event.preventDefault()
       if (openClicked(view, event)) return
       const target = event.target as Element
-      clicked = null
       if (target.closest('[data-embed-load]')) return
       const now = blockOf(view, box)
       if (!now) return
@@ -313,7 +325,14 @@ export class RenderedBlockWidget extends WidgetType {
         if (image) entry = imageEntry(image)
         if (!isMissingImage(target)) {
           const src = target.currentSrc || target.src
-          clicked = { view, src, alt: target.alt, x: event.clientX, y: event.clientY }
+          clicked = {
+            view,
+            src,
+            alt: target.alt,
+            x: event.clientX,
+            y: event.clientY,
+            time: event.timeStamp,
+          }
         }
       }
       view.dispatch({ selection: { anchor: entry }, userEvent: 'select.pointer' })

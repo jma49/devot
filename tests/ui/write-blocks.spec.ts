@@ -124,6 +124,12 @@ test('an image shows its Markdown over it from a click, and opens on a double cl
   await page.keyboard.insertText(' map')
   await expect.poll(() => lines(page)).toEqual(['Top', `![Plan map](${REMOTE})`, 'End'])
 
+  // An image whose source shows opens too.
+  await img.dblclick()
+  await expect(viewer(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(viewer(page)).toBeHidden()
+
   await page.locator('.cm-line', { hasText: 'End' }).click()
   await expect(image).not.toHaveClass(/cm-wm-block-open/)
   await expect.poll(() => lines(page)).toEqual(['Top', 'End'])
