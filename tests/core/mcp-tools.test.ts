@@ -94,23 +94,27 @@ describe('the tool list', () => {
 describe('the directory plugin layout for later', () => {
   const root = 'docs/mcp-plugin'
 
-  it('uses only the launcher, the same one the extension carries', () => {
-    expect(read(`${root}/bin/devot-mcp.sh`)).toBe(read('src-tauri/mcp/devot-mcp.sh'))
-    expect(readdirSync(`${root}/bin`)).toEqual(['devot-mcp.sh'])
+  it('uses only the launcher, the same one the extension carries, outside bin/', () => {
+    expect(read(`${root}/scripts/devot-mcp.sh`)).toBe(read('src-tauri/mcp/devot-mcp.sh'))
+    expect(readdirSync(`${root}/scripts`)).toEqual(['devot-mcp.sh'])
+    expect(readdirSync(root)).not.toContain('bin')
     const config = JSON.parse(read(`${root}/.mcp.json`)) as {
       mcpServers: Record<string, { command: string; args: string[] }>
     }
     expect(config.mcpServers).toEqual({
-      devot: { command: '/bin/sh', args: ['${CLAUDE_PLUGIN_ROOT}/bin/devot-mcp.sh'] },
+      devot: { command: '/bin/sh', args: ['${CLAUDE_PLUGIN_ROOT}/scripts/devot-mcp.sh'] },
     })
-    const manifest = JSON.parse(read(`${root}/.claude-plugin/plugin.json`)) as { name: string }
-    expect(manifest.name).toBe('devot')
   })
 
-  it('finds an installed Devot and never prints to stdout', () => {
-    const launcher = read('src-tauri/mcp/devot-mcp.sh')
-    expect(launcher).toContain('--cli mcp')
-    expect(launcher).toContain('kMDItemCFBundleIdentifier')
-    expect(launcher).toMatch(/echo "E_MCP_APP_NOT_FOUND" >&2/)
+  it('is a marketplace that lists itself as the plugin, with the app icon', () => {
+    const manifest = JSON.parse(read(`${root}/.claude-plugin/plugin.json`)) as { name: string }
+    expect(manifest.name).toBe('devot')
+    const marketplace = JSON.parse(read(`${root}/.claude-plugin/marketplace.json`)) as {
+      plugins: { name: string; source: string }[]
+    }
+    expect(marketplace.plugins).toEqual([expect.objectContaining({ name: 'devot', source: './' })])
+    expect(readFileSync(`${root}/.claude-plugin/icon.png`)).toEqual(
+      readFileSync('src-tauri/icons/icon.png'),
+    )
   })
 })
