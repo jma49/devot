@@ -235,6 +235,14 @@ test('at twice the text size every peek action is on screen', async ({ page }) =
   const height = await page.evaluate(() => innerHeight)
   const drawn = (await menu.boundingBox())!
   expect(drawn.y + drawn.height).toBeLessThanOrEqual(height)
+  // The excerpt gives way first: the title is never cut.
+  const title = page.locator('.phone-peek-card .phone-peek-title')
+  {
+    expect(await title.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true)
+    const card = (await page.locator('.phone-peek-card').boundingBox())!
+    const box = (await title.boundingBox())!
+    expect(box.y + box.height).toBeLessThanOrEqual(card.y + card.height + 1)
+  }
   const items = menu.getByRole('menuitem')
   await expect(items.first()).toBeVisible()
   for (const item of await items.all()) {

@@ -1322,11 +1322,16 @@ button.phone-grouped-open:active:not(:disabled) {
   pointer-events: none;
 }
 
-/* Kept within the safe area: the preview gives up its excerpt first, then the menu scrolls. */
+/* Kept within the safe area: the preview gives up its excerpt first (never its title or
+   details, which set the card's least height), then the menu scrolls. */
 .phone-peek > .phone-peek-card {
   flex-shrink: 1000;
-  min-height: 0;
   overflow: hidden;
+}
+
+.phone-peek-card > .phone-peek-excerpt {
+  flex: 0 1 auto;
+  min-height: 0;
 }
 
 .phone-peek-card > :not(.phone-peek-excerpt) {
@@ -3003,7 +3008,9 @@ button.phone-grouped-open:active:not(:disabled) {
 }
 
 .phone-usage-range {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--color-phone-text-secondary);
 }
 
