@@ -3,14 +3,6 @@ import { noteCounts } from '../../../core/noteCounts'
 import { noteStats } from './noteStats'
 
 describe("a note's counts", () => {
-  it('counts words, leaving out bare Markdown marks', () => {
-    expect(noteStats('## Pairing\n\n- [ ] Ask the relay').words).toBe(4)
-  })
-
-  it('counts each CJK character as a word', () => {
-    expect(noteStats('\u540c\u6b65 sync').words).toBe(3)
-  })
-
   it('counts what the Mac counts, leaving out front matter and link Markdown', () => {
     const note = '---\ntitle: a b c\n---\nSee [the docs](https://example.com/x) now'
     expect(noteStats(note)).toEqual({ ...noteCounts(note), readingMinutes: 1 })

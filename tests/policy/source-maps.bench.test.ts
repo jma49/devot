@@ -12,7 +12,7 @@ import {
 } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { afterAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   dsymPaths,
   releaseName,
@@ -31,7 +31,6 @@ const root = join(import.meta.dirname, '../..')
 // Configs written outside the repo have no node_modules to resolve a bare 'vite' from.
 const vite = JSON.stringify(createRequire(import.meta.url).resolve('vite'))
 const work = tempDir('devot-release-')
-afterAll(() => rmSync(work, { recursive: true, force: true }))
 
 const SETTINGS = {
   SENTRY_AUTH_TOKEN: 'sntrys_test_token_never_valid',

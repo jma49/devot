@@ -13,6 +13,19 @@ describe('where handed-over files go', () => {
     expect(openDestination('work', books, null)).toEqual({ kind: 'book', id: 'b2' })
     expect(openDestination('Work', books, null)).toEqual({ kind: 'book', id: 'b1' })
     expect(openDestination('PROJECTS', books, null)).toEqual({ kind: 'book', id: 'b3' })
+    expect(openDestination('WORK', books, null)).toEqual({ kind: 'book', id: 'b1' })
+  })
+
+  // The shell may hand over a decomposed (NFD) spelling of a name storage holds composed (NFC), as
+  // macOS does for a name typed with accents (A142, A180).
+  it('finds a composed name from a decomposed one, and the other way round', () => {
+    const nfd = 'Café'
+    const cafe = [{ id: 'c', name: 'Café' }]
+    expect(openDestination(nfd, cafe, null)).toEqual({ kind: 'book', id: 'c' })
+    expect(openDestination('Café', [{ id: 'c', name: nfd }], null)).toEqual({
+      kind: 'book',
+      id: 'c',
+    })
   })
 
   it('makes the notebook named when there is none', () => {

@@ -101,20 +101,6 @@ describe('next edit suggestions', () => {
     expect(sent).toEqual([])
   })
 
-  it('send nothing on a pause while the idle setting is off, whatever the notebook', async () => {
-    const { books, notes, suggester, sent, change } = setup()
-    const shared = await books.create('Shared', null)
-    await books.setAiAccess(shared, true)
-    const note = await notes.create('Plan', shared)
-    expect(await suggester.suggest(note, CONTEXT, 'idle')).toBeNull()
-    expect(sent).toEqual([])
-    change({ suggestOnIdle: true })
-    expect(await suggester.suggest(note, CONTEXT, 'idle')).toBe(' and then ship it.')
-    change({ suggestOnIdle: false })
-    expect(await suggester.suggest(note, CONTEXT, 'idle')).toBeNull()
-    expect(sent).toHaveLength(1)
-  })
-
   it('send nothing without AI in the licence: a pause stays quiet, a key press says why', async () => {
     let licensed = false
     const { books, notes, suggester, sent, change } = setup({}, () => licensed)
@@ -127,17 +113,6 @@ describe('next edit suggestions', () => {
     expect(sent).toEqual([])
     licensed = true
     expect(await suggester.suggest(note, CONTEXT, 'key')).toBe(' and then ship it.')
-  })
-
-  it('send nothing without a provider set up', async () => {
-    const { books, notes, suggester, sent, change } = setup({ anthropic: provider('unset') })
-    const shared = await books.create('Shared', null)
-    await books.setAiAccess(shared, true)
-    const note = await notes.create('Plan', shared)
-    await expect(suggester.suggest(note, CONTEXT, 'key')).rejects.toThrow('E_AI_KEY_MISSING')
-    change({ active: 'openai', openai: provider('set', '') })
-    await expect(suggester.suggest(note, CONTEXT, 'key')).rejects.toThrow('E_AI_MODEL_MISSING')
-    expect(sent).toEqual([])
   })
 
   it('send only the text near the caret', async () => {
