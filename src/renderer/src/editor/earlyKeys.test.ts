@@ -95,6 +95,17 @@ describe('earlyKeys', () => {
     return { target, slot, givenBack }
   }
 
+  it('is waiting from New Note until its editor takes the keys', () => {
+    const { slot } = setup()
+    expect(slot.waiting()).toBe(false)
+    const ticket = slot.start()
+    expect(slot.waiting()).toBe(true)
+    ticket.claim('new')
+    expect(slot.waiting()).toBe(true)
+    slot.take('new')
+    expect(slot.waiting()).toBe(false)
+  })
+
   it("keeps the keys for the new note's editor alone, whichever editor opens first", () => {
     const { target, slot, givenBack } = setup()
     const ticket = slot.start()

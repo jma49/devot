@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { earlyKeysWaiting } from '../editor/earlyKeys'
 import { isImeKey } from '../ime'
 import { listenHere } from '../windowEvents'
 import { rememberKey } from './keys'
@@ -66,8 +67,15 @@ export function useWindowCommands(handlers: CommandHandlers) {
       // Command and an arrow key move the caret in a text field or the editor
       // (seen from here as its shadow root's host, not as editable).
       if (id && e.key.startsWith('Arrow') && (inTextField(e.target) || inEditor(e.target))) return
-      // A bare letter is text in a field.
-      if (id && e.key.length === 1 && !e.metaKey && !e.ctrlKey && inTextField(e.target)) return
+      // A bare letter is text in a field, or in the new note whose editor is still on its way.
+      if (
+        id &&
+        e.key.length === 1 &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        (inTextField(e.target) || earlyKeysWaiting())
+      )
+        return
       const handler = id && latest.current[id]
       if (!handler) return
       e.preventDefault()
