@@ -7,10 +7,12 @@ import { syntaxTree } from '@codemirror/language'
 import {
   ChangeSet,
   EditorSelection,
+  StateField,
+  type ChangeDesc,
   type ChangeSpec,
   type EditorState,
   type Text,
-  type Transaction,
+  Transaction,
   type TransactionSpec,
 } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
@@ -28,10 +30,12 @@ export interface TableCell {
 export interface TableLine {
   from: number
   to: number
-  /** Spaces before the row, kept when it is printed again. */
-  indent: string
-  /** Empty on the delimiter row. */
+  /** What comes before the row on its line (quote marks, a list's indent), kept when it is printed again. */
+  prefix: string
+  /** Empty on the delimiter row; never more than the table's columns. */
   cells: TableCell[]
+  /** The row's cells past the delimiter row's, which GFM leaves out: hidden, not edited. */
+  extra: boolean
 }
 
 export interface WriteTable {
@@ -47,24 +51,26 @@ export const DELIMITER = 1
 export type Span = readonly [number, number]
 
 const ROW_NODES = new Set(['TableHeader', 'TableDelimiter', 'TableRow'])
-const INDENT = /^[ \t]*/
+// The blocks a table can be in.
+const CONTAINERS = new Set(['Document', 'Blockquote', 'BulletList', 'OrderedList', 'ListItem'])
 
 const cache = new WeakMap<Text, { tree: Tree; tables: WriteTable[] }>()
 
-/**
- * The tables Write mode draws as a grid: GFM tables at the top level of the
- * note (in a list or a quote they stay source) whose rows have no more cells
- * than the delimiter row and no cell without even a space between its pipes.
- */
+/** The GFM tables Write mode draws as a grid, in the note's order, in lists and quotes too. */
 export function writeTablesOf(state: EditorState, tree = syntaxTree(state)): readonly WriteTable[] {
   const known = cache.get(state.doc)
   if (known?.tree === tree) return known.tables
   const tables: WriteTable[] = []
-  for (let node = tree.topNode.firstChild; node; node = node.nextSibling) {
-    if (node.name !== 'Table') continue
-    const table = read(state.doc, node)
-    if (table) tables.push(table)
-  }
+  tree.iterate({
+    enter: (ref) => {
+      if (ref.name === 'Table') {
+        const table = read(state.doc, ref.node)
+        if (table) tables.push(table)
+        return false
+      }
+      return CONTAINERS.has(ref.name)
+    },
+  })
   cache.set(state.doc, { tree, tables })
   return tables
 }
@@ -78,17 +84,15 @@ function read(doc: Text, node: SyntaxNode): WriteTable | null {
     if (first < 0) first = line.number
     if (line.number !== first + lines.length) return null
     if ((lines.length === DELIMITER) !== (child.name === 'TableDelimiter')) return null
-    const indent = INDENT.exec(line.text)![0]
-    const cells = splitRow(line.text.slice(indent.length)).map((cell) => {
-      const at = line.from + indent.length
-      return {
-        from: at + cell.from,
-        to: at + cell.to,
-        textFrom: at + cell.textFrom,
-        textTo: at + cell.textFrom + cell.text.length,
-      }
-    })
-    lines.push({ from: line.from, to: line.to, indent, cells })
+    const at = child.from
+    const cells = splitRow(doc.sliceString(at, line.to)).map((cell) => ({
+      from: at + cell.from,
+      to: at + cell.to,
+      textFrom: at + cell.textFrom,
+      textTo: at + cell.textFrom + cell.text.length,
+    }))
+    const prefix = doc.sliceString(line.from, at)
+    lines.push({ from: line.from, to: line.to, prefix, cells, extra: false })
   }
   if (lines.length <= DELIMITER) return null
   const align: Align[] = []
@@ -101,9 +105,11 @@ function read(doc: Text, node: SyntaxNode): WriteTable | null {
   const columns = align.length
   for (const [i, line] of lines.entries()) {
     if (i === DELIMITER) continue
-    const count = line.cells.length
-    if (count === 0 || count > columns || (i === 0 && count !== columns)) return null
-    if (line.cells.some((cell) => cell.to <= cell.from)) return null
+    if (line.cells.length === 0 || (i === 0 && line.cells.length !== columns)) return null
+    if (line.cells.length > columns) {
+      line.cells = line.cells.slice(0, columns)
+      line.extra = true
+    }
   }
   return { from: lines[0]!.from, to: lines[lines.length - 1]!.to, lines, align }
 }
@@ -280,6 +286,47 @@ function editsCells(changes: ChangeSet, table: WriteTable): 'none' | 'cells' | '
   return result
 }
 
+function mapTable(table: WriteTable, changes: ChangeDesc): WriteTable {
+  const before = (pos: number) => changes.mapPos(pos, -1)
+  const after = (pos: number) => changes.mapPos(pos, 1)
+  return {
+    from: before(table.from),
+    to: after(table.to),
+    align: table.align,
+    lines: table.lines.map((line) => ({
+      ...line,
+      from: before(line.from),
+      to: after(line.to),
+      cells: line.cells.map((c) => ({
+        from: before(c.from),
+        to: after(c.to),
+        textFrom: before(c.textFrom),
+        textTo: after(c.textTo),
+      })),
+    })),
+  }
+}
+
+/**
+ * The shown tables as they were when an input method's composition began,
+ * mapped through it. Nothing is printed inside a composition, so a pipe it
+ * typed would end its cell: the first edit after it prints these tables, the
+ * cells read from where they were.
+ */
+export const composedTables = StateField.define<readonly WriteTable[] | null>({
+  create: () => null,
+  update(value, tr) {
+    if (tr.isUserEvent('input.type.compose')) {
+      const start = tr.startState
+      const base = value ?? writeTablesOf(start).filter((t) => shownTable(start, t))
+      return base.map((t) => mapTable(t, tr.changes))
+    }
+    if (!value || !tr.docChanged) return value
+    if (tr.annotation(Transaction.userEvent) !== undefined) return null
+    return value.map((t) => mapTable(t, tr.changes))
+  },
+})
+
 /**
  * The edit that follows a user's edit in the cells of shown tables: each
  * table it touched printed again (padded columns, as Tab prints it), as
@@ -295,10 +342,13 @@ export function formatAfter(tr: Transaction): TransactionSpec | null {
   const changes: { from: number; to: number; insert: string }[] = []
   /** The caret's line start in `doc`, and where it goes in the printed line. */
   let placed: { from: number; column: number } | null = null
-  for (const table of writeTablesOf(start)) {
-    if (!shownTable(start, table) || editsCells(tr.changes, table) !== 'cells') continue
+  const composed = start.field(composedTables, false) ?? null
+  for (const table of composed ?? writeTablesOf(start)) {
+    const edits = editsCells(tr.changes, table)
+    if (composed ? edits === 'other' : !shownTable(start, table) || edits !== 'cells') continue
+    if (table.lines.some((line) => line.extra)) continue
     const lines = table.lines.map((line) => ({
-      indent: line.indent,
+      prefix: line.prefix,
       from: tr.changes.mapPos(line.from, -1),
       to: tr.changes.mapPos(line.to, 1),
       cells: line.cells.map((c) => ({
@@ -326,7 +376,7 @@ export function formatAfter(tr: Transaction): TransactionSpec | null {
       rows: texts.slice(DELIMITER + 1).map(pad),
     })
     for (const [i, line] of lines.entries()) {
-      const text = line.indent + printed.lines[i]!
+      const text = line.prefix + printed.lines[i]!
       const old = doc.sliceString(line.from, line.to)
       if (text === old) continue
       const diff = textDiff(old, text)
@@ -336,7 +386,7 @@ export function formatAfter(tr: Transaction): TransactionSpec | null {
     if (at) {
       const line = lines[at.line]!
       const span = printed.cells[at.line]![at.cell]!
-      placed = { from: line.from, column: line.indent.length + span.from + at.offset }
+      placed = { from: line.from, column: line.prefix.length + span.from + at.offset }
     }
   }
   if (changes.length === 0 && !placed) return null

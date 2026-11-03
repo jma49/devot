@@ -21,7 +21,8 @@ import {
   type Command,
 } from '@codemirror/view'
 import { displayWidth } from '../table'
-import { tableCommand } from '../tableCommands'
+import { spec } from '../formatContext'
+import { locate, rewrite, tableCommand } from '../tableCommands'
 import { tableRowTypingOff } from '../tableTyping'
 import { writeBlockRule, type BlockLayers, type BlockRule } from './blocks'
 import {
@@ -36,6 +37,7 @@ import {
   visibleSpan,
   writeTablesOf,
   formatAfter,
+  composedTables,
   type WriteTable,
 } from './tables'
 
@@ -60,6 +62,54 @@ class BlankCell extends WidgetType {
 }
 
 const blank = Decoration.widget({ widget: new BlankCell(), side: 1 })
+// An empty cell with nothing between its pipes: its point is its box's end.
+const blankAtEnd = Decoration.widget({ widget: new BlankCell(), side: -1 })
+
+/** Pads the row at `pos` out to the table's columns and puts the caret in `column`. */
+function fillRow(view: EditorView, pos: number, column: number) {
+  const line = view.state.doc.lineAt(pos)
+  const at = locate(view.state.update({ selection: { anchor: line.to } }).state)
+  if (!at) return
+  const { change, cursor } = rewrite(view.state, at, {
+    table: at.table,
+    line: at.line,
+    column,
+    offset: 0,
+  })
+  const selection = EditorSelection.single(cursor)
+  view.dispatch(change ? spec(change, selection) : { selection, userEvent: 'select' })
+  view.focus()
+}
+
+/** A cell a short row leaves out, which GFM reads as empty: a click writes it. */
+class MissingCell extends WidgetType {
+  constructor(
+    readonly column: number,
+    readonly className: string,
+  ) {
+    super()
+  }
+
+  override eq(other: MissingCell): boolean {
+    return other.column === this.column && other.className === this.className
+  }
+
+  override toDOM(view: EditorView): HTMLElement {
+    const cell = document.createElement('span')
+    cell.className = this.className
+    cell.textContent = ZERO_WIDTH_SPACE
+    cell.addEventListener('mousedown', (event) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      fillRow(view, view.posAtDOM(cell), this.column)
+    })
+    return cell
+  }
+
+  override ignoreEvent(): boolean {
+    return true
+  }
+}
 const hidden = Decoration.replace({})
 const atom = Decoration.mark({})
 
@@ -79,7 +129,6 @@ export function shownWidth(source: string): number {
 const columnClasses = new Map<string, string>()
 let columnSheet: CSSStyleSheet | null | undefined
 let serial = 0
-const MAX_RULES = 512
 
 function sheet(): CSSStyleSheet | null {
   if (columnSheet === undefined) {
@@ -97,10 +146,6 @@ function columnsClass(widths: readonly number[]): string {
   const known = columnClasses.get(key)
   if (known) return known
   const rules = sheet()
-  if (columnClasses.size >= MAX_RULES) {
-    columnClasses.clear()
-    rules?.replaceSync('')
-  }
   const name = `cm-wm-cols-${serial++}`
   columnClasses.set(key, name)
   const tracks = widths.map((w) => `minmax(0, calc(${w}ch + 2 * var(--space-5) + 1px))`)
@@ -143,13 +188,23 @@ function grid(state: EditorState, table: WriteTable, layers: BlockLayers): void 
       r === rows.length - 1 ? 'cm-wm-row-last' : '',
     ]
     decorations.push(Decoration.line({ class: look.filter(Boolean).join(' ') }).range(line.from))
+    const cellClass = (c: number) =>
+      `cm-wm-cell cm-wm-align-${table.align[c] ?? 'none'}${c === 0 ? ' cm-wm-cell-first' : ''}`
+    const short = line.cells.length < table.align.length
     boxes.forEach(([from, to], c) => {
-      const align = table.align[c] ?? 'none'
-      const cls = `cm-wm-cell cm-wm-align-${align}${c === 0 ? ' cm-wm-cell-first' : ''}`
-      outer.push(Decoration.mark({ class: cls, inclusive: true }).range(from, to))
-      const [shownFrom, shownTo] = visibleSpan(line.cells[c]!, caret)
-      if (shownFrom === shownTo) decorations.push(blank.range(shownFrom))
+      // A short row's missing cells come after its last box.
+      const inclusiveEnd = !short || c < boxes.length - 1
+      const box = Decoration.mark({ class: cellClass(c), inclusiveStart: true, inclusiveEnd })
+      outer.push(box.range(from, to))
+      const cell = line.cells[c]!
+      const [shownFrom, shownTo] = visibleSpan(cell, caret)
+      if (shownFrom === shownTo)
+        decorations.push((cell.to === cell.from ? blankAtEnd : blank).range(shownFrom))
     })
+    for (let c = line.cells.length; c < table.align.length; c++) {
+      const widget = new MissingCell(c, `${cellClass(c)} cm-wm-cell-missing`)
+      decorations.push(Decoration.widget({ widget, side: 1 + c }).range(line.to))
+    }
   })
   for (const [from, to] of hiddenSpans(table, caret)) decorations.push(hidden.range(from, to))
   for (const [from, to] of atomicSpans(table, caret, state.doc.length))
@@ -224,6 +279,7 @@ const gridReturn: Command = (view) => {
 }
 
 export const writeTables: Extension = [
+  composedTables,
   writeBlockRule.of(tableRule),
   keepStructure,
   formatCells,
@@ -242,6 +298,8 @@ export const tableTheme = EditorView.theme({
     paddingInline: 'var(--space-3)',
   },
   '&[data-write] .cm-line.cm-wm-row::before': { display: 'none' },
+  // Out of the grid's cells: CodeMirror puts these beside widgets for the caret.
+  '&[data-write] .cm-line.cm-wm-row > .cm-widgetBuffer': { position: 'absolute' },
   '.cm-wm-cell': {
     display: 'block',
     minWidth: '0',

@@ -91,14 +91,27 @@ describe('the cells of a table in Write mode', () => {
   it('read rows without outer pipes and indented rows', () => {
     const doc = '  a | b\n  --|--\n  1 | 2'
     const [table] = writeTablesOf(stateOf(doc))
-    expect(table!.lines.map((l) => l.indent)).toEqual(['  ', '  ', '  '])
+    expect(table!.lines.map((l) => l.prefix)).toEqual(['  ', '  ', '  '])
     expect(table!.lines[2]!.cells.map((c) => doc.slice(c.textFrom, c.textTo))).toEqual(['1', '2'])
   })
 
-  it('leave as source a table in a list, one with a cell with nothing between its pipes and a row of too many cells', () => {
-    expect(writeTablesOf(stateOf('- | a |\n  | - |\n  | 1 |'))).toHaveLength(0)
-    expect(writeTablesOf(stateOf('| a | b |\n| - | - |\n| 1 || '))).toHaveLength(0)
-    expect(writeTablesOf(stateOf('| a |\n| - |\n| 1 | 2 |'))).toHaveLength(0)
+  it('read a table in a quote or a list with what comes before its rows', () => {
+    const quoted = writeTablesOf(stateOf('> | a | b |\n> | - | - |\n> | 1 | 2 |'))
+    expect(quoted[0]!.lines.map((l) => l.prefix)).toEqual(['> ', '> ', '> '])
+    const listed = writeTablesOf(stateOf('- item\n\n  | a |\n  | - |\n  | 1 |'))
+    expect(listed[0]!.lines.map((l) => l.prefix)).toEqual(['  ', '  ', '  '])
+  })
+
+  it('read a cell with nothing between its pipes as empty, and leave out the cells past the columns', () => {
+    const doc = '| a | b |\n| - | - |\n| 1 || 3 | 4 |\n| 5 |'
+    const [table] = writeTablesOf(stateOf(doc))
+    const row = table!.lines[2]!
+    expect(row.cells.map((c) => [c.to - c.from, doc.slice(c.textFrom, c.textTo)])).toEqual([
+      [3, '1'],
+      [0, ''],
+    ])
+    expect(row.extra).toBe(true)
+    expect(table!.lines[3]!.cells).toHaveLength(1)
   })
 
   it('hide the pipes, the padding and the delimiter row, and show an empty cell as a point', () => {
@@ -283,6 +296,26 @@ describe('typing in a shown table', () => {
     expect(state.doc.toString().split('\n')[2]).toBe('| Teaxxxx  |   2 |')
   })
 
+  it('writes a pipe a composition typed escaped, with the first edit after it', () => {
+    let state = stateOf(doc, inTea)
+    for (const typed of ['|', 'x']) {
+      const at = state.selection.main.head
+      state = step(state, {
+        changes: { from: at, insert: typed },
+        selection: { anchor: at + 1 },
+        userEvent: typed === '|' ? 'input.type.compose' : 'input.type',
+      })
+    }
+    expect(marked(state).split('\n')[2]).toBe('| Tea\\|x^ |   2 |')
+  })
+
+  it('does not print a row with cells past the columns again', () => {
+    const extra = `${doc}\n| a | b | c |`
+    const at = extra.lastIndexOf('a') + 1
+    const state = type(stateOf(extra, at), 'z')
+    expect(state.doc.toString().split('\n').slice(-1)).toEqual(['| az | b | c |'])
+  })
+
   it('prints nothing again inside a composition', () => {
     const state = step(stateOf(doc, inTea), {
       changes: { from: inTea, insert: 'pot leaves' },
@@ -342,6 +375,19 @@ describe('the grid', () => {
       '| 1 =cm-wm-cell cm-wm-align-none cm-wm-cell-first',
       '| 2 |=cm-wm-cell cm-wm-align-right',
     ])
+  })
+
+  it('draws the cells a short row leaves out, to be written on a click', () => {
+    const state = stateOf('| a | b | c |\n| - | - | - |\n| 1 |')
+    const missing: string[] = []
+    for (const source of state.facet(EditorView.decorations)) {
+      if (typeof source === 'function') continue
+      ;(source as DecorationSet).between(0, state.doc.length, (from, _to, deco) => {
+        const widget = deco.spec.widget as { column?: number } | undefined
+        if (widget?.column !== undefined) missing.push(`${from}:${widget.column}`)
+      })
+    }
+    expect(missing).toEqual([`${state.doc.length}:1`, `${state.doc.length}:2`])
   })
 
   it('draws no box for a table several cursors are in', () => {
