@@ -27,6 +27,7 @@ import {
   useSettingsChange,
 } from './controls'
 import { FontSection } from './FontChoice'
+import { useOnPhone } from './onPhone'
 import { useTypedNumber } from './typedNumber'
 
 const INDENT_LABELS: Readonly<Record<IndentUnitId, MessageKey>> = {
@@ -62,6 +63,7 @@ type Flag =
   | 'inlineImages'
   | 'readableWidth'
   | 'scrollPastEnd'
+  | 'showCounts'
   | 'spellCheck'
   | 'showInvisibles'
   | 'highlightTrailingWhitespace'
@@ -82,6 +84,7 @@ const FLAGS: Readonly<Record<Flag, { label: MessageKey; hint: MessageKey }>> = {
     label: 'editorSettings.scrollPastEnd',
     hint: 'editorSettings.scrollPastEndHint',
   },
+  showCounts: { label: 'editorSettings.showCounts', hint: 'editorSettings.showCountsHint' },
   spellCheck: { label: 'editorSettings.spellCheck', hint: 'editorSettings.spellCheckHint' },
   showInvisibles: {
     label: 'editorSettings.showInvisibles',
@@ -102,6 +105,7 @@ export function EditingSection() {
   // The font size description names the keys in effect.
   useKeymap()
   const [error, change] = useSettingsChange()
+  const onPhone = useOnPhone()
   const ids = useId()
   const locale = currentLocale()
   const decimal = useMemo(
@@ -170,6 +174,7 @@ export function EditingSection() {
           settings.lineWrapping !== 'off' ? undefined : 'editorSettings.readableWidthNote',
         )}
         {flag('scrollPastEnd')}
+        {onPhone ? null : flag('showCounts')}
         <Setting
           label="editorSettings.cursorScrollMargin"
           description={t('editorSettings.cursorScrollMarginHint')}

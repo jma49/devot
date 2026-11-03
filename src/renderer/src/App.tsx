@@ -258,6 +258,8 @@ import { tagChanges, type FrontMatterChange } from './preview/frontMatterApply'
 import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
 import { useHistoryBar } from './HistoryBar'
+import { CountsFooter } from './CountsFooter'
+import type { EditorCounts } from './editor/counts'
 import { inNotes, markSeen, unseenOf, useAgentWrites } from './agentWrites'
 import { AuthorshipNotice } from './AuthorshipNotice'
 import { writerLabel, type WriterRef } from './authorshipLabels'
@@ -2649,6 +2651,8 @@ export function App() {
     setHistoryFor(undefined)
   }
   const historyBarShown = useEditorSetting('historyBar')
+  const countsShown = useEditorSetting('showCounts') && mode !== 'preview'
+  const [editorCounts, setEditorCounts] = useState<EditorCounts | null>(null)
   const authorshipShown = useEditorSetting('authorship')
   // A restored version, an accepted AI edit or a plugin write reaches the editor only while it
   // still shows the note it was made for.
@@ -4137,6 +4141,7 @@ export function App() {
                 showImageMenu={showImageMenu}
                 initialPlace={takeEditorPlace(selected)}
                 onPlace={editorPlaced}
+                onCounts={countsShown ? setEditorCounts : undefined}
                 onNewFromSelection={
                   inTrash || !editing ? undefined : () => void noteFromSelection(selected)
                 }
@@ -4188,6 +4193,7 @@ export function App() {
               )}
               {historyBar.overlay}
             </div>
+            {countsShown ? <CountsFooter counts={editorCounts} /> : null}
             {historyBar.bar}
           </>
         ) : shownBuiltIn ? (

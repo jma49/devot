@@ -65,6 +65,7 @@ describe('editor settings', () => {
       iconStyle: 'sfSymbols',
       toolbar: true,
       scrollPastEnd: true,
+      showCounts: true,
       cursorScrollMargin: 0,
       fontWeight: 'normal',
       showInvisibles: false,
@@ -214,6 +215,8 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ windowTransparency: -40 }).windowTransparency).toBe(-40)
     expect(parseEditorSettings({ windowTransparency: 101 }).windowTransparency).toBe(0)
     expect(parseEditorSettings({ autoDownloadUpdates: false }).autoDownloadUpdates).toBe(false)
+    expect(parseEditorSettings({ showCounts: false }).showCounts).toBe(false)
+    expect(parseEditorSettings({ showCounts: 0 }).showCounts).toBe(true)
     expect(parseEditorSettings({ historyBar: true }).historyBar).toBe(true)
     expect(parseEditorSettings({ historyBar: 'yes' }).historyBar).toBe(false)
     expect(parseEditorSettings({ authorship: false }).authorship).toBe(false)
@@ -270,6 +273,7 @@ describe('editor settings', () => {
       { listMarker: '#' },
       { toolbar: 'on' },
       { scrollPastEnd: null },
+      { showCounts: 'yes' },
       { cursorScrollMargin: 201 },
       { fontWeight: 'bold' },
       { fontWeight: 400 },

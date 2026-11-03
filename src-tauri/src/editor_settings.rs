@@ -190,6 +190,8 @@ pub struct EditorSettings {
     pub icon_style: IconStyle,
     pub toolbar: bool,
     pub scroll_past_end: bool,
+    /// The editor footer shows the words and characters of the note or the selection.
+    pub show_counts: bool,
     /// In pixels.
     pub cursor_scroll_margin: u64,
     pub font_weight: FontWeight,
@@ -260,6 +262,7 @@ impl Default for EditorSettings {
             icon_style: IconStyle::SfSymbols,
             toolbar: true,
             scroll_past_end: true,
+            show_counts: true,
             cursor_scroll_margin: 0,
             font_weight: FontWeight::Normal,
             show_invisibles: false,
@@ -393,6 +396,7 @@ impl EditorSettings {
             "iconStyle" => self.icon_style = choice(value)?,
             "toolbar" => self.toolbar = flag(value)?,
             "scrollPastEnd" => self.scroll_past_end = flag(value)?,
+            "showCounts" => self.show_counts = flag(value)?,
             "cursorScrollMargin" => {
                 self.cursor_scroll_margin = whole(value, 0, CURSOR_SCROLL_MARGIN_MAX)?
             }
@@ -764,7 +768,7 @@ mod tests {
         assert!(d.sidebar_material);
         assert_eq!(d.window_transparency, 0);
         assert_eq!(d.paste_url, PasteUrl::Link);
-        assert!(d.toolbar && d.scroll_past_end);
+        assert!(d.toolbar && d.scroll_past_end && d.show_counts);
         assert_eq!(d.cursor_scroll_margin, 0);
         assert_eq!(d.font_weight, FontWeight::Normal);
         assert!(!d.show_invisibles && !d.highlight_trailing_whitespace);
@@ -866,6 +870,7 @@ mod tests {
                 "iconStyle": "sfSymbols",
                 "toolbar": true,
                 "scrollPastEnd": true,
+                "showCounts": true,
                 "cursorScrollMargin": 0,
                 "fontWeight": "normal",
                 "showInvisibles": false,
@@ -964,6 +969,7 @@ mod tests {
                 "iconStyle": "lucide",
                 "toolbar": false,
                 "scrollPastEnd": false,
+                "showCounts": false,
                 "cursorScrollMargin": 200,
                 "fontWeight": "700",
                 "showInvisibles": true,
@@ -1002,7 +1008,7 @@ mod tests {
                 .unwrap();
             assert_eq!(read.appearance.window_theme(), theme);
         }
-        assert!(!next.toolbar && !next.scroll_past_end);
+        assert!(!next.toolbar && !next.scroll_past_end && !next.show_counts);
         assert_eq!(next.cursor_scroll_margin, 200);
         assert_eq!(next.window_transparency, -100);
         assert_eq!(next.font_weight, FontWeight::W700);
@@ -1169,6 +1175,7 @@ mod tests {
             json!({ "listMarker": "#" }),
             json!({ "toolbar": "on" }),
             json!({ "scrollPastEnd": null }),
+            json!({ "showCounts": "yes" }),
             json!({ "cursorScrollMargin": 201 }),
             json!({ "cursorScrollMargin": -1 }),
             json!({ "fontWeight": "bold" }),

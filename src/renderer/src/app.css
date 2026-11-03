@@ -6337,6 +6337,18 @@ button.popup:focus-visible {
   overflow-wrap: anywhere;
 }
 
+/* The footer under the panes (CountsFooter.tsx): words and characters, right-aligned to the history bar's margin. */
+.editor-counts {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-5);
+  margin: 0 var(--space-10) var(--space-2);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
 /* View > Show History Bar (HistoryBar.tsx): the open note's versions along the editor's bottom edge. Above the
    overlay, so the date on the handle shows over it. */
 .history-bar {

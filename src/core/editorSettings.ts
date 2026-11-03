@@ -61,6 +61,8 @@ export interface EditorSettings {
   iconStyle: IconStyleChoice
   toolbar: boolean
   scrollPastEnd: boolean
+  /** The editor footer shows the words and characters of the note, or of the selection. */
+  showCounts: boolean
   cursorScrollMargin: number
   fontWeight: FontWeightId
   showInvisibles: boolean
@@ -132,6 +134,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   iconStyle: 'sfSymbols',
   toolbar: true,
   scrollPastEnd: true,
+  showCounts: true,
   cursorScrollMargin: 0,
   fontWeight: 'normal',
   showInvisibles: false,
@@ -299,6 +302,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   iconStyle: oneOf(ICON_STYLES),
   toolbar: isFlag,
   scrollPastEnd: isFlag,
+  showCounts: isFlag,
   cursorScrollMargin: wholeIn(0, CURSOR_SCROLL_MARGIN_MAX),
   fontWeight: oneOf(FONT_WEIGHTS),
   showInvisibles: isFlag,

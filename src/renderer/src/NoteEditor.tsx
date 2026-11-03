@@ -82,6 +82,7 @@ import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
 import { pasteUrlAs, pasteUrls, plainPaste } from './editor/paste'
 import { pasteChooser, showChooser, type PasteFetcher } from './editor/pasteChooser'
 import { editorSetup, reconfigureSetup } from './editor/settings'
+import { countsReporter, recount, type EditorCounts } from './editor/counts'
 import { selectionEdges } from './editor/selectionEdges'
 import { editorCompletions } from './editor/completions'
 import { chooseTemplate } from './editor/hints'
@@ -698,6 +699,8 @@ interface Props {
   initialPlace?: () => Partial<EditorPlace> | undefined
   /** The selection changed or the editor scrolled. The top line is measured only on a scroll, never on a keystroke, and follows edits above it. */
   onPlace?: (noteId: string, place: EditorPlace) => void
+  /** Words and characters of the note and the selection, once typing pauses; nothing is counted without it. */
+  onCounts?: ((counts: EditorCounts) => void) | undefined
   onNewFromSelection?: (() => void) | undefined
   /** Edit with AI on the selection (the toolbar's AI button and the editor menu); left out where AI may not edit. */
   onAiEdit?: StartAiEdit | undefined
@@ -734,6 +737,7 @@ export function NoteEditor({
   showImageMenu,
   initialPlace,
   onPlace,
+  onCounts,
   onNewFromSelection,
   onAiEdit,
   suggester,
@@ -766,6 +770,7 @@ export function NoteEditor({
   const imageHandlers = useRef({ open: onOpenImage, menu: showImageMenu })
   const placeAsked = useRef(initialPlace)
   const placeReport = useRef(onPlace)
+  const countsReport = useRef(onCounts)
   const fromSelection = useRef(onNewFromSelection)
   const aiEdit = useRef(onAiEdit)
   const suggestions = useRef(suggester)
@@ -866,6 +871,7 @@ export function NoteEditor({
     aiMenu.current = showAiMenu
     placeAsked.current = initialPlace
     placeReport.current = onPlace
+    countsReport.current = onCounts
     focusOnOpen.current = autoFocus
     focusOnlyIfFree.current = autoFocusIfFree
     report.current = onText
@@ -893,6 +899,11 @@ export function NoteEditor({
 
   // An imported font face that has loaded changes the text's size: measure again.
   useEffect(() => subscribeFontsLoaded(() => editor.current?.view.requestMeasure()), [])
+
+  const counting = onCounts !== undefined
+  useEffect(() => {
+    if (counting) editor.current?.view.dispatch({ effects: recount.of(null) })
+  }, [counting])
 
   useEffect(() => {
     if (templateShown.current === templateOffered) return
@@ -1129,6 +1140,10 @@ export function NoteEditor({
               'aria-label': t('note.bodyLabel'),
             }),
             editorLayoutWatch,
+            countsReporter(
+              (counts) => countsReport.current?.(counts),
+              () => countsReport.current !== undefined,
+            ),
             EditorView.updateListener.of((update) => {
               if (!update.selectionSet && !update.docChanged) return
               if (update.docChanged && place.top) {

@@ -743,6 +743,11 @@ title: Daily Report {{date}}
   'editorSettings.readableWidthNote': 'Applies only when lines wrap.',
   'editorSettings.scrollPastEnd': 'Scroll Past End',
   'editorSettings.scrollPastEndHint': 'Whether the editor can scroll past the end of the note.',
+  'counts.words': 'Words',
+  'counts.characters': 'Characters',
+  'counts.of': '{part} of {total}',
+  'editorSettings.showCounts': 'Word and Character Counts',
+  'editorSettings.showCountsHint': 'Whether the editor footer counts the note, or the selection.',
   'editorSettings.cursorScrollMargin': 'Cursor Scroll Margin',
   'editorSettings.cursorScrollMarginHint':
     'How much space, in pixels, to keep above and below the cursor when it nears the top or bottom of the view.',
