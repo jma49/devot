@@ -3,19 +3,30 @@ import { EditorSelection, EditorState } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { expectWithinBudget } from '../../../../../tests/support/budget'
 import { noteMarkdown } from '../markdown'
-import { isRevealed, revealedLines, writeRanges, type Revealed, type WriteRange } from './rules'
+import {
+  isRevealed,
+  revealedLines,
+  selectedRanges,
+  touches,
+  writeRanges,
+  type Selected,
+  type WriteRange,
+} from './rules'
 
 const NOTE = '0192f0a2-7c1e-7d3a-9b2c-3d4e5f607182'
 
 function rangesOf(
   doc: string,
-  revealed: Revealed = [],
+  selected: Selected = [],
 ): { state: EditorState; ranges: WriteRange[] } {
   const state = EditorState.create({ doc, extensions: [noteMarkdown] })
   const tree = ensureSyntaxTree(state, doc.length, 1e9)
   if (!tree) throw new Error('E_TEST_NO_TREE')
-  return { state, ranges: writeRanges(state, tree, revealed) }
+  return { state, ranges: writeRanges(state, tree, selected) }
 }
+
+/** A caret at `pos`, or a selection from `pos` to `to`. */
+const caret = (pos: number, to = pos): Selected => [{ from: pos, to }]
 
 const STAND_IN: Record<string, (r: WriteRange) => string> = {
   bullet: (r) => (r.kind === 'bullet' ? `{bullet${r.depth}}` : ''),
@@ -25,9 +36,9 @@ const STAND_IN: Record<string, (r: WriteRange) => string> = {
 }
 
 /** The note as Write mode shows it: hidden marks gone, widgets as `{…}`. */
-function shown(doc: string, revealed: Revealed = []): string {
-  const replaced = rangesOf(doc, revealed)
-    .ranges.filter((r) => r.kind !== 'mark' && r.kind !== 'line')
+function shown(doc: string, selected: Selected = []): string {
+  const replaced = rangesOf(doc, selected)
+    .ranges.filter((r) => r.kind !== 'mark' && r.kind !== 'line' && r.kind !== 'unit')
     .sort((a, b) => a.from - b.from)
   let out = ''
   let at = 0
@@ -38,6 +49,11 @@ function shown(doc: string, revealed: Revealed = []): string {
   }
   return out + doc.slice(at)
 }
+
+const units = (doc: string) =>
+  rangesOf(doc)
+    .ranges.filter((r) => r.kind === 'unit')
+    .map((r) => doc.slice(r.from, r.to))
 
 const marks = (doc: string) =>
   rangesOf(doc)
@@ -140,6 +156,10 @@ describe('Write mode lists and tasks', () => {
   it('in a quote hide the quote mark too', () => {
     expect(shown('> - item')).toBe('{bullet1} item')
   })
+
+  it('let the caret pass a list mark and its space as one unit', () => {
+    expect(units('- a\n\n10. b\n\n- [ ] c')).toEqual(['- ', '10. '])
+  })
 })
 
 describe('Write mode rules', () => {
@@ -160,46 +180,112 @@ describe('Write mode rules', () => {
   })
 })
 
-describe('the lines with the selection', () => {
-  const at = (doc: string, ranges: [number, number][], focused = true) =>
-    revealedLines(
-      EditorState.create({
-        doc,
-        selection: EditorSelection.create(ranges.map(([a, h]) => EditorSelection.range(a, h))),
-        extensions: [EditorState.allowMultipleSelections.of(true)],
-      }),
-      focused,
+describe('the elements the selection meets', () => {
+  it('show the marks of a span the caret is in or touches, and only of that span', () => {
+    const doc = 'a **bold** and *it* b'
+    expect(shown(doc, caret(5))).toBe('a **bold** and it b')
+    expect(shown(doc, caret(2))).toBe('a **bold** and it b')
+    expect(shown(doc, caret(10))).toBe('a **bold** and it b')
+    expect(shown(doc, caret(11))).toBe('a bold and it b')
+    expect(shown(doc, caret(16))).toBe('a bold and *it* b')
+    expect(shown('run `npm i` and ~~x~~ <mark>y</mark>', caret(28))).toBe(
+      'run npm i and x <mark>y</mark>',
     )
-
-  it('show their source, and only theirs', () => {
-    const doc = '# One\n**two**\n# Three'
-    const revealed = at(doc, [[8, 8]])
-    expect(revealed).toEqual([{ first: 2, last: 2 }])
-    expect(shown(doc, revealed)).toBe('One\n**two**\nThree')
+    expect(shown('2 \\* 3', caret(2))).toBe('2 \\* 3')
   })
 
-  it('cover every line a selection touches and every caret of several', () => {
-    const doc = 'a\nb\nc\nd\ne\nf'
-    expect(at(doc, [[0, 4]])).toEqual([{ first: 1, last: 3 }])
-    expect(
-      at(doc, [
-        [10, 10],
-        [0, 0],
-        [2, 2],
-      ]),
-    ).toEqual([
-      { first: 1, last: 2 },
-      { first: 6, last: 6 },
+  it('show the whole source of a link the caret is in, the rest of the line styled', () => {
+    const doc = 'see [the docs](https://example.com) and **b**'
+    expect(shown(doc, caret(8))).toBe('see [the docs](https://example.com) and b')
+    expect(shown(doc, caret(30))).toBe('see [the docs](https://example.com) and b')
+    expect(shown(`see [](devot://note/${NOTE}).`, caret(4))).toBe(`see [](devot://note/${NOTE}).`)
+    expect(shown('a <https://example.com> b', caret(5))).toBe('a <https://example.com> b')
+  })
+
+  it('show the number signs of a heading while the caret is on its line', () => {
+    const doc = '# One **b**\n## Two'
+    expect(shown(doc, caret(4))).toBe('# One b\nTwo')
+    expect(shown(doc, caret(8))).toBe('# One **b**\nTwo')
+    expect(shown('Title\n=====', caret(1))).toBe('Title\n=====')
+  })
+
+  it('keep a list mark, a task box and a quote mark drawn on the caret line', () => {
+    expect(shown('- a\n- b', caret(2))).toBe('{bullet1} a\n{bullet1} b')
+    expect(shown('- [ ] open', caret(8))).toBe('{todo} open')
+    expect(shown('> quote', caret(3))).toBe('quote')
+  })
+
+  it('show an alert label while the caret is on its line', () => {
+    expect(shown('> [!NOTE]\n> Body', caret(0))).toBe('[!NOTE]\nBody')
+    expect(shown('> [!NOTE]\n> Body', caret(12))).toBe('{note}\nBody')
+  })
+
+  it('show a horizontal rule as source while the caret is on it', () => {
+    expect(shown('a\n\n---\n\nb', caret(4))).toBe('a\n\n---\n\nb')
+    expect(rangesOf('a\n\n---\n\nb', caret(4)).ranges.some((r) => r.kind === 'line')).toBe(false)
+  })
+
+  it('show every element a selection meets', () => {
+    expect(shown('**a** *b* **c**', caret(0, 7))).toBe('**a** *b* c')
+    expect(shown('**one\ntwo**', caret(1))).toBe('**one\ntwo**')
+  })
+})
+
+describe('the selected ranges', () => {
+  const selectionOf = (doc: string, ranges: [number, number][]) =>
+    EditorState.create({
+      doc,
+      selection: EditorSelection.create(ranges.map(([a, h]) => EditorSelection.range(a, h))),
+      extensions: [EditorState.allowMultipleSelections.of(true)],
+    })
+
+  it('are in order and apart, with each caret of several', () => {
+    const state = selectionOf('a\nb\nc\nd\ne\nf', [
+      [10, 10],
+      [0, 2],
+      [2, 3],
+    ])
+    expect(selectedRanges(state, true)).toEqual([
+      { from: 0, to: 3 },
+      { from: 10, to: 10 },
     ])
   })
 
   it('leave out a caret while the editor has no keyboard, never a selection', () => {
-    const doc = '**a**\n**b**'
-    expect(at(doc, [[1, 1]], false)).toEqual([])
-    expect(at(doc, [[0, 3]], false)).toEqual([{ first: 1, last: 1 }])
+    const state = selectionOf('**a**\n**b**', [
+      [1, 1],
+      [6, 9],
+    ])
+    expect(selectedRanges(state, false)).toEqual([{ from: 6, to: 9 }])
   })
 
-  it('are found by line number', () => {
+  it('meet an element at its edges', () => {
+    const selected = [
+      { from: 4, to: 4 },
+      { from: 10, to: 12 },
+    ]
+    expect(
+      [
+        [0, 3],
+        [0, 4],
+        [4, 6],
+        [5, 9],
+        [12, 20],
+        [13, 20],
+      ].map(([a, b]) => touches(selected, a as number, b as number)),
+    ).toEqual([false, true, true, false, true, false])
+  })
+
+  it('give the lines block rules reveal by', () => {
+    const state = selectionOf('a\nb\nc\nd\ne\nf', [
+      [10, 10],
+      [0, 0],
+      [2, 2],
+    ])
+    expect(revealedLines(state, true)).toEqual([
+      { first: 1, last: 2 },
+      { first: 6, last: 6 },
+    ])
     const revealed = [
       { first: 2, last: 4 },
       { first: 9, last: 9 },
@@ -212,11 +298,6 @@ describe('the lines with the selection', () => {
       true,
       false,
     ])
-  })
-
-  it('keep a mark that spans lines on the lines it is on', () => {
-    const doc = '**one\ntwo**'
-    expect(shown(doc, [{ first: 1, last: 1 }])).toBe('**one\ntwo')
   })
 })
 

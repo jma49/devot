@@ -16,12 +16,16 @@ export const writeNoteLoader = Facet.define<LoadPreview, LoadPreview | null>({
 })
 
 class TaskWidget extends WidgetType {
-  constructor(readonly done: boolean) {
+  /** `box` is where the `[` is, counted from the start of the range the box stands in for. */
+  constructor(
+    readonly done: boolean,
+    readonly box: number,
+  ) {
     super()
   }
 
   override eq(other: TaskWidget): boolean {
-    return other.done === this.done
+    return other.done === this.done && other.box === this.box
   }
 
   override toDOM(view: EditorView): HTMLElement {
@@ -35,7 +39,7 @@ class TaskWidget extends WidgetType {
     box.addEventListener('click', (event) => {
       // The note changes and draws the box again; the box never ticks itself.
       event.preventDefault()
-      const change = taskToggle(view.state, view.posAtDOM(box) + 1)
+      const change = taskToggle(view.state, view.posAtDOM(box) + this.box + 1)
       if (change) view.dispatch(change)
     })
     return box
@@ -102,11 +106,14 @@ class NoteTitleWidget extends WidgetType {
 const HIDE = Decoration.replace({})
 const RULE_LINE = Decoration.line({ class: 'cm-wm-rule' })
 const BULLETS = [1, 2, 3].map((n) => Decoration.mark({ class: `cm-wm-bullet cm-wm-bullet-${n}` }))
-const TASKS = { done: new TaskWidget(true), open: new TaskWidget(false) }
+const UNIT = Decoration.mark({})
 
-/** Whether the decoration for `range` takes characters out (the caret steps over those). */
-export const replaces = (range: WriteRange) =>
+/** Whether the caret steps over `range` as one unit. */
+export const atomic = (range: WriteRange) =>
   range.kind !== 'bullet' && range.kind !== 'mark' && range.kind !== 'line'
+
+/** Whether `range` is drawn; a unit only groups characters for the caret. */
+export const drawn = (range: WriteRange) => range.kind !== 'unit'
 
 export function decorationOf(range: WriteRange): Decoration {
   switch (range.kind) {
@@ -115,7 +122,7 @@ export function decorationOf(range: WriteRange): Decoration {
     case 'bullet':
       return BULLETS[(range.depth - 1) % BULLETS.length] as Decoration
     case 'task':
-      return Decoration.replace({ widget: range.done ? TASKS.done : TASKS.open })
+      return Decoration.replace({ widget: new TaskWidget(range.done, range.box - range.from) })
     case 'alert':
       return Decoration.replace({ widget: new AlertLabelWidget(range.alert) })
     case 'noteTitle':
@@ -126,5 +133,7 @@ export function decorationOf(range: WriteRange): Decoration {
       return range.className === 'cm-wm-rule'
         ? RULE_LINE
         : Decoration.line({ class: range.className })
+    case 'unit':
+      return UNIT
   }
 }

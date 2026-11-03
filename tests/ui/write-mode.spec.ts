@@ -1,8 +1,8 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
-// Write mode (src/renderer/src/editor/write): a line without the caret shows no Markdown marks, the
-// lines with the selection show their source. The note's text is read through Edit mode, which shows
+// Write mode (src/renderer/src/editor/write): an element without the caret shows no Markdown marks,
+// the elements the selection meets show their source. The note's text is read through Edit mode, which shows
 // every mark, switched to by a command so the keyboard stays in the editor.
 
 const KA = String.fromCodePoint(0x304b)
@@ -182,7 +182,9 @@ test.describe('a new install', () => {
     expect(names).toEqual(['Write', 'Edit', 'Split', 'Preview'])
   })
 
-  test('shows a typed note as a document, with the source on the caret line', async ({ page }) => {
+  test('shows a typed note as a document, with the source of the element at the caret', async ({
+    page,
+  }) => {
     const text = [
       '# Plan',
       'Some **bold**, *slanted* and `code` with [a link](https://example.com).',
@@ -190,23 +192,47 @@ test.describe('a new install', () => {
       '',
       '- item',
     ]
+    const styled = 'Some bold, slanted and code with a link.'
     await createNote(page, 'Typed', text.join('\n'))
-    await expect
-      .poll(() => lines(page))
-      .toEqual(['Plan', 'Some bold, slanted and code with a link.', 'quoted', '', '- item'])
-    // The caret's line shows its source; a bullet is drawn over the mark of a line without it.
-    await expect(page.locator('.cm-wm-bullet')).toHaveCount(0)
-    await page.keyboard.press('ArrowUp')
-    await page.keyboard.press('ArrowUp')
-    await expect
-      .poll(() => lines(page))
-      .toEqual(['Plan', 'Some bold, slanted and code with a link.', '> quoted', '', '- item'])
+    // A list mark stays a bullet on the caret line.
+    await expect.poll(() => lines(page)).toEqual(['Plan', styled, 'quoted', '', '- item'])
     await expect(page.locator('.cm-wm-bullet')).toHaveCount(1)
+    await page.keyboard.press('ArrowUp')
+    await page.keyboard.press('ArrowUp')
+    await expect.poll(() => lines(page)).toEqual(['Plan', styled, 'quoted', '', '- item'])
+    const slanted = await charBox(page, 1, 'slanted', 2)
+    await page.mouse.click(slanted.x + 1, slanted.y + slanted.height / 2)
+    await expect
+      .poll(() => lines(page))
+      .toEqual(['Plan', 'Some bold, *slanted* and code with a link.', 'quoted', '', '- item'])
+    const link = await charBox(page, 1, 'link', 1)
+    await page.mouse.click(link.x + 1, link.y + link.height / 2)
+    await expect
+      .poll(() => lines(page))
+      .toEqual([
+        'Plan',
+        'Some bold, slanted and code with [a link](https://example.com).',
+        'quoted',
+        '',
+        '- item',
+      ])
+    await page.keyboard.press('ControlOrMeta+Home')
+    await expect.poll(() => lines(page)).toEqual(['# Plan', styled, 'quoted', '', '- item'])
     await page.keyboard.press('End')
     await page.keyboard.insertText(' **more**')
-    await page.keyboard.press('ArrowDown')
-    await expect.poll(() => lines(page)).toContainEqual('quoted more')
-    expect(await source(page)).toEqual([...text.slice(0, 2), '> quoted **more**', '', '- item'])
+    await page.keyboard.press('ControlOrMeta+End')
+    await expect.poll(() => lines(page)).toContainEqual('Plan more')
+    expect(await source(page)).toEqual(['# Plan **more**', ...text.slice(1)])
+  })
+
+  test('shows a horizontal rule as source only while the caret is on it', async ({ page }) => {
+    await createNote(page, 'Rule', 'a\n\n---\n\nb')
+    await expect.poll(() => lines(page)).toEqual(['a', '', '', '', 'b'])
+    await expect(page.locator('.cm-line.cm-wm-rule')).toHaveCount(1)
+    await page.keyboard.press('ArrowUp')
+    await page.keyboard.press('ArrowUp')
+    await expect.poll(() => lines(page)).toEqual(['a', '', '---', '', 'b'])
+    await expect(page.locator('.cm-line.cm-wm-rule')).toHaveCount(0)
   })
 
   test('keeps the other lines in place when a line shows its marks', async ({ page }) => {
@@ -246,13 +272,13 @@ test.describe('a new install', () => {
   test('double-clicks the word under the pointer, not the one the marks moved there', async ({
     page,
   }) => {
-    await createNote(page, 'Words', '**Some** text here\nother')
+    await createNote(page, 'Words', '**Some text** here\nother')
     await body(page).click()
     await page.keyboard.press('ControlOrMeta+End')
     const word = await charBox(page, 0, 'text', 1)
     await page.mouse.dblclick(word.x + 1, word.y + word.height / 2)
     await page.keyboard.insertText('X')
-    expect(await source(page)).toEqual(['**Some** X here', 'other'])
+    expect(await source(page)).toEqual(['**Some X** here', 'other'])
   })
 
   test('moves the caret by visible character into a line without its marks', async ({ page }) => {
@@ -311,6 +337,10 @@ test.describe('a new install', () => {
     await expect(boxes.first()).toBeChecked()
     await expect.poll(() => lines(page)).toEqual([' write', ' read', 'end'])
     await page.keyboard.insertText('!')
+    // The caret's line keeps its checkbox.
+    await page.keyboard.press('ArrowUp')
+    await expect(boxes).toHaveCount(2)
+    await expect.poll(() => lines(page)).toEqual([' write', ' read', 'end!'])
     expect(await source(page)).toEqual(['- [x] write', '- [x] read', 'end!'])
   })
 

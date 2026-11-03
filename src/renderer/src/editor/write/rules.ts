@@ -1,7 +1,7 @@
-// Write mode's rules for inline Markdown marks: which source characters a line
-// without the caret hides, and what stands in their place (a bullet, a
-// checkbox, an alert's label, a note's title). Pure: read from the syntax tree
-// and the lines the selection is on, so the rules are tested over Markdown
+// Write mode's rules for inline Markdown marks: which source characters an
+// element without the selection hides, and what stands in their place (a
+// bullet, a checkbox, an alert's label, a note's title). Pure: read from the
+// syntax tree and the selection, so the rules are tested over Markdown
 // without an editor. Blocks the next steps render in place (images, math,
 // tables, code) stay source here: `SOURCE_BLOCKS`, and block widgets come from
 // `writeBlockRule` (blocks.ts).
@@ -13,41 +13,66 @@ import { ALERT_KINDS, type AlertKind } from '../blocks'
 export type WriteRange =
   | { kind: 'hide'; from: number; to: number }
   | { kind: 'bullet'; from: number; to: number; depth: number }
-  | { kind: 'task'; from: number; to: number; done: boolean }
+  | { kind: 'task'; from: number; to: number; box: number; done: boolean }
   | { kind: 'alert'; from: number; to: number; alert: AlertKind }
   | { kind: 'noteTitle'; from: number; to: number; id: string }
   | { kind: 'mark'; from: number; to: number; className: string }
   | { kind: 'line'; from: number; to: number; className: string }
+  | { kind: 'unit'; from: number; to: number }
+
+/** The selection's ranges that show source, in order and apart; a caret has `from === to`. */
+export type Selected = readonly { from: number; to: number }[]
 
 /** Lines shown as source, as 1-based first and last line numbers, in order and apart. */
 export type Revealed = readonly { first: number; last: number }[]
 
 /**
- * The lines the selection is on. A caret counts only while the editor has the
+ * The selection's ranges. A caret counts only while the editor has the
  * keyboard, so a note just opened reads as a document; a selection always
  * counts, so what Find or a command selects shows its marks.
  */
-export function revealedLines(state: EditorState, focused: boolean): Revealed {
-  const spans: { first: number; last: number }[] = []
-  for (const range of state.selection.ranges) {
-    if (range.empty && !focused) continue
-    spans.push({
-      first: state.doc.lineAt(range.from).number,
-      last: state.doc.lineAt(range.to).number,
-    })
-  }
-  spans.sort((a, b) => a.first - b.first)
-  const merged: { first: number; last: number }[] = []
+export function selectedRanges(state: EditorState, focused: boolean): Selected {
+  const spans = state.selection.ranges
+    .filter((range) => focused || !range.empty)
+    .map(({ from, to }) => ({ from, to }))
+    .sort((a, b) => a.from - b.from)
+  const merged: { from: number; to: number }[] = []
   for (const span of spans) {
     const prev = merged[merged.length - 1]
-    if (prev && span.first <= prev.last + 1) prev.last = Math.max(prev.last, span.last)
-    else merged.push({ ...span })
+    if (prev && span.from <= prev.to) prev.to = Math.max(prev.to, span.to)
+    else merged.push(span)
   }
   return merged
 }
 
-export const revealedKey = (revealed: Revealed) =>
-  revealed.map((s) => `${s.first}-${s.last}`).join(',')
+/** Whether a selected range meets `from`..`to`, its edges included. */
+export function touches(selected: Selected, from: number, to: number): boolean {
+  let lo = 0
+  let hi = selected.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if ((selected[mid] as { to: number }).to < from) lo = mid + 1
+    else hi = mid
+  }
+  const span = selected[lo]
+  return span !== undefined && span.from <= to
+}
+
+export const selectedKey = (selected: Selected) =>
+  selected.map((s) => `${s.from}-${s.to}`).join(',')
+
+/** The lines the selected ranges are on: block rules reveal a block by its lines. */
+export function revealedLines(state: EditorState, focused: boolean): Revealed {
+  const merged: { first: number; last: number }[] = []
+  for (const span of selectedRanges(state, focused)) {
+    const first = state.doc.lineAt(span.from).number
+    const last = state.doc.lineAt(span.to).number
+    const prev = merged[merged.length - 1]
+    if (prev && first <= prev.last + 1) prev.last = Math.max(prev.last, last)
+    else merged.push({ first, last })
+  }
+  return merged
+}
 
 export function isRevealed(revealed: Revealed, line: number): boolean {
   let lo = 0
@@ -82,6 +107,7 @@ const MARK_OPEN = /^<mark(?:\s[^>]*)?>$/i
 const MARK_CLOSE = /^<\/mark\s*>$/i
 const LISTS = new Set(['BulletList', 'OrderedList'])
 const SPACE = /[ \t]/
+const SPAN_MARKS = new Set(['EmphasisMark', 'StrikethroughMark', 'CodeMark'])
 
 function listDepth(node: SyntaxNode): number {
   let depth = 0
@@ -89,25 +115,25 @@ function listDepth(node: SyntaxNode): number {
   return depth
 }
 
-/** The Write mode ranges of the lines in `from`..`to` that `revealed` leaves out. */
+/**
+ * The Write mode ranges of `from`..`to`. Each element (a span, a link, a
+ * heading's marks, a rule) shows its source while a `selected` range meets
+ * it; list marks, task boxes and quote marks never do.
+ */
 export function writeRanges(
   state: EditorState,
   tree: Tree,
-  revealed: Revealed,
+  selected: Selected,
   from = 0,
   to = state.doc.length,
 ): WriteRange[] {
   const doc = state.doc
   const out: WriteRange[] = []
   const text = (a: number, b: number) => doc.sliceString(a, b)
-  // Every range stays on one line, so a line shows its source or its marks as a whole.
-  const hidden = (a: number, b: number) => {
-    if (b <= a) return false
-    const line = doc.lineAt(a)
-    return b <= line.to && !isRevealed(revealed, line.number)
-  }
+  const shows = (a: number, b: number) => touches(selected, a, b)
+  const oneLine = (a: number, b: number) => b > a && b <= doc.lineAt(a).to
   const hide = (a: number, b: number) => {
-    if (hidden(a, b)) out.push({ kind: 'hide', from: a, to: b })
+    if (oneLine(a, b)) out.push({ kind: 'hide', from: a, to: b })
   }
   const spaceAfter = (pos: number) => (pos < doc.length && SPACE.test(text(pos, pos + 1)) ? 1 : 0)
 
@@ -119,6 +145,7 @@ export function writeRanges(
       if (SOURCE_BLOCKS.has(name)) return false
       const node = ref.node
       if (HEADING.test(name)) {
+        if (shows(node.from, node.to)) return
         const open = node.firstChild
         if (open?.name === 'HeaderMark' && open.from === node.from) {
           hide(open.from, open.to + spaceAfter(open.to))
@@ -133,17 +160,21 @@ export function writeRanges(
       }
       if (SETEXT.test(name)) {
         const underline = node.lastChild
-        if (underline?.name === 'HeaderMark') hide(underline.from, underline.to)
+        if (underline?.name === 'HeaderMark' && !shows(node.from, node.to))
+          hide(underline.from, underline.to)
         return
       }
       switch (name) {
-        case 'EmphasisMark':
-        case 'StrikethroughMark':
-        case 'CodeMark':
-          hide(node.from, node.to)
+        case 'Emphasis':
+        case 'StrongEmphasis':
+        case 'Strikethrough':
+        case 'InlineCode':
+          if (shows(node.from, node.to)) return
+          for (let mark = node.firstChild; mark; mark = mark.nextSibling)
+            if (SPAN_MARKS.has(mark.name)) hide(mark.from, mark.to)
           return
         case 'Escape':
-          hide(node.from, node.from + 1)
+          if (!shows(node.from, node.to)) hide(node.from, node.from + 1)
           return
         case 'QuoteMark':
           hide(node.from, node.to + spaceAfter(node.to))
@@ -152,33 +183,20 @@ export function writeRanges(
           const first = doc.lineAt(node.from)
           const label = first.text.slice(node.from - first.from).replace(/^>[ \t]?/, '')
           const kind = ALERT_LABEL.exec(label)?.[1]?.toLowerCase() as AlertKind | undefined
-          if (!kind || !ALERT_KINDS.includes(kind)) return
+          if (!kind || !ALERT_KINDS.includes(kind) || shows(first.from, first.to)) return
           const start = first.from + first.text.indexOf('[')
-          const end = start + kind.length + 3
-          if (hidden(start, end)) out.push({ kind: 'alert', from: start, to: end, alert: kind })
+          out.push({ kind: 'alert', from: start, to: start + kind.length + 3, alert: kind })
           return
         }
-        case 'ListMark': {
-          const item = node.parent
-          if (item?.parent?.name !== 'BulletList') return
-          const task = item.getChild('Task')
-          if (task && task.from > node.from) {
-            hide(node.from, task.from)
-            return
-          }
-          if (hidden(node.from, node.to)) {
-            out.push({ kind: 'bullet', from: node.from, to: node.to, depth: listDepth(node) })
-          }
+        case 'ListMark':
+          listMark(node)
           return
-        }
         case 'TaskMarker':
-          if (hidden(node.from, node.to)) {
-            const done = /x/i.test(text(node.from, node.to))
-            out.push({ kind: 'task', from: node.from, to: node.to, done })
-          }
+          // A bullet list's task is drawn with its list mark (`listMark`).
+          if (node.parent?.parent?.parent?.name !== 'BulletList') task(node.from, node)
           return
         case 'HorizontalRule':
-          if (hidden(node.from, node.to)) {
+          if (!shows(node.from, node.to) && oneLine(node.from, node.to)) {
             hide(node.from, node.to)
             out.push({ kind: 'line', from: node.from, to: node.from, className: 'cm-wm-rule' })
           }
@@ -191,13 +209,14 @@ export function writeRanges(
             !(close.name === 'HTMLTag' && MARK_CLOSE.test(text(close.from, close.to)))
           )
             close = close.nextSibling
-          if (!close) return
+          if (!close || shows(node.from, close.to)) return
           hide(node.from, node.to)
           hide(close.from, close.to)
           return
         }
         case 'Autolink':
-          for (const mark of node.getChildren('LinkMark')) hide(mark.from, mark.to)
+          if (!shows(node.from, node.to))
+            for (const mark of node.getChildren('LinkMark')) hide(mark.from, mark.to)
           return false
         case 'Link':
           return link(node)
@@ -206,6 +225,28 @@ export function writeRanges(
     },
   })
 
+  function task(start: number, marker: SyntaxNode) {
+    if (!oneLine(start, marker.to)) return
+    const done = /x/i.test(text(marker.from, marker.to))
+    out.push({ kind: 'task', from: start, to: marker.to, box: marker.from, done })
+  }
+
+  /** A list's mark is never source: a bullet drawn over it, or a number, and the caret passes it as one unit. */
+  function listMark(node: SyntaxNode) {
+    const item = node.parent
+    const list = item?.parent?.name
+    if (list === 'BulletList') {
+      const marker = item?.getChild('Task')?.getChild('TaskMarker')
+      if (marker && marker.from > node.from) {
+        task(node.from, marker)
+        return
+      }
+      out.push({ kind: 'bullet', from: node.from, to: node.to, depth: listDepth(node) })
+    } else if (list !== 'OrderedList') return
+    const end = node.to + spaceAfter(node.to)
+    if (oneLine(node.from, end)) out.push({ kind: 'unit', from: node.from, to: end })
+  }
+
   /** An inline link or a full reference: a shortcut reference (`[text]`) may be literal brackets, so it stays. */
   function link(node: SyntaxNode): false | undefined {
     const marks = node.getChildren('LinkMark')
@@ -213,13 +254,14 @@ export function writeRanges(
     const close = marks[1]
     const url = node.getChild('URL')
     if (!open || !close || open.from !== node.from || (!url && !node.getChild('LinkLabel'))) return
+    if (shows(node.from, node.to)) return
     const id = url ? noteIdOf(text(url.from, url.to)) : undefined
     if (id && close.from === open.to) {
-      if (hidden(node.from, node.to))
+      if (oneLine(node.from, node.to))
         out.push({ kind: 'noteTitle', from: node.from, to: node.to, id })
       return false
     }
-    if (!hidden(open.from, open.to) || !hidden(close.from, node.to)) return
+    if (!oneLine(open.from, open.to) || !oneLine(close.from, node.to)) return
     hide(open.from, open.to)
     hide(close.from, node.to)
     if (id) out.push({ kind: 'mark', from: open.to, to: close.from, className: 'cm-wm-note-chip' })

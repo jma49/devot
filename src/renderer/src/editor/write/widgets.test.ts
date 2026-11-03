@@ -19,6 +19,8 @@ describe('Write mode widgets under the pointer', () => {
   })
 
   it('keep a task checkbox to itself, so ticking it leaves the caret alone', () => {
-    expect(widgetOf({ kind: 'task', from: 2, to: 5, done: false }).ignoreEvent(event)).toBe(true)
+    expect(widgetOf({ kind: 'task', from: 0, to: 5, box: 2, done: false }).ignoreEvent(event)).toBe(
+      true,
+    )
   })
 })
