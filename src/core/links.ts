@@ -25,13 +25,14 @@ export function noteIdOf(href: string): string | undefined {
   return /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)?.[1]
 }
 
-/** The title with the punctuation that would read as formatting, a table divider or HTML escaped, so the link text is the title as typed. */
-export function noteLink(title: string, id: string): string {
-  const text = title
+/** On one line, with the punctuation that would read as formatting, a table divider or HTML escaped, so a link's text shows as typed. */
+export const linkText = (text: string) =>
+  text
     .replace(/\s*\n\s*/g, ' ')
     .replace(/[\\[\]|*`<~]|(?<![\p{L}\p{N}])_|_(?![\p{L}\p{N}])|&(?=#?\w+;)/gu, (c) => `\\${c}`)
-  return `[${text}](${noteUri(id)})`
-}
+
+export const noteLink = (title: string, id: string): string =>
+  `[${linkText(title)}](${noteUri(id)})`
 
 export const MAX_BACKLINKS = 200
 

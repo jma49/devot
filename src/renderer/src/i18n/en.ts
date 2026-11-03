@@ -1558,6 +1558,10 @@ title: Daily Report {{date}}
   'import.summaryNoBooksWithImages': 'Imported {notes}. {images}',
   'import.imagesOne': '{count} image was added as an attachment.',
   'import.imagesOther': '{count} images were added as attachments.',
+  'import.wikiLinks': 'Convert [[wiki links]] to note links and images',
+  'import.unresolvedLinksOne': '{count} wiki link matched no note or image and was kept as text.',
+  'import.unresolvedLinksOther':
+    '{count} wiki links matched no note or image and were kept as text.',
   'import.empty': 'No Markdown files were found in \u201c{name}\u201d.',
   'import.problems': 'Not imported',
   'import.failed': 'The import failed ({code}).',

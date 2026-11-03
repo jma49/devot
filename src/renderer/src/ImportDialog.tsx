@@ -78,6 +78,23 @@ function Problems(props: { problems: ImportProblem[]; title: MessageKey }) {
   )
 }
 
+export interface ImportChoices {
+  wikiLinks: boolean
+}
+
+function WikiLinksOption(props: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className="import-option">
+      <input
+        type="checkbox"
+        checked={props.on}
+        onChange={(e) => props.onChange(e.target.checked)}
+      />
+      {t('import.wikiLinks')}
+    </label>
+  )
+}
+
 function summaryKey(report: ImportReport): MessageKey {
   if (report.books === 0) {
     return report.attachments > 0 ? 'import.summaryNoBooksWithImages' : 'import.summaryNoBooks'
@@ -282,6 +299,7 @@ export function ImportDialog(props: {
     scan: ImportScan,
     destination: string | null,
     onProgress: (done: number, total: number) => void,
+    options: ImportChoices,
   ) => Promise<ImportReport | null>
   onClose: (cancelled: boolean) => void
 }) {
@@ -296,6 +314,7 @@ export function ImportDialog(props: {
       : NO_BOOK,
   )
   const [query, setQuery] = useState('')
+  const [wikiLinks, setWikiLinks] = useState(true)
   const all = useMemo(() => destinationOptions(props.tree), [props.tree])
   // Import goes only into a destination the filter shows.
   const chosenShown = filterBooks(all, query).some((o) => o.id === destination)
@@ -348,7 +367,7 @@ export function ImportDialog(props: {
       setStage((s) =>
         s.kind === 'done' || s.kind === 'failed' ? s : { kind: 'running', done, total },
       )
-    props.onImport(from, chosen, progress).then(
+    props.onImport(from, chosen, progress, { wikiLinks }).then(
       (report) => setStage({ kind: 'done', report }),
       (e: unknown) =>
         setStage({ kind: 'failed', code: e instanceof Error ? e.message : 'E_IMPORT_FAILED' }),
@@ -415,7 +434,12 @@ export function ImportDialog(props: {
       )
       actions = doneButton
     } else {
-      content = <Preview scan={scan} locale={locale} />
+      content = (
+        <>
+          <Preview scan={scan} locale={locale} />
+          {preset ? <WikiLinksOption on={wikiLinks} onChange={setWikiLinks} /> : null}
+        </>
+      )
       actions = (
         <>
           {cancelButton}
@@ -451,6 +475,7 @@ export function ImportDialog(props: {
           onChange={setDestination}
           onSubmit={start}
         />
+        <WikiLinksOption on={wikiLinks} onChange={setWikiLinks} />
         {scan.kind === 'files' ? (
           <Problems problems={scan.skipped} title="import.willSkip" />
         ) : null}
@@ -524,6 +549,16 @@ export function ImportDialog(props: {
             images: countOf(report.attachments, locale, 'import.imagesOne', 'import.imagesOther'),
           })}
         </p>
+        {report.unresolvedLinks > 0 ? (
+          <p className="sheet-detail import-unresolved">
+            {countOf(
+              report.unresolvedLinks,
+              locale,
+              'import.unresolvedLinksOne',
+              'import.unresolvedLinksOther',
+            )}
+          </p>
+        ) : null}
         <p className="sheet-detail import-counts">
           {format(t('import.counts'), {
             imported: new Intl.NumberFormat(locale).format(counts.imported),
