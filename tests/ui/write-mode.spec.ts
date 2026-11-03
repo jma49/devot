@@ -280,7 +280,7 @@ test.describe('a new install', () => {
           const c = w.getComputedStyle(e)
           return `${e.tagName}.${e.className}[${e.textContent}] h=${e.getBoundingClientRect().height} ff=${c['fontFamily']} fs=${c['fontSize']} lh=${c['lineHeight']} fw=${c['fontWeight']}`
         }
-        return [info(line), ...line.querySelectorAll('*').map(info)].join('\n')
+        return [info(line), ...Array.from(line.querySelectorAll('*'), info)].join('\n')
       })
     const a = await dump()
     const box = await charBox(page, 0, 'Head', 1)
