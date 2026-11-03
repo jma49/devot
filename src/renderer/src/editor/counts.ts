@@ -24,7 +24,6 @@ export class CountsPacer {
     this.schedule(0)
   }
 
-  /** The editor changed: the text, the selection, or both. */
   changed(text: boolean) {
     if (text) this.whole = undefined
     this.schedule(COUNTS_DEBOUNCE_MS)

@@ -9,7 +9,6 @@ export function countText(whole: number, selected: number | undefined, locale: s
   return format(t('counts.of'), { part: formatNumber(selected, locale), total })
 }
 
-/** Words and characters along the editor's bottom edge (View > Settings > Editing > Word and Character Counts). */
 export function CountsFooter(props: { counts: EditorCounts | null }) {
   const { counts } = props
   if (!counts) return null
