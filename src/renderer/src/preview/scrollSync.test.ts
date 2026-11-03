@@ -408,6 +408,18 @@ describe('syncScrolling', () => {
     expect(preview.element.scrollTop).toBeGreaterThan(0)
   })
 
+  it('keeps a scroll whose event is late when its pane is laid out twice first', () => {
+    const { editor, preview, flush } = setup()
+    flush()
+    preview.set(400)
+    preview.relayout()
+    preview.relayout()
+    preview.fire()
+    flush()
+    expect(preview.element.scrollTop).toBe(400)
+    expect(editor.element.scrollTop).toBe(200)
+  })
+
   it('starts from the preview when it was being read', () => {
     const { editor, preview, flush } = setup({ lead: 'second' })
     preview.set(300)
