@@ -351,6 +351,7 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   expect((await calls(page, 'command_menu_set')).at(-1)).toEqual({
     keys: {
       'note.history': 'Alt+CmdOrCtrl+Y',
+      'note.today': 'Alt+CmdOrCtrl+T',
       'palette.open': MAC ? 'Alt+CmdOrCtrl+P' : 'Ctrl+Alt+P',
       'view.sidebar': 'CmdOrCtrl+/',
       'view.togglePreview': 'CmdOrCtrl+E',
