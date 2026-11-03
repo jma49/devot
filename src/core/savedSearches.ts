@@ -1,12 +1,19 @@
 // Saved searches: the sidebar's rows under Status, each a name and a query in the search field's
 // syntax (search.ts), kept as typed. A query is resolved when it runs, so one that names a
-// notebook or tag since deleted matches nothing and stays. The rows are ordered by hand with sort
+// notebook or tag since deleted matches nothing and stays. A #Name that names a tag is saved as
+// tag:Name (pinTagNames), so it does not turn into a text search when the tag is deleted. The rows are ordered by hand with sort
 // keys (order.ts), like notebooks. Synced as records of their own kind (sync/records.ts).
 
 import { TEMPLATES_BOOK_ID, slotKeys } from './books'
 import { receiveStored, type Clock } from './hlc'
 import { compareKeys, keyBetween } from './order'
-import { excludeTemplates, parseSearch, resolveSearch, type SearchScope } from './search'
+import {
+  excludeTemplates,
+  parseSearch,
+  pinTagNames,
+  resolveSearch,
+  type SearchScope,
+} from './search'
 import type {
   BookRecord,
   NoteQuery,
@@ -50,6 +57,13 @@ export const cleanSavedSearchName = (name: string): string =>
 export const cleanSavedSearchQuery = (query: string): string =>
   oneLine(query, MAX_SAVED_SEARCH_QUERY_CHARS, 'E_SAVED_SEARCH_QUERY_INVALID')
 
+/** The query as saved: trimmed, its #Name tags spelled tag:Name unless that would make it too long. */
+export function savedQueryText(query: string, tags: readonly TagRecord[]): string {
+  const clean = cleanSavedSearchQuery(query)
+  const pinned = pinTagNames(clean, tags)
+  return pinned !== clean && charCount(pinned) <= MAX_SAVED_SEARCH_QUERY_CHARS ? pinned : clean
+}
+
 /** Key order, then ID order: what storage lists, kept the same on every reader. */
 export const savedSearchOrder = (a: SavedSearchRecord, b: SavedSearchRecord): number =>
   compareKeys(a.sortKey, b.sortKey) || compareKeys(a.id, b.id)
@@ -72,14 +86,17 @@ export function createSavedSearchService(options: SavedSearchServiceOptions): Sa
     return search
   }
   const write = (search: SavedSearchRecord) =>
-    storage.putSavedSearch({ ...search, updatedAt: Math.max(now(), search.createdAt) })
+    storage.putSavedSearch({
+      ...search,
+      updatedAt: Math.max(now(), search.createdAt),
+    })
 
   return {
     list: async () => (await storage.listSavedSearches()).sort(savedSearchOrder),
 
     async create(name, query) {
       const cleanName = cleanSavedSearchName(name)
-      const cleanQuery = cleanSavedSearchQuery(query)
+      const cleanQuery = savedQueryText(query, await storage.listTags())
       const all = await listAll()
       const last = all.at(-1)
       const at = now()
@@ -108,7 +125,7 @@ export function createSavedSearchService(options: SavedSearchServiceOptions): Sa
     },
 
     async setQuery(id, query) {
-      const clean = cleanSavedSearchQuery(query)
+      const clean = savedQueryText(query, await storage.listTags())
       const search = await find(id)
       if (clean === search.query) return
       await write({ ...search, query: clean, queryHlc: clock.tick() })

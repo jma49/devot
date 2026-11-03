@@ -8,6 +8,7 @@ import {
   createNoteService,
   createSavedSearchService,
   createTagService,
+  pinTagNames,
   savedSearchQuery,
   type SavedSearchRecord,
 } from '../../src/core'
@@ -41,10 +42,16 @@ describe('saved searches on SQLite', () => {
     const work = await searches.create('  Open work ', 'is:active tag:work ')
     await searches.create('Reading', '#reading')
     expect(names(await searches.list())).toEqual(['Open work', 'Reading'])
-    expect((await searches.list())[0]).toMatchObject({ id: work, query: 'is:active tag:work' })
+    expect((await searches.list())[0]).toMatchObject({
+      id: work,
+      query: 'is:active tag:work',
+    })
     await searches.rename(work, 'Work')
     await searches.setQuery(work, 'is:active -tag:done')
-    expect((await searches.list())[0]).toMatchObject({ name: 'Work', query: 'is:active -tag:done' })
+    expect((await searches.list())[0]).toMatchObject({
+      name: 'Work',
+      query: 'is:active -tag:done',
+    })
     await searches.remove(work)
     expect(names(await searches.list())).toEqual(['Reading'])
     await expect(searches.rename(work, 'Gone')).rejects.toThrow('E_SAVED_SEARCH_NOT_FOUND')
@@ -96,7 +103,11 @@ describe('saved searches on SQLite', () => {
     const id = await searches.create('Later', 'is:on_hold')
     const [row] = await storage.syncRead([id])
     expect(row?.entry).toMatchObject({ kind: 'search', version: 0 })
-    expect(row?.search).toMatchObject({ id, name: 'Later', query: 'is:on_hold' })
+    expect(row?.search).toMatchObject({
+      id,
+      name: 'Later',
+      query: 'is:on_hold',
+    })
     expect(row?.note ?? row?.book ?? row?.tag ?? row?.file).toBeNull()
     await storage.syncPut({
       ...row!.entry!,
@@ -130,6 +141,51 @@ describe('saved searches on SQLite', () => {
       query: 'tag:work',
       sortKey: mine!.sortKey,
     })
+  })
+})
+
+describe('saving a #Name that names a tag', () => {
+  const tags = [
+    { id: '1', name: 'urgent' },
+    { id: '2', name: 'Big Clients' },
+  ]
+
+  it('spells it tag:Name, kept in place, and leaves the rest as written', () => {
+    expect(pinTagNames('#Urgent', tags)).toBe('tag:urgent')
+    expect(pinTagNames('-#urgent  is:active', tags)).toBe('-tag:urgent  is:active')
+    expect(pinTagNames('relay #"big clients" #include "#urgent"', tags)).toBe(
+      'relay tag:"Big Clients" #include "#urgent"',
+    )
+    expect(pinTagNames('tag:urgent title:#x', tags)).toBe('tag:urgent title:#x')
+  })
+
+  it('still runs with no matches once the tag is deleted', async () => {
+    const { searches, notes, tags, books, storage } = setup()
+    const note = await notes.create('Launch')
+    const tag = await tags.addToNote(note, 'urgent')
+    await notes.flush()
+    const hash = await searches.create('Hash', '#urgent')
+    const negated = await searches.create('Not', '-#urgent')
+    const unknown = await searches.create('Unknown', '#later')
+    const edited = await searches.create('Edited', 'is:active')
+    await searches.setQuery(edited, 'is:active #Urgent')
+    const saved = Object.fromEntries((await searches.list()).map((s) => [s.id, s.query]))
+    expect(saved).toEqual({
+      [hash]: 'tag:urgent',
+      [negated]: '-tag:urgent',
+      [unknown]: '#later',
+      [edited]: 'is:active tag:urgent',
+    })
+    await tags.remove(tag)
+    const context = { books: await books.list(), tags: await tags.list() }
+    expect(savedSearchQuery({ query: saved[hash]! }, context)).toBeNull()
+    expect(
+      countMatches(await storage.listNotes(), savedSearchQuery({ query: saved[hash]! }, context)),
+    ).toBe(0)
+    const without = savedSearchQuery({ query: saved[negated]! }, context)
+    expect(countMatches(await storage.listNotes(), without)).toBe(1)
+    const text = savedSearchQuery({ query: saved[unknown]! }, context)?.text
+    expect(text?.map((t) => t.value)).toEqual(['#later'])
   })
 })
 
@@ -175,7 +231,10 @@ describe('counting what a saved search matches', () => {
     const tag = await tags.addToNote(id, 'urgent')
     await notes.flush()
     const context = () =>
-      Promise.all([books.list(), tags.list()]).then(([b, t]) => ({ books: b, tags: t }))
+      Promise.all([books.list(), tags.list()]).then(([b, t]) => ({
+        books: b,
+        tags: t,
+      }))
     const byTag = { query: 'tag:urgent' }
     const byBook = { query: 'in:Projects' }
     expect(countMatches(await storage.listNotes(), savedSearchQuery(byTag, await context()))).toBe(
