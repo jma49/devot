@@ -1,8 +1,19 @@
 // What the Settings window asks of Rust beyond the settings themselves
-// (src-tauri/src/settings.rs, cli_tool.rs).
+// (src-tauri/src/settings.rs, mcp_clients.rs, background.rs, cli_tool.rs).
 import { invoke } from '../ipc'
 import { asCrashReports, type CrashReports } from '../crashReports'
-import { asMcpSetup, type McpSetup } from './mcpConfigs'
+import {
+  asMcpAccess,
+  asMcpClientStatus,
+  asMcpSetup,
+  asRunMode,
+  type McpAccess,
+  type McpClient,
+  type McpClientStatus,
+  type McpScope,
+  type McpSetup,
+  type RunMode,
+} from './mcpConfigs'
 
 export function openDataFolder(): Promise<void> {
   return invoke('settings_open_data_folder')
@@ -20,6 +31,53 @@ export async function mcpSetup(): Promise<McpSetup> {
   const setup = asMcpSetup(await invoke<unknown>('settings_mcp_setup'))
   if (!setup) throw new Error('E_MCP_SETUP_INVALID')
   return setup
+}
+
+async function changeMcpClient(command: string, client: McpClient): Promise<McpClientStatus> {
+  const status = asMcpClientStatus(await invoke<unknown>(command, { client }))
+  if (!status) throw new Error('E_MCP_SETUP_INVALID')
+  return status
+}
+
+export function connectMcpClient(client: McpClient): Promise<McpClientStatus> {
+  return changeMcpClient('settings_mcp_connect', client)
+}
+
+export function disconnectMcpClient(client: McpClient): Promise<McpClientStatus> {
+  return changeMcpClient('settings_mcp_disconnect', client)
+}
+
+export function openMcpExtension(): Promise<void> {
+  return invoke('settings_mcp_open_extension')
+}
+
+function readMcpAccess(value: unknown): McpAccess {
+  const access = asMcpAccess(value)
+  if (!access) throw new Error('E_MCP_ACCESS_INVALID')
+  return access
+}
+
+export async function loadMcpAccess(): Promise<McpAccess> {
+  return readMcpAccess(await invoke<unknown>('mcp_access_get'))
+}
+
+export async function saveMcpAccess(change: {
+  enabled: boolean
+  scope: McpScope
+  backgroundStart: boolean
+}): Promise<McpAccess> {
+  return readMcpAccess(await invoke<unknown>('mcp_access_set', change))
+}
+
+export async function loadRunMode(): Promise<RunMode> {
+  const mode = asRunMode(await invoke<unknown>('background_state'))
+  if (!mode) throw new Error('E_BACKGROUND_STATE_INVALID')
+  return mode
+}
+
+/** Quits as the app menu does, so pending saves are flushed first. */
+export function quitDevot(): Promise<void> {
+  return invoke('background_quit')
 }
 
 export interface AiAccessSummary {

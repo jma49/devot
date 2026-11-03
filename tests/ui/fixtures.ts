@@ -134,6 +134,15 @@ export async function mockTauri(page: Page): Promise<void> {
           // No link from another app waits at launch (deep-links.spec.ts), and no plugin is installed (plugins.ts).
           if (cmd === 'deep_link_take' || cmd === 'plugins_list') return []
           if (cmd === 'cli_tool_status') return { state: 'absent', path: '/usr/local/bin/devot' }
+          if (cmd === 'mcp_access_get')
+            return {
+              enabled: false,
+              scope: 'readWrite',
+              backgroundStart: true,
+              reachable: false,
+              problem: null,
+            }
+          if (cmd === 'background_state') return { mode: 'normal' }
           if (cmd === 'http_api_get')
             return {
               enabled: false,

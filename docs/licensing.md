@@ -180,7 +180,7 @@ The row has no purchase, so nothing mails or shows it; deleting it restores the 
 
 `src-tauri/src/licence/` checks keys exactly as Formats says (`ed25519-dalek`, strict verification), keeps the key in the keychain beside the AI keys and reports one state: none, valid, revoked or invalid (with its code). A valid license unlocks every version; the build's date plays no part.
 
-In the release workflow's build, the first launch begins a 30-day trial, kept in the keychain beside the license (its start and the latest time seen), so reinstalling does not start it again and setting the clock back more than an hour ends it. While it runs everything works. Once it is over, unless the state is valid, notes are read-only: every write of user content is refused, sync refuses to create a vault or connect, and AI refuses to send (`E_LICENCE_REQUIRED`). A note's text being saved as the trial ends is still written for five minutes. The separate devot-mcp CLI writes the database itself and is not covered (it is not shipped). docs/architecture.md (Licences) has the details.
+In the release workflow's build, the first launch begins a 30-day trial, kept in the keychain beside the license (its start and the latest time seen), so reinstalling does not start it again and setting the clock back more than an hour ends it. While it runs everything works. Once it is over, unless the state is valid, notes are read-only: every write of user content is refused, sync refuses to create a vault or connect, and AI refuses to send (`E_LICENCE_REQUIRED`). A note's text being saved as the trial ends is still written for five minutes. docs/architecture.md (Licences) has the details.
 
 ### Seats
 

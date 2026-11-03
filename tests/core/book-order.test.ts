@@ -236,7 +236,7 @@ describe('manual notebook order', () => {
     expect(await keyIn(iphone.storage)).toBe('a3')
   })
 
-  it('devot-mcp lists notebooks in the sidebar order', async () => {
+  it('an outside writer lists notebooks in the sidebar order', async () => {
     const { storage, books, clock, newId } = setup()
     const ai = createAiService({
       storage,

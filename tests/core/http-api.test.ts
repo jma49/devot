@@ -17,6 +17,7 @@ import {
   newWriter,
   readHttpApiRequest,
   runHttpApiCall,
+  writerOfCall,
   type HttpApiCall,
   type StorageAdapter,
 } from '../../src/core'
@@ -253,5 +254,34 @@ describe('the request Rust sends the window', () => {
     await expect(
       w.run({ op: 'notes.update', note: w.note, args: { markdown: 'a', patches: [] } }),
     ).rejects.toThrow('E_AI_BODY_CONFLICT')
+  })
+})
+
+describe('calls of the MCP bridge', () => {
+  const SESSION = 'AbCdEfGhIjK'
+
+  it('reads a client from the event, and refuses one that is not shaped as Rust sends it', () => {
+    const payload = { id: 1, op: 'tags.list', note: null, args: {} }
+    expect(readHttpApiRequest(payload)?.call.client).toBeUndefined()
+    const client = { name: 'Claude Code', session: SESSION }
+    expect(readHttpApiRequest({ ...payload, client })?.call.client).toEqual(client)
+    for (const bad of [
+      null,
+      3,
+      { name: 'x' },
+      { name: 3, session: SESSION },
+      { name: 'x', session: 'short' },
+      { name: 'x', session: 'AbCdEfGhIj!' },
+    ]) {
+      expect(readHttpApiRequest({ ...payload, client: bad })).toBeNull()
+    }
+  })
+
+  it('writes as the client, kind mcp, with the bridge run as its session; anything else as http', () => {
+    const call: HttpApiCall = { op: 'tags.list', note: null, args: {} }
+    expect(writerOfCall(call, HTTP_WRITER)).toBe(HTTP_WRITER)
+    expect(
+      writerOfCall({ ...call, client: { name: 'Codex', session: SESSION } }, HTTP_WRITER),
+    ).toEqual({ session: SESSION, kind: 'mcp', name: 'Codex', process: HTTP_WRITER.process })
   })
 })

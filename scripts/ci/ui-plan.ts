@@ -121,7 +121,6 @@ export function planUi(
       file.startsWith('design/app-icon/') ||
       file.startsWith('relay/') ||
       file.startsWith('licence/') ||
-      file.startsWith('src/mcp/') ||
       file.startsWith('src-tauri/') ||
       file.startsWith('tests/')
     )

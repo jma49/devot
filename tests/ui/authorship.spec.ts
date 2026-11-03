@@ -1,6 +1,6 @@
 // Authorship in the window (ADR 0007): the marks beside agents' text, the review notice with
 // Review Changes and Undo All, the list mark, the sidebar's Agents section and Clear Authorship.
-// devot-mcp's writes are made as devot-mcp makes them, through the core's applyAgentEdit, and
+// an outside writer's writes are made as an outside writer makes them, through the core's applyAgentEdit, and
 // stored with their agent_writes rows as its own transaction does; the HTTP API's go in through
 // the window's core, as Rust hands them over.
 import type { Locator, Page } from '@playwright/test'
@@ -51,7 +51,7 @@ interface Seeded {
   seen?: number
 }
 
-/** A note as devot-mcp leaves it: the owner's text, then each agent's write as its own transaction. */
+/** A note as an outside writer leaves it: the owner's text, then each agent's write as its own transaction. */
 function asMcp({ id, title, owner, edits, seen = 0 }: Seeded, at: number) {
   const doc = new Y.Doc()
   doc.getText('body').insert(0, owner)

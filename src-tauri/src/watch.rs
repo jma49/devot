@@ -1,4 +1,4 @@
-//! Outside changes (devot-mcp or anything else writing to the database while Devot runs): a thread polls `PRAGMA data_version`, which ignores the app's own writes, and tells the window to merge and reload.
+//! Outside changes (anything else writing to the database while Devot runs): a thread polls `PRAGMA data_version`, which ignores the app's own writes, and tells the window to merge and reload.
 
 use crate::storage::Db;
 use std::time::Duration;
@@ -105,7 +105,7 @@ mod tests {
         outside
             .execute(
                 "INSERT INTO notes (id, title, title_hlc, body_md, ydoc, created_at, updated_at)
-                 VALUES ('mcp', 'From devot-mcp', 'h', '', x'00', 1, 1)",
+                 VALUES ('mcp', 'From outside', 'h', '', x'00', 1, 1)",
                 [],
             )
             .unwrap();

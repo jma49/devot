@@ -206,6 +206,7 @@ pub fn emit_others<R: Runtime, S: Serialize + Clone>(
 /// Brings `window` to the front, shown and unminimized.
 #[cfg(desktop)]
 pub fn bring_forward(window: &WebviewWindow) {
+    crate::background::opened(window.app_handle());
     if window
         .show()
         .and(crate::deep_link::unminimize(window))
@@ -255,6 +256,11 @@ pub(crate) fn build(
         .as_ref()
         .and_then(|stored| stored.settings.appearance.window_theme());
     config.data_store_identifier = crate::data_folder::this_build_web_data_store();
+    #[cfg(desktop)]
+    if crate::background::starts_hidden(app) {
+        config.visible = false;
+        config.focus = false;
+    }
     if let Some(frame) = frame {
         config.x = Some(frame.x);
         config.y = Some(frame.y);
@@ -270,6 +276,10 @@ pub(crate) fn build(
     }
     let window = builder.build().map_err(|_| "E_MAIN_WINDOW_FAILED")?;
     crate::native::main_window_built(&window);
+    #[cfg(desktop)]
+    if crate::background::starts_hidden(app) {
+        crate::native::keep_running_while_hidden(&window);
+    }
     Ok(window)
 }
 

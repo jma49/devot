@@ -80,6 +80,9 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **Board cards:** one that changes column flies there on a copy above the columns, as a column would clip it, when both ends can be seen (otherwise it is simply there); the others slide as rows do (`rowMotion.ts`).
 - **Settings:** a section fades in and rises `space.4` over `motion.duration.toggle`, without the rise under reduced motion; its row's fill eases over `motion.duration.quick`.
 - **Sync setup and storage:** rule 2. Answering first or another device swaps the question for that path's rows at once, and Change Answer swaps it back; the storage figures and warnings replace their text at once when the relay answers. Nothing is animated beyond the row fill above.
+- **Connect and Disconnect in Settings > Integrations:** each confirmation is a modal dialog with the dialog motion; the row's status and buttons change in place with no motion, as a value that was set does. Reduced motion follows the dialog's rule.
+- **AI Tools in Settings > Integrations:** rule 2. Allow AI Tools and Start in the Background are switches with the switch's own motion; Access is a pop-up; Right Now's text and a reachability alert replace what was there at once. Quit Devot goes through the quit handshake and the windows close as in any quit.
+- **The background menu bar item:** native, placed and removed by the system, with no motion of ours. A Devot that starts in the background shows no window and so plays nothing; its main window, once opened, opens as at launch.
 - **Dragging:** a drop line fades in and a column's or row's highlight eases over `motion.duration.quick`. The other rows stay where they are: moving them would change what is under the pointer, and the zones that tell before, into and after apart.
 - **Image viewer:** opens and closes as a modal dialog does. **Plugin panel:** opens as one and closes at once, because a closing copy would run its frame again.
 

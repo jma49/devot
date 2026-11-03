@@ -80,6 +80,8 @@ pub const QUICK_CAPTURE_TITLE: &str = "Quick Note";
 pub const NOTE_WINDOW_TITLE: &str = "Note";
 pub const MENU_BAR_NEW_QUICK_NOTE: &str = "New Quick Note";
 pub const MENU_BAR_OPEN: &str = "Open Devot";
+pub const BACKGROUND_STATUS: &str = "Running in the background for AI tools";
+pub const BACKGROUND_SETTINGS: &str = "Integrations Settings\u{2026}";
 pub const MIRROR_FOLDER_TITLE: &str = "Choose a Folder for the Markdown Mirror";
 pub const FONT_IMPORT_TITLE: &str = "Import a Font for the Editor";
 pub const FONT_FILTER: &str = "Fonts";
@@ -136,6 +138,8 @@ Usage:
                                        Write a Markdown file (- reads standard
                                        input) as a page, OUT.pdf or OUT.html,
                                        without showing a window
+  devot mcp                            Serve AI tools over stdio (MCP), through
+                                       the running Devot
 
 Options:
   --notebook NAME    Import into the notebook of this name (made when there is

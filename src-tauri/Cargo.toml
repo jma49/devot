@@ -19,7 +19,10 @@ tauri-build = { version = "2.7", features = [] }
 # `tray-icon`: the menu bar icon (`menu_bar`).
 tauri = { version = "2.12", features = ["macos-private-api", "tray-icon"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# Raw values keep what MCP client configs hold exactly as written (`mcp_clients`).
+serde_json = { version = "1", features = ["raw_value"] }
+# Checks Codex's config before and after a change (`mcp_clients`); already in the tree through Tauri.
+toml = "1"
 base64 = "0.22"
 log = "0.4"
 # Crash reporting: panics only, sent over the system TLS stack. Debug images

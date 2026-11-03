@@ -86,11 +86,22 @@ struct Access {
     scope: Scope,
 }
 
-/// What requests are checked against: the current token and its scope, and the rate limits. A
-/// new token takes effect at once, without a restart.
+/// Whose token a request carries. The kind a write is recorded as follows it, never the request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Holder {
+    HttpApi,
+    McpBridge,
+}
+
+/// What requests are checked against: each holder's current token and scope, and the rate limits,
+/// one for each so a busy script cannot lock an AI tool out. A new token takes effect at once,
+/// without a restart.
 pub struct Gate {
     access: RwLock<Option<Access>>,
+    mcp_access: RwLock<Option<Access>>,
     rate: Mutex<Bucket>,
+    mcp_rate: Mutex<Bucket>,
+    last_mcp_call: Mutex<Option<Instant>>,
     refusals: Mutex<Bucket>,
     limits: Limits,
 }
@@ -99,7 +110,10 @@ impl Gate {
     pub fn new(limits: Limits) -> Self {
         Self {
             access: RwLock::new(None),
+            mcp_access: RwLock::new(None),
             rate: Mutex::new(Bucket::full(limits.burst)),
+            mcp_rate: Mutex::new(Bucket::full(limits.burst)),
+            last_mcp_call: Mutex::new(None),
             refusals: Mutex::new(Bucket::full(REFUSAL_LOG_BURST)),
             limits,
         }
@@ -117,26 +131,62 @@ impl Gate {
         }
     }
 
-    /// The scope of the token a request carries in its `Authorization` header.
-    fn admit(&self, authorization: Option<&str>) -> Result<Scope, Refusal> {
+    pub fn allow_mcp(&self, token: Token, scope: Scope) {
+        if let Ok(mut access) = self.mcp_access.write() {
+            *access = Some(Access { token, scope });
+        }
+    }
+
+    pub fn close_mcp(&self) {
+        if let Ok(mut access) = self.mcp_access.write() {
+            *access = None;
+        }
+    }
+
+    /// When the bridge last got through the token check.
+    pub fn last_mcp_call(&self) -> Option<Instant> {
+        self.last_mcp_call.lock().ok().and_then(|last| *last)
+    }
+
+    /// Who holds the token a request carries in its `Authorization` header, and its scope.
+    fn admit(&self, authorization: Option<&str>) -> Result<(Holder, Scope), Refusal> {
         let sent = authorization
             .and_then(|value| {
                 let (scheme, rest) = value.split_once(' ')?;
                 scheme.eq_ignore_ascii_case("bearer").then(|| rest.trim())
             })
             .ok_or(Refusal::new(401, "E_HTTP_TOKEN_MISSING"))?;
-        let access = self
-            .access
-            .read()
-            .map_err(|_| Refusal::new(503, "E_HTTP_API_UNAVAILABLE"))?;
-        match access.as_ref() {
-            Some(a) if token::same(a.token.as_bytes(), sent.as_bytes()) => Ok(a.scope),
-            _ => Err(Refusal::new(401, "E_HTTP_TOKEN_INVALID")),
+        let matches = |access: &RwLock<Option<Access>>| {
+            access
+                .read()
+                .map_err(|_| Refusal::new(503, "E_HTTP_API_UNAVAILABLE"))
+                .map(|access| {
+                    access
+                        .as_ref()
+                        .filter(|a| token::same(a.token.as_bytes(), sent.as_bytes()))
+                        .map(|a| a.scope)
+                })
+        };
+        let http = matches(&self.access)?;
+        let mcp = matches(&self.mcp_access)?;
+        match (http, mcp) {
+            (Some(scope), _) => Ok((Holder::HttpApi, scope)),
+            (None, Some(scope)) => {
+                if let Ok(mut last) = self.last_mcp_call.lock() {
+                    *last = Some(Instant::now());
+                }
+                Ok((Holder::McpBridge, scope))
+            }
+            (None, None) => Err(Refusal::new(401, "E_HTTP_TOKEN_INVALID")),
         }
     }
 
-    fn take_rate(&self) -> Result<(), u64> {
-        self.rate
+    fn take_rate(&self, holder: Holder) -> Result<(), u64> {
+        let bucket = match holder {
+            Holder::HttpApi => &self.rate,
+            Holder::McpBridge => &self.mcp_rate,
+        };
+        bucket
             .lock()
             .map_err(|_| 1u64)?
             .take(self.limits.burst, self.limits.per_second)
@@ -597,8 +647,8 @@ fn handle(
     if head.has("sec-fetch-site") || head.has("sec-fetch-dest") {
         return Err(Refusal::new(403, "E_HTTP_BROWSER_REFUSED"));
     }
-    let scope = gate.admit(head.one("authorization")?)?;
-    if let Err(seconds) = gate.take_rate() {
+    let (holder, scope) = gate.admit(head.one("authorization")?)?;
+    if let Err(seconds) = gate.take_rate(holder) {
         let mut outcome = Outcome::from(Refusal::new(429, "E_HTTP_RATE_LIMITED"));
         outcome.reply.retry_after = Some(seconds);
         return Ok(outcome);
@@ -651,10 +701,16 @@ fn handle(
         return Ok(fail(Refusal::new(400, "E_HTTP_BODY_UNEXPECTED"), &note));
     }
 
-    let call = match routes::call(op, note.clone(), query, &body) {
+    let mut call = match routes::call(op, note.clone(), query, &body) {
         Ok(call) => call,
         Err(refusal) => return Ok(fail(refusal, &note)),
     };
+    if holder == Holder::McpBridge {
+        match routes::client(head.one("x-devot-client")?, head.one("x-devot-session")?) {
+            Ok(client) => call.client = Some(client),
+            Err(refusal) => return Ok(fail(refusal, &note)),
+        }
+    }
     drop(body);
     Ok(match dispatch.dispatch(&call) {
         Ok(value) => {

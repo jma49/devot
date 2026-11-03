@@ -1,5 +1,5 @@
 // The cost measurement of ADR 0007, run again: a note of about 5,000 words typed a word at a time
-// over 20 sessions, then 50 agent writes by two MCP clients, each in a fresh document as devot-mcp
+// over 20 sessions, then 50 agent writes by two MCP clients, each in a fresh document as an outside writer
 // loads a note, with the owner typing inside the agent's text and elsewhere after each one. The same
 // edits run twice, with authorship and without, so the difference is what the records add.
 import { expect, it } from 'vitest'

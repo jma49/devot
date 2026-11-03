@@ -35,7 +35,6 @@ it('runs no browser for changes outside the browser runtime', () => {
       'README.md',
       'relay/src/vault.ts',
       'licence/src/app.ts',
-      'src/mcp/server.ts',
       'src-tauri/src/lib.rs',
       'src-tauri/migrations/0023.sql',
       'design/app-icon/source.svg',

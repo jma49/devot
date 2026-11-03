@@ -101,6 +101,10 @@ fn exit_now(app: &AppHandle) {
     if let Some(windows) = app.try_state::<crate::note_window::NoteWindows>() {
         windows.persist();
     }
+    #[cfg(desktop)]
+    if let Some(api) = app.try_state::<std::sync::Arc<crate::http_api::HttpApi>>() {
+        api.forget_rendezvous();
+    }
     let gate = app.state::<ExitGate>();
     // Restart to Update restarts into the update it installed (see `updates`).
     #[cfg(desktop)]

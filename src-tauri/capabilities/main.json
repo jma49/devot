@@ -118,6 +118,8 @@
     "allow-quick-capture-claim",
     "allow-quick-capture-done",
     "allow-http-api-done",
+    "allow-http-api-listening",
+    "allow-background-idle-answer",
     "allow-note-window-open",
     "allow-note-window-close-ready",
     "allow-note-window-close-cancel",

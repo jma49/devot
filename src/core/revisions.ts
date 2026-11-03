@@ -23,7 +23,7 @@ export function textLength(text: string): number {
   return count
 }
 
-/** The body version that keeps the text a note had when its history began (an import, devot-mcp, a duplicate, a note from before history). That text was not written in this history, so the activity heatmap never counts it, and compaction keeps it. */
+/** The body version that keeps the text a note had when its history began (an import, an outside writer, a duplicate, a note from before history). That text was not written in this history, so the activity heatmap never counts it, and compaction keeps it. */
 export const BASELINE = 'baseline'
 
 /** The body version an accepted AI edit proposal wrote (NoteService.applyAiEdit): its authorship. Like a baseline, the heatmap does not count it and compaction keeps it. */

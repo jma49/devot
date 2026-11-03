@@ -221,7 +221,7 @@ describe('templates stay out of the library', () => {
   })
 })
 
-describe('AI tools (devot-mcp) never see templates', () => {
+describe('AI tools (an outside writer) never see templates', () => {
   it('lists, finds and reads no template, even with AI access set on its notebook', async () => {
     const path = freshPath()
     const d = device(path)

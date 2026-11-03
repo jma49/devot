@@ -1,7 +1,7 @@
 // The editor's one undo system is CodeMirror's history (`history()` in settings.ts); Cmd+Z, Shift+Cmd+Z and
 // Edit > Undo and Redo reach it as `historyUndo` and `historyRedo` input events. It holds the user's own edits,
 // one step per command and one per input method composition. Changes arriving from the Yjs document (sync,
-// devot-mcp, the Markdown mirror, the core's merges) are not the user's: they bypass the history, which maps its
+// an outside writer, the Markdown mirror, the core's merges) are not the user's: they bypass the history, which maps its
 // steps through them. A restored version is the exception: the user asked for it, so it is a step of its own.
 //
 // A note keeps its history while another note is shown (the last `UNDO_NOTES` notes left), with the Yjs state its

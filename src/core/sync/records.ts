@@ -6,7 +6,7 @@
 // change, its tag memberships (each with its HLC), `bodyHlc` (when its body last changed, so the
 // Trash can be ordered against edits) and `purged`. A purged note is a tombstone: its ID, `purged`
 // and its deletion, nothing else. Notebooks and tags carry fields and HLCs only. Allow AI Access
-// is not synced: each device decides what devot-mcp may read.
+// is not synced: each device decides what AI tools may read.
 //
 // A file (an attachment, docs/adr/0003-sync-attachments-as-records.md) carries its name, MIME type,
 // size and bytes, written once; the note it belongs to with the HLC of that link's last change; and

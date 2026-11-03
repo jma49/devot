@@ -47,6 +47,14 @@ pub fn temporary_name() -> OsString {
     OsString::from(random_name())
 }
 
+/// Whether a process with this ID exists, for a file that names the process that wrote it.
+pub fn process_alive(pid: u32) -> bool {
+    i32::try_from(pid)
+        .ok()
+        .and_then(rustix::process::Pid::from_raw)
+        .is_some_and(|pid| rustix::process::test_kill_process(pid).is_ok())
+}
+
 /// Whether `path` is on a volume mounted read-only, as a disk image is.
 pub fn on_read_only_volume(path: &Path) -> bool {
     rustix::fs::statvfs(path).is_ok_and(|volume| {
@@ -493,6 +501,11 @@ impl TempFile {
             }
         }
         Err(taken)
+    }
+
+    /// Before the bytes go in, so a config that holds secrets is never readable by others.
+    pub fn set_mode(&mut self, permissions: std::fs::Permissions) -> io::Result<()> {
+        self.file.set_permissions(permissions)
     }
 
     pub fn write_all(&mut self, bytes: &[u8]) -> io::Result<()> {

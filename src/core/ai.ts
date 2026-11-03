@@ -1,4 +1,4 @@
-// What AI tools (devot-mcp, later the in-app assistant) may see and do.
+// What AI tools (the MCP bridge and the local HTTP API, later the in-app assistant) may see and do.
 //
 // Only notebooks with Allow AI Access on are visible, each on its own (a
 // sub-notebook needs its own switch); Templates never is (templates.ts). Their live notes are the only notes
@@ -124,7 +124,7 @@ export interface AiServiceOptions {
   newId: () => string
   now?: () => number
   atomically?: <T>(work: () => Promise<T>) => Promise<T>
-  /** Who the writes are recorded as (ADR 0007), asked at each write: devot-mcp's client names itself only once it has connected. */
+  /** Who the writes are recorded as (ADR 0007), asked at each write: an MCP client names itself only once it has connected. */
   writer: () => Writer
   /** Info lines, codes and IDs only (see NoteServiceOptions.log). */
   log?: Log

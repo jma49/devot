@@ -1,5 +1,5 @@
 // An attachment belongs to one note, but its link can reach another without a copy (cut or copied
-// Markdown, Paste as Plain Text, devot-mcp, a restored version, older duplicates and templates):
+// Markdown, Paste as Plain Text, an outside writer, a restored version, older duplicates and templates):
 // purging keeps what any note still shows.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'

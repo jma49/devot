@@ -39,7 +39,5 @@ CLAUDE.local.md
 .vscode/
 .idea/
 dist-test/
-dist-mcp/
-dist-mcp-test/
 dist-bench/
 dist-bench-app/

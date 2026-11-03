@@ -13,6 +13,8 @@ use crate::{deep_link, import, single_instance, startup, strings};
 
 pub const FLAG: &str = "--cli";
 pub(crate) const OPEN_FLAG: &str = "--devot-open";
+/// As the first argument: a launch the MCP bridge asked for (`background`).
+pub(crate) const BACKGROUND_FLAG: &str = "--devot-background";
 pub(crate) const MAX_OPEN_FILES: usize = 100;
 const MAX_NOTEBOOK_CHARS: usize = 200;
 
@@ -57,6 +59,8 @@ pub(crate) enum Request {
     Launch,
     Open(Open),
     Export(Export),
+    /// The MCP bridge over stdio (`mcp_bridge`).
+    Mcp,
 }
 
 /// Why the command was not understood (exit status 2).
@@ -105,6 +109,7 @@ pub(crate) fn parse(args: &[String], cwd: &Path) -> Result<Request, Usage> {
     match args.first().map(String::as_str) {
         None => Ok(Request::Launch),
         Some("export") => parse_export(&args[1..], cwd).map(Request::Export),
+        Some("mcp") if args.len() == 1 => Ok(Request::Mcp),
         Some(_) => parse_open(args, cwd).map(Request::Open),
     }
 }
@@ -337,6 +342,39 @@ fn launch_command(exe: &Path) -> Result<(), &'static str> {
     command.spawn().map(drop).map_err(|_| "E_CLI_LAUNCH_FAILED")
 }
 
+/// Starts this Devot with no window and without taking the focus, for the MCP bridge. Launch
+/// Services keeps it from being the client's child, so it outlives the client that asked.
+#[cfg(desktop)]
+pub(crate) fn launch_in_background() -> Result<(), &'static str> {
+    use std::os::unix::process::CommandExt;
+    let exe = std::env::current_exe().map_err(|_| "E_MCP_START_FAILED")?;
+    let mut command = match bundle_of(&exe) {
+        Some(bundle) => {
+            let mut open = Command::new("/usr/bin/open");
+            open.arg("-g")
+                .arg("-a")
+                .arg(bundle)
+                .arg("--args")
+                .arg(BACKGROUND_FLAG);
+            open
+        }
+        None => {
+            let mut binary = Command::new(&exe);
+            binary.arg(BACKGROUND_FLAG).process_group(0);
+            binary
+        }
+    };
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    if bundle_of(&exe).is_some() {
+        let status = command.status().map_err(|_| "E_MCP_START_FAILED")?;
+        return status.success().then_some(()).ok_or("E_MCP_START_FAILED");
+    }
+    command.spawn().map(drop).map_err(|_| "E_MCP_START_FAILED")
+}
+
 pub fn main(args: &[OsString]) -> i32 {
     let args: Option<Vec<String>> = args.iter().map(|a| a.to_str().map(str::to_owned)).collect();
     let Some(args) = args else {
@@ -353,6 +391,10 @@ pub fn main(args: &[OsString]) -> i32 {
             return 0;
         }
         Request::Export(export) => return crate::cli_export::run(export),
+        #[cfg(desktop)]
+        Request::Mcp => return crate::mcp_bridge::run(),
+        #[cfg(mobile)]
+        Request::Mcp => return not_understood(&Usage(strings::CLI_OPEN_FILES.into())),
         Request::Launch => hand_off(&[]),
         Request::Open(open) => {
             if let Err(message) = check_open(&open) {
@@ -498,6 +540,19 @@ mod tests {
         let many: Vec<String> = (0..=MAX_OPEN_FILES).map(|i| format!("{i}.md")).collect();
         let many: Vec<&str> = many.iter().map(String::as_str).collect();
         assert_eq!(refused(&many), "at most 100 files at a time");
+    }
+
+    #[test]
+    fn reads_the_mcp_bridge_and_nothing_after_it() {
+        assert_eq!(run(&["mcp"]), Ok(Request::Mcp));
+        assert_eq!(run(&["mcp", "--help"]), Ok(Request::Help));
+        assert!(matches!(run(&["mcp", "x"]), Ok(Request::Open(_))));
+    }
+
+    #[test]
+    fn a_background_launch_is_not_a_hand_off_of_files() {
+        assert!(!hands_off_files(&args(&["devot", BACKGROUND_FLAG])));
+        assert_eq!(parse_handoff(&args(&["devot", BACKGROUND_FLAG])), None);
     }
 
     #[test]

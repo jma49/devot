@@ -543,6 +543,7 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
         }
     } else if !crate::plugins::menu::on_menu_event(app, event.id().as_ref())
         && !menu_bar::on_menu_event(app, event.id().as_ref())
+        && !crate::background::on_menu_event(app, event.id().as_ref())
     {
         format_menu::on_menu_event(app, event.id().as_ref());
     }

@@ -128,13 +128,13 @@ export interface NoteServiceOptions {
   retryDelayMs?: number
   /** Called with every note whose save failed, oldest first, whenever that list changes. */
   onSaveProblems?: (problems: SaveProblem[]) => void
-  /** On by default. devot-mcp turns it off: its writes hold the database write lock and its time zone may differ from the app's. */
+  /** On by default. A service that writes from another process turns it off: its writes hold the database write lock and its time zone may differ from the app's. */
   compact?: boolean
   /** Tells the cores of the app's other windows of every change to a note in memory, every write, and every note read in (see noteRelay.ts and receive). */
   relay?: (message: NoteRelayMessage) => void
   /** A note in memory took in a change it did not make: another window's (relayed), or one stored meanwhile (merged), for the editor and title field showing it. */
   onTakenIn?: (change: TakenIn) => void
-  /** Info lines (I_AUTHORSHIP_*): codes and IDs only. Never the console in devot-mcp, whose stdout carries MCP. */
+  /** Info lines (I_AUTHORSHIP_*): codes and IDs only. Never the console where stdout carries something else. */
   log?: Log
 }
 
@@ -194,7 +194,7 @@ export interface NoteService {
   fill(id: string, content: { title: string; markdown: string }): Promise<void>
   /** Applies the text difference as Yjs operations (see textEdits), never by writing the snapshot. */
   setBody(id: string, markdown: string): Promise<void>
-  /** On a failed save the note is dropped anyway and the error thrown: the caller (import, devot-mcp) undoes or reports it. */
+  /** On a failed save the note is dropped anyway and the error thrown: the caller (import, the AI service) undoes or reports it. */
   release(id: string): Promise<void>
   /** Line breaks become spaces and the title is cut to MAX_TITLE_CHARS (see clipTitle), so storage always takes it. */
   setTitle(id: string, title: string): Promise<void>
@@ -297,7 +297,7 @@ export interface NoteService {
     offsetAt?: OffsetAt,
   ): Promise<Record<string, StripDay[]>>
   /**
-   * Takes in what another process wrote (devot-mcp, or a writer on another connection; see `devot://db-changed`), so the next write keeps the other's changes.
+   * Takes in what another process wrote (a writer on another connection; see `devot://db-changed`), so the next write keeps the other's changes.
    * Every note in memory merges the stored state, and another window that may hold a note this core does not is relayed its stored state. Returns the notes whose title the other process changed.
    * A note deleted for good meanwhile is let go; the others stay in memory (letting one go could lose an edit that has just loaded it). A note that cannot be read is left as it was.
    */
@@ -1421,7 +1421,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         schedule(note)
       }),
 
-    // Released notes (import, devot-mcp) take no version here: the saved
+    // Released notes (import, the AI service) take no version here: the saved
     // body is the latest text, and the next edit keeps it (keepBaseline).
     async release(id) {
       const note = live.get(id)

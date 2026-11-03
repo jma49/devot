@@ -117,8 +117,14 @@ pub fn report(error: &StartupError, data_dir: Option<&Path>, alert: impl FnOnce(
 }
 
 pub fn fail(error: &StartupError, data_dir: Option<&Path>) -> ! {
+    let asked_by_a_tool = std::env::args_os()
+        .nth(1)
+        .is_some_and(|arg| arg == crate::cli::BACKGROUND_FLAG);
     report(error, data_dir, |notice| {
-        crate::native::show_alert(notice.title, &notice.message);
+        // No alert out of nowhere: the bridge answers with a code, and opening Devot explains.
+        if !asked_by_a_tool {
+            crate::native::show_alert(notice.title, &notice.message);
+        }
     });
     std::process::exit(1)
 }

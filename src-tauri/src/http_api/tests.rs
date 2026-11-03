@@ -852,6 +852,7 @@ fn call(op: Op) -> Call {
         op,
         note: Some(NOTE.into()),
         args: json!({}),
+        client: None,
     }
 }
 
@@ -1065,6 +1066,7 @@ fn once_the_trial_is_over_writes_are_refused_before_the_window_is_asked() {
         op,
         note: Some(NOTE.into()),
         args: Value::Null,
+        client: None,
     };
     for op in [
         Op::NotebooksCreate,
@@ -1093,4 +1095,262 @@ fn once_the_trial_is_over_writes_are_refused_before_the_window_is_asked() {
         .set(&crate::licence::testing::key(crate::licence::testing::ID))
         .unwrap();
     assert!(dispatch.dispatch(&call(Op::NotesUpdate)).is_ok());
+}
+
+fn bridge_header(token: &str) -> String {
+    format!("Authorization: Bearer {token}")
+}
+
+const SESSION: &str = "X-Devot-Session: AAAAAAAAAAA";
+
+fn with_bridge(scope: Scope, limits: Limits) -> (Api, String) {
+    let api = start_with(Scope::Read, limits);
+    api.gate.close();
+    let token = token::generate().unwrap();
+    let sent = token.as_str().to_string();
+    api.gate.allow_mcp(token, scope);
+    (api, sent)
+}
+
+#[test]
+fn the_bridges_token_works_with_the_http_api_off_and_the_http_apis_does_not() {
+    let (api, bridge) = with_bridge(Scope::ReadWrite, Limits::DEFAULT);
+    let closed = authorized(&api, "GET", "/v1/notebooks", None);
+    assert_eq!(
+        (closed.status, closed.code()),
+        (401, "E_HTTP_TOKEN_INVALID")
+    );
+    let open = request(
+        &api,
+        "GET",
+        "/v1/notebooks",
+        &[&bridge_header(&bridge), SESSION],
+        None,
+    );
+    assert_eq!(open.status, 200);
+    assert_eq!(api.core.reached(), 1);
+    assert!(api.gate.last_mcp_call().is_some());
+    api.gate.close_mcp();
+    let off = request(
+        &api,
+        "GET",
+        "/v1/notebooks",
+        &[&bridge_header(&bridge), SESSION],
+        None,
+    );
+    assert_eq!(off.status, 401);
+}
+
+#[test]
+fn only_the_bridges_token_can_name_a_client() {
+    let api = start(Scope::ReadWrite);
+    let named = [
+        bearer(&api),
+        SESSION.to_string(),
+        "X-Devot-Client: Claude%20Code".to_string(),
+    ];
+    let named: Vec<&str> = named.iter().map(String::as_str).collect();
+    assert_eq!(request(&api, "GET", "/v1/tags", &named, None).status, 200);
+    assert_eq!(api.core.calls.lock().unwrap()[0].client, None);
+
+    let (api, bridge) = with_bridge(Scope::ReadWrite, Limits::DEFAULT);
+    let auth = bridge_header(&bridge);
+    let sent = request(
+        &api,
+        "GET",
+        "/v1/tags",
+        &[&auth, SESSION, "X-Devot-Client: Claude%20Code"],
+        None,
+    );
+    assert_eq!(sent.status, 200);
+    assert_eq!(
+        api.core.calls.lock().unwrap()[0].client,
+        Some(routes::Client {
+            name: "Claude Code".into(),
+            session: "AAAAAAAAAAA".into()
+        })
+    );
+}
+
+#[test]
+fn refuses_a_bridge_request_without_a_session_or_with_a_name_that_is_not_one_line() {
+    let (api, bridge) = with_bridge(Scope::ReadWrite, Limits::DEFAULT);
+    let auth = bridge_header(&bridge);
+    let long = format!("X-Devot-Client: {}", "x".repeat(101));
+    for extra in [
+        vec![auth.as_str()],
+        vec![auth.as_str(), "X-Devot-Session: short"],
+        vec![auth.as_str(), "X-Devot-Session: AAAAAAAAAA!"],
+        vec![auth.as_str(), SESSION, "X-Devot-Client: a%0Ab"],
+        vec![auth.as_str(), SESSION, "X-Devot-Client: %FF"],
+        vec![auth.as_str(), SESSION, long.as_str()],
+    ] {
+        let refused = request(&api, "GET", "/v1/tags", &extra, None);
+        assert_eq!(
+            (refused.status, refused.code()),
+            (400, "E_HTTP_CLIENT_INVALID"),
+            "{extra:?}"
+        );
+    }
+    assert_eq!(api.core.reached(), 0);
+}
+
+#[test]
+fn a_read_only_bridge_cannot_write() {
+    let (api, bridge) = with_bridge(Scope::Read, Limits::DEFAULT);
+    let refused = request(
+        &api,
+        "POST",
+        "/v1/notes",
+        &[&bridge_header(&bridge), SESSION],
+        Some(r#"{"title":"T","markdown":"M","notebook":"N"}"#),
+    );
+    assert_eq!((refused.status, refused.code()), (403, "E_HTTP_READ_ONLY"));
+    assert_eq!(api.core.reached(), 0);
+}
+
+#[test]
+fn the_bridge_and_the_http_api_each_have_their_own_rate_limit() {
+    let limits = Limits {
+        burst: 1.0,
+        per_second: 0.001,
+        ..Limits::DEFAULT
+    };
+    let (api, bridge) = with_bridge(Scope::Read, limits);
+    let fresh = token::generate().unwrap();
+    let http = bridge_header(fresh.as_str());
+    api.gate.allow(fresh, Scope::Read);
+    let auth = bridge_header(&bridge);
+    let used = |extra: &[&str]| request(&api, "GET", "/v1/tags", extra, None).status;
+    assert_eq!(used(&[&http]), 200);
+    assert_eq!(used(&[&http]), 429);
+    assert_eq!(used(&[&auth, SESSION]), 200);
+    assert_eq!(used(&[&auth, SESSION]), 429);
+}
+
+#[test]
+fn a_call_with_a_client_hands_it_to_the_window_and_one_without_sends_none() {
+    let client = routes::Client {
+        name: "Codex".into(),
+        session: "AAAAAAAAAAA".into(),
+    };
+    let request = Request {
+        id: 1,
+        op: "notes.read",
+        note: None,
+        args: json!({}),
+        client: Some(client),
+    };
+    assert_eq!(
+        serde_json::to_value(&request).unwrap()["client"],
+        json!({ "name": "Codex", "session": "AAAAAAAAAAA" })
+    );
+    let plain = Request {
+        client: None,
+        ..request
+    };
+    assert_eq!(serde_json::to_value(&plain).unwrap().get("client"), None);
+}
+
+fn with_mcp(dir: &tempfile::TempDir) -> (HttpApi, Arc<MemoryTokens>, rendezvous::Rendezvous) {
+    let (api, _, _) = api(dir);
+    let tokens = Arc::new(MemoryTokens::default());
+    let at = rendezvous::Rendezvous::at(dir.path().join("listener"));
+    let api = api.with_mcp(McpParts {
+        access: McpAccessStore::new(&dir.path().join(mcp_access::FILE)),
+        tokens: tokens.clone(),
+        rendezvous: Some(at.clone()),
+    });
+    (api, tokens, at)
+}
+
+fn on(scope: Scope) -> McpAccess {
+    McpAccess {
+        enabled: true,
+        scope,
+        background_start: true,
+    }
+}
+
+fn free_port_settings(api: &HttpApi) {
+    let port = {
+        let held = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        held.local_addr().unwrap().port()
+    };
+    let stored = api.settings.get();
+    api.settings
+        .set(settings::HttpApiSettings { port, ..stored })
+        .unwrap();
+}
+
+#[test]
+fn turning_mcp_on_leaves_the_http_api_off_and_makes_its_own_token() {
+    let dir = tempfile::tempdir().unwrap();
+    let (api, tokens, _) = with_mcp(&dir);
+    free_port_settings(&api);
+    let view = api.mcp_set(on(Scope::ReadWrite)).unwrap();
+    assert!(view.enabled && view.reachable, "{view:?}");
+    assert!(tokens.has().unwrap());
+    let http = api.view();
+    assert!(!http.enabled);
+    assert_eq!(http.listening, None, "the HTTP API's status stays off");
+    assert_eq!(http.token, TokenState::Unset, "its token is not made");
+    assert!(!dir.path().join(settings::FILE).exists() || !api.settings.get().enabled);
+}
+
+#[test]
+fn the_bridge_is_told_where_to_call_only_once_a_window_takes_calls_and_until_it_is_off() {
+    let dir = tempfile::tempdir().unwrap();
+    let (api, _, at) = with_mcp(&dir);
+    free_port_settings(&api);
+    api.mcp_set(on(Scope::ReadWrite)).unwrap();
+    assert_eq!(at.port(), None, "no window listens yet");
+    api.window_listening();
+    assert_eq!(at.port(), Some(api.settings.get().port));
+    api.mcp_set(McpAccess {
+        enabled: false,
+        ..on(Scope::ReadWrite)
+    })
+    .unwrap();
+    assert_eq!(at.port(), None);
+    assert!(!api.mcp_view().reachable);
+}
+
+#[test]
+fn turning_mcp_on_keeps_the_choices_already_made() {
+    let dir = tempfile::tempdir().unwrap();
+    let (api, _, _) = with_mcp(&dir);
+    free_port_settings(&api);
+    api.mcp_set(McpAccess {
+        enabled: false,
+        scope: Scope::Read,
+        background_start: false,
+    })
+    .unwrap();
+    let view = api.mcp_turn_on().unwrap();
+    assert!(view.enabled);
+    assert_eq!(view.scope, Scope::Read);
+    assert!(!view.background_start);
+}
+
+#[test]
+fn a_port_another_program_holds_says_why_and_tells_the_bridge_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let (api, _, at) = with_mcp(&dir);
+    let held = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let port = held.local_addr().unwrap().port();
+    let stored = api.settings.get();
+    api.settings
+        .set(settings::HttpApiSettings { port, ..stored })
+        .unwrap();
+    let view = api.mcp_set(on(Scope::Read)).unwrap();
+    assert_eq!(view.problem, Some("E_HTTP_API_PORT_IN_USE"));
+    assert!(!view.reachable);
+    api.window_listening();
+    assert_eq!(at.port(), None);
+    assert_eq!(
+        api.view().problem,
+        None,
+        "the HTTP API is not on to have one"
+    );
 }

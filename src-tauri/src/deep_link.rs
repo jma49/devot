@@ -302,6 +302,10 @@ pub(crate) fn listen(app: &tauri::App) {
 }
 
 pub(crate) fn on_second_instance<R: Runtime>(app: &AppHandle<R>, args: Vec<String>, _cwd: String) {
+    // The bridge lost a race to start Devot: the one already here serves it, as it is.
+    if args.get(1).map(String::as_str) == Some(crate::cli::BACKGROUND_FLAG) {
+        return;
+    }
     bring_forward(app);
     if crate::cli::receive_open(app, &args) {
         return;
@@ -424,6 +428,8 @@ fn forward(settings_open: bool, front: Option<(&str, bool)>) -> Forward {
 }
 
 fn bring_forward<R: Runtime>(app: &AppHandle<R>) {
+    #[cfg(desktop)]
+    crate::background::opened(app);
     let main = main_windows::front_label(app).and_then(|label| app.get_webview_window(&label));
     let visible = main.as_ref().map(|main| main.is_visible().unwrap_or(true));
     let plan = forward(

@@ -898,7 +898,7 @@ fn data_version_moves_only_for_commits_from_other_connections() {
 /// the busy timeout.
 const HOLD: Duration = Duration::from_millis(250);
 
-/// Holds the write lock for `hold`, as devot-mcp does while it writes; returns once the lock is
+/// Holds the write lock for `hold`, as an outside writer does while it writes; returns once the lock is
 /// held. Joining the thread waits for its commit.
 fn another_writer(path: &Path, hold: Duration) -> std::thread::JoinHandle<()> {
     let path = path.to_owned();

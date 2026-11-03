@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test'
 import * as Y from 'yjs'
 import { expect, test } from './fixtures'
 
-// devot-mcp writes while Devot runs; Rust sends `devot://db-changed`, which the page re-sends as this window event.
+// an outside writer writes while Devot runs; Rust sends `devot://db-changed`, which the page re-sends as this window event.
 const DB_CHANGED = 'devot:db-changed'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -70,7 +70,7 @@ test('a note written by another process shows up when the database changes', asy
     () => (JSON.parse(localStorage.getItem('devot.test.books') ?? '[]') as { id: string }[])[0]!.id,
   )
 
-  await writeOutside(page, 'From Claude', 'Written by devot-mcp.', bookId)
+  await writeOutside(page, 'From Claude', 'Written by an outside writer.', bookId)
   // Nothing reloads by itself: give a reload time to happen, then look once.
   await settle(page)
   expect(await noteRows(page).count()).toBe(0)
@@ -84,7 +84,7 @@ test('a note written by another process shows up when the database changes', asy
   await noteRows(page).first().click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('From Claude')
   await expect(page.getByRole('textbox', { name: 'Note body' })).toContainText(
-    'Written by devot-mcp.',
+    'Written by an outside writer.',
   )
 })
 
@@ -95,7 +95,7 @@ test('a change while a note is open keeps it open and its edits', async ({ page 
   await title.fill('Mine')
   // The title is not saved yet; the list row already shows it.
   await expect(noteRows(page).filter({ hasText: 'Mine' })).toHaveCount(1)
-  await writeOutside(page, 'From Claude', 'Written by devot-mcp.', null)
+  await writeOutside(page, 'From Claude', 'Written by an outside writer.', null)
   await signalChange(page)
   await expect(noteRows(page)).toHaveCount(2)
   // The reload read the saved title back: the edit was flushed first.
@@ -206,7 +206,7 @@ test('an outside edit to the open note keeps the caret, the selection and undo',
   for (let i = 0; i < 'Beta'.length; i += 1) await page.keyboard.press('Shift+ArrowLeft')
   await expect.poll(() => selectedText(page)).toBe('Beta')
 
-  // devot-mcp's update_note: text lands before and after the selection.
+  // an outside writer's update_note: text lands before and after the selection.
   await editOutside(page, id, (doc) => {
     const text = doc.getText('body')
     text.insert(text.length, ' End.')

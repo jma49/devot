@@ -3,6 +3,8 @@
 
 mod ai;
 mod atomic_file;
+#[cfg(desktop)]
+mod background;
 mod backups;
 #[cfg(test)]
 #[path = "../build_env.rs"]
@@ -33,6 +35,10 @@ mod licence;
 mod link_info;
 mod logs;
 mod main_windows;
+#[cfg(desktop)]
+mod mcp_bridge;
+#[cfg(desktop)]
+mod mcp_clients;
 #[cfg(desktop)]
 mod menu;
 #[cfg(desktop)]
@@ -87,6 +93,7 @@ pub fn run() {
     let builder = builder
         .plugin(single_instance::init())
         .plugin(menu_bar::global_shortcut_plugin())
+        .manage(background::Background::new(background::requested()))
         .manage(menu_bar::MenuBar::default())
         .manage(menu_bar::Captures::default());
     builder
@@ -200,7 +207,20 @@ pub fn run() {
             crash::crash_reports_get,
             crash::crash_reports_set,
             settings::settings_open_licence,
-            settings::settings_mcp_setup,
+            #[cfg(desktop)]
+            mcp_clients::settings_mcp_setup,
+            #[cfg(desktop)]
+            mcp_clients::settings_mcp_connect,
+            #[cfg(desktop)]
+            mcp_clients::settings_mcp_disconnect,
+            #[cfg(desktop)]
+            mcp_clients::settings_mcp_open_extension,
+            #[cfg(desktop)]
+            background::background_state,
+            #[cfg(desktop)]
+            background::background_quit,
+            #[cfg(desktop)]
+            background::background_idle_answer,
             settings::settings_ai_access_summary,
             settings::main_window_show,
             cli_tool::cli_tool_status,
@@ -236,6 +256,12 @@ pub fn run() {
             http_api::http_api_token_reveal,
             #[cfg(desktop)]
             http_api::http_api_done,
+            #[cfg(desktop)]
+            http_api::http_api_listening,
+            #[cfg(desktop)]
+            http_api::mcp_access_get,
+            #[cfg(desktop)]
+            http_api::mcp_access_set,
             keyboard_shortcuts::keyboard_shortcuts_get,
             keyboard_shortcuts::keyboard_shortcuts_set,
             mirror::mirror_get,
@@ -302,6 +328,8 @@ pub fn run() {
             sync::on_window_event(window, event);
             #[cfg(desktop)]
             updates::on_window_event(window, event);
+            #[cfg(desktop)]
+            background::on_window_event(window, event);
         })
         .setup(|app| {
             // A launch that fails ends here, explained, never in a panic.
@@ -371,7 +399,7 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     let db_path = data_dir.join(startup::DB_FILE);
     app.manage(db);
     app.manage(backups::Backups::new(data_dir, &db_path));
-    // Usage events: a separate file, outside sync, backups and devot-mcp.
+    // Usage events: a separate file, outside sync, backups and AI tools.
     app.manage(std::sync::Arc::new(usage::UsageLog::new(
         &data_dir.join(usage::FILE),
         usage::Limits::DEFAULT,
@@ -461,6 +489,8 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
             material: stored.settings.sidebar_material,
         },
     ));
+    #[cfg(desktop)]
+    background::enter(app, stored.settings.menu_bar);
     main_windows::build(app.handle(), MAIN_WINDOW, None).map_err(StartupError::new)?;
     native::configure_main_window(app);
     #[cfg(desktop)]
@@ -485,6 +515,7 @@ fn start_http_api(app: &mut tauri::App, data_dir: &Path) {
         licence::Gate::of(&licence),
     ));
     app.manage(std::sync::Arc::clone(&api));
+    api.forget_rendezvous();
     if std::thread::Builder::new()
         .name("http-api-start".into())
         .spawn(move || api.apply())

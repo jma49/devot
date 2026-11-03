@@ -1,4 +1,4 @@
-// The core's view of storage: Tauri commands in the app, better-sqlite3 in devot-mcp and tests. Every call is async.
+// The core's view of storage: Tauri commands in the app, better-sqlite3 in tests. Every call is async.
 //
 // Metadata fields carry the HLC of their last write; storage keeps the newer value per field (last-writer-wins). The body is a Yjs document written whole, only
 // while it is still at the version the writer last saw (see putNote), so a body written meanwhile is merged, never overwritten.
@@ -134,7 +134,7 @@ export interface BookRecord {
   updatedAt: number
   deletedAt: number | null
   deletedHlc: string | null
-  /** Allow AI Access: devot-mcp sees live notes filed directly in this notebook (not its sub-notebooks). */
+  /** Allow AI Access: AI tools see live notes filed directly in this notebook (not its sub-notebooks). */
   aiAccess: boolean
   aiAccessHlc: string
   /** Siblings show in key order, equal keys in ID order (order.ts). */

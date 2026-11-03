@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-background-state"
+description = "Enables the background_state command without any pre-configured scope."
+commands.allow = ["background_state"]
+
+[[permission]]
+identifier = "deny-background-state"
+description = "Denies the background_state command without any pre-configured scope."
+commands.deny = ["background_state"]

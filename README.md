@@ -11,7 +11,7 @@
 [![Platform: macOS 26+, Apple Silicon](https://img.shields.io/badge/platform-macOS%2026%2B%20%C2%B7%20Apple%20Silicon-lightgrey)](#download)
 [![CI](https://github.com/jma49/devot/actions/workflows/ci.yml/badge.svg)](https://github.com/jma49/devot/actions/workflows/ci.yml)
 
-[Website](https://devot.online) · [Download](#download) · [Features](#features) · [devot-mcp](#claude-and-other-mcp-clients-devot-mcp) · [Development](docs/development.md)
+[Website](https://devot.online) · [Download](#download) · [Features](#features) · [AI tools](#claude-and-other-mcp-clients) · [Development](docs/development.md)
 
 </div>
 
@@ -22,7 +22,7 @@
   </picture>
 </p>
 
-Devot keeps your notes in a SQLite database on your Mac. Every feature works without an account or a network connection, and nothing leaves the Mac unless you export it, mirror it, let an MCP client read it, use an AI feature with your own provider key, or sync through your own relay.
+Devot keeps your notes in a SQLite database on your Mac. Every feature works without an account or a network connection, and nothing leaves the Mac unless you export it, mirror it, let an AI tool read it, use an AI feature with your own provider key, or sync through your own relay.
 
 **Status:** stable releases for macOS, with sync through your own relay and AI with your own provider key. The iPhone app is in progress ([milestones](https://github.com/jma49/devot/milestones)).
 
@@ -102,7 +102,7 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
 
 **Work with AI, on your terms**
 
-- devot-mcp lets Claude and other MCP clients search, read, create, edit and trash notes, only in notebooks you allow (below).
+- Claude and other MCP clients can search, read, create, edit and trash notes, only in notebooks you allow (below).
 
 <p align="center">
   <picture>
@@ -138,9 +138,9 @@ The folder is written by Devot and never read back: edit notes in Devot.
 - If the folder goes missing (an unplugged drive) or cannot be written, the mirror pauses and resumes by itself once it can.
 - If the list of files Devot wrote there (`.devot-mirror.json`) goes missing or is damaged, the mirror pauses until you choose the folder again (or put the file back); files that still hold what Devot wrote are then taken back, so nothing is written twice.
 
-## Claude and other MCP clients (devot-mcp)
+## Claude and other MCP clients
 
-devot-mcp lets Claude Code, Codex, Claude Desktop and other MCP clients work with your notes. It is a small Node program that clients start over stdio. It reads and writes Devot's database directly, so it works whether Devot is open or not; its changes appear in an open Devot within a second, merged into a note you are editing without moving the caret or touching your undo history.
+Claude Code, Codex, Claude Desktop and other MCP clients can work with your notes through Devot. Nothing else needs to be installed: clients run a small bridge inside Devot's own binary, which talks to the running app on this Mac only. Changes appear within a moment, merged into a note you are editing without moving the caret or touching your undo history.
 
 **Only notebooks with Allow AI Access on are visible.** Right-click a notebook in the sidebar and choose Allow AI Access; a sparkle marks the notebooks that have it. The switch is per notebook: a sub-notebook needs its own. Notes in the Trash and notes in no notebook are never visible.
 
@@ -161,45 +161,28 @@ Edits apply directly. Before each one, Devot keeps the note's text as it was in 
 
 ### Set it up
 
-devot-mcp runs from a checkout of this repository (requirements in `docs/development.md`). Build it once, and again after pulling changes:
+Open **Settings > Integrations** and choose **Connect** for Claude Code, Codex or Claude Desktop. It shows the file and the exact text first, keeps everything else in the file, and keeps a backup beside it. The token stays in your keychain and never goes in that file. Restart the client afterwards. Install Devot in Applications first: Connect waits while it runs from a disk image.
+
+The same pane has the configuration to copy, for these clients and any other. On a default install:
 
 ```sh
-pnpm install
-pnpm mcp:build        # writes dist-mcp/devot-mcp.mjs
+claude mcp add --scope user devot -- /Applications/Devot.app/Contents/MacOS/devot --cli mcp
 ```
-
-Run Devot once first, so the database exists and is up to date; devot-mcp never creates or upgrades the database. It reads the release app's `~/Library/Application Support/io.github.jma49.devot/devot.sqlite`; pass `--db <path>` to use another file, such as a debug build's in `io.github.jma49.devot.dev`.
-
-Settings > Integrations in Devot shows these configs ready to copy, with the checkout's path filled in when the app was built from it.
-
-**Claude Code** (run from the repository root; `claude mcp list` shows whether it connected):
-
-```sh
-claude mcp add --scope user devot -- node "$PWD/dist-mcp/devot-mcp.mjs"
-```
-
-**Codex:** add this to `~/.codex/config.toml`:
 
 ```toml
+# ~/.codex/config.toml
 [mcp_servers.devot]
-command = "node"
-args = ["/absolute/path/to/devot/dist-mcp/devot-mcp.mjs"]
+command = "/Applications/Devot.app/Contents/MacOS/devot"
+args = ["--cli", "mcp"]
 ```
 
-**Claude Desktop:** add this to `~/Library/Application Support/Claude/claude_desktop_config.json` (Settings > Developer > Edit Config), with absolute paths, then restart Claude Desktop:
+### Devot may start in the background
 
-```json
-{
-  "mcpServers": {
-    "devot": {
-      "command": "/absolute/path/to/node",
-      "args": ["/absolute/path/to/devot/dist-mcp/devot-mcp.mjs"]
-    }
-  }
-}
-```
+AI tools need Devot running. When a tool asks and Devot is closed, Devot starts in the background with no window and no Dock icon, and shows an icon in the menu bar with **Quit Devot**. It quits by itself after 10 minutes without a request, unless you opened a window, and it saves first as any quit does. After you quit it, the next request starts it again.
 
-Use the Node that ran `pnpm install` (`which node` prints its path): better-sqlite3 is a native module built for that version. devot-mcp writes its logs (codes and IDs only, never note text) to stderr; errors returned to the client start with a code such as `E_STORAGE_SCHEMA_TOO_OLD`.
+Settings > Integrations > AI Tools shows whether it is running that way and has its own **Quit Devot**. Turn **Start in the Background** off and tools get a clear error until you open Devot yourself. **Allow AI Tools** there stops them altogether, and **Access** chooses Read Only or Read and Write. None of this turns on the Local HTTP API, which has its own switch and token.
+
+Errors returned to a client start with a code such as `E_MCP_BACKGROUND_START_OFF`. Logs hold codes and IDs, never note text.
 
 ## Crash reports
 

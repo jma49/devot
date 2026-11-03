@@ -114,6 +114,57 @@ pub fn turn_off_peer_connections(window: &tauri::WebviewWindow) {
     );
 }
 
+/// `WKInactiveSchedulingPolicyNone`: macOS 14 and later.
+const INACTIVE_SCHEDULING_NONE: isize = 2;
+
+/// A main window built hidden must answer AI tools (`background`), and WebKit may suspend a page
+/// nobody can see. Where the setting does not exist the page runs as a hidden one always has.
+pub fn keep_running_while_hidden(window: &tauri::WebviewWindow) {
+    let result = window.with_webview(move |webview| {
+        let web_view: *mut AnyObject = webview.inner().cast();
+        let set = guarded("W_NATIVE_WEB_FEATURE_FAILED", || {
+            // SAFETY: `inner()` is the live WKWebView owned by this window, and the setter is
+            // checked with respondsToSelector: before use.
+            unsafe { set_never_suspended(web_view) }.then_some(())
+        })
+        .is_some();
+        if !set {
+            log::warn!("W_NATIVE_INACTIVE_SCHEDULING_UNAVAILABLE");
+        }
+    });
+    if result.is_err() {
+        log::warn!("W_NATIVE_WEBVIEW_UNAVAILABLE");
+    }
+}
+
+/// # Safety
+/// `web_view` must point to a live `WKWebView`.
+unsafe fn set_never_suspended(web_view: *mut AnyObject) -> bool {
+    if web_view.is_null() {
+        return false;
+    }
+    // SAFETY: `web_view` is a live WKWebView (caller contract), which responds to `configuration`,
+    // which responds to `preferences`.
+    let preferences: *mut AnyObject = unsafe {
+        let configuration: *mut AnyObject = msg_send![web_view, configuration];
+        if configuration.is_null() {
+            return false;
+        }
+        msg_send![configuration, preferences]
+    };
+    if preferences.is_null() {
+        return false;
+    }
+    // SAFETY: `preferences` is a live WKPreferences, and every NSObject answers this.
+    if !unsafe { responds(preferences, sel!(setInactiveSchedulingPolicy:)) } {
+        return false;
+    }
+    // SAFETY: the selector exists (checked above) and takes an NSInteger.
+    let () =
+        unsafe { msg_send![preferences, setInactiveSchedulingPolicy: INACTIVE_SCHEDULING_NONE] };
+    true
+}
+
 /// Per web view: plugins run in every main window.
 pub fn turn_off_resource_hints(window: &tauri::WebviewWindow) {
     let result = window.with_webview(move |webview| {

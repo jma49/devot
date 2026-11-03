@@ -132,7 +132,7 @@ describe('taking versions', () => {
   })
 
   it('keeps the text from before the first edit when no version holds it', async () => {
-    // Notes from import, devot-mcp or before history existed have no version: the first edit records the old text.
+    // Notes from import, an outside writer or before history existed have no version: the first edit records the old text.
     const first = service()
     const id = await first.notes.create('Imported')
     await first.notes.setBody(id, 'from a file')

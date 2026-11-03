@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-background-idle-answer"
+description = "Enables the background_idle_answer command without any pre-configured scope."
+commands.allow = ["background_idle_answer"]
+
+[[permission]]
+identifier = "deny-background-idle-answer"
+description = "Denies the background_idle_answer command without any pre-configured scope."
+commands.deny = ["background_idle_answer"]

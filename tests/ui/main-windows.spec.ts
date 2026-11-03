@@ -228,7 +228,7 @@ test('writes marked seen in one window leave the other window’s mark at once',
 }) => {
   const id = await noteIn(page, 'Plan', 'Owner text.')
   await noteIn(page, 'Other', 'Other text.')
-  // An agent's unseen write on Plan, as devot-mcp leaves it.
+  // An agent's unseen write on Plan, as an outside writer leaves it.
   await page.evaluate((noteId) => {
     const at = Date.now()
     localStorage.setItem(

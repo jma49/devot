@@ -262,7 +262,7 @@ pub struct BookRecord {
     pub updated_at: i64,
     pub deleted_at: Option<i64>,
     pub deleted_hlc: Option<String>,
-    /// Allow AI Access: devot-mcp sees the notebook's own notes (not its
+    /// Allow AI Access: AI tools see the notebook's own notes (not its
     /// sub-notebooks'). Off by default.
     #[serde(default)]
     pub ai_access: bool,
@@ -490,7 +490,7 @@ const NOTE_ACTIVITY_SQL: &str = "SELECT r.note_id AS noteId, r.kind, r.at, r.len
 /// Run when a note (`@id`) is purged, before its attachments are deleted: gives each attachment
 /// that another note, not purged, still shows (its Markdown holds `devot://file/<id>`) to that
 /// note, a live one before one in the Trash, then the smallest ID. A link can reach another note
-/// without a copy (cut or dragged Markdown, Paste as Plain Text, devot-mcp, a restored version, an
+/// without a copy (cut or dragged Markdown, Paste as Plain Text, an outside writer, a restored version, an
 /// old duplicate) and its image must stay. The search index finds those notes (a phrase match, so
 /// no note is read whole); it ignores case, so `instr` checks the address as written. The same
 /// statement as the TypeScript adapter's (src/mcp/sqlite.ts, HAND_OVER_FILES_SQL; a test compares
@@ -638,7 +638,7 @@ fn fold(c: char) -> char {
 /// `text` folded one character at a time (see `fold`). The SQL function
 /// `devot_fold` is this: terms too short for the trigram index are scanned
 /// with it, so they ignore case in every script, as the index does (SQLite's
-/// own `lower()` folds ASCII only). devot-mcp registers the same function
+/// own `lower()` folds ASCII only). tests/support/sqlite-adapter.ts registers the same function
 /// (src/mcp/sqlite.ts) from the same cases (tests/support/folds.json).
 fn fold_text(text: &str) -> String {
     if text.is_ascii() {
@@ -1080,7 +1080,7 @@ impl Store {
     pub fn open(path: &Path) -> Result<Self> {
         let mut conn = Connection::open(path)?;
         register_fold(&conn)?;
-        // WAL lets devot-mcp read while Devot writes; FULL sync because data
+        // WAL lets an outside writer read while Devot writes; FULL sync because data
         // integrity outranks write speed.
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "FULL")?;
@@ -1090,7 +1090,7 @@ impl Store {
         conn.pragma_update(None, "secure_delete", "ON")?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         // Every transaction takes the write lock when it begins, so it waits
-        // out another writer (devot-mcp) for the busy timeout. A deferred one
+        // out another writer (an outside writer) for the busy timeout. A deferred one
         // that has read (an attachment's note, the search index on its first
         // use) would fail at once when it then needs to write.
         conn.set_transaction_behavior(TransactionBehavior::Immediate);
@@ -1126,7 +1126,7 @@ impl Store {
         self.migrate()
     }
 
-    /// Changes whenever another connection (devot-mcp, say) commits; this connection's own commits
+    /// Changes whenever another connection (an outside writer, say) commits; this connection's own commits
     /// leave it alone.
     pub fn data_version(&self) -> Result<u32> {
         Ok(self

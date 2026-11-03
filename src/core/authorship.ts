@@ -2,7 +2,7 @@
 // root maps of the note's Yjs document, `writers` (session -> who) and `writes` (write -> when,
 // and which body items it inserted and deleted). Text is attributed by its item IDs, which stay
 // the same through merges, sync, garbage collection and restarts, so the records need no anchors.
-// Records are untrusted input (another device, devot-mcp, a later build): a reader skips one that
+// Records are untrusted input (another device, an outside writer, a later build): a reader skips one that
 // does not parse and leaves it in the map.
 
 import * as Y from 'yjs'

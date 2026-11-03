@@ -205,7 +205,7 @@ function HistoryOverlay(props: {
 /**
  * View > Show History Bar: the open note's kept versions as ticks on a time axis along the editor's bottom edge. Dragging the handle (or its arrow keys)
  * shows a version in place over the editor, a read-only overlay of the current text with what changed since; the note itself is left alone, and what
- * changes it meanwhile (sync, devot-mcp) shows under the overlay. Letting go or Escape returns; a click or a key keeps the version shown, so struck text
+ * changes it meanwhile (sync, an outside writer) shows under the overlay. Letting go or Escape returns; a click or a key keeps the version shown, so struck text
  * can be selected and put back.
  */
 export function useHistoryBar(props: {

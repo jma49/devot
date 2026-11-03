@@ -3093,6 +3093,11 @@ button {
   color: var(--color-text-secondary);
 }
 
+/* A path has no spaces to break at. */
+.integration-confirm .confirm-detail {
+  overflow-wrap: anywhere;
+}
+
 .confirm-actions {
   display: flex;
   justify-content: flex-end;
