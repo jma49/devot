@@ -116,17 +116,16 @@ export function LicenceSection() {
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
-      <SettingsSection title="licenceSettings.title" titleHidden={onPhone}>
+      <SettingsSection
+        title="licenceSettings.title"
+        titleHidden={onPhone}
+        footnote={onPhone ? t('licenceSettings.detail') : undefined}
+      >
         {onPhone ? null : <SettingsNote>{t('licenceSettings.detail')}</SettingsNote>}
         {licence.gated || licence.state === 'none' ? null : (
           <SettingsNote>{t('licenceSettings.ungated')}</SettingsNote>
         )}
-        <Setting
-          label="licenceSettings.status"
-          description={stateSentence(licence)}
-          live
-          hint={{ title: t('licenceSettings.title'), body: t('licenceSettings.detail') }}
-        >
+        <Setting label="licenceSettings.status" description={stateSentence(licence)}>
           {licence.state === 'valid' ? null : (
             <div className="settings-buttons">
               <LicenceButton />
@@ -134,12 +133,12 @@ export function LicenceSection() {
           )}
         </Setting>
         {trial === null ? null : (
-          <Setting label="licenceSettings.trial" description={trial} live>
+          <Setting label="licenceSettings.trial" description={trial}>
             {null}
           </Setting>
         )}
         {licence.activation ? (
-          <Setting label="licenceSettings.devices" description={seatSentence(licence) ?? ''} live>
+          <Setting label="licenceSettings.devices" description={seatSentence(licence) ?? ''}>
             <div className="settings-buttons">
               {licence.activation.state === 'active' &&
               !['E_LICENCE_DEVICE_LIMIT', 'E_LICENCE_ACTIVATION_REQUIRED'].includes(
@@ -156,12 +155,12 @@ export function LicenceSection() {
           </Setting>
         ) : null}
         {licence.licensee ? (
-          <Setting label="licenceSettings.licensee" description={licence.licensee} live>
+          <Setting label="licenceSettings.licensee" description={licence.licensee}>
             {null}
           </Setting>
         ) : null}
         {licence.id ? (
-          <Setting label="licenceSettings.id" description={licence.id} live>
+          <Setting label="licenceSettings.id" description={licence.id}>
             {null}
           </Setting>
         ) : null}
