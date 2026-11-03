@@ -1,7 +1,7 @@
 // The internal extension point for preview renderers: a renderer transforms the sanitized HTML tree (hast) of a note. Renderers run after sanitizing, so whatever they
 // add is trusted: they must only build structure from validated values, never pass note text through as markup.
 import type { Root } from 'hast'
-import type { NoteStatus, TagColor } from '../storage'
+import type { NoteStatus, TagColorValue } from '../storage'
 import type { TaskProgress } from '../tasks'
 
 export const PREVIEW_API_VERSION = 1
@@ -28,7 +28,7 @@ export interface NoteLinkTarget {
   title: string
   status: NoteStatus
   tasks: TaskProgress
-  tags: { name: string; color: TagColor | null }[]
+  tags: { name: string; color: TagColorValue | null }[]
 }
 
 /** The open note's own fields, so its front matter can show what differs from them. */
@@ -38,7 +38,7 @@ export interface PreviewNote {
   /** The names of the note's tags. */
   tags: readonly string[]
   /** The library's tags that have a colour, so a front-matter tag naming one is drawn in it. */
-  tagColors: readonly { name: string; color: TagColor }[]
+  tagColors: readonly { name: string; color: TagColorValue }[]
   /** False while the note cannot be changed: what differs shows without Apply. */
   canApply: boolean
   labels: {

@@ -15,12 +15,12 @@ import { errorCode } from '../errors'
 import { fileLinks } from '../files'
 import { receiveStored, type Clock } from '../hlc'
 import { clipTitle } from '../noteLimits'
-import { isNotebookSymbol } from '../notebookIcons'
+import { isNotebookIcon } from '../notebookIcons'
 import { MERGE, REVISION_EVERY_MS, textLength } from '../revisions'
 import { countWords } from '../words'
 import { quotaResetAt } from './protocol'
 import type { BookRecord, NoteRecord, StorageAdapter, TagRecord } from '../storage'
-import { isTagColor } from '../tags'
+import { isTagColor, isTagColorValue } from '../tags'
 import {
   bodyPrint,
   decodeRecord,
@@ -275,7 +275,7 @@ const bookRecordOf = (state: BookState): BookRecord => ({
   aiAccessHlc: '',
   sortKey: state.sortKey,
   sortKeyHlc: state.sortKeyHlc,
-  icon: isNotebookSymbol(state.icon) ? state.icon : null,
+  icon: isNotebookIcon(state.icon) ? state.icon : null,
   iconColor: isTagColor(state.iconColor) ? state.iconColor : null,
   iconHlc: state.iconHlc,
 })
@@ -288,7 +288,7 @@ const tagRecordOf = (state: TagState): TagRecord => ({
   updatedAt: state.updatedAt,
   deletedAt: state.deletedAt,
   deletedHlc: state.deletedHlc || null,
-  color: isTagColor(state.color) ? state.color : null,
+  color: isTagColorValue(state.color) ? state.color : null,
   colorHlc: state.colorHlc,
 })
 

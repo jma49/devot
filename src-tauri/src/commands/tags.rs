@@ -1,5 +1,5 @@
 use super::notes::{valid_hlc, valid_note_id};
-use crate::storage::{Db, NoteTagRecord, TAG_COLORS, TagRecord, Write};
+use crate::storage::{Db, NoteTagRecord, TagRecord, Write, valid_tag_color};
 use tauri::State;
 
 const MAX_NAME_CHARS: usize = 100;
@@ -23,7 +23,7 @@ fn validate_tag(tag: &TagRecord) -> Result<(), &'static str> {
         return Err("E_TAG_HLC_INVALID");
     }
     if let Some(color) = &tag.color
-        && (!TAG_COLORS.contains(&color.as_str()) || tag.color_hlc.is_empty())
+        && (!valid_tag_color(color) || tag.color_hlc.is_empty())
     {
         return Err("E_TAG_COLOR_INVALID");
     }
@@ -195,6 +195,31 @@ mod tests {
         let mut cleared = tag();
         cleared.color_hlc = HLC.into();
         assert_eq!(validate_tag(&cleared), Ok(()));
+    }
+
+    #[test]
+    fn takes_a_custom_colour_only_as_lowercase_rrggbb() {
+        let with_color = |color: &str| {
+            let mut record = tag();
+            record.color = Some(color.into());
+            record.color_hlc = HLC.into();
+            validate_tag(&record)
+        };
+        assert_eq!(with_color("#ff00aa"), Ok(()));
+        assert_eq!(with_color("#000000"), Ok(()));
+        for bad in [
+            "#FF00AA",
+            "#f0a",
+            "#ff00a",
+            "#ff00aa0",
+            "ff00aa0",
+            "#ff00ag",
+            "#ff00a\u{e9}",
+            "#",
+            "#ff00aa;",
+        ] {
+            assert_eq!(with_color(bad), Err("E_TAG_COLOR_INVALID"), "{bad}");
+        }
     }
 
     #[test]

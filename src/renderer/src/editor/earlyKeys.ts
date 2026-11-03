@@ -120,6 +120,11 @@ export function earlyKeys<F>(env: EarlyKeysEnv<F>) {
       return session?.noteId === noteId ? end(session) : []
     },
 
+    /** A New Note is still waiting for its editor. */
+    waiting(): boolean {
+      return session?.listening !== undefined
+    },
+
     /** Keys are being kept for another note, so this one must not take the keyboard. */
     keptForAnother(noteId: string): boolean {
       return session?.listening !== undefined && session.noteId !== noteId
@@ -217,3 +222,5 @@ export const takeEarlyKeys = (noteId: string): EarlyKey[] => windowKeys?.take(no
 
 export const earlyKeysKeptForAnother = (noteId: string): boolean =>
   windowKeys?.keptForAnother(noteId) ?? false
+
+export const earlyKeysWaiting = (): boolean => windowKeys?.waiting() ?? false

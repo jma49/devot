@@ -35,6 +35,34 @@ async function rightPadding(control: Locator): Promise<number> {
 const glassOpaque = (page: Page) =>
   tabs(page).evaluate((bar) => getComputedStyle(bar).backdropFilter === 'none')
 
+test('an ended trial shows on the Settings tab and its License row at launch', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      ...w.devotIpcMocks,
+      licence_get: () => ({
+        gated: true,
+        state: 'none',
+        code: null,
+        id: null,
+        licensee: null,
+        plan: null,
+        trial: { state: 'ended', endsAt: Date.now() - 86_400_000, code: null },
+      }),
+    }
+  })
+  await page.goto('/')
+  await expect(
+    tabs(page)
+      .getByRole('button', { name: 'Settings' })
+      .getByRole('img', { name: 'Needs attention' }),
+  ).toBeVisible()
+  await tabs(page).getByRole('button', { name: 'Settings' }).click()
+  await expect(root(page).getByRole('button', { name: /^License/ })).toContainText(
+    'Needs attention',
+  )
+})
+
 test('Settings has its groups, and what lives on the Mac says so and does not open', async ({
   page,
 }) => {
@@ -134,27 +162,51 @@ test('controls have the design sizes and reach their targets', async ({ page }) 
   await expect(page.locator('html')).toHaveAttribute('data-appearance', 'dark')
 })
 
-test('a long explanation opens in a sheet, and Done closes it', async ({ page }) => {
-  const pane = await openPane(page, 'Appearance')
-  await expect(pane.getByText('Glass lets the background show through')).toHaveCount(0)
-  const button = pane.getByRole('button', { name: 'About Interface' })
-  const box = (await button.boundingBox())!
-  expect(box.width).toBeGreaterThanOrEqual(44)
-  expect(box.height).toBeGreaterThanOrEqual(44)
-  await button.click()
-  const sheet = page.getByRole('dialog', { name: 'Interface' })
-  await expect(sheet.getByText('Glass lets the background show through')).toBeVisible()
-  const done = (await sheet.getByRole('button', { name: 'Done' }).boundingBox())!
-  expect(done.height).toBeCloseTo(50, 1)
-  await sheet.getByRole('button', { name: 'Done' }).click()
-  await expect(sheet).toHaveCount(0)
+test('no pane has an info button or a long explanation under a row', async ({ page }) => {
+  for (const name of [
+    'General',
+    'Appearance',
+    'Editing',
+    'Preview',
+    'Sync',
+    'AI',
+    'License',
+    'Usage',
+  ]) {
+    const pane = await openPane(page, name)
+    await expect(pane.getByRole('button', { name: /^About / })).toHaveCount(0)
+    await expect(pane.getByText('Glass lets the background show through')).toHaveCount(0)
+  }
 })
 
-test('shared rows show their explanation behind an info button on a phone', async ({ page }) => {
+test('Editing rows have at most one line of description, the control centred', async ({ page }) => {
   const pane = await openPane(page, 'Editing')
-  await expect(pane.locator('.setting-description')).toHaveCount(0)
-  await pane.getByRole('button', { name: 'About Unordered List Bullet' }).click()
-  await expect(page.getByRole('dialog', { name: 'Unordered List Bullet' })).toBeVisible()
+  const rows = pane.locator('.setting:has(.setting-description)')
+  expect(await rows.count()).toBeGreaterThan(0)
+  for (const row of await rows.all()) {
+    const text = row.locator('.setting-description')
+    // Fonts differ between machines, so the length is checked rather than the wrapped height.
+    expect((await text.textContent())!.length).toBeLessThanOrEqual(40)
+    const box = (await text.boundingBox())!
+    const label = (await row.locator('.setting-label').boundingBox())!
+    expect(box.x).toBeCloseTo(label.x, 0)
+    const whole = (await row.boundingBox())!
+    const control = (await row.locator('.setting-control').boundingBox())!
+    expect(control.y + control.height / 2).toBeCloseTo(whole.y + whole.height / 2, 0)
+  }
+  await expect(
+    pane.locator('.setting:has(label:text-is("Toolbar")) .setting-description'),
+  ).toHaveCount(0)
+})
+
+test('the controls in a card share one right edge', async ({ page }) => {
+  const pane = await openPane(page, 'Editing')
+  for (const card of await pane.locator('.settings-card').all()) {
+    const edges = await card
+      .locator('.setting:not(.setting-stacked) > .setting-control > *')
+      .evaluateAll((controls) => controls.map((c) => Math.round(c.getBoundingClientRect().right)))
+    expect(new Set(edges).size).toBeLessThanOrEqual(1)
+  }
 })
 
 test('a pane switch is 51 by 31', async ({ page }) => {
@@ -252,10 +304,10 @@ test('the Sync pane shows the recovery key only while it waits to be saved', asy
 test('a stepper and a select sit on their label row, at the row right padding', async ({
   page,
 }) => {
-  const pane = await openPane(page, 'Appearance')
+  const pane = await openPane(page, 'Editing')
   for (const [role, name, control] of [
-    ['spinbutton', 'Preview Font Size', '.stepper'],
-    ['combobox', 'Animations', '.select'],
+    ['spinbutton', 'Cursor Scroll Margin', '.stepper'],
+    ['combobox', 'Indent Unit', '.select'],
   ] as const) {
     const row = pane.locator('.setting').filter({ has: page.getByRole(role, { name }) })
     const box = row.locator(control)
@@ -264,9 +316,10 @@ test('a stepper and a select sit on their label row, at the row right padding', 
       box.boundingBox(),
     ])
     expect(drawn!.x).toBeGreaterThan(label!.x + label!.width)
-    expect(Math.abs(drawn!.y + drawn!.height / 2 - (label!.y + label!.height / 2))).toBeLessThan(2)
+    const whole = (await row.boundingBox())!
+    expect(Math.abs(drawn!.y + drawn!.height / 2 - (whole.y + whole.height / 2))).toBeLessThan(2)
     expect(await rightPadding(box)).toBeCloseTo(12, 0)
-    expect((await row.boundingBox())!.height).toBeCloseTo(44, 0)
+    expect(whole.height).toBeGreaterThanOrEqual(44)
   }
 })
 
@@ -521,32 +574,17 @@ test.describe('License, Usage and disabled switches', () => {
   const firstCardTop = async (pane: Locator) =>
     (await pane.locator('.settings-card').first().boundingBox())!.y
 
-  test('License and Usage start where other panes do, the info on a first row', async ({
-    page,
-  }) => {
+  test('License and Usage start where other panes do, with no empty head', async ({ page }) => {
     await seedLicence(page)
     await seedUsage(page, 9)
     const sync = await firstCardTop(await openPane(page, 'Sync'))
-    for (const [name, about, sheet] of [
-      ['License', 'About License', 'License'],
-      ['Usage', 'About Usage overview', 'Usage overview'],
-    ] as const) {
+    for (const name of ['General', 'Editing', 'Preview', 'License', 'Usage']) {
       const pane = await openPane(page, name)
-      await expect(pane.locator('.phone-block-head:not(:has(.settings-block-title))')).toHaveCount(
-        0,
-      )
-      await expect.poll(() => firstCardTop(pane)).toBeCloseTo(sync, 0)
-      const info = pane
-        .locator('.settings-card')
-        .first()
-        .getByRole('button', { name: about, exact: true })
-      const box = (await info.boundingBox())!
-      expect(box.width).toBeGreaterThanOrEqual(44)
-      expect(box.height).toBeGreaterThanOrEqual(44)
-      await info.click()
-      const dialog = page.getByRole('dialog', { name: sheet })
-      await expect(dialog).toBeVisible()
-      await dialog.getByRole('button', { name: 'Done' }).click()
+      if (await pane.locator('.settings-card').count()) {
+        const first = pane.locator('.settings-block').first()
+        const titled = await first.locator('.settings-block-title').count()
+        if (!titled) await expect.poll(() => firstCardTop(pane)).toBeCloseTo(sync, 0)
+      }
     }
   })
 

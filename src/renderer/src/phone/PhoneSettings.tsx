@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { trialRunning, useLicence } from '../licence'
-import { OnPhone, ShowHint, type SettingHint } from '../settings/onPhone'
+import { OnPhone } from '../settings/onPhone'
 import type { IconName } from '../icons/symbols'
 import { PANES, PANE_TABS, type PaneId } from '../settings/panes'
 import { startSyncStatus, useSyncSnapshot } from '../sync'
@@ -311,14 +311,11 @@ export function PhoneSettingsPane(props: { pane: string; onBack: () => void }) {
       alive = false
     }
   }, [pane])
-  const [hint, setHint] = useState<SettingHint | null>(null)
   const title = PANE_TABS[pane] ? t(PANE_TABS[pane].label) : t('settings.title')
   return (
     <section aria-label={title} className="phone-screen">
       <div className="phone-scroll phone-settings-pane settings-window">
-        <OnPhone.Provider value={true}>
-          <ShowHint.Provider value={setHint}>{Section && <Section />}</ShowHint.Provider>
-        </OnPhone.Provider>
+        <OnPhone.Provider value={true}>{Section && <Section />}</OnPhone.Provider>
       </div>
       <div aria-hidden="true" className="phone-topbar-band" />
       <header className="phone-topbar">
@@ -332,9 +329,6 @@ export function PhoneSettingsPane(props: { pane: string; onBack: () => void }) {
         </button>
         <h1 className="phone-topbar-title">{title}</h1>
       </header>
-      {hint && (
-        <PhoneDetailSheet title={hint.title} body={hint.body} onClose={() => setHint(null)} />
-      )}
     </section>
   )
 }

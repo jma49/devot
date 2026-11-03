@@ -23,7 +23,7 @@ import { headingIds } from './headingIds'
 import { noteLinkChips } from './noteLinks'
 import { parse, stringify } from 'yaml'
 import { noteTitle, readFrontMatterYaml, type FrontMatterMeta } from '../import'
-import { sameName } from '../tags'
+import { customTagColorProperties, sameName, tagColorClass } from '../tags'
 
 type Parent = Root | Element
 type Rewrite = (el: Element, parent: Parent) => ElementContent | ElementContent[] | null | undefined
@@ -77,9 +77,9 @@ type NoteField = 'title' | 'status' | 'tags'
 const chip = (name: string, note: PreviewNote | undefined): Element => {
   const color = note?.tagColors.find((tag) => sameName(tag.name, name))?.color
   const className = color
-    ? ['frontmatter-chip', 'tag-chip', `tag-color-${color}`]
+    ? ['frontmatter-chip', 'tag-chip', tagColorClass(color)]
     : ['frontmatter-chip']
-  return el('span', { className }, [txt(name)])
+  return el('span', { className, ...customTagColorProperties(color) }, [txt(name)])
 }
 
 /** The note's own value beside the front matter's, and an Apply that sets it from the front matter. */

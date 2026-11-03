@@ -219,6 +219,18 @@ describe('merging notebooks and tags', () => {
     ...patch,
   })
 
+  it('keeps a Lucide icon against a version that read it as none at the same clock', () => {
+    const merged = mergeBook(
+      book({ icon: 'lucide:coffee', iconColor: 'blue', iconHlc: hlc(3) }),
+      book({ icon: null, iconColor: null, iconHlc: hlc(3) }),
+    )
+    expect(merged.record).toMatchObject({
+      icon: 'lucide:coffee',
+      iconColor: 'blue',
+      iconHlc: hlc(3),
+    })
+  })
+
   it('takes each field’s newer value, and the greater key at equal clocks', () => {
     const merged = mergeBook(
       book({ name: 'Office', nameHlc: hlc(3), sortKey: 'a0' }),
@@ -247,5 +259,27 @@ describe('merging notebooks and tags', () => {
       tag({ name: 'every day', nameHlc: hlc(3) }),
     )
     expect(merged.record).toMatchObject({ name: 'every day', color: 'red' })
+  })
+
+  it('a custom colour survives a device that reads it as none and keeps its HLC', () => {
+    const tag = (patch: Partial<TagState>): TagState => ({
+      kind: 'tag',
+      id: ID,
+      name: 'daily',
+      nameHlc: hlc(1),
+      createdAt: 1,
+      updatedAt: 1,
+      deletedAt: null,
+      deletedHlc: '',
+      color: null,
+      colorHlc: '',
+      ...patch,
+    })
+    const custom = tag({ color: '#ff00aa', colorHlc: hlc(2) })
+    // An older Devot's reader: anything outside its palette is none, the HLC stays.
+    const older = tag({ name: 'every day', nameHlc: hlc(3), color: null, colorHlc: hlc(2) })
+    expect(mergeTag(custom, older).record).toMatchObject({ name: 'every day', color: '#ff00aa' })
+    expect(mergeTag(older, tag({ color: 'red', colorHlc: hlc(1) })).record.colorHlc).toBe(hlc(2))
+    expect(mergeTag(custom, tag({ color: 'red', colorHlc: hlc(4) })).record.color).toBe('red')
   })
 })

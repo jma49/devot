@@ -380,11 +380,9 @@ function GlassUsageSection() {
           )
         ) : (
           <>
-            <SettingsSection title="usage.overview" titleHidden>
+            <SettingsSection title="usage.overview" titleHidden footnote={t('usage.privacy')}>
               <PhoneSegmented
                 label={t('usage.range')}
-                hint={t('usage.privacy')}
-                hintTitle={t('usage.overview')}
                 value={String(period)}
                 options={([7, 30, 90] as const).map((days) => ({
                   value: String(days),
@@ -471,10 +469,7 @@ function GlassUsageSection() {
             )}
           </>
         )}
-        <SettingsSection
-          title="usage.storage"
-          footnote={`${t('usage.limits')} ${t('usage.retained')}`}
-        >
+        <SettingsSection title="usage.storage" footnote={t('usage.limits')}>
           <div className="setting">
             <span className="setting-label">{t('usage.total')}</span>
             <span className="phone-figures phone-usage-capacity">

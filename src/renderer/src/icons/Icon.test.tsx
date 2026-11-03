@@ -23,6 +23,12 @@ describe('Icon', () => {
     expect(html).not.toContain('<svg')
   })
 
+  it('marks a symbol whose image is pending, with no mask or colour of its own', () => {
+    const html = renderToStaticMarkup(<Icon name="trash" size="md" className="book-icon-colored" />)
+    expect(html).toContain('data-pending=""')
+    expect(html).not.toContain('style=')
+  })
+
   it('draws an SVG in the Lucide style, at the same size class', () => {
     state.style = 'lucide'
     const html = renderToStaticMarkup(<Icon name="trash" size="md" />)
@@ -102,6 +108,17 @@ describe('iconElement', () => {
     const el = iconElement('trash', 16) as unknown as ReturnType<typeof fake>
     expect(el.innerHTML).toBe('')
     expect(el.dataset['symbol']).toBe('trash')
+  })
+
+  it('stays marked pending until the image is in, and after a failure', async () => {
+    state.style = 'sfSymbols'
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(invoke).mockClear().mockRejectedValue(new Error('E_TEST'))
+    const el = iconElement('nav.back', 16) as unknown as ReturnType<typeof fake>
+    expect(el.dataset['pending']).toBe('')
+    await vi.waitFor(() => expect(console.warn).toHaveBeenCalled())
+    expect(el.dataset['pending']).toBe('')
+    expect(el.style.setProperty).not.toHaveBeenCalled()
   })
 
   it('asks for every symbol of a box at one point size and weight, whatever its shape', () => {

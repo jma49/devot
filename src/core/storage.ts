@@ -102,6 +102,8 @@ export const TAG_COLORS = [
   'gray',
 ] as const
 export type TagColor = (typeof TAG_COLORS)[number]
+/** What a tag's colour may be: a palette ID, or a custom colour as lowercase `#rrggbb`. A notebook icon stays palette only. */
+export type TagColorValue = TagColor | `#${string}`
 
 export interface TagRecord {
   id: string
@@ -112,7 +114,7 @@ export interface TagRecord {
   deletedAt: number | null
   deletedHlc: string | null
   /** An ID storage does not know (from a later palette, through sync) reads as null. */
-  color: TagColor | null
+  color: TagColorValue | null
   colorHlc: string
 }
 

@@ -11,6 +11,7 @@ import {
   type NoteSummary,
   type StorageAdapter,
   type TagColor,
+  type TagColorValue,
   type TagRecord,
 } from './storage'
 import { charCount, trimWhitespace, wellFormed } from './text'
@@ -31,7 +32,7 @@ export interface TagService {
   putOnNote(noteId: string, tagId: string): Promise<void>
   removeFromNote(noteId: string, tagId: string): Promise<void>
   rename(id: string, name: string): Promise<void>
-  setColor(id: string, color: TagColor | null): Promise<void>
+  setColor(id: string, color: TagColorValue | null): Promise<void>
   remove(id: string): Promise<void>
 }
 
@@ -46,6 +47,30 @@ export function cleanTagName(name: string): string {
 export function isTagColor(value: unknown): value is TagColor {
   return (TAG_COLORS as readonly unknown[]).includes(value)
 }
+
+const CUSTOM_TAG_COLOR = /^#[0-9a-f]{6}$/
+
+export function isCustomTagColor(value: unknown): value is `#${string}` {
+  return typeof value === 'string' && CUSTOM_TAG_COLOR.test(value)
+}
+
+/** Same rule as `valid_tag_color` in storage/mod.rs. `isTagColor` is the palette alone, which is all a notebook icon takes. */
+export function isTagColorValue(value: unknown): value is TagColorValue {
+  return isTagColor(value) || isCustomTagColor(value)
+}
+
+export function normalizeTagColor(value: string): TagColorValue | null {
+  const lower = /^#/.test(value) ? value.toLowerCase() : value
+  return isTagColorValue(lower) ? lower : null
+}
+
+/** The class a colour is styled by; a custom one also needs `--tag-custom` on the element. */
+export const tagColorClass = (color: TagColorValue) =>
+  isCustomTagColor(color) ? 'tag-color-custom' : `tag-color-${color}`
+
+/** A custom colour on a preview element, as `preview/dom.ts` reads it (the CSP forbids style attributes). */
+export const customTagColorProperties = (color: TagColorValue | null | undefined) =>
+  isCustomTagColor(color) ? { dataTagColor: color } : {}
 
 export const sameName = (a: string, b: string) =>
   a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0
@@ -129,9 +154,10 @@ export function createTagService(options: TagServiceOptions): TagService {
     },
 
     async setColor(id, color) {
-      if (color !== null && !isTagColor(color)) throw new Error('E_TAG_COLOR_INVALID')
+      const clean = color === null ? null : normalizeTagColor(color)
+      if (color !== null && clean === null) throw new Error('E_TAG_COLOR_INVALID')
       const tag = await find(id)
-      await write({ ...tag, color, colorHlc: clock.tick() })
+      await write({ ...tag, color: clean, colorHlc: clock.tick() })
     },
 
     async remove(id) {

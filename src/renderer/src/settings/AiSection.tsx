@@ -290,7 +290,6 @@ export function AiSection() {
         {licenceEntitlements.has('aiProviders') ? null : (
           <PhoneGroup>
             <Setting
-              live
               label="licenceSettings.title"
               description={t(trialEnded ? 'licence.locked.aiTrialEnded' : 'licence.locked.ai')}
             >
@@ -302,10 +301,9 @@ export function AiSection() {
         )}
         {view && drafts ? (
           <>
-            <PhoneGroup>
+            <PhoneGroup footnote={t('aiSettings.detail')}>
               <PhoneSegmented
                 label={t('phone.ai.provider')}
-                hint={t('aiSettings.detail')}
                 value={view.active}
                 options={AI_PROVIDERS.map((p) => ({ value: p, label: t(NAMES[p]) }))}
                 onChange={(active) => commit(active)}

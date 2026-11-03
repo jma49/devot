@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   current,
+  dropSelectionLeftBehind,
   focusStore,
   isMainLabel,
   isSecondaryLabel,
@@ -144,5 +145,29 @@ describe('current', () => {
     expect(local.items.size).toBe(0)
     expect([...session.items.keys()]).toEqual(['devot.focus.main-2'])
     expect(current(focusStore).load()).toBe(true)
+  })
+})
+
+describe('dropSelectionLeftBehind', () => {
+  const node = (inside: boolean) => ({ inside })
+  const setup = (anchor: { inside: boolean } | null) => {
+    const removeAllRanges = vi.fn<() => void>()
+    const selection = { rangeCount: anchor ? 1 : 0, anchorNode: anchor, removeAllRanges }
+    const focused = { contains: (n: { inside: boolean } | null) => n?.inside === true }
+    return { doc: { getSelection: () => selection }, focused, removeAllRanges }
+  }
+
+  it('drops a selection left in another element, where a typed key would land', () => {
+    const { doc, focused, removeAllRanges } = setup(node(false))
+    dropSelectionLeftBehind(doc as never, focused as never)
+    expect(removeAllRanges).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a selection inside the element that has the focus, and an empty one', () => {
+    for (const anchor of [node(true), null]) {
+      const { doc, focused, removeAllRanges } = setup(anchor)
+      dropSelectionLeftBehind(doc as never, focused as never)
+      expect(removeAllRanges).not.toHaveBeenCalled()
+    }
   })
 })

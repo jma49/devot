@@ -73,6 +73,21 @@ export const currentFocusStore = () => current(focusStore)
 
 export const currentSidebarStore = () => current(sidebarStore)
 
+/**
+ * WebKit leaves the selection in the editor or a field when the keyboard moves to a row by
+ * script or Tab, and a character typed on the row then lands in the note; a row that takes the
+ * keyboard drops it.
+ */
+export function dropSelectionLeftBehind(
+  doc: Pick<Document, 'getSelection'>,
+  focused: Pick<Element, 'contains'>,
+): void {
+  const selection = doc.getSelection()
+  if (selection && selection.rangeCount > 0 && !focused.contains(selection.anchorNode)) {
+    selection.removeAllRanges()
+  }
+}
+
 export function keyboardIsFree(): boolean {
   const active = document.activeElement
   return active === null || active === document.body

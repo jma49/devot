@@ -3,9 +3,7 @@ import {
   changeShortcutsElsewhere,
   clipboardWrites,
   expect,
-  pickMenuItem,
   reloadApp,
-  shownMenu,
   test,
   type TestWindow,
 } from './fixtures'
@@ -16,7 +14,7 @@ const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).lo
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 /** A tag's filter row in the sidebar ("<name> <count>", after its colour if it has one). */
 const tagRow = (page: Page, name: string) =>
-  sidebar(page).getByRole('button', { name: new RegExp(`^(?:[A-Z][a-z]+ )?${name} \\d+$`) })
+  sidebar(page).getByRole('button', { name: new RegExp(`^(?:[A-Z][a-z]+ )*${name} \\d+$`) })
 const editorTags = (page: Page) => page.getByRole('group', { name: 'Tags' })
 
 interface StoredTag {
@@ -61,19 +59,19 @@ async function addTag(page: Page, name: string) {
   ).toBeVisible()
 }
 
-const popups = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'plugin:menu|popup',
-      ).length,
-  )
+const menu = (page: Page) => page.getByRole('menu', { name: 'Tag' })
 
 async function openMenu(page: Page, name: string) {
-  const before = await popups(page)
   await tagRow(page, name).click({ button: 'right' })
-  await expect.poll(() => popups(page)).toBe(before + 1)
+  await expect(menu(page)).toBeVisible()
 }
+
+async function pickItem(page: Page, name: string) {
+  await menu(page).getByRole('menuitem', { name, exact: false }).click()
+}
+
+const pickColor = (page: Page, name: string) =>
+  menu(page).getByRole('menuitemradio', { name }).click()
 
 /** "One" tagged sync and idea, "Two" tagged idea; "Two" is open. */
 async function setUp(page: Page) {
@@ -99,7 +97,7 @@ const painted = (page: Page, selector: string, color: string) =>
           createElement(tag: string): El
           body: { append(el: El): void }
         }
-        getComputedStyle(el: El): { color: string; borderTopColor: string }
+        getComputedStyle(el: El): { color: string; backgroundColor: string }
       }
       const el = w.document.querySelector(sel)
       const probe = w.document.createElement('span')
@@ -107,7 +105,7 @@ const painted = (page: Page, selector: string, color: string) =>
       w.document.body.append(probe)
       const want = w.getComputedStyle(probe).color
       probe.remove()
-      return { got: el ? w.getComputedStyle(el).borderTopColor : null, want }
+      return { got: el ? w.getComputedStyle(el).backgroundColor : null, want }
     },
     [selector, color] as const,
   )
@@ -118,39 +116,152 @@ test.beforeEach(async ({ page }) => {
   await page.reload()
 })
 
-test('right-click shows the native tag menu with a Color submenu', async ({ page }) => {
+test('right-click shows the tag menu at the pointer, in the window', async ({ page }) => {
   await setUp(page)
   await openMenu(page, 'sync')
-  expect(await shownMenu(page)).toEqual([
-    'Tag Settings…',
-    'Color >',
-    '  None [x]',
-    '  Red [ ]',
-    '  Orange [ ]',
-    '  Yellow [ ]',
-    '  Green [ ]',
-    '  Blue [ ]',
-    '  Purple [ ]',
-    '  Pink [ ]',
-    '  Gray [ ]',
-    '---',
-    'Filter by Tag [ ]',
-    '---',
+  const items = menu(page).getByRole('menuitem').or(menu(page).getByRole('menuitemcheckbox'))
+  await expect(items).toHaveText([
+    'Tag Settings\u2026',
+    /^Filter by Tag$/,
     'Copy Tag ID',
-    '---',
-    'Delete Tag Backspace',
+    /^Delete Tag/,
   ])
+  await expect(
+    menu(page).getByRole('group', { name: 'Color' }).getByRole('menuitemradio'),
+  ).toHaveCount(10)
+  const box = (await menu(page).boundingBox())!
+  const viewport = page.viewportSize()!
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width)
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height)
+})
+
+test('the menu works by keyboard: arrows, Return, Escape and focus back', async ({ page }) => {
+  await setUp(page)
+  await tagRow(page, 'idea').focus()
+  await page.keyboard.press('Shift+F10')
+  await expect(menu(page).getByRole('menuitem', { name: 'Tag Settings' })).toBeFocused()
+
+  await page.keyboard.press('ArrowDown')
+  await expect(menu(page).getByRole('menuitemradio', { name: 'None' })).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect(menu(page).getByRole('menuitemradio', { name: 'Red' })).toBeFocused()
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('ArrowLeft')
+  await expect(menu(page).getByRole('menuitemradio', { name: 'Custom Color' })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(menu(page).getByRole('menuitemcheckbox', { name: 'Filter by Tag' })).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(menu(page).getByRole('menuitem', { name: 'Delete Tag' })).toBeFocused()
+
+  await page.keyboard.press('Escape')
+  await expect(menu(page)).toHaveCount(0)
+  await expect(tagRow(page, 'idea')).toBeFocused()
+
+  await page.keyboard.press('Shift+F10')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('Enter')
+  await expect(menu(page)).toHaveCount(0)
+  await expect(tagRow(page, 'idea').locator('.tag-dot')).toHaveAttribute('data-color', 'red')
+  await expect(tagRow(page, 'idea')).toBeFocused()
+})
+
+test('a click outside closes the menu and changes nothing', async ({ page }) => {
+  await setUp(page)
+  await openMenu(page, 'idea')
+  await page.getByRole('textbox', { name: 'Title' }).click()
+  await expect(menu(page)).toHaveCount(0)
+  await expect(tagRow(page, 'idea').locator('.tag-dot[data-color]')).toHaveCount(0)
+})
+
+const picker = (page: Page) => page.getByRole('dialog', { name: 'Custom Color' })
+
+test('the picker sets a colour by hex, and it stays after a reload', async ({ page }) => {
+  await setUp(page)
+  await openMenu(page, 'idea')
+  await pickColor(page, 'Custom Color')
+  const hex = picker(page).getByRole('textbox', { name: 'Hex' })
+  await hex.fill('#zz')
+  await expect(hex).toHaveAttribute('aria-invalid', 'true')
+  await expect(picker(page).getByRole('button', { name: 'Done' })).toBeDisabled()
+  await hex.fill('#FF00AA')
+  await expect(hex).toHaveAttribute('aria-invalid', 'false')
+  await hex.press('Enter')
+  await expect(picker(page)).toHaveCount(0)
+  const dot = tagRow(page, 'idea').locator('.tag-dot')
+  await expect(dot).toHaveAttribute('data-color', '#ff00aa')
+  expect((await storedTags(page)).find((t) => t.name === 'idea')?.color).toBe('#ff00aa')
+  await page.reload()
+  await expect(dot).toHaveCSS('background-color', 'rgb(255, 0, 170)')
+})
+
+test('the picker moves by keyboard on both areas', async ({ page }) => {
+  await setUp(page)
+  await openMenu(page, 'idea')
+  await pickColor(page, 'Custom Color')
+  const spectrum = picker(page).getByRole('slider', { name: 'Saturation and brightness' })
+  const hue = picker(page).getByRole('slider', { name: 'Hue' })
+  const hex = picker(page).getByRole('textbox', { name: 'Hex' })
+  await expect(spectrum).toBeFocused()
+  const start = await hex.inputValue()
+  await page.keyboard.press('Shift+ArrowLeft')
+  await expect(spectrum).toHaveAttribute('aria-valuenow', '60')
+  await page.keyboard.press('ArrowUp')
+  await expect(hex).not.toHaveValue(start)
+  await hue.focus()
+  await page.keyboard.press('Home')
+  await expect(hue).toHaveAttribute('aria-valuenow', '0')
+  await page.keyboard.press('ArrowRight')
+  await expect(hue).toHaveAttribute('aria-valuenow', '1')
+  await page.keyboard.press('Escape')
+  await expect(picker(page)).toHaveCount(0)
+  await expect(menu(page)).toBeVisible()
+  expect((await storedTags(page)).find((t) => t.name === 'idea')?.color ?? null).toBeNull()
+})
+
+test('the picker follows a pointer drag', async ({ page }) => {
+  await setUp(page)
+  await openMenu(page, 'idea')
+  await pickColor(page, 'Custom Color')
+  const spectrum = picker(page).getByRole('slider', { name: 'Saturation and brightness' })
+  const box = (await spectrum.boundingBox())!
+  await page.mouse.move(box.x + 2, box.y + 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width * 2, box.y - 20, { steps: 4 })
+  await expect(spectrum).toHaveAttribute('aria-valuenow', '100')
+  await page.mouse.up()
+  const hue = picker(page).getByRole('slider', { name: 'Hue' })
+  const strip = (await hue.boundingBox())!
+  await page.mouse.click(strip.x + strip.width / 2, strip.y + strip.height / 2)
+  await expect(hue).toHaveAttribute('aria-valuenow', '180')
+  await picker(page).getByRole('button', { name: 'Done' }).click()
+  await expect(tagRow(page, 'idea').locator('.tag-dot')).toHaveAttribute('data-color', '#00ffff')
+})
+
+test('Tag Settings opens the picker from its custom swatch', async ({ page }) => {
+  await setUp(page)
+  await openMenu(page, 'idea')
+  await pickItem(page, 'Tag Settings…')
+  const dialog = page.getByRole('dialog', { name: 'Tag Settings' })
+  await dialog.getByRole('radio', { name: 'Custom Color' }).click()
+  const hex = dialog.getByRole('textbox', { name: 'Hex' })
+  await hex.fill('#123456')
+  await dialog.getByRole('button', { name: 'Done' }).click()
+  await expect(dialog.getByRole('radio', { name: 'Custom Color' })).toBeChecked()
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(tagRow(page, 'idea').locator('.tag-dot')).toHaveAttribute('data-color', '#123456')
 })
 
 test('a colour shows as the sidebar dot and on chips, and survives a reload', async ({ page }) => {
   await setUp(page)
   await openMenu(page, 'idea')
-  await pickMenuItem(page, 'Purple', 'Color')
+  await pickColor(page, 'Purple')
 
   const dot = tagRow(page, 'idea').locator('.tag-dot')
   await expect(dot).toHaveAttribute('data-color', 'purple')
   await expect(tagRow(page, 'idea')).toHaveAccessibleName('Purple idea 2')
-  await expect(tagRow(page, 'sync').locator('.tag-dot')).toHaveCount(0)
+  await expect(tagRow(page, 'sync').locator('.tag-dot[data-color]')).toHaveCount(0)
   await expect(noteRow(page, 'One').locator('.chip .tag-dot')).toHaveCount(1)
   await expect(
     noteRow(page, 'Two').locator('.chip', { hasText: 'idea' }).locator('.tag-dot'),
@@ -158,7 +269,6 @@ test('a colour shows as the sidebar dot and on chips, and survives a reload', as
   await expect(
     editorTags(page).locator('.chip', { hasText: 'idea' }).locator('.tag-dot'),
   ).toHaveAttribute('data-color', 'purple')
-  // Edged with the theme's token for the colour (its fill is a wash of it).
   const { got, want } = await painted(page, '.sources.tags .tag-dot', 'purple')
   expect(got).toBe(want)
   expect(await storedTags(page)).toEqual(
@@ -166,14 +276,15 @@ test('a colour shows as the sidebar dot and on chips, and survives a reload', as
   )
 
   await openMenu(page, 'idea')
-  expect(await shownMenu(page)).toEqual(expect.arrayContaining(['  None [ ]', '  Purple [x]']))
+  await expect(menu(page).getByRole('menuitemradio', { name: 'Purple' })).toBeChecked()
+  await expect(menu(page).getByRole('menuitemradio', { name: 'None' })).not.toBeChecked()
 
   await page.reload()
   await expect(tagRow(page, 'idea').locator('.tag-dot')).toHaveAttribute('data-color', 'purple')
 
   await openMenu(page, 'idea')
-  await pickMenuItem(page, 'None', 'Color')
-  await expect(tagRow(page, 'idea').locator('.tag-dot')).toHaveCount(0)
+  await pickColor(page, 'None')
+  await expect(tagRow(page, 'idea').locator('.tag-dot[data-color]')).toHaveCount(0)
   await expect(page.locator('.chip .tag-dot')).toHaveCount(0)
 })
 
@@ -182,14 +293,14 @@ test('Filter by Tag filters the list by the right-clicked tag, and again clears 
 }) => {
   await setUp(page)
   await openMenu(page, 'sync')
-  await pickMenuItem(page, 'Filter by Tag')
+  await menu(page).getByRole('menuitemcheckbox', { name: 'Filter by Tag' }).click()
   await expect(header(page)).toHaveText('sync')
   await expect(noteRows(page)).toHaveText([/^One/])
   await expect(tagRow(page, 'sync')).toHaveAttribute('aria-pressed', 'true')
 
   await openMenu(page, 'sync')
-  expect(await shownMenu(page)).toContain('Filter by Tag [x]')
-  await pickMenuItem(page, 'Filter by Tag')
+  await expect(menu(page).getByRole('menuitemcheckbox', { name: 'Filter by Tag' })).toBeChecked()
+  await menu(page).getByRole('menuitemcheckbox', { name: 'Filter by Tag' }).click()
   await expect(header(page)).toHaveText('All Notes')
   await expect(noteRows(page)).toHaveCount(2)
 })
@@ -197,7 +308,7 @@ test('Filter by Tag filters the list by the right-clicked tag, and again clears 
 test('Copy Tag ID writes the tag ID', async ({ page }) => {
   await setUp(page)
   await openMenu(page, 'sync')
-  await pickMenuItem(page, 'Copy Tag ID')
+  await pickItem(page, 'Copy Tag ID')
   await expect.poll(() => clipboardWrites(page)).toHaveLength(1)
   const sync = (await storedTags(page)).find((t) => t.name === 'sync')
   expect(sync?.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/)
@@ -238,14 +349,14 @@ test('Delete Tag asks first, then removes it from the sidebar and every note', a
   await setUp(page)
   const confirm = page.getByRole('dialog', { name: 'Delete the tag \u201cidea\u201d?' })
   await openMenu(page, 'idea')
-  await pickMenuItem(page, 'Delete Tag')
+  await pickItem(page, 'Delete Tag')
   await expect(confirm).toContainText('It will be removed from 2 notes.')
   await confirm.getByRole('button', { name: 'Cancel' }).click()
   await expect(confirm).toHaveCount(0)
   await expect(tagRow(page, 'idea')).toHaveText(/2$/)
 
   await openMenu(page, 'idea')
-  await pickMenuItem(page, 'Delete Tag')
+  await pickItem(page, 'Delete Tag')
   await confirm.getByRole('button', { name: 'Delete Tag' }).click()
   await expect(tagRow(page, 'idea')).toHaveCount(0)
   await expect(tagRow(page, 'sync')).toHaveText(/1$/)
@@ -256,7 +367,7 @@ test('Delete Tag asks first, then removes it from the sidebar and every note', a
 test('Tag Settings sets the name and the colour from the tag palette', async ({ page }) => {
   await setUp(page)
   await openMenu(page, 'idea')
-  await pickMenuItem(page, 'Tag Settings…')
+  await pickItem(page, 'Tag Settings…')
   const dialog = page.getByRole('dialog', { name: 'Tag Settings' })
   await expect(dialog.getByRole('textbox', { name: 'Tag name' })).toHaveValue('idea')
   await dialog.getByRole('textbox', { name: 'Tag name' }).fill('thoughts')
@@ -307,7 +418,7 @@ test('a Copy Tag ID that fails says so, with its code', async ({ page }) => {
     }
   })
   await openMenu(page, 'idea')
-  await pickMenuItem(page, 'Copy Tag ID')
+  await pickItem(page, 'Copy Tag ID')
   await expect(page.getByRole('alert')).toContainText(
     'The ID could not be copied (E_CLIPBOARD_WRITE_FAILED).',
   )

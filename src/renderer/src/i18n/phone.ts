@@ -1,25 +1,60 @@
 import type { Messages } from './en'
 
-/** English messages that name the Mac, as the iPhone layout words them. */
+/**
+ * The iPhone layout's wording: messages that name the Mac, and rows' descriptions at about 3-8 words
+ * on one line. An empty text means the row's label says it all and it has no description.
+ */
 export const enPhone: Partial<Messages> = {
   'editorSettings.detail': 'These settings apply only on this iPhone.',
-  'editorSettings.installedFontHint':
-    'A font installed on this iPhone. Text it cannot show appears in the default font.',
-  'editorSettings.importedFontHint':
-    'A font file you imported (TTF, OTF, WOFF or WOFF2, up to 50 MB). It stays on this iPhone.',
-  'appearanceSettings.animationsHint':
-    'Whether screens, lists, menus and sheets move. Follow System uses the Reduce Motion setting in Settings > Accessibility > Motion.',
-  'aiSettings.detail':
-    'Devot sends text to an AI provider only when you start an AI action, and only text from notebooks with Allow AI Access on. Requests go from this iPhone straight to the provider you choose, with your own key. Keys are kept in the iOS Keychain, never in Devot’s settings files.',
-  'aiSettings.endpointHint':
-    'Where requests go: an https address, or an http address for a server on this iPhone. Leave empty for the default.',
-  'usage.privacy':
-    'Only counts are recorded, never note content, titles or names. Nothing leaves this iPhone.',
+  'editorSettings.toolbarHint': '',
+  'editorSettings.lineNumbersHint': '',
+  'editorSettings.highlightActiveLineHint': '',
+  'editorSettings.lineWrappingHint': 'Code and tables can stay whole',
+  'editorSettings.inlineImagesHint': 'Images under their lines',
+  'editorSettings.readableWidthHint': '',
+  'editorSettings.scrollPastEndHint': '',
+  'editorSettings.cursorScrollMarginHint': 'Space kept around the cursor',
+  'editorSettings.listMarkerHint': 'For new bulleted items',
+  'editorSettings.indentUnitHint': '',
+  'editorSettings.tabWidthHint': '',
+  'editorSettings.pasteUrlHint': 'When you paste a lone URL',
+  'editorSettings.spellCheckHint': '',
+  'editorSettings.fontWeightHint': '',
+  'editorSettings.lineHeightHint': 'Multiple of the font size',
+  'editorSettings.showInvisiblesHint': 'Draws spaces and tabs',
+  'editorSettings.highlightTrailingWhitespaceHint': 'Tints spaces at line ends',
+  'editorSettings.appFontHint': 'Lists, menus and Settings',
+  'editorSettings.noteFontHint': '',
+  'editorSettings.codeFontHint': '',
+  'editorSettings.installedFontHint': 'Must be installed on this iPhone',
+  'editorSettings.importedFontHint': 'TTF, OTF or WOFF, up to 50 MB',
+  'previewSettings.fontSizeHint': '',
+  'previewSettings.syncScrollHint': 'Editor and preview move together',
+  'appearanceSettings.animationsHint': 'Can follow Reduce Motion',
+  'generalSettings.crashReportsHint': 'Sends error codes, never note text',
+  'aiSettings.detail': 'Sent only when you ask, to your chosen provider.',
+  'aiSettings.endpointHint': 'Leave empty for the default',
+  'aiSettings.modelHint': 'Leave empty for the default',
+  'aiSettings.modelRequiredHint': 'Required on this server',
+  'licenceSettings.detail': 'Bought once. After the trial, notes stay readable.',
+  'licenceSettings.keyHint': 'From your purchase email, starts with devot1',
+  'licenceSettings.replaceHint': 'Paste another key to replace this one',
+  'licence.locked.sync': 'Sync needs a license',
+  'licence.locked.ai': 'AI needs a license',
+  'licence.locked.syncTrialEnded': 'Trial ended; sync needs a license',
+  'licence.locked.aiTrialEnded': 'Trial ended; AI needs a license',
+  'syncSettings.secretHint': 'The relay secret, asked once, not kept',
+  'syncSettings.secretAgainHint': 'Asked once to create your vault, not kept',
+  'syncSettings.secretRevokedHint': 'Device removed; enter once to sign back in',
+  'syncSettings.recoveryHint': 'Save it now; Devot will not show it again',
+  'syncSettings.pairHint': 'Works once, for 10 minutes',
+  'syncSettings.joinCodeHint': 'From another device, or its QR link',
+  'syncSettings.joinRecoveryHint': 'The key you saved when setting up sync',
+  'usage.privacy': 'Counts only, never content. Stays on this iPhone.',
+  'usage.limits': 'Kept 90 days, up to 10,000 events',
+  'usage.heatDetail': 'Shaded by the busiest hour',
+  'usage.share': '',
   'usage.storage': 'Stored on this iPhone',
-  'usage.retained':
-    'Charts use the records still stored on this iPhone; older or excess records are not included.',
-  'usage.detail':
-    'Devot keeps a record of how it is used on this iPhone, such as how many notes are created and how many results a search finds. It never includes note content, titles or names, and nothing leaves this iPhone.',
   'usage.countOne': '{count} event is stored on this iPhone.',
   'usage.countOther': '{count} events are stored on this iPhone.',
   'usage.confirmClearDetail':

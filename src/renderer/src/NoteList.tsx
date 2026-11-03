@@ -14,6 +14,7 @@ import {
 } from 'react'
 import type { NoteSummary, RowDetail, TagRecord } from '../../core'
 import type { StripDay } from '../../core/activity'
+import { dropSelectionLeftBehind } from './focus'
 import { withStrips, type RowInfo } from './ActivityStrip'
 import { currentLocale, format, t } from './i18n'
 import { Icon } from './icons/Icon'
@@ -400,6 +401,7 @@ export const NoteList = memo(function NoteList(props: Props) {
       const id = e.target instanceof HTMLElement ? e.target.dataset['noteId'] : undefined
       if (id !== undefined) keyboard.current = id
       setFocusedRow(id)
+      if (id !== undefined) dropSelectionLeftBehind(document, e.target as HTMLElement)
       // The row asked for has the keyboard now; it stays rendered as the focused row.
       setRevealed(undefined)
     }

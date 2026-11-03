@@ -3,7 +3,7 @@
 // source (`:` takes a digit as well: `:12` goes to line 12); any other text at the root matches commands, notebooks, tags and
 // notes together (fuzzy, see core/fuzzy.ts), grouped by kind.
 import { fuzzyRank } from '../../../core/fuzzy'
-import type { TagColor } from '../../../core/storage'
+import type { TagColor, TagColorValue } from '../../../core/storage'
 
 export type PaletteSource = 'command' | 'book' | 'tag' | 'outline' | 'line' | 'note'
 
@@ -89,6 +89,7 @@ export interface PaletteEntry {
   depth?: number
   done?: boolean
   bookIcon?: { icon: string | null; color: TagColor | null }
+  tagColor?: TagColorValue
 }
 
 export interface PaletteResult extends PaletteEntry {

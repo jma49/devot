@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import type { TagColor } from '../../../core/storage'
+import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import { BookIcon } from '../BookIcon'
 import { noteDate } from '../format'
 import { currentLocale, format, t } from '../i18n'
@@ -7,9 +7,6 @@ import { Icon } from '../icons/Icon'
 import { libraryOf, type PhoneStatusFilter, type PhoneView } from './library'
 import { SectionHead } from './PhoneNoteList'
 import type { PhoneData } from './usePhoneData'
-
-const tagColor = (color: TagColor | null) =>
-  color ? `var(--color-tag-${color})` : 'var(--color-phone-status-none)'
 
 function GroupedRow(props: {
   name: string
@@ -183,8 +180,8 @@ export function PhoneLibrary(props: {
                 icon={
                   <span
                     aria-hidden="true"
-                    className="phone-tag-dot"
-                    style={{ background: tagColor(row.color) }}
+                    className={`phone-tag-dot ${tagColorClass(row.color)}`}
+                    style={tagColorStyle(row.color)}
                   />
                 }
                 onOpen={() => props.onOpenList({ kind: 'tag', id: row.id })}

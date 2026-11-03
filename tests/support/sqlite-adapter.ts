@@ -8,7 +8,7 @@ import type { AiStorage } from '../../src/core/ai'
 import { checkUpload } from '../../src/core/files'
 import { noteLinks } from '../../src/core/links'
 import { checkNote } from '../../src/core/noteLimits'
-import { isNotebookSymbol } from '../../src/core/notebookIcons'
+import { isNotebookIcon } from '../../src/core/notebookIcons'
 import {
   bodyExcerpt,
   excerptTerms,
@@ -24,7 +24,7 @@ import type {
   SyncPending,
   SyncStore,
 } from '../../src/core/sync/store'
-import { isTagColor } from '../../src/core/tags'
+import { isTagColor, isTagColorValue } from '../../src/core/tags'
 import type {
   ActivityData,
   ActivityNote,
@@ -509,7 +509,7 @@ const toBook = (row: BookRow, raw = false): BookRecord => ({
   sortKey: row.sort_key,
   sortKeyHlc: row.sort_key_hlc,
   // A name or palette ID from a later version reads as unset, as in Rust; sync reads it as stored.
-  icon: raw || isNotebookSymbol(row.icon) ? row.icon : null,
+  icon: raw || isNotebookIcon(row.icon) ? row.icon : null,
   iconColor: raw || isTagColor(row.icon_color) ? (row.icon_color as BookRecord['iconColor']) : null,
   iconHlc: row.icon_hlc,
 })
@@ -522,7 +522,7 @@ const toTag = (row: TagRow, raw = false): TagRecord => ({
   updatedAt: row.updated_at,
   deletedAt: row.deleted_at,
   deletedHlc: row.deleted_hlc,
-  color: raw || isTagColor(row.color) ? (row.color as TagRecord['color']) : null,
+  color: raw || isTagColorValue(row.color) ? (row.color as TagRecord['color']) : null,
   colorHlc: row.color_hlc,
 })
 
