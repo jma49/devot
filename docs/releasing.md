@@ -141,7 +141,7 @@ Once the credentials are in place, release a beta first (the very first notariza
 
 `pnpm tauri build` builds the helper before bundling (`beforeBundleCommand`, `pnpm mcp:helper`): it downloads the Node named in `scripts/mcp/build-helper.ts` from nodejs.org, checks its SHA-256, strips it, injects the bundled server with `postject` and signs it ad hoc with the hardened runtime, and `bundle.macOS.files` puts it in `Contents/Helpers/`. Raising Node means changing the version and both checksums there, from that release's `SHASUMS256.txt`; `tests/mcp/helper.bench.test.ts` then runs the real binary.
 
-The helper adds 98 MB to the installed app and about 35 MB to the dmg and the updater bundle. Before the first stable release that carries it, check on the notarized build: `spctl -a -vv /Applications/Devot.app` still says `Notarized Developer ID`, `/Applications/Devot.app/Contents/Helpers/devot-mcp --self-check` answers `ok`, and Connect works from Claude Code, Codex and Claude Desktop, including Install as Extension. A build running from the dmg offers no Connect: move it to Applications first.
+The helper adds 98 MB to the installed app (22 MB without it) and about 34 MB to the dmg (15 MB without it) and to the updater bundle. Before the first stable release that carries it, check on the notarized build: `spctl -a -vv /Applications/Devot.app` still says `Notarized Developer ID`, `/Applications/Devot.app/Contents/Helpers/devot-mcp --self-check` answers `ok`, and Connect works from Claude Code, Codex and Claude Desktop, including Install as Extension. A build running from the dmg offers no Connect: move it to Applications first.
 
 ## Updater key
 
