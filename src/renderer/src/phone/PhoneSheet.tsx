@@ -130,34 +130,47 @@ export function PhoneDetailSheet(props: { title: string; body: string; onClose: 
   )
 }
 
-/** One choice in a sheet's list: a row that closes the sheet once picked. */
+/** One row of a sheet's list: a choice when it has `onPick`, otherwise plain information. */
 export function SheetChoice(props: {
   label: string
   selected?: boolean
   destructive?: boolean
   value?: string
+  figures?: boolean
   onPick?: () => void
   lead?: ReactNode
 }) {
+  const contents = (
+    <>
+      {props.lead}
+      <span className="phone-grouped-label">{props.label}</span>
+      {props.value !== undefined && (
+        <span className={`phone-grouped-count${props.figures ? ' phone-figures' : ''}`}>
+          {props.value}
+        </span>
+      )}
+      {props.selected && (
+        <span className="phone-sheet-check">
+          <Icon name="check" size="sm" />
+        </span>
+      )}
+    </>
+  )
   return (
     <li className="phone-grouped-row">
-      <button
-        type="button"
-        className="phone-grouped-open phone-sheet-row"
-        data-destructive={props.destructive || undefined}
-        aria-pressed={props.selected}
-        disabled={!props.onPick}
-        onClick={props.onPick}
-      >
-        {props.lead}
-        <span className="phone-grouped-label">{props.label}</span>
-        {props.value !== undefined && <span className="phone-grouped-count">{props.value}</span>}
-        {props.selected && (
-          <span className="phone-sheet-check">
-            <Icon name="check" size="sm" />
-          </span>
-        )}
-      </button>
+      {props.onPick ? (
+        <button
+          type="button"
+          className="phone-grouped-open phone-sheet-row"
+          data-destructive={props.destructive || undefined}
+          aria-pressed={props.selected}
+          onClick={props.onPick}
+        >
+          {contents}
+        </button>
+      ) : (
+        <div className="phone-grouped-open phone-sheet-row">{contents}</div>
+      )}
     </li>
   )
 }

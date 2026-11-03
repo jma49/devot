@@ -222,6 +222,56 @@ function ThemeSwatch({ appearance, theme }: { appearance: Appearance; theme: The
   )
 }
 
+/** A phone's theme picture: the theme's own page, its type and its accent. */
+function PhoneThemeThumb({ appearance, theme }: { appearance: Appearance; theme: ThemeChoice }) {
+  return (
+    <span
+      className="swatch phone-theme-thumb"
+      data-appearance-preview={appearance}
+      data-theme-preview={themePreview(theme)}
+      aria-hidden="true"
+    >
+      <span className="swatch-sample">{t('appearanceSettings.swatchSample')}</span>
+      <span className="swatch-accent" />
+    </span>
+  )
+}
+
+/** On a phone: every theme in one row of even columns, the same in Light and Dark. */
+function PhoneThemePicker({
+  appearance,
+  chosen,
+  onChoose,
+}: {
+  appearance: Appearance
+  chosen: ThemeChoice
+  onChoose: (theme: ThemeChoice) => void
+}) {
+  const ids = useId()
+  return (
+    <div
+      className="phone-theme-row"
+      role="radiogroup"
+      aria-label={t(
+        appearance === 'light' ? 'appearanceSettings.lightTheme' : 'appearanceSettings.darkTheme',
+      )}
+    >
+      {THEMES.map((theme) => (
+        <Choice
+          key={theme}
+          group={`${ids}-theme`}
+          checked={chosen === theme}
+          onChange={() => onChoose(theme)}
+          label={t(THEME_LABELS[theme])}
+          className="theme-choice"
+        >
+          <PhoneThemeThumb appearance={appearance} theme={theme} />
+        </Choice>
+      ))}
+    </div>
+  )
+}
+
 /** One appearance's themes: Default, a divider, then the built-in ones, in one row that scrolls sideways. */
 function ThemePicker({
   appearance,
@@ -359,14 +409,14 @@ export function AppearanceSection() {
           ) : null}
         </PhoneGroup>
         <SettingsSection title="appearanceSettings.lightMode" titleSuffix={modeTitle('light')}>
-          <ThemePicker
+          <PhoneThemePicker
             appearance="light"
             chosen={settings.lightTheme}
             onChoose={(lightTheme) => change({ lightTheme })}
           />
         </SettingsSection>
         <SettingsSection title="appearanceSettings.darkMode" titleSuffix={modeTitle('dark')}>
-          <ThemePicker
+          <PhoneThemePicker
             appearance="dark"
             chosen={settings.darkTheme}
             onChoose={(darkTheme) => change({ darkTheme })}
@@ -381,6 +431,7 @@ export function AppearanceSection() {
             value={textSize.value}
             minLabel={t('phone.appearance.textSizeSmall')}
             maxLabel={t('phone.appearance.textSizeSmall')}
+            glyphEnds
             valueText={String(textSize.value)}
             onChange={textSize.drag}
             onRelease={textSize.release}

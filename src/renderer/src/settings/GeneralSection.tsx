@@ -59,12 +59,15 @@ export function GeneralSection() {
     }
   }, [onPhone])
   const [reports, setReports] = useState<CrashReports | null>(null)
+  const [reportsAnswered, setReportsAnswered] = useState(false)
   useEffect(() => {
     let live = true
-    crashReports().then(
-      (state) => live && setReports(state),
-      () => console.warn('W_CRASH_REPORTS_STATUS_FAILED'),
-    )
+    crashReports()
+      .then(
+        (state) => live && setReports(state),
+        () => console.warn('W_CRASH_REPORTS_STATUS_FAILED'),
+      )
+      .finally(() => live && setReportsAnswered(true))
     return () => {
       live = false
     }
@@ -177,6 +180,9 @@ export function GeneralSection() {
           </SettingsSection>
         </>
       )}
+      {onPhone && reportsAnswered && !reports?.available ? (
+        <p className="phone-settings-empty">{t('phone.general.empty')}</p>
+      ) : null}
       {onPhone && !reports?.available ? null : (
         <SettingsSection title="generalSettings.data">
           {onPhone ? null : (

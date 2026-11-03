@@ -478,7 +478,7 @@ button.phone-glass:active,
   text-align: left;
 }
 
-.phone-grouped-open:active:not(:disabled) {
+button.phone-grouped-open:active:not(:disabled) {
   background: var(--color-phone-pressed);
 }
 
@@ -1412,6 +1412,7 @@ button.phone-glass:active,
     0 -10px 40px var(--color-phone-shadow);
   display: flex;
   flex-direction: column;
+  overflow: clip;
   transform: translateY(110%);
   transition: transform var(--phone-spring-gentle-duration) var(--phone-spring-gentle);
 }
@@ -1477,6 +1478,10 @@ button.phone-glass:active,
   gap: 14px;
 }
 
+.phone-sheet-body > * {
+  flex-shrink: 0;
+}
+
 .phone-sheet-body .phone-card {
   background: var(--color-phone-elevated);
   border-radius: var(--radius-phone-sheet-card);
@@ -1484,10 +1489,6 @@ button.phone-glass:active,
 
 .phone-sheet-row {
   min-height: var(--size-phone-info-row);
-}
-
-.phone-sheet-row:disabled {
-  opacity: 1;
 }
 
 .phone-sheet-row[data-destructive] {
@@ -1538,6 +1539,34 @@ button.phone-glass:active,
 .phone-info-stat dt {
   font-size: calc(12px * var(--phone-text-scale, 1));
   color: var(--color-phone-text-secondary);
+  text-align: center;
+}
+
+.phone-app[data-text-size='accessibility'] {
+  .phone-info-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: var(--size-phone-row-pad);
+  }
+
+  .phone-info-stat:nth-child(odd) {
+    box-shadow: none;
+  }
+
+  /* The value goes under its label, so a long value cannot break the label apart. */
+  .phone-sheet-row:has(> .phone-row-icon):has(> .phone-grouped-count) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0 12px;
+
+    > .phone-row-icon {
+      grid-row: 1 / span 2;
+    }
+
+    > .phone-grouped-label,
+    > .phone-grouped-count {
+      grid-column: 2;
+    }
+  }
 }
 
 /* Note */
@@ -1550,16 +1579,42 @@ button.phone-glass:active,
   gap: 12px;
 }
 
+/* The hidden copy of the title gives the field its height, at any width and text size. */
+.phone-note-heading-field {
+  display: grid;
+  font-size: calc(26px * var(--phone-text-scale, 1));
+  line-height: 1.23;
+  font-weight: 700;
+}
+
+.phone-note-heading-field::after {
+  content: attr(data-title) ' ';
+  visibility: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.phone-note-heading-field::after,
 .phone-note-heading {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.phone-note-heading {
+  display: block;
+  width: 100%;
+  height: 100%;
   border: 0;
   padding: 0;
   background: none;
   color: var(--color-text-editor);
   font: inherit;
-  font-size: calc(26px * var(--phone-text-scale, 1));
-  line-height: 1.23;
-  font-weight: 700;
   outline: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  resize: none;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .phone-chips {
@@ -1568,8 +1623,20 @@ button.phone-glass:active,
   gap: 6px;
 }
 
+.phone-chips.phone-note-chips {
+  gap: 0 6px;
+  margin-block: calc((var(--size-phone-target) - var(--size-phone-chip)) / -2);
+}
+
+.phone-chip-target {
+  min-width: var(--size-phone-target);
+  min-height: var(--size-phone-target);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .phone-chip {
-  position: relative;
   min-height: var(--size-phone-chip);
   padding: 0 10px;
   border-radius: var(--radius-phone-chip);
@@ -1579,12 +1646,6 @@ button.phone-glass:active,
   gap: 5px;
   font-size: calc(14px * var(--phone-text-scale, 1));
   font-weight: 500;
-}
-
-button.phone-chip::after {
-  content: '';
-  position: absolute;
-  inset: calc((var(--size-phone-target) - var(--size-phone-chip)) / -2) 0;
 }
 
 .phone-chip-strong {
@@ -2181,13 +2242,19 @@ button.phone-chip::after {
 }
 
 .phone-settings-search .phone-search-field {
-  flex: 1;
+  transform: none;
+  opacity: 1;
+  transition: none;
 }
 
 .phone-settings-empty {
   margin: 0;
   text-align: center;
   color: var(--color-phone-text-secondary);
+}
+
+.phone-settings-pane .settings-section > .phone-settings-empty {
+  padding: 120px var(--size-phone-screen-edge) 0;
 }
 
 /* Panes */
@@ -2201,7 +2268,22 @@ button.phone-chip::after {
 .phone-settings-pane .settings-section {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--size-phone-group-gap);
+}
+
+.phone-settings-pane .settings-block + .settings-block {
+  margin-top: 0;
+}
+
+.phone-settings-pane .settings-section > p {
+  margin: 0;
+  padding: 0 0 0 var(--size-phone-group-title);
+  font-size: calc(14px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-settings-pane .settings-section > div:empty {
+  display: none;
 }
 
 .phone-settings-pane .settings-block-title {
@@ -2213,13 +2295,20 @@ button.phone-chip::after {
 }
 
 .phone-app .phone-settings-pane.settings-window .settings-card {
-  padding: 0 var(--size-phone-row-pad);
+  padding: var(--size-phone-card-inset) var(--size-phone-row-pad);
   border-radius: var(--radius-phone-card);
   background: var(--color-phone-card);
 }
 
 .phone-settings-pane .setting {
   min-height: var(--size-phone-grouped-row);
+  flex-wrap: wrap;
+  gap: 0 var(--size-phone-row-pad);
+  padding: 0;
+}
+
+.phone-settings-pane .setting-control:empty {
+  display: none;
 }
 
 .phone-settings-pane .setting::before {
@@ -2295,11 +2384,44 @@ button.phone-chip::after {
   width: calc(var(--size-phone-switch-height) - 4px);
 }
 
+/* Full opacity, so what says it cannot be used is the flat grey, not a fade. */
+.phone-app .phone-settings-pane.settings-window .setting-toggle input[role='switch']:disabled {
+  opacity: 1;
+}
+
+.phone-app
+  .phone-settings-pane.settings-window
+  .setting-toggle
+  input[role='switch']:disabled::after {
+  background: var(--color-phone-text-secondary);
+  box-shadow: none;
+}
+
+.phone-app
+  .phone-settings-pane.settings-window
+  .setting-toggle
+  input[role='switch']:checked:disabled {
+  background: var(--color-phone-text-secondary);
+}
+
+.phone-app
+  .phone-settings-pane.settings-window
+  .setting-toggle
+  input[role='switch']:checked:disabled::after {
+  background: var(--color-phone-elevated);
+}
+
+.phone-settings-pane .setting-toggle:has(input:disabled) .setting-label {
+  color: var(--color-phone-text-secondary);
+}
+
 .phone-hint-button {
   flex: none;
   width: var(--size-phone-target);
   height: var(--size-phone-target);
-  margin: -8px 0 -8px 4px;
+  /* The glyph, not its 44 target, keeps the row's right edge. */
+  margin: calc(-1 * var(--space-4)) calc((var(--size-icon-md) - var(--size-phone-target)) / 2)
+    calc(-1 * var(--space-4)) 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2312,11 +2434,16 @@ button.phone-chip::after {
   justify-content: space-between;
 }
 
+.phone-block-head {
+  margin-bottom: 6px;
+  padding-right: var(--size-phone-row-pad);
+}
+
 .phone-block-head .settings-block-title {
   margin: 0;
 }
 
-.phone-footnote {
+.phone-settings-pane .phone-footnote {
   margin: 6px 0 0;
   padding-left: 10px;
   font-size: calc(14px * var(--phone-text-scale, 1));
@@ -2324,10 +2451,9 @@ button.phone-chip::after {
 }
 
 .phone-control {
-  padding: 4px 0 8px;
+  padding: 0 0 var(--size-phone-card-inset);
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
 .phone-control-head {
@@ -2379,20 +2505,26 @@ button.phone-chip::after {
   inset: -7px 0;
 }
 
+/* 30 drawn around a 44 target. */
 .phone-slider-row {
+  margin: -7px 0;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--size-phone-row-pad);
 }
 
 .phone-slider-end {
   flex: none;
-  font-size: calc(14px * var(--phone-text-scale, 1));
+  font-size: calc(13px * var(--phone-text-scale, 1));
   color: var(--color-phone-text-secondary);
 }
 
-.phone-slider-row .phone-slider-end:first-child {
+.phone-slider-row[data-glyph-ends] .phone-slider-end:first-child {
   font-size: calc(12px * var(--phone-text-scale, 1));
+}
+
+.phone-slider-row[data-glyph-ends] .phone-slider-end:last-child {
+  font-size: calc(19px * var(--phone-text-scale, 1));
 }
 
 .phone-slider {
@@ -2487,32 +2619,463 @@ button.phone-chip::after {
   font-weight: 600;
 }
 
-/* The Mac's panes put a control beside its label; a phone is too narrow, so a row stacks them and the control takes the row's width. Switches stay beside their label. */
-.phone-settings-pane .setting:not(.setting-toggle) {
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-4);
-}
-
-.phone-settings-pane .setting:not(.setting-toggle) .setting-control {
-  align-items: stretch;
+/* A short control sits on its label's row at its natural width. A control that cannot fit wraps under its text, on the right. */
+.phone-settings-pane .setting-control {
   min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
 }
 
-.phone-settings-pane .settings-text,
+.phone-settings-pane .setting:has(> .setting-control > :is(.select, .stepper)) {
+  flex-wrap: nowrap;
+}
+
+.phone-settings-pane .setting:has(> .setting-control > :is(.select, .stepper)) .setting-text {
+  flex: 1 0 auto;
+  max-width: calc(100% - var(--size-phone-target));
+}
+
+.phone-settings-pane .setting:has(> .setting-control > :is(.select, .stepper)) .setting-control {
+  flex: 0 1 auto;
+}
+
+/* Only free text takes the row's width, under its label. */
+.phone-settings-pane .setting:has(> .setting-control > .settings-text) {
+  flex-flow: column;
+  align-items: stretch;
+  padding-bottom: var(--size-phone-card-inset);
+}
+
+.phone-settings-pane .setting:has(> .setting-control > .settings-text) .setting-text {
+  flex: none;
+  min-height: var(--size-phone-target);
+}
+
+.phone-settings-pane .setting:has(> .setting-control > .settings-text) .setting-control {
+  flex: none;
+  margin-left: 0;
+  align-items: stretch;
+}
+
+.phone-settings-pane .settings-text {
+  width: 100%;
+  border-radius: calc(var(--radius-phone-card) - var(--size-phone-row-pad));
+}
+
 .phone-settings-pane
   .setting-control:has(> .settings-text)
   > :is(.settings-buttons, .settings-error) {
   width: 100%;
 }
 
-.phone-settings-pane .select > select {
-  flex: 1;
+.phone-app .phone-settings-pane.settings-window .settings-card .button {
+  height: auto;
+  border-radius: calc(var(--size-phone-target) / 2);
 }
 
-.phone-settings-pane .choice-groups,
-.phone-settings-pane .choice-items {
-  flex-wrap: wrap;
+.phone-app
+  .phone-settings-pane.settings-window
+  .settings-card
+  .button:is(:disabled, [aria-disabled='true']) {
+  opacity: 1;
+  color: var(--color-phone-text-secondary);
+}
+
+/* A row's value, then the up and down chevron; the native control lies over them, unseen. */
+.phone-settings-pane .select {
+  max-width: 100%;
+  height: auto;
+  min-height: var(--size-phone-target);
+  gap: var(--space-2);
+  background: none;
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-settings-pane .select:hover:not(:has(select:disabled)) {
+  background: none;
+}
+
+.phone-settings-pane .select > select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 0;
+  opacity: 0;
+}
+
+.phone-settings-pane .select-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone-settings-pane .select-chevron {
+  position: static;
+  flex: none;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  background: none;
+}
+
+.phone-settings-pane .stepper {
+  height: var(--size-phone-stepper-height);
+  padding: 0;
+  background: var(--color-phone-lens);
+}
+
+.phone-settings-pane .stepper-button {
+  position: relative;
+  width: var(--size-phone-stepper-button);
+  height: 100%;
+}
+
+/* 32 drawn in a 44 target. */
+.phone-settings-pane .stepper-button::after {
+  content: '';
+  position: absolute;
+  inset: calc((var(--size-phone-stepper-height) - var(--size-phone-target)) / 2) 0;
+}
+
+.phone-settings-pane .stepper-field {
+  width: var(--size-phone-stepper-field);
+}
+
+.phone-settings-pane .sync-device {
+  min-height: var(--size-phone-grouped-row);
+  padding: var(--size-phone-card-inset) 0;
+  border-top: 0;
+}
+
+.phone-settings-pane .usage-events li {
+  border-top: 0;
+}
+
+/* Theme picker */
+
+.phone-theme-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  padding: var(--size-phone-row-pad) 0 var(--size-phone-card-inset);
+}
+
+.phone-settings-pane .phone-theme-row .choice {
+  gap: var(--space-4);
+}
+
+.phone-settings-pane .phone-theme-row .choice-frame {
+  width: var(--size-phone-theme-thumb-width);
+  height: var(--size-phone-theme-thumb-height);
+  border-radius: var(--radius-phone-theme-thumb);
+}
+
+.phone-settings-pane .phone-theme-row .choice-frame::after {
+  inset: calc(-1 * (var(--size-phone-theme-ring-gap) + var(--size-phone-theme-ring)));
+  border-width: var(--size-phone-theme-ring);
+  border-radius: calc(
+    var(--radius-phone-theme-thumb) + var(--size-phone-theme-ring-gap) +
+      var(--size-phone-theme-ring)
+  );
+}
+
+.phone-settings-pane .phone-theme-thumb {
+  width: var(--size-phone-theme-thumb-width);
+  height: var(--size-phone-theme-thumb-height);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  border-radius: var(--radius-phone-theme-thumb);
+}
+
+.phone-settings-pane .phone-theme-thumb .swatch-sample {
+  margin: 0;
+}
+
+.phone-settings-pane .phone-theme-thumb .swatch-accent {
+  width: var(--space-7);
+  height: var(--space-2);
+}
+
+/* Colour marks the choice, never weight: a bolder name would move its neighbours. */
+.phone-settings-pane .phone-theme-row .choice-name {
+  font-size: calc(12px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-settings-pane .phone-theme-row .choice:has(input:checked) .choice-name {
+  font-weight: inherit;
+  color: var(--color-phone-text);
+}
+
+/* Usage */
+
+.phone-settings-pane .usage-dashboard {
+  font-variant-numeric: normal;
+}
+
+.phone-settings-pane .usage-stats {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  margin: 0;
+  padding: var(--size-phone-card-inset) var(--size-phone-row-pad);
+  border-radius: var(--radius-phone-card);
+  background: var(--color-phone-card);
+}
+
+.phone-settings-pane .usage-stat {
+  min-height: var(--size-phone-grouped-row);
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  flex-flow: row wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 var(--size-phone-row-pad);
+}
+
+.phone-settings-pane .usage-stat > span {
+  font-size: inherit;
+  color: var(--color-phone-text);
+}
+
+.phone-settings-pane .usage-stat > strong {
+  margin: 0;
+  font-family: var(--font-family-mono);
+  font-size: calc(17px * var(--phone-text-scale, 1));
+  font-variant-numeric: tabular-nums;
+  gap: var(--space-2);
+}
+
+.phone-settings-pane .usage-stat strong small {
+  font-size: calc(14px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-settings-pane .usage-stat > :is(small, .usage-spark, .usage-days) {
+  display: none;
+}
+
+.phone-settings-pane .usage-section-heading {
+  margin: 0;
+}
+
+.phone-settings-pane .phone-usage-empty {
+  text-align: center;
+}
+
+.phone-app .phone-settings-pane.settings-window .phone-usage-empty {
+  padding: var(--size-phone-group-gap) var(--size-phone-row-pad);
+}
+
+.phone-settings-pane .phone-usage-empty p {
+  margin: 0;
+  font-size: calc(14px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-settings-pane .phone-usage-empty p:first-child {
+  margin-bottom: var(--space-2);
+  font-size: inherit;
+  color: var(--color-phone-text);
+}
+
+.phone-usage-chart {
+  padding: var(--size-phone-row-pad) 0;
+}
+
+.phone-settings-pane .usage-chart-heading {
+  margin-bottom: var(--space-4);
+}
+
+.phone-settings-pane .usage-chart-heading h4 {
+  font-size: calc(14px * var(--phone-text-scale, 1));
+  font-weight: 500;
+}
+
+.phone-settings-pane .usage-chart-heading > span {
+  font-size: calc(12px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-settings-pane .usage-daily {
+  height: var(--size-phone-usage-chart);
+}
+
+.phone-settings-pane .usage-daily text {
+  display: none;
+}
+
+.phone-usage-axis {
+  margin-bottom: var(--size-phone-row-pad);
+  display: flex;
+  justify-content: space-between;
+  font-size: calc(12px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-settings-pane .usage-weekday,
+.phone-settings-pane .usage-hours {
+  font-size: calc(11px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-settings-pane .phone-usage-peak {
+  margin: var(--space-4) 0;
+  font-size: calc(14px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-settings-pane .usage-legend {
+  display: flex;
+  font-size: calc(12px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-usage-types {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.phone-usage-types li {
+  min-height: var(--size-phone-grouped-row);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.phone-usage-types .icon {
+  flex: none;
+}
+
+.phone-usage-type {
+  flex: 1 0 auto;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone-usage-types .usage-type-track {
+  flex: 0 1 var(--size-phone-usage-bar);
+  min-width: 0;
+}
+
+.phone-usage-count {
+  flex: none;
+  min-width: 5ch;
+  text-align: end;
+}
+
+.phone-usage-share {
+  flex: none;
+  min-width: 4ch;
+  font-size: calc(14px * var(--phone-text-scale, 1));
+  text-align: end;
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-usage-capacity {
+  margin-left: auto;
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-action-row {
+  width: 100%;
+  min-height: var(--size-phone-grouped-row);
+  display: flex;
+  align-items: center;
+  color: var(--color-phone-text);
+}
+
+.phone-action-destructive {
+  color: var(--color-text-destructive);
+}
+
+.phone-action-row[aria-disabled='true'] {
+  color: var(--color-phone-text-secondary);
+}
+
+/* At the accessibility sizes a row stacks rather than cut its label. */
+.phone-app[data-text-size='accessibility'] {
+  .phone-settings-pane .setting:has(> .setting-control > :is(.select, .stepper)) {
+    flex-flow: column;
+    align-items: stretch;
+  }
+
+  .phone-settings-pane .setting:has(> .setting-control > :is(.select, .stepper)) .setting-text {
+    flex: none;
+    max-width: none;
+  }
+
+  .phone-settings-pane .setting:has(> .setting-control > :is(.select, .stepper)) .setting-control {
+    flex: none;
+    align-items: flex-start;
+    margin-left: 0;
+  }
+
+  .phone-settings-pane .setting:has(> .setting-control > .settings-buttons) {
+    flex-flow: column;
+    align-items: stretch;
+  }
+
+  .phone-settings-pane .setting:has(> .setting-control > .settings-buttons) .setting-text {
+    flex: none;
+    max-width: none;
+  }
+
+  .phone-settings-pane .setting:has(> .setting-control > .settings-buttons) .setting-control {
+    flex: none;
+    align-items: stretch;
+    margin-left: 0;
+  }
+
+  .phone-settings-pane .settings-buttons {
+    grid-auto-flow: row;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .phone-segmented {
+    grid-auto-flow: row;
+    grid-auto-rows: minmax(var(--size-phone-target), 1fr);
+  }
+
+  .phone-segmented-pill {
+    bottom: auto;
+    width: calc(100% - 6px);
+    height: calc((100% - 6px) / var(--segments));
+    transform: translateY(calc(100% * var(--segment)));
+  }
+
+  .phone-segment::after {
+    inset: 0;
+  }
+
+  .phone-settings-pane .usage-chart-heading {
+    flex-flow: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .phone-theme-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: var(--size-phone-row-pad);
+  }
+
+  .phone-usage-types .usage-type-track {
+    display: none;
+  }
+
+  .phone-usage-type {
+    flex: 1 1 0;
+    max-width: none;
+    white-space: normal;
+  }
 }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
@@ -2588,6 +3151,27 @@ button.phone-chip::after {
   }
 
   .phone-sheet {
+    transform: none;
+    opacity: 0;
+    transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
+  }
+
+  .phone-sheet[data-shown] {
+    opacity: 1;
+  }
+
+  .phone-peek > * {
+    translate: none;
+    transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
+    transition-delay: 0s;
+  }
+
+  .phone-note-bottom {
+    translate: none;
+    transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
+  }
+
+  .phone-accessory {
     transition-duration: var(--motion-duration-phone-crossfade);
   }
 

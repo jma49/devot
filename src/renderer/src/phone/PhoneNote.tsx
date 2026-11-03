@@ -128,17 +128,20 @@ function InfoSheet(props: {
           lead={rowIcon('phone.calendar')}
           label={t('phone.info.created')}
           value={when(note.createdAt)}
+          figures
         />
         <SheetChoice
           lead={rowIcon('phone.clock')}
           label={t('phone.info.modified')}
           value={when(note.updatedAt)}
+          figures
         />
         {devices !== null && (
           <SheetChoice
             lead={rowIcon('phone.devices')}
             label={t('phone.info.devices')}
             value={String(devices)}
+            figures
           />
         )}
       </ul>
@@ -148,6 +151,7 @@ function InfoSheet(props: {
             lead={rowIcon('phone.link')}
             label={t('phone.info.backlinks')}
             value={String(backlinks.length)}
+            figures
             {...(backlinks.length > 0 ? { onPick: () => setLinksOpen((open) => !open) } : {})}
           />
           {linksOpen &&
@@ -180,9 +184,12 @@ export function PhoneNote(props: {
   const noteId = history.ids[history.at]!
   const note =
     store.notes.find((n) => n.id === noteId) ?? store.templates.find((n) => n.id === noteId)
-  const [mode, setMode] = useState<'edit' | 'preview'>('edit')
+  const [modes, setModes] = useState<Readonly<Record<string, 'edit' | 'preview'>>>({})
+  const mode = modes[noteId] ?? 'preview'
+  const setMode = (next: 'edit' | 'preview') => setModes((m) => ({ ...m, [noteId]: next }))
   const [toggles, setToggles] = useState(0)
-  const [text, setText] = useState('')
+  const [body, setBody] = useState({ id: noteId, text: '' })
+  const text = body.id === noteId ? body.text : ''
   const [sheet, setSheet] = useState<Sheet>(null)
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
   const [suggestFailure, setSuggestFailure] = useState<string>()
@@ -192,6 +199,14 @@ export function PhoneNote(props: {
   const showAlertMenu = useAlertMenu()
   const keyboard = useKeyboard()
   const typing = mode === 'edit' && keyboard.open && !finding
+  // An editor being left reports an empty body as it goes: only its own note's body takes that.
+  const showText = (id: string, next: string) =>
+    setBody((shown) => (shown.id === id ? { id, text: next } : shown))
+  const noteLoaded = (id: string, loaded: string) => {
+    setBody({ id, text: loaded })
+    // An empty note has nothing to read, so it opens ready to write.
+    setModes((m) => (m[id] ? m : { ...m, [id]: loaded === '' ? 'edit' : 'preview' }))
+  }
 
   const suggester = useMemo(() => {
     const core = store.core
@@ -259,60 +274,70 @@ export function PhoneNote(props: {
   return (
     <section aria-label={note.title || t('note.untitled')} className="phone-screen">
       <div className="phone-scroll phone-note-scroll">
-        <input
-          className="phone-note-heading"
-          aria-label={t('phone.note.title')}
-          placeholder={t('note.untitled')}
-          value={title}
-          onChange={(event) => setTitleDraft(event.target.value)}
-          onBlur={() => {
-            if (titleDraft !== null && titleDraft !== note.title)
-              void core.setTitle(note.id, titleDraft)
-            setTitleDraft(null)
-          }}
-        />
-        <div className="phone-chips">
-          <button type="button" className="phone-chip" onClick={() => setSheet('notebook')}>
-            <Icon name="notebook" size="sm" />
-            {book?.name ?? t('phone.noNotebook')}
-            <Icon name="popup.chevron" size="xs" />
+        <div className="phone-note-heading-field" data-title={title}>
+          <textarea
+            className="phone-note-heading"
+            rows={1}
+            aria-label={t('phone.note.title')}
+            placeholder={t('note.untitled')}
+            value={title}
+            onChange={(event) => setTitleDraft(event.target.value.replace(/[\r\n]+/g, ' '))}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.preventDefault()
+            }}
+            onBlur={() => {
+              if (titleDraft !== null && titleDraft !== note.title)
+                void core.setTitle(note.id, titleDraft)
+              setTitleDraft(null)
+            }}
+          />
+        </div>
+        <div className="phone-chips phone-note-chips">
+          <button type="button" className="phone-chip-target" onClick={() => setSheet('notebook')}>
+            <span className="phone-chip">
+              <Icon name="notebook" size="sm" />
+              {book?.name ?? t('phone.noNotebook')}
+              <Icon name="popup.chevron" size="xs" />
+            </span>
           </button>
-          <button
-            type="button"
-            className="phone-chip phone-chip-strong"
-            style={{ background: statusTile(note.status) }}
-            onClick={() => setSheet('status')}
-          >
-            <StatusMark status={note.status} />
-            {t(STATUS_LABEL[note.status])}
-            <Icon name="popup.chevron" size="xs" />
+          <button type="button" className="phone-chip-target" onClick={() => setSheet('status')}>
+            <span
+              className="phone-chip phone-chip-strong"
+              style={{ background: statusTile(note.status) }}
+            >
+              <StatusMark status={note.status} />
+              {t(STATUS_LABEL[note.status])}
+              <Icon name="popup.chevron" size="xs" />
+            </span>
           </button>
           {tags.map((tag) => (
             <button
               key={tag!.id}
               type="button"
-              className="phone-chip"
-              data-tag={tag!.color ?? undefined}
-              style={
-                tag!.color
-                  ? {
-                      ['--chip-tag' as string]: `var(--color-tag-${tag!.color})`,
-                      ['--chip-tag-text' as string]: `var(--color-tag-text-${tag!.color})`,
-                    }
-                  : undefined
-              }
+              className="phone-chip-target"
               onClick={() => setSheet('tags')}
             >
-              {tag!.name}
+              <span
+                className="phone-chip"
+                data-tag={tag!.color ?? undefined}
+                style={
+                  tag!.color
+                    ? {
+                        ['--chip-tag' as string]: `var(--color-tag-${tag!.color})`,
+                        ['--chip-tag-text' as string]: `var(--color-tag-text-${tag!.color})`,
+                      }
+                    : undefined
+                }
+              >
+                {tag!.name}
+              </span>
             </button>
           ))}
-          <button
-            type="button"
-            className="phone-chip phone-chip-dashed"
-            onClick={() => setSheet('tags')}
-          >
-            <Icon name="notebook.new" size="xs" />
-            {t('phone.note.tag')}
+          <button type="button" className="phone-chip-target" onClick={() => setSheet('tags')}>
+            <span className="phone-chip phone-chip-dashed">
+              <Icon name="notebook.new" size="xs" />
+              {t('phone.note.tag')}
+            </span>
           </button>
         </div>
         <p className="phone-note-caption phone-figures">
@@ -329,7 +354,8 @@ export function PhoneNote(props: {
               noteId={noteId}
               autoFocus={false}
               hidden={mode === 'preview'}
-              onText={setText}
+              onText={(next) => showText(noteId, next)}
+              onLoaded={(loaded) => noteLoaded(noteId, loaded)}
               links={links}
               showAlertMenu={showAlertMenu}
               handleRef={editor}
@@ -368,7 +394,7 @@ export function PhoneNote(props: {
             data-turn={toggles === 0 ? undefined : toggles % 2 ? 'a' : 'b'}
             onClick={() => {
               setToggles((n) => n + 1)
-              setMode((m) => (m === 'edit' ? 'preview' : 'edit'))
+              setMode(mode === 'edit' ? 'preview' : 'edit')
             }}
           >
             <Icon name={mode === 'edit' ? 'mode.preview' : 'mode.edit'} size="lg" />
@@ -384,7 +410,11 @@ export function PhoneNote(props: {
           </button>
         </div>
       </header>
-      <div className="phone-note-bottom" data-hidden={typing || finding || undefined}>
+      <div
+        className="phone-note-bottom"
+        data-hidden={typing || finding || undefined}
+        inert={typing || finding}
+      >
         <div className="phone-glass phone-capsule phone-capsule-tall">
           <button
             type="button"
@@ -430,6 +460,7 @@ export function PhoneNote(props: {
       <div
         className="phone-accessory"
         data-shown={typing || undefined}
+        inert={!typing}
         style={{ bottom: `calc(${keyboard.height}px + var(--size-phone-sheet-inset))` }}
       >
         <div
