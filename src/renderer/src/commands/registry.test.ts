@@ -255,6 +255,7 @@ describe('COMMANDS', () => {
       'notebook.delete',
       'sidebar.workspaceUp',
       'tag.delete',
+      'savedSearch.delete',
     ])
     expect(probe('list', 'Mod+Backspace')).toEqual(['note.trash', 'trash.deleteForever'])
     expect(probe('tagRow', 'Enter')).toEqual([])

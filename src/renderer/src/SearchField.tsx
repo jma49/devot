@@ -4,6 +4,7 @@ import { Icon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
 import { isImeKey } from './ime'
 import { usePickerOpen } from './Picker'
+import type { MenuPoint } from './contextMenu'
 
 const SYNTAX = [
   { example: 'word  "a phrase"  \'a phrase\'', note: 'search.help.text' },
@@ -19,7 +20,7 @@ const SYNTAX = [
 /**
  * The toolbar search field. A "?" button opens a list of the query syntax. Escape and the clear button call `onClear`
  * (Escape closes the open syntax list first); the Escape that cancels an
- * input method's composition does neither.
+ * input method's composition does neither. With `onOptions`, a query typed shows a button for the field's menu (Save Search).
  */
 export const SearchField = forwardRef<
   HTMLInputElement,
@@ -27,10 +28,11 @@ export const SearchField = forwardRef<
     value: string
     onChange: (query: string) => void
     onClear: () => void
+    onOptions?: ((at: MenuPoint) => void) | undefined
     placeholder: string
     icon?: IconName
   }
->(function SearchField({ value, onChange, onClear, placeholder, icon = 'search' }, ref) {
+>(function SearchField({ value, onChange, onClear, onOptions, placeholder, icon = 'search' }, ref) {
   const box = useRef<HTMLDivElement>(null)
   const helpButton = useRef<HTMLButtonElement>(null)
   const [helpOpen, setHelpOpen] = usePickerOpen(box)
@@ -88,6 +90,21 @@ export const SearchField = forwardRef<
             onClick={onClear}
           >
             <Icon name="tag.remove" size="sm" />
+          </button>
+        ) : null}
+        {value.trim() && onOptions ? (
+          <button
+            type="button"
+            className="search-help-button search-options-button"
+            aria-label={t('search.options')}
+            title={t('search.options')}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              const button = e.currentTarget.getBoundingClientRect()
+              onOptions({ x: button.left, y: button.bottom })
+            }}
+          >
+            <Icon name="more.horizontal" size="sm" />
           </button>
         ) : null}
         <button

@@ -4,6 +4,7 @@ import { LINE_COMMANDS, lineKeys } from '../editor/lineCommands'
 import { IMAGE_COMMANDS, imageKeys } from '../imageMenu'
 import { NOTE_COMMANDS, TRASH_COMMANDS, noteShortcut, trashShortcut } from '../noteMenu'
 import { TAG_COMMANDS, tagShortcut } from '../tagMenu'
+import { SAVED_SEARCH_COMMANDS, savedSearchShortcut } from '../savedSearchMenu'
 import { shortcutCodeMirror, type KeyPress } from './keys'
 import { effectiveKeymap, keyProblem } from './keymap'
 import {
@@ -116,6 +117,10 @@ function bound(id: CommandId): boolean {
     case 'tagRow': {
       const action = tagShortcut(PRESS)
       return action !== undefined && TAG_COMMANDS[action] === id
+    }
+    case 'savedSearchRow': {
+      const action = savedSearchShortcut(PRESS)
+      return action !== undefined && SAVED_SEARCH_COMMANDS[action] === id
     }
     default:
       return false

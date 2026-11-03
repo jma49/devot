@@ -9,6 +9,7 @@ import type {
   ImportScan,
   NoteStatus,
   NoteSummary,
+  SavedSearchRecord,
   SaveProblem,
   TagColor,
   TagColorValue,
@@ -25,6 +26,7 @@ import {
   TEMPLATES_BOOK_ID,
 } from '../../core/books'
 import { noteLink } from '../../core/links'
+import { countMatches, savedSearchQuery } from '../../core/savedSearches'
 import { clipTitle } from '../../core/noteLimits'
 import { compareNames } from '../../core/sort'
 import {
@@ -92,6 +94,8 @@ import {
   type NotebookMenuTarget,
 } from './headerMenus'
 import { TagSettingsDialog } from './TagSettingsDialog'
+import { SavedSearchDialog } from './SavedSearchDialog'
+import { SEARCH_FIELD_MENU } from './savedSearchMenu'
 import { PageSetupDialog, type PageSetup } from './PageSetupDialog'
 import { ImportDialog, type ImportChoices, type ImportJob } from './ImportDialog'
 import { forgetScanFound, setScanFound } from './importProgress'
@@ -237,6 +241,7 @@ import {
   keepUnchanged,
   retitled,
   sameCounts,
+  sameSearchRows,
   viewLists,
   withWrites,
   type ListView,
@@ -441,6 +446,9 @@ export function App() {
     lastState?.view.kind === 'book' ? (lastState.workspace ?? null) : null,
   )
   const [tags, setTags] = useState<TagRecord[]>([])
+  const [savedSearches, setSavedSearches] = useState<SavedSearchRecord[]>([])
+  // Save Search (no `id`) or Edit Saved Search.
+  const [searchDialog, setSearchDialog] = useState<{ id?: string; name: string; query: string }>()
   const [filter, setFilter] = useState<NoteFilter | null>(() =>
     lastState?.view.kind === 'templates' ? null : (lastState?.filter ?? null),
   )
@@ -466,6 +474,7 @@ export function App() {
     | { kind: 'one'; id: string; title: string }
     | { kind: 'many'; ids: readonly string[] }
     | { kind: 'tag'; id: string; name: string; count: number }
+    | { kind: 'savedSearch'; id: string; name: string }
     | { kind: 'book'; id: string; name: string; subs: number; notes: number }
   >()
   const [renamingBook, setRenamingBook] = useState<string>()
@@ -717,11 +726,12 @@ export function App() {
   const [paletteDone, setPaletteDone] = useState(0)
 
   const refresh = useCallback(async (c: Core) => {
-    const [listed, nextBooks, nextTags, nextTrash] = await Promise.all([
+    const [listed, nextBooks, nextTags, nextTrash, nextSearches] = await Promise.all([
       c.listWithTemplates(),
       c.listBooks(),
       c.listTags(),
       c.listTrash(),
+      c.listSavedSearches(),
     ])
     const nextNotes = listed.notes
     setTrash(nextTrash)
@@ -730,6 +740,7 @@ export function App() {
     setNotes((prev) => keepUnchanged(prev, nextNotes))
     setBooks(nextBooks)
     setTags(nextTags.sort((a, b) => compareNames(a.name, b.name, navigator.languages)))
+    setSavedSearches(nextSearches)
     // Results follow edits, renames, trash and restore.
     if (latestSearch.current.query.trim()) runSearch.current?.(latestSearch.current)
     window.dispatchEvent(new CustomEvent(NOTES_LOADED))
@@ -1021,6 +1032,18 @@ export function App() {
   const sidebarTagged = useKept(
     useMemo(() => tagCounts(sidebarNotes), [sidebarNotes]),
     sameCounts,
+  )
+  // Counted from the listed notes' fields, so a status or tag change shows at once; one with text has no count (only a search finds text).
+  const savedSearchRows = useKept(
+    useMemo(() => {
+      const scope = workspaceNode ? { bookId: workspaceNode.id, filter: null } : undefined
+      return savedSearches.map((search) => ({
+        id: search.id,
+        name: search.name,
+        count: countMatches(sidebarNotes, savedSearchQuery(search, { books, tags, scope })),
+      }))
+    }, [savedSearches, sidebarNotes, books, tags, workspaceNode]),
+    sameSearchRows,
   )
   const sidebarTags = useMemo(
     () => (workspaceNode ? tags.filter((tag) => (sidebarTagged.get(tag.id) ?? 0) > 0) : tags),
@@ -2075,6 +2098,9 @@ export function App() {
     setConfirm(undefined)
     if (!pending) return
     if (pending.kind === 'tag') return void (await changeBooks((c) => c.deleteTag(pending.id)))
+    if (pending.kind === 'savedSearch') {
+      return void (await changeBooks((c) => c.deleteSavedSearch(pending.id)))
+    }
     if (pending.kind === 'book') return void (await deleteBook(pending.id))
     if (pending.kind === 'many') {
       await runBatch(pending.ids, { kind: 'purge' })
@@ -3170,10 +3196,68 @@ export function App() {
       if (core) void refresh(core)
     },
   })
+  // A saved search runs in the search field: over every note, or over the workspace open.
+  const runSavedSearch = useStable((id: string) => {
+    const search = savedSearches.find((s) => s.id === id)
+    if (!search) return
+    if (workspaceNode) showLibrary({ kind: 'book', id: workspaceNode.id }, { clearFilter: true })
+    else if (inTrash || inTemplates) showLibrary({ kind: 'all' })
+    setSearchIn(workspaceNode ? 'view' : 'all')
+    setQuery(search.query)
+  })
+  // The field runs a saved search when it holds its query over what that one searches: every note, or the workspace.
+  const searchesSaved =
+    searchScope === undefined
+      ? !workspaceNode
+      : !searchScope.filter && searchScope.bookId === (workspaceNode?.id ?? null)
+  const activeSearch =
+    searching && searchesSaved ? savedSearches.find((s) => s.query === query.trim())?.id : undefined
+  const saveSearch = useStable(() => {
+    const typed = query.trim()
+    if (typed) setSearchDialog({ name: typed, query: typed })
+  })
+  const sidebarEditSavedSearch = useStable((id: string) => {
+    const search = savedSearches.find((s) => s.id === id)
+    if (search) setSearchDialog({ id, name: search.name, query: search.query })
+  })
+  const sidebarRenameSavedSearch = useStable(
+    (id: string, name: string) => void changeBooks((c) => c.renameSavedSearch(id, name)),
+  )
+  const sidebarPlaceSavedSearch = useStable(
+    (id: string, targetId: string, where: 'before' | 'after') =>
+      void changeBooks((c) => c.placeSavedSearch(id, targetId, where)),
+  )
+  const sidebarDeleteSavedSearch = useStable((id: string) =>
+    setConfirm({
+      kind: 'savedSearch',
+      id,
+      name: savedSearches.find((s) => s.id === id)?.name ?? '',
+    }),
+  )
+  const finishSearchDialog = (change: { name: string; query: string }) => {
+    const open = searchDialog
+    setSearchDialog(undefined)
+    if (!open) return
+    const { id } = open
+    if (id === undefined) {
+      return void changeBooks((c) => c.createSavedSearch(change.name, change.query))
+    }
+    // The search field running it follows its new query.
+    if (id === activeSearch && change.query !== open.query) setQuery(change.query)
+    void changeBooks(async (c) => {
+      await c.renameSavedSearch(id, change.name)
+      await c.setSavedSearchQuery(id, change.query)
+    })
+  }
+  const showSearchFieldMenu = useContextMenu('searchField', SEARCH_FIELD_MENU, () => saveSearch())
+  const openSearchFieldMenu = useStable((at: MenuPoint) => {
+    if (editing) void showSearchFieldMenu({ query }, at)
+  })
   const handlers: CommandHandlers = {
     'palette.open': { run: () => openPalette() },
     'search.view': { run: () => startSearch('view') },
     'search.all': { run: () => startSearch('all') },
+    ...(core && query.trim() ? { 'search.save': { run: saveSearch } } : {}),
     'view.focus': { run: toggleFocus },
     'view.sidebar': {
       run: () => {
@@ -3537,10 +3621,11 @@ export function App() {
         value={query}
         onChange={changeQueryStable}
         onClear={clearSearchStable}
+        onOptions={editing ? openSearchFieldMenu : undefined}
         placeholder={inView ? t('search.placeholder') : t('search.placeholderAll')}
       />
     ),
-    [query, inView, changeQueryStable, clearSearchStable],
+    [query, inView, editing, changeQueryStable, clearSearchStable, openSearchFieldMenu],
   )
   const layoutControl = useMemo(
     () =>
@@ -3909,12 +3994,19 @@ export function App() {
         onOpenWorkspace={stableOpenWorkspace}
         onWorkspaceUp={sidebarWorkspaceUp}
         menus={sidebarMenus}
+        savedSearches={savedSearchRows}
+        activeSearch={activeSearch}
+        onRunSavedSearch={runSavedSearch}
+        onRenameSavedSearch={sidebarRenameSavedSearch}
+        onEditSavedSearch={sidebarEditSavedSearch}
+        onDeleteSavedSearch={sidebarDeleteSavedSearch}
+        onPlaceSavedSearch={sidebarPlaceSavedSearch}
       />
       {searching ? (
         <NoteList
           editing={editing}
           view={listView}
-          title={t('search.results')}
+          title={savedSearches.find((s) => s.id === activeSearch)?.name ?? t('search.results')}
           filter={filterField}
           scope={results?.search.scope ? format(t('search.in'), { view: viewName }) : undefined}
           highlight={highlight}
@@ -4531,7 +4623,25 @@ export function App() {
           onCancel={() => setHeaderTagSettings(undefined)}
         />
       ) : null}
-      {confirm?.kind === 'tag' ? (
+      {searchDialog ? (
+        <SavedSearchDialog
+          editing={searchDialog.id !== undefined}
+          name={searchDialog.name}
+          query={searchDialog.query}
+          onSave={finishSearchDialog}
+          onCancel={() => setSearchDialog(undefined)}
+        />
+      ) : null}
+      {confirm?.kind === 'savedSearch' ? (
+        <ConfirmDialog
+          destructive
+          message={format(t('savedSearch.confirmDelete'), { name: confirm.name })}
+          detail={t('savedSearch.deleteDetail')}
+          confirm={t('savedSearchMenu.delete')}
+          onConfirm={() => void runConfirmed()}
+          onCancel={() => setConfirm(undefined)}
+        />
+      ) : confirm?.kind === 'tag' ? (
         <ConfirmDialog
           destructive
           message={format(t('tag.confirmDelete'), { name: confirm.name })}
