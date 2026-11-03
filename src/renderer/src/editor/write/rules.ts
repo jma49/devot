@@ -147,8 +147,7 @@ export function writeRanges(
   const text = (a: number, b: number) => doc.sliceString(a, b)
   const shows = (a: number, b: number) => touches(selected, a, b)
   const showsLines = (a: number, b: number) => shows(doc.lineAt(a).from, doc.lineAt(b).to)
-  const oneLine = (a: number, b: number) =>
-    b > a && b <= doc.lineAt(a).to && !inBlock(rendered, a)
+  const oneLine = (a: number, b: number) => b > a && b <= doc.lineAt(a).to && !inBlock(rendered, a)
   const hide = (a: number, b: number) => {
     if (oneLine(a, b)) out.push({ kind: 'hide', from: a, to: b })
   }
