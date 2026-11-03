@@ -899,6 +899,8 @@ title: Daily Report {{date}}
   'syncSettings.relay': 'Relay',
   'syncSettings.relayHint': 'The address of your relay, as its deploy printed it.',
   'syncSettings.relayPlaceholder': 'https://',
+  'syncSettings.relayJoinHint':
+    'Needed only when you type a code. A pasted link carries the relay’s address itself.',
   'syncSettings.secret': 'Relay Secret',
   'syncSettings.secretHint':
     'The relay’s own secret (RELAY_SECRET), asked once to create your vault there. It is not kept on this device.',
@@ -933,16 +935,16 @@ title: Daily Report {{date}}
   'syncSettings.pausedUntil':
     'Sync paused until {time}: the relay has reached its quota for today.',
   'syncSettings.storageFull':
-    'Sync paused until {time}: the relay has no storage left. Delete or purge notes or images, or free space on the relay.',
-  'syncSettings.storageFullRetry': 'Sync is trying again; the relay had no storage left.',
+    'Sync paused until {time}: the relay’s storage is full, so new and changed notes and images are not syncing. Everything still works on this device. Remove images or notes you no longer need, or use a larger server.',
+  'syncSettings.storageFullRetry': 'Sync is trying again; the relay’s storage was full.',
   'syncSettings.resuming': 'The relay’s quota for today has reset; sync resumes in a moment.',
   'syncSettings.upload': '{sent} of {total} items uploaded.',
   'syncSettings.relayOutdated':
     'Your relay comes from an earlier release and lacks the quota cap or the limit for images. Update it: run wrangler deploy again from the new release, or restart the Node relay from it.',
   'syncSettings.filesFullOne':
-    '{count} image is not synced: the relay has no room left for images. It stays on this device, and is sent again after images are deleted or on the next launch.',
+    '{count} image is not synced: the relay has no room left for images. It stays on this device, and notes keep syncing. Remove images you no longer need, or use a larger server; it is sent again after that.',
   'syncSettings.filesFullOther':
-    '{count} images are not synced: the relay has no room left for images. They stay on this device, and are sent again after images are deleted or on the next launch.',
+    '{count} images are not synced: the relay has no room left for images. They stay on this device, and notes keep syncing. Remove images you no longer need, or use a larger server; they are sent again after that.',
   'syncSettings.filesOutdatedOne':
     '{count} image is not synced: your relay is too old to hold images. Update it: run wrangler deploy again from the new release, or restart the Node relay from it.',
   'syncSettings.filesOutdatedOther':
@@ -959,14 +961,48 @@ title: Daily Report {{date}}
   'syncSettings.recoverySaved': 'I Saved It',
   'syncSettings.copyFailed': 'The recovery key could not be copied ({code}).',
   'syncSettings.recoverySaveFailed': 'Devot could not note that the key was saved ({code}).',
-  'syncSettings.newVault': 'New Vault',
-  'syncSettings.newVaultHint':
-    'Only on your first device: makes a new, empty vault on this relay. On any other device, join with a code or the recovery key above, or its notes never meet the others.',
-  'syncSettings.newVaultStart': 'Set Up a New Vault…',
+  'syncSettings.setup': 'Set Up Sync',
+  'syncSettings.setupHint':
+    'Is this the first device you are syncing, or are you adding it to notes that another of your devices already syncs?',
+  'syncSettings.setupFirst': 'This Is My First Device',
+  'syncSettings.setupAnother': 'I’m Adding Another Device',
+  'syncSettings.setupChange': 'Change Answer',
+  'syncSettings.firstHint':
+    'Devot makes your vault on a relay, a small server you run yourself, and gives you a recovery key to keep. Enter the relay’s address, then its secret.',
+  'syncSettings.anotherHint':
+    'On a device that already syncs, open Settings > Sync and choose Show Pairing Code. Scan the QR code here, or type or paste the code or the link. Joining adds this device to that vault and never makes a second one.',
+  'syncSettings.usage.title': 'Storage',
+  'syncSettings.usage.records': 'Notes and Other Records',
+  'syncSettings.usage.images': 'Images',
+  'syncSettings.usage.total': 'Total',
+  'syncSettings.usage.room': 'Room Left',
+  'syncSettings.usage.of': '{used} of {limit}',
+  'syncSettings.usage.retry': 'Check Again',
+  'syncSettings.usage.reading': 'Reading what the relay holds…',
+  'syncSettings.usage.offline':
+    'The relay cannot be reached, so its storage is not shown. It appears here when the relay can be reached again.',
+  'syncSettings.usage.old':
+    'Your relay is from an earlier release and cannot report its storage. Update it to see how much room is left.',
+  'syncSettings.usage.failed': 'The relay’s storage could not be read ({code}).',
+  'syncSettings.usage.roomImages': '{room}. Images can use {images} of that.',
+  'syncSettings.usage.roomImagesUsed':
+    '{room}. Images have used their share, so only notes can use it.',
+  'syncSettings.usage.roomNone':
+    'None left. New and changed notes and images wait until you free some.',
+  'syncSettings.usage.noCap':
+    'No limit. This relay runs without a storage cap, so only its own disk limits it.',
+  'syncSettings.usage.unknownCap': 'Not known. This relay does not say what it may hold.',
+  'syncSettings.usage.capNote':
+    'This relay stores up to {limit} in all, and up to {images} of that for images, so notes always keep room.',
+  'syncSettings.usage.capNoteTotal': 'This relay stores up to {limit} in all.',
   'syncSettings.pair': 'Add a Device',
   'syncSettings.pairHint':
-    'Show a code here, then scan it with the new device’s camera, or type or paste it there under Join With a Code. It works once, for 10 minutes.',
+    'Show a code here, then scan it with the new device’s camera, or copy the link and paste it there under Join With a Code. A bare code needs the relay’s address typed there too. It works once, for 10 minutes.',
   'syncSettings.pairShow': 'Show Pairing Code',
+  'syncSettings.pairCopyLink': 'Copy Link',
+  'syncSettings.pairLinkCopied':
+    'The pairing link was copied. It carries the relay’s address, works once for 10 minutes, and leaves the clipboard after 90 seconds.',
+  'syncSettings.pairCopyFailed': 'The pairing link could not be copied ({code}).',
   'syncSettings.pairQr': 'QR code for pairing a device',
   'syncSettings.pairCode': 'Pairing code',
   'syncSettings.pairExpiresIn': 'Expires in {time}.',
@@ -981,7 +1017,7 @@ title: Daily Report {{date}}
   'syncSettings.pairCheckFailed': 'The pairing stopped ({code}).',
   'syncSettings.joinCode': 'Join With a Code',
   'syncSettings.joinCodeHint':
-    'The code another of your devices shows under Add a Device, or the link its QR code holds. Set the relay above first, or paste the whole link.',
+    'The code another of your devices shows under Add a Device, or the link its QR code holds. The link carries the relay’s address; with only the code, enter the relay below first.',
   'syncSettings.joinRecovery': 'Join With Recovery Key',
   'syncSettings.joinRecoveryHint':
     'The recovery key you saved when you turned sync on, with the relay above.',
@@ -1046,9 +1082,17 @@ title: Daily Report {{date}}
   'sync.advice.circuit':
     'A note kept changing back and forth between devices. Turn Sync This Device off and on in Settings > Sync to try again.',
   'sync.notice.storageFull':
-    'Sync paused until {time}: the relay has no storage left. Delete or purge notes or images, or free space on the relay. Sync tries again after that.',
+    'Sync paused until {time}: the relay’s storage is full, so new and changed notes and images are not syncing. Notes from other devices still arrive, and everything works on this device. To sync again, remove images or notes you no longer need, or use a larger server.',
   'sync.notice.storageFullRetry':
-    'Sync is trying again: the relay had no storage left. If it pauses again, delete or purge notes or images, or free space on the relay.',
+    'Sync is trying again: the relay’s storage was full. If it pauses again, remove images or notes you no longer need, or use a larger server.',
+  'sync.notice.usage.storageWarn':
+    'The relay’s storage is more than 80% full. Sync keeps working. To keep room, remove images or notes you no longer need, or use a larger server. Settings > Sync shows what takes the room.',
+  'sync.notice.usage.storageFull':
+    'The relay’s storage is full, so new and changed notes and images are not syncing. Notes from other devices still arrive, and everything works on this device. To sync again, remove images or notes you no longer need, or use a larger server.',
+  'sync.notice.usage.imagesWarn':
+    'The relay’s room for images is more than 80% full. Notes keep syncing. To keep room, remove images you no longer need, or use a larger server.',
+  'sync.notice.usage.imagesFull':
+    'The relay has no room left for images, so new images are not syncing and stay on this device. Notes keep syncing. To sync them, remove images you no longer need, or use a larger server.',
   'sync.notice.licence':
     'Sync has stopped: it needs a Devot license. Your notes stay on this device. Add a license in Settings > License.',
   'sync.notice.licenceTrialEnded':

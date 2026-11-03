@@ -163,7 +163,7 @@ describe('Tauri command permissions', () => {
       'allow-sidebar-glass',
       'allow-symbol-png',
       // Settings > Sync sets the relay and turns sync on or off; the relay's secret goes in, once.
-      // It offers the recovery key until it is saved, pairs and joins devices, lists and removes them.
+      // It offers the recovery key until it is saved, pairs and joins devices, lists and removes them, and shows the relay's storage.
       'allow-sync-device-remove',
       'allow-sync-devices',
       'allow-sync-get',
@@ -175,6 +175,7 @@ describe('Tauri command permissions', () => {
       'allow-sync-recovery-key',
       'allow-sync-recovery-saved',
       'allow-sync-set',
+      'allow-sync-usage',
       'allow-sync-vault-create',
       'allow-system-accent',
       'allow-update-check',
@@ -223,6 +224,8 @@ describe('Tauri command permissions', () => {
     }
     expect(windowsWith('allow-sync-get')).toEqual(['main', 'settings'])
     expect(windowsWith('allow-sync-set')).toEqual(['settings'])
+    // The relay's storage: Settings shows it, and the main window's notice reads it; read-only.
+    expect(windowsWith('allow-sync-usage')).toEqual(['main', 'settings'])
     expect(windowsWith('allow-sync-vault-create')).toEqual(['settings'])
   })
 

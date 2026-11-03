@@ -334,6 +334,26 @@ describe('quota cap', () => {
     const on = await vaultAt(noon)
     expect(decodeFrame(on.relay.connected(on.device)).message).toMatchObject({ quota: 'on' })
   })
+
+  it('says the caps it enforces, whatever the host, so a client never assumes a host’s', async () => {
+    const larger = { rowsWritten: 1e9, requests: 1e9, storedBytes: 50e9, fileBytes: 40e9 }
+    const big = await vaultAt(noon, { quota: larger, limiter: roomy() })
+    expect(big.send({ type: 'usage' })).toMatchObject({
+      storedBytes: 0,
+      fileBytes: 0,
+      caps: larger,
+    })
+
+    // A relay from before the share for images: caps for the total, none for images.
+    const beforeShare = { rowsWritten: 1e9, requests: 1e9, storedBytes: 9e9 }
+    const old = await vaultAt(noon, { quota: beforeShare, limiter: roomy() })
+    const usage = old.send({ type: 'usage' })
+    expect(usage['caps']).toEqual(beforeShare)
+    expect(decodeFrame(old.relay.connected(old.device)).message).toMatchObject({
+      quota: 'on',
+      attachments: 'off',
+    })
+  })
 })
 
 describe('revoked devices', () => {

@@ -17,7 +17,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-use super::client::{self, Connection, DeviceInfo, Event, PairingState, RelayUrl, Welcome};
+use super::client::{
+    self, Connection, DeviceInfo, Event, PairingState, RelayUrl, RelayUsage, Welcome,
+};
 use super::file_record;
 use super::pairing::{self, Pairing, Qr};
 use super::settings::{DeviceCredentials, SettingsStore};
@@ -679,6 +681,11 @@ impl SyncService {
     /// The vault's devices. Not gated by the licence: seeing and removing access never is.
     pub(crate) fn devices(&self) -> Result<Vec<DeviceInfo>, &'static str> {
         self.with_connection(client::devices)
+    }
+
+    /// What the relay holds and may hold. Read-only and not gated by the licence, like the devices.
+    pub(crate) fn usage(&self) -> Result<RelayUsage, &'static str> {
+        self.with_connection(client::usage)
     }
 
     /// Removes a device from the vault: the relay revokes its token and closes its sockets. This

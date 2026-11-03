@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tauri::State;
 
-use super::client::{DeviceInfo, Welcome};
+use super::client::{DeviceInfo, RelayUsage, Welcome};
 use super::service::{
     Created, PairingCheck, PairingView, PullDto, PushDto, SettingsPatch, Snapshot, StatusView,
     SyncService,
@@ -100,6 +100,11 @@ pub async fn sync_join_recovery(
 #[tauri::command]
 pub async fn sync_devices(sync: State<'_, Arc<SyncService>>) -> Result<Vec<DeviceInfo>, String> {
     blocking(&sync, |sync| sync.devices()).await
+}
+
+#[tauri::command]
+pub async fn sync_usage(sync: State<'_, Arc<SyncService>>) -> Result<RelayUsage, String> {
+    blocking(&sync, |sync| sync.usage()).await
 }
 
 #[tauri::command]

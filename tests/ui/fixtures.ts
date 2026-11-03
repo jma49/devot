@@ -33,6 +33,8 @@ export type EditorMenuEntry =
 export interface TestWindow {
   devotIpcCalls: IpcCall[]
   devotIpcMocks?: Record<string, unknown>
+  /** What the relay answers a storage reading with (sync-settings.spec.ts). */
+  devotUsage?: unknown
   /** The label of the window this page stands for (`main-2` for a window File > New Window opened); `main` by default. */
   devotWindowLabel?: string
   devotMenus: Record<number, MockMenu>
@@ -161,6 +163,8 @@ export async function mockTauri(page: Page): Promise<void> {
               status: { state: 'off', lastSync: null, code: null, tooLarge: 0 },
             }
           if (cmd === 'sync_recovery_key') return null
+          // The relay is out of reach unless a test fakes its storage (sync-settings.spec.ts).
+          if (cmd === 'sync_usage') throw 'E_SYNC_OFFLINE'
           if (
             cmd === 'clipboard_write_text' ||
             cmd === 'clipboard_write_secret' ||

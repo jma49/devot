@@ -181,8 +181,8 @@ test.describe('locked sync and AI', () => {
     await expect(sync).toContainText(
       'Your trial has ended, and sync needs a Devot license. Add one in Settings > License.',
     )
-    await sync.getByRole('textbox', { name: 'Join With a Code' }).fill('0400')
-    await expect(sync.getByRole('button', { name: 'Join With a Code' })).toBeDisabled()
+    await expect(sync.getByRole('button', { name: 'This Is My First Device' })).toBeDisabled()
+    await expect(sync.getByRole('button', { name: 'I’m Adding Another Device' })).toBeDisabled()
     await sync.getByRole('button', { name: 'Buy a License' }).click()
     expect(await calls(page, 'open_external')).toEqual([
       { url: 'https://licence.devot.online/buy' },
@@ -196,7 +196,7 @@ test.describe('locked sync and AI', () => {
   test('nothing is locked while the trial runs', async ({ page }) => {
     await fakeRust(page, inTrial())
     await openSettings(page, 'Sync')
-    await expect(page.getByRole('tabpanel')).toContainText('Relay')
+    await expect(page.getByRole('tabpanel')).toContainText('Set Up Sync')
     await expect(page.getByRole('tabpanel')).not.toContainText('needs a Devot license')
     await page.getByRole('tab', { name: 'AI', exact: true }).click()
     await expect(page.getByRole('tabpanel')).not.toContainText('needs a Devot license')
@@ -206,7 +206,7 @@ test.describe('locked sync and AI', () => {
     page,
   }) => {
     await openSettings(page, 'Sync')
-    await expect(page.getByRole('tabpanel')).toContainText('Relay')
+    await expect(page.getByRole('tabpanel')).toContainText('Set Up Sync')
     await expect(page.getByRole('tabpanel')).not.toContainText('needs a Devot license')
     await fakeRust(page, held('valid'))
     await page.reload()

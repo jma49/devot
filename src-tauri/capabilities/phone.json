@@ -31,6 +31,7 @@
     "allow-sync-join-code",
     "allow-sync-join-recovery",
     "allow-sync-devices",
+    "allow-sync-usage",
     "allow-sync-device-remove",
     "allow-licence-get",
     "allow-licence-set",

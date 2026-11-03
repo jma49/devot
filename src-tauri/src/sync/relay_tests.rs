@@ -29,10 +29,15 @@ pub(super) struct NodeRelay {
 
 impl NodeRelay {
     pub(super) fn start() -> Self {
-        Self::spawn(tempfile::tempdir().unwrap(), "0")
+        Self::spawn(tempfile::tempdir().unwrap(), "0", "free")
     }
 
-    fn spawn(data: tempfile::TempDir, port: &str) -> Self {
+    /// A relay run with `RELAY_QUOTA=off`.
+    fn start_uncapped() -> Self {
+        Self::spawn(tempfile::tempdir().unwrap(), "0", "off")
+    }
+
+    fn spawn(data: tempfile::TempDir, port: &str, quota: &str) -> Self {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let mut child = Command::new("node")
             .arg("relay/src/node/main.ts")
@@ -40,6 +45,7 @@ impl NodeRelay {
             .env("RELAY_SECRET", SECRET)
             .env("RELAY_DATA", data.path())
             .env("PORT", port)
+            .env("RELAY_QUOTA", quota)
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
@@ -67,7 +73,7 @@ impl NodeRelay {
     fn restart_empty(self) -> Self {
         let port = self.url.as_str().rsplit(':').next().unwrap().to_string();
         drop(self);
-        Self::spawn(tempfile::tempdir().unwrap(), &port)
+        Self::spawn(tempfile::tempdir().unwrap(), &port, "free")
     }
 }
 
@@ -360,6 +366,64 @@ fn a_gated_build_creates_no_vault_and_connects_no_device_without_a_licence() {
     licence.remove().unwrap();
     assert_eq!(service.connect().err(), Some("E_LICENCE_REQUIRED"));
     service.disconnect();
+}
+
+fn usage_of(relay: &NodeRelay, push_file: bool) -> client::RelayUsage {
+    let vault = vault();
+    let id = vault.id().to_string();
+    let device = client::create_vault(&relay.url, SECRET, &vault, "mac").unwrap();
+    let (socket, _) = Connection::open(&relay.url, &id, &device.token, events().0).unwrap();
+    let first = client::usage(&socket).unwrap();
+    assert_eq!((first.stored_bytes, first.file_bytes), (0, 0));
+    let kind = if push_file { "file" } else { "record" };
+    client::push(&socket, &vault, RECORD, 0, &[7; 2000], kind).unwrap();
+    let after = client::usage(&socket).unwrap();
+    socket.close();
+    after
+}
+
+#[test]
+fn says_what_a_capped_relay_holds_and_its_own_caps() {
+    let relay = NodeRelay::start();
+    let notes = usage_of(&relay, false);
+    assert!(notes.stored_bytes >= 2000 && notes.file_bytes == 0);
+    let caps = notes
+        .caps
+        .clone()
+        .flatten()
+        .expect("the relay says its caps");
+    assert_eq!(
+        (caps.stored_bytes, caps.file_bytes),
+        (4_000_000_000, Some(3_000_000_000))
+    );
+
+    let files = usage_of(&NodeRelay::start(), true);
+    assert_eq!(files.file_bytes, files.stored_bytes);
+    assert!(files.file_bytes >= 2000);
+}
+
+#[test]
+fn says_a_relay_run_without_the_cap_has_none() {
+    let uncapped = usage_of(&NodeRelay::start_uncapped(), false);
+    assert!(uncapped.stored_bytes >= 2000);
+    assert_eq!(uncapped.caps, Some(None));
+}
+
+#[test]
+fn the_service_reads_usage_on_its_own_connection_when_sync_is_not_connected() {
+    let relay = NodeRelay::start();
+    let dir = tempfile::tempdir().unwrap();
+    let service = service_on(&relay, dir.path(), Arc::default());
+    assert!(service.usage().is_err(), "no vault yet");
+    service.create_vault(SECRET).unwrap();
+    service.recovery_saved().unwrap();
+    service.connect().unwrap();
+    let data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"record");
+    service.push(RECORD, 0, &data, "record").unwrap();
+    service.disconnect();
+    let usage = service.usage().unwrap();
+    assert!(usage.stored_bytes > 0 && usage.file_bytes == 0);
+    assert!(matches!(usage.caps, Some(Some(_))));
 }
 
 fn device_count(socket: &Connection) -> usize {

@@ -18,3 +18,5 @@ Devot runs no hosted service. Sync goes through a relay the owner deploys themse
 ## Amended
 
 ADR 0006 adds one hosted service, the license Worker, which sells and reissues licences and never sees notes. Sync still needs no account.
+
+ADR 0011 leaves room for an optional, separately billed hosted sync service, not part of the license. Nothing is built for it; sync still needs no account.

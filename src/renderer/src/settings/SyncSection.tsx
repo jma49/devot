@@ -21,6 +21,7 @@ import { PhoneGroup } from '../phone/PhoneControls'
 import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
 import { useOnPhone } from './onPhone'
 import { DevicesRow, JoinRows, PairingRow, RecoveryKeyPanel } from './SyncDevices'
+import { UsageRows } from './SyncUsage'
 
 const SAY_AFTER_MS = 50
 
@@ -111,15 +112,16 @@ export function SyncSection() {
   const [announcement, setAnnouncement] = useState('')
   const [recoveryKey, setRecoveryKey] = useState<string>()
   const [keyFocus, setKeyFocus] = useState(false)
-  const [firstDevice, setFirstDevice] = useState(false)
+  const [path, setPath] = useState<'first' | 'another'>()
+  const [chosen, setChosen] = useState(0)
   const [backedOut, setBackedOut] = useState(0)
   const [focusPairing, setFocusPairing] = useState(0)
   const [devicesVersion, setDevicesVersion] = useState(0)
   const failures = useRef(0)
   const said = useRef<ReturnType<typeof setTimeout>>(undefined)
   const alert = useRef<HTMLParagraphElement>(null)
-  const secretInput = useRef<HTMLInputElement>(null)
-  const newVaultButton = useRef<HTMLButtonElement>(null)
+  const firstButton = useRef<HTMLButtonElement>(null)
+  const root = useRef<HTMLElement>(null)
   const locale = currentLocale()
 
   useEffect(() => startSyncStatus(), [])
@@ -179,17 +181,27 @@ export function SyncSection() {
     }
   }, [snapshot.enrolled])
 
+  // The choice replaces the question, so focus goes to the path's first field.
   useEffect(() => {
-    if (firstDevice) secretInput.current?.focus()
-  }, [firstDevice])
+    if (chosen === 0) return
+    const field =
+      root.current?.querySelector<HTMLInputElement>('input[type=password]') ??
+      root.current?.querySelector<HTMLInputElement>('input')
+    field?.focus()
+  }, [chosen])
 
   useEffect(() => {
-    if (backedOut > 0) newVaultButton.current?.focus()
+    if (backedOut > 0) firstButton.current?.focus()
   }, [backedOut])
+
+  const choose = (next: 'first' | 'another') => {
+    setPath(next)
+    setChosen((n) => n + 1)
+  }
 
   const backOut = () => {
     setSecret('')
-    setFirstDevice(false)
+    setPath(undefined)
     setBackedOut((n) => n + 1)
   }
 
@@ -218,7 +230,7 @@ export function SyncSection() {
       .then((created) => {
         setError(undefined)
         setSecret('')
-        setFirstDevice(false)
+        setPath(undefined)
         if (created.recoveryKey) {
           setRecoveryKey(created.recoveryKey)
           setKeyFocus(true)
@@ -229,8 +241,9 @@ export function SyncSection() {
   }
 
   const needsVault = snapshot.relayUrl !== '' && !snapshot.enrolled
-  // A device that holds no vault joins one; making a new vault there is a separate, first-device step.
-  const asksSecret = needsVault && (snapshot.vault || firstDevice)
+  // A device that holds a vault the relay does not know reconnects to it; it never starts another.
+  const held = !snapshot.enrolled && snapshot.vault
+  const asksSecret = needsVault && (held || path === 'first')
   const why = error ? WHY[error.code] : undefined
   const secretHint: MessageKey = !snapshot.vault
     ? 'syncSettings.secretHint'
@@ -281,65 +294,120 @@ export function SyncSection() {
       ) : null}
     </>
   )
-  const setupRows = (
-    <>
-      {snapshot.enrolled ? null : (
-        <JoinRows locked={locked} relayUrl={snapshot.relayUrl} onJoined={joined} failed={failed} />
-      )}
-      {asksSecret ? (
-        <Setting
-          label="syncSettings.secret"
-          description={t(secretHint)}
-          htmlFor={id('secret')}
-          descriptionId={id('secret-hint')}
+  const relayRow = (hint: string) => (
+    <Setting
+      label="syncSettings.relay"
+      description={hint}
+      htmlFor={id('relay')}
+      descriptionId={id('relay-hint')}
+    >
+      <input
+        id={id('relay')}
+        type="url"
+        className="settings-number settings-text"
+        spellCheck={false}
+        autoComplete="off"
+        placeholder={t('syncSettings.relayPlaceholder')}
+        value={shownUrl}
+        aria-describedby={id('relay-hint')}
+        onChange={(e) => setUrl(e.currentTarget.value)}
+        onBlur={saveUrl}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') saveUrl()
+        }}
+      />
+    </Setting>
+  )
+
+  const secretRow = (
+    <Setting
+      label="syncSettings.secret"
+      description={t(secretHint)}
+      htmlFor={id('secret')}
+      descriptionId={id('secret-hint')}
+    >
+      <input
+        id={id('secret')}
+        type="password"
+        className="settings-number settings-text"
+        spellCheck={false}
+        autoComplete="off"
+        value={secret}
+        aria-describedby={id('secret-hint')}
+        onChange={(e) => setSecret(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') create()
+          if (e.key === 'Escape' && !snapshot.vault) backOut()
+        }}
+      />
+      <div className="settings-buttons">
+        {snapshot.vault ? null : (
+          <button type="button" className="button" onClick={backOut}>
+            {t('dialog.cancel')}
+          </button>
+        )}
+        <button
+          type="button"
+          className="button"
+          disabled={secret.trim() === '' || creating || locked}
+          onClick={create}
         >
-          <input
-            ref={secretInput}
-            id={id('secret')}
-            type="password"
-            className="settings-number settings-text"
-            spellCheck={false}
-            autoComplete="off"
-            value={secret}
-            aria-describedby={id('secret-hint')}
-            onChange={(e) => setSecret(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') create()
-              if (e.key === 'Escape' && !snapshot.vault) backOut()
-            }}
-          />
-          <div className="settings-buttons">
-            {snapshot.vault ? null : (
-              <button type="button" className="button" onClick={backOut}>
-                {t('dialog.cancel')}
-              </button>
-            )}
-            <button
-              type="button"
-              className="button"
-              disabled={secret.trim() === '' || creating || locked}
-              onClick={create}
-            >
-              {t(snapshot.vault ? 'syncSettings.connect' : 'syncSettings.createVault')}
-            </button>
-          </div>
-        </Setting>
-      ) : needsVault ? (
-        <Setting label="syncSettings.newVault" description={t('syncSettings.newVaultHint')}>
-          <div className="settings-buttons">
-            <button
-              ref={newVaultButton}
-              type="button"
-              className="button"
-              disabled={locked}
-              onClick={() => setFirstDevice(true)}
-            >
-              {t('syncSettings.newVaultStart')}
-            </button>
-          </div>
-        </Setting>
-      ) : null}
+          {t(snapshot.vault ? 'syncSettings.connect' : 'syncSettings.createVault')}
+        </button>
+      </div>
+    </Setting>
+  )
+  const joinRows = (
+    <JoinRows locked={locked} relayUrl={snapshot.relayUrl} onJoined={joined} failed={failed} />
+  )
+  const pathRow = (hint: MessageKey) => (
+    <Setting label="syncSettings.setup" description={t(hint)}>
+      <div className="settings-buttons">
+        <button type="button" className="button" onClick={backOut}>
+          {t('syncSettings.setupChange')}
+        </button>
+      </div>
+    </Setting>
+  )
+  const setupRows = snapshot.enrolled ? null : held ? (
+    <>
+      {joinRows}
+      {asksSecret ? secretRow : null}
     </>
+  ) : path === 'first' ? (
+    <>
+      {pathRow('syncSettings.firstHint')}
+      {relayRow(t('syncSettings.relayHint'))}
+      {asksSecret ? secretRow : null}
+    </>
+  ) : path === 'another' ? (
+    <>
+      {pathRow('syncSettings.anotherHint')}
+      {joinRows}
+      {relayRow(t('syncSettings.relayJoinHint'))}
+    </>
+  ) : (
+    <Setting label="syncSettings.setup" description={t('syncSettings.setupHint')}>
+      <div className="settings-buttons">
+        <button
+          ref={firstButton}
+          type="button"
+          className="button"
+          disabled={locked}
+          onClick={() => choose('first')}
+        >
+          {t('syncSettings.setupFirst')}
+        </button>
+        <button
+          type="button"
+          className="button"
+          disabled={locked}
+          onClick={() => choose('another')}
+        >
+          {t('syncSettings.setupAnother')}
+        </button>
+      </div>
+    </Setting>
   )
   const stateNotes = (
     <>
@@ -391,31 +459,6 @@ export function SyncSection() {
     </>
   )
 
-  const relayRow = (hint: string) => (
-    <Setting
-      label="syncSettings.relay"
-      description={hint}
-      htmlFor={id('relay')}
-      descriptionId={id('relay-hint')}
-    >
-      <input
-        id={id('relay')}
-        type="url"
-        className="settings-number settings-text"
-        spellCheck={false}
-        autoComplete="off"
-        placeholder={t('syncSettings.relayPlaceholder')}
-        value={shownUrl}
-        aria-describedby={id('relay-hint')}
-        onChange={(e) => setUrl(e.currentTarget.value)}
-        onBlur={saveUrl}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') saveUrl()
-        }}
-      />
-    </Setting>
-  )
-
   if (onPhone) {
     const shown = snapshot.enabled ? snapshot.status.state : 'off'
     const footnote = !snapshot.enabled
@@ -428,7 +471,7 @@ export function SyncSection() {
             ),
           })
     return (
-      <section className="settings-section" aria-labelledby="sync-title">
+      <section ref={root} className="settings-section" aria-labelledby="sync-title">
         {header}
         <PhoneGroup footnote={footnote}>
           {lockedRow}
@@ -444,7 +487,7 @@ export function SyncSection() {
               )
             }
           />
-          {relayRow(t('phone.sync.relayHint'))}
+          {snapshot.enrolled || held ? relayRow(t('phone.sync.relayHint')) : null}
           {shown === 'idle' || shown === 'off' ? null : (
             <Setting
               live
@@ -456,6 +499,11 @@ export function SyncSection() {
           )}
           {stateNotes}
         </PhoneGroup>
+        {snapshot.enrolled ? (
+          <PhoneGroup>
+            <UsageRows snapshot={snapshot} />
+          </PhoneGroup>
+        ) : null}
         {recoveryKey ? <PhoneGroup>{recoveryPanel}</PhoneGroup> : null}
         {snapshot.enrolled ? null : <PhoneGroup>{setupRows}</PhoneGroup>}
         {snapshot.enrolled ? (
@@ -486,12 +534,12 @@ export function SyncSection() {
   }
 
   return (
-    <section className="settings-section" aria-labelledby="sync-title">
+    <section ref={root} className="settings-section" aria-labelledby="sync-title">
       {header}
       <SettingsSection title="syncSettings.title">
         <SettingsNote>{t('syncSettings.detail')}</SettingsNote>
         {lockedRow}
-        {relayRow(t('syncSettings.relayHint'))}
+        {snapshot.enrolled || held ? relayRow(t('syncSettings.relayHint')) : null}
         {recoveryPanel}
         {setupRows}
         <SettingToggle
@@ -510,6 +558,7 @@ export function SyncSection() {
           {null}
         </Setting>
         {stateNotes}
+        <UsageRows snapshot={snapshot} />
         {snapshot.enrolled ? (
           <>
             <PairingRow

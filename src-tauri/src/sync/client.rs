@@ -1122,6 +1122,59 @@ pub(crate) fn devices(connection: &Connection) -> Result<Vec<DeviceInfo>, &'stat
         .collect()
 }
 
+/// What the relay holds and may hold, as its `usage` message says (docs/sync-relay.md, Counters).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RelayUsage {
+    pub stored_bytes: u64,
+    pub file_bytes: u64,
+    /// Left out by a relay older than the cap; `null` from one that runs without it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub caps: Option<Option<UsageCaps>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UsageCaps {
+    pub stored_bytes: u64,
+    /// Left out by a relay older than the attachment share.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_bytes: Option<u64>,
+}
+
+fn read_usage(message: &Map<String, Value>) -> Result<RelayUsage, &'static str> {
+    if message.get("type").and_then(Value::as_str) != Some("usage") {
+        return Err("E_SYNC_PROTOCOL");
+    }
+    let count = |value: Option<&Value>| value.and_then(Value::as_u64).ok_or("E_SYNC_PROTOCOL");
+    let caps = match message.get("caps") {
+        None => None,
+        Some(Value::Null) => Some(None),
+        Some(Value::Object(caps)) => Some(Some(UsageCaps {
+            stored_bytes: count(caps.get("storedBytes"))?,
+            file_bytes: caps
+                .get("fileBytes")
+                .map(|bytes| count(Some(bytes)))
+                .transpose()?,
+        })),
+        Some(_) => return Err("E_SYNC_PROTOCOL"),
+    };
+    Ok(RelayUsage {
+        stored_bytes: count(message.get("storedBytes"))?,
+        file_bytes: count(message.get("fileBytes"))?,
+        caps,
+    })
+}
+
+/// Asks the relay what it holds. A relay from before `usage` answers `E_SYNC_BAD_MESSAGE`.
+pub(crate) fn usage(connection: &Connection) -> Result<RelayUsage, &'static str> {
+    read_usage(
+        &connection
+            .request(&object(json!({ "type": "usage" })), &[])?
+            .message,
+    )
+}
+
 /// Revokes a device's token; the relay closes its sockets.
 pub(crate) fn revoke(connection: &Connection, device: &str) -> Result<(), &'static str> {
     if !valid_relay_id(device) {
@@ -1210,6 +1263,83 @@ mod tests {
         Answer {
             message: object(message),
             payload: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn reads_a_relays_usage_in_each_shape_it_comes_in() {
+        let full = answer(json!({
+            "type": "usage", "day": "2026-11-02", "rowsWritten": 3, "messages": 1, "requests": 2,
+            "storedBytes": 900, "fileBytes": 400,
+            "caps": { "rowsWritten": 80000, "requests": 80000, "storedBytes": 4000, "fileBytes": 3000 },
+        }));
+        assert_eq!(
+            read_usage(&full.message),
+            Ok(RelayUsage {
+                stored_bytes: 900,
+                file_bytes: 400,
+                caps: Some(Some(UsageCaps {
+                    stored_bytes: 4000,
+                    file_bytes: Some(3000)
+                })),
+            })
+        );
+        let before_attachments = answer(json!({
+            "type": "usage", "storedBytes": 1, "fileBytes": 0,
+            "caps": { "rowsWritten": 80000, "requests": 80000, "storedBytes": 4000 },
+        }));
+        assert_eq!(
+            read_usage(&before_attachments.message).unwrap().caps,
+            Some(Some(UsageCaps {
+                stored_bytes: 4000,
+                file_bytes: None
+            }))
+        );
+        let uncapped =
+            answer(json!({ "type": "usage", "storedBytes": 1, "fileBytes": 0, "caps": null }));
+        assert_eq!(read_usage(&uncapped.message).unwrap().caps, Some(None));
+        let before_the_cap = answer(json!({ "type": "usage", "storedBytes": 1, "fileBytes": 0 }));
+        assert_eq!(read_usage(&before_the_cap.message).unwrap().caps, None);
+    }
+
+    #[test]
+    fn hands_the_web_view_the_shape_it_can_tell_apart() {
+        let view = |message: Value| serde_json::to_value(read_usage(&object(message)).unwrap());
+        assert_eq!(
+            view(json!({ "type": "usage", "storedBytes": 5, "fileBytes": 2, "caps": null }))
+                .unwrap(),
+            json!({ "storedBytes": 5, "fileBytes": 2, "caps": null })
+        );
+        assert_eq!(
+            view(json!({ "type": "usage", "storedBytes": 5, "fileBytes": 2 })).unwrap(),
+            json!({ "storedBytes": 5, "fileBytes": 2 })
+        );
+        assert_eq!(
+            view(json!({
+                "type": "usage", "storedBytes": 5, "fileBytes": 2, "caps": { "storedBytes": 9 }
+            }))
+            .unwrap(),
+            json!({ "storedBytes": 5, "fileBytes": 2, "caps": { "storedBytes": 9 } })
+        );
+    }
+
+    #[test]
+    fn refuses_a_usage_answer_that_is_not_figures() {
+        for message in [
+            json!({ "type": "devices" }),
+            json!({ "type": "usage", "fileBytes": 0 }),
+            json!({ "type": "usage", "storedBytes": -1, "fileBytes": 0 }),
+            json!({ "type": "usage", "storedBytes": "1", "fileBytes": 0 }),
+            json!({ "type": "usage", "storedBytes": 1, "fileBytes": 0, "caps": 5 }),
+            json!({ "type": "usage", "storedBytes": 1, "fileBytes": 0, "caps": {} }),
+            json!({ "type": "usage", "storedBytes": 1, "fileBytes": 0,
+                    "caps": { "storedBytes": 4, "fileBytes": "3" } }),
+        ] {
+            assert_eq!(
+                read_usage(&object(message.clone())),
+                Err("E_SYNC_PROTOCOL"),
+                "{message}"
+            );
         }
     }
 
