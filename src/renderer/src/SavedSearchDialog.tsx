@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { MAX_SAVED_SEARCH_NAME_CHARS, MAX_SAVED_SEARCH_QUERY_CHARS } from '../../core/savedSearches'
-import { trimWhitespace } from '../../core/text'
+import { charCount, trimWhitespace } from '../../core/text'
 import { t } from './i18n'
 import { isImeKey } from './ime'
 import { useNameLimit } from './nameLimit'
@@ -26,7 +26,11 @@ export function SavedSearchDialog(props: {
 
   const cleanName = trimWhitespace(name)
   const cleanQuery = trimWhitespace(query)
-  const ready = cleanName !== '' && cleanQuery !== ''
+  const ready =
+    cleanName !== '' &&
+    cleanQuery !== '' &&
+    charCount(cleanName) <= MAX_SAVED_SEARCH_NAME_CHARS &&
+    charCount(cleanQuery) <= MAX_SAVED_SEARCH_QUERY_CHARS
   const save = () => {
     if (ready) props.onSave({ name: cleanName, query: cleanQuery })
   }

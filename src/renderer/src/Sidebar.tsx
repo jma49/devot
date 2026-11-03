@@ -1459,7 +1459,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
                         <button
                           type="button"
                           {...rowProps(key)}
-                          className={`source saved-search${rowMenuTarget === key ? ' menu-target' : ''}`}
+                          className={`source filter saved-search${rowMenuTarget === key ? ' menu-target' : ''}`}
                           aria-pressed={props.activeSearch === search.id}
                           onClick={() => props.onRunSavedSearch?.(search.id)}
                           onMouseDown={keepFocusOnMenu}

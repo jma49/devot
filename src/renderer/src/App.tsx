@@ -26,7 +26,12 @@ import {
   TEMPLATES_BOOK_ID,
 } from '../../core/books'
 import { noteLink } from '../../core/links'
-import { countMatches, savedSearchQuery } from '../../core/savedSearches'
+import {
+  MAX_SAVED_SEARCH_NAME_CHARS,
+  countMatches,
+  savedSearchQuery,
+} from '../../core/savedSearches'
+import { clipChars } from '../../core/text'
 import { clipTitle } from '../../core/noteLimits'
 import { compareNames } from '../../core/sort'
 import {
@@ -449,6 +454,7 @@ export function App() {
   const [savedSearches, setSavedSearches] = useState<SavedSearchRecord[]>([])
   // Save Search (no `id`) or Edit Saved Search.
   const [searchDialog, setSearchDialog] = useState<{ id?: string; name: string; query: string }>()
+  const [ranSearch, setRanSearch] = useState<string>()
   const [filter, setFilter] = useState<NoteFilter | null>(() =>
     lastState?.view.kind === 'templates' ? null : (lastState?.filter ?? null),
   )
@@ -1034,15 +1040,23 @@ export function App() {
     sameCounts,
   )
   // Counted from the listed notes' fields, so a status or tag change shows at once; one with text has no count (only a search finds text).
+  const savedSearchQueries = useMemo(() => {
+    const scope = workspaceNode ? { bookId: workspaceNode.id, filter: null } : undefined
+    return savedSearches.map((search) => ({
+      search,
+      resolved: savedSearchQuery(search, { books, tags, scope }),
+    }))
+  }, [savedSearches, books, tags, workspaceNode])
   const savedSearchRows = useKept(
-    useMemo(() => {
-      const scope = workspaceNode ? { bookId: workspaceNode.id, filter: null } : undefined
-      return savedSearches.map((search) => ({
-        id: search.id,
-        name: search.name,
-        count: countMatches(sidebarNotes, savedSearchQuery(search, { books, tags, scope })),
-      }))
-    }, [savedSearches, sidebarNotes, books, tags, workspaceNode]),
+    useMemo(
+      () =>
+        savedSearchQueries.map(({ search, resolved }) => ({
+          id: search.id,
+          name: search.name,
+          count: countMatches(sidebarNotes, resolved),
+        })),
+      [savedSearchQueries, sidebarNotes],
+    ),
     sameSearchRows,
   )
   const sidebarTags = useMemo(
@@ -3204,17 +3218,27 @@ export function App() {
     else if (inTrash || inTemplates) showLibrary({ kind: 'all' })
     setSearchIn(workspaceNode ? 'view' : 'all')
     setQuery(search.query)
+    setRanSearch(id)
   })
   // The field runs a saved search when it holds its query over what that one searches: every note, or the workspace.
   const searchesSaved =
     searchScope === undefined
       ? !workspaceNode
       : !searchScope.filter && searchScope.bookId === (workspaceNode?.id ?? null)
+  // The row clicked, while the field still holds its query; else the first row with that query.
+  const typedQuery = query.trim()
   const activeSearch =
-    searching && searchesSaved ? savedSearches.find((s) => s.query === query.trim())?.id : undefined
+    searching && searchesSaved
+      ? (
+          savedSearches.find((s) => s.id === ranSearch && s.query === typedQuery) ??
+          savedSearches.find((s) => s.query === typedQuery)
+        )?.id
+      : undefined
   const saveSearch = useStable(() => {
     const typed = query.trim()
-    if (typed) setSearchDialog({ name: typed, query: typed })
+    if (typed) {
+      setSearchDialog({ name: clipChars(typed, MAX_SAVED_SEARCH_NAME_CHARS).trim(), query: typed })
+    }
   })
   const sidebarEditSavedSearch = useStable((id: string) => {
     const search = savedSearches.find((s) => s.id === id)
@@ -3243,7 +3267,10 @@ export function App() {
       return void changeBooks((c) => c.createSavedSearch(change.name, change.query))
     }
     // The search field running it follows its new query.
-    if (id === activeSearch && change.query !== open.query) setQuery(change.query)
+    if (id === activeSearch && change.query !== open.query) {
+      setQuery(change.query)
+      setRanSearch(id)
+    }
     void changeBooks(async (c) => {
       await c.renameSavedSearch(id, change.name)
       await c.setSavedSearchQuery(id, change.query)
