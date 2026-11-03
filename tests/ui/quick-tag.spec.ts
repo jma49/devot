@@ -14,6 +14,8 @@ const chip = (page: Page, name: string) =>
 async function noteWithTags(page: Page, ...tags: string[]) {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(noteRows(page).first()).toBeVisible()
+  // Until its editor opens, keys belong to the new note and T is not a shortcut.
+  await expect(page.getByRole('textbox', { name: 'Note body' })).toBeFocused()
   const inline = page.getByRole('combobox', { name: 'Add Tag' })
   for (const tag of tags) {
     await inline.fill(tag)
