@@ -51,7 +51,7 @@ export const enPhone: Partial<Messages> = {
   'syncSettings.joinCodeHint': 'From another device, or its QR link',
   'syncSettings.joinRecoveryHint': 'The key you saved when setting up sync',
   'syncSettings.setupHint': 'Is this your first device to sync?',
-  'syncSettings.firstHint': 'Creates your vault on your relay',
+  'syncSettings.firstHint': 'A new vault on your relay',
   'syncSettings.anotherHint': 'Pair with a synced device',
   'syncSettings.relayHint': 'As its deploy printed it',
   'syncSettings.relayJoinHint': 'Only for a typed code',
