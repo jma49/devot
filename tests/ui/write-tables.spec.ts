@@ -124,6 +124,9 @@ function compose(page: Page, lineIndex: number, col: number, parts: string[]) {
 }
 
 const TABLE = '| Item | Qty |\n| --- | --: |\n| Tea | 2 |'
+// Text above the table leaves room for the table bar, which would otherwise sit over its first row.
+const NOTE = `Above\n\n${TABLE}`
+const ABOVE = ['Above', '']
 
 test.use({ install: 'new' })
 
@@ -153,7 +156,7 @@ test('draws a table as a grid and types in a cell', async ({ page }) => {
 })
 
 test('Tab, Shift+Tab and Return move through the grid', async ({ page }) => {
-  await createNote(page, 'Tabs', TABLE)
+  await createNote(page, 'Tabs', NOTE)
   await intoCell(page, 'Tea')
   await page.keyboard.press('Tab')
   await page.keyboard.type('0')
@@ -164,8 +167,9 @@ test('Tab, Shift+Tab and Return move through the grid', async ({ page }) => {
   await page.keyboard.press('Tab')
   await page.keyboard.type('1')
   await expect(cells(page)).toHaveCount(6)
-  await expect.poll(() => lines(page)).toEqual(['ItemQty', 'Teas20', 'Milk1'])
+  await expect.poll(() => lines(page)).toEqual([...ABOVE, 'ItemQty', 'Teas20', 'Milk1'])
   expect(await source(page)).toEqual([
+    ...ABOVE,
     '| Item | Qty |',
     '| ---- | --: |',
     '| Teas |  20 |',
@@ -174,37 +178,54 @@ test('Tab, Shift+Tab and Return move through the grid', async ({ page }) => {
 })
 
 test('moves a column from the table bar and keeps the caret in its cell', async ({ page }) => {
-  await createNote(page, 'Columns', TABLE)
+  await createNote(page, 'Columns', NOTE)
   await intoCell(page, 'Tea')
-  // The bar shows over the caret's row: the header is reached by the keyboard.
-  await page.keyboard.press('Shift+Tab')
+  await intoCell(page, 'Qty')
   await expect(bar(page)).toBeVisible()
   await bar(page).getByRole('button', { name: 'Move Column Left' }).click()
-  await expect.poll(() => lines(page)).toEqual(['QtyItem', '2Tea'])
+  await expect.poll(() => lines(page)).toEqual([...ABOVE, 'QtyItem', '2Tea'])
   await body(page).focus()
   await page.keyboard.type('s')
-  await expect.poll(() => lines(page)).toEqual(['QtysItem', '2Tea'])
-  expect(await source(page)).toEqual(['| Qtys | Item |', '| ---: | ---- |', '|    2 | Tea  |'])
+  await expect.poll(() => lines(page)).toEqual([...ABOVE, 'QtysItem', '2Tea'])
+  expect(await source(page)).toEqual([
+    ...ABOVE,
+    '| Qtys | Item |',
+    '| ---: | ---- |',
+    '|    2 | Tea  |',
+  ])
+})
+
+test('shows the table bar above the grid, at its left edge, without covering the header', async ({
+  page,
+}) => {
+  await createNote(page, 'Bar', NOTE)
+  await intoCell(page, 'Tea')
+  await expect(bar(page)).toBeVisible()
+  const head = await page.locator('.cm-wm-row-head .cm-wm-cell').first().boundingBox()
+  const box = await page.locator('.cm-table-bar').boundingBox()
+  expect(box!.y + box!.height).toBeLessThanOrEqual(head!.y)
+  expect(Math.abs(box!.x - head!.x)).toBeLessThanOrEqual(1)
 })
 
 test('shows the source while several cursors are in the table', async ({ page }) => {
-  await createNote(page, 'Cursors', TABLE)
+  await createNote(page, 'Cursors', NOTE)
   await intoCell(page, 'Tea')
   await page.keyboard.press('Control+Shift+ArrowUp')
   await expect(cells(page)).toHaveCount(0)
-  await expect.poll(() => lines(page)).toEqual(TABLE.split('\n'))
+  await expect.poll(() => lines(page)).toEqual([...ABOVE, ...TABLE.split('\n')])
   await page.keyboard.press('Escape')
   await expect(cells(page)).toHaveCount(4)
 })
 
 test('composing in a cell keeps every character in order', async ({ page }) => {
-  await createNote(page, 'Input', TABLE)
+  await createNote(page, 'Input', NOTE)
   await intoCell(page, 'Tea')
-  await compose(page, 1, 3, ['k', KA, KAN])
-  await expect.poll(() => lines(page)).toEqual(['ItemQty', `Tea${KAN}2`])
+  await compose(page, 3, 3, ['k', KA, KAN])
+  await expect.poll(() => lines(page)).toEqual([...ABOVE, 'ItemQty', `Tea${KAN}2`])
   await page.keyboard.type('x')
-  await expect.poll(() => lines(page)).toEqual(['ItemQty', `Tea${KAN}x2`])
+  await expect.poll(() => lines(page)).toEqual([...ABOVE, 'ItemQty', `Tea${KAN}x2`])
   expect(await source(page)).toEqual([
+    ...ABOVE,
     '| Item   | Qty |',
     '| ------ | --: |',
     `| Tea${KAN}x |   2 |`,
