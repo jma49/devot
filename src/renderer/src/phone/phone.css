@@ -1675,6 +1675,18 @@ button.phone-grouped-open:active:not(:disabled) {
   display: grid;
 }
 
+/* Preview and Edit share the title's edges: the screen's padding is the only inset. A line pads its text by space-3 (app.css), so the editor reaches out by that much. */
+/* Above the Mac's `:root[data-sidebar-material='on'] .preview`, which pads for its keyline and scrollbar. */
+:root .phone-app .phone-note-body .preview {
+  padding-inline: 0;
+  overflow-y: visible;
+}
+
+:root .phone-app .phone-note-body .editor {
+  margin-inline: calc(var(--space-3) * -1);
+  --editor-padding: 0;
+}
+
 .phone-note-layer {
   grid-area: 1 / 1;
   min-width: 0;

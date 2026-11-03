@@ -64,6 +64,22 @@ test('the mode toggle swaps Edit and Preview, and the sparkle leaves in Preview'
   await expect(note(page).locator('.phone-note-preview')).toHaveAttribute('data-shown', 'true')
 })
 
+test("Preview and Edit text share the title's edges", async ({ page }) => {
+  const heading = (await note(page).locator('.phone-note-heading').boundingBox())!
+  const paragraph = (await note(page).locator('.preview p').first().boundingBox())!
+  expect(Math.abs(paragraph.x - heading.x)).toBeLessThanOrEqual(1)
+  expect(Math.abs(paragraph.x + paragraph.width - (heading.x + heading.width))).toBeLessThanOrEqual(
+    1,
+  )
+
+  await note(page).getByRole('button', { name: 'Edit', exact: true }).click()
+  const line = note(page).locator('.cm-line').first()
+  await expect(line).toBeVisible()
+  const box = (await line.boundingBox())!
+  const inset = await line.evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft))
+  expect(Math.abs(box.x + inset - heading.x)).toBeLessThanOrEqual(1)
+})
+
 test('bottom controls reach 44 points', async ({ page }) => {
   await note(page).getByRole('button', { name: 'Edit', exact: true }).click()
   for (const name of ['Find in Note', 'Suggest with AI', 'Previous Note', 'Next Note']) {
