@@ -60,7 +60,13 @@ describe('front matter in Write mode', () => {
       userEvent: 'input.type.compose',
     }).state
     expect(blocks(composing)).toEqual([])
-    const after = composing.update({}).state
+    // A change from elsewhere (the parser, a sync) may come inside the same composition.
+    const parsed = composing.update({}).state
+    expect(blocks(parsed)).toEqual([])
+    const after = parsed.update({
+      selection: { anchor: NOTE.length + 1 },
+      userEvent: 'select',
+    }).state
     expect(blocks(after)).toEqual([`0-${fenceEnd + 1} title, tags`])
   })
 

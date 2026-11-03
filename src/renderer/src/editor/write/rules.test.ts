@@ -313,6 +313,11 @@ describe('Write mode ranges and rendered blocks', () => {
       '$$\n\\{ a_b *c* \\}\n$$\n\n```mermaid\nA-->B\n```\n\n![*x*](https://e.com/a.png)\n\n\\*d\\*'
     expect(shown(doc)).toBe(doc.replace('\\*d\\*', '*d*'))
   })
+
+  it('leave a formula as written when it starts inside a paragraph', () => {
+    const doc = '**Before**\n$$\n\\{ *c* \\}\n$$'
+    expect(shown(doc)).toBe(doc.replace('**Before**', 'Before'))
+  })
 })
 
 describe('Write mode ranges of a long note', () => {

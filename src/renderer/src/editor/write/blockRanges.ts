@@ -108,7 +108,8 @@ function scan(state: EditorState, tree: Tree): WriteBlock[] {
     }
     if (node.name !== 'Paragraph') continue
     const single = node.from === start && node.to <= lineEnd(i)
-    if (node.from === start && MATH_FENCE.test(text)) {
+    // A math fence starts a block inside a paragraph too, as the preview reads it.
+    if (MATH_FENCE.test(text)) {
       const close = lines.findIndex((l, n) => n > i && MATH_FENCE.test(l.text))
       if (close < 0) return out
       block('math', i, close, lineEnd(close - i >= 2 ? i + 1 : i))
@@ -303,18 +304,18 @@ export function stepOverBlocks(
   forward: boolean,
 ): number {
   const head = range.head
-  const block = closedBlockAt(state, target)
+  let block = closedBlockAt(state, target)
   if (!block || inside(block, head)) return target
+  if (forward ? head > block.from : head < block.to) return target
   const doc = state.doc
   const column = head - doc.lineAt(head).from
-  if (forward) {
-    if (head > block.from) return target
-    if (block.to >= doc.length) return block.to
-    const next = doc.lineAt(block.to + 1)
-    return next.from + Math.min(column, next.length)
+  // Blocks one under the other are stepped over together.
+  for (;;) {
+    if (forward ? block.to >= doc.length : block.from === 0) return forward ? block.to : block.from
+    const line = doc.lineAt(forward ? block.to + 1 : block.from - 1)
+    const pos = line.from + Math.min(column, line.length)
+    const next = closedBlockAt(state, pos)
+    if (!next) return pos
+    block = next
   }
-  if (head < block.to) return target
-  if (block.from === 0) return block.from
-  const prev = doc.lineAt(block.from - 1)
-  return prev.from + Math.min(column, prev.length)
 }

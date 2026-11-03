@@ -143,15 +143,16 @@ export function writeRanges(
 ): WriteRange[] {
   const doc = state.doc
   const out: WriteRange[] = []
+  const rendered = writeBlocksOf(state, tree)
   const text = (a: number, b: number) => doc.sliceString(a, b)
   const shows = (a: number, b: number) => touches(selected, a, b)
   const showsLines = (a: number, b: number) => shows(doc.lineAt(a).from, doc.lineAt(b).to)
-  const oneLine = (a: number, b: number) => b > a && b <= doc.lineAt(a).to
+  const oneLine = (a: number, b: number) =>
+    b > a && b <= doc.lineAt(a).to && !inBlock(rendered, a)
   const hide = (a: number, b: number) => {
     if (oneLine(a, b)) out.push({ kind: 'hide', from: a, to: b })
   }
   const spaceAfter = (pos: number) => (pos < doc.length && SPACE.test(text(pos, pos + 1)) ? 1 : 0)
-  const rendered = writeBlocksOf(state, tree)
 
   tree.iterate({
     from,

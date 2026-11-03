@@ -75,6 +75,10 @@ describe('which lines Write mode renders as blocks', () => {
     expect(kinds('```math\n\\frac12\n```')).toEqual(['math ```math\n\\frac12\n```'])
   })
 
+  it('takes a math fence that starts inside a paragraph, as the preview does', () => {
+    expect(kinds('Before\n$$\nx^2\n$$\nAfter')).toEqual(['math $$\nx^2\n$$'])
+  })
+
   it('leaves math that is not closed, or empty, as source', () => {
     expect(kinds('$$\nx^2')).toEqual([])
     expect(kinds('$$ $$')).toEqual([])
@@ -211,6 +215,15 @@ describe('the caret and a closed block', () => {
     const top = only(stateOf(first))
     const up = stateOf(first, top.to + 2)
     expect(stepOverBlocks(up, up.selection.main, top.to, false)).toBe(0)
+  })
+
+  it('arrows step over blocks one under the other together', () => {
+    const two = `Top\n${IMAGE}\n${WEB}\nEnd`
+    const [first, second] = writeBlocksOf(stateOf(two))
+    const down = stateOf(two, 2)
+    expect(stepOverBlocks(down, down.selection.main, first!.from + 2, true)).toBe(second!.to + 3)
+    const up = stateOf(two, second!.to + 3)
+    expect(stepOverBlocks(up, up.selection.main, second!.from, false)).toBe(2)
   })
 
   it('arrows move as usual where no block is in the way', () => {

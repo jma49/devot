@@ -8,8 +8,8 @@ import {
   StateField,
   type EditorState,
   type Extension,
+  Transaction,
   type Range,
-  type Transaction,
 } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import { t } from '../../i18n'
@@ -107,6 +107,9 @@ const changesBlocks = (tr: Transaction) =>
   tr.effects.some((e) => e.is(setWriteFocus)) ||
   syntaxTree(tr.state) !== syntaxTree(tr.startState)
 
+const userStep = (tr: Transaction) =>
+  tr.annotation(Transaction.userEvent) !== undefined || tr.effects.some((e) => e.is(setWriteFocus))
+
 interface Blocks {
   decorations: DecorationSet
   /** Mapped through a composition rather than built again; built on the first change after it. */
@@ -116,8 +119,10 @@ interface Blocks {
 const blocks = StateField.define<Blocks>({
   create: (state) => ({ decorations: build(state), stale: false }),
   update(value, tr) {
-    // Nothing is drawn again inside an input method's composition.
-    if (tr.isUserEvent('input.type.compose')) {
+    // Nothing is drawn again inside an input method's composition, nor for a
+    // change from elsewhere (the parser, a sync) that may come during one: only
+    // the user's next step after it builds the blocks again.
+    if (tr.isUserEvent('input.type.compose') || (value.stale && !userStep(tr))) {
       return { decorations: value.decorations.map(tr.changes), stale: true }
     }
     if (!value.stale && !changesBlocks(tr)) return value
