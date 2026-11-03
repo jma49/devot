@@ -946,28 +946,42 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
 
   // Second pass: every imported note now has its ID.
   const findNote = noteFinder(importedNotes, scan.kind, notes)
+  const relinked: LinkedNote[] = []
   for (const note of linked) {
-    const edits: TextEdit[] = []
-    for (const link of note.links) {
-      const shown = wikiShownText(link.target)
-      const id = link.target.path === '' ? note.id : await findNote(note.path, link.target)
-      if (id !== null && shown !== '') {
-        edits.push({ start: link.start, end: link.end, text: noteLink(shown, id) })
-      }
-    }
     try {
+      const edits: TextEdit[] = []
+      for (const link of note.links) {
+        const shown = wikiShownText(link.target)
+        const id = link.target.path === '' ? note.id : await findNote(note.path, link.target)
+        if (id !== null && shown !== '') {
+          edits.push({ start: link.start, end: link.end, text: noteLink(shown, id) })
+        }
+      }
       // A note opened and changed meanwhile keeps its links as written rather than lose that change.
-      if (edits.length > 0 && (await notes.read(note.id)).bodyMd === note.text) {
-        await notes.setBody(note.id, replaceRanges(note.text, edits))
-        await notes.release(note.id)
+      const changed =
+        edits.length > 0 &&
+        (await notes.setBodyFrom(note.id, note.text, replaceRanges(note.text, edits)))
+      if (changed) {
         converted += edits.length
         unresolved += note.links.length - edits.length
+        relinked.push(note)
       } else {
         unresolved += note.links.length
       }
     } catch (error) {
       unresolved += note.links.length
       problems.push({ path: note.path, code: errorCode(error, 'E_IMPORT_FAILED') })
+    }
+  }
+  // Saved by a flush, not `release`: the user may have opened one of these notes by now, and releasing would drop it from under the editor.
+  if (relinked.length > 0) {
+    try {
+      await notes.flush()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      for (const note of relinked.filter((n) => message.includes(n.id))) {
+        problems.push({ path: note.path, code: errorCode(error, 'E_IMPORT_FAILED') })
+      }
     }
   }
 
@@ -1051,6 +1065,10 @@ function imageFinder(scan: ImportScan) {
     byName.set(name, [...(byName.get(name) ?? []), path])
   }
   return (from: string, written: string): string | null => {
+    // Picked files come without a list of images: one next to the file is tried as named.
+    if (scan.kind === 'files' && LOOKS_LIKE_IMAGE.test(written)) {
+      return resolveImagePath(from, written)
+    }
     const root = rootOf(scan.kind, from)
     for (const base of [from, root === '' ? '_' : `${root}/_`]) {
       const near = resolveImagePath(base, written)

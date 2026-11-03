@@ -200,6 +200,72 @@ describe('importing wiki-style links', () => {
   })
 })
 
+describe('importing wiki-style links around other work', () => {
+  it('keeps the links of a note changed between the passes as written, and the change', async () => {
+    const { sqlite, services } = await setup()
+    const files = { 'Linker.md': 'See [[Target]].\n', 'Target.md': '# Target\n' }
+    const notes = {
+      ...services.notes,
+      release: async (id: string) => {
+        await services.notes.release(id)
+        const { bodyMd } = await services.notes.read(id)
+        if (bodyMd.startsWith('See')) await services.notes.setBody(id, `${bodyMd}Typed.\n`)
+      },
+    }
+    const report = await importMarkdown({
+      ...services,
+      notes,
+      scan: memoryScan(files),
+      source: memorySource(files),
+    })
+    await services.notes.flush()
+    expect((await sqlite.getNote(report.noteIds['Linker.md']!))!.bodyMd).toBe(
+      'See [[Target]].\nTyped.\n',
+    )
+    expect(report).toMatchObject({ links: 0, unresolvedLinks: 1 })
+  })
+
+  it('attaches an embedded image next to a picked file', async () => {
+    const { sqlite, services } = await setup()
+    const attached: string[] = []
+    const report = await importMarkdown({
+      ...services,
+      scan: {
+        ...memoryScan({ 'Desk/Note.md': '' }),
+        kind: 'files',
+      },
+      source: {
+        read: async () => '![[pic.png|600]]\n',
+        attach: async (path, file) => {
+          attached.push(path)
+          await sqlite.putFile(
+            { ...file, name: 'pic.png' },
+            readFileSync(join(FIXTURE, 'attachments/diagram.png')),
+          )
+        },
+      },
+    })
+    expect(attached).toEqual(['Desk/pic.png'])
+    expect((await sqlite.getNote(report.noteIds['Desk/Note.md']!))!.bodyMd).toMatch(
+      /^!\[w:100%\]\(devot:\/\/file\/[0-9a-f-]{36}\)\n$/,
+    )
+  })
+
+  it('reports a library that cannot be read and still finishes the import', async () => {
+    const { sqlite, services } = await setup()
+    const files = { 'Only.md': 'See [[Elsewhere]].\n' }
+    const report = await importMarkdown({
+      ...services,
+      notes: { ...services.notes, list: () => Promise.reject(new Error('E_TEST_LIST')) },
+      scan: memoryScan(files),
+      source: memorySource(files),
+    })
+    expect(report.notes).toBe(1)
+    expect(report.problems).toEqual([{ path: 'Only.md', code: 'E_TEST_LIST' }])
+    expect((await sqlite.getNote(report.noteIds['Only.md']!))!.bodyMd).toBe(files['Only.md'])
+  })
+})
+
 describe('parseWikiTarget', () => {
   it('reads path, heading, alias and an embed width', () => {
     expect(parseWikiTarget('folder/Title.md#Part|Shown', false)).toEqual({

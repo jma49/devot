@@ -8,14 +8,12 @@ export interface WikiLink {
   start: number
   end: number
   embed: boolean
-  /** What is between the brackets, as written. */
   inner: string
 }
 
 export interface WikiTarget {
   /** The written path without a `.md` extension: `folder/Title`; empty for a heading of the same note. */
   path: string
-  /** The last segment of `path`. */
   name: string
   heading: string | null
   alias: string | null

@@ -194,6 +194,8 @@ export interface NoteService {
   fill(id: string, content: { title: string; markdown: string }): Promise<void>
   /** Applies the text difference as Yjs operations (see textEdits), never by writing the snapshot. */
   setBody(id: string, markdown: string): Promise<void>
+  /** `setBody` only while the body is still `expected`, checked and changed in one step; false when it was not. */
+  setBodyFrom(id: string, expected: string, markdown: string): Promise<boolean>
   /** On a failed save the note is dropped anyway and the error thrown: the caller (import, the AI service) undoes or reports it. */
   release(id: string): Promise<void>
   /** Line breaks become spaces and the title is cut to MAX_TITLE_CHARS (see clipTitle), so storage always takes it. */
@@ -1398,6 +1400,12 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       }),
 
     setBody: (id, markdown) => using(id, (note) => replaceBody(note, lineFeeds(markdown))),
+    setBodyFrom: (id, expected, markdown) =>
+      using(id, (note) => {
+        if (note.doc.getText(BODY).toString() !== lineFeeds(expected)) return false
+        replaceBody(note, lineFeeds(markdown))
+        return true
+      }),
 
     fill: (id, { title, markdown }) =>
       using(id, (note) => {
