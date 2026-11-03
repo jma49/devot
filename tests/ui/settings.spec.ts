@@ -1033,6 +1033,7 @@ test('each control stores its change at once', async ({ page }) => {
   await select(page, 'Line Wrapping').selectOption('Off')
   await checkbox(page, 'Inline Image Widgets').uncheck()
   await checkbox(page, 'Scroll Past End').uncheck()
+  await checkbox(page, 'Word and Character Counts').uncheck()
   await checkbox(page, 'Spellcheck').uncheck()
   await checkbox(page, 'Show Invisible Characters').check()
   await checkbox(page, 'Highlight Trailing Whitespace').check()

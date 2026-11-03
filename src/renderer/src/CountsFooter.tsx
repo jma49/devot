@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react'
 import type { EditorCounts } from './editor/counts'
 import { formatNumber } from './format'
 import { currentLocale, format, t } from './i18n'
@@ -24,4 +25,32 @@ export function CountsFooter(props: { counts: EditorCounts | null }) {
       </span>
     </p>
   )
+}
+
+export interface CountsStore {
+  get(): EditorCounts | null
+  set(counts: EditorCounts): void
+  subscribe(listener: () => void): () => void
+}
+
+/** Holds the counts outside React state, so a new count renders the footer and not the window. */
+export function countsStore(): CountsStore {
+  let current: EditorCounts | null = null
+  const listeners = new Set<() => void>()
+  return {
+    get: () => current,
+    set(counts) {
+      current = counts
+      for (const listener of [...listeners]) listener()
+    },
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => void listeners.delete(listener)
+    },
+  }
+}
+
+export function LiveCountsFooter(props: { store: CountsStore }) {
+  const counts = useSyncExternalStore(props.store.subscribe, props.store.get)
+  return <CountsFooter counts={counts} />
 }

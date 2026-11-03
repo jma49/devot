@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { CountsFooter, countText } from './CountsFooter'
+import { CountsFooter, countsStore, countText } from './CountsFooter'
 
 describe('the editor footer counts', () => {
   it('shows the note, with the selection as a part of it', () => {
@@ -20,5 +20,19 @@ describe('the editor footer counts', () => {
 
   it('is empty before the first count', () => {
     expect(renderToStaticMarkup(<CountsFooter counts={null} />)).toBe('')
+  })
+})
+
+describe('the counts store', () => {
+  it('holds the latest count and tells its subscribers, until they leave', () => {
+    const store = countsStore()
+    const seen: number[] = []
+    const leave = store.subscribe(() => seen.push(store.get()!.words))
+    expect(store.get()).toBeNull()
+    store.set({ words: 1, characters: 3, selection: null })
+    leave()
+    store.set({ words: 2, characters: 6, selection: null })
+    expect(seen).toEqual([1])
+    expect(store.get()?.words).toBe(2)
   })
 })
