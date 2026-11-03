@@ -12,6 +12,7 @@
   --knob-press-scale: var(--motion-scale-knob-press);
   --section-enter-shift: var(--space-4);
   --bar-enter-shift: var(--space-4);
+  --outline-enter-shift: var(--space-9);
   --popover-shadow:
     0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key),
     0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient);
@@ -27,6 +28,7 @@
   --knob-press-scale: 1;
   --section-enter-shift: 0px;
   --bar-enter-shift: 0px;
+  --outline-enter-shift: 0px;
 }
 
 @keyframes popover-in {
@@ -55,6 +57,13 @@
   from {
     opacity: 0;
     translate: 0 var(--bar-enter-shift);
+  }
+}
+
+@keyframes outline-in {
+  from {
+    opacity: 0;
+    translate: var(--outline-enter-shift) 0;
   }
 }
 
@@ -2694,6 +2703,84 @@ button {
 .panes-split {
   grid-template-columns: repeat(2, minmax(var(--size-pane-min-width), 1fr));
   overflow-x: auto;
+}
+
+/* The Outline takes the last column; the preview moves in front of it (OutlinePanel.tsx, design/motion.md). */
+.panes[data-outline] {
+  grid-template-columns: minmax(0, 1fr) var(--size-outline-width);
+}
+
+.panes-split[data-outline] {
+  grid-template-columns: repeat(2, minmax(var(--size-pane-min-width), 1fr)) var(
+      --size-outline-width
+    );
+}
+
+.panes[data-outline] > .preview {
+  grid-area: 1 / -3 / 2 / -2;
+}
+
+.panes > .outline {
+  grid-area: 1 / -2 / 2 / -1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--space-4) var(--space-4) var(--space-3);
+  font-size: var(--font-size-body);
+  animation: outline-in var(--motion-duration-slide) var(--motion-easing-move);
+}
+
+:root[data-motion='reduced'] .panes > .outline {
+  animation-duration: var(--motion-duration-toggle);
+}
+
+.outline-tree {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.outline-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  padding-left: calc(var(--space-3) + var(--outline-depth, 0) * var(--space-7));
+  border-radius: var(--radius-control);
+  color: var(--color-text-secondary);
+  cursor: default;
+  transition: background-color var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+.outline-row:hover,
+.outline-row:focus-visible {
+  background: var(--color-fill-tool-hover);
+  outline: none;
+}
+
+.outline-row[data-current] {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.outline-fold {
+  flex: none;
+  display: inline-flex;
+  width: var(--space-7);
+  justify-content: center;
+  color: var(--color-text-tertiary);
+}
+
+.outline-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-empty {
+  margin: var(--space-4) var(--space-3);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-tertiary);
 }
 
 .panes-split .editor {

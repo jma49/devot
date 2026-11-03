@@ -180,7 +180,7 @@ export interface EditorHandle {
   insert: (id: InsertId) => void
   text: () => string
   /** Caret to the start of line `line` (1-based), scrolled to the view's top (outline entry) or middle (Go to Line). */
-  goToLine: (line: number, where?: 'start' | 'center') => void
+  goToLine: (line: number, where?: 'start' | 'center', focus?: boolean) => void
   inTable: () => boolean
   table: (id: TableCommandId) => void
   hasSelection: () => boolean
@@ -701,6 +701,8 @@ interface Props {
   onPlace?: (noteId: string, place: EditorPlace) => void
   /** Words and characters of the note and the selection, once typing pauses; nothing is counted without it. */
   onCounts?: ((counts: EditorCounts) => void) | undefined
+  /** The line the caret is on, when it moves to another or the note changes under it. */
+  onCaretLine?: ((line: number) => void) | undefined
   onNewFromSelection?: (() => void) | undefined
   /** Edit with AI on the selection (the toolbar's AI button and the editor menu); left out where AI may not edit. */
   onAiEdit?: StartAiEdit | undefined
@@ -738,6 +740,7 @@ export function NoteEditor({
   initialPlace,
   onPlace,
   onCounts,
+  onCaretLine,
   onNewFromSelection,
   onAiEdit,
   suggester,
@@ -771,6 +774,7 @@ export function NoteEditor({
   const placeAsked = useRef(initialPlace)
   const placeReport = useRef(onPlace)
   const countsReport = useRef(onCounts)
+  const caretLineReport = useRef(onCaretLine)
   const fromSelection = useRef(onNewFromSelection)
   const aiEdit = useRef(onAiEdit)
   const suggestions = useRef(suggester)
@@ -872,6 +876,7 @@ export function NoteEditor({
     placeAsked.current = initialPlace
     placeReport.current = onPlace
     countsReport.current = onCounts
+    caretLineReport.current = onCaretLine
     focusOnOpen.current = autoFocus
     focusOnlyIfFree.current = autoFocusIfFree
     report.current = onText
@@ -1155,6 +1160,7 @@ export function NoteEditor({
               const { anchor, head } = update.state.selection.main
               place.selection = { anchor, head }
               placeChanged()
+              caretLineReport.current?.(update.state.doc.lineAt(head).number)
             }),
             EditorView.domEventHandlers({
               scroll: (_event, scrolled) => {
@@ -1191,6 +1197,7 @@ export function NoteEditor({
         editor.current = { view, settings: setupFor }
       }
       const untrackEditor = trackOpenEditor(noteId, view, doc, text)
+      caretLineReport.current?.(view.state.doc.lineAt(view.state.selection.main.head).number)
       const ready = view
       const s: Shown = {
         core,
@@ -1226,10 +1233,10 @@ export function NoteEditor({
             insertCommand(id)(ready)
           },
           text: () => ready.state.doc.toString(),
-          goToLine: (line, where = 'start') => {
+          goToLine: (line, where = 'start', focus = true) => {
             const lines = ready.state.doc
             const at = lines.line(Math.min(lines.lines, Math.max(1, Math.floor(line)))).from
-            ready.focus()
+            if (focus) ready.focus()
             ready.dispatch({
               selection: EditorSelection.cursor(at),
               effects: EditorView.scrollIntoView(

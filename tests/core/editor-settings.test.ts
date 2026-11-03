@@ -77,6 +77,7 @@ describe('editor settings', () => {
       activityStrip: true,
       historyBar: false,
       authorship: true,
+      outline: false,
       autoDownloadUpdates: true,
       menuBar: false,
       animations: 'system',
@@ -219,6 +220,8 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ showCounts: 0 }).showCounts).toBe(true)
     expect(parseEditorSettings({ historyBar: true }).historyBar).toBe(true)
     expect(parseEditorSettings({ historyBar: 'yes' }).historyBar).toBe(false)
+    expect(parseEditorSettings({ outline: true }).outline).toBe(true)
+    expect(parseEditorSettings({ outline: 'on' }).outline).toBe(false)
     expect(parseEditorSettings({ authorship: false }).authorship).toBe(false)
     expect(parseEditorSettings({ authorship: 'off' }).authorship).toBe(true)
     expect(parseEditorSettings({ activityStrip: false }).activityStrip).toBe(false)

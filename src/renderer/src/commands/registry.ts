@@ -630,6 +630,13 @@ export const COMMANDS = [
     keys: [],
   },
   {
+    id: 'view.outline',
+    label: 'command.showOutline',
+    group: 'view',
+    scope: 'window',
+    keys: [],
+  },
+  {
     id: 'view.authorship',
     label: 'command.showAuthorship',
     group: 'view',
