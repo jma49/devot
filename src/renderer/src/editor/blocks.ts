@@ -64,7 +64,7 @@ const isBlank = (text: string) => text.trim() === ''
 // Paragraph text: a task item's text is a paragraph too.
 const PARAGRAPHS = new Set(['Paragraph', 'Task'])
 
-function quotePrefix(text: string, limit = Infinity): { count: number; length: number } {
+export function quotePrefix(text: string, limit = Infinity): { count: number; length: number } {
   let count = 0
   let length = 0
   while (count < limit) {
@@ -76,7 +76,7 @@ function quotePrefix(text: string, limit = Infinity): { count: number; length: n
   return { count, length }
 }
 
-function textStart(line: Line, quotes = Infinity): number {
+export function textStart(line: Line, quotes = Infinity): number {
   let i = quotePrefix(line.text, quotes).length
   while (i < line.length && /[ \t]/.test(line.text.charAt(i))) i++
   return i
@@ -102,7 +102,7 @@ const BLOCK_PARSE_MS = 4 * COMMAND_PARSE_MS
  * after the one it ends in: the note is parsed step by step until that block is complete.
  * Null when the parser cannot get there in time.
  */
-function commandContext(state: EditorState): Cx | null {
+export function commandContext(state: EditorState): Cx | null {
   const known = commandContexts.get(state)
   if (known) return known
   const { doc } = state
@@ -688,15 +688,20 @@ const siblingItem = (item: SyntaxNode, side: -1 | 1, skip?: Set<number>): Syntax
  * in under the text of the item above it, as far as CommonMark needs to nest
  * it (`1. ` is three columns wide, `10. ` four), or out to the marker of the
  * item it is in; its other lines move with it. Numbered lists it joins or
- * leaves are renumbered, a new one from 1. Null when no item can move: the
- * first of a list going in, or one at the top level going out.
+ * leaves are renumbered, a new one from 1. `lines` are the lines whose items
+ * move (the selected ones by default). Null when no item can move: the first
+ * of a list going in, or one at the top level going out.
  */
-export function indentListItems(state: EditorState, dir: 1 | -1): TransactionSpec | null {
+export function indentListItems(
+  state: EditorState,
+  dir: 1 | -1,
+  lines: readonly number[] = selectedLines(state),
+): TransactionSpec | null {
   const cx = commandContext(state)
   if (!cx) return null
   const { doc } = state
   const items: (ListLine & { item: SyntaxNode })[] = []
-  for (const n of selectedLines(state)) {
+  for (const n of lines) {
     const role = listRole(cx, n)
     if (role !== 'skip' && role.item && role.marker) items.push({ ...role, item: role.item })
   }
