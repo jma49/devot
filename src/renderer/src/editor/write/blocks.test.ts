@@ -69,3 +69,42 @@ describe('front matter in Write mode', () => {
     expect(blocks(stateOf('---\ntitle: x\nBody'))).toEqual([])
   })
 })
+
+describe('rendered blocks in Write mode', () => {
+  const IMAGE = '![Plan](https://example.com/plan.png)'
+  const doc = `Top\n${IMAGE}\n\n$$\nx^2\n$$\nEnd`
+  const math = doc.indexOf('$$')
+
+  /** Each block decoration as `from-to kind look`, `-` for one standing over its source. */
+  function rendered(state: EditorState): string[] {
+    const out: string[] = []
+    for (const source of state.facet(EditorView.decorations)) {
+      if (typeof source === 'function') continue
+      ;(source as DecorationSet).between(0, state.doc.length, (from, to, deco) => {
+        const widget = deco.spec.widget as { block?: { kind: string }; look?: string } | undefined
+        if (widget?.block) out.push(`${from}-${to} ${widget.block.kind} ${widget.look}`)
+      })
+    }
+    return out
+  }
+
+  it('take their lines while closed', () => {
+    expect(rendered(stateOf(doc, 0))).toEqual([
+      `4-${4 + IMAGE.length} image closed`,
+      `${math}-${math + 9} math closed`,
+    ])
+  })
+
+  it('stand over their source while the caret is inside, focused', () => {
+    const state = stateOf(doc, math + 4).update({ effects: setWriteFocus.of(true) }).state
+    expect(rendered(state)).toEqual([
+      `4-${4 + IMAGE.length} image closed`,
+      `${math}-${math} math open`,
+    ])
+  })
+
+  it('show a selection over them whole', () => {
+    const state = stateOf(doc).update({ selection: { anchor: 4, head: 4 + IMAGE.length } }).state
+    expect(rendered(state)[0]).toBe(`4-${4 + IMAGE.length} image selected`)
+  })
+})

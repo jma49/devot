@@ -95,6 +95,17 @@ export function imageAtCaret(state: EditorState): EditorImage | null {
   )
 }
 
+/** The image the size bar sets: the one at the caret, or one selected whole (Write mode selects a rendered image so). */
+export function imageForBar(state: EditorState): EditorImage | null {
+  const { main } = state.selection
+  if (main.empty) return imageAtCaret(state)
+  if (state.doc.lineAt(main.from).number !== state.doc.lineAt(main.to).number) return null
+  return (
+    findImages(state, main.from, main.to).find((i) => i.from === main.from && i.to === main.to) ??
+    null
+  )
+}
+
 function shows(image: EditorImage): boolean {
   return image.fileId !== null || /^https:\/\/[^/]/i.test(image.url)
 }
@@ -233,7 +244,13 @@ class ImagesWidget extends WidgetType {
   }
 }
 
+/** Write mode shows images in place (write/rendered.ts), not under their lines. */
+export const inlineImagesHidden = Facet.define<boolean, boolean>({
+  combine: (values) => values.some(Boolean),
+})
+
 function decorations(state: EditorState): DecorationSet {
+  if (state.facet(inlineImagesHidden)) return Decoration.none
   return Decoration.set(
     imageLines(state).map((line) =>
       Decoration.widget({
@@ -248,7 +265,7 @@ function decorations(state: EditorState): DecorationSet {
 export const inlineImageField = StateField.define<DecorationSet>({
   create: decorations,
   update: (value, tr) =>
-    tr.docChanged || syntaxTree(tr.startState) !== syntaxTree(tr.state)
+    tr.docChanged || tr.reconfigured || syntaxTree(tr.startState) !== syntaxTree(tr.state)
       ? decorations(tr.state)
       : value,
   provide: (field) => EditorView.decorations.from(field),

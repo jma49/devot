@@ -3,6 +3,7 @@ import { EditorSelection, EditorState } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { expectWithinBudget } from '../../../../../tests/support/budget'
 import { noteMarkdown } from '../markdown'
+import { writeBlocksOf } from './blockRanges'
 import {
   isRevealed,
   revealedLines,
@@ -306,6 +307,14 @@ describe('the selected ranges', () => {
   })
 })
 
+describe('Write mode ranges and rendered blocks', () => {
+  it('leave the source of a formula, a diagram and an image as written', () => {
+    const doc =
+      '$$\n\\{ a_b *c* \\}\n$$\n\n```mermaid\nA-->B\n```\n\n![*x*](https://e.com/a.png)\n\n\\*d\\*'
+    expect(shown(doc)).toBe(doc.replace('\\*d\\*', '*d*'))
+  })
+})
+
 describe('Write mode ranges of a long note', () => {
   it('are read for the shown part only, in a fraction of a frame', (context) => {
     const block =
@@ -316,6 +325,8 @@ describe('Write mode ranges of a long note', () => {
     if (!tree) throw new Error('E_TEST_NO_TREE')
     const from = state.doc.line(20_000).from
     const to = state.doc.line(20_060).to
+    // The block field reads the rendered blocks once per change, before the marks are drawn.
+    writeBlocksOf(state, tree)
     const started = performance.now()
     const ranges = writeRanges(state, tree, [], from, to)
     expectWithinBudget(context, performance.now() - started, 8)

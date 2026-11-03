@@ -2,13 +2,15 @@
 // element without the selection hides, and what stands in their place (a
 // bullet, a checkbox, an alert's label, a note's title). Pure: read from the
 // syntax tree and the selection, so the rules are tested over Markdown
-// without an editor. Blocks the next steps render in place (images, math,
-// tables, code) stay source here: `SOURCE_BLOCKS`, and block widgets come from
-// `writeBlockRule` (blocks.ts).
+// without an editor. Blocks shown otherwise (tables, code, rendered images,
+// formulas and diagrams) keep their source here: `SOURCE_BLOCKS` and the
+// rendered blocks of blockRanges.ts, whose widgets come from `writeBlockRule`
+// (blocks.ts).
 import type { EditorState } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { noteIdOf } from '../../../../core/links'
 import { ALERT_KINDS, type AlertKind } from '../blocks'
+import { writeBlocksOf, type WriteBlock } from './blockRanges'
 
 export type WriteRange =
   | { kind: 'hide'; from: number; to: number }
@@ -74,6 +76,19 @@ export function revealedLines(state: EditorState, focused: boolean): Revealed {
   return merged
 }
 
+function inBlock(blocks: readonly WriteBlock[], pos: number): boolean {
+  let lo = 0
+  let hi = blocks.length - 1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    const block = blocks[mid] as WriteBlock
+    if (pos < block.from) hi = mid - 1
+    else if (pos > block.to) lo = mid + 1
+    else return true
+  }
+  return false
+}
+
 export function isRevealed(revealed: Revealed, line: number): boolean {
   let lo = 0
   let hi = revealed.length - 1
@@ -87,7 +102,7 @@ export function isRevealed(revealed: Revealed, line: number): boolean {
   return false
 }
 
-/** Shown as their source in this step; the later steps of Write mode render them in place. */
+/** Shown as their source; tables are rendered in place by a later step of Write mode. */
 export const SOURCE_BLOCKS = new Set([
   'FencedCode',
   'CodeBlock',
@@ -136,6 +151,7 @@ export function writeRanges(
     if (oneLine(a, b)) out.push({ kind: 'hide', from: a, to: b })
   }
   const spaceAfter = (pos: number) => (pos < doc.length && SPACE.test(text(pos, pos + 1)) ? 1 : 0)
+  const rendered = writeBlocksOf(state, tree)
 
   tree.iterate({
     from,
@@ -143,6 +159,8 @@ export function writeRanges(
     enter: (ref) => {
       const name = ref.name
       if (SOURCE_BLOCKS.has(name)) return false
+      // A rendered block's source shows as written when it opens, on every line.
+      if (name !== 'Document' && inBlock(rendered, ref.from)) return false
       const node = ref.node
       if (HEADING.test(name)) {
         if (showsLines(node.from, node.to)) return

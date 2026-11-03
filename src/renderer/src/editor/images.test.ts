@@ -6,6 +6,7 @@ import {
   findImages,
   imageAt,
   imageAtCaret,
+  imageForBar,
   imageLines,
   imageSizeChange,
   inlineImageField,
@@ -159,5 +160,18 @@ describe('the image at the caret', () => {
     expect(imageAtCaret(state(doc, doc.length - 1))).toBeNull()
     const selected = state(doc).update({ selection: EditorSelection.range(at, at + 4) }).state
     expect(imageAtCaret(selected)).toBeNull()
+  })
+})
+
+describe('the image the size bar is for', () => {
+  it('is the one at the caret, or one selected whole', () => {
+    const doc = `x ![a](${FILE}) y`
+    const at = doc.indexOf('![a]')
+    const end = doc.indexOf(') y') + 1
+    expect(imageForBar(state(doc, at + 1))?.alt).toBe('a')
+    const whole = state(doc).update({ selection: EditorSelection.range(end, at) }).state
+    expect(imageForBar(whole)?.alt).toBe('a')
+    const more = state(doc).update({ selection: EditorSelection.range(0, end) }).state
+    expect(imageForBar(more)).toBeNull()
   })
 })

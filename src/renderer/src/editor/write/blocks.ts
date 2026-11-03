@@ -1,5 +1,5 @@
 // Write mode's blocks: decorations that take whole lines (a folded front
-// matter now; images, diagrams and tables in the next steps). CodeMirror takes
+// matter, rendered images, formulas, diagrams and embeds; tables next). CodeMirror takes
 // those only from state, never from a view plugin, so they live in one state
 // field fed by `writeBlockRule`: a step adds a rule, not another field.
 import { syntaxTree } from '@codemirror/language'
@@ -15,6 +15,8 @@ import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemir
 import { t } from '../../i18n'
 import { FRONT_MATTER } from '../markdown'
 import { revealedIn, setWriteFocus } from './focus'
+import { blockLook, writeBlocksOf } from './blockRanges'
+import { RenderedBlockWidget } from './rendered'
 import type { Revealed } from './rules'
 import { isRevealed } from './rules'
 
@@ -77,6 +79,19 @@ export const frontMatterRule: BlockRule = (state, revealed) => {
   return [Decoration.replace({ widget, block: true }).range(0, node.to)]
 }
 
+/**
+ * Images, formulas, diagrams and embeds as the preview shows them. A closed
+ * block takes its lines; an open one keeps its rendering over its source.
+ */
+export const renderedBlockRule: BlockRule = (state) =>
+  writeBlocksOf(state).map((block) => {
+    const look = blockLook(state, block)
+    const widget = new RenderedBlockWidget(block, look)
+    return look === 'open'
+      ? Decoration.widget({ widget, block: true, side: -1 }).range(block.from)
+      : Decoration.replace({ widget, block: true }).range(block.from, block.to)
+  })
+
 function build(state: EditorState): DecorationSet {
   const revealed = revealedIn(state)
   return Decoration.set(
@@ -114,4 +129,8 @@ const blocks = StateField.define<Blocks>({
   ],
 })
 
-export const writeBlocks: Extension = [blocks, writeBlockRule.of(frontMatterRule)]
+export const writeBlocks: Extension = [
+  blocks,
+  writeBlockRule.of(frontMatterRule),
+  writeBlockRule.of(renderedBlockRule),
+]
