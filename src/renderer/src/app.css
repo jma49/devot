@@ -6344,6 +6344,8 @@ button.popup:focus-visible {
   gap: var(--space-5);
   margin: 0 var(--space-10) var(--space-2);
   font-size: var(--font-size-caption);
+  line-height: var(--space-7);
+  min-height: var(--space-7);
   color: var(--color-text-tertiary);
   font-variant-numeric: tabular-nums;
   user-select: none;

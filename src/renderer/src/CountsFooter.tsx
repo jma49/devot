@@ -12,7 +12,7 @@ export function countText(whole: number, selected: number | undefined, locale: s
 
 export function CountsFooter(props: { counts: EditorCounts | null }) {
   const { counts } = props
-  if (!counts) return null
+  if (!counts) return <p className="editor-counts" />
   const locale = currentLocale()
   const { selection } = counts
   return (

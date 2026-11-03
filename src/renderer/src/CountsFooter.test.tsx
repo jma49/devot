@@ -18,8 +18,10 @@ describe('the editor footer counts', () => {
     expect(html).toContain('Characters 6 of 11')
   })
 
-  it('is empty before the first count', () => {
-    expect(renderToStaticMarkup(<CountsFooter counts={null} />)).toBe('')
+  it('keeps its line before the first count, so the panes do not move when it arrives', () => {
+    expect(renderToStaticMarkup(<CountsFooter counts={null} />)).toBe(
+      '<p class="editor-counts"></p>',
+    )
   })
 })
 
