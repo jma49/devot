@@ -8,17 +8,28 @@ test.use({
 
 const note = (page: Page) => page.locator('section.phone-screen:has(.phone-note-scroll)')
 
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    ;(globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome = true
+const atDoubleText = (page: Page) =>
+  page.locator('.phone-app').evaluate((app) => {
+    const root = app as unknown as { style: CSSStyleDeclaration; dataset: Record<string, string> }
+    root.style.setProperty('--phone-text-scale', '2')
+    root.dataset['textSize'] = 'accessibility'
   })
-  await page.goto('/')
+
+const openFirstNote = async (page: Page) => {
   await page
     .getByRole('navigation', { name: 'Tabs' })
     .getByRole('button', { name: 'Notes' })
     .click()
   await page.locator('[data-section="recent"] .phone-note-open').first().click()
   await expect(note(page).locator('.cm-content')).toBeAttached()
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    ;(globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome = true
+  })
+  await page.goto('/')
+  await openFirstNote(page)
 })
 
 test('the top bar has back, a mono crumb and a capsule; the title is 26 bold', async ({ page }) => {
@@ -98,4 +109,183 @@ test('note info has stats in mono, icon rows and a working Move to Trash', async
   await expect(sheet.getByText('Revision history')).toHaveCount(0)
   await sheet.getByRole('button', { name: 'Move to Trash' }).click()
   await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible()
+})
+
+test('a long title at twice the text size wraps uncropped, and Return adds no line', async ({
+  page,
+}) => {
+  await atDoubleText(page)
+  const heading = note(page).locator('.phone-note-heading')
+  const oneLine = (await heading.boundingBox())!.height
+  const long = 'A long title that takes several lines at this text size to read in full'
+  await heading.fill(long)
+  await heading.press('Enter')
+  await expect(heading).toHaveValue(long)
+  const seen = await heading.evaluate((el) => ({
+    client: el.clientHeight,
+    scroll: el.scrollHeight,
+    lineHeight: parseFloat(getComputedStyle(el).lineHeight),
+  }))
+  expect(seen.client).toBeGreaterThanOrEqual(2 * seen.lineHeight)
+  expect(seen.scroll).toBeLessThanOrEqual(seen.client)
+  expect(seen.client).toBeGreaterThan(oneLine)
+  await heading.fill('Pasted\nacross lines')
+  await expect(heading).toHaveValue('Pasted across lines')
+  await heading.fill(long)
+  await heading.blur()
+  await expect(note(page)).toHaveAttribute('aria-label', long)
+})
+
+test('wrapped chips are 44 tall around a 30 face, and their targets do not overlap', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as { id: string }[]
+    const tags = Array.from({ length: 8 }, (_, i) => ({
+      id: `seeded-tag-${i}`,
+      name: `seeded tag ${i}`,
+      nameHlc: '',
+      createdAt: 0,
+      updatedAt: 0,
+      deletedAt: null,
+      deletedHlc: null,
+      color: 'blue',
+      colorHlc: '',
+    }))
+    localStorage.setItem('devot.test.tags', JSON.stringify(tags))
+    localStorage.setItem(
+      'devot.test.noteTags',
+      JSON.stringify(
+        notes.flatMap((n) =>
+          tags.map((tag) => ({ noteId: n.id, tagId: tag.id, present: true, hlc: '' })),
+        ),
+      ),
+    )
+  })
+  await page.reload()
+  await openFirstNote(page)
+  const chips = note(page).locator('.phone-chip-target')
+  await expect(chips).toHaveCount(11)
+  const boxes = await chips.evaluateAll((targets) =>
+    targets.map((target) => {
+      const box = target.getBoundingClientRect()
+      const face = target.firstElementChild!.getBoundingClientRect()
+      return {
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        height: box.height,
+        face: face.height,
+        offset: face.top + face.height / 2 - (box.top + box.height / 2),
+      }
+    }),
+  )
+  expect(new Set(boxes.map((box) => box.top)).size).toBeGreaterThan(1)
+  for (const box of boxes) {
+    expect(box.height).toBe(44)
+    expect(box.face).toBe(30)
+    expect(Math.abs(box.offset)).toBeLessThanOrEqual(0.5)
+  }
+  boxes.forEach((a, i) => {
+    for (const b of boxes.slice(i + 1)) {
+      const apart = a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top
+      expect(apart).toBe(true)
+    }
+  })
+})
+
+test('hidden note bars are inert', async ({ page }) => {
+  const bottom = note(page).locator('.phone-note-bottom')
+  const accessory = note(page).locator('.phone-accessory')
+  const focusable = (bar: typeof bottom) =>
+    bar
+      .locator('button:not([disabled])')
+      .first()
+      .evaluate((button) => {
+        ;(button as unknown as { focus: () => void }).focus()
+        return button.ownerDocument.activeElement === button
+      })
+  await expect(accessory).toHaveAttribute('inert')
+  await expect(bottom).not.toHaveAttribute('inert')
+  expect(await focusable(accessory)).toBe(false)
+  await note(page).getByRole('button', { name: 'Edit', exact: true }).click()
+  await page.evaluate(() => {
+    const viewport = window.visualViewport!
+    Object.defineProperty(viewport, 'height', { value: window.innerHeight - 300 })
+    viewport.dispatchEvent(new Event('resize'))
+  })
+  await expect(bottom).toHaveAttribute('inert')
+  await expect(accessory).not.toHaveAttribute('inert')
+  expect(await focusable(bottom)).toBe(false)
+  expect(await focusable(accessory)).toBe(true)
+})
+
+test('note info metadata is plain rows at full opacity, with dates in figures', async ({
+  page,
+}) => {
+  await note(page).getByRole('button', { name: 'Note Info' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Note Info' })
+  for (const label of ['Notebook', 'Created', 'Modified']) {
+    await expect(sheet.getByRole('button', { name: new RegExp(`^${label}`) })).toHaveCount(0)
+    const row = sheet.locator('.phone-grouped-row').filter({ hasText: label }).locator('> *')
+    expect(await row.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
+  }
+  for (const label of ['Created', 'Modified']) {
+    await expect(
+      sheet
+        .locator('.phone-grouped-row')
+        .filter({ hasText: label })
+        .locator('.phone-grouped-count'),
+    ).toHaveClass(/phone-figures/)
+  }
+  await expect(sheet.getByRole('button', { name: 'Move to Trash' })).toBeEnabled()
+})
+
+test('note info at twice the text size reflows without clipping', async ({ page }) => {
+  await atDoubleText(page)
+  await note(page).getByRole('button', { name: 'Note Info' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Note Info' })
+  const stats = sheet.locator('.phone-info-stat')
+  await expect(stats).toHaveCount(4)
+  const lefts = await stats.evaluateAll((items) =>
+    items.map((item) => item.getBoundingClientRect().left),
+  )
+  expect(new Set(lefts).size).toBe(2)
+  const clipped = await sheet
+    .locator('.phone-card')
+    .evaluateAll((cards) => cards.filter((card) => card.scrollHeight > card.clientHeight).length)
+  expect(clipped).toBe(0)
+  const row = sheet.locator('.phone-grouped-row').filter({ hasText: 'Notebook' })
+  const [label, value] = await Promise.all([
+    row.locator('.phone-grouped-label').boundingBox(),
+    row.locator('.phone-grouped-count').boundingBox(),
+  ])
+  expect(value!.y).toBeGreaterThanOrEqual(label!.y + label!.height - 1)
+  expect(label!.height).toBeLessThan(2 * 17 * 2)
+})
+
+test.describe('under Reduce Motion', () => {
+  test.use({ contextOptions: { reducedMotion: 'reduce' } })
+
+  test('a sheet and the bottom bar only crossfade', async ({ page }) => {
+    await expect(page.locator(':root')).toHaveAttribute('data-motion', 'reduced')
+    const bottom = note(page).locator('.phone-note-bottom')
+    await note(page).getByRole('button', { name: 'Find in Note' }).click()
+    await expect(bottom).toHaveAttribute('data-hidden', 'true')
+    const bar = await bottom.evaluate((el) => ({
+      translate: getComputedStyle(el).translate,
+      property: getComputedStyle(el).transitionProperty,
+    }))
+    expect(bar).toEqual({ translate: 'none', property: 'opacity' })
+    await note(page).getByRole('button', { name: 'Close find' }).click()
+    await note(page).getByRole('button', { name: 'Note Info' }).click()
+    const sheet = page.getByRole('dialog', { name: 'Note Info' })
+    await expect(sheet).toHaveCSS('opacity', '1')
+    const seen = await sheet.evaluate((el) => ({
+      transform: getComputedStyle(el).transform,
+      property: getComputedStyle(el).transitionProperty,
+    }))
+    expect(seen).toEqual({ transform: 'none', property: 'opacity' })
+  })
 })

@@ -200,6 +200,25 @@ test('a vertical drag on a row never swipes', async ({ page }) => {
   )
 })
 
+test.describe('under Reduce Motion', () => {
+  test.use({ contextOptions: { reducedMotion: 'reduce' } })
+
+  test('a peek only crossfades', async ({ page }) => {
+    await openNotes(page)
+    await recent(page)
+      .first()
+      .getByRole('button', { name: /^Actions for / })
+      .evaluate((el) => (el as HTMLElement).click())
+    const card = page.locator('.phone-peek-card')
+    await expect(card).toBeVisible()
+    const seen = await card.evaluate((el) => ({
+      translate: getComputedStyle(el).translate,
+      property: getComputedStyle(el).transitionProperty,
+    }))
+    expect(seen).toEqual({ translate: 'none', property: 'opacity' })
+  })
+})
+
 test('a long press peeks, and the status bar sets the status', async ({ page }) => {
   await openNotes(page)
   const box = (await recent(page).first().boundingBox())!

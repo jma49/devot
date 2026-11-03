@@ -61,6 +61,15 @@ test('the search button finds a pane by name and opens it', async ({ page }) => 
   await expect(page.locator('section.phone-screen[aria-label="Appearance"]')).toBeVisible()
 })
 
+test('opening the search shows its field at once, at nearly the full width', async ({ page }) => {
+  await openSettings(page)
+  await root(page).getByRole('button', { name: 'Search Settings' }).click()
+  const field = root(page).locator('.phone-settings-search .phone-search-field')
+  expect(await field.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
+  expect((await field.boundingBox())!.width).toBeGreaterThan(390 - 2 * 16 - 44 - 16)
+  await expect(root(page).getByRole('searchbox')).toBeFocused()
+})
+
 test('a search with no match says so, and a Mac-only pane is not found', async ({ page }) => {
   await openSettings(page)
   await root(page).getByRole('button', { name: 'Search Settings' }).click()
@@ -219,8 +228,25 @@ test('the Sync pane lists devices, marks this one and offers pairing', async ({ 
   await expect(pane.getByRole('listitem').filter({ hasText: 'This phone' })).toContainText('You')
   await expect(pane.getByRole('button', { name: 'Remove' }).first()).toBeVisible()
   await expect(pane.locator('.phone-accent-button')).toBeVisible()
-  await pane.getByRole('button', { name: 'About Recovery Key' }).click()
-  await expect(page.getByRole('dialog', { name: 'Recovery Key' })).toBeVisible()
+  await expect(pane.getByText('Recovery Key')).toHaveCount(0)
+})
+
+test('the Sync pane shows the recovery key only while it waits to be saved', async ({ page }) => {
+  await page.addInitScript(() => {
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      sync_get: () => ({
+        relayUrl: 'https://relay.example',
+        enabled: true,
+        vault: true,
+        enrolled: true,
+        status: { state: 'idle', lastSync: 1_700_000_000_000, code: null, pausedUntil: null },
+      }),
+      sync_devices: () => [],
+      sync_recovery_key: () => 'ABCDE-FGHIJ-KLMNO',
+    }
+  })
+  const pane = await openPane(page, 'Sync')
+  await expect(pane.getByRole('group', { name: 'Recovery Key' })).toContainText('ABCDE-FGHIJ-KLMNO')
 })
 
 test('a stepper and a select sit on their label row, at the row right padding', async ({
@@ -367,7 +393,88 @@ test('the Usage heat map legend stays inside its card at 390 pt', async ({ page 
   expect(legend.x + legend.width).toBeLessThanOrEqual(card.x + card.width)
 })
 
-test('a General pane with nothing to set says so', async ({ page }) => {
+test('a General pane with nothing to set says so, centred and clear of the band', async ({
+  page,
+}) => {
   const pane = await openPane(page, 'General')
-  await expect(pane.getByText('Nothing here to set on this iPhone.')).toBeVisible()
+  const empty = pane.getByText('Nothing here to set on this iPhone.')
+  await expect(empty).toBeVisible()
+  const box = (await empty.boundingBox())!
+  expect(box.x + box.width / 2).toBeCloseTo(195, 0)
+  const padding = await empty.evaluate((el) => {
+    const style = getComputedStyle(el)
+    return { left: style.paddingLeft, right: style.paddingRight, top: parseFloat(style.paddingTop) }
+  })
+  expect(padding.left).toBe(padding.right)
+  expect(padding.top).toBeGreaterThan(44)
+})
+
+test('a pane does not repeat its screen title as its first section title', async ({ page }) => {
+  await seedUsage(page, 9)
+  for (const [name, repeated] of [
+    ['License', 'License'],
+    ['Preview', 'Preview'],
+    ['Usage', 'Usage overview'],
+  ] as const) {
+    const pane = await openPane(page, name)
+    await expect(pane.locator('.settings-block-title', { hasText: repeated })).toHaveCount(0)
+    await expect(pane.locator(`.settings-block[aria-label="${repeated}"]`)).toBeAttached()
+  }
+})
+
+test('Usage stats are full-width rows in one card, figures on the right edge', async ({ page }) => {
+  await seedUsage(page, 9)
+  const pane = await openPane(page, 'Usage')
+  const stats = pane.locator('.usage-stat')
+  await expect(stats).toHaveCount(3)
+  const boxes = await stats.evaluateAll((rows) =>
+    rows.map((row) => {
+      const box = row.getBoundingClientRect()
+      const figure = row.querySelector('strong')!.getBoundingClientRect()
+      return { x: box.x, y: box.y, width: box.width, height: box.height, right: figure.right }
+    }),
+  )
+  expect(new Set(boxes.map((box) => box.x)).size).toBe(1)
+  expect(new Set(boxes.map((box) => box.y)).size).toBe(3)
+  expect(new Set(boxes.map((box) => box.right)).size).toBe(1)
+  for (const box of boxes) {
+    expect(box.width).toBe(390 - 2 * 16 - 2 * 12)
+    expect(box.height).toBeGreaterThanOrEqual(44)
+  }
+})
+
+test('a long select value is cut with an ellipsis, in its row, beside its whole label', async ({
+  page,
+}) => {
+  const long = `custom.${'very-long-event-name-'.repeat(6)}end`
+  await page.addInitScript((name) => {
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      usage_list: () => [{ id: 1, at: Date.now(), name, properties: {} }],
+    }
+  }, long)
+  const pane = await openPane(page, 'Usage')
+  const select = pane.getByRole('combobox', { name: 'Event type' })
+  await select.selectOption(long)
+  const row = pane
+    .locator('.setting')
+    .filter({ has: page.getByRole('combobox', { name: 'Event type' }) })
+  const value = row.locator('.select-value')
+  await expect(value).toContainText('very-long-event-name')
+  const seen = await value.evaluate((el) => ({
+    cut: el.scrollWidth > el.clientWidth,
+    overflow: getComputedStyle(el).textOverflow,
+    wrap: getComputedStyle(el).whiteSpace,
+  }))
+  expect(seen).toEqual({ cut: true, overflow: 'ellipsis', wrap: 'nowrap' })
+  const [label, drawn, card] = await Promise.all([
+    row.locator('.setting-label').evaluate((el) => ({
+      right: el.getBoundingClientRect().right,
+      whole: el.scrollWidth <= el.clientWidth,
+    })),
+    row.locator('.select').boundingBox(),
+    row.locator('xpath=ancestor::*[contains(@class,"settings-card")]').boundingBox(),
+  ])
+  expect(label.whole).toBe(true)
+  expect(drawn!.x).toBeGreaterThanOrEqual(label.right)
+  expect(drawn!.x + drawn!.width).toBeLessThanOrEqual(card!.x + card!.width - 12 + 0.5)
 })

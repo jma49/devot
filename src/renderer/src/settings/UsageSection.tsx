@@ -380,7 +380,7 @@ function GlassUsageSection() {
           )
         ) : (
           <>
-            <SettingsSection title="usage.overview" footnote={t('usage.privacy')}>
+            <SettingsSection title="usage.overview" titleHidden footnote={t('usage.privacy')}>
               <PhoneSegmented
                 label={t('usage.range')}
                 value={String(period)}

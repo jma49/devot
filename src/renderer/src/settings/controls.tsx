@@ -53,6 +53,7 @@ export function SettingsSection({
   title,
   titleSuffix,
   footnote,
+  titleHidden,
   children,
 }: {
   title: MessageKey
@@ -60,18 +61,23 @@ export function SettingsSection({
   titleSuffix?: string | undefined
   /** Under the card, after an info glyph. */
   footnote?: string | undefined
+  /** The screen's own title already says this: the section keeps it as its accessible name only. */
+  titleHidden?: boolean | undefined
   children: ReactNode
 }) {
   const id = useId()
   const hinted = useContext(ShowHint) !== null
-  const heading = (
+  const heading = titleHidden ? null : (
     <h3 id={id} className="settings-block-title">
       {t(title)}
       {titleSuffix ? <span className="settings-block-suffix"> {titleSuffix}</span> : null}
     </h3>
   )
   return (
-    <section className="settings-block" aria-labelledby={id}>
+    <section
+      className="settings-block"
+      {...(titleHidden ? { 'aria-label': t(title) } : { 'aria-labelledby': id })}
+    >
       {hinted && footnote ? (
         <div className="phone-block-head">
           {heading}

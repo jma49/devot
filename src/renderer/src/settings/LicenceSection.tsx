@@ -118,6 +118,7 @@ export function LicenceSection() {
       </p>
       <SettingsSection
         title="licenceSettings.title"
+        titleHidden={onPhone}
         footnote={onPhone ? t('licenceSettings.detail') : undefined}
       >
         {onPhone ? null : <SettingsNote>{t('licenceSettings.detail')}</SettingsNote>}
