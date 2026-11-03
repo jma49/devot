@@ -27,6 +27,7 @@ import {
   type BoardColumn,
 } from './board'
 import { compareNames } from '../../core/sort'
+import { dropSelectionLeftBehind } from './focus'
 import { keyMatches } from './commands/keys'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import type { MenuPoint } from './contextMenu'
@@ -292,6 +293,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       const id = e.target instanceof HTMLElement ? e.target.dataset['noteId'] : undefined
       keyboard.current = id
       if (id !== undefined) setFocusedCard(id)
+      if (id !== undefined) dropSelectionLeftBehind(document, e.target as HTMLElement)
     }
     const onFocusOut = (e: FocusEvent) => {
       const from = e.target

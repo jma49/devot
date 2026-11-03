@@ -177,10 +177,11 @@ test('the key can be rebound in Settings', async ({ page }) => {
     'title',
     /^Add Tag \(.+Y\)$/,
   )
-  await noteRows(page).first().focus()
+  const row = noteRows(page).first()
+  await row.focus()
   await page.keyboard.press('KeyT')
   await expect(popup(page)).toHaveCount(0)
-  await page.getByRole('button', { name: 'New Note', exact: true }).focus()
+  await expect(row).toBeFocused()
   await page.keyboard.press('Meta+Shift+KeyY')
   await expect(popup(page)).toBeVisible()
 })
