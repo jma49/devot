@@ -117,7 +117,7 @@ pub fn enter(app: &mut tauri::App, menu_bar_mode: bool) {
 }
 
 fn show_icon(app: &AppHandle) -> tauri::Result<()> {
-    let status = MenuItemBuilder::with_id(STATUS_ID, strings::BACKGROUND_STATUS)
+    let status = MenuItemBuilder::with_id(STATUS_ID, strings::BACKGROUND_MENU_STATUS)
         .enabled(false)
         .build(app)?;
     let open = MenuItemBuilder::with_id(OPEN_ID, strings::MENU_BAR_OPEN).build(app)?;
@@ -441,6 +441,7 @@ mod tests {
     #[test]
     fn the_wording_says_what_is_running_and_for_whom() {
         assert!(strings::BACKGROUND_STATUS.contains("AI tools"));
+        assert!(strings::BACKGROUND_MENU_STATUS.contains("10 minutes"));
         assert_eq!(strings::QUIT, "Quit Devot");
     }
 }

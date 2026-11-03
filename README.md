@@ -144,7 +144,7 @@ Claude Code, Codex, Claude Desktop and other MCP clients can work with your note
 
 **Only notebooks with Allow AI Access on are visible.** Right-click a notebook in the sidebar and choose Allow AI Access; a sparkle marks the notebooks that have it. The switch is per notebook: a sub-notebook needs its own. Notes in the Trash and notes in no notebook are never visible.
 
-Settings > Integrations says how many notebooks allow it and, when none does, offers to turn it on. The picker there (also in the Command Palette as **AI Access for Several Notebooks…**) switches several notebooks at once, with Undo.
+Settings > Integrations > AI Tools says how many notebooks allow it, with **Choose…** to change that, and when none does it offers to turn it on. The picker there (also in the Command Palette as **AI Access for Several Notebooks…**) switches several notebooks at once, with Undo.
 
 | Tool              | What it does                                                    |
 | ----------------- | --------------------------------------------------------------- |
@@ -163,7 +163,7 @@ Edits apply directly. Before each one, Devot keeps the note's text as it was in 
 
 Open **Settings > Integrations** and choose **Connect** for Claude Code, Codex or Claude Desktop. It shows the file and the exact text first, keeps everything else in the file, and keeps a backup beside it. The token stays in your keychain and never goes in that file. Restart the client afterwards. Install Devot in Applications first: Connect waits while it runs from a disk image.
 
-The same pane has the configuration to copy, for these clients and any other. On a default install:
+**Set Up by Hand**, at the end of the Clients card, has the configuration to copy, for these clients and any other. On a default install:
 
 ```sh
 claude mcp add --scope user devot -- /Applications/Devot.app/Contents/MacOS/devot --cli mcp
@@ -180,7 +180,7 @@ args = ["--cli", "mcp"]
 
 AI tools need Devot running. When a tool asks and Devot is closed, Devot starts in the background with no window and no Dock icon, and shows an icon in the menu bar with **Quit Devot**. It quits by itself after 10 minutes without a request, unless you opened a window, and it saves first as any quit does. After you quit it, the next request starts it again.
 
-Settings > Integrations > AI Tools shows whether it is running that way and has its own **Quit Devot**. Turn **Start in the Background** off and tools get a clear error until you open Devot yourself. **Allow AI Tools** there stops them altogether, and **Access** chooses Read Only or Read and Write. None of this turns on the Local HTTP API, which has its own switch and token.
+The Status row in Settings > Integrations > AI Tools shows whether it is running that way, and then has its own **Quit Devot**. Turn **Start in the Background** off and tools get a clear error until you open Devot yourself. **Allow AI Tools** there stops them altogether, and **Access** chooses Read Only or Read and Write. None of this turns on the Local HTTP API, which has its own switch and token.
 
 Errors returned to a client start with a code such as `E_MCP_BACKGROUND_START_OFF`. Logs hold codes and IDs, never note text.
 

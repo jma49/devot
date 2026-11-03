@@ -3316,6 +3316,69 @@ button {
   color: var(--color-text-secondary);
 }
 
+.client-state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.client-state-dot {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: var(--radius-capsule);
+  background: var(--color-text-tertiary);
+}
+
+.client-state-dot[data-state='connected'] {
+  background: var(--color-status-done-mark);
+}
+
+.client-state-dot:is([data-state='stale'], [data-state='other']) {
+  background: var(--color-status-hold-mark);
+}
+
+.client-state-dot[data-state='unreadable'] {
+  background: var(--color-status-dropped-mark);
+}
+
+.hand-setup-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-body);
+  text-align: start;
+}
+
+.hand-setup-toggle .chevron {
+  color: var(--color-text-tertiary);
+}
+
+.hand-setup-configs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.hand-setup-config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.hand-setup-config .integration-config {
+  margin: var(--space-2) 0 0;
+}
+
+.hand-setup-config .settings-buttons {
+  margin-left: 0;
+}
+
 /* A path has no spaces to break at. */
 .integration-confirm .confirm-detail {
   overflow-wrap: anywhere;

@@ -264,6 +264,14 @@ test('General opens the data folder and the Backups dialog', async ({ page }) =>
 })
 
 const BRIDGE = '/Applications/My Apps/Devot.app/Contents/MacOS/devot'
+
+/** The configurations to copy, under Set Up by Hand at the end of the Clients card. */
+async function byHand(page: Page) {
+  const clients = page.getByRole('region', { name: 'Clients' })
+  const toggle = clients.getByRole('button', { name: 'Set Up by Hand' })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
+  return clients
+}
 const CODEX_PREVIEW = `[mcp_servers.devot]\ncommand = "${BRIDGE}"\nargs = ["--cli", "mcp"]\n`
 
 function clientStatus(client: string, path: string, state: string, extra: object = {}) {
@@ -306,15 +314,18 @@ test('Integrations offers configs to copy that run this app as the bridge', asyn
     w.devotIpcMocks = { settings_mcp_setup: setup }
   }, setupWith())
   await openSettings(page, 'Integrations')
-  const claude = page.getByRole('region', { name: 'Claude Code' })
+  const clients = page.getByRole('region', { name: 'Clients' })
+  const toggle = clients.getByRole('button', { name: 'Set Up by Hand' })
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(clients.locator('code')).toHaveCount(0)
+  await toggle.click()
   const command = `claude mcp add --scope user devot -- '${BRIDGE}' --cli mcp`
-  await expect(claude.locator('code')).toHaveText(command)
-  await expect(page.getByRole('region', { name: 'Codex' }).locator('code').first()).toHaveText(
-    CODEX_PREVIEW.trimEnd(),
-  )
-  await expect(page.getByRole('region', { name: 'Other MCP Clients' })).toContainText(
-    '"mcpServers"',
-  )
+  const codes = clients.locator('code')
+  await expect(codes).toHaveCount(4)
+  await expect(codes.nth(0)).toHaveText(command)
+  await expect(codes.nth(1)).toHaveText(CODEX_PREVIEW.trimEnd())
+  await expect(codes.nth(3)).toContainText('"mcpServers"')
+  await expect(clients).toContainText('Other MCP Clients')
   await expect(page.getByRole('tabpanel')).not.toContainText(/\bnode\b/i)
   // Each card follows the one before at the block spacing: nothing sits between them.
   const aiTools = page.getByRole('region', { name: 'AI Tools' })
@@ -324,7 +335,7 @@ test('Integrations offers configs to copy that run this app as the bridge', asyn
   })
   expect(next).toBe(true)
 
-  await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
+  await clients.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
   await expect(page.getByRole('tabpanel').getByRole('status').last()).toHaveText(
     'The Claude Code configuration was copied.',
   )
@@ -335,6 +346,35 @@ test('Integrations offers configs to copy that run this app as the bridge', asyn
   const setups = await calls(page, 'settings_mcp_setup')
   expect(setups.length).toBeGreaterThan(0)
   for (const call of setups) expect(call).toEqual({ cmd: 'settings_mcp_setup', args: {} })
+})
+
+test('Clients has one row per client with its state, and only the buttons that state offers', async ({
+  page,
+}) => {
+  await page.addInitScript(
+    (setup) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+      }
+    },
+    setupWith({ codex: 'connected' }),
+  )
+  await openSettings(page, 'Integrations')
+  await expect(page.getByRole('region', { name: 'Claude Code' })).toHaveCount(0)
+  const claude = page.getByRole('group', { name: 'Claude Code' })
+  await expect(claude).toContainText('Not connected')
+  await expect(claude.getByRole('button')).toHaveText(['Connect'])
+  await expect(claude.getByRole('button', { name: 'Connect Claude Code' })).toHaveClass(
+    /button-default/,
+  )
+  const codex = page.getByRole('group', { name: 'Codex' })
+  await expect(codex).toContainText('Connected')
+  await expect(codex.getByRole('button')).toHaveText(['Disconnect'])
+  const desktop = page.getByRole('group', { name: 'Claude Desktop' })
+  await expect(desktop.getByRole('button')).toHaveText(['Connect', 'Install Extension'])
+  await expect(codex.locator('.client-state-dot')).toHaveAttribute('data-state', 'connected')
 })
 
 test('Connect shows what it will write and where, and writes only once confirmed', async ({
@@ -357,8 +397,8 @@ test('Connect shows what it will write and where, and writes only once confirmed
     },
   )
   await openSettings(page, 'Integrations')
-  const codex = page.getByRole('region', { name: 'Codex' })
-  await expect(codex).toContainText('Not connected.')
+  const codex = page.getByRole('group', { name: 'Codex' })
+  await expect(codex).toContainText('Not connected')
   await codex.getByRole('button', { name: 'Connect Codex' }).click()
 
   const dialog = page.getByRole('dialog', { name: 'Connect Codex?' })
@@ -374,7 +414,7 @@ test('Connect shows what it will write and where, and writes only once confirmed
   await codex.getByRole('button', { name: 'Connect Codex' }).click()
   await dialog.getByRole('button', { name: 'Connect', exact: true }).click()
   await expect(dialog).toHaveCount(0)
-  await expect(codex).toContainText('Connected through /Users/me/.codex/config.toml.')
+  await expect(codex).toContainText('Connected')
   await expect(page.getByRole('tabpanel').getByRole('status').last()).toHaveText(
     'Codex is connected. Restart it if it is running.',
   )
@@ -408,7 +448,7 @@ test('Claude Code is changed through its own CLI when there is one, and the dial
   )
   await openSettings(page, 'Integrations')
   await page
-    .getByRole('region', { name: 'Claude Code' })
+    .getByRole('group', { name: 'Claude Code' })
     .getByRole('button', { name: 'Connect Claude Code' })
     .click()
   const dialog = page.getByRole('dialog', { name: 'Connect Claude Code?' })
@@ -433,7 +473,7 @@ test('Disconnect names the file, removes only on confirming and reports a refusa
     setupWith({ claudeCode: 'connected' }),
   )
   await openSettings(page, 'Integrations')
-  const claude = page.getByRole('region', { name: 'Claude Code' })
+  const claude = page.getByRole('group', { name: 'Claude Code' })
   await claude.getByRole('button', { name: 'Disconnect Claude Code' }).click()
   const dialog = page.getByRole('dialog', { name: 'Disconnect Claude Code?' })
   await expect(dialog).toContainText('removes only its devot entry from /Users/me/.claude.json')
@@ -441,7 +481,7 @@ test('Disconnect names the file, removes only on confirming and reports a refusa
   await expect(page.getByRole('tabpanel').getByRole('alert')).toHaveText(
     'The client’s configuration was not changed (E_MCP_CONFIG_CHANGED).',
   )
-  await expect(claude).toContainText('Connected through')
+  await expect(claude).toContainText('Connected')
   // It shows the file as it is now before another try.
   await expect.poll(async () => (await calls(page, 'settings_mcp_setup')).length).toBeGreaterThan(1)
 })
@@ -469,18 +509,16 @@ test('A moved app, a foreign entry and an unreadable file each say what to do', 
     },
   )
   await openSettings(page, 'Integrations')
-  const claude = page.getByRole('region', { name: 'Claude Code' })
-  await expect(claude).toContainText('points at a copy of Devot that has moved')
+  const claude = page.getByRole('group', { name: 'Claude Code' })
+  await expect(claude).toContainText('Points at a copy of Devot that has moved')
   await expect(claude.getByRole('button', { name: 'Reconnect Claude Code' })).toBeEnabled()
-  const codex = page.getByRole('region', { name: 'Codex' })
+  const codex = page.getByRole('group', { name: 'Codex' })
   await expect(codex.getByRole('button', { name: 'Replace Codex' })).toBeEnabled()
-  const desktop = page.getByRole('region', { name: 'Claude Desktop' })
-  await expect(desktop).toContainText(
-    'could not be read or changed safely (E_MCP_CONFIG_UNPARSABLE)',
-  )
+  const desktop = page.getByRole('group', { name: 'Claude Desktop' })
+  await expect(desktop).toContainText('Its file cannot be changed safely (E_MCP_CONFIG_UNPARSABLE)')
   await expect(desktop.getByRole('button', { name: 'Connect Claude Desktop' })).toHaveCount(0)
   await expect(
-    desktop.getByRole('button', { name: 'Copy the Claude Desktop configuration' }),
+    (await byHand(page)).getByRole('button', { name: 'Copy the Claude Desktop configuration' }),
   ).toBeEnabled()
 })
 
@@ -497,15 +535,15 @@ test('Connect waits until Devot is installed, while configs stay available', asy
   )
   await openSettings(page, 'Integrations')
   await expect(page.getByRole('tabpanel')).toContainText('Move it to Applications')
-  const desktop = page.getByRole('region', { name: 'Claude Desktop' })
+  const desktop = page.getByRole('group', { name: 'Claude Desktop' })
   await expect(desktop.getByRole('button', { name: 'Connect Claude Desktop' })).toBeDisabled()
-  await expect(desktop.getByRole('button', { name: 'Install as Extension' })).toBeDisabled()
+  await expect(desktop.getByRole('button', { name: 'Install Extension' })).toBeDisabled()
   await expect(
-    desktop.getByRole('button', { name: 'Copy the Claude Desktop configuration' }),
+    (await byHand(page)).getByRole('button', { name: 'Copy the Claude Desktop configuration' }),
   ).toBeEnabled()
 })
 
-test('Install as Extension opens the bundle, and says when it cannot', async ({ page }) => {
+test('Install Extension opens the bundle, and says when it cannot', async ({ page }) => {
   await page.addInitScript((setup) => {
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = {
@@ -515,8 +553,8 @@ test('Install as Extension opens the bundle, and says when it cannot', async ({ 
     }
   }, setupWith())
   await openSettings(page, 'Integrations')
-  const desktop = page.getByRole('region', { name: 'Claude Desktop' })
-  await desktop.getByRole('button', { name: 'Install as Extension' }).click()
+  const desktop = page.getByRole('group', { name: 'Claude Desktop' })
+  await desktop.getByRole('button', { name: 'Install Extension' }).click()
   await expect(page.getByRole('tabpanel').getByRole('alert')).toContainText(
     'E_MCP_EXTENSION_OPEN_FAILED',
   )
@@ -540,7 +578,7 @@ test('Connecting with no notebook allowed leads on to choosing one', async ({ pa
   )
   await openSettings(page, 'Integrations')
   await page.getByRole('dialog').getByRole('button', { name: 'Later' }).click()
-  const codex = page.getByRole('region', { name: 'Codex' })
+  const codex = page.getByRole('group', { name: 'Codex' })
   await codex.getByRole('button', { name: 'Connect Codex' }).click()
   await page
     .getByRole('dialog', { name: 'Connect Codex?' })
@@ -562,9 +600,11 @@ test('Integrations still offers configs, with the installed path, when Rust cann
   await expect(pane.getByRole('alert')).toHaveText(
     'Devot could not read the client configurations (E_DATA_FOLDER_UNAVAILABLE).',
   )
-  const claude = page.getByRole('region', { name: 'Claude Code' })
-  await expect(claude.locator('code')).toContainText('/Applications/Devot.app/Contents/MacOS/devot')
-  await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
+  const clients = await byHand(page)
+  await expect(clients.locator('code').first()).toContainText(
+    '/Applications/Devot.app/Contents/MacOS/devot',
+  )
+  await clients.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
   await expect(pane.getByRole('status').last()).toHaveText(
     'The Claude Code configuration was copied.',
   )
@@ -611,21 +651,46 @@ test('AI Tools says plainly, before any Connect, that Devot may start in the bac
   const section = await openAiTools(page, ACCESS, 'normal')
   const start = section.getByRole('switch', { name: 'Start in the Background' })
   await expect(start).toBeChecked()
-  await expect(start).toHaveAccessibleDescription(/Devot starts in the background with no window/)
-  await expect(start).toHaveAccessibleDescription(/Quit Devot/)
-  await expect(start).toHaveAccessibleDescription(/after 10 minutes/)
-  await expect(start).toHaveAccessibleDescription(/next request starts it again while this is on/)
-  await expect(section).toContainText('Devot is open as usual.')
+  await expect(start).toHaveAccessibleDescription(
+    'When an AI tool asks and Devot is closed, Devot opens without a window. Quit it from the menu bar at any time.',
+  )
+  await expect(section.locator('.settings-footnote')).toHaveText(
+    'A Devot started in the background quits by itself after 10 minutes without a request. With Start in the Background off, AI tools get an error until you open Devot.',
+  )
+  const rows = section.locator('.setting-label')
+  await expect(rows).toHaveText([
+    'Allow AI Tools',
+    'Notebooks',
+    'Access',
+    'Start in the Background',
+    'Status',
+  ])
+  await expect(section).toContainText('1 of 3 notebooks allow AI access.')
+  await expect(section).toContainText('Open as usual.')
+  await expect(section.getByRole('button', { name: 'Quit Devot' })).toHaveCount(0)
   const before = await section.boundingBox()
-  const client = await page.getByRole('region', { name: 'Claude Code' }).boundingBox()
+  const client = await page.getByRole('region', { name: 'Clients' }).boundingBox()
   expect(before!.y).toBeLessThan(client!.y)
+})
+
+test('Notebooks in AI Tools opens the notebook picker in the main window', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = { main_window_show: null }
+  })
+  await openSettings(page, 'Integrations')
+  const section = page.getByRole('region', { name: 'AI Tools' })
+  await expect(section).toContainText('1 of 1 notebooks allow AI access.')
+  await section.getByRole('button', { name: 'Choose\u2026' }).click()
+  expect(await calls(page, 'main_window_show')).toEqual([{ cmd: 'main_window_show', args: {} }])
+  expect(await page.evaluate(() => localStorage.getItem('devot:choose-ai-access'))).toBe('1')
 })
 
 test('AI Tools shows when Devot runs in the background, and Quit Devot asks Rust to quit', async ({
   page,
 }) => {
   const section = await openAiTools(page, ACCESS, 'background')
-  await expect(section).toContainText('Devot is running in the background for AI tools.')
+  await expect(section).toContainText('Running in the background for AI tools.')
   await section.getByRole('button', { name: 'Quit Devot' }).click()
   expect(await calls(page, 'background_quit')).toEqual([{ cmd: 'background_quit', args: {} }])
   await expect(section.getByRole('alert')).toHaveCount(0)
@@ -668,6 +733,7 @@ test('A failure to quit or to save says so with its code', async ({ page }) => {
     w.devotIpcMocks = {
       mcp_access_set: { error: 'E_MCP_ACCESS_WRITE_FAILED' },
       background_quit: { error: 'E_BACKGROUND_WINDOW' },
+      background_state: { mode: 'background' },
     }
   })
   await openSettings(page, 'Integrations')

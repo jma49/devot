@@ -1,9 +1,16 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { errorCode } from '../backups'
-import { format, t, type MessageKey } from '../i18n'
+import { formatNumber } from '../format'
+import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Select, Setting, SettingsSection, SettingToggle } from './controls'
 import type { McpAccess, McpScope, RunMode } from './mcpConfigs'
-import { loadMcpAccess, loadRunMode, quitDevot, saveMcpAccess } from './window'
+import {
+  loadMcpAccess,
+  loadRunMode,
+  quitDevot,
+  saveMcpAccess,
+  type AiAccessSummary,
+} from './window'
 
 const SCOPES: readonly { id: McpScope; label: MessageKey }[] = [
   { id: 'readWrite', label: 'mcpAccess.readWrite' },
@@ -13,12 +20,18 @@ const SCOPES: readonly { id: McpScope; label: MessageKey }[] = [
 type Choices = Pick<McpAccess, 'enabled' | 'scope' | 'backgroundStart'>
 
 /**
- * Settings > Integrations > AI Tools: whether the bridge may reach Devot and start it, and how Devot
- * runs now, with a way to quit it (ADR 0012). `changed` counts changes made elsewhere (a Connect).
+ * Settings > Integrations > AI Tools: whether the bridge may reach Devot and start it, which
+ * notebooks it sees, and how Devot runs now, with a way to quit it (ADR 0012). `changed` counts
+ * changes made elsewhere (a Connect).
  */
-export function McpAccessSection(props: { changed: number; onChange: (next: McpAccess) => void }) {
+export function McpAccessSection(props: {
+  changed: number
+  onChange: (next: McpAccess) => void
+  summary: AiAccessSummary | undefined
+  onChooseNotebooks: () => void
+}) {
   const ids = useId()
-  const { changed, onChange } = props
+  const { changed, onChange, summary } = props
   const [access, setAccess] = useState<McpAccess>()
   const [mode, setMode] = useState<RunMode>()
   const [failure, setFailure] = useState<{ message: MessageKey; code: string }>()
@@ -86,8 +99,15 @@ export function McpAccessSection(props: { changed: number; onChange: (next: McpA
     )
   }
 
+  const notebooks = summary
+    ? format(t('integrations.aiAccessCount'), {
+        allowed: formatNumber(summary.allowed, currentLocale()),
+        notebooks: formatNumber(summary.notebooks, currentLocale()),
+      })
+    : ''
+
   return (
-    <SettingsSection title="mcpAccess.title">
+    <SettingsSection title="mcpAccess.title" footnote={t('mcpAccess.footnote')}>
       {failure ? (
         <p role="alert" className="settings-error">
           {format(t(failure.message), { code: failure.code })}
@@ -106,11 +126,12 @@ export function McpAccessSection(props: { changed: number; onChange: (next: McpA
               {format(t('mcpAccess.notReachable'), { code: access.problem })}
             </p>
           ) : null}
-          <Setting
-            label="mcpAccess.scope"
-            description={t('mcpAccess.scopeHint')}
-            htmlFor={`${ids}-scope`}
-          >
+          <Setting label="mcpAccess.notebooks" description={notebooks}>
+            <button type="button" className="button" onClick={props.onChooseNotebooks}>
+              {t('mcpAccess.chooseNotebooks')}
+            </button>
+          </Setting>
+          <Setting label="mcpAccess.scope" description="" htmlFor={`${ids}-scope`}>
             <Select
               id={`${ids}-scope`}
               value={access.scope}
@@ -132,16 +153,18 @@ export function McpAccessSection(props: { changed: number; onChange: (next: McpA
         </>
       ) : null}
       <Setting
-        label="mcpAccess.running"
+        label="mcpAccess.status"
         description={
           mode === undefined
             ? ''
             : t(mode === 'background' ? 'mcpAccess.runningBackground' : 'mcpAccess.runningNormal')
         }
       >
-        <button type="button" className="button" onClick={quit}>
-          {t('mcpAccess.quit')}
-        </button>
+        {mode === 'background' ? (
+          <button type="button" className="button" onClick={quit}>
+            {t('mcpAccess.quit')}
+          </button>
+        ) : null}
       </Setting>
     </SettingsSection>
   )

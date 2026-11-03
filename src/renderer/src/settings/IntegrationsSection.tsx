@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { CHOOSE_AI_ACCESS } from '../aiAccess'
 import { errorCode } from '../backups'
+import { Chevron } from '../Chevron'
 import { writeClipboardText } from '../clipboard'
-import { formatNumber } from '../format'
-import { currentLocale, format, t, type MessageKey } from '../i18n'
-import { Setting, SettingsSection } from './controls'
+import { format, t, type MessageKey } from '../i18n'
+import { SettingsSection } from './controls'
 import { HttpApiSection } from './HttpApiSection'
 import { McpAccessSection } from './McpAccessSection'
 import {
@@ -72,12 +72,75 @@ const STATE_TEXT: Readonly<Record<McpConnectionState, MessageKey>> = {
   unreadable: 'integrations.stateUnreadable',
 }
 
-const CONNECT_LABEL: Readonly<Record<McpConnectionState, MessageKey>> = {
+/** The primary change a row offers in each state; none for a file Devot leaves alone. */
+const CONNECT_LABEL: Readonly<Record<McpConnectionState, MessageKey | null>> = {
   notConnected: 'integrations.connect',
-  connected: 'integrations.reconnect',
+  connected: null,
   stale: 'integrations.reconnect',
   other: 'integrations.replace',
-  unreadable: 'integrations.connect',
+  unreadable: null,
+}
+
+/** Opens the AI access picker in the main window: the flag in the storage both windows share asks it to. */
+function openNotebookPicker() {
+  try {
+    localStorage.setItem(CHOOSE_AI_ACCESS, '1')
+  } catch {
+    // Without the shared storage the main window still opens; the picker is one menu away.
+  }
+  void showMainWindow().catch((e: unknown) =>
+    console.warn('W_MAIN_WINDOW_SHOW_FAILED', errorCode(e)),
+  )
+}
+
+/** Every configuration to copy, folded away under one disclosure at the end of the Clients card. */
+function HandSetup(props: { setup: McpSetup; copy: (title: MessageKey, text: string) => void }) {
+  const ids = useId()
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="setting setting-stacked hand-setup">
+      <button
+        type="button"
+        className="hand-setup-toggle"
+        aria-expanded={open}
+        aria-controls={`${ids}-configs`}
+        onClick={() => setOpen((shown) => !shown)}
+      >
+        <Chevron open={open} closed="right" />
+        <span>{t('integrations.byHand')}</span>
+      </button>
+      {open ? (
+        <div id={`${ids}-configs`} className="hand-setup-configs">
+          {CLIENTS.map((client) => {
+            const text = client.text(props.setup)
+            const hint = `${ids}-${client.id}-hint`
+            return (
+              <div key={client.id} className="hand-setup-config">
+                <span className="setting-label">{t(client.title)}</span>
+                <span id={hint} className="setting-description">
+                  {t(client.where)}
+                </span>
+                <pre className="integration-config">
+                  <code>{text}</code>
+                </pre>
+                <div className="settings-buttons">
+                  <button
+                    type="button"
+                    className="button"
+                    aria-label={format(t('integrations.copyLabel'), { client: t(client.title) })}
+                    aria-describedby={hint}
+                    onClick={() => props.copy(client.title, text)}
+                  >
+                    {t('integrations.copy')}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 // Once per Settings window: "Later" keeps it quiet until the window closes.
@@ -95,14 +158,7 @@ function AiAccessPrompt(props: { notebooks: number; onClose: () => void }) {
     return () => el?.close()
   }, [])
   const openPicker = () => {
-    try {
-      localStorage.setItem(CHOOSE_AI_ACCESS, '1')
-    } catch {
-      // Without the shared storage the main window still opens; the picker is one menu away.
-    }
-    void showMainWindow().catch((e: unknown) =>
-      console.warn('W_MAIN_WINDOW_SHOW_FAILED', errorCode(e)),
-    )
+    openNotebookPicker()
     props.onClose()
   }
   return (
@@ -215,7 +271,6 @@ function ConfirmChange(props: {
 }
 
 export function IntegrationsSection() {
-  const ids = useId()
   // Undefined until Rust answers; the configs show only then.
   const [setup, setSetup] = useState<McpSetup>()
   const [setupError, setSetupError] = useState<string>()
@@ -351,117 +406,89 @@ export function IntegrationsSection() {
 
   const canWrite = setup !== undefined && setup.command !== null && !setup.temporary
 
+  const row = (client: (typeof CLIENTS)[number]) => {
+    const status = setup?.clients.find((found) => found.client === client.connects)
+    if (!status) return null
+    const name = t(client.title)
+    const primary = CONNECT_LABEL[status.state]
+    const connected = status.state !== 'notConnected' && status.state !== 'unreadable'
+    const label = (action: MessageKey) =>
+      format(t('integrations.changeLabel'), { action: t(action), client: name })
+    return (
+      <div key={client.id} className="setting client-row" role="group" aria-label={name}>
+        <div className="setting-text">
+          <span className="setting-label">{name}</span>
+          <span className="setting-description client-state">
+            <span className="client-state-dot" data-state={status.state} aria-hidden="true" />
+            {format(t(STATE_TEXT[status.state]), { code: status.code ?? '' })}
+          </span>
+        </div>
+        <div className="setting-control">
+          <div className="settings-buttons">
+            {primary ? (
+              <button
+                type="button"
+                className={status.state === 'notConnected' ? 'button button-default' : 'button'}
+                disabled={!canWrite || busy || status.preview === null}
+                aria-label={label(primary)}
+                onClick={() => setPending({ action: 'connect', title: client.title, status })}
+              >
+                {t(primary)}
+              </button>
+            ) : null}
+            {client.connects === 'claudeDesktop' && status.state === 'notConnected' ? (
+              <button
+                type="button"
+                className="button"
+                disabled={!canWrite || busy}
+                onClick={openExtension}
+              >
+                {t('integrations.installExtension')}
+              </button>
+            ) : null}
+            {connected ? (
+              <button
+                type="button"
+                className="button"
+                disabled={busy}
+                aria-label={label('integrations.disconnect')}
+                onClick={() => setPending({ action: 'disconnect', title: client.title, status })}
+              >
+                {t('integrations.disconnect')}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <section className="settings-section" aria-labelledby="integrations-title">
       <h2 id="integrations-title" className="visually-hidden">
         {t('integrations.title')}
       </h2>
       <p>{t('integrations.detail')}</p>
-      {summary || setup ? (
-        <SettingsSection title="integrations.mcpTitle">
-          {summary ? (
-            <Setting
-              label="integrations.accessLabel"
-              description={format(t('integrations.aiAccessCount'), {
-                allowed: formatNumber(summary.allowed, currentLocale()),
-                notebooks: formatNumber(summary.notebooks, currentLocale()),
-              })}
-            >
-              {null}
-            </Setting>
-          ) : null}
-          {setup ? (
-            <Setting
-              label="integrations.setupLabel"
-              description={t(setup.temporary ? 'integrations.temporary' : 'integrations.ready')}
-            >
-              {null}
-            </Setting>
-          ) : null}
-        </SettingsSection>
-      ) : null}
       {errors.map((text) => (
         <p key={text} role="alert" className="settings-error">
           {text}
         </p>
       ))}
-      <McpAccessSection changed={accessChanged} onChange={setAccess} />
-      {CLIENTS.map((client) => {
-        if (!setup) return null
-        const text = client.text(setup)
-        const hint = `${ids}-${client.id}-hint`
-        const status = setup.clients.find((found) => found.client === client.connects)
-        const name = t(client.title)
-        return (
-          <SettingsSection key={client.id} title={client.title}>
-            {status ? (
-              <p>
-                {format(t(STATE_TEXT[status.state]), {
-                  client: name,
-                  path: status.path,
-                  code: status.code ?? '',
-                })}
-              </p>
-            ) : null}
-            <p id={hint}>{t(client.where)}</p>
-            <pre className="integration-config">
-              <code>{text}</code>
-            </pre>
-            <div className="settings-buttons">
-              {status && status.state !== 'unreadable' ? (
-                <button
-                  type="button"
-                  className="button"
-                  disabled={!canWrite || busy || status.preview === null}
-                  aria-label={format(t('integrations.changeLabel'), {
-                    action: t(CONNECT_LABEL[status.state]),
-                    client: name,
-                  })}
-                  onClick={() => setPending({ action: 'connect', title: client.title, status })}
-                >
-                  {t(CONNECT_LABEL[status.state])}
-                </button>
-              ) : null}
-              {status &&
-              (status.state === 'connected' ||
-                status.state === 'stale' ||
-                status.state === 'other') ? (
-                <button
-                  type="button"
-                  className="button"
-                  disabled={busy}
-                  aria-label={format(t('integrations.changeLabel'), {
-                    action: t('integrations.disconnect'),
-                    client: name,
-                  })}
-                  onClick={() => setPending({ action: 'disconnect', title: client.title, status })}
-                >
-                  {t('integrations.disconnect')}
-                </button>
-              ) : null}
-              {client.connects === 'claudeDesktop' ? (
-                <button
-                  type="button"
-                  className="button"
-                  disabled={!canWrite || busy}
-                  onClick={openExtension}
-                >
-                  {t('integrations.openExtension')}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="button"
-                aria-label={format(t('integrations.copyLabel'), { client: name })}
-                aria-describedby={hint}
-                onClick={() => copy(client.title, text)}
-              >
-                {t('integrations.copy')}
-              </button>
-            </div>
-          </SettingsSection>
-        )
-      })}
+      <McpAccessSection
+        changed={accessChanged}
+        onChange={setAccess}
+        summary={summary}
+        onChooseNotebooks={openNotebookPicker}
+      />
+      {setup ? (
+        <SettingsSection
+          title="integrations.clientsTitle"
+          footnote={setup.temporary ? t('integrations.temporary') : undefined}
+        >
+          {CLIENTS.map(row)}
+          <HandSetup setup={setup} copy={copy} />
+        </SettingsSection>
+      ) : null}
       <HttpApiSection />
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
