@@ -6,6 +6,7 @@ import {
   shownMenu,
   storedShortcuts,
   test,
+  openApp,
   type TestWindow,
 } from './fixtures'
 
@@ -290,9 +291,7 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   page,
   context,
 }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await page.getByRole('textbox', { name: 'Title' }).fill('Keys')
   const body = page.getByRole('textbox', { name: 'Note body' })

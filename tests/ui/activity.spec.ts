@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 const sheet = (page: Page) => page.getByRole('dialog', { name: 'Activity' })
 const grid = (page: Page) => sheet(page).getByRole('grid', { name: 'Activity by day' })
@@ -175,9 +175,7 @@ test('shades days through theme colours, in light and dark', async ({ page }) =>
 })
 
 test("counts what was just typed into today's square", async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
   await page.getByRole('textbox', { name: 'Note body' }).click()

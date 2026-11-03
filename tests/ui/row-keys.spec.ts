@@ -1,7 +1,7 @@
 // Every notebook and tag row action has a keyboard route: Shift+F10, the menu key or Control+Return
 // opens the row's native menu; window shortcuts use Meta (the registry's Mod matches metaKey everywhere).
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
+import { expect, pickMenuItem, shownMenu, test, openApp, type TestWindow } from './fixtures'
 
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
@@ -56,9 +56,7 @@ const popupAt = (page: Page) =>
   })
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 for (const keys of ['Shift+F10', 'ContextMenu', 'Control+Enter']) {

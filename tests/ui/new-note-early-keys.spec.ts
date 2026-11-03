@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 import { failCoreCalls, slowCore } from './slowCore'
 
 // Keys typed between New Note and its editor opening (#267, #268).
@@ -21,9 +21,7 @@ const storedNotes = (page: Page) =>
 
 async function start(page: Page, late: string[]) {
   await slowCore(page, late)
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 }
 
 async function makeNotes(page: Page, titles: string[]) {

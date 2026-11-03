@@ -11,6 +11,7 @@ import {
   pickMenuItem,
   test,
   bookPicker,
+  openApp,
 } from './fixtures'
 
 const toolbar = (page: Page) => page.locator('.editor-toolbar')
@@ -52,9 +53,7 @@ async function openNote(page: Page, text = '') {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('the toolbar starts with focus mode, Back and Forward and ends with the view modes and More', async ({

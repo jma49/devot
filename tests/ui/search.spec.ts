@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore } from './fixtures'
+import { expect, test, pickNoteMore, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })
@@ -21,9 +21,7 @@ async function createNote(page: Page, title: string, body = '') {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('finds notes by title and body, in English and Chinese', async ({ page }) => {

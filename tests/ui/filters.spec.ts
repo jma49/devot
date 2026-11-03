@@ -1,6 +1,14 @@
 import type { Page } from '@playwright/test'
 import { light } from '../../src/renderer/src/theme/tokens'
-import { expect, test, pickNoteMore, openNotePinned, pickStatus, statusPicker } from './fixtures'
+import {
+  expect,
+  test,
+  pickNoteMore,
+  openNotePinned,
+  pickStatus,
+  statusPicker,
+  openApp,
+} from './fixtures'
 
 function rgb(hex: string): string {
   const n = Number.parseInt(hex.slice(1), 16)
@@ -36,9 +44,7 @@ async function addTag(page: Page, name: string, shown = name) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('sets a status and filters by it, with counts', async ({ page }) => {

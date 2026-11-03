@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickStatus } from './fixtures'
+import { expect, test, pickStatus, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -20,9 +20,7 @@ async function createNote(page: Page, title: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('the note list keeps a Tab stop when the open note is not listed', async ({ page }) => {

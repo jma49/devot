@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import * as Y from 'yjs'
-import { changeEditorSettingsElsewhere, expect, pickNoteMore, test } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, pickNoteMore, test, openApp } from './fixtures'
 import { failCoreCalls, slowCore } from './slowCore'
 
 interface StoredNote {
@@ -93,9 +93,7 @@ async function selectStruck(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('is off until View > Show History Bar turns it on', async ({ page }) => {

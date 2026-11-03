@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { COMPOSITION_END_KEY_MS } from '../../src/renderer/src/ime'
-import { expect, openSettings, test } from './fixtures'
+import { expect, openSettings, test, openApp } from './fixtures'
 
 // Input-method keys (src/renderer/src/ime.ts) arrive with `isComposing` set, or after `compositionend` with key code 229 or sometimes
 // the key's own code; only `watchCompositions` tells them apart. No field, shortcut or editor key may act on them.
@@ -123,9 +123,7 @@ async function createBook(page: Page, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('in Move to Notebook, composition keys neither move the choice nor pick', async ({ page }) => {

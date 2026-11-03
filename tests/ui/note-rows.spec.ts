@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { bookPicker, expect, pickStatus, statusPicker, test } from './fixtures'
+import { bookPicker, expect, pickStatus, statusPicker, test, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
@@ -27,9 +27,7 @@ async function createBook(page: Page, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('a row shows its status as an icon, its task progress and its tags', async ({ page }) => {

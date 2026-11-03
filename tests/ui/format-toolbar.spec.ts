@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, symbolRequests, test, type TestWindow } from './fixtures'
+import { expect, symbolRequests, test, openApp, type TestWindow } from './fixtures'
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const toolbar = (page: Page) => page.getByRole('toolbar', { name: 'Format' })
@@ -140,9 +140,7 @@ async function expectBesideSelection(page: Page): Promise<Box> {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('the toolbar shows for a selection, with named SF Symbol buttons in four groups', async ({

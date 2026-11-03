@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import * as Y from 'yjs'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 // an outside writer writes while Devot runs; Rust sends `devot://db-changed`, which the page re-sends as this window event.
 const DB_CHANGED = 'devot:db-changed'
@@ -53,9 +53,7 @@ const signalChange = (page: Page) =>
 const settle = (page: Page) => page.waitForTimeout(500)
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('a note written by another process shows up when the database changes', async ({ page }) => {

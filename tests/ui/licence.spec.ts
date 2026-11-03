@@ -224,9 +224,7 @@ test.describe('locked sync and AI', () => {
         ai_generate: { error: 'E_LICENCE_REQUIRED' },
       }
     })
-    await page.goto('/')
-    await page.evaluate(() => localStorage.clear())
-    await page.reload()
+    await openApp(page)
     await page.getByRole('button', { name: 'New Notebook' }).click()
     await page.getByRole('textbox', { name: 'Notebook name' }).fill('Work')
     await page.getByRole('textbox', { name: 'Notebook name' }).press('Enter')

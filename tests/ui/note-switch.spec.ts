@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 import { slowCore } from './slowCore'
 
 // Switching notes keeps the note being left on screen until the next one's
@@ -48,9 +48,7 @@ const framesSeen = (page: Page) =>
 
 test.beforeEach(async ({ page }) => {
   await slowCore(page, ['open'])
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
   await newNote(page, 'First', 'First body.')
   await newNote(page, 'Second', 'Second body.')
   await page

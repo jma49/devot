@@ -8,6 +8,7 @@ import {
   pickMenuItem,
   shownMenu,
   test,
+  openApp,
   type IpcCall,
   type TestWindow,
 } from './fixtures'
@@ -86,9 +87,7 @@ async function noteId(page: Page, title: string): Promise<string> {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('Export as Markdown… writes the note with its attachments linked relatively', async ({

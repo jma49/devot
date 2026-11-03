@@ -5,6 +5,7 @@ import {
   expect,
   reloadApp,
   test,
+  openApp,
   type TestWindow,
 } from './fixtures'
 
@@ -111,9 +112,7 @@ const painted = (page: Page, selector: string, color: string) =>
   )
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('right-click shows the tag menu at the pointer, in the window', async ({ page }) => {

@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
+import { expect, pickMenuItem, shownMenu, test, openApp, type TestWindow } from './fixtures'
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
@@ -70,9 +70,7 @@ function outline(target: Locator, property?: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('reorders notebooks by their top and bottom edges, and keeps the order', async ({ page }) => {

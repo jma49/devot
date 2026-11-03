@@ -1,10 +1,8 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 async function freshStart(page: Page) {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 }
 
 const focusButton = (page: Page) => page.getByRole('button', { name: 'Focus Mode' })

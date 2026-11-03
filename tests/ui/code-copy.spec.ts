@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { clipboardWrites, expect, test } from './fixtures'
+import { clipboardWrites, expect, test, openApp } from './fixtures'
 
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 const copyButtons = (page: Page) => preview(page).getByRole('button', { name: 'Copy Code' })
@@ -61,9 +61,7 @@ async function openNote(page: Page, body: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('each fenced code block has a copy button that copies its text as written', async ({

@@ -6,6 +6,7 @@ import {
   pickStatus,
   shownMenu,
   test,
+  openApp,
   type TestWindow,
 } from './fixtures'
 
@@ -54,9 +55,7 @@ async function trashOpenNote(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('the Trash row shows Empty Trash only while the Trash has notes, and asks to confirm', async ({

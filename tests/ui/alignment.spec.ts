@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import type { Locator, Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test, openApp } from './fixtures'
 
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -110,9 +110,7 @@ async function newNote(page: Page, title: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('toolbar buttons sit on the toolbar centre line, and so do the traffic lights', async ({

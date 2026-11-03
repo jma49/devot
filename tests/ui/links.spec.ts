@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test, pickNoteMore } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test, pickNoteMore, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
@@ -36,9 +36,7 @@ async function startLink(page: Page, query: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('[[ offers other notes and inserts a standard link', async ({ page }) => {

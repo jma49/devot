@@ -4,9 +4,10 @@ import {
   pickMenuItem,
   shownMenu,
   test,
-  type TestWindow,
   pickNoteMore,
   openNotePinned,
+  openApp,
+  type TestWindow,
 } from './fixtures'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
@@ -110,9 +111,7 @@ async function saved(page: Page, titles: string[]) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('the sort pop-up lists the six orders and shows the current one', async ({ page }) => {

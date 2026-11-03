@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 // Sidebar width: 200 px default, resized 170 to 500 px by its right edge, kept per window, yielding to a narrow window only after the note list is at its minimum.
 
@@ -23,9 +23,7 @@ async function dragEdge(page: Page, by: number) {
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 800 })
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('the sidebar is 200 px wide, resizes from 170 to 500 px by its edge and keeps its width', async ({

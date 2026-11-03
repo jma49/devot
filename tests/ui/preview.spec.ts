@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, test, openApp, type TestWindow } from './fixtures'
 
 async function newNote(page: Page, title: string, body = '') {
   const before = await page.getByRole('listbox', { name: 'Notes' }).getByRole('option').count()
@@ -24,9 +24,7 @@ const mode = (page: Page, name: 'Edit' | 'Split' | 'Preview') =>
 test.beforeEach(async ({ page }) => {
   // Embeds must never reach the network in tests.
   await page.route(/^https:\/\//, (route) => route.abort())
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('switches between edit, split and preview', async ({ page }) => {

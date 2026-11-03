@@ -10,6 +10,7 @@ import {
   statusPicker,
   bookPicker,
   pickBook,
+  openApp,
 } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -56,9 +57,7 @@ async function appendText(page: Page, text: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('compares a version with the note and restores it as one undo step', async ({ page }) => {

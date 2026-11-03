@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 // Front matter reads as metadata, not a heading; a `---` further down still makes a heading or a rule.
 
@@ -52,9 +52,7 @@ function tokenColor(page: Page, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('front matter is styled as metadata, a later setext heading as a heading', async ({

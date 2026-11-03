@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test'
-import { clipboardWrites, expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
+import {
+  clipboardWrites,
+  expect,
+  pickMenuItem,
+  shownMenu,
+  test,
+  openApp,
+  type TestWindow,
+} from './fixtures'
 
 // Keys are platform-neutral: ControlOrMeta for the command key, selections via Select All, not macOS text-navigation keys.
 
@@ -31,9 +39,7 @@ async function selectAllWithoutToolbar(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('the block buttons apply and remove each format', async ({ page }) => {

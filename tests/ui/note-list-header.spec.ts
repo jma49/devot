@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, test } from './fixtures'
+import { expect, pickMenuItem, test, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const filter = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })
@@ -17,9 +17,7 @@ async function createNote(page: Page, title: string, body = '') {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('the Filter field sits under the list header; Escape clears it', async ({ page }) => {

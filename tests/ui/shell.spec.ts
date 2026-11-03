@@ -5,6 +5,7 @@ import {
   expect,
   symbolRequests,
   test,
+  openApp,
   type TestWindow,
 } from './fixtures'
 
@@ -43,9 +44,7 @@ const tokenColor = (page: Page, name: string) =>
   }, name)
 
 async function freshStart(page: Page) {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 }
 
 async function createNote(page: Page, title: string) {

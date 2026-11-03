@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, pickStatus, test } from './fixtures'
+import { expect, pickMenuItem, pickStatus, test, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -26,9 +26,7 @@ async function saveFromField(page: Page, query: string, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('saves the query typed, runs it from the sidebar and counts it live', async ({ page }) => {

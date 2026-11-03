@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeShortcutsElsewhere, expect, test } from './fixtures'
+import { changeShortcutsElsewhere, expect, test, openApp } from './fixtures'
 
 // Keys are platform-neutral (ControlOrMeta, no macOS text-navigation keys) so the tests run the same on Linux.
 
@@ -44,9 +44,7 @@ async function settle(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 const KINDS: [string, string, string[]][] = [

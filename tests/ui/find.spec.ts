@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeShortcutsElsewhere, expect, test, pickNoteMore } from './fixtures'
+import { changeShortcutsElsewhere, expect, test, pickNoteMore, openApp } from './fixtures'
 
 // The find shortcuts check the Command key, so these tests press Meta on every platform.
 
@@ -46,9 +46,7 @@ const previewHighlights = (page: Page) =>
 
 test.beforeEach(async ({ page }) => {
   await page.route(/^https:\/\//, (route) => route.abort())
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('Cmd+F finds in the note; Cmd+G steps through matches; Escape returns to the editor', async ({

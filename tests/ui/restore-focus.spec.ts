@@ -1,6 +1,6 @@
 // A restore on launch never moves a keyboard the user already moved.
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })
@@ -54,9 +54,7 @@ async function userStartsSearching(page: Page, text?: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('a restore leaves the search field the user already focused', async ({ page }) => {

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, openNotePinned, pickStatus, statusPicker } from './fixtures'
+import { expect, test, openNotePinned, pickStatus, statusPicker, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const rowTitles = (page: Page) => noteRows(page).locator('.row-title, .row-headline')
@@ -25,9 +25,7 @@ async function untitledNote(page: Page, text: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('notes with no title show their first line, and keep an empty title', async ({ page }) => {

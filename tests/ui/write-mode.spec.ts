@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 // Write mode (src/renderer/src/editor/write): an element without the caret shows no Markdown marks,
 // the elements the selection meets show their source. The note's text is read through Edit mode, which shows
@@ -166,9 +166,7 @@ test.describe('a new install', () => {
   test.use({ install: 'new' })
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-    await page.evaluate(() => localStorage.clear())
-    await page.reload()
+    await openApp(page)
   })
 
   test('opens notes in Write mode', async ({ page }) => {
@@ -397,9 +395,7 @@ test.describe('switching between Write and Edit', () => {
   test.use({ install: 'new' })
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-    await page.evaluate(() => localStorage.clear())
-    await page.reload()
+    await openApp(page)
   })
 
   test('keeps the caret and the line at the top', async ({ page }) => {
@@ -456,9 +452,7 @@ test.describe('switching between Write and Edit', () => {
 
 test.describe('an install from before Write mode', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-    await page.evaluate(() => localStorage.clear())
-    await page.reload()
+    await openApp(page)
   })
 
   test('keeps opening notes in Edit mode', async ({ page }) => {

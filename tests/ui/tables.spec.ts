@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test, openApp } from './fixtures'
 
 // Editor keys are platform-neutral (Tab, Return, Alt+Return, ControlOrMeta for undo); the cursor is placed by typing and
 // clicking, never macOS text-navigation keys.
@@ -31,9 +31,7 @@ async function runFromPalette(page: Page, name: string) {
 const TABLE = '| a | b |\n|---|---|\n| 1 | 2 |'
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('Tab, Shift+Tab, Return and Option+Return move through and grow a table', async ({ page }) => {

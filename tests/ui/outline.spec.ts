@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
@@ -38,9 +38,7 @@ const previewScroll = (page: Page) =>
   page.locator('.panes > .preview').evaluate((el) => el.scrollTop)
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
   await changeEditorSettingsElsewhere(page, { outline: true })
 })
 

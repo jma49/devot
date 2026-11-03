@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore, openNotePinned, statusPicker, bookPicker } from './fixtures'
+import {
+  expect,
+  test,
+  pickNoteMore,
+  openNotePinned,
+  statusPicker,
+  bookPicker,
+  openApp,
+} from './fixtures'
 
 // App shortcuts check metaKey (Command on macOS), so Meta is pressed on every platform.
 
@@ -58,9 +66,7 @@ async function search(page: Page, query: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('lists commands with their shortcuts and runs the one picked', async ({ page }) => {

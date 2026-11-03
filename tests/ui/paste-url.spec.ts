@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test, type TestWindow } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test, openApp, type TestWindow } from './fixtures'
 
 // The highlighted format shows in the URL's place; a page title or hosted file is fetched (mocked: link_title, github_snippet) only once highlighted.
 
@@ -49,9 +49,7 @@ const calls = (page: Page, cmd: string) =>
   )
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('a pasted URL offers its formats; the title is fetched only once highlighted', async ({

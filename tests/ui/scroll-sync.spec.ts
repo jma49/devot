@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test, type TestWindow } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test, openApp, type TestWindow } from './fixtures'
 
 const SECTIONS = 120
 
@@ -125,9 +125,7 @@ const scrollTops = (page: Page) =>
 const near = (value: number | null) => value !== null && Math.abs(value) <= 3
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('scrolling the editor brings the preview to the same line', async ({ page }) => {

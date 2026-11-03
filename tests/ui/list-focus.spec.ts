@@ -4,9 +4,10 @@ import {
   expect,
   pickMenuItem,
   test,
-  type TestWindow,
   pickNoteMore,
   openNotePinned,
+  openApp,
+  type TestWindow,
 } from './fixtures'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
@@ -71,9 +72,7 @@ async function trashAll(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('Cmd+Delete opens the next row and keeps the keyboard in the list', async ({ page }) => {

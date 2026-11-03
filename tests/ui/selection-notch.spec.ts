@@ -1,6 +1,6 @@
 import { inflateSync } from 'node:zlib'
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const bar = (page: Page) => page.locator('.cm-tooltip.cm-float-bar')
@@ -70,9 +70,7 @@ for (const scheme of ['light', 'dark'] as const) {
     test.use({ colorScheme: scheme })
 
     test.beforeEach(async ({ page }) => {
-      await page.goto('/')
-      await page.evaluate(() => localStorage.clear())
-      await page.reload()
+      await openApp(page)
       await page.getByRole('button', { name: 'New Note', exact: true }).click()
       await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
       await body(page).click()

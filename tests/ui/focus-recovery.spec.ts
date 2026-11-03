@@ -1,7 +1,15 @@
 // The keyboard never falls to the page when its element is removed, hidden or disabled, or its sheet closes.
 // Window shortcuts use Meta (the registry's Mod matches metaKey everywhere).
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, pickNoteMore, shownMenu, test, type TestWindow } from './fixtures'
+import {
+  expect,
+  pickMenuItem,
+  pickNoteMore,
+  shownMenu,
+  test,
+  openApp,
+  type TestWindow,
+} from './fixtures'
 
 const list = (page: Page) => page.getByRole('region', { name: 'Notes' })
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -76,9 +84,7 @@ async function addTag(page: Page, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('deleting a notebook row with the keyboard moves it to the next row', async ({ page }) => {

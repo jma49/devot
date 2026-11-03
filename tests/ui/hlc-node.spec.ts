@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 // Each start of the window stamps its writes (HLC) with its own node ID; two processes never
 // share one, even builds sharing the web view's storage, so timestamps never tie.
@@ -20,9 +20,7 @@ const nodes = (page: Page) =>
   )
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('each start of the window stamps its writes with a node ID of its own', async ({ page }) => {

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -39,9 +39,7 @@ async function addTagged(page: Page, ...tags: string[]) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('a custom colour draws its dot as given on sidebar, chips and list, after a reload', async ({

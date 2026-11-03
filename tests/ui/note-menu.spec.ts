@@ -5,8 +5,9 @@ import {
   pickMenuItem,
   shownMenu,
   test,
-  type TestWindow,
   openNotePinned,
+  openApp,
+  type TestWindow,
 } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -77,9 +78,7 @@ const popups = (page: Page) =>
   )
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('right-click shows the native note menu, grouped, with its shortcuts', async ({ page }) => {

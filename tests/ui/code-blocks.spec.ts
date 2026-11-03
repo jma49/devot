@@ -4,6 +4,7 @@ import {
   clipboardWrites,
   expect,
   test,
+  openApp,
   type TestWindow,
 } from './fixtures'
 
@@ -25,9 +26,7 @@ async function openNote(page: Page, text: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('a code block shows its language, title and mark, highlighted, with the copy button in its header', async ({

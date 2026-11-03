@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, statusPicker, bookPicker, pickBook } from './fixtures'
+import { expect, test, statusPicker, bookPicker, pickBook, openApp } from './fixtures'
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
@@ -27,9 +27,7 @@ async function createNote(page: Page, title: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('creates a notebook, selects it and files new notes there', async ({ page }) => {

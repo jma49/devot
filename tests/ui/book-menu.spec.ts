@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, shownMenu, test, type TestWindow, bookPicker } from './fixtures'
+import {
+  expect,
+  pickMenuItem,
+  shownMenu,
+  test,
+  bookPicker,
+  openApp,
+  type TestWindow,
+} from './fixtures'
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
@@ -63,9 +71,7 @@ const menuCount = (page: Page) =>
   )
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('right-click shows the native notebook menu for that notebook', async ({ page }) => {
