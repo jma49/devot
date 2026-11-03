@@ -324,8 +324,8 @@ describe('Tauri command permissions', () => {
       [...readFileSync(file, 'utf8').matchAll(/invoke(?:<[^>]*>)?\('([a-z_]+)'/g)].map(
         (m) => m[1] ?? '',
       )
-    // Its core never changes notebooks or tags, applies a template, lists the Trash, compacts the
-    // history, shows activity or lists agent writes: those start in the main window.
+    // Its core never changes notebooks or tags, keeps saved searches, applies a template, lists the
+    // Trash, compacts the history, shows activity or lists agent writes: those start in the main window.
     const mainOnly = [
       'activity_list',
       'activity_notes_list',
@@ -339,6 +339,8 @@ describe('Tauri command permissions', () => {
       'revisions_compact',
       'revisions_compactable',
       'revisions_last_compaction',
+      'saved_search_put',
+      'saved_searches_list',
       'tag_put',
     ]
     const reached = [
