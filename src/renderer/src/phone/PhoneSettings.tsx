@@ -51,7 +51,8 @@ const HTTP_API_ROW: Row = { label: 'httpApi.title', icon: 'phone.settings.api' }
 
 /** The panes that open on a phone, the ones Settings' search can find. */
 const OPEN_PANES: readonly PaneId[] = PANES.filter(
-  (pane) => pane !== 'mirror' && pane !== 'integrations' && pane !== 'plugins',
+  (pane) =>
+    pane !== 'keyboard' && pane !== 'mirror' && pane !== 'integrations' && pane !== 'plugins',
 )
 
 function SettingsRow(props: { row: Row; onOpen: (pane: PaneId) => void }) {
@@ -171,7 +172,7 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
         ),
         paneRow('editing'),
         paneRow('preview'),
-        paneRow('keyboard'),
+        macRow('keyboard'),
       ],
     },
     {
@@ -291,7 +292,6 @@ const PANE_SECTIONS: Readonly<Partial<Record<PaneId, () => Promise<() => React.J
   appearance: () => import('../settings/AppearanceSection').then((m) => m.AppearanceSection),
   editing: () => import('../settings/EditingSection').then((m) => m.EditingSection),
   preview: () => import('../settings/PreviewSection').then((m) => m.PreviewSection),
-  keyboard: () => import('../settings/KeyboardSection').then((m) => m.KeyboardSection),
   sync: () => import('../settings/SyncSection').then((m) => m.SyncSection),
   ai: () => import('../settings/AiSection').then((m) => m.AiSection),
   licence: () => import('../settings/LicenceSection').then((m) => m.LicenceSection),

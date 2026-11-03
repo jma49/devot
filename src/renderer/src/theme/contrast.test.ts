@@ -417,6 +417,7 @@ describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme
           solid(theme, 'phone.destructive'),
           [solid(theme, 'phone.elevated'), ...glassOver],
         ],
+        'a pane action row': [solid(theme, 'text.destructive'), [solid(theme, 'phone.card')]],
         'accent text': [solid(theme, 'accent.text'), [solid(theme, 'phone.background')]],
         'undo on its pill': [
           solid(theme, 'phone.undo'),

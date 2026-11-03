@@ -522,13 +522,6 @@ export function SyncSection() {
             />
           </PhoneGroup>
         ) : null}
-        {snapshot.enrolled && !recoveryKey ? (
-          <PhoneGroup>
-            <Setting label="syncSettings.recovery" description={t('phone.sync.recoveryHint')}>
-              {null}
-            </Setting>
-          </PhoneGroup>
-        ) : null}
       </section>
     )
   }

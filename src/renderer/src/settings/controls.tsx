@@ -2,6 +2,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ComponentProps,
@@ -13,7 +14,7 @@ import type { EditorSettings } from '../../../core/editorSettings'
 import { errorCode } from '../backups'
 import { changeEditorSettings } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
-import { ShowHint } from './onPhone'
+import { ShowHint, useOnPhone, type SettingHint } from './onPhone'
 
 /**
  * Stores a change to the settings (see editorSettings.ts); returns the error
@@ -52,6 +53,7 @@ export function SettingsSection({
   title,
   titleSuffix,
   footnote,
+  titleHidden,
   children,
 }: {
   title: MessageKey
@@ -59,18 +61,23 @@ export function SettingsSection({
   titleSuffix?: string | undefined
   /** Under the card, after an info glyph. */
   footnote?: string | undefined
+  /** The screen's own title already says this: the section keeps it as its accessible name only. */
+  titleHidden?: boolean | undefined
   children: ReactNode
 }) {
   const id = useId()
   const hinted = useContext(ShowHint) !== null
-  const heading = (
+  const heading = titleHidden ? null : (
     <h3 id={id} className="settings-block-title">
       {t(title)}
       {titleSuffix ? <span className="settings-block-suffix"> {titleSuffix}</span> : null}
     </h3>
   )
   return (
-    <section className="settings-block" aria-labelledby={id}>
+    <section
+      className="settings-block"
+      {...(titleHidden ? { 'aria-label': t(title) } : { 'aria-labelledby': id })}
+    >
       {hinted && footnote ? (
         <div className="phone-block-head">
           {heading}
@@ -92,9 +99,21 @@ export function SettingsSection({
 
 /** A pop-up as a capsule: the value, then a round button with the up and down chevron. */
 export function Select(props: ComponentProps<'select'>) {
+  const onPhone = useOnPhone()
+  const select = useRef<HTMLSelectElement>(null)
+  const [shown, setShown] = useState('')
+  // A select is as wide as its widest option; a phone row shows the chosen one's text at its own width, under the invisible native control.
+  useLayoutEffect(() => {
+    if (onPhone) setShown(select.current?.selectedOptions[0]?.text ?? '')
+  }, [onPhone, props.value, props.children])
   return (
     <span className="select">
-      <select {...props} />
+      <select ref={select} {...props} />
+      {onPhone ? (
+        <span className="select-value" aria-hidden="true">
+          {shown}
+        </span>
+      ) : null}
       <span className="select-chevron" aria-hidden="true">
         <Icon name="popup" size="sm" />
       </span>
@@ -109,6 +128,7 @@ export function Setting({
   descriptionId,
   stacked = false,
   live = false,
+  hint,
   children,
 }: {
   label: MessageKey
@@ -119,9 +139,12 @@ export function Setting({
   stacked?: boolean
   /** The description is the row's value or state, not an explanation: it stays in the row on a phone. */
   live?: boolean
+  /** On a phone, an info button on this row for the explanation of its whole section. */
+  hint?: SettingHint | undefined
   children: ReactNode
 }) {
-  const hinted = useContext(ShowHint) !== null && !live
+  const hints = useContext(ShowHint) !== null
+  const hinted = hints && !live
   return (
     <div className={stacked ? 'setting setting-stacked' : 'setting'}>
       <div className="setting-text">
@@ -132,6 +155,7 @@ export function Setting({
             {t(label)}
           </label>
         )}
+        {hint && hints ? <HintButton title={hint.title} body={hint.body} /> : null}
         {description && hinted ? (
           <>
             <span id={descriptionId} hidden>

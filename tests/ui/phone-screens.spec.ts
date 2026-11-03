@@ -200,6 +200,25 @@ test('a vertical drag on a row never swipes', async ({ page }) => {
   )
 })
 
+test.describe('under Reduce Motion', () => {
+  test.use({ contextOptions: { reducedMotion: 'reduce' } })
+
+  test('a peek only crossfades', async ({ page }) => {
+    await openNotes(page)
+    await recent(page)
+      .first()
+      .getByRole('button', { name: /^Actions for / })
+      .evaluate((el) => (el as HTMLElement).click())
+    const card = page.locator('.phone-peek-card')
+    await expect(card).toBeVisible()
+    const seen = await card.evaluate((el) => ({
+      translate: getComputedStyle(el).translate,
+      property: getComputedStyle(el).transitionProperty,
+    }))
+    expect(seen).toEqual({ translate: 'none', property: 'opacity' })
+  })
+})
+
 test('a long press peeks, and the status bar sets the status', async ({ page }) => {
   await openNotes(page)
   const box = (await recent(page).first().boundingBox())!
@@ -324,16 +343,22 @@ test.describe('the undo toast', () => {
   })
 })
 
-test('a note opens in Edit, switches to Preview and shows its info sheet', async ({ page }) => {
+test('an empty note opens in Edit', async ({ page }) => {
+  await openNotes(page)
+  await capture(page, 'Nothing yet')
+  await rows(page).filter({ hasText: 'Nothing yet' }).locator('.phone-note-open').click()
+  await expect(page.getByRole('button', { name: 'Preview', exact: true })).toBeVisible()
+})
+
+test('a note with text opens in Preview, switches to Edit and shows its info sheet', async ({
+  page,
+}) => {
   await openNotes(page)
   await recent(page).first().locator('.phone-note-open').click()
-  const toggle = page.getByRole('button', { name: 'Preview', exact: true })
-  await expect(toggle).toBeVisible()
+  const toggle = page.getByRole('button', { name: 'Edit', exact: true })
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
   await toggle.click()
-  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  )
+  await expect(page.getByRole('button', { name: 'Preview', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Note Info' }).click()
   const sheet = page.getByRole('dialog', { name: 'Note Info' })
   await expect(sheet.getByText('Words')).toBeVisible()
@@ -421,25 +446,15 @@ test('General on a phone leaves out the menu bar, updates and command line tool'
   }
 })
 
-test('a phone Settings row puts its field under its label, full width, in iPhone words', async ({
-  page,
-}) => {
+test('a phone Settings row keeps a select beside its label, in iPhone words', async ({ page }) => {
   const pane = await openPane(page, 'Editing')
   const field = pane.getByRole('combobox', { name: 'Unordered List Bullet' })
   const label = pane.getByText('Unordered List Bullet', { exact: true })
   await expect(field).toBeVisible()
-  const [fieldBox, labelBox, cardBox] = await Promise.all([
-    field.boundingBox(),
-    label.boundingBox(),
-    pane
-      .locator('.settings-card')
-      .filter({
-        has: page.getByRole('combobox', { name: 'Unordered List Bullet' }),
-      })
-      .boundingBox(),
-  ])
-  expect(fieldBox!.y).toBeGreaterThanOrEqual(labelBox!.y + labelBox!.height)
-  expect(fieldBox!.width).toBeGreaterThan(cardBox!.width * 0.8)
+  const [fieldBox, labelBox] = await Promise.all([field.boundingBox(), label.boundingBox()])
+  expect(fieldBox!.x).toBeGreaterThan(labelBox!.x + labelBox!.width)
+  expect(fieldBox!.y).toBeLessThan(labelBox!.y + labelBox!.height)
+  expect(fieldBox!.height).toBeGreaterThanOrEqual(44)
   await expect(pane.getByText('These settings apply only on this iPhone.')).toBeVisible()
 })
 
