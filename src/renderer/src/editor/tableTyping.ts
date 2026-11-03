@@ -9,6 +9,7 @@
 import { completionStatus } from '@codemirror/autocomplete'
 import {
   EditorSelection,
+  Facet,
   StateEffect,
   StateField,
   Transaction,
@@ -35,6 +36,11 @@ interface RowTyping {
   /** Whether a space typed now is padding after a pipe the rule just took. */
   space: boolean
 }
+
+/** Turns the rule off: Write mode draws a table as a grid, where a typed pipe is the cell's text. */
+export const tableRowTypingOff = Facet.define<boolean, boolean>({
+  combine: (values) => values.some(Boolean),
+})
 
 const setRowTyping = StateEffect.define<Omit<RowTyping, 'from'>>()
 
@@ -113,7 +119,7 @@ export function typeInTable(
   text: string,
 ): TransactionSpec | null {
   const mode = state.field(rowTyping, false)
-  if (!mode || (text !== '|' && text !== ' ')) return null
+  if (!mode || state.facet(tableRowTypingOff) || (text !== '|' && text !== ' ')) return null
   const { ranges, main } = state.selection
   if (ranges.length > 1 || !main.empty || from !== main.head || to !== main.head) return null
   const line = state.doc.lineAt(main.head)

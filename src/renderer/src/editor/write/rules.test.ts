@@ -169,15 +169,20 @@ describe('Write mode rules', () => {
     expect(marks('a\n\n***\n\nb')).toEqual(['cm-wm-rule '])
   })
 
-  it('leave code, tables, HTML blocks and front matter as source', () => {
+  it('leave code, HTML blocks and front matter as source', () => {
     const blocks = [
       '```js\nconst a = `x` * 2 // **no**\n```',
       '    indented **code**',
-      '| **a** | b |\n| - | - |\n| `c` | d |',
       '<div>\n**raw**\n</div>',
       '---\ntitle: **x**\n---',
     ]
     for (const doc of blocks) expect(shown(doc)).toBe(doc)
+  })
+
+  it("style a table cell's text as a paragraph's", () => {
+    expect(shown('| **a** | b \\| c |\n| - | - |\n| `c` | d |')).toBe(
+      '| a | b | c |\n| - | - |\n| c | d |',
+    )
   })
 })
 

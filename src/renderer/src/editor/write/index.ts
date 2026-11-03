@@ -18,6 +18,7 @@ import { writeBlocks } from './blocks'
 import { imageDoubleClick, writeRenderer, type WriteRenderer } from './rendered'
 import { selectedIn } from './focus'
 import { selectedKey, writeRanges, type Selected, type WriteRange } from './rules'
+import { tableTheme, writeTables } from './tableGrid'
 import { writeTheme } from './theme'
 import { atomic, decorationOf, drawn, writeNoteLoader } from './widgets'
 
@@ -176,8 +177,10 @@ export function writeMode(options: WriteModeOptions = {}): Extension {
     imageDoubleClick,
     clickedWords(),
     writeBlocks,
+    writeTables,
     writeBlockKeys,
     writeTheme,
+    tableTheme,
     inlineImagesHidden.of(true),
     options.loadNote ? writeNoteLoader.of(options.loadNote) : [],
     options.render ? writeRenderer.of(options.render) : [],
