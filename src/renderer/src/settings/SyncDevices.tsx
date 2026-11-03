@@ -217,6 +217,15 @@ export function PairingRow(props: {
       .finally(() => setOpening(false))
   }
 
+  // The link names the relay as well as the code, so a device that has not set the relay can join with it.
+  const copyLink = () => {
+    if (!shown) return
+    void writeClipboardSecret(shown.link).then(
+      () => onAnnounce(t('syncSettings.pairLinkCopied')),
+      failed('syncSettings.pairCopyFailed'),
+    )
+  }
+
   const cancel = () => {
     open.current = false
     setShown(undefined)
@@ -260,6 +269,11 @@ export function PairingRow(props: {
             ) : null}
           </div>
           <div className="settings-buttons">
+            {onPhone ? null : (
+              <button type="button" className="button" onClick={copyLink}>
+                {t('syncSettings.pairCopyLink')}
+              </button>
+            )}
             <button type="button" className="button" onClick={cancel}>
               {t('dialog.cancel')}
             </button>

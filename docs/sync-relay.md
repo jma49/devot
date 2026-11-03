@@ -1,6 +1,6 @@
 # Sync relay
 
-The relay stores the latest encrypted state of every record of a vault and tells a vault's devices when something changed (docs/adr/0002-sync-latest-state-per-record.md). It never decrypts and never merges. Devot runs no hosted relay: each owner deploys their own (docs/adr/0004-sync-without-accounts.md), on Cloudflare's Workers Free plan or with Node on a server of their own. The code is in `relay/`; the wire format, which the app shares, is `src/core/sync/protocol.ts`.
+The relay stores the latest encrypted state of every record of a vault and tells a vault's devices when something changed (docs/adr/0002-sync-latest-state-per-record.md). It never decrypts and never merges. Devot runs no hosted relay: each owner deploys their own (docs/adr/0004-sync-without-accounts.md), on Cloudflare's Workers Free plan or with Node on a server of their own. A hosted relay for people who would rather not run one may come later as a separate, billed storage service, not part of the license (docs/adr/0011-optional-hosted-sync-is-a-service-not-a-license-feature.md); none exists today. The code is in `relay/`; the wire format, which the app shares, is `src/core/sync/protocol.ts`.
 
 ## Deploy to your own Cloudflare account
 
@@ -76,6 +76,19 @@ The relay keeps every vault inside 80% of each Workers Free limit it can count (
 - **Per vault:** the counters are per vault, and the Workers Free limits are per account. One vault per account, as the deploy steps above set up, keeps the two the same.
 - **Stored bytes** count the records' sealed bytes, not SQLite's own overhead (row headers, index pages); the 20% left covers it.
 
+### Storage in the app
+
+Settings > Sync, on the Mac and on the iPhone, shows what the relay holds: notes and other records (the stored bytes less the file bytes), images (`fileBytes`), the total (`storedBytes`) and the room left. The figures and the limits come from the relay's own `usage` answer, never from a table in the app, so they are right for any host:
+
+- `caps` with `storedBytes` (and `fileBytes`, the share for images): the app shows "N of the cap" and the room left. Images can use the smaller of their own share's room and the total's. A relay without a share for images (before attachments) shows images without a limit.
+- `caps: null` (`RELAY_QUOTA=off`): the app shows the figures and says the relay runs without a storage cap, so only its own disk limits it. It warns about nothing.
+- No `caps` (a relay from before the cap): the app shows the figures and says the relay does not say what it may hold.
+- An error `E_SYNC_BAD_MESSAGE` (a relay from before `usage`) shows "update your relay"; an unreachable relay shows that the relay cannot be reached, with Try Again.
+
+Only stored bytes and the images' share are shown: the daily limits (rows written, requests) are not, because they reset at 00:00 UTC and the pause notice already covers them (see Quota, What the app does).
+
+**Warnings.** After sync settles, the main window reads `usage` (at most every 15 minutes, and again when the status changes) and puts a notice up when a cap's band goes up from the one last told: at 80% of the stored bytes or of the images' share, and at the cap. It does not repeat while the band stays, including across launches (the last band told is kept per relay in the window's storage); a drop is remembered without a word and the band is told again if it returns. A relay with no cap, or that does not say, never gets one. The words at the cap say what is not syncing (new and changed notes and images, or only images), what still works (everything on this device, notes from other devices, and notes when only images are full) and what to do: remove images or notes you no longer need, or use a larger server. A push refused with `E_SYNC_QUOTA` for `storedBytes` or `E_SYNC_ATTACHMENTS_FULL` keeps its own notice and note in Settings, which say the same.
+
 ## Attachments
 
 Images sync as file records (`kind: "file"`) on the same relay, one record per image, cut into chunks like any record: an image of at most 10 MiB is a record of at most 11 MiB sealed, so 6 chunks (`E_SYNC_TOO_LARGE` past that). Every device downloads every file record (docs/adr/0003-sync-attachments-as-records.md).
@@ -87,9 +100,9 @@ Images sync as file records (`kind: "file"`) on the same relay, one record per i
 
 ## Connect Devot
 
-In Devot, open Settings > Sync, enter the relay's URL (https, or http to the same machine for a relay you run locally), then the relay's secret once, on the first device: Devot makes the vault key in the keychain, creates the vault on the relay and turns sync on. The secret goes into that one request and is not kept. Devot then shows the recovery key until you press I Saved It: keep it in your password manager or print it. On every other device, join instead (below): Set Up a New Vault is for the first device only.
+In Devot, open Settings > Sync. A device that is not in a vault first asks one question: is this your first device, or are you adding another one? Only the answer's steps show, so a second vault cannot be made by mistake. On the first device, enter the relay's URL (https, or http to the same machine for a relay you run locally), then the relay's secret once: Devot makes the vault key in the keychain, creates the vault on the relay and turns sync on. Nothing in Welcome or the first launch asks about sync. The secret goes into that one request and is not kept. Devot then shows the recovery key until you press I Saved It: keep it in your password manager or print it. On every other device, join instead (below): Set Up a New Vault is for the first device only.
 
-To add another device, choose Show Pairing Code under Add a Device on a device that syncs. On the new device, scan the QR code, or type or paste the code under Join With a Code (with the relay's URL set). The code works once, for 10 minutes. A device can also join with the recovery key and the relay's URL, under Join With Recovery Key, when no other device is at hand. Devices lists the vault's devices; Remove takes one's token away (`revoke`). A removed device still holds the vault key, so whoever has it can enroll it again on purpose; Devot never does so on its own. Until Devot can change a vault's key, treat a lost device that held it as able to read the vault.
+To add another device, choose Show Pairing Code under Add a Device on a device that syncs. On the new device, answer that you are adding another device, then scan the QR code, or paste the link it holds (it carries the relay's address, which Devot asks you to confirm), or type the code under Join With a Code with the relay's URL set. The code alone does not name the relay: its format is fixed (docs/adr/0008-sync-device-pairing.md), so Copy Link beside the code on a Mac copies the link, which does. iPhone has no secret clipboard yet and leaves the button out. The code works once, for 10 minutes. A device can also join with the recovery key and the relay's URL, under Join With Recovery Key, when no other device is at hand. Devices lists the vault's devices; Remove takes one's token away (`revoke`). A removed device still holds the vault key, so whoever has it can enroll it again on purpose; Devot never does so on its own. Until Devot can change a vault's key, treat a lost device that held it as able to read the vault.
 
 ## Protocol
 

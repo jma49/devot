@@ -285,6 +285,7 @@ test('a select draws its chosen value at its own width and stays a native 44 tar
 
 test('a free-text field stacks under its label at the row width', async ({ page }) => {
   const pane = await openPane(page, 'Sync')
+  await pane.getByRole('button', { name: 'This Is My First Device' }).click()
   const field = pane.getByRole('textbox', { name: 'Relay' })
   const label = pane.getByText('Relay', { exact: true })
   const [box, labelBox] = await Promise.all([field.boundingBox(), label.boundingBox()])
@@ -612,4 +613,52 @@ test.describe('License, Usage and disabled switches', () => {
     await expect(enabled).not.toBeChecked()
     expect(off.thumb).not.toBe((await paint(enabled)).thumb)
   })
+})
+
+test('the Sync pane shows what the relay holds, with the room left and a warning near the cap', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      sync_get: () => ({
+        relayUrl: 'https://relay.example',
+        enabled: true,
+        vault: true,
+        enrolled: true,
+        status: { state: 'idle', lastSync: 1_700_000_000_000, code: null, pausedUntil: null },
+      }),
+      sync_devices: () => [],
+      sync_recovery_key: () => null,
+      sync_usage: () => ({
+        storedBytes: 3_300_000_000,
+        fileBytes: 1_000_000_000,
+        caps: {
+          rowsWritten: 80_000,
+          requests: 80_000,
+          storedBytes: 4_000_000_000,
+          fileBytes: 3_000_000_000,
+        },
+      }),
+    }
+  })
+  const pane = await openPane(page, 'Sync')
+  await expect(pane.getByText('Notes and Other Records')).toBeVisible()
+  await expect(pane.getByText('1 GB of 3 GB')).toBeVisible()
+  await expect(pane.getByText('3.3 GB of 4 GB')).toBeVisible()
+  await expect(pane.getByText(/^700 MB\. Images can use 700 MB of that\./)).toBeVisible()
+  await expect(pane.getByText(/The relay’s storage is more than 80% full/)).toBeVisible()
+})
+
+test('a phone without sync asks first or another device, then shows only that path', async ({
+  page,
+}) => {
+  const pane = await openPane(page, 'Sync')
+  await expect(pane.getByRole('textbox', { name: 'Relay' })).toHaveCount(0)
+  await pane.getByRole('button', { name: 'I’m Adding Another Device' }).click()
+  await expect(pane.getByRole('textbox', { name: 'Join With a Code' })).toBeVisible()
+  await expect(pane.getByRole('button', { name: 'Create Vault' })).toHaveCount(0)
+  await pane.getByRole('button', { name: 'Change Answer' }).click()
+  await pane.getByRole('button', { name: 'This Is My First Device' }).click()
+  await expect(pane.getByRole('textbox', { name: 'Relay' })).toBeVisible()
+  await expect(pane.getByRole('textbox', { name: 'Join With a Code' })).toHaveCount(0)
 })

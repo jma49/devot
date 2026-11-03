@@ -157,26 +157,65 @@ test('starts off, with no relay', async ({ page }) => {
   const panel = page.getByRole('tabpanel')
   await expect(panel).toContainText('encrypted on this device before it leaves')
   await expect(panel).toContainText('notes, notebooks, tags and images')
-  await expect(panel.getByRole('textbox', { name: 'Relay' })).toHaveValue('')
+  // One plain question first; no relay field, code field or vault button until it is answered.
+  await expect(panel).toContainText('Is this the first device you are syncing')
+  await expect(panel.getByRole('button', { name: 'This Is My First Device' })).toBeEnabled()
+  await expect(panel.getByRole('button', { name: 'I’m Adding Another Device' })).toBeEnabled()
+  await expect(panel.getByRole('textbox', { name: 'Relay' })).toHaveCount(0)
+  await expect(panel.getByRole('textbox', { name: 'Join With a Code' })).toHaveCount(0)
+  await expect(panel.getByLabel('Relay Secret')).toHaveCount(0)
   await expect(panel.getByRole('switch', { name: 'Sync This Device' })).toBeDisabled()
   await expect(panel).toContainText('Off. Not synced yet.')
+})
+
+test('shows only the first-device path, and no way to join, after the first answer', async ({
+  page,
+}) => {
+  await fakeRust(page)
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: 'This Is My First Device' }).click()
+  await expect(panel.getByRole('textbox', { name: 'Relay' })).toBeFocused()
+  await expect(panel.getByRole('button', { name: 'I’m Adding Another Device' })).toHaveCount(0)
+  await expect(panel.getByRole('textbox', { name: 'Join With a Code' })).toHaveCount(0)
+  await expect(panel.getByRole('textbox', { name: 'Join With Recovery Key' })).toHaveCount(0)
   await expect(panel.getByLabel('Relay Secret')).toHaveCount(0)
+})
+
+test('shows only the join path, and no way to make a vault, after the second answer', async ({
+  page,
+}) => {
+  await fakeRust(page)
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: 'I’m Adding Another Device' }).click()
+  await expect(panel.getByRole('textbox', { name: 'Join With a Code' })).toBeFocused()
+  await expect(panel.getByRole('textbox', { name: 'Join With Recovery Key' })).toBeVisible()
+  await expect(panel.getByRole('textbox', { name: 'Relay' })).toBeVisible()
+  await expect(panel.getByLabel('Relay Secret')).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Create Vault' })).toHaveCount(0)
+  // Even with a relay set, this path never offers a second vault.
+  await panel.getByRole('textbox', { name: 'Relay' }).fill(RELAY)
+  await panel.getByRole('textbox', { name: 'Relay' }).press('Enter')
+  await expect(panel.getByLabel('Relay Secret')).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'This Is My First Device' })).toHaveCount(0)
+  // Changing the answer goes back to the question.
+  await panel.getByRole('button', { name: 'Change Answer' }).click()
+  await expect(panel.getByRole('button', { name: 'This Is My First Device' })).toBeFocused()
+  await expect(panel.getByRole('textbox', { name: 'Join With a Code' })).toHaveCount(0)
 })
 
 test('creates the vault with the relay’s secret, asked once and never kept', async ({ page }) => {
   await fakeRust(page)
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: 'This Is My First Device' }).click()
   const relay = panel.getByRole('textbox', { name: 'Relay' })
+  await expect(panel.getByLabel('Relay Secret')).toHaveCount(0)
   await relay.fill(RELAY)
   await relay.press('Enter')
   expect(await calls(page, 'sync_set')).toEqual([{ patch: { relayUrl: RELAY } }])
-  // Joining comes first; a new vault is a separate choice, for the first device only.
-  await expect(panel.getByRole('textbox', { name: 'Join With a Code' })).toBeVisible()
-  await expect(panel.getByLabel('Relay Secret')).toHaveCount(0)
-  await panel.getByRole('button', { name: 'Set Up a New Vault…' }).click()
   const secret = panel.getByLabel('Relay Secret')
-  await expect(secret).toBeFocused()
   await expect(secret).toHaveAttribute('type', 'password')
   const create = panel.getByRole('button', { name: 'Create Vault' })
   await expect(create).toBeDisabled()
@@ -216,7 +255,7 @@ test('backs out of setting up a new vault with Cancel or Escape', async ({ page 
   await fakeRust(page, { relayUrl: RELAY })
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
-  const start = panel.getByRole('button', { name: 'Set Up a New Vault…' })
+  const start = panel.getByRole('button', { name: 'This Is My First Device' })
   const secret = panel.getByLabel('Relay Secret')
   await start.click()
   await secret.fill(SECRET)
@@ -257,6 +296,7 @@ test('says why the relay address or the vault was refused', async ({ page }) => 
   await fakeRust(page, { refuse: 'E_SYNC_RELAY_SECRET' })
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: 'This Is My First Device' }).click()
   const relay = panel.getByRole('textbox', { name: 'Relay' })
   await relay.fill('http://relay.example.test')
   await relay.blur()
@@ -266,7 +306,6 @@ test('says why the relay address or the vault was refused', async ({ page }) => 
   await relay.fill(RELAY)
   await relay.blur()
   await expect(panel.getByRole('alert')).toHaveCount(0)
-  await panel.getByRole('button', { name: 'Set Up a New Vault…' }).click()
   await panel.getByLabel('Relay Secret').fill('wrong')
   await panel.getByRole('button', { name: 'Create Vault' }).click()
   await expect(panel.getByRole('alert')).toHaveText(
@@ -290,7 +329,7 @@ for (const [code, advice] of Object.entries(REFUSALS)) {
     await fakeRust(page, { relayUrl: RELAY, refuse: code })
     await openSettings(page, 'Sync')
     const panel = page.getByRole('tabpanel')
-    await panel.getByRole('button', { name: 'Set Up a New Vault…' }).click()
+    await panel.getByRole('button', { name: 'This Is My First Device' }).click()
     await panel.getByLabel('Relay Secret').fill('secret')
     await panel.getByRole('button', { name: 'Create Vault' }).click()
     await expect(panel.getByRole('alert')).toContainText(`(${code}). ${advice}`)
@@ -467,6 +506,7 @@ test('joins a vault with a pairing code', async ({ page }) => {
   await fakeRust(page, { relayUrl: RELAY })
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: 'I’m Adding Another Device' }).click()
   const code = panel.getByRole('textbox', { name: 'Join With a Code' })
   const join = panel.getByRole('button', { name: 'Join With a Code' })
   await expect(join).toBeDisabled()
@@ -485,6 +525,7 @@ test('asks before a pasted link sets the relay it names', async ({ page }) => {
   await fakeRust(page)
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: 'I’m Adding Another Device' }).click()
   const link = `devot://pair?relay=${encodeURIComponent(RELAY)}&code=${CODE.replace(/-/g, '')}`
   await panel.getByRole('textbox', { name: 'Join With a Code' }).fill(link)
   await panel.getByRole('button', { name: 'Join With a Code' }).click()
@@ -509,6 +550,7 @@ test('refuses a pasted link to a relay Devot cannot use, without asking first', 
   await fakeRust(page)
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: 'I’m Adding Another Device' }).click()
   const link = `devot://pair?relay=${encodeURIComponent('http://relay.example.test')}&code=${CODE.replace(/-/g, '')}`
   await panel.getByRole('textbox', { name: 'Join With a Code' }).fill(link)
   await panel.getByRole('button', { name: 'Join With a Code' }).click()
@@ -524,6 +566,7 @@ test('joins with the recovery key and the relay set above', async ({ page }) => 
   await fakeRust(page, { relayUrl: RELAY })
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: 'I’m Adding Another Device' }).click()
   const key = panel.getByRole('textbox', { name: 'Join With Recovery Key' })
   await key.fill(RECOVERY_KEY)
   await key.press('Enter')
@@ -538,6 +581,7 @@ test('says why joining failed, and that an older relay needs an update', async (
   await fakeRust(page, { relayUrl: RELAY, refuseJoin: 'E_SYNC_RELAY_OUTDATED' })
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: 'I’m Adding Another Device' }).click()
   await panel.getByRole('textbox', { name: 'Join With a Code' }).fill(CODE)
   await panel.getByRole('button', { name: 'Join With a Code' }).click()
   await expect(panel.getByRole('alert')).toHaveText(
@@ -669,7 +713,7 @@ test('keeps the recovery key on offer across a pane switch until it is saved', a
   await fakeRust(page, { relayUrl: RELAY })
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
-  await panel.getByRole('button', { name: 'Set Up a New Vault…' }).click()
+  await panel.getByRole('button', { name: 'This Is My First Device' }).click()
   await panel.getByLabel('Relay Secret').fill(SECRET)
   await panel.getByRole('button', { name: 'Create Vault' }).click()
   const key = recoveryKey(panel)
@@ -692,7 +736,7 @@ test('the recovery key fits a narrow Settings window, with its buttons in reach'
   await fakeRust(page, { relayUrl: RELAY })
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
-  await panel.getByRole('button', { name: 'Set Up a New Vault…' }).click()
+  await panel.getByRole('button', { name: 'This Is My First Device' }).click()
   await panel.getByLabel('Relay Secret').fill(SECRET)
   await panel.getByRole('button', { name: 'Create Vault' }).click()
   const key = recoveryKey(panel)
@@ -951,6 +995,7 @@ test('announces the same failure or confirmation again', async ({ page }) => {
   })
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: 'I’m Adding Another Device' }).click()
   await page.evaluate(() => {
     const w = globalThis as unknown as { alertsAdded: number }
     w.alertsAdded = 0
@@ -1091,14 +1136,14 @@ test.describe('the relay’s quota cap', () => {
     const full = { ...paused, code: 'E_SYNC_STORAGE_FULL', upload: null }
     await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true, status: full })
     await openApp(page)
-    const notice = page.getByRole('alert').filter({ hasText: 'no storage left' })
+    const notice = page.getByRole('alert').filter({ hasText: 'storage is full' })
     await expect(notice).toHaveText(
-      /Sync paused until 9:00\sAM: the relay has no storage left\. Delete or purge notes or images, or free space on the relay\./,
+      /Sync paused until 9:00\sAM: the relay’s storage is full, so new and changed notes and images are not syncing\. Notes from other devices still arrive, and everything works on this device\. To sync again, remove images or notes you no longer need, or use a larger server\./,
     )
     await expect(notice).not.toContainText('quota')
     await openSettings(page, 'Sync')
     await expect(page.getByRole('tabpanel')).toContainText(
-      /the relay has no storage left\. Delete or purge notes or images, or free space on the relay\./,
+      /the relay’s storage is full, so new and changed notes and images are not syncing\. Everything still works on this device\. Remove images or notes you no longer need, or use a larger server\./,
     )
   })
 
@@ -1223,4 +1268,198 @@ test.describe('the relay’s quota cap', () => {
     )
     await expect(panel).not.toContainText('Sync paused until')
   })
+})
+
+const GB = 1_000_000_000
+const CAPS = { rowsWritten: 80_000, requests: 80_000, storedBytes: 4 * GB, fileBytes: 3 * GB }
+const ENROLLED = { relayUrl: RELAY, enabled: true, enrolled: true }
+const IDLE = { state: 'idle', lastSync: Date.UTC(2026, 9, 23, 19), code: null, tooLarge: 0 }
+
+/** What the relay answers a `usage` with, or `{ error }` for a failure; changed later with `setUsage`. */
+async function fakeUsage(page: Page, usage: unknown) {
+  await page.addInitScript((answer) => {
+    const w = globalThis as unknown as TestWindow
+    w.devotUsage = answer
+    w.devotIpcMocks = {
+      ...w.devotIpcMocks,
+      sync_usage: () => {
+        const now = w.devotUsage as { error?: string }
+        if (now.error) throw now.error
+        return now
+      },
+    }
+  }, usage)
+}
+
+const setUsage = (page: Page, usage: unknown) =>
+  page.evaluate((answer) => {
+    ;(globalThis as unknown as TestWindow).devotUsage = answer
+  }, usage)
+
+/** A new sync state, so the main window reads the relay's storage again. */
+const settle = (page: Page, code: string) =>
+  sendSnapshot(page, {
+    relayUrl: RELAY,
+    enabled: true,
+    vault: true,
+    enrolled: true,
+    status: { ...IDLE, code },
+  })
+
+test.describe('storage', () => {
+  test('Settings > Sync shows notes, images, the total and the room left', async ({ page }) => {
+    await fakeRust(page, { ...ENROLLED, status: IDLE })
+    await fakeUsage(page, { storedBytes: 1.5 * GB, fileBytes: 1 * GB, caps: CAPS })
+    await openSettings(page, 'Sync')
+    const panel = page.getByRole('tabpanel')
+    await expect(panel).toContainText('Notes and Other Records')
+    await expect(panel).toContainText('500 MB')
+    await expect(panel).toContainText('1 GB of 3 GB')
+    await expect(panel).toContainText('1.5 GB of 4 GB')
+    await expect(panel).toContainText('2.5 GB. Images can use 2 GB of that.')
+    await expect(panel).toContainText('up to 4 GB in all, and up to 3 GB of that for images')
+    await expect(panel).not.toContainText('% full')
+  })
+
+  test('Settings > Sync warns near a cap and says what to do at it', async ({ page }) => {
+    await fakeRust(page, { ...ENROLLED, status: IDLE })
+    await fakeUsage(page, { storedBytes: 3.3 * GB, fileBytes: 1 * GB, caps: CAPS })
+    await openSettings(page, 'Sync')
+    const panel = page.getByRole('tabpanel')
+    await expect(panel).toContainText('The relay’s storage is more than 80% full.')
+    await expect(panel).toContainText('700 MB. Images can use 700 MB of that.')
+    await setUsage(page, { storedBytes: 4 * GB, fileBytes: 1 * GB, caps: CAPS })
+    await settle(page, 'E_SYNC_OFFLINE')
+    await expect(panel).toContainText(
+      'The relay’s storage is full, so new and changed notes and images are not syncing.',
+    )
+    await expect(panel).toContainText('None left.')
+    await setUsage(page, { storedBytes: 3 * GB + 1e6, fileBytes: 3 * GB, caps: CAPS })
+    await settle(page, 'E_SYNC_PROTOCOL')
+    await expect(panel).toContainText('The relay has no room left for images')
+    await expect(panel).toContainText('Images have used their share, so only notes can use it.')
+  })
+
+  test('Settings > Sync says so when the relay has no cap, or does not say', async ({ page }) => {
+    await fakeRust(page, { ...ENROLLED, status: IDLE })
+    await fakeUsage(page, { storedBytes: 9 * GB, fileBytes: 2 * GB, caps: null })
+    await openSettings(page, 'Sync')
+    const panel = page.getByRole('tabpanel')
+    await expect(panel).toContainText('No limit. This relay runs without a storage cap')
+    await expect(panel).toContainText('9 GB')
+    await expect(panel).not.toContainText('% full')
+    await setUsage(page, { storedBytes: 9 * GB, fileBytes: 2 * GB })
+    await settle(page, 'E_SYNC_OFFLINE')
+    await expect(panel).toContainText('Not known. This relay does not say what it may hold.')
+    await expect(panel).not.toContainText('% full')
+  })
+
+  test('Settings > Sync says when storage cannot be read, and tries again on request', async ({
+    page,
+  }) => {
+    await fakeRust(page, { ...ENROLLED, status: IDLE })
+    await fakeUsage(page, { error: 'E_SYNC_OFFLINE' })
+    await openSettings(page, 'Sync')
+    const panel = page.getByRole('tabpanel')
+    await expect(panel).toContainText('The relay cannot be reached, so its storage is not shown.')
+    await setUsage(page, { storedBytes: 1 * GB, fileBytes: 0, caps: CAPS })
+    await panel.getByRole('button', { name: 'Check Again' }).click()
+    await expect(panel).toContainText('1 GB of 4 GB')
+    await setUsage(page, { error: 'E_SYNC_BAD_MESSAGE' })
+    await settle(page, 'E_SYNC_OFFLINE')
+    await expect(panel).toContainText('Your relay is from an earlier release and cannot report')
+    await expect(panel.getByRole('button', { name: 'Check Again' })).toHaveCount(0)
+  })
+
+  test('there is no storage until the device is in a vault', async ({ page }) => {
+    await fakeRust(page)
+    await fakeUsage(page, { storedBytes: 1, fileBytes: 0, caps: CAPS })
+    await openSettings(page, 'Sync')
+    await expect(page.getByRole('tabpanel')).not.toContainText('Room Left')
+    expect(await calls(page, 'sync_usage')).toEqual([])
+  })
+
+  test('the main window warns once at 80%, stays quiet on the next launch, and tells the next band', async ({
+    page,
+  }) => {
+    await fakeRust(page, { ...ENROLLED, status: IDLE })
+    await fakeUsage(page, { storedBytes: 3.3 * GB, fileBytes: 0, caps: CAPS })
+    await openApp(page)
+    const notice = page.getByRole('alert').filter({ hasText: 'more than 80% full' })
+    await expect(notice).toHaveText(
+      /The relay’s storage is more than 80% full\. Sync keeps working/,
+    )
+    await notice.getByRole('button', { name: 'Dismiss' }).click()
+
+    await page.reload()
+    await openApp(page)
+    await expect(page.getByRole('alert').filter({ hasText: 'Sync' })).toHaveCount(0)
+    await expect.poll(async () => (await calls(page, 'sync_usage')).length).toBeGreaterThan(0)
+
+    await setUsage(page, { storedBytes: 4 * GB, fileBytes: 0, caps: CAPS })
+    await settle(page, 'E_SYNC_OFFLINE')
+    const full = page.getByRole('alert').filter({ hasText: 'storage is full' })
+    await expect(full).toContainText('not syncing')
+    await expect(full).toContainText(
+      'remove images or notes you no longer need, or use a larger server',
+    )
+  })
+
+  test('the main window names images when only their share is used up', async ({ page }) => {
+    await fakeRust(page, { ...ENROLLED, status: IDLE })
+    await fakeUsage(page, { storedBytes: 3.1 * GB, fileBytes: 3 * GB, caps: CAPS })
+    await openApp(page)
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'no room left for images' }),
+    ).toContainText('Notes keep syncing')
+  })
+
+  test('the main window says nothing for a relay with no cap, one that does not say, or no answer', async ({
+    page,
+  }) => {
+    await fakeRust(page, { ...ENROLLED, status: IDLE })
+    await fakeUsage(page, { storedBytes: 9 * GB, fileBytes: 0, caps: null })
+    await openApp(page)
+    await expect.poll(async () => (await calls(page, 'sync_usage')).length).toBeGreaterThan(0)
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await setUsage(page, { storedBytes: 9 * GB, fileBytes: 0 })
+    await settle(page, 'E_SYNC_OFFLINE')
+    await setUsage(page, { error: 'E_SYNC_OFFLINE' })
+    await settle(page, 'E_SYNC_PROTOCOL')
+    await expect(page.getByRole('alert')).toHaveCount(0)
+  })
+
+  test('a full storage pause is told once, not twice', async ({ page }) => {
+    await page.clock.setFixedTime(new Date(Date.UTC(2026, 9, 23, 20)))
+    const full = {
+      state: 'paused',
+      lastSync: Date.UTC(2026, 9, 23, 19),
+      code: 'E_SYNC_STORAGE_FULL',
+      tooLarge: 0,
+      pausedUntil: Date.UTC(2026, 9, 24),
+    }
+    await fakeRust(page, { ...ENROLLED, status: full })
+    await fakeUsage(page, { storedBytes: 4 * GB, fileBytes: 0, caps: CAPS })
+    await openApp(page)
+    const notice = page.getByRole('alert').filter({ hasText: 'storage is full' })
+    await expect(notice).toHaveCount(1)
+    await expect(notice).toContainText('Sync paused until')
+    await expect.poll(async () => (await calls(page, 'sync_usage')).length).toBeGreaterThan(0)
+    await expect(notice).toHaveCount(1)
+  })
+})
+
+test('copies the pairing link, which names the relay, as a secret', async ({ page }) => {
+  await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true })
+  await openSettings(page, 'Sync')
+  const panel = page.getByRole('tabpanel')
+  await panel.getByRole('button', { name: 'Show Pairing Code' }).click()
+  await panel.getByRole('button', { name: 'Copy Link' }).click()
+  await expect(panel.getByRole('status').first()).toContainText('The pairing link was copied.')
+  expect(await calls(page, 'clipboard_write_secret')).toEqual([
+    {
+      text: `devot://pair?relay=${encodeURIComponent(RELAY)}&code=${CODE.replace(/-/g, '')}`,
+    },
+  ])
+  expect(await clipboardWrites(page)).toEqual([])
 })

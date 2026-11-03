@@ -4,6 +4,8 @@ import { currentLocale, format, t, type MessageKey } from './i18n'
 import { LICENCE_REQUIRED, licenceSnapshot, trialOver } from './licence'
 import { LicenceButton } from './LicenceLocked'
 import { STOP_ADVICE, STORAGE_FULL, usePauseOver, type SyncSnapshot } from './sync'
+import type { UsageNotice } from '../../core/sync/usage'
+import { USAGE_NOTICE_TEXT, useUsageNotice } from './syncUsage'
 
 const STOPPED: Readonly<Record<string, MessageKey>> = {
   E_SYNC_REVOKED: 'sync.notice.revoked',
@@ -36,20 +38,29 @@ function stateMessage(snapshot: SyncSnapshot, pauseOver: boolean): string | unde
   return undefined
 }
 
-function messages(snapshot: SyncSnapshot, pauseOver: boolean): string[] {
+function usageMessage(snapshot: SyncSnapshot, usage: UsageNotice | null): string | undefined {
+  if (usage === null) return undefined
+  // The pause's own notice already says the storage is full.
+  if (usage === 'storageFull' && snapshot.status.code === STORAGE_FULL) return undefined
+  return t(USAGE_NOTICE_TEXT[usage])
+}
+
+function messages(snapshot: SyncSnapshot, pauseOver: boolean, usage: UsageNotice | null): string[] {
   if (!snapshot.enabled) return []
   const { tooLarge } = snapshot.status
   return [
     stateMessage(snapshot, pauseOver),
+    usageMessage(snapshot, usage),
     tooLarge > 0
       ? countOf(tooLarge, currentLocale(), 'sync.notice.tooLargeOne', 'sync.notice.tooLargeOther')
       : undefined,
   ].filter((part) => part !== undefined)
 }
 
-/** Sync stopped until the user acts, paused by the relay's quota, or records that stay on this device; dismissed until it says something else. */
+/** Sync stopped until the user acts, paused by the relay's quota, a relay near its storage cap, or records that stay on this device; dismissed until it says something else. */
 export function SyncNotice(props: { snapshot: SyncSnapshot }) {
-  const all = messages(props.snapshot, usePauseOver(props.snapshot.status.pausedUntil))
+  const usage = useUsageNotice(props.snapshot)
+  const all = messages(props.snapshot, usePauseOver(props.snapshot.status.pausedUntil), usage)
   const [dismissed, setDismissed] = useState<readonly string[]>()
   // A notice that went away is shown again when it comes back, even with the same words (a pause on another day). A recheck (connecting, syncing) is not going away: a clock that is still off stops sync again.
   const { state } = props.snapshot.status

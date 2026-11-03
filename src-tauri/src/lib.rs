@@ -147,6 +147,7 @@ pub fn run() {
             sync::commands::sync_join_code,
             sync::commands::sync_join_recovery,
             sync::commands::sync_devices,
+            sync::commands::sync_usage,
             sync::commands::sync_device_remove,
             sync::commands::sync_connect,
             sync::commands::sync_pull,

@@ -99,6 +99,7 @@ fn main() {
             "sync_join_code",
             "sync_join_recovery",
             "sync_devices",
+            "sync_usage",
             "sync_device_remove",
             "sync_connect",
             "sync_pull",
