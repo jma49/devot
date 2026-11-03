@@ -1508,3 +1508,85 @@ fn a_port_another_program_holds_keeps_nothing_from_the_bridge() {
     assert!(view.reachable && socket.exists());
     assert_eq!(api.view().problem, Some("E_HTTP_API_PORT_IN_USE"));
 }
+
+/// A keychain that waits, as one does while macOS asks whether this build may read an item.
+struct WaitingTokens {
+    release: Mutex<std::sync::mpsc::Receiver<()>>,
+    inner: MemoryTokens,
+}
+
+impl TokenStore for WaitingTokens {
+    fn has(&self) -> Result<bool, &'static str> {
+        self.inner.has()
+    }
+    fn get(&self) -> Result<Option<token::Token>, &'static str> {
+        let _ = self.release.lock().unwrap().recv();
+        self.inner.get()
+    }
+    fn set(&self, token: &str) -> Result<(), &'static str> {
+        self.inner.set(token)
+    }
+}
+
+#[test]
+fn a_keychain_that_waits_never_holds_up_quitting_or_settings_and_the_socket_opens_after() {
+    let dir = tempfile::tempdir().unwrap();
+    let (api, _, _) = api(&dir);
+    let (release, waiting) = std::sync::mpsc::channel();
+    let socket = dir.path().join("mcp.sock");
+    let api = Arc::new(api.with_mcp(McpParts {
+        access: McpAccessStore::new(&dir.path().join(mcp_access::FILE)),
+        tokens: Arc::new(WaitingTokens {
+            release: Mutex::new(waiting),
+            inner: MemoryTokens::default(),
+        }),
+        socket: Some(socket.clone()),
+    }));
+    McpAccessStore::new(&dir.path().join(mcp_access::FILE))
+        .set(on(Scope::ReadWrite))
+        .unwrap();
+    let listening = {
+        let api = Arc::clone(&api);
+        std::thread::spawn(move || api.window_listening())
+    };
+    std::thread::sleep(Duration::from_millis(100));
+    // While the keychain waits, what a quit and Settings need answers at once.
+    let quick = |work: Box<dyn FnOnce() + Send>| {
+        let (done, finished) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            work();
+            let _ = done.send(());
+        });
+        finished.recv_timeout(Duration::from_secs(2)).is_ok()
+    };
+    let for_stop = Arc::clone(&api);
+    assert!(
+        quick(Box::new(move || for_stop.stop_bridge())),
+        "the quit waits on the keychain"
+    );
+    let for_view = Arc::clone(&api);
+    assert!(
+        quick(Box::new(move || {
+            let _ = for_view.mcp_view();
+        })),
+        "Settings waits on the keychain"
+    );
+    let for_http = Arc::clone(&api);
+    assert!(
+        quick(Box::new(move || {
+            let _ = for_http.view();
+        })),
+        "the HTTP API's view waits too"
+    );
+    assert_eq!(api.mcp_view().problem, Some("E_MCP_KEYCHAIN_WAITING"));
+    release.send(()).unwrap();
+    listening.join().unwrap();
+    assert!(
+        socket.exists(),
+        "the socket opens once the keychain answers"
+    );
+    assert!(api.mcp_view().reachable);
+    let api = Arc::try_unwrap(api).ok().unwrap();
+    api.stop_bridge();
+    assert!(!socket.exists(), "and goes when it stops");
+}

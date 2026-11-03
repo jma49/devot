@@ -237,6 +237,10 @@ pub struct HttpApi {
     mcp: Option<McpParts>,
     /// A main window listens for calls: a call made before that would wait its whole timeout.
     window_listening: AtomicBool,
+    /// One apply at a time, its keychain reads included; `running` is held only for its changes,
+    /// so a keychain that waits on the owner holds up neither a quit nor Settings.
+    applying: Mutex<()>,
+    keychain_waiting: AtomicBool,
     gate: Arc<Gate>,
     dispatch: Arc<dyn Dispatch>,
     answers: Arc<Answers>,
@@ -256,6 +260,8 @@ impl HttpApi {
             tokens,
             mcp: None,
             window_listening: AtomicBool::new(false),
+            applying: Mutex::new(()),
+            keychain_waiting: AtomicBool::new(false),
             gate: Arc::new(Gate::new(limits)),
             dispatch,
             answers,
@@ -362,34 +368,47 @@ impl HttpApi {
     /// Listens or stops as the settings say: at launch, and after every change. The HTTP API listens
     /// on its port, the bridge on its socket, each with its own token and switch.
     pub fn apply(&self) {
+        let Ok(_applying) = self.applying.lock() else {
+            return;
+        };
         let settings = self.settings.get();
         let access = self.mcp_access();
+        // The keychain may wait on the owner (a build it does not know asks first): read it before
+        // anything is held that a quit or Settings would wait for.
+        self.keychain_waiting.store(true, Ordering::SeqCst);
+        let asked = std::time::Instant::now();
+        let http_token = settings.enabled.then(|| self.token());
+        let mcp_token = self
+            .mcp
+            .as_ref()
+            .filter(|_| access.enabled)
+            .map(Self::mcp_token);
+        self.keychain_waiting.store(false, Ordering::SeqCst);
+        let waited = asked.elapsed().as_millis();
+        if waited >= 2_000 {
+            log::warn!("W_KEYCHAIN_SLOW {waited}");
+        }
         let Ok(mut running) = self.running.lock() else {
             return;
         };
         running.problem = None;
         running.mcp_problem = None;
-        if settings.enabled {
-            match self.token() {
-                Ok(token) => self.gate.allow(token, settings.scope),
-                Err(code) => {
-                    log::warn!("W_HTTP_API_START_FAILED {code}");
-                    running.problem = Some(code);
-                    self.gate.close();
-                }
+        match http_token {
+            Some(Ok(token)) => self.gate.allow(token, settings.scope),
+            Some(Err(code)) => {
+                log::warn!("W_HTTP_API_START_FAILED {code}");
+                running.problem = Some(code);
+                self.gate.close();
             }
-        } else {
-            self.gate.close();
+            None => self.gate.close(),
         }
-        match self.mcp.as_ref().filter(|_| access.enabled) {
-            Some(parts) => match Self::mcp_token(parts) {
-                Ok(token) => self.gate.allow_mcp(token, access.scope),
-                Err(code) => {
-                    log::warn!("W_MCP_START_FAILED {code}");
-                    running.mcp_problem = Some(code);
-                    self.gate.close_mcp();
-                }
-            },
+        match mcp_token {
+            Some(Ok(token)) => self.gate.allow_mcp(token, access.scope),
+            Some(Err(code)) => {
+                log::warn!("W_MCP_START_FAILED {code}");
+                running.mcp_problem = Some(code);
+                self.gate.close_mcp();
+            }
             None => self.gate.close_mcp(),
         }
         let http_wanted = settings.enabled && running.problem.is_none();
@@ -445,9 +464,10 @@ impl HttpApi {
         self.apply();
     }
 
-    /// Stops the bridge's socket at once, as the app quits, and takes away one a crash left.
+    /// Stops the bridge's socket at once, as the app quits, and takes away one a crash left. It
+    /// never waits: an apply that holds `running` only changes state, and the file goes regardless.
     pub fn stop_bridge(&self) {
-        if let Ok(mut running) = self.running.lock() {
+        if let Ok(mut running) = self.running.try_lock() {
             running.bridge = None;
         }
         if let Some(socket) = self.mcp.as_ref().and_then(|parts| parts.socket.as_ref()) {
@@ -462,6 +482,11 @@ impl HttpApi {
             .lock()
             .map(|r| (r.bridge.is_some(), r.mcp_problem))
             .unwrap_or((false, Some("E_HTTP_API_FAILED")));
+        let problem = if access.enabled && self.keychain_waiting.load(Ordering::SeqCst) {
+            Some("E_MCP_KEYCHAIN_WAITING")
+        } else {
+            problem
+        };
         McpView {
             enabled: access.enabled,
             scope: access.scope,
