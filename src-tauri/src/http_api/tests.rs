@@ -1229,6 +1229,23 @@ fn the_socket_is_this_users_alone_and_goes_when_it_stops() {
 }
 
 #[test]
+fn a_socket_a_dead_devot_left_is_replaced_and_a_look_that_sends_nothing_gets_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let place = dir.path().join("mcp.sock");
+    drop(std::os::unix::net::UnixListener::bind(&place).unwrap());
+    let gate = Arc::new(Gate::new(Limits::DEFAULT));
+    let core = Arc::new(Core::default());
+    let _server = Server::start_bridge(&place, gate, core.clone()).unwrap();
+    let mut look = std::os::unix::net::UnixStream::connect(&place).unwrap();
+    look.shutdown(std::net::Shutdown::Write).unwrap();
+    look.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    let mut answer = Vec::new();
+    let _ = look.read_to_end(&mut answer);
+    assert!(answer.is_empty());
+    assert_eq!(core.reached(), 0);
+}
+
+#[test]
 fn a_file_at_the_sockets_place_that_is_not_this_users_socket_is_left_alone() {
     let dir = tempfile::tempdir().unwrap();
     let place = dir.path().join("mcp.sock");

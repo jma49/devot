@@ -249,7 +249,17 @@ pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
         }
         // The plugins have seen the exit by now, so the single-instance socket is gone and the new
         // process cannot hand its launch back to this one.
-        RunEvent::Exit if app.state::<ExitGate>().restart.load(Ordering::SeqCst) => restart(app),
+        // Every way out comes here, an Apple Event's quit (logout, another app) among them, which
+        // bypasses the handshake: the bridge's socket must not outlive the process.
+        RunEvent::Exit => {
+            #[cfg(desktop)]
+            if let Some(api) = app.try_state::<std::sync::Arc<crate::http_api::HttpApi>>() {
+                api.stop_bridge();
+            }
+            if app.state::<ExitGate>().restart.load(Ordering::SeqCst) {
+                restart(app);
+            }
+        }
         _ => {}
     }
 }

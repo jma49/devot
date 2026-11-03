@@ -73,6 +73,22 @@ fn ours(path: &Path, uid: u32) -> bool {
         .is_ok_and(|meta| meta.file_type().is_socket() && meta.uid() == uid)
 }
 
+/// Ready only when a Devot holds the data folder and something listens on a socket of this user. A
+/// socket nobody listens on is what a Devot that died without its exit left (a crash, a kill), and
+/// the Devot that now holds the folder has not opened its own yet: it is starting.
+fn found_at(data: &Path, socket: &Path) -> Found {
+    if !crate::startup::folder_held(data) {
+        return Found::NotRunning;
+    }
+    if !ours(socket, crate::atomic_file::effective_uid()) {
+        return Found::Starting;
+    }
+    match std::os::unix::net::UnixStream::connect(socket) {
+        Ok(_) => Found::Ready(socket.to_owned()),
+        Err(_) => Found::Starting,
+    }
+}
+
 /// This machine's Devot, as the data folder's lock and the bridge's socket say.
 pub struct Live {
     identifier: String,
@@ -88,12 +104,11 @@ impl Live {
     }
 
     fn found(&self) -> Found {
-        if !crate::startup::folder_held(&self.data) {
-            return Found::NotRunning;
+        match crate::http_api::bridge_socket(&self.identifier) {
+            Some(socket) => found_at(&self.data, &socket),
+            None if crate::startup::folder_held(&self.data) => Found::Starting,
+            None => Found::NotRunning,
         }
-        crate::http_api::bridge_socket(&self.identifier)
-            .filter(|socket| ours(socket, crate::atomic_file::effective_uid()))
-            .map_or(Found::Starting, Found::Ready)
     }
 
     /// Bridges that start at once take turns, so only the first starts Devot: a second `open` of a
@@ -283,5 +298,43 @@ mod tests {
         assert!(!ours(&socket, me.wrapping_add(1)));
         assert!(!ours(&file, me));
         assert!(!ours(&dir.path().join("none"), me));
+    }
+
+    #[test]
+    fn a_socket_a_dead_devot_left_reads_as_starting_until_the_new_one_listens() {
+        let dir = tempfile::tempdir().unwrap();
+        let data = dir.path().join("data");
+        let socket = dir.path().join("mcp.sock");
+        assert_eq!(found_at(&data, &socket), Found::NotRunning);
+        drop(std::os::unix::net::UnixListener::bind(&socket).unwrap());
+        assert!(socket.exists(), "the leftover of a Devot that died");
+        assert_eq!(found_at(&data, &socket), Found::NotRunning);
+        let _held = crate::startup::take_folder(&data).unwrap();
+        assert_eq!(found_at(&data, &socket), Found::Starting);
+
+        let ready = socket.clone();
+        let binds = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            std::fs::remove_file(&ready).unwrap();
+            std::os::unix::net::UnixListener::bind(&ready).unwrap()
+        });
+        let launched = Cell::new(0);
+        let found = reach(
+            || access(true, true),
+            || found_at(&data, &socket),
+            || {
+                launched.set(launched.get() + 1);
+                Ok(())
+            },
+            Duration::from_secs(5),
+            Duration::from_secs(5),
+        );
+        let _listener = binds.join().unwrap();
+        assert_eq!(found, Ok(socket.clone()));
+        assert_eq!(
+            launched.get(),
+            0,
+            "a Devot holds the folder: nothing to start"
+        );
     }
 }

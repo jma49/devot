@@ -1274,6 +1274,10 @@ title: Daily Report {{date}}
   'integrations.confirmConnectDetail':
     'Devot adds this to {path}. Everything else in the file stays, and the file as it is now is kept at {backup}.',
   'integrations.confirmCreateDetail': 'Devot creates {path} with this in it.',
+  'integrations.confirmCliConnectDetail':
+    'Devot runs this command, so Claude Code adds Devot to {path} itself. Claude Code can stay open; start a new session to use Devot.',
+  'integrations.confirmCliDisconnectDetail':
+    'Devot runs claude mcp remove --scope user devot, so Claude Code removes only Devot\u2019s entry from {path} itself. Claude Code can stay open.',
   'integrations.confirmRunning':
     'If {client} is running it may rewrite this file at any time: quit it first. Devot leaves the file alone if it changed since this was shown.',
   'integrations.confirmAccessOn':

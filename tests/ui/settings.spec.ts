@@ -276,6 +276,7 @@ function clientStatus(client: string, path: string, state: string, extra: object
     missing: false,
     preview: `the entry for ${client}`,
     revision: 'missing',
+    via: 'file',
     ...extra,
   }
 }
@@ -315,9 +316,16 @@ test('Integrations offers configs to copy that run this app as the bridge', asyn
     '"mcpServers"',
   )
   await expect(page.getByRole('tabpanel')).not.toContainText(/\bnode\b/i)
+  // Each card follows the one before at the block spacing: nothing sits between them.
+  const aiTools = page.getByRole('region', { name: 'AI Tools' })
+  const next = await aiTools.evaluate((el) => {
+    const block = el.closest('.settings-block') ?? el
+    return block.nextElementSibling?.classList.contains('settings-block') ?? false
+  })
+  expect(next).toBe(true)
 
   await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
-  await expect(page.getByRole('tabpanel').getByRole('status').first()).toHaveText(
+  await expect(page.getByRole('tabpanel').getByRole('status').last()).toHaveText(
     'The Claude Code configuration was copied.',
   )
   expect(await calls(page, 'clipboard_write_text')).toEqual([
@@ -367,13 +375,47 @@ test('Connect shows what it will write and where, and writes only once confirmed
   await dialog.getByRole('button', { name: 'Connect', exact: true }).click()
   await expect(dialog).toHaveCount(0)
   await expect(codex).toContainText('Connected through /Users/me/.codex/config.toml.')
-  await expect(page.getByRole('tabpanel').getByRole('status').first()).toHaveText(
+  await expect(page.getByRole('tabpanel').getByRole('status').last()).toHaveText(
     'Codex is connected. Restart it if it is running.',
   )
   expect(await calls(page, 'settings_mcp_connect')).toEqual([
     { cmd: 'settings_mcp_connect', args: { client: 'codex', revision: 'missing' } },
   ])
   await expect(codex.getByRole('button', { name: 'Disconnect Codex' })).toBeVisible()
+})
+
+test('Claude Code is changed through its own CLI when there is one, and the dialog says so', async ({
+  page,
+}) => {
+  const command = `/opt/homebrew/bin/claude mcp add --scope user devot -- '${BRIDGE}' --cli mcp`
+  await page.addInitScript(
+    (setup) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+      }
+    },
+    {
+      ...setupWith(),
+      clients: [
+        clientStatus('claudeCode', '/Users/me/.claude.json', 'notConnected', {
+          via: 'claudeCli',
+          preview: command,
+        }),
+      ],
+    },
+  )
+  await openSettings(page, 'Integrations')
+  await page
+    .getByRole('region', { name: 'Claude Code' })
+    .getByRole('button', { name: 'Connect Claude Code' })
+    .click()
+  const dialog = page.getByRole('dialog', { name: 'Connect Claude Code?' })
+  await expect(dialog.locator('code')).toHaveText(command)
+  await expect(dialog).toContainText('Claude Code can stay open')
+  await expect(dialog).not.toContainText('quit it first')
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
 })
 
 test('Disconnect names the file, removes only on confirming and reports a refusal', async ({
@@ -523,7 +565,7 @@ test('Integrations still offers configs, with the installed path, when Rust cann
   const claude = page.getByRole('region', { name: 'Claude Code' })
   await expect(claude.locator('code')).toContainText('/Applications/Devot.app/Contents/MacOS/devot')
   await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
-  await expect(pane.getByRole('status').first()).toHaveText(
+  await expect(pane.getByRole('status').last()).toHaveText(
     'The Claude Code configuration was copied.',
   )
 })

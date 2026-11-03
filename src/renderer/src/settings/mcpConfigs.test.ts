@@ -66,6 +66,7 @@ describe('Rust\u2019s answer', () => {
     missing: false,
     preview: '[mcp_servers.devot]\n',
     revision: 'missing',
+    via: 'file',
   }
 
   it('reads a client status, refusing an unknown client or state', () => {
@@ -73,6 +74,8 @@ describe('Rust\u2019s answer', () => {
     expect(asMcpClientStatus({ ...STATUS, client: 'other' })).toBeNull()
     expect(asMcpClientStatus({ ...STATUS, state: 'other-state' })).toBeNull()
     expect(asMcpClientStatus({ ...STATUS, path: 3 })).toBeNull()
+    expect(asMcpClientStatus({ ...STATUS, via: 'claudeCli' })?.via).toBe('claudeCli')
+    expect(asMcpClientStatus({ ...STATUS, via: 'shell' })?.via).toBe('file')
     expect(asMcpClientStatus(null)).toBeNull()
   })
 

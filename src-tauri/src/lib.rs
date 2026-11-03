@@ -396,6 +396,11 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     // One Devot per data folder, for the life of the process.
     let (held, db) = startup::open_data(data_dir, crash::start_native)?;
     app.manage(held);
+    // From here a bridge sees this Devot as running: a socket a crash left must already be gone.
+    #[cfg(desktop)]
+    if let Some(socket) = http_api::bridge_socket(&app.config().identifier) {
+        http_api::server::remove_bridge_socket(&socket);
+    }
     let db_path = data_dir.join(startup::DB_FILE);
     app.manage(db);
     app.manage(backups::Backups::new(data_dir, &db_path));

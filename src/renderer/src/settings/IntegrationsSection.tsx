@@ -161,11 +161,16 @@ function ConfirmChange(props: {
   const client = t(title)
   const connecting = action === 'connect'
   const message = connecting ? 'integrations.confirmConnect' : 'integrations.confirmDisconnect'
-  const detail = !connecting
-    ? 'integrations.confirmDisconnectDetail'
-    : status.missing
-      ? 'integrations.confirmCreateDetail'
-      : 'integrations.confirmConnectDetail'
+  const cli = status.via === 'claudeCli'
+  const detail = cli
+    ? connecting
+      ? 'integrations.confirmCliConnectDetail'
+      : 'integrations.confirmCliDisconnectDetail'
+    : !connecting
+      ? 'integrations.confirmDisconnectDetail'
+      : status.missing
+        ? 'integrations.confirmCreateDetail'
+        : 'integrations.confirmConnectDetail'
   return (
     <dialog
       ref={dialog}
@@ -188,7 +193,9 @@ function ConfirmChange(props: {
           <code>{status.preview}</code>
         </pre>
       ) : null}
-      <p className="confirm-detail">{format(t('integrations.confirmRunning'), { client })}</p>
+      {cli ? null : (
+        <p className="confirm-detail">{format(t('integrations.confirmRunning'), { client })}</p>
+      )}
       {connecting && !props.access.enabled ? (
         <p className="confirm-detail">{t('integrations.confirmAccessOn')}</p>
       ) : null}
@@ -373,15 +380,12 @@ export function IntegrationsSection() {
           ) : null}
         </SettingsSection>
       ) : null}
-      <McpAccessSection changed={accessChanged} onChange={setAccess} />
       {errors.map((text) => (
         <p key={text} role="alert" className="settings-error">
           {text}
         </p>
       ))}
-      <p className="visually-hidden" role="status" aria-live="polite">
-        {announcement}
-      </p>
+      <McpAccessSection changed={accessChanged} onChange={setAccess} />
       {CLIENTS.map((client) => {
         if (!setup) return null
         const text = client.text(setup)
@@ -459,6 +463,9 @@ export function IntegrationsSection() {
         )
       })}
       <HttpApiSection />
+      <p className="visually-hidden" role="status" aria-live="polite">
+        {announcement}
+      </p>
       {pending ? (
         <ConfirmChange
           pending={pending}

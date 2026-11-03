@@ -26,6 +26,8 @@ export interface McpClientStatus {
   preview: string | null
   /** The file as shown; Rust refuses a change once the file is no longer this. */
   revision: string
+  /** Whether Devot edits the file, or runs the client's own CLI (`claude mcp`). */
+  via: 'file' | 'claudeCli'
 }
 
 export interface McpSetup {
@@ -94,7 +96,7 @@ const textOrNull = (value: unknown) => (typeof value === 'string' && value !== '
 
 export function asMcpClientStatus(value: unknown): McpClientStatus | null {
   if (typeof value !== 'object' || value === null) return null
-  const { client, path, backup, state, code, missing, preview, revision } = value as Record<
+  const { client, path, backup, state, code, missing, preview, revision, via } = value as Record<
     string,
     unknown
   >
@@ -110,6 +112,7 @@ export function asMcpClientStatus(value: unknown): McpClientStatus | null {
     missing: missing === true,
     preview: textOrNull(preview),
     revision: typeof revision === 'string' ? revision : '',
+    via: via === 'claudeCli' ? 'claudeCli' : 'file',
   }
 }
 

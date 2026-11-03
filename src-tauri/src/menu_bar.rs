@@ -120,7 +120,7 @@ fn show_icon(app: &AppHandle) -> tauri::Result<()> {
         .separator()
         .item(&quit)
         .build()?;
-    TrayIconBuilder::with_id(TRAY_ID)
+    let tray = TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon())
         .icon_as_template(true)
         .tooltip(strings::APP_NAME)
@@ -132,6 +132,9 @@ fn show_icon(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .build(app)?;
+    // tray-icon marks the image a template only after the button has drawn it, and its own setter
+    // gives the image to the button again: without that it can stay black, unseen on a dark bar.
+    tray.set_icon_as_template(true)?;
     Ok(())
 }
 

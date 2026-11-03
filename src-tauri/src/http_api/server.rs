@@ -600,6 +600,8 @@ impl Head {
 
 const BAD_REQUEST: Refusal = Refusal::new(400, "E_HTTP_BAD_REQUEST");
 const TIMED_OUT: Refusal = Refusal::new(408, "E_HTTP_TIMEOUT");
+/// Closed before a byte came: the bridge looking whether Devot listens. No answer, no log line.
+const NOTHING_SENT: Refusal = Refusal::new(400, "E_HTTP_NOTHING_SENT");
 
 fn parse_head(bytes: &[u8]) -> Result<Head, Refusal> {
     let text = std::str::from_utf8(bytes).map_err(|_| BAD_REQUEST)?;
@@ -660,6 +662,7 @@ fn read_until(
             .ok_or(TIMED_OUT)?;
         stream.read_within(Some(left)).map_err(|_| BAD_REQUEST)?;
         match stream.read(&mut chunk) {
+            Ok(0) if buffer.is_empty() => return Err(NOTHING_SENT),
             Ok(0) => return Err(BAD_REQUEST),
             Ok(n) => buffer.extend_from_slice(&chunk[..n]),
             Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
@@ -715,6 +718,9 @@ impl From<Refusal> for Outcome {
 fn serve(mut stream: impl Conn, via: Via, gate: &Gate, dispatch: &dyn Dispatch) {
     let _ = stream.write_within(Some(WRITE_TIMEOUT));
     let outcome = handle(&mut stream, via, gate, dispatch).unwrap_or_else(Outcome::from);
+    if outcome.reply.code.as_deref() == Some(NOTHING_SENT.code) {
+        return;
+    }
     log_outcome(gate, &outcome);
     let _ = stream.write_all(&outcome.reply.bytes());
     let _ = stream.flush();

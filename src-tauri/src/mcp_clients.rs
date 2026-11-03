@@ -41,6 +41,22 @@ const NOT_CONNECTED: &str = "E_MCP_NOT_CONNECTED";
 const DANGLING: &str = "E_MCP_CONFIG_LINK_DANGLING";
 const BAD_REVISION: &str = "E_MCP_REVISION_INVALID";
 const MISSING: &str = "missing";
+const CLI_FAILED: &str = "E_MCP_CLI_FAILED";
+const CLI_TIMEOUT: &str = "E_MCP_CLI_TIMEOUT";
+/// `claude mcp` answers in a moment; a hung one is stopped rather than left holding Settings.
+const CLI_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+/// Where Homebrew, npm and Claude Code's own installer put `claude`, which a GUI app's short PATH
+/// leaves out; in the home folder, then anywhere.
+const CLAUDE_IN_HOME: [&str; 5] = [
+    ".local/bin/claude",
+    ".claude/local/claude",
+    ".npm-global/bin/claude",
+    ".volta/bin/claude",
+    ".bun/bin/claude",
+];
+const CLAUDE_ANYWHERE: [&str; 2] = ["/opt/homebrew/bin/claude", "/usr/local/bin/claude"];
+/// What `claude`, a Node script when npm installed it, needs to find `node` from a GUI app.
+const CLI_PATH: &str = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin";
 
 /// Devot's own changes to client configs go one at a time.
 static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -570,6 +586,17 @@ pub struct ClientStatus {
     preview: Option<String>,
     /// The file as shown (`revision_of`): Connect and Disconnect refuse once it has changed.
     revision: String,
+    /// How Connect and Disconnect change it.
+    via: Via,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Via {
+    /// Devot edits the file itself.
+    File,
+    /// Claude Code's own `claude mcp`, which merges with the file Claude Code keeps rewriting.
+    ClaudeCli,
 }
 
 fn backup_of(path: &Path) -> PathBuf {
@@ -593,6 +620,7 @@ fn status(client: Client, path: &Path, launch: Option<&Launch>) -> ClientStatus 
         missing: false,
         preview: launch.and_then(|launch| with_entry(client, None, launch).ok()),
         revision: String::new(),
+        via: Via::File,
     };
     let read = read_config(path).and_then(|text| {
         found.revision = revision_of(text.as_deref());
@@ -645,6 +673,166 @@ fn disconnect(
     let text = without_entry(client, &current)?.ok_or(NOT_CONNECTED)?;
     write_config(path, Some(&current), &text)?;
     Ok(status(client, path, launch))
+}
+
+fn is_executable(path: &Path) -> bool {
+    std::fs::metadata(path)
+        .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
+}
+
+/// The `claude` on `path_var`'s PATH, else in the places installers put it.
+fn find_claude(
+    path_var: Option<&OsStr>,
+    home: &Path,
+    executable: impl Fn(&Path) -> bool,
+) -> Option<PathBuf> {
+    let on_path = path_var
+        .into_iter()
+        .flat_map(std::env::split_paths)
+        .filter(|dir| dir.is_absolute())
+        .map(|dir| dir.join("claude"));
+    let known = CLAUDE_ANYWHERE
+        .iter()
+        .map(PathBuf::from)
+        .chain(CLAUDE_IN_HOME.iter().map(|rest| home.join(rest)));
+    on_path.chain(known).find(|path| executable(path))
+}
+
+fn claude_cli(home: &Path) -> Option<PathBuf> {
+    find_claude(std::env::var_os("PATH").as_deref(), home, is_executable)
+}
+
+fn add_args(launch: &Launch) -> Vec<String> {
+    let mut args: Vec<String> = ["mcp", "add", "--scope", "user", SERVER, "--"]
+        .map(String::from)
+        .to_vec();
+    args.push(launch.command.clone());
+    args.extend(launch.args.iter().cloned());
+    args
+}
+
+fn remove_args() -> Vec<String> {
+    ["mcp", "remove", "--scope", "user", SERVER]
+        .map(String::from)
+        .to_vec()
+}
+
+/// A word as a POSIX shell would read it back: only for showing the command, never for running it.
+fn shown_word(word: &str) -> String {
+    let plain = !word.is_empty()
+        && word
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"@%+=:,./-_".contains(&b));
+    if plain {
+        word.to_owned()
+    } else {
+        format!("'{}'", word.replace('\'', "'\\''"))
+    }
+}
+
+fn shown_command(cli: &Path, args: &[String]) -> String {
+    std::iter::once(cli.to_string_lossy().into_owned())
+        .chain(args.iter().cloned())
+        .map(|word| shown_word(&word))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The CLI's own folder first (a native install), then where `node` lives.
+fn cli_path_for(cli: &Path) -> OsString {
+    let mut path = OsString::new();
+    if let Some(dir) = cli.parent() {
+        path.push(dir);
+        path.push(":");
+    }
+    if let Some(dir) = std::fs::canonicalize(cli)
+        .ok()
+        .as_deref()
+        .and_then(Path::parent)
+    {
+        path.push(dir);
+        path.push(":");
+    }
+    path.push(CLI_PATH);
+    path
+}
+
+/// Runs `cli` with `args` as they are, no shell between; its output is the client's and is never
+/// read or logged.
+fn run_cli(cli: &Path, args: &[String], wait: std::time::Duration) -> Result<(), &'static str> {
+    let mut child = std::process::Command::new(cli)
+        .args(args)
+        .env("PATH", cli_path_for(cli))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|_| CLI_FAILED)?;
+    let until = std::time::Instant::now() + wait;
+    loop {
+        match child.try_wait() {
+            Ok(Some(done)) if done.success() => return Ok(()),
+            Ok(Some(_)) | Err(_) => return Err(CLI_FAILED),
+            Ok(None) if std::time::Instant::now() >= until => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(CLI_TIMEOUT);
+            }
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(50)),
+        }
+    }
+}
+
+/// The status as `claude mcp` will change it, with the command it runs as the preview.
+fn via_cli(mut found: ClientStatus, cli: &Path, launch: Option<&Launch>) -> ClientStatus {
+    found.via = Via::ClaudeCli;
+    found.preview = launch.map(|launch| shown_command(cli, &add_args(launch)));
+    found
+}
+
+/// `claude mcp add` refuses a name that is taken, so an entry already there goes first.
+fn connect_with_cli(
+    cli: &Path,
+    path: &Path,
+    launch: &Launch,
+    wait: std::time::Duration,
+) -> Result<ClientStatus, &'static str> {
+    let before = status(Client::ClaudeCode, path, Some(launch));
+    if matches!(
+        before.state,
+        ConnectionState::Connected | ConnectionState::Stale | ConnectionState::Other
+    ) {
+        run_cli(cli, &remove_args(), wait)?;
+    }
+    run_cli(cli, &add_args(launch), wait)?;
+    Ok(via_cli(
+        status(Client::ClaudeCode, path, Some(launch)),
+        cli,
+        Some(launch),
+    ))
+}
+
+fn disconnect_with_cli(
+    cli: &Path,
+    path: &Path,
+    launch: Option<&Launch>,
+    wait: std::time::Duration,
+) -> Result<ClientStatus, &'static str> {
+    run_cli(cli, &remove_args(), wait)?;
+    Ok(via_cli(
+        status(Client::ClaudeCode, path, launch),
+        cli,
+        launch,
+    ))
+}
+
+/// Claude Code's status as Settings shows it: through its CLI when there is one.
+fn shown_status(client: Client, path: &Path, launch: Option<&Launch>, home: &Path) -> ClientStatus {
+    let found = status(client, path, launch);
+    match (client, claude_cli(home)) {
+        (Client::ClaudeCode, Some(cli)) => via_cli(found, &cli, launch),
+        _ => found,
+    }
 }
 
 /// The manifest of a Claude Desktop extension: a launcher, and nothing that runs a server itself,
@@ -770,7 +958,9 @@ pub async fn settings_mcp_setup(app: AppHandle) -> Result<McpSetup, String> {
             temporary: launch.as_ref().is_some_and(|l| is_temporary(&l.command)),
             clients: CLIENTS
                 .into_iter()
-                .map(|client| status(client, &client_path(client, &home), launch.as_ref()))
+                .map(|client| {
+                    shown_status(client, &client_path(client, &home), launch.as_ref(), &home)
+                })
                 .collect(),
         })
     })
@@ -790,8 +980,15 @@ pub async fn settings_mcp_connect(
     check_revision(&revision)?;
     blocking(move || {
         let launch = installed_launch()?;
-        let path = client_path(client, &home(&app)?);
-        let done = connect(client, &path, &launch, &revision);
+        let home = home(&app)?;
+        let path = client_path(client, &home);
+        let cli = (client == Client::ClaudeCode)
+            .then(|| claude_cli(&home))
+            .flatten();
+        let done = match &cli {
+            Some(cli) => connect_with_cli(cli, &path, &launch, CLI_WAIT),
+            None => connect(client, &path, &launch, &revision),
+        };
         match &done {
             Ok(_) => {
                 log::info!("I_MCP_CLIENT_CONNECTED {}", client.id());
@@ -816,8 +1013,15 @@ pub async fn settings_mcp_disconnect(
     check_revision(&revision)?;
     blocking(move || {
         let launch = current_launch();
-        let path = client_path(client, &home(&app)?);
-        let done = disconnect(client, &path, launch.as_ref(), &revision);
+        let home = home(&app)?;
+        let path = client_path(client, &home);
+        let cli = (client == Client::ClaudeCode)
+            .then(|| claude_cli(&home))
+            .flatten();
+        let done = match &cli {
+            Some(cli) => disconnect_with_cli(cli, &path, launch.as_ref(), CLI_WAIT),
+            None => disconnect(client, &path, launch.as_ref(), &revision),
+        };
         match &done {
             Ok(_) => log::info!("I_MCP_CLIENT_DISCONNECTED {}", client.id()),
             Err(code) => log::warn!("W_MCP_CLIENT_DISCONNECT_FAILED {} {code}", client.id()),
@@ -1404,5 +1608,133 @@ mod tests {
         for bad in ["", "MISSING", &"A".repeat(64), &"a".repeat(63), "../x"] {
             assert_eq!(check_revision(bad), Err(BAD_REVISION), "{bad}");
         }
+    }
+
+    fn fake_claude(dir: &Path, exit: u8) -> (PathBuf, PathBuf) {
+        let log = dir.join("calls");
+        let cli = dir.join("bin/claude");
+        std::fs::create_dir_all(cli.parent().unwrap()).unwrap();
+        let script = format!(
+            "#!/bin/sh\nfor arg in \"$@\"; do printf '%s\\n' \"$arg\" >> '{}'; done\necho @@end >> '{}'\necho \"$PATH\" > '{}.path'\nexit {exit}\n",
+            log.display(),
+            log.display(),
+            log.display()
+        );
+        std::fs::write(&cli, script).unwrap();
+        std::fs::set_permissions(&cli, std::fs::Permissions::from_mode(0o755)).unwrap();
+        (cli, log)
+    }
+
+    fn calls(log: &Path) -> Vec<Vec<String>> {
+        std::fs::read_to_string(log)
+            .unwrap_or_default()
+            .split("@@end\n")
+            .filter(|call| !call.is_empty())
+            .map(|call| call.lines().map(String::from).collect())
+            .collect()
+    }
+
+    #[test]
+    fn finds_claude_on_the_path_then_where_installers_put_it() {
+        let home = Path::new("/Users/me");
+        let only = |wanted: &'static str| move |path: &Path| path == Path::new(wanted);
+        assert_eq!(
+            find_claude(Some(OsStr::new("/a:relative:/b")), home, only("/b/claude")),
+            Some(PathBuf::from("/b/claude"))
+        );
+        assert_eq!(
+            find_claude(Some(OsStr::new("relative")), home, only("relative/claude")),
+            None,
+            "a relative PATH entry names a different file for Devot"
+        );
+        assert_eq!(
+            find_claude(
+                Some(OsStr::new("/usr/bin:/bin")),
+                home,
+                only("/opt/homebrew/bin/claude")
+            ),
+            Some(PathBuf::from("/opt/homebrew/bin/claude"))
+        );
+        assert_eq!(
+            find_claude(None, home, only("/Users/me/.npm-global/bin/claude")),
+            Some(PathBuf::from("/Users/me/.npm-global/bin/claude"))
+        );
+        assert_eq!(find_claude(None, home, |_| false), None);
+    }
+
+    #[test]
+    fn connects_claude_code_through_its_cli_with_each_argument_as_it_is() {
+        let dir = tempfile::tempdir().unwrap();
+        let (cli, log) = fake_claude(dir.path(), 0);
+        let path = config_in(&dir, Client::ClaudeCode);
+        let found = connect_with_cli(&cli, &path, &launch(), CLI_WAIT).unwrap();
+        assert_eq!(
+            calls(&log),
+            [vec![
+                "mcp", "add", "--scope", "user", "devot", "--", BRIDGE, "--cli", "mcp"
+            ]]
+        );
+        assert!(!path.exists(), "the file is the CLI's to write");
+        assert_eq!(found.via, Via::ClaudeCli);
+        assert_eq!(
+            found.preview.as_deref(),
+            Some(
+                format!(
+                    "{} mcp add --scope user devot -- '{BRIDGE}' --cli mcp",
+                    cli.display()
+                )
+                .as_str()
+            )
+        );
+        let path_used = std::fs::read_to_string(format!("{}.path", log.display())).unwrap();
+        assert!(path_used.starts_with(&format!("{}:", cli.parent().unwrap().display())));
+        assert!(path_used.contains("/opt/homebrew/bin"));
+    }
+
+    #[test]
+    fn replaces_an_entry_through_the_cli_by_removing_it_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let (cli, log) = fake_claude(dir.path(), 0);
+        let path = config_in(&dir, Client::ClaudeCode);
+        let moved = Launch {
+            command: OLD_BRIDGE.to_owned(),
+            args: args(),
+        };
+        std::fs::write(&path, with_entry(Client::ClaudeCode, None, &moved).unwrap()).unwrap();
+        connect_with_cli(&cli, &path, &launch(), CLI_WAIT).unwrap();
+        let made = calls(&log);
+        assert_eq!(made[0], ["mcp", "remove", "--scope", "user", "devot"]);
+        assert_eq!(made[1][1], "add");
+        disconnect_with_cli(&cli, &path, Some(&launch()), CLI_WAIT).unwrap();
+        assert_eq!(
+            calls(&log)[2],
+            ["mcp", "remove", "--scope", "user", "devot"]
+        );
+    }
+
+    #[test]
+    fn a_cli_that_fails_or_hangs_answers_a_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let (cli, _) = fake_claude(dir.path(), 1);
+        let path = config_in(&dir, Client::ClaudeCode);
+        assert_eq!(
+            connect_with_cli(&cli, &path, &launch(), CLI_WAIT).unwrap_err(),
+            CLI_FAILED
+        );
+        let slow = dir.path().join("slow");
+        std::fs::write(&slow, "#!/bin/sh\nsleep 5\n").unwrap();
+        std::fs::set_permissions(&slow, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(
+            run_cli(&slow, &remove_args(), std::time::Duration::from_millis(200)),
+            Err(CLI_TIMEOUT)
+        );
+    }
+
+    #[test]
+    fn shows_the_command_as_a_shell_would_read_it() {
+        assert_eq!(shown_word("/a/b-c_d"), "/a/b-c_d");
+        assert_eq!(shown_word("/My Apps/x"), "'/My Apps/x'");
+        assert_eq!(shown_word("it's"), "'it'\\''s'");
+        assert_eq!(shown_word(""), "''");
     }
 }
