@@ -10,6 +10,7 @@ import { useAlertMenu } from '../editor/alertMenu'
 import { noteDate } from '../format'
 import { format, currentLocale, t } from '../i18n'
 import { Icon } from '../icons/Icon'
+import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import type { IconName } from '../icons/symbols'
 import type { LinkSources } from '../linkCompletion'
 import { NoteEditor, type EditorHandle } from '../NoteEditor'
@@ -318,16 +319,9 @@ export function PhoneNote(props: {
               onClick={() => setSheet('tags')}
             >
               <span
-                className="phone-chip"
+                className={`phone-chip ${tagColorClass(tag!.color)}`}
                 data-tag={tag!.color ?? undefined}
-                style={
-                  tag!.color
-                    ? {
-                        ['--chip-tag' as string]: `var(--color-tag-${tag!.color})`,
-                        ['--chip-tag-text' as string]: `var(--color-tag-text-${tag!.color})`,
-                      }
-                    : undefined
-                }
+                style={tagColorStyle(tag!.color)}
               >
                 {tag!.name}
               </span>

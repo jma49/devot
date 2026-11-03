@@ -646,16 +646,6 @@ button {
   color: var(--status-mark);
 }
 
-.tag-row .icon {
-  -webkit-mask-size: 55%;
-  mask-size: 55%;
-}
-
-.tag-row .icon-svg {
-  box-sizing: border-box;
-  padding: calc(var(--size-icon-md) * 0.225);
-}
-
 .tag-color-red {
   --tag-color: var(--color-tag-red);
   --tag-text: var(--color-tag-text-red);
@@ -704,14 +694,53 @@ button {
   --tag-icon: var(--color-tag-icon-gray);
 }
 
+:root {
+  --appearance-dark: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-appearance='light']) {
+    --appearance-dark: 1;
+  }
+}
+
+:root[data-appearance='dark'],
+[data-appearance-preview='dark'] {
+  --appearance-dark: 1;
+}
+
+:root[data-appearance='light'],
+[data-appearance-preview='light'] {
+  --appearance-dark: 0;
+}
+
+/* The derived colours come from tagColorStyle.ts; a chip from note text has only the colour, so its label stays in the primary ink. */
+.tag-color-custom {
+  --tag-color: var(--tag-custom);
+  --tag-text: color-mix(
+    in srgb,
+    var(--tag-custom-text-dark, var(--color-text-primary)) calc(var(--appearance-dark) * 100%),
+    var(--tag-custom-text-light, var(--color-text-primary))
+  );
+  --tag-icon: color-mix(
+    in srgb,
+    var(--tag-custom-icon-dark, var(--tag-custom)) calc(var(--appearance-dark) * 100%),
+    var(--tag-custom-icon-light, var(--tag-custom))
+  );
+}
+
 .tag-dot {
   flex-shrink: 0;
   box-sizing: border-box;
   width: var(--space-4);
   height: var(--space-4);
-  border: 1px solid var(--tag-color);
   border-radius: var(--radius-capsule);
-  background: color-mix(in srgb, var(--tag-color) calc(var(--opacity-tag-dot) * 100%), transparent);
+  background: var(--tag-color);
+  box-shadow: inset 0 0 0 1px var(--color-line-hairline);
+}
+
+.tag-dot-plain {
+  --tag-color: var(--color-text-tertiary);
 }
 
 .tag-dot-box {
@@ -1831,10 +1860,6 @@ button {
   flex-wrap: wrap;
   gap: var(--space-1);
   min-width: 0;
-}
-
-.card-tag-plain {
-  --tag-color: var(--color-text-tertiary);
 }
 
 /* Drawn off screen for the drag image (listDrag.ts); the holder's padding is its distance from the pointer. */

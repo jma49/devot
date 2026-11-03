@@ -10,6 +10,7 @@ import type {
   NoteSummary,
   SaveProblem,
   TagColor,
+  TagColorValue,
   TagRecord,
   TakenIn,
   TrashedNote,
@@ -161,6 +162,7 @@ import { TrashView } from './TrashView'
 import { Icon, ToolIcon } from './icons/Icon'
 import { BookIcon } from './BookIcon'
 import { StatusPicker } from './StatusPicker'
+import { tagColorClass, tagColorStyle } from './tagColorStyle'
 import { TagEditor } from './TagEditor'
 import { BuiltInTemplate, BuiltInTemplates } from './BuiltInTemplates'
 import { markWrite } from './lastWrite'
@@ -3592,7 +3594,7 @@ export function App() {
     (id: string, name: string) => void changeBooks((c) => c.renameTag(id, name)),
   )
   const sidebarSetTagColor = useStable(
-    (id: string, color: TagColor | null) => void changeBooks((c) => c.setTagColor(id, color)),
+    (id: string, color: TagColorValue | null) => void changeBooks((c) => c.setTagColor(id, color)),
   )
   const [headerTagSettings, setHeaderTagSettings] = useState<string>()
   const removeOpenTag = useStable(
@@ -3663,7 +3665,15 @@ export function App() {
               : ''
   const listIcon = useMemo(() => {
     const [kind, a, b] = iconKey.split(':')
-    if (kind === 'tag') return <span className={`headline-dot${a ? ` tag-color-${a}` : ''}`} />
+    if (kind === 'tag') {
+      const color = (a || null) as TagColorValue | null
+      return (
+        <span
+          className={`headline-dot${color ? ` ${tagColorClass(color)}` : ''}`}
+          style={tagColorStyle(color)}
+        />
+      )
+    }
     if (kind === 'status') {
       const icon = STATUSES.find((s) => s.status === a)?.icon ?? 'status.none'
       return <Icon name={icon} size="title" />

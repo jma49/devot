@@ -99,7 +99,7 @@ const painted = (page: Page, selector: string, color: string) =>
           createElement(tag: string): El
           body: { append(el: El): void }
         }
-        getComputedStyle(el: El): { color: string; borderTopColor: string }
+        getComputedStyle(el: El): { color: string; backgroundColor: string }
       }
       const el = w.document.querySelector(sel)
       const probe = w.document.createElement('span')
@@ -107,7 +107,7 @@ const painted = (page: Page, selector: string, color: string) =>
       w.document.body.append(probe)
       const want = w.getComputedStyle(probe).color
       probe.remove()
-      return { got: el ? w.getComputedStyle(el).borderTopColor : null, want }
+      return { got: el ? w.getComputedStyle(el).backgroundColor : null, want }
     },
     [selector, color] as const,
   )
@@ -150,7 +150,7 @@ test('a colour shows as the sidebar dot and on chips, and survives a reload', as
   const dot = tagRow(page, 'idea').locator('.tag-dot')
   await expect(dot).toHaveAttribute('data-color', 'purple')
   await expect(tagRow(page, 'idea')).toHaveAccessibleName('Purple idea 2')
-  await expect(tagRow(page, 'sync').locator('.tag-dot')).toHaveCount(0)
+  await expect(tagRow(page, 'sync').locator('.tag-dot[data-color]')).toHaveCount(0)
   await expect(noteRow(page, 'One').locator('.chip .tag-dot')).toHaveCount(1)
   await expect(
     noteRow(page, 'Two').locator('.chip', { hasText: 'idea' }).locator('.tag-dot'),
@@ -158,7 +158,6 @@ test('a colour shows as the sidebar dot and on chips, and survives a reload', as
   await expect(
     editorTags(page).locator('.chip', { hasText: 'idea' }).locator('.tag-dot'),
   ).toHaveAttribute('data-color', 'purple')
-  // Edged with the theme's token for the colour (its fill is a wash of it).
   const { got, want } = await painted(page, '.sources.tags .tag-dot', 'purple')
   expect(got).toBe(want)
   expect(await storedTags(page)).toEqual(
@@ -173,7 +172,7 @@ test('a colour shows as the sidebar dot and on chips, and survives a reload', as
 
   await openMenu(page, 'idea')
   await pickMenuItem(page, 'None', 'Color')
-  await expect(tagRow(page, 'idea').locator('.tag-dot')).toHaveCount(0)
+  await expect(tagRow(page, 'idea').locator('.tag-dot[data-color]')).toHaveCount(0)
   await expect(page.locator('.chip .tag-dot')).toHaveCount(0)
 })
 

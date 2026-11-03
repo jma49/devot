@@ -44,6 +44,7 @@ import {
   type StatusUndo,
   type StorageAdapter,
   type TagColor,
+  type TagColorValue,
   type WelcomeContent,
   seedWelcome,
 } from '../../core'
@@ -234,7 +235,7 @@ export const coreApi = {
   addTag: (noteId: string, name: string) => requiredTags().addToNote(noteId, name),
   removeTag: (noteId: string, tagId: string) => requiredTags().removeFromNote(noteId, tagId),
   renameTag: (id: string, name: string) => requiredTags().rename(id, name),
-  setTagColor: (id: string, color: TagColor | null) => requiredTags().setColor(id, color),
+  setTagColor: (id: string, color: TagColorValue | null) => requiredTags().setColor(id, color),
   deleteTag: (id: string) => requiredTags().remove(id),
   /**
    * With `versions` (quitting), typing not kept as a version yet becomes one.

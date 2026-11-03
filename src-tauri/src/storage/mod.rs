@@ -177,6 +177,20 @@ pub const TAG_COLORS: [&str; 8] = [
     "red", "orange", "yellow", "green", "blue", "purple", "pink", "gray",
 ];
 
+/// What `tags.color` may hold: a palette ID, or a custom colour as lowercase `#rrggbb`. Same rule
+/// as `isTagColorValue` in src/core/tags.ts. A notebook icon takes the palette alone.
+pub fn valid_tag_color(color: &str) -> bool {
+    if TAG_COLORS.contains(&color) {
+        return true;
+    }
+    let bytes = color.as_bytes();
+    bytes.len() == 7
+        && bytes[0] == b'#'
+        && bytes[1..]
+            .iter()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
 const NOTEBOOK_SYMBOLS_JSON: &str = include_str!("../../../design/icons/notebook-symbols.json");
 
 pub fn notebook_symbol(name: &str) -> bool {
@@ -207,8 +221,8 @@ pub struct TagRecord {
     pub updated_at: i64,
     pub deleted_at: Option<i64>,
     pub deleted_hlc: Option<String>,
-    /// A palette ID from `TAG_COLORS`; None for no colour. Listing reads an
-    /// ID it does not know (from a later palette) as None.
+    /// A palette ID from `TAG_COLORS` or a custom `#rrggbb`; None for no colour. Listing reads a
+    /// value it does not know (from a later Devot) as None.
     #[serde(default)]
     pub color: Option<String>,
     /// Empty when the colour was never set.
@@ -1456,7 +1470,7 @@ impl Store {
                 updated_at: row.get(4)?,
                 deleted_at: row.get(5)?,
                 deleted_hlc: row.get(6)?,
-                color: color.filter(|c| TAG_COLORS.contains(&c.as_str())),
+                color: color.filter(|c| valid_tag_color(c)),
                 color_hlc: row.get(8)?,
             })
         })?;

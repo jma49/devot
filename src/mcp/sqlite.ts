@@ -19,7 +19,7 @@ import {
   scanFolding,
 } from '../core/search'
 import type { SyncEntry, SyncFileMeta, SyncLocal, SyncPending, SyncStore } from '../core/sync/store'
-import { isTagColor } from '../core/tags'
+import { isTagColor, isTagColorValue } from '../core/tags'
 import type {
   ActivityData,
   ActivityNote,
@@ -517,7 +517,7 @@ const toTag = (row: TagRow, raw = false): TagRecord => ({
   updatedAt: row.updated_at,
   deletedAt: row.deleted_at,
   deletedHlc: row.deleted_hlc,
-  color: raw || isTagColor(row.color) ? (row.color as TagRecord['color']) : null,
+  color: raw || isTagColorValue(row.color) ? (row.color as TagRecord['color']) : null,
   colorHlc: row.color_hlc,
 })
 

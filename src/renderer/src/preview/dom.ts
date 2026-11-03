@@ -3,6 +3,7 @@
 // Nodes are built with DOM APIs, never through HTML strings.
 import type { Element as HastElement, ElementContent, RootContent } from 'hast'
 import { find, html } from 'property-information'
+import { isCustomTagColor } from '../../../core/tags'
 import { ISLAND_ATTRIBUTE } from './islands'
 
 type HastChild = RootContent | ElementContent
@@ -52,6 +53,13 @@ function applySwatch(el: Element): void {
   }
 }
 
+function applyTagColor(el: Element): void {
+  const color = el.getAttribute('data-tag-color')
+  if (el instanceof HTMLElement && isCustomTagColor(color)) {
+    el.style.setProperty('--tag-custom', color)
+  }
+}
+
 function syncAttributes(el: Element, node: HastElement): void {
   const next = attributes(node)
   // What the page itself changed stays: an opened details is still open (a
@@ -67,6 +75,7 @@ function syncAttributes(el: Element, node: HastElement): void {
   // A clicked box no longer follows its attribute; it shows what the note says.
   if (el instanceof HTMLInputElement) el.checked = next.has('checked')
   applySwatch(el)
+  applyTagColor(el)
 }
 
 const isIsland = (node: HastElement) => node.properties['dataDevotIsland'] !== undefined

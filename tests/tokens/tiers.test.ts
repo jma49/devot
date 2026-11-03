@@ -141,7 +141,6 @@ describe('motion and state tokens', () => {
       'opacity.tag.border': 0.2,
       'opacity.tag.fill-active': 0.2,
       'opacity.tag.border-active': 0.3,
-      'opacity.tag.dot': 0.3,
     })
   })
 })

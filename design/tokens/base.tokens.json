@@ -3016,10 +3016,6 @@
       "border-active": {
         "$value": 0.3,
         "$description": "A tag chip's edge under the pointer or pressed."
-      },
-      "dot": {
-        "$value": 0.3,
-        "$description": "A tag colour dot's fill; its edge is the solid tag colour."
       }
     },
     "alert": {

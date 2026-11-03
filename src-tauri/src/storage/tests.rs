@@ -844,6 +844,53 @@ fn tags_have_no_colour_by_default_and_merge_it_per_field() {
 }
 
 #[test]
+fn keeps_a_custom_tag_colour_and_merges_it_by_hlc() {
+    let (_dir, mut store) = temp_store();
+    let tag = |color: Option<&str>, color_hlc: &str| TagRecord {
+        id: "t".into(),
+        name: "idea".into(),
+        name_hlc: "0000000000000001-0000-a".into(),
+        created_at: 1,
+        updated_at: 1,
+        deleted_at: None,
+        deleted_hlc: None,
+        color: color.map(String::from),
+        color_hlc: color_hlc.into(),
+    };
+    store
+        .put_tag(&tag(Some("#ff00aa"), "0000000000000030-0000-a"))
+        .unwrap();
+    assert_eq!(
+        store.list_tags().unwrap()[0].color.as_deref(),
+        Some("#ff00aa")
+    );
+
+    // What an older Devot writes back after renaming: it read the custom colour as none, with its HLC.
+    store
+        .put_tag(&tag(None, "0000000000000030-0000-a"))
+        .unwrap();
+    assert_eq!(
+        store.list_tags().unwrap()[0].color.as_deref(),
+        Some("#ff00aa"),
+        "the same HLC never clears it"
+    );
+
+    store
+        .put_tag(&tag(Some("red"), "0000000000000020-0000-b"))
+        .unwrap();
+    assert_eq!(
+        store.list_tags().unwrap()[0].color.as_deref(),
+        Some("#ff00aa"),
+        "an older palette write loses"
+    );
+
+    store
+        .put_tag(&tag(Some("red"), "0000000000000040-0000-b"))
+        .unwrap();
+    assert_eq!(store.list_tags().unwrap()[0].color.as_deref(), Some("red"));
+}
+
+#[test]
 fn lists_a_tag_colour_it_does_not_know_as_none() {
     // A palette ID from a later Devot (through sync) reads as no colour; its
     // HLC stays, so an older write still cannot replace it.

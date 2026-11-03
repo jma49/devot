@@ -1,3 +1,4 @@
+import type { TagColorValue } from '../../../core/storage'
 import type { NoteSummary } from '../../../core'
 import type { BookNode } from '../../../core/books'
 import { shortcutLabel } from '../commands/keys'
@@ -37,7 +38,7 @@ export function commandEntries(
  */
 export function libraryEntries(source: {
   tree: readonly BookNode[]
-  tags: readonly { id: string; name: string }[]
+  tags: readonly { id: string; name: string; color?: TagColorValue | null }[]
   notes: readonly NoteSummary[]
   headlines: ReadonlyMap<string, string>
 }): { book: PaletteEntry[]; tag: PaletteEntry[]; note: PaletteEntry[] } {
@@ -68,7 +69,12 @@ export function libraryEntries(source: {
         ...(name === undefined ? {} : { detail: name }),
       }
     })
-  const tag = source.tags.map((t): PaletteEntry => ({ kind: 'tag', id: t.id, label: t.name }))
+  const tag = source.tags.map((t): PaletteEntry => ({
+    kind: 'tag',
+    id: t.id,
+    label: t.name,
+    ...(t.color ? { tagColor: t.color } : {}),
+  }))
   return { book, tag, note }
 }
 

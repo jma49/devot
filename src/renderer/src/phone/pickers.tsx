@@ -1,6 +1,7 @@
 import type { BookRecord, NoteStatus, NoteSummary, TagRecord } from '../../../core/storage'
 import { t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
+import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import type { IconName } from '../icons/symbols'
 import { PhoneSheet, SheetChoice } from './PhoneSheet'
 
@@ -116,12 +117,8 @@ export function TagPicker(props: {
                 lead={
                   <span
                     aria-hidden="true"
-                    className="phone-tag-dot"
-                    style={{
-                      background: tag.color
-                        ? `var(--color-tag-${tag.color})`
-                        : 'var(--color-phone-status-none)',
-                    }}
+                    className={`phone-tag-dot ${tagColorClass(tag.color)}`}
+                    style={tagColorStyle(tag.color)}
                   />
                 }
                 onPick={() => props.onToggle(tag, !on)}

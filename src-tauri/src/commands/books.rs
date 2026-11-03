@@ -167,6 +167,14 @@ mod tests {
     }
 
     #[test]
+    fn an_icon_takes_no_custom_colour() {
+        let mut tinted = book();
+        tinted.icon_color = Some("#ff00aa".into());
+        tinted.icon_hlc = HLC.into();
+        assert!(validate(&tinted).is_err());
+    }
+
+    #[test]
     fn trims_names_as_the_core_does() {
         let cases: Vec<serde_json::Value> =
             serde_json::from_str(include_str!("../../../tests/support/names.json")).unwrap();

@@ -211,6 +211,7 @@ export const en = {
   'tag.confirmDelete': 'Delete the tag \u201c{name}\u201d?',
   'tag.deleteDetail': 'It will be removed from {notes}. You can\u2019t undo this.',
   'tagColor.none': 'None',
+  'tagColor.custom': 'Custom Color',
   'tagColor.red': 'Red',
   'tagColor.orange': 'Orange',
   'tagColor.yellow': 'Yellow',

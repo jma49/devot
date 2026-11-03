@@ -14,7 +14,7 @@ import {
   type Ref,
 } from 'react'
 import { MAX_BOOK_NAME_CHARS, flattenBookTree, type BookNode } from '../../core/books'
-import type { NoteStatus, TagColor, TagRecord } from '../../core/storage'
+import type { NoteStatus, TagColor, TagColorValue, TagRecord } from '../../core/storage'
 import { MAX_TAG_NAME_CHARS, type NoteFilter } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
 import type { AgentSummary } from './agentWrites'
@@ -67,6 +67,7 @@ import { setDragCard } from './listDrag'
 import { conceal, reveal, slideIn } from './reveal'
 import { useRowMotion } from './rowMotion'
 import { currentSectionStore, type CollapsibleSection, type SectionStore } from './sidebarSections'
+import { tagDotClass } from './tagColorStyle'
 import { TagDot } from './TagEditor'
 import { TagSettingsDialog } from './TagSettingsDialog'
 
@@ -181,7 +182,7 @@ interface Props {
   tags: readonly TagRecord[]
   tagCounts: ReadonlyMap<string, number>
   onRenameTag: (id: string, name: string) => void
-  onSetTagColor: (id: string, color: TagColor | null) => void
+  onSetTagColor: (id: string, color: TagColorValue | null) => void
   onDeleteTag: (id: string) => void
   templatesCount: number
   trashCount: number
@@ -262,13 +263,15 @@ export const agentFilter = (agent: AgentSummary): NoteFilter => ({
   noteIds: agent.noteIds,
 })
 
-function TagGlyph(props: { color: TagColor | null }) {
-  return props.color ? (
+function TagGlyph(props: { color: TagColorValue | null }) {
+  return (
     <span className="tag-dot-box">
-      <TagDot color={props.color} />
+      {props.color ? (
+        <TagDot color={props.color} />
+      ) : (
+        <span className={tagDotClass(null)} aria-hidden="true" />
+      )}
     </span>
-  ) : (
-    <Icon name="tag" size="md" />
   )
 }
 
@@ -455,7 +458,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     label: ReactNode,
     count: number,
     extra?: string,
-    tag?: { color: TagColor | null; onMenu: () => void },
+    tag?: { color: TagColorValue | null; onMenu: () => void },
     /** An agent's row counts its unseen changes, and none when there are none. */
     unseen?: boolean,
   ) => {

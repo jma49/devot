@@ -1,7 +1,7 @@
 // The tag context menu: a native menu with the tag actions, shown for a tag
 // row in the sidebar. Its actions are registry commands (labels and keys);
 // the Colour submenu only picks a colour.
-import { TAG_COLORS, type TagColor } from '../../core/storage'
+import { TAG_COLORS, type TagColor, type TagColorValue } from '../../core/storage'
 import type { KeyPress } from './commands/keys'
 import { commandMatches, type CommandId } from './commands/registry'
 import {
@@ -24,7 +24,7 @@ export type TagAction =
 
 export interface TagMenuTarget {
   id: string
-  color: TagColor | null
+  color: TagColorValue | null
   filtered: boolean
   /** Shown in a workspace's sidebar, which deletes no tag (it is in notes outside it too). */
   inWorkspace?: boolean

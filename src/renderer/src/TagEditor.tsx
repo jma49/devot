@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type RefObject } from 'react'
-import type { TagColor, TagRecord } from '../../core/storage'
-import { MAX_TAG_NAME_CHARS, sameName } from '../../core/tags'
+import type { TagColorValue, TagRecord } from '../../core/storage'
+import { isCustomTagColor, MAX_TAG_NAME_CHARS, sameName } from '../../core/tags'
 import { compareNames } from '../../core/sort'
 import { trimWhitespace } from '../../core/text'
 import { closingRef } from './closing'
@@ -10,20 +10,23 @@ import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
 import { fieldStep } from './Picker'
 import { useNameLimit } from './nameLimit'
+import { tagColorClass, tagColorStyle, tagDotClass } from './tagColorStyle'
 
-export function TagDot(props: { color: TagColor }) {
+export function TagDot(props: { color: TagColorValue }) {
+  const { color } = props
   return (
     <span
-      className={`tag-dot tag-color-${props.color}`}
-      data-color={props.color}
+      className={tagDotClass(color)}
+      style={tagColorStyle(color)}
+      data-color={color}
       role="img"
-      aria-label={t(`tagColor.${props.color}`)}
+      aria-label={isCustomTagColor(color) ? t('tagColor.custom') : t(`tagColor.${color}`)}
     />
   )
 }
 
-export const chipClass = (color: TagColor | null | undefined) =>
-  color ? `chip tag-chip tag-color-${color}` : 'chip'
+export const chipClass = (color: TagColorValue | null | undefined) =>
+  color ? `chip tag-chip ${tagColorClass(color)}` : 'chip'
 
 export type TagRow = { kind: 'tag'; tag: TagRecord } | { kind: 'create'; name: string }
 
@@ -127,6 +130,7 @@ export function TagEditor(props: {
         <span
           key={tag.id}
           className={chipClass(tag.color)}
+          style={tagColorStyle(tag.color)}
           dir="auto"
           data-selected={chosenChip === tag.id || undefined}
           data-added={tag.name.toLowerCase() === added || undefined}

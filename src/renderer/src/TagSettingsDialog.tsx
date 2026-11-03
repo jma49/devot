@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { MAX_TAG_NAME_CHARS } from '../../core/tags'
-import type { TagColor, TagRecord } from '../../core/storage'
+import type { TagColorValue, TagRecord } from '../../core/storage'
 import { trimWhitespace } from '../../core/text'
 import { t } from './i18n'
 import { isImeKey } from './ime'
@@ -9,13 +9,13 @@ import { ColorSwatches } from './ColorSwatches'
 
 export function TagSettingsDialog(props: {
   tag: Pick<TagRecord, 'id' | 'name' | 'color'>
-  onSave: (change: { name: string; color: TagColor | null }) => void
+  onSave: (change: { name: string; color: TagColorValue | null }) => void
   onCancel: () => void
 }) {
   const { tag } = props
   const dialog = useRef<HTMLDialogElement>(null)
   const [name, setName] = useState(tag.name)
-  const [color, setColor] = useState<TagColor | null>(tag.color)
+  const [color, setColor] = useState<TagColorValue | null>(tag.color)
   const limit = useNameLimit(name, MAX_TAG_NAME_CHARS, setName)
   useLayoutEffect(() => {
     const el = dialog.current

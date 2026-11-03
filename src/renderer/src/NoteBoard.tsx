@@ -35,6 +35,7 @@ import { useEditorSetting } from './editorSettings'
 import { fullDate, rowDate } from './format'
 import { useHeadlines, type HeadlineLoader } from './headlines'
 import { currentLocale, format, t } from './i18n'
+import { tagColorStyle, tagDotClass } from './tagColorStyle'
 import { Icon } from './icons/Icon'
 import { dragCardLines, setDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
@@ -768,7 +769,8 @@ const BoardCard = memo(function BoardCard(props: CardProps) {
             {tags.map((tag) => (
               <span
                 key={tag.id}
-                className={tag.color ? `tag-dot tag-color-${tag.color}` : 'tag-dot card-tag-plain'}
+                className={tagDotClass(tag.color)}
+                style={tagColorStyle(tag.color)}
                 aria-hidden
                 title={tag.name}
               />
