@@ -17,3 +17,7 @@ SF Symbols come with Apple's SF Symbols license (part of the Xcode and Apple SDK
 - A new icon is a new entry in `symbols.json` naming an existing symbol; there is no icon artwork to review or license.
 - Notebook icons the user picks come from a curated catalog of symbol names (`design/icons/notebook-symbols.json`), checked to exist on the oldest supported macOS and to depict no Apple product or service; Rust refuses any other name.
 - Icons in content that leaves the app (exported HTML, a printed note) cannot be SF Symbols; they are Devot's own drawings (`src/core/preview/glyphs.ts`).
+
+## Amended
+
+2026-11-02: a notebook icon may also be a Lucide icon, stored in `books.icon` as `lucide:<name>`. The names come from a second curated catalog (`design/icons/notebook-lucide.json`, no brand marks), and Rust accepts only names from the two catalogs. Lucide is ISC-licensed and drawn from `lucide-react` in the app, so it is shipped artwork, unlike SF Symbols; the rule above against copies of SF Symbol artwork still holds. A Devot from before the Lucide catalog shows no icon for a `lucide:` name, and if it edits that notebook it resets the icon on every device.
