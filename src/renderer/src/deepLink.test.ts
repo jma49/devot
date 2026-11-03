@@ -127,7 +127,7 @@ describe('noteTarget', () => {
 describe('LinkQueue', () => {
   const note = (id: string): DeepLink => ({ kind: 'note', id })
 
-  function setup(onRun: (link: DeepLink) => void = () => undefined) {
+  function setup(onRun: (link: DeepLink) => void | Promise<unknown> = () => undefined) {
     const ran: DeepLink[] = []
     const dropped: DeepLink[] = []
     const state = { blocked: false, watching: false, settling: false, now: 0 }
@@ -136,7 +136,7 @@ describe('LinkQueue', () => {
     const queue = new LinkQueue(
       (link) => {
         ran.push(link)
-        onRun(link)
+        return onRun(link)
       },
       () => state.blocked,
       (changed) => {
@@ -177,6 +177,23 @@ describe('LinkQueue', () => {
     expect(q.state.settling).toBe(true)
     q.queue.settled()
     expect(q.state.settling).toBe(false)
+  })
+
+  it('holds the next link while the last one still runs, whatever renders meanwhile', async () => {
+    let finish = () => {}
+    const q = setup((link) =>
+      link.kind === 'today' ? new Promise<void>((resolve) => (finish = resolve)) : undefined,
+    )
+    q.queue.push({ kind: 'today' })
+    q.queue.push(note('b'))
+    q.queue.settled()
+    q.timeout()
+    expect(q.ran).toEqual([{ kind: 'today' }])
+    finish()
+    await Promise.resolve()
+    await Promise.resolve()
+    q.queue.settled()
+    expect(q.ran).toEqual([{ kind: 'today' }, note('b')])
   })
 
   it('goes on after a while when a link renders nothing', () => {

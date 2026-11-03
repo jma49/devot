@@ -66,12 +66,22 @@ export interface DailyNotesDeps {
   create?: boolean
 }
 
+/** One find-or-create at a time per note service, so two at once cannot both make the day's note. */
+const running = new WeakMap<NoteService, Promise<unknown>>()
+
 /**
  * Finds today's note, or makes it: from the daily template with its variables filled (`{{date}}`),
  * else empty, titled for the day and filed in the daily notebook (the template's own notebook does
  * not win here). Running it twice in a day gives the same note.
  */
-export async function openTodaysNote(deps: DailyNotesDeps): Promise<OpenedToday> {
+export function openTodaysNote(deps: DailyNotesDeps): Promise<OpenedToday> {
+  const before = running.get(deps.notes) ?? Promise.resolve()
+  const next = before.catch(() => undefined).then(() => findOrMake(deps))
+  running.set(deps.notes, next)
+  return next
+}
+
+async function findOrMake(deps: DailyNotesDeps): Promise<OpenedToday> {
   const { notes, templates, books, settings, at } = deps
   const title = dailyTitle(settings.dailyTitleFormat, at, deps.clock)
   const live = await books.list()

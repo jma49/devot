@@ -126,6 +126,14 @@ describe("opening today's note", () => {
     expect(await notes.read(plain.id)).toMatchObject({ title: '2026-11-02', bodyMd: '' })
   })
 
+  it('makes one note when it is opened twice at once', async () => {
+    const { notes, today } = world()
+    const [a, b] = await Promise.all([today({}), today({})])
+    expect(b.id).toBe(a.id)
+    expect([a.created, b.created].sort()).toEqual([false, true])
+    expect((await notes.list()).length).toBe(1)
+  })
+
   it('only finds the note while notes may not be changed', async () => {
     const { notes, today } = world()
     await expect(today({}, AT, false)).rejects.toThrow('E_LICENCE_REQUIRED')

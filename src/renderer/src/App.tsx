@@ -3609,8 +3609,8 @@ export function App() {
     }
     if (link.kind === 'today') {
       const handler = commands['note.today']
-      if (handler) void handler.run()
-      else setLinkNotice('commandUnavailable')
+      if (handler) return Promise.resolve(handler.run())
+      setLinkNotice('commandUnavailable')
       return
     }
     if (link.kind === 'command') {
