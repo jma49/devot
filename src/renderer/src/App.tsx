@@ -29,6 +29,7 @@ import { noteLink } from '../../core/links'
 import {
   MAX_SAVED_SEARCH_NAME_CHARS,
   countMatches,
+  savedQueryText,
   savedSearchQuery,
 } from '../../core/savedSearches'
 import { clipChars } from '../../core/text'
@@ -3263,17 +3264,20 @@ export function App() {
     setSearchDialog(undefined)
     if (!open) return
     const { id } = open
+    // As the core will keep it, so the field and the sidebar's highlight agree with the row.
+    const saved = savedQueryText(change.query, tags)
     if (id === undefined) {
-      return void changeBooks((c) => c.createSavedSearch(change.name, change.query))
+      if (open.query === query.trim() && saved !== query.trim()) setQuery(saved)
+      return void changeBooks((c) => c.createSavedSearch(change.name, saved))
     }
     // The search field running it follows its new query.
-    if (id === activeSearch && change.query !== open.query) {
-      setQuery(change.query)
+    if (id === activeSearch && saved !== open.query) {
+      setQuery(saved)
       setRanSearch(id)
     }
     void changeBooks(async (c) => {
       await c.renameSavedSearch(id, change.name)
-      await c.setSavedSearchQuery(id, change.query)
+      await c.setSavedSearchQuery(id, saved)
     })
   }
   const showSearchFieldMenu = useContextMenu('searchField', SEARCH_FIELD_MENU, () => saveSearch())
