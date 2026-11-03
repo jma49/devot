@@ -209,6 +209,8 @@ pub struct EditorSettings {
     pub history_bar: bool,
     /// View > Show Authorship: marks beside the text agents wrote (ADR 0007).
     pub authorship: bool,
+    /// View > Show Outline: the note's headings in a column at the editor's right edge.
+    pub outline: bool,
     pub auto_download_updates: bool,
     /// Keep in Menu Bar (`menu_bar`): the menu bar icon, quick capture's shortcut, and closing the
     /// main window hides it rather than quitting.
@@ -274,6 +276,7 @@ impl Default for EditorSettings {
             activity_strip: true,
             history_bar: false,
             authorship: true,
+            outline: false,
             auto_download_updates: true,
             menu_bar: false,
             animations: Animations::Always,
@@ -412,6 +415,7 @@ impl EditorSettings {
             "activityStrip" => self.activity_strip = flag(value)?,
             "historyBar" => self.history_bar = flag(value)?,
             "authorship" => self.authorship = flag(value)?,
+            "outline" => self.outline = flag(value)?,
             "autoDownloadUpdates" => self.auto_download_updates = flag(value)?,
             "menuBar" => self.menu_bar = flag(value)?,
             "animations" => self.animations = choice(value)?,
@@ -700,6 +704,12 @@ pub fn toggle_history_bar(settings: &EditorSettings) -> Map<String, Value> {
     patch
 }
 
+pub fn toggle_outline(settings: &EditorSettings) -> Map<String, Value> {
+    let mut patch = Map::new();
+    patch.insert("outline".into(), Value::Bool(!settings.outline));
+    patch
+}
+
 pub fn toggle_authorship(settings: &EditorSettings) -> Map<String, Value> {
     let mut patch = Map::new();
     patch.insert("authorship".into(), Value::Bool(!settings.authorship));
@@ -822,13 +832,13 @@ mod tests {
                 "pageRules": false,
             })
         );
-        let history: Map<String, Value> = ["activityStrip", "historyBar", "authorship"]
+        let history: Map<String, Value> = ["activityStrip", "historyBar", "authorship", "outline"]
             .into_iter()
             .filter_map(|k| map.remove(k).map(|v| (k.to_string(), v)))
             .collect();
         assert_eq!(
             Value::Object(history),
-            json!({ "activityStrip": true, "historyBar": false, "authorship": true })
+            json!({ "activityStrip": true, "historyBar": false, "authorship": true, "outline": false })
         );
         let themes: Map<String, Value> = ["lightTheme", "darkTheme"]
             .into_iter()
@@ -1197,6 +1207,7 @@ mod tests {
             json!({ "historyBar": 1 }),
             json!({ "historyBar": null }),
             json!({ "authorship": "on" }),
+            json!({ "outline": 1 }),
             json!({ "animations": "never" }),
             json!({ "animations": "System" }),
             json!({ "animations": false }),
@@ -1611,6 +1622,18 @@ mod tests {
         let on = s.update_from(toggle_sync_scroll).unwrap();
         assert!(on.settings.sync_scroll);
         assert_eq!(on.revision, 2);
+    }
+
+    #[test]
+    fn toggles_the_outline_from_the_stored_value() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = store(&dir);
+        assert!(!s.get().unwrap().settings.outline, "the outline is opt-in");
+        let on = s.update_from(toggle_outline).unwrap();
+        assert!(on.settings.outline);
+        assert!(store(&dir).get().unwrap().settings.outline);
+        let off = s.update_from(toggle_outline).unwrap();
+        assert!(!off.settings.outline);
     }
 
     #[test]

@@ -78,6 +78,8 @@ export interface EditorSettings {
   historyBar: boolean
   /** View > Show Authorship: marks beside the text agents wrote (ADR 0007). */
   authorship: boolean
+  /** View > Show Outline: the note's headings in a column at the editor's right edge. */
+  outline: boolean
   autoDownloadUpdates: boolean
   /** Keep in Menu Bar: closing the main window hides it, and quick capture is a click or a shortcut away. */
   menuBar: boolean
@@ -146,6 +148,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   activityStrip: true,
   historyBar: false,
   authorship: true,
+  outline: false,
   autoDownloadUpdates: true,
   menuBar: false,
   animations: 'system',
@@ -314,6 +317,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   activityStrip: isFlag,
   historyBar: isFlag,
   authorship: isFlag,
+  outline: isFlag,
   autoDownloadUpdates: isFlag,
   menuBar: isFlag,
   animations: oneOf(ANIMATIONS),

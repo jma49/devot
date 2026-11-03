@@ -25,6 +25,11 @@ import { LivePreview } from '../preview/Preview'
 import { SaveNotice } from '../SaveNotice'
 import { createQuitGuard, newProblems } from '../saving'
 import { textStore } from '../textStore'
+import { useEditorSetting } from '../editorSettings'
+import { OutlinePanel, lineStore } from '../outline/OutlinePanel'
+import { scrollPreviewTo } from '../outline/room'
+import { useOutlineRoom } from '../outline/useOutlineRoom'
+import type { ScrollPane } from '../preview/scrollSync'
 import { ActivationBar, TrialEndedBar } from '../TrialNotices'
 
 export const CLOSE_EVENT = 'devot:note-window-close'
@@ -75,6 +80,13 @@ export function NoteWindow() {
   const [mode, setMode] = useState<Mode>('edit')
   const [openText] = useState(() => textStore())
   const editorRef = useRef<EditorHandle | null>(null)
+  const panesRef = useRef<HTMLDivElement>(null)
+  const [caretLine] = useState(() => lineStore())
+  const [previewPane, setPreviewPane] = useState<ScrollPane | null>(null)
+  const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set())
+  const outlineSetting = useEditorSetting('outline')
+  const outlineRoom = useOutlineRoom(panesRef, mode, noteId)
+  const outlineShown = outlineSetting && outlineRoom
   const [viewing, setViewing] = useState<ViewedImage | null>(null)
   const [problems, setProblems] = useState<SaveProblem[]>([])
   const problemsRef = useRef<SaveProblem[]>([])
@@ -296,7 +308,11 @@ export function NoteWindow() {
                 editorRef.current?.focusStart()
               }}
             />
-            <div className={`panes panes-${mode}`}>
+            <div
+              className={`panes panes-${mode}`}
+              ref={panesRef}
+              data-outline={outlineShown || undefined}
+            >
               <NoteEditor
                 core={core}
                 noteId={noteId}
@@ -311,6 +327,7 @@ export function NoteWindow() {
                 }}
                 showAlertMenu={showAlertMenu}
                 handleRef={editorRef}
+                onCaretLine={caretLine.set}
                 onOpenImage={setViewing}
                 showImageMenu={showImageMenu}
                 onOpenNote={openNote}
@@ -323,11 +340,33 @@ export function NoteWindow() {
                   onOpenNote={openNote}
                   onOpenImage={setViewing}
                   onImageMenu={showImageMenu}
+                  onScrollPane={setPreviewPane}
                   onToggleTask={
                     editing ? (at) => void editorRef.current?.toggleTask(at) : undefined
                   }
                 />
               )}
+              {outlineShown ? (
+                <OutlinePanel
+                  text={openText}
+                  caret={caretLine}
+                  mode={mode}
+                  previewPane={previewPane}
+                  folded={folded}
+                  onToggle={(key) =>
+                    setFolded((now) => {
+                      const next = new Set(now)
+                      if (!next.delete(key)) next.add(key)
+                      return next
+                    })
+                  }
+                  onJump={(line) => {
+                    editorRef.current?.goToLine(line, 'start', false)
+                    if (mode !== 'edit' && previewPane) scrollPreviewTo(previewPane, line)
+                  }}
+                  onLeave={() => editorRef.current?.focus()}
+                />
+              ) : null}
             </div>
           </>
         ) : null}

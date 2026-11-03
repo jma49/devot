@@ -259,6 +259,9 @@ import { syncScrolling, type ScrollPane } from './preview/scrollSync'
 import { RevisionHistory, useHistoryMenu } from './RevisionHistory'
 import { useHistoryBar } from './HistoryBar'
 import { LiveCountsFooter, countsStore } from './CountsFooter'
+import { OutlinePanel, lineStore } from './outline/OutlinePanel'
+import { scrollPreviewTo } from './outline/room'
+import { useOutlineRoom } from './outline/useOutlineRoom'
 import { inNotes, markSeen, unseenOf, useAgentWrites } from './agentWrites'
 import { AuthorshipNotice } from './AuthorshipNotice'
 import { writerLabel, type WriterRef } from './authorshipLabels'
@@ -310,6 +313,7 @@ const NO_LIBRARY = { book: [], tag: [], note: [] }
 // Stable identity so the memoized list and sidebar skip equal props.
 const NO_NOTES: NoteSummary[] = []
 const NO_TAGS: ReadonlyMap<string, TagRecord> = new Map()
+const NO_FOLDS: ReadonlySet<string> = new Set()
 const ALL_NOTES: Selection = { kind: 'all' }
 
 /** Each title change re-sorts the lists, so typing is debounced by this much. */
@@ -2654,6 +2658,23 @@ export function App() {
   const historyBarShown = useEditorSetting('historyBar')
   const countsShown = useEditorSetting('showCounts') && mode !== 'preview'
   const [editorCounts] = useState(() => countsStore())
+  const outlineSetting = useEditorSetting('outline')
+  const [caretLine] = useState(() => lineStore())
+  const outlineFolds = useRef(new Map<string, ReadonlySet<string>>())
+  const [, setFolded] = useState(0)
+  const outlineRoom = useOutlineRoom(panesRef, mode, selected)
+  const outlineShown = outlineSetting && !focus && outlineRoom
+  const toggleOutlineFold = (key: string) => {
+    if (selected === undefined) return
+    const next = new Set(outlineFolds.current.get(selected))
+    if (!next.delete(key)) next.add(key)
+    outlineFolds.current.set(selected, next)
+    setFolded((n) => n + 1)
+  }
+  const jumpToHeading = (line: number) => {
+    editorRef.current?.goToLine(line, 'start', false)
+    if (mode !== 'edit' && previewPane) scrollPreviewTo(previewPane, line)
+  }
   const authorshipShown = useEditorSetting('authorship')
   // A restored version, an accepted AI edit or a plugin write reaches the editor only while it
   // still shows the note it was made for.
@@ -3144,6 +3165,13 @@ export function App() {
           historyBar: !editorSettings().historyBar,
         }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
       label: historyBarShown ? 'command.hideHistoryBar' : 'command.showHistoryBar',
+    },
+    'view.outline': {
+      run: () =>
+        changeEditorSettings({
+          outline: !editorSettings().outline,
+        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
+      label: outlineShown ? 'command.hideOutline' : 'command.showOutline',
     },
     'view.authorship': {
       run: () =>
@@ -4154,7 +4182,11 @@ export function App() {
                 {authorshipNotice}
               </div>
             ) : null}
-            <div className={`panes panes-${mode}`} ref={panesRef}>
+            <div
+              className={`panes panes-${mode}`}
+              ref={panesRef}
+              data-outline={outlineShown || undefined}
+            >
               <NoteEditor
                 core={core}
                 noteId={selected}
@@ -4180,6 +4212,7 @@ export function App() {
                 initialPlace={takeEditorPlace(selected)}
                 onPlace={editorPlaced}
                 onCounts={countsShown ? editorCounts.set : undefined}
+                onCaretLine={caretLine.set}
                 onNewFromSelection={
                   inTrash || !editing ? undefined : () => void noteFromSelection(selected)
                 }
@@ -4229,6 +4262,19 @@ export function App() {
                   onScroll={previewScrolled}
                 />
               )}
+              {outlineShown ? (
+                <OutlinePanel
+                  key={selected}
+                  text={openText}
+                  caret={caretLine}
+                  mode={mode}
+                  previewPane={previewPane}
+                  folded={outlineFolds.current.get(selected) ?? NO_FOLDS}
+                  onToggle={toggleOutlineFold}
+                  onJump={jumpToHeading}
+                  onLeave={() => editorRef.current?.focus()}
+                />
+              ) : null}
               {historyBar.overlay}
             </div>
             {countsShown ? <LiveCountsFooter store={editorCounts} /> : null}

@@ -1901,6 +1901,14 @@
       },
       "$description": "The narrowest a split-mode pane (source or preview) gets; the panes scroll sideways before they go below it."
     },
+    "outline-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 220,
+        "unit": "px"
+      },
+      "$description": "The Outline column at the editor's right edge."
+    },
     "sidebar-collapse-width": {
       "$type": "dimension",
       "$value": {
