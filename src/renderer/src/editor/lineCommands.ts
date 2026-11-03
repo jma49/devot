@@ -8,12 +8,8 @@ import {
   copyLineUp,
   cursorMatchingBracket,
   deleteLine,
-  indentLess,
-  indentMore,
   insertBlankLine,
   insertNewline,
-  moveLineDown,
-  moveLineUp,
   redoSelection,
   selectLine,
   selectMatchingBracket,
@@ -37,6 +33,7 @@ import { noteIdOf } from '../../../core/links'
 import { editorCommandKeys, type CommandId } from '../commands/registry'
 import { editorComposes } from '../ime'
 import { indentListItems } from './blocks'
+import { indentListBlock, moveListBlockDown, moveListBlockUp, outdentListBlock } from './listBlocks'
 import { toggleOverwrite } from './overwrite'
 import { registryKeys } from './registryKeys'
 
@@ -410,17 +407,20 @@ const RUN: Partial<Record<CommandId, (view: EditorView) => boolean>> = {
   'edit.lineAbove': insertLineAbove,
   'edit.deleteLine': deleteLine,
   'edit.selectLine': selectLine,
-  'edit.moveLineUp': moveLineUp,
-  'edit.moveLineDown': moveLineDown,
+  'edit.moveLineUp': moveListBlockUp,
+  'edit.moveLineDown': moveListBlockDown,
   'edit.copyLineUp': copyLineUp,
   'edit.copyLineDown': copyLineDown,
-  'edit.outdent': indentLess,
-  'edit.indent': indentMore,
+  'edit.outdent': outdentListBlock,
+  'edit.indent': indentListBlock,
   'edit.openLink': openLinkAtCaret,
   'edit.sortLines': sortLines({ caseSensitive: false, reverse: false }),
   'edit.sortLinesReverse': sortLines({ caseSensitive: false, reverse: true }),
   'edit.sortLinesCase': sortLines({ caseSensitive: true, reverse: false }),
-  'edit.sortLinesCaseReverse': sortLines({ caseSensitive: true, reverse: true }),
+  'edit.sortLinesCaseReverse': sortLines({
+    caseSensitive: true,
+    reverse: true,
+  }),
   'edit.joinLines': joinLines,
   'edit.addCursorAbove': addCursorAbove,
   'edit.addCursorBelow': addCursorBelow,
@@ -452,7 +452,13 @@ export function lineKeys(): { id: CommandId; key: string }[] {
 
 export const lineCommandKeys: () => Extension = registryKeys(() =>
   Prec.high(
-    keymap.of(lineKeys().map(({ id, key }) => ({ key, run: RUN[id]!, preventDefault: true }))),
+    keymap.of(
+      lineKeys().map(({ id, key }) => ({
+        key,
+        run: RUN[id]!,
+        preventDefault: true,
+      })),
+    ),
   ),
 )
 
