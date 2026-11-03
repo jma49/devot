@@ -3659,10 +3659,11 @@ export function App() {
           : activeFilter?.kind === 'agent'
             ? 'agent'
             : shownBookIcon
-              ? `book:${shownBookIcon.icon ?? ''}:${shownBookIcon.iconColor ?? ''}`
+              ? `book:${shownBookIcon.iconColor ?? ''}:${shownBookIcon.icon ?? ''}`
               : ''
   const listIcon = useMemo(() => {
-    const [kind, a, b] = iconKey.split(':')
+    // The rest is a stored notebook icon, which can hold a colon itself (`lucide:leaf`).
+    const [kind, a, ...rest] = iconKey.split(':')
     if (kind === 'tag') return <span className={`headline-dot${a ? ` tag-color-${a}` : ''}`} />
     if (kind === 'status') {
       const icon = STATUSES.find((s) => s.status === a)?.icon ?? 'status.none'
@@ -3671,7 +3672,13 @@ export function App() {
     if (kind === 'pinned') return <Icon name="notes.pinned" size="title" />
     if (kind === 'agent') return <Icon name="notebook.ai" size="title" />
     if (kind === 'book')
-      return <BookIcon icon={a || null} color={(b || null) as TagColor | null} size="title" />
+      return (
+        <BookIcon
+          icon={rest.join(':') || null}
+          color={(a || null) as TagColor | null}
+          size="title"
+        />
+      )
     return null
   }, [iconKey])
   const menuKey =

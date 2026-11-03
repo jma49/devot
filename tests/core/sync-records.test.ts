@@ -219,6 +219,18 @@ describe('merging notebooks and tags', () => {
     ...patch,
   })
 
+  it('keeps a Lucide icon against a version that read it as none at the same clock', () => {
+    const merged = mergeBook(
+      book({ icon: 'lucide:coffee', iconColor: 'blue', iconHlc: hlc(3) }),
+      book({ icon: null, iconColor: null, iconHlc: hlc(3) }),
+    )
+    expect(merged.record).toMatchObject({
+      icon: 'lucide:coffee',
+      iconColor: 'blue',
+      iconHlc: hlc(3),
+    })
+  })
+
   it('takes each field’s newer value, and the greater key at equal clocks', () => {
     const merged = mergeBook(
       book({ name: 'Office', nameHlc: hlc(3), sortKey: 'a0' }),

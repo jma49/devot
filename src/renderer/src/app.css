@@ -244,6 +244,11 @@ button {
   mask-position: center;
 }
 
+/* Hidden rather than unpainted: colour rules on `.icon` (a notebook's colour, a pressed cell) must not show a square either. */
+.icon[data-pending] {
+  visibility: hidden;
+}
+
 .icon-svg {
   display: inline-block;
   flex-shrink: 0;
@@ -2590,6 +2595,8 @@ button {
 }
 
 .note-info-date {
+  /* The hover fill reaches past the text, which stays on the label's edge. */
+  margin-inline: calc(var(--space-1) * -1);
   padding: 0 var(--space-1);
   border: 0;
   border-radius: var(--radius-button);
@@ -2639,8 +2646,9 @@ button {
   white-space: nowrap;
 }
 
-.note-backlinks {
-  margin-top: var(--space-4);
+/* Above the note text's rule for `details`, which would take this margin away. */
+.note-info .note-backlinks {
+  margin-top: var(--space-6);
 }
 
 .note-backlinks > summary {
@@ -5776,6 +5784,11 @@ button.popup:focus-visible {
   max-width: calc(100vw - var(--space-10) * 2);
 }
 
+.icon-sets {
+  align-self: center;
+  margin-bottom: var(--space-4);
+}
+
 .icon-tabs {
   display: flex;
   justify-content: center;
@@ -5831,6 +5844,7 @@ button.popup:focus-visible {
 .icon-grid-box {
   height: calc(var(--size-dialog-row) * 9);
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: var(--space-4) 0;
 }
 
@@ -5842,6 +5856,14 @@ button.popup:focus-visible {
 
 .icon-cell {
   aspect-ratio: 1;
+}
+
+.icon-grid .icon[data-arrives]:not([data-pending]) {
+  animation: fade-in var(--motion-duration-popover) var(--motion-easing-standard);
+}
+
+:root[data-motion='reduced'] .icon-grid .icon[data-arrives] {
+  animation: none;
 }
 
 .icon-grid-empty {
@@ -6967,7 +6989,7 @@ button.popup:focus-visible {
   display: inline-block;
   width: var(--space-2);
   height: var(--space-2);
-  margin-inline: var(--space-1) var(--space-4);
+  margin-inline: 0 var(--space-4);
   border-top: 1px solid currentColor;
   border-right: 1px solid currentColor;
   rotate: 45deg;

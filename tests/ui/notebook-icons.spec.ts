@@ -10,6 +10,9 @@ import {
   type TestWindow,
 } from './fixtures'
 
+const ONE_PIXEL_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
   tree(page).getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })
@@ -160,6 +163,92 @@ test('Escape and Cancel leave the icon; the keyboard walks the grid and Return p
   await page.keyboard.press('Enter')
   await expect(dialog(page)).toHaveCount(0)
   await expect(rowIcon(page, 'Work')).toHaveAttribute('data-symbol', 'person.fill')
+})
+
+test('a symbol paints nothing until its image is in; a category switch keeps the grid box and shows rendered symbols at once', async ({
+  page,
+}) => {
+  await openIconDialog(page, 'Work')
+  const box = dialog(page).locator('.icon-grid-box')
+  const height = await box.evaluate((el) => el.getBoundingClientRect().height)
+  await expect(cell(page, 'person').locator('.icon')).not.toHaveAttribute('data-pending', '')
+
+  await page.evaluate(() => {
+    const w = globalThis as unknown as TestWindow & { releaseSymbols?: (png: string) => void }
+    const held = new Promise<string>((resolve) => {
+      w.releaseSymbols = resolve
+    })
+    w.devotIpcMocks = { ...w.devotIpcMocks, symbol_png: () => held }
+  })
+  await dialog(page).getByRole('radio', { name: 'Green' }).click()
+  await tab(page, 'Travel').click()
+  const pending = cell(page, 'airplane').locator('.icon')
+  await expect(pending).toHaveAttribute('data-pending', '')
+  // Coloured, and still nothing is painted.
+  await expect(pending).toHaveClass(/book-icon-colored/)
+  await expect(pending).toBeHidden()
+  expect(await box.evaluate((el) => el.getBoundingClientRect().height)).toBe(height)
+
+  await page.evaluate((png) => {
+    ;(globalThis as unknown as { releaseSymbols: (png: string) => void }).releaseSymbols(png)
+  }, ONE_PIXEL_PNG)
+  await expect(pending).toBeVisible()
+  await expect(pending).not.toHaveAttribute('data-pending', '')
+  // The config turns Reduce Motion on.
+  expect(await pending.evaluate((el) => getComputedStyle(el).animationName)).toBe('none')
+
+  await tab(page, 'People').click()
+  await expect(cell(page, 'person').locator('.icon')).not.toHaveAttribute('data-pending', '')
+  expect(await cell(page, 'person').locator('.icon').getAttribute('data-arrives')).toBeNull()
+  expect(await box.evaluate((el) => el.getBoundingClientRect().height)).toBe(height)
+})
+
+test('a Lucide icon can be picked in the SF style and stays Lucide; Revert follows the style again', async ({
+  page,
+}) => {
+  const segment = (name: string) => dialog(page).getByRole('button', { name, exact: true })
+  await openIconDialog(page, 'Work')
+  await expect(segment('SF Symbols')).toHaveAttribute('aria-pressed', 'true')
+  await segment('Lucide').click()
+  await expect(segment('Lucide')).toHaveAttribute('aria-pressed', 'true')
+  await expect(dialog(page).getByRole('tab')).toHaveCount(12)
+  await search(page).fill('coffee')
+  await dialog(page).getByRole('radio', { name: 'Blue' }).click()
+  await cell(page, 'coffee').click()
+  await expect(dialog(page)).toHaveCount(0)
+  await expect(rowIcon(page, 'Work')).toHaveAttribute('data-lucide', 'coffee')
+  await expect(rowIcon(page, 'Work')).toHaveClass(/icon-svg/)
+  await expect(rowIcon(page, 'Work')).toHaveClass(/tag-color-blue/)
+  await expect(rowIcon(page, 'Home')).toHaveAttribute('data-symbol', 'book.closed')
+
+  await row(page, 'Work').click()
+  await expect(page.locator('.toolbar-title .book-icon')).toHaveAttribute('data-lucide', 'coffee')
+
+  await page.reload()
+  await expect(rowIcon(page, 'Work')).toHaveAttribute('data-lucide', 'coffee')
+
+  await openIconDialog(page, 'Work')
+  await expect(segment('Lucide')).toHaveAttribute('aria-pressed', 'true')
+  await expect(tab(page, 'Home')).toHaveAttribute('aria-selected', 'true')
+  await expect(cell(page, 'coffee')).toHaveAttribute('aria-pressed', 'true')
+  await dialog(page).getByRole('button', { name: 'Revert to Default' }).click()
+  await expect(rowIcon(page, 'Work')).toHaveAttribute('data-symbol', 'book.closed')
+  await expect(rowIcon(page, 'Work')).not.toHaveClass(/tag-color-/)
+})
+
+test('without an icon the dialog opens on the Icon style setting; an SF pick stays SF under Lucide', async ({
+  page,
+}) => {
+  const segment = (name: string) => dialog(page).getByRole('button', { name, exact: true })
+  await openIconDialog(page, 'Work')
+  await cell(page, 'person').click()
+  await changeEditorSettingsElsewhere(page, { iconStyle: 'lucide' })
+  await expect(rowIcon(page, 'Work')).toHaveAttribute('data-symbol', 'person')
+  await openIconDialog(page, 'Home')
+  await expect(segment('Lucide')).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Escape')
+  await openIconDialog(page, 'Work')
+  await expect(segment('SF Symbols')).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('only the symbols in view are rendered', async ({ page }) => {

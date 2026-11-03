@@ -2,27 +2,38 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import { flushSync } from 'react-dom'
 import {
   CATEGORY_ICONS,
+  CATEGORY_LUCIDE_GLYPHS,
+  lucideGlyphOf,
   NOTEBOOK_ICON_CATEGORIES,
-  notebookSymbol,
+  notebookIcon,
+  notebookIconSet,
   searchNotebookSymbols,
   symbolsInCategory,
   type NotebookIconCategory,
+  type NotebookIconSet,
 } from '../../core/notebookIcons'
 import type { TagColor } from '../../core/storage'
 import { bookIconClass } from './BookIcon'
 import { t, type MessageKey } from './i18n'
 import { isImeKey } from './ime'
-import { SymbolIcon } from './icons/Icon'
+import { useEditorSetting } from './editorSettings'
+import { loadNotebookGlyphs, NotebookLucideIcon, preloadSymbols, SymbolIcon } from './icons/Icon'
+import { useSegmentSlide } from './segmentSlide'
 import { ColorSwatches } from './ColorSwatches'
 import { columnsOf, gridStep } from './iconGrid'
 
 export const ICON_SEARCH_DELAY = 300
 
+const ICON_SETS: readonly { id: NotebookIconSet; label: MessageKey }[] = [
+  { id: 'sfSymbols', label: 'appearanceSettings.iconStyleSfSymbols' },
+  { id: 'lucide', label: 'appearanceSettings.iconStyleLucide' },
+]
+
 const categoryLabel = (id: NotebookIconCategory) => t(`notebookIcon.category.${id}` as MessageKey)
 
 /**
- * Change Notebook Icon: a search field, a tab per category and a grid of the
- * catalog's symbols, with a row of palette colours the grid is drawn in.
+ * Change Notebook Icon: a search field, a choice of icon set, a tab per category
+ * and a grid of that set's catalog, with a row of palette colours the grid is drawn in.
  * Picking a symbol applies it in the chosen colour and closes; Revert to
  * Default takes the icon and colour off; Escape or Cancel leaves them.
  */
@@ -39,8 +50,20 @@ export function NotebookIconDialog(props: {
   const [text, setText] = useState('')
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<NotebookIconCategory>(
-    () => (book.icon ? notebookSymbol(book.icon)?.category : undefined) ?? 'people',
+    () => (book.icon ? notebookIcon(book.icon)?.category : undefined) ?? 'people',
   )
+  const appIconStyle = useEditorSetting('iconStyle')
+  const [iconSet, setIconSet] = useState<NotebookIconSet>(() =>
+    book.icon && notebookIcon(book.icon) ? notebookIconSet(book.icon) : appIconStyle,
+  )
+  const setGroup = useRef<HTMLDivElement>(null)
+  useSegmentSlide(
+    setGroup,
+    ICON_SETS.findIndex((s) => s.id === iconSet),
+  )
+  useEffect(() => {
+    if (iconSet === 'lucide') loadNotebookGlyphs().catch(() => {})
+  }, [iconSet])
   const [color, setColor] = useState<TagColor | null>(book.iconColor)
   useLayoutEffect(() => {
     const el = dialog.current
@@ -63,7 +86,9 @@ export function NotebookIconDialog(props: {
   }, [text, query, gridBox])
 
   const searching = query.trim() !== ''
-  const shown = searching ? searchNotebookSymbols(query) : symbolsInCategory(category)
+  const shown = searching
+    ? searchNotebookSymbols(query, iconSet)
+    : symbolsInCategory(category, iconSet)
   const tabStop = Math.max(
     0,
     shown.findIndex((s) => s.name === book.icon),
@@ -74,6 +99,18 @@ export function NotebookIconDialog(props: {
     setCategory(id)
     search('')
   }
+
+  const pickSet = (next: NotebookIconSet) => {
+    setIconSet(next)
+    gridBox.current?.scrollTo?.({ top: 0 })
+  }
+
+  const preloadCategory = (id: NotebookIconCategory) =>
+    iconSet === 'sfSymbols' &&
+    preloadSymbols(
+      symbolsInCategory(id).map((s) => s.name),
+      'lg',
+    )
 
   const onGridKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const cells = [...(grid.current?.children ?? [])] as HTMLElement[]
@@ -136,6 +173,24 @@ export function NotebookIconDialog(props: {
         }}
       />
       <div
+        ref={setGroup}
+        className="segmented icon-sets"
+        role="group"
+        aria-label={t('notebookIcon.set')}
+      >
+        {ICON_SETS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className="segment"
+            aria-pressed={iconSet === s.id}
+            onClick={() => pickSet(s.id)}
+          >
+            {t(s.label)}
+          </button>
+        ))}
+      </div>
+      <div
         role="tablist"
         aria-label={t('notebookIcon.categories')}
         className="icon-tabs"
@@ -155,8 +210,14 @@ export function NotebookIconDialog(props: {
               aria-label={categoryLabel(id)}
               title={categoryLabel(id)}
               onClick={() => pickTab(id)}
+              onPointerEnter={() => preloadCategory(id)}
+              onFocus={() => preloadCategory(id)}
             >
-              <SymbolIcon symbol={CATEGORY_ICONS[id]} size="md" />
+              {iconSet === 'lucide' ? (
+                <NotebookLucideIcon glyph={CATEGORY_LUCIDE_GLYPHS[id]} size="md" />
+              ) : (
+                <SymbolIcon symbol={CATEGORY_ICONS[id]} size="md" />
+              )}
             </button>
           )
         })}
@@ -170,23 +231,31 @@ export function NotebookIconDialog(props: {
             className="icon-grid"
             onKeyDown={onGridKey}
           >
-            {shown.map((s, i) => (
-              <button
-                key={s.name}
-                type="button"
-                // Tab stops once in the grid: on the current icon, else the
-                // first; the arrow keys move inside it.
-                tabIndex={i === tabStop ? 0 : -1}
-                className="icon-cell"
-                data-symbol={s.name}
-                aria-label={s.name}
-                aria-pressed={s.name === book.icon}
-                title={s.name}
-                onClick={() => props.onPick(s.name, color)}
-              >
-                <SymbolIcon symbol={s.name} size="lg" lazy className={bookIconClass(color)} />
-              </button>
-            ))}
+            {shown.map((s, i) => {
+              const glyph = lucideGlyphOf(s.name)
+              const label = glyph ?? s.name
+              return (
+                <button
+                  key={s.name}
+                  type="button"
+                  // Tab stops once in the grid: on the current icon, else the
+                  // first; the arrow keys move inside it.
+                  tabIndex={i === tabStop ? 0 : -1}
+                  className="icon-cell"
+                  data-symbol={s.name}
+                  aria-label={label}
+                  aria-pressed={s.name === book.icon}
+                  title={label}
+                  onClick={() => props.onPick(s.name, color)}
+                >
+                  {glyph === null ? (
+                    <SymbolIcon symbol={s.name} size="lg" lazy className={bookIconClass(color)} />
+                  ) : (
+                    <NotebookLucideIcon glyph={glyph} size="lg" className={bookIconClass(color)} />
+                  )}
+                </button>
+              )
+            })}
           </div>
         ) : (
           <p className="icon-grid-empty">{t('notebookIcon.none')}</p>

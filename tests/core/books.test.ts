@@ -253,6 +253,18 @@ describe('notebook icons', () => {
     expect(await iconOf(books, id)).toEqual({ icon: 'star', iconColor: null })
   })
 
+  it('takes a catalog Lucide icon and refuses one outside the catalog', async () => {
+    const { books } = setup()
+    const id = await books.create('Work', null)
+    await books.setIcon(id, 'lucide:book-open', 'blue')
+    expect(await iconOf(books, id)).toEqual({ icon: 'lucide:book-open', iconColor: 'blue' })
+    await expect(books.setIcon(id, 'lucide:no-such-icon', null)).rejects.toThrow(
+      'E_BOOK_ICON_INVALID',
+    )
+    await books.setIcon(id, null, null)
+    expect(await iconOf(books, id)).toEqual({ icon: null, iconColor: null })
+  })
+
   it('reads a name or colour this version does not know as unset', async () => {
     const { storage, books } = setup()
     const id = await books.create('Work', null)

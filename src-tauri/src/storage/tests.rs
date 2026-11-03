@@ -683,6 +683,40 @@ fn notebooks_read_an_unknown_icon_or_colour_as_unset() {
 }
 
 #[test]
+fn notebooks_read_lucide_icons_and_merge_them_like_any_icon() {
+    let (_dir, mut store) = temp_store();
+    let mut iconed = book("b1", "Work", "0000000000000010-0000-a");
+    iconed.icon = Some("lucide:book-open".into());
+    iconed.icon_hlc = "0000000000000030-0000-a".into();
+    store.put_book(&iconed).unwrap();
+    assert_eq!(
+        store.list_books().unwrap()[0].icon.as_deref(),
+        Some("lucide:book-open")
+    );
+
+    // A version without this catalog reads none and writes none back at the same HLC.
+    let mut older = book("b1", "Job", "0000000000000040-0000-b");
+    older.icon_hlc = iconed.icon_hlc.clone();
+    store.put_book(&older).unwrap();
+    assert_eq!(
+        store.list_books().unwrap()[0].icon.as_deref(),
+        Some("lucide:book-open")
+    );
+
+    store
+        .conn
+        .execute(
+            "UPDATE books SET icon = 'lucide:from-a-later-catalog',
+                              icon_hlc = '0000000000000050-0000-a'",
+            [],
+        )
+        .unwrap();
+    let read = store.list_books().unwrap();
+    assert_eq!(read[0].icon, None);
+    assert_eq!(read[0].icon_hlc, "0000000000000050-0000-a");
+}
+
+#[test]
 fn the_book_icon_migration_keeps_the_notebooks() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("devot.sqlite");
