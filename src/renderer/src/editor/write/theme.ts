@@ -37,6 +37,8 @@ export const writeTheme = EditorView.theme({
     accentColor: token('accent-fill'),
     cursor: 'pointer',
   },
+  // On the baseline the 1em buffer image can outgrow a short line box in a fallback font, so a line that hides its marks grows.
+  '&[data-write] .cm-widgetBuffer': { verticalAlign: 'text-top' },
   '.cm-wm-alert-label': { fontWeight: 'var(--font-weight-semibold)' },
   '.cm-wm-note-chip': { textUnderlineOffset: '4px' },
   '.cm-wm-note-title': { color: token('syntax-link'), textDecoration: 'underline' },

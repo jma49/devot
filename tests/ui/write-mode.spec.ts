@@ -258,38 +258,6 @@ test.describe('a new install', () => {
     }
   })
 
-  test('DIAG heading height', async ({ page }) => {
-    await createNote(page, 'Still', '# Head\n\n**bold** line')
-    await body(page).click()
-    await page.keyboard.press('ControlOrMeta+End')
-    const dump = () =>
-      body(page).evaluate((content) => {
-        const w = globalThis as unknown as {
-          getComputedStyle(e: unknown): Record<string, string>
-        }
-        type El = {
-          tagName: string
-          className: string
-          textContent: string
-          getBoundingClientRect(): { height: number; y: number }
-          querySelectorAll(s: string): El[]
-          children: El[]
-        }
-        const line = (content as unknown as El).querySelectorAll('.cm-line')[0]!
-        const info = (e: El) => {
-          const c = w.getComputedStyle(e)
-          return `${e.tagName}.${e.className}[${e.textContent}] h=${e.getBoundingClientRect().height} ff=${c['fontFamily']} fs=${c['fontSize']} lh=${c['lineHeight']} fw=${c['fontWeight']}`
-        }
-        return [info(line), ...Array.from(line.querySelectorAll('*'), info)].join('\n')
-      })
-    const a = await dump()
-    const box = await charBox(page, 0, 'Head', 1)
-    await page.mouse.click(box.x + 1, box.y + box.height / 2)
-    await expect.poll(() => lines(page)).toContainEqual('# Head')
-    const b = await dump()
-    expect(`HIDDEN\n${a}\nSHOWN\n${b}`).toBe('')
-  })
-
   test('puts the caret where the pointer is on a line without its marks', async ({ page }) => {
     await createNote(page, 'Pointer', '**bold** and more\nother')
     await body(page).click()
