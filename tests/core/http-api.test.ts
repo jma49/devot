@@ -131,6 +131,10 @@ const EXPECTED: Record<string, (w: World) => unknown> = {
     markdown: 'Bake a lime pie on Sunday.\n',
   }),
   "update a note's whole body": (w) => ({ ...readNote(w), markdown: 'A new body.\n' }),
+  'append under a heading': (w) => ({
+    ...readNote(w),
+    markdown: 'Bake a kiwi pie on Sunday.\nAlso lime.\n',
+  }),
   'move a note to the Trash': (w) => ({ id: w.note, title: 'Kiwi pie', trashed: true }),
 }
 
@@ -185,6 +189,7 @@ describe('the API sees only what AI may', () => {
     for (const call of [
       { op: 'notes.read', note: hidden, args: {} },
       { op: 'notes.update', note: hidden, args: { title: 'Mine' } },
+      { op: 'notes.append', note: hidden, args: { text: 'Mine' } },
       { op: 'notes.trash', note: hidden, args: {} },
     ] as const) {
       await expect(w.run(call)).rejects.toThrow('E_NOTE_NOT_FOUND')
@@ -201,6 +206,50 @@ describe('the API sees only what AI may', () => {
     expect(await w.run({ op: 'tags.list', note: null, args: {} })).toEqual({
       tags: [{ name: 'fruit', notes: 1 }],
     })
+  })
+
+  it('appends under a heading as the client, refuses a missing heading, and leaves out what the schema does not know', async () => {
+    const w = await world()
+    await w.run({
+      op: 'notes.update',
+      note: w.note,
+      args: { markdown: '## Plan\n- kiwi\n\n## Notes\n' },
+    })
+    const appended = (await w.run({
+      op: 'notes.append',
+      note: w.note,
+      args: { text: '- lime\r\n', heading: 'plan', position: 'append' },
+    })) as { markdown: string }
+    expect(appended.markdown).toBe('## Plan\n- kiwi\n- lime\n\n## Notes\n')
+    const prepended = (await w.run({
+      op: 'notes.append',
+      note: w.note,
+      args: { text: '- first', heading: 'Plan', position: 'prepend', separator: 'newline' },
+    })) as { markdown: string }
+    expect(prepended.markdown).toBe('## Plan\n- first\n- kiwi\n- lime\n\n## Notes\n')
+    await expect(
+      w.run({ op: 'notes.append', note: w.note, args: { text: 'x', heading: 'Missing' } }),
+    ).rejects.toThrow('E_HEADING_NOT_FOUND')
+    await expect(w.run({ op: 'notes.append', note: w.note, args: { text: '\n' } })).rejects.toThrow(
+      'E_APPEND_TEXT_EMPTY',
+    )
+    for (const args of [
+      { text: 1 },
+      { text: 'x', position: 'middle' },
+      { text: 'x', separator: 'space' },
+      { text: 'x', heading: 3 },
+    ]) {
+      await expect(w.run({ op: 'notes.append', note: w.note, args })).rejects.toThrow(
+        'E_HTTP_API_ARGS_INVALID',
+      )
+    }
+    const rows = await w.adapter.listAgentWrites(10)
+    expect(rows.filter((r) => r.noteId === w.note).map((r) => r.kind)).toEqual([
+      'http',
+      'http',
+      'http',
+    ])
+    expect((await w.adapter.getNote(w.note))?.bodyMd).toBe(prepended.markdown)
   })
 
   it('writes metadata with its own HLCs and keeps the body text it replaced in history', async () => {

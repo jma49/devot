@@ -561,11 +561,13 @@ pub fn status_of(code: &str) -> u16 {
         "E_BOOK_AMBIGUOUS"
         | "E_BOOK_NAME_TAKEN"
         | "E_AI_PATCH_NOT_FOUND"
-        | "E_AI_PATCH_AMBIGUOUS" => 409,
+        | "E_AI_PATCH_AMBIGUOUS"
+        | "E_HEADING_NOT_FOUND" => 409,
         "E_NOTE_BODY_TOO_LARGE" => 413,
         "E_STORAGE_BUSY" | "E_CORE_NOT_READY" | "E_HTTP_API_UNAVAILABLE" | "E_APP_QUITTING" => 503,
         "E_HTTP_API_TIMEOUT" => 504,
         _ if code.starts_with("E_AI_")
+            || code.starts_with("E_APPEND_")
             || code.starts_with("E_SEARCH_")
             || code.ends_with("_INVALID")
             || code == "E_NOTE_LINKS_TOO_MANY" =>

@@ -286,6 +286,7 @@ import { restartNow, useUpdates } from './UpdateNotice'
 import { checkForUpdates } from './updates'
 import { track } from './usage'
 import { HTTP_API_DONE_TEST, HTTP_API_EVENT, httpApiHost } from './httpApiHost'
+import { CLI_APPEND_EVENT, cliAppendHost, resolveAppendTarget } from './cliAppend'
 import { QUICK_CAPTURE_EVENT, answerCapture, readCaptureRequest } from './quickCaptureHost'
 
 const EXPORT_ALL = 'devot:export-all'
@@ -2659,6 +2660,43 @@ export function App() {
   const applyToOpenNote = useStable((noteId: string, update: Uint8Array) => {
     if (editorRef.current?.noteId === noteId) restoreRef.current?.(update)
   })
+  // `devot append` (cliAppend.ts): answered only once the note is saved, so the command's success means the text is on disk.
+  useEffect(() => {
+    if (!core || DEVOT_UI_TEST) return
+    let stopped = false
+    let unlisten: (() => void) | undefined
+    const take = cliAppendHost({
+      run: async (request) => {
+        if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
+        const id = await resolveAppendTarget(request.target, () => core.list())
+        const update = await core.appendToNote(id, request.text, {
+          position: request.position,
+          ...(request.heading === null ? {} : { heading: request.heading }),
+        })
+        applyToOpenNote(id, update)
+        await core.flush()
+        await refresh(core)
+      },
+      reply: (id, error) => invoke('cli_append_done', { id, error }),
+    })
+    // Listening first, then asking for what waits: no request is lost between.
+    void listenHere<unknown>(CLI_APPEND_EVENT, (e) => void take(e.payload))
+      .then((stop) => {
+        if (stopped) stop()
+        else unlisten = stop
+        return stopped ? [] : invoke<unknown>('cli_append_take')
+      })
+      .then(
+        (held) => {
+          if (!stopped && Array.isArray(held)) held.forEach((request) => void take(request))
+        },
+        (e: unknown) => console.warn('W_CLI_APPEND_TAKE_FAILED', errorCode(e)),
+      )
+    return () => {
+      stopped = true
+      unlisten?.()
+    }
+  }, [core, refresh, applyToOpenNote])
   const historyBar = useHistoryBar({
     core,
     noteId: selected,

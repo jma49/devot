@@ -21,6 +21,8 @@ const MAX_NOTEBOOK_REF_CHARS: usize = 500;
 // MAX_TAG_NAME_CHARS (100), as the MCP tool schemas leave it to.
 const MAX_NAME_CHARS: usize = 800;
 const MAX_SENT_TITLE_CHARS: usize = MAX_TITLE_CHARS * 4;
+/// MAX_HEADING_CHARS in `src/core/append.ts`.
+const MAX_HEADING_CHARS: usize = 500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Op {
@@ -31,6 +33,7 @@ pub enum Op {
     NotesCreate,
     NotesRead,
     NotesUpdate,
+    NotesAppend,
     NotesTrash,
 }
 
@@ -44,6 +47,7 @@ impl Op {
             Op::NotesCreate => "notes.create",
             Op::NotesRead => "notes.read",
             Op::NotesUpdate => "notes.update",
+            Op::NotesAppend => "notes.append",
             Op::NotesTrash => "notes.trash",
         }
     }
@@ -52,7 +56,11 @@ impl Op {
     pub fn writes(self) -> bool {
         matches!(
             self,
-            Op::NotebooksCreate | Op::NotesCreate | Op::NotesUpdate | Op::NotesTrash
+            Op::NotebooksCreate
+                | Op::NotesCreate
+                | Op::NotesUpdate
+                | Op::NotesAppend
+                | Op::NotesTrash
         )
     }
 
@@ -63,7 +71,7 @@ impl Op {
     pub fn takes_body(self) -> bool {
         matches!(
             self,
-            Op::NotebooksCreate | Op::NotesCreate | Op::NotesUpdate
+            Op::NotebooksCreate | Op::NotesCreate | Op::NotesUpdate | Op::NotesAppend
         )
     }
 }
@@ -139,12 +147,19 @@ pub fn route(method: &str, path: &str) -> Result<(Op, Option<String>), Refusal> 
             _ => Err(NO_METHOD),
         },
         _ => {
-            let id = path.strip_prefix("/v1/notes/").ok_or(NOT_FOUND)?;
-            let op = match method {
-                "GET" => Op::NotesRead,
-                "PATCH" => Op::NotesUpdate,
-                "DELETE" => Op::NotesTrash,
-                _ => return Err(NO_METHOD),
+            let rest = path.strip_prefix("/v1/notes/").ok_or(NOT_FOUND)?;
+            let (id, op) = match rest.strip_suffix("/append") {
+                Some(id) if method == "POST" => (id, Op::NotesAppend),
+                Some(_) => return Err(NO_METHOD),
+                None => (
+                    rest,
+                    match method {
+                        "GET" => Op::NotesRead,
+                        "PATCH" => Op::NotesUpdate,
+                        "DELETE" => Op::NotesTrash,
+                        _ => return Err(NO_METHOD),
+                    },
+                ),
             };
             if !valid_note_id(id) {
                 return Err(Refusal::new(404, "E_NOTE_NOT_FOUND"));
@@ -194,6 +209,32 @@ struct NoteChange {
     tags: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     status: Option<Status>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum Position {
+    Append,
+    Prepend,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum Separator {
+    Newline,
+    None,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct NoteAppend {
+    text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    heading: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    position: Option<Position>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    separator: Option<Separator>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -277,6 +318,19 @@ fn check_change(change: &NoteChange) -> Result<(), Refusal> {
         if tags.iter().any(|t| chars(t) > MAX_NAME_CHARS) {
             return Err(Refusal::new(400, "E_TAG_NAME_INVALID"));
         }
+    }
+    Ok(())
+}
+
+fn check_append(append: &NoteAppend) -> Result<(), Refusal> {
+    if append.text.trim().is_empty() {
+        return Err(Refusal::new(400, "E_APPEND_TEXT_EMPTY"));
+    }
+    check_markdown(&append.text)?;
+    if let Some(heading) = &append.heading
+        && (heading.trim().is_empty() || chars(heading) > MAX_HEADING_CHARS)
+    {
+        return Err(Refusal::new(409, "E_HEADING_NOT_FOUND"));
     }
     Ok(())
 }
@@ -377,6 +431,11 @@ pub fn call(
             let change: NoteChange = parse(body)?;
             check_change(&change)?;
             args(&change)?
+        }
+        Op::NotesAppend => {
+            let append: NoteAppend = parse(body)?;
+            check_append(&append)?;
+            args(&append)?
         }
         Op::NotebooksCreate => {
             let new: NewNotebook = parse(body)?;

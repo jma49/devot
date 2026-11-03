@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cli-append-done"
+description = "Enables the cli_append_done command without any pre-configured scope."
+commands.allow = ["cli_append_done"]
+
+[[permission]]
+identifier = "deny-cli-append-done"
+description = "Denies the cli_append_done command without any pre-configured scope."
+commands.deny = ["cli_append_done"]

@@ -4,7 +4,13 @@
 // the core runs it through the AI service, so the API sees and changes only
 // what AI may (notebooks with Allow AI Access on), and writes like an outside
 // edit: bodies as Yjs operations, metadata by HLC.
-import type { AiNote, AiNoteUpdate, AiPatch, AiService } from './ai'
+import type { AiNote, AiNoteAppend, AiNoteUpdate, AiPatch, AiService } from './ai'
+import {
+  APPEND_POSITIONS,
+  APPEND_SEPARATORS,
+  type AppendPosition,
+  type AppendSeparator,
+} from './append'
 import { AUTHORSHIP_ID, cleanWriterName, newWriter, type Writer } from './authorship'
 import { NOTE_STATUSES, type NoteStatus } from './storage'
 
@@ -16,6 +22,7 @@ export const HTTP_API_OPS = [
   'notes.create',
   'notes.read',
   'notes.update',
+  'notes.append',
   'notes.trash',
 ] as const
 export type HttpApiOp = (typeof HTTP_API_OPS)[number]
@@ -25,6 +32,7 @@ export const HTTP_API_WRITES: readonly HttpApiOp[] = [
   'notebooks.create',
   'notes.create',
   'notes.update',
+  'notes.append',
   'notes.trash',
 ]
 
@@ -140,6 +148,22 @@ function updateOf(call: HttpApiCall): AiNoteUpdate {
   }
 }
 
+function appendOf(call: HttpApiCall): AiNoteAppend {
+  const { args } = call
+  const heading = optionalText(args, 'heading')
+  const position = args['position'] ?? 'append'
+  const separator = args['separator'] ?? 'newline'
+  if (!(APPEND_POSITIONS as readonly unknown[]).includes(position)) throw invalid()
+  if (!(APPEND_SEPARATORS as readonly unknown[]).includes(separator)) throw invalid()
+  return {
+    id: noteId(call),
+    text: text(args, 'text'),
+    position: position as AppendPosition,
+    separator: separator as AppendSeparator,
+    ...(heading === undefined ? {} : { heading }),
+  }
+}
+
 const iso = (ms: number) => new Date(ms).toISOString()
 
 const noteJson = (note: AiNote) => ({
@@ -178,6 +202,8 @@ export async function runHttpApiCall(ai: AiService, call: HttpApiCall): Promise<
       return noteJson(await ai.read(noteId(call)))
     case 'notes.update':
       return noteJson(await ai.update(updateOf(call)))
+    case 'notes.append':
+      return noteJson(await ai.append(appendOf(call)))
     case 'notes.trash':
       return { ...(await ai.trash(noteId(call))), trashed: true }
   }

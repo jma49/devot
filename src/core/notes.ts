@@ -87,7 +87,8 @@ import { extractTitle } from './extract'
 import { findBacklinks } from './links'
 import type { NoteLinkTarget } from './preview/registry'
 import { fileLinkSpans, newFileCopies, replaceFileLinks, type FileCopy } from './files'
-import { clipTitle, MAX_TITLE_CHARS } from './noteLimits'
+import { appendInsertion, type AppendOptions } from './append'
+import { clipTitle, MAX_BODY_BYTES, MAX_TITLE_CHARS, overBytes } from './noteLimits'
 import type { NoteRelayMessage, TakenIn } from './noteRelay'
 import { lineFeeds } from './text'
 
@@ -273,6 +274,12 @@ export interface NoteService {
    * editor's replica to apply as one undoable step.
    */
   applyPluginEdit(id: string, edit: { base: string; markdown: string }): Promise<Uint8Array>
+  /**
+   * Puts `text` at the end (or the start) of the section under `options.heading`, or of the note (see appendInsertion), as one Yjs
+   * transaction, with the text before kept as a version as a plugin edit keeps it. Returns the Yjs update, for the editor's replica to
+   * apply as one undoable step. Throws E_HEADING_NOT_FOUND, E_APPEND_TEXT_EMPTY, E_NOTE_BODY_TOO_LARGE and E_NOTE_NOT_FOUND.
+   */
+  appendToNote(id: string, text: string, options: AppendOptions): Promise<Uint8Array>
   /** Records an agent's write (ADR 0007): its body edit, applied as Yjs operations (see textEdits), and its record go in as one Yjs transaction. Resolves to the write's ID, or null when it changed nothing. */
   agentWrite(id: string, write: AgentNoteWrite): Promise<string | null>
   /** Undo All for one writer (kind and name) as an owner edit; the text before is kept as a version. `update` is for the editor's replica to apply as one undoable step. */
@@ -1842,6 +1849,23 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         if (note.doc.getText(BODY).toString() !== base) throw new Error('E_PLUGIN_NOTE_CHANGED')
         takeVersion(note)
         const update = collected(note, () => replaceBody(note, lineFeeds(markdown)))
+        takeVersion(note)
+        await revisionWork
+        return update
+      }),
+
+    appendToNote: (id, text, where) =>
+      using(id, async (note) => {
+        const body = note.doc.getText(BODY)
+        const insertion = appendInsertion(body.toString(), text, where)
+        if (overBytes(body.toString() + insertion.text, MAX_BODY_BYTES)) {
+          throw new Error('E_NOTE_BODY_TOO_LARGE')
+        }
+        takeVersion(note)
+        const update = collected(note, () => {
+          editBody(note, () => note.doc.transact(() => body.insert(insertion.at, insertion.text)))
+          schedule(note)
+        })
         takeVersion(note)
         await revisionWork
         return update

@@ -3,7 +3,9 @@
 //! in a folder only this user can open, named after the folder identifier, so another user's file
 //! can never take the arguments and a debug build never meets the release app.
 //! The message is `cwd\0\0argv joined by \0`. The running Devot answers one byte once it has taken
-//! the message, and takes none while it quits: only that answer completes a hand-off.
+//! the message, and takes none while it quits: only that answer completes a hand-off. A request it
+//! runs before answering (`devot append`, `cli_append`) is answered with its outcome instead: the
+//! same byte when done, else a refusal byte followed by the code.
 //! Only the process holding an exclusive `flock` on `<identifier>.lock` beside the socket (kept for
 //! its life) removes or binds the socket, so of two launches at once, the one that goes on to fail
 //! can never leave the other without a socket. A volume without locks goes without that guard.
@@ -14,7 +16,7 @@ use std::net::Shutdown;
 use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use tauri::plugin::{Builder, TauriPlugin};
@@ -26,6 +28,29 @@ const MAX_MESSAGE: u64 = 1024 * 1024;
 const READ_TIMEOUT: Duration = Duration::from_secs(5);
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(5);
 const TAKEN: u8 = 0x06;
+const REFUSED: u8 = 0x15;
+const MAX_CODE: u64 = 80;
+
+/// What a running Devot answered a hand-off with.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Answered {
+    /// Nothing listens there.
+    NoListener,
+    Taken,
+    /// Run and refused, with the outcome's code.
+    Refused(String),
+}
+
+/// What the listener does with a message: close it unanswered, answer it and run it, or run it
+/// and answer with the outcome (on a thread of its own, so the listener stays reachable).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Accept {
+    Refused,
+    Taken,
+    Answered,
+}
+
+type Answer = Arc<dyn Fn(Vec<String>) -> Result<(), String> + Send + Sync>;
 
 struct Claimed {
     listener: UnixListener,
@@ -106,6 +131,21 @@ fn send_within(
     uid: u32,
     wait: Duration,
 ) -> Result<bool, &'static str> {
+    match send_answered_to(socket, message, uid, wait)? {
+        Answered::NoListener => Ok(false),
+        Answered::Taken => Ok(true),
+        Answered::Refused(_) => Err("E_CLI_HANDOFF_REFUSED"),
+    }
+}
+
+/// Sends `message` and reads the answer, waiting up to `wait` for it; a request that is run first
+/// (see `Accept::Answered`) answers with its outcome.
+pub(crate) fn send_answered_to(
+    socket: &Path,
+    message: &[u8],
+    uid: u32,
+    wait: Duration,
+) -> Result<Answered, &'static str> {
     let found = match std::fs::symlink_metadata(socket) {
         Ok(meta) => Some((meta.file_type().is_socket(), meta.uid())),
         Err(e) if e.kind() == ErrorKind::NotFound => None,
@@ -113,12 +153,12 @@ fn send_within(
     };
     if !socket_trusted(found, uid) {
         log::warn!("W_SINGLE_INSTANCE_SOCKET_FOREIGN");
-        return Ok(false);
+        return Ok(Answered::NoListener);
     }
     let mut stream = match UnixStream::connect(socket) {
         Ok(stream) => stream,
         Err(e) if matches!(e.kind(), ErrorKind::NotFound | ErrorKind::ConnectionRefused) => {
-            return Ok(false);
+            return Ok(Answered::NoListener);
         }
         Err(_) => return Err("E_CLI_HANDOFF_FAILED"),
     };
@@ -132,7 +172,8 @@ fn send_within(
     let mut answer = [0u8; 1];
     loop {
         return match stream.read(&mut answer) {
-            Ok(1) if answer[0] == TAKEN => Ok(true),
+            Ok(1) if answer[0] == TAKEN => Ok(Answered::Taken),
+            Ok(1) if answer[0] == REFUSED => Ok(Answered::Refused(read_code(&mut stream))),
             Ok(_) => Err("E_CLI_HANDOFF_REFUSED"),
             Err(e) if e.kind() == ErrorKind::Interrupted => continue,
             Err(_) => Err("E_CLI_HANDOFF_UNANSWERED"),
@@ -140,11 +181,50 @@ fn send_within(
     }
 }
 
+/// The code after a refusal byte; one that is not a code reads as the hand-off refused.
+fn read_code(stream: &mut UnixStream) -> String {
+    let mut bytes = Vec::new();
+    let _ = stream.take(MAX_CODE).read_to_end(&mut bytes);
+    match String::from_utf8(bytes) {
+        Ok(code) if is_code(&code) => code,
+        _ => "E_CLI_HANDOFF_REFUSED".to_owned(),
+    }
+}
+
+fn is_code(code: &str) -> bool {
+    code.starts_with("E_")
+        && code.len() >= 3
+        && code
+            .bytes()
+            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
+}
+
 pub(crate) fn send(identifier: &str, message: &[u8]) -> Result<bool, &'static str> {
     match folder() {
         Some(dir) => send_to(&socket_in(&dir, identifier), message, effective_uid()),
         None => Ok(false),
     }
+}
+
+/// `send`, for a request the running Devot runs before it answers (`devot append`).
+pub(crate) fn send_answered(
+    identifier: &str,
+    message: &[u8],
+    wait: Duration,
+) -> Result<Answered, &'static str> {
+    match folder() {
+        Some(dir) => send_answered_to(&socket_in(&dir, identifier), message, effective_uid(), wait),
+        None => Ok(Answered::NoListener),
+    }
+}
+
+fn write_outcome(stream: &mut UnixStream, outcome: Result<(), String>) {
+    let _ = match outcome {
+        Ok(()) => stream.write_all(&[TAKEN]),
+        Err(code) => stream
+            .write_all(&[REFUSED])
+            .and_then(|()| stream.write_all(code.as_bytes())),
+    };
 }
 
 pub(crate) fn message(cwd: &Path, argv: &[String]) -> String {
@@ -168,22 +248,36 @@ fn read_message(stream: &mut UnixStream) -> Option<(String, Vec<String>)> {
 
 /// Answers a message `accept` takes before `run` handles it, since bringing Devot forward and
 /// finding the files can take longer than a sender waits; one refused, or unreadable, is closed
-/// unanswered.
+/// unanswered. One to answer with its outcome goes to `answer` on a thread of its own.
 fn serve(
     listener: &UnixListener,
-    accept: impl Fn(&[String]) -> bool,
+    accept: impl Fn(&[String]) -> Accept,
     run: impl Fn(String, Vec<String>),
+    answer: Answer,
 ) {
     for mut stream in listener.incoming().flatten() {
         let Some((cwd, args)) = read_message(&mut stream) else {
             continue;
         };
-        if !accept(&args) {
-            continue;
+        match accept(&args) {
+            Accept::Refused => continue,
+            Accept::Answered => {
+                let answer = Arc::clone(&answer);
+                let started = std::thread::Builder::new()
+                    .name("devot-single-instance-answer".into())
+                    .spawn(move || {
+                        write_outcome(&mut stream, answer(args));
+                    });
+                if started.is_err() {
+                    log::warn!("W_SINGLE_INSTANCE_ANSWER_FAILED");
+                }
+            }
+            Accept::Taken => {
+                let _ = stream.write_all(&[TAKEN]);
+                drop(stream);
+                run(cwd, args);
+            }
         }
-        let _ = stream.write_all(&[TAKEN]);
-        drop(stream);
-        run(cwd, args);
     }
 }
 
@@ -235,6 +329,7 @@ fn listen(app: &AppHandle, claimed: Claimed) {
         lock: Mutex::new(Some(lock)),
     });
     let app = app.clone();
+    let answering = app.clone();
     let started = std::thread::Builder::new()
         .name("devot-single-instance".into())
         .spawn(move || {
@@ -244,16 +339,24 @@ fn listen(app: &AppHandle, claimed: Claimed) {
                     let quitting = crate::exit::quitting(&app);
                     if quitting {
                         log::warn!("W_SINGLE_INSTANCE_QUITTING");
-                        return false;
+                        return Accept::Refused;
+                    }
+                    if crate::cli::hands_off_append(args) {
+                        return Accept::Answered;
                     }
                     let full = crate::cli::hands_off_files(args)
                         && !crate::deep_link::room_for_import(&app);
                     if full {
                         log::warn!("W_SINGLE_INSTANCE_IMPORTS_FULL");
+                        return Accept::Refused;
                     }
-                    !full
+                    Accept::Taken
                 },
                 |cwd, args| crate::deep_link::on_second_instance(&app, args, cwd),
+                Arc::new(move |args| {
+                    crate::cli_append::receive(&answering, &args)
+                        .unwrap_or_else(|| Err("E_CLI_APPEND_INVALID".into()))
+                }),
             );
         });
     if started.is_err() {
@@ -361,13 +464,66 @@ mod tests {
         std::thread::spawn(move || {
             serve(
                 &listener,
-                |_| take,
+                |_| if take { Accept::Taken } else { Accept::Refused },
                 |cwd, args| {
                     let _ = tx.send((cwd, args));
                 },
+                Arc::new(|_| Ok(())),
             )
         });
         rx
+    }
+
+    #[test]
+    fn a_request_run_before_it_is_answered_gets_its_outcome() {
+        let dir = tempfile::tempdir().unwrap();
+        let uid = effective_uid();
+        let socket = dir.path().join("a.sock");
+        let listener = UnixListener::bind(&socket).unwrap();
+        std::thread::spawn(move || {
+            serve(
+                &listener,
+                |args| {
+                    if args.get(1).map(String::as_str) == Some("--answered") {
+                        Accept::Answered
+                    } else {
+                        Accept::Taken
+                    }
+                },
+                |_, _| {},
+                Arc::new(|args| match args.get(2).map(String::as_str) {
+                    Some("ok") => Ok(()),
+                    Some("odd") => Err("not a code".into()),
+                    _ => Err("E_HEADING_NOT_FOUND".into()),
+                }),
+            )
+        });
+        let sent = |args: &[&str]| {
+            let message = message(
+                Path::new("/w"),
+                &args.iter().map(|a| (*a).to_owned()).collect::<Vec<_>>(),
+            );
+            send_answered_to(&socket, message.as_bytes(), uid, Duration::from_secs(5))
+        };
+        assert_eq!(sent(&["devot", "--answered", "ok"]), Ok(Answered::Taken));
+        assert_eq!(
+            sent(&["devot", "--answered", "no"]),
+            Ok(Answered::Refused("E_HEADING_NOT_FOUND".into()))
+        );
+        assert_eq!(
+            sent(&["devot", "--answered", "odd"]),
+            Ok(Answered::Refused("E_CLI_HANDOFF_REFUSED".into()))
+        );
+        assert_eq!(sent(&["devot", "a.md"]), Ok(Answered::Taken));
+        assert_eq!(
+            send_answered_to(
+                &dir.path().join("none.sock"),
+                b"x",
+                uid,
+                Duration::from_secs(1)
+            ),
+            Ok(Answered::NoListener)
+        );
     }
 
     #[test]

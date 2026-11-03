@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cli-append-take"
+description = "Enables the cli_append_take command without any pre-configured scope."
+commands.allow = ["cli_append_take"]
+
+[[permission]]
+identifier = "deny-cli-append-take"
+description = "Denies the cli_append_take command without any pre-configured scope."
+commands.deny = ["cli_append_take"]

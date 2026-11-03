@@ -279,7 +279,7 @@ mod tests {
         let (answers, _) = talk(
             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}\n{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}\n{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"list_notebooks\"}}\n",
         );
-        assert_eq!(answers[0]["result"]["tools"].as_array().unwrap().len(), 8);
+        assert_eq!(answers[0]["result"]["tools"].as_array().unwrap().len(), 9);
         assert_eq!(answers[1]["result"], json!({}));
         let text = answers[2]["result"]["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("\"notebooks\""));
