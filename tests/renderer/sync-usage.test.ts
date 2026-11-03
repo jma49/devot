@@ -135,3 +135,31 @@ it('says nothing when the relay has no cap, cannot say, or cannot be reached', a
     expect(await watch(snapshot(), 0)).toBeNull()
   }
 })
+
+const other = (over: Partial<SyncSnapshot> = {}): SyncSnapshot => ({
+  ...snapshot(),
+  relayUrl: 'https://other.example.test',
+  ...over,
+})
+
+it('drops an answer still on its way when the device leaves that relay', async () => {
+  answers.next = { storedBytes: 3.3 * GB, fileBytes: 0, caps: CAPS }
+  watchUsage(snapshot(), 0)
+  expect(await watch(other({ enrolled: false }), 1)).toBeNull()
+})
+
+it('drops an answer still on its way when the next relay has not settled', async () => {
+  answers.next = { storedBytes: 3.3 * GB, fileBytes: 0, caps: CAPS }
+  watchUsage(snapshot(), 0)
+  const busy = other({ status: { ...SYNC_OFF.status, state: 'syncing' } })
+  expect(await watch(busy, 1)).toBeNull()
+})
+
+it('keeps the bands told for each relay apart', async () => {
+  answers.next = { storedBytes: 3.3 * GB, fileBytes: 0, caps: CAPS }
+  expect(await watch(snapshot(), 0)).toBe('storageWarn')
+  expect(await watch(other(), 1)).toBe('storageWarn')
+
+  resetUsageWatch()
+  expect(await watch(snapshot(), 2)).toBeNull()
+})

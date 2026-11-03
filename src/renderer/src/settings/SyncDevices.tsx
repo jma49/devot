@@ -269,9 +269,11 @@ export function PairingRow(props: {
             ) : null}
           </div>
           <div className="settings-buttons">
-            <button type="button" className="button" onClick={copyLink}>
-              {t('syncSettings.pairCopyLink')}
-            </button>
+            {onPhone ? null : (
+              <button type="button" className="button" onClick={copyLink}>
+                {t('syncSettings.pairCopyLink')}
+              </button>
+            )}
             <button type="button" className="button" onClick={cancel}>
               {t('dialog.cancel')}
             </button>

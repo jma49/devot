@@ -96,15 +96,22 @@ export function useRelayUsage(active: boolean, again: string): UsageReading | nu
 const SEEN_KEY = 'devot.syncUsageSeen'
 const FILLS: readonly Fill[] = ['ok', 'warn', 'full']
 
-/** The bands last told for this relay; nothing if another relay was told, or storage is unreadable. */
+function seenByRelay(): Map<string, unknown> {
+  const stored: unknown = JSON.parse(globalThis.localStorage?.getItem(SEEN_KEY) ?? 'null')
+  return typeof stored === 'object' && stored !== null
+    ? new Map(Object.entries(stored))
+    : new Map<string, unknown>()
+}
+
+/** The bands last told for this relay; nothing if none were, or storage is unreadable. */
 function seenFor(relay: string): Seen {
   try {
-    const stored: unknown = JSON.parse(globalThis.localStorage?.getItem(SEEN_KEY) ?? 'null')
-    if (typeof stored !== 'object' || stored === null) return NOTHING_SEEN
-    const s = stored as Record<string, unknown>
+    const entry = seenByRelay().get(relay)
+    if (typeof entry !== 'object' || entry === null) return NOTHING_SEEN
+    const s = entry as Record<string, unknown>
     const storage = FILLS.find((fill) => fill === s['storage'])
     const images = FILLS.find((fill) => fill === s['images'])
-    return s['relay'] === relay && storage && images ? { storage, images } : NOTHING_SEEN
+    return storage && images ? { storage, images } : NOTHING_SEEN
   } catch {
     return NOTHING_SEEN
   }
@@ -112,7 +119,8 @@ function seenFor(relay: string): Seen {
 
 function remember(relay: string, seen: Seen) {
   try {
-    globalThis.localStorage?.setItem(SEEN_KEY, JSON.stringify({ relay, ...seen }))
+    const bands = seenByRelay().set(relay, seen)
+    globalThis.localStorage?.setItem(SEEN_KEY, JSON.stringify(Object.fromEntries(bands)))
   } catch {
     console.warn('W_SYNC_USAGE_NOT_KEPT')
   }
@@ -131,6 +139,7 @@ export const shownUsageNotice = (): UsageNotice | null => shownNotice
 /** Between two readings for the notice; a relay is not asked for its storage on every sync pass. */
 export const USAGE_RECHECK_MS = 15 * 60_000
 
+let watchedRelay = ''
 let watched = ''
 let watchedAt = 0
 
@@ -140,16 +149,19 @@ let watchedAt = 0
  */
 export function watchUsage(snapshot: SyncSnapshot, now = Date.now()): void {
   const { state, code, unsyncedFiles } = snapshot.status
-  if (!snapshot.enabled || !snapshot.enrolled) {
+  const relay = snapshot.enabled && snapshot.enrolled ? snapshot.relayUrl : ''
+  if (relay !== watchedRelay) {
+    watchedRelay = relay
+    watched = ''
+    watchedAt = 0
     setNotice(null)
-    return
   }
+  if (relay === '') return
   if (state !== 'idle' && state !== 'paused') return
   const key = [snapshot.relayUrl, state, code, unsyncedFiles?.code].join('|')
   if (key === watched && now - watchedAt < USAGE_RECHECK_MS) return
   watched = key
   watchedAt = now
-  const relay = snapshot.relayUrl
   void readUsage().then((reading) => {
     if (reading.state !== 'ready' || watched !== key) return
     const { notice, seen } = noticeFor(reading.view, seenFor(relay))
@@ -160,6 +172,7 @@ export function watchUsage(snapshot: SyncSnapshot, now = Date.now()): void {
 
 /** Forgets what was watched, for a new window or a test. */
 export function resetUsageWatch(): void {
+  watchedRelay = ''
   watched = ''
   watchedAt = 0
   setNotice(null)
