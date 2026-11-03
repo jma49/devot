@@ -200,6 +200,9 @@ describe('the elements the selection meets', () => {
     expect(shown(doc, caret(30))).toBe('see [the docs](https://example.com) and b')
     expect(shown(`see [](devot://note/${NOTE}).`, caret(4))).toBe(`see [](devot://note/${NOTE}).`)
     expect(shown('a <https://example.com> b', caret(5))).toBe('a <https://example.com> b')
+    const styledText = '[**bold** \\* link](https://example.com)'
+    expect(shown(styledText, caret(14))).toBe(styledText)
+    expect(shown(styledText, caret(25))).toBe(styledText)
   })
 
   it('show the number signs of a heading while the caret is on its line', () => {
@@ -207,6 +210,7 @@ describe('the elements the selection meets', () => {
     expect(shown(doc, caret(4))).toBe('# One b\nTwo')
     expect(shown(doc, caret(8))).toBe('# One **b**\nTwo')
     expect(shown('Title\n=====', caret(1))).toBe('Title\n=====')
+    expect(shown('  # Indented', caret(0))).toBe('  # Indented')
   })
 
   it('keep a list mark, a task box and a quote mark drawn on the caret line', () => {
@@ -222,6 +226,7 @@ describe('the elements the selection meets', () => {
 
   it('show a horizontal rule as source while the caret is on it', () => {
     expect(shown('a\n\n---\n\nb', caret(4))).toBe('a\n\n---\n\nb')
+    expect(shown('a\n\n  ---\n\nb', caret(3))).toBe('a\n\n  ---\n\nb')
     expect(rangesOf('a\n\n---\n\nb', caret(4)).ranges.some((r) => r.kind === 'line')).toBe(false)
   })
 
@@ -318,5 +323,21 @@ describe('Write mode ranges of a long note', () => {
     expect(ranges.every((r) => r.to >= from - block.length && r.from <= to + block.length)).toBe(
       true,
     )
+  })
+
+  it('are read near the shown part inside one long span', (context) => {
+    const doc = `**${'word *it* '.repeat(50_000)}end**`
+    const state = EditorState.create({ doc, extensions: [noteMarkdown] })
+    const tree = ensureSyntaxTree(state, doc.length, 1e9)
+    if (!tree) throw new Error('E_TEST_NO_TREE')
+    const from = Math.floor(doc.length / 2)
+    const to = from + 2_000
+    const outer = tree.resolveInner(from, 1)
+    expect([outer.name, outer.parent?.name]).toContain('StrongEmphasis')
+    const started = performance.now()
+    const ranges = writeRanges(state, tree, [], from, to)
+    expectWithinBudget(context, performance.now() - started, 8)
+    expect(ranges.length).toBeGreaterThan(20)
+    expect(ranges.every((r) => r.to >= from && r.from <= to)).toBe(true)
   })
 })

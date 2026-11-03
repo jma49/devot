@@ -107,7 +107,6 @@ const MARK_OPEN = /^<mark(?:\s[^>]*)?>$/i
 const MARK_CLOSE = /^<\/mark\s*>$/i
 const LISTS = new Set(['BulletList', 'OrderedList'])
 const SPACE = /[ \t]/
-const SPAN_MARKS = new Set(['EmphasisMark', 'StrikethroughMark', 'CodeMark'])
 
 function listDepth(node: SyntaxNode): number {
   let depth = 0
@@ -131,6 +130,7 @@ export function writeRanges(
   const out: WriteRange[] = []
   const text = (a: number, b: number) => doc.sliceString(a, b)
   const shows = (a: number, b: number) => touches(selected, a, b)
+  const showsLines = (a: number, b: number) => shows(doc.lineAt(a).from, doc.lineAt(b).to)
   const oneLine = (a: number, b: number) => b > a && b <= doc.lineAt(a).to
   const hide = (a: number, b: number) => {
     if (oneLine(a, b)) out.push({ kind: 'hide', from: a, to: b })
@@ -145,7 +145,7 @@ export function writeRanges(
       if (SOURCE_BLOCKS.has(name)) return false
       const node = ref.node
       if (HEADING.test(name)) {
-        if (shows(node.from, node.to)) return
+        if (showsLines(node.from, node.to)) return
         const open = node.firstChild
         if (open?.name === 'HeaderMark' && open.from === node.from) {
           hide(open.from, open.to + spaceAfter(open.to))
@@ -160,19 +160,18 @@ export function writeRanges(
       }
       if (SETEXT.test(name)) {
         const underline = node.lastChild
-        if (underline?.name === 'HeaderMark' && !shows(node.from, node.to))
+        if (underline?.name === 'HeaderMark' && !showsLines(node.from, node.to))
           hide(underline.from, underline.to)
         return
       }
       switch (name) {
-        case 'Emphasis':
-        case 'StrongEmphasis':
-        case 'Strikethrough':
-        case 'InlineCode':
-          if (shows(node.from, node.to)) return
-          for (let mark = node.firstChild; mark; mark = mark.nextSibling)
-            if (SPAN_MARKS.has(mark.name)) hide(mark.from, mark.to)
+        case 'EmphasisMark':
+        case 'StrikethroughMark':
+        case 'CodeMark': {
+          const span = node.parent
+          if (span && !shows(span.from, span.to)) hide(node.from, node.to)
           return
+        }
         case 'Escape':
           if (!shows(node.from, node.to)) hide(node.from, node.from + 1)
           return
@@ -196,7 +195,7 @@ export function writeRanges(
           if (node.parent?.parent?.parent?.name !== 'BulletList') task(node.from, node)
           return
         case 'HorizontalRule':
-          if (!shows(node.from, node.to) && oneLine(node.from, node.to)) {
+          if (!showsLines(node.from, node.to) && oneLine(node.from, node.to)) {
             hide(node.from, node.to)
             out.push({ kind: 'line', from: node.from, to: node.from, className: 'cm-wm-rule' })
           }
@@ -254,7 +253,7 @@ export function writeRanges(
     const close = marks[1]
     const url = node.getChild('URL')
     if (!open || !close || open.from !== node.from || (!url && !node.getChild('LinkLabel'))) return
-    if (shows(node.from, node.to)) return
+    if (shows(node.from, node.to)) return false
     const id = url ? noteIdOf(text(url.from, url.to)) : undefined
     if (id && close.from === open.to) {
       if (oneLine(node.from, node.to))
