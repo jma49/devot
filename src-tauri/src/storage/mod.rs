@@ -177,24 +177,55 @@ pub const TAG_COLORS: [&str; 8] = [
     "red", "orange", "yellow", "green", "blue", "purple", "pink", "gray",
 ];
 
+/// What `tags.color` may hold: a palette ID, or a custom colour as lowercase `#rrggbb`. Same rule
+/// as `isTagColorValue` in src/core/tags.ts. A notebook icon takes the palette alone.
+pub fn valid_tag_color(color: &str) -> bool {
+    if TAG_COLORS.contains(&color) {
+        return true;
+    }
+    let bytes = color.as_bytes();
+    bytes.len() == 7
+        && bytes[0] == b'#'
+        && bytes[1..]
+            .iter()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
 const NOTEBOOK_SYMBOLS_JSON: &str = include_str!("../../../design/icons/notebook-symbols.json");
+
+const NOTEBOOK_LUCIDE_JSON: &str = include_str!("../../../design/icons/notebook-lucide.json");
+const LUCIDE_ICON_PREFIX: &str = "lucide:";
+
+// The catalogs ship inside the binary and a test parses them, so a failure
+// here is a build mistake: no name is then accepted.
+fn catalog_names(json: &str) -> std::collections::HashSet<String> {
+    #[derive(Deserialize)]
+    struct Catalog {
+        symbols: std::collections::HashMap<String, serde_json::Value>,
+    }
+    serde_json::from_str::<Catalog>(json)
+        .map(|c| c.symbols.into_keys().collect())
+        .unwrap_or_default()
+}
 
 pub fn notebook_symbol(name: &str) -> bool {
     static NAMES: std::sync::OnceLock<std::collections::HashSet<String>> =
         std::sync::OnceLock::new();
     NAMES
-        .get_or_init(|| {
-            #[derive(Deserialize)]
-            struct Catalog {
-                symbols: std::collections::HashMap<String, serde_json::Value>,
-            }
-            // The catalog ships inside the binary and a test parses it, so
-            // a failure here is a build mistake: no name is then accepted.
-            serde_json::from_str::<Catalog>(NOTEBOOK_SYMBOLS_JSON)
-                .map(|c| c.symbols.into_keys().collect())
-                .unwrap_or_default()
-        })
+        .get_or_init(|| catalog_names(NOTEBOOK_SYMBOLS_JSON))
         .contains(name)
+}
+
+/// What `books.icon` may hold: a catalog SF Symbol, or `lucide:` and a catalog Lucide name.
+pub fn notebook_icon(name: &str) -> bool {
+    static LUCIDE: std::sync::OnceLock<std::collections::HashSet<String>> =
+        std::sync::OnceLock::new();
+    notebook_symbol(name)
+        || name.strip_prefix(LUCIDE_ICON_PREFIX).is_some_and(|glyph| {
+            LUCIDE
+                .get_or_init(|| catalog_names(NOTEBOOK_LUCIDE_JSON))
+                .contains(glyph)
+        })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -207,8 +238,8 @@ pub struct TagRecord {
     pub updated_at: i64,
     pub deleted_at: Option<i64>,
     pub deleted_hlc: Option<String>,
-    /// A palette ID from `TAG_COLORS`; None for no colour. Listing reads an
-    /// ID it does not know (from a later palette) as None.
+    /// A palette ID from `TAG_COLORS` or a custom `#rrggbb`; None for no colour. Listing reads a
+    /// value it does not know (from a later Devot) as None.
     #[serde(default)]
     pub color: Option<String>,
     /// Empty when the colour was never set.
@@ -1377,7 +1408,7 @@ impl Store {
                 ai_access_hlc: row.get(10)?,
                 sort_key: row.get(11)?,
                 sort_key_hlc: row.get(12)?,
-                icon: icon.filter(|name| notebook_symbol(name)),
+                icon: icon.filter(|name| notebook_icon(name)),
                 icon_color: icon_color.filter(|c| TAG_COLORS.contains(&c.as_str())),
                 icon_hlc: row.get(15)?,
             })
@@ -1456,7 +1487,7 @@ impl Store {
                 updated_at: row.get(4)?,
                 deleted_at: row.get(5)?,
                 deleted_hlc: row.get(6)?,
-                color: color.filter(|c| TAG_COLORS.contains(&c.as_str())),
+                color: color.filter(|c| valid_tag_color(c)),
                 color_hlc: row.get(8)?,
             })
         })?;

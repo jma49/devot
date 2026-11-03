@@ -4,6 +4,7 @@
 // It only runs when the caller says which notes exist (`noteLinks`), so
 // exported pages keep plain links. Every value it shows goes in as text.
 import type { Element, ElementContent, Root, RootContent } from 'hast'
+import { customTagColorProperties, tagColorClass } from '../tags'
 import { glyph } from './glyphs'
 import { PREVIEW_API_VERSION, type NoteLinkTarget, type PreviewRenderer } from './registry'
 
@@ -44,11 +45,14 @@ function chip(target: NoteLinkTarget, untitled: string): ElementContent[] {
     })
   }
   for (const tag of target.tags) {
-    const colour = tag.color ? [`tag-color-${tag.color}`] : []
+    const colour = tag.color ? [tagColorClass(tag.color)] : []
     out.push({
       type: 'element',
       tagName: 'span',
-      properties: { className: ['note-chip-tag', ...colour] },
+      properties: {
+        className: ['note-chip-tag', ...colour],
+        ...customTagColorProperties(tag.color),
+      },
       children: [txt(tag.name)],
     })
   }

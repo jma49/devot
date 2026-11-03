@@ -10,6 +10,7 @@ import type {
   NoteSummary,
   SaveProblem,
   TagColor,
+  TagColorValue,
   TagRecord,
   TakenIn,
   TrashedNote,
@@ -133,7 +134,10 @@ import { areaOf, areaTargets, nextArea, usePaneTab, visible, type Area } from '.
 import { inEditor, sheetOpen, useMenuEvent, useWindowCommands } from './commands/dispatch'
 import { useCommandMenu } from './commands/commandMenu'
 import { useFormatMenu } from './commands/formatMenu'
+import { shortcutLabel } from './commands/keys'
+import { commandKeys } from './commands/registry'
 import { useKeymap } from './commands/shortcutSettings'
+import { editingAllowed } from './licence'
 import { invoke } from './ipc'
 import { titleWithKey } from './commands/titles'
 import { ToolTips } from './ToolTips'
@@ -161,6 +165,7 @@ import { TrashView } from './TrashView'
 import { Icon, ToolIcon } from './icons/Icon'
 import { BookIcon } from './BookIcon'
 import { StatusPicker } from './StatusPicker'
+import { tagColorClass, tagColorStyle } from './tagColorStyle'
 import { TagEditor } from './TagEditor'
 import { BuiltInTemplate, BuiltInTemplates } from './BuiltInTemplates'
 import { markWrite } from './lastWrite'
@@ -563,6 +568,7 @@ export function App() {
   }
   const titleRef = useRef<HTMLInputElement>(null)
   const tagInputRef = useRef<HTMLInputElement>(null)
+  const [quickTagNote, setQuickTagNote] = useState<string>()
   const [backupsOpen, setBackupsOpen] = useState(false)
   const [backupNotice, setBackupNotice] = useState<string>()
   const syncSnapshot = useSyncSnapshot()
@@ -3192,6 +3198,9 @@ export function App() {
       run: () => setPicking({ recent: recentTemplates.load() }),
     }
   }
+  if (openNote && !selectedIsTemplate && editingAllowed()) {
+    handlers['note.quickTag'] = { run: () => setQuickTagNote(openNote.id) }
+  }
   if (openNote) {
     const id = openNote.id
     for (const [action, commandId] of Object.entries(NOTE_COMMANDS)) {
@@ -3592,7 +3601,7 @@ export function App() {
     (id: string, name: string) => void changeBooks((c) => c.renameTag(id, name)),
   )
   const sidebarSetTagColor = useStable(
-    (id: string, color: TagColor | null) => void changeBooks((c) => c.setTagColor(id, color)),
+    (id: string, color: TagColorValue | null) => void changeBooks((c) => c.setTagColor(id, color)),
   )
   const [headerTagSettings, setHeaderTagSettings] = useState<string>()
   const removeOpenTag = useStable(
@@ -3659,11 +3668,22 @@ export function App() {
           : activeFilter?.kind === 'agent'
             ? 'agent'
             : shownBookIcon
-              ? `book:${shownBookIcon.icon ?? ''}:${shownBookIcon.iconColor ?? ''}`
+              ? `book:${shownBookIcon.iconColor ?? ''}:${shownBookIcon.icon ?? ''}`
               : ''
+  const quickTagKey = commandKeys('note.quickTag')[0]
+  const quickTagShortcut = quickTagKey ? shortcutLabel(quickTagKey) : undefined
   const listIcon = useMemo(() => {
-    const [kind, a, b] = iconKey.split(':')
-    if (kind === 'tag') return <span className={`headline-dot${a ? ` tag-color-${a}` : ''}`} />
+    // The rest is a stored notebook icon, which can hold a colon itself (`lucide:leaf`).
+    const [kind, a, ...rest] = iconKey.split(':')
+    if (kind === 'tag') {
+      const color = (a || null) as TagColorValue | null
+      return (
+        <span
+          className={`headline-dot${color ? ` ${tagColorClass(color)}` : ''}`}
+          style={tagColorStyle(color)}
+        />
+      )
+    }
     if (kind === 'status') {
       const icon = STATUSES.find((s) => s.status === a)?.icon ?? 'status.none'
       return <Icon name={icon} size="title" />
@@ -3671,7 +3691,13 @@ export function App() {
     if (kind === 'pinned') return <Icon name="notes.pinned" size="title" />
     if (kind === 'agent') return <Icon name="notebook.ai" size="title" />
     if (kind === 'book')
-      return <BookIcon icon={a || null} color={(b || null) as TagColor | null} size="title" />
+      return (
+        <BookIcon
+          icon={rest.join(':') || null}
+          color={(a || null) as TagColor | null}
+          size="title"
+        />
+      )
     return null
   }, [iconKey])
   const menuKey =
@@ -4031,6 +4057,21 @@ export function App() {
                   onAdd={(name) => void changeBooks((c) => c.addTag(selected, name))}
                   onPut={(tagId) => void putTagOnNotes([selected], tagId)}
                   onRemove={(tagId) => void changeBooks((c) => c.removeTag(selected, tagId))}
+                  quick={{
+                    open: quickTagNote === selected,
+                    onOpen: () => setQuickTagNote(selected),
+                    onClose: () => setQuickTagNote(undefined),
+                    counts: sidebarTagged,
+                    shortcut: quickTagShortcut,
+                    onCreate: async (name, color) => {
+                      let created: string | undefined
+                      await changeBooks(async (c) => {
+                        created = await c.addTag(selected, name)
+                        if (color) await c.setTagColor(created, color)
+                      })
+                      return created
+                    },
+                  }}
                   onChipMenu={(tagId, at) =>
                     void showChipMenu(
                       {

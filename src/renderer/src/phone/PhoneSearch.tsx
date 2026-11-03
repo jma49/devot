@@ -8,7 +8,8 @@ import {
   searchPattern,
   tagQuery,
 } from '../../../core/search'
-import type { NoteStatus, NoteSummary, TagColor } from '../../../core/storage'
+import type { NoteStatus, NoteSummary, TagColor, TagColorValue } from '../../../core/storage'
+import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import { displayTitle } from '../headlines'
 import { format, t } from '../i18n'
 import { Icon } from '../icons/Icon'
@@ -32,11 +33,15 @@ function Chip(props: {
   dot?: string
   ink?: string
   clock?: boolean
+  tagColor?: TagColorValue | null
   onPick: () => void
 }) {
   return (
     <button type="button" className="phone-search-chip" onClick={props.onPick}>
-      <span className="phone-search-chip-face" style={props.ink ? { color: props.ink } : undefined}>
+      <span
+        className={`phone-search-chip-face ${tagColorClass(props.tagColor)}`}
+        style={{ ...tagColorStyle(props.tagColor), ...(props.ink ? { color: props.ink } : {}) }}
+      >
         {props.clock && (
           <span className="phone-search-chip-clock">
             <Icon name="phone.clock" size="xs" weight="medium" />
@@ -193,8 +198,9 @@ export function PhoneSearch(props: {
                   <Chip
                     key={tag.id}
                     label={`#${tag.name}`}
-                    dot={dotColor(tag.color)}
-                    {...(tag.color ? { ink: `var(--color-tag-text-${tag.color})` } : {})}
+                    dot="var(--tag-color, var(--color-phone-status-none))"
+                    tagColor={tag.color}
+                    {...(tag.color ? { ink: 'var(--tag-text)' } : {})}
                     onPick={() => fill(`${tagQuery(tag)} `)}
                   />
                 ))}

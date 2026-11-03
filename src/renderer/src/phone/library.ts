@@ -1,4 +1,10 @@
-import type { BookRecord, NoteSummary, TagColor, TagRecord } from '../../../core/storage'
+import type {
+  BookRecord,
+  NoteSummary,
+  TagColor,
+  TagColorValue,
+  TagRecord,
+} from '../../../core/storage'
 import { compareKeys } from '../../../core/order'
 import { compareNames } from '../../../core/sort'
 
@@ -33,7 +39,7 @@ export interface LibraryBookRow {
 export interface LibraryTagRow {
   readonly id: string
   readonly name: string
-  readonly color: TagColor | null
+  readonly color: TagColorValue | null
   readonly count: number
 }
 

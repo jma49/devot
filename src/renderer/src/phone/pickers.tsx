@@ -1,6 +1,20 @@
-import type { BookRecord, NoteStatus, NoteSummary, TagRecord } from '../../../core/storage'
-import { t, type MessageKey } from '../i18n'
+import { useState } from 'react'
+import type {
+  BookRecord,
+  NoteStatus,
+  NoteSummary,
+  TagColorValue,
+  TagRecord,
+} from '../../../core/storage'
+import { isCustomTagColor, MAX_TAG_NAME_CHARS } from '../../../core/tags'
+import { trimWhitespace } from '../../../core/text'
+import { ColorPicker } from '../ColorPicker'
+import { ColorSwatches } from '../ColorSwatches'
+import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { useNameLimit } from '../nameLimit'
+import { quickTagRows, readRecentTags, rememberTag } from '../quickTag'
 import { Icon } from '../icons/Icon'
+import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import type { IconName } from '../icons/symbols'
 import { PhoneSheet, SheetChoice } from './PhoneSheet'
 
@@ -93,42 +107,108 @@ export function StatusPicker(props: {
   )
 }
 
+const recentStore = () => globalThis.localStorage as Storage | undefined
+
 export function TagPicker(props: {
   note: NoteSummary
   tags: readonly TagRecord[]
+  counts: ReadonlyMap<string, number>
   onToggle: (tag: TagRecord, on: boolean) => void
+  onCreate: (name: string, color: TagColorValue | null) => void
   onClose: () => void
 }) {
   const live = props.tags.filter((tag) => tag.deletedAt === null)
+  const [draft, setDraft] = useState('')
+  const [color, setColor] = useState<TagColorValue | null>(null)
+  const [picking, setPicking] = useState(false)
+  const [recent, setRecent] = useState(() => readRecentTags(recentStore()))
+  const limit = useNameLimit(draft, MAX_TAG_NAME_CHARS, setDraft)
+  const text = trimWhitespace(draft)
+  // The note's own tags stay listed, so a tap can take one off.
+  const rows = quickTagRows(live, [], draft, recent)
+  const creating = rows.at(-1)?.kind === 'create'
+  const toggle = (tag: TagRecord, on: boolean) => {
+    if (on) {
+      rememberTag(recentStore(), tag.id)
+      setRecent(readRecentTags(recentStore()))
+    }
+    props.onToggle(tag, on)
+  }
   return (
     <PhoneSheet title={t('sidebar.tags')} onClose={props.onClose}>
-      {live.length === 0 ? (
-        <p className="phone-sheet-empty">{t('phone.noTags')}</p>
+      {picking ? (
+        <ColorPicker
+          value={isCustomTagColor(color) ? color : null}
+          tagName={text}
+          onDone={(hex) => {
+            setColor(hex)
+            setPicking(false)
+          }}
+          onCancel={() => setPicking(false)}
+        />
       ) : (
-        <ul className="phone-card">
-          {live.map((tag) => {
-            const on = props.note.tagIds.includes(tag.id)
-            return (
-              <SheetChoice
-                key={tag.id}
-                label={tag.name}
-                selected={on}
-                lead={
-                  <span
-                    aria-hidden="true"
-                    className="phone-tag-dot"
-                    style={{
-                      background: tag.color
-                        ? `var(--color-tag-${tag.color})`
-                        : 'var(--color-phone-status-none)',
-                    }}
-                  />
+        <>
+          <input
+            className="phone-tag-field"
+            type="text"
+            aria-label={t('quickTag.field')}
+            placeholder={t('quickTag.placeholder')}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            value={draft}
+            {...limit}
+          />
+          {rows.length === 0 ? (
+            <p className="phone-sheet-empty">{t('phone.noTags')}</p>
+          ) : (
+            <ul className="phone-card">
+              {rows.map((row) => {
+                if (row.kind === 'create') {
+                  return (
+                    <SheetChoice
+                      key="create"
+                      label={format(t('note.createTag'), { name: row.name })}
+                      onPick={() => {
+                        props.onCreate(row.name, color)
+                        setDraft('')
+                        setColor(null)
+                      }}
+                    />
+                  )
                 }
-                onPick={() => props.onToggle(tag, !on)}
-              />
-            )
-          })}
-        </ul>
+                const { tag } = row
+                const on = props.note.tagIds.includes(tag.id)
+                return (
+                  <SheetChoice
+                    key={tag.id}
+                    label={tag.name}
+                    selected={on}
+                    value={(props.counts.get(tag.id) ?? 0).toLocaleString(currentLocale())}
+                    lead={
+                      <span
+                        aria-hidden="true"
+                        className={`phone-tag-dot ${tagColorClass(tag.color)}`}
+                        style={tagColorStyle(tag.color)}
+                      />
+                    }
+                    onPick={() => toggle(tag, !on)}
+                  />
+                )
+              })}
+            </ul>
+          )}
+          {creating ? (
+            <ColorSwatches
+              value={color}
+              onChange={setColor}
+              label={t('tagMenu.color')}
+              noneLabel={t('tagColor.none')}
+              onCustom={() => setPicking(true)}
+            />
+          ) : null}
+        </>
       )}
     </PhoneSheet>
   )

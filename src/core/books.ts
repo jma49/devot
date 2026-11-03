@@ -4,7 +4,7 @@
 
 import { receiveStored, type Clock } from './hlc'
 import { compareKeys, isSortKey, keyBetween, MAX_SORT_KEY_LENGTH, sequentialKeys } from './order'
-import { isNotebookSymbol } from './notebookIcons'
+import { isNotebookIcon } from './notebookIcons'
 import {
   TAG_COLORS,
   type BookRecord,
@@ -63,7 +63,7 @@ export function bookIcon(book: Pick<BookRecord, 'icon' | 'iconColor'>): {
   iconColor: TagColor | null
 } {
   return {
-    icon: isNotebookSymbol(book.icon) ? book.icon : null,
+    icon: isNotebookIcon(book.icon) ? book.icon : null,
     iconColor:
       book.iconColor !== null && TAG_COLORS.includes(book.iconColor) ? book.iconColor : null,
   }
@@ -397,7 +397,7 @@ export function createBookService(options: BookServiceOptions): BookService {
 
     async setIcon(id, icon, color) {
       if (
-        (icon !== null && !isNotebookSymbol(icon)) ||
+        (icon !== null && !isNotebookIcon(icon)) ||
         (color !== null && !TAG_COLORS.includes(color)) ||
         (icon === null && color !== null)
       ) {

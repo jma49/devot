@@ -4,11 +4,3 @@ import { createContext, useContext } from 'react'
 export const OnPhone = createContext(false)
 
 export const useOnPhone = () => useContext(OnPhone)
-
-export interface SettingHint {
-  title: string
-  body: string
-}
-
-/** Where a phone pane shows an explanation; null on the Mac, whose rows keep theirs under them. */
-export const ShowHint = createContext<((hint: SettingHint) => void) | null>(null)

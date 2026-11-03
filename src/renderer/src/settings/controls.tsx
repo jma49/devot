@@ -1,5 +1,4 @@
 import {
-  useContext,
   useEffect,
   useId,
   useLayoutEffect,
@@ -14,7 +13,7 @@ import type { EditorSettings } from '../../../core/editorSettings'
 import { errorCode } from '../backups'
 import { changeEditorSettings } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
-import { ShowHint, useOnPhone, type SettingHint } from './onPhone'
+import { useOnPhone } from './onPhone'
 
 /**
  * Stores a change to the settings (see editorSettings.ts); returns the error
@@ -34,21 +33,6 @@ export function useSettingsChange(): [
   return [error, change]
 }
 
-/** On a phone a long explanation opens in a sheet from this button instead of sitting under its row. */
-export function HintButton({ title, body }: { title: string; body: string }) {
-  const show = useContext(ShowHint)
-  return (
-    <button
-      type="button"
-      className="phone-hint-button"
-      aria-label={format(t('phone.hint.about'), { name: title })}
-      onClick={() => show?.({ title, body })}
-    >
-      <Icon name="phone.info" size="md" />
-    </button>
-  )
-}
-
 export function SettingsSection({
   title,
   titleSuffix,
@@ -66,7 +50,7 @@ export function SettingsSection({
   children: ReactNode
 }) {
   const id = useId()
-  const hinted = useContext(ShowHint) !== null
+  const onPhone = useOnPhone()
   const heading = titleHidden ? null : (
     <h3 id={id} className="settings-block-title">
       {t(title)}
@@ -78,16 +62,10 @@ export function SettingsSection({
       className="settings-block"
       {...(titleHidden ? { 'aria-label': t(title) } : { 'aria-labelledby': id })}
     >
-      {hinted && footnote ? (
-        <div className="phone-block-head">
-          {heading}
-          <HintButton title={t(title)} body={footnote} />
-        </div>
-      ) : (
-        heading
-      )}
+      {heading}
       <div className="settings-card">{children}</div>
-      {footnote && !hinted ? (
+      {footnote && onPhone ? <p className="phone-footnote">{footnote}</p> : null}
+      {footnote && !onPhone ? (
         <p className="settings-footnote">
           <Icon name="settings.note" size="sm" />
           <span>{footnote}</span>
@@ -127,8 +105,6 @@ export function Setting({
   htmlFor,
   descriptionId,
   stacked = false,
-  live = false,
-  hint,
   children,
 }: {
   label: MessageKey
@@ -137,14 +113,8 @@ export function Setting({
   descriptionId?: string
   /** The control goes under the text, full width, for content too wide to sit beside it. */
   stacked?: boolean
-  /** The description is the row's value or state, not an explanation: it stays in the row on a phone. */
-  live?: boolean
-  /** On a phone, an info button on this row for the explanation of its whole section. */
-  hint?: SettingHint | undefined
   children: ReactNode
 }) {
-  const hints = useContext(ShowHint) !== null
-  const hinted = hints && !live
   return (
     <div className={stacked ? 'setting setting-stacked' : 'setting'}>
       <div className="setting-text">
@@ -155,15 +125,7 @@ export function Setting({
             {t(label)}
           </label>
         )}
-        {hint && hints ? <HintButton title={hint.title} body={hint.body} /> : null}
-        {description && hinted ? (
-          <>
-            <span id={descriptionId} hidden>
-              {description}
-            </span>
-            <HintButton title={t(label)} body={description} />
-          </>
-        ) : description ? (
+        {description ? (
           <span id={descriptionId} className="setting-description">
             {description}
           </span>
@@ -193,7 +155,6 @@ export function SettingToggle({
   values?: Readonly<Record<string, string>>
 }) {
   const id = useId()
-  const hinted = useContext(ShowHint) !== null
   const text = values ? format(t(note ?? description), values) : t(note ?? description)
   return (
     <div className="setting setting-toggle">
@@ -201,18 +162,11 @@ export function SettingToggle({
         <label id={`${id}-label`} className="setting-label" htmlFor={`${id}-box`}>
           {t(label)}
         </label>
-        {hinted ? (
-          <>
-            <span id={`${id}-description`} hidden>
-              {text}
-            </span>
-            <HintButton title={t(label)} body={text} />
-          </>
-        ) : (
+        {text ? (
           <span id={`${id}-description`} className="setting-description">
             {text}
           </span>
-        )}
+        ) : null}
       </div>
       <div className="setting-control">
         <input
@@ -222,7 +176,7 @@ export function SettingToggle({
           checked={checked}
           disabled={disabled}
           aria-labelledby={`${id}-label`}
-          aria-describedby={`${id}-description`}
+          aria-describedby={text ? `${id}-description` : undefined}
           onChange={(e) => onChange(e.currentTarget.checked)}
         />
       </div>

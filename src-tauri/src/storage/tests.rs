@@ -683,6 +683,40 @@ fn notebooks_read_an_unknown_icon_or_colour_as_unset() {
 }
 
 #[test]
+fn notebooks_read_lucide_icons_and_merge_them_like_any_icon() {
+    let (_dir, mut store) = temp_store();
+    let mut iconed = book("b1", "Work", "0000000000000010-0000-a");
+    iconed.icon = Some("lucide:book-open".into());
+    iconed.icon_hlc = "0000000000000030-0000-a".into();
+    store.put_book(&iconed).unwrap();
+    assert_eq!(
+        store.list_books().unwrap()[0].icon.as_deref(),
+        Some("lucide:book-open")
+    );
+
+    // A version without this catalog reads none and writes none back at the same HLC.
+    let mut older = book("b1", "Job", "0000000000000040-0000-b");
+    older.icon_hlc = iconed.icon_hlc.clone();
+    store.put_book(&older).unwrap();
+    assert_eq!(
+        store.list_books().unwrap()[0].icon.as_deref(),
+        Some("lucide:book-open")
+    );
+
+    store
+        .conn
+        .execute(
+            "UPDATE books SET icon = 'lucide:from-a-later-catalog',
+                              icon_hlc = '0000000000000050-0000-a'",
+            [],
+        )
+        .unwrap();
+    let read = store.list_books().unwrap();
+    assert_eq!(read[0].icon, None);
+    assert_eq!(read[0].icon_hlc, "0000000000000050-0000-a");
+}
+
+#[test]
 fn the_book_icon_migration_keeps_the_notebooks() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("devot.sqlite");
@@ -841,6 +875,53 @@ fn tags_have_no_colour_by_default_and_merge_it_per_field() {
     let tags = store.list_tags().unwrap();
     assert_eq!(tags[0].color, None);
     assert_eq!(tags[0].color_hlc, "0000000000000050-0000-b");
+}
+
+#[test]
+fn keeps_a_custom_tag_colour_and_merges_it_by_hlc() {
+    let (_dir, mut store) = temp_store();
+    let tag = |color: Option<&str>, color_hlc: &str| TagRecord {
+        id: "t".into(),
+        name: "idea".into(),
+        name_hlc: "0000000000000001-0000-a".into(),
+        created_at: 1,
+        updated_at: 1,
+        deleted_at: None,
+        deleted_hlc: None,
+        color: color.map(String::from),
+        color_hlc: color_hlc.into(),
+    };
+    store
+        .put_tag(&tag(Some("#ff00aa"), "0000000000000030-0000-a"))
+        .unwrap();
+    assert_eq!(
+        store.list_tags().unwrap()[0].color.as_deref(),
+        Some("#ff00aa")
+    );
+
+    // What an older Devot writes back after renaming: it read the custom colour as none, with its HLC.
+    store
+        .put_tag(&tag(None, "0000000000000030-0000-a"))
+        .unwrap();
+    assert_eq!(
+        store.list_tags().unwrap()[0].color.as_deref(),
+        Some("#ff00aa"),
+        "the same HLC never clears it"
+    );
+
+    store
+        .put_tag(&tag(Some("red"), "0000000000000020-0000-b"))
+        .unwrap();
+    assert_eq!(
+        store.list_tags().unwrap()[0].color.as_deref(),
+        Some("#ff00aa"),
+        "an older palette write loses"
+    );
+
+    store
+        .put_tag(&tag(Some("red"), "0000000000000040-0000-b"))
+        .unwrap();
+    assert_eq!(store.list_tags().unwrap()[0].color.as_deref(), Some("red"));
 }
 
 #[test]

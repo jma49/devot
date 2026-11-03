@@ -490,7 +490,6 @@ export function SyncSection() {
           {snapshot.enrolled || held ? relayRow(t('phone.sync.relayHint')) : null}
           {shown === 'idle' || shown === 'off' ? null : (
             <Setting
-              live
               label="syncSettings.status"
               description={statusText(snapshot, pauseOver, locale)}
             >

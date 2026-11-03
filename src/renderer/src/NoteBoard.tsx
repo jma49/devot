@@ -27,6 +27,7 @@ import {
   type BoardColumn,
 } from './board'
 import { compareNames } from '../../core/sort'
+import { dropSelectionLeftBehind } from './focus'
 import { keyMatches } from './commands/keys'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import type { MenuPoint } from './contextMenu'
@@ -35,6 +36,7 @@ import { useEditorSetting } from './editorSettings'
 import { fullDate, rowDate } from './format'
 import { useHeadlines, type HeadlineLoader } from './headlines'
 import { currentLocale, format, t } from './i18n'
+import { tagColorStyle, tagDotClass } from './tagColorStyle'
 import { Icon } from './icons/Icon'
 import { dragCardLines, setDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
@@ -291,6 +293,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       const id = e.target instanceof HTMLElement ? e.target.dataset['noteId'] : undefined
       keyboard.current = id
       if (id !== undefined) setFocusedCard(id)
+      if (id !== undefined) dropSelectionLeftBehind(document, e.target as HTMLElement)
     }
     const onFocusOut = (e: FocusEvent) => {
       const from = e.target
@@ -768,7 +771,8 @@ const BoardCard = memo(function BoardCard(props: CardProps) {
             {tags.map((tag) => (
               <span
                 key={tag.id}
-                className={tag.color ? `tag-dot tag-color-${tag.color}` : 'tag-dot card-tag-plain'}
+                className={tagDotClass(tag.color)}
+                style={tagColorStyle(tag.color)}
                 aria-hidden
                 title={tag.name}
               />

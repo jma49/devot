@@ -13,7 +13,7 @@
 // that key is `hold`, makes revision writes fail with
 // one in `devot.test.failRevisions`, and the listing of notes (the first load
 // of the lists) with one in `devot.test.failList`.
-import { isNotebookSymbol } from '../../../core/notebookIcons'
+import { isNotebookIcon } from '../../../core/notebookIcons'
 import type {
   ActivityRevision,
   AgentWriteSummary,
@@ -28,7 +28,7 @@ import type {
 import { checkUpload, fileUri, type FileMeta } from '../../../core/files'
 import { checkNote } from '../../../core/noteLimits'
 import { bodyExcerpt, excerptTerms } from '../../../core/search'
-import { isTagColor } from '../../../core/tags'
+import { isTagColor, isTagColorValue } from '../../../core/tags'
 
 const NOTES = 'devot.test.notes'
 const BOOKS = 'devot.test.books'
@@ -450,7 +450,7 @@ export const memoryStorage: StorageAdapter = {
         // and a symbol or colour this version does not know is none.
         .map((b): BookRecord => ({
           ...b,
-          icon: isNotebookSymbol(b.icon) ? b.icon : null,
+          icon: isNotebookIcon(b.icon) ? b.icon : null,
           iconColor: isTagColor(b.iconColor) ? b.iconColor : null,
           iconHlc: b.iconHlc ?? '',
         }))
@@ -465,12 +465,12 @@ export const memoryStorage: StorageAdapter = {
     localStorage.setItem(BOOKS, JSON.stringify([...all.filter((b) => b.id !== book.id), next]))
   },
   async listTags() {
-    // Read like SQLite does: a colour outside the palette is none.
+    // Read like SQLite does: a colour neither the palette nor #rrggbb is none.
     return read<TagRecord>(TAGS)
       .filter((t) => t.deletedAt === null)
       .map((t) => ({
         ...t,
-        color: isTagColor(t.color) ? t.color : null,
+        color: isTagColorValue(t.color) ? t.color : null,
         colorHlc: t.colorHlc ?? '',
       }))
   },

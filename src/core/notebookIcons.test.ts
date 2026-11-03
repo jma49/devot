@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest'
+import lucideCatalog from '../../design/icons/notebook-lucide.json'
+import lucideRaw from '../../design/icons/notebook-lucide.json?raw'
 import catalog from '../../design/icons/notebook-symbols.json'
 import raw from '../../design/icons/notebook-symbols.json?raw'
 import {
   CATEGORY_ICONS,
+  CATEGORY_LUCIDE_GLYPHS,
   DEFAULT_NOTEBOOK_SYMBOL,
+  isNotebookIcon,
+  LUCIDE_ICON_PREFIX,
+  lucideGlyphOf,
+  NOTEBOOK_LUCIDE_ICONS,
+  notebookIconSet,
   NOTEBOOK_ICON_CATEGORIES,
   NOTEBOOK_SYMBOLS,
   isNotebookSymbol,
@@ -124,5 +132,47 @@ describe('searchNotebookSymbols', () => {
     expect(names('')).toEqual([])
     expect(names('   ')).toEqual([])
     expect(names('zzzz')).toEqual([])
+  })
+})
+
+describe('the Lucide notebook catalog', () => {
+  it('has the same categories, each with icons and a catalog glyph', () => {
+    expect(lucideCatalog.categories.map((c) => c.id)).toEqual([...NOTEBOOK_ICON_CATEGORIES])
+    for (const c of NOTEBOOK_ICON_CATEGORIES) {
+      expect(symbolsInCategory(c, 'lucide').length).toBeGreaterThanOrEqual(15)
+      expect(isNotebookIcon(`${LUCIDE_ICON_PREFIX}${CATEGORY_LUCIDE_GLYPHS[c]}`)).toBe(true)
+    }
+  })
+
+  it('has lowercase search words and no repeated name', () => {
+    const symbols = lucideRaw.slice(lucideRaw.indexOf('"symbols"'))
+    const keys = [...symbols.matchAll(/^ {4}"([^"]+)": \{/gm)].map((m) => m[1])
+    expect(keys.length).toBe(NOTEBOOK_LUCIDE_ICONS.length)
+    expect(new Set(keys).size).toBe(keys.length)
+    for (const s of NOTEBOOK_LUCIDE_ICONS)
+      for (const word of s.keywords) expect(word).toMatch(/^[a-z0-9][a-z0-9 ]*$/)
+  })
+
+  it('tells the sets apart: older code that knows only SF names reads a Lucide icon as none', () => {
+    expect(isNotebookSymbol('lucide:book-open')).toBe(false)
+    expect(isNotebookIcon('lucide:book-open')).toBe(true)
+    expect(isNotebookIcon('leaf')).toBe(true)
+    expect(isNotebookIcon('book-open')).toBe(false)
+    expect(isNotebookIcon('lucide:no-such-icon')).toBe(false)
+    expect(isNotebookIcon('lucide:leaf.fill')).toBe(false)
+    expect(notebookIconSet('lucide:book-open')).toBe('lucide')
+    expect(notebookIconSet('leaf')).toBe('sfSymbols')
+    expect(lucideGlyphOf('lucide:book-open')).toBe('book-open')
+    expect(lucideGlyphOf('leaf')).toBeNull()
+    expect(lucideGlyphOf(null)).toBeNull()
+  })
+
+  it('searches the chosen set only, without matching the prefix', () => {
+    expect(searchNotebookSymbols('coffee', 'lucide').map((s) => s.name)).toContain('lucide:coffee')
+    expect(searchNotebookSymbols('coffee').map((s) => s.name)).not.toContain('lucide:coffee')
+    expect(searchNotebookSymbols('lucide', 'lucide')).toEqual([])
+    expect(searchNotebookSymbols('book open', 'lucide').map((s) => s.name)).toContain(
+      'lucide:book-open',
+    )
   })
 })
