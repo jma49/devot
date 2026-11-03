@@ -11,6 +11,7 @@ import {
   excludeTemplates,
   parseSearch,
   pinTagNames,
+  renameTagInQuery,
   resolveSearch,
   type SearchScope,
 } from './search'
@@ -69,6 +70,39 @@ export const savedSearchOrder = (a: SavedSearchRecord, b: SavedSearchRecord): nu
   compareKeys(a.sortKey, b.sortKey) || compareKeys(a.id, b.id)
 
 const stamps = (s: SavedSearchRecord) => [s.nameHlc, s.queryHlc, s.sortKeyHlc, s.deletedHlc]
+
+/**
+ * The saved searches whose query names `tag`, each with the query it needs once the tag is called
+ * `name`, so that it matches the same notes. A tag put by ID is spelled so when the name would make
+ * the query too long; throws E_TAG_RENAME_SEARCH_TOO_LONG when a query cannot be kept in the limit
+ * either way, so that no rename leaves a search pointing at nothing.
+ */
+export function retargetSavedSearches(
+  searches: readonly SavedSearchRecord[],
+  tag: Pick<TagRecord, 'id' | 'name'>,
+  name: string,
+  clock: Clock,
+  now: number,
+): SavedSearchRecord[] {
+  receiveStored(clock, searches.flatMap(stamps))
+  const retargeted: SavedSearchRecord[] = []
+  for (const search of searches) {
+    let query = renameTagInQuery(search.query, tag, name)
+    if (charCount(query) > MAX_SAVED_SEARCH_QUERY_CHARS) {
+      query = renameTagInQuery(search.query, tag, name, true)
+    }
+    if (charCount(query) > MAX_SAVED_SEARCH_QUERY_CHARS)
+      throw new Error('E_TAG_RENAME_SEARCH_TOO_LONG')
+    if (query === search.query) continue
+    retargeted.push({
+      ...search,
+      query,
+      queryHlc: clock.tick(),
+      updatedAt: Math.max(now, search.createdAt),
+    })
+  }
+  return retargeted
+}
 
 export function createSavedSearchService(options: SavedSearchServiceOptions): SavedSearchService {
   const { storage, clock, newId } = options

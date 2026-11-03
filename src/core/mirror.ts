@@ -1174,6 +1174,7 @@ export function observeWrites(storage: StorageAdapter, changed: () => void): Sto
     putBook: after((book) => storage.putBook(book)),
     listTags: () => storage.listTags(),
     putTag: after((tag) => storage.putTag(tag)),
+    renameTag: after((tag, searches) => storage.renameTag(tag, searches)),
     listSavedSearches: () => storage.listSavedSearches(),
     putSavedSearch: after((search) => storage.putSavedSearch(search)),
     putNoteTag: after((link) => storage.putNoteTag(link)),

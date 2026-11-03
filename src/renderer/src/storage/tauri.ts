@@ -47,6 +47,7 @@ export const tauriWire: WireStorage = {
   putBook: (book) => invoke('book_put', { book }),
   listTags: () => invoke<TagRecord[]>('tags_list'),
   putTag: (tag) => invoke('tag_put', { tag }),
+  renameTag: (tag, searches) => invoke('tag_rename', { tag, searches }),
   listSavedSearches: () => invoke<SavedSearchRecord[]>('saved_searches_list'),
   putSavedSearch: (search) => invoke('saved_search_put', { search }),
   putNoteTag: (link) => invoke('note_tag_put', { link }),

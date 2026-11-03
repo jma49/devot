@@ -104,6 +104,7 @@ export function fromWire(wire: WireStorage): StorageAdapter {
     putBook: (book) => wire.putBook(book),
     listTags: () => wire.listTags(),
     putTag: (tag) => wire.putTag(tag),
+    renameTag: (tag, searches) => wire.renameTag(tag, searches),
     listSavedSearches: () => wire.listSavedSearches(),
     putSavedSearch: (search) => wire.putSavedSearch(search),
     putNoteTag: (link) => wire.putNoteTag(link),

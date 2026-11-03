@@ -136,6 +136,7 @@ pub fn run() {
             commands::books::book_put,
             commands::tags::tags_list,
             commands::tags::tag_put,
+            commands::tags::tag_rename,
             commands::tags::note_tag_put,
             commands::tags::note_tag_get,
             commands::saved_searches::saved_searches_list,

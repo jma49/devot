@@ -244,6 +244,8 @@ export interface StorageAdapter {
   putBook(book: BookRecord): Promise<void>
   listTags(): Promise<TagRecord[]>
   putTag(tag: TagRecord): Promise<void>
+  /** Writes the tag and the saved searches rewritten for its new name in one transaction: all of them or none. */
+  renameTag(tag: TagRecord, searches: readonly SavedSearchRecord[]): Promise<void>
   /** Live ones, in key order (then by ID). */
   listSavedSearches(): Promise<SavedSearchRecord[]>
   putSavedSearch(search: SavedSearchRecord): Promise<void>

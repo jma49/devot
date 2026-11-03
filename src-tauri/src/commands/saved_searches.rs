@@ -15,7 +15,7 @@ fn one_line(text: &str, max: usize) -> bool {
         && text.chars().count() <= max
 }
 
-fn validate(search: &SavedSearchRecord) -> Result<(), &'static str> {
+pub(super) fn validate(search: &SavedSearchRecord) -> Result<(), &'static str> {
     if !valid_note_id(&search.id) {
         return Err("E_SAVED_SEARCH_ID_INVALID");
     }

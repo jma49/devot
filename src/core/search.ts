@@ -30,7 +30,8 @@ import {
   type TextCondition,
 } from './storage'
 import { wellFormed } from './text'
-import { MAX_TAG_NAME_CHARS, sameName, type NoteFilter } from './tags'
+import { MAX_TAG_NAME_CHARS, sameName } from './tagNames'
+import type { NoteFilter } from './tags'
 
 export const MAX_SEARCH_TERMS = 10
 /** Notebook and tag names resolve to IDs before storage, so they keep up to the longest name a notebook or tag can have. */
@@ -242,6 +243,31 @@ export function pinTagNames(
     const named = `tag:${searchValue(tag.name)}`
     const spelled = parsesBack(named, 'tag', tag.name) ? named : `tagId:${tag.id}`
     text = text.slice(0, start) + spelled + text.slice(end)
+  }
+  return text
+}
+
+/**
+ * The query with each clause naming `tag` (`tag:Name`, `-tag:Name` or `#Name`, quoted or not) naming
+ * it `name` instead, as `tag:name`, or by ID when no quoting holds the name or with `byId`.
+ * Everything else stays as written.
+ */
+export function renameTagInQuery(
+  query: string,
+  tag: Pick<TagRecord, 'id' | 'name'>,
+  name: string,
+  byId = false,
+): string {
+  const named = `tag:${searchValue(name)}`
+  const spelled = !byId && parsesBack(named, 'tag', name) ? named : `tagId:${tag.id}`
+  let text = wellFormed(query)
+  for (const { clause, start, end } of scanSearch(text).reverse()) {
+    if (clause.field !== 'tag' && clause.field !== 'hashtag') continue
+    if (!sameName(clause.value, tag.name)) continue
+    // `tag:"a"title:x` is two clauses; the new value must not run into the one after it.
+    const next = text[end]
+    const apart = next !== undefined && !SPACE.test(next) ? ' ' : ''
+    text = text.slice(0, start) + spelled + apart + text.slice(end)
   }
   return text
 }

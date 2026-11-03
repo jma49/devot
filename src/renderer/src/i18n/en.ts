@@ -1533,6 +1533,8 @@ title: Daily Report {{date}}
   'deepLink.licenceSame': 'This license is already on this device.',
   'change.tagNameTaken': 'Another tag already has that name.',
   'change.tagNameInvalid': 'A tag name is one line of at most {max} characters.',
+  'change.tagRenameSearchTooLong':
+    'This tag cannot take that name: a saved search that uses it would pass {max} characters. Shorten the name or edit that search ({code}).',
   'change.bookNameInvalid': 'A notebook name is one line of at most {max} characters.',
   'export.failed': 'The export did not complete ({code}).',
   'export.partial':

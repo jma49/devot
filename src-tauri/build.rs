@@ -74,6 +74,7 @@ fn main() {
             "image_save",
             "tags_list",
             "tag_put",
+            "tag_rename",
             "note_tag_put",
             "note_tag_get",
             "saved_searches_list",

@@ -274,3 +274,140 @@ describe('counting what a saved search matches', () => {
     expect(savedSearchQuery({ query: '   ' }, context)).toBeNull()
   })
 })
+
+describe('renaming a tag a saved search names', () => {
+  const queries = async (searches: ReturnType<typeof setup>['searches']) =>
+    Object.fromEntries((await searches.list()).map((s) => [s.name, s.query]))
+
+  it('keeps the search matching the same notes', async () => {
+    const { searches, notes, tags, books, storage } = setup()
+    const plan = await notes.create('Plan')
+    await notes.create('Other')
+    const tag = await tags.addToNote(plan, 'work')
+    await notes.flush()
+    await searches.create('Work', 'pinned:false tag:work')
+    await searches.create('Not work', '-tag:work')
+    const run = async (name: string) => {
+      const search = (await searches.list()).find((s) => s.name === name)!
+      const query = savedSearchQuery(search, { books: await books.list(), tags: await tags.list() })
+      return countMatches(await storage.listNotes(), query)
+    }
+    expect([await run('Work'), await run('Not work')]).toEqual([1, 1])
+    await tags.rename(tag, 'projects')
+    expect(await queries(searches)).toEqual({
+      Work: 'pinned:false tag:projects',
+      'Not work': '-tag:projects',
+    })
+    expect([await run('Work'), await run('Not work')]).toEqual([1, 1])
+  })
+
+  it('rewrites only the clauses naming the tag, folding case like a search does', async () => {
+    const { searches, tags } = setup()
+    const tag = await tags.ensure('Work')
+    await tags.ensure('Home')
+    await searches.create(
+      'Mixed',
+      'tag:WORK  -tag:Home "tag:work" title:work #work is:active  tagId:x',
+    )
+    await searches.create('Untouched', 'tag:Home work')
+    await searches.create('Unknown', '#later tag:later')
+    await tags.rename(tag, 'Office')
+    expect(await queries(searches)).toEqual({
+      Mixed: 'tag:Office  -tag:Home "tag:work" title:work tag:Office is:active  tagId:x',
+      Untouched: 'tag:Home work',
+      Unknown: '#later tag:later',
+    })
+  })
+
+  it('round-trips names with spaces and quotes, falling back to the ID when none holds', async () => {
+    const { searches, tags, books, storage, notes } = setup()
+    const note = await notes.create('Plan')
+    const tag = await tags.addToNote(note, 'plain')
+    await notes.flush()
+    const id = await searches.create('Plain', '-tag:plain pinned:false')
+    const check = async (name: string, query: string) => {
+      await tags.rename(tag, name)
+      const search = (await searches.list()).find((s) => s.id === id)!
+      expect(search.query).toBe(query)
+      const run = savedSearchQuery(search, { books: await books.list(), tags: await tags.list() })
+      expect(countMatches(await storage.listNotes(), run)).toBe(0)
+    }
+    await check('Big Clients', '-tag:"Big Clients" pinned:false')
+    await check('Say "hi"', `-tag:'Say "hi"' pinned:false`)
+    await check('after', '-tag:after pinned:false')
+    await check('Clients\' "urgent"', `-tagId:${tag} pinned:false`)
+    await check('plain again', `-tagId:${tag} pinned:false`)
+  })
+
+  it('writes the edited searches, and only those, as pending sync records', async () => {
+    const { searches, tags, storage } = setup()
+    const tag = await tags.ensure('work')
+    const named = await searches.create('Named', 'tag:work')
+    const other = await searches.create('Other', 'is:active')
+    for (const id of [tag, named, other]) {
+      const [row] = await storage.syncRead([id])
+      await storage.syncPut({
+        ...row!.entry!,
+        version: 1,
+        fingerprint: 'f',
+        synced: row!.entry!.edits,
+      })
+    }
+    expect(await storage.syncPending('', 10)).toEqual([])
+    await tags.rename(tag, 'office')
+    expect((await storage.syncPending('', 10)).map((p) => p.id).sort()).toEqual([named, tag].sort())
+    const [row] = await storage.syncRead([named])
+    expect(row?.search).toMatchObject({ query: 'tag:office' })
+  })
+
+  it('leaves everything as it was when a write of the rename fails', async () => {
+    const { searches, tags, storage } = setup()
+    const tag = await tags.ensure('work')
+    const id = await searches.create('Named', 'tag:work')
+    const [stored] = await storage.listSavedSearches()
+    await expect(
+      storage.renameTag(
+        { ...(await storage.listTags())[0]!, name: 'office', nameHlc: '9'.repeat(8) },
+        [{ ...stored!, query: 'tag:office', queryHlc: '9'.repeat(8), createdAt: Number.NaN }],
+      ),
+    ).rejects.toThrow(/./)
+    expect((await tags.list()).find((t) => t.id === tag)?.name).toBe('work')
+    expect((await searches.list()).find((s) => s.id === id)?.query).toBe('tag:work')
+  })
+
+  it('spells the tag by ID when the name would make the query too long', async () => {
+    const { searches, tags } = setup()
+    const tag = await tags.ensure('work')
+    const room = await searches.create('Room', `${'w'.repeat(940)} tag:work`)
+    await tags.rename(tag, 'n'.repeat(90))
+    expect((await searches.list())[0]?.query).toBe(`${'w'.repeat(940)} tagId:${tag}`)
+    expect(room).toBe((await searches.list())[0]?.id)
+  })
+
+  it('refuses the rename, changing nothing, when a query could not keep naming the tag', async () => {
+    const { searches, tags } = setup()
+    const tag = await tags.ensure('work')
+    const small = await searches.create('Small', 'tag:work')
+    await searches.create('Full', `${'w'.repeat(990)} tag:work`)
+    await expect(tags.rename(tag, 'n'.repeat(90))).rejects.toThrow('E_TAG_RENAME_SEARCH_TOO_LONG')
+    expect((await tags.list())[0]?.name).toBe('work')
+    expect((await searches.list()).find((s) => s.id === small)?.query).toBe('tag:work')
+  })
+
+  it('does not let a clause run into the next when a quoted name is replaced', async () => {
+    const { searches, tags } = setup()
+    const tag = await tags.ensure('work')
+    await searches.create('Glued', 'tag:"work"title:plan')
+    await tags.rename(tag, 'office')
+    expect((await searches.list())[0]?.query).toBe('tag:office title:plan')
+  })
+
+  it('keeps both rewrites when two tags in one query are renamed at once', async () => {
+    const { searches, tags } = setup()
+    const work = await tags.ensure('work')
+    const home = await tags.ensure('home')
+    await searches.create('Both', 'tag:work tag:home')
+    await Promise.all([tags.rename(work, 'office'), tags.rename(home, 'house')])
+    expect((await searches.list())[0]?.query).toBe('tag:office tag:house')
+  })
+})

@@ -4,6 +4,7 @@
 
 import { notesInBook } from './books'
 import { receiveStored, type Clock } from './hlc'
+import { retargetSavedSearches } from './savedSearches'
 import {
   TAG_COLORS,
   type BookRecord,
@@ -14,9 +15,10 @@ import {
   type TagColorValue,
   type TagRecord,
 } from './storage'
+import { MAX_TAG_NAME_CHARS, sameName } from './tagNames'
 import { charCount, trimWhitespace, wellFormed } from './text'
 
-export const MAX_TAG_NAME_CHARS = 100
+export { MAX_TAG_NAME_CHARS, sameName }
 
 export interface TagServiceOptions {
   storage: StorageAdapter
@@ -72,9 +74,6 @@ export const tagColorClass = (color: TagColorValue) =>
 export const customTagColorProperties = (color: TagColorValue | null | undefined) =>
   isCustomTagColor(color) ? { dataTagColor: color } : {}
 
-export const sameName = (a: string, b: string) =>
-  a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0
-
 const tagStamps = (t: TagRecord) => [t.nameHlc, t.colorHlc, t.deletedHlc]
 
 export function createTagService(options: TagServiceOptions): TagService {
@@ -100,6 +99,30 @@ export function createTagService(options: TagServiceOptions): TagService {
   }
   const write = (tag: TagRecord) =>
     storage.putTag({ ...tag, updatedAt: Math.max(now(), tag.createdAt) })
+
+  // Renames run one at a time: each reads the saved searches it rewrites, so a second one
+  // reading before the first wrote would write its own rewrite over the first's.
+  let renames: Promise<void> = Promise.resolve()
+  const renameNow = async (id: string, clean: string) => {
+    const all = await listTags()
+    const tag = all.find((t) => t.id === id)
+    if (!tag) throw new Error('E_TAG_NOT_FOUND')
+    // Names stay unique: a tag found by name must be the only one.
+    if (all.some((t) => t.id !== id && sameName(t.name, clean))) {
+      throw new Error('E_TAG_NAME_TAKEN')
+    }
+    const searches = retargetSavedSearches(
+      await storage.listSavedSearches(),
+      tag,
+      clean,
+      clock,
+      now(),
+    )
+    await storage.renameTag(
+      { ...tag, name: clean, nameHlc: clock.tick(), updatedAt: Math.max(now(), tag.createdAt) },
+      searches,
+    )
+  }
 
   const service: TagService = {
     list: () => storage.listTags(),
@@ -143,14 +166,9 @@ export function createTagService(options: TagServiceOptions): TagService {
 
     async rename(id, name) {
       const clean = cleanTagName(name)
-      const all = await listTags()
-      const tag = all.find((t) => t.id === id)
-      if (!tag) throw new Error('E_TAG_NOT_FOUND')
-      // Names stay unique: a tag found by name must be the only one.
-      if (all.some((t) => t.id !== id && sameName(t.name, clean))) {
-        throw new Error('E_TAG_NAME_TAKEN')
-      }
-      await write({ ...tag, name: clean, nameHlc: clock.tick() })
+      const done = renames.then(() => renameNow(id, clean))
+      renames = done.catch(() => undefined)
+      return done
     },
 
     async setColor(id, color) {
