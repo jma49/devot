@@ -301,6 +301,28 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings
 
+  # The helper Devot.app ships is macOS-only: built from the pinned Node and driven over stdio,
+  # hardened and with no entitlements; then the signing script over a bundle with a helper in it.
+  mcp-helper:
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run --project slow tests/mcp/helper.bench.test.ts tests/scripts/macos-sign.bench.test.ts
+      - name: Size of the helper
+        run: |
+          pnpm mcp:helper
+          ls -l dist-mcp-helper/devot-mcp
+          gzip -9 -c dist-mcp-helper/devot-mcp | wc -c
+
   # Cargo-deny reads the manifest and lockfile, not the built app. It runs in
   # parallel with the compile-heavy job and does not pull the UI or apt stack.
   deny:
