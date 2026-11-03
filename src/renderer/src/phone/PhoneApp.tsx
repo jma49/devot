@@ -281,6 +281,7 @@ export function PhoneApp() {
   const [dragging, setDragging] = useState(false)
   const [arrivedId, setArrivedId] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
+  const [searchQuery, setSearchQuery] = useState<string>()
   const licence = useLicence()
   const undoable = useUndoToast(store)
   const [now] = useState(() => Date.now())
@@ -309,7 +310,10 @@ export function PhoneApp() {
     topView?.kind !== 'templates'
   const listsNewNote = listed && (topView?.kind === 'all' || topView?.kind === 'book')
   const pop = () => dispatch({ type: 'pop' })
-  const openSearch = () => setSearching(true)
+  const openSearch = (query?: string) => {
+    setSearchQuery(query)
+    setSearching(true)
+  }
 
   const render = (tab: PhoneTab, route: PhoneRoute) => {
     const index = state.stacks[tab].findIndex((r) => r.id === route.id)
@@ -324,7 +328,8 @@ export function PhoneApp() {
           data={store}
           onShowNotes={(view, status) => dispatch({ type: 'showNotes', view, status })}
           onOpenList={(view) => dispatch({ type: 'push', screen: 'list', view })}
-          onSearch={openSearch}
+          onSearch={() => openSearch()}
+          onSavedSearch={openSearch}
           onNewNotebook={() => {
             void store.core
               ?.createBook(t('book.new'), null)
@@ -355,7 +360,7 @@ export function PhoneApp() {
         arrivedId={arrivedId}
         {...(onBack ? { onBack } : {})}
         onOpenNote={(noteId) => dispatch({ type: 'push', screen: 'note', noteId })}
-        onSearch={openSearch}
+        onSearch={() => openSearch()}
         onTrash={undoable.trash}
         onComplete={undoable.complete}
       />
@@ -403,6 +408,7 @@ export function PhoneApp() {
       <PhoneSearch
         store={store}
         open={searching}
+        query={searchQuery}
         onClose={() => setSearching(false)}
         onOpenNote={(noteId) => {
           setSearching(false)

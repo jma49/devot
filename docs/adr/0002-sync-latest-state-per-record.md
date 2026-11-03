@@ -4,12 +4,12 @@ Phase 2 sync is for one person with several devices. The relay holds one encrypt
 
 ## Records
 
-- A record is one note, notebook or tag, under a random ID. Nothing in the ID derives from the content.
+- A record is one note, notebook, tag or saved search, under a random ID. Nothing in the ID derives from the content.
 - A note record holds:
   - its body's full Yjs state (`Y.encodeStateAsUpdate`);
   - its metadata fields (title, notebook, status, pinned, tags), each with the HLC of its last change;
   - a `purged` flag.
-- Notebook and tag records hold metadata fields with HLCs only.
+- Notebook, tag and saved search records hold metadata fields with HLCs only.
 - The client encrypts the whole record with AES-256-GCM in Rust. The ciphertext is cut into chunks of at most 1.9 MB, so each chunk fits in one Durable Object SQLite row.
   - Every chunk has its own nonce.
   - The additional data is a label, the vault ID, record ID, record version, chunk index and chunk count (see Records under Sync and encryption in `docs/architecture.md`). A relay that swaps, replays, reorders, truncates or extends chunks makes decryption fail.

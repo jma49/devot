@@ -14,6 +14,7 @@ import {
   createNoteService,
   createPieceRenderer,
   createPreviewRegistry,
+  createSavedSearchService,
   createTagService,
   createTemplateService,
   duplicateNote,
@@ -40,6 +41,7 @@ import {
   type ImportSource,
   type NoteService,
   type NoteStatus,
+  type SavedSearchService,
   type TagService,
   type TemplateService,
   type PluginRendererSpec,
@@ -82,6 +84,7 @@ const logInfo = (code: string, ...ids: string[]) =>
 let service: NoteService | undefined
 let books: BookService | undefined
 let tags: TagService | undefined
+let savedSearches: SavedSearchService | undefined
 let templates: TemplateService | undefined
 let newId: (() => string) | undefined
 let welcome: ((content: WelcomeContent) => Promise<string | null>) | undefined
@@ -120,6 +123,10 @@ const required = () => {
 const requiredTags = () => {
   if (!tags) throw new Error('E_CORE_NOT_READY')
   return tags
+}
+const requiredSavedSearches = () => {
+  if (!savedSearches) throw new Error('E_CORE_NOT_READY')
+  return savedSearches
 }
 
 const requiredBooks = () => {
@@ -166,6 +173,7 @@ export const coreApi = {
     })
     books = createBookService({ storage, clock, newId: ids })
     tags = createTagService({ storage, clock, newId: ids })
+    savedSearches = createSavedSearchService({ storage, clock, newId: ids })
     templates = createTemplateService({
       storage,
       notes: service,
@@ -250,6 +258,13 @@ export const coreApi = {
   renameTag: (id: string, name: string) => requiredTags().rename(id, name),
   setTagColor: (id: string, color: TagColorValue | null) => requiredTags().setColor(id, color),
   deleteTag: (id: string) => requiredTags().remove(id),
+  listSavedSearches: () => requiredSavedSearches().list(),
+  createSavedSearch: (name: string, query: string) => requiredSavedSearches().create(name, query),
+  renameSavedSearch: (id: string, name: string) => requiredSavedSearches().rename(id, name),
+  setSavedSearchQuery: (id: string, query: string) => requiredSavedSearches().setQuery(id, query),
+  placeSavedSearch: (id: string, targetId: string, where: 'before' | 'after') =>
+    requiredSavedSearches().place(id, targetId, where),
+  deleteSavedSearch: (id: string) => requiredSavedSearches().remove(id),
   /**
    * With `versions` (quitting), typing not kept as a version yet becomes one.
    * Rejects with E_NOTE_SAVE_FAILED when a note could not be saved.

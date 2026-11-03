@@ -30,7 +30,8 @@ import {
   type TextCondition,
 } from './storage'
 import { wellFormed } from './text'
-import { MAX_TAG_NAME_CHARS, sameName, type NoteFilter } from './tags'
+import { MAX_TAG_NAME_CHARS, sameName } from './tagNames'
+import type { NoteFilter } from './tags'
 
 export const MAX_SEARCH_TERMS = 10
 /** Notebook and tag names resolve to IDs before storage, so they keep up to the longest name a notebook or tag can have. */
@@ -104,10 +105,19 @@ const clip = (value: string, field: SearchField = 'any') =>
     .join('')
     .trim()
 
+/** A clause with where it sits in the (well-formed) query: from after its minus sign to its end. */
+export interface SearchSpan {
+  clause: SearchClause
+  start: number
+  end: number
+}
+
 /** Never throws: what cannot be read is searched as text. */
-export function parseSearch(query: string): SearchClause[] {
+export const parseSearch = (query: string): SearchClause[] => scanSearch(query).map((s) => s.clause)
+
+export function scanSearch(query: string): SearchSpan[] {
   const text = wellFormed(query)
-  const clauses: SearchClause[] = []
+  const clauses: SearchSpan[] = []
   let at = 0
 
   /** The closing single quote is the next one at the end of the text or before a space, so an apostrophe inside ('don't stop') does not close it. */
@@ -182,7 +192,11 @@ export function parseSearch(query: string): SearchClause[] {
     }
     // An empty phrase ("") is no clause.
     if (clean === '') continue
-    clauses.push({ field, value: clean, negate })
+    clauses.push({
+      clause: { field, value: clean, negate },
+      start: bodyStart,
+      end: at,
+    })
   }
   return clauses
 }
@@ -211,6 +225,52 @@ export function bookQuery(book: { id: string; name: string }): string {
 }
 
 type SettledClause = SearchClause & { field: Exclude<SearchField, 'hashtag'> }
+
+/**
+ * The query with each `#Name` that names a tag spelled `tag:Name`, so that it keeps meaning the
+ * tag after the tag is gone (it then matches nothing, where `#Name` would turn into text).
+ * `#Name` that names no tag, and everything else, stays as written.
+ */
+export function pinTagNames(
+  query: string,
+  tags: readonly Pick<TagRecord, 'id' | 'name'>[],
+): string {
+  let text = wellFormed(query)
+  for (const { clause, start, end } of scanSearch(query).reverse()) {
+    if (clause.field !== 'hashtag') continue
+    const tag = tags.find((t) => sameName(t.name, clause.value))
+    if (!tag) continue
+    const named = `tag:${searchValue(tag.name)}`
+    const spelled = parsesBack(named, 'tag', tag.name) ? named : `tagId:${tag.id}`
+    text = text.slice(0, start) + spelled + text.slice(end)
+  }
+  return text
+}
+
+/**
+ * The query with each clause naming `tag` (`tag:Name`, `-tag:Name` or `#Name`, quoted or not) naming
+ * it `name` instead, as `tag:name`, or by ID when no quoting holds the name or with `byId`.
+ * Everything else stays as written.
+ */
+export function renameTagInQuery(
+  query: string,
+  tag: Pick<TagRecord, 'id' | 'name'>,
+  name: string,
+  byId = false,
+): string {
+  const named = `tag:${searchValue(name)}`
+  const spelled = !byId && parsesBack(named, 'tag', name) ? named : `tagId:${tag.id}`
+  let text = wellFormed(query)
+  for (const { clause, start, end } of scanSearch(text).reverse()) {
+    if (clause.field !== 'tag' && clause.field !== 'hashtag') continue
+    if (!sameName(clause.value, tag.name)) continue
+    // `tag:"a"title:x` is two clauses; the new value must not run into the one after it.
+    const next = text[end]
+    const apart = next !== undefined && !SPACE.test(next) ? ' ' : ''
+    text = text.slice(0, start) + spelled + apart + text.slice(end)
+  }
+  return text
+}
 
 /** `#x` is known only here, where the tags are: the parser cannot tell a tag from `#include`. */
 function settleHashtag(clause: SearchClause, tags: readonly TagRecord[]): SettledClause {

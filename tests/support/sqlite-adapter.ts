@@ -40,6 +40,7 @@ import type {
   RevisionKind,
   RevisionRecord,
   RevisionSummary,
+  SavedSearchRecord,
   StorageAdapter,
   TagRecord,
   TextCondition,
@@ -238,6 +239,7 @@ export const SYNC_SQL = {
      WHERE note_id = @id ORDER BY tag_id`,
   book: `SELECT * FROM books WHERE id = @id`,
   tag: `SELECT * FROM tags WHERE id = @id`,
+  search: `SELECT * FROM saved_searches WHERE id = @id`,
   /** An attachment without its bytes; absent once it was purged (its entry is the tombstone). */
   file: `SELECT id, note_id AS noteId, note_hlc AS noteHlc, name, mime, size, created_at AS createdAt
      FROM files WHERE id = @id`,
@@ -455,6 +457,20 @@ interface NoteTagRow {
   hlc: string
 }
 
+interface SavedSearchRow {
+  id: string
+  name: string
+  name_hlc: string
+  query: string
+  query_hlc: string
+  sort_key: string
+  sort_key_hlc: string
+  created_at: number
+  updated_at: number
+  deleted_at: number | null
+  deleted_hlc: string | null
+}
+
 interface BookRow {
   id: string
   name: string
@@ -512,6 +528,20 @@ const toBook = (row: BookRow, raw = false): BookRecord => ({
   icon: raw || isNotebookIcon(row.icon) ? row.icon : null,
   iconColor: raw || isTagColor(row.icon_color) ? (row.icon_color as BookRecord['iconColor']) : null,
   iconHlc: row.icon_hlc,
+})
+
+const toSavedSearch = (row: SavedSearchRow): SavedSearchRecord => ({
+  id: row.id,
+  name: row.name,
+  nameHlc: row.name_hlc,
+  query: row.query,
+  queryHlc: row.query_hlc,
+  sortKey: row.sort_key,
+  sortKeyHlc: row.sort_key_hlc,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  deletedAt: row.deleted_at,
+  deletedHlc: row.deleted_hlc,
 })
 
 const toTag = (row: TagRow, raw = false): TagRecord => ({
@@ -673,6 +703,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   >(SYNC_SQL.noteTags)
   const syncBook = db.prepare<[{ id: string }], BookRow>(SYNC_SQL.book)
   const syncTag = db.prepare<[{ id: string }], TagRow>(SYNC_SQL.tag)
+  const syncSearch = db.prepare<[{ id: string }], SavedSearchRow>(SYNC_SQL.search)
   const syncFile = db.prepare<[{ id: string }], SyncFileMeta>(SYNC_SQL.file)
   const syncFileData = db.prepare<[{ id: string }], { data: Buffer }>(SYNC_SQL.fileData)
   const syncFilePut = db.prepare(SYNC_SQL.filePut)
@@ -767,6 +798,30 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
        name_hlc = MAX(excluded.name_hlc, name_hlc),
        color = CASE WHEN excluded.color_hlc > color_hlc THEN excluded.color ELSE color END,
        color_hlc = MAX(excluded.color_hlc, color_hlc),
+       deleted_at = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
+                         THEN excluded.deleted_at ELSE deleted_at END,
+       deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
+                          THEN excluded.deleted_hlc ELSE deleted_hlc END,
+       updated_at = MAX(excluded.updated_at, updated_at)`,
+  )
+  // Same statements as the Rust store (list_saved_searches, put_saved_search).
+  const savedSearches = db.prepare<[], SavedSearchRow>(
+    'SELECT * FROM saved_searches WHERE deleted_at IS NULL ORDER BY sort_key, id',
+  )
+  const putSavedSearch = db.prepare(
+    `INSERT INTO saved_searches (id, name, name_hlc, query, query_hlc, sort_key, sort_key_hlc,
+                                 created_at, updated_at, deleted_at, deleted_hlc)
+     VALUES (@id, @name, @nameHlc, @query, @queryHlc, @sortKey, @sortKeyHlc,
+             @createdAt, @updatedAt, @deletedAt, @deletedHlc)
+     ON CONFLICT (id) DO UPDATE SET
+       name = CASE WHEN excluded.name_hlc > name_hlc THEN excluded.name ELSE name END,
+       name_hlc = MAX(excluded.name_hlc, name_hlc),
+       query = CASE WHEN excluded.query_hlc > query_hlc THEN excluded.query ELSE query END,
+       query_hlc = MAX(excluded.query_hlc, query_hlc),
+       sort_key = CASE WHEN excluded.sort_key_hlc > sort_key_hlc
+                         OR (excluded.sort_key_hlc = sort_key_hlc AND excluded.sort_key > sort_key)
+                       THEN excluded.sort_key ELSE sort_key END,
+       sort_key_hlc = MAX(excluded.sort_key_hlc, sort_key_hlc),
        deleted_at = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
                          THEN excluded.deleted_at ELSE deleted_at END,
        deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
@@ -955,6 +1010,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         const book = note ? undefined : syncBook.get({ id })
         const tag = note || book ? undefined : syncTag.get({ id })
         const file = note || book || tag ? undefined : syncFile.get({ id })
+        const saved = note || book || tag || file ? undefined : syncSearch.get({ id })
         return {
           id,
           entry: syncEntry.get({ id }) ?? null,
@@ -973,6 +1029,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
           book: book ? toBook(book, true) : null,
           tag: tag ? toTag(tag, true) : null,
           file: file ?? null,
+          search: saved ? toSavedSearch(saved) : null,
         }
       })
     },
@@ -1057,6 +1114,16 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     listTags: async () => tags.all().map((row) => toTag(row)),
     async putTag(tag) {
       putTag.run(tag)
+    },
+    async renameTag(tag, searches) {
+      db.transaction(() => {
+        putTag.run(tag)
+        for (const search of searches) putSavedSearch.run(search)
+      })()
+    },
+    listSavedSearches: async () => savedSearches.all().map(toSavedSearch),
+    async putSavedSearch(record) {
+      putSavedSearch.run(record)
     },
     async putNoteTag(link) {
       putNoteTag.run({ ...link, present: link.present ? 1 : 0 })

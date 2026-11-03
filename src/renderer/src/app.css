@@ -947,6 +947,10 @@ button {
   bottom: calc(var(--size-drop-indicator) / -2);
 }
 
+.saved-search-item {
+  position: relative;
+}
+
 [data-dragging] {
   opacity: var(--opacity-dragged);
 }

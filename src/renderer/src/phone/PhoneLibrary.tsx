@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { countMatches, savedSearchQuery } from '../../../core/savedSearches'
 import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import { BookIcon } from '../BookIcon'
 import { noteDate } from '../format'
@@ -88,13 +89,25 @@ export function PhoneLibrary(props: {
   onOpenList: (view: PhoneView) => void
   onNewNotebook: () => void
   onSearch: () => void
+  onSavedSearch: (query: string) => void
 }) {
   const { data } = props
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
-  const [collapsed, setCollapsed] = useState({ books: false, tags: false })
+  const [collapsed, setCollapsed] = useState({ books: false, searches: false, tags: false })
   const library = useMemo(
     () => libraryOf(data.notes, data.books, data.tags, open, navigator.languages),
     [data.notes, data.books, data.tags, open],
+  )
+  const searches = useMemo(
+    () =>
+      data.savedSearches.map((search) => ({
+        search,
+        count: countMatches(
+          data.notes,
+          savedSearchQuery(search, { books: data.books, tags: data.tags }),
+        ),
+      })),
+    [data.savedSearches, data.notes, data.books, data.tags],
   )
   const toggle = (id: string) =>
     setOpen((prev) => {
@@ -142,6 +155,24 @@ export function PhoneLibrary(props: {
             onOpen={() => props.onShowNotes({ kind: 'all' }, 'completed')}
           />
         </ul>
+
+        {searches.length > 0 && (
+          <Group
+            title={t('phone.library.savedSearches')}
+            collapsed={collapsed.searches}
+            onToggle={() => setCollapsed((c) => ({ ...c, searches: !c.searches }))}
+          >
+            {searches.map(({ search, count }) => (
+              <GroupedRow
+                key={search.id}
+                name={search.name}
+                {...(count === null ? {} : { count })}
+                icon={<Icon name="search" size="phone-row" />}
+                onOpen={() => props.onSavedSearch(search.query)}
+              />
+            ))}
+          </Group>
+        )}
 
         {library.books.length > 0 && (
           <Group

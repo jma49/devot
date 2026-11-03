@@ -1,4 +1,11 @@
-import { DRAG_BOOK, DRAG_NOTE, DRAG_TEMPLATE, setBookDragData } from './dragData'
+import {
+  DRAG_BOOK,
+  DRAG_NOTE,
+  DRAG_SEARCH,
+  DRAG_TEMPLATE,
+  setBookDragData,
+  setSearchDragData,
+} from './dragData'
 import {
   Fragment,
   memo,
@@ -58,6 +65,13 @@ import {
 } from './sourceMenu'
 import { TagMenu } from './TagMenuPanel'
 import { tagShortcut, type TagAction, type TagMenuTarget } from './tagMenu'
+import {
+  SAVED_SEARCH_MENU,
+  savedSearchShortcut,
+  type SavedSearchAction,
+  type SavedSearchMenuTarget,
+} from './savedSearchMenu'
+import { MAX_SAVED_SEARCH_NAME_CHARS } from '../../core/savedSearches'
 import { usePaneResize } from './paneResize'
 import { SIDEBAR_PANE } from './paneWidth'
 import { MoveBookDialog } from './MoveBookDialog'
@@ -80,6 +94,13 @@ export type Selection =
 
 const draggedNotes = (event: DragEvent) =>
   event.dataTransfer.getData(DRAG_NOTE).split('\n').filter(Boolean)
+
+/** A saved search row: its live count is null when its query has text, which only a search can count. */
+export interface SidebarSavedSearch {
+  id: string
+  name: string
+  count: number | null
+}
 
 /**
  * Where a dragged notebook goes on a notebook row: the top quarter puts it
@@ -201,6 +222,14 @@ interface Props {
   workspace?: SidebarWorkspace | undefined
   onOpenWorkspace?: (id: string) => void
   onWorkspaceUp?: () => void
+  savedSearches?: readonly SidebarSavedSearch[]
+  /** The saved search the search field runs now. */
+  activeSearch?: string | undefined
+  onRunSavedSearch?: (id: string) => void
+  onRenameSavedSearch?: (id: string, name: string) => void
+  onEditSavedSearch?: (id: string) => void
+  onDeleteSavedSearch?: (id: string) => void
+  onPlaceSavedSearch?: (id: string, targetId: string, where: 'before' | 'after') => void
 }
 
 export interface SidebarMenus {
@@ -235,11 +264,13 @@ function visibleRows(tree: BookNode[], collapsed: ReadonlySet<string>): BookNode
   return out
 }
 
-/** A row the arrow keys move between; its key is `all`, `pinned`, `book:<id>`, `status:<status>`, `tag:<id>`, `agent:<writer>`, `templates` or `trash`. */
+/** A row the arrow keys move between; its key is `all`, `pinned`, `book:<id>`, `status:<status>`, `search:<id>`, `tag:<id>`, `agent:<writer>`, `templates` or `trash`. */
 interface Row {
   key: string
-  shows: { selection: Selection } | { filter: NoteFilter }
+  shows: { selection: Selection } | { filter: NoteFilter } | { search: string }
 }
+
+const searchRow = (id: string): Row => ({ key: `search:${id}`, shows: { search: id } })
 
 const libraryRow = (selection: Selection): Row => ({
   key: selection.kind === 'book' ? `book:${selection.id}` : selection.kind,
@@ -328,6 +359,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const { width: sidebarWidth, edge: resizeEdge } = usePaneResize(SIDEBAR_PANE)
   const { tree, counts, selection, renaming } = props
   const ws = props.workspace
+  const savedSearches = props.savedSearches ?? []
   const allSelection: Selection = ws ? { kind: 'book', id: ws.book.id } : { kind: 'all' }
   const allKey = libraryRow(allSelection).key
   const nav = useRef<HTMLElement>(null)
@@ -348,9 +380,10 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const motionKeys = useMemo(
     () => [
       ...flattenBookTree(tree).map((n) => `book:${n.id}`),
+      ...(props.savedSearches ?? []).map((s) => `search:${s.id}`),
       ...props.tags.map((tag) => `tag:${tag.id}`),
     ],
-    [tree, props.tags],
+    [tree, props.savedSearches, props.tags],
   )
   const sidebarElement = () => nav.current
   useRowMotion(sidebarElement, 'data-motion-key', motionKeys, ws?.book.id ?? '', 'slide')
@@ -409,6 +442,8 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   const dragging = useRef<ReadonlySet<string> | undefined>(undefined)
   const [draggedBook, setDraggedBook] = useState<string>()
   const [editingTag, setEditingTag] = useState<string>()
+  const [editingSearch, setEditingSearch] = useState<string>()
+  const [searchDrop, setSearchDrop] = useState<{ id: string; where: 'before' | 'after' }>()
   const [menuTarget, setMenuTarget] = useState<string>()
 
   const [tagMenu, setTagMenu] = useState<{ id: string; at: MenuPoint }>()
@@ -525,6 +560,9 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     ...(folded.has('status')
       ? []
       : STATUSES.map((s) => filterRowOf({ kind: 'status', status: s.status }))),
+    ...(folded.has('searches')
+      ? []
+      : savedSearches.flatMap((s) => (s.id === editingSearch ? [] : [searchRow(s.id)]))),
     ...(folded.has('tags')
       ? []
       : props.tags.flatMap((tag) =>
@@ -533,9 +571,11 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     ...(folded.has('agents') ? [] : (props.agents ?? []).map((a) => filterRowOf(agentFilter(a)))),
     ...(ws ? [] : [libraryRow({ kind: 'trash' })]),
   ]
-  const shownKey = props.filter
-    ? filterRowOf(props.filter).key
-    : libraryRow(selection ?? { kind: 'all' }).key
+  const shownKey = props.activeSearch
+    ? searchRow(props.activeSearch).key
+    : props.filter
+      ? filterRowOf(props.filter).key
+      : libraryRow(selection ?? { kind: 'all' }).key
   const tabStop = rowOrder.some((r) => r.key === shownKey) ? shownKey : allKey
   const rowElements = useRef(new Map<string, HTMLElement>())
   const rowProps = (key: string) => ({
@@ -550,6 +590,7 @@ export const Sidebar = memo(function Sidebar(props: Props) {
   /** All Notes or a notebook shows without a filter, the Trash shows (a filter does not apply there), and a filter row turns its filter on. */
   const arrive = (row: Row, focusRow = true) => {
     if (focusRow) rowElements.current.get(row.key)?.focus()
+    if ('search' in row.shows) return props.onRunSavedSearch?.(row.shows.search)
     if ('selection' in row.shows) {
       const { selection: next } = row.shows
       return props.onSelect(next, { clearFilter: next.kind !== 'trash' })
@@ -596,11 +637,13 @@ export const Sidebar = memo(function Sidebar(props: Props) {
       return
     const section: CollapsibleSection | undefined = key.startsWith('status:')
       ? 'status'
-      : key.startsWith('tag:')
-        ? 'tags'
-        : key.startsWith('agent:')
-          ? 'agents'
-          : undefined
+      : key.startsWith('search:')
+        ? 'searches'
+        : key.startsWith('tag:')
+          ? 'tags'
+          : key.startsWith('agent:')
+            ? 'agents'
+            : undefined
     if (section && event.key === 'ArrowLeft') {
       event.preventDefault()
       toggleSection(section, false)
@@ -781,6 +824,30 @@ export const Sidebar = memo(function Sidebar(props: Props) {
     ws ? withRowOutline(WORKSPACE_ROW, () => showWorkspaceMenu(placed(ws.book), at)) : undefined
   const openAllNotesMenu = (at?: MenuPoint) =>
     withRowOutline(allKey, () => showAllNotesMenu({ canCreate: props.onNewNote !== undefined }, at))
+
+  const runSearchAction = (action: SavedSearchAction, target: SavedSearchMenuTarget) => {
+    if (props.readOnly) return
+    if (action === 'rename') setEditingSearch(target.id)
+    else if (action === 'edit') props.onEditSavedSearch?.(target.id)
+    else props.onDeleteSavedSearch?.(target.id)
+  }
+  const showSearchMenu = useContextMenu('savedSearchRow', SAVED_SEARCH_MENU, runSearchAction)
+  const openSearchMenu = (id: string, at?: MenuPoint) => {
+    if (props.readOnly) return
+    const key = searchRow(id).key
+    return withRowOutline(key, () =>
+      showSearchMenu({ id }, at ?? below(rowElements.current.get(key))),
+    )
+  }
+  const searchDropAt = (event: DragEvent, id: string) => {
+    if (!event.dataTransfer.types.includes(DRAG_SEARCH)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    const box = event.currentTarget.getBoundingClientRect()
+    const where = event.clientY - box.top < box.height / 2 ? 'before' : 'after'
+    setSearchDrop((at) => (at?.id === id && at.where === where ? at : { id, where }))
+  }
+  const canPlaceSearch = !props.readOnly && props.onPlaceSavedSearch !== undefined
 
   useImperativeHandle(props.menus, () => ({
     book: (id, at) => {
@@ -1314,6 +1381,109 @@ export const Sidebar = memo(function Sidebar(props: Props) {
             ))}
           </ul>
         )}
+        {savedSearches.length > 0 ? (
+          <>
+            {sectionHeader(
+              'searches',
+              'searches-heading',
+              t('sidebar.savedSearches'),
+              'searches-list',
+              null,
+            )}
+            {folded.has('searches') ? null : (
+              <ul
+                id="searches-list"
+                className="sources saved-searches"
+                aria-labelledby="searches-heading"
+                ref={revealed('section:searches')}
+              >
+                {savedSearches.map((search) => {
+                  const key = searchRow(search.id).key
+                  const dropClass = searchDrop?.id === search.id ? ` drop-${searchDrop.where}` : ''
+                  return (
+                    <li
+                      key={search.id}
+                      className={`saved-search-item${dropClass}`}
+                      data-motion-key={key}
+                      draggable={canPlaceSearch && editingSearch !== search.id}
+                      onDragStart={(e) => setSearchDragData(e.dataTransfer, search)}
+                      onDragEnd={() => setSearchDrop(undefined)}
+                      onDragEnter={canPlaceSearch ? (e) => searchDropAt(e, search.id) : undefined}
+                      onDragOver={canPlaceSearch ? (e) => searchDropAt(e, search.id) : undefined}
+                      onDragLeave={(e) => {
+                        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+                        setSearchDrop((at) => (at?.id === search.id ? undefined : at))
+                      }}
+                      onDrop={(e) => {
+                        const id = e.dataTransfer.getData(DRAG_SEARCH)
+                        const at = searchDrop
+                        setSearchDrop(undefined)
+                        if (!id || !at || at.id !== search.id) return
+                        e.preventDefault()
+                        if (id !== search.id) props.onPlaceSavedSearch?.(id, search.id, at.where)
+                      }}
+                      onDoubleClick={() => props.readOnly || setEditingSearch(search.id)}
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget.firstElementChild) return
+                        if (heldCommandKey(e)) return e.preventDefault()
+                        if (commandMatches('sidebar.rowMenu', e)) {
+                          e.preventDefault()
+                          return void openSearchMenu(search.id, below(e.target as Element))
+                        }
+                        const action = savedSearchShortcut(e)
+                        if (!action || props.readOnly) return
+                        e.preventDefault()
+                        runSearchAction(action, { id: search.id })
+                      }}
+                    >
+                      {editingSearch === search.id ? (
+                        <div className="source">
+                          <Icon name="search" size="md" />
+                          <NameField
+                            name={search.name}
+                            max={MAX_SAVED_SEARCH_NAME_CHARS}
+                            label="savedSearch.nameLabel"
+                            onDone={(name, byKey) => {
+                              setEditingSearch(undefined)
+                              const clean = name === null ? '' : trimWhitespace(name)
+                              if (clean && clean !== search.name) {
+                                props.onRenameSavedSearch?.(search.id, clean)
+                              }
+                              if (byKey) {
+                                requestAnimationFrame(() => rowElements.current.get(key)?.focus())
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          {...rowProps(key)}
+                          className={`source filter saved-search${rowMenuTarget === key ? ' menu-target' : ''}`}
+                          aria-pressed={props.activeSearch === search.id}
+                          onClick={() => props.onRunSavedSearch?.(search.id)}
+                          onMouseDown={keepFocusOnMenu}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            void openSearchMenu(search.id, { x: e.clientX, y: e.clientY })
+                          }}
+                        >
+                          <Icon name="search" size="md" />
+                          <span className="source-label" dir="auto">
+                            {search.name}
+                          </span>
+                          {search.count === null ? null : (
+                            <span className="source-count">{format(search.count)}</span>
+                          )}
+                        </button>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </>
+        ) : null}
         {props.tags.length > 0 ? (
           <>
             {sectionHeader(

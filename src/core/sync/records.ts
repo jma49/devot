@@ -1,12 +1,14 @@
 // Sync records (docs/adr/0002-sync-latest-state-per-record.md, Records): what a device sends the
-// relay for a note, a notebook or a tag, and how two copies of one record merge. Rust seals the
-// bytes; this file only builds, reads and merges them.
+// relay for a note, a notebook, a tag or a saved search, and how two copies of one record merge.
+// Rust seals the bytes; this file only builds, reads and merges them.
 //
 // A note carries its body's whole Yjs state, its metadata fields with the HLC of each one's last
 // change, its tag memberships (each with its HLC), `bodyHlc` (when its body last changed, so the
 // Trash can be ordered against edits) and `purged`. A purged note is a tombstone: its ID, `purged`
-// and its deletion, nothing else. Notebooks and tags carry fields and HLCs only. Allow AI Access
-// is not synced: each device decides what AI tools may read.
+// and its deletion, nothing else. Notebooks, tags and saved searches carry fields and HLCs only.
+// Allow AI Access is not synced: each device decides what AI tools may read. A Devot from before
+// saved searches skips a search record on pull (W_SYNC_RECORD_SKIPPED) and counts it as skipped
+// until a newer build pulls everything again (the engine's `skippedBy`).
 //
 // A file (an attachment, docs/adr/0003-sync-attachments-as-records.md) carries its name, MIME type,
 // size and bytes, written once; the note it belongs to with the HLC of that link's last change; and
@@ -20,8 +22,9 @@ import { UUID_V7 } from '../ids'
 import { BODY, seedClient } from '../notes'
 import { sha256Hex } from '../sha256'
 import { NOTE_STATUSES, type NoteStatus } from '../storage'
+import { MAX_SORT_KEY_LENGTH } from '../order'
 
-export type SyncKind = 'note' | 'book' | 'tag' | 'file'
+export type SyncKind = 'note' | 'book' | 'tag' | 'file' | 'search'
 
 export interface NoteTagState {
   tagId: string
@@ -86,6 +89,21 @@ export interface TagState {
   colorHlc: string
 }
 
+export interface SearchState {
+  kind: 'search'
+  id: string
+  name: string
+  nameHlc: string
+  query: string
+  queryHlc: string
+  sortKey: string
+  sortKeyHlc: string
+  createdAt: number
+  updatedAt: number
+  deletedAt: number | null
+  deletedHlc: string
+}
+
 export interface FileState {
   kind: 'file'
   id: string
@@ -102,7 +120,7 @@ export interface FileState {
   data: Uint8Array
 }
 
-export type SyncRecord = NoteState | BookState | TagState | FileState
+export type SyncRecord = NoteState | BookState | TagState | FileState | SearchState
 
 export interface Merged<T extends SyncRecord> {
   record: T
@@ -323,6 +341,40 @@ function readTag(h: Record<string, unknown>): TagState {
   }
 }
 
+const isQuery = (v: unknown): v is string => typeof v === 'string' && v.length <= 4000
+/** As long as a placed row's key may grow before its siblings are renumbered (slotKeys). */
+const isSearchKey = (v: unknown): v is string =>
+  typeof v === 'string' && v.length <= MAX_SORT_KEY_LENGTH
+
+function readSearch(h: Record<string, unknown>): SearchState {
+  const valid =
+    isName(h['name']) &&
+    isOptionalHlc(h['nameHlc']) &&
+    isQuery(h['query']) &&
+    isOptionalHlc(h['queryHlc']) &&
+    isSearchKey(h['sortKey']) &&
+    isOptionalHlc(h['sortKeyHlc']) &&
+    isTime(h['createdAt']) &&
+    isTime(h['updatedAt']) &&
+    isNullable(h['deletedAt'], isTime) &&
+    isOptionalHlc(h['deletedHlc'])
+  if (!valid) throw invalid()
+  return {
+    kind: 'search',
+    id: h['id'] as string,
+    name: h['name'] as string,
+    nameHlc: h['nameHlc'] as string,
+    query: h['query'] as string,
+    queryHlc: h['queryHlc'] as string,
+    sortKey: h['sortKey'] as string,
+    sortKeyHlc: h['sortKeyHlc'] as string,
+    createdAt: h['createdAt'] as number,
+    updatedAt: h['updatedAt'] as number,
+    deletedAt: h['deletedAt'] as number | null,
+    deletedHlc: h['deletedHlc'] as string,
+  }
+}
+
 /** Reads what `encodeRecord` wrote for record `id`; throws E_SYNC_RECORD_INVALID for anything else. */
 export function decodeRecord(id: string, bytes: Uint8Array): SyncRecord {
   if (bytes.length < 5 || bytes[0] !== FORMAT) throw invalid()
@@ -343,6 +395,7 @@ export function decodeRecord(id: string, bytes: Uint8Array): SyncRecord {
   if (rest.length > 0) throw invalid()
   if (h['kind'] === 'book') return readBook(h)
   if (h['kind'] === 'tag') return readTag(h)
+  if (h['kind'] === 'search') return readSearch(h)
   throw invalid()
 }
 
@@ -641,6 +694,49 @@ export function mergeTag(local: TagState, remote: TagState): Merged<TagState> {
   return { record, localNews: tagAhead(record, remote), remoteNews: tagAhead(record, local) }
 }
 
+const searchAhead = (of: SearchState, than: SearchState) =>
+  of.nameHlc > than.nameHlc ||
+  of.queryHlc > than.queryHlc ||
+  of.deletedHlc > than.deletedHlc ||
+  of.sortKeyHlc > than.sortKeyHlc ||
+  (of.sortKeyHlc === than.sortKeyHlc && of.sortKey > than.sortKey)
+
+/** Per field, the newer value; equal sort key clocks take the greater key, as notebooks do. */
+export function mergeSearch(local: SearchState, remote: SearchState): Merged<SearchState> {
+  const name = newer(
+    { value: local.name, hlc: local.nameHlc },
+    { value: remote.name, hlc: remote.nameHlc },
+  )
+  const query = newer(
+    { value: local.query, hlc: local.queryHlc },
+    { value: remote.query, hlc: remote.queryHlc },
+  )
+  const deleted = newer(
+    { value: local.deletedAt, hlc: local.deletedHlc },
+    { value: remote.deletedAt, hlc: remote.deletedHlc },
+  )
+  const sortKey =
+    remote.sortKeyHlc > local.sortKeyHlc ||
+    (remote.sortKeyHlc === local.sortKeyHlc && remote.sortKey > local.sortKey)
+      ? { value: remote.sortKey, hlc: remote.sortKeyHlc }
+      : { value: local.sortKey, hlc: local.sortKeyHlc }
+  const record: SearchState = {
+    kind: 'search',
+    id: local.id,
+    name: name.value,
+    nameHlc: name.hlc,
+    query: query.value,
+    queryHlc: query.hlc,
+    sortKey: sortKey.value,
+    sortKeyHlc: sortKey.hlc,
+    createdAt: local.createdAt,
+    updatedAt: Math.max(local.updatedAt, remote.updatedAt),
+    deletedAt: deleted.value,
+    deletedHlc: deleted.hlc,
+  }
+  return { record, localNews: searchAhead(record, remote), remoteNews: searchAhead(record, local) }
+}
+
 export function tombstoneFile(id: string): FileState {
   return {
     kind: 'file',
@@ -694,6 +790,7 @@ export function mergeRecord(local: SyncRecord, remote: SyncRecord): Merged<SyncR
   if (local.kind === 'note' && remote.kind === 'note') return mergeNote(local, remote)
   if (local.kind === 'book' && remote.kind === 'book') return mergeBook(local, remote)
   if (local.kind === 'tag' && remote.kind === 'tag') return mergeTag(local, remote)
+  if (local.kind === 'search' && remote.kind === 'search') return mergeSearch(local, remote)
   throw new Error('E_SYNC_RECORD_KIND')
 }
 
@@ -705,6 +802,9 @@ export function stampsOf(record: SyncRecord): string[] {
   if (record.kind === 'file') return record.noteHlc === '' ? [] : [record.noteHlc]
   if (record.kind === 'book') {
     return [record.nameHlc, record.parentHlc, record.deletedHlc, record.sortKeyHlc, record.iconHlc]
+  }
+  if (record.kind === 'search') {
+    return [record.nameHlc, record.queryHlc, record.sortKeyHlc, record.deletedHlc]
   }
   return [record.nameHlc, record.colorHlc, record.deletedHlc]
 }

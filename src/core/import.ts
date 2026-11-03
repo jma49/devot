@@ -38,7 +38,7 @@ import type { NoteService } from './notes'
 import { statusFromName } from './search'
 import type { NoteStatus, StorageAdapter } from './storage'
 import type { TagService } from './tags'
-import { MAX_TAG_NAME_CHARS } from './tags'
+import { MAX_TAG_NAME_CHARS } from './tagNames'
 import { charCount, lineFeeds, replaceRanges, trimWhitespace, type TextEdit } from './text'
 import { noteLink } from './links'
 import {

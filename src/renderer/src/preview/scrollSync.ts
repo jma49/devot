@@ -175,6 +175,9 @@ export function syncScrolling(
 
   const seen = new Map<ScrollPane, number>()
   const note = (pane: ScrollPane) => seen.set(pane, pane.element.scrollTop)
+  // Panes that moved with their scroll event still to come: more layout
+  // before it must not take the pane for one the user left alone.
+  const moving = new Set<ScrollPane>()
 
   const schedule = (pane: ScrollPane, laidOut = false) => {
     // A pane that shrank reports the scroll it was clamped to; that is no lead.
@@ -193,6 +196,7 @@ export function syncScrolling(
   // can sit a little off until it is laid out.
   function follow() {
     handle = undefined
+    moving.clear()
     const again =
       leader === undefined && check?.pane === current && check.top === check.pane.element.scrollTop
         ? check
@@ -255,6 +259,7 @@ export function syncScrolling(
 
   const onScroll = (pane: ScrollPane) => () => {
     note(pane)
+    moving.delete(pane)
     const want = expected.get(pane)
     if (want !== undefined) {
       expected.delete(pane)
@@ -292,8 +297,11 @@ export function syncScrolling(
     for (const type of WORK) listen(pane.element, type, () => (current = pane), { capture: true })
     const stopLayout = pane.onLayout?.(() => {
       // Drawing lines just scrolled to also changes heights: that scroll's own event still leads.
+      if (moving.has(pane)) return
       if (pane.element.scrollTop !== seen.get(pane)) {
         note(pane)
+        // A pane at its end was most likely clamped by a shorter layout, which is no lead.
+        if (pane.element.scrollTop < maxOffset(pane.element) - 1) moving.add(pane)
         return
       }
       if (current !== pane) schedule(other(pane), true)

@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { BookRecord, NoteSummary } from '../../core'
 import { TEMPLATES_BOOK_ID } from '../../core/books'
-import { homeOf, keepUnchanged, retitled, sameCounts, viewLists, withWrites } from './listUpdates'
+import {
+  homeOf,
+  keepUnchanged,
+  retitled,
+  sameCounts,
+  sameSearchRows,
+  viewLists,
+  withWrites,
+} from './listUpdates'
 
 const note = (id: string, extra: Partial<NoteSummary> = {}): NoteSummary => ({
   id,
@@ -145,5 +153,19 @@ describe('sameCounts', () => {
         ]),
       ),
     ).toBe(false)
+  })
+})
+
+describe('sameSearchRows', () => {
+  const row = { id: 's', name: 'Doing', count: 2 as number | null }
+
+  it('keeps rows that show the same, and not ones whose order, name or count changed', () => {
+    expect(sameSearchRows([row], [{ ...row }])).toBe(true)
+    expect(sameSearchRows([row], [{ ...row, count: 3 }])).toBe(false)
+    expect(sameSearchRows([row], [{ ...row, count: null }])).toBe(false)
+    expect(sameSearchRows([row], [{ ...row, name: 'Done' }])).toBe(false)
+    const other = { ...row, id: 't' }
+    expect(sameSearchRows([row, other], [other, row])).toBe(false)
+    expect(sameSearchRows([row], [row, other])).toBe(false)
   })
 })

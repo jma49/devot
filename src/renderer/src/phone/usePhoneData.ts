@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { BookRecord, NoteSummary, TagRecord, TrashedNote } from '../../../core/storage'
+import type {
+  BookRecord,
+  NoteSummary,
+  SavedSearchRecord,
+  TagRecord,
+  TrashedNote,
+} from '../../../core/storage'
 import { listBackups } from '../backups'
 import { startCore, stopCore, type Core } from '../core-client'
 import { errorCode } from '../../../core/errors'
@@ -11,6 +17,7 @@ export interface PhoneData {
   readonly templates: readonly NoteSummary[]
   readonly books: readonly BookRecord[]
   readonly tags: readonly TagRecord[]
+  readonly savedSearches: readonly SavedSearchRecord[]
   readonly trash: readonly TrashedNote[]
   /** When the newest backup was made; null before the first, undefined until known. */
   readonly lastBackup: number | null | undefined
@@ -24,6 +31,7 @@ const EMPTY: PhoneData = {
   templates: [],
   books: [],
   tags: [],
+  savedSearches: [],
   trash: [],
   lastBackup: undefined,
   loadedAt: 0,
@@ -51,10 +59,11 @@ export function usePhoneData(): PhoneStore {
   const coreRef = useRef<Core | null>(null)
 
   const load = useCallback(async (core: Core) => {
-    const [listed, books, tags, trash, lastBackup] = await Promise.all([
+    const [listed, books, tags, savedSearches, trash, lastBackup] = await Promise.all([
       core.listWithTemplates(),
       core.listBooks(),
       core.listTags(),
+      core.listSavedSearches(),
       core.listTrash(),
       newestBackup(),
     ])
@@ -64,6 +73,7 @@ export function usePhoneData(): PhoneStore {
       templates: listed.templates,
       books,
       tags,
+      savedSearches,
       trash,
       lastBackup,
       loadedAt: Date.now(),
