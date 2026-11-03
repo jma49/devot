@@ -18,7 +18,7 @@ export type CountBucket = (typeof COUNT_BUCKETS)[number]
 /** Adding an event: name it `area.past_tense`, declare its properties here (all are required), give it a label in the i18n catalog (`usage.event.<name>`) and call `track`. */
 export const USAGE_EVENTS = {
   'note.created': {
-    from: oneOf('new_note', 'link', 'duplicate', 'selection', 'template', 'quick_capture'),
+    from: oneOf('new_note', 'link', 'duplicate', 'selection', 'template', 'quick_capture', 'today'),
   },
   'search.run': { scope: oneOf('all', 'view'), clauses: count, results: oneOf(...COUNT_BUCKETS) },
   'import.finished': {

@@ -215,6 +215,7 @@ it('keeps every command item to set its key', () => {
     ['Plain', 'split'],
     ['Check', 'sync_scroll'],
     ['Plain', 'backups'],
+    ['Plain', 'today'],
   ])
 })
 
@@ -227,6 +228,11 @@ it('reserves the same keys in Rust', () => {
     ),
   ].map((m) => m[1])
   expect(reserved).toEqual(RESERVED_KEYS)
+})
+
+it('labels File > Open Today\u2019s Note as the palette does', () => {
+  expect(MENU).toMatch(/MenuItemBuilder::with_id\(OPEN_TODAY_ID, strings::OPEN_TODAY\)/)
+  expect(STRINGS.get('OPEN_TODAY')).toBe(en['command.openToday'])
 })
 
 // File > New Window is a menu item of Rust's own (it opens the window without asking a page), and

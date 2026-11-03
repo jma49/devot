@@ -141,6 +141,13 @@ export const COMMANDS = [
     keys: ['Mod+T'],
   },
   {
+    id: 'note.today',
+    label: 'command.openToday',
+    group: 'note',
+    scope: 'window',
+    keys: ['Mod+Alt+T'],
+  },
+  {
     id: 'note.history',
     label: 'noteMenu.history',
     group: 'note',
@@ -1596,6 +1603,7 @@ export const NATIVE_MENU_COMMANDS: Readonly<Record<string, CommandId>> = {
   'devot.split': 'view.split',
   // In the app menu (Devot > Backups...).
   'devot.backups': 'app.backups',
+  'devot.today': 'note.today',
 }
 
 /**

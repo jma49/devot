@@ -1,6 +1,7 @@
 //! The app's URL scheme, registered with macOS through the bundle's Info.plist (`plugins.deep-link`
 //! in tauri.conf.json): `devot://note/<id>` opens the note, `devot://command/<id>` runs one of
-//! [`URL_COMMANDS`] and `devot://licence?key=<key>` offers a licence key, checked here first; the
+//! [`URL_COMMANDS`], `devot://today` opens today's note (made once a day when missing, so a page
+//! opening it over and over makes one note) and `devot://licence?key=<key>` offers a licence key, checked here first; the
 //! window asks before it replaces a licence the device holds. Debug builds answer to `devot-dev://` instead ([`SCHEME`]), so a development
 //! bundle never takes the links meant for an installed Devot.
 //! Every URL is checked here, whole, before the page sees anything of it: the page gets a [`Link`],
@@ -73,6 +74,7 @@ pub enum Link {
     Command {
         id: &'static str,
     },
+    Today,
     /// Files from the `devot` command (`cli`); no URL makes one.
     Import {
         scan: crate::import::Scan,
@@ -154,6 +156,9 @@ pub(crate) fn parse(url: &str, scheme: &str) -> Result<Link, &'static str> {
         return Err("E_URL_TOO_LONG");
     }
     let rest = rest.ok_or("E_URL_SCHEME")?;
+    if rest == "today" {
+        return Ok(Link::Today);
+    }
     let (host, id) = rest.split_once('/').ok_or("E_URL_PATH")?;
     match host {
         // Canonical lowercase UUIDv7 only: nothing else fits, a `/`, `?`
@@ -566,6 +571,23 @@ mod tests {
             parse(&format!("devot-dev://note/{ID}"), "devot-dev"),
             Ok(note())
         );
+    }
+
+    #[test]
+    fn reads_the_today_link_exactly() {
+        assert_eq!(parse("devot://today", "devot"), Ok(Link::Today));
+        assert_eq!(
+            serde_json::to_value(Link::Today).unwrap(),
+            serde_json::json!({ "kind": "today" })
+        );
+        for refused in [
+            "devot://today/",
+            "devot://Today",
+            "devot://today?x=1",
+            "devot://today#x",
+        ] {
+            assert!(parse(refused, "devot").is_err(), "{refused}");
+        }
     }
 
     #[test]

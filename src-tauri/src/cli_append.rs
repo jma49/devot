@@ -29,6 +29,7 @@ const CODE_MAX: usize = 80;
 pub(crate) enum Target {
     Id { id: String },
     Title { title: String },
+    Today,
 }
 
 /// What the main window gets (`readCliAppendRequest` in `src/renderer/src/cliAppend.ts`).
@@ -116,6 +117,7 @@ impl Appends {
                 crate::cli::Target::Title(title) => Target::Title {
                     title: title.clone(),
                 },
+                crate::cli::Target::Today => Target::Today,
             },
             heading: append.heading.clone(),
             position: append.position.as_str(),
@@ -377,6 +379,14 @@ mod tests {
         }
         assert_eq!(appends.wait().unwrap_err(), "E_CLI_APPEND_BUSY");
         drop(held);
+    }
+
+    #[test]
+    fn names_today_s_note_by_kind_alone() {
+        assert_eq!(
+            serde_json::to_value(Target::Today).unwrap(),
+            serde_json::json!({ "kind": "today" })
+        );
     }
 
     #[test]

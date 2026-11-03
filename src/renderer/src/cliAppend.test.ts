@@ -16,6 +16,9 @@ describe('a request from the devot command', () => {
     expect(
       readCliAppendRequest({ ...REQUEST, target: { kind: 'title', title: 'Day' }, heading: null }),
     ).toEqual({ ...REQUEST, target: { kind: 'title', title: 'Day' }, heading: null })
+    expect(readCliAppendRequest({ ...REQUEST, target: { kind: 'today' } })?.target).toEqual({
+      kind: 'today',
+    })
     for (const bad of [
       null,
       'append',
@@ -31,13 +34,23 @@ describe('a request from the devot command', () => {
     }
   })
 
-  it('names the note by ID as given, or by title among the live notes', async () => {
+  it("names the note by ID as given, by title among the live notes, or as today's", async () => {
     const notes = [{ id: ID, title: 'Day', bookId: null, updatedAt: 1 }]
-    expect(await resolveAppendTarget({ kind: 'id', id: ID }, async () => [])).toBe(ID)
-    expect(await resolveAppendTarget({ kind: 'title', title: 'day' }, async () => notes)).toBe(ID)
+    const noToday = () => Promise.reject(new Error('not asked'))
+    expect(await resolveAppendTarget({ kind: 'id', id: ID }, async () => [], noToday)).toBe(ID)
+    expect(
+      await resolveAppendTarget({ kind: 'title', title: 'day' }, async () => notes, noToday),
+    ).toBe(ID)
     await expect(
-      resolveAppendTarget({ kind: 'title', title: 'Night' }, async () => notes),
+      resolveAppendTarget({ kind: 'title', title: 'Night' }, async () => notes, noToday),
     ).rejects.toThrow('E_NOTE_NOT_FOUND')
+    expect(
+      await resolveAppendTarget(
+        { kind: 'today' },
+        async () => [],
+        async () => ID,
+      ),
+    ).toBe(ID)
   })
 
   it('runs requests one at a time and answers each with its code, or none', async () => {

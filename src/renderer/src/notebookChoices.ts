@@ -1,7 +1,8 @@
-// The notebooks the Settings window can offer (General > Default Notebook).
+// The notebooks and templates the Settings window can offer (General > Default Notebook, Daily
+// Notes).
 // The library lives in the main window's core, which the Settings window
-// cannot reach, so the main window keeps the notebook names (never note
-// content) in this webview's local storage, where the Settings window reads
+// cannot reach, so the main window keeps the notebook names and template
+// titles (never note content) in this webview's local storage, where the Settings window reads
 // them and follows changes (a `storage` event). A view preference only: it
 // holds nothing that needs to survive, and storage that is off means an
 // empty list.
@@ -13,7 +14,13 @@ export interface NotebookChoice {
   depth: number
 }
 
+export interface TemplateChoice {
+  id: string
+  title: string
+}
+
 const KEY = 'devot.notebookChoices'
+const TEMPLATES_KEY = 'devot.templateChoices'
 
 interface KeyValue {
   getItem(key: string): string | null
@@ -40,38 +47,65 @@ export function choicesFromTree(tree: readonly BookNode[]): NotebookChoice[] {
   return out
 }
 
-export function publishNotebooks(choices: readonly NotebookChoice[], storage = local()): void {
+function publish(key: string, choices: readonly unknown[], storage: KeyValue | undefined): void {
   try {
     const json = JSON.stringify(choices)
-    if (storage?.getItem(KEY) !== json) storage?.setItem(KEY, json)
+    if (storage?.getItem(key) !== json) storage?.setItem(key, json)
   } catch {
-    // The Settings window then offers no notebook.
+    // The Settings window then offers none.
   }
 }
 
-export function readNotebooks(storage = local()): NotebookChoice[] {
+function read<T>(key: string, valid: (c: Record<string, unknown>) => boolean, storage?: KeyValue) {
   try {
-    const stored: unknown = JSON.parse(storage?.getItem(KEY) ?? '[]')
+    const stored: unknown = JSON.parse(storage?.getItem(key) ?? '[]')
     if (!Array.isArray(stored)) return []
     return stored.filter(
-      (c): c is NotebookChoice =>
-        typeof c === 'object' &&
-        c !== null &&
-        typeof (c as NotebookChoice).id === 'string' &&
-        typeof (c as NotebookChoice).name === 'string' &&
-        Number.isInteger((c as NotebookChoice).depth),
+      (c): c is T => typeof c === 'object' && c !== null && valid(c as Record<string, unknown>),
     )
   } catch {
     return []
   }
 }
 
-export function subscribeNotebooks(notify: () => void): () => void {
+function subscribe(key: string, notify: () => void): () => void {
   const onStorage = (e: StorageEvent) => {
-    if (e.key === KEY || e.key === null) notify()
+    if (e.key === key || e.key === null) notify()
   }
   window.addEventListener('storage', onStorage)
   return () => window.removeEventListener('storage', onStorage)
+}
+
+export function publishNotebooks(choices: readonly NotebookChoice[], storage = local()): void {
+  publish(KEY, choices, storage)
+}
+
+export function readNotebooks(storage = local()): NotebookChoice[] {
+  return read<NotebookChoice>(
+    KEY,
+    (c) => typeof c.id === 'string' && typeof c.name === 'string' && Number.isInteger(c.depth),
+    storage,
+  )
+}
+
+export function subscribeNotebooks(notify: () => void): () => void {
+  return subscribe(KEY, notify)
+}
+
+export function publishTemplates(choices: readonly TemplateChoice[], storage = local()): void {
+  publish(TEMPLATES_KEY, choices, storage)
+}
+
+export function readTemplates(storage = local()): TemplateChoice[] {
+  return read<TemplateChoice>(
+    TEMPLATES_KEY,
+    (c) => typeof c.id === 'string' && typeof c.title === 'string',
+    storage,
+  )
+}
+
+export function subscribeTemplates(notify: () => void): () => void {
+  return subscribe(TEMPLATES_KEY, notify)
 }
 
 /**

@@ -1,5 +1,5 @@
 // Links other apps open: `devot://note/<id>` opens a note,
-// `devot://command/<id>` runs one of `URL_COMMANDS` and
+// `devot://command/<id>` runs one of `URL_COMMANDS`, `devot://today` opens today's note and
 // `devot://licence?key=<key>` offers a licence (`devot-dev://` in a debug
 // build). Rust checks every URL and sends the main window only what it
 // asks for, as a link (`src-tauri/src/deep_link.rs`); the window reads it
@@ -38,6 +38,7 @@ export type UrlCommand = (typeof URL_COMMANDS)[number]
 export type DeepLink =
   | { readonly kind: 'note'; readonly id: string }
   | { readonly kind: 'command'; readonly id: UrlCommand }
+  | { readonly kind: 'today' }
   /** Files from the `devot` command (src-tauri/src/cli.rs); no URL makes one. */
   | {
       readonly kind: 'import'
@@ -111,6 +112,7 @@ export function readDeepLink(value: unknown): DeepLink | undefined {
   const { kind, id } = value as { kind?: unknown; id?: unknown }
   if (kind === 'note' && typeof id === 'string' && UUID_V7.test(id)) return { kind, id }
   if (kind === 'command' && isUrlCommand(id)) return { kind, id }
+  if (kind === 'today' && id === undefined) return { kind }
   if (kind === 'licence') return readLicenceLink(value as Record<string, unknown>)
   if (kind === 'import') {
     const { scan, notebook, first } = value as Record<string, unknown>
@@ -126,7 +128,9 @@ const linkKey = (link: DeepLink) =>
     ? `import:${link.scan.id}`
     : link.kind === 'licence'
       ? `licence:${link.key ?? link.code ?? ''}`
-      : `${link.kind}:${link.id}`
+      : link.kind === 'today'
+        ? 'today'
+        : `${link.kind}:${link.id}`
 
 export type NoteTarget =
   | { readonly kind: 'listed' }
@@ -172,7 +176,8 @@ function dropLink(link: DeepLink): void {
  * Runs links in the order they came, one at a time: after running one it
  * waits until the window has rendered what that did (`settled`, called after
  * each render it commits, or `settleLater` for a link that changed nothing),
- * so the next sees the view and the sheets the last one left. Links wait
+ * so the next sees the view and the sheets the last one left; a link whose
+ * run returns a promise holds the queue until it settles. Links wait
  * while `blocked()` (a sheet is up); `watch` calls back now and then until
  * the function it returns is called, and runs only while links wait.
  */
@@ -180,12 +185,13 @@ export class LinkQueue {
   private readonly waiting: DeepLink[] = []
   private last: { readonly key: string; readonly at: number } | undefined
   private busy = false
+  private running = false
   private cancelSettle: (() => void) | undefined
   private unwatch: (() => void) | undefined
   private stopped = false
 
   constructor(
-    private readonly run: (link: DeepLink) => void,
+    private readonly run: (link: DeepLink) => void | Promise<unknown>,
     private readonly blocked: () => boolean,
     private readonly watch: (changed: () => void) => () => void,
     private readonly settleLater: (done: () => void) => () => void,
@@ -217,6 +223,7 @@ export class LinkQueue {
   }
 
   settled(): void {
+    if (this.running) return
     this.busy = false
     this.cancelSettle?.()
     this.cancelSettle = undefined
@@ -234,8 +241,18 @@ export class LinkQueue {
     }
     this.waiting.shift()
     this.busy = true
-    this.cancelSettle = this.settleLater(() => this.settled())
-    this.run(link)
+    const done = this.run(link)
+    if (!done) {
+      this.cancelSettle = this.settleLater(() => this.settled())
+      return
+    }
+    this.running = true
+    void done
+      .catch(() => undefined)
+      .then(() => {
+        this.running = false
+        if (!this.stopped) this.cancelSettle = this.settleLater(() => this.settled())
+      })
   }
 
   stop(): DeepLink[] {
@@ -275,7 +292,10 @@ const TAURI_EVENT = 'devot://open-url'
  * `deep_link_take`), then each one as it comes. The page listens for as long
  * as it is up, so a link that comes while `ready` is false waits for it.
  */
-export function useDeepLinks(ready: boolean, handle: (link: DeepLink) => void): void {
+export function useDeepLinks(
+  ready: boolean,
+  handle: (link: DeepLink) => void | Promise<unknown>,
+): void {
   const latest = useRef(handle)
   const queueRef = useRef<LinkQueue>(undefined)
   // Links that came while the window was not ready, oldest first.

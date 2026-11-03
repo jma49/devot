@@ -97,6 +97,16 @@ pub enum PasteUrl {
     Choose,
 }
 
+/// The title of today's note (`src/core/dailyNotes.ts`): `2026-11-02`, `02 Nov 2026` or
+/// `Monday 2 November 2026`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DailyTitleFormat {
+    Iso,
+    DayMonthYear,
+    WeekdayDayMonthYear,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ListDates {
@@ -200,6 +210,10 @@ pub struct EditorSettings {
     /// In CSS pixels.
     pub preview_font_size: u64,
     pub default_notebook: Option<String>,
+    pub daily_notebook: Option<String>,
+    /// A note ID in Templates.
+    pub daily_template: Option<String>,
+    pub daily_title_format: DailyTitleFormat,
     pub list_dates: ListDates,
     /// Boards show a Dropped column; off, dropped notes are left off them.
     pub board_dropped: bool,
@@ -271,6 +285,9 @@ impl Default for EditorSettings {
             highlight_trailing_whitespace: false,
             preview_font_size: 15,
             default_notebook: None,
+            daily_notebook: None,
+            daily_template: None,
+            daily_title_format: DailyTitleFormat::Iso,
             list_dates: ListDates::Relative,
             board_dropped: true,
             activity_strip: true,
@@ -410,6 +427,9 @@ impl EditorSettings {
                 self.preview_font_size = whole(value, FONT_SIZE_MIN, FONT_SIZE_MAX)?
             }
             "defaultNotebook" => self.default_notebook = notebook_id(value)?,
+            "dailyNotebook" => self.daily_notebook = notebook_id(value)?,
+            "dailyTemplate" => self.daily_template = notebook_id(value)?,
+            "dailyTitleFormat" => self.daily_title_format = choice(value)?,
             "listDates" => self.list_dates = choice(value)?,
             "boardDropped" => self.board_dropped = flag(value)?,
             "activityStrip" => self.activity_strip = flag(value)?,
@@ -832,6 +852,14 @@ mod tests {
                 "pageRules": false,
             })
         );
+        let daily: Map<String, Value> = ["dailyNotebook", "dailyTemplate", "dailyTitleFormat"]
+            .into_iter()
+            .filter_map(|k| map.remove(k).map(|v| (k.to_string(), v)))
+            .collect();
+        assert_eq!(
+            Value::Object(daily),
+            json!({ "dailyNotebook": null, "dailyTemplate": null, "dailyTitleFormat": "iso" })
+        );
         let history: Map<String, Value> = ["activityStrip", "historyBar", "authorship", "outline"]
             .into_iter()
             .filter_map(|k| map.remove(k).map(|v| (k.to_string(), v)))
@@ -986,6 +1014,9 @@ mod tests {
                 "highlightTrailingWhitespace": true,
                 "previewFontSize": 32,
                 "defaultNotebook": "0b0c-1d_2",
+                "dailyNotebook": "0b0c-1d_3",
+                "dailyTemplate": "starter-daily",
+                "dailyTitleFormat": "weekdayDayMonthYear",
                 "listDates": "absolute",
                 "boardDropped": false,
                 "autoDownloadUpdates": false,
@@ -1025,6 +1056,12 @@ mod tests {
         assert!(next.show_invisibles && next.highlight_trailing_whitespace);
         assert_eq!(next.preview_font_size, 32);
         assert_eq!(next.default_notebook.as_deref(), Some("0b0c-1d_2"));
+        assert_eq!(next.daily_notebook.as_deref(), Some("0b0c-1d_3"));
+        assert_eq!(next.daily_template.as_deref(), Some("starter-daily"));
+        assert_eq!(
+            next.daily_title_format,
+            DailyTitleFormat::WeekdayDayMonthYear
+        );
         assert_eq!(next.list_dates, ListDates::Absolute);
         assert!(!next.board_dropped);
         let plus = EditorSettings::default()
@@ -1198,6 +1235,9 @@ mod tests {
             json!({ "defaultNotebook": "a b" }),
             json!({ "defaultNotebook": 5 }),
             json!({ "defaultNotebook": "x".repeat(65) }),
+            json!({ "dailyNotebook": "a b" }),
+            json!({ "dailyTemplate": 5 }),
+            json!({ "dailyTitleFormat": "YYYY-MM-DD" }),
             json!({ "listMarker": "- " }),
             json!({ "listDates": "Absolute" }),
             json!({ "listDates": "never" }),
@@ -1479,6 +1519,18 @@ mod tests {
             EditorSettings::from_stored(&json!({ "animations": "sometimes" })).animations,
             Animations::Always
         );
+    }
+
+    #[test]
+    fn reads_each_daily_note_setting_apart_and_a_bad_one_as_unset() {
+        let read = EditorSettings::from_stored(&json!({
+            "dailyNotebook": "book-1",
+            "dailyTemplate": "not an id",
+            "dailyTitleFormat": "weekly",
+        }));
+        assert_eq!(read.daily_notebook.as_deref(), Some("book-1"));
+        assert_eq!(read.daily_template, None);
+        assert_eq!(read.daily_title_format, DailyTitleFormat::Iso);
     }
 
     #[test]

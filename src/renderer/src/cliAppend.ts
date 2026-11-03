@@ -16,6 +16,7 @@ export const CLI_APPEND_EVENT = 'devot://cli-append'
 export type CliAppendTarget =
   | { readonly kind: 'id'; readonly id: string }
   | { readonly kind: 'title'; readonly title: string }
+  | { readonly kind: 'today' }
 
 export interface CliAppendRequest {
   id: number
@@ -33,6 +34,7 @@ function readTarget(value: unknown): CliAppendTarget | null {
   const { kind, id, title } = value as Record<string, unknown>
   if (kind === 'id' && typeof id === 'string' && UUID_V7.test(id)) return { kind, id }
   if (kind === 'title' && typeof title === 'string' && title.trim() !== '') return { kind, title }
+  if (kind === 'today') return { kind }
   return null
 }
 
@@ -47,12 +49,14 @@ export function readCliAppendRequest(payload: unknown): CliAppendRequest | null 
   return { id: id as number, target: read, heading, position, text }
 }
 
-/** The note a request names: by ID as given, by title among the live notes (findNoteByTitle). */
+/** The note a request names: by ID as given, by title among the live notes (findNoteByTitle), or today's note, made first when missing. */
 export async function resolveAppendTarget(
   target: CliAppendTarget,
   list: () => Promise<readonly TitledNote[]>,
+  today: () => Promise<string>,
 ): Promise<string> {
   if (target.kind === 'id') return target.id
+  if (target.kind === 'today') return today()
   return findNoteByTitle(await list(), target.title)
 }
 

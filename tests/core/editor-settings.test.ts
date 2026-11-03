@@ -72,6 +72,9 @@ describe('editor settings', () => {
       highlightTrailingWhitespace: false,
       previewFontSize: 15,
       defaultNotebook: null,
+      dailyNotebook: null,
+      dailyTemplate: null,
+      dailyTitleFormat: 'iso',
       listDates: 'relative',
       boardDropped: true,
       activityStrip: true,
@@ -210,6 +213,16 @@ describe('editor settings', () => {
     })
     expect(parseEditorSettings({ listMarker: '+' }).listMarker).toBe('+')
     expect(parseEditorSettings({ defaultNotebook: 'a b' }).defaultNotebook).toBeNull()
+    expect(
+      parseEditorSettings({
+        dailyNotebook: 'b-1',
+        dailyTemplate: 'a b',
+        dailyTitleFormat: 'weekly',
+      }),
+    ).toEqual({ ...DEFAULT_EDITOR_SETTINGS, dailyNotebook: 'b-1' })
+    expect(parseEditorSettings({ dailyTitleFormat: 'dayMonthYear' }).dailyTitleFormat).toBe(
+      'dayMonthYear',
+    )
     expect(parseEditorSettings({ sidebarMaterial: 'off' }).sidebarMaterial).toBe(true)
     // Settings from before the transparency setting read it as the design.
     expect(parseEditorSettings({ sidebarMaterial: true }).windowTransparency).toBe(0)
@@ -285,6 +298,9 @@ describe('editor settings', () => {
       { previewFontSize: 9 },
       { defaultNotebook: '' },
       { defaultNotebook: 5 },
+      { dailyNotebook: '' },
+      { dailyTemplate: 5 },
+      { dailyTitleFormat: 'YYYY-MM-DD' },
       { listDates: 'never' },
       { animations: 'never' },
       { animations: true },

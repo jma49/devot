@@ -3,10 +3,16 @@ import { errorCode } from '../backups'
 import { crashReports, type CrashReports } from '../crashReports'
 import { shortcutLabel } from '../commands/keys'
 import { QUICK_CAPTURE_KEY } from '../commands/registry'
+import { DAILY_TITLE_FORMATS, dailyTitle, type DailyTitleFormat } from '../../../core/dailyNotes'
 import type { ListDatesStyle } from '../../../core/editorSettings'
 import { useEditorSetting } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
-import { readNotebooks, subscribeNotebooks } from '../notebookChoices'
+import {
+  readNotebooks,
+  readTemplates,
+  subscribeNotebooks,
+  subscribeTemplates,
+} from '../notebookChoices'
 import { checkForUpdates, startUpdateStatus, updateStatusText, useUpdateStatus } from '../updates'
 import { cliToolFailure } from './cliTool'
 import { useOnPhone } from './onPhone'
@@ -29,6 +35,7 @@ const indented = (name: string, depth: number) => `${'  '.repeat(depth)}${name
  * changes (a new array each read would re-render forever).
  */
 const notebooksJson = () => JSON.stringify(readNotebooks())
+const templatesJson = () => JSON.stringify(readTemplates())
 
 const CLI_TOOL_PATH = '/usr/local/bin/devot'
 
@@ -84,6 +91,9 @@ export function GeneralSection() {
   }
   const stored = useEditorSetting('defaultNotebook')
   const listDates = useEditorSetting('listDates')
+  const dailyNotebook = useEditorSetting('dailyNotebook')
+  const dailyTemplate = useEditorSetting('dailyTemplate')
+  const dailyTitleFormat = useEditorSetting('dailyTitleFormat')
   const boardDropped = useEditorSetting('boardDropped')
   const activityStrip = useEditorSetting('activityStrip')
   const autoDownload = useEditorSetting('autoDownloadUpdates')
@@ -94,6 +104,9 @@ export function GeneralSection() {
   const notebooks = JSON.parse(
     useSyncExternalStore(subscribeNotebooks, notebooksJson),
   ) as ReturnType<typeof readNotebooks>
+  const templates = JSON.parse(
+    useSyncExternalStore(subscribeTemplates, templatesJson),
+  ) as ReturnType<typeof readTemplates>
   const run = (
     action: () => Promise<void>,
     message: MessageKey | ((code: string) => MessageKey),
@@ -110,6 +123,9 @@ export function GeneralSection() {
   // A notebook deleted since it was chosen shows as None; the setting itself
   // is left alone (the window ignores a notebook that is gone).
   const shown = notebooks.some((n) => n.id === stored) ? stored : ''
+  const dailyBookShown = notebooks.some((n) => n.id === dailyNotebook) ? dailyNotebook : ''
+  const dailyTemplateShown = templates.some((n) => n.id === dailyTemplate) ? dailyTemplate : ''
+  const [today] = useState(() => Date.now())
 
   return (
     <section className="settings-section" aria-labelledby="general-title">
@@ -177,6 +193,69 @@ export function GeneralSection() {
               checked={activityStrip}
               onChange={(on) => change({ activityStrip: on })}
             />
+          </SettingsSection>
+          <SettingsSection title="generalSettings.dailyNotes">
+            <Setting
+              label="generalSettings.dailyNotebook"
+              description={t('generalSettings.dailyNotebookHint')}
+              htmlFor={`${ids}-daily-notebook`}
+              descriptionId={`${ids}-daily-notebook-hint`}
+            >
+              <Select
+                id={`${ids}-daily-notebook`}
+                value={dailyBookShown ?? ''}
+                aria-describedby={`${ids}-daily-notebook-hint`}
+                onChange={(e) => change({ dailyNotebook: e.currentTarget.value || null })}
+              >
+                <option value="">{t('generalSettings.noNotebook')}</option>
+                {notebooks.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {indented(n.name, n.depth)}
+                  </option>
+                ))}
+              </Select>
+            </Setting>
+            <Setting
+              label="generalSettings.dailyTemplate"
+              description={t('generalSettings.dailyTemplateHint')}
+              htmlFor={`${ids}-daily-template`}
+              descriptionId={`${ids}-daily-template-hint`}
+            >
+              <Select
+                id={`${ids}-daily-template`}
+                value={dailyTemplateShown ?? ''}
+                aria-describedby={`${ids}-daily-template-hint`}
+                onChange={(e) => change({ dailyTemplate: e.currentTarget.value || null })}
+              >
+                <option value="">{t('generalSettings.noTemplate')}</option>
+                {templates.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.title || t('note.untitled')}
+                  </option>
+                ))}
+              </Select>
+            </Setting>
+            <Setting
+              label="generalSettings.dailyTitleFormat"
+              description={t('generalSettings.dailyTitleFormatHint')}
+              htmlFor={`${ids}-daily-title`}
+              descriptionId={`${ids}-daily-title-hint`}
+            >
+              <Select
+                id={`${ids}-daily-title`}
+                value={dailyTitleFormat}
+                aria-describedby={`${ids}-daily-title-hint`}
+                onChange={(e) =>
+                  change({ dailyTitleFormat: e.currentTarget.value as DailyTitleFormat })
+                }
+              >
+                {DAILY_TITLE_FORMATS.map((f) => (
+                  <option key={f} value={f}>
+                    {dailyTitle(f, today)}
+                  </option>
+                ))}
+              </Select>
+            </Setting>
           </SettingsSection>
         </>
       )}

@@ -11,6 +11,7 @@ interface SettingsEntry {
 
 const ENTRIES: readonly SettingsEntry[] = [
   { pane: 'general', label: 'generalSettings.defaultNotebook' },
+  { pane: 'general', label: 'generalSettings.dailyNotes' },
   { pane: 'general', label: 'generalSettings.listDates' },
   { pane: 'general', label: 'generalSettings.boardDropped' },
   { pane: 'general', label: 'generalSettings.activityStrip' },

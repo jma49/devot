@@ -4,7 +4,9 @@ import {
   choicesFromTree,
   notebookForNewNote,
   publishNotebooks,
+  publishTemplates,
   readNotebooks,
+  readTemplates,
 } from './notebookChoices'
 
 function memory() {
@@ -47,6 +49,15 @@ describe('notebook choices', () => {
     storage.setItem('devot.notebookChoices', '{ not json')
     expect(readNotebooks(storage)).toEqual([])
     expect(() => publishNotebooks([], undefined)).not.toThrow()
+  })
+
+  it('keeps the templates apart from the notebooks, by ID and title', () => {
+    const storage = memory()
+    publishTemplates([{ id: 't', title: 'Daily' }], storage)
+    expect(readTemplates(storage)).toEqual([{ id: 't', title: 'Daily' }])
+    expect(readNotebooks(storage)).toEqual([])
+    storage.setItem('devot.templateChoices', '[{"id":"u"}, {"id":"v","title":"Week"}]')
+    expect(readTemplates(storage)).toEqual([{ id: 'v', title: 'Week' }])
   })
 })
 
