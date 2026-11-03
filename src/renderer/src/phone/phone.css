@@ -1212,7 +1212,7 @@ button.phone-grouped-open:active:not(:disabled) {
     var(--phone-safe-top) + var(--size-phone-topbar-top) + var(--size-phone-nav-control) + 8px
   );
   right: var(--size-phone-screen-edge);
-  scale: 1;
+  transform: none;
   transition-delay: 0s;
   animation: phone-menu-in var(--motion-duration-popover) var(--motion-easing-move);
 }
@@ -1246,16 +1246,10 @@ button.phone-grouped-open:active:not(:disabled) {
   z-index: 30;
 }
 
+/* The blur never animates: a layer with a fixed blur and dim fades in, so only opacity changes per frame. */
 .phone-peek-dim {
   position: absolute;
   inset: 0;
-  background: transparent;
-  transition:
-    background var(--motion-duration-ring) var(--motion-easing-out),
-    backdrop-filter var(--motion-duration-ring) var(--motion-easing-out);
-}
-
-.phone-peek-layer[data-shown] .phone-peek-dim {
   background: color-mix(
     in srgb,
     var(--color-phone-scrim) calc(var(--opacity-phone-dim-peek) * 100%),
@@ -1263,6 +1257,12 @@ button.phone-grouped-open:active:not(:disabled) {
   );
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  opacity: 0;
+  transition: opacity var(--motion-duration-ring) var(--motion-easing-out);
+}
+
+.phone-peek-layer[data-shown] .phone-peek-dim {
+  opacity: 1;
 }
 
 .phone-peek {
@@ -1280,19 +1280,28 @@ button.phone-grouped-open:active:not(:disabled) {
   pointer-events: auto;
   opacity: 0;
   transition:
-    scale var(--phone-spring-bouncy-duration) var(--phone-spring-bouncy),
+    transform var(--phone-spring-bouncy-duration) var(--phone-spring-bouncy),
     opacity var(--motion-duration-popover) var(--motion-easing-out);
+}
+
+.phone-peek-layer:not([data-settled]) .phone-peek > * {
+  will-change: transform, opacity;
 }
 
 .phone-peek-layer[data-shown] .phone-peek > * {
   opacity: 1;
-  scale: 1;
-  translate: none;
+  transform: none;
+}
+
+/* Over the peek's own blur a second one adds nothing, and a moving one is drawn again every frame. */
+.phone-peek > .phone-glass {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .phone-peek-status {
   align-self: flex-start;
-  scale: var(--phone-peek-bar-scale);
+  transform: scale(var(--phone-peek-bar-scale));
   border-radius: var(--radius-phone-peek);
   padding: 4px 6px;
   display: flex;
@@ -1311,8 +1320,7 @@ button.phone-grouped-open:active:not(:disabled) {
 }
 
 .phone-peek-card {
-  scale: var(--phone-peek-enter-scale);
-  translate: 0 30px;
+  transform: translateY(30px) scale(var(--phone-peek-enter-scale));
   background: var(--color-phone-elevated);
   border-radius: var(--radius-phone-peek);
   padding: 20px;
@@ -1322,8 +1330,7 @@ button.phone-grouped-open:active:not(:disabled) {
   gap: 10px;
   transform-origin: 50% 0;
   transition:
-    scale var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
-    translate var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
+    transform var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
     opacity var(--motion-duration-popover) var(--motion-easing-out);
 }
 
@@ -1348,7 +1355,7 @@ button.phone-grouped-open:active:not(:disabled) {
 
 .phone-peek-menu {
   align-self: flex-end;
-  scale: var(--phone-peek-menu-scale);
+  transform: scale(var(--phone-peek-menu-scale));
   width: 250px;
   border-radius: var(--radius-phone-peek);
   padding: 6px;
@@ -1726,19 +1733,16 @@ button.phone-grouped-open:active:not(:disabled) {
   grid-area: 1 / 1;
   min-width: 0;
   opacity: 0;
-  filter: blur(6px);
-  translate: 0 8px;
+  transform: translateY(8px);
   pointer-events: none;
   transition:
     opacity var(--motion-duration-ring) var(--motion-easing-out),
-    filter var(--motion-duration-ring) var(--motion-easing-out),
-    translate var(--phone-spring-gentle-duration) var(--phone-spring-gentle);
+    transform var(--phone-spring-gentle-duration) var(--phone-spring-gentle);
 }
 
 .phone-note-layer[data-shown] {
   opacity: 1;
-  filter: none;
-  translate: none;
+  transform: none;
   pointer-events: auto;
 }
 
@@ -3207,7 +3211,7 @@ button.phone-grouped-open:active:not(:disabled) {
   }
 
   .phone-peek > * {
-    translate: none;
+    transform: none;
     transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
     transition-delay: 0s;
   }
@@ -3248,8 +3252,7 @@ button.phone-grouped-open:active:not(:disabled) {
   }
 
   .phone-note-layer {
-    filter: none;
-    translate: none;
+    transform: none;
     transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
   }
 

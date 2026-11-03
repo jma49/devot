@@ -212,10 +212,62 @@ test.describe('under Reduce Motion', () => {
     const card = page.locator('.phone-peek-card')
     await expect(card).toBeVisible()
     const seen = await card.evaluate((el) => ({
-      translate: getComputedStyle(el).translate,
+      transform: getComputedStyle(el).transform,
       property: getComputedStyle(el).transitionProperty,
     }))
-    expect(seen).toEqual({ translate: 'none', property: 'opacity' })
+    expect(seen).toEqual({ transform: 'none', property: 'opacity' })
+  })
+})
+
+test.describe('the peek with motion', () => {
+  test.use({ reducedMotion: 'no-preference' })
+
+  test('animates only transforms and opacity, with a fixed blur that fades in', async ({
+    page,
+  }) => {
+    await openNotes(page)
+    const actions = recent(page)
+      .first()
+      .getByRole('button', { name: /^Actions for / })
+    // Sampled in the page, in the frames right after it opens, while the transitions run.
+    const running = await actions.evaluate(async (button) => {
+      ;(button as HTMLElement).click()
+      const frame = () => new Promise((done) => requestAnimationFrame(done))
+      let layer: Element | null = null
+      while (!layer) {
+        await frame()
+        layer = document.querySelector('.phone-peek-layer[data-shown]')
+      }
+      await frame()
+      const parts = [...layer.querySelectorAll<HTMLElement>('.phone-peek-dim, .phone-peek > *')]
+      return {
+        properties: [
+          ...new Set(
+            document
+              .getAnimations()
+              .filter((a) => layer.contains((a.effect as KeyframeEffect | null)?.target ?? null))
+              .map((a) => (a instanceof CSSTransition ? a.transitionProperty : a.constructor.name)),
+          ),
+        ],
+        declared: parts.flatMap((part) => getComputedStyle(part).transitionProperty.split(', ')),
+        promoted: getComputedStyle(layer.querySelector('.phone-peek-card')!).willChange,
+        blur: getComputedStyle(layer.querySelector('.phone-peek-dim')!).backdropFilter,
+        glass: [...layer.querySelectorAll<HTMLElement>('.phone-peek > .phone-glass')].map(
+          (bar) => getComputedStyle(bar).backdropFilter,
+        ),
+      }
+    })
+    expect(running.properties.length).toBeGreaterThan(0)
+    for (const property of [...running.properties, ...running.declared])
+      expect(['transform', 'opacity']).toContain(property)
+    expect(running.promoted).toBe('transform, opacity')
+    expect(running.blur).toBe('blur(16px)')
+    expect(running.glass).toEqual(['none', 'none'])
+    const layer = page.locator('.phone-peek-layer')
+    await expect(layer).toHaveAttribute('data-settled', 'true')
+    expect(
+      await layer.locator('.phone-peek-card').evaluate((el) => getComputedStyle(el).willChange),
+    ).toBe('auto')
   })
 })
 

@@ -347,11 +347,25 @@ function Peek(props: {
   onAction: (key: RowAction) => void
 }) {
   const [shown, setShown] = useState(false)
+  const [settled, setSettled] = useState(false)
   const [moving, setMoving] = useState(false)
+  const layer = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const frame = requestAnimationFrame(() => setShown(true))
     return () => cancelAnimationFrame(frame)
   }, [])
+  useEffect(() => {
+    const el = layer.current
+    if (!shown || !el) return
+    let alive = true
+    // A cancelled transition rejects `finished`; either way the layers can be released.
+    void Promise.allSettled(el.getAnimations({ subtree: true }).map((a) => a.finished)).then(() => {
+      if (alive) setSettled(true)
+    })
+    return () => {
+      alive = false
+    }
+  }, [shown])
   const book = props.data.books.find((b) => b.id === props.note.bookId)
   if (moving)
     return (
@@ -366,7 +380,12 @@ function Peek(props: {
       />
     )
   return (
-    <div className="phone-peek-layer" data-shown={shown || undefined}>
+    <div
+      ref={layer}
+      className="phone-peek-layer"
+      data-shown={shown || undefined}
+      data-settled={settled || undefined}
+    >
       <div className="phone-peek-dim" onClick={props.onClose} aria-hidden="true" />
       <div className="phone-peek" role="dialog" aria-modal="true" aria-label={props.title}>
         <div
