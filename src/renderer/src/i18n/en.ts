@@ -1314,6 +1314,7 @@ title: Daily Report {{date}}
   'usage.byDay': 'By day',
   'usage.byHour': 'By weekday and hour',
   'usage.average': 'Average {count} a day',
+  'usage.dailyAverage': 'Daily average',
   'usage.localTime': 'Local time',
   'usage.dayEvents': '{date}: {events}',
   'usage.hourEvents': '{day}, {hour}: {events}',

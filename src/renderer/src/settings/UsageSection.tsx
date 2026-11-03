@@ -9,7 +9,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { clearUsage, listUsage } from '../usage'
-import { Select, Setting, SettingsSection } from './controls'
+import { Select, SettingsSection } from './controls'
 import { useOnPhone } from './onPhone'
 import { PhoneSegmented } from '../phone/PhoneControls'
 import { usageActivity, usageDayInstant, type UsagePeriod } from '../../../core/usageActivity'
@@ -364,6 +364,7 @@ function GlassUsageSection() {
   ))
 
   if (onPhone) {
+    const average = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(data.average)
     return (
       <section
         className="settings-section usage-dashboard"
@@ -378,11 +379,17 @@ function GlassUsageSection() {
           readError ? null : (
             <p role="status">{t('usage.loading')}</p>
           )
+        ) : count === 0 ? (
+          <div className="phone-settings-empty phone-usage-empty">
+            <p>{t('usage.empty')}</p>
+            <p>{t('usage.privacy')}</p>
+          </div>
         ) : (
           <>
-            <SettingsSection title="usage.overview" titleHidden footnote={t('usage.privacy')}>
+            <div className="phone-usage-controls">
               <PhoneSegmented
                 label={t('usage.range')}
+                labelHidden
                 value={String(period)}
                 options={([7, 30, 90] as const).map((days) => ({
                   value: String(days),
@@ -390,49 +397,56 @@ function GlassUsageSection() {
                 }))}
                 onChange={(days) => setPeriod(Number(days) as UsagePeriod)}
               />
-              <Setting label="usage.filter" description="" htmlFor="usage-filter">
+              <div className="phone-usage-filters">
+                <span className="phone-usage-range">{dateRange}</span>
                 <Select
                   id="usage-filter"
+                  aria-label={t('usage.filter')}
                   value={eventType}
                   onChange={(e) => setEventType(e.target.value)}
                 >
                   {typeOptions}
                 </Select>
-              </Setting>
-            </SettingsSection>
-            <div>
-              {stats}
-              <p className="phone-footnote phone-figures">{dateRange}</p>
+              </div>
             </div>
             {data.total === 0 ? (
-              <div className="settings-card phone-usage-empty">
+              <div className="phone-usage-empty">
                 <p>{t('usage.noPeriod')}</p>
                 <p>{t('usage.sparse')}</p>
               </div>
             ) : (
               <>
-                <SettingsSection title="usage.activity" footnote={t('usage.heatDetail')}>
-                  <div className="phone-usage-chart">
-                    <div className="usage-chart-heading">
-                      <h4>{t('usage.byDay')}</h4>
-                      <span className="phone-figures">
-                        {format(t('usage.average'), {
-                          count: new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(
-                            data.average,
-                          ),
-                        })}
-                      </span>
+                <SettingsSection title="usage.overview" titleHidden>
+                  <div className="phone-usage-hero">
+                    <span>{t('usage.total')}</span>
+                    <strong>{number(data.total)}</strong>
+                  </div>
+                  {dailyChart}
+                  <div className="phone-usage-axis" aria-hidden="true">
+                    {axisDays.map((i) => (
+                      <span key={i}>{dayAxis(i)}</span>
+                    ))}
+                  </div>
+                  <dl className="phone-usage-grid">
+                    <div>
+                      <dt>{t('usage.active')}</dt>
+                      <dd>
+                        {number(data.activeDays)}{' '}
+                        {format(t('usage.ofDays'), { days: number(period) })}
+                      </dd>
                     </div>
-                    {dailyChart}
-                    <div className="phone-usage-axis phone-figures" aria-hidden="true">
-                      {axisDays.map((i) => (
-                        <span key={i}>{dayAxis(i)}</span>
-                      ))}
+                    <div>
+                      <dt>{t('usage.notes')}</dt>
+                      <dd>{number(data.notes)}</dd>
                     </div>
-                    <div className="usage-chart-heading">
-                      <h4>{t('usage.byHour')}</h4>
-                      <span>{t('usage.localTime')}</span>
+                    <div>
+                      <dt>{t('usage.dailyAverage')}</dt>
+                      <dd>{average}</dd>
                     </div>
+                  </dl>
+                </SettingsSection>
+                <SettingsSection title="usage.byHour">
+                  <div className="phone-usage-heat">
                     {heatmap}
                     <p className="phone-usage-peak">{peak}</p>
                     <span className="usage-legend">
@@ -444,7 +458,7 @@ function GlassUsageSection() {
                     </span>
                   </div>
                 </SettingsSection>
-                <SettingsSection title="usage.byType" footnote={t('usage.share')}>
+                <SettingsSection title="usage.byType">
                   <ul className="phone-usage-types" aria-label={t('usage.byType')}>
                     {breakdown.map((row) => {
                       const share = row.count / data.total
@@ -455,49 +469,40 @@ function GlassUsageSection() {
                           <span className="usage-type-track" aria-hidden="true">
                             <i style={{ width: `${share * 100}%` }} />
                           </span>
-                          <span className="phone-figures phone-usage-count">
-                            {number(row.count)}
-                          </span>
-                          <span className="phone-figures phone-usage-share">{percent(share)}</span>
+                          <span className="phone-usage-count">{number(row.count)}</span>
+                          <span className="phone-usage-share">{percent(share)}</span>
                         </li>
                       )
                     })}
                   </ul>
                 </SettingsSection>
-                {data.total < 2 ? <p className="phone-footnote">{t('usage.sparse')}</p> : null}
               </>
             )}
+            <SettingsSection title="usage.storage" footnote={t('usage.privacy')}>
+              <div className="setting">
+                <span className="setting-label">{t('usage.total')}</span>
+                <span className="phone-usage-capacity">
+                  {format(t('usage.capacity'), { count: number(count), limit: number(10000) })}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="phone-action-row"
+                aria-expanded={shown}
+                onClick={() => setShown((s) => !s)}
+              >
+                {shown ? t('usage.hide') : t('usage.show')}
+              </button>
+              <button
+                type="button"
+                className="phone-action-row phone-action-destructive"
+                onClick={() => setConfirming(true)}
+              >
+                {t('usage.clear')}
+              </button>
+            </SettingsSection>
           </>
         )}
-        <SettingsSection title="usage.storage" footnote={t('usage.limits')}>
-          <div className="setting">
-            <span className="setting-label">{t('usage.total')}</span>
-            <span className="phone-figures phone-usage-capacity">
-              {format(t('usage.capacity'), { count: number(count), limit: number(10000) })}
-            </span>
-          </div>
-          <button
-            type="button"
-            className="phone-action-row"
-            aria-expanded={shown && count > 0}
-            aria-disabled={count === 0}
-            onClick={() => {
-              if (count > 0) setShown((s) => !s)
-            }}
-          >
-            {shown && count > 0 ? t('usage.hide') : t('usage.show')}
-          </button>
-          <button
-            type="button"
-            className="phone-action-row phone-action-destructive"
-            aria-disabled={count === 0}
-            onClick={() => {
-              if (count > 0) setConfirming(true)
-            }}
-          >
-            {t('usage.clear')}
-          </button>
-        </SettingsSection>
         {eventList}
         {confirmDialog}
       </section>

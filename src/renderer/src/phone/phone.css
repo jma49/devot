@@ -2856,98 +2856,82 @@ button.phone-grouped-open:active:not(:disabled) {
   color: var(--color-phone-text);
 }
 
-/* Usage */
+/* Usage: the system font with tabular figures, so numbers line up without a mono face. */
 
 .phone-settings-pane .usage-dashboard {
-  font-variant-numeric: normal;
-}
-
-.phone-settings-pane .usage-stats {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
-  margin: 0;
-  padding: var(--size-phone-card-inset) var(--size-phone-row-pad);
-  border-radius: var(--radius-phone-card);
-  background: var(--color-phone-card);
-}
-
-.phone-settings-pane .usage-stat {
-  min-height: var(--size-phone-grouped-row);
-  padding: 0;
-  border-radius: 0;
-  background: none;
-  flex-flow: row wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0 var(--size-phone-row-pad);
-}
-
-.phone-settings-pane .usage-stat > span {
-  font-size: inherit;
-  color: var(--color-phone-text);
-}
-
-.phone-settings-pane .usage-stat > strong {
-  margin: 0;
-  font-family: var(--font-family-mono);
-  font-size: calc(17px * var(--phone-text-scale, 1));
   font-variant-numeric: tabular-nums;
+}
+
+.phone-usage-controls {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
 }
 
-.phone-settings-pane .usage-stat strong small {
-  font-size: calc(14px * var(--phone-text-scale, 1));
+.phone-usage-controls .phone-control {
+  padding: 0;
+}
+
+.phone-usage-filters {
+  min-height: var(--size-phone-target);
+  padding-left: var(--size-phone-group-title);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: var(--size-phone-row-pad);
+  font-size: calc(15px * var(--phone-text-scale, 1));
+}
+
+.phone-usage-range {
+  flex: none;
   color: var(--color-phone-text-secondary);
 }
 
-.phone-settings-pane .usage-stat > :is(small, .usage-spark, .usage-days) {
-  display: none;
+.phone-settings-pane .phone-usage-filters .select {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--color-accent-text);
 }
 
-.phone-settings-pane .usage-section-heading {
-  margin: 0;
-}
-
-.phone-settings-pane .phone-usage-empty {
+.phone-usage-empty {
+  padding: var(--size-phone-group-gap) var(--size-phone-screen-edge);
   text-align: center;
 }
 
-.phone-app .phone-settings-pane.settings-window .phone-usage-empty {
-  padding: var(--size-phone-group-gap) var(--size-phone-row-pad);
-}
-
-.phone-settings-pane .phone-usage-empty p {
+.phone-usage-empty p {
   margin: 0;
-  font-size: calc(14px * var(--phone-text-scale, 1));
+  font-size: calc(15px * var(--phone-text-scale, 1));
   color: var(--color-phone-text-secondary);
 }
 
-.phone-settings-pane .phone-usage-empty p:first-child {
+.phone-usage-empty p:first-child {
   margin-bottom: var(--space-2);
   font-size: inherit;
+  font-weight: 600;
   color: var(--color-phone-text);
 }
 
-.phone-usage-chart {
-  padding: var(--size-phone-row-pad) 0;
+.phone-usage-hero {
+  padding-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
 }
 
-.phone-settings-pane .usage-chart-heading {
-  margin-bottom: var(--space-4);
-}
-
-.phone-settings-pane .usage-chart-heading h4 {
-  font-size: calc(14px * var(--phone-text-scale, 1));
-  font-weight: 500;
-}
-
-.phone-settings-pane .usage-chart-heading > span {
-  font-size: calc(12px * var(--phone-text-scale, 1));
+.phone-usage-hero > span {
+  font-size: calc(15px * var(--phone-text-scale, 1));
   color: var(--color-phone-text-secondary);
+}
+
+.phone-usage-hero > strong {
+  font-size: calc(34px * var(--phone-text-scale, 1));
+  line-height: 1.15;
+  font-weight: 700;
 }
 
 .phone-settings-pane .usage-daily {
   height: var(--size-phone-usage-chart);
+  margin-top: var(--size-phone-row-pad);
 }
 
 .phone-settings-pane .usage-daily text {
@@ -2955,11 +2939,34 @@ button.phone-grouped-open:active:not(:disabled) {
 }
 
 .phone-usage-axis {
-  margin-bottom: var(--size-phone-row-pad);
+  margin-top: var(--space-2);
   display: flex;
   justify-content: space-between;
   font-size: calc(12px * var(--phone-text-scale, 1));
   color: var(--color-phone-text-secondary);
+}
+
+.phone-usage-grid {
+  margin: var(--size-phone-row-pad) 0 0;
+  padding: var(--size-phone-row-pad) 0 var(--space-2);
+  border-top: var(--size-phone-separator) solid var(--color-phone-separator);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--size-phone-row-pad);
+}
+
+.phone-usage-grid dt {
+  font-size: calc(13px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-usage-grid dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.phone-usage-heat {
+  padding: var(--size-phone-row-pad) 0 var(--space-2);
 }
 
 .phone-settings-pane .usage-weekday,
@@ -2969,9 +2976,8 @@ button.phone-grouped-open:active:not(:disabled) {
 }
 
 .phone-settings-pane .phone-usage-peak {
-  margin: var(--space-4) 0;
-  font-size: calc(14px * var(--phone-text-scale, 1));
-  color: var(--color-phone-text-secondary);
+  margin: var(--size-phone-row-pad) 0 var(--space-2);
+  font-size: calc(15px * var(--phone-text-scale, 1));
 }
 
 .phone-settings-pane .usage-legend {
@@ -3010,18 +3016,19 @@ button.phone-grouped-open:active:not(:disabled) {
   min-width: 0;
 }
 
-.phone-usage-count {
+.phone-usage-count,
+.phone-usage-share {
   flex: none;
-  min-width: 5ch;
   text-align: end;
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-usage-count {
+  min-width: 3ch;
 }
 
 .phone-usage-share {
-  flex: none;
   min-width: 4ch;
-  font-size: calc(14px * var(--phone-text-scale, 1));
-  text-align: end;
-  color: var(--color-phone-text-secondary);
 }
 
 .phone-usage-capacity {
@@ -3034,15 +3041,11 @@ button.phone-grouped-open:active:not(:disabled) {
   min-height: var(--size-phone-grouped-row);
   display: flex;
   align-items: center;
-  color: var(--color-phone-text);
+  color: var(--color-accent-text);
 }
 
 .phone-action-destructive {
-  color: var(--color-text-destructive);
-}
-
-.phone-action-row[aria-disabled='true'] {
-  color: var(--color-phone-text-secondary);
+  color: var(--color-phone-destructive);
 }
 
 /* At the accessibility sizes a row stacks rather than cut its label. */
@@ -3106,10 +3109,12 @@ button.phone-grouped-open:active:not(:disabled) {
     inset: 0;
   }
 
-  .phone-settings-pane .usage-chart-heading {
-    flex-flow: column;
-    align-items: flex-start;
-    gap: var(--space-2);
+  .phone-usage-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .phone-usage-filters .select {
+    margin-left: auto;
   }
 
   .phone-theme-row {

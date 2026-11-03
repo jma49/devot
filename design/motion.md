@@ -109,6 +109,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Pane segmented control:** rule 4. The pill slides with `bouncy` to the chosen segment, with the `selection` haptic. Under Reduce Motion it moves at once with no spring.
 - **Pane slider:** rule 1. The thumb and fill follow the finger, and the glass or text changes as it goes.
 - **Detail sheet:** rule 3. It grows in with `gentle` like any sheet; Done and a drag down close it the same way.
+- **Usage:** rule 2. A new period or event type replaces the figures, charts and lists at once; the period's pill moves as in any pane segmented control. Show Events opens the list at once.
 - **Settings search:** rule 2. The field and results appear at once, and results change as you type.
 - **Note mode toggle:** rule 4. The icon turns in with `bouncy` from a dip and -30 degrees. Edit and Preview crossfade over `motion.duration.ring`, the new one rising 8 pt with `gentle`. Under Reduce Motion both only fade, over `motion.duration.phone-crossfade`.
 - **Note bottom bar and formatting bar:** rule 2. As the keyboard rises the bottom bar fades and drops 20 pt with `gentle`, and the formatting bar fades in on the keyboard. Under Reduce Motion both only crossfade.
