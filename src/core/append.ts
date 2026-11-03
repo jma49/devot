@@ -1,8 +1,7 @@
-// Appending text at a place in a note (issue #477): at the end or the start of the section under a
-// heading, or of the whole note. The section under a heading runs to the next heading of the same
-// or a higher level; a heading inside a fenced code block is not one. The heading is matched by its
-// text, in any case, the first one found. Pure functions: the note service applies the insertion as
-// one Yjs transaction, the AI service as an agent's write of the whole body.
+// Appending text at a place in a note (issue #477). The section under a heading runs to the next
+// heading of the same or a higher level; a heading inside a fenced code block is none; the heading
+// is matched by its text, in any case, the first one found. The note service applies the insertion
+// as one Yjs transaction, the AI service as an agent's write of the whole body.
 
 import { TEMPLATES_BOOK_ID } from './books'
 import { lineFeeds } from './text'
@@ -73,18 +72,25 @@ export function headingKeyOf(heading: string): string {
 
 const isBlank = (line: Line) => line.text.trim() === ''
 
-/** The lines of `body` with headings read, fenced code left as plain lines. */
+/** The lines of `body` with headings read, fenced code left as plain lines (CommonMark fences: a backtick fence's info string holds no backtick, a closing fence nothing but spaces). */
 function readLines(body: string): { line: Line; heading: Heading | undefined }[] {
   const out: { line: Line; heading: Heading | undefined }[] = []
   let fence: string | undefined
   for (const line of linesOf(body)) {
-    const opened = FENCE.exec(line.text)?.[1]
+    const found = FENCE.exec(line.text)
+    const marks = found?.[1]
+    const rest = found ? line.text.slice(found[0].length) : ''
     if (fence) {
-      if (opened && opened[0] === fence[0] && opened.length >= fence.length) fence = undefined
+      const closes =
+        marks !== undefined &&
+        marks[0] === fence[0] &&
+        marks.length >= fence.length &&
+        rest.trim() === ''
+      if (closes) fence = undefined
       out.push({ line, heading: undefined })
       continue
     }
-    if (opened) fence = opened
+    if (marks !== undefined && (marks[0] === '~' || !rest.includes('`'))) fence = marks
     out.push({ line, heading: fence ? undefined : headingOf(line.text) })
   }
   return out

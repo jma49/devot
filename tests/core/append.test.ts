@@ -69,6 +69,21 @@ describe('the section under a heading', () => {
     expect(appendedBody('## Log', 'x', { heading: 'Log', position: 'append' })).toBe('## Log\nx')
   })
 
+  it('is not closed by a fence line with text after it, and a backtick fence with a backtick in its info is none', () => {
+    const open = '## Log\n```sh\n```still-code\n## Not a heading\n```\n- one\n'
+    expect(() => appendedBody(open, 'x', { heading: 'Not a heading', position: 'append' })).toThrow(
+      'E_HEADING_NOT_FOUND',
+    )
+    const unfenced = '## Log\n``` a ` b\n## Real\n- one\n'
+    expect(appendedBody(unfenced, 'x', { heading: 'Real', position: 'append' })).toBe(
+      '## Log\n``` a ` b\n## Real\n- one\nx\n',
+    )
+    const tilde = '~~~ a ` b\n## Hidden\n~~~\n## Shown\n'
+    expect(() => appendedBody(tilde, 'x', { heading: 'Hidden', position: 'append' })).toThrow(
+      'E_HEADING_NOT_FOUND',
+    )
+  })
+
   it('is not opened by a heading inside a fenced code block', () => {
     const fenced = '## Log\n```sh\n# a comment\n## not a heading\n```\n- one\n\n## Next\n'
     expect(() => appendedBody(fenced, 'x', { heading: 'a comment', position: 'append' })).toThrow(

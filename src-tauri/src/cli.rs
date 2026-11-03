@@ -25,8 +25,9 @@ const MAX_NOTEBOOK_CHARS: usize = 200;
 const MAX_HEADING_CHARS: usize = 500;
 /// Well within the socket's message limit (`single_instance::MAX_MESSAGE`).
 pub(crate) const MAX_APPEND_BYTES: usize = 512 * 1024;
-/// An append runs through the window first, as the HTTP API's 15 s allow, before it is answered.
-const APPEND_ANSWER_TIMEOUT: Duration = Duration::from_secs(20);
+/// An append waits for a window to be ready and runs through it before it is answered
+/// (`cli_append::ANSWER_TIMEOUT`, 30 s).
+const APPEND_ANSWER_TIMEOUT: Duration = Duration::from_secs(35);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Open {
@@ -362,7 +363,7 @@ fn read_stdin() -> Result<String, String> {
     if bytes.len() > MAX_APPEND_BYTES {
         return Err(strings::CLI_APPEND_TEXT_TOO_LARGE.into());
     }
-    String::from_utf8(bytes).map_err(|_| strings::CLI_INPUT_NOT_TEXT.to_owned())
+    String::from_utf8(bytes).map_err(|_| strings::CLI_APPEND_NOT_TEXT.to_owned())
 }
 
 pub(crate) fn append_handoff_args(append: &Append) -> Vec<String> {

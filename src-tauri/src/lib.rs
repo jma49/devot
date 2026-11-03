@@ -285,6 +285,7 @@ pub fn run() {
             updates::update_restart,
             deep_link::deep_link_take,
             cli_append::cli_append_done,
+            cli_append::cli_append_take,
             note_relay::note_relay_send,
             #[cfg(desktop)]
             main_windows::main_window_new,
@@ -321,13 +322,17 @@ pub fn run() {
         .manage(deep_link::DeepLinks::default())
         .manage(cli_append::Appends::default())
         .manage(main_windows::MainWindows::default())
-        .on_page_load(deep_link::on_page_load)
+        .on_page_load(|webview, payload| {
+            deep_link::on_page_load(webview, payload);
+            cli_append::on_page_load(webview, payload);
+        })
         .on_window_event(|window, event| {
             exit::on_window_event(window, event);
             main_windows::on_window_event(window, event);
             #[cfg(desktop)]
             note_window::on_window_event(window, event);
             deep_link::on_window_event(window, event);
+            cli_append::on_window_event(window, event);
             sync::on_window_event(window, event);
             #[cfg(desktop)]
             updates::on_window_event(window, event);

@@ -1,8 +1,7 @@
-// The main window's half of `devot append` (issue #477): Rust reads the command's hand-off and
-// sends the request here as an event (`devot://cli-append`), then waits for this window's answer
-// (`cli_append_done`), so this window's core puts the text in the note and the open editor takes it
-// as one undo step (src-tauri/src/cli_append.rs). Requests run one at a time; the answer is a code
-// or nothing, never the text.
+// The main window's half of `devot append`: Rust sends each request as an event and waits for
+// `cli_append_done` (src-tauri/src/cli_append.rs). Requests run one at a time; a request Rust gave
+// up waiting for still runs, so a command that timed out may have landed. The answer is a code or
+// nothing, never the text.
 import {
   APPEND_POSITIONS,
   findNoteByTitle,

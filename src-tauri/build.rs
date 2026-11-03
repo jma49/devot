@@ -195,6 +195,7 @@ fn main() {
             "update_restart",
             "deep_link_take",
             "cli_append_done",
+            "cli_append_take",
             "settings_mcp_setup",
             "settings_mcp_connect",
             "settings_mcp_disconnect",

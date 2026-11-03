@@ -414,6 +414,7 @@ describe('Tauri command permissions', () => {
   it('lets only the main window take the links other apps opened, and answer the devot command', () => {
     expect(windowsWith('allow-deep-link-take')).toEqual(['main'])
     expect(windowsWith('allow-cli-append-done')).toEqual(['main'])
+    expect(windowsWith('allow-cli-append-take')).toEqual(['main'])
   })
 
   it('grants no window a deep-link or single-instance plugin command', () => {

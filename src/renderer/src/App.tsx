@@ -2656,7 +2656,7 @@ export function App() {
   const applyToOpenNote = useStable((noteId: string, update: Uint8Array) => {
     if (editorRef.current?.noteId === noteId) restoreRef.current?.(update)
   })
-  // `devot append`: this window's core puts the text in the note, and the open editor takes it as one undo step (cliAppend.ts).
+  // `devot append` (cliAppend.ts): answered only once the note is saved, so the command's success means the text is on disk.
   useEffect(() => {
     if (!core || DEVOT_UI_TEST) return
     let stopped = false
@@ -2670,14 +2670,24 @@ export function App() {
           ...(request.heading === null ? {} : { heading: request.heading }),
         })
         applyToOpenNote(id, update)
+        await core.flush()
         await refresh(core)
       },
       reply: (id, error) => invoke('cli_append_done', { id, error }),
     })
-    void listenHere<unknown>(CLI_APPEND_EVENT, (e) => void take(e.payload)).then((stop) => {
-      if (stopped) stop()
-      else unlisten = stop
-    })
+    // Listening first, then asking for what waits: no request is lost between.
+    void listenHere<unknown>(CLI_APPEND_EVENT, (e) => void take(e.payload))
+      .then((stop) => {
+        if (stopped) stop()
+        else unlisten = stop
+        return stopped ? [] : invoke<unknown>('cli_append_take')
+      })
+      .then(
+        (held) => {
+          if (!stopped && Array.isArray(held)) held.forEach((request) => void take(request))
+        },
+        (e: unknown) => console.warn('W_CLI_APPEND_TAKE_FAILED', errorCode(e)),
+      )
     return () => {
       stopped = true
       unlisten?.()

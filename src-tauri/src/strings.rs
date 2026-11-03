@@ -178,14 +178,18 @@ pub const CLI_SIMPLE_HTML_ONLY: &str = "--simple works with .html output only";
 pub const CLI_OUTPUT_INVALID: &str = "cannot write to {path} ({code})";
 pub const CLI_INPUT_TOO_LARGE: &str = "the Markdown is larger than 10 MB";
 pub const CLI_INPUT_NOT_TEXT: &str = "the Markdown is not UTF-8 text";
+pub const CLI_APPEND_NOT_TEXT: &str =
+    "the text to append is not UTF-8 text (E_APPEND_TEXT_INVALID)";
 pub const CLI_READ_FAILED: &str = "cannot read {path}";
-pub const CLI_READ_STDIN_FAILED: &str = "cannot read standard input";
+pub const CLI_READ_STDIN_FAILED: &str = "cannot read standard input (E_CLI_STDIN_UNREADABLE)";
 pub const CLI_APPEND_TARGET: &str = "append needs a note ID, or --title TITLE";
 pub const CLI_APPEND_NOTE_ID: &str = "not a note ID: {id}";
 pub const CLI_APPEND_TEXT: &str = "append takes one TEXT (quote it), or --stdin";
-pub const CLI_APPEND_TEXT_EMPTY: &str = "the text to append is empty";
-pub const CLI_APPEND_TEXT_TOO_LARGE: &str = "the text to append is larger than 512 KB";
-pub const CLI_APPEND_TEXT_NUL: &str = "the text to append holds a NUL character";
+pub const CLI_APPEND_TEXT_EMPTY: &str = "the text to append is empty (E_APPEND_TEXT_EMPTY)";
+pub const CLI_APPEND_TEXT_TOO_LARGE: &str =
+    "the text to append is larger than 512 KB (E_APPEND_TEXT_TOO_LARGE)";
+pub const CLI_APPEND_TEXT_NUL: &str =
+    "the text to append holds a NUL character (E_APPEND_TEXT_INVALID)";
 pub const CLI_APPEND_HEADING_INVALID: &str = "a heading takes 1 to 500 characters, on one line";
 pub const CLI_APPEND_TITLE_INVALID: &str = "a title takes 1 to 1000 characters, on one line";
 pub const CLI_APPEND_FAILED: &str = "append failed ({code})";

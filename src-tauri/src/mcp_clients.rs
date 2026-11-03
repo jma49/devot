@@ -1530,7 +1530,7 @@ mod tests {
         assert_eq!(config["args"][0], "${__dirname}/server/devot-mcp.sh");
         assert_eq!(config["args"][1], "/Applications/My Apps/Devot.app");
         assert_eq!(manifest["compatibility"]["platforms"][0], "darwin");
-        assert_eq!(manifest["tools"].as_array().unwrap().len(), 8);
+        assert_eq!(manifest["tools"].as_array().unwrap().len(), 9);
     }
 
     #[test]

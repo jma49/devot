@@ -116,6 +116,7 @@
     "allow-update-restart",
     "allow-deep-link-take",
     "allow-cli-append-done",
+    "allow-cli-append-take",
     "allow-quick-capture-claim",
     "allow-quick-capture-done",
     "allow-http-api-done",
