@@ -1,6 +1,4 @@
-import { useContext, useId, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
-import { HintButton } from '../settings/controls'
-import { ShowHint } from '../settings/onPhone'
+import { useId, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { haptic } from './haptics'
 
 /** A pane's card, with an optional group title and at most a one-line footnote. */
@@ -19,30 +17,20 @@ export function PhoneGroup(props: { title?: string; footnote?: string; children:
   )
 }
 
-function ControlHead(props: {
-  id: string
-  label: string
-  hint?: string | undefined
-  hintTitle?: string | undefined
-}) {
-  const hints = useContext(ShowHint) !== null
+function ControlHead(props: { id: string; label: string; description?: string | undefined }) {
   return (
     <div className="phone-control-head">
       <span id={props.id} className="setting-label">
         {props.label}
       </span>
-      {props.hint && hints ? (
-        <HintButton title={props.hintTitle ?? props.label} body={props.hint} />
-      ) : null}
+      {props.description ? <span className="setting-description">{props.description}</span> : null}
     </div>
   )
 }
 
 export function PhoneSegmented<T extends string>(props: {
   label: string
-  hint?: string | undefined
-  /** The explanation's title, when it is about more than this control. */
-  hintTitle?: string | undefined
+  description?: string | undefined
   value: T
   options: readonly { value: T; label: string }[]
   onChange: (value: T) => void
@@ -71,7 +59,7 @@ export function PhoneSegmented<T extends string>(props: {
   }
   return (
     <div className="phone-control">
-      <ControlHead id={id} label={props.label} hint={props.hint} hintTitle={props.hintTitle} />
+      <ControlHead id={id} label={props.label} description={props.description} />
       <div
         role="radiogroup"
         aria-labelledby={id}
@@ -100,7 +88,6 @@ export function PhoneSegmented<T extends string>(props: {
 
 export function PhoneSlider(props: {
   label: string
-  hint?: string | undefined
   min: number
   max: number
   step: number
@@ -117,7 +104,7 @@ export function PhoneSlider(props: {
   const percent = ((props.value - props.min) / (props.max - props.min)) * 100
   return (
     <div className="phone-control">
-      <ControlHead id={id} label={props.label} hint={props.hint} />
+      <ControlHead id={id} label={props.label} />
       <div className="phone-slider-row" data-glyph-ends={props.glyphEnds || undefined}>
         <span className="phone-slider-end">{props.minLabel}</span>
         <input

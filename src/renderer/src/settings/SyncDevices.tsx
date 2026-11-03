@@ -232,11 +232,7 @@ export function PairingRow(props: {
       : 'syncSettings.pairWaiting'
 
   return (
-    <Setting
-      label="syncSettings.pair"
-      description={ended ? t(ended) : t('syncSettings.pairHint')}
-      live={ended !== undefined}
-    >
+    <Setting label="syncSettings.pair" description={ended ? t(ended) : t('syncSettings.pairHint')}>
       {shown ? (
         <div
           ref={block}
@@ -483,7 +479,6 @@ export function DevicesRow(props: {
       <Setting
         label="syncSettings.devices"
         description={problem ?? t(onPhone ? 'phone.sync.devicesHint' : 'syncSettings.devicesHint')}
-        live={problem !== undefined}
       >
         {problem ? (
           <div className="settings-buttons">

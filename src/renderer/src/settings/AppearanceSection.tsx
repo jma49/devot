@@ -385,7 +385,7 @@ export function AppearanceSection() {
         <PhoneGroup>
           <PhoneSegmented
             label={t('phone.appearance.interface')}
-            hint={t('phone.appearance.interfaceHint')}
+            description={t('phone.appearance.interfaceHint')}
             value={phoneGlass.style}
             options={[
               { value: 'glass', label: t('phone.appearance.glass') },
@@ -396,7 +396,6 @@ export function AppearanceSection() {
           {phoneGlass.style === 'glass' ? (
             <PhoneSlider
               label={t('phone.appearance.transparency')}
-              hint={t('phone.appearance.transparencyHint')}
               min={-TRANSPARENCY_MAX}
               max={TRANSPARENCY_MAX}
               step={TRANSPARENCY_STEP}

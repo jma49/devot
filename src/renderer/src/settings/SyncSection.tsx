@@ -447,7 +447,6 @@ export function SyncSection() {
           {relayRow(t('phone.sync.relayHint'))}
           {shown === 'idle' || shown === 'off' ? null : (
             <Setting
-              live
               label="syncSettings.status"
               description={statusText(snapshot, pauseOver, locale)}
             >

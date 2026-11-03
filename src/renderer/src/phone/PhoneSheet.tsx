@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { motionMs } from '../motionTiming'
@@ -52,7 +53,9 @@ export function PhoneSheet(props: {
     if (event.type === 'pointerup' && sheetCloses(event.clientY - s.y, s.speed)) close()
     else setDrag(null)
   }
-  return (
+  // A screen's layer is its own stacking context under the tab bar and the compose circle.
+  const host = document.querySelector('.phone-app') ?? document.body
+  return createPortal(
     <div className="phone-sheet-layer">
       <div
         className="phone-sheet-dim"
@@ -111,11 +114,12 @@ export function PhoneSheet(props: {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    host,
   )
 }
 
-/** A long explanation that does not sit under its row: title, body and a full-width Done. */
+/** A short message in a sheet: title, body and a full-width Done. */
 export function PhoneDetailSheet(props: { title: string; body: string; onClose: () => void }) {
   return (
     <PhoneSheet title={props.title} onClose={props.onClose} plain done={t('phone.hint.done')}>
