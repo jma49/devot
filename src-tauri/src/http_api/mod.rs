@@ -4,15 +4,19 @@
 //! its arguments (`routes`), then hands the call to the main window's core and waits for its answer
 //! (`devot://http-api`, `http_api_done`), as quick capture does: the core reads and writes through
 //! the AI service, so the API sees only notebooks with Allow AI Access on, and writes like any
-//! outside edit (bodies as Yjs operations, metadata by HLC).
+//! outside edit (bodies as Yjs operations, metadata by HLC). The MCP bridge reaches the same routes on
+//! a Unix socket of its own, with a token of its own (`mcp_access`, ADR 0012); turning it on does not
+//! turn this API on.
 
+pub mod mcp_access;
 pub mod routes;
 pub mod server;
 pub mod settings;
 pub mod token;
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{SyncSender, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -21,7 +25,8 @@ use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, State, WebviewWindow};
 
-use routes::Call;
+use mcp_access::{McpAccess, McpAccessStore};
+use routes::{Call, Client};
 use server::{Dispatch, Gate, Limits, Server};
 use settings::{HttpApiSettings, SettingsStore, check_port};
 use token::{Scope, TokenStore};
@@ -73,6 +78,11 @@ impl Answers {
         }
     }
 
+    /// Whether a call is on its way through the core.
+    fn busy(&self) -> bool {
+        self.waiting.lock().map_or(true, |w| !w.is_empty())
+    }
+
     /// Hands `call` on with `emit` and waits for its answer; `emit` is false when the event could not
     /// be sent. Tauri sends an event no window listens for without an error, so a window that is
     /// not listening yet shows as a timeout.
@@ -83,6 +93,7 @@ impl Answers {
             op: call.op.as_str(),
             note: call.note.clone(),
             args: call.args.clone(),
+            client: call.client.clone(),
         };
         if !emit(request) {
             self.forget(id);
@@ -106,6 +117,8 @@ pub struct Request {
     pub op: &'static str,
     pub note: Option<String>,
     pub args: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client: Option<Client>,
 }
 
 /// The window's answer as Rust passes it on: its JSON, or a code, never free text.
@@ -149,7 +162,12 @@ impl<D: Dispatch> Dispatch for Licensed<D> {
 }
 
 impl Dispatch for WindowDispatch {
+    /// A quit has begun: a call let in now could be cut off, so it is refused before anything runs
+    /// and the bridge may safely ask again once Devot is gone.
     fn dispatch(&self, call: &Call) -> Result<Value, String> {
+        if crate::exit::quitting(&self.app) {
+            return Err("E_APP_QUITTING".into());
+        }
         self.answers.ask(call, ANSWER_TIMEOUT, |request| {
             crate::main_windows::emit_front(&self.app, EVENT, request).is_ok()
         })
@@ -179,14 +197,50 @@ pub struct View {
     pub token: TokenState,
 }
 
+/// What Settings shows of MCP access: never the token.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpView {
+    pub enabled: bool,
+    pub scope: Scope,
+    pub background_start: bool,
+    /// Whether a connected client can get through now.
+    pub reachable: bool,
+    /// Why it is on but not reachable.
+    pub problem: Option<&'static str>,
+}
+
 struct Running {
     server: Option<Server>,
+    /// The bridge's socket (ADR 0012), while MCP is on and a main window takes calls.
+    bridge: Option<Server>,
     problem: Option<&'static str>,
+    mcp_problem: Option<&'static str>,
+}
+
+/// MCP access's own settings, token and socket (ADR 0012).
+pub struct McpParts {
+    pub access: McpAccessStore,
+    pub tokens: Arc<dyn TokenStore>,
+    pub socket: Option<PathBuf>,
+}
+
+/// The bridge's socket, in this user's private folder (`single_instance`); none when that folder is
+/// another's.
+pub fn bridge_socket(identifier: &str) -> Option<PathBuf> {
+    Some(crate::single_instance::private_dir()?.join(format!("{identifier}.mcp.sock")))
 }
 
 pub struct HttpApi {
     settings: SettingsStore,
     tokens: Arc<dyn TokenStore>,
+    mcp: Option<McpParts>,
+    /// A main window listens for calls: a call made before that would wait its whole timeout.
+    window_listening: AtomicBool,
+    /// One apply at a time, its keychain reads included; `running` is held only for its changes,
+    /// so a keychain that waits on the owner holds up neither a quit nor Settings.
+    applying: Mutex<()>,
+    keychain_waiting: AtomicBool,
     gate: Arc<Gate>,
     dispatch: Arc<dyn Dispatch>,
     answers: Arc<Answers>,
@@ -204,14 +258,25 @@ impl HttpApi {
         Self {
             settings,
             tokens,
+            mcp: None,
+            window_listening: AtomicBool::new(false),
+            applying: Mutex::new(()),
+            keychain_waiting: AtomicBool::new(false),
             gate: Arc::new(Gate::new(limits)),
             dispatch,
             answers,
             running: Mutex::new(Running {
                 server: None,
+                bridge: None,
                 problem: None,
+                mcp_problem: None,
             }),
         }
+    }
+
+    pub fn with_mcp(mut self, parts: McpParts) -> Self {
+        self.mcp = Some(parts);
+        self
     }
 
     /// The app's: calls go to the main window, writes only while the licence allows them.
@@ -236,6 +301,11 @@ impl HttpApi {
             answers,
             Limits::DEFAULT,
         )
+        .with_mcp(McpParts {
+            access: McpAccessStore::new(&data_dir.join(mcp_access::FILE)),
+            tokens: Arc::new(token::Keychain::for_mcp(identifier)),
+            socket: bridge_socket(identifier),
+        })
     }
 
     pub fn view(&self) -> View {
@@ -243,7 +313,10 @@ impl HttpApi {
         let (listening, problem) = self
             .running
             .lock()
-            .map(|r| (r.server.as_ref().map(Server::port), r.problem))
+            .map(|r| {
+                let port = r.server.as_ref().map(Server::port);
+                (port.filter(|_| settings.enabled), r.problem)
+            })
             .unwrap_or((None, Some("E_HTTP_API_FAILED")));
         View {
             enabled: settings.enabled,
@@ -273,47 +346,177 @@ impl HttpApi {
         }
     }
 
-    /// Listens or stops as the settings say: at launch, and after every change.
+    fn mcp_access(&self) -> McpAccess {
+        self.mcp
+            .as_ref()
+            .map_or_else(McpAccess::default, |parts| parts.access.get())
+    }
+
+    /// The bridge's stored token, or a new one when there is none yet.
+    fn mcp_token(parts: &McpParts) -> Result<token::Token, &'static str> {
+        match parts.tokens.get()? {
+            Some(token) if token::is_token(&token) => Ok(token),
+            _ => {
+                let token = token::generate()?;
+                parts.tokens.set(&token)?;
+                log::info!("I_MCP_TOKEN_CREATED");
+                Ok(token)
+            }
+        }
+    }
+
+    /// Listens or stops as the settings say: at launch, and after every change. The HTTP API listens
+    /// on its port, the bridge on its socket, each with its own token and switch.
     pub fn apply(&self) {
+        let Ok(_applying) = self.applying.lock() else {
+            return;
+        };
         let settings = self.settings.get();
+        let access = self.mcp_access();
+        // The keychain may wait on the owner (a build it does not know asks first): read it before
+        // anything is held that a quit or Settings would wait for.
+        self.keychain_waiting.store(true, Ordering::SeqCst);
+        let asked = std::time::Instant::now();
+        let http_token = settings.enabled.then(|| self.token());
+        let mcp_token = self
+            .mcp
+            .as_ref()
+            .filter(|_| access.enabled)
+            .map(Self::mcp_token);
+        self.keychain_waiting.store(false, Ordering::SeqCst);
+        let waited = asked.elapsed().as_millis();
+        if waited >= 2_000 {
+            log::warn!("W_KEYCHAIN_SLOW {waited}");
+        }
         let Ok(mut running) = self.running.lock() else {
             return;
         };
-        if !settings.enabled {
-            running.server = None;
-            running.problem = None;
-            self.gate.close();
-            return;
-        }
-        match self.token() {
-            Ok(token) => self.gate.allow(token, settings.scope),
-            Err(code) => {
+        running.problem = None;
+        running.mcp_problem = None;
+        match http_token {
+            Some(Ok(token)) => self.gate.allow(token, settings.scope),
+            Some(Err(code)) => {
                 log::warn!("W_HTTP_API_START_FAILED {code}");
-                running.server = None;
                 running.problem = Some(code);
                 self.gate.close();
-                return;
             }
+            None => self.gate.close(),
         }
-        if running.server.as_ref().map(Server::port) == Some(settings.port) {
-            running.problem = None;
+        match mcp_token {
+            Some(Ok(token)) => self.gate.allow_mcp(token, access.scope),
+            Some(Err(code)) => {
+                log::warn!("W_MCP_START_FAILED {code}");
+                running.mcp_problem = Some(code);
+                self.gate.close_mcp();
+            }
+            None => self.gate.close_mcp(),
+        }
+        let http_wanted = settings.enabled && running.problem.is_none();
+        let mcp_wanted = access.enabled && running.mcp_problem.is_none();
+        self.apply_bridge(&mut running, mcp_wanted);
+        if !http_wanted {
+            running.server = None;
             return;
         }
-        running.server = None;
-        match Server::start(
-            settings.port,
-            Arc::clone(&self.gate),
-            Arc::clone(&self.dispatch),
-        ) {
-            Ok(server) => {
-                running.server = Some(server);
-                running.problem = None;
-            }
-            Err(code) => {
-                log::warn!("W_HTTP_API_START_FAILED {code}");
-                running.problem = Some(code);
+        if running.server.as_ref().map(Server::port) != Some(settings.port) {
+            running.server = None;
+            match Server::start(
+                settings.port,
+                Arc::clone(&self.gate),
+                Arc::clone(&self.dispatch),
+            ) {
+                Ok(server) => running.server = Some(server),
+                Err(code) => {
+                    log::warn!("W_HTTP_API_START_FAILED {code}");
+                    running.problem = Some(code);
+                }
             }
         }
+    }
+
+    /// The bridge's socket is there only while a main window can answer, so no call stalls.
+    fn apply_bridge(&self, running: &mut Running, wanted: bool) {
+        let socket = self.mcp.as_ref().and_then(|parts| parts.socket.as_ref());
+        let Some(socket) =
+            socket.filter(|_| wanted && self.window_listening.load(Ordering::SeqCst))
+        else {
+            running.bridge = None;
+            if wanted && socket.is_none() {
+                running.mcp_problem = Some("E_MCP_SOCKET_FOREIGN");
+            }
+            return;
+        };
+        if running.bridge.is_some() {
+            return;
+        }
+        match Server::start_bridge(socket, Arc::clone(&self.gate), Arc::clone(&self.dispatch)) {
+            Ok(server) => running.bridge = Some(server),
+            Err(code) => {
+                log::warn!("W_MCP_START_FAILED {code}");
+                running.mcp_problem = Some(code);
+            }
+        }
+    }
+
+    /// A main window has begun to take calls: only now does the bridge's socket appear.
+    pub fn window_listening(&self) {
+        self.window_listening.store(true, Ordering::SeqCst);
+        self.apply();
+    }
+
+    /// Stops the bridge's socket at once, as the app quits, and takes away one a crash left. It
+    /// never waits: an apply that holds `running` only changes state, and the file goes regardless.
+    pub fn stop_bridge(&self) {
+        if let Ok(mut running) = self.running.try_lock() {
+            running.bridge = None;
+        }
+        if let Some(socket) = self.mcp.as_ref().and_then(|parts| parts.socket.as_ref()) {
+            server::remove_bridge_socket(socket);
+        }
+    }
+
+    pub fn mcp_view(&self) -> McpView {
+        let access = self.mcp_access();
+        let (listening, problem) = self
+            .running
+            .lock()
+            .map(|r| (r.bridge.is_some(), r.mcp_problem))
+            .unwrap_or((false, Some("E_HTTP_API_FAILED")));
+        let problem = if access.enabled && self.keychain_waiting.load(Ordering::SeqCst) {
+            Some("E_MCP_KEYCHAIN_WAITING")
+        } else {
+            problem
+        };
+        McpView {
+            enabled: access.enabled,
+            scope: access.scope,
+            background_start: access.background_start,
+            reachable: access.enabled && listening && problem.is_none(),
+            problem,
+        }
+    }
+
+    pub fn mcp_set(&self, access: McpAccess) -> Result<McpView, &'static str> {
+        self.mcp
+            .as_ref()
+            .ok_or("E_MCP_ACCESS_UNAVAILABLE")?
+            .access
+            .set(access)?;
+        self.apply();
+        Ok(self.mcp_view())
+    }
+
+    /// Connecting a client asks for MCP to be on, and changes nothing else about it.
+    pub fn mcp_turn_on(&self) -> Result<McpView, &'static str> {
+        self.mcp_set(McpAccess {
+            enabled: true,
+            ..self.mcp_access()
+        })
+    }
+
+    /// When the bridge last called, and whether a call is on its way (`background`).
+    pub fn mcp_activity(&self) -> (Option<std::time::Instant>, bool) {
+        (self.gate.last_mcp_call(), self.answers.busy())
     }
 
     pub fn set(&self, enabled: bool, port: u16) -> Result<View, &'static str> {
@@ -361,6 +564,49 @@ async fn blocking<T: Send + 'static>(
         .await
         .map_err(|_| "E_HTTP_API_FAILED".to_string())?
         .map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn mcp_access_get(api: State<'_, Arc<HttpApi>>) -> Result<McpView, String> {
+    blocking(&api, |api| Ok(api.mcp_view())).await
+}
+
+/// The choice of the Settings window alone: every field is a typed value serde has checked.
+#[tauri::command]
+pub async fn mcp_access_set(
+    window: WebviewWindow,
+    api: State<'_, Arc<HttpApi>>,
+    enabled: bool,
+    scope: Scope,
+    background_start: bool,
+) -> Result<McpView, String> {
+    if window.label() != crate::settings::LABEL {
+        return Err("E_MCP_ACCESS_WINDOW".into());
+    }
+    blocking(&api, move |api| {
+        api.mcp_set(McpAccess {
+            enabled,
+            scope,
+            background_start,
+        })
+    })
+    .await
+}
+
+/// From the main window once it listens for calls (`httpApiHost`).
+#[tauri::command]
+pub async fn http_api_listening(
+    window: WebviewWindow,
+    api: State<'_, Arc<HttpApi>>,
+) -> Result<(), String> {
+    if !crate::main_windows::is_main(window.label()) {
+        return Err("E_HTTP_API_WINDOW".into());
+    }
+    blocking(&api, |api| {
+        api.window_listening();
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]

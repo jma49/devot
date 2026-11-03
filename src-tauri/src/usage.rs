@@ -1,6 +1,6 @@
 //! Usage events (see `src/core/usage.ts`), kept on this device only in their own database, `<app
 //! data>/usage.sqlite`: they never sync, never go into backups (so restoring one cannot bring back
-//! cleared events), and devot-mcp never opens the file.
+//! cleared events), and no AI tool ever reads the file.
 //! The store is bounded: each write and listing drops events past `Limits::max_age_ms` and keeps
 //! the newest `Limits::max_events`. Deleted rows are zeroed in the file (`secure_delete`) and
 //! clearing also empties the write-ahead log. Events are disposable: WAL with `synchronous =

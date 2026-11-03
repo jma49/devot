@@ -55,7 +55,7 @@ pub fn keeps_running(app: &AppHandle) -> bool {
         .is_some_and(|state| state.on.load(Ordering::SeqCst))
 }
 
-fn icon() -> Image<'static> {
+pub(crate) fn icon() -> Image<'static> {
     tauri::include_image!("icons/menu-bar/template.png")
 }
 
@@ -184,6 +184,7 @@ pub fn hide_main(window: &Window) -> bool {
 
 /// Brings the frontmost main window forward, shown if it was hidden.
 pub fn show_main(app: &AppHandle) {
+    crate::background::opened(app);
     let Some(main) =
         crate::main_windows::front_label(app).and_then(|label| app.get_webview_window(&label))
     else {
@@ -220,7 +221,13 @@ pub fn reveal_window(app: &AppHandle, label: &str) {
     let Some(window) = app.get_webview_window(label) else {
         return;
     };
-    if is_hidden(window.is_visible()) && window.show().and(window.set_focus()).is_err() {
+    if !is_hidden(window.is_visible()) {
+        return;
+    }
+    if crate::main_windows::is_main(label) {
+        crate::background::opened(app);
+    }
+    if window.show().and(window.set_focus()).is_err() {
         log::warn!("W_MAIN_WINDOW_SHOW_FAILED");
     }
 }

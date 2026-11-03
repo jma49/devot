@@ -332,7 +332,7 @@ export default mergeConfig(base, {
   )
 
   // The UI tests' in-memory storage (storage/memory.ts) is chosen at build time by their Vite config;
-  // the app must never use it, or notes would sit in local storage where backups and devot-mcp can't see them.
+  // the app must never use it, or notes would sit in local storage where backups and AI tools can't see them.
   it(
     "leaves the UI tests' storage out, whatever VITE_DEVOT_STORAGE says",
     () => {

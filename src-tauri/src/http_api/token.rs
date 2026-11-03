@@ -52,8 +52,9 @@ pub trait TokenStore: Send + Sync {
     fn set(&self, token: &str) -> Result<(), &'static str>;
 }
 
-#[cfg(target_os = "macos")]
 const ACCOUNT: &str = "http-api-token";
+/// The bridge's own token (ADR 0012), so the HTTP API's can be rotated or stay off without it.
+const MCP_ACCOUNT: &str = "mcp-bridge-token";
 
 #[cfg(target_os = "macos")]
 const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
@@ -62,12 +63,22 @@ const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
 pub struct Keychain {
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     service: String,
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    account: &'static str,
 }
 
 impl Keychain {
     pub fn new(service: &str) -> Self {
         Self {
             service: service.to_string(),
+            account: ACCOUNT,
+        }
+    }
+
+    pub fn for_mcp(service: &str) -> Self {
+        Self {
+            service: service.to_string(),
+            account: MCP_ACCOUNT,
         }
     }
 }
@@ -79,7 +90,7 @@ impl TokenStore for Keychain {
         match ItemSearchOptions::new()
             .class(ItemClass::generic_password())
             .service(&self.service)
-            .account(ACCOUNT)
+            .account(self.account)
             .load_attributes(true)
             .limit(Limit::Max(1))
             .search()
@@ -92,7 +103,7 @@ impl TokenStore for Keychain {
 
     fn get(&self) -> Result<Option<Token>, &'static str> {
         use security_framework::passwords::get_generic_password;
-        match get_generic_password(&self.service, ACCOUNT) {
+        match get_generic_password(&self.service, self.account) {
             Ok(bytes) => String::from_utf8(bytes)
                 .map(|text| Some(Zeroizing::new(text)))
                 .map_err(|_| "E_HTTP_API_KEYCHAIN_FAILED"),
@@ -104,7 +115,7 @@ impl TokenStore for Keychain {
     fn set(&self, token: &str) -> Result<(), &'static str> {
         security_framework::passwords::set_generic_password(
             &self.service,
-            ACCOUNT,
+            self.account,
             token.as_bytes(),
         )
         .map_err(|_| "E_HTTP_API_KEYCHAIN_FAILED")
@@ -184,6 +195,13 @@ mod tests {
             Scope::ReadWrite
         );
         assert!(serde_json::from_str::<Scope>("\"admin\"").is_err());
+    }
+
+    #[test]
+    fn the_bridge_and_the_http_api_keep_separate_keychain_items() {
+        let (http, mcp) = (Keychain::new("x"), Keychain::for_mcp("x"));
+        assert_eq!(http.service, mcp.service);
+        assert_ne!(http.account, mcp.account);
     }
 
     /// Touches the real login keychain, so it runs only when asked: `cargo test -- --ignored keychain`.

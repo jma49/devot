@@ -5,6 +5,9 @@
 
 use std::io::{ErrorKind, Read, Write};
 use std::net::{Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream};
+use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread::JoinHandle;
@@ -27,6 +30,8 @@ pub struct Limits {
     pub burst: f64,
     pub per_second: f64,
     pub max_body: usize,
+    /// On the bridge's socket: every byte of a whole body may come escaped as `\u00XX`.
+    pub max_bridge_body: usize,
     pub max_connections: usize,
     /// For the whole request to arrive, head and body.
     pub read_deadline: Duration,
@@ -38,10 +43,15 @@ impl Limits {
         per_second: 10.0,
         // A whole body of MAX_MARKDOWN_BYTES, escaped as JSON.
         max_body: 2 * routes::MAX_MARKDOWN_BYTES,
+        max_bridge_body: BRIDGE_MAX_BODY,
         max_connections: 8,
         read_deadline: Duration::from_secs(10),
     };
 }
+
+/// The worst JSON escaping of the Markdown a call may send, plus room for the rest of the call
+/// (a title, a notebook and tags at their longest, escaped as badly).
+pub const BRIDGE_MAX_BODY: usize = 6 * routes::MAX_MARKDOWN_BYTES + 1024 * 1024;
 
 const MAX_HEAD_BYTES: usize = 16 * 1024;
 const MAX_HEADERS: usize = 64;
@@ -86,11 +96,22 @@ struct Access {
     scope: Scope,
 }
 
-/// What requests are checked against: the current token and its scope, and the rate limits. A
-/// new token takes effect at once, without a restart.
+/// Whose token a request carries. The kind a write is recorded as follows it, never the request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Holder {
+    HttpApi,
+    McpBridge,
+}
+
+/// What requests are checked against: each holder's current token and scope, and the rate limits,
+/// one for each so a busy script cannot lock an AI tool out. A new token takes effect at once,
+/// without a restart.
 pub struct Gate {
     access: RwLock<Option<Access>>,
+    mcp_access: RwLock<Option<Access>>,
     rate: Mutex<Bucket>,
+    mcp_rate: Mutex<Bucket>,
+    last_mcp_call: Mutex<Option<Instant>>,
     refusals: Mutex<Bucket>,
     limits: Limits,
 }
@@ -99,7 +120,10 @@ impl Gate {
     pub fn new(limits: Limits) -> Self {
         Self {
             access: RwLock::new(None),
+            mcp_access: RwLock::new(None),
             rate: Mutex::new(Bucket::full(limits.burst)),
+            mcp_rate: Mutex::new(Bucket::full(limits.burst)),
+            last_mcp_call: Mutex::new(None),
             refusals: Mutex::new(Bucket::full(REFUSAL_LOG_BURST)),
             limits,
         }
@@ -117,26 +141,63 @@ impl Gate {
         }
     }
 
-    /// The scope of the token a request carries in its `Authorization` header.
-    fn admit(&self, authorization: Option<&str>) -> Result<Scope, Refusal> {
+    pub fn allow_mcp(&self, token: Token, scope: Scope) {
+        if let Ok(mut access) = self.mcp_access.write() {
+            *access = Some(Access { token, scope });
+        }
+    }
+
+    pub fn close_mcp(&self) {
+        if let Ok(mut access) = self.mcp_access.write() {
+            *access = None;
+        }
+    }
+
+    /// When the bridge last got through the token check.
+    pub fn last_mcp_call(&self) -> Option<Instant> {
+        self.last_mcp_call.lock().ok().and_then(|last| *last)
+    }
+
+    /// Who holds the token a request carries in its `Authorization` header, and its scope.
+    fn admit(&self, authorization: Option<&str>) -> Result<(Holder, Scope), Refusal> {
         let sent = authorization
             .and_then(|value| {
                 let (scheme, rest) = value.split_once(' ')?;
                 scheme.eq_ignore_ascii_case("bearer").then(|| rest.trim())
             })
             .ok_or(Refusal::new(401, "E_HTTP_TOKEN_MISSING"))?;
-        let access = self
-            .access
-            .read()
-            .map_err(|_| Refusal::new(503, "E_HTTP_API_UNAVAILABLE"))?;
-        match access.as_ref() {
-            Some(a) if token::same(a.token.as_bytes(), sent.as_bytes()) => Ok(a.scope),
-            _ => Err(Refusal::new(401, "E_HTTP_TOKEN_INVALID")),
+        let matches = |access: &RwLock<Option<Access>>| {
+            access
+                .read()
+                .map_err(|_| Refusal::new(503, "E_HTTP_API_UNAVAILABLE"))
+                .map(|access| {
+                    access
+                        .as_ref()
+                        .filter(|a| token::same(a.token.as_bytes(), sent.as_bytes()))
+                        .map(|a| a.scope)
+                })
+        };
+        let http = matches(&self.access)?;
+        let mcp = matches(&self.mcp_access)?;
+        match (http, mcp) {
+            (Some(scope), _) => Ok((Holder::HttpApi, scope)),
+            (None, Some(scope)) => Ok((Holder::McpBridge, scope)),
+            (None, None) => Err(Refusal::new(401, "E_HTTP_TOKEN_INVALID")),
         }
     }
 
-    fn take_rate(&self) -> Result<(), u64> {
-        self.rate
+    fn mcp_called(&self) {
+        if let Ok(mut last) = self.last_mcp_call.lock() {
+            *last = Some(Instant::now());
+        }
+    }
+
+    fn take_rate(&self, holder: Holder) -> Result<(), u64> {
+        let bucket = match holder {
+            Holder::HttpApi => &self.rate,
+            Holder::McpBridge => &self.mcp_rate,
+        };
+        bucket
             .lock()
             .map_err(|_| 1u64)?
             .take(self.limits.burst, self.limits.per_second)
@@ -149,11 +210,77 @@ impl Gate {
     }
 }
 
+/// A stream of either listener.
+pub trait Conn: Read + Write + Send + 'static {
+    fn read_within(&self, limit: Option<Duration>) -> std::io::Result<()>;
+    fn write_within(&self, limit: Option<Duration>) -> std::io::Result<()>;
+    fn end_writes(&self) -> std::io::Result<()>;
+}
+
+impl Conn for TcpStream {
+    fn read_within(&self, limit: Option<Duration>) -> std::io::Result<()> {
+        self.set_read_timeout(limit)
+    }
+    fn write_within(&self, limit: Option<Duration>) -> std::io::Result<()> {
+        self.set_write_timeout(limit)
+    }
+    fn end_writes(&self) -> std::io::Result<()> {
+        self.shutdown(Shutdown::Write)
+    }
+}
+
+impl Conn for UnixStream {
+    fn read_within(&self, limit: Option<Duration>) -> std::io::Result<()> {
+        self.set_read_timeout(limit)
+    }
+    fn write_within(&self, limit: Option<Duration>) -> std::io::Result<()> {
+        self.set_write_timeout(limit)
+    }
+    fn end_writes(&self) -> std::io::Result<()> {
+        self.shutdown(Shutdown::Write)
+    }
+}
+
+/// Where a request came in. Each takes one holder's token only: the HTTP API's on its port, the
+/// bridge's on its socket, which only this user can reach (ADR 0012).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Via {
+    Tcp(u16),
+    Bridge,
+}
+
+enum Bound {
+    Tcp(SocketAddr),
+    Unix { path: PathBuf, file: (u64, u64) },
+}
+
 pub struct Server {
-    address: SocketAddr,
+    bound: Bound,
     port: u16,
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
+}
+
+/// Whether `path` holds a socket of this user, or nothing: only those are ever replaced.
+fn replaceable(path: &Path) -> Result<(), &'static str> {
+    match std::fs::symlink_metadata(path) {
+        Ok(meta)
+            if meta.file_type().is_socket()
+                && meta.uid() == crate::atomic_file::effective_uid() =>
+        {
+            std::fs::remove_file(path).map_err(|_| "E_MCP_LISTEN_FAILED")
+        }
+        Ok(_) => Err("E_MCP_SOCKET_FOREIGN"),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+        Err(_) => Err("E_MCP_LISTEN_FAILED"),
+    }
+}
+
+/// The bridge's socket file, at `path`, if this user's own socket is there.
+pub fn remove_bridge_socket(path: &Path) {
+    if replaceable(path).is_err() {
+        log::warn!("W_MCP_SOCKET_REMOVE_FAILED");
+    }
 }
 
 impl Server {
@@ -178,12 +305,67 @@ impl Server {
         let stopping = Arc::clone(&stop);
         let thread = std::thread::Builder::new()
             .name("http-api".into())
-            .spawn(move || accept(&listener, port, &stopping, &gate, &dispatch))
+            .spawn(move || {
+                accept(
+                    listener.incoming(),
+                    Via::Tcp(port),
+                    |_| true,
+                    &stopping,
+                    &gate,
+                    &dispatch,
+                )
+            })
             .map_err(|_| "E_HTTP_API_LISTEN_FAILED")?;
         log::info!("I_HTTP_API_STARTED {port}");
         Ok(Self {
-            address,
+            bound: Bound::Tcp(address),
             port,
+            stop,
+            thread: Some(thread),
+        })
+    }
+
+    /// The bridge's socket at `path`, in a folder only this user can open, for this user's
+    /// processes alone: a peer of another user is closed before it is read.
+    pub fn start_bridge(
+        path: &Path,
+        gate: Arc<Gate>,
+        dispatch: Arc<dyn Dispatch>,
+    ) -> Result<Self, &'static str> {
+        replaceable(path)?;
+        let listener = UnixListener::bind(path).map_err(|_| "E_MCP_LISTEN_FAILED")?;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+            .map_err(|_| "E_MCP_LISTEN_FAILED")?;
+        let meta = std::fs::symlink_metadata(path).map_err(|_| "E_MCP_LISTEN_FAILED")?;
+        let stop = Arc::new(AtomicBool::new(false));
+        let stopping = Arc::clone(&stop);
+        let uid = crate::atomic_file::effective_uid();
+        let thread = std::thread::Builder::new()
+            .name("mcp-bridge".into())
+            .spawn(move || {
+                accept(
+                    listener.incoming(),
+                    Via::Bridge,
+                    |stream: &UnixStream| {
+                        let ours = crate::atomic_file::peer_uid(stream) == Some(uid);
+                        if !ours {
+                            log::warn!("W_MCP_PEER_REFUSED");
+                        }
+                        ours
+                    },
+                    &stopping,
+                    &gate,
+                    &dispatch,
+                )
+            })
+            .map_err(|_| "E_MCP_LISTEN_FAILED")?;
+        log::info!("I_MCP_LISTENING");
+        Ok(Self {
+            bound: Bound::Unix {
+                path: path.to_owned(),
+                file: (meta.dev(), meta.ino()),
+            },
+            port: 0,
             stop,
             thread: Some(thread),
         })
@@ -195,7 +377,10 @@ impl Server {
 
     #[cfg(test)]
     pub fn address(&self) -> SocketAddr {
-        self.address
+        match self.bound {
+            Bound::Tcp(address) => address,
+            Bound::Unix { .. } => SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+        }
     }
 }
 
@@ -204,11 +389,28 @@ impl Drop for Server {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::SeqCst);
         // Wakes the blocked accept so it sees the flag.
-        let _ = TcpStream::connect_timeout(&self.address, Duration::from_secs(1));
+        match &self.bound {
+            Bound::Tcp(address) => {
+                let _ = TcpStream::connect_timeout(address, Duration::from_secs(1));
+            }
+            Bound::Unix { path, .. } => {
+                let _ = UnixStream::connect(path);
+            }
+        }
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
-        log::info!("I_HTTP_API_STOPPED {}", self.port);
+        match &self.bound {
+            Bound::Tcp(_) => log::info!("I_HTTP_API_STOPPED {}", self.port),
+            Bound::Unix { path, file } => {
+                let ours = std::fs::symlink_metadata(path)
+                    .is_ok_and(|meta| (meta.dev(), meta.ino()) == *file);
+                if ours {
+                    let _ = std::fs::remove_file(path);
+                }
+                log::info!("I_MCP_STOPPED");
+            }
+        }
     }
 }
 
@@ -236,15 +438,16 @@ pub fn spawn_counted(
         .map(drop)
 }
 
-fn accept(
-    listener: &TcpListener,
-    port: u16,
+fn accept<S: Conn>(
+    incoming: impl Iterator<Item = std::io::Result<S>>,
+    via: Via,
+    trusted: impl Fn(&S) -> bool,
     stop: &AtomicBool,
     gate: &Arc<Gate>,
     dispatch: &Arc<dyn Dispatch>,
 ) {
     let active = Arc::new(AtomicUsize::new(0));
-    for stream in listener.incoming() {
+    for stream in incoming {
         if stop.load(Ordering::SeqCst) {
             break;
         }
@@ -253,9 +456,12 @@ fn accept(
             std::thread::sleep(Duration::from_millis(50));
             continue;
         };
+        if !trusted(&stream) {
+            continue;
+        }
         if active.fetch_add(1, Ordering::SeqCst) >= gate.limits.max_connections {
             active.fetch_sub(1, Ordering::SeqCst);
-            let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
+            let _ = stream.write_within(Some(Duration::from_secs(1)));
             let busy = Reply::refused(Refusal::new(503, "E_HTTP_API_BUSY"));
             let _ = stream.write_all(&busy.bytes());
             continue;
@@ -264,7 +470,7 @@ fn accept(
         let spawned = spawn_counted(
             std::thread::Builder::new().name("http-api-request".into()),
             Arc::clone(&active),
-            move || serve(stream, port, &gate, dispatch.as_ref()),
+            move || serve(stream, via, &gate, dispatch.as_ref()),
         );
         if spawned.is_err() {
             log::warn!("W_HTTP_API_THREAD_FAILED");
@@ -357,7 +563,7 @@ pub fn status_of(code: &str) -> u16 {
         | "E_AI_PATCH_NOT_FOUND"
         | "E_AI_PATCH_AMBIGUOUS" => 409,
         "E_NOTE_BODY_TOO_LARGE" => 413,
-        "E_STORAGE_BUSY" | "E_CORE_NOT_READY" | "E_HTTP_API_UNAVAILABLE" => 503,
+        "E_STORAGE_BUSY" | "E_CORE_NOT_READY" | "E_HTTP_API_UNAVAILABLE" | "E_APP_QUITTING" => 503,
         "E_HTTP_API_TIMEOUT" => 504,
         _ if code.starts_with("E_AI_")
             || code.starts_with("E_SEARCH_")
@@ -394,6 +600,8 @@ impl Head {
 
 const BAD_REQUEST: Refusal = Refusal::new(400, "E_HTTP_BAD_REQUEST");
 const TIMED_OUT: Refusal = Refusal::new(408, "E_HTTP_TIMEOUT");
+/// Closed before a byte came: the bridge looking whether Devot listens. No answer, no log line.
+const NOTHING_SENT: Refusal = Refusal::new(400, "E_HTTP_NOTHING_SENT");
 
 fn parse_head(bytes: &[u8]) -> Result<Head, Refusal> {
     let text = std::str::from_utf8(bytes).map_err(|_| BAD_REQUEST)?;
@@ -441,7 +649,7 @@ fn find_end(bytes: &[u8]) -> Option<usize> {
 
 /// Reads into `buffer` until `done` says so, the deadline passes or the peer stops sending.
 fn read_until(
-    stream: &mut TcpStream,
+    stream: &mut impl Conn,
     buffer: &mut Vec<u8>,
     deadline: Instant,
     mut done: impl FnMut(&[u8]) -> Result<bool, Refusal>,
@@ -452,10 +660,10 @@ fn read_until(
             .checked_duration_since(Instant::now())
             .filter(|d| !d.is_zero())
             .ok_or(TIMED_OUT)?;
-        stream
-            .set_read_timeout(Some(left))
-            .map_err(|_| BAD_REQUEST)?;
+        // macOS refuses the timeout once the peer has closed; then a read ends at once anyway.
+        let _ = stream.read_within(Some(left));
         match stream.read(&mut chunk) {
+            Ok(0) if buffer.is_empty() => return Err(NOTHING_SENT),
             Ok(0) => return Err(BAD_REQUEST),
             Ok(n) => buffer.extend_from_slice(&chunk[..n]),
             Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
@@ -508,17 +716,20 @@ impl From<Refusal> for Outcome {
     }
 }
 
-fn serve(mut stream: TcpStream, port: u16, gate: &Gate, dispatch: &dyn Dispatch) {
-    let _ = stream.set_write_timeout(Some(WRITE_TIMEOUT));
-    let outcome = handle(&mut stream, port, gate, dispatch).unwrap_or_else(Outcome::from);
+fn serve(mut stream: impl Conn, via: Via, gate: &Gate, dispatch: &dyn Dispatch) {
+    let _ = stream.write_within(Some(WRITE_TIMEOUT));
+    let outcome = handle(&mut stream, via, gate, dispatch).unwrap_or_else(Outcome::from);
+    if outcome.reply.code.as_deref() == Some(NOTHING_SENT.code) {
+        return;
+    }
     log_outcome(gate, &outcome);
     let _ = stream.write_all(&outcome.reply.bytes());
     let _ = stream.flush();
-    let _ = stream.shutdown(Shutdown::Write);
+    let _ = stream.end_writes();
     drain(&mut stream);
 }
 
-fn drain(stream: &mut TcpStream) {
+fn drain(stream: &mut impl Conn) {
     let until = Instant::now() + DRAIN_TIME;
     let mut chunk = [0u8; 8192];
     let mut read = 0;
@@ -529,7 +740,7 @@ fn drain(stream: &mut TcpStream) {
         else {
             return;
         };
-        if stream.set_read_timeout(Some(left)).is_err() {
+        if stream.read_within(Some(left)).is_err() {
             return;
         }
         match stream.read(&mut chunk) {
@@ -561,8 +772,8 @@ fn log_outcome(gate: &Gate, outcome: &Outcome) {
 }
 
 fn handle(
-    stream: &mut TcpStream,
-    port: u16,
+    stream: &mut impl Conn,
+    via: Via,
     gate: &Gate,
     dispatch: &dyn Dispatch,
 ) -> Result<Outcome, Refusal> {
@@ -585,7 +796,12 @@ fn handle(
     let mut body = buffer.split_off(end + 4);
 
     // DNS rebinding: a page on another name that resolves here sends that name.
-    if !host_allowed(head.one("host")?, port) {
+    let host = head.one("host")?;
+    let host_ok = match via {
+        Via::Tcp(port) => host_allowed(host, port),
+        Via::Bridge => host == Some("localhost"),
+    };
+    if !host_ok {
         return Err(Refusal::new(403, "E_HTTP_HOST_REFUSED"));
     }
     // Browsers name the page a request comes from; nothing else needs to.
@@ -597,8 +813,14 @@ fn handle(
     if head.has("sec-fetch-site") || head.has("sec-fetch-dest") {
         return Err(Refusal::new(403, "E_HTTP_BROWSER_REFUSED"));
     }
-    let scope = gate.admit(head.one("authorization")?)?;
-    if let Err(seconds) = gate.take_rate() {
+    let (holder, scope) = gate.admit(head.one("authorization")?)?;
+    // The bridge's token never travels over TCP, so one that does was not sent by it.
+    match (via, holder) {
+        (Via::Tcp(_), Holder::HttpApi) => {}
+        (Via::Bridge, Holder::McpBridge) => gate.mcp_called(),
+        _ => return Err(Refusal::new(401, "E_HTTP_TOKEN_INVALID")),
+    }
+    if let Err(seconds) = gate.take_rate(holder) {
         let mut outcome = Outcome::from(Refusal::new(429, "E_HTTP_RATE_LIMITED"));
         outcome.reply.retry_after = Some(seconds);
         return Ok(outcome);
@@ -634,7 +856,11 @@ fn handle(
         let Some(length) = length else {
             return Ok(fail(Refusal::new(411, "E_HTTP_LENGTH_REQUIRED"), &note));
         };
-        if length > gate.limits.max_body {
+        let max_body = match via {
+            Via::Tcp(_) => gate.limits.max_body,
+            Via::Bridge => gate.limits.max_bridge_body,
+        };
+        if length > max_body {
             return Ok(fail(Refusal::new(413, "E_HTTP_BODY_TOO_LARGE"), &note));
         }
         if head
@@ -651,10 +877,16 @@ fn handle(
         return Ok(fail(Refusal::new(400, "E_HTTP_BODY_UNEXPECTED"), &note));
     }
 
-    let call = match routes::call(op, note.clone(), query, &body) {
+    let mut call = match routes::call(op, note.clone(), query, &body) {
         Ok(call) => call,
         Err(refusal) => return Ok(fail(refusal, &note)),
     };
+    if holder == Holder::McpBridge {
+        match routes::client(head.one("x-devot-client")?, head.one("x-devot-session")?) {
+            Ok(client) => call.client = Some(client),
+            Err(refusal) => return Ok(fail(refusal, &note)),
+        }
+    }
     drop(body);
     Ok(match dispatch.dispatch(&call) {
         Ok(value) => {
@@ -679,4 +911,51 @@ fn handle(
             note,
         },
     })
+}
+
+#[cfg(test)]
+mod probe_tests {
+    use super::*;
+
+    /// A peer that closed before sending: macOS then refuses the read timeout, and a read ends at once.
+    struct Closed;
+
+    impl Read for Closed {
+        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+            Ok(0)
+        }
+    }
+
+    impl Write for Closed {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Conn for Closed {
+        fn read_within(&self, _: Option<Duration>) -> std::io::Result<()> {
+            Err(std::io::Error::from(ErrorKind::InvalidInput))
+        }
+        fn write_within(&self, _: Option<Duration>) -> std::io::Result<()> {
+            Err(std::io::Error::from(ErrorKind::InvalidInput))
+        }
+        fn end_writes(&self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_look_that_closed_before_sending_is_nothing_sent_even_where_the_timeout_is_refused() {
+        let mut buffer = Vec::new();
+        let read = read_until(
+            &mut Closed,
+            &mut buffer,
+            Instant::now() + Duration::from_secs(1),
+            |b| Ok(!b.is_empty()),
+        );
+        assert_eq!(read, Err(NOTHING_SENT));
+    }
 }

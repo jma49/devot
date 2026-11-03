@@ -26,7 +26,7 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
   - AI with the user's own provider keys (`aiProviders`), including edit proposals and next edit suggestions;
   - local semantic search once it ships (`semanticSearch`).
 - A license names a plan (`pro`), not a list of features, so a paid feature added later reaches every license. Hosted sync, if it ever ships, is a separate periodically billed service, not a feature of the license (ADR 0011).
-- The devot-mcp CLI writes the database itself and is not covered; it is not shipped.
+- The MCP bridge (ADR 0012) writes through the app's core: its reads stay open and its writes are refused when notes are read-only.
 
 ## The license
 

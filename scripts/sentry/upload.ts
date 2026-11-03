@@ -109,7 +109,7 @@ export function sourceMapLeaks(dir: string): string[] {
 
 /**
  * Key prefix of the UI tests' in-memory storage (src/renderer/src/storage/memory.ts); a bundle
- * holding it would keep notes where backups and devot-mcp don't see them.
+ * holding it would keep notes where backups and an outside writer don't see them.
  */
 export const TEST_STORAGE_MARKER = 'devot.test.'
 

@@ -1,56 +1,114 @@
 import { describe, expect, it } from 'vitest'
 import {
+  asMcpAccess,
+  asMcpClientStatus,
   asMcpSetup,
+  asRunMode,
+  BRIDGE_ARGS,
   claudeCodeCommand,
   codexConfig,
   mcpServersJson,
-  PLACEHOLDER_SCRIPT,
+  NO_MCP_SETUP,
+  PLACEHOLDER_COMMAND,
   shellWord,
 } from './mcpConfigs'
 
-const SCRIPT = '/Users/me/Code/devot/dist-mcp/devot-mcp.mjs'
-const DEV_DB = '/Users/me/Library/Application Support/io.github.jma49.devot.dev/devot.sqlite'
+const SPACED = '/Applications/My Apps/Devot.app/Contents/MacOS/devot'
+const PLAIN = '/Applications/Devot.app/Contents/MacOS/devot'
+const args = ['--cli', 'mcp']
 
-describe('devot-mcp client configs', () => {
-  it('runs the script with node, with the default database', () => {
-    const setup = { script: SCRIPT, db: null }
-    expect(claudeCodeCommand(setup)).toBe(`claude mcp add --scope user devot -- node ${SCRIPT}`)
-    expect(codexConfig(setup)).toBe(`[mcp_servers.devot]\ncommand = "node"\nargs = ["${SCRIPT}"]\n`)
-    expect(JSON.parse(mcpServersJson(setup))).toEqual({
-      mcpServers: { devot: { command: 'node', args: [SCRIPT] } },
-    })
-  })
-
-  it('passes a debug build\u2019s database, quoted where it has spaces', () => {
-    const setup = { script: SCRIPT, db: DEV_DB }
-    expect(claudeCodeCommand(setup)).toBe(
-      `claude mcp add --scope user devot -- node ${SCRIPT} --db '${DEV_DB}'`,
+describe('MCP client configs', () => {
+  it('runs this app as the bridge, with no runtime and no token', () => {
+    const setup = { command: PLAIN, args }
+    expect(claudeCodeCommand(setup)).toBe(`claude mcp add --scope user devot -- ${PLAIN} --cli mcp`)
+    expect(codexConfig(setup)).toBe(
+      `[mcp_servers.devot]\ncommand = "${PLAIN}"\nargs = ["--cli", "mcp"]\n`,
     )
-    expect(codexConfig(setup)).toContain(`args = ["${SCRIPT}", "--db", "${DEV_DB}"]`)
-    expect(JSON.parse(mcpServersJson(setup)).mcpServers.devot.args).toEqual([
-      SCRIPT,
-      '--db',
-      DEV_DB,
-    ])
+    expect(JSON.parse(mcpServersJson(setup))).toEqual({
+      mcpServers: { devot: { command: PLAIN, args } },
+    })
+    for (const text of [claudeCodeCommand(setup), codexConfig(setup), mcpServersJson(setup)]) {
+      expect(text).not.toMatch(/node|dvt_|token/i)
+    }
   })
 
-  it('shows a placeholder path when this app does not know the script', () => {
-    const setup = { script: null, db: null }
-    expect(claudeCodeCommand(setup)).toContain(PLACEHOLDER_SCRIPT)
-    expect(codexConfig(setup)).toContain(PLACEHOLDER_SCRIPT)
-    expect(mcpServersJson(setup)).toContain(PLACEHOLDER_SCRIPT)
+  it('keeps a path with spaces whole', () => {
+    const setup = { command: SPACED, args }
+    expect(claudeCodeCommand(setup)).toBe(
+      `claude mcp add --scope user devot -- '${SPACED}' --cli mcp`,
+    )
+    expect(codexConfig(setup)).toContain(`command = "${SPACED}"`)
+    expect(JSON.parse(mcpServersJson(setup)).mcpServers.devot.command).toBe(SPACED)
+  })
+
+  it('shows the installed location when Rust cannot say', () => {
+    const setup = { command: null, args }
+    expect(claudeCodeCommand(setup)).toContain(PLACEHOLDER_COMMAND)
+    expect(codexConfig(setup)).toContain(PLACEHOLDER_COMMAND)
+    expect(mcpServersJson(setup)).toContain(PLACEHOLDER_COMMAND)
   })
 
   it('quotes shell words and TOML strings so they read back exactly', () => {
-    expect(shellWord('/a/b-c_d.mjs')).toBe('/a/b-c_d.mjs')
+    expect(shellWord('/a/b-c_d')).toBe('/a/b-c_d')
     expect(shellWord("/it's here")).toBe(`'/it'\\''s here'`)
     expect(shellWord('$HOME')).toBe(`'$HOME'`)
-    expect(codexConfig({ script: 'C:\\a "b"', db: null })).toContain('args = ["C:\\\\a \\"b\\""]')
+    expect(codexConfig({ command: 'C:\\a "b"', args: [] })).toContain('command = "C:\\\\a \\"b\\""')
+  })
+})
+
+describe('Rust\u2019s answer', () => {
+  const STATUS = {
+    client: 'codex',
+    path: '/Users/me/.codex/config.toml',
+    backup: '/Users/me/.codex/config.toml.devot-backup',
+    state: 'stale',
+    code: null,
+    missing: false,
+    preview: '[mcp_servers.devot]\n',
+    revision: 'missing',
+    via: 'file',
+  }
+
+  it('reads a client status, refusing an unknown client or state', () => {
+    expect(asMcpClientStatus(STATUS)).toEqual(STATUS)
+    expect(asMcpClientStatus({ ...STATUS, client: 'other' })).toBeNull()
+    expect(asMcpClientStatus({ ...STATUS, state: 'other-state' })).toBeNull()
+    expect(asMcpClientStatus({ ...STATUS, path: 3 })).toBeNull()
+    expect(asMcpClientStatus({ ...STATUS, via: 'claudeCli' })?.via).toBe('claudeCli')
+    expect(asMcpClientStatus({ ...STATUS, via: 'shell' })?.via).toBe('file')
+    expect(asMcpClientStatus(null)).toBeNull()
   })
 
-  it('reads Rust\u2019s answer, treating anything else as unknown', () => {
-    expect(asMcpSetup({ script: SCRIPT, db: null })).toEqual({ script: SCRIPT, db: null })
-    expect(asMcpSetup({ script: '', db: 3 })).toEqual({ script: null, db: null })
+  it('reads the setup, treating anything else as unknown', () => {
+    expect(asMcpSetup({ command: SPACED, args, temporary: true, clients: [STATUS, 3] })).toEqual({
+      command: SPACED,
+      args,
+      temporary: true,
+      clients: [STATUS],
+    })
+    expect(asMcpSetup({ command: '', args: 3 })).toEqual(NO_MCP_SETUP)
     expect(asMcpSetup(null)).toBeNull()
+    expect(NO_MCP_SETUP.args).toEqual(BRIDGE_ARGS)
+  })
+
+  it('reads MCP access, refusing an unknown scope', () => {
+    const access = {
+      enabled: true,
+      scope: 'read',
+      backgroundStart: false,
+      reachable: true,
+      problem: null,
+    }
+    expect(asMcpAccess(access)).toEqual(access)
+    expect(asMcpAccess({ ...access, scope: 'admin' })).toBeNull()
+    expect(asMcpAccess({ ...access, enabled: 'yes' })).toBeNull()
+    expect(asMcpAccess(null)).toBeNull()
+  })
+
+  it('reads how Devot runs now', () => {
+    expect(asRunMode({ mode: 'background' })).toBe('background')
+    expect(asRunMode({ mode: 'normal' })).toBe('normal')
+    expect(asRunMode({ mode: 'other' })).toBeNull()
+    expect(asRunMode(null)).toBeNull()
   })
 })

@@ -1,5 +1,5 @@
 // Writes wait out another writer for the busy timeout, as the Rust store's
-// do: devot-mcp and the app share one database file, and a write that fails
+// do: an outside writer and the app share one database file, and a write that fails
 // at once while the other writes loses what it carried (an image, a copy).
 import { createRequire } from 'node:module'
 import { join } from 'node:path'

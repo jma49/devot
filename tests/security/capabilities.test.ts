@@ -112,12 +112,14 @@ describe('Tauri command permissions', () => {
       'allow-ai-key-set',
       'allow-ai-settings-get',
       'allow-ai-settings-set',
+      'allow-background-quit',
+      'allow-background-state',
       'allow-cli-tool-install',
       'allow-cli-tool-status',
       'allow-cli-tool-uninstall',
       // Settings > Sync copies the recovery key as a secret.
       'allow-clipboard-write-secret',
-      // Settings > Integrations copies devot-mcp's configs.
+      // Settings > Integrations copies the MCP client configs.
       'allow-clipboard-write-text',
       'allow-crash-reports-get',
       'allow-crash-reports-set',
@@ -142,6 +144,8 @@ describe('Tauri command permissions', () => {
       'allow-licence-set',
       // Settings > Integrations offers the AI access picker, which lives in the main window.
       'allow-main-window-show',
+      'allow-mcp-access-get',
+      'allow-mcp-access-set',
       'allow-mirror-choose',
       'allow-mirror-confirm',
       'allow-mirror-get',
@@ -157,6 +161,9 @@ describe('Tauri command permissions', () => {
       'allow-plugins-list',
       // Settings > Integrations says whether any notebook allows AI access.
       'allow-settings-ai-access-summary',
+      'allow-settings-mcp-connect',
+      'allow-settings-mcp-disconnect',
+      'allow-settings-mcp-open-extension',
       'allow-settings-mcp-setup',
       'allow-settings-open-data-folder',
       'allow-settings-show-backups',
@@ -368,6 +375,8 @@ describe('Tauri command permissions', () => {
       expect(windowsWith(`allow-http-api-${command}`)).toEqual(['settings'])
     }
     expect(windowsWith('allow-http-api-done')).toEqual(['main'])
+    expect(windowsWith('allow-http-api-listening')).toEqual(['main'])
+    expect(windowsWith('allow-background-idle-answer')).toEqual(['main'])
   })
 
   it('grants no window a global shortcut command: Rust alone registers the shortcut', () => {
@@ -413,9 +422,24 @@ describe('Tauri command permissions', () => {
     expect(plugin).toEqual([])
   })
 
-  it('lets only the Settings window open the data folder, ask for the Backups dialog and find devot-mcp', () => {
-    for (const command of ['open-data-folder', 'show-backups', 'mcp-setup']) {
+  it('lets only the Settings window open the data folder, ask for the Backups dialog and change MCP clients', () => {
+    for (const command of [
+      'open-data-folder',
+      'show-backups',
+      'mcp-setup',
+      'mcp-connect',
+      'mcp-disconnect',
+      'mcp-open-extension',
+    ]) {
       expect(windowsWith(`allow-settings-${command}`)).toEqual(['settings'])
+    }
+    for (const permission of [
+      'allow-mcp-access-get',
+      'allow-mcp-access-set',
+      'allow-background-state',
+      'allow-background-quit',
+    ]) {
+      expect(windowsWith(permission)).toEqual(['settings'])
     }
   })
 

@@ -47,6 +47,26 @@ pub fn temporary_name() -> OsString {
     OsString::from(random_name())
 }
 
+/// The user ID of the process at the other end of a Unix socket; none when it cannot be read.
+#[cfg(target_os = "macos")]
+pub fn peer_uid(stream: &std::os::unix::net::UnixStream) -> Option<u32> {
+    use std::os::fd::AsRawFd;
+    crate::native::macos::peer_uid(stream.as_raw_fd())
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+pub fn peer_uid(stream: &std::os::unix::net::UnixStream) -> Option<u32> {
+    rustix::net::sockopt::socket_peercred(stream)
+        .ok()
+        .map(|cred| cred.uid.as_raw())
+}
+
+/// No way to tell here: never trusted.
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "android")))]
+pub fn peer_uid(_: &std::os::unix::net::UnixStream) -> Option<u32> {
+    None
+}
+
 /// Whether `path` is on a volume mounted read-only, as a disk image is.
 pub fn on_read_only_volume(path: &Path) -> bool {
     rustix::fs::statvfs(path).is_ok_and(|volume| {
@@ -493,6 +513,11 @@ impl TempFile {
             }
         }
         Err(taken)
+    }
+
+    /// Before the bytes go in, so a config that holds secrets is never readable by others.
+    pub fn set_mode(&mut self, permissions: std::fs::Permissions) -> io::Result<()> {
+        self.file.set_permissions(permissions)
     }
 
     pub fn write_all(&mut self, bytes: &[u8]) -> io::Result<()> {

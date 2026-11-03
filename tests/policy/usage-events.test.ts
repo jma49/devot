@@ -82,14 +82,14 @@ describe('the usage event catalog', () => {
 })
 
 describe('where usage events live', () => {
-  it('stays out of the notes database, so it never syncs or reaches devot-mcp', () => {
+  it('stays out of the notes database, so it never syncs or reaches an AI tool', () => {
     const migrations = readdirSync('src-tauri/migrations')
       .map((f) => readFileSync(`src-tauri/migrations/${f}`, 'utf8'))
       .join('\n')
     expect(migrations).not.toMatch(/usage_events/i)
-    const mcp = readdirSync('src/mcp')
-      .map((f) => readFileSync(`src/mcp/${f}`, 'utf8'))
+    const mcp = readdirSync('src-tauri/src/mcp_bridge')
+      .map((f) => readFileSync(`src-tauri/src/mcp_bridge/${f}`, 'utf8'))
       .join('\n')
-    expect(mcp).not.toMatch(/usage\.sqlite|usage_events|core\/usage/)
+    expect(mcp).not.toMatch(/usage\.sqlite|usage_events|usage::/)
   })
 })

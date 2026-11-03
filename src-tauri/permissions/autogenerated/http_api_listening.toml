@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-http-api-listening"
+description = "Enables the http_api_listening command without any pre-configured scope."
+commands.allow = ["http_api_listening"]
+
+[[permission]]
+identifier = "deny-http-api-listening"
+description = "Denies the http_api_listening command without any pre-configured scope."
+commands.deny = ["http_api_listening"]

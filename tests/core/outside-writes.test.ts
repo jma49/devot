@@ -1,4 +1,4 @@
-// Another process (devot-mcp, any writer on another connection) writes while Devot runs: the window
+// Another process (an outside writer, any writer on another connection) writes while Devot runs: the window
 // hears devot://db-changed and merges (mergeStored). A write made before that is refused by storage
 // (stale body version) and redone after the merge, so it keeps the other's changes too.
 import { join } from 'node:path'

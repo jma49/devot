@@ -1,7 +1,7 @@
 //! The agent_writes index (docs/adr/0007-authorship-by-yjs-item-ids.md): the rows `note_put`
 //! writes with a note, the list for the note list's mark and the sidebar's Agents section, and
 //! marking a note's writes seen. The core derives the rows from untrusted records (another device,
-//! devot-mcp, a later build), so every row is checked here again.
+//! an outside writer, a later build), so every row is checked here again.
 
 use super::notes::valid_note_id;
 use crate::storage::{AgentWriteRow, AgentWriteSummary, Db, Write};

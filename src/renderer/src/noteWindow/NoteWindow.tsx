@@ -220,7 +220,7 @@ export function NoteWindow() {
     [],
   )
 
-  // Another process (devot-mcp) wrote: the note takes it in, and the editor what changed (takeIn).
+  // Another process wrote: the note takes it in, and the editor what changed (takeIn).
   useExternalChanges(
     core
       ? async () => {

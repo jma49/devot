@@ -22,7 +22,9 @@ import {
   preparerHere,
   renderPreview,
   runHttpApiCall,
+  writerOfCall,
   type AiService,
+  type Writer,
   type WriterKind,
   type BatchChange,
   type MirrorHost,
@@ -85,6 +87,8 @@ let stopImport = false
 let mirror: MirrorRunner | undefined
 let mirrorStorage: StorageAdapter | undefined
 let httpApi: AiService | undefined
+let httpWriter: Writer | null = null
+let callWriter: Writer | null = null
 let sync: SyncEngine | undefined
 let syncParts:
   | {
@@ -168,15 +172,15 @@ export const coreApi = {
       newId: ids,
       starters: starterTemplates,
     })
-    // Its own note service, as devot-mcp's: its writes reach the notes held
-    // here as changes from outside (the page merges them, see httpApiHost).
+    // Its own note service: its writes reach the notes held here as changes from outside
+    // (the page merges them, see httpApiHost).
     // One writer for each start of the core, which answers the HTTP API for as long as the app runs.
-    const httpWriter = newWriter('http', '', node)
+    httpWriter = newWriter('http', '', node)
     httpApi = createAiService({
       storage,
       clock,
       newId: ids,
-      writer: () => httpWriter,
+      writer: () => callWriter ?? httpWriter!,
       log: logInfo,
     })
     if (options.lean) return
@@ -200,7 +204,13 @@ export const coreApi = {
     const notes = required()
     if (!httpApi) throw new Error('E_CORE_NOT_READY')
     await notes.flush().catch(() => {})
-    return runHttpApiCall(httpApi, call)
+    // The window runs calls one at a time (httpApiHost), so this names the one running.
+    callWriter = httpWriter ? writerOfCall(call, httpWriter) : null
+    try {
+      return await runHttpApiCall(httpApi, call)
+    } finally {
+      callWriter = null
+    }
   },
   open: (id: string, known?: Uint8Array) => required().open(id, known),
   title: (id: string) => required().title(id),

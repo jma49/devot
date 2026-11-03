@@ -1,4 +1,4 @@
-// Authorship on real SQLite (ADR 0007): devot-mcp writes through its own connection to the file the
+// Authorship on real SQLite (ADR 0007): an outside writer writes through its own connection to the file the
 // app's note service uses, as on a Mac running both. The records live in each note's Yjs state and
 // the agent_writes index beside it.
 import { readFileSync } from 'node:fs'
@@ -56,7 +56,7 @@ function app(path: string) {
   return { storage, notes, books: createBookService({ storage, clock, newId }), logs }
 }
 
-/** devot-mcp: a connection of its own to the same file, for one client. */
+/** an outside writer: a connection of its own to the same file, for one client. */
 function mcp(
   path: string,
   writer = CLAUDE,
@@ -112,14 +112,14 @@ const stored = async (storage: SqliteAdapter, id: string) => {
 }
 
 describe('recording agent writes', () => {
-  it('stores the record with the body and its row in devot-mcp’s own transaction', async () => {
+  it('stores the record with the body and its row in an outside writer’s own transaction', async () => {
     const s = await setup()
     const { id } = await s.claude.ai.create({
       title: 'Plan',
       markdown: 'Monday\n',
       notebook: s.shared,
     })
-    // Before the app has done anything: devot-mcp wrote the row itself.
+    // Before the app has done anything: an outside writer wrote the row itself.
     expect(rows(s.claude.storage, id)).toEqual([
       { write_id: expect.any(String), kind: 'mcp', name: 'Claude Code', created: 1, seen: 0 },
     ])

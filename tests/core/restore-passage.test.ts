@@ -205,7 +205,7 @@ describe('restoring a passage', () => {
 
   it('works on the text as it is now, with changes made since the version shown', async () => {
     const { notes, id, editor, older } = await twoVersions()
-    // Another process (sync, devot-mcp) changed the note meanwhile.
+    // Another process (sync, an outside writer) changed the note meanwhile.
     await notes.setBody(id, 'intro\noutro\nnew ending\nfrom elsewhere\n')
     const old = await notes.revisionText(id, older.id)
     const from = old.indexOf('cut')

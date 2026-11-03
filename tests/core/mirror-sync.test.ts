@@ -773,7 +773,7 @@ describe('reconciling', () => {
     const lib = await sample()
     await mirrorOn(lib)
     lib.runner.stop()
-    // A note created by devot-mcp straight in the database (no pass runs).
+    // A note created by an outside writer straight in the database (no pass runs).
     const mcp = await lib.notes.create('From MCP', lib.ids.work)
     await lib.notes.setBody(mcp, 'Made by an agent.\n')
     await lib.notes.release(mcp)

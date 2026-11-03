@@ -852,6 +852,7 @@ fn call(op: Op) -> Call {
         op,
         note: Some(NOTE.into()),
         args: json!({}),
+        client: None,
     }
 }
 
@@ -1065,6 +1066,7 @@ fn once_the_trial_is_over_writes_are_refused_before_the_window_is_asked() {
         op,
         note: Some(NOTE.into()),
         args: Value::Null,
+        client: None,
     };
     for op in [
         Op::NotebooksCreate,
@@ -1093,4 +1095,498 @@ fn once_the_trial_is_over_writes_are_refused_before_the_window_is_asked() {
         .set(&crate::licence::testing::key(crate::licence::testing::ID))
         .unwrap();
     assert!(dispatch.dispatch(&call(Op::NotesUpdate)).is_ok());
+}
+
+fn bridge_header(token: &str) -> String {
+    format!("Authorization: Bearer {token}")
+}
+
+const SESSION: &str = "X-Devot-Session: AAAAAAAAAAA";
+
+/// The bridge's socket, with the HTTP API's token allowed too (it must not get in there).
+struct Bridge {
+    server: Server,
+    gate: Arc<Gate>,
+    core: Arc<Core>,
+    token: String,
+    http_token: String,
+    _dir: tempfile::TempDir,
+    socket: std::path::PathBuf,
+}
+
+fn bridge(scope: Scope, limits: Limits) -> Bridge {
+    let dir = tempfile::tempdir().unwrap();
+    let socket = dir.path().join("mcp.sock");
+    let gate = Arc::new(Gate::new(quick(limits)));
+    let token = token::generate().unwrap();
+    let sent = token.as_str().to_string();
+    gate.allow_mcp(token, scope);
+    let http = token::generate().unwrap();
+    let http_token = http.as_str().to_string();
+    gate.allow(http, Scope::ReadWrite);
+    let core = Arc::new(Core::default());
+    let server = Server::start_bridge(&socket, Arc::clone(&gate), core.clone()).unwrap();
+    Bridge {
+        server,
+        gate,
+        core,
+        token: sent,
+        http_token,
+        _dir: dir,
+        socket,
+    }
+}
+
+fn over_socket(
+    bridge: &Bridge,
+    method: &str,
+    target: &str,
+    extra: &[&str],
+    body: Option<&str>,
+) -> Response {
+    use std::os::unix::net::UnixStream;
+    let mut text = format!("{method} {target} HTTP/1.1\r\nHost: localhost\r\n");
+    for line in extra {
+        text.push_str(line);
+        text.push_str("\r\n");
+    }
+    if let Some(body) = body {
+        text.push_str(&format!(
+            "Content-Type: application/json\r\nContent-Length: {}\r\n",
+            body.len()
+        ));
+    }
+    text.push_str("\r\n");
+    text.push_str(body.unwrap_or(""));
+    let mut stream = UnixStream::connect(&bridge.socket).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    stream.write_all(text.as_bytes()).unwrap();
+    let mut out = Vec::new();
+    let _ = stream.read_to_end(&mut out);
+    let text = String::from_utf8(out).unwrap();
+    let (head, body) = text.split_once("\r\n\r\n").expect("a whole response");
+    Response {
+        status: head.split(' ').nth(1).unwrap().parse().unwrap(),
+        head: head.to_string(),
+        body: serde_json::from_str(body).unwrap_or(Value::Null),
+    }
+}
+
+#[test]
+fn the_bridges_token_works_on_its_socket_alone_and_the_http_apis_never_there() {
+    let bridge = bridge(Scope::ReadWrite, Limits::DEFAULT);
+    let auth = bridge_header(&bridge.token);
+    let open = over_socket(&bridge, "GET", "/v1/notebooks", &[&auth, SESSION], None);
+    assert_eq!(open.status, 200);
+    assert!(bridge.gate.last_mcp_call().is_some());
+    let http = bridge_header(&bridge.http_token);
+    let refused = over_socket(&bridge, "GET", "/v1/notebooks", &[&http, SESSION], None);
+    assert_eq!(
+        (refused.status, refused.code()),
+        (401, "E_HTTP_TOKEN_INVALID")
+    );
+    assert_eq!(bridge.core.reached(), 1);
+
+    // And over TCP the bridge's token is refused even when it is the one allowed.
+    let api = start(Scope::ReadWrite);
+    api.gate.close();
+    let token = token::generate().unwrap();
+    let sent = token.as_str().to_string();
+    api.gate.allow_mcp(token, Scope::ReadWrite);
+    let tcp = request(
+        &api,
+        "GET",
+        "/v1/notebooks",
+        &[&bridge_header(&sent), SESSION],
+        None,
+    );
+    assert_eq!((tcp.status, tcp.code()), (401, "E_HTTP_TOKEN_INVALID"));
+    assert_eq!(api.core.reached(), 0);
+    assert!(api.gate.last_mcp_call().is_none());
+
+    bridge.gate.close_mcp();
+    let off = over_socket(&bridge, "GET", "/v1/notebooks", &[&auth, SESSION], None);
+    assert_eq!(off.status, 401);
+}
+
+#[test]
+fn the_socket_is_this_users_alone_and_goes_when_it_stops() {
+    use std::os::unix::fs::PermissionsExt;
+    let bridge = bridge(Scope::Read, Limits::DEFAULT);
+    let mode = std::fs::metadata(&bridge.socket)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(mode, 0o600);
+    let path = bridge.socket.clone();
+    let Bridge { server, _dir, .. } = bridge;
+    drop(server);
+    assert!(!path.exists());
+    drop(_dir);
+}
+
+#[test]
+fn a_socket_a_dead_devot_left_is_replaced_and_a_look_that_sends_nothing_gets_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let place = dir.path().join("mcp.sock");
+    drop(std::os::unix::net::UnixListener::bind(&place).unwrap());
+    let gate = Arc::new(Gate::new(Limits::DEFAULT));
+    let core = Arc::new(Core::default());
+    let _server = Server::start_bridge(&place, gate, core.clone()).unwrap();
+    let mut look = std::os::unix::net::UnixStream::connect(&place).unwrap();
+    look.shutdown(std::net::Shutdown::Write).unwrap();
+    look.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    let mut answer = Vec::new();
+    let _ = look.read_to_end(&mut answer);
+    assert!(answer.is_empty());
+    assert_eq!(core.reached(), 0);
+}
+
+#[test]
+fn a_file_at_the_sockets_place_that_is_not_this_users_socket_is_left_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let place = dir.path().join("mcp.sock");
+    std::fs::write(&place, b"keep").unwrap();
+    let gate = Arc::new(Gate::new(Limits::DEFAULT));
+    let started = Server::start_bridge(&place, gate, Arc::new(Core::default()));
+    assert_eq!(started.err(), Some("E_MCP_SOCKET_FOREIGN"));
+    assert_eq!(std::fs::read(&place).unwrap(), b"keep");
+}
+
+#[test]
+fn only_the_bridges_token_can_name_a_client() {
+    let api = start(Scope::ReadWrite);
+    let named = [
+        bearer(&api),
+        SESSION.to_string(),
+        "X-Devot-Client: Claude%20Code".to_string(),
+    ];
+    let named: Vec<&str> = named.iter().map(String::as_str).collect();
+    assert_eq!(request(&api, "GET", "/v1/tags", &named, None).status, 200);
+    assert_eq!(api.core.calls.lock().unwrap()[0].client, None);
+
+    let bridge = bridge(Scope::ReadWrite, Limits::DEFAULT);
+    let auth = bridge_header(&bridge.token);
+    let sent = over_socket(
+        &bridge,
+        "GET",
+        "/v1/tags",
+        &[&auth, SESSION, "X-Devot-Client: Claude%20Code"],
+        None,
+    );
+    assert_eq!(sent.status, 200);
+    assert_eq!(
+        bridge.core.calls.lock().unwrap()[0].client,
+        Some(routes::Client {
+            name: "Claude Code".into(),
+            session: "AAAAAAAAAAA".into()
+        })
+    );
+}
+
+#[test]
+fn refuses_a_bridge_request_without_a_session_or_with_a_name_that_is_not_one_line() {
+    let bridge = bridge(Scope::ReadWrite, Limits::DEFAULT);
+    let auth = bridge_header(&bridge.token);
+    let long = format!("X-Devot-Client: {}", "x".repeat(101));
+    for extra in [
+        vec![auth.as_str()],
+        vec![auth.as_str(), "X-Devot-Session: short"],
+        vec![auth.as_str(), "X-Devot-Session: AAAAAAAAAA!"],
+        vec![auth.as_str(), SESSION, "X-Devot-Client: a%0Ab"],
+        vec![auth.as_str(), SESSION, "X-Devot-Client: %FF"],
+        vec![auth.as_str(), SESSION, long.as_str()],
+    ] {
+        let refused = over_socket(&bridge, "GET", "/v1/tags", &extra, None);
+        assert_eq!(
+            (refused.status, refused.code()),
+            (400, "E_HTTP_CLIENT_INVALID"),
+            "{extra:?}"
+        );
+    }
+    assert_eq!(bridge.core.reached(), 0);
+}
+
+#[test]
+fn the_socket_wants_its_own_host_name() {
+    let bridge = bridge(Scope::Read, Limits::DEFAULT);
+    let auth = bridge_header(&bridge.token);
+    let mut text = String::from("GET /v1/tags HTTP/1.1\r\nHost: 127.0.0.1:1\r\n");
+    text.push_str(&format!("{auth}\r\n{SESSION}\r\n\r\n"));
+    let mut stream = std::os::unix::net::UnixStream::connect(&bridge.socket).unwrap();
+    stream.write_all(text.as_bytes()).unwrap();
+    let mut out = String::new();
+    let _ = stream.read_to_string(&mut out);
+    assert!(out.contains("E_HTTP_HOST_REFUSED"), "{out}");
+}
+
+#[test]
+fn a_read_only_bridge_cannot_write() {
+    let bridge = bridge(Scope::Read, Limits::DEFAULT);
+    let refused = over_socket(
+        &bridge,
+        "POST",
+        "/v1/notes",
+        &[&bridge_header(&bridge.token), SESSION],
+        Some(r#"{"title":"T","markdown":"M","notebook":"N"}"#),
+    );
+    assert_eq!((refused.status, refused.code()), (403, "E_HTTP_READ_ONLY"));
+    assert_eq!(bridge.core.reached(), 0);
+}
+
+#[test]
+fn the_socket_takes_any_escaping_of_a_whole_note_and_tcp_keeps_its_limit() {
+    let max = routes::MAX_MARKDOWN_BYTES;
+    let escaped = serde_json::to_string(&json!({
+        "title": "T",
+        "markdown": "\u{1}".repeat(max),
+        "notebook": "N"
+    }))
+    .unwrap();
+    assert!(escaped.len() > Limits::DEFAULT.max_body);
+    assert!(escaped.len() <= Limits::DEFAULT.max_bridge_body);
+    let bridge = bridge(Scope::ReadWrite, Limits::DEFAULT);
+    let auth = bridge_header(&bridge.token);
+    let taken = over_socket(
+        &bridge,
+        "POST",
+        "/v1/notes",
+        &[&auth, SESSION],
+        Some(&escaped),
+    );
+    assert_eq!(taken.status, 201, "{:?}", taken.body);
+    let decoded = routes::call(
+        Op::NotesCreate,
+        None,
+        None,
+        &serde_json::to_vec(
+            &json!({ "title": "T", "markdown": "a".repeat(max + 1), "notebook": "N" }),
+        )
+        .unwrap(),
+    );
+    assert_eq!(
+        decoded.unwrap_err().code,
+        "E_NOTE_BODY_TOO_LARGE",
+        "the decoded limit stays"
+    );
+}
+
+#[test]
+fn the_bridge_and_the_http_api_each_have_their_own_rate_limit() {
+    let limits = Limits {
+        burst: 1.0,
+        per_second: 0.001,
+        ..Limits::DEFAULT
+    };
+    let bridge = bridge(Scope::Read, limits);
+    let auth = bridge_header(&bridge.token);
+    let used = |extra: &[&str]| over_socket(&bridge, "GET", "/v1/tags", extra, None).status;
+    assert_eq!(used(&[&auth, SESSION]), 200);
+    assert_eq!(used(&[&auth, SESSION]), 429);
+    let api = start_with(Scope::Read, limits);
+    assert_eq!(authorized(&api, "GET", "/v1/tags", None).status, 200);
+    assert_eq!(authorized(&api, "GET", "/v1/tags", None).status, 429);
+    let _ = &bridge.server;
+}
+
+#[test]
+fn a_call_with_a_client_hands_it_to_the_window_and_one_without_sends_none() {
+    let client = routes::Client {
+        name: "Codex".into(),
+        session: "AAAAAAAAAAA".into(),
+    };
+    let request = Request {
+        id: 1,
+        op: "notes.read",
+        note: None,
+        args: json!({}),
+        client: Some(client),
+    };
+    assert_eq!(
+        serde_json::to_value(&request).unwrap()["client"],
+        json!({ "name": "Codex", "session": "AAAAAAAAAAA" })
+    );
+    let plain = Request {
+        client: None,
+        ..request
+    };
+    assert_eq!(serde_json::to_value(&plain).unwrap().get("client"), None);
+}
+
+fn with_mcp(dir: &tempfile::TempDir) -> (HttpApi, Arc<MemoryTokens>, std::path::PathBuf) {
+    let (api, _, _) = api(dir);
+    let tokens = Arc::new(MemoryTokens::default());
+    let socket = dir.path().join("mcp.sock");
+    let api = api.with_mcp(McpParts {
+        access: McpAccessStore::new(&dir.path().join(mcp_access::FILE)),
+        tokens: tokens.clone(),
+        socket: Some(socket.clone()),
+    });
+    (api, tokens, socket)
+}
+
+fn on(scope: Scope) -> McpAccess {
+    McpAccess {
+        enabled: true,
+        scope,
+        background_start: true,
+    }
+}
+
+#[test]
+fn turning_mcp_on_leaves_the_http_api_off_and_makes_its_own_token() {
+    let dir = tempfile::tempdir().unwrap();
+    let (api, tokens, socket) = with_mcp(&dir);
+    api.window_listening();
+    let view = api.mcp_set(on(Scope::ReadWrite)).unwrap();
+    assert!(view.enabled && view.reachable, "{view:?}");
+    assert!(socket.exists());
+    assert!(tokens.has().unwrap());
+    let http = api.view();
+    assert!(!http.enabled);
+    assert_eq!(http.listening, None, "the HTTP API's port stays closed");
+    assert_eq!(http.token, TokenState::Unset, "its token is not made");
+}
+
+#[test]
+fn the_socket_opens_only_once_a_window_takes_calls_and_until_it_is_off_or_quits() {
+    let dir = tempfile::tempdir().unwrap();
+    let (api, _, socket) = with_mcp(&dir);
+    api.mcp_set(on(Scope::ReadWrite)).unwrap();
+    assert!(!socket.exists(), "no window listens yet");
+    assert!(!api.mcp_view().reachable);
+    api.window_listening();
+    assert!(socket.exists());
+    api.mcp_set(McpAccess {
+        enabled: false,
+        ..on(Scope::ReadWrite)
+    })
+    .unwrap();
+    assert!(!socket.exists());
+    api.mcp_set(on(Scope::ReadWrite)).unwrap();
+    assert!(socket.exists());
+    api.stop_bridge();
+    assert!(!socket.exists());
+}
+
+#[test]
+fn turning_mcp_on_keeps_the_choices_already_made() {
+    let dir = tempfile::tempdir().unwrap();
+    let (api, _, _) = with_mcp(&dir);
+    api.mcp_set(McpAccess {
+        enabled: false,
+        scope: Scope::Read,
+        background_start: false,
+    })
+    .unwrap();
+    let view = api.mcp_turn_on().unwrap();
+    assert!(view.enabled);
+    assert_eq!(view.scope, Scope::Read);
+    assert!(!view.background_start);
+}
+
+#[test]
+fn a_port_another_program_holds_keeps_nothing_from_the_bridge() {
+    let dir = tempfile::tempdir().unwrap();
+    let (api, _, socket) = with_mcp(&dir);
+    let held = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let port = held.local_addr().unwrap().port();
+    let stored = api.settings.get();
+    api.settings
+        .set(settings::HttpApiSettings {
+            port,
+            enabled: true,
+            ..stored
+        })
+        .unwrap();
+    api.window_listening();
+    let view = api.mcp_set(on(Scope::Read)).unwrap();
+    assert_eq!(view.problem, None);
+    assert!(view.reachable && socket.exists());
+    assert_eq!(api.view().problem, Some("E_HTTP_API_PORT_IN_USE"));
+}
+
+/// A keychain that waits, as one does while macOS asks whether this build may read an item.
+struct WaitingTokens {
+    release: Mutex<std::sync::mpsc::Receiver<()>>,
+    inner: MemoryTokens,
+}
+
+impl TokenStore for WaitingTokens {
+    fn has(&self) -> Result<bool, &'static str> {
+        self.inner.has()
+    }
+    fn get(&self) -> Result<Option<token::Token>, &'static str> {
+        let _ = self.release.lock().unwrap().recv();
+        self.inner.get()
+    }
+    fn set(&self, token: &str) -> Result<(), &'static str> {
+        self.inner.set(token)
+    }
+}
+
+#[test]
+fn a_keychain_that_waits_never_holds_up_quitting_or_settings_and_the_socket_opens_after() {
+    let dir = tempfile::tempdir().unwrap();
+    let (api, _, _) = api(&dir);
+    let (release, waiting) = std::sync::mpsc::channel();
+    let socket = dir.path().join("mcp.sock");
+    let api = Arc::new(api.with_mcp(McpParts {
+        access: McpAccessStore::new(&dir.path().join(mcp_access::FILE)),
+        tokens: Arc::new(WaitingTokens {
+            release: Mutex::new(waiting),
+            inner: MemoryTokens::default(),
+        }),
+        socket: Some(socket.clone()),
+    }));
+    McpAccessStore::new(&dir.path().join(mcp_access::FILE))
+        .set(on(Scope::ReadWrite))
+        .unwrap();
+    let listening = {
+        let api = Arc::clone(&api);
+        std::thread::spawn(move || api.window_listening())
+    };
+    std::thread::sleep(Duration::from_millis(100));
+    // While the keychain waits, what a quit and Settings need answers at once.
+    let quick = |work: Box<dyn FnOnce() + Send>| {
+        let (done, finished) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            work();
+            let _ = done.send(());
+        });
+        finished.recv_timeout(Duration::from_secs(2)).is_ok()
+    };
+    let for_stop = Arc::clone(&api);
+    assert!(
+        quick(Box::new(move || for_stop.stop_bridge())),
+        "the quit waits on the keychain"
+    );
+    let for_view = Arc::clone(&api);
+    assert!(
+        quick(Box::new(move || {
+            let _ = for_view.mcp_view();
+        })),
+        "Settings waits on the keychain"
+    );
+    let for_http = Arc::clone(&api);
+    assert!(
+        quick(Box::new(move || {
+            let _ = for_http.view();
+        })),
+        "the HTTP API's view waits too"
+    );
+    assert_eq!(api.mcp_view().problem, Some("E_MCP_KEYCHAIN_WAITING"));
+    release.send(()).unwrap();
+    listening.join().unwrap();
+    assert!(
+        socket.exists(),
+        "the socket opens once the keychain answers"
+    );
+    assert!(api.mcp_view().reachable);
+    let api = Arc::try_unwrap(api).ok().unwrap();
+    api.stop_bridge();
+    assert!(!socket.exists(), "and goes when it stops");
 }

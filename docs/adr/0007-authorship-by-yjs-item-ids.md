@@ -15,6 +15,9 @@ Every agent write (devot-mcp, the local HTTP API, an accepted Edit with AI propo
   - `writers`: session ID → `{ v: 1, kind, name, process }`;
   - `writes`: write ID → `{ v: 1, writer, at, ids, removed?, fields?, created? }`.
   - Both IDs are 64 random bits in base64url.
+
+> Since ADR 0012, MCP clients reach the core through a bridge in the app's binary: it passes the client's name and a session per run as request headers, and the `devot-mcp` program named below is gone. What is recorded is unchanged.
+
 - **A writer** is one session of one client:
   - `kind`: `mcp`, `http` or `aiEdit`. Devot sets it; the client never does.
   - `name`: the MCP `clientInfo.name` as the client gave it, made one line without control characters, at most 100 code points. It is '' for the HTTP API and Edit with AI, which show their kind instead. A name is only shown; it never grants access.

@@ -12,7 +12,7 @@ pub(crate) const MAX_TITLE_CHARS: usize = 1_000;
 const MAX_HLC_LEN: usize = 64;
 pub(crate) const MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
 pub(crate) const MAX_YDOC_BYTES: usize = 64 * 1024 * 1024;
-/// Matches MAX_NOTE_LINKS in src/core/links.ts, which devot-mcp checks before it writes.
+/// Matches MAX_NOTE_LINKS in src/core/links.ts, which the AI service checks before it writes.
 const MAX_LINKS: usize = 10_000;
 /// The largest whole number JavaScript holds exactly, so the version storage moves a write on to stays exact in the core. Matches MAX_BODY_VERSION in src/core/noteLimits.ts.
 const MAX_BODY_VERSION: i64 = 9_007_199_254_740_991;

@@ -18,7 +18,7 @@ const MAX_PATCHES: usize = 50;
 const MAX_TAGS: usize = 50;
 const MAX_NOTEBOOK_REF_CHARS: usize = 500;
 // Generous: the core checks names after trimming, against MAX_BOOK_NAME_CHARS (200) and
-// MAX_TAG_NAME_CHARS (100), as devot-mcp's tool schemas leave it to.
+// MAX_TAG_NAME_CHARS (100), as the MCP tool schemas leave it to.
 const MAX_NAME_CHARS: usize = 800;
 const MAX_SENT_TITLE_CHARS: usize = MAX_TITLE_CHARS * 4;
 
@@ -73,6 +73,42 @@ pub struct Call {
     pub op: Op,
     pub note: Option<String>,
     pub args: Value,
+    /// Who writes, when the MCP bridge's token made the request; the HTTP API's never names one.
+    pub client: Option<Client>,
+}
+
+/// An MCP client as ADR 0007 records it: the name it gave in `initialize`, only ever shown, and one
+/// session for one run of the bridge.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Client {
+    pub name: String,
+    pub session: String,
+}
+
+/// MAX_WRITER_NAME_CHARS in `src/core/authorship.ts`.
+pub const MAX_CLIENT_NAME_CHARS: usize = 100;
+const SESSION_CHARS: usize = 11;
+
+/// The bridge's headers: a percent-encoded name (none for a client that gave none), and a session
+/// shaped as `AUTHORSHIP_ID` in `src/core/authorship.ts`.
+pub fn client(name: Option<&str>, session: Option<&str>) -> Result<Client, Refusal> {
+    const BAD: Refusal = Refusal::new(400, "E_HTTP_CLIENT_INVALID");
+    let session = session
+        .filter(|session| {
+            session.len() == SESSION_CHARS
+                && session
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        })
+        .ok_or(BAD)?;
+    let name = decode_component(name.unwrap_or("")).ok_or(BAD)?;
+    if chars(&name) > MAX_CLIENT_NAME_CHARS || name.chars().any(char::is_control) {
+        return Err(BAD);
+    }
+    Ok(Client {
+        name,
+        session: session.to_string(),
+    })
 }
 
 const NOT_FOUND: Refusal = Refusal::new(404, "E_HTTP_NOT_FOUND");
@@ -353,5 +389,10 @@ pub fn call(
             args(&new)?
         }
     };
-    Ok(Call { op, note, args })
+    Ok(Call {
+        op,
+        note,
+        args,
+        client: None,
+    })
 }

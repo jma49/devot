@@ -106,7 +106,7 @@ fn needs_prompt(error: &std::io::Error) -> bool {
 /// A link into a disk image or a translocated copy breaks once the image is ejected or the app
 /// is moved, so the tool installs only from a copy that stays put. Both are read-only volumes; an
 /// app on a second disk (also under `/Volumes`) is not.
-fn temporary_location(script: &Path, read_only: impl FnOnce(&Path) -> bool) -> bool {
+pub(crate) fn temporary_location(script: &Path, read_only: impl FnOnce(&Path) -> bool) -> bool {
     script
         .components()
         .any(|part| part.as_os_str() == "AppTranslocation")

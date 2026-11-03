@@ -85,6 +85,11 @@ fn folder() -> Option<PathBuf> {
     dir
 }
 
+/// This user's private folder, for what only this user may reach (the MCP bridge's socket, `http_api::bridge_socket`).
+pub(crate) fn private_dir() -> Option<PathBuf> {
+    folder()
+}
+
 /// None at the socket's place, or a socket of this user: anything else is never written to.
 fn socket_trusted(found: Option<(bool, u32)>, uid: u32) -> bool {
     found.is_none_or(|(is_socket, owner)| is_socket && owner == uid)

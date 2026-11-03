@@ -1,4 +1,4 @@
-// What AI tools (devot-mcp) can see and do, on real SQLite: only the live
+// What AI tools (an outside writer) can see and do, on real SQLite: only the live
 // notes filed directly in notebooks with Allow AI Access on.
 import { once } from 'node:events'
 import { createRequire } from 'node:module'
@@ -44,7 +44,7 @@ function setup() {
   const books = createBookService({ storage, clock, newId })
   const notes = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
   const tags = createTagService({ storage, clock, newId })
-  // devot-mcp's side: the same file, its own clock.
+  // an outside writer's side: the same file, its own clock.
   const ai = createAiService({
     storage,
     clock: createClock('mcptest'),
@@ -261,7 +261,7 @@ describe('creating notes', () => {
     const doc = new Y.Doc()
     Y.applyUpdate(doc, record.ydoc)
     expect(doc.getText(BODY).toString()).toBe(record.bodyMd)
-    // Its clocks carry devot-mcp's own node ID.
+    // Its clocks carry an outside writer's own node ID.
     expect(parseHlc(record.titleHlc).node).toBe('mcptest')
     expect(parseHlc(record.bookHlc).node).toBe('mcptest')
 
@@ -371,7 +371,7 @@ describe('creating notes', () => {
 })
 
 /**
- * The app writing on its own connection in its own thread while devot-mcp works;
+ * The app writing on its own connection in its own thread while an outside writer works;
  * on stop, the writes made and the longest (database wait included).
  */
 async function appWriter(path: string, bookId: string) {
@@ -448,7 +448,7 @@ describe('editing notes', () => {
       status: 'active',
     })
     const record = (await s.storage.getNote(ids.shared))!
-    // The snapshot is what the Yjs document holds, written by devot-mcp's clock.
+    // The snapshot is what the Yjs document holds, written by an outside writer's clock.
     const doc = new Y.Doc()
     Y.applyUpdate(doc, record.ydoc)
     expect(doc.getText(BODY).toString()).toBe('A new body.\nTwo lines.')
@@ -782,7 +782,7 @@ describe('creating notes beside a long history', () => {
       (s.storage.db.prepare('SELECT COUNT(*) AS n FROM revisions').get() as { n: number }).n
     const before = revisions()
 
-    // devot-mcp's side, on its own connection, timing how long each create
+    // an outside writer's side, on its own connection, timing how long each create
     // holds the write lock; any history read or compaction call is noted.
     const mcp = openSqliteAdapter(s.path, { migrate: false })
     open.push(mcp)

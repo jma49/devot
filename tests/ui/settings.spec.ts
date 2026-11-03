@@ -263,28 +263,80 @@ test('General opens the data folder and the Backups dialog', async ({ page }) =>
   await expect(general.getByRole('alert')).toHaveCount(0)
 })
 
-test('Integrations offers devot-mcp configs to copy for each client', async ({ page }) => {
-  const script = '/Users/me/Code/devot/dist-mcp/devot-mcp.mjs'
-  const db = '/Users/me/Library/Application Support/io.github.jma49.devot.dev/devot.sqlite'
-  await page.addInitScript(
-    (setup) => {
-      const w = globalThis as unknown as TestWindow
-      w.devotIpcMocks = { settings_mcp_setup: setup }
-    },
-    { script, db },
-  )
-  await openSettings(page, 'Integrations')
-  const claude = page.getByRole('region', { name: 'Claude Code' })
-  const command = `claude mcp add --scope user devot -- node ${script} --db '${db}'`
-  await expect(claude.locator('code')).toHaveText(command)
-  await expect(page.getByRole('region', { name: 'Codex' })).toContainText('[mcp_servers.devot]')
-  await expect(page.getByRole('region', { name: 'Other MCP Clients' })).toContainText(
-    '"mcpServers"',
-  )
-  await expect(page.getByRole('tabpanel')).toContainText('from the Devot checkout')
+const BRIDGE = '/Applications/My Apps/Devot.app/Contents/MacOS/devot'
 
-  await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
-  await expect(page.getByRole('tabpanel').getByRole('status').first()).toHaveText(
+/** The configurations to copy, under Set Up by Hand at the end of the Clients card. */
+async function byHand(page: Page) {
+  const clients = page.getByRole('region', { name: 'Clients' })
+  const toggle = clients.getByRole('button', { name: 'Set Up by Hand' })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
+  return clients
+}
+const CODEX_PREVIEW = `[mcp_servers.devot]\ncommand = "${BRIDGE}"\nargs = ["--cli", "mcp"]\n`
+
+function clientStatus(client: string, path: string, state: string, extra: object = {}) {
+  return {
+    client,
+    path,
+    backup: `${path}.devot-backup`,
+    state,
+    code: null,
+    missing: false,
+    preview: `the entry for ${client}`,
+    revision: 'missing',
+    via: 'file',
+    ...extra,
+  }
+}
+
+function setupWith(states: { claudeCode?: string; codex?: string; claudeDesktop?: string } = {}) {
+  return {
+    command: BRIDGE,
+    args: ['--cli', 'mcp'],
+    temporary: false,
+    clients: [
+      clientStatus('claudeCode', '/Users/me/.claude.json', states.claudeCode ?? 'notConnected'),
+      clientStatus('codex', '/Users/me/.codex/config.toml', states.codex ?? 'notConnected', {
+        preview: CODEX_PREVIEW,
+      }),
+      clientStatus(
+        'claudeDesktop',
+        '/Users/me/Library/Application Support/Claude/claude_desktop_config.json',
+        states.claudeDesktop ?? 'notConnected',
+      ),
+    ],
+  }
+}
+
+test('Integrations offers configs to copy that run this app as the bridge', async ({ page }) => {
+  await page.addInitScript((setup) => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = { settings_mcp_setup: setup }
+  }, setupWith())
+  await openSettings(page, 'Integrations')
+  const clients = page.getByRole('region', { name: 'Clients' })
+  const toggle = clients.getByRole('button', { name: 'Set Up by Hand' })
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(clients.locator('code')).toHaveCount(0)
+  await toggle.click()
+  const command = `claude mcp add --scope user devot -- '${BRIDGE}' --cli mcp`
+  const codes = clients.locator('code')
+  await expect(codes).toHaveCount(4)
+  await expect(codes.nth(0)).toHaveText(command)
+  await expect(codes.nth(1)).toHaveText(CODEX_PREVIEW.trimEnd())
+  await expect(codes.nth(3)).toContainText('"mcpServers"')
+  await expect(clients).toContainText('Other MCP Clients')
+  await expect(page.getByRole('tabpanel')).not.toContainText(/\bnode\b/i)
+  // Each card follows the one before at the block spacing: nothing sits between them.
+  const aiTools = page.getByRole('region', { name: 'AI Tools' })
+  const next = await aiTools.evaluate((el) => {
+    const block = el.closest('.settings-block') ?? el
+    return block.nextElementSibling?.classList.contains('settings-block') ?? false
+  })
+  expect(next).toBe(true)
+
+  await clients.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
+  await expect(page.getByRole('tabpanel').getByRole('status').last()).toHaveText(
     'The Claude Code configuration was copied.',
   )
   expect(await calls(page, 'clipboard_write_text')).toEqual([
@@ -296,21 +348,255 @@ test('Integrations offers devot-mcp configs to copy for each client', async ({ p
   for (const call of setups) expect(call).toEqual({ cmd: 'settings_mcp_setup', args: {} })
 })
 
-test('Integrations shows a path to replace when devot-mcp is not beside this build', async ({
+test('Clients has one row per client with its state, and only the buttons that state offers', async ({
   page,
 }) => {
-  await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
-    w.devotIpcMocks = { settings_mcp_setup: { script: null, db: null } }
-  })
-  await openSettings(page, 'Integrations')
-  await expect(page.getByRole('tabpanel')).toContainText('pnpm mcp:build')
-  await expect(page.getByRole('region', { name: 'Codex' })).toContainText(
-    'args = ["/path/to/devot/dist-mcp/devot-mcp.mjs"]',
+  await page.addInitScript(
+    (setup) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+      }
+    },
+    setupWith({ codex: 'connected' }),
   )
+  await openSettings(page, 'Integrations')
+  await expect(page.getByRole('region', { name: 'Claude Code' })).toHaveCount(0)
+  const claude = page.getByRole('group', { name: 'Claude Code' })
+  await expect(claude).toContainText('Not connected')
+  await expect(claude.getByRole('button')).toHaveText(['Connect'])
+  await expect(claude.getByRole('button', { name: 'Connect Claude Code' })).toHaveClass(
+    /button-default/,
+  )
+  const codex = page.getByRole('group', { name: 'Codex' })
+  await expect(codex).toContainText('Connected')
+  await expect(codex.getByRole('button')).toHaveText(['Disconnect'])
+  const desktop = page.getByRole('group', { name: 'Claude Desktop' })
+  await expect(desktop.getByRole('button')).toHaveText(['Install Extension', 'Connect'])
+  // The primary button keeps its accent in a settings card, so it never looks disabled.
+  const fill = (name: string) =>
+    desktop
+      .getByRole('button', { name })
+      .evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color])
+  const [primaryFill, primaryText] = await fill('Connect Claude Desktop')
+  const [plainFill] = await fill('Install Extension')
+  expect(primaryFill).not.toBe(plainFill)
+  expect(primaryText).not.toBe(primaryFill)
+  await expect(codex.locator('.client-state-dot')).toHaveAttribute('data-state', 'connected')
 })
 
-test('Integrations still offers configs, with a path to replace, when Rust cannot say', async ({
+test('Connect shows what it will write and where, and writes only once confirmed', async ({
+  page,
+}) => {
+  await page.addInitScript(
+    ({ setup, connected }) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_mcp_connect: connected,
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+      }
+    },
+    {
+      setup: setupWith(),
+      connected: clientStatus('codex', '/Users/me/.codex/config.toml', 'connected', {
+        preview: CODEX_PREVIEW,
+      }),
+    },
+  )
+  await openSettings(page, 'Integrations')
+  const codex = page.getByRole('group', { name: 'Codex' })
+  await expect(codex).toContainText('Not connected')
+  await codex.getByRole('button', { name: 'Connect Codex' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Connect Codex?' })
+  await expect(dialog).toContainText('/Users/me/.codex/config.toml.devot-backup')
+  await expect(dialog.locator('code')).toHaveText(CODEX_PREVIEW)
+  await expect(dialog).toContainText('If Codex is running it may rewrite this file at any time')
+  await expect(dialog).toContainText('This turns on Allow AI Tools.')
+  await expect(dialog).toContainText('Devot may start in the background with no window')
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(await calls(page, 'settings_mcp_connect')).toEqual([])
+
+  await codex.getByRole('button', { name: 'Connect Codex' }).click()
+  await dialog.getByRole('button', { name: 'Connect', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(codex).toContainText('Connected')
+  await expect(page.getByRole('tabpanel').getByRole('status').last()).toHaveText(
+    'Codex is connected. Restart it if it is running.',
+  )
+  expect(await calls(page, 'settings_mcp_connect')).toEqual([
+    { cmd: 'settings_mcp_connect', args: { client: 'codex', revision: 'missing' } },
+  ])
+  await expect(codex.getByRole('button', { name: 'Disconnect Codex' })).toBeVisible()
+})
+
+test('Claude Code is changed through its own CLI when there is one, and the dialog says so', async ({
+  page,
+}) => {
+  const command = `/opt/homebrew/bin/claude mcp add --scope user devot -- '${BRIDGE}' --cli mcp`
+  await page.addInitScript(
+    (setup) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+      }
+    },
+    {
+      ...setupWith(),
+      clients: [
+        clientStatus('claudeCode', '/Users/me/.claude.json', 'notConnected', {
+          via: 'claudeCli',
+          preview: command,
+        }),
+      ],
+    },
+  )
+  await openSettings(page, 'Integrations')
+  await page
+    .getByRole('group', { name: 'Claude Code' })
+    .getByRole('button', { name: 'Connect Claude Code' })
+    .click()
+  const dialog = page.getByRole('dialog', { name: 'Connect Claude Code?' })
+  await expect(dialog.locator('code')).toHaveText(command)
+  await expect(dialog).toContainText('Claude Code can stay open')
+  await expect(dialog).not.toContainText('quit it first')
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+})
+
+test('Disconnect names the file, removes only on confirming and reports a refusal', async ({
+  page,
+}) => {
+  await page.addInitScript(
+    (setup) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_mcp_disconnect: { error: 'E_MCP_CONFIG_CHANGED' },
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+      }
+    },
+    setupWith({ claudeCode: 'connected' }),
+  )
+  await openSettings(page, 'Integrations')
+  const claude = page.getByRole('group', { name: 'Claude Code' })
+  await claude.getByRole('button', { name: 'Disconnect Claude Code' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Disconnect Claude Code?' })
+  await expect(dialog).toContainText('removes only its devot entry from /Users/me/.claude.json')
+  await dialog.getByRole('button', { name: 'Disconnect', exact: true }).click()
+  await expect(page.getByRole('tabpanel').getByRole('alert')).toHaveText(
+    'The client’s configuration was not changed (E_MCP_CONFIG_CHANGED).',
+  )
+  await expect(claude).toContainText('Connected')
+  // It shows the file as it is now before another try.
+  await expect.poll(async () => (await calls(page, 'settings_mcp_setup')).length).toBeGreaterThan(1)
+})
+
+test('A moved app, a foreign entry and an unreadable file each say what to do', async ({
+  page,
+}) => {
+  await page.addInitScript(
+    (setup) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+      }
+    },
+    {
+      ...setupWith(),
+      clients: [
+        clientStatus('claudeCode', '/Users/me/.claude.json', 'stale'),
+        clientStatus('codex', '/Users/me/.codex/config.toml', 'other'),
+        clientStatus('claudeDesktop', '/x/claude_desktop_config.json', 'unreadable', {
+          code: 'E_MCP_CONFIG_UNPARSABLE',
+        }),
+      ],
+    },
+  )
+  await openSettings(page, 'Integrations')
+  const claude = page.getByRole('group', { name: 'Claude Code' })
+  await expect(claude).toContainText('Points at a copy of Devot that has moved')
+  await expect(claude.getByRole('button', { name: 'Reconnect Claude Code' })).toBeEnabled()
+  const codex = page.getByRole('group', { name: 'Codex' })
+  await expect(codex.getByRole('button', { name: 'Replace Codex' })).toBeEnabled()
+  const desktop = page.getByRole('group', { name: 'Claude Desktop' })
+  await expect(desktop).toContainText('Its file cannot be changed safely (E_MCP_CONFIG_UNPARSABLE)')
+  await expect(desktop.getByRole('button', { name: 'Connect Claude Desktop' })).toHaveCount(0)
+  await expect(
+    (await byHand(page)).getByRole('button', { name: 'Copy the Claude Desktop configuration' }),
+  ).toBeEnabled()
+})
+
+test('Connect waits until Devot is installed, while configs stay available', async ({ page }) => {
+  await page.addInitScript(
+    (setup) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+      }
+    },
+    { ...setupWith(), temporary: true },
+  )
+  await openSettings(page, 'Integrations')
+  await expect(page.getByRole('tabpanel')).toContainText('Move it to Applications')
+  const desktop = page.getByRole('group', { name: 'Claude Desktop' })
+  await expect(desktop.getByRole('button', { name: 'Connect Claude Desktop' })).toBeDisabled()
+  await expect(desktop.getByRole('button', { name: 'Install Extension' })).toBeDisabled()
+  await expect(
+    (await byHand(page)).getByRole('button', { name: 'Copy the Claude Desktop configuration' }),
+  ).toBeEnabled()
+})
+
+test('Install Extension opens the bundle, and says when it cannot', async ({ page }) => {
+  await page.addInitScript((setup) => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      settings_mcp_setup: setup,
+      settings_mcp_open_extension: { error: 'E_MCP_EXTENSION_OPEN_FAILED' },
+      settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+    }
+  }, setupWith())
+  await openSettings(page, 'Integrations')
+  const desktop = page.getByRole('group', { name: 'Claude Desktop' })
+  await desktop.getByRole('button', { name: 'Install Extension' }).click()
+  await expect(page.getByRole('tabpanel').getByRole('alert')).toContainText(
+    'E_MCP_EXTENSION_OPEN_FAILED',
+  )
+  expect(await calls(page, 'settings_mcp_open_extension')).toHaveLength(1)
+})
+
+test('Connecting with no notebook allowed leads on to choosing one', async ({ page }) => {
+  await page.addInitScript(
+    ({ setup, connected }) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_mcp_connect: connected,
+        settings_ai_access_summary: { notebooks: 3, allowed: 0 },
+      }
+    },
+    {
+      setup: setupWith(),
+      connected: clientStatus('codex', '/Users/me/.codex/config.toml', 'connected'),
+    },
+  )
+  await openSettings(page, 'Integrations')
+  await page.getByRole('dialog').getByRole('button', { name: 'Later' }).click()
+  const codex = page.getByRole('group', { name: 'Codex' })
+  await codex.getByRole('button', { name: 'Connect Codex' }).click()
+  await page
+    .getByRole('dialog', { name: 'Connect Codex?' })
+    .getByRole('button', { name: 'Connect', exact: true })
+    .click()
+  await expect(page.getByRole('dialog', { name: 'No notebook allows AI access' })).toBeVisible()
+})
+
+test('Integrations still offers configs, with the installed path, when Rust cannot say', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -321,16 +607,164 @@ test('Integrations still offers configs, with a path to replace, when Rust canno
   const pane = page.getByRole('tabpanel')
   // The sentence reads as a sentence: it says what could not be found, with the code in brackets (A159).
   await expect(pane.getByRole('alert')).toHaveText(
-    'Devot could not find devot-mcp (E_DATA_FOLDER_UNAVAILABLE).',
+    'Devot could not read the client configurations (E_DATA_FOLDER_UNAVAILABLE).',
   )
-  await expect(pane).toContainText('pnpm mcp:build')
-  const claude = page.getByRole('region', { name: 'Claude Code' })
-  await expect(claude.locator('code')).toContainText('/path/to/devot/dist-mcp/devot-mcp.mjs')
-  await claude.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
-  await expect(pane.getByRole('status').first()).toHaveText(
+  const clients = await byHand(page)
+  await expect(clients.locator('code').first()).toContainText(
+    '/Applications/Devot.app/Contents/MacOS/devot',
+  )
+  await clients.getByRole('button', { name: 'Copy the Claude Code configuration' }).click()
+  await expect(pane.getByRole('status').last()).toHaveText(
     'The Claude Code configuration was copied.',
   )
-  await expect(pane.getByRole('alert')).toContainText('E_DATA_FOLDER_UNAVAILABLE')
+})
+
+type McpAccessMock = {
+  enabled: boolean
+  scope: string
+  backgroundStart: boolean
+  reachable: boolean
+  problem: string | null
+}
+
+const ACCESS: McpAccessMock = {
+  enabled: true,
+  scope: 'readWrite',
+  backgroundStart: true,
+  reachable: true,
+  problem: null,
+}
+
+async function openAiTools(page: Page, access: McpAccessMock, mode: string) {
+  await page.addInitScript(
+    ({ setup, access, mode }) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        settings_mcp_setup: setup,
+        settings_ai_access_summary: { notebooks: 3, allowed: 1 },
+        mcp_access_get: access,
+        background_state: { mode },
+        mcp_access_set: (args: unknown) => ({ ...access, ...(args as object) }),
+        background_quit: null,
+      }
+    },
+    { setup: setupWith(), access, mode },
+  )
+  await openSettings(page, 'Integrations')
+  return page.getByRole('region', { name: 'AI Tools' })
+}
+
+test('AI Tools says plainly, before any Connect, that Devot may start in the background', async ({
+  page,
+}) => {
+  const section = await openAiTools(page, ACCESS, 'normal')
+  const start = section.getByRole('switch', { name: 'Start in the Background' })
+  await expect(start).toBeChecked()
+  await expect(start).toHaveAccessibleDescription(
+    'When an AI tool asks and Devot is closed, Devot opens without a window. Quit it from the menu bar at any time.',
+  )
+  await expect(section.locator('.settings-footnote')).toHaveText(
+    'A Devot started in the background quits by itself after 10 minutes without a request. With Start in the Background off, AI tools get an error until you open Devot.',
+  )
+  const rows = section.locator('.setting-label')
+  await expect(rows).toHaveText([
+    'Allow AI Tools',
+    'Notebooks',
+    'Access',
+    'Start in the Background',
+    'Status',
+  ])
+  await expect(section).toContainText('1 of 3 notebooks allow AI access.')
+  await expect(section).toContainText('Open as usual.')
+  await expect(section.getByRole('button', { name: 'Quit Devot' })).toHaveCount(0)
+  const before = await section.boundingBox()
+  const client = await page.getByRole('region', { name: 'Clients' }).boundingBox()
+  expect(before!.y).toBeLessThan(client!.y)
+})
+
+test('Notebooks in AI Tools opens the notebook picker in the main window', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = { main_window_show: null }
+  })
+  await openSettings(page, 'Integrations')
+  const section = page.getByRole('region', { name: 'AI Tools' })
+  await expect(section).toContainText('1 of 1 notebooks allow AI access.')
+  await section.getByRole('button', { name: 'Choose\u2026' }).click()
+  expect(await calls(page, 'main_window_show')).toEqual([{ cmd: 'main_window_show', args: {} }])
+  expect(await page.evaluate(() => localStorage.getItem('devot:choose-ai-access'))).toBe('1')
+})
+
+test('AI Tools shows when Devot runs in the background, and Quit Devot asks Rust to quit', async ({
+  page,
+}) => {
+  const section = await openAiTools(page, ACCESS, 'background')
+  await expect(section).toContainText('Running in the background for AI tools.')
+  await section.getByRole('button', { name: 'Quit Devot' }).click()
+  expect(await calls(page, 'background_quit')).toEqual([{ cmd: 'background_quit', args: {} }])
+  await expect(section.getByRole('alert')).toHaveCount(0)
+})
+
+test('AI Tools turns background starts off and chooses read-only, keeping the other choices', async ({
+  page,
+}) => {
+  const section = await openAiTools(page, ACCESS, 'normal')
+  await section.getByRole('switch', { name: 'Start in the Background' }).click()
+  await expect.poll(() => calls(page, 'mcp_access_set')).toHaveLength(1)
+  expect((await calls(page, 'mcp_access_set'))[0]!.args).toEqual({
+    enabled: true,
+    scope: 'readWrite',
+    backgroundStart: false,
+  })
+  await section.getByRole('combobox', { name: 'Access' }).selectOption('read')
+  await expect.poll(() => calls(page, 'mcp_access_set')).toHaveLength(2)
+  expect((await calls(page, 'mcp_access_set'))[1]!.args).toEqual({
+    enabled: true,
+    scope: 'read',
+    backgroundStart: false,
+  })
+})
+
+test('AI Tools says why tools cannot reach Devot, with the code', async ({ page }) => {
+  const section = await openAiTools(
+    page,
+    { ...ACCESS, reachable: false, problem: 'E_HTTP_API_PORT_IN_USE' },
+    'normal',
+  )
+  await expect(section.getByRole('alert')).toHaveText(
+    'AI tools cannot reach Devot now (E_HTTP_API_PORT_IN_USE).',
+  )
+})
+
+test('A keychain that waits is said calmly, with what to do and the code', async ({ page }) => {
+  const section = await openAiTools(
+    page,
+    { ...ACCESS, reachable: false, problem: 'E_MCP_KEYCHAIN_WAITING' },
+    'normal',
+  )
+  await expect(section.getByRole('alert')).toHaveCount(0)
+  await expect(section.getByRole('status')).toHaveText(
+    'macOS is asking whether Devot may use its keychain item. Choose Allow in that dialog, and AI tools can reach Devot (E_MCP_KEYCHAIN_WAITING).',
+  )
+})
+
+test('A failure to quit or to save says so with its code', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = {
+      mcp_access_set: { error: 'E_MCP_ACCESS_WRITE_FAILED' },
+      background_quit: { error: 'E_BACKGROUND_WINDOW' },
+      background_state: { mode: 'background' },
+    }
+  })
+  await openSettings(page, 'Integrations')
+  const section = page.getByRole('region', { name: 'AI Tools' })
+  await section.getByRole('switch', { name: 'Allow AI Tools' }).click()
+  await expect(section.getByRole('alert')).toHaveText(
+    'The AI Tools settings could not be changed (E_MCP_ACCESS_WRITE_FAILED).',
+  )
+  await section.getByRole('button', { name: 'Quit Devot' }).click()
+  await expect(section.getByRole('alert')).toHaveText('Devot could not quit (E_BACKGROUND_WINDOW).')
 })
 
 test('General installs and removes the devot command, showing whether it is there', async ({
@@ -758,14 +1192,14 @@ test('Preview has synced scrolling; its font size sits in Appearance', async ({ 
 test('Integrations says when no notebook allows AI access and offers the picker', async ({
   page,
 }) => {
-  await page.addInitScript(() => {
+  await page.addInitScript((setup) => {
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = {
-      settings_mcp_setup: { script: '/Users/me/Code/devot/dist-mcp/devot-mcp.mjs', db: null },
+      settings_mcp_setup: setup,
       settings_ai_access_summary: { notebooks: 3, allowed: 0 },
       main_window_show: null,
     }
-  })
+  }, setupWith())
   await openSettings(page, 'Integrations')
   const prompt = page.getByRole('dialog', { name: 'No notebook allows AI access' })
   await expect(prompt).toBeVisible()
@@ -778,13 +1212,13 @@ test('Integrations says when no notebook allows AI access and offers the picker'
 })
 
 test('Later keeps the AI access prompt quiet for the Settings window', async ({ page }) => {
-  await page.addInitScript(() => {
+  await page.addInitScript((setup) => {
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = {
-      settings_mcp_setup: { script: null, db: null },
+      settings_mcp_setup: setup,
       settings_ai_access_summary: { notebooks: 2, allowed: 0 },
     }
-  })
+  }, setupWith())
   await openSettings(page, 'Integrations')
   const prompt = page.getByRole('dialog', { name: 'No notebook allows AI access' })
   await prompt.getByRole('button', { name: 'Later' }).click()
@@ -796,14 +1230,14 @@ test('Later keeps the AI access prompt quiet for the Settings window', async ({ 
 })
 
 test('Integrations offers a way to create a notebook when there is none', async ({ page }) => {
-  await page.addInitScript(() => {
+  await page.addInitScript((setup) => {
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = {
-      settings_mcp_setup: { script: null, db: null },
+      settings_mcp_setup: setup,
       settings_ai_access_summary: { notebooks: 0, allowed: 0 },
       main_window_show: null,
     }
-  })
+  }, setupWith())
   await openSettings(page, 'Integrations')
   const prompt = page.getByRole('dialog', { name: 'No notebook allows AI access' })
   await expect(prompt).toContainText('Devot has no notebooks yet')

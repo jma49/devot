@@ -50,6 +50,14 @@ Watch the run in the Actions tab; when it fails, fix the cause and release under
 
 ## After a release
 
+The MCP bridge ships inside the app's binary, so it adds nothing to sign, notarize or bundle. No automated test runs it against a signed build, so check it on the first release that carries it, and after any change to how Devot starts or signs:
+
+1. With Devot quit, run `/Applications/Devot.app/Contents/MacOS/devot --cli mcp`, send a `tools/call` for `list_notebooks` on its stdin, and check that no window, Dock icon or keychain prompt appears, that a menu bar icon does, and that the answer comes.
+2. Open Devot from Finder: its window shows, and the menu bar icon goes.
+3. Quit from the menu bar icon and from Settings > Integrations with a note just edited: the edit is there on the next launch.
+4. Leave one started that way alone for 10 minutes: it quits by itself.
+5. Connect Claude Code and Claude Desktop from Settings, make a write, and check it shows as theirs in the note's authorship.
+
 Once the new release is published and its feeds offer it, delete the releases it replaces together with their tags: the previous stable release, and every beta that is not newer than the newest stable release.
 
 ```sh

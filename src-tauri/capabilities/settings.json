@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings",
-  "description": "Permissions for the Settings window: reading and changing the editor settings, the keyboard shortcuts and the Markdown mirror's setting (and hearing when another window changes them), reading and clearing the local usage events, the navigation column's symbols, the system accent colour, opening the app's data folder in Finder, showing the Backups dialog, the AI providers (endpoint, model and key, which only goes in and is never read back), Sync (the relay's URL, on or off, creating the vault with the relay's secret, which only goes in, the recovery key until it is saved and copying it to the clipboard as a secret, pairing and joining devices, the vault's devices and removing one, and the status), the licence (its state, adding a key, which never comes back out, and removing it) and opening its Buy page in the browser, where devot-mcp and the database are (the Integrations pane) and copying its configs to the clipboard, the local HTTP API (on or off, its port, and its token, which Settings shows on request and replaces), installing or removing the devot command (General > Command Line Tool), and installing, turning on and off and removing plugins (Settings > Plugins). Add a command here only when a settings section needs it.",
+  "description": "Permissions for the Settings window: reading and changing the editor settings, the keyboard shortcuts and the Markdown mirror's setting (and hearing when another window changes them), reading and clearing the local usage events, the navigation column's symbols, the system accent colour, opening the app's data folder in Finder, showing the Backups dialog, the AI providers (endpoint, model and key, which only goes in and is never read back), Sync (the relay's URL, on or off, creating the vault with the relay's secret, which only goes in, the recovery key until it is saved and copying it to the clipboard as a secret, pairing and joining devices, the vault's devices and removing one, and the status), the licence (its state, adding a key, which never comes back out, and removing it) and opening its Buy page in the browser, connecting MCP clients through the Integrations pane (showing and changing only Devot's entry in each client's own config file, MCP access and its background start, whether Devot runs in the background, and Quit Devot) and copying the configs to the clipboard, the local HTTP API (on or off, its port, and its token, which Settings shows on request and replaces), installing or removing the devot command (General > Command Line Tool), and installing, turning on and off and removing plugins (Settings > Plugins). Add a command here only when a settings section needs it.",
   "windows": ["settings"],
   "permissions": [
     "core:event:allow-listen",
@@ -31,6 +31,13 @@
     "allow-update-status",
     "allow-update-check",
     "allow-settings-mcp-setup",
+    "allow-settings-mcp-connect",
+    "allow-settings-mcp-disconnect",
+    "allow-settings-mcp-open-extension",
+    "allow-mcp-access-get",
+    "allow-mcp-access-set",
+    "allow-background-state",
+    "allow-background-quit",
     "allow-settings-ai-access-summary",
     "allow-main-window-show",
     "allow-ai-settings-get",

@@ -7,14 +7,12 @@
   },
   "include": [
     "src/core",
-    "src/mcp",
     "src/renderer/src/build.d.ts",
     "relay/src/node",
     "licence/scripts",
     "tests",
     "scripts",
     "vite.config.ts",
-    "vite.mcp.config.ts",
     "vite.ui-test.config.ts",
     "vitest.config.ts",
     "playwright.config.ts"

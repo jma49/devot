@@ -1,5 +1,5 @@
 // AiStorage made of the plain adapter's calls (aiStorageOver, for the app's
-// storage) answers as devot-mcp's SQL does, on the same database.
+// storage) answers as an outside writer's SQL does, on the same database.
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import {

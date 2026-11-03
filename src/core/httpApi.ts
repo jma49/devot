@@ -5,6 +5,7 @@
 // what AI may (notebooks with Allow AI Access on), and writes like an outside
 // edit: bodies as Yjs operations, metadata by HLC.
 import type { AiNote, AiNoteUpdate, AiPatch, AiService } from './ai'
+import { AUTHORSHIP_ID, cleanWriterName, newWriter, type Writer } from './authorship'
 import { NOTE_STATUSES, type NoteStatus } from './storage'
 
 export const HTTP_API_OPS = [
@@ -32,6 +33,13 @@ export interface HttpApiCall {
   /** The note a call is about (read, update, trash). */
   note: string | null
   args: Readonly<Record<string, unknown>>
+  /** The MCP client a call of the bridge writes for (ADR 0012); Rust names one for its token alone. */
+  client?: HttpApiClient
+}
+
+export interface HttpApiClient {
+  name: string
+  session: string
 }
 
 export interface HttpApiRequest {
@@ -45,11 +53,30 @@ const isOp = (value: unknown): value is HttpApiOp =>
 /** The event's payload as Rust sends it, or null for any other shape. */
 export function readHttpApiRequest(payload: unknown): HttpApiRequest | null {
   if (typeof payload !== 'object' || payload === null) return null
-  const { id, op, note, args } = payload as Record<string, unknown>
+  const { id, op, note, args, client } = payload as Record<string, unknown>
   if (!Number.isSafeInteger(id) || (id as number) < 0 || !isOp(op)) return null
   if (note !== null && typeof note !== 'string') return null
   if (typeof args !== 'object' || args === null || Array.isArray(args)) return null
-  return { id: id as number, call: { op, note, args: args as Record<string, unknown> } }
+  const call: HttpApiCall = { op, note, args: args as Record<string, unknown> }
+  if (client === undefined) return { id: id as number, call }
+  const named = readClient(client)
+  return named ? { id: id as number, call: { ...call, client: named } } : null
+}
+
+function readClient(value: unknown): HttpApiClient | null {
+  if (typeof value !== 'object' || value === null) return null
+  const { name, session } = value as Record<string, unknown>
+  if (typeof name !== 'string' || typeof session !== 'string') return null
+  return AUTHORSHIP_ID.test(session) ? { name: cleanWriterName(name), session } : null
+}
+
+/** Who a call writes as (ADR 0007): the bridge's client as MCP, anything else as the HTTP API. */
+export function writerOfCall(call: HttpApiCall, http: Writer): Writer {
+  if (!call.client) return http
+  return {
+    ...newWriter('mcp', call.client.name, http.process),
+    session: call.client.session,
+  }
 }
 
 const invalid = () => new Error('E_HTTP_API_ARGS_INVALID')

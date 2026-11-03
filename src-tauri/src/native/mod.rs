@@ -74,6 +74,15 @@ pub fn main_window_built(window: &tauri::WebviewWindow) {
     let _ = window;
 }
 
+/// A main window built hidden for an AI tool (`background`).
+#[cfg(desktop)]
+pub fn keep_running_while_hidden(window: &tauri::WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    macos::keep_running_while_hidden(window);
+    #[cfg(not(target_os = "macos"))]
+    let _ = window;
+}
+
 /// A main window is gone: its NSWindow is no longer one to serve.
 pub fn main_window_gone(label: &str) {
     #[cfg(target_os = "macos")]

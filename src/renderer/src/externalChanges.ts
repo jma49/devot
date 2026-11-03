@@ -1,5 +1,5 @@
 // Changes other processes make to the database while Devot runs, such as a
-// note devot-mcp creates. Rust notices them (src-tauri/src/watch.rs) and
+// note an outside writer creates. Rust notices them (src-tauri/src/watch.rs) and
 // sends `devot://db-changed`; the page re-sends it as a window event, which
 // the UI tests can send too, merges the changes into the notes the core holds
 // and reloads its lists (see App).

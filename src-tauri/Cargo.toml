@@ -19,7 +19,10 @@ tauri-build = { version = "2.7", features = [] }
 # `tray-icon`: the menu bar icon (`menu_bar`).
 tauri = { version = "2.12", features = ["macos-private-api", "tray-icon"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# Raw values keep what MCP client configs hold exactly as written (`mcp_clients`).
+serde_json = { version = "1", features = ["raw_value"] }
+# Checks Codex's config before and after a change (`mcp_clients`); already in the tree through Tauri.
+toml = "1"
 base64 = "0.22"
 log = "0.4"
 # Crash reporting: panics only, sent over the system TLS stack. Debug images
@@ -46,9 +49,10 @@ tauri-plugin-dialog = "2.8"
 sha2 = "0.10"
 # Safe calls relative to a folder handle (openat, mkdirat, renameat and
 # renameatx_np, unlinkat, fstatat) for atomic_file, so no folder on the way
-# to a file can be swapped for a link after Devot looked. File system calls
-# only; already in the tree through tempfile (native-tls).
-rustix = { version = "1.1", default-features = false, features = ["std", "fs", "process"] }
+# to a file can be swapped for a link after Devot looked. File system calls,
+# and on Linux a Unix socket peer's user (`net`, for the MCP bridge); already
+# in the tree through tempfile (native-tls).
+rustix = { version = "1.1", default-features = false, features = ["std", "fs", "process", "net"] }
 # Plugin packages as `.zip` archives (`plugins::package`), deflate through
 # flate2's Rust backend, named here because no other dependency selects it on iOS.
 # Read entry by entry, never through `extract` (no links, no permission bits).

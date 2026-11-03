@@ -1505,7 +1505,7 @@ export function App() {
     }
   }, [nextSheet])
 
-  // Another process (devot-mcp) changed the database: notes in memory take in its writes before saving anything (so no save overwrites them), then pending edits save and the lists reload.
+  // Another process changed the database: notes in memory take in its writes before saving anything (so no save overwrites them), then pending edits save and the lists reload.
   useExternalChanges(
     core
       ? async () => {
@@ -1634,8 +1634,15 @@ export function App() {
       wrote: () => window.dispatchEvent(new CustomEvent(DB_CHANGED)),
     })
     void listenHere<unknown>(HTTP_API_EVENT, (e) => void take(e.payload)).then((stop) => {
-      if (stopped) stop()
-      else unlisten = stop
+      if (stopped) {
+        stop()
+        return
+      }
+      unlisten = stop
+      // Only now does the MCP bridge's socket open, so no call waits on a window still loading.
+      invoke('http_api_listening').catch((e: unknown) =>
+        console.warn('W_HTTP_API_LISTENING_FAILED', errorCode(e)),
+      )
     })
     return () => {
       stopped = true
@@ -1671,6 +1678,7 @@ export function App() {
     // (saving.ts); quitting again goes on without them.
     let unlisten: (() => void) | undefined
     let unlistenCancel: (() => void) | undefined
+    let unlistenIdle: (() => void) | undefined
     let stopped = false
     if (!DEVOT_UI_TEST) {
       void import('@tauri-apps/api/event').then(async ({ listen }) => {
@@ -1694,6 +1702,18 @@ export function App() {
         })
         if (stopped) stop()
         else unlisten = stop
+        // A Devot an AI tool started asks before it quits by itself (background.rs): a save that
+        // fails here keeps it running, without the notice a quit's own failure would bring up.
+        const stopIdle = await listen('devot://background-idle-check', async () => {
+          saveNow.current?.()
+          const saved = await core.flush({ versions: true }).then(
+            () => true,
+            () => false,
+          )
+          await invoke('background_idle_answer', { saved })
+        })
+        if (stopped) stopIdle()
+        else unlistenIdle = stopIdle
       })
       // Another window called the quit off after this one had stopped its mirror: start it again.
       void listenExitCancelled(() => resumeMirrorAfterCancelledQuit(core)).then((stop) => {
@@ -1707,6 +1727,7 @@ export function App() {
       document.removeEventListener('visibilitychange', flush)
       unlisten?.()
       unlistenCancel?.()
+      unlistenIdle?.()
     }
   }, [core, quitGuard, markShownSeen])
 

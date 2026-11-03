@@ -1,0 +1,8 @@
+{
+  "name": "devot",
+  "description": "Search, read and edit Devot notes, only in notebooks that allow AI access. Needs Devot on this Mac.",
+  "author": { "name": "Devot" },
+  "homepage": "https://devot.online",
+  "repository": "https://github.com/jma49/devot",
+  "license": "FSL-1.1-MIT"
+}

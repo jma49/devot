@@ -27,7 +27,6 @@ Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Appl
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `pnpm build`                    | Release build: `src-tauri/target/release/bundle/macos/Devot.app`                                             |
 | `pnpm ui:dev` / `pnpm ui:build` | The UI alone, in a browser                                                                                   |
-| `pnpm mcp:build`                | Build devot-mcp into `dist-mcp/devot-mcp.mjs`                                                                |
 | `pnpm ui:release`               | The UI for a release build; uploads source maps to Sentry when set up                                        |
 | `pnpm sentry:debug-files`       | Upload the release build's debug symbols to Sentry when set up                                               |
 | `pnpm test` / `pnpm test:watch` | Vitest                                                                                                       |
@@ -51,7 +50,7 @@ Pull requests select browser tests separately from the Web and Rust build jobs. 
 - A changed UI spec runs that file. A removed spec runs the remaining specs in its project; renames include both old and new paths.
 - Exact source allowlists cover Find, update checking, tooltip placement and Mermaid rendering. Their selections include cross-feature consumers and the production CSP suite. For example, tooltip placement also runs note-link hover coverage, Find also runs IME and read-only coverage, and Mermaid also runs export and scroll restoration coverage. Update these mappings when a feature gains another consumer.
 - Shared application code, global event handling, styles, core code, UI fixtures, dependency files, build configuration and unknown paths run the full UI suite. A missing mapped spec also falls back to full coverage.
-- Documentation-only changes skip the heavy build and test jobs; the always-on `web`, `rust` and `policy` gates still report success. Unit tests, MCP, Rust-only, relay and licence-service changes need no browser run, and their existing build, type and Vitest checks still apply.
+- Documentation-only changes skip the heavy build and test jobs; the always-on `web`, `rust` and `policy` gates still report success. Unit tests, Rust-only, relay and licence-service changes need no browser run, and their existing build, type and Vitest checks still apply.
 - Manual workflow runs select the full suite. Empty change lists and missing selection outputs also retain full coverage.
 
 Development and production CSP run in separate jobs, each starting only its own server. Measured development selections target about 560 seconds of recorded work per shard and cap at fourteen; a set without measured durations uses one shard per six spec files, capped at eight. Production CSP currently has one spec and uses one job. The planner assigns each spec to exactly one shard, balancing the recorded durations in `scripts/ci/ui-durations.json`, and each job runs only its own files. Each CI job runs two Playwright workers: four workers on a four-core runner starved WebKit's rendering processes and produced motion and rendering failures. Local runs use the same two unless `DEVOT_UI_WORKERS` raises them. More shards reduce work per runner but still depend on GitHub runner availability and account concurrency limits. Traces from failures and retries retain project and shard names, and each job uploads its JSON report.
@@ -114,17 +113,16 @@ Stack only changes that depend on each other: the same tokens, the same styleshe
 
 ## Layout
 
-| Path                     | Contents                                                      |
-| ------------------------ | ------------------------------------------------------------- |
-| `src/renderer`           | React UI (runs in the webview)                                |
-| `src/core`               | Core library: plain TypeScript, no Tauri, no Node built-ins   |
-| `src/mcp`                | devot-mcp (Node): the MCP tools and the better-sqlite3 store  |
-| `src-tauri`              | Rust app: commands, storage, native macOS code (`src/native`) |
-| `relay`                  | Sync relay, deployed on its own (`docs/sync-relay.md`)        |
-| `src-tauri/capabilities` | Which window may call which command                           |
-| `tests`                  | Security tests (Vitest) and UI tests (Playwright)             |
-| `design`                 | Design tokens, the icon map and the app icon source           |
-| `docs`                   | Architecture, decisions and the release process               |
+| Path                     | Contents                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `src/renderer`           | React UI (runs in the webview)                                                                   |
+| `src/core`               | Core library: plain TypeScript, no Tauri, no Node built-ins                                      |
+| `src-tauri`              | Rust app: commands, storage, native macOS code (`src/native`), the MCP bridge (`src/mcp_bridge`) |
+| `relay`                  | Sync relay, deployed on its own (`docs/sync-relay.md`)                                           |
+| `src-tauri/capabilities` | Which window may call which command                                                              |
+| `tests`                  | Security tests (Vitest) and UI tests (Playwright)                                                |
+| `design`                 | Design tokens, the icon map and the app icon source                                              |
+| `docs`                   | Architecture, decisions and the release process                                                  |
 
 ## README clips
 

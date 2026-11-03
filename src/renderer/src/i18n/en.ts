@@ -1235,12 +1235,10 @@ title: Daily Report {{date}}
   'aiSettings.keyFailed': 'The key could not be changed ({code}).',
   'integrations.title': 'Integrations',
   'integrations.detail':
-    'devot-mcp lets Claude Code, Codex and other MCP clients search, read, create, edit and trash your notes. It sees only notebooks with Allow AI Access on, and Devot keeps the text from before each edit in the note\u2019s Revision History. It runs with Node, whether Devot is open or not.',
-  'integrations.script':
-    'These configs run devot-mcp from the Devot checkout this app was built from.',
-  'integrations.noScript':
-    'Build devot-mcp in a Devot checkout (pnpm install, then pnpm mcp:build), and put the path of its dist-mcp/devot-mcp.mjs in place of the one below.',
-  'integrations.setupFailed': 'Devot could not find devot-mcp ({code}).',
+    'Claude Code, Codex and Claude Desktop can search, read, create and edit notes through Devot. Nothing else needs to be installed.',
+  'integrations.temporary':
+    'Devot is running from a disk image or a temporary copy. Move it to Applications and open it again before connecting a client.',
+  'integrations.setupFailed': 'Devot could not read the client configurations ({code}).',
   'integrations.noAiAccessTitle': 'No notebook allows AI access',
   'integrations.noAiAccess':
     'MCP clients see no notes until a notebook allows AI access. Right-click a notebook in the sidebar and choose Allow AI Access, or choose several notebooks at once.',
@@ -1249,21 +1247,80 @@ title: Daily Report {{date}}
   'integrations.chooseNotebooks': 'Choose Notebooks\u2026',
   'integrations.later': 'Later',
   'integrations.openDevot': 'Open Devot',
-  'integrations.mcpTitle': 'devot-mcp',
-  'integrations.accessLabel': 'AI Access',
-  'integrations.scriptLabel': 'Configs',
   'integrations.aiAccessCount': '{allowed} of {notebooks} notebooks allow AI access.',
   'integrations.claudeCode': 'Claude Code',
-  'integrations.claudeCodeHint': 'Run this command in Terminal.',
+  'integrations.claudeCodeHint': 'Or run this command in Terminal.',
   'integrations.codex': 'Codex',
-  'integrations.codexHint': 'Add this to ~/.codex/config.toml.',
+  'integrations.codexHint': 'Or add this to ~/.codex/config.toml.',
+  'integrations.claudeDesktop': 'Claude Desktop',
+  'integrations.claudeDesktopHint':
+    'Or add this to claude_desktop_config.json, or install Devot as an extension; use one of these, not both.',
   'integrations.json': 'Other MCP Clients',
-  'integrations.jsonHint':
-    'Add this to the client\u2019s MCP configuration file (mcpServers). If the client cannot find node, put its full path instead (which node in Terminal prints it).',
+  'integrations.jsonHint': 'Add this to the client\u2019s MCP configuration file (mcpServers).',
   'integrations.copy': 'Copy',
   'integrations.copyLabel': 'Copy the {client} configuration',
   'integrations.copied': 'The {client} configuration was copied.',
   'integrations.copyFailed': 'The configuration could not be copied ({code}).',
+  'integrations.stateNotConnected': 'Not connected',
+  'integrations.stateConnected': 'Connected',
+  'integrations.stateStale': 'Points at a copy of Devot that has moved',
+  'integrations.stateOther': 'Has a devot entry this Devot did not write',
+  'integrations.stateUnreadable': 'Its file cannot be changed safely ({code}); set it up by hand',
+  'integrations.connect': 'Connect',
+  'integrations.reconnect': 'Reconnect',
+  'integrations.replace': 'Replace',
+  'integrations.disconnect': 'Disconnect',
+  'integrations.cancel': 'Cancel',
+  'integrations.changeLabel': '{action} {client}',
+  'integrations.confirmConnect': 'Connect {client}?',
+  'integrations.confirmConnectDetail':
+    'Devot adds this to {path}. Everything else in the file stays, and the file as it is now is kept at {backup}.',
+  'integrations.confirmCreateDetail': 'Devot creates {path} with this in it.',
+  'integrations.confirmCliConnectDetail':
+    'Devot runs this command, so Claude Code adds Devot to {path} itself. Claude Code can stay open; start a new session to use Devot.',
+  'integrations.confirmCliDisconnectDetail':
+    'Devot runs claude mcp remove --scope user devot, so Claude Code removes only Devot\u2019s entry from {path} itself. Claude Code can stay open.',
+  'integrations.confirmRunning':
+    'If {client} is running it may rewrite this file at any time: quit it first. Devot leaves the file alone if it changed since this was shown.',
+  'integrations.confirmAccessOn':
+    'This turns on Allow AI Tools. Notebooks stay closed to AI until you allow them yourself.',
+  'integrations.confirmBackground':
+    'When {client} asks and Devot is not open, Devot may start in the background with no window. You can quit it from its menu bar icon, and turn this off under AI Tools.',
+  'integrations.confirmDisconnect': 'Disconnect {client}?',
+  'integrations.confirmDisconnectDetail':
+    'Devot removes only its devot entry from {path}. Everything else in the file stays, and the file as it is now is kept at {backup}.',
+  'integrations.connected': '{client} is connected. Restart it if it is running.',
+  'integrations.disconnected': '{client} is disconnected. Restart it if it is running.',
+  'integrations.changeFailed': 'The client\u2019s configuration was not changed ({code}).',
+  'integrations.extensionOpened': 'Devot was opened as an extension. Continue in Claude Desktop.',
+  'integrations.extensionFailed':
+    'The extension could not be opened ({code}). Is Claude Desktop installed?',
+  'mcpAccess.title': 'AI Tools',
+  'mcpAccess.enabled': 'Allow AI Tools',
+  'mcpAccess.enabledHint': 'Let AI tools read and change notes in notebooks you allow.',
+  'mcpAccess.scope': 'Access',
+  'mcpAccess.read': 'Read Only',
+  'mcpAccess.readWrite': 'Read and Write',
+  'mcpAccess.backgroundStart': 'Start in the Background',
+  'mcpAccess.backgroundStartHint':
+    'When an AI tool asks and Devot is closed, Devot opens without a window. Quit it from the menu bar at any time.',
+  'mcpAccess.runningBackground': 'Running in the background for AI tools.',
+  'mcpAccess.runningNormal': 'Open as usual.',
+  'mcpAccess.quit': 'Quit Devot',
+  'mcpAccess.keychainWaiting':
+    'macOS is asking whether Devot may use its keychain item. Choose Allow in that dialog, and AI tools can reach Devot ({code}).',
+  'mcpAccess.notReachable': 'AI tools cannot reach Devot now ({code}).',
+  'mcpAccess.loadFailed': 'The AI Tools settings could not be read ({code}).',
+  'mcpAccess.saveFailed': 'The AI Tools settings could not be changed ({code}).',
+  'mcpAccess.quitFailed': 'Devot could not quit ({code}).',
+  'integrations.clientsTitle': 'Clients',
+  'integrations.byHand': 'Set Up by Hand',
+  'integrations.installExtension': 'Install Extension',
+  'mcpAccess.notebooks': 'Notebooks',
+  'mcpAccess.chooseNotebooks': 'Choose\u2026',
+  'mcpAccess.status': 'Status',
+  'mcpAccess.footnote':
+    'A Devot started in the background quits by itself after 10 minutes without a request. With Start in the Background off, AI tools get an error until you open Devot.',
   'httpApi.title': 'Local HTTP API',
   'httpApi.detail':
     'Scripts and other apps on this Mac can read and write notes through a local HTTP API while Devot runs. They see only notebooks with Allow AI Access on, and every request needs the token.',
