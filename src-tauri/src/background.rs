@@ -18,6 +18,7 @@ use crate::{exit, http_api, menu_bar, strings};
 
 const TRAY_ID: &str = "devot.background";
 const STATUS_ID: &str = "devot.background.status";
+const IDLE_ID: &str = "devot.background.idle";
 const OPEN_ID: &str = "devot.background.open";
 const SETTINGS_ID: &str = "devot.background.settings";
 const QUIT_ID: &str = "devot.background.quit";
@@ -120,12 +121,16 @@ fn show_icon(app: &AppHandle) -> tauri::Result<()> {
     let status = MenuItemBuilder::with_id(STATUS_ID, strings::BACKGROUND_MENU_STATUS)
         .enabled(false)
         .build(app)?;
+    let idle = MenuItemBuilder::with_id(IDLE_ID, strings::BACKGROUND_MENU_IDLE)
+        .enabled(false)
+        .build(app)?;
     let open = MenuItemBuilder::with_id(OPEN_ID, strings::MENU_BAR_OPEN).build(app)?;
     let settings =
         MenuItemBuilder::with_id(SETTINGS_ID, strings::BACKGROUND_SETTINGS).build(app)?;
     let quit = MenuItemBuilder::with_id(QUIT_ID, strings::QUIT).build(app)?;
     let menu = MenuBuilder::new(app)
         .item(&status)
+        .item(&idle)
         .separator()
         .item(&open)
         .item(&settings)
@@ -432,7 +437,7 @@ mod tests {
 
     #[test]
     fn the_menu_ids_are_its_own() {
-        for id in [STATUS_ID, OPEN_ID, SETTINGS_ID, QUIT_ID] {
+        for id in [STATUS_ID, IDLE_ID, OPEN_ID, SETTINGS_ID, QUIT_ID] {
             assert_ne!(id, crate::menu::QUIT_ID);
             assert!(crate::format_menu::command_for(id).is_none());
         }
@@ -441,7 +446,16 @@ mod tests {
     #[test]
     fn the_wording_says_what_is_running_and_for_whom() {
         assert!(strings::BACKGROUND_STATUS.contains("AI tools"));
-        assert!(strings::BACKGROUND_MENU_STATUS.contains("10 minutes"));
+        assert!(strings::BACKGROUND_MENU_IDLE.contains("10 minutes"));
+        for line in [
+            strings::BACKGROUND_MENU_STATUS,
+            strings::BACKGROUND_MENU_IDLE,
+        ] {
+            assert!(
+                line.chars().count() <= 42,
+                "a short line keeps the menu narrow: {line}"
+            );
+        }
         assert_eq!(strings::QUIT, "Quit Devot");
     }
 }

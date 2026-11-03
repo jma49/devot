@@ -425,6 +425,16 @@ export function IntegrationsSection() {
         </div>
         <div className="setting-control">
           <div className="settings-buttons">
+            {client.connects === 'claudeDesktop' && status.state === 'notConnected' ? (
+              <button
+                type="button"
+                className="button"
+                disabled={!canWrite || busy}
+                onClick={openExtension}
+              >
+                {t('integrations.installExtension')}
+              </button>
+            ) : null}
             {primary ? (
               <button
                 type="button"
@@ -434,16 +444,6 @@ export function IntegrationsSection() {
                 onClick={() => setPending({ action: 'connect', title: client.title, status })}
               >
                 {t(primary)}
-              </button>
-            ) : null}
-            {client.connects === 'claudeDesktop' && status.state === 'notConnected' ? (
-              <button
-                type="button"
-                className="button"
-                disabled={!canWrite || busy}
-                onClick={openExtension}
-              >
-                {t('integrations.installExtension')}
               </button>
             ) : null}
             {connected ? (

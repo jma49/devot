@@ -81,8 +81,8 @@ pub const NOTE_WINDOW_TITLE: &str = "Note";
 pub const MENU_BAR_NEW_QUICK_NOTE: &str = "New Quick Note";
 pub const MENU_BAR_OPEN: &str = "Open Devot";
 pub const BACKGROUND_STATUS: &str = "Running in the background for AI tools";
-pub const BACKGROUND_MENU_STATUS: &str =
-    "Running in the background for AI tools. Quits by itself after 10 minutes without a request.";
+pub const BACKGROUND_MENU_STATUS: &str = "Running in the background for AI tools";
+pub const BACKGROUND_MENU_IDLE: &str = "Quits after 10 minutes without a request";
 pub const BACKGROUND_SETTINGS: &str = "Integrations Settings\u{2026}";
 pub const MIRROR_FOLDER_TITLE: &str = "Choose a Folder for the Markdown Mirror";
 pub const FONT_IMPORT_TITLE: &str = "Import a Font for the Editor";

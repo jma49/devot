@@ -660,7 +660,8 @@ fn read_until(
             .checked_duration_since(Instant::now())
             .filter(|d| !d.is_zero())
             .ok_or(TIMED_OUT)?;
-        stream.read_within(Some(left)).map_err(|_| BAD_REQUEST)?;
+        // macOS refuses the timeout once the peer has closed; then a read ends at once anyway.
+        let _ = stream.read_within(Some(left));
         match stream.read(&mut chunk) {
             Ok(0) if buffer.is_empty() => return Err(NOTHING_SENT),
             Ok(0) => return Err(BAD_REQUEST),
@@ -910,4 +911,51 @@ fn handle(
             note,
         },
     })
+}
+
+#[cfg(test)]
+mod probe_tests {
+    use super::*;
+
+    /// A peer that closed before sending: macOS then refuses the read timeout, and a read ends at once.
+    struct Closed;
+
+    impl Read for Closed {
+        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+            Ok(0)
+        }
+    }
+
+    impl Write for Closed {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Conn for Closed {
+        fn read_within(&self, _: Option<Duration>) -> std::io::Result<()> {
+            Err(std::io::Error::from(ErrorKind::InvalidInput))
+        }
+        fn write_within(&self, _: Option<Duration>) -> std::io::Result<()> {
+            Err(std::io::Error::from(ErrorKind::InvalidInput))
+        }
+        fn end_writes(&self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_look_that_closed_before_sending_is_nothing_sent_even_where_the_timeout_is_refused() {
+        let mut buffer = Vec::new();
+        let read = read_until(
+            &mut Closed,
+            &mut buffer,
+            Instant::now() + Duration::from_secs(1),
+            |b| Ok(!b.is_empty()),
+        );
+        assert_eq!(read, Err(NOTHING_SENT));
+    }
 }

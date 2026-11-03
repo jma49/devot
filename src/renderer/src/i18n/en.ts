@@ -1307,6 +1307,8 @@ title: Daily Report {{date}}
   'mcpAccess.runningBackground': 'Running in the background for AI tools.',
   'mcpAccess.runningNormal': 'Open as usual.',
   'mcpAccess.quit': 'Quit Devot',
+  'mcpAccess.keychainWaiting':
+    'macOS is asking whether Devot may use its keychain item. Choose Allow in that dialog, and AI tools can reach Devot ({code}).',
   'mcpAccess.notReachable': 'AI tools cannot reach Devot now ({code}).',
   'mcpAccess.loadFailed': 'The AI Tools settings could not be read ({code}).',
   'mcpAccess.saveFailed': 'The AI Tools settings could not be changed ({code}).',

@@ -373,7 +373,16 @@ test('Clients has one row per client with its state, and only the buttons that s
   await expect(codex).toContainText('Connected')
   await expect(codex.getByRole('button')).toHaveText(['Disconnect'])
   const desktop = page.getByRole('group', { name: 'Claude Desktop' })
-  await expect(desktop.getByRole('button')).toHaveText(['Connect', 'Install Extension'])
+  await expect(desktop.getByRole('button')).toHaveText(['Install Extension', 'Connect'])
+  // The primary button keeps its accent in a settings card, so it never looks disabled.
+  const fill = (name: string) =>
+    desktop
+      .getByRole('button', { name })
+      .evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color])
+  const [primaryFill, primaryText] = await fill('Connect Claude Desktop')
+  const [plainFill] = await fill('Install Extension')
+  expect(primaryFill).not.toBe(plainFill)
+  expect(primaryText).not.toBe(primaryFill)
   await expect(codex.locator('.client-state-dot')).toHaveAttribute('data-state', 'connected')
 })
 
@@ -724,6 +733,18 @@ test('AI Tools says why tools cannot reach Devot, with the code', async ({ page 
   )
   await expect(section.getByRole('alert')).toHaveText(
     'AI tools cannot reach Devot now (E_HTTP_API_PORT_IN_USE).',
+  )
+})
+
+test('A keychain that waits is said calmly, with what to do and the code', async ({ page }) => {
+  const section = await openAiTools(
+    page,
+    { ...ACCESS, reachable: false, problem: 'E_MCP_KEYCHAIN_WAITING' },
+    'normal',
+  )
+  await expect(section.getByRole('alert')).toHaveCount(0)
+  await expect(section.getByRole('status')).toHaveText(
+    'macOS is asking whether Devot may use its keychain item. Choose Allow in that dialog, and AI tools can reach Devot (E_MCP_KEYCHAIN_WAITING).',
   )
 })
 

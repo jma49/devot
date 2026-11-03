@@ -5037,6 +5037,20 @@ button {
   background: var(--color-fill-row-selected);
 }
 
+/* The card's grey would otherwise win over the default button's accent, leaving its text unread. */
+.settings-card .button-default {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+.settings-card .button-default:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-accent-hover);
+}
+
+.settings-card .button-default:active:not(:disabled, [aria-disabled='true']) {
+  background: color-mix(in srgb, var(--color-accent-hover), var(--color-text-primary) 12%);
+}
+
 .setting-text {
   display: flex;
   flex-direction: column;

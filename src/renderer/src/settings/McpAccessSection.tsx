@@ -17,6 +17,9 @@ const SCOPES: readonly { id: McpScope; label: MessageKey }[] = [
   { id: 'read', label: 'mcpAccess.read' },
 ]
 
+/** macOS asks the owner first; nothing is wrong, and Devot goes on once it is allowed. */
+const KEYCHAIN_WAITING = 'E_MCP_KEYCHAIN_WAITING'
+
 type Choices = Pick<McpAccess, 'enabled' | 'scope' | 'backgroundStart'>
 
 /**
@@ -121,7 +124,11 @@ export function McpAccessSection(props: {
             checked={access.enabled}
             onChange={(on) => change({ enabled: on })}
           />
-          {access.enabled && access.problem !== null ? (
+          {access.enabled && access.problem === KEYCHAIN_WAITING ? (
+            <p role="status" className="settings-note">
+              {format(t('mcpAccess.keychainWaiting'), { code: access.problem })}
+            </p>
+          ) : access.enabled && access.problem !== null ? (
             <p role="alert" className="settings-error">
               {format(t('mcpAccess.notReachable'), { code: access.problem })}
             </p>
