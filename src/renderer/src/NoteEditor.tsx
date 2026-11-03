@@ -683,6 +683,8 @@ interface Props {
   /** Kept mounted but out of sight in preview mode, so the text stays live. */
   hidden: boolean
   onText: (text: string) => void
+  /** Once this editor has its note's body; never for an editor being left, unlike `onText`, which then reports an empty body. */
+  onLoaded?: (text: string) => void
   links: LinkSources
   /** Set while the note is open: applies a restored version (see ApplyRestore). */
   restoreRef?: RefObject<ApplyRestore | null>
@@ -721,6 +723,7 @@ export function NoteEditor({
   autoFocusIfFree = false,
   hidden,
   onText,
+  onLoaded,
   links,
   restoreRef,
   onFind,
@@ -756,6 +759,7 @@ export function NoteEditor({
   const preopened = useRef(takePreopened)
   const alertMenu = useRef(showAlertMenu)
   const report = useRef(onText)
+  const loaded = useRef(onLoaded)
   const linkSources = useRef(links)
   const findHandle = useRef(onFind)
   const scrollHandle = useRef(onScrollPane)
@@ -865,6 +869,7 @@ export function NoteEditor({
     focusOnOpen.current = autoFocus
     focusOnlyIfFree.current = autoFocusIfFree
     report.current = onText
+    loaded.current = onLoaded
     linkSources.current = links
     findHandle.current = onFind
     scrollHandle.current = onScrollPane
@@ -1276,6 +1281,7 @@ export function NoteEditor({
         },
       }
       shown.current = s
+      loaded.current?.(text.toString())
       reportText()
       publish(s)
       // The body took a while to load: a title or palette field the user

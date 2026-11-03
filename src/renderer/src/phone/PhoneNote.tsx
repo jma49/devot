@@ -184,9 +184,12 @@ export function PhoneNote(props: {
   const noteId = history.ids[history.at]!
   const note =
     store.notes.find((n) => n.id === noteId) ?? store.templates.find((n) => n.id === noteId)
-  const [mode, setMode] = useState<'edit' | 'preview'>('preview')
+  const [modes, setModes] = useState<Readonly<Record<string, 'edit' | 'preview'>>>({})
+  const mode = modes[noteId] ?? 'preview'
+  const setMode = (next: 'edit' | 'preview') => setModes((m) => ({ ...m, [noteId]: next }))
   const [toggles, setToggles] = useState(0)
-  const [text, setText] = useState('')
+  const [body, setBody] = useState({ id: noteId, text: '' })
+  const text = body.id === noteId ? body.text : ''
   const [sheet, setSheet] = useState<Sheet>(null)
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
   const [suggestFailure, setSuggestFailure] = useState<string>()
@@ -196,10 +199,13 @@ export function PhoneNote(props: {
   const showAlertMenu = useAlertMenu()
   const keyboard = useKeyboard()
   const typing = mode === 'edit' && keyboard.open && !finding
-  const showText = (body: string) => {
-    setText(body)
+  // An editor being left reports an empty body as it goes: only its own note's body takes that.
+  const showText = (id: string, next: string) =>
+    setBody((shown) => (shown.id === id ? { id, text: next } : shown))
+  const noteLoaded = (id: string, loaded: string) => {
+    setBody({ id, text: loaded })
     // An empty note has nothing to read, so it opens ready to write.
-    if (body === '') setMode('edit')
+    setModes((m) => (m[id] ? m : { ...m, [id]: loaded === '' ? 'edit' : 'preview' }))
   }
 
   const suggester = useMemo(() => {
@@ -348,7 +354,8 @@ export function PhoneNote(props: {
               noteId={noteId}
               autoFocus={false}
               hidden={mode === 'preview'}
-              onText={showText}
+              onText={(next) => showText(noteId, next)}
+              onLoaded={(loaded) => noteLoaded(noteId, loaded)}
               links={links}
               showAlertMenu={showAlertMenu}
               handleRef={editor}
@@ -387,7 +394,7 @@ export function PhoneNote(props: {
             data-turn={toggles === 0 ? undefined : toggles % 2 ? 'a' : 'b'}
             onClick={() => {
               setToggles((n) => n + 1)
-              setMode((m) => (m === 'edit' ? 'preview' : 'edit'))
+              setMode(mode === 'edit' ? 'preview' : 'edit')
             }}
           >
             <Icon name={mode === 'edit' ? 'mode.preview' : 'mode.edit'} size="lg" />

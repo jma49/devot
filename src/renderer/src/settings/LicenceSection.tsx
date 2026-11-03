@@ -116,16 +116,17 @@ export function LicenceSection() {
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
-      <SettingsSection
-        title="licenceSettings.title"
-        titleHidden={onPhone}
-        footnote={onPhone ? t('licenceSettings.detail') : undefined}
-      >
+      <SettingsSection title="licenceSettings.title" titleHidden={onPhone}>
         {onPhone ? null : <SettingsNote>{t('licenceSettings.detail')}</SettingsNote>}
         {licence.gated || licence.state === 'none' ? null : (
           <SettingsNote>{t('licenceSettings.ungated')}</SettingsNote>
         )}
-        <Setting label="licenceSettings.status" description={stateSentence(licence)} live>
+        <Setting
+          label="licenceSettings.status"
+          description={stateSentence(licence)}
+          live
+          hint={{ title: t('licenceSettings.title'), body: t('licenceSettings.detail') }}
+        >
           {licence.state === 'valid' ? null : (
             <div className="settings-buttons">
               <LicenceButton />

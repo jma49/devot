@@ -478,3 +478,138 @@ test('a long select value is cut with an ellipsis, in its row, beside its whole 
   expect(drawn!.x).toBeGreaterThanOrEqual(label.right)
   expect(drawn!.x + drawn!.width).toBeLessThanOrEqual(card!.x + card!.width - 12 + 0.5)
 })
+
+test.describe('License, Usage and disabled switches', () => {
+  const noLicence = {
+    gated: true,
+    state: 'none',
+    code: null,
+    id: null,
+    licensee: null,
+    plan: null,
+    trial: { state: 'ended', endsAt: 1_790_000_000_000, code: null },
+  }
+
+  const seedLicence = (page: Page) =>
+    page.addInitScript((licence) => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = { ...w.devotIpcMocks, licence_get: () => licence }
+    }, noLicence)
+
+  const atDoubleText = (page: Page) =>
+    page.locator('.phone-app').evaluate((app) => {
+      const shell = app as unknown as {
+        style: CSSStyleDeclaration
+        dataset: Record<string, string>
+      }
+      shell.style.setProperty('--phone-text-scale', '2')
+      shell.dataset['textSize'] = 'accessibility'
+    })
+
+  const openPaneAtDoubleText = async (page: Page, name: string) => {
+    await openSettings(page)
+    await atDoubleText(page)
+    await root(page)
+      .getByRole('button', { name: new RegExp(`^${name}`) })
+      .click()
+    const pane = page.locator(`section.phone-screen[aria-label="${name}"]`)
+    await expect(pane.locator('.settings-section')).toBeAttached()
+    return pane
+  }
+
+  const firstCardTop = async (pane: Locator) =>
+    (await pane.locator('.settings-card').first().boundingBox())!.y
+
+  test('License and Usage start where other panes do, the info on a first row', async ({
+    page,
+  }) => {
+    await seedLicence(page)
+    await seedUsage(page, 9)
+    const sync = await firstCardTop(await openPane(page, 'Sync'))
+    for (const [name, about, sheet] of [
+      ['License', 'About License', 'License'],
+      ['Usage', 'About Usage overview', 'Usage overview'],
+    ] as const) {
+      const pane = await openPane(page, name)
+      await expect(pane.locator('.phone-block-head:not(:has(.settings-block-title))')).toHaveCount(
+        0,
+      )
+      await expect.poll(() => firstCardTop(pane)).toBeCloseTo(sync, 0)
+      const info = pane
+        .locator('.settings-card')
+        .first()
+        .getByRole('button', { name: about, exact: true })
+      const box = (await info.boundingBox())!
+      expect(box.width).toBeGreaterThanOrEqual(44)
+      expect(box.height).toBeGreaterThanOrEqual(44)
+      await info.click()
+      const dialog = page.getByRole('dialog', { name: sheet })
+      await expect(dialog).toBeVisible()
+      await dialog.getByRole('button', { name: 'Done' }).click()
+    }
+  })
+
+  test('at twice the text size License stacks its buttons at the row width', async ({ page }) => {
+    await seedLicence(page)
+    const pane = await openPaneAtDoubleText(page, 'License')
+    const card = (await pane.locator('.settings-card').boundingBox())!
+    const status = (await pane.getByText('No license is added.').boundingBox())!
+    const buy = (await pane.getByRole('button', { name: 'Buy a License' }).boundingBox())!
+    expect(status.y + status.height).toBeLessThanOrEqual(buy.y + 1)
+    const add = pane.getByRole('button', { name: 'Add License' })
+    const remove = pane.getByRole('button', { name: 'Remove License…' })
+    const addBox = (await add.boundingBox())!
+    const removeBox = (await remove.boundingBox())!
+    expect(addBox.y + addBox.height).toBeLessThanOrEqual(removeBox.y)
+    for (const box of [buy, addBox, removeBox]) {
+      expect(box.width).toBeCloseTo(card.width - 2 * 12, 0)
+      expect(box.x).toBeGreaterThanOrEqual(card.x)
+      expect(box.x + box.width).toBeLessThanOrEqual(card.x + card.width)
+    }
+    for (const button of [add, remove]) {
+      const fits = await button.evaluate((el) => el.scrollWidth <= el.clientWidth)
+      expect(fits).toBe(true)
+    }
+  })
+
+  test('at twice the text size Usage stacks its period and chart headings', async ({ page }) => {
+    await seedUsage(page, 9)
+    const pane = await openPaneAtDoubleText(page, 'Usage')
+    const segments = pane.getByRole('radio')
+    await expect(segments).toHaveCount(3)
+    const boxes = await Promise.all(
+      [0, 1, 2].map(async (i) => (await segments.nth(i).boundingBox())!),
+    )
+    for (const [i, box] of boxes.entries()) {
+      expect(box.height).toBeGreaterThanOrEqual(44)
+      if (i > 0) expect(box.y).toBeGreaterThanOrEqual(boxes[i - 1]!.y + boxes[i - 1]!.height - 1)
+      const fits = await segments.nth(i).evaluate((el) => el.scrollWidth <= el.clientWidth)
+      expect(fits).toBe(true)
+    }
+    const pill = (await pane.locator('.phone-segmented-pill').boundingBox())!
+    expect(pill.y).toBeCloseTo(boxes[1]!.y, 0)
+    expect(pill.height).toBeCloseTo(boxes[1]!.height, 0)
+
+    const day = (await pane.getByRole('heading', { name: 'By day' }).boundingBox())!
+    const average = (await pane.getByText(/^Average /).boundingBox())!
+    expect(average.y).toBeGreaterThanOrEqual(day.y + day.height - 1)
+  })
+
+  test('a disabled switch stays at full opacity and differs from an off one', async ({ page }) => {
+    const paint = (input: Locator) =>
+      input.evaluate((el) => {
+        const after = getComputedStyle(el, '::after')
+        return { opacity: getComputedStyle(el).opacity, thumb: after.backgroundColor }
+      })
+    const sync = await openPane(page, 'Sync')
+    const disabled = sync.getByRole('switch', { name: 'Sync This Device' })
+    await expect(disabled).toBeDisabled()
+    const off = await paint(disabled)
+    expect(off.opacity).toBe('1')
+    const preview = await openPane(page, 'Preview')
+    const enabled = preview.getByRole('switch').first()
+    if (await enabled.isChecked()) await enabled.click()
+    await expect(enabled).not.toBeChecked()
+    expect(off.thumb).not.toBe((await paint(enabled)).thumb)
+  })
+})

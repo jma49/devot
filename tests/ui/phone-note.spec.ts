@@ -1,10 +1,16 @@
 import type { Page } from '@playwright/test'
+import * as Y from 'yjs'
 import { expect, test } from './fixtures'
 
 test.use({
   viewport: { width: 390, height: 844 },
   userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15',
 })
+
+interface EditorViewLike {
+  state: { doc: { length: number } }
+  dispatch(spec: unknown): void
+}
 
 const note = (page: Page) => page.locator('section.phone-screen:has(.phone-note-scroll)')
 
@@ -287,5 +293,133 @@ test.describe('under Reduce Motion', () => {
       property: getComputedStyle(el).transitionProperty,
     }))
     expect(seen).toEqual({ transform: 'none', property: 'opacity' })
+  })
+})
+
+test.describe('which mode a note opens in', () => {
+  const LINKING = '0192a6f0-0000-7000-8000-00000000abc1'
+  const TARGET = '0192a6f0-0000-7000-8000-00000000abc2'
+  const BLANK = '0192a6f0-0000-7000-8000-00000000abc3'
+
+  const modeOf = (page: Page) => note(page).locator('.phone-note-body')
+  const preview = (page: Page) => note(page).locator('.phone-note-preview')
+  const heading = (page: Page) => note(page).locator('.phone-note-heading')
+  const previous = (page: Page) => note(page).getByRole('button', { name: 'Previous Note' })
+  const nextNote = (page: Page) => note(page).getByRole('button', { name: 'Next Note' })
+
+  const ydocOf = (body: string) => {
+    const doc = new Y.Doc()
+    doc.getText('body').insert(0, body)
+    return Array.from(Y.encodeStateAsUpdate(doc))
+  }
+
+  const seedAndOpen = async (page: Page, title: string) => {
+    const seeds = [
+      {
+        id: LINKING,
+        title: 'Linking',
+        bodyMd: `[Target](devot://note/${TARGET}) and [Blank](devot://note/${BLANK})`,
+      },
+      { id: TARGET, title: 'Target', bodyMd: 'Target body' },
+      { id: BLANK, title: 'Blank', bodyMd: '' },
+    ].map((seed) => ({ ...seed, ydoc: ydocOf(seed.bodyMd) }))
+    await page.evaluate((notes) => {
+      const hlc = '0000000000000001-0000-test'
+      localStorage.setItem(
+        'devot.test.notes',
+        JSON.stringify(
+          notes.map((seed, i) => ({
+            ...seed,
+            titleHlc: hlc,
+            bookId: null,
+            bookHlc: '',
+            status: 'none',
+            statusHlc: '',
+            pinned: false,
+            pinnedHlc: '',
+            bodyVersion: 1,
+            createdAt: 1_000 + i,
+            updatedAt: 1_000 + i,
+            deletedAt: null,
+            deletedHlc: null,
+          })),
+        ),
+      )
+    }, seeds)
+    await page.goto('/')
+    await page
+      .getByRole('navigation', { name: 'Tabs' })
+      .getByRole('button', { name: 'Notes' })
+      .click()
+    await page.locator('.phone-note-open', { hasText: title }).first().click()
+    await expect(note(page).locator('.cm-content')).toBeAttached()
+  }
+
+  // The phone has no outside-merge path into an open note yet; replacing the document through the
+  // hidden editor's view sends the same text report an outside change would.
+  const replaceBody = (page: Page, body: string) =>
+    note(page)
+      .locator('.cm-content')
+      .evaluate((content, next) => {
+        const view = (content as unknown as { cmTile: { view: EditorViewLike } }).cmTile.view
+        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } })
+      }, body)
+
+  test('following a link from Preview lands in Preview, with its own text', async ({ page }) => {
+    await seedAndOpen(page, 'Linking')
+    await expect(modeOf(page)).toHaveAttribute('data-mode', 'preview')
+    await preview(page).getByRole('link', { name: 'Target' }).click()
+    await expect(heading(page)).toHaveValue('Target')
+    await expect(preview(page)).toContainText('Target body')
+    await expect(modeOf(page)).toHaveAttribute('data-mode', 'preview')
+  })
+
+  test('an empty note lands in Edit, opened directly or by a link', async ({ page }) => {
+    await seedAndOpen(page, 'Blank')
+    await expect(modeOf(page)).toHaveAttribute('data-mode', 'edit')
+    await note(page).getByRole('button', { name: 'Back', exact: true }).click()
+    await expect(note(page)).toHaveCount(0)
+    await page.locator('.phone-note-open', { hasText: 'Linking' }).first().click()
+    await expect(preview(page).getByRole('link', { name: 'Blank' })).toBeVisible()
+    await preview(page).getByRole('link', { name: 'Blank' }).click()
+    await expect(heading(page)).toHaveValue('Blank')
+    await expect(modeOf(page)).toHaveAttribute('data-mode', 'edit')
+  })
+
+  test('a body emptied and refilled while in Preview leaves the mode alone', async ({ page }) => {
+    await seedAndOpen(page, 'Target')
+    await expect(preview(page)).toContainText('Target body')
+    await replaceBody(page, '')
+    await expect(preview(page)).not.toContainText('Target body')
+    await expect(modeOf(page)).toHaveAttribute('data-mode', 'preview')
+    await replaceBody(page, 'Filled again')
+    await expect(preview(page)).toContainText('Filled again')
+    await expect(modeOf(page)).toHaveAttribute('data-mode', 'preview')
+  })
+
+  test('a note being edited stays in Edit when its body goes empty', async ({ page }) => {
+    await seedAndOpen(page, 'Target')
+    await note(page).getByRole('button', { name: 'Edit', exact: true }).click()
+    await replaceBody(page, '')
+    await expect(note(page).locator('.cm-content')).not.toContainText('Target body')
+    await expect(modeOf(page)).toHaveAttribute('data-mode', 'edit')
+  })
+
+  test('Back and Forward return to each note in the mode it was left in', async ({ page }) => {
+    await seedAndOpen(page, 'Linking')
+    await preview(page).getByRole('link', { name: 'Target' }).click()
+    await expect(heading(page)).toHaveValue('Target')
+    await note(page).getByRole('button', { name: 'Edit', exact: true }).click()
+    await expect(modeOf(page)).toHaveAttribute('data-mode', 'edit')
+
+    await previous(page).click()
+    await expect(heading(page)).toHaveValue('Linking')
+    await expect(modeOf(page)).toHaveAttribute('data-mode', 'preview')
+    await expect(preview(page).getByRole('link', { name: 'Target' })).toBeVisible()
+
+    await nextNote(page).click()
+    await expect(heading(page)).toHaveValue('Target')
+    await expect(note(page).locator('.cm-content')).toContainText('Target body')
+    await expect(modeOf(page)).toHaveAttribute('data-mode', 'edit')
   })
 })

@@ -14,7 +14,7 @@ import type { EditorSettings } from '../../../core/editorSettings'
 import { errorCode } from '../backups'
 import { changeEditorSettings } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
-import { ShowHint, useOnPhone } from './onPhone'
+import { ShowHint, useOnPhone, type SettingHint } from './onPhone'
 
 /**
  * Stores a change to the settings (see editorSettings.ts); returns the error
@@ -128,6 +128,7 @@ export function Setting({
   descriptionId,
   stacked = false,
   live = false,
+  hint,
   children,
 }: {
   label: MessageKey
@@ -138,9 +139,12 @@ export function Setting({
   stacked?: boolean
   /** The description is the row's value or state, not an explanation: it stays in the row on a phone. */
   live?: boolean
+  /** On a phone, an info button on this row for the explanation of its whole section. */
+  hint?: SettingHint | undefined
   children: ReactNode
 }) {
-  const hinted = useContext(ShowHint) !== null && !live
+  const hints = useContext(ShowHint) !== null
+  const hinted = hints && !live
   return (
     <div className={stacked ? 'setting setting-stacked' : 'setting'}>
       <div className="setting-text">
@@ -151,6 +155,7 @@ export function Setting({
             {t(label)}
           </label>
         )}
+        {hint && hints ? <HintButton title={hint.title} body={hint.body} /> : null}
         {description && hinted ? (
           <>
             <span id={descriptionId} hidden>

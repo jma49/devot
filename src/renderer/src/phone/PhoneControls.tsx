@@ -19,14 +19,21 @@ export function PhoneGroup(props: { title?: string; footnote?: string; children:
   )
 }
 
-function ControlHead(props: { id: string; label: string; hint?: string | undefined }) {
+function ControlHead(props: {
+  id: string
+  label: string
+  hint?: string | undefined
+  hintTitle?: string | undefined
+}) {
   const hints = useContext(ShowHint) !== null
   return (
     <div className="phone-control-head">
       <span id={props.id} className="setting-label">
         {props.label}
       </span>
-      {props.hint && hints ? <HintButton title={props.label} body={props.hint} /> : null}
+      {props.hint && hints ? (
+        <HintButton title={props.hintTitle ?? props.label} body={props.hint} />
+      ) : null}
     </div>
   )
 }
@@ -34,6 +41,8 @@ function ControlHead(props: { id: string; label: string; hint?: string | undefin
 export function PhoneSegmented<T extends string>(props: {
   label: string
   hint?: string | undefined
+  /** The explanation's title, when it is about more than this control. */
+  hintTitle?: string | undefined
   value: T
   options: readonly { value: T; label: string }[]
   onChange: (value: T) => void
@@ -62,7 +71,7 @@ export function PhoneSegmented<T extends string>(props: {
   }
   return (
     <div className="phone-control">
-      <ControlHead id={id} label={props.label} hint={props.hint} />
+      <ControlHead id={id} label={props.label} hint={props.hint} hintTitle={props.hintTitle} />
       <div
         role="radiogroup"
         aria-labelledby={id}

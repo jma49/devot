@@ -2384,6 +2384,37 @@ button.phone-grouped-open:active:not(:disabled) {
   width: calc(var(--size-phone-switch-height) - 4px);
 }
 
+/* Full opacity, so what says it cannot be used is the flat grey, not a fade. */
+.phone-app .phone-settings-pane.settings-window .setting-toggle input[role='switch']:disabled {
+  opacity: 1;
+}
+
+.phone-app
+  .phone-settings-pane.settings-window
+  .setting-toggle
+  input[role='switch']:disabled::after {
+  background: var(--color-phone-text-secondary);
+  box-shadow: none;
+}
+
+.phone-app
+  .phone-settings-pane.settings-window
+  .setting-toggle
+  input[role='switch']:checked:disabled {
+  background: var(--color-phone-text-secondary);
+}
+
+.phone-app
+  .phone-settings-pane.settings-window
+  .setting-toggle
+  input[role='switch']:checked:disabled::after {
+  background: var(--color-phone-elevated);
+}
+
+.phone-settings-pane .setting-toggle:has(input:disabled) .setting-label {
+  color: var(--color-phone-text-secondary);
+}
+
 .phone-hint-button {
   flex: none;
   width: var(--size-phone-target);
@@ -2410,10 +2441,6 @@ button.phone-grouped-open:active:not(:disabled) {
 
 .phone-block-head .settings-block-title {
   margin: 0;
-}
-
-.phone-block-head > :only-child {
-  margin-left: auto;
 }
 
 .phone-settings-pane .phone-footnote {
@@ -2988,6 +3015,51 @@ button.phone-grouped-open:active:not(:disabled) {
     flex: none;
     align-items: flex-start;
     margin-left: 0;
+  }
+
+  .phone-settings-pane .setting:has(> .setting-control > .settings-buttons) {
+    flex-flow: column;
+    align-items: stretch;
+  }
+
+  .phone-settings-pane .setting:has(> .setting-control > .settings-buttons) .setting-text {
+    flex: none;
+    max-width: none;
+  }
+
+  .phone-settings-pane .setting:has(> .setting-control > .settings-buttons) .setting-control {
+    flex: none;
+    align-items: stretch;
+    margin-left: 0;
+  }
+
+  .phone-settings-pane .settings-buttons {
+    grid-auto-flow: row;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .phone-segmented {
+    grid-auto-flow: row;
+    grid-auto-rows: minmax(var(--size-phone-target), 1fr);
+  }
+
+  .phone-segmented-pill {
+    bottom: auto;
+    width: calc(100% - 6px);
+    height: calc((100% - 6px) / var(--segments));
+    transform: translateY(calc(100% * var(--segment)));
+  }
+
+  .phone-segment::after {
+    inset: 0;
+  }
+
+  .phone-settings-pane .usage-chart-heading {
+    flex-flow: column;
+    align-items: flex-start;
+    gap: var(--space-2);
   }
 
   .phone-theme-row {
