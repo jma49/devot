@@ -408,6 +408,21 @@ describe('syncScrolling', () => {
     expect(preview.element.scrollTop).toBeGreaterThan(0)
   })
 
+  it('still lines a clamped pane up when it is laid out twice before the clamp is reported', () => {
+    const { editor, preview, flush } = setup()
+    flush()
+    editor.userScroll(30)
+    flush()
+    preview.element.scrollHeight = 150
+    preview.set(preview.element.scrollTop)
+    preview.relayout()
+    preview.relayout()
+    preview.fire()
+    flush()
+    expect(editor.element.scrollTop).toBe(30)
+    expect(preview.element.scrollTop).toBe(50)
+  })
+
   it('keeps a scroll whose event is late when its pane is laid out twice first', () => {
     const { editor, preview, flush } = setup()
     flush()

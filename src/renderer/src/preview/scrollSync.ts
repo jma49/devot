@@ -300,7 +300,8 @@ export function syncScrolling(
       if (moving.has(pane)) return
       if (pane.element.scrollTop !== seen.get(pane)) {
         note(pane)
-        moving.add(pane)
+        // A pane at its end was most likely clamped by a shorter layout, which is no lead.
+        if (pane.element.scrollTop < maxOffset(pane.element) - 1) moving.add(pane)
         return
       }
       if (current !== pane) schedule(other(pane), true)
