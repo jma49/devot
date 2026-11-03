@@ -51,7 +51,7 @@ export interface LastState {
 
 /** The stored format; another one (a later Devot) is not read. */
 const VERSION = 1
-const MODES: readonly string[] = ['edit', 'split', 'preview'] satisfies Mode[]
+const MODES: readonly string[] = ['write', 'edit', 'split', 'preview'] satisfies Mode[]
 
 type Json = Record<string, unknown>
 
@@ -192,6 +192,46 @@ export function lastStateStore(storage: KeyValue | undefined, label: string) {
 }
 
 export const currentLastStateStore = () => current(lastStateStore)
+
+const DEFAULT_MODE_KEY = 'devot.defaultMode'
+const LAST_STATE_PREFIX = 'devot.lastState.'
+
+type InstallStorage = Pick<Storage, 'getItem' | 'setItem' | 'key' | 'length'>
+
+/**
+ * The mode a window opens in when it kept none of its own: Write for an
+ * install that started with Write mode, Edit for one that kept a window's
+ * state before it (Edit was all there was). Decided once and kept, so every
+ * window of the install agrees; a stored value that does not read as either
+ * is decided again.
+ */
+export function defaultMode(storage: InstallStorage | undefined): 'write' | 'edit' {
+  try {
+    const stored = storage?.getItem(DEFAULT_MODE_KEY)
+    if (stored === 'write' || stored === 'edit') return stored
+    let existing = false
+    const count = storage?.length ?? 0
+    for (let i = 0; i < count && !existing; i++) {
+      existing = storage?.key(i)?.startsWith(LAST_STATE_PREFIX) ?? false
+    }
+    const mode = existing ? 'edit' : 'write'
+    storage?.setItem(DEFAULT_MODE_KEY, mode)
+    return mode
+  } catch {
+    return 'edit'
+  }
+}
+
+/** The install's default mode, from the webview's local storage, which every window shares. */
+export function currentDefaultMode(): 'write' | 'edit' {
+  let storage: InstallStorage | undefined
+  try {
+    storage = (globalThis as { localStorage?: InstallStorage }).localStorage
+  } catch {
+    storage = undefined
+  }
+  return defaultMode(storage)
+}
 
 export interface LiveLibrary {
   books: ReadonlySet<string>

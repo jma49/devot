@@ -3,10 +3,12 @@ import { t, type MessageKey } from './i18n'
 import { ToolIcon } from './icons/Icon'
 import type { IconName } from './icons/symbols'
 import { useSegmentSlide } from './segmentSlide'
+import type { Mode } from './viewModes'
 
-export type Mode = 'edit' | 'split' | 'preview'
+export { editorOnly, type Mode } from './viewModes'
 
 const MODES: { mode: Mode; icon: IconName; label: MessageKey }[] = [
+  { mode: 'write', icon: 'mode.write', label: 'mode.write' },
   { mode: 'edit', icon: 'mode.edit', label: 'mode.edit' },
   { mode: 'split', icon: 'mode.split', label: 'mode.split' },
   { mode: 'preview', icon: 'mode.preview', label: 'mode.preview' },

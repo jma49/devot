@@ -189,6 +189,7 @@ import { listenExitCancelled } from './exitCancelled'
 import { resumeMirrorAfterCancelledQuit } from './mirror'
 import { useFocusRescue } from './focusRescue'
 import {
+  currentDefaultMode,
   currentLastStateStore,
   isBoardView,
   layoutOf,
@@ -214,7 +215,7 @@ import {
   stepEditorFontSize,
   useEditorSetting,
 } from './editorSettings'
-import { ModeControl, type Mode } from './ModeControl'
+import { ModeControl, editorOnly, type Mode } from './ModeControl'
 import { relayGate, relayLink } from './noteRelay'
 import { NoteList } from './NoteList'
 import { NoteBoard } from './NoteBoard'
@@ -485,7 +486,10 @@ export function App() {
   const [title, setTitle] = useState('')
   // Note whose editor takes the keyboard on open: one just created, or opened by a palette action from the editor (opening from the list leaves it there).
   const [takesKeyboard, setTakesKeyboard] = useState<string>()
-  const [mode, setMode] = useState<Mode>(() => lastState?.mode ?? 'edit')
+  const [mode, setMode] = useState<Mode>(() => lastState?.mode ?? currentDefaultMode())
+  // Leaving Preview or Split goes back to the editor mode used last.
+  const editorMode = useRef(editorOnly(mode) ? mode : currentDefaultMode())
+  if (editorOnly(mode)) editorMode.current = mode
   // The library views shown as a board (lastState.ts).
   const [boards, setBoards] = useState<readonly string[]>(() => lastState?.boards ?? [])
   const focusStore = useMemo(() => currentFocusStore(), [])
@@ -674,7 +678,7 @@ export function App() {
       panes.toggleAttribute('data-preview-scrolled', preview)
       content.toggleAttribute(
         'data-scrolled',
-        mode === 'edit' ? editor : mode === 'preview' ? preview : editor || preview,
+        editorOnly(mode) ? editor : mode === 'preview' ? preview : editor || preview,
       )
     }
     const scrollers = [editorPane?.element, previewPane?.element].filter((el) => !!el)
@@ -2144,7 +2148,7 @@ export function App() {
     if (!inTemplates) track('note.created', { from: 'new_note' })
     await showMade(core, id, await refresh(core))
     // A new note is for typing: Preview alone would leave it without an editor.
-    if (mode === 'preview') setMode('edit')
+    if (mode === 'preview') setMode(editorMode.current)
     await select(id, { keyboard: true })
   }
 
@@ -2165,7 +2169,7 @@ export function App() {
     // Its body, status and tags are written before the lists reload.
     await saveEdits(core)
     await showMade(core, id, await refresh(core))
-    if (mode === 'preview') setMode('edit')
+    if (mode === 'preview') setMode(editorMode.current)
     await select(id, { keyboard: true })
   }
 
@@ -2709,7 +2713,7 @@ export function App() {
   }
   const jumpToHeading = (line: number) => {
     editorRef.current?.goToLine(line, 'start', false)
-    if (mode !== 'edit' && previewPane) scrollPreviewTo(previewPane, line)
+    if (!editorOnly(mode) && previewPane) scrollPreviewTo(previewPane, line)
   }
   const authorshipShown = useEditorSetting('authorship')
   // A restored version, an accepted AI edit or a plugin write reaches the editor only while it
@@ -2956,7 +2960,7 @@ export function App() {
     if (id !== selected) {
       if (!(await select(id, { keyboard: body }))) return
     } else if (body && !editorRef.current) setTakesKeyboard(id)
-    if (body && mode === 'preview') setMode('edit')
+    if (body && mode === 'preview') setMode(editorMode.current)
     requestFocus({ kind: part, id, start })
   }
 
@@ -3145,12 +3149,12 @@ export function App() {
       mode === 'split'
         ? from?.closest('.preview')
           ? 'preview'
-          : 'edit'
-        : mode === 'edit'
+          : editorMode.current
+        : editorOnly(mode)
           ? 'preview'
-          : 'edit'
+          : editorMode.current
     if (next !== mode) {
-      if (mode === 'edit' && inEditor(from)) modeKeyboard.current = 'preview'
+      if (editorOnly(mode) && inEditor(from)) modeKeyboard.current = 'preview'
       else if (mode === 'preview' && from?.closest('.preview')) modeKeyboard.current = 'editor'
     }
     setMode(next)
@@ -3361,6 +3365,7 @@ export function App() {
         run: () => showLibrary({ kind: 'book', id: bookId }),
       }
     }
+    handlers['view.write'] = { run: () => setMode('write') }
     handlers['view.edit'] = { run: () => setMode('edit') }
     handlers['view.togglePreview'] = {
       run: () => {
@@ -4243,6 +4248,7 @@ export function App() {
                 autoFocus={selected === takesKeyboard}
                 autoFocusIfFree={selected === restoreKeyboard.current}
                 hidden={mode === 'preview'}
+                write={mode === 'write'}
                 onText={openText.set}
                 links={{
                   find: findLinkTargets,
@@ -4282,7 +4288,7 @@ export function App() {
                 onOpenNote={(id) => void select(id)}
                 readOnly={!editing}
               />
-              {mode === 'edit' ? null : (
+              {editorOnly(mode) ? null : (
                 <LivePreview
                   core={core}
                   text={openText}

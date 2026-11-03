@@ -27,6 +27,7 @@ export const URL_COMMANDS = [
   'view.focus',
   'view.togglePreview',
   'view.split',
+  'view.write',
   'view.edit',
   'view.preview',
   'app.backups',

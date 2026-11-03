@@ -17,7 +17,8 @@ import { isImeKey } from '../ime'
 import { invoke } from '../ipc'
 import { startLicence, useEditing } from '../licence'
 import { MAX_LINK_NOTES } from '../linkCompletion'
-import { ModeControl, type Mode } from '../ModeControl'
+import { currentDefaultMode } from '../lastState'
+import { ModeControl, editorOnly, type Mode } from '../ModeControl'
 import { NoteEditor, type EditorHandle } from '../NoteEditor'
 import { noteWindowLabel, relayLink } from '../noteRelay'
 import { Notices } from '../Notices'
@@ -77,7 +78,7 @@ export function NoteWindow() {
   const [noteId, setNoteId] = useState<string>()
   const [failure, setFailure] = useState<string>()
   const [title, setTitle] = useState('')
-  const [mode, setMode] = useState<Mode>('edit')
+  const [mode, setMode] = useState<Mode>(currentDefaultMode)
   const [openText] = useState(() => textStore())
   const editorRef = useRef<EditorHandle | null>(null)
   const panesRef = useRef<HTMLDivElement>(null)
@@ -318,6 +319,7 @@ export function NoteWindow() {
                 noteId={noteId}
                 autoFocus
                 hidden={mode === 'preview'}
+                write={mode === 'write'}
                 onText={openText.set}
                 links={{
                   find: findLinkTargets,
@@ -333,7 +335,7 @@ export function NoteWindow() {
                 onOpenNote={openNote}
                 readOnly={!editing || gone !== undefined}
               />
-              {mode === 'edit' ? null : (
+              {editorOnly(mode) ? null : (
                 <LivePreview
                   core={core}
                   text={openText}
@@ -362,7 +364,7 @@ export function NoteWindow() {
                   }
                   onJump={(line) => {
                     editorRef.current?.goToLine(line, 'start', false)
-                    if (mode !== 'edit' && previewPane) scrollPreviewTo(previewPane, line)
+                    if (!editorOnly(mode) && previewPane) scrollPreviewTo(previewPane, line)
                   }}
                   onLeave={() => editorRef.current?.focus()}
                 />

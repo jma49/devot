@@ -153,7 +153,7 @@ test('Glass toolbar glyphs share an 18 point box in 32 point capsules', async ({
 
   const modes = toolbar.getByRole('group', { name: 'View mode' })
   const modesBox = await box(modes)
-  expect(modesBox.width).toBe(136)
+  expect(modesBox.width).toBe(180)
   expect(modesBox.height).toBe(32)
   const offsets = new Set<string>()
   for (const segment of await modes.getByRole('button').all()) {

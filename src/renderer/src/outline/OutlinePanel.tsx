@@ -10,6 +10,7 @@ import {
 import { Chevron } from '../Chevron'
 import { t } from '../i18n'
 import type { ScrollPane } from '../preview/scrollSync'
+import type { Mode } from '../viewModes'
 import { useText, type TextStore } from '../textStore'
 import {
   currentHeading,
@@ -160,11 +161,7 @@ export function OutlineTree(props: OutlineTreeProps) {
   )
 }
 
-function useReadingLine(
-  mode: 'edit' | 'split' | 'preview',
-  caret: LineStore,
-  preview: ScrollPane | null,
-) {
+function useReadingLine(mode: Mode, caret: LineStore, preview: ScrollPane | null) {
   const caretLine = useSyncExternalStore(caret.subscribe, caret.get)
   const [top, setTop] = useState(1)
   useEffect(() => {
@@ -192,7 +189,7 @@ function useReadingLine(
 export interface OutlinePanelProps {
   text: TextStore
   caret: LineStore
-  mode: 'edit' | 'split' | 'preview'
+  mode: Mode
   previewPane: ScrollPane | null
   folded: ReadonlySet<string>
   onToggle: (key: string) => void

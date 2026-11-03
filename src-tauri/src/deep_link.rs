@@ -48,6 +48,7 @@ pub(crate) const URL_COMMANDS: &[&str] = &[
     "view.focus",
     "view.togglePreview",
     "view.split",
+    "view.write",
     "view.edit",
     "view.preview",
     "app.backups",

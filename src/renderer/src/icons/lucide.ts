@@ -213,6 +213,7 @@ export const LUCIDE_ICONS = {
   'note.new': SquarePenIcon,
   'mode.focus': Maximize2Icon,
   'mode.focus.exit': Minimize2Icon,
+  'mode.write': FileTextIcon,
   'mode.edit': PencilIcon,
   'mode.split': Columns2Icon,
   'mode.preview': EyeIcon,
