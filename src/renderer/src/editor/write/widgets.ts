@@ -1,6 +1,7 @@
 // What Write mode shows in place of hidden marks. Each widget is one unit for
-// the caret (atomic) and answers its own pointer events, so a click on one
-// never moves the caret onto its line.
+// the caret (atomic). A click on a label or a title places the caret like a
+// click on text; a checkbox answers its own clicks, so ticking a task never
+// moves the caret onto its line.
 import { Decoration, EditorView, WidgetType } from '@codemirror/view'
 import { Facet } from '@codemirror/state'
 import type { AlertKind } from '../blocks'
@@ -60,6 +61,11 @@ class AlertLabelWidget extends WidgetType {
     label.textContent = t(`alert.${this.alert}`)
     return label
   }
+
+  /** A click puts the caret there, as on text. */
+  override ignoreEvent(): boolean {
+    return false
+  }
 }
 
 class NoteTitleWidget extends WidgetType {
@@ -86,6 +92,10 @@ class NoteTitleWidget extends WidgetType {
       () => console.warn('W_WRITE_NOTE_TITLE_FAILED'),
     )
     return chip
+  }
+
+  override ignoreEvent(): boolean {
+    return false
   }
 }
 
