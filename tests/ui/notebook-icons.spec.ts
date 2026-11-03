@@ -203,6 +203,54 @@ test('a symbol paints nothing until its image is in; a category switch keeps the
   expect(await box.evaluate((el) => el.getBoundingClientRect().height)).toBe(height)
 })
 
+test('a Lucide icon can be picked in the SF style and stays Lucide; Revert follows the style again', async ({
+  page,
+}) => {
+  const segment = (name: string) => dialog(page).getByRole('button', { name, exact: true })
+  await openIconDialog(page, 'Work')
+  await expect(segment('SF Symbols')).toHaveAttribute('aria-pressed', 'true')
+  await segment('Lucide').click()
+  await expect(segment('Lucide')).toHaveAttribute('aria-pressed', 'true')
+  await expect(dialog(page).getByRole('tab')).toHaveCount(12)
+  await search(page).fill('coffee')
+  await dialog(page).getByRole('radio', { name: 'Blue' }).click()
+  await cell(page, 'coffee').click()
+  await expect(dialog(page)).toHaveCount(0)
+  await expect(rowIcon(page, 'Work')).toHaveAttribute('data-lucide', 'coffee')
+  await expect(rowIcon(page, 'Work')).toHaveClass(/icon-svg/)
+  await expect(rowIcon(page, 'Work')).toHaveClass(/tag-color-blue/)
+  await expect(rowIcon(page, 'Home')).toHaveAttribute('data-symbol', 'book.closed')
+
+  await row(page, 'Work').click()
+  await expect(page.locator('.toolbar-title .book-icon')).toHaveAttribute('data-lucide', 'coffee')
+
+  await page.reload()
+  await expect(rowIcon(page, 'Work')).toHaveAttribute('data-lucide', 'coffee')
+
+  await openIconDialog(page, 'Work')
+  await expect(segment('Lucide')).toHaveAttribute('aria-pressed', 'true')
+  await expect(tab(page, 'Home')).toHaveAttribute('aria-selected', 'true')
+  await expect(cell(page, 'coffee')).toHaveAttribute('aria-pressed', 'true')
+  await dialog(page).getByRole('button', { name: 'Revert to Default' }).click()
+  await expect(rowIcon(page, 'Work')).toHaveAttribute('data-symbol', 'book.closed')
+  await expect(rowIcon(page, 'Work')).not.toHaveClass(/tag-color-/)
+})
+
+test('without an icon the dialog opens on the Icon style setting; an SF pick stays SF under Lucide', async ({
+  page,
+}) => {
+  const segment = (name: string) => dialog(page).getByRole('button', { name, exact: true })
+  await openIconDialog(page, 'Work')
+  await cell(page, 'person').click()
+  await changeEditorSettingsElsewhere(page, { iconStyle: 'lucide' })
+  await expect(rowIcon(page, 'Work')).toHaveAttribute('data-symbol', 'person')
+  await openIconDialog(page, 'Home')
+  await expect(segment('Lucide')).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('Escape')
+  await openIconDialog(page, 'Work')
+  await expect(segment('SF Symbols')).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('only the symbols in view are rendered', async ({ page }) => {
   await openIconDialog(page, 'Work')
   // A search that finds most of the catalog: far more than the grid shows.

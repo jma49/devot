@@ -13,7 +13,7 @@
 // that key is `hold`, makes revision writes fail with
 // one in `devot.test.failRevisions`, and the listing of notes (the first load
 // of the lists) with one in `devot.test.failList`.
-import { isNotebookSymbol } from '../../../core/notebookIcons'
+import { isNotebookIcon } from '../../../core/notebookIcons'
 import type {
   ActivityRevision,
   AgentWriteSummary,
@@ -450,7 +450,7 @@ export const memoryStorage: StorageAdapter = {
         // and a symbol or colour this version does not know is none.
         .map((b): BookRecord => ({
           ...b,
-          icon: isNotebookSymbol(b.icon) ? b.icon : null,
+          icon: isNotebookIcon(b.icon) ? b.icon : null,
           iconColor: isTagColor(b.iconColor) ? b.iconColor : null,
           iconHlc: b.iconHlc ?? '',
         }))

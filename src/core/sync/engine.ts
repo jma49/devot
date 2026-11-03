@@ -15,7 +15,7 @@ import { errorCode } from '../errors'
 import { fileLinks } from '../files'
 import { receiveStored, type Clock } from '../hlc'
 import { clipTitle } from '../noteLimits'
-import { isNotebookSymbol } from '../notebookIcons'
+import { isNotebookIcon } from '../notebookIcons'
 import { MERGE, REVISION_EVERY_MS, textLength } from '../revisions'
 import { countWords } from '../words'
 import { quotaResetAt } from './protocol'
@@ -275,7 +275,7 @@ const bookRecordOf = (state: BookState): BookRecord => ({
   aiAccessHlc: '',
   sortKey: state.sortKey,
   sortKeyHlc: state.sortKeyHlc,
-  icon: isNotebookSymbol(state.icon) ? state.icon : null,
+  icon: isNotebookIcon(state.icon) ? state.icon : null,
   iconColor: isTagColor(state.iconColor) ? state.iconColor : null,
   iconHlc: state.iconHlc,
 })

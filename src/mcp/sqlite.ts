@@ -9,7 +9,7 @@ import type { AiStorage } from '../core/ai'
 import { checkUpload } from '../core/files'
 import { noteLinks } from '../core/links'
 import { checkNote } from '../core/noteLimits'
-import { isNotebookSymbol } from '../core/notebookIcons'
+import { isNotebookIcon } from '../core/notebookIcons'
 import {
   bodyExcerpt,
   excerptTerms,
@@ -504,7 +504,7 @@ const toBook = (row: BookRow, raw = false): BookRecord => ({
   sortKey: row.sort_key,
   sortKeyHlc: row.sort_key_hlc,
   // A name or palette ID from a later version reads as unset, as in Rust; sync reads it as stored.
-  icon: raw || isNotebookSymbol(row.icon) ? row.icon : null,
+  icon: raw || isNotebookIcon(row.icon) ? row.icon : null,
   iconColor: raw || isTagColor(row.icon_color) ? (row.icon_color as BookRecord['iconColor']) : null,
   iconHlc: row.icon_hlc,
 })

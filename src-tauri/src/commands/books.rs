@@ -1,5 +1,5 @@
 use super::notes::{valid_hlc, valid_note_id};
-use crate::storage::{BookRecord, Db, TAG_COLORS, Write, notebook_symbol};
+use crate::storage::{BookRecord, Db, TAG_COLORS, Write, notebook_icon};
 use tauri::State;
 
 const MAX_NAME_CHARS: usize = 200;
@@ -52,8 +52,8 @@ fn validate(book: &BookRecord) -> Result<(), &'static str> {
     {
         return Err("E_BOOK_HLC_INVALID");
     }
-    // Only catalog symbols (none depicts an Apple product) and palette IDs.
-    if !book.icon.as_deref().is_none_or(notebook_symbol)
+    // Only catalog icons (none depicts an Apple product or a brand) and palette IDs.
+    if !book.icon.as_deref().is_none_or(notebook_icon)
         || !book
             .icon_color
             .as_deref()
@@ -163,6 +163,32 @@ mod tests {
             tinted.icon_color = Some(color.into());
             tinted.icon_hlc = HLC.into();
             assert_eq!(validate(&tinted), Ok(()), "{color}");
+        }
+    }
+
+    #[test]
+    fn accepts_catalog_lucide_icons_only_under_their_prefix() {
+        let catalog: serde_json::Value =
+            serde_json::from_str(include_str!("../../../design/icons/notebook-lucide.json"))
+                .unwrap();
+        let names = catalog["symbols"].as_object().unwrap();
+        assert!(names.len() > 100);
+        let with_icon = |icon: &str| {
+            let mut iconed = book();
+            iconed.icon = Some(icon.into());
+            iconed.icon_hlc = HLC.into();
+            validate(&iconed)
+        };
+        for name in names.keys() {
+            assert_eq!(with_icon(&format!("lucide:{name}")), Ok(()), "{name}");
+        }
+        for icon in [
+            "lucide:no-such-icon",
+            "lucide:",
+            "lucide:star.fill",
+            "book-open",
+        ] {
+            assert_eq!(with_icon(icon), Err("E_BOOK_ICON_INVALID"), "{icon}");
         }
     }
 

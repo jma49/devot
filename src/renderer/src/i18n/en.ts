@@ -494,6 +494,7 @@ title: Daily Report {{date}}
   'book.aiAccessOn': 'AI access on',
   'notebookIcon.title': 'Change Notebook Icon',
   'notebookIcon.search': 'Search icons\u2026',
+  'notebookIcon.set': 'Icon set',
   'notebookIcon.categories': 'Icon categories',
   'notebookIcon.results': 'Search results',
   'notebookIcon.none': 'No icons found',

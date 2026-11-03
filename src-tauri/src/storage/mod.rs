@@ -179,22 +179,39 @@ pub const TAG_COLORS: [&str; 8] = [
 
 const NOTEBOOK_SYMBOLS_JSON: &str = include_str!("../../../design/icons/notebook-symbols.json");
 
+const NOTEBOOK_LUCIDE_JSON: &str = include_str!("../../../design/icons/notebook-lucide.json");
+const LUCIDE_ICON_PREFIX: &str = "lucide:";
+
+// The catalogs ship inside the binary and a test parses them, so a failure
+// here is a build mistake: no name is then accepted.
+fn catalog_names(json: &str) -> std::collections::HashSet<String> {
+    #[derive(Deserialize)]
+    struct Catalog {
+        symbols: std::collections::HashMap<String, serde_json::Value>,
+    }
+    serde_json::from_str::<Catalog>(json)
+        .map(|c| c.symbols.into_keys().collect())
+        .unwrap_or_default()
+}
+
 pub fn notebook_symbol(name: &str) -> bool {
     static NAMES: std::sync::OnceLock<std::collections::HashSet<String>> =
         std::sync::OnceLock::new();
     NAMES
-        .get_or_init(|| {
-            #[derive(Deserialize)]
-            struct Catalog {
-                symbols: std::collections::HashMap<String, serde_json::Value>,
-            }
-            // The catalog ships inside the binary and a test parses it, so
-            // a failure here is a build mistake: no name is then accepted.
-            serde_json::from_str::<Catalog>(NOTEBOOK_SYMBOLS_JSON)
-                .map(|c| c.symbols.into_keys().collect())
-                .unwrap_or_default()
-        })
+        .get_or_init(|| catalog_names(NOTEBOOK_SYMBOLS_JSON))
         .contains(name)
+}
+
+/// What `books.icon` may hold: a catalog SF Symbol, or `lucide:` and a catalog Lucide name.
+pub fn notebook_icon(name: &str) -> bool {
+    static LUCIDE: std::sync::OnceLock<std::collections::HashSet<String>> =
+        std::sync::OnceLock::new();
+    notebook_symbol(name)
+        || name.strip_prefix(LUCIDE_ICON_PREFIX).is_some_and(|glyph| {
+            LUCIDE
+                .get_or_init(|| catalog_names(NOTEBOOK_LUCIDE_JSON))
+                .contains(glyph)
+        })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1377,7 +1394,7 @@ impl Store {
                 ai_access_hlc: row.get(10)?,
                 sort_key: row.get(11)?,
                 sort_key_hlc: row.get(12)?,
-                icon: icon.filter(|name| notebook_symbol(name)),
+                icon: icon.filter(|name| notebook_icon(name)),
                 icon_color: icon_color.filter(|c| TAG_COLORS.contains(&c.as_str())),
                 icon_hlc: row.get(15)?,
             })

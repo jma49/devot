@@ -4,6 +4,7 @@ import type { IconStyleChoice } from '../../../core/editorSettings'
 import { editorSettings, useEditorSetting } from '../editorSettings'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { shownAppearance, subscribeAppearance } from '../theme/appearance'
+import type { LucideIcon } from 'lucide-react'
 import { LUCIDE_FILLS, LUCIDE_ICONS, lucideStroke } from './lucide'
 import {
   boxPoints,
@@ -134,6 +135,58 @@ function LucideGlyph({
       size={BOXES[size]}
       strokeWidth={lucideStroke(weight ?? (size === 'title' ? 'light' : 'regular'))}
       className={`icon-svg icon-${size}${fill ? ` icon-fill-${fill}` : ''}${className ? ` ${className}` : ''}`}
+    />
+  )
+}
+
+let notebookGlyphs: Readonly<Record<string, LucideIcon>> | undefined
+let notebookGlyphsLoading: Promise<Readonly<Record<string, LucideIcon>>> | undefined
+
+export function loadNotebookGlyphs() {
+  notebookGlyphsLoading ??= import('./lucideNotebook').then(
+    (module) => (notebookGlyphs = module.NOTEBOOK_LUCIDE_GLYPHS),
+    (error: unknown) => {
+      notebookGlyphsLoading = undefined
+      throw error
+    },
+  )
+  return notebookGlyphsLoading
+}
+
+/** A glyph of the notebook icon catalog, loaded on demand; like a symbol, it paints nothing until it is in. */
+export function NotebookLucideIcon({
+  glyph,
+  size,
+  className,
+}: {
+  glyph: string
+  size: IconSize
+  className?: string
+}) {
+  const [glyphs, setGlyphs] = useState(notebookGlyphs)
+  useEffect(() => {
+    if (glyphs) return
+    let current = true
+    loadNotebookGlyphs().then(
+      (loaded) => current && setGlyphs(loaded),
+      () => console.warn('W_LUCIDE_NOTEBOOK_UNAVAILABLE'),
+    )
+    return () => {
+      current = false
+    }
+  }, [glyphs])
+  const Glyph = glyphs?.[glyph]
+  const classes = `icon-${size}${className ? ` ${className}` : ''}`
+  if (!Glyph)
+    return (
+      <span className={`icon ${classes}`} data-lucide={glyph} data-pending="" aria-hidden="true" />
+    )
+  return (
+    <Glyph
+      size={BOXES[size]}
+      strokeWidth={lucideStroke(size === 'title' ? 'light' : 'regular')}
+      className={`icon-svg ${classes}`}
+      data-lucide={glyph}
     />
   )
 }

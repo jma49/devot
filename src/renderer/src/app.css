@@ -5784,6 +5784,11 @@ button.popup:focus-visible {
   max-width: calc(100vw - var(--space-10) * 2);
 }
 
+.icon-sets {
+  align-self: center;
+  margin-bottom: var(--space-4);
+}
+
 .icon-tabs {
   display: flex;
   justify-content: center;
