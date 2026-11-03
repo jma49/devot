@@ -625,6 +625,7 @@ export const COMMANDS = [
     scope: 'window',
     keys: [],
   },
+  { id: 'view.write', label: 'command.modeWrite', group: 'view', scope: 'window', keys: [] },
   { id: 'view.edit', label: 'command.modeEdit', group: 'view', scope: 'window', keys: [] },
   {
     id: 'view.togglePreview',

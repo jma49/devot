@@ -1,10 +1,11 @@
 import { useEffect, useState, type RefObject } from 'react'
+import type { Mode } from '../viewModes'
 import { outlineFits } from './room'
 
 /** Tracks the panes' width, which decides whether the outline has room (the token sizes are read from the page). */
 export function useOutlineRoom(
   panes: RefObject<HTMLElement | null>,
-  mode: 'edit' | 'split' | 'preview',
+  mode: Mode,
   note: string | undefined,
 ): boolean {
   const [fits, setFits] = useState(true)

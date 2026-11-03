@@ -26,7 +26,7 @@ describe('the devot:// URL scheme', () => {
   it('lets URLs run the same commands in Rust and in the window', () => {
     const list = rust.match(/const URL_COMMANDS: &\[&str\] = &\[([^\]]*)\]/)?.[1] ?? ''
     const fromRust = [...list.matchAll(/"([^"]+)"/g)].map((m) => m[1])
-    expect(fromRust).toHaveLength(10)
+    expect(fromRust).toHaveLength(11)
     expect(fromRust).toEqual([...URL_COMMANDS])
   })
 

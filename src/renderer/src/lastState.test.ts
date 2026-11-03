@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   clampSelection,
   clampTop,
+  defaultMode,
   isBoardView,
   lastStateStore,
   layoutOf,
@@ -23,6 +24,10 @@ function memoryStorage() {
     items,
     getItem: (key: string) => items.get(key) ?? null,
     setItem: (key: string, value: string) => void items.set(key, value),
+    key: (index: number) => [...items.keys()][index] ?? null,
+    get length() {
+      return items.size
+    },
   }
 }
 
@@ -173,6 +178,49 @@ describe('lastStateStore', () => {
     }
     expect(lastStateStore(broken, 'main').load()).toBeUndefined()
     expect(() => lastStateStore(broken, 'main').save(full)).not.toThrow()
+  })
+})
+
+describe('defaultMode', () => {
+  it('is Write for a new install, and stays so once windows keep their state', () => {
+    const storage = memoryStorage()
+    expect(defaultMode(storage)).toBe('write')
+    lastStateStore(storage, 'main').save({ ...full, mode: 'edit' })
+    expect(defaultMode(storage)).toBe('write')
+  })
+
+  it('is Edit for an install that kept a window state before Write mode, for every window', () => {
+    const storage = memoryStorage()
+    lastStateStore(storage, 'main').save({ ...full, mode: 'preview' })
+    expect(defaultMode(storage)).toBe('edit')
+    expect(storage.items.get('devot.defaultMode')).toBe('edit')
+    storage.items.delete('devot.lastState.main')
+    expect(defaultMode(storage)).toBe('edit')
+  })
+
+  it('decides again when the stored value reads as neither, and is Edit when storage throws', () => {
+    const storage = memoryStorage()
+    storage.items.set('devot.defaultMode', 'split')
+    expect(defaultMode(storage)).toBe('write')
+    expect(defaultMode(undefined)).toBe('write')
+    const broken = {
+      getItem: () => {
+        throw new Error('blocked')
+      },
+      setItem: () => {
+        throw new Error('blocked')
+      },
+      key: () => null,
+      length: 0,
+    }
+    expect(defaultMode(broken)).toBe('edit')
+  })
+
+  it('leaves a stored mode alone, Write included', () => {
+    const written: LastState = { view: { kind: 'all' }, filter: null, mode: 'write' }
+    expect(parseLastState(serializeLastState(written))?.mode).toBe('write')
+    const raw = { ...JSON.parse(serializeLastState(written)), mode: 'later' } as object
+    expect(parseLastState(JSON.stringify(raw))?.mode).toBe('edit')
   })
 })
 

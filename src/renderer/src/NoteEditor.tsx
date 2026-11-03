@@ -109,6 +109,7 @@ import {
 } from './imageMenu'
 import type { ViewedImage } from './ImageViewer'
 import { linkCompletion, type LinkSources } from './linkCompletion'
+import { setWriteFocus, writeFocusTracking, writeMode } from './editor/write'
 import type { Core } from './core-client'
 import type { ScrollPane } from './preview/scrollSync'
 import { clampSelection, clampTop, type EditorTop, type SelectionState } from './lastState'
@@ -153,6 +154,9 @@ const authorshipSlot = new Compartment()
 const templateSlot = new Compartment()
 const templateChip = (offered: boolean, run: { readonly current: (() => void) | undefined }) =>
   offered ? chooseTemplate.of(() => run.current?.()) : []
+// Write mode (editor/write): the editor itself, so the caret, the history and the place are kept.
+const writeSlot = new Compartment()
+const writeFor = (on: boolean, core: Core) => (on ? writeMode({ loadNote: previewsFor(core) }) : [])
 const marksFor = (on: boolean, doc: Y.Doc, noteId: string) =>
   on ? authorshipMarks(doc, noteId) : []
 /** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
@@ -683,6 +687,8 @@ interface Props {
   autoFocusIfFree?: boolean
   /** Kept mounted but out of sight in preview mode, so the text stays live. */
   hidden: boolean
+  /** Write mode: the marks of the lines without the caret hidden. */
+  write?: boolean
   onText: (text: string) => void
   /** Once this editor has its note's body; never for an editor being left, unlike `onText`, which then reports an empty body. */
   onLoaded?: (text: string) => void
@@ -727,6 +733,7 @@ export function NoteEditor({
   autoFocus,
   autoFocusIfFree = false,
   hidden,
+  write = false,
   onText,
   onLoaded,
   links,
@@ -791,6 +798,7 @@ export function NoteEditor({
   const chooseTemplateRef = useRef(onChooseTemplate)
   const templateOffered = onChooseTemplate !== undefined && !readOnly
   const templateShown = useRef(templateOffered)
+  const writing = useRef(write)
   const noteOpener = useRef(onOpenNote)
   const menuAt = useRef<MenuPoint>({ x: 0, y: 0 })
   const pickMenuAction = useCallback((action: EditorAction, target: EditorMenuTarget) => {
@@ -917,6 +925,18 @@ export function NoteEditor({
       effects: templateSlot.reconfigure(templateChip(templateOffered, chooseTemplateRef)),
     })
   }, [templateOffered])
+
+  useEffect(() => {
+    const view = editor.current?.view
+    if (writing.current === write) return
+    writing.current = write
+    if (!view) return
+    // The line at the top stays there: hidden marks and a folded front matter change line heights above it.
+    const scroller = box.current?.scroller
+    const top = scroller && !hidden ? editorTop(view, scroller) : undefined
+    view.dispatch({ effects: writeSlot.reconfigure(writeFor(write, core)) })
+    if (scroller && top) scrollToTop(view, scroller, top)
+  }, [write, core, hidden])
 
   useEffect(() => {
     if (locked.current === readOnly) return
@@ -1062,6 +1082,8 @@ export function NoteEditor({
             // Operators in code keep one style each, so code fonts form ligatures.
             noteHighlighting(noteHighlightStyle),
             markdownLineStyles,
+            writeFocusTracking,
+            writeSlot.of(writeFor(writing.current, core)),
             noteMarkdown,
             EditorView.perLineTextDirection.of(true),
             images.extension,
@@ -1188,7 +1210,11 @@ export function NoteEditor({
         scroller.scrollTop = 0
         view.setState(initial)
         // setState keeps the DOM focus but sends no focus change, so the new state is told.
-        const effects = [...(scrollTo ? [scrollTo] : []), setToolbarFocus.of(view.hasFocus)]
+        const effects = [
+          ...(scrollTo ? [scrollTo] : []),
+          setToolbarFocus.of(view.hasFocus),
+          setWriteFocus.of(view.hasFocus),
+        ]
         view.dispatch({ effects })
         before.settings = setupFor
         left?.close(leftState)

@@ -70,9 +70,23 @@ export interface MockMirror {
  * Every UI test runs with Object.prototype frozen (as the app does) and Tauri IPC mocked;
  * the `window.devot*` globals hold the mock state. Storage is the in-memory adapter (vite.ui-test.config.ts).
  */
-export const test = base.extend({
-  page: async ({ page }, use) => {
+export const test = base.extend<{ install: 'kept' | 'new' }>({
+  // UI tests run as an install from before Write mode (Edit by default, lastState.ts) unless they ask for a new one.
+  install: ['kept', { option: true }],
+  page: async ({ page, install }, use) => {
     await mockTauri(page)
+    if (install === 'kept') {
+      await page.addInitScript(() => {
+        const w = globalThis as unknown as {
+          localStorage: {
+            getItem(key: string): string | null
+            setItem(key: string, value: string): void
+          }
+        }
+        if (w.localStorage.getItem('devot.defaultMode') === null)
+          w.localStorage.setItem('devot.defaultMode', 'edit')
+      })
+    }
     const rebundled: string[] = []
     page.on('console', (message) => {
       if (REBUNDLED.test(message.text())) rebundled.push(message.text())

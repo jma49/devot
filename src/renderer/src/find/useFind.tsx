@@ -17,7 +17,7 @@ import { escapeRegExp } from '../../../core/search'
 import { sheetOpen } from '../commands/dispatch'
 import type { CommandHandlers } from '../commands/registry'
 import { isImeKey } from '../ime'
-import type { Mode } from '../ModeControl'
+import { editorOnly, type Mode } from '../viewModes'
 import { FindBar } from './FindBar'
 import { FIND_COMMANDS, findShortcut, type FindAction } from './keys'
 import { NO_MATCHES, type FindStatus, type FindStep, type FindTarget } from './target'
@@ -55,7 +55,7 @@ export function useFind({ mode, noteOpen, editing, editor, preview }: Input): {
 
   if (open && !noteOpen) setOpen(false)
 
-  const pane: Pane = mode === 'edit' ? 'editor' : mode === 'preview' ? 'preview' : chosen
+  const pane: Pane = editorOnly(mode) ? 'editor' : mode === 'preview' ? 'preview' : chosen
   const target = pane === 'editor' ? editor : preview
   const status: FindStatus = open && noteOpen && target ? target.status() : NO_MATCHES
   const options = useMemo<FindOptions>(
@@ -108,16 +108,15 @@ export function useFind({ mode, noteOpen, editing, editor, preview }: Input): {
   const show = (replace: boolean, step?: FindStep) => {
     const focused = document.activeElement
     const inBar = bar.current?.contains(focused) ?? false
-    const next: Pane =
-      mode === 'edit'
-        ? 'editor'
-        : mode === 'preview'
-          ? 'preview'
-          : inBar
-            ? chosen
-            : preview?.owns(focused)
-              ? 'preview'
-              : 'editor'
+    const next: Pane = editorOnly(mode)
+      ? 'editor'
+      : mode === 'preview'
+        ? 'preview'
+        : inBar
+          ? chosen
+          : preview?.owns(focused)
+            ? 'preview'
+            : 'editor'
     const nextTarget = next === 'editor' ? editor : preview
     if (!nextTarget) return
     // A selection the user made becomes the query; a match find selected

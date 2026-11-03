@@ -64,7 +64,16 @@ test('the toolbar starts with focus mode, Back and Forward and ends with the vie
   const names = await toolbar(page)
     .getByRole('button')
     .evaluateAll((buttons) => buttons.map((b) => b.getAttribute('aria-label')))
-  expect(names).toEqual(['Focus Mode', 'Back', 'Forward', 'Edit', 'Split', 'Preview', 'More'])
+  expect(names).toEqual([
+    'Focus Mode',
+    'Back',
+    'Forward',
+    'Write',
+    'Edit',
+    'Split',
+    'Preview',
+    'More',
+  ])
   await expect(toolbar(page)).toHaveCSS('border-bottom-width', '0px')
 
   await expect(toolbar(page).getByRole('searchbox')).toHaveCount(0)

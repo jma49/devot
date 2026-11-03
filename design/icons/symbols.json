@@ -84,6 +84,7 @@
     "note.new": "square.and.pencil",
     "mode.focus": "arrow.up.left.and.arrow.down.right",
     "mode.focus.exit": "arrow.down.right.and.arrow.up.left",
+    "mode.write": "doc.richtext",
     "mode.edit": "pencil",
     "mode.split": "rectangle.split.2x1",
     "mode.preview": "eye",

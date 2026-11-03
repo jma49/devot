@@ -8,7 +8,7 @@
 // centres slide with the panes. A change during another adds to the moves
 // under way instead of restarting them. Reduce Motion shows the change at once.
 import { motionReduced } from './motionPreference'
-import type { Mode } from './ModeControl'
+import { editorOnly, type Mode } from './viewModes'
 import { type DurationToken, drawnOffset, motionTiming } from './motionTiming'
 
 export const PANES = ['sidebar', 'list', 'content'] as const
@@ -246,7 +246,7 @@ export const paneEnterFrames = (pane: ModePane): Keyframe[] => [
 
 export function enteringPanes(from: Mode, to: Mode): ModePane[] {
   const panesOf = (mode: Mode): ModePane[] =>
-    mode === 'split' ? ['editor', 'preview'] : mode === 'edit' ? ['editor'] : ['preview']
+    mode === 'split' ? ['editor', 'preview'] : editorOnly(mode) ? ['editor'] : ['preview']
   const before = panesOf(from)
   return panesOf(to).filter((pane) => !before.includes(pane))
 }

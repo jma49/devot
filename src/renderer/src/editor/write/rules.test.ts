@@ -1,0 +1,343 @@
+import { ensureSyntaxTree } from '@codemirror/language'
+import { EditorSelection, EditorState } from '@codemirror/state'
+import { describe, expect, it } from 'vitest'
+import { expectWithinBudget } from '../../../../../tests/support/budget'
+import { noteMarkdown } from '../markdown'
+import {
+  isRevealed,
+  revealedLines,
+  selectedRanges,
+  touches,
+  writeRanges,
+  type Selected,
+  type WriteRange,
+} from './rules'
+
+const NOTE = '0192f0a2-7c1e-7d3a-9b2c-3d4e5f607182'
+
+function rangesOf(
+  doc: string,
+  selected: Selected = [],
+): { state: EditorState; ranges: WriteRange[] } {
+  const state = EditorState.create({ doc, extensions: [noteMarkdown] })
+  const tree = ensureSyntaxTree(state, doc.length, 1e9)
+  if (!tree) throw new Error('E_TEST_NO_TREE')
+  return { state, ranges: writeRanges(state, tree, selected) }
+}
+
+/** A caret at `pos`, or a selection from `pos` to `to`. */
+const caret = (pos: number, to = pos): Selected => [{ from: pos, to }]
+
+const STAND_IN: Record<string, (r: WriteRange) => string> = {
+  bullet: (r) => (r.kind === 'bullet' ? `{bullet${r.depth}}` : ''),
+  task: (r) => (r.kind === 'task' ? (r.done ? '{done}' : '{todo}') : ''),
+  alert: (r) => (r.kind === 'alert' ? `{${r.alert}}` : ''),
+  noteTitle: (r) => (r.kind === 'noteTitle' ? `{note ${r.id}}` : ''),
+}
+
+/** The note as Write mode shows it: hidden marks gone, widgets as `{…}`. */
+function shown(doc: string, selected: Selected = []): string {
+  const replaced = rangesOf(doc, selected)
+    .ranges.filter((r) => r.kind !== 'mark' && r.kind !== 'line' && r.kind !== 'unit')
+    .sort((a, b) => a.from - b.from)
+  let out = ''
+  let at = 0
+  for (const r of replaced) {
+    expect(r.from).toBeGreaterThanOrEqual(at)
+    out += doc.slice(at, r.from) + (STAND_IN[r.kind]?.(r) ?? '')
+    at = r.to
+  }
+  return out + doc.slice(at)
+}
+
+const units = (doc: string) =>
+  rangesOf(doc)
+    .ranges.filter((r) => r.kind === 'unit')
+    .map((r) => doc.slice(r.from, r.to))
+
+const marks = (doc: string) =>
+  rangesOf(doc)
+    .ranges.filter((r) => r.kind === 'mark' || r.kind === 'line')
+    .map((r) =>
+      r.kind === 'mark' || r.kind === 'line' ? `${r.className} ${doc.slice(r.from, r.to)}` : '',
+    )
+
+describe('Write mode hides inline marks', () => {
+  it('of bold, italic, strikethrough, inline code and highlight', () => {
+    expect(shown('a **bold** b')).toBe('a bold b')
+    expect(shown('a *it* and _it_ b')).toBe('a it and it b')
+    expect(shown('***both***')).toBe('both')
+    expect(shown('~~gone~~')).toBe('gone')
+    expect(shown('run `npm i` now')).toBe('run npm i now')
+    expect(shown('run ``a ` b`` now')).toBe('run a ` b now')
+    expect(shown('a <mark>lit</mark> b')).toBe('a lit b')
+  })
+
+  it('of escapes, keeping the character escaped', () => {
+    expect(shown('2 \\* 3 \\_x\\_')).toBe('2 * 3 _x_')
+  })
+
+  it('leaves marks that open nothing as typed', () => {
+    expect(shown('2 * 3 * 4')).toBe('2 * 3 * 4')
+    expect(shown('a </mark> b')).toBe('a </mark> b')
+    expect(shown('snake_case_name')).toBe('snake_case_name')
+  })
+})
+
+describe('Write mode links', () => {
+  it('show their text, the address hidden', () => {
+    expect(shown('see [the docs](https://example.com "Title") now')).toBe('see the docs now')
+    expect(shown('[**bold** link](https://example.com)')).toBe('bold link')
+    expect(shown('<https://example.com>')).toBe('https://example.com')
+  })
+
+  it('by reference hide the label, and a shortcut reference stays as typed', () => {
+    expect(shown('[text][ref]\n\n[ref]: https://example.com')).toBe(
+      'text\n\n[ref]: https://example.com',
+    )
+    expect(shown('a [x] b')).toBe('a [x] b')
+  })
+
+  it('to a note show the text as a chip, or the title when the text is empty', () => {
+    expect(shown(`[Plan](devot://note/${NOTE})`)).toBe('Plan')
+    expect(marks(`[Plan](devot://note/${NOTE})`)).toEqual(['cm-wm-note-chip Plan'])
+    expect(shown(`see [](devot://note/${NOTE}).`)).toBe(`see {note ${NOTE}}.`)
+  })
+
+  it('leave images to the image rules', () => {
+    expect(shown('![alt](a.png)')).toBe('![alt](a.png)')
+  })
+})
+
+describe('Write mode headings', () => {
+  it('hide the number signs and the space after them', () => {
+    expect(shown('# One\n## Two\n###### Six')).toBe('One\nTwo\nSix')
+    expect(shown('## Closed ##')).toBe('Closed')
+    expect(shown('#')).toBe('')
+  })
+
+  it('hide a setext underline', () => {
+    expect(shown('Title\n=====\n\nSub\n---')).toBe('Title\n\n\nSub\n')
+  })
+
+  it('leave a number sign that is no heading', () => {
+    expect(shown('#hashtag and C#')).toBe('#hashtag and C#')
+  })
+})
+
+describe('Write mode quotes and alerts', () => {
+  it('hide the quote marks of every line', () => {
+    expect(shown('> one\n> two\n>\n> > deep')).toBe('one\ntwo\n\ndeep')
+  })
+
+  it('show an alert kind as its label', () => {
+    expect(shown('> [!WARNING]\n> Careful')).toBe('{warning}\nCareful')
+    expect(shown('> [!tip]  \n> Try')).toBe('{tip}  \nTry')
+  })
+
+  it('leave a label that is no alert kind', () => {
+    expect(shown('> [!OTHER]\n> x')).toBe('[!OTHER]\nx')
+  })
+})
+
+describe('Write mode lists and tasks', () => {
+  it('show a bullet for a bullet list mark, by depth, and keep numbers', () => {
+    expect(shown('- a\n  * b\n    + c')).toBe('{bullet1} a\n  {bullet2} b\n    {bullet3} c')
+    expect(shown('1. one\n2. two')).toBe('1. one\n2. two')
+  })
+
+  it('show a checkbox in place of a task box and its list mark', () => {
+    expect(shown('- [ ] open\n- [x] done\n- [X] also')).toBe(
+      '{todo} open\n{done} done\n{done} also',
+    )
+    expect(shown('1. [ ] first')).toBe('1. {todo} first')
+  })
+
+  it('in a quote hide the quote mark too', () => {
+    expect(shown('> - item')).toBe('{bullet1} item')
+  })
+
+  it('let the caret pass a list mark and its space as one unit', () => {
+    expect(units('- a\n\n10. b\n\n- [ ] c')).toEqual(['- ', '10. '])
+  })
+})
+
+describe('Write mode rules', () => {
+  it('draw a horizontal rule as a line', () => {
+    expect(shown('a\n\n---\n\nb')).toBe('a\n\n\n\nb')
+    expect(marks('a\n\n***\n\nb')).toEqual(['cm-wm-rule '])
+  })
+
+  it('leave code, tables, HTML blocks and front matter as source', () => {
+    const blocks = [
+      '```js\nconst a = `x` * 2 // **no**\n```',
+      '    indented **code**',
+      '| **a** | b |\n| - | - |\n| `c` | d |',
+      '<div>\n**raw**\n</div>',
+      '---\ntitle: **x**\n---',
+    ]
+    for (const doc of blocks) expect(shown(doc)).toBe(doc)
+  })
+})
+
+describe('the elements the selection meets', () => {
+  it('show the marks of a span the caret is in or touches, and only of that span', () => {
+    const doc = 'a **bold** and *it* b'
+    expect(shown(doc, caret(5))).toBe('a **bold** and it b')
+    expect(shown(doc, caret(2))).toBe('a **bold** and it b')
+    expect(shown(doc, caret(10))).toBe('a **bold** and it b')
+    expect(shown(doc, caret(11))).toBe('a bold and it b')
+    expect(shown(doc, caret(16))).toBe('a bold and *it* b')
+    expect(shown('run `npm i` and ~~x~~ <mark>y</mark>', caret(28))).toBe(
+      'run npm i and x <mark>y</mark>',
+    )
+    expect(shown('2 \\* 3', caret(2))).toBe('2 \\* 3')
+  })
+
+  it('show the whole source of a link the caret is in, the rest of the line styled', () => {
+    const doc = 'see [the docs](https://example.com) and **b**'
+    expect(shown(doc, caret(8))).toBe('see [the docs](https://example.com) and b')
+    expect(shown(doc, caret(30))).toBe('see [the docs](https://example.com) and b')
+    expect(shown(`see [](devot://note/${NOTE}).`, caret(4))).toBe(`see [](devot://note/${NOTE}).`)
+    expect(shown('a <https://example.com> b', caret(5))).toBe('a <https://example.com> b')
+    const styledText = '[**bold** \\* link](https://example.com)'
+    expect(shown(styledText, caret(14))).toBe(styledText)
+    expect(shown(styledText, caret(25))).toBe(styledText)
+  })
+
+  it('show the number signs of a heading while the caret is on its line', () => {
+    const doc = '# One **b**\n## Two'
+    expect(shown(doc, caret(4))).toBe('# One b\nTwo')
+    expect(shown(doc, caret(8))).toBe('# One **b**\nTwo')
+    expect(shown('Title\n=====', caret(1))).toBe('Title\n=====')
+    expect(shown('  # Indented', caret(0))).toBe('  # Indented')
+  })
+
+  it('keep a list mark, a task box and a quote mark drawn on the caret line', () => {
+    expect(shown('- a\n- b', caret(2))).toBe('{bullet1} a\n{bullet1} b')
+    expect(shown('- [ ] open', caret(8))).toBe('{todo} open')
+    expect(shown('> quote', caret(3))).toBe('quote')
+  })
+
+  it('show an alert label while the caret is on its line', () => {
+    expect(shown('> [!NOTE]\n> Body', caret(0))).toBe('[!NOTE]\nBody')
+    expect(shown('> [!NOTE]\n> Body', caret(12))).toBe('{note}\nBody')
+  })
+
+  it('show a horizontal rule as source while the caret is on it', () => {
+    expect(shown('a\n\n---\n\nb', caret(4))).toBe('a\n\n---\n\nb')
+    expect(shown('a\n\n  ---\n\nb', caret(3))).toBe('a\n\n  ---\n\nb')
+    expect(rangesOf('a\n\n---\n\nb', caret(4)).ranges.some((r) => r.kind === 'line')).toBe(false)
+  })
+
+  it('show every element a selection meets', () => {
+    expect(shown('**a** *b* **c**', caret(0, 7))).toBe('**a** *b* c')
+    expect(shown('**one\ntwo**', caret(1))).toBe('**one\ntwo**')
+  })
+})
+
+describe('the selected ranges', () => {
+  const selectionOf = (doc: string, ranges: [number, number][]) =>
+    EditorState.create({
+      doc,
+      selection: EditorSelection.create(ranges.map(([a, h]) => EditorSelection.range(a, h))),
+      extensions: [EditorState.allowMultipleSelections.of(true)],
+    })
+
+  it('are in order and apart, with each caret of several', () => {
+    const state = selectionOf('a\nb\nc\nd\ne\nf', [
+      [10, 10],
+      [0, 2],
+      [2, 3],
+    ])
+    expect(selectedRanges(state, true)).toEqual([
+      { from: 0, to: 3 },
+      { from: 10, to: 10 },
+    ])
+  })
+
+  it('leave out a caret while the editor has no keyboard, never a selection', () => {
+    const state = selectionOf('**a**\n**b**', [
+      [1, 1],
+      [6, 9],
+    ])
+    expect(selectedRanges(state, false)).toEqual([{ from: 6, to: 9 }])
+  })
+
+  it('meet an element at its edges', () => {
+    const selected = [
+      { from: 4, to: 4 },
+      { from: 10, to: 12 },
+    ]
+    expect(
+      [
+        [0, 3],
+        [0, 4],
+        [4, 6],
+        [5, 9],
+        [12, 20],
+        [13, 20],
+      ].map(([a, b]) => touches(selected, a as number, b as number)),
+    ).toEqual([false, true, true, false, true, false])
+  })
+
+  it('give the lines block rules reveal by', () => {
+    const state = selectionOf('a\nb\nc\nd\ne\nf', [
+      [10, 10],
+      [0, 0],
+      [2, 2],
+    ])
+    expect(revealedLines(state, true)).toEqual([
+      { first: 1, last: 2 },
+      { first: 6, last: 6 },
+    ])
+    const revealed = [
+      { first: 2, last: 4 },
+      { first: 9, last: 9 },
+    ]
+    expect([1, 2, 4, 5, 9, 10].map((n) => isRevealed(revealed, n))).toEqual([
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+    ])
+  })
+})
+
+describe('Write mode ranges of a long note', () => {
+  it('are read for the shown part only, in a fraction of a frame', (context) => {
+    const block =
+      '## Part\n\nSome **bold**, *italic* and [a link](https://example.com).\n\n- [ ] task\n- item\n\n> quote\n\n'
+    const doc = block.repeat(4_000)
+    const state = EditorState.create({ doc, extensions: [noteMarkdown] })
+    const tree = ensureSyntaxTree(state, doc.length, 1e9)
+    if (!tree) throw new Error('E_TEST_NO_TREE')
+    const from = state.doc.line(20_000).from
+    const to = state.doc.line(20_060).to
+    const started = performance.now()
+    const ranges = writeRanges(state, tree, [], from, to)
+    expectWithinBudget(context, performance.now() - started, 8)
+    expect(ranges.length).toBeGreaterThan(20)
+    expect(ranges.every((r) => r.to >= from - block.length && r.from <= to + block.length)).toBe(
+      true,
+    )
+  })
+
+  it('are read near the shown part inside one long span', (context) => {
+    const doc = `**${'word *it* '.repeat(50_000)}end**`
+    const state = EditorState.create({ doc, extensions: [noteMarkdown] })
+    const tree = ensureSyntaxTree(state, doc.length, 1e9)
+    if (!tree) throw new Error('E_TEST_NO_TREE')
+    const from = Math.floor(doc.length / 2)
+    const to = from + 2_000
+    const outer = tree.resolveInner(from, 1)
+    expect([outer.name, outer.parent?.name]).toContain('StrongEmphasis')
+    const started = performance.now()
+    const ranges = writeRanges(state, tree, [], from, to)
+    expectWithinBudget(context, performance.now() - started, 8)
+    expect(ranges.length).toBeGreaterThan(20)
+    expect(ranges.every((r) => r.to >= from && r.from <= to)).toBe(true)
+  })
+})
