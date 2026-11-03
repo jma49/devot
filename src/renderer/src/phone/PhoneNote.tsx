@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createAiGenerator } from '../../../core/aiProvider'
 import { createSuggester } from '../../../core/aiSuggest'
 import type { NoteSummary } from '../../../core/storage'
+import { tagCounts } from '../../../core/tags'
 import { aiTransport } from '../ai'
 import { aiSuggestFailure } from '../aiEditView'
 import { licenceEntitlements } from '../licence'
@@ -10,6 +11,7 @@ import { useAlertMenu } from '../editor/alertMenu'
 import { noteDate } from '../format'
 import { format, currentLocale, t } from '../i18n'
 import { Icon } from '../icons/Icon'
+import { rememberTag } from '../quickTag'
 import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import type { IconName } from '../icons/symbols'
 import type { LinkSources } from '../linkCompletion'
@@ -549,7 +551,17 @@ export function PhoneNote(props: {
         <TagPicker
           note={note}
           tags={store.tags}
+          counts={tagCounts(store.notes)}
           onClose={() => setSheet(null)}
+          onCreate={(name, color) =>
+            void core
+              .addTag(note.id, name)
+              .then((id) => {
+                rememberTag(globalThis.localStorage, id)
+                return color ? core.setTagColor(id, color) : undefined
+              })
+              .then(store.refresh)
+          }
           onToggle={(tag, on) =>
             void (on ? core.addTag(note.id, tag.name) : core.removeTag(note.id, tag.id)).then(
               store.refresh,

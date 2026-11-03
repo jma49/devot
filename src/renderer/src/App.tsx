@@ -134,7 +134,10 @@ import { areaOf, areaTargets, nextArea, usePaneTab, visible, type Area } from '.
 import { inEditor, sheetOpen, useMenuEvent, useWindowCommands } from './commands/dispatch'
 import { useCommandMenu } from './commands/commandMenu'
 import { useFormatMenu } from './commands/formatMenu'
+import { shortcutLabel } from './commands/keys'
+import { commandKeys } from './commands/registry'
 import { useKeymap } from './commands/shortcutSettings'
+import { editingAllowed } from './licence'
 import { invoke } from './ipc'
 import { titleWithKey } from './commands/titles'
 import { ToolTips } from './ToolTips'
@@ -565,6 +568,7 @@ export function App() {
   }
   const titleRef = useRef<HTMLInputElement>(null)
   const tagInputRef = useRef<HTMLInputElement>(null)
+  const [quickTagNote, setQuickTagNote] = useState<string>()
   const [backupsOpen, setBackupsOpen] = useState(false)
   const [backupNotice, setBackupNotice] = useState<string>()
   const syncSnapshot = useSyncSnapshot()
@@ -3194,6 +3198,9 @@ export function App() {
       run: () => setPicking({ recent: recentTemplates.load() }),
     }
   }
+  if (openNote && !selectedIsTemplate && editingAllowed()) {
+    handlers['note.quickTag'] = { run: () => setQuickTagNote(openNote.id) }
+  }
   if (openNote) {
     const id = openNote.id
     for (const [action, commandId] of Object.entries(NOTE_COMMANDS)) {
@@ -3663,6 +3670,8 @@ export function App() {
             : shownBookIcon
               ? `book:${shownBookIcon.icon ?? ''}:${shownBookIcon.iconColor ?? ''}`
               : ''
+  const quickTagKey = commandKeys('note.quickTag')[0]
+  const quickTagShortcut = quickTagKey ? shortcutLabel(quickTagKey) : undefined
   const listIcon = useMemo(() => {
     const [kind, a, b] = iconKey.split(':')
     if (kind === 'tag') {
@@ -4041,6 +4050,21 @@ export function App() {
                   onAdd={(name) => void changeBooks((c) => c.addTag(selected, name))}
                   onPut={(tagId) => void putTagOnNotes([selected], tagId)}
                   onRemove={(tagId) => void changeBooks((c) => c.removeTag(selected, tagId))}
+                  quick={{
+                    open: quickTagNote === selected,
+                    onOpen: () => setQuickTagNote(selected),
+                    onClose: () => setQuickTagNote(undefined),
+                    counts: sidebarTagged,
+                    shortcut: quickTagShortcut,
+                    onCreate: async (name, color) => {
+                      let created: string | undefined
+                      await changeBooks(async (c) => {
+                        created = await c.addTag(selected, name)
+                        if (color) await c.setTagColor(created, color)
+                      })
+                      return created
+                    },
+                  }}
                   onChipMenu={(tagId, at) =>
                     void showChipMenu(
                       {

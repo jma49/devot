@@ -1,7 +1,6 @@
 import { useId, useRef, useState, type RefObject } from 'react'
 import type { TagColorValue, TagRecord } from '../../core/storage'
-import { isCustomTagColor, MAX_TAG_NAME_CHARS, sameName } from '../../core/tags'
-import { compareNames } from '../../core/sort'
+import { isCustomTagColor, MAX_TAG_NAME_CHARS } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
 import { closingRef } from './closing'
 import type { MenuPoint } from './contextMenu'
@@ -10,6 +9,8 @@ import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
 import { fieldStep } from './Picker'
 import { useNameLimit } from './nameLimit'
+import { QuickTag } from './QuickTagPopover'
+import { tagRows, type TagRow } from './tagRows'
 import { tagColorClass, tagColorStyle, tagDotClass } from './tagColorStyle'
 
 export function TagDot(props: { color: TagColorValue }) {
@@ -28,39 +29,9 @@ export function TagDot(props: { color: TagColorValue }) {
 export const chipClass = (color: TagColorValue | null | undefined) =>
   color ? `chip tag-chip ${tagColorClass(color)}` : 'chip'
 
-export type TagRow = { kind: 'tag'; tag: TagRecord } | { kind: 'create'; name: string }
+export { tagRows, type TagRow } from './tagRows'
 
-const MAX_SUGGESTIONS = 8
 const suggestionsRef = closingRef('scale', 'tag-suggestions')
-
-/**
- * What the tag field suggests for `draft`: the tags not in `exclude` whose
- * names hold it (those that start with it first), then a last row that
- * makes a tag of the text, unless a tag of that name exists. Nothing while
- * the field is empty.
- */
-export function tagRows(
-  tags: readonly TagRecord[],
-  exclude: readonly string[],
-  draft: string,
-): TagRow[] {
-  const text = trimWhitespace(draft)
-  if (!text) return []
-  const want = text.toLocaleLowerCase()
-  const found = tags
-    .filter((tag) => !exclude.includes(tag.id) && tag.name.toLocaleLowerCase().includes(want))
-    .sort(
-      (a, b) =>
-        Number(!a.name.toLocaleLowerCase().startsWith(want)) -
-          Number(!b.name.toLocaleLowerCase().startsWith(want)) ||
-        compareNames(a.name, b.name, navigator.languages),
-    )
-    .slice(0, MAX_SUGGESTIONS)
-  const rows: TagRow[] = found.map((tag) => ({ kind: 'tag', tag }))
-  const exists = tags.some((tag) => sameName(tag.name, text))
-  if (!exists) rows.push({ kind: 'create', name: text })
-  return rows
-}
 
 /**
  * The open note's tags as chips, with a field to add one. Typing lists the
@@ -82,6 +53,15 @@ export function TagEditor(props: {
   onRemove: (tagId: string) => void
   onChipMenu?: (tagId: string, at: MenuPoint) => void
   inputRef?: RefObject<HTMLInputElement | null>
+  /** Quick tagging: a click on the empty field opens it, as its shortcut does. */
+  quick?: {
+    open: boolean
+    onOpen: () => void
+    onClose: () => void
+    counts: ReadonlyMap<string, number>
+    onCreate: (name: string, color: TagColorValue | null) => Promise<string | undefined>
+    shortcut: string | undefined
+  }
 }) {
   const several = props.common !== undefined
   const full = props.common ?? props.value
@@ -174,7 +154,17 @@ export function TagEditor(props: {
           aria-activedescendant={active >= 0 && rows[active] ? optionId(active) : undefined}
           placeholder={t('note.addTag')}
           value={draft}
+          title={
+            props.quick?.shortcut
+              ? format(t('quickTag.fieldHint'), { key: props.quick.shortcut })
+              : undefined
+          }
           {...limit}
+          onMouseDown={(e) => {
+            if (!props.quick || draft !== '' || document.activeElement === field.current) return
+            e.preventDefault()
+            if (!props.quick.open) props.quick.onOpen()
+          }}
           onBlur={() => {
             setOpen(false)
             setActive(-1)
@@ -263,6 +253,22 @@ export function TagEditor(props: {
               </li>
             ))}
           </ul>
+        ) : null}
+        {props.quick?.open ? (
+          <QuickTag
+            tags={props.tags}
+            onNote={props.value}
+            counts={props.quick.counts}
+            onPut={(tagId, name) => {
+              setAdded(trimWhitespace(name).toLowerCase())
+              props.onPut?.(tagId)
+            }}
+            onCreate={(name, color) => {
+              setAdded(trimWhitespace(name).toLowerCase())
+              return props.quick!.onCreate(name, color)
+            }}
+            onClose={props.quick.onClose}
+          />
         ) : null}
       </span>
       <p className="visually-hidden" role="status" aria-live="polite">

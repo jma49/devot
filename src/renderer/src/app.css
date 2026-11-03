@@ -1283,6 +1283,35 @@ button {
   height: var(--space-7);
 }
 
+.quick-tag {
+  width: calc(var(--space-10) * 9);
+}
+
+.quick-tag-field {
+  flex: none;
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: var(--space-2);
+}
+
+.quick-tag .picker-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quick-tag .tag-swatches {
+  justify-content: space-between;
+  gap: 0;
+  margin: var(--space-2) 0 0;
+}
+
+.quick-tag .tag-swatch .tag-dot,
+.quick-tag .tag-swatch-none {
+  width: var(--space-7);
+  height: var(--space-7);
+}
+
 .color-picker {
   display: flex;
   flex-direction: column;
@@ -1378,15 +1407,6 @@ button {
 .phone-app .color-picker-hex input,
 .phone-app .color-picker .button {
   min-height: var(--size-phone-target);
-}
-
-.phone-app .color-picker-handle {
-  width: var(--size-phone-target);
-  height: var(--size-phone-target);
-  background-clip: content-box;
-  padding: var(--space-6);
-  border: 0;
-  box-shadow: none;
 }
 
 .tag-swatch-none {

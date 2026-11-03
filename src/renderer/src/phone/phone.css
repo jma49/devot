@@ -1513,6 +1513,29 @@ button.phone-grouped-open:active:not(:disabled) {
   background: var(--tag-color, var(--color-phone-status-none));
 }
 
+.phone-tag-field {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--size-phone-target);
+  margin-bottom: var(--space-6);
+  padding: 0 var(--space-6);
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-phone-card);
+  color: inherit;
+  font: inherit;
+}
+
+.phone-app .tag-swatches {
+  gap: 0;
+  justify-content: flex-start;
+}
+
+.phone-app .tag-swatch {
+  width: var(--size-phone-target);
+  height: var(--size-phone-target);
+}
+
 .phone-row-tag {
   color: var(--tag-text, var(--color-phone-text-secondary));
 }

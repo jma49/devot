@@ -113,6 +113,8 @@ export function TagMenu(props: {
     props.onColor(value)
   }
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    // A bare key here must not reach the window's commands.
+    if (!e.metaKey && !e.ctrlKey) e.stopPropagation()
     if (picking || isImeKey(e.nativeEvent)) return
     if (e.key === 'Escape' || e.key === 'Tab') {
       e.preventDefault()
