@@ -188,6 +188,7 @@ function ConfirmChange(props: {
           <code>{status.preview}</code>
         </pre>
       ) : null}
+      <p className="confirm-detail">{format(t('integrations.confirmRunning'), { client })}</p>
       {connecting && !props.access.enabled ? (
         <p className="confirm-detail">{t('integrations.confirmAccessOn')}</p>
       ) : null}
@@ -219,6 +220,7 @@ export function IntegrationsSection() {
   const [prompt, setPrompt] = useState(false)
   const [pending, setPending] = useState<Pending>()
   const [busy, setBusy] = useState(false)
+  const [setupVersion, setSetupVersion] = useState(0)
   const [access, setAccess] = useState<McpAccessView>(CAN_START_IN_BACKGROUND)
   // Connecting turns access on in Rust: the section reads it again.
   const [accessChanged, setAccessChanged] = useState(0)
@@ -272,7 +274,7 @@ export function IntegrationsSection() {
       live = false
       window.removeEventListener('focus', load)
     }
-  }, [])
+  }, [setupVersion])
 
   const copy = (title: MessageKey, text: string) => {
     setAnnouncement('')
@@ -290,7 +292,7 @@ export function IntegrationsSection() {
     setBusy(true)
     setAnnouncement('')
     const run = action === 'connect' ? connectMcpClient : disconnectMcpClient
-    run(status.client)
+    run(status.client, status.revision)
       .then(
         (updated) => {
           setChangeError(undefined)
@@ -308,7 +310,11 @@ export function IntegrationsSection() {
             if (summary?.allowed === 0) setPrompt(true)
           }
         },
-        (e: unknown) => setChangeError(errorCode(e)),
+        (e: unknown) => {
+          setChangeError(errorCode(e))
+          // The file may have changed meanwhile: show it as it is now before another try.
+          setSetupVersion((n) => n + 1)
+        },
       )
       .finally(() => setBusy(false))
   }

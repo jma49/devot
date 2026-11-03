@@ -338,7 +338,7 @@ pub struct CompactableVersion {
     pub at: i64,
 }
 
-/// The same statements as the TypeScript adapter's (src/mcp/sqlite.ts, REVISION_SQL; a test
+/// The same statements as the TypeScript adapter's (tests/support/sqlite-adapter.ts, REVISION_SQL; a test
 /// compares them). The reads go through covering indexes (migration 0013), never a version's Yjs
 /// state. A note's revisions, newest first:
 const REVISION_HISTORY_SQL: &str = "SELECT id, note_id, kind, at, length, value FROM revisions
@@ -414,7 +414,7 @@ pub struct AgentWriteSummary {
     pub seen: bool,
 }
 
-/// The same statements as the TypeScript adapter's (src/mcp/sqlite.ts, AGENT_WRITES_SQL; a test
+/// The same statements as the TypeScript adapter's (tests/support/sqlite-adapter.ts, AGENT_WRITES_SQL; a test
 /// compares them). A note's rows are replaced with each write that carries them, keeping `seen` of
 /// the rows it still has. The list keeps every unseen row, however old: a note whose writes are all
 /// older than the newest `limit` still shows its mark, its unseen count and its notice. The list is
@@ -446,7 +446,7 @@ const AGENT_WRITES_SEEN_SQL: &str = "UPDATE agent_writes SET seen = 1
      WHERE note_id = @noteId AND seen = 0 AND write_id IN (SELECT value FROM json_each(@ids))";
 const AGENT_WRITES_PURGE_SQL: &str = "DELETE FROM agent_writes WHERE note_id = @noteId";
 
-/// The same statements as the TypeScript adapter's (src/mcp/sqlite.ts, ACTIVITY_SQL; a test
+/// The same statements as the TypeScript adapter's (tests/support/sqlite-adapter.ts, ACTIVITY_SQL; a test
 /// compares them). Each reads a covering index of migration 0012, never a table row (rows hold Yjs
 /// states).
 const ACTIVITY_NOTES_SQL: &str =
@@ -493,7 +493,7 @@ const NOTE_ACTIVITY_SQL: &str = "SELECT r.note_id AS noteId, r.kind, r.at, r.len
 /// without a copy (cut or dragged Markdown, Paste as Plain Text, an outside writer, a restored version, an
 /// old duplicate) and its image must stay. The search index finds those notes (a phrase match, so
 /// no note is read whole); it ignores case, so `instr` checks the address as written. The same
-/// statement as the TypeScript adapter's (src/mcp/sqlite.ts, HAND_OVER_FILES_SQL; a test compares
+/// statement as the TypeScript adapter's (tests/support/sqlite-adapter.ts, HAND_OVER_FILES_SQL; a test compares
 /// them). `@hlc` is the purge's clock: it dates the new owner, so a device that hears of the same
 /// purge settles on the same note (docs/adr/0003-sync-attachments-as-records.md, risk 5).
 const HAND_OVER_FILES_SQL: &str = r#"UPDATE files SET note_hlc = MAX(note_hlc, @hlc), note_id = COALESCE((
@@ -504,7 +504,7 @@ const HAND_OVER_FILES_SQL: &str = r#"UPDATE files SET note_hlc = MAX(note_hlc, @
         ORDER BY n.deleted_at IS NOT NULL, n.id LIMIT 1), note_id)
      WHERE note_id = @id"#;
 
-/// The same statements as the TypeScript adapter's (src/mcp/sqlite.ts, LIST_SQL; a test compares
+/// The same statements as the TypeScript adapter's (tests/support/sqlite-adapter.ts, LIST_SQL; a test compares
 /// them). Each reads an index that covers it (migration 0014), never a note's row: a note's small
 /// columns come after its Markdown and its Yjs state, so reading them from the row walks every
 /// overflow page of both.
@@ -639,7 +639,7 @@ fn fold(c: char) -> char {
 /// `devot_fold` is this: terms too short for the trigram index are scanned
 /// with it, so they ignore case in every script, as the index does (SQLite's
 /// own `lower()` folds ASCII only). tests/support/sqlite-adapter.ts registers the same function
-/// (src/mcp/sqlite.ts) from the same cases (tests/support/folds.json).
+/// (tests/support/sqlite-adapter.ts) from the same cases (tests/support/folds.json).
 fn fold_text(text: &str) -> String {
     if text.is_ascii() {
         text.to_ascii_lowercase()
@@ -931,7 +931,7 @@ fn summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<NoteSummary> {
     })
 }
 
-/// The same SQL as the TypeScript adapter builds (src/mcp/sqlite.ts, searchStatement): every
+/// The same SQL as the TypeScript adapter builds (tests/support/sqlite-adapter.ts, searchStatement): every
 /// condition is one clause of a WHERE, so the limit applies after all of them. Ranked text (three
 /// or more characters) matches the trigram index first (`hits`, with each match's rank) and the
 /// list's index joins them, so a ranked search walks the whole list index even for one match
@@ -1068,7 +1068,7 @@ fn rebuild_checked(conn: &Connection) -> rusqlite::Result<u32> {
 /// FTS5 `secure-delete`: on, the search index takes a note's old text out of its pages instead
 /// of only marking it deleted, so it leaves no trigrams behind. Only a purge turns it on, as it
 /// makes every change of a long note's text many times slower to index. The TypeScript adapter
-/// (src/mcp/sqlite.ts) runs the same statement.
+/// (tests/support/sqlite-adapter.ts) runs the same statement.
 const SEARCH_SECURE_DELETE_SQL: &str =
     "INSERT INTO notes_fts (notes_fts, rank) VALUES ('secure-delete', ?1)";
 
@@ -1505,7 +1505,7 @@ impl Store {
     }
 
     /// None when it was never written. The core reads it before writing the row, so its clock ticks
-    /// past the stored one. The TypeScript adapter (src/mcp/sqlite.ts) runs the same statement.
+    /// past the stored one. The TypeScript adapter (tests/support/sqlite-adapter.ts) runs the same statement.
     pub fn get_note_tag(&self, note_id: &str, tag_id: &str) -> Result<Option<NoteTagRecord>> {
         let mut statement = self.conn.prepare_cached(
             "SELECT note_id, tag_id, present, hlc FROM note_tags WHERE note_id = ? AND tag_id = ?",
@@ -1576,7 +1576,7 @@ impl Store {
     }
 
     /// A revision for a purged or unknown note is dropped. The TypeScript adapter
-    /// (src/mcp/sqlite.ts) runs the same statement.
+    /// (tests/support/sqlite-adapter.ts) runs the same statement.
     pub fn put_revision(&mut self, revision: &RevisionRecord) -> Result<()> {
         self.conn.execute(
             "INSERT INTO revisions (id, note_id, kind, at, ydoc, length, value, words)
@@ -1836,7 +1836,7 @@ impl Store {
     }
 
     /// A file that does not exist is skipped. Returns false (and copies nothing) when the note does
-    /// not exist or is in the trash. The TypeScript adapter (src/mcp/sqlite.ts) runs the same
+    /// not exist or is in the trash. The TypeScript adapter (tests/support/sqlite-adapter.ts) runs the same
     /// statement.
     pub fn copy_files(&mut self, note_id: &str, copies: &[FileCopy], at: i64) -> Result<bool> {
         let tx = self.conn.transaction()?;

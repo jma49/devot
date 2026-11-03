@@ -24,6 +24,8 @@ export interface McpClientStatus {
   missing: boolean
   /** The exact text Connect adds; null without a binary to point at. */
   preview: string | null
+  /** The file as shown; Rust refuses a change once the file is no longer this. */
+  revision: string
 }
 
 export interface McpSetup {
@@ -92,7 +94,10 @@ const textOrNull = (value: unknown) => (typeof value === 'string' && value !== '
 
 export function asMcpClientStatus(value: unknown): McpClientStatus | null {
   if (typeof value !== 'object' || value === null) return null
-  const { client, path, backup, state, code, missing, preview } = value as Record<string, unknown>
+  const { client, path, backup, state, code, missing, preview, revision } = value as Record<
+    string,
+    unknown
+  >
   if (!MCP_CLIENTS.includes(client as McpClient)) return null
   if (!CONNECTION_STATES.includes(state as McpConnectionState)) return null
   if (typeof path !== 'string' || typeof backup !== 'string') return null
@@ -104,6 +109,7 @@ export function asMcpClientStatus(value: unknown): McpClientStatus | null {
     code: textOrNull(code),
     missing: missing === true,
     preview: textOrNull(preview),
+    revision: typeof revision === 'string' ? revision : '',
   }
 }
 

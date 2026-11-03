@@ -515,7 +515,7 @@ fn start_http_api(app: &mut tauri::App, data_dir: &Path) {
         licence::Gate::of(&licence),
     ));
     app.manage(std::sync::Arc::clone(&api));
-    api.forget_rendezvous();
+    api.stop_bridge();
     if std::thread::Builder::new()
         .name("http-api-start".into())
         .spawn(move || api.apply())

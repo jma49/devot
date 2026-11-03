@@ -279,7 +279,7 @@ const fold = (chars: readonly string[]) =>
     return [...lower].length === 1 ? lower : c
   })
 
-/** Folded as `fold` does, with the same UTF-16 layout: only U+0130 lowers to two code points, and U+03A3 lowers by context, so without them the whole string's lower case is the same. Storage scans terms too short for its trigram index with this, as the SQL function `devot_fold` (src/mcp/sqlite.ts, storage/mod.rs). */
+/** Folded as `fold` does, with the same UTF-16 layout: only U+0130 lowers to two code points, and U+03A3 lowers by context, so without them the whole string's lower case is the same. Storage scans terms too short for its trigram index with this, as the SQL function `devot_fold` (tests/support/sqlite-adapter.ts, storage/mod.rs). */
 export const foldText = (text: string) =>
   /[\u0130\u03a3]/.test(text) ? fold([...text]).join('') : text.toLowerCase()
 

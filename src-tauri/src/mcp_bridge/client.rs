@@ -1,9 +1,13 @@
-//! The bridge's side of the local HTTP API: one request a connection, to 127.0.0.1 alone, no proxy,
-//! no redirect. The token stays in the keychain and in this process's memory; it is never an
-//! argument, an environment variable, a config file's or a log's.
+//! The bridge's side of the local HTTP API: one request a connection, over the app's Unix socket in
+//! this user's private folder. Before a byte goes out the peer must be a process of this user, so
+//! the token reaches no one else whatever happened to Devot meanwhile (ADR 0012). The token stays
+//! in the keychain and in this process's memory; it is never an argument, an environment
+//! variable, a config file's or a log's.
 
 use std::io::{ErrorKind, Read, Write};
-use std::net::{Ipv4Addr, Shutdown, SocketAddr, TcpStream};
+use std::net::Shutdown;
+use std::os::unix::net::UnixStream;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -14,13 +18,15 @@ use crate::http_api::token::{self, Keychain, Token, TokenStore};
 use super::start::Live;
 use super::tools::{Api, ApiRequest, percent_encode};
 
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 /// The app answers within its own 15 s, or says it timed out.
 const READ_TIMEOUT: Duration = Duration::from_secs(20);
 /// Well past any note: a listener that sends more is not Devot.
 const MAX_RESPONSE_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_RETRY_WAIT: u64 = 5;
+/// A quit refuses calls until Devot is gone; then the next one may start it again.
+const QUIT_RETRIES: usize = 3;
+const QUIT_WAIT: Duration = Duration::from_secs(1);
 const SESSION_BYTES: usize = 8;
 
 #[derive(Debug, PartialEq)]
@@ -36,6 +42,8 @@ pub enum ExchangeError {
     Unreachable,
     /// A request was sent, or partly: it may have been made.
     Lost,
+    /// The peer is not a process of this user: nothing was sent.
+    Untrusted,
 }
 
 pub struct Caller<'a> {
@@ -44,9 +52,9 @@ pub struct Caller<'a> {
     pub session: &'a str,
 }
 
-fn head_of(port: u16, request: &ApiRequest, caller: &Caller, length: usize) -> String {
+fn head_of(request: &ApiRequest, caller: &Caller, length: usize) -> String {
     let mut head = format!(
-        "{} {} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer {}\r\nX-Devot-Session: {}\r\nConnection: close\r\n",
+        "{} {} HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {}\r\nX-Devot-Session: {}\r\nConnection: close\r\n",
         request.method, request.target, caller.token, caller.session
     );
     if !caller.client.is_empty() {
@@ -82,23 +90,27 @@ fn parse_answer(bytes: &[u8]) -> Option<Answer> {
     })
 }
 
-pub fn exchange(port: u16, request: &ApiRequest, caller: &Caller) -> Result<Answer, ExchangeError> {
+pub fn exchange(
+    socket: &Path,
+    request: &ApiRequest,
+    caller: &Caller,
+    uid: u32,
+) -> Result<Answer, ExchangeError> {
     let body = match &request.body {
         Some(body) => serde_json::to_vec(body).map_err(|_| ExchangeError::Unreachable)?,
         None => Vec::new(),
     };
-    let mut stream = TcpStream::connect_timeout(
-        &SocketAddr::from((Ipv4Addr::LOCALHOST, port)),
-        CONNECT_TIMEOUT,
-    )
-    .map_err(|_| ExchangeError::Unreachable)?;
+    let mut stream = UnixStream::connect(socket).map_err(|_| ExchangeError::Unreachable)?;
+    if crate::atomic_file::peer_uid(&stream) != Some(uid) {
+        return Err(ExchangeError::Untrusted);
+    }
     let lost = |_| ExchangeError::Lost;
     stream.set_read_timeout(Some(READ_TIMEOUT)).map_err(lost)?;
     stream
         .set_write_timeout(Some(WRITE_TIMEOUT))
         .map_err(lost)?;
     stream
-        .write_all(head_of(port, request, caller, body.len()).as_bytes())
+        .write_all(head_of(request, caller, body.len()).as_bytes())
         .and_then(|()| stream.write_all(&body))
         .and_then(|()| stream.flush())
         .map_err(lost)?;
@@ -134,10 +146,10 @@ fn value_of(answer: &Answer) -> Result<Value, String> {
     }
 }
 
-/// Finds Devot, reads the token and retries the two refusals that change nothing: a token that was
-/// replaced, and a rate limit. A request that may have been made is never sent twice.
+/// Finds Devot, reads the token and retries the refusals that change nothing: a token that was
+/// replaced, a rate limit, and a quit under way. A request that may have been made is never sent twice.
 pub struct HttpApiClient {
-    live: Box<dyn Fn() -> Result<u16, &'static str> + Send>,
+    live: Box<dyn Fn() -> Result<PathBuf, &'static str> + Send>,
     tokens: Box<dyn TokenStore>,
     token: Mutex<Option<Token>>,
     client: Arc<Mutex<String>>,
@@ -154,7 +166,7 @@ impl HttpApiClient {
     }
 
     fn with(
-        live: Box<dyn Fn() -> Result<u16, &'static str> + Send>,
+        live: Box<dyn Fn() -> Result<PathBuf, &'static str> + Send>,
         tokens: Box<dyn TokenStore>,
         client: Arc<Mutex<String>>,
     ) -> Self {
@@ -180,7 +192,7 @@ impl HttpApiClient {
         Ok(token)
     }
 
-    fn send(&self, port: u16, request: &ApiRequest, reread: bool) -> Result<Answer, SendError> {
+    fn send(&self, socket: &Path, request: &ApiRequest, reread: bool) -> Result<Answer, SendError> {
         let token = self.token(reread).map_err(SendError::Code)?;
         let client = self
             .client
@@ -192,13 +204,14 @@ impl HttpApiClient {
             .as_deref()
             .map_err(|code| SendError::Code((*code).to_owned()))?;
         exchange(
-            port,
+            socket,
             request,
             &Caller {
                 token: &token,
                 client: &client,
                 session,
             },
+            crate::atomic_file::effective_uid(),
         )
         .map_err(SendError::Exchange)
     }
@@ -211,16 +224,20 @@ enum SendError {
 
 impl Api for HttpApiClient {
     fn call(&self, request: &ApiRequest) -> Result<Value, String> {
-        let mut port = (self.live)().map_err(String::from)?;
+        let mut socket = (self.live)().map_err(String::from)?;
         let mut reread = false;
         let mut found_again = false;
         let mut waited = false;
+        let mut quits = 0;
         loop {
-            let answer = match self.send(port, request, reread) {
+            let answer = match self.send(&socket, request, reread) {
                 Ok(answer) => answer,
                 Err(SendError::Code(code)) => return Err(code),
                 Err(SendError::Exchange(ExchangeError::Lost)) => {
                     return Err("E_MCP_CONNECTION_LOST".into());
+                }
+                Err(SendError::Exchange(ExchangeError::Untrusted)) => {
+                    return Err("E_MCP_PEER_REFUSED".into());
                 }
                 Err(SendError::Exchange(ExchangeError::Unreachable)) => {
                     if found_again {
@@ -228,7 +245,7 @@ impl Api for HttpApiClient {
                     }
                     // It quit a moment ago: the next call may start it again if that is allowed.
                     found_again = true;
-                    port = (self.live)().map_err(String::from)?;
+                    socket = (self.live)().map_err(String::from)?;
                     continue;
                 }
             };
@@ -242,7 +259,15 @@ impl Api for HttpApiClient {
                 std::thread::sleep(Duration::from_secs(wait));
                 continue;
             }
-            return value_of(&answer);
+            let value = value_of(&answer);
+            // Refused before it reached the core, so asking again cannot make it twice.
+            if value.as_ref().is_err_and(|code| code == "E_APP_QUITTING") && quits < QUIT_RETRIES {
+                quits += 1;
+                std::thread::sleep(QUIT_WAIT);
+                socket = (self.live)().map_err(String::from)?;
+                continue;
+            }
+            return value;
         }
     }
 }
@@ -276,21 +301,27 @@ mod tests {
         gate: Arc<Gate>,
         core: Arc<Core>,
         tokens: Arc<MemoryTokens>,
+        socket: PathBuf,
+        _dir: tempfile::TempDir,
     }
 
     fn world(scope: Scope, limits: Limits) -> World {
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("b.sock");
         let gate = Arc::new(Gate::new(limits));
         let token = token::generate().unwrap();
         let tokens = Arc::new(MemoryTokens::default());
         tokens.set(&token).unwrap();
         gate.allow_mcp(token, scope);
         let core = Arc::new(Core::default());
-        let server = Server::start(0, Arc::clone(&gate), core.clone()).unwrap();
+        let server = Server::start_bridge(&socket, Arc::clone(&gate), core.clone()).unwrap();
         World {
             server,
             gate,
             core,
             tokens,
+            socket,
+            _dir: dir,
         }
     }
 
@@ -309,9 +340,9 @@ mod tests {
     }
 
     fn client_of(world: &World, name: &str) -> HttpApiClient {
-        let port = world.server.port();
+        let socket = world.socket.clone();
         HttpApiClient::with(
-            Box::new(move || Ok(port)),
+            Box::new(move || Ok(socket.clone())),
             Box::new(Shared(Arc::clone(&world.tokens))),
             Arc::new(Mutex::new(name.to_owned())),
         )
@@ -405,14 +436,14 @@ mod tests {
     fn nothing_listening_finds_devot_once_more_then_answers_a_code() {
         let world = world(Scope::ReadWrite, Limits::DEFAULT);
         let tokens = Arc::clone(&world.tokens);
-        let port = world.server.port();
+        let socket = world.socket.clone();
         drop(world.server);
         let finds = Arc::new(Mutex::new(0));
         let counted = Arc::clone(&finds);
         let client = HttpApiClient::with(
             Box::new(move || {
                 *counted.lock().unwrap() += 1;
-                Ok(port)
+                Ok(socket.clone())
             }),
             Box::new(Shared(tokens)),
             Arc::new(Mutex::new(String::new())),
@@ -432,6 +463,101 @@ mod tests {
             client.call(&read()),
             Err("E_MCP_BACKGROUND_START_OFF".into())
         );
+    }
+
+    #[test]
+    fn sends_nothing_to_a_peer_of_another_user() {
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("x.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+        let heard = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut got = Vec::new();
+            let _ = stream.read_to_end(&mut got);
+            got
+        });
+        let caller = Caller {
+            token: "dvt_secret",
+            client: "",
+            session: "AAAAAAAAAAA",
+        };
+        let someone_else = crate::atomic_file::effective_uid().wrapping_add(1);
+        assert_eq!(
+            exchange(&socket, &read(), &caller, someone_else),
+            Err(ExchangeError::Untrusted)
+        );
+        assert!(
+            heard.join().unwrap().is_empty(),
+            "not a byte, the token least of all"
+        );
+    }
+
+    #[test]
+    fn reads_the_peers_user_on_a_unix_socket() {
+        let (a, _b) = UnixStream::pair().unwrap();
+        assert_eq!(
+            crate::atomic_file::peer_uid(&a),
+            Some(crate::atomic_file::effective_uid())
+        );
+    }
+
+    #[test]
+    fn the_worst_json_escaping_of_a_note_at_its_limit_passes_the_socket() {
+        let world = world(Scope::ReadWrite, Limits::DEFAULT);
+        let client = client_of(&world, "x");
+        let max = crate::http_api::routes::MAX_MARKDOWN_BYTES;
+        for markdown in ["\u{1}".repeat(max), "\\".repeat(max)] {
+            let request = ApiRequest {
+                method: "POST",
+                target: "/v1/notes".into(),
+                body: Some(json!({ "title": "T", "markdown": markdown, "notebook": "N" })),
+            };
+            assert_eq!(client.call(&request), Ok(json!({ "id": "n1" })));
+        }
+        let over = ApiRequest {
+            method: "POST",
+            target: "/v1/notes".into(),
+            body: Some(json!({ "title": "T", "markdown": "a".repeat(max + 1), "notebook": "N" })),
+        };
+        assert_eq!(client.call(&over), Err("E_NOTE_BODY_TOO_LARGE".into()));
+    }
+
+    #[test]
+    fn a_quitting_devot_is_asked_again_once_it_is_gone() {
+        struct Quitting(Mutex<usize>);
+        impl Dispatch for Quitting {
+            fn dispatch(&self, _: &Call) -> Result<Value, String> {
+                let mut seen = self.0.lock().unwrap();
+                *seen += 1;
+                if *seen == 1 {
+                    Err("E_APP_QUITTING".into())
+                } else {
+                    Ok(json!({ "notebooks": [] }))
+                }
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("q.sock");
+        let gate = Arc::new(Gate::new(Limits::DEFAULT));
+        let token = token::generate().unwrap();
+        let tokens = Arc::new(MemoryTokens::default());
+        tokens.set(&token).unwrap();
+        gate.allow_mcp(token, Scope::Read);
+        let dispatch = Arc::new(Quitting(Mutex::new(0)));
+        let _server = Server::start_bridge(&socket, gate, dispatch.clone()).unwrap();
+        let found = socket.clone();
+        let client = HttpApiClient::with(
+            Box::new(move || Ok(found.clone())),
+            Box::new(Shared(tokens)),
+            Arc::new(Mutex::new(String::new())),
+        );
+        let list = ApiRequest {
+            method: "GET",
+            target: "/v1/notebooks".into(),
+            body: None,
+        };
+        assert_eq!(client.call(&list), Ok(json!({ "notebooks": [] })));
+        assert_eq!(*dispatch.0.lock().unwrap(), 2);
     }
 
     #[test]

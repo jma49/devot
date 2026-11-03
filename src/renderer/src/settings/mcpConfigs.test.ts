@@ -65,6 +65,7 @@ describe('Rust\u2019s answer', () => {
     code: null,
     missing: false,
     preview: '[mcp_servers.devot]\n',
+    revision: 'missing',
   }
 
   it('reads a client status, refusing an unknown client or state', () => {

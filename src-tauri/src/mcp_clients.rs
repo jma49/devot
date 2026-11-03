@@ -38,6 +38,12 @@ const UNREADABLE: &str = "E_MCP_CONFIG_UNREADABLE";
 const CHANGED: &str = "E_MCP_CONFIG_CHANGED";
 const WRITE_FAILED: &str = "E_MCP_CONFIG_WRITE_FAILED";
 const NOT_CONNECTED: &str = "E_MCP_NOT_CONNECTED";
+const DANGLING: &str = "E_MCP_CONFIG_LINK_DANGLING";
+const BAD_REVISION: &str = "E_MCP_REVISION_INVALID";
+const MISSING: &str = "missing";
+
+/// Devot's own changes to client configs go one at a time.
+static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
 const EXTENSION_FAILED: &str = "E_MCP_EXTENSION_FAILED";
 const HOME_UNAVAILABLE: &str = "E_MCP_HOME_UNAVAILABLE";
 
@@ -427,12 +433,44 @@ fn read_entry(client: Client, text: &str) -> Result<Option<Launch>, &'static str
 }
 
 /// A config that may hold a symbolic link is written at the file it names, so the link stays.
-fn real_path(path: &Path) -> PathBuf {
-    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+/// A link whose target is gone is refused rather than replaced by a file: the owner keeps the file
+/// elsewhere on purpose (a dotfiles folder, say), and a new one here would part the two silently.
+fn real_path(path: &Path) -> Result<PathBuf, &'static str> {
+    match std::fs::canonicalize(path) {
+        Ok(real) => Ok(real),
+        Err(_) if std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) => {
+            Err(DANGLING)
+        }
+        Err(_) => Ok(path.to_path_buf()),
+    }
+}
+
+/// What the file held when Settings showed it: `missing`, or its SHA-256.
+fn revision_of(text: Option<&str>) -> String {
+    use sha2::Digest as _;
+    text.map_or_else(
+        || MISSING.to_owned(),
+        |text| {
+            sha2::Sha256::digest(text.as_bytes())
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect()
+        },
+    )
+}
+
+fn check_revision(revision: &str) -> Result<(), &'static str> {
+    let hex = revision.len() == 64
+        && revision
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
+    (hex || revision == MISSING)
+        .then_some(())
+        .ok_or(BAD_REVISION)
 }
 
 fn read_config(path: &Path) -> Result<Option<String>, &'static str> {
-    let path = real_path(path);
+    let path = real_path(path)?;
     match std::fs::metadata(&path) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(_) => return Err(UNREADABLE),
@@ -464,23 +502,45 @@ fn resolved_folder(path: &Path) -> Result<(Folder, OsString), &'static str> {
 }
 
 /// Replaces `path`, which must still hold `expected`: a client that wrote it in between keeps its
-/// change. The file it replaces stays beside it as a backup, both with the same permissions.
+/// change. The file it replaces stays beside it as a backup, both with the same permissions. The
+/// file is read again just before the rename. No lock the clients honour exists, so a client that
+/// writes in the instant after that read can still lose its change; the dialog asks to quit it.
 fn write_config(path: &Path, expected: Option<&str>, text: &str) -> Result<(), &'static str> {
-    let path = real_path(path);
+    write_config_checking(path, expected, text, || {})
+}
+
+fn write_config_checking(
+    path: &Path,
+    expected: Option<&str>,
+    text: &str,
+    before_rename: impl FnOnce(),
+) -> Result<(), &'static str> {
+    let _writing = WRITING.lock().map_err(|_| WRITE_FAILED)?;
+    let path = real_path(path)?;
     let (folder, name) = resolved_folder(&path)?;
-    let current = read_config(&path)?;
-    if current.as_deref() != expected {
+    if read_config(&path)?.as_deref() != expected {
         return Err(CHANGED);
     }
     let mode = std::fs::metadata(&path)
         .map(|found| found.permissions().mode() & 0o777)
         .unwrap_or(NEW_FILE_MODE);
-    if let Some(current) = &current {
+    let mut temp = folder
+        .temporary_file(crate::atomic_file::temporary_name())
+        .map_err(|_| WRITE_FAILED)?;
+    temp.set_mode(std::fs::Permissions::from_mode(mode))
+        .and_then(|()| temp.write_all(text.as_bytes()))
+        .map_err(|_| WRITE_FAILED)?;
+    before_rename();
+    if read_config(&path)?.as_deref() != expected {
+        return Err(CHANGED);
+    }
+    if let Some(current) = expected {
         let mut backup = name.clone();
         backup.push(BACKUP_SUFFIX);
         place_with_mode(&folder, &backup, current.as_bytes(), mode).map_err(|_| WRITE_FAILED)?;
     }
-    place_with_mode(&folder, &name, text.as_bytes(), mode).map_err(|_| WRITE_FAILED)
+    temp.place(&folder, &name, Place::Replace)
+        .map_err(|_| WRITE_FAILED)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -508,6 +568,8 @@ pub struct ClientStatus {
     missing: bool,
     /// The exact text Connect adds; none without an installed binary to point at.
     preview: Option<String>,
+    /// The file as shown (`revision_of`): Connect and Disconnect refuse once it has changed.
+    revision: String,
 }
 
 fn backup_of(path: &Path) -> PathBuf {
@@ -530,13 +592,17 @@ fn status(client: Client, path: &Path, launch: Option<&Launch>) -> ClientStatus 
         code: None,
         missing: false,
         preview: launch.and_then(|launch| with_entry(client, None, launch).ok()),
+        revision: String::new(),
     };
-    let read = read_config(path).and_then(|text| match text {
-        None => {
-            found.missing = true;
-            Ok(None)
+    let read = read_config(path).and_then(|text| {
+        found.revision = revision_of(text.as_deref());
+        match text {
+            None => {
+                found.missing = true;
+                Ok(None)
+            }
+            Some(text) => read_entry(client, &text),
         }
-        Some(text) => read_entry(client, &text),
     });
     match read {
         Err(code) => {
@@ -551,8 +617,16 @@ fn status(client: Client, path: &Path, launch: Option<&Launch>) -> ClientStatus 
     found
 }
 
-fn connect(client: Client, path: &Path, launch: &Launch) -> Result<ClientStatus, &'static str> {
+fn connect(
+    client: Client,
+    path: &Path,
+    launch: &Launch,
+    shown: &str,
+) -> Result<ClientStatus, &'static str> {
     let current = read_config(path)?;
+    if revision_of(current.as_deref()) != shown {
+        return Err(CHANGED);
+    }
     let text = with_entry(client, current.as_deref(), launch)?;
     write_config(path, current.as_deref(), &text)?;
     Ok(status(client, path, Some(launch)))
@@ -562,8 +636,12 @@ fn disconnect(
     client: Client,
     path: &Path,
     launch: Option<&Launch>,
+    shown: &str,
 ) -> Result<ClientStatus, &'static str> {
     let current = read_config(path)?.ok_or(NOT_CONNECTED)?;
+    if revision_of(Some(&current)) != shown {
+        return Err(CHANGED);
+    }
     let text = without_entry(client, &current)?.ok_or(NOT_CONNECTED)?;
     write_config(path, Some(&current), &text)?;
     Ok(status(client, path, launch))
@@ -705,13 +783,15 @@ pub async fn settings_mcp_connect(
     app: AppHandle,
     window: tauri::WebviewWindow,
     client: String,
+    revision: String,
 ) -> Result<ClientStatus, String> {
     from_settings(&window)?;
     let client = Client::parse(&client).map_err(String::from)?;
+    check_revision(&revision)?;
     blocking(move || {
         let launch = installed_launch()?;
         let path = client_path(client, &home(&app)?);
-        let done = connect(client, &path, &launch);
+        let done = connect(client, &path, &launch, &revision);
         match &done {
             Ok(_) => {
                 log::info!("I_MCP_CLIENT_CONNECTED {}", client.id());
@@ -729,13 +809,15 @@ pub async fn settings_mcp_disconnect(
     app: AppHandle,
     window: tauri::WebviewWindow,
     client: String,
+    revision: String,
 ) -> Result<ClientStatus, String> {
     from_settings(&window)?;
     let client = Client::parse(&client).map_err(String::from)?;
+    check_revision(&revision)?;
     blocking(move || {
         let launch = current_launch();
         let path = client_path(client, &home(&app)?);
-        let done = disconnect(client, &path, launch.as_ref());
+        let done = disconnect(client, &path, launch.as_ref(), &revision);
         match &done {
             Ok(_) => log::info!("I_MCP_CLIENT_DISCONNECTED {}", client.id()),
             Err(code) => log::warn!("W_MCP_CLIENT_DISCONNECT_FAILED {} {code}", client.id()),
@@ -803,6 +885,10 @@ mod tests {
             command: BRIDGE.to_owned(),
             args: args(),
         }
+    }
+
+    fn shown(path: &Path) -> String {
+        revision_of(read_config(path).unwrap().as_deref())
     }
 
     fn config_in(dir: &tempfile::TempDir, client: Client) -> PathBuf {
@@ -1025,7 +1111,7 @@ mod tests {
         let path = config_in(&dir, Client::ClaudeCode);
         std::fs::write(&path, "{ broken").unwrap();
         assert_eq!(
-            connect(Client::ClaudeCode, &path, &launch()),
+            connect(Client::ClaudeCode, &path, &launch(), &shown(&path)),
             Err(UNPARSABLE),
         );
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "{ broken");
@@ -1042,7 +1128,7 @@ mod tests {
         std::fs::write(&path, CLAUDE_JSON).unwrap();
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
 
-        let found = connect(Client::ClaudeCode, &path, &launch()).unwrap();
+        let found = connect(Client::ClaudeCode, &path, &launch(), &shown(&path)).unwrap();
         assert_eq!(found.state, ConnectionState::Connected);
         assert_eq!(
             std::fs::read_to_string(backup_of(&path)).unwrap(),
@@ -1062,7 +1148,7 @@ mod tests {
         for client in CLIENTS {
             let path = config_in(&dir, client);
             assert!(status(client, &path, Some(&launch())).missing);
-            let found = connect(client, &path, &launch()).unwrap();
+            let found = connect(client, &path, &launch(), &shown(&path)).unwrap();
             assert_eq!(found.state, ConnectionState::Connected);
             assert!(!found.missing);
             assert!(!backup_of(&path).exists());
@@ -1091,7 +1177,7 @@ mod tests {
         std::fs::write(&real, "{}").unwrap();
         let link = dir.path().join(".claude.json");
         std::os::unix::fs::symlink(&real, &link).unwrap();
-        connect(Client::ClaudeCode, &link, &launch()).unwrap();
+        connect(Client::ClaudeCode, &link, &launch(), &shown(&link)).unwrap();
         assert!(
             std::fs::symlink_metadata(&link)
                 .unwrap()
@@ -1108,21 +1194,21 @@ mod tests {
         let state = |path: &Path| status(Client::ClaudeDesktop, path, Some(&launch())).state;
         assert_eq!(state(&path), ConnectionState::NotConnected);
 
-        connect(Client::ClaudeDesktop, &path, &launch()).unwrap();
+        connect(Client::ClaudeDesktop, &path, &launch(), &shown(&path)).unwrap();
         assert_eq!(state(&path), ConnectionState::Connected);
 
         let moved = Launch {
             command: OLD_BRIDGE.to_owned(),
             args: args(),
         };
-        connect(Client::ClaudeDesktop, &path, &moved).unwrap();
+        connect(Client::ClaudeDesktop, &path, &moved, &shown(&path)).unwrap();
         assert_eq!(state(&path), ConnectionState::Stale);
 
         let node = Launch {
             command: "node".to_owned(),
             args: vec!["/code/dist-mcp/devot-mcp.mjs".to_owned()],
         };
-        connect(Client::ClaudeDesktop, &path, &node).unwrap();
+        connect(Client::ClaudeDesktop, &path, &node, &shown(&path)).unwrap();
         assert_eq!(state(&path), ConnectionState::Other);
 
         std::fs::write(&path, "{\"mcpServers\": {\"devot\": 3}}").unwrap();
@@ -1139,17 +1225,17 @@ mod tests {
             command: OLD_BRIDGE.to_owned(),
             args: args(),
         };
-        connect(Client::Codex, &path, &moved).unwrap();
-        let found = connect(Client::Codex, &path, &launch()).unwrap();
+        connect(Client::Codex, &path, &moved, &shown(&path)).unwrap();
+        let found = connect(Client::Codex, &path, &launch(), &shown(&path)).unwrap();
         assert_eq!(found.state, ConnectionState::Connected);
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(!text.contains(OLD_BRIDGE));
         assert_eq!(text.matches("[mcp_servers.devot]").count(), 1);
 
-        let found = disconnect(Client::Codex, &path, Some(&launch())).unwrap();
+        let found = disconnect(Client::Codex, &path, Some(&launch()), &shown(&path)).unwrap();
         assert_eq!(found.state, ConnectionState::NotConnected);
         assert_eq!(
-            disconnect(Client::Codex, &path, Some(&launch())),
+            disconnect(Client::Codex, &path, Some(&launch()), &shown(&path)),
             Err(NOT_CONNECTED),
         );
     }
@@ -1159,7 +1245,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = config_in(&dir, Client::ClaudeCode);
         std::fs::write(&path, "\n").unwrap();
-        let found = connect(Client::ClaudeCode, &path, &launch()).unwrap();
+        let found = connect(Client::ClaudeCode, &path, &launch(), &shown(&path)).unwrap();
         assert_eq!(found.state, ConnectionState::Connected);
     }
 
@@ -1252,5 +1338,71 @@ mod tests {
                 .lines()
                 .any(|line| line.trim_start().starts_with("echo ") && !line.contains(">&2"))
         );
+    }
+
+    #[test]
+    fn refuses_a_file_that_changed_since_it_was_shown() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = config_in(&dir, Client::ClaudeCode);
+        std::fs::write(&path, CLAUDE_JSON).unwrap();
+        let before = shown(&path);
+        std::fs::write(&path, "{\"theirs\": 1}").unwrap();
+        assert_eq!(
+            connect(Client::ClaudeCode, &path, &launch(), &before),
+            Err(CHANGED)
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"theirs\": 1}");
+        assert!(!backup_of(&path).exists());
+        connect(Client::ClaudeCode, &path, &launch(), &shown(&path)).unwrap();
+        let stale = revision_of(Some(CLAUDE_JSON));
+        assert_eq!(
+            disconnect(Client::ClaudeCode, &path, Some(&launch()), &stale),
+            Err(CHANGED)
+        );
+    }
+
+    #[test]
+    fn a_client_that_saves_just_before_the_rename_keeps_its_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = config_in(&dir, Client::ClaudeCode);
+        std::fs::write(&path, "{}").unwrap();
+        let theirs = "{\"saved\": \"by the client\"}";
+        let done = write_config_checking(&path, Some("{}"), "{\"devot\": 1}", || {
+            std::fs::write(&path, theirs).unwrap();
+        });
+        assert_eq!(done, Err(CHANGED));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), theirs);
+        assert!(
+            !backup_of(&path).exists(),
+            "no backup of a change never made"
+        );
+        let names: Vec<_> = std::fs::read_dir(dir.path()).unwrap().collect();
+        assert_eq!(names.len(), 1, "no temporary file stays behind");
+    }
+
+    #[test]
+    fn a_link_whose_target_is_gone_is_refused_and_stays_a_link() {
+        let dir = tempfile::tempdir().unwrap();
+        let link = dir.path().join(".claude.json");
+        std::os::unix::fs::symlink(dir.path().join("dotfiles/gone.json"), &link).unwrap();
+        let found = status(Client::ClaudeCode, &link, Some(&launch()));
+        assert_eq!(found.state, ConnectionState::Unreadable);
+        assert_eq!(found.code, Some(DANGLING));
+        assert_eq!(write_config(&link, None, "{}"), Err(DANGLING));
+        assert!(
+            std::fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+    }
+
+    #[test]
+    fn a_revision_is_missing_or_a_sha256() {
+        assert_eq!(check_revision(MISSING), Ok(()));
+        assert_eq!(check_revision(&revision_of(Some("x"))), Ok(()));
+        for bad in ["", "MISSING", &"A".repeat(64), &"a".repeat(63), "../x"] {
+            assert_eq!(check_revision(bad), Err(BAD_REVISION), "{bad}");
+        }
     }
 }

@@ -33,18 +33,23 @@ export async function mcpSetup(): Promise<McpSetup> {
   return setup
 }
 
-async function changeMcpClient(command: string, client: McpClient): Promise<McpClientStatus> {
-  const status = asMcpClientStatus(await invoke<unknown>(command, { client }))
+async function changeMcpClient(
+  command: string,
+  client: McpClient,
+  revision: string,
+): Promise<McpClientStatus> {
+  const status = asMcpClientStatus(await invoke<unknown>(command, { client, revision }))
   if (!status) throw new Error('E_MCP_SETUP_INVALID')
   return status
 }
 
-export function connectMcpClient(client: McpClient): Promise<McpClientStatus> {
-  return changeMcpClient('settings_mcp_connect', client)
+/** `revision` is the file as shown: Rust refuses once it has changed since. */
+export function connectMcpClient(client: McpClient, revision: string): Promise<McpClientStatus> {
+  return changeMcpClient('settings_mcp_connect', client, revision)
 }
 
-export function disconnectMcpClient(client: McpClient): Promise<McpClientStatus> {
-  return changeMcpClient('settings_mcp_disconnect', client)
+export function disconnectMcpClient(client: McpClient, revision: string): Promise<McpClientStatus> {
+  return changeMcpClient('settings_mcp_disconnect', client, revision)
 }
 
 export function openMcpExtension(): Promise<void> {

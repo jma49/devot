@@ -47,12 +47,24 @@ pub fn temporary_name() -> OsString {
     OsString::from(random_name())
 }
 
-/// Whether a process with this ID exists, for a file that names the process that wrote it.
-pub fn process_alive(pid: u32) -> bool {
-    i32::try_from(pid)
+/// The user ID of the process at the other end of a Unix socket; none when it cannot be read.
+#[cfg(target_os = "macos")]
+pub fn peer_uid(stream: &std::os::unix::net::UnixStream) -> Option<u32> {
+    use std::os::fd::AsRawFd;
+    crate::native::macos::peer_uid(stream.as_raw_fd())
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+pub fn peer_uid(stream: &std::os::unix::net::UnixStream) -> Option<u32> {
+    rustix::net::sockopt::socket_peercred(stream)
         .ok()
-        .and_then(rustix::process::Pid::from_raw)
-        .is_some_and(|pid| rustix::process::test_kill_process(pid).is_ok())
+        .map(|cred| cred.uid.as_raw())
+}
+
+/// No way to tell here: never trusted.
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "android")))]
+pub fn peer_uid(_: &std::os::unix::net::UnixStream) -> Option<u32> {
+    None
 }
 
 /// Whether `path` is on a volume mounted read-only, as a disk image is.

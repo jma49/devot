@@ -1,66 +1,79 @@
 //! Finds the running Devot, or starts it in the background when the owner allows that (ADR 0012).
 //! Only a tool call comes here: a client that merely starts its MCP servers starts nothing.
 
-use std::path::PathBuf;
+use std::os::unix::fs::{FileTypeExt, MetadataExt};
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use crate::http_api::mcp_access::{self, McpAccess};
-use crate::http_api::rendezvous::Rendezvous;
 
 /// A first launch can wait on the system checking the app; a client usually allows a minute.
 const START_WAIT: Duration = Duration::from_secs(20);
-/// Devot is up but cannot be told apart from one with its port taken until this has passed.
+/// Devot is up and has not opened the bridge's socket yet (a main window is still loading).
 const READY_WAIT: Duration = Duration::from_secs(5);
 const POLL: Duration = Duration::from_millis(100);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Found {
-    /// A Devot holds this port and takes calls on it.
-    Ready(u16),
-    /// A Devot holds the data folder, and has not said it takes calls.
+    /// A Devot holds the data folder and takes calls on this socket.
+    Ready(PathBuf),
+    /// A Devot holds the data folder and takes no calls yet (or no longer: it is quitting).
     Starting,
     NotRunning,
 }
 
-/// The port to call on: at once when Devot is ready, after a background start when that is allowed.
+/// The socket to call on: at once when Devot is ready, after a background start when that is
+/// allowed. A Devot that goes away while this waits (a quit) may be started, once.
 pub fn reach(
     access: impl FnOnce() -> McpAccess,
     mut find: impl FnMut() -> Found,
-    launch: impl FnOnce() -> Result<(), &'static str>,
+    mut launch: impl FnMut() -> Result<(), &'static str>,
     start_wait: Duration,
     ready_wait: Duration,
-) -> Result<u16, &'static str> {
-    let first = find();
-    if let Found::Ready(port) = first {
-        return Ok(port);
+) -> Result<PathBuf, &'static str> {
+    let mut found = find();
+    if let Found::Ready(socket) = found {
+        return Ok(socket);
     }
     let access = access();
     if !access.enabled {
         return Err("E_MCP_ACCESS_OFF");
     }
-    let (wait, timeout) = match first {
-        Found::Ready(port) => return Ok(port),
-        Found::Starting => (ready_wait, "E_MCP_NOT_READY"),
-        Found::NotRunning => {
-            if !access.background_start {
-                return Err("E_MCP_BACKGROUND_START_OFF");
+    let mut launched = false;
+    let mut until = Instant::now() + ready_wait;
+    loop {
+        match found {
+            Found::Ready(socket) => return Ok(socket),
+            Found::NotRunning if !launched => {
+                if !access.background_start {
+                    return Err("E_MCP_BACKGROUND_START_OFF");
+                }
+                launch()?;
+                launched = true;
+                until = Instant::now() + start_wait;
+                log::info!("I_MCP_BACKGROUND_START");
             }
-            launch()?;
-            log::info!("I_MCP_BACKGROUND_START");
-            (start_wait, "E_MCP_START_TIMEOUT")
+            _ => {}
         }
-    };
-    let until = Instant::now() + wait;
-    while Instant::now() < until {
-        std::thread::sleep(POLL.min(wait));
-        if let Found::Ready(port) = find() {
-            return Ok(port);
+        if Instant::now() >= until {
+            return Err(if launched {
+                "E_MCP_START_TIMEOUT"
+            } else {
+                "E_MCP_NOT_READY"
+            });
         }
+        std::thread::sleep(POLL);
+        found = find();
     }
-    Err(timeout)
 }
 
-/// This machine's Devot, as the data folder's lock and the rendezvous file say.
+/// A socket of this user at `path`; nothing else is ever written to.
+fn ours(path: &Path, uid: u32) -> bool {
+    std::fs::symlink_metadata(path)
+        .is_ok_and(|meta| meta.file_type().is_socket() && meta.uid() == uid)
+}
+
+/// This machine's Devot, as the data folder's lock and the bridge's socket say.
 pub struct Live {
     identifier: String,
     data: PathBuf,
@@ -78,12 +91,26 @@ impl Live {
         if !crate::startup::folder_held(&self.data) {
             return Found::NotRunning;
         }
-        Rendezvous::for_identifier(&self.identifier)
-            .and_then(|rendezvous| rendezvous.port())
+        crate::http_api::bridge_socket(&self.identifier)
+            .filter(|socket| ours(socket, crate::atomic_file::effective_uid()))
             .map_or(Found::Starting, Found::Ready)
     }
 
-    pub fn reach(&self) -> Result<u16, &'static str> {
+    /// Bridges that start at once take turns, so only the first starts Devot: a second `open` of a
+    /// Devot that is starting would reach it as a reopen, which shows its window.
+    fn turn(&self) -> Option<std::fs::File> {
+        let dir = crate::single_instance::private_dir()?;
+        let lock = dir.join(format!("{}.mcp-start.lock", self.identifier));
+        let file = crate::atomic_file::open_lock_file(&lock).ok()?;
+        file.lock().ok()?;
+        Some(file)
+    }
+
+    pub fn reach(&self) -> Result<PathBuf, &'static str> {
+        if let Found::Ready(socket) = self.found() {
+            return Ok(socket);
+        }
+        let _turn = self.turn();
         reach(
             || McpAccess::read(&self.data.join(mcp_access::FILE)),
             || self.found(),
@@ -118,19 +145,25 @@ mod tests {
     fn a_ready_devot_is_called_without_reading_anything_else() {
         let port = reach(
             || panic!("needs no settings"),
-            || Found::Ready(40_000),
+            || Found::Ready("/s".into()),
             never_launches,
             SOON,
             SOON,
         );
-        assert_eq!(port, Ok(40_000));
+        assert_eq!(port, Ok(PathBuf::from("/s")));
     }
 
     #[test]
     fn starts_nothing_while_mcp_is_off() {
         for found in [Found::NotRunning, Found::Starting] {
             assert_eq!(
-                reach(|| access(false, true), || found, never_launches, SOON, SOON),
+                reach(
+                    || access(false, true),
+                    || found.clone(),
+                    never_launches,
+                    SOON,
+                    SOON
+                ),
                 Err("E_MCP_ACCESS_OFF")
             );
         }
@@ -161,7 +194,7 @@ mod tests {
                 match asked.get() {
                     1 | 2 => Found::NotRunning,
                     3 => Found::Starting,
-                    _ => Found::Ready(40_001),
+                    _ => Found::Ready("/s1".into()),
                 }
             },
             || {
@@ -171,7 +204,7 @@ mod tests {
             Duration::from_secs(5),
             SOON,
         );
-        assert_eq!(port, Ok(40_001));
+        assert_eq!(port, Ok(PathBuf::from("/s1")));
         assert_eq!(launched.get(), 1);
     }
 
@@ -211,5 +244,44 @@ mod tests {
             ),
             Err("E_MCP_NOT_READY")
         );
+    }
+
+    #[test]
+    fn a_devot_that_quits_while_it_waits_is_started_again_once() {
+        let asked = Cell::new(0);
+        let launched = Cell::new(0);
+        let found = reach(
+            || access(true, true),
+            || {
+                asked.set(asked.get() + 1);
+                match asked.get() {
+                    1 | 2 => Found::Starting,
+                    3 | 4 => Found::NotRunning,
+                    _ => Found::Ready("/again".into()),
+                }
+            },
+            || {
+                launched.set(launched.get() + 1);
+                Ok(())
+            },
+            Duration::from_secs(5),
+            Duration::from_secs(5),
+        );
+        assert_eq!(found, Ok(PathBuf::from("/again")));
+        assert_eq!(launched.get(), 1);
+    }
+
+    #[test]
+    fn only_a_socket_of_this_user_counts() {
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("s.sock");
+        let file = dir.path().join("f");
+        std::fs::write(&file, b"").unwrap();
+        let _listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+        let me = crate::atomic_file::effective_uid();
+        assert!(ours(&socket, me));
+        assert!(!ours(&socket, me.wrapping_add(1)));
+        assert!(!ours(&file, me));
+        assert!(!ours(&dir.path().join("none"), me));
     }
 }

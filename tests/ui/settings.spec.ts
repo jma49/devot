@@ -275,6 +275,7 @@ function clientStatus(client: string, path: string, state: string, extra: object
     code: null,
     missing: false,
     preview: `the entry for ${client}`,
+    revision: 'missing',
     ...extra,
   }
 }
@@ -355,6 +356,7 @@ test('Connect shows what it will write and where, and writes only once confirmed
   const dialog = page.getByRole('dialog', { name: 'Connect Codex?' })
   await expect(dialog).toContainText('/Users/me/.codex/config.toml.devot-backup')
   await expect(dialog.locator('code')).toHaveText(CODEX_PREVIEW)
+  await expect(dialog).toContainText('If Codex is running it may rewrite this file at any time')
   await expect(dialog).toContainText('This turns on Allow AI Tools.')
   await expect(dialog).toContainText('Devot may start in the background with no window')
   await dialog.getByRole('button', { name: 'Cancel' }).click()
@@ -369,7 +371,7 @@ test('Connect shows what it will write and where, and writes only once confirmed
     'Codex is connected. Restart it if it is running.',
   )
   expect(await calls(page, 'settings_mcp_connect')).toEqual([
-    { cmd: 'settings_mcp_connect', args: { client: 'codex' } },
+    { cmd: 'settings_mcp_connect', args: { client: 'codex', revision: 'missing' } },
   ])
   await expect(codex.getByRole('button', { name: 'Disconnect Codex' })).toBeVisible()
 })
@@ -398,6 +400,8 @@ test('Disconnect names the file, removes only on confirming and reports a refusa
     'The client’s configuration was not changed (E_MCP_CONFIG_CHANGED).',
   )
   await expect(claude).toContainText('Connected through')
+  // It shows the file as it is now before another try.
+  await expect.poll(async () => (await calls(page, 'settings_mcp_setup')).length).toBeGreaterThan(1)
 })
 
 test('A moved app, a foreign entry and an unreadable file each say what to do', async ({

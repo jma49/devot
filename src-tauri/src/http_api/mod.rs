@@ -4,17 +4,18 @@
 //! its arguments (`routes`), then hands the call to the main window's core and waits for its answer
 //! (`devot://http-api`, `http_api_done`), as quick capture does: the core reads and writes through
 //! the AI service, so the API sees only notebooks with Allow AI Access on, and writes like any
-//! outside edit (bodies as Yjs operations, metadata by HLC). The MCP bridge reaches the same listener
-//! with a token of its own (`mcp_access`, ADR 0012); turning it on does not turn this API on.
+//! outside edit (bodies as Yjs operations, metadata by HLC). The MCP bridge reaches the same routes on
+//! a Unix socket of its own, with a token of its own (`mcp_access`, ADR 0012); turning it on does not
+//! turn this API on.
 
 pub mod mcp_access;
-pub mod rendezvous;
 pub mod routes;
 pub mod server;
 pub mod settings;
 pub mod token;
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{SyncSender, sync_channel};
 use std::sync::{Arc, Mutex};
@@ -25,7 +26,6 @@ use serde_json::Value;
 use tauri::{AppHandle, State, WebviewWindow};
 
 use mcp_access::{McpAccess, McpAccessStore};
-use rendezvous::Rendezvous;
 use routes::{Call, Client};
 use server::{Dispatch, Gate, Limits, Server};
 use settings::{HttpApiSettings, SettingsStore, check_port};
@@ -162,7 +162,12 @@ impl<D: Dispatch> Dispatch for Licensed<D> {
 }
 
 impl Dispatch for WindowDispatch {
+    /// A quit has begun: a call let in now could be cut off, so it is refused before anything runs
+    /// and the bridge may safely ask again once Devot is gone.
     fn dispatch(&self, call: &Call) -> Result<Value, String> {
+        if crate::exit::quitting(&self.app) {
+            return Err("E_APP_QUITTING".into());
+        }
         self.answers.ask(call, ANSWER_TIMEOUT, |request| {
             crate::main_windows::emit_front(&self.app, EVENT, request).is_ok()
         })
@@ -207,15 +212,23 @@ pub struct McpView {
 
 struct Running {
     server: Option<Server>,
+    /// The bridge's socket (ADR 0012), while MCP is on and a main window takes calls.
+    bridge: Option<Server>,
     problem: Option<&'static str>,
     mcp_problem: Option<&'static str>,
 }
 
-/// MCP access's own settings, token and rendezvous (ADR 0012).
+/// MCP access's own settings, token and socket (ADR 0012).
 pub struct McpParts {
     pub access: McpAccessStore,
     pub tokens: Arc<dyn TokenStore>,
-    pub rendezvous: Option<Rendezvous>,
+    pub socket: Option<PathBuf>,
+}
+
+/// The bridge's socket, in this user's private folder (`single_instance`); none when that folder is
+/// another's.
+pub fn bridge_socket(identifier: &str) -> Option<PathBuf> {
+    Some(crate::single_instance::private_dir()?.join(format!("{identifier}.mcp.sock")))
 }
 
 pub struct HttpApi {
@@ -248,6 +261,7 @@ impl HttpApi {
             answers,
             running: Mutex::new(Running {
                 server: None,
+                bridge: None,
                 problem: None,
                 mcp_problem: None,
             }),
@@ -284,7 +298,7 @@ impl HttpApi {
         .with_mcp(McpParts {
             access: McpAccessStore::new(&data_dir.join(mcp_access::FILE)),
             tokens: Arc::new(token::Keychain::for_mcp(identifier)),
-            rendezvous: Rendezvous::for_identifier(identifier),
+            socket: bridge_socket(identifier),
         })
     }
 
@@ -345,8 +359,8 @@ impl HttpApi {
         }
     }
 
-    /// Listens or stops as the settings say: at launch, and after every change. One listener serves
-    /// both holders, and each token gets in only while its own switch is on.
+    /// Listens or stops as the settings say: at launch, and after every change. The HTTP API listens
+    /// on its port, the bridge on its socket, each with its own token and switch.
     pub fn apply(&self) {
         let settings = self.settings.get();
         let access = self.mcp_access();
@@ -380,13 +394,12 @@ impl HttpApi {
         }
         let http_wanted = settings.enabled && running.problem.is_none();
         let mcp_wanted = access.enabled && running.mcp_problem.is_none();
-        if !http_wanted && !mcp_wanted {
+        self.apply_bridge(&mut running, mcp_wanted);
+        if !http_wanted {
             running.server = None;
-            self.publish(None);
             return;
         }
         if running.server.as_ref().map(Server::port) != Some(settings.port) {
-            self.publish(None);
             running.server = None;
             match Server::start(
                 settings.port,
@@ -396,46 +409,50 @@ impl HttpApi {
                 Ok(server) => running.server = Some(server),
                 Err(code) => {
                     log::warn!("W_HTTP_API_START_FAILED {code}");
-                    if http_wanted {
-                        running.problem = Some(code);
-                    }
-                    if mcp_wanted {
-                        running.mcp_problem = Some(code);
-                    }
+                    running.problem = Some(code);
                 }
             }
         }
-        let reachable = running
-            .server
-            .as_ref()
-            .filter(|_| mcp_wanted && self.window_listening.load(Ordering::SeqCst))
-            .map(Server::port);
-        self.publish(reachable);
     }
 
-    fn publish(&self, port: Option<u16>) {
-        let Some(rendezvous) = self.mcp.as_ref().and_then(|p| p.rendezvous.as_ref()) else {
+    /// The bridge's socket is there only while a main window can answer, so no call stalls.
+    fn apply_bridge(&self, running: &mut Running, wanted: bool) {
+        let socket = self.mcp.as_ref().and_then(|parts| parts.socket.as_ref());
+        let Some(socket) =
+            socket.filter(|_| wanted && self.window_listening.load(Ordering::SeqCst))
+        else {
+            running.bridge = None;
+            if wanted && socket.is_none() {
+                running.mcp_problem = Some("E_MCP_SOCKET_FOREIGN");
+            }
             return;
         };
-        match port {
-            Some(port) => {
-                if let Err(code) = rendezvous.publish(port) {
-                    log::warn!("W_MCP_START_FAILED {code}");
-                }
+        if running.bridge.is_some() {
+            return;
+        }
+        match Server::start_bridge(socket, Arc::clone(&self.gate), Arc::clone(&self.dispatch)) {
+            Ok(server) => running.bridge = Some(server),
+            Err(code) => {
+                log::warn!("W_MCP_START_FAILED {code}");
+                running.mcp_problem = Some(code);
             }
-            None => rendezvous.withdraw(),
         }
     }
 
-    /// A main window has begun to take calls: only now may the bridge be told where to send them.
+    /// A main window has begun to take calls: only now does the bridge's socket appear.
     pub fn window_listening(&self) {
         self.window_listening.store(true, Ordering::SeqCst);
         self.apply();
     }
 
-    /// Takes back what the last launch may have left, before anything else can read it.
-    pub fn forget_rendezvous(&self) {
-        self.publish(None);
+    /// Stops the bridge's socket at once, as the app quits, and takes away one a crash left.
+    pub fn stop_bridge(&self) {
+        if let Ok(mut running) = self.running.lock() {
+            running.bridge = None;
+        }
+        if let Some(socket) = self.mcp.as_ref().and_then(|parts| parts.socket.as_ref()) {
+            server::remove_bridge_socket(socket);
+        }
     }
 
     pub fn mcp_view(&self) -> McpView {
@@ -443,7 +460,7 @@ impl HttpApi {
         let (listening, problem) = self
             .running
             .lock()
-            .map(|r| (r.server.is_some(), r.mcp_problem))
+            .map(|r| (r.bridge.is_some(), r.mcp_problem))
             .unwrap_or((false, Some("E_HTTP_API_FAILED")));
         McpView {
             enabled: access.enabled,

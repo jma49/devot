@@ -114,6 +114,19 @@ pub fn turn_off_peer_connections(window: &tauri::WebviewWindow) {
     );
 }
 
+unsafe extern "C" {
+    fn getpeereid(socket: std::ffi::c_int, euid: *mut u32, egid: *mut u32) -> std::ffi::c_int;
+}
+
+/// The effective user of the process at the other end of a Unix socket (the MCP bridge's).
+pub fn peer_uid(socket: std::os::fd::RawFd) -> Option<u32> {
+    let (mut uid, mut gid) = (u32::MAX, u32::MAX);
+    // SAFETY: `socket` is a descriptor the caller holds open for the call, and both pointers are
+    // to live locals; getpeereid only writes through them and fails on any other descriptor.
+    let done = unsafe { getpeereid(socket, &raw mut uid, &raw mut gid) };
+    (done == 0).then_some(uid)
+}
+
 /// `WKInactiveSchedulingPolicyNone`: macOS 14 and later.
 const INACTIVE_SCHEDULING_NONE: isize = 2;
 

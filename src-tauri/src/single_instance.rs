@@ -85,7 +85,7 @@ fn folder() -> Option<PathBuf> {
     dir
 }
 
-/// This user's private folder, for what only this user may read or write (`http_api::rendezvous`).
+/// This user's private folder, for what only this user may reach (the MCP bridge's socket, `http_api::bridge_socket`).
 pub(crate) fn private_dir() -> Option<PathBuf> {
     folder()
 }

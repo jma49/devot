@@ -1,6 +1,6 @@
 //! What sync keeps beside the notes (schema v19, `migrations/0019_sync.sql`), and the raw reads the
 //! sync engine (src/core/sync) needs: trashed and purged notes with every tag membership, deleted
-//! notebooks and tags, icons and colours as written. The TypeScript adapter (src/mcp/sqlite.ts,
+//! notebooks and tags, icons and colours as written. The TypeScript adapter (tests/support/sqlite-adapter.ts,
 //! `SYNC_SQL`) runs the same statements; a test compares them.
 
 use rusqlite::{OptionalExtension, named_params};

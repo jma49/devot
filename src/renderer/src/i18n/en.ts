@@ -1274,6 +1274,8 @@ title: Daily Report {{date}}
   'integrations.confirmConnectDetail':
     'Devot adds this to {path}. Everything else in the file stays, and the file as it is now is kept at {backup}.',
   'integrations.confirmCreateDetail': 'Devot creates {path} with this in it.',
+  'integrations.confirmRunning':
+    'If {client} is running it may rewrite this file at any time: quit it first. Devot leaves the file alone if it changed since this was shown.',
   'integrations.confirmAccessOn':
     'This turns on Allow AI Tools. Notebooks stay closed to AI until you allow them yourself.',
   'integrations.confirmBackground':

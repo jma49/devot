@@ -1633,7 +1633,7 @@ export function App() {
         return
       }
       unlisten = stop
-      // Only now may the MCP bridge be told where to call (http_api::rendezvous).
+      // Only now does the MCP bridge's socket open, so no call waits on a window still loading.
       invoke('http_api_listening').catch((e: unknown) =>
         console.warn('W_HTTP_API_LISTENING_FAILED', errorCode(e)),
       )

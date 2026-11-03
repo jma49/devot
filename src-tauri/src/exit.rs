@@ -103,7 +103,7 @@ fn exit_now(app: &AppHandle) {
     }
     #[cfg(desktop)]
     if let Some(api) = app.try_state::<std::sync::Arc<crate::http_api::HttpApi>>() {
-        api.forget_rendezvous();
+        api.stop_bridge();
     }
     let gate = app.state::<ExitGate>();
     // Restart to Update restarts into the update it installed (see `updates`).
