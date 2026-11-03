@@ -221,7 +221,7 @@ test('scans, shows what it found and where it goes, and writes nothing before Im
     .click()
   await noteRows(page).filter({ hasText: 'Inbox' }).click()
   await expect(body(page)).toContainText('tags: [ignored]')
-  await expect(body(page)).toContainText('See [[Plan]] later.')
+  await expect(body(page)).toContainText(/See \[Plan\]\(devot:\/\/note\/[0-9a-f-]{36}\) later\./)
 
   expect((await calls(page, 'import_read')).map((c) => c.args['path'])).toEqual(PATHS)
   expect(await calls(page, 'import_finish')).toEqual([{ cmd: 'import_finish', args: { id: 7 } }])
