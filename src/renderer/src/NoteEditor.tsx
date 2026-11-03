@@ -932,8 +932,10 @@ export function NoteEditor({
     writing.current = write
     if (!view) return
     // The line at the top stays there: hidden marks and a folded front matter change line heights above it.
-    const effects = [writeSlot.reconfigure(writeFor(write, core))]
-    view.dispatch({ effects: hidden ? effects : [...effects, view.scrollSnapshot()] })
+    const scroller = box.current?.scroller
+    const top = scroller && !hidden ? editorTop(view, scroller) : undefined
+    view.dispatch({ effects: writeSlot.reconfigure(writeFor(write, core)) })
+    if (scroller && top) scrollToTop(view, scroller, top)
   }, [write, core, hidden])
 
   useEffect(() => {

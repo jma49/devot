@@ -258,6 +258,38 @@ test.describe('a new install', () => {
     }
   })
 
+  test('DIAG heading height', async ({ page }) => {
+    await createNote(page, 'Still', '# Head\n\n**bold** line')
+    await body(page).click()
+    await page.keyboard.press('ControlOrMeta+End')
+    const dump = () =>
+      body(page).evaluate((content) => {
+        const w = globalThis as unknown as {
+          getComputedStyle(e: unknown): Record<string, string>
+        }
+        type El = {
+          tagName: string
+          className: string
+          textContent: string
+          getBoundingClientRect(): { height: number; y: number }
+          querySelectorAll(s: string): El[]
+          children: El[]
+        }
+        const line = (content as unknown as El).querySelectorAll('.cm-line')[0]!
+        const info = (e: El) => {
+          const c = w.getComputedStyle(e)
+          return `${e.tagName}.${e.className}[${e.textContent}] h=${e.getBoundingClientRect().height} ff=${c['fontFamily']} fs=${c['fontSize']} lh=${c['lineHeight']} fw=${c['fontWeight']}`
+        }
+        return [info(line), ...line.querySelectorAll('*').map(info)].join('\n')
+      })
+    const a = await dump()
+    const box = await charBox(page, 0, 'Head', 1)
+    await page.mouse.click(box.x + 1, box.y + box.height / 2)
+    await expect.poll(() => lines(page)).toContainEqual('# Head')
+    const b = await dump()
+    expect(`HIDDEN\n${a}\nSHOWN\n${b}`).toBe('')
+  })
+
   test('puts the caret where the pointer is on a line without its marks', async ({ page }) => {
     await createNote(page, 'Pointer', '**bold** and more\nother')
     await body(page).click()
@@ -301,11 +333,11 @@ test.describe('a new install', () => {
     await page.keyboard.press('Shift+ArrowRight')
     await page.keyboard.press('Shift+ArrowRight')
     await page.keyboard.press('Shift+ArrowRight')
-    await page.keyboard.press('Meta+Alt+KeyG')
-    await page.keyboard.press('Meta+Alt+KeyG')
+    await page.keyboard.press('ControlOrMeta+Alt+KeyG')
+    await page.keyboard.press('ControlOrMeta+Alt+KeyG')
     await page.keyboard.insertText('dog')
     await expect.poll(() => lines(page)).toEqual(['**dog** one', '# dog two', '- dog three'])
-    await page.keyboard.press('Meta+KeyZ')
+    await page.keyboard.press('ControlOrMeta+KeyZ')
     expect(await source(page)).toEqual(['**cat** one', '# cat two', '- cat three'])
   })
 
@@ -430,10 +462,12 @@ test.describe('switching between Write and Edit', () => {
     const before = await topLine()
     await modes(page).getByRole('button', { name: 'Edit' }).click()
     await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Edit')
-    expect((await topLine()).replace(/^## |\*\*/g, '')).toBe(before.replace(/^## |\*\*/g, ''))
+    await expect
+      .poll(async () => (await topLine()).replace(/^## |\*\*/g, ''))
+      .toBe(before.replace(/^## |\*\*/g, ''))
     await modes(page).getByRole('button', { name: 'Write' }).click()
     await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Write')
-    expect(await topLine()).toBe(before)
+    await expect.poll(topLine).toBe(before)
     await body(page).focus()
     await page.keyboard.insertText('!')
     // Only the lines near the view are drawn.
