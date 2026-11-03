@@ -13,6 +13,20 @@ export const editorLayoutWatch = EditorView.updateListener.of((update) => {
   for (const listener of layoutListeners.get(update.view) ?? []) listener()
 })
 
+/**
+ * A block of the height map can hold several lines (a rendered image, formula
+ * or diagram in Write mode, a folded front matter): its height is shared out
+ * evenly over them, so a line inside it still has a place.
+ */
+export function lineAtFraction(first: number, last: number, into: number): number {
+  return first + Math.min(1, Math.max(0, into)) * (last - first + 1)
+}
+
+/** How far into a block of lines `first`..`last` line `line` (fractional) is, 0 to 1. */
+export function fractionAtLine(first: number, last: number, line: number): number {
+  return Math.min(1, Math.max(0, (line - first) / (last - first + 1)))
+}
+
 export function editorScrollPane(view: EditorView, scroller: HTMLElement): ScrollPane {
   const visibleTop = () =>
     scroller.getBoundingClientRect().top + scroller.clientTop - view.documentTop
@@ -22,15 +36,17 @@ export function editorScrollPane(view: EditorView, scroller: HTMLElement): Scrol
     topLine() {
       const height = visibleTop()
       const block = view.lineBlockAtHeight(Math.max(0, height))
-      const line = view.state.doc.lineAt(block.from).number
+      const doc = view.state.doc
       const into = block.height > 0 ? (height - block.top) / block.height : 0
-      return line + Math.min(1, Math.max(0, into))
+      return lineAtFraction(doc.lineAt(block.from).number, doc.lineAt(block.to).number, into)
     },
     offsetOf(line) {
       const doc = view.state.doc
       const number = Math.min(doc.lines, Math.max(1, Math.floor(line)))
       const block = view.lineBlockAt(doc.line(number).from)
-      const into = Math.min(1, Math.max(0, line - number))
+      const first = doc.lineAt(block.from).number
+      const last = doc.lineAt(block.to).number
+      const into = fractionAtLine(first, last, Math.min(line, last + 1))
       return scroller.scrollTop + block.top + into * block.height - visibleTop()
     },
     onLayout(listener) {

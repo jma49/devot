@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view'
-import { BOX_PAD } from '../boxes'
+import { BOX_MARGIN, BOX_PAD } from '../boxes'
 
 const token = (name: string) => `var(--color-${name})`
 
@@ -58,4 +58,16 @@ export const writeTheme = EditorView.theme({
   },
   '.cm-wm-front-matter-label': { fontWeight: 'var(--font-weight-semibold)' },
   '.cm-wm-front-matter-keys': { marginInlineStart: 'var(--space-3)' },
+  // A rendered block sits in the text column, as a code block's box does.
+  '.cm-wm-block': {
+    marginInline: BOX_PAD,
+    paddingBlock: BOX_MARGIN,
+    borderRadius: 'var(--radius-card)',
+    cursor: 'text',
+  },
+  '.cm-wm-block-selected': {
+    outline: `var(--size-focus-ring) solid ${token('focus-ring')}`,
+  },
+  '.cm-wm-block img': { cursor: 'zoom-in' },
+  '.cm-wm-block img.image-missing': { cursor: 'default' },
 })

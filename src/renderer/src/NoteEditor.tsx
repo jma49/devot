@@ -109,7 +109,9 @@ import {
 } from './imageMenu'
 import type { ViewedImage } from './ImageViewer'
 import { linkCompletion, type LinkSources } from './linkCompletion'
-import { setWriteFocus, writeFocusTracking, writeMode } from './editor/write'
+import { setWriteFocus, writeFocusTracking, writeMode, type WriteRenderer } from './editor/write'
+import { previewLabels } from './preview/Preview'
+import contentCss from './preview/content.css?raw'
 import type { Core } from './core-client'
 import type { ScrollPane } from './preview/scrollSync'
 import { clampSelection, clampTop, type EditorTop, type SelectionState } from './lastState'
@@ -156,7 +158,20 @@ const templateChip = (offered: boolean, run: { readonly current: (() => void) | 
   offered ? chooseTemplate.of(() => run.current?.()) : []
 // Write mode (editor/write): the editor itself, so the caret, the history and the place are kept.
 const writeSlot = new Compartment()
-const writeFor = (on: boolean, core: Core) => (on ? writeMode({ loadNote: previewsFor(core) }) : [])
+const writeFor = (on: boolean, core: Core) =>
+  on ? writeMode({ loadNote: previewsFor(core), render: blockRenderer(core) }) : []
+
+/** Write mode's images, formulas and diagrams, by the preview's renderers in the core. */
+const blockRenderer = (core: Core): WriteRenderer => ({
+  render: (markdown, loadedEmbeds) =>
+    core
+      .renderPreviewPieces(
+        markdown,
+        { labels: previewLabels(), loadedEmbeds: [...loadedEmbeds] },
+        [],
+      )
+      .then((pieces) => pieces.flatMap((piece) => piece.nodes ?? [])),
+})
 const marksFor = (on: boolean, doc: Y.Doc, noteId: string) =>
   on ? authorshipMarks(doc, noteId) : []
 /** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
@@ -591,6 +606,18 @@ const popupSpace = (frame: HTMLElement) =>
     },
   })
 
+/** The preview's own content rules, for Write mode's rendered blocks. */
+const contentStyles = (() => {
+  let sheet: CSSStyleSheet | undefined
+  return () => {
+    if (!sheet) {
+      sheet = new CSSStyleSheet()
+      sheet.replaceSync(contentCss)
+    }
+    return sheet
+  }
+})()
+
 /** The editor's own styles in its shadow root, where the window's stylesheet does not reach. */
 const frameStyles = (() => {
   let sheet: CSSStyleSheet | undefined
@@ -642,7 +669,7 @@ function shadowContainer(host: HTMLElement): {
   const root = host.shadowRoot ?? host.attachShadow({ mode: 'open' })
   root.replaceChildren()
   if (!root.adoptedStyleSheets.includes(frameStyles())) {
-    root.adoptedStyleSheets = [...root.adoptedStyleSheets, frameStyles()]
+    root.adoptedStyleSheets = [...root.adoptedStyleSheets, frameStyles(), contentStyles()]
   }
   const frame = document.createElement('div')
   frame.className = 'editor-frame'

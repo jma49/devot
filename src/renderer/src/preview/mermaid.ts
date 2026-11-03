@@ -223,12 +223,12 @@ export function importSvg(markup: string): { svg: SVGSVGElement; css: string } {
   return { svg, css: css.join('\n') }
 }
 
-function adopt(css: string): () => void {
+function adopt(css: string, root: DocumentOrShadowRoot = document): () => void {
   const sheet = new CSSStyleSheet()
   sheet.replaceSync(css)
-  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]
+  root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet]
   return () => {
-    document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => s !== sheet)
+    root.adoptedStyleSheets = root.adoptedStyleSheets.filter((s) => s !== sheet)
   }
 }
 
@@ -265,7 +265,7 @@ function diagramLabel(source: string): string {
 
 async function render(
   source: string,
-  { appearance, signal, width }: IslandContext,
+  { appearance, signal, width, styleRoot }: IslandContext,
 ): Promise<IslandContent> {
   if (source.length > MAX_SOURCE_LENGTH) return errorContent('parse')
   const answer = await renderInFrame(source, appearance, shownPalette(appearance), signal, width)
@@ -277,7 +277,7 @@ async function render(
   try {
     const { svg, css } = importSvg(answer.svg)
     labelDiagram(svg, diagramLabel(source))
-    return { node: svg, dispose: adopt(css) }
+    return { node: svg, dispose: adopt(css, styleRoot) }
   } catch {
     logFailure('svg')
     return errorContent('svg')

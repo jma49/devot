@@ -1,4 +1,4 @@
-// The image size bar: while the caret is in an image's Markdown, a floating
+// The image size bar: while the caret is in an image's Markdown (or the image is selected whole), a floating
 // bar under its line (over it when there is no room) sets the image's size
 // preset: Auto, Small, Half or Full, written into the alt text (see
 // core/images.ts). The current preset is drawn with a ring.
@@ -10,7 +10,7 @@ import { IMAGE_SIZES, type ImageSize } from '../../../core/images'
 import { t, type MessageKey } from '../i18n'
 import type { IconName } from '../icons/symbols'
 import { BAR_GAP, barContent, FloatButton, floatTheme, NOTCH_X, useFloatTip } from './floating'
-import { imageAtCaret, imageSizeChange, type EditorImage } from './images'
+import { imageForBar, imageSizeChange, type EditorImage } from './images'
 import { barsMayShow } from './barRules'
 import { releaseBarFocus, toolbarState, toolbarStateExtension } from './toolbarState'
 
@@ -57,7 +57,7 @@ function createBar(view: EditorView): TooltipView {
   dom.className = 'cm-float-bar cm-image-size-bar'
   const root = createRoot(barContent(dom))
   const render = (state: EditorState) => {
-    const image = imageAtCaret(state)
+    const image = imageForBar(state)
     if (image) root.render(<ImageSizeBar view={view} image={image} />)
   }
   return {
@@ -78,7 +78,7 @@ const barTooltip = showTooltip.compute(
   [toolbarState, 'selection', 'doc'],
   (state): Tooltip | null => {
     if (!barsMayShow(state) || state.readOnly) return null
-    const image = imageAtCaret(state)
+    const image = imageForBar(state)
     return image ? { pos: image.from, above: false, create: createBar } : null
   },
 )

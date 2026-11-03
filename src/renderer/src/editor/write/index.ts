@@ -12,13 +12,17 @@ import {
   type ViewUpdate,
 } from '@codemirror/view'
 import type { LoadPreview } from '../../notePreview'
+import { inlineImagesHidden } from '../images'
+import { writeBlockKeys } from './blockKeys'
 import { writeBlocks } from './blocks'
+import { imageDoubleClick, writeRenderer, type WriteRenderer } from './rendered'
 import { selectedIn } from './focus'
 import { selectedKey, writeRanges, type Selected, type WriteRange } from './rules'
 import { writeTheme } from './theme'
 import { atomic, decorationOf, drawn, writeNoteLoader } from './widgets'
 
 export { writeBlockRule, type BlockRule } from './blocks'
+export type { WriteRenderer } from './rendered'
 export { setWriteFocus, writeFocusTracking } from './focus'
 
 function rangesIn(view: EditorView): { all: DecorationSet; atomic: DecorationSet } {
@@ -162,15 +166,21 @@ function clickedWords(): Extension {
 export interface WriteModeOptions {
   /** Titles for note links with no text of their own. */
   loadNote?: LoadPreview
+  /** Renders images, formulas, diagrams and embeds as the preview does. */
+  render?: WriteRenderer
 }
 
 export function writeMode(options: WriteModeOptions = {}): Extension {
   return [
     marks,
+    imageDoubleClick,
     clickedWords(),
     writeBlocks,
+    writeBlockKeys,
     writeTheme,
+    inlineImagesHidden.of(true),
     options.loadNote ? writeNoteLoader.of(options.loadNote) : [],
+    options.render ? writeRenderer.of(options.render) : [],
     EditorView.editorAttributes.of({ 'data-write': '' }),
   ]
 }

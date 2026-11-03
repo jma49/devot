@@ -1,5 +1,5 @@
 // Write mode's blocks: decorations that take whole lines (a folded front
-// matter now; images, diagrams and tables in the next steps). CodeMirror takes
+// matter, rendered images, formulas, diagrams and embeds; tables next). CodeMirror takes
 // those only from state, never from a view plugin, so they live in one state
 // field fed by `writeBlockRule`: a step adds a rule, not another field.
 import { syntaxTree } from '@codemirror/language'
@@ -8,13 +8,15 @@ import {
   StateField,
   type EditorState,
   type Extension,
+  Transaction,
   type Range,
-  type Transaction,
 } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import { t } from '../../i18n'
 import { FRONT_MATTER } from '../markdown'
 import { revealedIn, setWriteFocus } from './focus'
+import { blockLook, writeBlocksOf } from './blockRanges'
+import { RenderedBlockWidget } from './rendered'
 import type { Revealed } from './rules'
 import { isRevealed } from './rules'
 
@@ -77,6 +79,19 @@ export const frontMatterRule: BlockRule = (state, revealed) => {
   return [Decoration.replace({ widget, block: true }).range(0, node.to)]
 }
 
+/**
+ * Images, formulas, diagrams and embeds as the preview shows them. A closed
+ * block takes its lines; an open one shows its source with the rendering under it.
+ */
+export const renderedBlockRule: BlockRule = (state) =>
+  writeBlocksOf(state).map((block) => {
+    const look = blockLook(state, block)
+    const widget = new RenderedBlockWidget(block, look)
+    return look === 'open'
+      ? Decoration.widget({ widget, block: true, side: 1 }).range(block.to)
+      : Decoration.replace({ widget, block: true }).range(block.from, block.to)
+  })
+
 function build(state: EditorState): DecorationSet {
   const revealed = revealedIn(state)
   return Decoration.set(
@@ -92,6 +107,9 @@ const changesBlocks = (tr: Transaction) =>
   tr.effects.some((e) => e.is(setWriteFocus)) ||
   syntaxTree(tr.state) !== syntaxTree(tr.startState)
 
+const userStep = (tr: Transaction) =>
+  tr.annotation(Transaction.userEvent) !== undefined || tr.effects.some((e) => e.is(setWriteFocus))
+
 interface Blocks {
   decorations: DecorationSet
   /** Mapped through a composition rather than built again; built on the first change after it. */
@@ -101,8 +119,10 @@ interface Blocks {
 const blocks = StateField.define<Blocks>({
   create: (state) => ({ decorations: build(state), stale: false }),
   update(value, tr) {
-    // Nothing is drawn again inside an input method's composition.
-    if (tr.isUserEvent('input.type.compose')) {
+    // Nothing is drawn again inside an input method's composition, nor for a
+    // change from elsewhere (the parser, a sync) that may come during one: only
+    // the user's next step after it builds the blocks again.
+    if (tr.isUserEvent('input.type.compose') || (value.stale && !userStep(tr))) {
       return { decorations: value.decorations.map(tr.changes), stale: true }
     }
     if (!value.stale && !changesBlocks(tr)) return value
@@ -114,4 +134,8 @@ const blocks = StateField.define<Blocks>({
   ],
 })
 
-export const writeBlocks: Extension = [blocks, writeBlockRule.of(frontMatterRule)]
+export const writeBlocks: Extension = [
+  blocks,
+  writeBlockRule.of(frontMatterRule),
+  writeBlockRule.of(renderedBlockRule),
+]
