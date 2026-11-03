@@ -23,7 +23,6 @@ function mark(s: EditorState): string {
     : `${text.slice(0, from)}«${text.slice(from, to)}»${text.slice(to)}`
 }
 
-/** Runs the command; returns the marked text after it and the state before, to check undo. */
 function press(id: Parameters<typeof runEditCommand>[1], marked: string) {
   const before = state(marked)
   let now = before
@@ -98,6 +97,13 @@ describe('Move Line Down and Up on a list item', () => {
 
   it('works inside a quote', () => {
     expect(down('> - a|\n>   - a1\n> - b')).toBe('> - b\n> - a|\n>   - a1')
+  })
+
+  it('leaves items that share a line with their parent alone', () => {
+    expect(down('- - a|\n  - b')).toBe('- - a|\n  - b')
+    expect(down('- > - a|\n  > - b')).toBe('- > - a|\n  > - b')
+    expect(outdent('- - a|\n  - b')).toBe('- - a|\n  - b')
+    expect(indent('- - a|\n  - b')).toBe('- - a|\n  - b')
   })
 
   it('is one undo step', () => {

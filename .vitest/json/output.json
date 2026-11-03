@@ -1,0 +1,282 @@
+{
+  "numTotalTestSuites": 3,
+  "numPassedTestSuites": 3,
+  "numFailedTestSuites": 0,
+  "numPendingTestSuites": 0,
+  "numTotalTests": 22,
+  "numPassedTests": 22,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "snapshot": {
+    "added": 0,
+    "failure": false,
+    "filesAdded": 0,
+    "filesRemoved": 0,
+    "filesRemovedList": [],
+    "filesUnmatched": 0,
+    "filesUpdated": 0,
+    "matched": 0,
+    "total": 0,
+    "unchecked": 0,
+    "uncheckedKeysByFile": [],
+    "unmatched": 0,
+    "updated": 0,
+    "didUpdate": false
+  },
+  "startTime": 1793694892141,
+  "success": true,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item swaps a parent with its children past the next sibling",
+          "status": "passed",
+          "title": "swaps a parent with its children past the next sibling",
+          "duration": 7.502499999999998,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item swaps with the previous sibling and its children going up",
+          "status": "passed",
+          "title": "swaps with the previous sibling and its children going up",
+          "duration": 0.932707999999991,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item moves a nested item among its own siblings only",
+          "status": "passed",
+          "title": "moves a nested item among its own siblings only",
+          "duration": 0.7142079999999851,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item leaves the list alone at the first and last item",
+          "status": "passed",
+          "title": "leaves the list alone at the first and last item",
+          "duration": 0.511209000000008,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item keeps the caret and selection on the same text",
+          "status": "passed",
+          "title": "keeps the caret and selection on the same text",
+          "duration": 0.879333000000031,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item keeps task items whole and their ticks",
+          "status": "passed",
+          "title": "keeps task items whole and their ticks",
+          "duration": 2.441000000000031,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item renumbers a numbered list, keeping its first number",
+          "status": "passed",
+          "title": "renumbers a numbered list, keeping its first number",
+          "duration": 0.9033749999999827,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item moves the children with a number that gains or loses a digit",
+          "status": "passed",
+          "title": "moves the children with a number that gains or loses a digit",
+          "duration": 0.32250000000004775,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item keeps blank lines between loose items in place",
+          "status": "passed",
+          "title": "keeps blank lines between loose items in place",
+          "duration": 0.31958399999996345,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item works inside a quote",
+          "status": "passed",
+          "title": "works inside a quote",
+          "duration": 0.3371249999999577,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item is one undo step",
+          "status": "passed",
+          "title": "is one undo step",
+          "duration": 0.510832999999991,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item moves lines as before outside a list",
+          "status": "passed",
+          "title": "moves lines as before outside a list",
+          "duration": 0.8843330000000265,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item moves the selected lines when a selection reaches into several items",
+          "status": "passed",
+          "title": "moves the selected lines when a selection reaches into several items",
+          "duration": 0.21279100000003837,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Move Line Down and Up on a list item"],
+          "fullName": "Move Line Down and Up on a list item moves a code block line inside an item as part of that item",
+          "status": "passed",
+          "title": "moves a code block line inside an item as part of that item",
+          "duration": 0.44987499999996317,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Indent and Outdent on a list item"],
+          "fullName": "Indent and Outdent on a list item indent takes the children along",
+          "status": "passed",
+          "title": "indent takes the children along",
+          "duration": 1.059500000000014,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Indent and Outdent on a list item"],
+          "fullName": "Indent and Outdent on a list item outdent takes the children along",
+          "status": "passed",
+          "title": "outdent takes the children along",
+          "duration": 0.5377919999999676,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Indent and Outdent on a list item"],
+          "fullName": "Indent and Outdent on a list item nests a numbered item as far as the item above needs, renumbering",
+          "status": "passed",
+          "title": "nests a numbered item as far as the item above needs, renumbering",
+          "duration": 1.1116249999999468,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Indent and Outdent on a list item"],
+          "fullName": "Indent and Outdent on a list item handles task items",
+          "status": "passed",
+          "title": "handles task items",
+          "duration": 0.42275000000000773,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Indent and Outdent on a list item"],
+          "fullName": "Indent and Outdent on a list item does nothing for outdent at the top level and indent of a first item",
+          "status": "passed",
+          "title": "does nothing for outdent at the top level and indent of a first item",
+          "duration": 0.3740829999999846,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Indent and Outdent on a list item"],
+          "fullName": "Indent and Outdent on a list item acts on the item the caret is in, not its parent",
+          "status": "passed",
+          "title": "acts on the item the caret is in, not its parent",
+          "duration": 0.296875,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Indent and Outdent on a list item"],
+          "fullName": "Indent and Outdent on a list item is one undo step",
+          "status": "passed",
+          "title": "is one undo step",
+          "duration": 0.44299999999998363,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        },
+        {
+          "ancestorTitles": ["Indent and Outdent on a list item"],
+          "fullName": "Indent and Outdent on a list item indents and outdents lines as before outside a list",
+          "status": "passed",
+          "title": "indents and outdents lines as before outside a list",
+          "duration": 0.8262500000000159,
+          "failureMessages": [],
+          "meta": {},
+          "tags": [],
+          "benchmarks": []
+        }
+      ],
+      "startTime": 1793694892664,
+      "endTime": 1793694892686.8262,
+      "status": "passed",
+      "message": "",
+      "name": "/Users/jinchengma/.t3/worktrees/devot/t3-4828dd89/src/renderer/src/editor/listBlocks.test.ts"
+    }
+  ]
+}

@@ -16,12 +16,12 @@ const isBlank = (text: string) => text.trim() === ''
 
 interface ListBlock {
   item: SyntaxNode
-  /** The item's first line number, and the last one that is not blank. */
   first: number
   last: number
+  /** The item starts on the line of an item or quote around it, which a line swap would take along. */
+  shared: boolean
 }
 
-/** The list item the selection is in as a whole, unless it reaches into the items nested in it. */
 function selectedBlock(cx: Cx): ListBlock | null {
   const { state, tree } = cx
   if (state.selection.ranges.length !== 1) return null
@@ -31,10 +31,13 @@ function selectedBlock(cx: Cx): ListBlock | null {
   const from = Math.max(range.from, startLine.from + textStart(startLine))
   const to = Math.max(from, range.to)
   let item: SyntaxNode | null = null
+  // At the end of an item, only the side before the position is inside it.
   for (const side of [1, -1] as const) {
-    for (let p: SyntaxNode | null = tree.resolveInner(from, side); p && !item; p = p.parent)
-      if (p.name === 'ListItem' && p.from <= from && to <= p.to) item = p
-    if (item) break
+    for (let p: SyntaxNode | null = tree.resolveInner(from, side); p; p = p.parent) {
+      if (p.name !== 'ListItem' || p.from > from || to > p.to) continue
+      if (!item || p.from > item.from) item = p
+      break
+    }
   }
   if (!item) return null
   const first = doc.lineAt(item.from).number
@@ -49,8 +52,14 @@ function selectedBlock(cx: Cx): ListBlock | null {
       if (childFirst <= selectedLast && doc.lineAt(child.to).number >= startLine.number) return null
     }
   }
-  return { item, first, last }
+  const shared = item.from !== doc.line(first).from + textStart(doc.line(first))
+  return { item, first, last, shared }
 }
+
+const MARKER_LINE = /^(?:\s*>)*\s*(?:[-*+]|\d{1,9}[.)])\s/
+
+const onMarkerLine = (state: EditorState) =>
+  MARKER_LINE.test(state.doc.lineAt(state.selection.main.head).text)
 
 function inListBlock(
   act: (cx: Cx, block: ListBlock) => TransactionSpec | null,
@@ -59,9 +68,11 @@ function inListBlock(
   return (view: EditorView): boolean => {
     if (view.state.readOnly) return otherwise(view)
     const cx = commandContext(view.state)
-    const block = cx && selectedBlock(cx)
-    if (!cx || !block) return otherwise(view)
-    const change = act(cx, block)
+    // A parse that ran out of time cannot tell a list from text: a line on a marker is left alone.
+    if (!cx) return onMarkerLine(view.state) || otherwise(view)
+    const block = selectedBlock(cx)
+    if (!block) return otherwise(view)
+    const change = block.shared ? null : act(cx, block)
     if (change) view.dispatch(change)
     return true
   }
@@ -69,14 +80,9 @@ function inListBlock(
 
 interface Relabelled {
   text: string
-  /** How the block's own text became `text`, to follow the selection through it. */
   changes: ChangeSet
 }
 
-/**
- * The block's text with its number replaced by `digits`; lines under it move
- * by the width the number gains or loses, to stay nested in the item.
- */
 function relabelled(
   state: EditorState,
   item: SyntaxNode,
@@ -129,10 +135,11 @@ function moveBlock(dir: -1 | 1) {
     while (other && other.name !== 'ListItem')
       other = dir < 0 ? other.prevSibling : other.nextSibling
     if (!other) return null
+    if (other.from !== doc.lineAt(other.from).from + textStart(doc.lineAt(other.from))) return null
     const otherFirst = doc.lineAt(other.from).number
     let otherLast = doc.lineAt(other.to).number
     while (otherLast > otherFirst && isBlank(doc.line(otherLast).text)) otherLast--
-    const mine = { item: block.item, first: block.first, last: block.last }
+    const mine = block
     const theirs = { item: other, first: otherFirst, last: otherLast }
     const [upper, lower] = dir < 0 ? [theirs, mine] : [mine, theirs]
     const upperFrom = doc.line(upper.first).from
