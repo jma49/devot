@@ -340,7 +340,7 @@ test('the image menu copies and saves an attachment, and sets its size', async (
 
   await pickMenuItem(page, 'Small', 'Size')
   await expect(body(page)).toHaveText(`Before ![Shot w:240](${FILE}) after`)
-  await expect(img).toHaveClass('image-size-small')
+  await expect(img).toHaveClass(/(^|\s)image-size-small(\s|$)/)
   await expect(img).toHaveAttribute('src', FILE)
 
   await img.dispatchEvent('contextmenu', {
