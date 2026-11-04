@@ -30,6 +30,7 @@
     "test:policy": "vitest run --project fast tests/policy tests/tokens",
     "test:watch": "vitest",
     "test:ui": "playwright test",
+    "test:ui:build": "DEVOT_SENTRY_DSN= vite build --config vite.ui-test.config.ts --outDir ../../dist-test --emptyOutDir",
     "rust:check": "cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && cargo deny check",
     "deps:audit": "pnpm audit --audit-level=high",
     "check": "pnpm tokens:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:ui && pnpm deps:audit && pnpm rust:check",

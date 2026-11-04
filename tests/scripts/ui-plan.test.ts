@@ -146,13 +146,13 @@ it('unions multiple feature selections and directly changed specs', () => {
 
 it('separates expensive specs instead of grouping them by filename', () => {
   const files = Array.from({ length: 4 }, (_, i) => `tests/ui/feature-${i}.spec.ts`)
-  const durations = Object.fromEntries(files.map((file, i) => [file, i < 2 ? 400_000 : 10_000]))
+  const durations = Object.fromEntries(files.map((file, i) => [file, i < 2 ? 280_000 : 7_000]))
   const plan = planUi(files, files, false, durations)
   const jobs = plan.matrix.include
   expect(jobs).toHaveLength(2)
   expect(jobs.every((job) => job.partitioned)).toBe(true)
   expect(jobs.map((job) => job.files.reduce((sum, file) => sum + durations[file]!, 0))).toEqual([
-    410_000, 410_000,
+    287_000, 287_000,
   ])
   expect(jobs[0]!.files).not.toContain(files[1])
   expect(jobs.flatMap((job) => job.files).sort()).toEqual(files)
@@ -172,13 +172,13 @@ it('uses measured work to schedule a full run in at most fourteen shards', () =>
 it('prices an unmeasured spec at the median measured spec, not the slowest', () => {
   const measured = Array.from({ length: 8 }, (_, i) => `tests/ui/measured-${i}.spec.ts`)
   const durations: Record<string, number> = Object.fromEntries(
-    measured.map((file) => [file, 100_000]),
+    measured.map((file) => [file, 70_000]),
   )
-  durations[measured[0]!] = 1_100_000
+  durations[measured[0]!] = 770_000
   const unmeasured = ['tests/ui/new-a.spec.ts', 'tests/ui/new-b.spec.ts']
   const files = [...measured, ...unmeasured]
   const jobs = planUi(files, files, false, durations).matrix.include
-  // Priced at the slowest, the unmeasured pair would need 5 shards and sit alone on them.
+  // Priced at the slowest, the unmeasured pair would need 7 shards and sit alone on them.
   expect(jobs).toHaveLength(4)
   expect(jobs.find((job) => job.files.includes(measured[0]!))!.files).toEqual([measured[0]])
 })

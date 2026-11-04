@@ -6,6 +6,7 @@ import { isPhoneLayout } from './phone/navigation'
 import { resolveLocale, setIPhoneWording, setLocale } from './i18n'
 import { watchCompositions } from './ime'
 import { startCrashReporting } from './crash'
+import { startCore } from './core-client'
 import { forwardConsole, forwardUncaught, type LogEntry } from './log'
 import { editorSettings, startEditorSettings, subscribeEditorSettings } from './editorSettings'
 import { startShortcutSettings } from './commands/shortcutSettings'
@@ -48,6 +49,11 @@ if (!DEVOT_UI_TEST) {
   void followSystemAccent(document.documentElement.style, () => editorSettings().systemAccent)
     .then((refresh) => subscribeEditorSettings(refresh))
     .catch(() => console.warn('W_SYSTEM_ACCENT_FAILED'))
+}
+
+// Tests call these from the page: a bundle, unlike the dev server, has no URL for each module.
+if (DEVOT_UI_TEST) {
+  Object.assign(globalThis, { devotTestModules: { invoke, startCore, startCrashReporting } })
 }
 
 const PhoneApp = lazy(() => import('./phone/PhoneApp').then((m) => ({ default: m.PhoneApp })))

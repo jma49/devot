@@ -31,8 +31,11 @@ it('pnpm check runs the dependency audit', () => {
 })
 
 it('every pnpm step of the CI web jobs is a step of pnpm check', () => {
-  const steps = commands(job('web-checks') + job('unit-tests') + job('ui'))
-    .filter((c) => c.startsWith('pnpm ') && !/^pnpm (install|exec|ui:build)\b/.test(c))
+  // `pnpm test:ui` makes the UI tests' build itself when CI has not (tests/support/ui-servers.ts).
+  const steps = commands(job('web-checks') + job('unit-tests') + job('ui-build') + job('ui'))
+    .filter(
+      (c) => c.startsWith('pnpm ') && !/^pnpm (install|exec|ui:build|test:ui:build)\b/.test(c),
+    )
     .map((c) => c.replace(/^pnpm /, '').split(' ')[0] ?? '')
   expect(steps.length).toBeGreaterThan(5)
   expect(steps).toContain('test:ui')
@@ -103,6 +106,7 @@ it('documentation-only pull requests skip heavy jobs but still report every requ
   expect(job('web-checks')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('unit-tests')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('ui')).toContain("needs.changes.outputs.docs_only != 'true'")
+  expect(job('ui-build')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('rust-check')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('deny')).toContain("needs.changes.outputs.docs_only != 'true'")
   for (const gate of ['web', 'rust', 'policy']) {
@@ -136,7 +140,7 @@ it('documentation-only pull requests still run the format check and the tests th
 })
 
 it('uses the setup caches only where the job installs those dependencies', () => {
-  for (const name of ['policy-check', 'web-checks', 'unit-tests', 'ui', 'rust-check']) {
+  for (const name of ['policy-check', 'web-checks', 'unit-tests', 'ui-build', 'ui', 'rust-check']) {
     expect(job(name)).toMatch(/actions\/setup-node@[^\n]*\n(?: {8,}.*\n)*? {10}cache: pnpm/)
   }
   const rust = job('rust-check')
@@ -197,6 +201,43 @@ it('builds no UI for the Rust jobs, which compile against a placeholder page', (
   expect(read('src-tauri/tauri.conf.json')).toContain('"frontendDist": "../dist"')
 })
 
+it("builds the UI tests' bundle once per run and every UI shard tests that build", () => {
+  // The dev server sends each module of a page on its own, hundreds per page load.
+  const build = parse(workflow) as {
+    jobs: Record<
+      string,
+      {
+        needs?: string[]
+        if?: string
+        env?: Record<string, string>
+        steps: { uses?: string; run?: string; with?: Record<string, unknown> }[]
+      }
+    >
+  }
+  const builder = build.jobs['ui-build']!
+  const shards = build.jobs['ui']!
+  expect(builder.if).toBe(shards.if)
+  expect(builder.steps.map((s) => s.run).filter(Boolean)).toEqual([
+    'pnpm install --frozen-lockfile',
+    'pnpm test:ui:build',
+  ])
+  const upload = builder.steps.find((s) => s.uses?.startsWith('actions/upload-artifact@'))
+  expect(upload?.with).toMatchObject({ name: 'ui-test-dist', path: 'dist-test/' })
+  expect(shards.needs).toEqual(['changes', 'ui-build'])
+  expect(shards.env).toMatchObject({ DEVOT_UI_PREBUILT: '1' })
+  const steps = shards.steps
+  const download = steps.findIndex((s) => s.uses?.startsWith('actions/download-artifact@'))
+  expect(steps[download]?.with).toEqual({ name: 'ui-test-dist', path: 'dist-test' })
+  expect(steps.findIndex((s) => s.run?.startsWith('pnpm test:ui '))).toBeGreaterThan(download)
+  expect(commands(job('ui')).some((c) => /vite build|test:ui:build/.test(c))).toBe(false)
+  // The same build as a local run's, which Playwright makes when none is there.
+  expect(scripts['test:ui:build']).toBe(
+    'DEVOT_SENTRY_DSN= vite build --config vite.ui-test.config.ts --outDir ../../dist-test --emptyOutDir',
+  )
+  expect(read('tests/support/ui-servers.ts')).toContain('`pnpm test:ui:build && ${command}`')
+  expect(read('playwright.config.ts')).toContain('webServer: uiWebServers(')
+})
+
 it('the UI shard plan knows nearly every spec and no removed one', () => {
   // An unrecorded spec is priced at the median, so a few new ones are fine; many unbalance the shards.
   const durations = JSON.parse(read('scripts/ci/ui-durations.json')) as Record<string, number>
@@ -207,19 +248,19 @@ it('the UI shard plan knows nearly every spec and no removed one', () => {
   expect(Object.keys(durations).filter((spec) => !specs.includes(spec))).toEqual([])
 })
 
-it('the web check fails when the quick checks, a UI shard or the change detection fails', () => {
+it('the web check fails when the quick checks, the UI build, a UI shard or the change detection fails', () => {
   // `web` is a required check that sums up the jobs and runs even when they were skipped,
-  // so a skipped job cannot read as passing a failed one.
+  // so a skipped job cannot read as passing a failed one. A failed UI build skips every shard.
   const web = job('web')
-  expect(web).toMatch(/^ {4}needs: \[changes, web-checks, unit-tests, ui\]$/m)
+  expect(web).toMatch(/^ {4}needs: \[changes, web-checks, unit-tests, ui-build, ui\]$/m)
   expect(web).toMatch(/^ {4}if: \$\{\{ always\(\) \}\}$/m)
-  for (const need of ['changes', 'web-checks', 'unit-tests', 'ui']) {
+  for (const need of ['changes', 'web-checks', 'unit-tests', 'ui-build', 'ui']) {
     expect(web).toContain(`needs.${need}.result`)
   }
   expect(web).toMatch(/failure\|cancelled/)
 })
 
-it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI'])(
+it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI_BUILD', 'UI'])(
   'the required gate rejects failed or cancelled %s results',
   (need) => {
     const config = parse(workflow) as {
@@ -233,6 +274,7 @@ it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI'])(
       CHANGES: 'success',
       CHECKS: 'success',
       TESTS: 'success',
+      UI_BUILD: 'success',
       UI: 'success',
     }
     for (const result of ['success', 'skipped', 'failure', 'cancelled']) {

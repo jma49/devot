@@ -35,6 +35,16 @@ export interface TestWindow {
   devotIpcMocks?: Record<string, unknown>
   /** What the relay answers a storage reading with (sync-settings.spec.ts). */
   devotUsage?: unknown
+  /** App functions the UI tests' build puts on the main window (main.tsx). */
+  devotTestModules: {
+    invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown>
+    startCore(onSaveProblems: (problems: { id: string; code: string }[]) => void): Promise<{
+      create(title: string): Promise<string>
+      setTitle(id: string, title: string): Promise<void>
+      flush(): Promise<void>
+    }>
+    startCrashReporting(dsn: string, release: string): Promise<void>
+  }
   /** The label of the window this page stands for (`main-2` for a window File > New Window opened); `main` by default. */
   devotWindowLabel?: string
   devotMenus: Record<number, MockMenu>
