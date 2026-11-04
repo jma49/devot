@@ -34,6 +34,7 @@ const STAND_IN: Record<string, (r: WriteRange) => string> = {
   task: (r) => (r.kind === 'task' ? (r.done ? '{done}' : '{todo}') : ''),
   alert: (r) => (r.kind === 'alert' ? `{${r.alert}}` : ''),
   noteTitle: (r) => (r.kind === 'noteTitle' ? `{note ${r.id}}` : ''),
+  codeLanguage: (r) => (r.kind === 'codeLanguage' ? `{lang ${r.label}}` : ''),
   footnote: (r) => (r.kind === 'footnote' ? `{^${r.number}${r.definition ? ':' : ''}}` : ''),
 }
 
@@ -164,9 +165,7 @@ describe('Write mode footnotes', () => {
   })
 
   it('leave a footnote in code, and a definition nothing refers to, as typed', () => {
-    expect(shown('`a[^1]`\n\n```\nb[^1]\n```\n\n[^1]: x')).toBe(
-      'a[^1]\n\n```\nb[^1]\n```\n\n[^1]: x',
-    )
+    expect(shown('`a[^1]`\n\n```\nb[^1]\n```\n\n[^1]: x')).toBe('a[^1]\n\n\nb[^1]\n\n\n[^1]: x')
   })
 })
 
@@ -229,13 +228,24 @@ describe('Write mode rules', () => {
     expect(marks('a\n\n***\n\nb')).toEqual(['cm-wm-rule '])
   })
 
-  it('leave code, HTML blocks and front matter as source', () => {
-    const blocks = [
-      '```js\nconst a = `x` * 2 // **no**\n```',
-      '    indented **code**',
-      '<div>\n**raw**\n</div>',
-      '---\ntitle: **x**\n---',
-    ]
+  it("hide a code block's fences, keeping their lines, and name its language", () => {
+    expect(shown('a\n\n```ts\nconst a = `x` * 2 // **no**\n```\n\nb')).toBe(
+      'a\n\n{lang TypeScript}\nconst a = `x` * 2 // **no**\n\n\nb',
+    )
+    expect(shown('~~~~\ncode\n~~~~')).toBe('\ncode\n')
+    expect(shown('```made-up title="x"\nx\n```')).toBe('{lang made-up}\nx\n')
+    expect(shown('```\nnot closed')).toBe('\nnot closed')
+  })
+
+  it('show the fences of the code block the selection is in', () => {
+    const doc = 'a\n\n```ts\ncode\n```\n\nb'
+    expect(shown(doc, caret(doc.indexOf('code')))).toBe(doc)
+    expect(shown(doc, caret(doc.indexOf('```')))).toBe(doc)
+    expect(shown(doc, caret(doc.length))).toBe('a\n\n{lang TypeScript}\ncode\n\n\nb')
+  })
+
+  it('leave indented code, HTML blocks and front matter as source', () => {
+    const blocks = ['    indented **code**', '<div>\n**raw**\n</div>', '---\ntitle: **x**\n---']
     for (const doc of blocks) expect(shown(doc)).toBe(doc)
   })
 

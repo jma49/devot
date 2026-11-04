@@ -224,7 +224,7 @@ export class RenderedBlockWidget extends WidgetType {
       draw: () => undefined,
     }
     drawn.set(box, shown)
-    shown.stops.push(watchMissingImages(body))
+    shown.stops.push(watchMissingImages(body, { anyImage: true }))
 
     // The box keeps a height while what it shows arrives: the one known for the
     // block at first, then the one it had while a changed source draws again.

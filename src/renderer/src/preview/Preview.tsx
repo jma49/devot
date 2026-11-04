@@ -327,7 +327,10 @@ export function Preview({
       mounter.mount(host.current, islandContext.current, () => scroll.current?.changed())
   }, [appearance, theme, mounter])
 
-  useEffect(() => (host.current ? watchMissingImages(host.current) : undefined), [])
+  useEffect(
+    () => (host.current ? watchMissingImages(host.current, { anyImage: true }) : undefined),
+    [],
+  )
 
   // Leaving the preview frees what its diagrams hold (their stylesheets).
   useEffect(() => () => mounter.dispose(), [mounter])
