@@ -239,6 +239,27 @@ describe('buying', () => {
     )
     expect(response.status).toBe(413)
   })
+
+  it('stops reading a body sent without a length once it passes the limit', async () => {
+    const chunk = new Uint8Array(1024).fill(120)
+    let pulled = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += chunk.length
+        if (pulled > LIMITS.webhookBytes * 20) controller.close()
+        else controller.enqueue(chunk)
+      },
+    })
+    const response = await app(
+      new Request(`${ORIGIN}/stripe/webhook`, {
+        method: 'POST',
+        body,
+        duplex: 'half',
+      } as RequestInit),
+    )
+    expect(response.status).toBe(413)
+    expect(pulled).toBeLessThan(LIMITS.webhookBytes + 4 * chunk.length)
+  })
 })
 
 describe('/done', () => {
