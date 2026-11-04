@@ -64,5 +64,13 @@ export function isColorChecked(path: string): boolean {
 }
 
 /** A duration compared straight against a limit, which fails on an overloaded machine instead of skipping. */
-export const RAW_TIME_ASSERTION =
-  /expect\((?:ms|elapsed|took|duration|time)\b[^)]*\)\.toBeLessThan|expect\([^)]*(?:performance|Date)\.now\(\)[^)]*\)\.toBeLessThan/
+const DURATION_NAME = String.raw`\b(?:ms|elapsed|took|duration|time|spent|latency|\w+(?:Ms|Millis|Elapsed|Duration|Spent))\b`
+const CLOCK_DIFFERENCE = String.raw`-\s*(?:start|started|begin|before|t0)\b`
+export const RAW_TIME_ASSERTION = new RegExp(
+  [
+    String.raw`expect\(${DURATION_NAME}[^)]*\)\.toBeLessThan`,
+    String.raw`expect\([^)]*(?:performance|Date)\.now\(\)[^)]*\)\.toBeLessThan`,
+    String.raw`expect\([^)]*${CLOCK_DIFFERENCE}[^)]*\)\.toBeLessThan`,
+    String.raw`expect\([^)]*${DURATION_NAME}\s*<=?[^)]*\)\.toBe\(true\)`,
+  ].join('|'),
+)
