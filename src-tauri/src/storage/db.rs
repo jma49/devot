@@ -191,14 +191,16 @@ mod tests {
             panic!("a job that panics");
         }));
         assert_eq!(failed.unwrap_err().to_string(), "E_DB_JOB_PANIC");
+        block_on(db.write(Write::Content, |store| store.put_note(&note("after"), &[]))).unwrap();
+        let notes = block_on(db.call(|store| store.list_notes())).unwrap();
+        assert_eq!(notes.len(), 2);
+        // The caller gets its code as the panic unwinds, before the db thread logs; the
+        // thread runs jobs in order, so the line is there once the next job has replied.
         assert!(
             test_log::lines().contains(&"ERROR E_DB_JOB_PANIC".to_string()),
             "{:?}",
             test_log::lines()
         );
-        block_on(db.write(Write::Content, |store| store.put_note(&note("after"), &[]))).unwrap();
-        let notes = block_on(db.call(|store| store.list_notes())).unwrap();
-        assert_eq!(notes.len(), 2);
     }
 
     #[test]
