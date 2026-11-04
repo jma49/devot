@@ -43,3 +43,6 @@ dist-bench/
 dist-bench-app/
 
 .vitest/
+
+# Screenshots an agent saves while it works
+Claude outputs/
