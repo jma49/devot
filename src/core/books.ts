@@ -12,12 +12,12 @@ import {
   type StorageAdapter,
   type TagColor,
 } from './storage'
+import { TEMPLATES_BOOK_ID } from './templatesBook'
 import { charCount, trimWhitespace, wellFormed } from './text'
 
 export const MAX_BOOK_NAME_CHARS = 200
 
-/** Every device knows it by this ID, so the copies two devices make merge into one row. UUIDv7-shaped with a zero timestamp, which no generated ID has. Not one of the user's notebooks: the notebook service never lists or changes it. */
-export const TEMPLATES_BOOK_ID = '00000000-0000-7000-8000-000000000001'
+export { TEMPLATES_BOOK_ID }
 
 export interface BookServiceOptions {
   storage: StorageAdapter
