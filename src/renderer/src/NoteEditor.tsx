@@ -89,6 +89,7 @@ import { chooseTemplate } from './editor/hints'
 import { taskToggle } from './editor/tasks'
 import { setToolbarFocus } from './editor/toolbarState'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
+import { catchUp } from './editor/catchUp'
 import { reconfigureRegistryKeys, registryKeys } from './editor/registryKeys'
 import { setInertFormats } from './commands/formatMenu'
 import { subscribeKeymap } from './commands/shortcutSettings'
@@ -1047,7 +1048,7 @@ export function NoteEditor({
       scrollHandle.current?.(editorScrollPane(view, scroller))
     }
 
-    const show = (state: Uint8Array) => {
+    const show = (state: Uint8Array, handedOver = false) => {
       const el = host.current
       if (!el) {
         void core.unhold(noteId)
@@ -1359,6 +1360,15 @@ export function NoteEditor({
       loaded.current?.(text.toString())
       reportText()
       publish(s)
+      // Opened before this editor was published: changes sent in between reached no editor.
+      if (handedOver) {
+        void catchUp(
+          doc,
+          (known) => core.open(noteId, known),
+          () => shown.current === s,
+          REMOTE,
+        )
+      }
       // The body took a while to load: a title or palette field the user
       // went to meanwhile keeps the keyboard.
       const settle = () => {
@@ -1389,7 +1399,7 @@ export function NoteEditor({
       editor.current?.view.dispatch({ effects: pausedSlot.reconfigure([]) })
       publish(now)
     } else if (given) {
-      show(given)
+      show(given, true)
     } else {
       held = true
       loading.current?.(true)
