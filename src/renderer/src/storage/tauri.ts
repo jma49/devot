@@ -1,6 +1,7 @@
 // Storage over Tauri commands. Yjs states cross IPC as base64 strings, which
 // the core worker codes (see wire.ts): this side hands them to the commands
 // as they come, so a save or an open costs the UI thread nothing per byte.
+import * as Comlink from 'comlink'
 import { invoke } from '../ipc'
 import type {
   ActivityData,
@@ -23,6 +24,9 @@ export const tauriWire: WireStorage = {
   listNotes: () => invoke<NoteSummary[]>('notes_list'),
   getNote: (id, options) =>
     invoke<WireNote | null>('note_get', { id, trashed: options?.trashed ?? false }),
+  // Handed to the worker as it came, not copied.
+  openNote: (id) =>
+    invoke<ArrayBuffer>('note_open', { id }).then((frame) => Comlink.transfer(frame, [frame])),
   getBodies: (ids) => invoke<NoteBody[]>('notes_bodies', { ids }),
   // The worker found the links and checked the note and its agent_writes rows (what note_put refuses).
   putNote: (note, links) => {

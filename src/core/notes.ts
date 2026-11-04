@@ -77,6 +77,7 @@ import {
   type CompactableVersion,
   type NoteBody,
   type NoteRecord,
+  type OpenedRecord,
   type NoteStatus,
   type NoteSummary,
   type RevisionKind,
@@ -397,7 +398,7 @@ const META_HLCS = [
   'datesHlc',
 ] as const
 
-const stampsOf = (record: NoteRecord) => META_HLCS.map((key) => record[key])
+const stampsOf = (record: OpenedRecord) => META_HLCS.map((key) => record[key])
 
 type MetaField = 'book' | 'status' | 'pinned'
 
@@ -928,15 +929,19 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       pending.note = (async () => {
         try {
           await coldWrites.get(id)
-          const stored = await getStored(id)
-          if (!stored) throw new Error('E_NOTE_NOT_FOUND')
+          const opened = await storage.openNote(id)
+          if (!opened) throw new Error('E_NOTE_NOT_FOUND')
+          receiveStored(clock, stampsOf(opened))
+          const doc = new Y.Doc()
+          Y.applyUpdate(doc, opened.ydoc)
           // A title stored past the limit (by an older build) is cut here, so
           // the note's writes are taken. The stored one stays until a rename:
           // a write with the same HLC never replaces it.
-          const title = clipTitle(stored.title)
-          const record = title === stored.title ? stored : { ...stored, title }
-          const doc = new Y.Doc()
-          Y.applyUpdate(doc, record.ydoc)
+          const record: NoteRecord = {
+            ...opened,
+            title: clipTitle(opened.title),
+            bodyMd: doc.getText(BODY).toString(),
+          }
           const note = liveNote(record, doc, false)
           note.users = pending.users
           live.set(id, note)

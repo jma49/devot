@@ -180,6 +180,74 @@ pub async fn note_get(
         .map_err(|e| e.to_string())
 }
 
+/// A note's fields as `note_open` sends them: all but the body and the Yjs state.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OpenedFields<'a> {
+    id: &'a str,
+    title: &'a str,
+    title_hlc: &'a str,
+    body_version: i64,
+    book_id: Option<&'a str>,
+    book_hlc: &'a str,
+    status: &'a str,
+    status_hlc: &'a str,
+    pinned: bool,
+    pinned_hlc: &'a str,
+    created_at: i64,
+    updated_at: i64,
+    dates_hlc: &'a str,
+    deleted_at: Option<i64>,
+    deleted_hlc: Option<&'a str>,
+}
+
+/// `note_open`'s answer, read by `openedNote` in src/renderer/src/storage/wire.ts: empty for a
+/// note not stored, otherwise the length of the fields' JSON (4 bytes, little-endian), the JSON,
+/// then the Yjs state as stored.
+pub(crate) fn opened_frame(note: Option<&NoteRecord>) -> Vec<u8> {
+    let Some(note) = note else {
+        return Vec::new();
+    };
+    let fields = serde_json::to_vec(&OpenedFields {
+        id: &note.id,
+        title: &note.title,
+        title_hlc: &note.title_hlc,
+        body_version: note.body_version,
+        book_id: note.book_id.as_deref(),
+        book_hlc: &note.book_hlc,
+        status: &note.status,
+        status_hlc: &note.status_hlc,
+        pinned: note.pinned,
+        pinned_hlc: &note.pinned_hlc,
+        created_at: note.created_at,
+        updated_at: note.updated_at,
+        dates_hlc: &note.dates_hlc,
+        deleted_at: note.deleted_at,
+        deleted_hlc: note.deleted_hlc.as_deref(),
+    })
+    .unwrap_or_default();
+    // The fields hold a title within MAX_TITLE_CHARS and short stamps, far below 4 GiB.
+    let length = u32::try_from(fields.len()).unwrap_or(u32::MAX);
+    let mut frame = Vec::with_capacity(4 + fields.len() + note.ydoc.len());
+    frame.extend_from_slice(&length.to_le_bytes());
+    frame.extend_from_slice(&fields);
+    frame.extend_from_slice(&note.ydoc);
+    frame
+}
+
+/// A note out of the Trash for its editor, as bytes rather than JSON, and without its body: the
+/// core reads that from the Yjs state it builds the note from (see `opened_frame`).
+#[tauri::command]
+pub async fn note_open(db: State<'_, Db>, id: String) -> Result<tauri::ipc::Response, String> {
+    if !valid_note_id(&id) {
+        return Err("E_NOTE_ID_INVALID".into());
+    }
+    db.call(move |store| store.get_note(&id, false))
+        .await
+        .map(|note| tauri::ipc::Response::new(opened_frame(note.as_ref())))
+        .map_err(|e| e.to_string())
+}
+
 /// MAX_BODY_IDS in src/core/storage.ts (a policy test checks they match).
 const MAX_BODY_IDS: usize = 500;
 
@@ -353,6 +421,21 @@ mod tests {
             deleted_at: None,
             deleted_hlc: None,
         }
+    }
+
+    #[test]
+    fn opens_a_note_as_its_fields_and_state_without_the_body() {
+        assert!(opened_frame(None).is_empty());
+        let record = dto().into_record().unwrap();
+        let frame = opened_frame(Some(&record));
+        let length = u32::from_le_bytes(frame[..4].try_into().unwrap()) as usize;
+        let fields: serde_json::Value = serde_json::from_slice(&frame[4..4 + length]).unwrap();
+        assert_eq!(&frame[4 + length..], &[1, 2, 3]);
+        let mut expected = serde_json::to_value(dto()).unwrap();
+        let map = expected.as_object_mut().unwrap();
+        map.remove("bodyMd");
+        map.remove("ydoc");
+        assert_eq!(fields, expected);
     }
 
     #[test]

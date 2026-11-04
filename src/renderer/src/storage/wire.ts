@@ -5,8 +5,10 @@
 // (fromWire), finds the note's links and checks its limits, so the page
 // hands what it gets to the commands without reading it: a save or an open
 // costs the UI thread no work for each byte of a state, which for a long,
-// much-edited note is several MiB.
-import type { NoteRecord, RevisionRecord, StorageAdapter } from '../../../core'
+// much-edited note is several MiB. A note opened for its editor (note_open)
+// comes as bytes, its state as stored and no body (see `openedNote`), which
+// the page passes on without decoding any JSON.
+import type { NoteRecord, OpenedRecord, RevisionRecord, StorageAdapter } from '../../../core'
 import { noteLinks } from '../../../core/links'
 import { checkNote } from '../../../core/noteLimits'
 
@@ -15,9 +17,11 @@ export type WireRevision = Omit<RevisionRecord, 'ydoc'> & { ydoc: string | null 
 
 export interface WireStorage extends Omit<
   StorageAdapter,
-  'getNote' | 'putNote' | 'getRevision' | 'putRevision'
+  'getNote' | 'openNote' | 'putNote' | 'getRevision' | 'putRevision'
 > {
   getNote(id: string, options?: { trashed?: boolean }): Promise<WireNote | null>
+  /** The note as `openedFrame` lays it out. */
+  openNote(id: string): Promise<ArrayBuffer>
   putNote(note: WireNote, links: string[]): Promise<void>
   getRevision(id: string): Promise<WireRevision | null>
   putRevision(revision: WireRevision): Promise<void>
@@ -69,6 +73,35 @@ export function fromBase64(text: string): Uint8Array {
   return bytes
 }
 
+const utf8 = new TextEncoder()
+const fromUtf8 = new TextDecoder()
+
+/**
+ * A note as note_open sends it (`opened_frame` in src-tauri/src/commands/notes.rs): nothing for a
+ * note not stored, otherwise the length of the fields' JSON (4 bytes, little-endian), the JSON,
+ * then the Yjs state.
+ */
+export function openedFrame(note: OpenedRecord | null): ArrayBuffer {
+  if (!note) return new ArrayBuffer(0)
+  const { ydoc, ...fields } = note
+  const json = utf8.encode(JSON.stringify(fields))
+  const frame = new Uint8Array(4 + json.length + ydoc.length)
+  new DataView(frame.buffer).setUint32(0, json.length, true)
+  frame.set(json, 4)
+  frame.set(ydoc, 4 + json.length)
+  return frame.buffer
+}
+
+export function openedNote(frame: ArrayBuffer): OpenedRecord | null {
+  if (frame.byteLength === 0) return null
+  const length = new DataView(frame).getUint32(0, true)
+  const fields = JSON.parse(fromUtf8.decode(new Uint8Array(frame, 4, length))) as Omit<
+    OpenedRecord,
+    'ydoc'
+  >
+  return { ...fields, ydoc: new Uint8Array(frame, 4 + length) }
+}
+
 const noteIn = (note: WireNote): NoteRecord => ({ ...note, ydoc: fromBase64(note.ydoc) })
 const revisionIn = (revision: WireRevision): RevisionRecord => ({
   ...revision,
@@ -89,6 +122,7 @@ export function fromWire(wire: WireStorage): StorageAdapter {
       const note = await wire.getNote(id, options)
       return note ? noteIn(note) : null
     },
+    openNote: async (id) => openedNote(await wire.openNote(id)),
     getBodies: (ids) => wire.getBodies(ids),
     searchNotes: (query, limit) => wire.searchNotes(query, limit),
     listTrash: () => wire.listTrash(),
@@ -138,6 +172,7 @@ export function toWire(storage: StorageAdapter): WireStorage {
       const note = await storage.getNote(id, options)
       return note ? { ...note, ydoc: toBase64(note.ydoc) } : null
     },
+    openNote: async (id) => openedFrame(await storage.openNote(id)),
     putNote: (note) => storage.putNote(noteIn(note)),
     async getRevision(id) {
       const revision = await storage.getRevision(id)

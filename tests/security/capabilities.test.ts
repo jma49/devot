@@ -304,6 +304,7 @@ describe('Tauri command permissions', () => {
       'allow-link-title',
       'allow-log-write',
       'allow-note-get',
+      'allow-note-open',
       'allow-note-purge',
       'allow-note-put',
       'allow-note-relay-send',

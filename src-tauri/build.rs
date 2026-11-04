@@ -49,6 +49,7 @@ fn main() {
             "editor_menu_popup",
             "notes_list",
             "note_get",
+            "note_open",
             "notes_bodies",
             "note_put",
             "notes_search",

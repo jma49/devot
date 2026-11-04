@@ -936,6 +936,12 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       const row = options?.trashed ? getAny.get(id) : get.get(id)
       return row ? toNote(row) : null
     },
+    async openNote(id) {
+      const row = get.get(id)
+      if (!row) return null
+      const { bodyMd: _, ...opened } = toNote(row)
+      return opened
+    },
     getBodies: async (ids) =>
       ids.flatMap((id) => {
         const row = bodyRow.get(id)

@@ -221,11 +221,16 @@ export interface NoteBody {
 /** The most IDs one `getBodies` call takes (the Tauri command refuses more). */
 export const MAX_BODY_IDS = 500
 
+/** A note as its editor opens it: the body is left out, as the Yjs state holds it. */
+export type OpenedRecord = Omit<NoteRecord, 'bodyMd' | 'agentWrites'>
+
 export interface StorageAdapter {
   /** Notes not in the trash, most recently updated first. */
   listNotes(): Promise<NoteSummary[]>
   /** Null for a purged note; a note in the trash is returned only with `trashed`. */
   getNote(id: string, options?: { trashed?: boolean }): Promise<NoteRecord | null>
+  /** `getNote` for a note to load: its record without the body. Null for a note not stored or in the trash. */
+  openNote(id: string): Promise<OpenedRecord | null>
   /** One read for many notes (at most MAX_BODY_IDS), trashed ones included; purged and unknown IDs are left out. */
   getBodies(ids: readonly string[]): Promise<NoteBody[]>
   /** Live notes meeting every condition, best matches first, each with its excerpt; at most `limit`. */

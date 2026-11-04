@@ -16,6 +16,7 @@
     "allow-editor-menu-popup",
     "allow-notes-list",
     "allow-note-get",
+    "allow-note-open",
     "allow-notes-bodies",
     "allow-notes-search",
     "allow-books-list",
