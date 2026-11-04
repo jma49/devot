@@ -117,6 +117,7 @@ pub fn run() {
             commands::notes::notes_bodies,
             commands::notes::note_put,
             commands::notes::notes_search,
+            commands::notes::note_backlinks,
             commands::notes::notes_trash_list,
             commands::notes::note_purge,
             commands::revisions::revision_put,

@@ -35,6 +35,8 @@ export const tauriWire: WireStorage = {
     return invoke('note_put', { note: record, links, writes: agentWrites })
   },
   searchNotes: (query, limit) => invoke<NoteSummary[]>('notes_search', { query, limit }),
+  listBacklinks: (id, excludeBookId, limit) =>
+    invoke<NoteSummary[]>('note_backlinks', { id, excludeBookId, limit }),
   listTrash: () => invoke<TrashedNote[]>('notes_trash_list'),
   // The bytes travel as the raw request body, the rest in headers.
   putFile: (meta, data) =>

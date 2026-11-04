@@ -596,6 +596,18 @@ const NOTES_LIST_SQL: &str = "SELECT id, title, created_at AS createdAt, updated
             body_version AS bodyVersion
      FROM notes INDEXED BY notes_list
      WHERE deleted_at IS NULL ORDER BY updated_at DESC, id DESC";
+/// Backlinks: the list's index in its order, keeping the notes the link index has as linking to
+/// `@id`, so it stops at a page and reads no row.
+const BACKLINKS_SQL: &str = "SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
+            (SELECT group_concat(nt.tag_id) FROM note_tags nt
+               JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
+              WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds,
+            body_version AS bodyVersion
+     FROM notes INDEXED BY notes_list
+     WHERE deleted_at IS NULL AND purged_at IS NULL AND id <> @id
+       AND (book_id IS NULL OR book_id <> @excludeBook)
+       AND id IN (SELECT source_id FROM links WHERE target_id = @id)
+     ORDER BY updated_at DESC, id DESC LIMIT @limit";
 const TRASH_LIST_SQL: &str =
     "SELECT id, title, deleted_at AS deletedAt, book_id AS bookId FROM notes INDEXED BY notes_trash
      WHERE deleted_at IS NOT NULL AND purged_at IS NULL ORDER BY deleted_at DESC, id DESC";
@@ -1977,6 +1989,22 @@ impl Store {
             )?
             .collect::<rusqlite::Result<_>>()?;
         Ok(revisions)
+    }
+
+    /// Live notes outside `exclude_book` that link to `id` (the link index), the note itself left
+    /// out, most recently updated first, then by ID; at most `limit`, without excerpts.
+    pub fn list_backlinks(
+        &self,
+        id: &str,
+        exclude_book: &str,
+        limit: u32,
+    ) -> Result<Vec<NoteSummary>> {
+        let mut statement = self.conn.prepare_cached(BACKLINKS_SQL)?;
+        let rows = statement.query_map(
+            rusqlite::named_params! { "@id": id, "@excludeBook": exclude_book, "@limit": limit },
+            summary,
+        )?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
     pub fn search_notes(&self, query: &NoteQuery, limit: u32) -> Result<Vec<NoteSummary>> {

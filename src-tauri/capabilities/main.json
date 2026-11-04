@@ -84,6 +84,7 @@
     "allow-activity-list",
     "allow-activity-notes-list",
     "allow-notes-search",
+    "allow-note-backlinks",
     "allow-file-put",
     "allow-files-copy",
     "allow-image-copy",

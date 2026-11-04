@@ -125,6 +125,7 @@ export function fromWire(wire: WireStorage): StorageAdapter {
     openNote: async (id) => openedNote(await wire.openNote(id)),
     getBodies: (ids) => wire.getBodies(ids),
     searchNotes: (query, limit) => wire.searchNotes(query, limit),
+    listBacklinks: (id, excludeBookId, limit) => wire.listBacklinks(id, excludeBookId, limit),
     listTrash: () => wire.listTrash(),
     purgeNote: (id, at, hlc) => wire.purgeNote(id, at, hlc),
     async putNote(note) {

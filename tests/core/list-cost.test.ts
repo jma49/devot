@@ -194,6 +194,14 @@ describe('lists and search read covering indexes', () => {
     expect(plan(db, LIST_SQL.trash)).toMatch(/^SEARCH notes USING COVERING INDEX notes_trash /)
   })
 
+  it('reads backlinks from the link index and the list index, never a row or the search index', () => {
+    const { db } = sqlite()
+    const backlinks = plan(db, LIST_SQL.backlinks, { id: '', excludeBook: '', limit: 200 })
+    expect(backlinks).toMatch(/^SCAN notes USING COVERING INDEX notes_list$/m)
+    expect(backlinks).toMatch(/SEARCH links USING (COVERING )?INDEX links_target \(target_id=\?\)/)
+    expect(backlinks).not.toMatch(/TEMP B-TREE|notes_fts/)
+  })
+
   it('runs the same list statements as the Rust store', () => {
     const rust = readFileSync('src-tauri/src/storage/mod.rs', 'utf8')
     const statement = (name: string) =>
@@ -201,6 +209,7 @@ describe('lists and search read covering indexes', () => {
     const words = (sql: string) => sql.split(/\s+/).join(' ')
     expect(words(statement('NOTES_LIST_SQL'))).toBe(words(LIST_SQL.notes))
     expect(words(statement('TRASH_LIST_SQL'))).toBe(words(LIST_SQL.trash))
+    expect(words(statement('BACKLINKS_SQL'))).toBe(words(LIST_SQL.backlinks))
   })
 
   it('searches live notes in the list index: a ranked search joins its matches to it', () => {

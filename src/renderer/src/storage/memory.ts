@@ -4,8 +4,9 @@
 // keys (all `devot.test.*`) is in the bundle (scripts/sentry/ui.ts). It
 // merges records per field by HLC and compares body versions before it
 // writes, like the SQLite stores, and refuses the notes the app's note_put
-// refuses. It keeps no link index: nothing in the UI reads one yet. A note
-// a test stored without a body version is at version 0.
+// refuses. It keeps no link index: backlinks read the links in the stored
+// bodies (`noteLinks`), as the index holds them. A note a test stored
+// without a body version is at version 0.
 // A UI test makes note writes fail (a full disk, say) by putting an error
 // code in `devot.test.failNoteWrites`, makes writes slow with a number of
 // milliseconds in `devot.test.delayNoteWrites` (notes) or
@@ -27,6 +28,7 @@ import type {
   TagRecord,
 } from '../../../core'
 import { checkUpload, fileUri, type FileMeta } from '../../../core/files'
+import { noteLinks } from '../../../core/links'
 import { checkNote } from '../../../core/noteLimits'
 import { bodyExcerpt, excerptTerms } from '../../../core/search'
 import { savedSearchOrder } from '../../../core/savedSearches'
@@ -268,6 +270,17 @@ export const memoryStorage: StorageAdapter = {
       if (found.length === limit) break
     }
     return found
+  },
+  async listBacklinks(id, excludeBookId, limit) {
+    const stored = new Map(read<Stored>(NOTES).map((n) => [n.id, n]))
+    return (await memoryStorage.listNotes())
+      .filter(
+        (note) =>
+          note.id !== id &&
+          note.bookId !== excludeBookId &&
+          noteLinks(stored.get(note.id)?.bodyMd ?? '').includes(id),
+      )
+      .slice(0, limit)
   },
   async putFile(meta, data) {
     const mime = checkUpload(meta, data)

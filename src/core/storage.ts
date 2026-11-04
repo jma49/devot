@@ -235,6 +235,8 @@ export interface StorageAdapter {
   getBodies(ids: readonly string[]): Promise<NoteBody[]>
   /** Live notes meeting every condition, best matches first, each with its excerpt; at most `limit`. */
   searchNotes(query: NoteQuery, limit: number): Promise<NoteSummary[]>
+  /** Live notes outside `excludeBookId` whose body links to `id` (the link index), the note itself left out, most recently updated first (then by ID, descending); at most `limit` (MAX_BACKLINKS), without excerpts. */
+  listBacklinks(id: string, excludeBookId: string, limit: number): Promise<NoteSummary[]>
   /** Not purged, most recently deleted first. */
   listTrash(): Promise<TrashedNote[]>
   /** Final: no later write restores it. An attachment another non-purged note still shows passes to that note, a live one before one in the Trash, then the smallest ID. */

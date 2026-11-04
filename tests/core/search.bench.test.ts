@@ -29,9 +29,10 @@ const FULL_SCAN_BUDGET_MS = 100
 const EDIT_BUDGET_MS = 10
 // The sidebar counts every saved search from the listed notes after each save, on the UI thread: one 60 Hz frame (measured about 6 ms).
 const COUNTS_BUDGET_MS = 16
-// Backlinks are a phrase search for the note's address, and every note here holds a note link, so each of the address's
-// trigrams is in nearly every note: measured 46 ms in SQLite alone on a Linux runner. The link index (`links`) is not read yet.
-const BACKLINKS_BUDGET_MS = 100
+// Backlinks read the link index and walk the list's index to a page: measured about 1.5 ms (a page) and 1.3 ms (none) on
+// a Linux runner, where the phrase search for the note's address they replaced took 84 ms, since every note here holds a
+// note link and so each of the address's trigrams.
+const BACKLINKS_BUDGET_MS = 10
 const BOOKS = 50
 const TAGS = 20
 const SAVED_SEARCHES = 20

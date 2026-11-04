@@ -2058,6 +2058,22 @@ fn lists_and_searches_read_covering_indexes() {
     };
     assert!(plan(NOTES_LIST_SQL, &[]).starts_with("SCAN notes USING COVERING INDEX notes_list"));
     assert!(plan(TRASH_LIST_SQL, &[]).starts_with("SEARCH notes USING COVERING INDEX notes_trash"));
+    let backlinks = plan(
+        &BACKLINKS_SQL
+            .replace("@id", "''")
+            .replace("@excludeBook", "''")
+            .replace("@limit", "200"),
+        &[],
+    );
+    assert!(
+        backlinks.starts_with("SCAN notes USING COVERING INDEX notes_list"),
+        "{backlinks}"
+    );
+    assert!(
+        backlinks.contains("SEARCH links USING COVERING INDEX links_target (target_id=?)"),
+        "{backlinks}"
+    );
+    assert!(!backlinks.contains("TEMP B-TREE"), "{backlinks}");
     let (sql, values) = search_sql(&words(&["snapshot"]), 200);
     let ranked = plan(&sql, &values);
     assert!(ranked.contains("MATERIALIZE hits"), "{ranked}");
@@ -2456,6 +2472,50 @@ fn an_attachment_no_other_note_shows_any_more_goes_with_its_note() {
         .trash_and_purge("a", 30, "0000000000000030-0000-a")
         .unwrap();
     assert_eq!(owner(&store, F1), None);
+}
+
+#[test]
+fn lists_the_live_notes_linking_to_a_note_outside_a_notebook_newest_first() {
+    let (_dir, mut store) = temp_store();
+    let target = "0192a6f0-0000-7000-8000-000000000001";
+    let templates = "00000000-0000-7000-8000-000000000001";
+    let links = [target.to_string()];
+    store.put_note(&note(target, "Target", 1), &links).unwrap();
+    store.put_note(&note("older", "Older", 50), &links).unwrap();
+    store.put_note(&note("b-newer", "B", 70), &links).unwrap();
+    store.put_note(&note("c-newer", "C", 70), &links).unwrap();
+    store
+        .put_note(&note("unrelated", "Unrelated", 90), &[])
+        .unwrap();
+    let mut template = note("template", "Template", 80);
+    template.book_id = Some(templates.into());
+    store.put_note(&template, &links).unwrap();
+    let mut trashed = note("trashed", "Trashed", 60);
+    trashed.deleted_at = Some(61);
+    trashed.deleted_hlc = Some("0000000000061-0000-test".into());
+    store.put_note(&trashed, &links).unwrap();
+    store
+        .put_note(&note("purged", "Purged", 65), &links)
+        .unwrap();
+    store
+        .trash_and_purge("purged", 66, "0000000000066-0000-test")
+        .unwrap();
+
+    let ids = |limit| -> Vec<String> {
+        store
+            .list_backlinks(target, templates, limit)
+            .unwrap()
+            .into_iter()
+            .map(|n| n.id)
+            .collect()
+    };
+    assert_eq!(ids(200), ["c-newer", "b-newer", "older"]);
+    assert_eq!(ids(2), ["c-newer", "b-newer"]);
+    let first = &store.list_backlinks(target, templates, 1).unwrap()[0];
+    assert_eq!(first.title, "C");
+    assert_eq!(first.updated_at, 70);
+    assert_eq!(first.body_version, 1);
+    assert_eq!(first.excerpt, None);
 }
 
 fn link_rows(store: &Store) -> Vec<(String, String)> {

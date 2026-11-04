@@ -351,6 +351,35 @@ pub async fn notes_search(
         .map_err(|e| e.to_string())
 }
 
+/// Matches MAX_BACKLINKS in src/core/links.ts.
+const MAX_BACKLINKS: u32 = 200;
+
+fn validate_backlinks(id: &str, exclude_book_id: &str, limit: u32) -> Result<(), &'static str> {
+    if !valid_note_id(id) {
+        return Err("E_NOTE_ID_INVALID");
+    }
+    if !valid_note_id(exclude_book_id) {
+        return Err("E_BOOK_ID_INVALID");
+    }
+    if !(1..=MAX_BACKLINKS).contains(&limit) {
+        return Err("E_BACKLINKS_LIMIT_INVALID");
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn note_backlinks(
+    db: State<'_, Db>,
+    id: String,
+    exclude_book_id: String,
+    limit: u32,
+) -> Result<Vec<NoteSummary>, String> {
+    validate_backlinks(&id, &exclude_book_id, limit).map_err(String::from)?;
+    db.call(move |store| store.list_backlinks(&id, &exclude_book_id, limit))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn notes_trash_list(db: State<'_, Db>) -> Result<Vec<TrashedNote>, String> {
     db.call(|store| store.list_trash())
@@ -463,6 +492,27 @@ mod tests {
             assert!(!valid_note_id(id), "{id} should be rejected");
         }
         assert!(valid_note_id(ID));
+    }
+
+    #[test]
+    fn takes_backlinks_of_a_note_outside_a_notebook_up_to_a_page() {
+        const TEMPLATES: &str = "00000000-0000-7000-8000-000000000001";
+        assert_eq!(validate_backlinks(ID, TEMPLATES, 1), Ok(()));
+        assert_eq!(validate_backlinks(ID, TEMPLATES, MAX_BACKLINKS), Ok(()));
+        assert_eq!(
+            validate_backlinks("note", TEMPLATES, 1),
+            Err("E_NOTE_ID_INVALID")
+        );
+        assert_eq!(
+            validate_backlinks(ID, "' OR 1 --", 1),
+            Err("E_BOOK_ID_INVALID")
+        );
+        for limit in [0, MAX_BACKLINKS + 1] {
+            assert_eq!(
+                validate_backlinks(ID, TEMPLATES, limit),
+                Err("E_BACKLINKS_LIMIT_INVALID")
+            );
+        }
     }
 
     /// TEMPLATES_BOOK_ID in src/core/books.ts (a policy test checks they match).

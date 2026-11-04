@@ -19,6 +19,7 @@
     "allow-note-open",
     "allow-notes-bodies",
     "allow-notes-search",
+    "allow-note-backlinks",
     "allow-books-list",
     "allow-note-put",
     "allow-note-purge",

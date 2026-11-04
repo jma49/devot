@@ -273,6 +273,20 @@ export const LIST_SQL = {
             body_version AS bodyVersion
      FROM notes INDEXED BY notes_list
      WHERE deleted_at IS NULL ORDER BY updated_at DESC, id DESC`,
+  /**
+   * Backlinks (`@id`, `@excludeBook`, `@limit`): the list's index in its order, keeping the notes
+   * the link index has as linking to the note, so it stops at a page and reads no row.
+   */
+  backlinks: `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
+            (SELECT group_concat(nt.tag_id) FROM note_tags nt
+               JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
+              WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds,
+            body_version AS bodyVersion
+     FROM notes INDEXED BY notes_list
+     WHERE deleted_at IS NULL AND purged_at IS NULL AND id <> @id
+       AND (book_id IS NULL OR book_id <> @excludeBook)
+       AND id IN (SELECT source_id FROM links WHERE target_id = @id)
+     ORDER BY updated_at DESC, id DESC LIMIT @limit`,
   /** Notes in the Trash (not purged), most recently deleted first. */
   trash: `SELECT id, title, deleted_at AS deletedAt, book_id AS bookId FROM notes INDEXED BY notes_trash
      WHERE deleted_at IS NOT NULL AND purged_at IS NULL ORDER BY deleted_at DESC, id DESC`,
@@ -665,6 +679,9 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     'SELECT id, title, body_md FROM notes WHERE id = ? AND purged_at IS NULL',
   )
   const trash = db.prepare<[], TrashedNote>(LIST_SQL.trash)
+  const backlinks = db.prepare<[{ id: string; excludeBook: string; limit: number }], SummaryRow>(
+    LIST_SQL.backlinks,
+  )
   // Wipes the content and keeps the tombstone; a purge is final.
   const purge = db.prepare(
     `UPDATE notes SET title = '', title_hlc = MAX(title_hlc, @hlc), body_md = '', ydoc = x'',
@@ -982,6 +999,8 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         return excerpt === undefined ? toSummary(row) : { ...toSummary(row), excerpt }
       })
     },
+    listBacklinks: async (id, excludeBook, limit) =>
+      backlinks.all({ id, excludeBook, limit }).map(toSummary),
     searchNotesInBooks: async (query, bookIds, limit) =>
       bookIds.length === 0
         ? []

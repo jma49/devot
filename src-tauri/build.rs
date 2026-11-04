@@ -53,6 +53,7 @@ fn main() {
             "notes_bodies",
             "note_put",
             "notes_search",
+            "note_backlinks",
             "notes_trash_list",
             "note_purge",
             "revision_put",
