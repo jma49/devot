@@ -60,46 +60,6 @@ test.beforeEach(async ({ page }) => {
   await openApp(page)
 })
 
-test('compares a version with the note and restores it as one undo step', async ({ page }) => {
-  await createNote(page, 'Plan', 'first line\nsecond line')
-  await reopen(page, 'Plan')
-  await appendText(page, '\nthird line')
-  await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line\nthird line')
-
-  await pickNoteMore(page, 'Revision History\u2026')
-  await expect(sheet(page)).toBeVisible()
-  await expect(entries(page)).toHaveCount(2)
-  await version(page).click()
-  await expect(changes(page).locator('ins')).toHaveText(['third line'])
-  await expect(changes(page).locator('del')).toHaveCount(0)
-
-  await sheet(page).getByRole('button', { name: 'Restore' }).click()
-  await expect(sheet(page)).toBeHidden()
-  await expect(body(page)).toHaveText('first linesecond line')
-  await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line')
-
-  await body(page).click()
-  await page.keyboard.press('ControlOrMeta+z')
-  await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line\nthird line')
-})
-
-test('keys pressed while the sheet is open do not change the note under it', async ({ page }) => {
-  await createNote(page, 'Plan', 'first line')
-  await reopen(page, 'Plan')
-  await appendText(page, '\nsecond line')
-  await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line')
-
-  await pickNoteMore(page, 'Revision History\u2026')
-  await expect(sheet(page)).toBeVisible()
-  await page.keyboard.press('Backspace')
-  await page.keyboard.type('x')
-  await page.keyboard.press('Escape')
-  await expect(sheet(page)).toBeHidden()
-  await expect(body(page)).toHaveText('first linesecond line')
-  await appendText(page, '!')
-  await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line!')
-})
-
 test('a diff taller than its box scrolls from the keyboard', async ({ page }) => {
   const lines = Array.from({ length: 40 }, (_, i) => `line ${i}`)
   await createNote(page, 'Plan', lines.join('\n'))
@@ -118,16 +78,33 @@ test('a diff taller than its box scrolls from the keyboard', async ({ page }) =>
   await expect.poll(() => changes(page).evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
 })
 
-test('a restore is an undo step apart from the typing before and after it', async ({ page }) => {
+test('compares a version with the note and restores it as an undo step apart from the typing around it', async ({
+  page,
+}) => {
   await createNote(page, 'Plan', 'first line')
   await reopen(page, 'Plan')
   await appendText(page, '\nsecond line')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('first line\nsecond line')
 
+  // Keys pressed while the sheet is open do not change the note under it.
   await pickNoteMore(page, 'Revision History\u2026')
+  await expect(sheet(page)).toBeVisible()
+  await page.keyboard.press('Backspace')
+  await page.keyboard.type('x')
+  await page.keyboard.press('Escape')
+  await expect(sheet(page)).toBeHidden()
+  await expect(body(page)).toHaveText('first linesecond line')
+  expect(await savedBody(page, 'Plan')).toBe('first line\nsecond line')
+
+  await pickNoteMore(page, 'Revision History\u2026')
+  await expect(entries(page)).toHaveCount(2)
   await version(page).click()
+  await expect(changes(page).locator('ins')).toHaveText(['second line'])
+  await expect(changes(page).locator('del')).toHaveCount(0)
   await sheet(page).getByRole('button', { name: 'Restore' }).click()
   await expect(sheet(page)).toBeHidden()
+  await expect(body(page)).toHaveText('first line')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('first line')
   await body(page).click()
   await page.keyboard.press('ControlOrMeta+End')
   await page.keyboard.type('!')

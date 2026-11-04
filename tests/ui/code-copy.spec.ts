@@ -64,7 +64,7 @@ test.beforeEach(async ({ page }) => {
   await openApp(page)
 })
 
-test('each fenced code block has a copy button that copies its text as written', async ({
+test('each fenced code block has a copy button that copies its text as written, left out of print', async ({
   page,
 }) => {
   await openNote(page, NOTE)
@@ -89,6 +89,10 @@ test('each fenced code block has a copy button that copies its text as written',
   await copyButtons(page).nth(1).click()
   await expect.poll(() => clipboardWrites(page)).toHaveLength(2)
   expect((await clipboardWrites(page))[1]).toBe('second block')
+
+  await page.emulateMedia({ media: 'print' })
+  await expect(copyButtons(page)).toHaveCount(0)
+  await expect(preview(page).locator('pre code').first()).toBeVisible()
 })
 
 test('the button is reachable from the keyboard', async ({ page }) => {
@@ -196,12 +200,4 @@ test('copying a selection across a block leaves the button out of the copied HTM
   expect(html).toContain('selected code')
   expect(html).not.toContain('data-devot-ui')
   expect(html).not.toContain('<button')
-})
-
-test('printing leaves the button out', async ({ page }) => {
-  await openNote(page, '```\nprint me\n```')
-  await expect(copyButtons(page)).toHaveCount(1)
-  await page.emulateMedia({ media: 'print' })
-  await expect(copyButtons(page)).toBeHidden()
-  await expect(preview(page).locator('pre code')).toBeVisible()
 })

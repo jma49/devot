@@ -501,16 +501,15 @@ test('a failure shows what did not complete, with its code, until dismissed', as
   await pickFromNoteMenu(page, 'Plan', 'Export as PDF…')
   await confirmPageSetup(page, 'Export…')
   await expect(notice).toHaveText(/^The export did not complete \(E_EXPORT_PDF_FAILED\)\./)
-})
+  await notice.getByRole('button', { name: 'Dismiss' }).click()
 
-test('an export that wrote the note but not one image says what is missing', async ({ page }) => {
-  await createNote(page, 'Plan', BODY)
+  const writes = (await calls(page, 'export_write')).length
   await mockExport(page, { export_attach: { error: 'E_EXPORT_ATTACH_FAILED' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as Markdown…')
-  await expect(page.getByRole('alert')).toHaveText(
+  await expect(notice).toHaveText(
     /^The export is incomplete: 1 written, 1 with problems \(first: E_EXPORT_ATTACH_FAILED\)\./,
   )
-  expect((await calls(page, 'export_write')).length).toBe(1)
+  expect((await calls(page, 'export_write')).length).toBe(writes + 1)
 })
 
 test("an export's notice and a backup's both show, each with its buttons", async ({ page }) => {

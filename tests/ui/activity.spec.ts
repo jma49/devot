@@ -78,7 +78,9 @@ async function seed(page: Page) {
   await expect(page.getByRole('listbox', { name: 'Notes' }).getByRole('option')).toHaveCount(2)
 }
 
-test('shows 52 weeks of activity, each day with its totals', async ({ page }) => {
+test('shows 52 weeks of activity, each day with its totals by pointer or key, shaded in light and dark', async ({
+  page,
+}) => {
   await seed(page)
   await showActivity(page)
   await expect(sheet(page)).toBeVisible()
@@ -104,13 +106,7 @@ test('shows 52 weeks of activity, each day with its totals', async ({ page }) =>
   await expect(sheet(page)).toContainText('4 active days')
   await expect(sheet(page).getByText('Less', { exact: true })).toBeVisible()
   await expect(sheet(page).getByText('More', { exact: true })).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(sheet(page)).toHaveCount(0)
-})
 
-test('hovering or moving through the days shows their totals', async ({ page }) => {
-  await seed(page)
-  await showActivity(page)
   const readout = sheet(page).locator('.activity-readout')
   const today = day(page, /^Wednesday, October 7, 2026:/)
   await expect(today).toBeFocused()
@@ -143,11 +139,7 @@ test('hovering or moving through the days shows their totals', async ({ page }) 
   await page.keyboard.press('End')
   await expect(today).toBeFocused()
   await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
-})
 
-test('shades days through theme colours, in light and dark', async ({ page }) => {
-  await seed(page)
-  await showActivity(page)
   const shade = (label: RegExp) =>
     day(page, label).evaluate(
       (el) =>
@@ -172,6 +164,9 @@ test('shades days through theme colours, in light and dark', async ({ page }) =>
   const dark = [await shade(idle), await shade(created), await shade(busiest)]
   expect(new Set(dark).size).toBe(3)
   expect(dark[1]).not.toBe(light[1])
+
+  await page.keyboard.press('Escape')
+  await expect(sheet(page)).toHaveCount(0)
 })
 
 test("counts what was just typed into today's square", async ({ page }) => {

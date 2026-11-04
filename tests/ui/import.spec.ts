@@ -453,11 +453,21 @@ test('shows progress while importing and cannot be dismissed until done', async 
   expect((await calls(page, 'import_finish')).map((c) => c.args['id'])).toEqual([7, 9])
 })
 
-test('a scan that fails shows why, in the sheet it started', async ({ page }) => {
+test('a scan that fails shows why, in the sheet it started, a trial that is over too', async ({
+  page,
+}) => {
   await open(page)
   await send(page, 'devot:import-failed', { id: null, code: 'E_IMPORT_TOO_MANY_FILES' })
   await expect(dialog(page)).toContainText('The import failed (E_IMPORT_TOO_MANY_FILES).')
   await expect(dialog(page)).toContainText('more than 10,000 Markdown files')
+  await button(page, 'Done').click()
+  await expect(dialog(page)).toBeHidden()
+
+  await send(page, 'devot:import-failed', { id: null, code: 'E_LICENCE_REQUIRED' })
+  await expect(dialog(page)).toContainText('The import failed (E_LICENCE_REQUIRED).')
+  await expect(dialog(page)).toContainText(
+    'Your Devot trial has ended, so nothing can be imported. Add a license in Settings > License.',
+  )
   await button(page, 'Done').click()
   await expect(dialog(page)).toBeHidden()
 
@@ -468,15 +478,6 @@ test('a scan that fails shows why, in the sheet it started', async ({ page }) =>
   await button(page, 'Done').click()
   await expect(dialog(page)).toBeHidden()
   await expect(noteRows(page)).toHaveCount(0)
-})
-
-test('an import refused because the trial is over says so', async ({ page }) => {
-  await open(page)
-  await send(page, 'devot:import-failed', { id: null, code: 'E_LICENCE_REQUIRED' })
-  await expect(dialog(page)).toContainText('The import failed (E_LICENCE_REQUIRED).')
-  await expect(dialog(page)).toContainText(
-    'Your Devot trial has ended, so nothing can be imported. Add a license in Settings > License.',
-  )
 })
 
 test('an empty folder says no Markdown files were found', async ({ page }) => {

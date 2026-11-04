@@ -254,6 +254,7 @@ test('the keys still rename and delete the focused notebook', async ({ page }) =
   await page.keyboard.press('Enter')
   await expect(book(page, 'Job')).toHaveCount(0)
   await expect(tree(page).getByRole('treeitem')).toHaveCount(1)
+  await expect(header(page)).toHaveText('All Notes')
 })
 
 test('the keyboard stays on the selected notebook after a right-click', async ({ page }) => {
@@ -274,16 +275,6 @@ test('the keyboard stays on the selected notebook after a right-click', async ({
   await page.keyboard.press('Enter')
   await expect(book(page, 'Home')).toHaveCount(0)
   await expect(book(page, 'Work')).toBeVisible()
-})
-
-test('the keyboard stays in the tree after Delete Notebook from the menu', async ({ page }) => {
-  await setUp(page)
-  await row(page, 'Home').click()
-  await openMenu(page, 'Work')
-  await pickMenuItem(page, 'Delete Notebook')
-  await confirmDelete(page, 'Work').getByRole('button', { name: 'Delete Notebook' }).click()
-  await expect(book(page, 'Work')).toHaveCount(0)
-  await expect(book(page, 'Home')).toBeFocused()
 })
 
 test('Backspace and Delete on a notebook row ask first; Cancel and Escape keep it', async ({
@@ -321,7 +312,7 @@ test('Backspace and Delete on a notebook row ask first; Cancel and Escape keep i
   await expect(book(page, 'Home')).toBeFocused()
 })
 
-test('Delete Notebook from the menu asks too, and Cancel keeps the keyboard where it was', async ({
+test('Delete Notebook from the menu asks too, and the keyboard stays where it was', async ({
   page,
 }) => {
   await setUp(page)
@@ -332,6 +323,12 @@ test('Delete Notebook from the menu asks too, and Cancel keeps the keyboard wher
   await ask.getByRole('button', { name: 'Cancel' }).click()
   await expect(book(page, 'Work')).toBeVisible()
   await expect(book(page, 'Devot')).toBeVisible()
+  await expect(book(page, 'Home')).toBeFocused()
+
+  await openMenu(page, 'Work')
+  await pickMenuItem(page, 'Delete Notebook')
+  await ask.getByRole('button', { name: 'Delete Notebook' }).click()
+  await expect(book(page, 'Work')).toHaveCount(0)
   await expect(book(page, 'Home')).toBeFocused()
 })
 
@@ -387,7 +384,7 @@ test('Allow AI Access switches the clicked notebook alone and shows on its row',
   expect(await shownMenu(page)).toContain('Allow AI Access [ ]')
 })
 
-test('Move Notebook opens a dialog that lists the tree and disables the notebook and its sub-notebooks', async ({
+test('Move Notebook opens a dialog that lists the tree, disables the notebook and its sub-notebooks, and Return on Cancel cancels', async ({
   page,
 }) => {
   await setUp(page)
@@ -407,17 +404,7 @@ test('Move Notebook opens a dialog that lists the tree and disables the notebook
     'aria-disabled',
     'true',
   )
-  await dialog.getByRole('option', { name: 'Home' }).click()
-  await expect(dialog).toHaveCount(0)
-})
 
-test('Move Notebook keeps the focus on Cancel through a re-render, so Return cancels', async ({
-  page,
-}) => {
-  await setUp(page)
-  await openMenu(page, 'Work')
-  await pickMenuItem(page, 'Move Notebook…')
-  const dialog = page.getByRole('dialog', { name: 'Move Notebook' })
   const cancel = dialog.getByRole('button', { name: 'Cancel' })
   await cancel.focus()
   await expect(cancel).toBeFocused()
@@ -435,6 +422,11 @@ test('Move Notebook keeps the focus on Cancel through a re-render, so Return can
   await expect(
     page.getByRole('treeitem', { name: /^Home\b/ }).getByRole('treeitem', { name: /^Work\b/ }),
   ).toHaveCount(0)
+
+  await openMenu(page, 'Work')
+  await pickMenuItem(page, 'Move Notebook…')
+  await dialog.getByRole('option', { name: 'Home' }).click()
+  await expect(dialog).toHaveCount(0)
 })
 
 test('turns Allow AI Access on for several notebooks at once, with Undo', async ({ page }) => {

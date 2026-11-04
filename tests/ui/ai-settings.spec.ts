@@ -107,7 +107,9 @@ test('picks the active provider and saves an endpoint and a model on leaving the
   expect(await calls(page, 'ai_settings_set')).toHaveLength(3)
 })
 
-test('a key goes to Rust, is cleared from the page and can be removed', async ({ page }) => {
+test('a key goes to Rust, is cleared from the page, keeps the keyboard on Save Key and can be removed', async ({
+  page,
+}) => {
   await fakeRust(page)
   await openSettings(page, 'AI')
   const claude = page.getByRole('region', { name: 'Claude (Anthropic)' })
@@ -118,8 +120,14 @@ test('a key goes to Rust, is cleared from the page and can be removed', async ({
   await expect(remove).toBeDisabled()
 
   await field.fill(SECRET)
-  await save.click()
+  // As the keyboard reaches it: focused, then Enter (WebKit does not focus on a click).
+  await save.focus()
+  await expect(save).toBeFocused()
+  await page.keyboard.press('Enter')
   await expect(claude).toContainText('A key is stored in the Keychain.')
+  // aria-disabled, not disabled: the button stays under the keyboard (A121).
+  await expect(save).toBeDisabled()
+  await expect(save).toBeFocused()
   await expect(field).toHaveValue('')
   await expect(page.getByRole('tabpanel').getByRole('status')).toHaveText(
     'The Claude (Anthropic) key was saved.',
@@ -202,21 +210,4 @@ test('a refused key is reported beside its own field', async ({ page }) => {
   // Typing a new key clears it.
   await field.fill('another')
   await expect(error).toHaveCount(0)
-})
-
-test('saving a key leaves the keyboard on Save Key when the field empties', async ({ page }) => {
-  await fakeRust(page)
-  await openSettings(page, 'AI')
-  const claude = page.getByRole('region', { name: 'Claude (Anthropic)' })
-  const field = claude.getByLabel('API key for Claude (Anthropic)')
-  const save = claude.getByRole('button', { name: 'Save Key' })
-  await field.fill(SECRET)
-  // As the keyboard reaches it: focused, then Enter (WebKit does not focus on a click).
-  await save.focus()
-  await expect(save).toBeFocused()
-  await page.keyboard.press('Enter')
-  await expect(claude).toContainText('A key is stored in the Keychain.')
-  // aria-disabled, not disabled: the button stays under the keyboard (A121).
-  await expect(save).toBeDisabled()
-  await expect(save).toBeFocused()
 })

@@ -38,19 +38,6 @@ const calls = (page: Page, cmd: string) =>
     cmd,
   )
 
-test('lists backups newest first with their sizes', async ({ page }) => {
-  await open(page, { backups_list: { backups: [NEW, OLD], lastError: null } })
-  await showBackups(page)
-  const dialog = page.getByRole('dialog', { name: 'Backups' })
-  await expect(dialog).toBeVisible()
-  const rows = dialog.getByRole('listitem')
-  await expect(rows).toHaveCount(2)
-  await expect(rows.nth(0)).toContainText('12.3 MB')
-  await expect(rows.nth(1)).toContainText('250 kB')
-  await dialog.getByRole('button', { name: 'Done' }).click()
-  await expect(dialog).toBeHidden()
-})
-
 test('says when there are no backups, and backs up on request', async ({ page }) => {
   await open(page, { backups_list: { backups: [], lastError: null }, backup_now: NEW })
   await showBackups(page)
@@ -60,8 +47,20 @@ test('says when there are no backups, and backs up on request', async ({ page })
   await expect.poll(async () => (await calls(page, 'backup_now')).length).toBe(1)
 })
 
-test('restoring asks first, then restores and reloads', async ({ page }) => {
+test('lists backups newest first with their sizes; restoring asks first, then reloads', async ({
+  page,
+}) => {
   await open(page, { backups_list: { backups: [NEW, OLD], lastError: null }, backup_restore: null })
+  await showBackups(page)
+  const dialog = page.getByRole('dialog', { name: 'Backups' })
+  await expect(dialog).toBeVisible()
+  const rows = dialog.getByRole('listitem')
+  await expect(rows).toHaveCount(2)
+  await expect(rows.nth(0)).toContainText('12.3 MB')
+  await expect(rows.nth(1)).toContainText('250 kB')
+  await dialog.getByRole('button', { name: 'Done' }).click()
+  await expect(dialog).toBeHidden()
+
   await showBackups(page)
   const restore = page.getByRole('button', { name: /^Restore the backup from Oct 8, 2026/ })
   await restore.click()

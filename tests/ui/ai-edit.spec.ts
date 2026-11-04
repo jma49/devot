@@ -161,42 +161,9 @@ test('a proposed change taller than its box scrolls from the keyboard', async ({
   await expect.poll(() => diff.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
 })
 
-test('takes only the changes left checked', async ({ page }) => {
-  await fakeProvider(page, ['One.\nkeep\nTwo.'])
-  await page.reload()
-  await notebook(page, 'Work', true)
-  await note(page, 'one\nkeep\ntwo')
-  await body(page).click()
-  await page.keyboard.press('ControlOrMeta+a')
-
-  await fromToolbar(page, 'Improve Writing')
-  const takes = sheet(page).getByRole('checkbox', { name: 'Apply change 1 of 2' })
-  await expect(takes).toHaveCount(1)
-  await expect(takes).toHaveAccessibleDescription(/one/)
-  await expect(sheet(page).getByRole('checkbox', { name: 'Apply change 2 of 2' })).toBeVisible()
-  await takes.uncheck()
-  await sheet(page).getByRole('button', { name: 'Accept Selected' }).click()
-  await expect(sheet(page)).toBeHidden()
-  await expect.poll(() => savedBody(page)).toBe('one\nkeep\nTwo.')
-})
-
-test('moves focus to the proposal when it arrives, so it is announced and usable', async ({
+test('focuses the proposal, takes only the changes left checked and gives the keyboard back', async ({
   page,
 }) => {
-  await fakeProvider(page, ['One.\nkeep\nTwo.'])
-  await page.reload()
-  await notebook(page, 'Work', true)
-  await note(page, 'one\nkeep\ntwo')
-  await body(page).click()
-  await page.keyboard.press('ControlOrMeta+a')
-
-  await fromToolbar(page, 'Improve Writing')
-  const diff = sheet(page).getByRole('region', { name: 'Proposed changes' })
-  await expect(diff).toBeFocused()
-  await expect(sheet(page).getByRole('status')).toContainText('Proposed by')
-})
-
-test('gives the keyboard back to the editor when the sheet closes', async ({ page }) => {
   await fakeProvider(page, ['One.\nkeep\nTwo.', 'One.\nkeep\nTwo.'])
   await page.reload()
   await notebook(page, 'Work', true)
@@ -214,14 +181,21 @@ test('gives the keyboard back to the editor when the sheet closes', async ({ pag
 
   await fromToolbar(page, 'Improve Writing')
   await expect(sheet(page).getByRole('region', { name: 'Proposed changes' })).toBeFocused()
+  await expect(sheet(page).getByRole('status')).toContainText('Proposed by')
   await page.keyboard.press('Escape')
   await expect(sheet(page)).toBeHidden()
   await expect.poll(inEditor).toBe(true)
 
   await page.keyboard.press('ControlOrMeta+a')
   await fromToolbar(page, 'Improve Writing')
-  await sheet(page).getByRole('button', { name: 'Accept' }).click()
+  const takes = sheet(page).getByRole('checkbox', { name: 'Apply change 1 of 2' })
+  await expect(takes).toHaveCount(1)
+  await expect(takes).toHaveAccessibleDescription(/one/)
+  await expect(sheet(page).getByRole('checkbox', { name: 'Apply change 2 of 2' })).toBeVisible()
+  await takes.uncheck()
+  await sheet(page).getByRole('button', { name: 'Accept Selected' }).click()
   await expect(sheet(page)).toBeHidden()
+  await expect.poll(() => savedBody(page)).toBe('one\nkeep\nTwo.')
   await expect.poll(inEditor).toBe(true)
 })
 

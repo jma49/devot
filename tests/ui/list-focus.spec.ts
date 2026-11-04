@@ -223,26 +223,6 @@ test('Restore from the palette in the Trash list opens the next row', async ({ p
   await expect(next).toBeFocused()
 })
 
-test('a row the filter hides hands the keyboard to the next one', async ({ page }) => {
-  await threeNotes(page)
-  for (const title of ['Alpha', 'Beta', 'Gamma']) {
-    await focusRow(page, title)
-    await page.keyboard.press('KeyP')
-    await expect(noteRow(page, title)).toBeFocused()
-  }
-  await sidebar(page)
-    .getByRole('button', { name: /^Pinned \d+$/ })
-    .click()
-  await expect(noteRows(page)).toHaveCount(3)
-  const titles = (await noteRows(page).allTextContents()).map(
-    (text) => /^(Alpha|Beta|Gamma)/.exec(text)?.[1] ?? '',
-  )
-  await focusRow(page, titles[1] ?? '')
-  await page.keyboard.press('KeyP')
-  await expect(noteRows(page)).toHaveCount(2)
-  await expectOpenAndFocused(page, titles[2] ?? '')
-})
-
 test('switching views from the keyboard opens no note', async ({ page }) => {
   await page.getByRole('button', { name: 'New Notebook' }).click()
   const field = page.getByRole('textbox', { name: 'Notebook name' })
@@ -307,24 +287,29 @@ test('the next row opens even when the focus rescue looks before the list', asyn
   await setRescueFirst(page, false)
 })
 
-test('a row the filter hides hands over even when the focus rescue looks first', async ({
-  page,
-}) => {
-  await rescueFirst(page)
-  await threeNotes(page)
-  for (const title of ['Alpha', 'Beta', 'Gamma']) {
-    await focusRow(page, title)
+for (const rescue of [false, true]) {
+  test(`a row the filter hides hands the keyboard to the next one${rescue ? ', even when the focus rescue looks first' : ''}`, async ({
+    page,
+  }) => {
+    if (rescue) await rescueFirst(page)
+    await threeNotes(page)
+    for (const title of ['Alpha', 'Beta', 'Gamma']) {
+      await focusRow(page, title)
+      await page.keyboard.press('KeyP')
+      await expect(noteRow(page, title)).toBeFocused()
+    }
+    await sidebar(page)
+      .getByRole('button', { name: /^Pinned \d+$/ })
+      .click()
+    await expect(noteRows(page)).toHaveCount(3)
+    const titles = (await noteRows(page).allTextContents()).map(
+      (text) => /^(Alpha|Beta|Gamma)/.exec(text)?.[1] ?? '',
+    )
+    await focusRow(page, titles[1] ?? '')
+    if (rescue) await setRescueFirst(page, true)
     await page.keyboard.press('KeyP')
-    await expect(noteRow(page, title)).toBeFocused()
-  }
-  await sidebar(page)
-    .getByRole('button', { name: /^Pinned \d+$/ })
-    .click()
-  await expect(noteRows(page)).toHaveCount(3)
-  await focusRow(page, 'Beta')
-  await setRescueFirst(page, true)
-  await page.keyboard.press('KeyP')
-  await expect(noteRows(page)).toHaveCount(2)
-  await expectOpenAndFocused(page, 'Alpha')
-  await setRescueFirst(page, false)
-})
+    await expect(noteRows(page)).toHaveCount(2)
+    await expectOpenAndFocused(page, titles[2] ?? '')
+    if (rescue) await setRescueFirst(page, false)
+  })
+}

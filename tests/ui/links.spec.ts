@@ -252,23 +252,16 @@ async function linkedPair(page: Page) {
   await expect(body(page)).toContainText('devot://note/')
 }
 
-test('the caret in a note link shows Open Note, which opens it', async ({ page }) => {
-  await linkedPair(page)
-  await page.keyboard.press('ArrowLeft')
-  const tip = page.locator('.cm-link-tip')
-  await expect(tip.getByRole('button', { name: 'Open Note' })).toBeVisible()
-  await tip.getByRole('button', { name: 'Open Note' }).hover()
-  await expect(page.locator('.cm-float-tip .cm-float-kbd')).toBeVisible()
-  await tip.getByRole('button', { name: 'Open Note' }).click()
-  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Groceries')
-})
-
-test('after Open Note keeps the editor focused, a selection in the opened note shows the format bar', async ({
+test('the caret in a note link shows Open Note, which opens it with the editor focused', async ({
   page,
 }) => {
   await linkedPair(page)
   await page.keyboard.press('ArrowLeft')
-  await page.locator('.cm-link-tip').getByRole('button', { name: 'Open Note' }).click()
+  const open = page.locator('.cm-link-tip').getByRole('button', { name: 'Open Note' })
+  await expect(open).toBeVisible()
+  await open.hover()
+  await expect(page.locator('.cm-float-tip .cm-float-kbd')).toBeVisible()
+  await open.click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Groceries')
   await expect(body(page)).toContainText('Milk and eggs')
   await expect(body(page)).toBeFocused()
@@ -289,22 +282,21 @@ test('the caret in a web link shows Open URL, and none outside a link', async ({
   await expect(page.locator('.cm-link-tip')).toHaveCount(0)
 })
 
-test('hovering a note link in the editor shows its title and excerpt', async ({ page }) => {
+test('hovering a note link in the editor or the preview shows its title and excerpt', async ({
+  page,
+}) => {
   await linkedPair(page)
   await page.keyboard.type(' later')
   await body(page).getByText('Groceries').hover()
   const card = page.locator('.cm-note-card-tip')
   await expect(card).toContainText('Groceries')
   await expect(card).toContainText('Milk and eggs')
-})
 
-test('hovering a note link in the preview shows its title and excerpt', async ({ page }) => {
-  await linkedPair(page)
   await page.getByRole('button', { name: 'Preview' }).click()
   await page.getByRole('link', { name: 'Groceries' }).hover()
-  const card = page.locator('.note-card-pop')
-  await expect(card).toContainText('Groceries')
-  await expect(card).toContainText('Milk and eggs')
+  const previewCard = page.locator('.note-card-pop')
+  await expect(previewCard).toContainText('Groceries')
+  await expect(previewCard).toContainText('Milk and eggs')
 })
 
 test('the highlighted note of the [[ popup shows its card', async ({ page }) => {

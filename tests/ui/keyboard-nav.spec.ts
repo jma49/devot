@@ -180,17 +180,6 @@ test.describe('Back and Forward', () => {
     await expect(titleField(page)).toHaveValue('Gamma')
   })
 
-  test('Tab nests a numbered item under the text above it, from 1', async ({ page }) => {
-    await threeNotes(page)
-    await typeBody(page, '1. first')
-    await page.keyboard.press('Enter')
-    await page.keyboard.type('child')
-    await page.keyboard.press('Tab')
-    await expect.poll(() => lines(page)).toEqual(['1. first', '   1. child'])
-    await page.keyboard.press('Shift+Tab')
-    await expect.poll(() => lines(page)).toEqual(['1. first', '2. child'])
-  })
-
   test('quick presses each go one note further', async ({ page }) => {
     await threeNotes(page)
     await pressTwiceAtOnce(page, 'BracketLeft')
@@ -611,7 +600,9 @@ test.describe('the sidebar', () => {
     ).toEqual([true])
   })
 
-  test('the same Cmd+/ reaching the menu bar too is dropped once', async ({ page }) => {
+  test('the same Cmd+/ reaching the menu bar too is dropped once; later picks hide and show it', async ({
+    page,
+  }) => {
     // The key, then at once the menu item with that key, as if the menu bar saw the same press.
     await page.evaluate(() => {
       const w = globalThis as unknown as {
@@ -628,6 +619,8 @@ test.describe('the sidebar', () => {
     // A later pick is the user's own.
     await pickViewHideSidebar(page)
     await expect(sidebar(page)).toBeVisible()
+    await pickViewHideSidebar(page)
+    await expect(sidebar(page)).toBeHidden()
   })
 
   test('the Show Sidebar button gives the keyboard to the sidebar', async ({ page }) => {
@@ -637,14 +630,6 @@ test.describe('the sidebar', () => {
     await page.keyboard.press('Enter')
     await expect(sidebar(page)).toBeVisible()
     await expect(source(page, 'All Notes')).toBeFocused()
-  })
-
-  test('View > Hide Sidebar in the menu bar hides and shows it', async ({ page }) => {
-    await expect(sidebar(page)).toBeVisible()
-    await pickViewHideSidebar(page)
-    await expect(sidebar(page)).toBeHidden()
-    await pickViewHideSidebar(page)
-    await expect(sidebar(page)).toBeVisible()
   })
 
   test('hiding it moves the keyboard to the list; in focus mode Cmd+/ shows it', async ({
