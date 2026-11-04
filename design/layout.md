@@ -20,7 +20,7 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 - **Write mode's table bar:** above the rendered table, outside the grid, on the table's left edge (`BAR_GAP` clear of the header row). The table's first row line always carries a bar's height plus `BAR_GAP` of padding above the header, so the bar sits in that space and never covers the block above. When the editor has no room above the table the bar stays at the top of the visible part of the table, below the header row, and never covers it. Edit mode keeps the bar over the row above the caret.
 - **Write mode's task box:** one drawn box for open and done tasks, 0.875 em square with `radius.mark` (4), outlined in `color.line.control` when open and filled `color.accent.fill` with a `color.accent.on-fill` check when done (one stroke rule). It stands in for the list mark, the brackets and the space after them: its left edge is the list mark's column, the bullets' column, and it centres on the item's first line. The item's text starts `space.3` after it, at one x for done and open items, and a done item's strike-through covers that text only.
 - **Split view:** each pane uses the editor keyline inside its own width.
-- **Scroll bars:** `.rows`, `.preview` and the editor always reserve the scroll bar, pulled out of the keyline, so right edges stay put.
+- **Scroll bars:** `.rows`, `.preview`, the editor and the Settings pane always reserve the scroll bar, pulled out of the keyline, so right edges stay put.
 - **Exceptions:** in focus mode the editor toolbar starts at `window-controls-inset`, and with the sidebar hidden the list toolbar keeps its start padding, so neither meets the traffic lights. The Settings toolbar keeps its own corner rule.
 
 ## Separators and captions

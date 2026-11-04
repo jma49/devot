@@ -43,14 +43,16 @@ export function SettingsSection({
   title: MessageKey
   /** After the title in the secondary colour, such as Light Mode's "Active". */
   titleSuffix?: string | undefined
-  /** Under the card, after an info glyph. */
-  footnote?: string | undefined
+  /** Under the card, each after an info glyph. */
+  footnote?: string | readonly string[] | undefined
   /** The screen's own title already says this: the section keeps it as its accessible name only. */
   titleHidden?: boolean | undefined
   children: ReactNode
 }) {
   const id = useId()
   const onPhone = useOnPhone()
+  const footnotes =
+    footnote === undefined ? [] : typeof footnote === 'string' ? [footnote] : footnote
   const heading = titleHidden ? null : (
     <h3 id={id} className="settings-block-title">
       {t(title)}
@@ -64,13 +66,18 @@ export function SettingsSection({
     >
       {heading}
       <div className="settings-card">{children}</div>
-      {footnote && onPhone ? <p className="phone-footnote">{footnote}</p> : null}
-      {footnote && !onPhone ? (
-        <p className="settings-footnote">
-          <Icon name="settings.note" size="sm" />
-          <span>{footnote}</span>
-        </p>
-      ) : null}
+      {footnotes.map((text) =>
+        onPhone ? (
+          <p key={text} className="phone-footnote">
+            {text}
+          </p>
+        ) : (
+          <p key={text} className="settings-footnote">
+            <Icon name="settings.note" size="sm" />
+            <span>{text}</span>
+          </p>
+        ),
+      )}
     </section>
   )
 }

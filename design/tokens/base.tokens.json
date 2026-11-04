@@ -1644,12 +1644,17 @@
     },
     "settings-swatch-width": {
       "$type": "dimension",
-      "$value": { "value": 100, "unit": "px" },
-      "$description": "A theme swatch in Settings > Appearance."
+      "$value": { "value": 84, "unit": "px" },
+      "$description": "A theme swatch in Settings > Appearance: six, Default and five built-ins, fit the card in the Settings window."
     },
     "settings-swatch-height": {
       "$type": "dimension",
       "$value": { "value": 62, "unit": "px" }
+    },
+    "settings-slider-width": {
+      "$type": "dimension",
+      "$value": { "value": 160, "unit": "px" },
+      "$description": "A slider in Settings, such as Glass transparency."
     },
     "settings-thumb-width": {
       "$type": "dimension",

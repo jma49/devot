@@ -143,53 +143,6 @@ function HandSetup(props: { setup: McpSetup; copy: (title: MessageKey, text: str
   )
 }
 
-// Once per Settings window: "Later" keeps it quiet until the window closes.
-let promptSeen = false
-
-/**
- * Why MCP clients see nothing yet, and the way to the picker in the main
- * window: the flag in the storage both windows share asks it to open there.
- */
-function AiAccessPrompt(props: { notebooks: number; onClose: () => void }) {
-  const dialog = useRef<HTMLDialogElement>(null)
-  useEffect(() => {
-    const el = dialog.current
-    if (el && !el.open) el.showModal()
-    return () => el?.close()
-  }, [])
-  const openPicker = () => {
-    openNotebookPicker()
-    props.onClose()
-  }
-  return (
-    <dialog
-      ref={dialog}
-      className="confirm"
-      aria-labelledby="ai-access-prompt-title"
-      aria-describedby="ai-access-prompt-detail"
-      onCancel={(e) => {
-        e.preventDefault()
-        props.onClose()
-      }}
-    >
-      <p id="ai-access-prompt-title" className="confirm-message">
-        {t('integrations.noAiAccessTitle')}
-      </p>
-      <p id="ai-access-prompt-detail" className="confirm-detail">
-        {t(props.notebooks === 0 ? 'integrations.noNotebooks' : 'integrations.noAiAccess')}
-      </p>
-      <div className="confirm-actions">
-        <button type="button" className="button" onClick={props.onClose} autoFocus>
-          {t('integrations.later')}
-        </button>
-        <button type="button" className="button button-default" onClick={openPicker}>
-          {t(props.notebooks === 0 ? 'integrations.openDevot' : 'integrations.chooseNotebooks')}
-        </button>
-      </div>
-    </dialog>
-  )
-}
-
 type Pending = { action: 'connect' | 'disconnect'; title: MessageKey; status: McpClientStatus }
 
 const CAN_START_IN_BACKGROUND: McpAccessView = {
@@ -279,7 +232,6 @@ export function IntegrationsSection() {
   const [extensionError, setExtensionError] = useState<string>()
   const [announcement, setAnnouncement] = useState('')
   const [summary, setSummary] = useState<AiAccessSummary>()
-  const [prompt, setPrompt] = useState(false)
   const [pending, setPending] = useState<Pending>()
   const [busy, setBusy] = useState(false)
   const [setupVersion, setSetupVersion] = useState(0)
@@ -293,10 +245,6 @@ export function IntegrationsSection() {
         (found) => {
           if (!live) return
           setSummary(found)
-          if (found.allowed === 0 && !promptSeen) {
-            promptSeen = true
-            setPrompt(true)
-          }
         },
         (e: unknown) => {
           if (live) console.warn('W_AI_ACCESS_SUMMARY_FAILED', errorCode(e))
@@ -367,10 +315,7 @@ export function IntegrationsSection() {
           )
           const done = action === 'connect' ? 'integrations.connected' : 'integrations.disconnected'
           setAnnouncement(format(t(done), { client: t(title) }))
-          if (action === 'connect') {
-            setAccessChanged((n) => n + 1)
-            if (summary?.allowed === 0) setPrompt(true)
-          }
+          if (action === 'connect') setAccessChanged((n) => n + 1)
         },
         (e: unknown) => {
           setChangeError(errorCode(e))
@@ -390,7 +335,6 @@ export function IntegrationsSection() {
           setExtensionError(undefined)
           setAnnouncement(t('integrations.extensionOpened'))
           setAccessChanged((n) => n + 1)
-          if (summary?.allowed === 0) setPrompt(true)
         },
         (e: unknown) => setExtensionError(errorCode(e)),
       )
@@ -500,9 +444,6 @@ export function IntegrationsSection() {
           onCancel={() => setPending(undefined)}
           onConfirm={() => change(pending)}
         />
-      ) : null}
-      {prompt && summary ? (
-        <AiAccessPrompt notebooks={summary.notebooks} onClose={() => setPrompt(false)} />
       ) : null}
     </section>
   )

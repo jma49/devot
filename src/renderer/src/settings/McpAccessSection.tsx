@@ -108,9 +108,17 @@ export function McpAccessSection(props: {
         notebooks: formatNumber(summary.notebooks, currentLocale()),
       })
     : ''
+  // Access stays manual: the notice says why tools see nothing, and Choose… beside Notebooks acts.
+  const notice =
+    summary?.allowed === 0
+      ? t(summary.notebooks === 0 ? 'integrations.noNotebooks' : 'integrations.noAiAccess')
+      : null
 
   return (
-    <SettingsSection title="mcpAccess.title" footnote={t('mcpAccess.footnote')}>
+    <SettingsSection
+      title="mcpAccess.title"
+      footnote={notice ? [notice, t('mcpAccess.footnote')] : t('mcpAccess.footnote')}
+    >
       {failure ? (
         <p role="alert" className="settings-error">
           {format(t(failure.message), { code: failure.code })}

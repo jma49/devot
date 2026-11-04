@@ -113,6 +113,9 @@ export const writeTheme = EditorView.theme({
     cursor: 'text',
   },
   '.cm-wm-footnote-definition': { marginInlineEnd: 'var(--space-2)' },
+  // Drawn as the preview draws them (content.css), but never taller than the line, so showing their source moves no line.
+  '.cm-wm-inline': { lineHeight: '0' },
+  '.cm-wm-inline kbd': { display: 'inline', lineHeight: '1' },
   '.cm-wm-note-title': { color: token('syntax-link'), textDecoration: 'underline' },
   '.cm-wm-note-missing': { color: token('text-tertiary'), textDecoration: 'line-through' },
   '.cm-line.cm-wm-rule': {

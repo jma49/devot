@@ -571,7 +571,9 @@ test('Install Extension opens the bundle, and says when it cannot', async ({ pag
   expect(await calls(page, 'settings_mcp_open_extension')).toHaveLength(1)
 })
 
-test('Connecting with no notebook allowed leads on to choosing one', async ({ page }) => {
+test('Connecting with no notebook allowed opens nothing more, and the notice stays', async ({
+  page,
+}) => {
   await page.addInitScript(
     ({ setup, connected }) => {
       const w = globalThis as unknown as TestWindow
@@ -587,14 +589,16 @@ test('Connecting with no notebook allowed leads on to choosing one', async ({ pa
     },
   )
   await openSettings(page, 'Integrations')
-  await page.getByRole('dialog').getByRole('button', { name: 'Later' }).click()
   const codex = page.getByRole('group', { name: 'Codex' })
   await codex.getByRole('button', { name: 'Connect Codex' }).click()
   await page
     .getByRole('dialog', { name: 'Connect Codex?' })
     .getByRole('button', { name: 'Connect', exact: true })
     .click()
-  await expect(page.getByRole('dialog', { name: 'No notebook allows AI access' })).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(
+    page.getByRole('region', { name: 'AI Tools' }).locator('.settings-footnote').first(),
+  ).toContainText('No notebook allows AI access yet')
 })
 
 test('Integrations still offers configs, with the installed path, when Rust cannot say', async ({
@@ -1195,7 +1199,7 @@ test('Preview has synced scrolling; its font size sits in Appearance', async ({ 
   await expect(editor(page).getByRole('switch', { name: 'Synced Scrolling' })).toHaveCount(0)
 })
 
-test('Integrations says when no notebook allows AI access and offers the picker', async ({
+test('Integrations says under AI Tools when no notebook allows AI access, and opens nothing', async ({
   page,
 }) => {
   await page.addInitScript((setup) => {
@@ -1207,48 +1211,54 @@ test('Integrations says when no notebook allows AI access and offers the picker'
     }
   }, setupWith())
   await openSettings(page, 'Integrations')
-  const prompt = page.getByRole('dialog', { name: 'No notebook allows AI access' })
-  await expect(prompt).toBeVisible()
-  await expect(prompt).toContainText('Right-click a notebook in the sidebar')
-  await prompt.getByRole('button', { name: 'Choose Notebooks\u2026' }).click()
-  await expect(prompt).toHaveCount(0)
+  const aiTools = page.getByRole('region', { name: 'AI Tools' })
+  await expect(aiTools).toContainText('0 of 3 notebooks allow AI access.')
+  const notes = aiTools.locator('.settings-footnote')
+  await expect(notes.first()).toContainText('No notebook allows AI access yet')
+  await expect(notes.first()).toContainText('right-click a notebook in the sidebar')
+  await expect(notes.first().locator('.icon')).toHaveCount(1)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.locator('dialog[open]')).toHaveCount(0)
+  await aiTools.getByRole('button', { name: 'Choose\u2026' }).click()
   expect(await calls(page, 'main_window_show')).toEqual([{ cmd: 'main_window_show', args: {} }])
   // The main window reads this flag when it gains focus.
   expect(await page.evaluate(() => localStorage.getItem('devot:choose-ai-access'))).toBe('1')
 })
 
-test('Later keeps the AI access prompt quiet for the Settings window', async ({ page }) => {
+test('the AI access notice goes once a notebook allows access', async ({ page }) => {
   await page.addInitScript((setup) => {
-    const w = globalThis as unknown as TestWindow
+    const w = globalThis as unknown as TestWindow & { allowed?: number }
     w.devotIpcMocks = {
       settings_mcp_setup: setup,
-      settings_ai_access_summary: { notebooks: 2, allowed: 0 },
+      settings_ai_access_summary: () => ({ notebooks: 2, allowed: w.allowed ?? 0 }),
     }
   }, setupWith())
   await openSettings(page, 'Integrations')
-  const prompt = page.getByRole('dialog', { name: 'No notebook allows AI access' })
-  await prompt.getByRole('button', { name: 'Later' }).click()
-  await expect(prompt).toHaveCount(0)
-  await tab(page, 'General').click()
-  await tab(page, 'Integrations').click()
-  await expect(prompt).toHaveCount(0)
-  await expect(page.getByRole('tabpanel')).toContainText('0 of 2 notebooks allow AI access.')
+  const aiTools = page.getByRole('region', { name: 'AI Tools' })
+  await expect(aiTools).toContainText('No notebook allows AI access yet')
+  await page.evaluate(() => {
+    ;(globalThis as unknown as { allowed: number }).allowed = 1
+    window.dispatchEvent(new Event('focus'))
+  })
+  await expect(aiTools).toContainText('1 of 2 notebooks allow AI access.')
+  await expect(aiTools).not.toContainText('No notebook allows AI access yet')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
-test('Integrations offers a way to create a notebook when there is none', async ({ page }) => {
+test('Integrations says how to create a notebook when there is none', async ({ page }) => {
   await page.addInitScript((setup) => {
     const w = globalThis as unknown as TestWindow
     w.devotIpcMocks = {
       settings_mcp_setup: setup,
       settings_ai_access_summary: { notebooks: 0, allowed: 0 },
-      main_window_show: null,
     }
   }, setupWith())
   await openSettings(page, 'Integrations')
-  const prompt = page.getByRole('dialog', { name: 'No notebook allows AI access' })
-  await expect(prompt).toContainText('Devot has no notebooks yet')
-  await prompt.getByRole('button', { name: 'Open Devot' }).click()
-  expect(await calls(page, 'main_window_show')).toEqual([{ cmd: 'main_window_show', args: {} }])
+  const aiTools = page.getByRole('region', { name: 'AI Tools' })
+  await expect(aiTools.locator('.settings-footnote').first()).toContainText(
+    'Devot has no notebooks yet',
+  )
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
 test('search finds a setting and shows its pane', async ({ page }) => {
@@ -1301,6 +1311,29 @@ test('the search capsule lines up with the rows, and every control ends on the c
     )
     expect(overflow).toEqual([])
   }
+})
+
+test('cards end on one right edge whether or not the pane scrolls', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 680 })
+  await openSettings(page, 'General')
+  const edges = async (pane: string) => {
+    await tab(page, pane).click()
+    await expect(page.getByRole('tabpanel', { name: pane })).toBeVisible()
+    return page.evaluate(() => {
+      const scroller = document.querySelector('.settings-pane')!
+      return {
+        scrolls: scroller.scrollHeight > scroller.clientHeight,
+        rights: [...document.querySelectorAll('.settings-card')].map(
+          (card) => card.getBoundingClientRect().right,
+        ),
+      }
+    })
+  }
+  const general = await edges('General')
+  const preview = await edges('Preview')
+  expect([general.scrolls, preview.scrolls]).toEqual([true, false])
+  const right = general.rights[0]!
+  for (const edge of [...general.rights, ...preview.rights]) expect(edge).toBeCloseTo(right, 1)
 })
 
 test('the selected pane turns a lighter grey, not a colour, while the window is behind another', async ({

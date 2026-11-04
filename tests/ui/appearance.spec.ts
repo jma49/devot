@@ -236,6 +236,39 @@ test.describe('the theme choices in Settings', () => {
     await expect.poll(() => settingsCalls(page)).toEqual([{ lightTheme: 'sage' }])
   })
 
+  for (const sidebarMaterial of [false, true]) {
+    test(`every swatch fits its card in the Settings window, with no sideways scroll, in ${sidebarMaterial ? 'Glass' : 'Classic'}`, async ({
+      page,
+    }) => {
+      // The Settings window's one size (src-tauri/src/settings.rs).
+      await page.setViewportSize({ width: 900, height: 680 })
+      await openSettings(page, 'Appearance')
+      await changeEditorSettingsElsewhere(page, { sidebarMaterial })
+      for (const mode of ['Light', 'Dark'] as const) {
+        const row = picker(page, mode)
+        await expect(row.locator('.swatch')).toHaveCount(6)
+        const fit = await row.evaluate((el) => {
+          const card = el.closest('.settings-card')!
+          const edge =
+            card.getBoundingClientRect().right - parseFloat(getComputedStyle(card).paddingRight)
+          return {
+            scroll: el.scrollWidth - el.clientWidth,
+            overflow: getComputedStyle(el).overflowX,
+            lines: new Set(
+              [...el.querySelectorAll('.swatch')].map((swatch) =>
+                Math.round(swatch.getBoundingClientRect().top),
+              ),
+            ).size,
+            past: [...el.querySelectorAll('.choice')]
+              .map((choice) => choice.getBoundingClientRect().right - edge)
+              .filter((by) => by > 0.5),
+          }
+        })
+        expect(fit).toEqual({ scroll: 0, overflow: 'visible', lines: 1, past: [] })
+      }
+    })
+  }
+
   test('each swatch shows its own theme whatever the window shows', async ({ page }) => {
     await openSettings(page, 'Appearance')
     await changeEditorSettingsElsewhere(page, { lightTheme: 'ivory' })
