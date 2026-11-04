@@ -177,8 +177,9 @@
   --size-settings-control: 28px;
   --size-note-pill: 26px;
   --size-note-pill-pad: 10px;
-  --size-settings-swatch-width: 100px;
+  --size-settings-swatch-width: 84px;
   --size-settings-swatch-height: 62px;
+  --size-settings-slider-width: 160px;
   --size-settings-thumb-width: 76px;
   --size-settings-thumb-height: 54px;
   --size-settings-key-field: 200px;
