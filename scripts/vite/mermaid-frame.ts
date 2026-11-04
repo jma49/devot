@@ -5,10 +5,11 @@
 // emitted into the build, so nothing generated is written to the source tree.
 import { resolve } from 'node:path'
 import { build, type Plugin, type Rolldown } from 'vite'
+import { MERMAID_FRAME_ENTRY, MERMAID_FRAME_SCRIPT } from './mermaid-frame-entry.ts'
 
-export const MERMAID_FRAME_SCRIPT = 'mermaid-frame.js'
+export { MERMAID_FRAME_SCRIPT }
 
-const entry = resolve(import.meta.dirname, '../../src/renderer/src/mermaid-frame.ts')
+const entry = resolve(import.meta.dirname, '../..', MERMAID_FRAME_ENTRY)
 
 interface Bundle {
   code: string

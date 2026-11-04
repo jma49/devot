@@ -50,24 +50,31 @@ Pull requests select browser tests separately from the Web and Rust build jobs. 
 
 - A changed UI spec runs that file. A removed spec runs the remaining specs in its project; renames include both old and new paths.
 - Exact source allowlists cover Find, update checking, tooltip placement and Mermaid rendering. Their selections include cross-feature consumers and the production CSP suite. For example, tooltip placement also runs note-link hover coverage, Find also runs IME and read-only coverage, and Mermaid also runs export and scroll restoration coverage. Update these mappings when a feature gains another consumer.
-- Shared application code, global event handling, styles, core code, UI fixtures, dependency files, build configuration and unknown paths run the full UI suite. A missing mapped spec also falls back to full coverage.
+- Other sources go by the UI's module graph (`scripts/ci/ui-graph.ts`, read from the import statements): a file a page loads runs the full suite; a file loaded only behind the phone layout's lazy import runs the phone specs; a file no page loads runs no browser. Specs that import a file themselves also run. `tests/scripts/ui-graph.test.ts` fails when a source is unreachable, so a missed import form cannot skip specs.
+- UI fixtures, test support, dependency files, build configuration and unknown paths run the full UI suite. A missing mapped spec also falls back to full coverage.
 - Documentation-only changes skip the heavy build and test jobs; the always-on `web`, `rust` and `policy` gates still report success. Unit tests, Rust-only, relay and licence-service changes need no browser run, and their existing build, type and Vitest checks still apply.
 - Manual workflow runs select the full suite. Empty change lists and missing selection outputs also retain full coverage.
 
-Development and production CSP run in separate jobs, each starting only its own server. Measured development selections target about 560 seconds of recorded work per shard and cap at fourteen; a set without measured durations uses one shard per six spec files, capped at eight. Production CSP currently has one spec and uses one job. The planner assigns each spec to exactly one shard, balancing the recorded durations in `scripts/ci/ui-durations.json`, and each job runs only its own files. Each CI job runs two Playwright workers: four workers on a four-core runner starved WebKit's rendering processes and produced motion and rendering failures. Local runs use the same two unless `DEVOT_UI_WORKERS` raises them. More shards reduce work per runner but still depend on GitHub runner availability and account concurrency limits. Traces from failures and retries retain project and shard names, and each job uploads its JSON report.
+Development and production CSP run in separate jobs, each starting only its own server. Measured development selections target about 400 seconds of recorded work per shard and cap at fourteen; a set without measured durations uses one shard per six spec files, capped at eight. Production CSP currently has one spec and uses one job. The planner assigns each spec to exactly one shard, balancing the recorded durations in `scripts/ci/ui-durations.json`, and each job runs only its own files. Each CI job runs two Playwright workers: four workers on a four-core runner starved WebKit's rendering processes and produced motion and rendering failures. Local runs use the same two unless `DEVOT_UI_WORKERS` raises them. More shards reduce work per runner but still depend on GitHub runner availability and account concurrency limits. Traces from failures and retries retain project and shard names, and each job uploads its JSON report.
+
+The UI shards test the bundle, not Vite's dev server: a page of the bundle loads a few dozen files where the dev server sends each module on its own, and every test opens a fresh page. The `ui-build` job runs `pnpm test:ui:build` once per run and hands `dist-test/` to every shard as an artifact; with `DEVOT_UI_PREBUILT=1` Playwright only serves it (`vite preview` for `webkit`, `scripts/serve-csp.ts` for the production CSP). The UI tests' build keeps its test hooks: in-memory storage, the motion speed factor, and the app functions a few specs call from the page (`window.devotTestModules`, main.tsx).
+
+Pull requests merge through GitHub's merge queue: once a pull request's own CI is green, add it to the queue (Merge when ready). The queue merges it onto the newest `main` together with the pull requests ahead of it, runs the full CI on that commit (`merge_group`), and moves `main` to it only when that run passes, so a pull request no longer has to be brought up to date by hand and several merges share one full run. A newer push to a pull request or to `main` cancels the older run. The queue itself is a repository setting (Settings, Rules, a ruleset on `main` with Require merge queue, merge method Squash, and the required checks `web`, `rust`, `policy` and `title`).
 
 The `changes` job is the path filter. It writes `docs_only=true` when every changed path is documentation, and the expensive jobs then skip; `policy-check` still runs the format check and `pnpm test:policy`, whose tests read the docs. The `web`, `rust` and `policy` jobs always run as small gates, so the required checks are still reported instead of staying pending.
 
-Refresh the recorded durations from a complete local run after a large change:
+Refresh the recorded durations after a large change, and when `tests/policy/ci-config.test.ts` finds more than five specs the file does not know or one it names that is gone. The reports of a full CI run on `main` measure the runners the shards run on:
 
 ```sh
-PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/ui-report.json pnpm test:ui --reporter=json
-node scripts/ci/ui-timings.ts scripts/ci/ui-durations.json /tmp/ui-report.json
+gh run download <run ID> -p 'playwright-results-*' -D /tmp/ui-reports
+node scripts/ci/ui-timings.ts scripts/ci/ui-durations.json /tmp/ui-reports/*/report.json
 ```
+
+A complete local run works too: `PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/ui-report.json pnpm test:ui --reporter=json`, then the same script with `/tmp/ui-report.json`.
 
 Specs the file does not know cost as much as the median known spec. Pricing them at the slowest spec instead left a few new files each holding a shard's worth of planned work, so the measured shards ran far longer than those shards.
 
-`pnpm test:ui` still runs both complete projects locally. To run an exact selection with only its server:
+`pnpm test:ui` still runs both complete projects locally, building `dist-test/` first (about 20 seconds). `DEVOT_UI_SERVER=dev pnpm test:ui` serves the `webkit` project from Vite's dev server instead, which picks up edits without a build; `DEVOT_UI_PREBUILT=1` reuses the last build. To run an exact selection with only its server:
 
 ```sh
 DEVOT_UI_PROJECT=webkit DEVOT_UI_TEST_FILES='["tests/ui/tooltips.spec.ts"]' pnpm test:ui

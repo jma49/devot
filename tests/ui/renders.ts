@@ -1,18 +1,21 @@
 import type { Page } from '@playwright/test'
 
 // Render counting through the hook React offers its developer tools. A component counts as rendered in a commit
-// when its fiber holds props or hook state not seen before; a skipped component keeps the old ones.
+// when its fiber holds props or hook state not seen before; a skipped component keeps the old ones. Components are
+// found by function name, which the UI tests' build keeps (vite.ui-test.config.ts).
 
 interface RenderWindow {
   devotRenders: Record<string, number>
+  devotRendered: string[]
   devotNoteWrites: number
 }
 
-/** Counts renders of the named components (function names, as the dev server keeps them) from the next page load on. Call before `page.goto`. */
+/** Counts renders of the named components (by function name) from the next page load on. Call before `page.goto`. */
 export async function countRenders(page: Page, names: readonly string[]): Promise<void> {
   await page.addInitScript((watched) => {
     const w = globalThis as unknown as RenderWindow & Record<string, unknown>
     w.devotRenders = Object.fromEntries(watched.map((name) => [name, 0]))
+    w.devotRendered = []
     w.devotNoteWrites = 0
     const storage = (globalThis as unknown as { Storage: { prototype: Record<string, unknown> } })
       .Storage.prototype
@@ -55,6 +58,7 @@ export async function countRenders(page: Page, names: readonly string[]): Promis
           const type = fiber.type as { name?: string } | null
           const name = typeof type === 'function' ? type.name : undefined
           if (name === undefined || !watchedNames.has(name)) continue
+          if (!w.devotRendered.includes(name)) w.devotRendered.push(name)
           if (fresh(fiber.memoizedProps) || fresh(fiber.memoizedState)) {
             w.devotRenders[name] = (w.devotRenders[name] ?? 0) + 1
           }
@@ -66,13 +70,17 @@ export async function countRenders(page: Page, names: readonly string[]): Promis
   }, names)
 }
 
-export function renderCounts(
+/** Fails for a watched component no commit has shown, whose count would read 0 for a name the build lost. */
+export async function renderCounts(
   page: Page,
 ): Promise<{ renders: Record<string, number>; writes: number }> {
-  return page.evaluate(() => {
+  const { renders, rendered, writes } = await page.evaluate(() => {
     const w = globalThis as unknown as RenderWindow
-    return { renders: { ...w.devotRenders }, writes: w.devotNoteWrites }
+    return { renders: { ...w.devotRenders }, rendered: w.devotRendered, writes: w.devotNoteWrites }
   })
+  const unseen = Object.keys(renders).filter((name) => !rendered.includes(name))
+  if (unseen.length > 0) throw new Error(`E_TEST_RENDERS_UNSEEN: ${unseen.join(', ')}`)
+  return { renders, writes }
 }
 
 export function resetRenderCounts(page: Page): Promise<void> {

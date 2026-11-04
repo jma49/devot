@@ -14,7 +14,9 @@ interface Rect {
 interface Animation {
   pause(): void
   currentTime: number | null
-  effect: { getTiming(): { duration?: unknown } } | null
+  playState: string
+  finished: Promise<unknown>
+  effect: { getTiming(): { duration?: unknown }; getComputedTiming(): { endTime?: unknown } } | null
 }
 
 interface Node {
@@ -164,7 +166,7 @@ async function createBook(page: Page, name: string) {
   await expect(page.getByRole('treeitem', { name: new RegExp(`^${name}\\b`) })).toBeVisible()
 }
 
-/** Every motion slowed `scale` times (a development build reads it on each motion). */
+/** Every motion slowed `scale` times (the UI tests' build reads it on each motion). */
 function slowMotion(page: Page, scale: number) {
   return page.evaluate((factor) => {
     const g = globalThis as unknown as Win
@@ -180,6 +182,26 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-motion', 'full')
   await slowMotion(page, 5)
 })
+
+/** Waits until every motion that ends (not the caret's blink) has ended, and three frames more. */
+function motionsSettled(page: Page): Promise<void> {
+  return page.evaluate(async () => {
+    const g = globalThis as unknown as Win
+    const frame = () => new Promise<void>((done) => g.requestAnimationFrame(() => done()))
+    for (let quiet = 0; quiet < 3;) {
+      await frame()
+      const running = g.document
+        .getAnimations()
+        .filter(
+          (a) =>
+            a.playState === 'running' &&
+            Number.isFinite(Number(a.effect?.getComputedTiming().endTime)),
+        )
+      quiet = running.length ? 0 : quiet + 1
+      await Promise.all(running.map((a) => a.finished.catch(() => {})))
+    }
+  })
+}
 
 /** A clip-path's inset in px, top, right, bottom, left; `none` is no inset. */
 function insets(clipPath: string): [number, number, number, number] {
@@ -351,7 +373,7 @@ test('a section clicked again while it closes opens again', async ({ page }) => 
       }),
     )
     .toBeGreaterThan(40)
-  await page.waitForTimeout(1500)
+  await motionsSettled(page)
   await expect(toggle).toHaveAttribute('aria-expanded', 'true')
   await expect(page.locator('#statuses-list')).toBeVisible()
 })
@@ -389,7 +411,7 @@ test('entering and leaving focus mode slides the note column from where it was',
     await startSampling(page, 'column')
     await focusButton(page).click()
     await expect(focusButton(page)).toHaveAttribute('aria-pressed', pressed)
-    await page.waitForTimeout(2500)
+    await motionsSettled(page)
     const seen = await stopSampling(page)
     expectGlide(seen, ([title]) => title ?? Number.NaN)
     expectGlide(seen, ([, line]) => line ?? Number.NaN)
@@ -406,7 +428,7 @@ test('with the readable width, hiding the sidebar slides the lines from where th
   for (const name of ['Hide Sidebar', 'Show Sidebar']) {
     await startSampling(page, 'column')
     await page.getByRole('button', { name }).click()
-    await page.waitForTimeout(2500)
+    await motionsSettled(page)
     const seen = await stopSampling(page)
     expectGlide(seen, ([, line]) => line ?? Number.NaN)
   }
@@ -429,7 +451,7 @@ test('with line numbers and the readable width, the numbers stay with the editor
   for (const toggle of toggles) {
     await startSampling(page, 'gutter')
     await toggle.click()
-    await page.waitForTimeout(2500)
+    await motionsSettled(page)
     const seen = await stopSampling(page)
     const box = (s: number[]) => s[0] ?? Number.NaN
     const numbers = (s: number[]) => (s[1] ?? Number.NaN) - box(s)
@@ -495,7 +517,7 @@ test('entering focus mode while the sidebar still hides carries every pane on fr
   expect(sidebarOpacity).toBeGreaterThan(0.05)
   expect(sidebarOpacity).toBeLessThan(0.95)
   await expect(focusButton(page)).toHaveAttribute('aria-pressed', 'true')
-  await page.waitForTimeout(2500)
+  await motionsSettled(page)
   const seen = await stopSampling(page)
 
   const expectCarriedOn = (was: number[], is: number[], ms: number) => {

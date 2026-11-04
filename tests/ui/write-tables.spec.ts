@@ -360,6 +360,8 @@ test("tints the caret's cell and the cells a selection crosses, and nothing besi
   await page.keyboard.press('ControlOrMeta+a')
   await expect(page.locator('.cm-wm-cell-selected')).toHaveCount(4)
   await expect(page.locator('.cm-wm-cell-caret')).toHaveCount(0)
+  // The cells take the selection with the transaction; its layer is drawn at the next measure.
+  await expect(page.locator('.cm-selectionBackground')).not.toHaveCount(0)
   const all = await shot()
   const selection = at(all, right, above)
   expect(distance(selection, at(rest, right, above))).toBeGreaterThan(6)

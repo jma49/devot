@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest'
-import { motionMs, motionTiming, parseMotionScale, scaledDurations } from './motionTiming'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  MOTION_SCALE_KEY,
+  motionMs,
+  motionScale,
+  motionTiming,
+  parseMotionScale,
+  scaledDurations,
+} from './motionTiming'
 
 describe('the motion speed factor', () => {
   it('takes a positive stored number, and 1 for anything else', () => {
@@ -7,6 +14,32 @@ describe('the motion speed factor', () => {
     expect(parseMotionScale('0.5')).toBe(0.5)
     for (const stored of [null, '', '0', '-2', 'slow', 'Infinity'])
       expect(parseMotionScale(stored)).toBe(1)
+  })
+
+  describe('read from storage', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs()
+      vi.unstubAllGlobals()
+    })
+    const build = (dev: boolean, uiTest: boolean) => {
+      vi.stubEnv('DEV', dev)
+      vi.stubGlobal('DEVOT_UI_TEST', uiTest)
+      vi.stubGlobal('localStorage', {
+        getItem: (key: string) => (key === MOTION_SCALE_KEY ? '5' : null),
+      })
+    }
+
+    it("is read in development builds and the UI tests' build, which the motion tests slow", () => {
+      build(true, false)
+      expect(motionScale()).toBe(5)
+      build(false, true)
+      expect(motionScale()).toBe(5)
+    })
+
+    it('is ignored by the app as it ships', () => {
+      build(false, false)
+      expect(motionScale()).toBe(1)
+    })
   })
 
   it('slows the timings played from code', () => {

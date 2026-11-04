@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, globSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { uiGraph, uiReach, type UiGraph } from './ui-graph.ts'
 
 type Project = 'webkit' | 'webkit-prod-csp'
 interface UiJob {
@@ -16,12 +17,12 @@ const projects: [Project, string][] = [
   ['webkit-prod-csp', 'tests/ui-csp/'],
 ]
 
-// Each browser job gets two workers on a four-core runner. About 560 s of
-// recorded work is roughly 280 s per worker before server and browser startup.
-// More shards duplicate that startup, so stop at 14 (19 jobs with the other
+// Each browser job gets two workers on a four-core runner. About 400 s of
+// recorded work is roughly 200 s per worker after a setup of about 45 s.
+// More shards duplicate that setup, so stop at 14 (19 jobs with the other
 // CI jobs), which stays below GitHub's default concurrency limit.
 const MAX_SHARDS = 14
-const TARGET_SHARD_WORK_MS = 560_000
+const TARGET_SHARD_WORK_MS = 400_000
 
 const features: { sources: string[]; specs: string[] }[] = [
   {
@@ -79,11 +80,18 @@ const features: { sources: string[]; specs: string[] }[] = [
   },
 ]
 
+// Parts of the UI loaded only behind a lazy import, and the specs that load them. A file the pages
+// reach only through one of these needs only its specs.
+export const boundaries: { module: string; specs: RegExp }[] = [
+  { module: 'src/renderer/src/phone/PhoneApp.tsx', specs: /^tests\/ui\/phone-[^/]+\.spec\.ts$/ },
+]
+
 export function planUi(
   changed: string[],
   available: string[],
   forceFull = false,
   durations: Record<string, number> = {},
+  graph?: UiGraph,
 ) {
   const specs = [...new Set(available)].sort()
   const selected = new Set<string>()
@@ -113,6 +121,26 @@ export function planUi(
       file.startsWith('src-tauri/plugin-frame/')
     ) {
       full = true
+      continue
+    }
+    const reach =
+      graph &&
+      uiReach(
+        graph,
+        file,
+        boundaries.map(({ module }) => module),
+      )
+    if (reach) {
+      if (reach.pages.size) {
+        full = true
+        continue
+      }
+      for (const { module, specs: pattern } of boundaries) {
+        if (reach.boundaries.has(module)) {
+          for (const spec of specs) if (pattern.test(spec)) selected.add(spec)
+        }
+      }
+      for (const spec of reach.specs) if (specs.includes(spec)) selected.add(spec)
       continue
     }
     if (
@@ -175,7 +203,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const durations = existsSync(baseline)
     ? (JSON.parse(readFileSync(baseline, 'utf8')) as Record<string, number>)
     : {}
-  const plan = planUi(changed, available, process.argv.includes('--full'), durations)
+  const plan = planUi(
+    changed,
+    available,
+    process.argv.includes('--full'),
+    durations,
+    uiGraph(process.cwd()),
+  )
   if (!available.length) throw new Error('E_UI_SPECS_MISSING')
   console.log(`ui=${plan.mode !== 'none'}`)
   console.log(`ui_matrix=${JSON.stringify(plan.matrix)}`)

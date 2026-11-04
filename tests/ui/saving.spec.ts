@@ -93,20 +93,9 @@ test('the window hears of a failed save before the reply of the call it failed i
   // What a quit's save relies on: by its reply the notice knows the notes. The test starts a core of its
   // own to see what the window has heard when the reply comes.
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeVisible()
-  const heard = await page.evaluate(async (url) => {
-    interface Problem {
-      id: string
-      code: string
-    }
-    interface TestCore {
-      create(title: string): Promise<string>
-      setTitle(id: string, title: string): Promise<void>
-      flush(): Promise<void>
-    }
-    const { startCore } = (await import(url)) as {
-      startCore(onSaveProblems: (problems: Problem[]) => void): Promise<TestCore>
-    }
-    const lists: Problem[][] = []
+  const heard = await page.evaluate(async () => {
+    const { startCore } = (globalThis as unknown as TestWindow).devotTestModules
+    const lists: { id: string; code: string }[][] = []
     const core = await startCore((problems) => lists.push(problems))
     const id = await core.create('Heard')
     localStorage.setItem('devot.test.failNoteWrites', 'E_STORAGE_SQLITE')
@@ -115,6 +104,6 @@ test('the window hears of a failed save before the reply of the call it failed i
       () => 'saved',
       () => lists.map((list) => list.map((p) => `${p.id === id ? 'note' : p.id} ${p.code}`)),
     )
-  }, '/src/core-client.ts')
+  })
   expect(heard).toEqual([['note E_STORAGE_SQLITE']])
 })

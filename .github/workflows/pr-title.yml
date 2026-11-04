@@ -5,6 +5,10 @@ name: PR title
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
+  # A required check must report in the merge queue too; the title was
+  # checked on the pull request.
+  merge_group:
+    types: [checks_requested]
 
 permissions: {}
 
@@ -13,7 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - env:
+      - if: github.event_name == 'pull_request'
+        env:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
           if printf '%s\n' "$TITLE" | grep -Eq '^(feat|fix|test|docs|refactor|chore)(\([^)]+\))?!?: [^ ]'; then

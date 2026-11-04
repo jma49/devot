@@ -35,6 +35,16 @@ export interface TestWindow {
   devotIpcMocks?: Record<string, unknown>
   /** What the relay answers a storage reading with (sync-settings.spec.ts). */
   devotUsage?: unknown
+  /** App functions the UI tests' build puts on the main window (main.tsx). */
+  devotTestModules: {
+    invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown>
+    startCore(onSaveProblems: (problems: { id: string; code: string }[]) => void): Promise<{
+      create(title: string): Promise<string>
+      setTitle(id: string, title: string): Promise<void>
+      flush(): Promise<void>
+    }>
+    startCrashReporting(dsn: string, release: string): Promise<void>
+  }
   /** The label of the window this page stands for (`main-2` for a window File > New Window opened); `main` by default. */
   devotWindowLabel?: string
   devotMenus: Record<number, MockMenu>
@@ -684,6 +694,20 @@ export function paintedColour(css: string): string {
   const [r, g, b] = srgb.slice(1, 4).map((c) => Math.round(Number(c) * 255))
   const alpha = srgb[4] === undefined ? 1 : Math.round(Number(srgb[4]) * 1000) / 1000
   return alpha === 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+/** A colour token as the root resolves it, not as written: the build's minifier rewrites `#ffffff` as `#fff`. */
+export async function tokenColour(page: Page, token: `--color-${string}`): Promise<string> {
+  return paintedColour(
+    await page.evaluate((name) => {
+      const probe = document.createElement('i')
+      probe.style.color = `var(${name})`
+      document.documentElement.append(probe)
+      const colour = getComputedStyle(probe).color
+      probe.remove()
+      return colour
+    }, token),
+  )
 }
 
 export async function paintedBackground(element: Locator): Promise<string> {

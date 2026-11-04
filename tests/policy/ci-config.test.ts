@@ -31,8 +31,11 @@ it('pnpm check runs the dependency audit', () => {
 })
 
 it('every pnpm step of the CI web jobs is a step of pnpm check', () => {
-  const steps = commands(job('web-checks') + job('unit-tests') + job('ui'))
-    .filter((c) => c.startsWith('pnpm ') && !/^pnpm (install|exec|ui:build)\b/.test(c))
+  // `pnpm test:ui` makes the UI tests' build itself when CI has not (tests/support/ui-servers.ts).
+  const steps = commands(job('web-checks') + job('unit-tests') + job('ui-build') + job('ui'))
+    .filter(
+      (c) => c.startsWith('pnpm ') && !/^pnpm (install|exec|ui:build|test:ui:build)\b/.test(c),
+    )
     .map((c) => c.replace(/^pnpm /, '').split(' ')[0] ?? '')
   expect(steps.length).toBeGreaterThan(5)
   expect(steps).toContain('test:ui')
@@ -103,6 +106,7 @@ it('documentation-only pull requests skip heavy jobs but still report every requ
   expect(job('web-checks')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('unit-tests')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('ui')).toContain("needs.changes.outputs.docs_only != 'true'")
+  expect(job('ui-build')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('rust-check')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('deny')).toContain("needs.changes.outputs.docs_only != 'true'")
   for (const gate of ['web', 'rust', 'policy']) {
@@ -136,7 +140,7 @@ it('documentation-only pull requests still run the format check and the tests th
 })
 
 it('uses the setup caches only where the job installs those dependencies', () => {
-  for (const name of ['policy-check', 'web-checks', 'unit-tests', 'ui', 'rust-check']) {
+  for (const name of ['policy-check', 'web-checks', 'unit-tests', 'ui-build', 'ui', 'rust-check']) {
     expect(job(name)).toMatch(/actions\/setup-node@[^\n]*\n(?: {8,}.*\n)*? {10}cache: pnpm/)
   }
   const rust = job('rust-check')
@@ -197,19 +201,66 @@ it('builds no UI for the Rust jobs, which compile against a placeholder page', (
   expect(read('src-tauri/tauri.conf.json')).toContain('"frontendDist": "../dist"')
 })
 
-it('the web check fails when the quick checks, a UI shard or the change detection fails', () => {
+it("builds the UI tests' bundle once per run and every UI shard tests that build", () => {
+  // The dev server sends each module of a page on its own, hundreds per page load.
+  const build = parse(workflow) as {
+    jobs: Record<
+      string,
+      {
+        needs?: string[]
+        if?: string
+        env?: Record<string, string>
+        steps: { uses?: string; run?: string; with?: Record<string, unknown> }[]
+      }
+    >
+  }
+  const builder = build.jobs['ui-build']!
+  const shards = build.jobs['ui']!
+  expect(builder.if).toBe(shards.if)
+  expect(builder.steps.map((s) => s.run).filter(Boolean)).toEqual([
+    'pnpm install --frozen-lockfile',
+    'pnpm test:ui:build',
+  ])
+  const upload = builder.steps.find((s) => s.uses?.startsWith('actions/upload-artifact@'))
+  expect(upload?.with).toMatchObject({ name: 'ui-test-dist', path: 'dist-test/' })
+  expect(shards.needs).toEqual(['changes', 'ui-build'])
+  expect(shards.env).toMatchObject({ DEVOT_UI_PREBUILT: '1' })
+  const steps = shards.steps
+  const download = steps.findIndex((s) => s.uses?.startsWith('actions/download-artifact@'))
+  expect(steps[download]?.with).toEqual({ name: 'ui-test-dist', path: 'dist-test' })
+  expect(steps.findIndex((s) => s.run?.startsWith('pnpm test:ui '))).toBeGreaterThan(download)
+  expect(commands(job('ui')).some((c) => /vite build|test:ui:build/.test(c))).toBe(false)
+  // The same build as a local run's, which Playwright makes when none is there.
+  expect(scripts['test:ui:build']).toBe(
+    'DEVOT_SENTRY_DSN= vite build --config vite.ui-test.config.ts --outDir ../../dist-test --emptyOutDir',
+  )
+  expect(read('tests/support/ui-servers.ts')).toContain('`pnpm test:ui:build && ${command}`')
+  expect(read('playwright.config.ts')).toContain('webServer: uiWebServers(')
+})
+
+it('the UI shard plan knows nearly every spec and no removed one', () => {
+  // An unrecorded spec is priced at the median, so a few new ones are fine; many unbalance the shards.
+  const durations = JSON.parse(read('scripts/ci/ui-durations.json')) as Record<string, number>
+  const specs = listFiles('.', 'tests').filter((f) => /^tests\/ui(?:-csp)?\/.+\.spec\.ts$/.test(f))
+  expect(specs.length).toBeGreaterThan(100)
+  const unrecorded = specs.filter((spec) => !(spec in durations))
+  expect(unrecorded.length, `refresh ui-durations.json for ${unrecorded}`).toBeLessThanOrEqual(5)
+  expect(Object.keys(durations).filter((spec) => !specs.includes(spec))).toEqual([])
+})
+
+it('the web check fails when the quick checks, the UI build, a UI shard or the change detection fails', () => {
   // `web` is a required check that sums up the jobs and runs even when they were skipped,
-  // so a skipped job cannot read as passing a failed one.
+  // so a skipped job cannot read as passing a failed one. A failed UI build skips every shard.
   const web = job('web')
-  expect(web).toMatch(/^ {4}needs: \[changes, web-checks, unit-tests, ui\]$/m)
+  expect(web).toMatch(/^ {4}needs: \[changes, web-checks, unit-tests, ui-build, ui\]$/m)
   expect(web).toMatch(/^ {4}if: \$\{\{ always\(\) \}\}$/m)
-  for (const need of ['changes', 'web-checks', 'unit-tests', 'ui']) {
+  for (const need of ['changes', 'web-checks', 'unit-tests', 'ui-build', 'ui']) {
     expect(web).toContain(`needs.${need}.result`)
   }
   expect(web).toMatch(/failure\|cancelled/)
 })
 
-it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI'])(
+it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI_BUILD', 'UI'])(
   'the required gate rejects failed or cancelled %s results',
   (need) => {
     const config = parse(workflow) as {
@@ -223,6 +274,7 @@ it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI'])(
       CHANGES: 'success',
       CHECKS: 'success',
       TESTS: 'success',
+      UI_BUILD: 'success',
       UI: 'success',
     }
     for (const result of ['success', 'skipped', 'failure', 'cancelled']) {
@@ -236,19 +288,40 @@ it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI'])(
   },
 )
 
-it('CI runs on every pull request, main push and manual run, with no label gate', () => {
+it('CI runs on every pull request, merge queue entry, main push and manual run, with no label gate', () => {
   const trigger = workflow.slice(0, workflow.indexOf('\njobs:'))
   expect(trigger).toMatch(/^ {2}pull_request:\n {4}types: \[opened, synchronize, reopened\]$/m)
+  expect(trigger).toMatch(/^ {2}merge_group:\n {4}types: \[checks_requested\]$/m)
   expect(trigger).toMatch(/^ {2}push:\n {4}branches: \[main\]$/m)
   expect(trigger).toMatch(/^ {2}workflow_dispatch:/m)
   expect(workflow).not.toMatch(/labels?\b/)
   // The first job decides what runs; a condition on it would skip every job, and a skipped required check reads as passing.
   expect(job('changes')).not.toMatch(/^ {4}if:/m)
-  const concurrency = /concurrency:\n((?: {2}.*\n)+)/.exec(workflow)?.[1] ?? ''
-  expect(concurrency).toContain(
-    "group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}\n",
+  // Only a pull request runs a subset: a merge queue entry tests everything, as main will be.
+  expect(job('changes')).toContain('if [ "$EVENT" = pull_request ]; then')
+})
+
+it('a newer push supersedes a pull request or main run, and a merge queue entry is never cancelled', () => {
+  const { concurrency } = parse(workflow) as {
+    concurrency: { group: string; 'cancel-in-progress': string }
+  }
+  expect(concurrency.group).toContain("format('pr-{0}', github.event.pull_request.number)")
+  expect(concurrency.group).toContain("github.event_name == 'push' && 'main'")
+  expect(concurrency.group).toContain("github.event_name == 'merge_group' && github.ref")
+  expect(concurrency['cancel-in-progress']).toBe(
+    "${{ github.event_name == 'pull_request' || github.event_name == 'push' }}",
   )
-  expect(concurrency).toContain("cancel-in-progress: ${{ github.event_name == 'pull_request' }}")
+})
+
+it('the title check reports in the merge queue, where it has no title to read', () => {
+  const titles = parse(read('.github/workflows/pr-title.yml')) as {
+    on: Record<string, { types: string[] }>
+    jobs: { title: { steps: { if?: string }[] } }
+  }
+  expect(titles.on['merge_group']?.types).toEqual(['checks_requested'])
+  expect(
+    titles.jobs.title.steps.every((step) => step.if === "github.event_name == 'pull_request'"),
+  ).toBe(true)
 })
 
 // Stand-in for lefthook's glob matcher (gobwas): `**` crosses folders, `*` does not, `/**/` needs a folder, `{a,b}` is either.

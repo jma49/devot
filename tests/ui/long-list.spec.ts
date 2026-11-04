@@ -14,6 +14,19 @@ const caption = (page: Page) =>
 const row = (page: Page, title: string) =>
   rows(page).filter({ has: page.locator('.row-title', { hasText: new RegExp(`^${title}$`) }) })
 
+/**
+ * Scrolls the list to its end until the last row shows. Until the rows are measured the list is only
+ * as tall as its first rows, so one scroll to the end can stop near the top.
+ */
+async function scrollToEnd(page: Page) {
+  await expect(async () => {
+    await list(page).evaluate((el) => {
+      el.scrollTop = el.scrollHeight
+    })
+    await expect(row(page, `Note ${NOTES}`)).toBeVisible({ timeout: 1_000 })
+  }).toPass()
+}
+
 test.beforeEach(async ({ page }) => {
   await seedNotes(page, NOTES)
   await expect(caption(page)).toHaveText('1,000 notes')
@@ -25,10 +38,7 @@ test('renders the rows that show, and the rest as the list scrolls', async ({ pa
   await expect(row(page, 'Note 1')).toHaveAttribute('aria-posinset', '1')
   await expect(row(page, 'Note 1')).toHaveAttribute('aria-setsize', String(NOTES))
 
-  await list(page).evaluate((el) => {
-    el.scrollTop = el.scrollHeight
-  })
-  await expect(row(page, `Note ${NOTES}`)).toBeVisible()
+  await scrollToEnd(page)
   // Rows far above are not rendered; the first stays, as the row that takes Tab.
   await expect(row(page, 'Note 50')).toHaveCount(0)
   await expect(row(page, 'Note 1')).toHaveAttribute('tabindex', '0')
@@ -38,10 +48,7 @@ test('renders the rows that show, and the rest as the list scrolls', async ({ pa
 })
 
 test('a long list back from an empty search shows its top again', async ({ page }) => {
-  await list(page).evaluate((el) => {
-    el.scrollTop = el.scrollHeight
-  })
-  await expect(row(page, `Note ${NOTES}`)).toBeVisible()
+  await scrollToEnd(page)
   await row(page, `Note ${NOTES}`).click()
   await expect(titleField(page)).toHaveValue(`Note ${NOTES}`)
   // A short view with no rows: the list's scroll goes to 0 while its last top is kept.
@@ -71,10 +78,7 @@ test('the open note keeps its row and the keyboard when the list scrolls away', 
 }) => {
   await row(page, 'Note 2').click()
   await expect(row(page, 'Note 2')).toBeFocused()
-  await list(page).evaluate((el) => {
-    el.scrollTop = el.scrollHeight
-  })
-  await expect(row(page, `Note ${NOTES}`)).toBeVisible()
+  await scrollToEnd(page)
   // Still rendered and focused, though far above the part that shows.
   await expect(row(page, 'Note 2')).toBeFocused()
   await page.keyboard.press('ArrowDown')
@@ -86,9 +90,7 @@ test('the open note keeps its row and the keyboard when the list scrolls away', 
 test('a new note opened elsewhere is scrolled to and takes the keyboard in the list', async ({
   page,
 }) => {
-  await list(page).evaluate((el) => {
-    el.scrollTop = el.scrollHeight
-  })
+  await scrollToEnd(page)
   await row(page, `Note ${NOTES}`).click()
   await expect(row(page, `Note ${NOTES}`)).toBeFocused()
   await page.getByRole('button', { name: 'New Note', exact: true }).click()

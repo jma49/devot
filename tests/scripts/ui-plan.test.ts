@@ -1,5 +1,7 @@
 import { globSync } from 'node:fs'
-import { expect, it } from 'vitest'
+import { resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { uiGraph } from '../../scripts/ci/ui-graph.ts'
 import { planUi } from '../../scripts/ci/ui-plan.ts'
 
 const specs = [
@@ -146,13 +148,13 @@ it('unions multiple feature selections and directly changed specs', () => {
 
 it('separates expensive specs instead of grouping them by filename', () => {
   const files = Array.from({ length: 4 }, (_, i) => `tests/ui/feature-${i}.spec.ts`)
-  const durations = Object.fromEntries(files.map((file, i) => [file, i < 2 ? 400_000 : 10_000]))
+  const durations = Object.fromEntries(files.map((file, i) => [file, i < 2 ? 280_000 : 7_000]))
   const plan = planUi(files, files, false, durations)
   const jobs = plan.matrix.include
   expect(jobs).toHaveLength(2)
   expect(jobs.every((job) => job.partitioned)).toBe(true)
   expect(jobs.map((job) => job.files.reduce((sum, file) => sum + durations[file]!, 0))).toEqual([
-    410_000, 410_000,
+    287_000, 287_000,
   ])
   expect(jobs[0]!.files).not.toContain(files[1])
   expect(jobs.flatMap((job) => job.files).sort()).toEqual(files)
@@ -172,13 +174,13 @@ it('uses measured work to schedule a full run in at most fourteen shards', () =>
 it('prices an unmeasured spec at the median measured spec, not the slowest', () => {
   const measured = Array.from({ length: 8 }, (_, i) => `tests/ui/measured-${i}.spec.ts`)
   const durations: Record<string, number> = Object.fromEntries(
-    measured.map((file) => [file, 100_000]),
+    measured.map((file) => [file, 70_000]),
   )
-  durations[measured[0]!] = 1_100_000
+  durations[measured[0]!] = 770_000
   const unmeasured = ['tests/ui/new-a.spec.ts', 'tests/ui/new-b.spec.ts']
   const files = [...measured, ...unmeasured]
   const jobs = planUi(files, files, false, durations).matrix.include
-  // Priced at the slowest, the unmeasured pair would need 5 shards and sit alone on them.
+  // Priced at the slowest, the unmeasured pair would need 7 shards and sit alone on them.
   expect(jobs).toHaveLength(4)
   expect(jobs.find((job) => job.files.includes(measured[0]!))!.files).toEqual([measured[0]])
 })
@@ -191,4 +193,39 @@ it('retains new specs and deterministic assignments when durations are missing',
   expect(forward.matrix).toEqual(reversed.matrix)
   expect(forward.matrix.include.every((job) => job.files.length > 0)).toBe(true)
   expect(forward.matrix.include.flatMap((job) => job.files).sort()).toEqual([...files].sort())
+})
+
+describe('with the module graph', () => {
+  const graph = uiGraph(resolve(import.meta.dirname, '../..'))
+  const all = globSync(['tests/ui/**/*.spec.ts', 'tests/ui-csp/**/*.spec.ts'])
+  const phone = all.filter((file) => file.startsWith('tests/ui/phone-')).sort()
+
+  it('runs only the phone specs for a file only the phone layout loads', () => {
+    const plan = planUi(['src/renderer/src/phone/PhoneSheet.tsx'], all, false, {}, graph)
+    expect(plan.mode).toBe('targeted')
+    expect(plan.files).toEqual(phone)
+    expect(planUi(['design/app-icon/dove-small.svg'], all, false, {}, graph).files).toEqual(phone)
+  })
+
+  it('runs everything for a file a page loads, phone folder or not', () => {
+    for (const file of [
+      'src/renderer/src/phone/navigation.ts',
+      'src/core/notes.ts',
+      'design/icons/symbols.json',
+    ]) {
+      expect({ file, mode: planUi([file], all, false, {}, graph).mode }).toEqual({
+        file,
+        mode: 'full',
+      })
+    }
+  })
+
+  it('keeps the full run for shared test support a spec imports', () => {
+    expect(planUi(['tests/support/png.ts'], all, false, {}, graph).mode).toBe('full')
+    expect(planUi(['src-tauri/tauri.conf.json'], all, false, {}, graph).mode).toBe('full')
+  })
+
+  it('runs no browser for a source no page loads', () => {
+    expect(planUi(['src/renderer/src/menuLines.ts'], all, false, {}, graph).mode).toBe('none')
+  })
 })

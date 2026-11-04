@@ -18,7 +18,7 @@ async function startSentry(page: Page): Promise<string[]> {
   await page.addScriptTag({
     type: 'module',
     content: `
-      const { startCrashReporting } = await import('/src/crash.ts')
+      const { startCrashReporting } = window.devotTestModules
       await startCrashReporting('${DSN}', 'devot@test')
       document.documentElement.dataset['crashReporting'] = 'on'
     `,
@@ -72,7 +72,7 @@ test('a command that fails unhandled reaches the log and Sentry with its code', 
   await page.addScriptTag({
     type: 'module',
     content: `
-      const { invoke } = await import('/src/ipc.ts')
+      const { invoke } = window.devotTestModules
       setTimeout(() => void invoke('backup_restore', { id: 'x' }))
     `,
   })

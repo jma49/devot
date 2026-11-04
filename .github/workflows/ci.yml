@@ -1,8 +1,9 @@
 name: CI
 
-# CI runs on every pull request, every push to main, or when started by hand.
-# A new push to a pull request cancels its previous run. Pushes to main never
-# cancel one another: every main commit gets its own full run.
+# CI runs on every pull request, every merge queue entry, every push to main,
+# or when started by hand. A new push to a pull request cancels its previous
+# run, and a newer main commit cancels main's: the merge queue's full run on
+# each entry is the result a release relies on.
 #
 # A pull request runs only the jobs its files need (scripts/ci/changed-code.sh):
 # documentation-only changes skip the expensive jobs, the icon sources, the
@@ -28,15 +29,24 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  # The merge queue tests each queued pull request merged onto main, as the
+  # commit main will become; the release gate accepts that run.
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [main]
   workflow_dispatch:
 
 concurrency:
-  # Pull requests supersede their previous run. Main commits get a unique group,
-  # so every commit that can be released has a complete CI result.
-  group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # A pull request's new push supersedes its previous run, and a newer main
+  # commit supersedes main's: merges in a burst run once, on the last. A merge
+  # queue entry is never cancelled here: the queue removes entries itself.
+  group: >-
+    ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number)
+    || github.event_name == 'push' && 'main'
+    || github.event_name == 'merge_group' && github.ref
+    || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 permissions:
   contents: read
@@ -163,14 +173,39 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
 
-  # Separate projects so development shards never build the production-CSP bundle.
+  # One build of the UI tests' bundle for every UI shard: a page of the bundle loads a few dozen
+  # files where Vite's dev server sends each module, hundreds per page.
+  ui-build:
+    name: UI test build
+    needs: changes
+    if: needs.changes.outputs.ui != 'false' && needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:ui:build
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ui-test-dist
+          path: dist-test/
+          if-no-files-found: error
+          retention-days: 1
+
+  # Separate projects so a shard runs one kind of server; both serve the shared build.
   ui:
     name: UI (${{ matrix.project }}, ${{ matrix.shard }}/${{ matrix.shards }})
-    needs: changes
+    needs: [changes, ui-build]
     if: needs.changes.outputs.ui != 'false' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      DEVOT_UI_PREBUILT: '1'
       DEVOT_UI_PROJECT: ${{ matrix.project }}
       DEVOT_UI_TEST_FILES: ${{ toJSON(matrix.files) }}
       PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/report.json
@@ -206,6 +241,10 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-browsers-${{ steps.image.outputs.id }}-${{ steps.playwright-version.outputs.version }}
       - run: pnpm exec playwright install --with-deps webkit
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ui-test-dist
+          path: dist-test
       - run: pnpm test:ui --add-reporter=json --shard=${{ matrix.partitioned && '1/1' || format('{0}/{1}', matrix.shard, matrix.shards) }}
       - if: ${{ !cancelled() && github.ref == 'refs/heads/main' && matrix.shard == 1 && matrix.project == 'webkit' && steps.apt.outputs.cache-hit != 'true' }}
         run: mkdir -p ~/apt-archives && find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/apt-archives {} +
@@ -233,9 +272,10 @@ jobs:
 
   # The required web check. It runs even when the jobs it sums up were
   # skipped (a pull request without web changes) and fails when any of them,
-  # or the change detection, failed or was cancelled.
+  # or the change detection, failed or was cancelled. A failed UI build skips
+  # the shards, so the gate reads the build's result too.
   web:
-    needs: [changes, web-checks, unit-tests, ui]
+    needs: [changes, web-checks, unit-tests, ui-build, ui]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -244,14 +284,15 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           CHECKS: ${{ needs.web-checks.result }}
           TESTS: ${{ needs.unit-tests.result }}
+          UI_BUILD: ${{ needs.ui-build.result }}
           UI: ${{ needs.ui.result }}
         run: |
-          echo "changes=$CHANGES web-checks=$CHECKS unit-tests=$TESTS ui=$UI"
+          echo "changes=$CHANGES web-checks=$CHECKS unit-tests=$TESTS ui-build=$UI_BUILD ui=$UI"
           {
             printf '### Web merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Quick checks' "$CHECKS" 'Unit and integration tests' "$TESTS" 'UI regression tests' "$UI"
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Quick checks' "$CHECKS" 'Unit and integration tests' "$TESTS" 'UI test build' "$UI_BUILD" 'UI regression tests' "$UI"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$CHANGES" "$CHECKS" "$TESTS" "$UI"; do
+          for result in "$CHANGES" "$CHECKS" "$TESTS" "$UI_BUILD" "$UI"; do
             case "$result" in
               failure|cancelled) exit 1 ;;
             esac
