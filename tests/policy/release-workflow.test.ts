@@ -230,9 +230,10 @@ describe('the workflows', () => {
   })
 
   it('pin every action to a commit, with the version it is', () => {
+    const all = workflows.flatMap(({ text }) => [...text.matchAll(/^\s*(?:-\s+)?uses:/gm)])
+    expect(all.length).toBeGreaterThan(10)
     for (const { name, text } of workflows) {
       const uses = [...text.matchAll(/^\s*(?:-\s+)?uses:\s*(.*)$/gm)].map((m) => m[1]!)
-      expect({ name, count: uses.length }).not.toEqual({ name, count: 0 })
       const loose = uses.filter((u) => !/^[\w.-]+\/[\w./-]+@[0-9a-f]{40} # v\d+(\.\d+)*$/.test(u))
       expect({ name, loose }).toEqual({ name, loose: [] })
     }

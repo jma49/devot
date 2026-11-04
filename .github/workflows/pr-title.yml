@@ -1,0 +1,23 @@
+name: PR title
+
+# Pull requests are squash-merged under their title, so it must be a
+# Conventional Commit: feat, fix, test, docs, refactor or chore.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if printf '%s\n' "$TITLE" | grep -Eq '^(feat|fix|test|docs|refactor|chore)(\([^)]+\))?!?: [^ ]'; then
+            exit 0
+          fi
+          echo "::error::The title must start with feat:, fix:, test:, docs:, refactor: or chore: and a description."
+          exit 1
