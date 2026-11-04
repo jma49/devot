@@ -1261,7 +1261,7 @@ export function App() {
     })
       .then(async (c) => {
         started = c
-        if (!alive) return
+        if (!alive) return stopCore(c)
         setCore(() => c)
         coreRef.current = c
         // A library that has never held anything starts with a few notes. The

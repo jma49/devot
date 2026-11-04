@@ -160,13 +160,16 @@ export function NoteWindow() {
       // Reading the note asks the other windows for what this one lacks (`want`): hear the answer.
       await listening
       const name = await c.title(id)
-      if (!alive) return
+      if (!alive) return stopCore(c)
       setTitle(name)
       setNoteId(id)
       coreRef.current = c
       setCore(() => c)
     })().catch((e: unknown) => {
-      if (!alive) return
+      if (!alive) {
+        if (started) stopCore(started)
+        return
+      }
       const code = errorCode(e)
       console.warn('W_NOTE_WINDOW_OPEN_FAILED', code)
       setFailure(code)
