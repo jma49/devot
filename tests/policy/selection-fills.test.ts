@@ -62,3 +62,26 @@ it('in the Glass style, draws the sidebar selection neutral and the note list se
   expect(list?.selector).toContain('.rows:not(:focus-within)')
   expect(list?.body.get('background')).toMatch(/var\(--color-accent-fill\)/)
 })
+
+const hoverFills = rules.filter((r) => r.selector.includes(':hover') && r.body.has('background'))
+
+it('washes a hovered sidebar or note row in the inactive selection fill, leaving selected and drop rows alone', () => {
+  const [hover] = hoverFills.filter((r) => r.selector.includes('.row:not'))
+  expect(hover?.body.get('background')).toBe('var(--color-fill-row-selected-inactive)')
+  for (const row of ['.source:not(', '.book-row:not(', '.row:not(']) {
+    expect(hover?.selector).toContain(row)
+  }
+  expect(hover?.selector).toContain("[aria-selected='true']")
+  expect(hover?.selector).toContain("[aria-pressed='true']")
+  expect(hover?.selector).toContain('.drop-fill')
+})
+
+it('draws the tree guide per row, broken clear of a chevron, and not per group', () => {
+  const guides = rules.filter((r) => r.selector.includes("ul[role='group'] > li"))
+  const plain = guides.find((r) => !r.selector.includes('aria-expanded'))
+  const broken = guides.find((r) => r.selector.includes('aria-expanded'))
+  expect(plain?.body.get('inset-block')).toBe('0')
+  expect(broken?.body.get('--guide-gap')).toBe('calc(var(--size-icon-sm) / 2 + var(--space-1))')
+  expect(broken?.body.get('background')).toContain('transparent')
+  expect(rules.filter((r) => /ul\[role='group'\]::before/.test(r.selector))).toEqual([])
+})
