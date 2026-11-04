@@ -54,7 +54,6 @@ pub mod page_setup;
 mod pending;
 mod plugins;
 mod settings;
-mod sidebar_glass;
 mod sidebar_material;
 mod single_instance;
 mod startup;
@@ -239,7 +238,6 @@ pub fn run() {
             fonts::fonts_installed,
             fonts::font_read,
             sidebar_material::sidebar_material_sync,
-            sidebar_glass::sidebar_glass,
             #[cfg(desktop)]
             menu::sidebar_menu_set,
             #[cfg(desktop)]
