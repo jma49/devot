@@ -81,7 +81,7 @@ const fail = (code: string): never => {
   throw new Error(code)
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const length = (value: string) => [...value].length

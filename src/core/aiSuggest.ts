@@ -9,7 +9,7 @@ import {
 } from './aiProvider'
 import type { Entitlements } from './entitlements'
 import type { BookRecord } from './storage'
-import { lineFeeds } from './text'
+import { isHighSurrogate, isLowSurrogate, lineFeeds } from './text'
 
 /** The most text that leaves the note: this much before the caret and this much after it, nothing else. */
 export const SUGGEST_BEFORE_CHARS = 2_000
@@ -28,9 +28,6 @@ export interface SuggestContext {
   after: string
 }
 
-const isHigh = (code: number) => code >= 0xd800 && code <= 0xdbff
-const isLow = (code: number) => code >= 0xdc00 && code <= 0xdfff
-
 /** The text around the caret that may be sent (never splitting a surrogate pair). `slice` reads the document. */
 export function suggestContext(
   slice: (from: number, to: number) => string,
@@ -38,9 +35,10 @@ export function suggestContext(
   caret: number,
 ): SuggestContext {
   let before = slice(Math.max(0, caret - SUGGEST_BEFORE_CHARS), caret)
-  if (before.length > 0 && isLow(before.charCodeAt(0))) before = before.slice(1)
+  if (before.length > 0 && isLowSurrogate(before.charCodeAt(0))) before = before.slice(1)
   let after = slice(caret, Math.min(length, caret + SUGGEST_AFTER_CHARS))
-  if (after.length > 0 && isHigh(after.charCodeAt(after.length - 1))) after = after.slice(0, -1)
+  if (after.length > 0 && isHighSurrogate(after.charCodeAt(after.length - 1)))
+    after = after.slice(0, -1)
   return { before, after }
 }
 

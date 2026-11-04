@@ -2,7 +2,7 @@
 // before the host acts on it: its shape, a known method, the permission behind it and its sizes.
 import { MAX_BODY_BYTES, MAX_TITLE_CHARS } from '../noteLimits'
 import { wellFormed } from '../text'
-import type { PluginPermission } from './manifest'
+import { isRecord, type PluginPermission } from './manifest'
 
 export const PLUGIN_PROTOCOL_VERSION = 1
 
@@ -61,9 +61,6 @@ export interface EventMessage {
 }
 
 export type IncomingMessage = CallMessage | ResultMessage
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const isSeq = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
