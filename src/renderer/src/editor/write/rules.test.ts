@@ -34,6 +34,7 @@ const STAND_IN: Record<string, (r: WriteRange) => string> = {
   task: (r) => (r.kind === 'task' ? (r.done ? '{done}' : '{todo}') : ''),
   alert: (r) => (r.kind === 'alert' ? `{${r.alert}}` : ''),
   noteTitle: (r) => (r.kind === 'noteTitle' ? `{note ${r.id}}` : ''),
+  codeLanguage: (r) => (r.kind === 'codeLanguage' ? `{lang ${r.label}}` : ''),
   footnote: (r) => (r.kind === 'footnote' ? `{^${r.number}${r.definition ? ':' : ''}}` : ''),
 }
 
@@ -229,13 +230,35 @@ describe('Write mode rules', () => {
     expect(marks('a\n\n***\n\nb')).toEqual(['cm-wm-rule '])
   })
 
-  it('leave code, HTML blocks and front matter as source', () => {
-    const blocks = [
-      '```js\nconst a = `x` * 2 // **no**\n```',
-      '    indented **code**',
-      '<div>\n**raw**\n</div>',
-      '---\ntitle: **x**\n---',
-    ]
+  it("make a code block's fences transparent, keeping their text and lines, and name its language", () => {
+    const doc = 'a\n\n```ts\nconst a = `x` * 2 // **no**\n```\n\nb'
+    expect(shown(doc)).toBe('a\n\n```ts{lang TypeScript}\nconst a = `x` * 2 // **no**\n```\n\nb')
+    expect(marks(doc)).toEqual(['cm-wm-fence ```ts', 'cm-wm-fence ```'])
+    expect(marks('~~~~\ncode\n~~~~')).toEqual(['cm-wm-fence ~~~~', 'cm-wm-fence ~~~~'])
+    expect(shown('```made-up title="x"\nx\n```')).toBe('```made-up title="x"{lang made-up}\nx\n```')
+    expect(marks('```\nnot closed')).toEqual(['cm-wm-fence ```'])
+  })
+
+  it('show the fences of the code block the selection is in', () => {
+    const doc = 'a\n\n```ts\ncode\n```\n\nb'
+    for (const at of [doc.indexOf('code'), doc.indexOf('```')])
+      expect(rangesOf(doc, caret(at)).ranges.filter((r) => r.kind !== 'unit')).toEqual([])
+    expect(marks(doc)).toHaveLength(2)
+  })
+
+  it('draw only the fences in the range asked for', () => {
+    const body = Array.from({ length: 50 }, (_, i) => `line ${i}`).join('\n')
+    const doc = `\`\`\`ts\n${body}\n\`\`\``
+    const state = EditorState.create({ doc, extensions: [noteMarkdown] })
+    const tree = ensureSyntaxTree(state, doc.length, 1e9)
+    if (!tree) throw new Error('E_TEST_NO_TREE')
+    const middle = doc.indexOf('line 25')
+    expect(writeRanges(state, tree, [], middle, middle + 7)).toEqual([])
+    expect(writeRanges(state, tree, [], 0, 5).map((r) => r.kind)).toEqual(['mark', 'codeLanguage'])
+  })
+
+  it('leave indented code, HTML blocks and front matter as source', () => {
+    const blocks = ['    indented **code**', '<div>\n**raw**\n</div>', '---\ntitle: **x**\n---']
     for (const doc of blocks) expect(shown(doc)).toBe(doc)
   })
 

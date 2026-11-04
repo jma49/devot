@@ -206,3 +206,83 @@ test('a diagram shows drawn, and a click shows its source over it', async ({ pag
   await expect(diagram.locator('svg')).toHaveCount(1)
   expect(await isOver(page.locator('.cm-line', { hasText: /^```$/ }), diagram)).toBe(true)
 })
+
+const tops = (page: Page) =>
+  page
+    .locator('.cm-line')
+    .evaluateAll((rows) => rows.map((r) => Math.round(r.getBoundingClientRect().y)))
+
+test('a code block hides its fences, keeping their lines, and names its language', async ({
+  page,
+}) => {
+  const text = ['Before', '', '```ts', 'const answer = 42', '```', '', 'After']
+  await createNote(page, 'Code', text.join('\n'))
+  const language = page.locator('.cm-wm-code-language')
+  await expect(language).toHaveText('TypeScript')
+  // One mark per fence, split into spans where the code block's own marks (fence, info) nest in it.
+  const fences = page.locator('.cm-wm-fence')
+  expect(await fences.count()).toBeGreaterThanOrEqual(2)
+  for (const fence of await fences.all()) await expect(fence).toHaveCSS('color', 'rgba(0, 0, 0, 0)')
+  await expect(language).toHaveCSS('font-size', '11px')
+  await expect(language).toHaveCSS('position', 'absolute')
+  const box = (await page.locator('.cm-line.cm-codeblock-first').boundingBox())!
+  const label = (await language.boundingBox())!
+  expect(label.x + label.width).toBeGreaterThan(box.x + box.width / 2)
+  const before = await tops(page)
+
+  await page.locator('.cm-line', { hasText: 'const answer' }).click()
+  await expect.poll(() => lines(page)).toEqual(text)
+  await expect(language).toHaveCount(0)
+  await expect(fences).toHaveCount(0)
+  expect(await tops(page)).toEqual(before)
+  await page.locator('.cm-line', { hasText: 'After' }).click()
+  await expect(language).toHaveCount(1)
+  expect(await source(page)).toEqual(text)
+})
+
+test('an alert reads upright with its title in its colour; a plain quote stays italic', async ({
+  page,
+}) => {
+  await createNote(page, 'Alert', '> [!NOTE]\n> An alert with a *slant*.\n\n> A plain quote\n\nEnd')
+  const label = page.locator('.cm-wm-alert-label')
+  await expect(label).toHaveText('Note')
+  await expect(label).toHaveCSS('font-weight', '600')
+  const alertText = page.locator('.cm-md-alert span', { hasText: 'An alert with' }).first()
+  await expect(alertText).toHaveCSS('font-style', 'normal')
+  await expect(page.locator('.cm-md-alert span', { hasText: /^slant$/ })).toHaveCSS(
+    'font-style',
+    'italic',
+  )
+  const quoteText = page.locator('.cm-md-quote:not(.cm-md-alert) span', { hasText: 'plain' })
+  await expect(quoteText.first()).toHaveCSS('font-style', 'italic')
+  const colour = (el: Locator) => el.evaluate((e) => getComputedStyle(e).color)
+  expect(await colour(label)).not.toBe(await colour(alertText))
+  expect(await colour(alertText)).not.toBe(await colour(quoteText.first()))
+})
+
+test('an image that does not load shows the block placeholder with its alt text', async ({
+  page,
+}) => {
+  const broken = 'https://images.test/write/missing.png'
+  await page.route(broken, (route) => route.fulfill({ status: 404, body: '' }))
+  await createNote(page, 'Broken', `Top\n![Site plan](${broken})\nEnd`)
+  const image = page.locator('.cm-wm-block-image')
+  const img = image.locator('img')
+  await expect(img).toHaveClass(/image-missing/)
+  await expect(img).toHaveAttribute('aria-label', 'Site plan: image could not be loaded')
+  await expect(image.locator('p')).toHaveAttribute('data-image-missing-alt', 'Site plan')
+  expect(await img.evaluate((el) => getComputedStyle(el).content)).toContain('data:image/gif')
+  const lineHeight = await img.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight))
+  expect((await img.boundingBox())!.height).toBeCloseTo(3 * lineHeight, 0)
+  await expect.poll(() => lines(page)).toEqual(['Top', 'End'])
+
+  await img.click()
+  await expect(image).toHaveClass(/cm-wm-block-open/)
+  await expect.poll(() => lines(page)).toEqual(['Top', `![Site plan](${broken})`, 'End'])
+  await expect(viewer(page)).toBeHidden()
+  // The block draws again with the new alt text, and the image, whose address did not change, stays failed.
+  await page.keyboard.insertText(' v2')
+  await expect(image.locator('p')).toHaveAttribute('data-image-missing-alt', 'Site plan v2')
+  await expect(img).toHaveClass(/image-missing/)
+  await expect(img).toHaveAttribute('aria-label', 'Site plan v2: image could not be loaded')
+})

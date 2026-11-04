@@ -1,5 +1,7 @@
 import { EditorView } from '@codemirror/view'
-import { BOX_MARGIN, BOX_PAD } from '../boxes'
+import { tags, type Tag } from '@lezer/highlight'
+import { noteHighlightStyle } from '../markdown'
+import { BOX_INSET, BOX_MARGIN, BOX_PAD } from '../boxes'
 
 const token = (name: string) => `var(--color-${name})`
 
@@ -16,6 +18,14 @@ const bullets = Object.fromEntries(
     },
   ]),
 )
+
+const classOf = (tag: Tag) => noteHighlightStyle.style([tag]) ?? 'cm-wm-unstyled'
+/** Quoted text is italic in the quote colour; emphasis keeps its slant and links and marks their colour. */
+const QUOTE_TEXT = classOf(tags.quote)
+const EMPHASIS = classOf(tags.emphasis)
+const COLOURED = [tags.link, tags.url, tags.processingInstruction]
+  .map((tag) => `:not(.${classOf(tag)})`)
+  .join('')
 
 export const writeTheme = EditorView.theme({
   '&[data-write] .cm-wm-bullet, &[data-write] .cm-wm-bullet *': { color: 'transparent' },
@@ -40,6 +50,9 @@ export const writeTheme = EditorView.theme({
   // On the baseline the 1em buffer image can outgrow a short line box in a fallback font, so a line that hides its marks grows.
   '&[data-write] .cm-widgetBuffer': { verticalAlign: 'text-top' },
   '.cm-wm-alert-label': { fontWeight: 'var(--font-weight-semibold)' },
+  // An alert reads as the preview draws it: upright body text, only a plain quote is italic.
+  [`&[data-write] .cm-md-alert .${QUOTE_TEXT}:not(.${EMPHASIS})`]: { fontStyle: 'normal' },
+  [`&[data-write] .cm-md-alert .${QUOTE_TEXT}${COLOURED}`]: { color: token('text-editor') },
   '.cm-wm-note-chip': { textUnderlineOffset: '4px' },
   '&[data-write] .cm-wm-plain, &[data-write] .cm-wm-plain *': {
     color: token('text-editor'),
@@ -53,6 +66,19 @@ export const writeTheme = EditorView.theme({
     lineHeight: '0',
     verticalAlign: 'baseline',
     color: token('syntax-link'),
+    cursor: 'text',
+  },
+  '&[data-write] .cm-wm-fence, &[data-write] .cm-wm-fence *': { color: 'transparent' },
+  // Where the preview's code header puts its language, at the box's inner right edge.
+  '.cm-wm-code-language': {
+    position: 'absolute',
+    top: '50%',
+    right: `calc(${BOX_PAD} + ${BOX_INSET})`,
+    transform: 'translateY(-50%)',
+    fontFamily: 'var(--font-family-ui)',
+    fontSize: 'var(--font-size-caption)',
+    lineHeight: '1',
+    color: token('text-tertiary'),
     cursor: 'text',
   },
   '.cm-wm-footnote-definition': { marginInlineEnd: 'var(--space-2)' },

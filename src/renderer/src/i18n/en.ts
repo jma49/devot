@@ -2017,6 +2017,8 @@ title: Daily Report {{date}}
   'imageMenu.size.full': 'Full Width',
   'image.missing': 'Image not synced yet',
   'image.missingNamed': '{alt}: image not synced yet',
+  'image.failed': 'Image could not be loaded',
+  'image.failedNamed': '{alt}: image could not be loaded',
   'imageViewer.label': 'Image Viewer',
   'imageViewer.labelNamed': 'Image Viewer: {alt}',
   'imageViewer.zoom': 'Zoom',

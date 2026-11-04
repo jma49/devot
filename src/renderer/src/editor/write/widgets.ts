@@ -61,7 +61,7 @@ class AlertLabelWidget extends WidgetType {
 
   override toDOM(): HTMLElement {
     const label = document.createElement('span')
-    label.className = 'cm-wm-alert-label'
+    label.className = `cm-wm-alert-label cm-md-alert-label cm-md-alert-${this.alert}`
     label.textContent = t(`alert.${this.alert}`)
     return label
   }
@@ -103,6 +103,28 @@ class NoteTitleWidget extends WidgetType {
   }
 }
 
+/** At the end of the opening fence, out of the line's flow, so the line keeps the height it has as source. */
+class CodeLanguageWidget extends WidgetType {
+  constructor(readonly label: string) {
+    super()
+  }
+
+  override eq(other: CodeLanguageWidget): boolean {
+    return other.label === this.label
+  }
+
+  override toDOM(): HTMLElement {
+    const label = document.createElement('span')
+    label.className = 'cm-wm-code-language'
+    label.textContent = this.label
+    return label
+  }
+
+  override ignoreEvent(): boolean {
+    return false
+  }
+}
+
 class FootnoteWidget extends WidgetType {
   constructor(
     readonly number: number,
@@ -134,7 +156,10 @@ const UNIT = Decoration.mark({})
 
 /** Whether the caret steps over `range` as one unit. */
 export const atomic = (range: WriteRange) =>
-  range.kind !== 'bullet' && range.kind !== 'mark' && range.kind !== 'line'
+  range.kind !== 'bullet' &&
+  range.kind !== 'mark' &&
+  range.kind !== 'line' &&
+  range.kind !== 'codeLanguage'
 
 /** Whether `range` is drawn; a unit only groups characters for the caret. */
 export const drawn = (range: WriteRange) => range.kind !== 'unit'
@@ -151,6 +176,8 @@ export function decorationOf(range: WriteRange): Decoration {
       return Decoration.replace({ widget: new AlertLabelWidget(range.alert) })
     case 'noteTitle':
       return Decoration.replace({ widget: new NoteTitleWidget(range.id) })
+    case 'codeLanguage':
+      return Decoration.widget({ widget: new CodeLanguageWidget(range.label), side: 1 })
     case 'footnote':
       return Decoration.replace({ widget: new FootnoteWidget(range.number, range.definition) })
     case 'mark':

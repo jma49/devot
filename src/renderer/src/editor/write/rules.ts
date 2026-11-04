@@ -9,6 +9,7 @@
 import type { EditorState } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { noteIdOf } from '../../../../core/links'
+import { codeLanguage, parseCodeInfo } from '../../../../core/preview/code'
 import { ALERT_KINDS, type AlertKind } from '../blocks'
 import { writeBlocksOf, type WriteBlock } from './blockRanges'
 import { FOOTNOTE_DEFINITION, FOOTNOTE_REF, footnoteKey, footnoteNumbers } from './footnotes'
@@ -19,6 +20,7 @@ export type WriteRange =
   | { kind: 'task'; from: number; to: number; box: number; done: boolean }
   | { kind: 'alert'; from: number; to: number; alert: AlertKind }
   | { kind: 'noteTitle'; from: number; to: number; id: string }
+  | { kind: 'codeLanguage'; from: number; to: number; label: string }
   | { kind: 'footnote'; from: number; to: number; number: number; definition: boolean }
   | { kind: 'mark'; from: number; to: number; className: string }
   | { kind: 'line'; from: number; to: number; className: string }
@@ -162,6 +164,10 @@ export function writeRanges(
       if (name === 'Paragraph' || name === 'LinkReference') {
         if (footnoteDefinition(ref.node) && name === 'LinkReference') return false
       }
+      if (name === 'FencedCode' && !inBlock(rendered, ref.from)) {
+        fences(ref.node)
+        return false
+      }
       if (SOURCE_BLOCKS.has(name)) return false
       // A rendered block's source shows as written when it opens, on every line.
       if (name !== 'Document' && inBlock(rendered, ref.from)) return false
@@ -275,6 +281,35 @@ export function writeRanges(
     let slashes = 0
     for (let at = pos - 1; at >= start && text(at, at + 1) === '\\'; at--) slashes++
     return slashes % 2 === 1
+  }
+
+  /**
+   * A code block's fences turn transparent, so their lines keep the height they have as source (a long
+   * info string wraps the same); the opening line names the language. Only the fences in view are drawn.
+   */
+  function fences(node: SyntaxNode) {
+    if (showsLines(node.from, node.to)) return
+    const marks = node.getChildren('CodeMark')
+    const open = marks[0]
+    if (!open || open.from !== node.from) return
+    const first = doc.lineAt(open.from)
+    const inView = (a: number, b: number) => b >= from && a <= to && oneLine(a, b)
+    if (inView(open.from, first.to)) {
+      out.push({ kind: 'mark', from: open.from, to: first.to, className: 'cm-wm-fence' })
+      const info = node.getChild('CodeInfo')
+      const language = info ? parseCodeInfo(text(info.from, info.to)).language : null
+      if (language)
+        out.push({
+          kind: 'codeLanguage',
+          from: first.to,
+          to: first.to,
+          label: codeLanguage(language).name,
+        })
+    }
+    const close = marks.length > 1 ? marks[marks.length - 1] : undefined
+    const last = close && close.from > first.to ? doc.lineAt(close.from) : null
+    if (close && last && inView(close.from, last.to))
+      out.push({ kind: 'mark', from: close.from, to: last.to, className: 'cm-wm-fence' })
   }
 
   /** A footnote with a definition: its number. */

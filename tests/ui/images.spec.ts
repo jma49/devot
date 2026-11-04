@@ -28,6 +28,10 @@ const FILE = `devot://file/${FILE_ID}`
 const BIG_SIZE = { width: 2400, height: 1600 }
 const BIG = '/test-images/big.svg'
 
+/** A block image's placeholder is three of its paragraph's lines high. */
+const threeLines = (img: Locator) =>
+  img.evaluate((el) => 3 * parseFloat(getComputedStyle(el).lineHeight))
+
 async function showMode(page: Page, name: 'Edit' | 'Split' | 'Preview') {
   await page.getByRole('group', { name: 'View mode' }).getByRole('button', { name }).click()
 }
@@ -99,7 +103,12 @@ test('a link whose image has not arrived shows a placeholder at the inline image
   await expect(inline).toHaveAttribute('alt', '')
   const shown = preview(page).locator('img')
   await expect(shown).toHaveClass(/image-missing/)
-  expect((await shown.boundingBox())!.height).toBe(160)
+  const block = await threeLines(shown)
+  expect((await shown.boundingBox())!.height).toBeCloseTo(block, 0)
+  await expect(preview(page).locator('p:has(> img)')).toHaveAttribute(
+    'data-image-missing-alt',
+    'Shot',
+  )
 
   await expect(inline).toHaveAttribute('aria-label', 'Shot: image not synced yet')
   await expect(shown).toHaveAttribute('role', 'img')
@@ -129,7 +138,7 @@ test('a link whose image has not arrived shows a placeholder at the inline image
     await expect(img).toHaveClass(/image-missing/)
   }
   expect((await inlineImages(page).boundingBox())!.height).toBe(height)
-  expect((await shown.boundingBox())!.height).toBe(160)
+  expect((await shown.boundingBox())!.height).toBeCloseTo(block, 0)
 })
 
 test('double-clicking a placeholder does not open the viewer', async ({ page }) => {
@@ -180,10 +189,13 @@ test('a placeholder is a plain box: the web view draws no broken-image icon in i
   await expect(inline).toHaveClass(/image-missing/)
   await expect(shown).toHaveClass(/image-missing/)
   expect(await paintedColours(page, inline)).toBe(1)
-  expect(await paintedColours(page, shown)).toBe(1)
+  // The preview's block placeholder draws Devot's own glyph over a transparent pixel instead.
+  expect(await shown.evaluate((el) => getComputedStyle(el).content)).toContain('data:image/gif')
 })
 
-test('a placeholder looks the same alone on a line and inside a paragraph', async ({ page }) => {
+test('a placeholder alone on a line is the block box with its alt text, inside a paragraph the inline box', async ({
+  page,
+}) => {
   await newNote(page, `![a](${FILE})\n\nText ![b](${FILE}) text\n`)
   await showMode(page, 'Preview')
   await expect(preview(page).locator('img.image-missing')).toHaveCount(2)
@@ -192,11 +204,19 @@ test('a placeholder looks the same alone on a line and inside a paragraph', asyn
     .evaluateAll((els) =>
       els.map((el) => {
         const box = el.getBoundingClientRect()
-        return { width: box.width, height: box.height, padding: getComputedStyle(el).padding }
+        const parent = el.parentElement!.getBoundingClientRect()
+        return { width: box.width, parent: parent.width, height: box.height }
       }),
     )
-  expect(block).toEqual(inline)
-  expect(block!.padding).toBe('0px')
+  expect(block!.width).toBe(block!.parent)
+  expect(block!.height).toBeCloseTo(
+    await threeLines(preview(page).locator('img.image-missing').first()),
+    0,
+  )
+  expect(inline!.height).toBe(160)
+  const paragraphs = preview(page).locator('p:has(> img.image-missing)')
+  await expect(paragraphs.first()).toHaveAttribute('data-image-missing-alt', 'a')
+  await expect(paragraphs.last()).not.toHaveAttribute('data-image-missing-alt')
 })
 
 test('placeholders on one line stay inside the editor', async ({ page }) => {
@@ -320,7 +340,7 @@ test('the image menu copies and saves an attachment, and sets its size', async (
 
   await pickMenuItem(page, 'Small', 'Size')
   await expect(body(page)).toHaveText(`Before ![Shot w:240](${FILE}) after`)
-  await expect(img).toHaveClass('image-size-small')
+  await expect(img).toHaveClass(/(^|\s)image-size-small(\s|$)/)
   await expect(img).toHaveAttribute('src', FILE)
 
   await img.dispatchEvent('contextmenu', {
