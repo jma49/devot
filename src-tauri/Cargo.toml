@@ -216,7 +216,10 @@ objc2 = { version = "0.6", features = ["exception"] }
 block2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = [
   "std",
+  "NSArray",
   "NSData",
+  "NSEnumerator",
+  "NSSet",
   "NSString",
 ] }
 objc2-core-foundation = { version = "0.3", default-features = false, features = [
@@ -227,6 +230,7 @@ objc2-ui-kit = { version = "0.3", default-features = false, features = [
   "std",
   "block2",
   "objc2-core-foundation",
+  "UIApplication",
   "UIColor",
   "UIFeedbackGenerator",
   "UIGraphicsImageRenderer",
@@ -236,8 +240,14 @@ objc2-ui-kit = { version = "0.3", default-features = false, features = [
   "UIImageSymbolConfiguration",
   "UIImpactFeedbackGenerator",
   "UINotificationFeedbackGenerator",
+  "UIInterface",
+  "UIResponder",
+  "UIScene",
   "UISelectionFeedbackGenerator",
   "UITraitCollection",
+  "UIView",
+  "UIWindow",
+  "UIWindowScene",
 ] }
 
 [[test]]

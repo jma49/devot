@@ -63,18 +63,16 @@ test('an ended trial shows on the Settings tab and its License row at launch', a
   )
 })
 
-test('Settings has its groups, and what lives on the Mac says so and does not open', async ({
-  page,
-}) => {
+test('Settings has its groups and leaves out what only the Mac has', async ({ page }) => {
   await openSettings(page)
   for (const title of ['General', 'Sync & storage', 'AI & integrations']) {
     await expect(root(page).getByRole('heading', { name: title, exact: true })).toBeVisible()
   }
+  await expect(root(page).getByRole('button', { name: /^Appearance/ })).toBeEnabled()
   for (const name of ['Keyboard', 'Mirror', 'Integrations', 'Local HTTP API', 'Plugins']) {
-    const row = root(page).getByRole('button', { name: new RegExp(`^${name}`) })
-    await expect(row).toBeDisabled()
-    await expect(row).toContainText('On the Mac')
+    await expect(root(page).getByRole('button', { name: new RegExp(`^${name}`) })).toHaveCount(0)
   }
+  await expect(root(page).getByText('On the Mac')).toHaveCount(0)
 })
 
 test('the search button finds a pane by name and opens it', async ({ page }) => {
@@ -107,24 +105,11 @@ test('a search with no match says so, and a Mac-only pane is not found', async (
   await expect(root(page).getByRole('searchbox')).toHaveCount(0)
 })
 
-test('Classic makes the glass opaque, hides the slider and leaves the Mac keys alone', async ({
-  page,
-}) => {
+test('Appearance offers no Classic interface, only the glass transparency', async ({ page }) => {
   const pane = await openPane(page, 'Appearance')
-  const slider = pane.getByRole('slider', { name: 'Glass Transparency' })
-  await expect(slider).toBeVisible()
-  await pane.getByRole('radio', { name: 'Classic' }).click()
-  await expect(slider).toHaveCount(0)
-  await expect(page.locator('html')).toHaveAttribute('data-phone-glass', 'classic')
-  expect(await glassOpaque(page)).toBe(true)
-  const stored = await page.evaluate(() => ({
-    style: localStorage.getItem('devot.phone.interfaceStyle'),
-    keys: Object.keys(localStorage).filter((k) => /interfaceStyle|windowTransparency/.test(k)),
-  }))
-  expect(stored.style).toBe('classic')
-  expect(stored.keys).toEqual(['devot.phone.interfaceStyle'])
-  await pane.getByRole('radio', { name: 'Glass', exact: true }).click()
-  await expect(page.locator('html')).not.toHaveAttribute('data-phone-glass', 'classic')
+  await expect(pane.getByRole('slider', { name: 'Glass Transparency' })).toBeVisible()
+  await expect(pane.getByRole('radio', { name: 'Classic' })).toHaveCount(0)
+  await expect(pane.getByRole('radiogroup', { name: 'Interface' })).toHaveCount(0)
   expect(await glassOpaque(page)).toBe(false)
 })
 
@@ -909,7 +894,7 @@ test('at twice the text size a Settings row puts its value under its whole label
     shell.style.setProperty('--phone-text-scale', '2')
     shell.dataset['textSize'] = 'accessibility'
   })
-  const row = root(page).getByRole('button', { name: /^Keyboard/ })
+  const row = root(page).getByRole('button', { name: /^Sync/ })
   const [label, value] = await Promise.all([
     row.locator('.phone-grouped-label').boundingBox(),
     row.locator('.phone-grouped-count').boundingBox(),

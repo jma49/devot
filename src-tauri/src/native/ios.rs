@@ -51,6 +51,30 @@ pub fn haptic(kind: HapticKind) {
     });
 }
 
+/// Gives every window of every connected scene the interface style (`native::interface_style`), so
+/// UIKit's chrome and the web view's `prefers-color-scheme` follow it. Main thread only.
+pub fn set_interface_style(style: isize) {
+    use objc2::MainThreadMarker;
+    use objc2_ui_kit::{UIApplication, UIUserInterfaceStyle, UIWindowScene};
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    let _ = guarded("W_NATIVE_APPEARANCE_FAILED", || {
+        for scene in UIApplication::sharedApplication(mtm)
+            .connectedScenes()
+            .iter()
+        {
+            let Some(scene) = scene.downcast_ref::<UIWindowScene>() else {
+                continue;
+            };
+            for window in scene.windows().iter() {
+                window.setOverrideUserInterfaceStyle(UIUserInterfaceStyle(style));
+            }
+        }
+        Some(())
+    });
+}
+
 /// One call at a time (`native::render_one_at_a_time`) on a blocking thread, where UIKit's images
 /// and image renderers may be used. The symbol is laid out for a display scale of 1, on whole points
 /// as AppKit lays it out (for the screen's scale UIKit sizes it in thirds of a point, and it sits

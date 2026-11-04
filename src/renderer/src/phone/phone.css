@@ -235,6 +235,8 @@ button.phone-glass:active,
   border-radius: calc(var(--size-phone-glass-bar) / 2);
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* The lens overshoots on its spring and widens as it squashes: it stays inside the bar. */
+  overflow: clip;
   transition: transform var(--motion-duration-phone-push) var(--motion-easing-phone-push);
 }
 
@@ -3260,36 +3262,6 @@ button.phone-grouped-open:active:not(:disabled) {
 }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  .phone-sheet,
-  .phone-capture[data-open] {
-    background: var(--color-phone-glass-opaque);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-}
-
-:root[data-phone-glass='classic'] {
-  .phone-glass {
-    background: var(--color-phone-glass-opaque);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    box-shadow:
-      inset 0 0 0 var(--size-phone-separator) var(--color-phone-glass-edge),
-      0 8px 24px var(--color-phone-glass-shadow),
-      0 1px 3px var(--color-phone-glass-shadow-near);
-  }
-
-  .phone-glass::before,
-  .phone-glass::after {
-    display: none;
-  }
-
-  .phone-topbar-band {
-    background: var(--color-phone-background);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
   .phone-sheet,
   .phone-capture[data-open] {
     background: var(--color-phone-glass-opaque);

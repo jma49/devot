@@ -307,6 +307,37 @@ pub async fn symbol_png(
     }
 }
 
+/// UIKit's `UIUserInterfaceStyle` for an appearance: unspecified (the system's), light or dark.
+#[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+fn interface_style(theme: Option<tauri::Theme>) -> isize {
+    match theme {
+        Some(tauri::Theme::Light) => 1,
+        Some(tauri::Theme::Dark) => 2,
+        _ => 0,
+    }
+}
+
+/// Puts every window in `theme` (`None` follows the system). Tauri's `set_theme` does nothing on
+/// iOS, so there UIKit's own override does it, on the main thread.
+pub fn show_appearance<R: tauri::Runtime>(app: &tauri::AppHandle<R>, theme: Option<tauri::Theme>) {
+    #[cfg(target_os = "ios")]
+    if app
+        .run_on_main_thread(move || ios::set_interface_style(interface_style(theme)))
+        .is_err()
+    {
+        log::warn!("W_NATIVE_APPEARANCE_FAILED");
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        use tauri::Manager;
+        for window in app.webview_windows().values() {
+            if window.set_theme(theme).is_err() {
+                log::warn!("W_WINDOW_THEME_FAILED");
+            }
+        }
+    }
+}
+
 /// A tap the phone layout asks the device to play: `light` as a card lifts, `soft` as a saved note
 /// lands, `selection` as a choice changes, `success` as a note is completed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -940,6 +971,13 @@ pub async fn editor_menu_popup(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn an_appearance_is_uikits_interface_style() {
+        assert_eq!(interface_style(None), 0);
+        assert_eq!(interface_style(Some(tauri::Theme::Light)), 1);
+        assert_eq!(interface_style(Some(tauri::Theme::Dark)), 2);
+    }
 
     #[test]
     fn haptic_takes_only_its_five_kinds() {

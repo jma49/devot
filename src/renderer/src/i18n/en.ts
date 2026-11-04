@@ -87,7 +87,6 @@ export const en = {
   'phone.info.backlinks': 'Backlinks',
   'phone.settings.appName': 'Devot',
   'phone.settings.pair': 'Pair a device',
-  'phone.settings.onMac': 'On the Mac',
   'phone.settings.licence.pro': 'Pro',
   'phone.settings.licence.free': 'Not needed',
   'phone.settings.licence.trial': 'Trial',
@@ -105,10 +104,6 @@ export const en = {
   'phone.settings.trialEnds':
     'Your trial ends on {date}. After that every note stays readable and exportable; editing needs a license. A license is bought once and covers your Mac and this iPhone.',
   'phone.hint.done': 'Done',
-  'phone.appearance.interface': 'Interface',
-  'phone.appearance.interfaceHint': 'Classic swaps glass for solid surfaces',
-  'phone.appearance.glass': 'Glass',
-  'phone.appearance.classic': 'Classic',
   'phone.appearance.transparency': 'Glass Transparency',
   'phone.appearance.solid': 'Solid',
   'phone.appearance.clear': 'Clear',
