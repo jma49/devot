@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
-import { expect, test, openApp } from './fixtures'
+import { decodePng } from '../support/png'
+import { changeEditorSettingsElsewhere, expect, test, openApp } from './fixtures'
 
 // Write mode's tables (src/renderer/src/editor/write/tableGrid.ts): a table shows as a grid and the
 // caret edits its cells in place; the note's Markdown, read through Edit mode, stays a formatted GFM
@@ -258,6 +259,65 @@ test('pins the table bar to the top of the visible editor once the header scroll
   const row = (await caretCell.boundingBox())!
   expect(box.y + box.height).toBeLessThanOrEqual(row.y)
   expect(row.y + row.height).toBeLessThanOrEqual(view.y + view.height)
+})
+
+// A grid's row is a line as wide as the column; the caret's tint and the selection stay on the
+// cells and leave the room beside the grid as it was.
+test("tints the caret's cell and the cells a selection crosses, and nothing beside the grid", async ({
+  page,
+}) => {
+  await changeEditorSettingsElsewhere(page, { highlightActiveLine: true })
+  await createNote(page, 'Tints', `${NOTE}\n\nBelow`)
+  await expect(cells(page)).toHaveCount(4)
+  const content = (await body(page).boundingBox())!
+  const rowOf = async (text: string) => {
+    const box = (await cells(page)
+      .filter({ hasText: new RegExp(`^${text}$`) })
+      .boundingBox())!
+    return Math.round(box.y + box.height / 2)
+  }
+  const aboveBox = (await page.locator('.cm-line', { hasText: /^Above$/ }).boundingBox())!
+  const above = Math.round(aboveBox.y + aboveBox.height / 2)
+  const head = await rowOf('Qty')
+  const row = await rowOf('Tea')
+  const tea = (await cells(page).filter({ hasText: /^Tea$/ }).boundingBox())!
+  const grid = (await cells(page).filter({ hasText: /^Qty$/ }).boundingBox())!
+  // Halfway from the grid's right edge to the column's.
+  const right = Math.round((grid.x + grid.width + content.x + content.width) / 2)
+  const shot = async () => decodePng(await page.screenshot({ scale: 'css' }))
+  const at = (png: Awaited<ReturnType<typeof shot>>, x: number, y: number) => {
+    const i = (y * png.width + x) * png.channels
+    return [...png.pixels.slice(i, i + 3)]
+  }
+  const distance = (a: number[], b: number[]) => Math.max(...a.map((c, i) => Math.abs(c - b[i]!)))
+
+  // The caret is on the last line, away from the table.
+  const rest = await shot()
+
+  await intoCell(page, 'Qty')
+  await expect(page.locator('.cm-wm-cell-caret')).toHaveText('Qty')
+  await expect(page.locator('.cm-line.cm-wm-row.cm-activeLine')).toHaveCSS(
+    'background-color',
+    'rgba(0, 0, 0, 0)',
+  )
+  await expect(page.locator('.cm-wm-cell-caret')).not.toHaveCSS('background-image', 'none')
+  const caret = await shot()
+  expect(distance(at(caret, right, head), at(rest, right, head))).toBeLessThanOrEqual(2)
+
+  await page.keyboard.press('ControlOrMeta+a')
+  await expect(page.locator('.cm-wm-cell-selected')).toHaveCount(4)
+  await expect(page.locator('.cm-wm-cell-caret')).toHaveCount(0)
+  const all = await shot()
+  const selection = at(all, right, above)
+  expect(distance(selection, at(rest, right, above))).toBeGreaterThan(6)
+  for (const y of [head, row])
+    expect(
+      distance(at(all, right, y), at(rest, right, y)),
+      `beside the grid at ${y}`,
+    ).toBeLessThanOrEqual(2)
+  // A body row without a stripe shows the selection, not a hole in it.
+  const inTea = at(all, Math.round(tea.x + tea.width - 4), row)
+  expect(distance(inTea, selection)).toBeLessThanOrEqual(2)
 })
 
 test('shows the source while several cursors are in the table', async ({ page }) => {
