@@ -8,6 +8,7 @@ const token = (name: string) => `var(--color-${name})`
 // A bullet is drawn over its list mark, which keeps its width: the text after
 // it stays where it is when the caret comes and the mark shows.
 const BULLET_GLYPHS = ['•', '◦', '▪']
+const TASK_BOX = '0.875em'
 
 const bullets = Object.fromEntries(
   BULLET_GLYPHS.map((glyph, i) => [
@@ -37,15 +38,43 @@ export const writeTheme = EditorView.theme({
     pointerEvents: 'none',
   },
   ...bullets,
-  // Inside the line box, so a task line is as tall with its box as with its source.
+  // One line tall from the line's top, so the box centres on the first line and the line keeps its height.
   '.cm-wm-task': {
-    display: 'inline-block',
-    width: '1em',
-    height: '1em',
+    position: 'relative',
+    display: 'inline-flex',
+    alignItems: 'center',
+    height: '1lh',
+    verticalAlign: 'top',
+    marginInlineEnd: 'var(--space-3)',
+  },
+  // Drawn, not native, so an open and a done box are one size: outlined open, filled done.
+  '.cm-wm-task-box': {
+    appearance: 'none',
+    boxSizing: 'border-box',
+    width: TASK_BOX,
+    height: TASK_BOX,
     margin: '0',
-    verticalAlign: '-0.125em',
-    accentColor: token('accent-fill'),
+    border: `1px solid ${token('line-control')}`,
+    borderRadius: 'var(--radius-mark)',
+    backgroundColor: 'transparent',
     cursor: 'pointer',
+  },
+  '.cm-wm-task-done .cm-wm-task-box': {
+    borderColor: 'transparent',
+    backgroundColor: token('accent-fill'),
+  },
+  '.cm-wm-task-done::after': {
+    content: "''",
+    position: 'absolute',
+    top: '50%',
+    left: `calc(${TASK_BOX} / 2)`,
+    width: '0.22em',
+    height: '0.45em',
+    borderStyle: 'solid',
+    borderColor: token('accent-on-fill'),
+    borderWidth: '0 0.12em 0.12em 0',
+    transform: 'translate(-50%, -60%) rotate(45deg)',
+    pointerEvents: 'none',
   },
   // On the baseline the 1em buffer image can outgrow a short line box in a fallback font, so a line that hides its marks grows.
   '&[data-write] .cm-widgetBuffer': { verticalAlign: 'text-top' },

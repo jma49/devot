@@ -29,9 +29,11 @@ class TaskWidget extends WidgetType {
   }
 
   override toDOM(view: EditorView): HTMLElement {
+    const slot = document.createElement('span')
+    slot.className = this.done ? 'cm-wm-task cm-wm-task-done' : 'cm-wm-task'
     const box = document.createElement('input')
     box.type = 'checkbox'
-    box.className = 'cm-wm-task'
+    box.className = 'cm-wm-task-box'
     box.checked = this.done
     box.tabIndex = -1
     box.setAttribute('aria-label', t('command.toggleTask'))
@@ -39,10 +41,11 @@ class TaskWidget extends WidgetType {
     box.addEventListener('click', (event) => {
       // The note changes and draws the box again; the box never ticks itself.
       event.preventDefault()
-      const change = taskToggle(view.state, view.posAtDOM(box) + this.box + 1)
+      const change = taskToggle(view.state, view.posAtDOM(slot) + this.box + 1)
       if (change) view.dispatch(change)
     })
-    return box
+    slot.append(box)
+    return slot
   }
 
   override ignoreEvent(): boolean {
