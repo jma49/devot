@@ -98,6 +98,12 @@ describe('a render request', () => {
     palette: {},
   }
 
+  it('accepts only the built-in drawing engines', () => {
+    for (const kind of ['mermaid', 'plantuml', 'markmap'])
+      expect(isRenderRequest({ ...request, kind })).toBe(true)
+    expect(isRenderRequest({ ...request, kind: 'other' })).toBe(false)
+  })
+
   it('takes a positive width or none', () => {
     expect(isRenderRequest(request)).toBe(true)
     expect(isRenderRequest({ ...request, width: 480 })).toBe(true)

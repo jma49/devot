@@ -4,7 +4,10 @@
 // that port only.
 import type { DiagramPalette } from './mermaid-theme'
 
+export type DiagramKind = 'mermaid' | 'plantuml' | 'markmap'
+
 export interface RenderRequest {
+  kind?: DiagramKind
   type: 'render'
   id: number
   source: string
@@ -42,6 +45,10 @@ export function isRenderRequest(data: unknown): data is RenderRequest {
     typeof r === 'object' &&
     r !== null &&
     r.type === 'render' &&
+    (r.kind === undefined ||
+      r.kind === 'mermaid' ||
+      r.kind === 'plantuml' ||
+      r.kind === 'markmap') &&
     Number.isSafeInteger(r.id) &&
     typeof r.source === 'string' &&
     r.source.length <= MAX_SOURCE_LENGTH &&

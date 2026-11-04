@@ -536,6 +536,8 @@ describe('preview renderer extension point', () => {
       'devot.math',
       'devot.emoji',
       'devot.mermaid',
+      'devot.plantuml',
+      'devot.markmap',
       'devot.code',
       'devot.headingIds',
       'devot.swatches',
@@ -673,5 +675,21 @@ describe('images from the web', () => {
     const [img] = tags(await render('![x](https://example.com/a.png#half)'), 'img')
     expect(img?.properties['src']).toBe('https://example.com/a.png')
     expect(img?.properties['className']).toContain('image-size-half')
+  })
+})
+
+describe('local diagram fences', () => {
+  it.each([
+    ['plantuml', 'plantuml', '@startuml\nAlice -> Bob: Hello\n@enduml'],
+    ['puml', 'plantuml', '@startuml\nA -> B\n@enduml'],
+    ['markmap', 'markmap', '# Notes\n## Ideas\n- Capture'],
+  ])('turns %s into a %s island without losing source', async (language, kind, source) => {
+    const tree = await render(`\`\`\`${language}\n${source}\n\`\`\``)
+    const [drawing] = byClass(tree, `island-${kind}`)
+    expect(drawing?.properties).toMatchObject({
+      dataDevotIsland: kind,
+      dataIslandSource: `${source}\n`,
+    })
+    expect(tags(tree, 'pre')).toHaveLength(0)
   })
 })

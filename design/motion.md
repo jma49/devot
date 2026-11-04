@@ -133,6 +133,10 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Find bar:** rule 2. It appears at once on the keyboard, in the bottom bar's place, and matches change as you type.
 - **Glass control:** rule 4. Under the finger it grows to `motion.scale.phone-glass-press` over `motion.duration.phone-glass-press` on `motion.easing.phone-push`, and brightens over `motion.duration.ring`.
 
+## Local diagrams
+
+PlantUML and Markmap drawings replace their previous SVG at once (rule 2), as Mermaid does. Markmap layout animation, pan, zoom and folding are disabled in the static preview and exported pages.
+
 ## Stays instant
 
 Another note; another view; palette results; the editor's floating bars; Write mode's marks showing and hiding; Write mode's emoji and inline HTML drawn or shown as source; Write mode's blocks opening and folding; Write mode's tables redrawn by an edit; a pane being resized; a window's theme or appearance changing (`data-appearance-changing` turns transitions off, because WKWebView can keep half-transitioned layers when a background window changes theme); text folding (it would animate height inside CodeMirror's measured layout).

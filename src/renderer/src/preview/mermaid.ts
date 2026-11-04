@@ -19,6 +19,7 @@ import {
   labelDiagram,
   MAX_SOURCE_LENGTH,
   READY,
+  type DiagramKind,
   type FailureReason,
   type FrameMessage,
   type RenderRequest,
@@ -125,14 +126,17 @@ async function renderInFrame(
   palette: DiagramPalette,
   signal?: AbortSignal,
   width?: number,
+  kind: DiagramKind = 'mermaid',
 ): Promise<Answer> {
   const font = diagramFont()
   for (;;) {
     const answer = await drawn(
-      JSON.stringify([appearance, palette, font.fontFamily, font.fontSize, width, source]),
+      JSON.stringify([kind, appearance, palette, font.fontFamily, font.fontSize, width, source]),
       () => {
         const turn = queue.then((): Answer | Promise<Answer> =>
-          signal?.aborted ? { type: 'skipped' } : ask(source, appearance, palette, font, width),
+          signal?.aborted
+            ? { type: 'skipped' }
+            : ask(source, appearance, palette, font, width, kind),
         )
         queue = turn
         return turn
@@ -154,6 +158,7 @@ function ask(
   palette: DiagramPalette,
   font: Font,
   width?: number,
+  kind: DiagramKind = 'mermaid',
 ): Promise<Answer> {
   const id = (counter += 1)
   return new Promise<Answer>((resolve) => {
@@ -175,6 +180,7 @@ function ask(
         timer = setTimeout(expire, TIMEOUT_MS)
         const request: RenderRequest = {
           type: 'render',
+          kind,
           id,
           source,
           appearance,
@@ -272,9 +278,17 @@ function diagramLabel(source: string): string {
 async function render(
   source: string,
   { appearance, signal, width, styleRoot }: IslandContext,
+  kind: DiagramKind = 'mermaid',
 ): Promise<IslandContent> {
   if (source.length > MAX_SOURCE_LENGTH) return errorContent('parse')
-  const answer = await renderInFrame(source, appearance, shownPalette(appearance), signal, width)
+  const answer = await renderInFrame(
+    source,
+    appearance,
+    shownPalette(appearance),
+    signal,
+    width,
+    kind,
+  )
   if (answer.type === 'skipped') return { node: document.createTextNode('') }
   if (answer.type !== 'rendered') {
     logFailure(answer.reason)
@@ -295,9 +309,9 @@ async function render(
  * markup with its styles inside it, cleaned as for the preview; null when
  * it cannot be drawn.
  */
-export async function mermaidMarkup(source: string): Promise<string | null> {
+export async function diagramMarkup(kind: DiagramKind, source: string): Promise<string | null> {
   if (source.length > MAX_SOURCE_LENGTH) return null
-  const answer = await renderInFrame(source, 'light', exportPalette)
+  const answer = await renderInFrame(source, 'light', exportPalette, undefined, undefined, kind)
   if (answer.type === 'skipped') return null
   if (answer.type !== 'rendered') {
     logFailure(answer.reason)
@@ -323,4 +337,19 @@ export const mermaidIsland: PreviewIsland = {
   apiVersion: PREVIEW_API_VERSION,
   followsWidth,
   render,
+}
+
+export const mermaidMarkup = (source: string): Promise<string | null> =>
+  diagramMarkup('mermaid', source)
+
+export const plantumlIsland: PreviewIsland = {
+  kind: 'plantuml',
+  apiVersion: PREVIEW_API_VERSION,
+  render: (source, context) => render(source, context, 'plantuml'),
+}
+
+export const markmapIsland: PreviewIsland = {
+  kind: 'markmap',
+  apiVersion: PREVIEW_API_VERSION,
+  render: (source, context) => render(source, context, 'markmap'),
 }

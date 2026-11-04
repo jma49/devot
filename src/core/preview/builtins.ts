@@ -279,18 +279,21 @@ export function island(kind: string, source: string): Element {
   })
 }
 
-const mermaid: PreviewRenderer = {
-  id: 'devot.mermaid',
-  apiVersion: PREVIEW_API_VERSION,
-  transform(tree) {
-    rewrite(tree, (node) => {
-      if (node.tagName !== 'pre') return undefined
-      const code = node.children.find((c): c is Element => c.type === 'element')
-      const classes = (code?.properties['className'] as string[] | undefined) ?? []
-      if (!code || !classes.includes('language-mermaid')) return undefined
-      return island('mermaid', textOf(code))
-    })
-  },
+function diagramRenderer(kind: string, languages = [kind]): PreviewRenderer {
+  return {
+    id: `devot.${kind}`,
+    apiVersion: PREVIEW_API_VERSION,
+    transform(tree) {
+      rewrite(tree, (node) => {
+        if (node.tagName !== 'pre') return undefined
+        const code = node.children.find((c): c is Element => c.type === 'element')
+        const classes = (code?.properties['className'] as string[] | undefined) ?? []
+        if (!code || !languages.some((language) => classes.includes(`language-${language}`)))
+          return undefined
+        return island(kind, textOf(code))
+      })
+    },
+  }
 }
 
 const COLOR =
@@ -510,7 +513,9 @@ export const BUILTIN_RENDERERS: readonly PreviewRenderer[] = [
   tasks,
   createMathRenderer(),
   createEmojiRenderer(),
-  mermaid,
+  diagramRenderer('mermaid'),
+  diagramRenderer('plantuml', ['plantuml', 'puml']),
+  diagramRenderer('markmap'),
   createCodeRenderer(),
   headingIds,
   swatches,

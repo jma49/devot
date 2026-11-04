@@ -131,6 +131,29 @@ flowchart LR
   Review -->|changes| Draft
 ```
 
+A `plantuml` block (or `puml`) draws UML locally:
+
+```plantuml
+@startuml
+Writer -> Devot: Capture an idea
+Devot --> Writer: Saved
+@enduml
+```
+
+A `markmap` block turns a Markdown outline into a mind map:
+
+```markmap
+# Project
+## Ideas
+- Capture
+- Explore
+## Delivery
+- Draft
+- Review
+```
+
+Both render offline and are included in HTML and PDF exports. Markmap shows a static, fully expanded map with plain-text labels. PlantUML uses its built-in Smetana layout; external includes and libraries are not loaded.
+
 ## Footnotes
 
 Footnotes collect at the end of the note.[^1] They can be named anything.[^second]

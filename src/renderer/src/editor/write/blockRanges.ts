@@ -242,7 +242,11 @@ function scan(
     const lang = info
       ? doc.sliceString(info.from, info.to).trim().split(/\s/)[0]?.toLowerCase()
       : ''
-    const kind = lang === 'mermaid' ? 'diagram' : lang === 'math' ? 'math' : null
+    const kind = ['mermaid', 'plantuml', 'puml', 'markmap'].includes(lang ?? '')
+      ? 'diagram'
+      : lang === 'math'
+        ? 'math'
+        : null
     const last = doc.lineAt(node.to)
     // An unclosed fence runs to the end of the note: it stays source while it is being written.
     if (!kind || node.getChildren('CodeMark').length < 2 || last.from === pos) return

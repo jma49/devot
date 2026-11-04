@@ -228,3 +228,10 @@ describe('the caret and a closed block', () => {
     expect(enterBlock(wrapped, wrapped.selection.main, 3, true)).toBe(3)
   })
 })
+
+it.each(['plantuml', 'puml', 'markmap'])('treats a closed %s fence as a diagram', (language) => {
+  expect(kinds(`\`\`\`${language}\ncontent\n\`\`\`\n`)).toEqual([
+    `diagram \`\`\`${language}\ncontent\n\`\`\``,
+  ])
+  expect(kinds(`\`\`\`${language}\ncontent`)).toEqual([])
+})

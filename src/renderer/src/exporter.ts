@@ -16,7 +16,8 @@ import type { Core } from './core-client'
 import { currentLocale, t } from './i18n'
 import type { ExportAction } from './noteMenu'
 import contentCss from './preview/content.css?raw'
-import { mermaidMarkup } from './preview/mermaid'
+import { diagramMarkup } from './preview/mermaid'
+import type { DiagramKind } from './preview/mermaid-protocol'
 import pageCss from './preview/page.css?raw'
 import { previewLabels } from './preview/Preview'
 import { parseColor } from './theme/contrast'
@@ -65,13 +66,15 @@ function nonce(): string {
   ).join('')
 }
 
-function diagramSources(tree: Root): Set<string> {
-  const sources = new Set<string>()
+function diagramSources(tree: Root): Map<string, { kind: DiagramKind; source: string }> {
+  const sources = new Map<string, { kind: DiagramKind; source: string }>()
   const walk = (node: Root | RootContent) => {
     if (node.type === 'element') {
       const el: Element = node
-      if (el.properties['dataDevotIsland'] === 'mermaid') {
-        sources.add(String(el.properties['dataIslandSource'] ?? ''))
+      const kind = el.properties['dataDevotIsland']
+      if (kind === 'mermaid' || kind === 'plantuml' || kind === 'markmap') {
+        const source = String(el.properties['dataIslandSource'] ?? '')
+        sources.set(JSON.stringify([kind, source]), { kind, source })
       }
     }
     if ('children' in node) node.children.forEach(walk)
@@ -110,8 +113,8 @@ export async function notePage(
   })
   const drawings = new Map<string, string | null>()
   if (!options.simple) {
-    for (const source of diagramSources(tree)) {
-      drawings.set(source, await mermaidMarkup(source).catch(() => null))
+    for (const [key, { kind, source }] of diagramSources(tree)) {
+      drawings.set(key, await diagramMarkup(kind, source).catch(() => null))
     }
   }
   const print = options.print ?? false
@@ -119,7 +122,7 @@ export async function notePage(
     nonce: nonce(),
     simple: options.simple ?? false,
     print,
-    island: (kind, source) => (kind === 'mermaid' ? (drawings.get(source) ?? null) : null),
+    island: (kind, source) => drawings.get(JSON.stringify([kind, source])) ?? null,
     ...(options.noteHref ? { noteHref: options.noteHref } : {}),
   })
   const title = note.title || t('note.untitled')
