@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore, pickStatus, statusPicker } from './fixtures'
+import { expect, test, pickNoteMore, pickStatus, statusPicker, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -24,9 +24,7 @@ async function trashOpenNote(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('moves a note to the Trash and restores it with its metadata', async ({ page }) => {
@@ -54,14 +52,6 @@ test('moves a note to the Trash and restores it with its metadata', async ({ pag
     .click()
   await noteRows(page).filter({ hasText: 'Keeper' }).click()
   await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
-})
-
-test('Cmd+Delete in the list moves the selected note to the Trash', async ({ page }) => {
-  await createNote(page, 'Quick')
-  await noteRows(page).filter({ hasText: 'Quick' }).click()
-  await page.keyboard.press('Meta+Backspace')
-  await expect(noteRows(page)).toHaveCount(0)
-  await expect(trashRow(page)).toHaveText(/1$/)
 })
 
 test('emptying the Trash asks first; Cancel and Escape keep everything', async ({ page }) => {

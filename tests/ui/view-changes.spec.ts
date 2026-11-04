@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow, pickNoteMore, pickStatus } from './fixtures'
+import { expect, test, pickNoteMore, pickStatus, openApp, type TestWindow } from './fixtures'
 
 // Window shortcuts are pressed with Meta, as the app's registry takes it on every platform.
 
@@ -62,9 +62,7 @@ async function pick(page: Page, query: string, group: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('New Notebook from the Trash closes the trashed note instead of editing it', async ({

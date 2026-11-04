@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickStatus } from './fixtures'
+import { expect, test, pickStatus, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })
@@ -41,9 +41,7 @@ async function showAllNotes(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('Shift+Cmd+F searches the current view; Shift+Opt+Cmd+F searches every note', async ({
@@ -84,6 +82,14 @@ test('Shift+Cmd+F searches the current view; Shift+Opt+Cmd+F searches every note
   await expect(search(page)).toHaveValue('')
   await expect(header(page)).toHaveText('Work')
   await expect(search(page)).toHaveAttribute('placeholder', 'Search')
+
+  await page.keyboard.press('Meta+Alt+Shift+KeyF')
+  await expect(search(page)).toBeFocused()
+  await page.keyboard.type('nothing matches this')
+  await expect(noteRows(page)).toHaveCount(0)
+  await showAllNotes(page)
+  await expect(search(page)).toHaveValue('')
+  await expect(noteRows(page)).toHaveCount(2)
 })
 
 test('searching a filter narrows within it', async ({ page }) => {

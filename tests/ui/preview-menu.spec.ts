@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test'
-import { clipboardWrites, expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
+import {
+  clipboardWrites,
+  expect,
+  pickMenuItem,
+  shownMenu,
+  test,
+  openApp,
+  type TestWindow,
+} from './fixtures'
 
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 const mode = (page: Page, name: 'Edit' | 'Split' | 'Preview') =>
@@ -26,9 +34,7 @@ async function newNote(page: Page, title: string, body: string) {
 
 test.beforeEach(async ({ page }) => {
   await page.route(/^https:\/\//, (route) => route.abort())
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('a right-click on text shows Copy, Select All and Speech', async ({ page }) => {

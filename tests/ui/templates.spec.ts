@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, statusPicker, bookPicker } from './fixtures'
+import { expect, test, statusPicker, bookPicker, openApp } from './fixtures'
 import { failCoreCalls, slowCore } from './slowCore'
 
 // Window shortcuts take Meta, as the app's registry does on every platform.
@@ -50,9 +50,7 @@ const today = (page: Page) =>
   })
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('templates live in their own view, out of All Notes and search', async ({ page }) => {

@@ -123,7 +123,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(`${colorScheme} Glass dialogs`, () => {
     test.use({ colorScheme, viewport: { width: 1000, height: 720 } })
 
-    test('the import sheet is glass with an inset group and capsule buttons', async ({ page }) => {
+    test('the import sheet is glass with an inset group that scrolls, and capsule buttons', async ({
+      page,
+    }) => {
       await openImport(page, true)
       const sheet = importSheet(page)
       await expectGlassSurface(sheet)
@@ -165,23 +167,20 @@ for (const colorScheme of ['light', 'dark'] as const) {
       const titleLeft = (await box(sheet.locator('.sheet-title'))).x
       expect(titleLeft - sheetBox.x).toBeCloseTo(22, 0)
       expect((await box(tree)).x - sheetBox.x).toBeCloseTo(12, 0)
-    })
 
-    test('a tall tree scrolls inside its group, not the sheet', async ({ page }) => {
-      await openImport(page, true)
-      const tree = importTree(page)
       const sizes = await tree.evaluate((el) => ({
         client: el.clientHeight,
         full: el.scrollHeight,
       }))
       expect(sizes.full).toBeGreaterThan(sizes.client)
       expect(sizes.client).toBeLessThanOrEqual(36 * 7 + 7)
-      const sheet = importSheet(page)
       const outer = await sheet.evaluate((el) => el.scrollHeight - el.clientHeight)
       expect(outer).toBe(0)
     })
 
-    test('a confirm dialog shares the glass surface and capsule buttons', async ({ page }) => {
+    test('a plain confirm shares the glass surface and capsule buttons, in a row with no icon tile', async ({
+      page,
+    }) => {
       const dialog = await openPlainConfirm(page)
       await expectGlassSurface(dialog)
       const cancel = cancelButton(dialog)
@@ -191,10 +190,6 @@ for (const colorScheme of ['light', 'dark'] as const) {
       const last = await box(dialog.locator('.confirm-actions .button').last())
       expect(dialogBox.x + dialogBox.width - (last.x + last.width)).toBeCloseTo(12, 0)
       expect(dialogBox.y + dialogBox.height - (last.y + last.height)).toBeCloseTo(12, 0)
-    })
-
-    test('a plain confirm has no icon tile and keeps its buttons in a row', async ({ page }) => {
-      const dialog = await openPlainConfirm(page)
       await expect(dialog.locator('.confirm-icon')).toHaveCount(0)
       await expect(dialog.locator('.confirm-actions')).toHaveCSS('flex-direction', 'row')
       await expect(dialog).toHaveCSS('text-align', 'start')
@@ -264,27 +259,26 @@ test.describe('the keyboard in a destructive confirm', () => {
     return dialog
   }
 
-  test('the buttons stay in document order though the action is drawn first', async ({ page }) => {
+  test('the buttons stay in document order though the action is drawn first; Return and Escape decline', async ({
+    page,
+  }) => {
     const dialog = await openEmptyTrash(page)
     const buttons = dialog.locator('.confirm-actions .button')
     await expect(buttons.first()).toHaveText('Cancel')
     await expect(buttons.last()).toHaveText('Empty Trash')
     expect((await box(buttons.last())).y).toBeLessThan((await box(buttons.first())).y)
-  })
 
-  test('Cancel takes the keyboard, and Return declines', async ({ page }) => {
-    const dialog = await openEmptyTrash(page)
+    const emptyTrash = page.getByRole('button', { name: 'Empty Trash' })
     await expect(cancelButton(dialog)).toBeFocused()
     await page.keyboard.press('Enter')
     await expect(dialog).toBeHidden()
-    await expect(page.getByRole('button', { name: 'Empty Trash' })).toBeEnabled()
-  })
+    await expect(emptyTrash).toBeEnabled()
 
-  test('Escape declines', async ({ page }) => {
-    const dialog = await openEmptyTrash(page)
+    await emptyTrash.click()
+    await settled(dialog)
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
-    await expect(page.getByRole('button', { name: 'Empty Trash' })).toBeEnabled()
+    await expect(emptyTrash).toBeEnabled()
   })
 
   test('a notebook still gives the keyboard to the action', async ({ page }) => {

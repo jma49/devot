@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeShortcutsElsewhere, expect, test, pickNoteMore } from './fixtures'
+import { changeShortcutsElsewhere, expect, test, pickNoteMore, openApp } from './fixtures'
 
 // The find shortcuts check the Command key, so these tests press Meta on every platform.
 
@@ -46,9 +46,7 @@ const previewHighlights = (page: Page) =>
 
 test.beforeEach(async ({ page }) => {
   await page.route(/^https:\/\//, (route) => route.abort())
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('Cmd+F finds in the note; Cmd+G steps through matches; Escape returns to the editor', async ({
@@ -271,19 +269,6 @@ test('the preview highlights follow the text as it changes', async ({ page }) =>
   await expect.poll(() => previewHighlights(page)).toEqual([2, 1])
 })
 
-test('a hard line break in the preview separates the text around it', async ({ page }) => {
-  // Two trailing spaces: a hard break, rendered as <br>.
-  await newNote(page, 'Break', 'alpha  \nbeta')
-  await mode(page, 'Preview').click()
-  await expect(preview(page).locator('br')).toHaveCount(1)
-  await page.keyboard.press('Meta+f')
-  await page.keyboard.type('alphabeta')
-  await expect(findStatus(page)).toHaveText('No matches')
-  await page.keyboard.press('Alt+Meta+r')
-  await findField(page).fill('^beta')
-  await expect(findStatus(page)).toHaveText('1 of 1')
-})
-
 test('in split mode, Cmd+F searches the pane that has focus', async ({ page }) => {
   await newNote(page, 'Split', 'Some *word* here')
   await mode(page, 'Split').click()
@@ -322,10 +307,10 @@ test('find stays out of the way of the other shortcuts', async ({ page }) => {
   await expect(bar(page)).toHaveCount(0)
 })
 
-test('Cmd+G with the bar closed goes on to the next match with the same query', async ({
+test('Cmd+G with the bar closed goes on to the next match with the same query, regex or plain text', async ({
   page,
 }) => {
-  await newNote(page, 'Again', 'a 1 b 22 c 333')
+  await newNote(page, 'Again', 'a 1 b 22 c 333 one two one three one')
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.press('Meta+f')
   await page.keyboard.press('Alt+Meta+r')
@@ -348,13 +333,13 @@ test('Cmd+G with the bar closed goes on to the next match with the same query', 
   await page.keyboard.press('Meta+f')
   await expect(findField(page)).toHaveValue('\\d+')
   await expect(findStatus(page)).toHaveText('1 of 3')
-})
 
-test('Cmd+G with the bar closed goes on from the cursor in plain text', async ({ page }) => {
-  await newNote(page, 'Plain', 'one two one three one')
+  await page.keyboard.press('Alt+Meta+r')
+  await expect(findStatus(page)).toHaveText('No matches')
+  await page.keyboard.press('Escape')
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.press('Meta+f')
-  await page.keyboard.type('one')
+  await findField(page).fill('one')
   await expect(findStatus(page)).toHaveText('1 of 3')
   await page.keyboard.press('Escape')
   await page.keyboard.press('Meta+g')
@@ -403,10 +388,14 @@ test('replacing from the keyboard keeps Escape working', async ({ page }) => {
   await expect(body(page)).toBeFocused()
 })
 
-test('a soft line break between formatted words is a space in the preview', async ({ page }) => {
-  await newNote(page, 'Soft', '*a*\n*b*\n\n**c**\n**d**')
+test('in the preview a soft line break between formatted words is a space; a hard one separates', async ({
+  page,
+}) => {
+  // Two trailing spaces make the last break a hard one, rendered as <br>.
+  await newNote(page, 'Soft', '*a*\n*b*\n\n**c**\n**d**\n\nalpha  \nbeta')
   await mode(page, 'Preview').click()
   await expect(preview(page).locator('em')).toHaveCount(2)
+  await expect(preview(page).locator('br')).toHaveCount(1)
   await page.keyboard.press('Meta+f')
   await page.keyboard.type('a b')
   await expect(findStatus(page)).toHaveText('1 of 1')
@@ -417,4 +406,10 @@ test('a soft line break between formatted words is a space in the preview', asyn
   // Between blocks it is still a line break, not a space.
   await findField(page).fill('b c')
   await expect(findStatus(page)).toHaveText('No matches')
+
+  await findField(page).fill('alphabeta')
+  await expect(findStatus(page)).toHaveText('No matches')
+  await page.keyboard.press('Alt+Meta+r')
+  await findField(page).fill('^beta')
+  await expect(findStatus(page)).toHaveText('1 of 1')
 })

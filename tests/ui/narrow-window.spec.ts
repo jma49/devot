@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 /** size.pane-min-width */
 const PANE_MIN = 240
@@ -20,9 +20,7 @@ async function box(locator: ReturnType<Page['locator']>): Promise<Box> {
 
 async function openNote(page: Page, width: number, text: string) {
   await page.setViewportSize({ width, height: 700 })
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
   await page.getByRole('textbox', { name: 'Note body' }).click()
@@ -160,14 +158,6 @@ test('a sidebar the user hid stays hidden in a wide window', async ({ page }) =>
   await expect(sidebar(page)).toBeHidden()
   await page.setViewportSize({ width: 800, height: 700 })
   await page.setViewportSize({ width: 1280, height: 700 })
-  await expect(sidebar(page)).toBeHidden()
-  await expect(showSidebar(page)).toBeVisible()
-})
-
-test('a window narrower than 1000 px opens without the sidebar', async ({ page }) => {
-  await openNote(page, 800, 'note')
-  await page.reload()
-  await expect(page.getByRole('region', { name: 'Notes' })).toBeVisible()
   await expect(sidebar(page)).toBeHidden()
   await expect(showSidebar(page)).toBeVisible()
 })

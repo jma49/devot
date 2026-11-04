@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import * as Y from 'yjs'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 // The editor has one undo system, CodeMirror's history (docs/architecture.md, Merging and history): it holds the
 // user's own edits, never what reaches the note from outside, and a note keeps it while another is shown.
@@ -70,9 +70,7 @@ async function undo(page: Page, times: number) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('a change another process makes to the open note is not undone', async ({ page }) => {

@@ -1,14 +1,12 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, test, openApp, type TestWindow } from './fixtures'
 
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 async function createTag(page: Page, name: string) {

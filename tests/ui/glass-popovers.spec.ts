@@ -55,7 +55,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(`${colorScheme} Glass floating surfaces`, () => {
     test.use({ colorScheme, viewport: { width: 1100, height: 720 } })
 
-    test('a picker has concentric corners, a tall search field and rows', async ({ page }) => {
+    test('a picker has concentric corners, a tall search field, washed rows and a notch at its button', async ({
+      page,
+    }) => {
       const panel = await openBookPicker(page, true)
       await expect(panel).toHaveCSS('border-radius', '18px')
       await expect(panel).toHaveCSS('padding', '6px')
@@ -69,21 +71,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
       const row = panel.getByRole('option').first()
       await expect(row).toHaveCSS('border-radius', '12px')
       expect(await height(row)).toBe(32)
-    })
 
-    test('the keyboard row and the row under the pointer take the accent wash', async ({
-      page,
-    }) => {
-      const panel = await openBookPicker(page, true)
       const selected = panel.locator('.picker-option[aria-selected="true"]')
-      const tint = (el: Locator) => el.evaluate((node) => getComputedStyle(node).backgroundColor)
-      const wash = await tint(selected)
+      const wash = await selected.evaluate((node) => getComputedStyle(node).backgroundColor)
       expect(wash).not.toBe('rgba(0, 0, 0, 0)')
       expect(wash).toMatch(/0\.2\)$/)
-    })
 
-    test('a picker points a notch at its button and scrolls inside', async ({ page }) => {
-      const panel = await openBookPicker(page, true)
       const picker = (await bookPicker(page).boundingBox())!
       const box = (await panel.boundingBox())!
       expect(await before(panel, 'display')).toBe('block')

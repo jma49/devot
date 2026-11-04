@@ -1,7 +1,7 @@
 // The rendered note takes the keyboard and scrolls with it, in Preview mode and the Trash;
 // the font size keys (Cmd+=, Cmd+-, Cmd+0) resize it.
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore } from './fixtures'
+import { expect, test, pickNoteMore, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -59,9 +59,7 @@ const fontSize = (page: Page, selector: string) =>
     )
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('Control+Tab reaches the preview in Preview mode, and the keys scroll it', async ({

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickStatus } from './fixtures'
+import { expect, test, pickStatus, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -20,9 +20,7 @@ async function createNote(page: Page, title: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('the note list keeps a Tab stop when the open note is not listed', async ({ page }) => {
@@ -42,48 +40,38 @@ test('the note list keeps a Tab stop when the open note is not listed', async ({
   await expect(noteRows(page).first()).toBeFocused()
 })
 
-test('View Image opens the viewer from the palette, and Escape closes it', async ({ page }) => {
+test('View Image opens the viewer from the palette on a line with an image; Tab goes round it, Escape closes it', async ({
+  page,
+}) => {
   await createNote(page, 'Pictures')
   await body(page).click()
-  await page.keyboard.insertText(`Look ![Big picture](${FILE})`)
+  await page.keyboard.insertText(`No picture here\nLook ![Big picture](${FILE})`)
+  const option = palette(page).getByRole('option', { name: /View Image/ })
+  await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.press('Meta+KeyK')
   await expect(field(page)).toBeFocused()
   await field(page).fill('View Image')
-  const option = palette(page).getByRole('option', { name: /View Image/ })
+  await expect(option).toHaveCount(0)
+  // The first Escape clears the query, the second closes the palette.
+  await page.keyboard.press('Escape')
+  await expect(field(page)).toHaveValue('')
+  await page.keyboard.press('Escape')
+  await expect(palette(page)).toHaveCount(0)
+
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.press('Meta+KeyK')
+  await expect(field(page)).toBeFocused()
+  await field(page).fill('View Image')
   await expect(option).toBeVisible()
   await page.keyboard.press('Enter')
   await expect(viewer(page)).toBeVisible()
   await expect(viewer(page)).toHaveAccessibleName('Image Viewer: Big picture')
   await expect(viewer(page).locator('img')).toHaveAttribute('src', FILE)
-  await expect(viewer(page).getByRole('button', { name: 'Close' })).toBeFocused()
-  await page.keyboard.press('Escape')
-  await expect(viewer(page)).toBeHidden()
-  await expect(body(page)).toBeFocused()
-})
-
-test('the palette offers View Image only on a line with an image', async ({ page }) => {
-  await createNote(page, 'Plain')
-  await body(page).click()
-  await page.keyboard.insertText('No picture here')
-  await page.keyboard.press('Meta+KeyK')
-  await expect(field(page)).toBeFocused()
-  await field(page).fill('View Image')
-  await expect(palette(page).getByRole('option', { name: /View Image/ })).toHaveCount(0)
-})
-
-test('Tab and Shift+Tab go round every stop of the viewer', async ({ page }) => {
-  await createNote(page, 'Pictures')
-  await body(page).click()
-  await page.keyboard.insertText(`![Big picture](${FILE})`)
-  await page.keyboard.press('Meta+KeyK')
-  await field(page).fill('View Image')
-  await page.keyboard.press('Enter')
-  await expect(viewer(page)).toBeVisible()
   const fit = viewer(page).getByRole('button', { name: 'Fit to Window' })
   const actual = viewer(page).getByRole('button', { name: 'Actual Size' })
   const close = viewer(page).getByRole('button', { name: 'Close' })
-  const stage = viewer(page).locator('.image-viewer-stage')
   await expect(close).toBeFocused()
+  const stage = viewer(page).locator('.image-viewer-stage')
   // The viewer handles every Tab itself: with macOS's default keyboard
   // setting the web view would skip the buttons, or leave the dialog.
   const handled = (shiftKey: boolean) =>
@@ -116,4 +104,7 @@ test('Tab and Shift+Tab go round every stop of the viewer', async ({ page }) => 
   await expect(stage).toBeFocused()
   expect(await handled(false)).toBe(true)
   await expect(fit).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(viewer(page)).toBeHidden()
+  await expect(body(page)).toBeFocused()
 })

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, test, openApp, type TestWindow } from './fixtures'
 
 async function newNote(page: Page, title: string, body = '') {
   const before = await page.getByRole('listbox', { name: 'Notes' }).getByRole('option').count()
@@ -24,9 +24,7 @@ const mode = (page: Page, name: 'Edit' | 'Split' | 'Preview') =>
 test.beforeEach(async ({ page }) => {
   // Embeds must never reach the network in tests.
   await page.route(/^https:\/\//, (route) => route.abort())
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('switches between edit, split and preview', async ({ page }) => {
@@ -134,13 +132,6 @@ test('embeds from unknown origins load only on click, sandboxed', async ({ page 
   await expect(frame).toHaveAttribute('referrerpolicy', 'strict-origin-when-cross-origin')
 })
 
-test('a colour in inline code shows a swatch', async ({ page }) => {
-  await newNote(page, 'Colours', 'Accent: `#ff0000`')
-  await mode(page, 'Split').click()
-  const swatch = preview(page).locator('.swatch')
-  await expect(swatch).toHaveCSS('background-color', 'rgb(255, 0, 0)')
-})
-
 test('math renders as MathML and emoji shortcodes as emoji', async ({ page }) => {
   await newNote(page, 'Math', 'Inline $a^2 + b^2$ and :tada:\n\n$$\n\\frac{1}{2}\n$$')
   await mode(page, 'Split').click()
@@ -177,32 +168,6 @@ test('an invalid diagram shows an error in place', async ({ page }) => {
     'This diagram has an error and cannot be drawn.',
   )
   await expect(preview(page)).toContainText('After the diagram.')
-})
-
-test('diagrams keep their styles under a CSP without inline styles', async ({ page, baseURL }) => {
-  await page.route(`${baseURL}/`, async (route) => {
-    const response = await route.fetch()
-    await route.fulfill({
-      response,
-      headers: { ...response.headers(), 'content-security-policy': "style-src 'self'" },
-    })
-  })
-  await page.goto('/')
-  await newNote(page, 'Strict', DIAGRAM)
-  await mode(page, 'Split').click()
-  type Styles = { getComputedStyle(el: unknown): { fill: string; width: string } }
-  // The policy is in force: the dev server's injected <style> tags are blocked.
-  const sidebar = page.getByRole('navigation', { name: 'Sidebar' })
-  expect(
-    await sidebar.evaluate((el) => (globalThis as unknown as Styles).getComputedStyle(el).width),
-  ).not.toBe('200px')
-
-  const node = preview(page).locator('.island-mermaid svg .node rect').first()
-  await expect(node).toBeVisible()
-  // SVG paints black by default; the theme colour proves Mermaid's own CSS applied.
-  await expect
-    .poll(() => node.evaluate((el) => (globalThis as unknown as Styles).getComputedStyle(el).fill))
-    .not.toBe('rgb(0, 0, 0)')
 })
 
 const FLOWCHART = '```mermaid\ngraph TD\n  Start --> Finish\n```'

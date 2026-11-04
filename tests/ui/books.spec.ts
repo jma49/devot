@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, statusPicker, bookPicker, pickBook } from './fixtures'
+import { expect, test, statusPicker, bookPicker, pickBook, openApp } from './fixtures'
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
@@ -27,9 +27,7 @@ async function createNote(page: Page, title: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('creates a notebook, selects it and files new notes there', async ({ page }) => {
@@ -96,16 +94,28 @@ test('a notebook shows its own notes and those of its sub-notebooks', async ({ p
   await expect(book(page, 'Work')).toContainText('2')
 })
 
-test('moves a note by dragging it onto a notebook, or with the pop-up', async ({ page }) => {
+test('moves a note by dragging it onto anywhere on a notebook row, or with the pop-up', async ({
+  page,
+}) => {
   await createNote(page, 'Wanderer')
   await createBook(page, 'Home')
+  await createBook(page, 'Work')
   await page.getByRole('button', { name: /All Notes/ }).click()
-  await noteRows(page).filter({ hasText: 'Wanderer' }).dragTo(row(page, 'Home'))
+  const wanderer = noteRows(page).filter({ hasText: 'Wanderer' })
+  await wanderer.dragTo(row(page, 'Home'))
   await expect(book(page, 'Home')).toContainText('1')
 
-  await noteRows(page).filter({ hasText: 'Wanderer' }).click()
+  await wanderer.click()
   await pickBook(page, 'No Notebook')
   await expect(book(page, 'Home')).toContainText('0')
+
+  // The top edge of a row, where a notebook would go before it.
+  const home = await row(page, 'Home').boundingBox()
+  if (!home) throw new Error('E_TEST_NO_BOX')
+  await wanderer.dragTo(row(page, 'Home'), { targetPosition: { x: home.width / 2, y: 2 } })
+  await expect(book(page, 'Home')).toContainText('1')
+  await expect(tree(page).getByRole('treeitem').nth(0)).toHaveAccessibleName(/^Home\b/)
+  await expect(tree(page).getByRole('treeitem').nth(1)).toHaveAccessibleName(/^Work\b/)
 })
 
 test('Home and End in the notebook pop-up search move the caret, not the selection', async ({
@@ -128,31 +138,6 @@ test('Home and End in the notebook pop-up search move the caret, not the selecti
     expect(prevented).toBe(false)
   }
   await expect(search).toHaveAttribute('aria-activedescendant', active ?? '')
-})
-
-test('deleting a notebook removes its sub-notebooks and keeps every note', async ({ page }) => {
-  await createBook(page, 'Old')
-  await createNote(page, 'Survivor')
-  await createBook(page, 'Older')
-  await row(page, 'Older').dragTo(row(page, 'Old'))
-  await row(page, 'Old').click()
-  await page.keyboard.press('Delete')
-  await page
-    .getByRole('dialog', { name: 'Delete the notebook \u201cOld\u201d?' })
-    .getByRole('button', { name: 'Delete Notebook' })
-    .click()
-  await expect(tree(page).getByRole('treeitem')).toHaveCount(0)
-  await expect(header(page)).toHaveText('All Notes')
-  await expect(noteRows(page).filter({ hasText: 'Survivor' })).toHaveCount(1)
-  await noteRows(page).filter({ hasText: 'Survivor' }).click()
-  await expect(bookPicker(page)).toHaveAttribute('data-value', '')
-})
-
-test('notebooks survive a reload', async ({ page }) => {
-  await createBook(page, 'Kept')
-  await createNote(page, 'Inside')
-  await page.reload()
-  await expect(book(page, 'Kept')).toContainText('1')
 })
 
 // The default window, and the narrowest one the note details must fit in.

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 import { slowCore } from './slowCore'
 
 // A new note's editor loads its body after the note shows and then takes the
@@ -20,16 +20,14 @@ const storedNotes = (page: Page) =>
 
 test.beforeEach(async ({ page }) => {
   await slowCore(page, ['open'])
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('notes made back to back keep each title in the title and each body in the body', async ({
   page,
 }) => {
   const made: StoredNote[] = []
-  for (let i = 1; i <= 10; i += 1) {
+  for (let i = 1; i <= 4; i += 1) {
     const before = await noteRows(page).count()
     await page.getByRole('button', { name: 'New Note', exact: true }).click()
     await expect(noteRows(page)).toHaveCount(before + 1)

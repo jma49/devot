@@ -163,21 +163,21 @@ test('Escape dismisses a suggestion and typing on drops it, with the note untouc
   expect(await requests(page)).toHaveLength(2)
 })
 
-test('sends nothing on its own while the pause setting is off', async ({ page }) => {
-  await ready(page, [' unused.'], 'We plan')
+test('asks after a pause when the user turned that on, and only then', async ({ page }) => {
+  await ready(page, [' to ship.'], 'We plan')
   await page.keyboard.type(' to')
   await page.waitForTimeout(2_600)
   await expect(ghost(page)).toHaveCount(0)
   expect(await requests(page)).toEqual([])
-})
 
-test('asks after a pause when the user turned that on, and only then', async ({ page }) => {
-  await ready(page, [' to ship.'], 'We plan', { idle: true })
-  await page.keyboard.type(' to')
+  await page.evaluate(() => {
+    ;(globalThis as unknown as Window).devotSuggestOnIdle = true
+  })
+  await page.keyboard.type(' we')
   await expect(ghost(page)).toContainText('to ship.', { timeout: 6_000 })
   expect(await requests(page)).toHaveLength(1)
   await page.keyboard.press('Tab')
-  await expect.poll(() => savedBody(page)).toBe('We plan to to ship.')
+  await expect.poll(() => savedBody(page)).toBe('We plan to we to ship.')
 })
 
 test('Escape then Tab leaves the editor while a pause’s request is on its way, unseen', async ({
@@ -249,15 +249,11 @@ test('sends nothing without a provider set up, and says why', async ({ page }) =
   expect(await requests(page)).toEqual([])
 })
 
-test('says when the provider had nothing to add', async ({ page }) => {
-  await ready(page, ['  \n'], 'We plan')
+test('names a failure of the provider, and says when it had nothing to add', async ({ page }) => {
+  await ready(page, [{ error: 'E_AI_RATE_LIMITED' }, '  \n'], 'We plan')
+  await page.keyboard.press(SUGGEST_KEY)
+  await expect(page.getByRole('alert')).toContainText('(E_AI_RATE_LIMITED)')
   await page.keyboard.press(SUGGEST_KEY)
   await expect(page.getByRole('alert')).toContainText('(E_AI_SUGGESTION_NONE)')
   await expect(ghost(page)).toHaveCount(0)
-})
-
-test('names a failure of the provider', async ({ page }) => {
-  await ready(page, [{ error: 'E_AI_RATE_LIMITED' }], 'We plan')
-  await page.keyboard.press(SUGGEST_KEY)
-  await expect(page.getByRole('alert')).toContainText('(E_AI_RATE_LIMITED)')
 })

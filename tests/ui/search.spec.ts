@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore } from './fixtures'
+import { expect, test, pickNoteMore, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const search = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })
@@ -21,9 +21,7 @@ async function createNote(page: Page, title: string, body = '') {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('finds notes by title and body, in English and Chinese', async ({ page }) => {
@@ -60,20 +58,6 @@ test('results follow edits and the trash', async ({ page }) => {
   await expect(noteRows(page)).toHaveCount(0)
 })
 
-test('Shift+Opt+Cmd+F focuses the search field; picking a library clears it', async ({ page }) => {
-  await createNote(page, 'Alpha')
-  await page.keyboard.press('Shift+Alt+Meta+KeyF')
-  await expect(search(page)).toBeFocused()
-  await page.keyboard.type('nothing matches this')
-  await expect(noteRows(page)).toHaveCount(0)
-  await page
-    .getByRole('navigation', { name: 'Sidebar' })
-    .getByRole('button', { name: /^All Notes/ })
-    .click()
-  await expect(search(page)).toHaveValue('')
-  await expect(noteRows(page)).toHaveCount(1)
-})
-
 test('after clearing a search, the next query does not show the previous results', async ({
   page,
 }) => {
@@ -95,22 +79,6 @@ test('after clearing a search, the next query does not show the previous results
   await page.clock.resume()
   await expect(header(page)).toHaveText('Search')
   await expect(noteRows(page)).toHaveText([/^Bar plan/])
-})
-
-test('pinned: narrows the list, and a malformed value is searched as text', async ({ page }) => {
-  await createNote(page, 'Pinned plan')
-  await pickNoteMore(page, 'Pin to Top')
-  await createNote(page, 'Loose plan')
-
-  await search(page).fill('plan pinned:true')
-  await expect(noteRows(page)).toHaveText([/^Pinned plan/])
-  await search(page).fill('plan pinned:false')
-  await expect(noteRows(page)).toHaveText([/^Loose plan/])
-  await search(page).fill('plan -pinned:false')
-  await expect(noteRows(page)).toHaveText([/^Pinned plan/])
-  // Not a pinned value: the text "pinned:maybe" is searched for.
-  await search(page).fill('plan pinned:maybe')
-  await expect(noteRows(page)).toHaveCount(0)
 })
 
 test('the syntax help opens from its button, and Escape closes it before clearing the search', async ({

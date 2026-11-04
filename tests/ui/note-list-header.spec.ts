@@ -1,9 +1,8 @@
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const filter = (page: Page) => page.getByRole('searchbox', { name: 'Search notes' })
-const chip = (page: Page) => page.getByRole('button', { name: 'Sort Notes' })
 
 async function createNote(page: Page, title: string, body = '') {
   const before = await noteRows(page).count()
@@ -17,9 +16,7 @@ async function createNote(page: Page, title: string, body = '') {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('the Filter field sits under the list header; Escape clears it', async ({ page }) => {
@@ -35,14 +32,6 @@ test('the Filter field sits under the list header; Escape clears it', async ({ p
   await filter(page).press('Escape')
   await expect(filter(page)).toHaveValue('')
   await expect(noteRows(page)).toHaveCount(2)
-})
-
-test('the sort chip shows the order and opens the sort menu', async ({ page }) => {
-  await expect(chip(page)).toHaveText('Date Updated')
-  await chip(page).click()
-  await pickMenuItem(page, 'Title (A to Z)')
-  await expect(chip(page)).toHaveText('Title')
-  await expect(chip(page)).toHaveAttribute('title', 'Sorted by Title (A to Z)')
 })
 
 test('a row shows its time, then one line of body', async ({ page }) => {

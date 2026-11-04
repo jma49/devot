@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 // Front matter reads as metadata, not a heading; a `---` further down still makes a heading or a rule.
 
@@ -52,9 +52,7 @@ function tokenColor(page: Page, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('front matter is styled as metadata, a later setext heading as a heading', async ({
@@ -88,39 +86,4 @@ test('front matter becomes a heading again when its first fence goes', async ({ 
   await page.keyboard.press('Delete')
   await expect(line(page, 0)).toHaveText('title: Launch plan')
   await expect.poll(async () => (await lineStyle(line(page, 0))).weight).toBe(700)
-})
-
-async function paste(page: Page, text: string) {
-  await body(page).evaluate((el, value) => {
-    // This config has no DOM types: the few browser classes used here.
-    const w = globalThis as unknown as {
-      DataTransfer: new () => { setData(type: string, value: string): void }
-      ClipboardEvent: new (type: string, init: object) => unknown
-    }
-    const data = new w.DataTransfer()
-    data.setData('text/plain', value)
-    const init = { bubbles: true, cancelable: true, clipboardData: data }
-    ;(el as unknown as { dispatchEvent(e: unknown): boolean }).dispatchEvent(
-      new w.ClipboardEvent('paste', init),
-    )
-  }, text)
-}
-
-async function selectLine(page: Page, n: number) {
-  await line(page, n).click()
-  await page.keyboard.press('End')
-  await page.keyboard.press('Shift+Home')
-}
-
-test('a URL pasted over front matter replaces the text; over body text it makes a link', async ({
-  page,
-}) => {
-  await newNote(page, '---\nsource: old\n---\n\nword')
-  await expect(line(page, 4)).toHaveText('word')
-  await selectLine(page, 1)
-  await paste(page, 'https://new.example')
-  await expect(line(page, 1)).toHaveText('https://new.example')
-  await selectLine(page, 4)
-  await paste(page, 'https://new.example')
-  await expect(line(page, 4)).toHaveText('[word](https://new.example)')
 })

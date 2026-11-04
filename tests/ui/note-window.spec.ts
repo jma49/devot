@@ -64,8 +64,6 @@ async function openNoteWindow(context: BrowserContext, id: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
   await openApp(page)
 })
 

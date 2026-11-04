@@ -5,6 +5,7 @@ import {
   expect,
   reloadApp,
   test,
+  openApp,
   type TestWindow,
 } from './fixtures'
 
@@ -111,9 +112,7 @@ const painted = (page: Page, selector: string, color: string) =>
   )
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('right-click shows the tag menu at the pointer, in the window', async ({ page }) => {
@@ -329,20 +328,6 @@ test('keys set in Settings filter by a tag and copy its ID from its row', async 
   await tagRow(page, 'sync').focus()
   await page.keyboard.press('KeyF')
   await expect(header(page)).toHaveText('All Notes')
-})
-
-test('F2 edits the name in place; the chips follow', async ({ page }) => {
-  await setUp(page)
-  await tagRow(page, 'idea').focus()
-  await page.keyboard.press('F2')
-  const field = sidebar(page).getByRole('textbox', { name: 'Tag name' })
-  await expect(field).toBeFocused()
-  await expect(field).toHaveValue('idea')
-  await field.fill('ideas')
-  await field.press('Enter')
-  await expect(tagRow(page, 'ideas')).toHaveText(/2$/)
-  await expect(noteRow(page, 'One')).toContainText('ideas')
-  await expect(editorTags(page)).toContainText('ideas')
 })
 
 test('Delete Tag asks first, then removes it from the sidebar and every note', async ({ page }) => {

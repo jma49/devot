@@ -4,7 +4,7 @@ const include = ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}']
 // Benchmarks and real builds: about half the suite's time in a handful of files. `pnpm test` and CI
 // run them after the rest, so timings never share the CPU with other tests; `pnpm test:fast`
 // (the pre-push hook) leaves them out.
-const slow = ['**/*.bench.test.ts', 'tests/policy/source-maps.test.ts']
+const slow = ['**/*.bench.test.ts']
 
 export default defineConfig({
   test: {

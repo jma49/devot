@@ -6,6 +6,7 @@ import {
   pickMenuItem,
   shownMenu,
   test,
+  openApp,
   type TestWindow,
 } from './fixtures'
 
@@ -75,9 +76,7 @@ const EDIT_ITEMS = [
 ]
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('a right-click in plain text shows the edit items and Speech', async ({ page }) => {

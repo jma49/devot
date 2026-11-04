@@ -69,6 +69,7 @@ test('the settings window has a Usage Data section', async ({ page }) => {
 test('shows the stored events by type, and each one on request', async ({ page }) => {
   await open(page, EVENTS)
   await expect(section(page)).toContainText('4 events are stored on this Mac.')
+  await expect(page.locator('.usage-dashboard')).toHaveCount(0)
   await expect(byType(page).getByRole('row')).toHaveText([
     'EventCount',
     'Search run2',
@@ -1100,9 +1101,10 @@ test('a font size out of range is not stored, and leaving the field shows the st
   await expect(fontSize(page)).toHaveValue('14')
   await expect(fontSize(page)).toHaveAttribute('min', '10')
   await expect(fontSize(page)).toHaveAttribute('max', '32')
+  await page.clock.install()
   for (const typed of ['40', '9', '12.5']) {
     await fontSize(page).fill(typed)
-    await page.waitForTimeout(PAST_TYPING_PAUSE_MS)
+    await page.clock.runFor(PAST_TYPING_PAUSE_MS)
     await expect(fontSize(page)).toHaveValue(typed)
     expect(await setCalls(page)).toEqual([])
     expect(errors).toEqual([])
@@ -1112,7 +1114,7 @@ test('a font size out of range is not stored, and leaving the field shows the st
   await fontSize(page).fill('40')
   await fontSize(page).blur()
   await expect(fontSize(page)).toHaveValue('14')
-  await page.waitForTimeout(PAST_TYPING_PAUSE_MS)
+  await page.clock.runFor(PAST_TYPING_PAUSE_MS)
   expect(await setCalls(page)).toEqual([])
   expect(errors).toEqual([])
 })
@@ -1139,13 +1141,14 @@ const typeBurst = (page: Page, values: string[]) =>
 
 test('the font size is stored once typing pauses, or when the field is left', async ({ page }) => {
   await openAppearance(page)
+  await page.clock.install()
   await typeBurst(page, ['12', '14'])
   await expect.poll(() => setCalls(page)).toEqual([{ fontSize: 14 }])
   await typeBurst(page, ['16'])
   await fontSize(page).blur()
   expect(await setCalls(page)).toEqual([{ fontSize: 14 }, { fontSize: 16 }])
   await expect(fontSize(page)).toHaveValue('16')
-  await page.waitForTimeout(600)
+  await page.clock.runFor(PAST_TYPING_PAUSE_MS)
   expect(await setCalls(page)).toHaveLength(2)
 })
 

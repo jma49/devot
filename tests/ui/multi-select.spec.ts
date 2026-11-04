@@ -7,9 +7,10 @@ import {
   pickMenuItem,
   shownMenu,
   test,
-  type TestWindow,
   pickStatus,
   statusPicker,
+  openApp,
+  type TestWindow,
 } from './fixtures'
 import { seedNotes } from './renders'
 import { slowCore } from './slowCore'
@@ -136,9 +137,7 @@ async function openMenu(page: Page, title: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('Cmd-click and Shift-click select several notes; the editor shows a summary', async ({

@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import * as Y from 'yjs'
-import { changeEditorSettingsElsewhere, expect, pickNoteMore, test } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, pickNoteMore, test, openApp } from './fixtures'
 import { failCoreCalls, slowCore } from './slowCore'
 
 interface StoredNote {
@@ -93,21 +93,12 @@ async function selectStruck(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
-test('is off until View > Show History Bar turns it on', async ({ page }) => {
-  await createNote(page, 'Plan', 'text')
-  await expect(bar(page)).toHaveCount(0)
-  await changeEditorSettingsElsewhere(page, { historyBar: true })
-  await expect(bar(page)).toBeVisible()
-  await changeEditorSettingsElsewhere(page, { historyBar: false })
-  await expect(bar(page)).toHaveCount(0)
-})
-
-test('shows a version in place without changing the note, and Escape returns', async ({ page }) => {
+test('shows a version in place without changing the note, and Escape or letting go returns', async ({
+  page,
+}) => {
   await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
   await changeEditorSettingsElsewhere(page, { historyBar: true })
   await expect(slider(page)).toHaveAttribute('aria-valuetext', 'Current text')
@@ -124,20 +115,23 @@ test('shows a version in place without changing the note, and Escape returns', a
     'Press Escape or End to return to the current text.',
   )
   expect(await savedBody(page, 'Plan')).toBe('keep new end')
+  const date = slider(page).locator('.history-handle-date')
+  const barBox = await boxOf(bar(page))
+  const oldest = await boxOf(date)
+  expect(oldest.x).toBeGreaterThanOrEqual(barBox.x)
+  expect(oldest.x + oldest.width).toBeLessThanOrEqual(barBox.x + barBox.width)
+  await page.keyboard.press('End')
+  await page.keyboard.press('ArrowLeft')
+  const newest = await boxOf(date)
+  expect(newest.x + newest.width).toBeLessThanOrEqual(barBox.x + barBox.width)
 
   await page.keyboard.press('Escape')
   await expect(overlay(page)).toHaveCount(0)
   await expect(slider(page)).toHaveAttribute('aria-valuetext', 'Current text')
   await expect(body(page)).toHaveText('keep new end')
-})
 
-test('dragging the handle shows versions while held, and letting go returns', async ({ page }) => {
-  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
-  await changeEditorSettingsElsewhere(page, { historyBar: true })
-  await expect(slider(page)).not.toHaveAttribute('aria-valuemax', '0')
   const track = bar(page).locator('.history-track')
-  const box = await track.boundingBox()
-  if (!box) throw new Error('no track')
+  const box = await boxOf(track)
   const y = box.y + box.height / 2
   await page.mouse.move(box.x + box.width - 1, y)
   await page.mouse.down()
@@ -147,6 +141,13 @@ test('dragging the handle shows versions while held, and letting go returns', as
   await page.mouse.up()
   await expect(overlay(page)).toHaveCount(0)
   await expect(body(page)).toHaveText('keep new end')
+
+  await showOldest(page)
+  await page.keyboard.press('Meta+KeyK')
+  await expect(paletteField(page)).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(palette(page)).toHaveCount(0)
+  await expect(overlay(page)).toBeVisible()
 })
 
 test('an outside change shows under the version shown', async ({ page }) => {
@@ -173,7 +174,7 @@ test('an outside change shows under the version shown', async ({ page }) => {
   await expect(body(page)).toHaveText('Hello keep new end')
 })
 
-test('Restore This Passage puts struck text back as one undo step', async ({ page }) => {
+test('Restore This Passage and Restore Whole Version are each one undo step', async ({ page }) => {
   await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
   await changeEditorSettingsElsewhere(page, { historyBar: true })
   await showOldest(page)
@@ -191,11 +192,7 @@ test('Restore This Passage puts struck text back as one undo step', async ({ pag
   await expect(page.locator('.cm-content')).toBeFocused()
   await page.keyboard.press('ControlOrMeta+z')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('keep new end')
-})
 
-test('Restore Whole Version makes the note that version again', async ({ page }) => {
-  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
-  await changeEditorSettingsElsewhere(page, { historyBar: true })
   await showOldest(page)
   await bar(page).getByRole('button', { name: 'Restore Whole Version' }).click()
   await expect(overlay(page)).toHaveCount(0)
@@ -379,67 +376,33 @@ test('keys pressed while a version is shown do not change the note under it', as
   await expect.poll(() => savedBody(page, 'Plan')).toBe('keep new end!')
 })
 
-test('Escape in the palette closes the palette and leaves the version shown', async ({ page }) => {
-  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
-  await changeEditorSettingsElsewhere(page, { historyBar: true })
-  await showOldest(page)
-  await page.keyboard.press('Meta+KeyK')
-  await expect(paletteField(page)).toBeFocused()
-  await page.keyboard.press('Escape')
-  await expect(palette(page)).toHaveCount(0)
-  await expect(overlay(page)).toBeVisible()
-})
-
-test('a struck passage can be restored from the keyboard alone', async ({ page }) => {
-  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
-  await changeEditorSettingsElsewhere(page, { historyBar: true })
-  await showOldest(page)
-  await page.keyboard.press('Shift+Tab')
-  await expect(overlay(page).locator('del')).toBeFocused()
-  const restorePassage = bar(page).getByRole('button', { name: 'Restore This Passage' })
-  await expect(restorePassage).toBeVisible()
-  await page.keyboard.press('Shift+Tab')
-  await expect(overlay(page)).toBeFocused()
-  await page.keyboard.press('Tab')
-  await expect(overlay(page).locator('del')).toBeFocused()
-  await expect(restorePassage).toBeVisible()
-  await page.keyboard.press('Tab')
-  await expect(slider(page)).toBeFocused()
-  // macOS tabs to buttons with Option (or with Full Keyboard Access).
-  await page.keyboard.press('Alt+Tab')
-  await expect(restorePassage).toBeFocused()
-  await page.keyboard.press('Enter')
-  await expect.poll(() => savedBody(page, 'Plan')).toBe('keep old new end')
-})
-
-test('the first struck passage, not only the last, can be restored from the keyboard', async ({
-  page,
-}) => {
+test('any struck passage can be restored from the keyboard alone', async ({ page }) => {
   await noteWithHistory(page, 'Plan', 'one two three four five', 'ONE two THREE four FIVE')
   await changeEditorSettingsElsewhere(page, { historyBar: true })
   await showOldest(page)
   const struck = overlay(page).locator('del')
   await expect(struck).toHaveText(['one', 'three', 'five'])
+  const restorePassage = bar(page).getByRole('button', { name: 'Restore This Passage' })
 
   await page.keyboard.press('Shift+Tab')
+  await expect(struck.first()).toBeFocused()
+  await expect(restorePassage).toBeVisible()
+  await page.keyboard.press('Shift+Tab')
+  await expect(overlay(page)).toBeFocused()
+  await page.keyboard.press('Tab')
   await expect(struck.first()).toBeFocused()
   // Tab goes on to the bar, not through the other struck passages.
   await page.keyboard.press('Tab')
   await expect(slider(page)).toBeFocused()
-  await expect(bar(page).getByRole('button', { name: 'Restore This Passage' })).toBeVisible()
+  await expect(restorePassage).toBeVisible()
   // macOS tabs to buttons with Option (or with Full Keyboard Access).
   await page.keyboard.press('Alt+Tab')
+  await expect(restorePassage).toBeFocused()
   await page.keyboard.press('Enter')
   await expect.poll(() => savedBody(page, 'Plan')).toBe('one ONE two THREE four FIVE')
-})
 
-test('the arrow keys move between struck passages, and Enter keeps the one focused', async ({
-  page,
-}) => {
-  await noteWithHistory(page, 'Plan', 'one two three four five', 'ONE two THREE four FIVE')
-  await changeEditorSettingsElsewhere(page, { historyBar: true })
   await showOldest(page)
-  const struck = overlay(page).locator('del')
+  await expect(struck).toHaveText(['three', 'five'])
   await page.keyboard.press('Shift+Tab')
   await expect(struck.first()).toBeFocused()
   await page.keyboard.press('ArrowRight')
@@ -448,26 +411,19 @@ test('the arrow keys move between struck passages, and Enter keeps the one focus
   await expect(slider(page)).toBeFocused()
   await page.keyboard.press('Alt+Tab')
   await page.keyboard.press('Enter')
-  await expect.poll(() => savedBody(page, 'Plan')).toBe('ONE two three THREE four FIVE')
+  await expect.poll(() => savedBody(page, 'Plan')).toBe('one ONE two THREE four five FIVE')
 })
 
-test('the date on the handle stays inside the bar at either end', async ({ page }) => {
-  await noteWithHistory(page, 'Plan', 'keep old end', 'keep new end')
-  await changeEditorSettingsElsewhere(page, { historyBar: true })
-  await showOldest(page)
-  const date = slider(page).locator('.history-handle-date')
-  const barBox = await boxOf(bar(page))
-  const oldest = await boxOf(date)
-  expect(oldest.x).toBeGreaterThanOrEqual(barBox.x)
-  expect(oldest.x + oldest.width).toBeLessThanOrEqual(barBox.x + barBox.width)
-  await page.keyboard.press('End')
-  await page.keyboard.press('ArrowLeft')
-  const newest = await boxOf(date)
-  expect(newest.x + newest.width).toBeLessThanOrEqual(barBox.x + barBox.width)
-})
-
-test('the palette shows and hides the bar, named for what it will do', async ({ page }) => {
+test('the bar is off until turned on; the palette shows and hides it, named for what it will do', async ({
+  page,
+}) => {
   await createNote(page, 'Plan', 'text')
+  await expect(bar(page)).toHaveCount(0)
+  await changeEditorSettingsElsewhere(page, { historyBar: true })
+  await expect(bar(page)).toBeVisible()
+  await changeEditorSettingsElsewhere(page, { historyBar: false })
+  await expect(bar(page)).toHaveCount(0)
+
   await page.keyboard.press('Meta+KeyK')
   await paletteField(page).fill('history bar')
   await palette(page)

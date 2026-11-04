@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
+import { expect, pickMenuItem, shownMenu, test, openApp, type TestWindow } from './fixtures'
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
@@ -70,9 +70,7 @@ function outline(target: Locator, property?: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('reorders notebooks by their top and bottom edges, and keeps the order', async ({ page }) => {
@@ -155,9 +153,14 @@ test('dropping beside a sub-notebook moves a notebook into that notebook', async
   await expect.poll(() => shown(page)).toEqual(['Loose', 'Work', '  Notes', '  Plan'])
   await drop(row(page, 'Work'), row(page, 'Plan'), 'top')
   await expect.poll(() => shown(page)).toEqual(['Loose', 'Work', '  Notes', '  Plan'])
+  await row(page, 'Notes').click()
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Title' }).fill('Inside')
+  await expect(noteRows(page)).toHaveCount(1)
 
   await page.reload()
   await expect.poll(() => shown(page)).toEqual(['Loose', 'Work', '  Notes', '  Plan'])
+  await expect(row(page, 'Notes')).toContainText('1')
 })
 
 test('the bottom edge of an open notebook puts a notebook after it', async ({ page }) => {
@@ -280,17 +283,6 @@ test('the Notebooks header puts a notebook first at the top level', async ({ pag
   await expect.poll(() => shown(page)).toEqual(['Plan', 'Work', 'Home'])
   await row(page, 'Home').dragTo(heading)
   await expect.poll(() => shown(page)).toEqual(['Home', 'Plan', 'Work'])
-})
-
-test('a note dropped anywhere on a notebook row goes into the notebook', async ({ page }) => {
-  await page.getByRole('button', { name: 'New Note', exact: true }).click()
-  await page.getByRole('textbox', { name: 'Title' }).fill('Wanderer')
-  await createBook(page, 'Home')
-  await createBook(page, 'Work')
-  await page.getByRole('button', { name: /All Notes/ }).click()
-  await drop(noteRows(page).filter({ hasText: 'Wanderer' }), row(page, 'Home'), 'top')
-  await expect(book(page, 'Home')).toContainText('1')
-  await expect.poll(() => shown(page)).toEqual(['Home', 'Work'])
 })
 
 test('Move Up and Move Down in the notebook menu', async ({ page }) => {

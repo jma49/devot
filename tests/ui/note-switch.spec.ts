@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 import { slowCore } from './slowCore'
 
 // Switching notes keeps the note being left on screen until the next one's
@@ -48,9 +48,7 @@ const framesSeen = (page: Page) =>
 
 test.beforeEach(async ({ page }) => {
   await slowCore(page, ['open'])
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
   await newNote(page, 'First', 'First body.')
   await newNote(page, 'Second', 'Second body.')
   await page
@@ -88,7 +86,8 @@ test('quick switches show only the last note chosen, with its own text and undo'
   await row(page, 'First').click()
   await expect(body(page)).toHaveText('First body.')
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('First')
-  await page.waitForTimeout(1200)
+  // Past slowCore's 500 ms delay on the reply to the Second open.
+  await page.waitForTimeout(700)
   await expect(body(page)).toHaveText('First body.')
 
   await body(page).click()

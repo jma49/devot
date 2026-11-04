@@ -1,7 +1,15 @@
 // The keyboard never falls to the page when its element is removed, hidden or disabled, or its sheet closes.
 // Window shortcuts use Meta (the registry's Mod matches metaKey everywhere).
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, pickNoteMore, shownMenu, test, type TestWindow } from './fixtures'
+import {
+  expect,
+  pickMenuItem,
+  pickNoteMore,
+  shownMenu,
+  test,
+  openApp,
+  type TestWindow,
+} from './fixtures'
 
 const list = (page: Page) => page.getByRole('region', { name: 'Notes' })
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -76,9 +84,7 @@ async function addTag(page: Page, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('deleting a notebook row with the keyboard moves it to the next row', async ({ page }) => {
@@ -201,16 +207,19 @@ test('Empty Trash keeps the keyboard on its button, which is then disabled', asy
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
-for (const area of ['sidebar', 'list'] as const) {
-  test(`Shift+Cmd+D with the keyboard in the ${area} moves it to the editor`, async ({ page }) => {
-    await createNote(page, 'Quiet')
-    if (area === 'sidebar') {
-      await sidebar(page)
+test('Shift+Cmd+D with the keyboard in the sidebar or the list moves it to the editor', async ({
+  page,
+}) => {
+  await createNote(page, 'Quiet')
+  const focusAreas = [
+    () =>
+      sidebar(page)
         .getByRole('button', { name: /^All Notes/ })
-        .focus()
-    } else {
-      await noteRows(page).first().focus()
-    }
+        .focus(),
+    () => noteRows(page).first().focus(),
+  ]
+  for (const focusArea of focusAreas) {
+    await focusArea()
     await page.keyboard.press('Meta+Shift+KeyD')
     await expect(sidebar(page)).toBeHidden()
     await expect(list(page)).toBeHidden()
@@ -218,8 +227,8 @@ for (const area of ['sidebar', 'list'] as const) {
     await page.keyboard.press('Meta+Shift+KeyD')
     await expect(sidebar(page)).toBeVisible()
     await expect.poll(() => onPage(page)).toBe(false)
-  })
-}
+  }
+})
 
 test('the Backups sheet opens on Done, and closing it gives the keyboard back', async ({
   page,

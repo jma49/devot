@@ -7,6 +7,7 @@ import {
   paintedColour,
   pickMenuItem,
   test,
+  openApp,
   type TestWindow,
 } from './fixtures'
 
@@ -49,9 +50,7 @@ const rendered = (page: Page) =>
   )
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
   await createBook(page, 'Home')
   await createBook(page, 'Work')
 })

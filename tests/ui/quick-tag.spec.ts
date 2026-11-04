@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeShortcutsElsewhere, expect, test } from './fixtures'
+import { changeShortcutsElsewhere, expect, test, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const editorTags = (page: Page) => page.getByRole('group', { name: 'Tags' })
@@ -34,9 +34,7 @@ async function openFromRow(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('T filters tags with counts, Return applies and stays open, Escape gives focus back', async ({

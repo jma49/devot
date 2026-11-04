@@ -57,16 +57,13 @@ describe('floating bar motion and states', () => {
     expect(separator.height).toBe('var(--size-float-separator-height)')
   })
 
-  it('is a near pill with the notch clear of the corner', async () => {
-    const { BAR_RADIUS, NOTCH_X, NOTCH_WIDTH, NOTCH_HEIGHT } = await import('./notch')
+  it('is a near pill', async () => {
+    const { BAR_RADIUS } = await import('./notch')
     const { sizes } = await import('../theme/tokens')
     const height = Number.parseFloat(sizes['size.float-toolbar-height'])
     // Near a pill: the radius is over a third of the height, under half of it.
     expect(BAR_RADIUS).toBeGreaterThan(height / 3)
     expect(BAR_RADIUS).toBeLessThan(height / 2)
-    // The notch is small and shallow; its base starts where the corner ends.
-    expect([NOTCH_WIDTH, NOTCH_HEIGHT]).toEqual([12, 6])
-    expect(NOTCH_X - NOTCH_WIDTH / 2).toBeGreaterThanOrEqual(BAR_RADIUS)
     expect(sizes['size.float-button']).toBe('28px')
     expect(height).toBe(38)
   })

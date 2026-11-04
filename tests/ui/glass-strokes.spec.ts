@@ -37,7 +37,9 @@ async function expectFilledPill(pill: Locator, fill: string) {
   await expect(pill).toHaveCSS('background-color', fill)
 }
 
-test('Glass pills are filled capsules with no border', async ({ page }) => {
+test('Glass pills are filled capsules with no border; a coloured tag keeps its tint', async ({
+  page,
+}) => {
   await openNote(page)
   const fill = await tokenColour(page, '--color-fill-card')
   const pills = page.locator('.note-meta .popup')
@@ -54,20 +56,14 @@ test('Glass pills are filled capsules with no border', async ({ page }) => {
   await expectFilledPill(chip, fill)
   await chip.hover()
   await expect(chip).toHaveCSS('background-color', hovered)
-})
 
-test('a coloured tag keeps its tint and loses its border in Glass', async ({ page }) => {
-  await openNote(page)
-  await addTag(page).fill('tinted')
-  await addTag(page).press('Enter')
-  const chip = page.locator('.note-meta .chip')
+  await page.mouse.move(0, 0)
   await chip.evaluate((el) => {
     el.classList.add('tag-chip')
     ;(el as HTMLElement).style.setProperty('--tag-color', 'rgb(200, 0, 0)')
   })
   await expect(chip).toHaveCSS('border-top-width', '0px')
   await expect(chip).toHaveCSS('height', '26px')
-  const fill = await tokenColour(page, '--color-fill-card')
   await expect(chip).not.toHaveCSS('background-color', fill)
 })
 
@@ -104,8 +100,23 @@ test('Add Tag is plain tertiary text at rest and shows a dashed ring on the keyb
   await expect(input).toHaveCSS('outline-style', 'none')
 })
 
-test('Glass code in the preview is filled with no border', async ({ page }) => {
+test('Glass code in the editor and the preview is filled with no border', async ({ page }) => {
   await openNote(page)
+  const editorInline = page.locator('.cm-md-code').first()
+  await expect(editorInline).toHaveCSS('border-top-width', '0px')
+  await expect(editorInline).toHaveCSS('border-top-left-radius', '5px')
+
+  const boxEdge = (selector: string, property: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((el, name) => getComputedStyle(el, '::before').getPropertyValue(name), property)
+  expect(await boxEdge('.cm-line.cm-codeblock-first', 'border-top-width')).toBe('0px')
+  expect(await boxEdge('.cm-line.cm-codeblock-first', 'border-left-width')).toBe('0px')
+  expect(await boxEdge('.cm-line.cm-codeblock-first', 'border-top-left-radius')).toBe('12px')
+  expect(await boxEdge('.cm-line.cm-codeblock-last', 'border-bottom-width')).toBe('0px')
+  expect(await boxEdge('.cm-line.cm-codeblock-last', 'border-bottom-left-radius')).toBe('12px')
+
   await showPreview(page)
 
   const plain = page.locator('.preview pre').first()
@@ -121,24 +132,6 @@ test('Glass code in the preview is filled with no border', async ({ page }) => {
   await expect(inline).toHaveCSS('border-top-width', '0px')
   await expect(inline).toHaveCSS('border-top-left-radius', '5px')
   await expect(inline).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-})
-
-test('Glass code in the editor is filled with no border', async ({ page }) => {
-  await openNote(page)
-  const inline = page.locator('.cm-md-code').first()
-  await expect(inline).toHaveCSS('border-top-width', '0px')
-  await expect(inline).toHaveCSS('border-top-left-radius', '5px')
-
-  const boxEdge = (selector: string, property: string) =>
-    page
-      .locator(selector)
-      .first()
-      .evaluate((el, name) => getComputedStyle(el, '::before').getPropertyValue(name), property)
-  expect(await boxEdge('.cm-line.cm-codeblock-first', 'border-top-width')).toBe('0px')
-  expect(await boxEdge('.cm-line.cm-codeblock-first', 'border-left-width')).toBe('0px')
-  expect(await boxEdge('.cm-line.cm-codeblock-first', 'border-top-left-radius')).toBe('12px')
-  expect(await boxEdge('.cm-line.cm-codeblock-last', 'border-bottom-width')).toBe('0px')
-  expect(await boxEdge('.cm-line.cm-codeblock-last', 'border-bottom-left-radius')).toBe('12px')
 })
 
 test('tables and alerts keep their edges in Glass', async ({ page }) => {

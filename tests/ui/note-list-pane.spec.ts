@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 const pane = (page: Page) => page.getByRole('region', { name: 'Notes' })
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -28,12 +28,10 @@ async function dragEdge(page: Page, by: number) {
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 800 })
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
-test('the list is 300 px wide, resizes from 220 to 500 px by its edge and keeps its width', async ({
+test('the list is 300 px wide, resizes from 220 to 500 px by its edge or the keyboard, resets and keeps its width', async ({
   page,
 }) => {
   await expect(pane(page)).toBeVisible()
@@ -50,12 +48,12 @@ test('the list is 300 px wide, resizes from 220 to 500 px by its edge and keeps 
   await expect.poll(() => width(page)).toBe(500)
   await dragEdge(page, -600)
   await expect.poll(() => width(page)).toBe(220)
-})
 
-test('the edge resizes with the keyboard and resets to the default', async ({ page }) => {
   await createNote(page, 'One')
   await handle(page).focus()
   await expect(handle(page)).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => width(page)).toBe(300)
   await page.keyboard.press('ArrowRight')
   await expect.poll(() => width(page)).toBe(310)
   await page.keyboard.press('Shift+ArrowLeft')

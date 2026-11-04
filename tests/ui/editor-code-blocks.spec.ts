@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { clipboardWrites, expect, test } from './fixtures'
+import { clipboardWrites, expect, test, openApp } from './fixtures'
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const copyButton = (page: Page) => page.getByRole('button', { name: 'Copy code block' })
@@ -12,9 +12,7 @@ async function newNote(page: Page, text: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('the copy button shows in the block the cursor is in and copies its code', async ({

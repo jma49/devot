@@ -1,13 +1,11 @@
 import { MAX_TITLE_CHARS } from '../../src/core/noteLimits'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 import { failCoreCalls, slowCore } from './slowCore'
 
 const savedNotes = () => localStorage.getItem('devot.test.notes') ?? ''
 
 test('a note survives a reload', async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await page.getByRole('textbox', { name: 'Title' }).fill('Tracer bullet')
@@ -30,9 +28,7 @@ test('a note survives a reload', async ({ page }) => {
 test('only a note just created takes the keyboard, not one reopened from the list', async ({
   page,
 }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
   const rows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
   for (const title of ['First', 'Second']) {
     const before = await rows.count()
@@ -51,9 +47,7 @@ test('only a note just created takes the keyboard, not one reopened from the lis
 })
 
 test('a long title pasted in is cut to the limit, and the note keeps saving', async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(page.getByRole('listbox', { name: 'Notes' }).getByRole('option')).toHaveCount(1)
   const title = page.getByRole('textbox', { name: 'Title' })
@@ -80,9 +74,7 @@ test('a long title pasted in is cut to the limit, and the note keeps saving', as
 test('Close Note empties the editor and clears the list selection; the note opens again', async ({
   page,
 }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await page.getByRole('textbox', { name: 'Title' }).fill('Closable')
   await page.getByRole('textbox', { name: 'Note body' }).click()
@@ -102,9 +94,7 @@ test('Close Note empties the editor and clears the list selection; the note open
 
 test('a Duplicate or New Note the core refuses says why', async ({ page }) => {
   await slowCore(page, [])
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await page.getByRole('textbox', { name: 'Title' }).fill('Plan')
   const rows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')

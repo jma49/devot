@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore, openNotePinned } from './fixtures'
+import { expect, test, pickNoteMore, openNotePinned, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
@@ -16,9 +16,7 @@ async function createNote(page: Page, title: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
   await createNote(page, 'Kept')
   await pickNoteMore(page, 'Pin to Top')
   await expect.poll(() => openNotePinned(page)).toBe(true)

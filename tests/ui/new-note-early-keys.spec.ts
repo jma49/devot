@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 import { failCoreCalls, slowCore } from './slowCore'
 
 // Keys typed between New Note and its editor opening (#267, #268).
@@ -21,9 +21,7 @@ const storedNotes = (page: Page) =>
 
 async function start(page: Page, late: string[]) {
   await slowCore(page, late)
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 }
 
 async function makeNotes(page: Page, titles: string[]) {
@@ -51,6 +49,8 @@ test('Return, Backspace and Tab typed before a new note opens edit its body in o
   await page.keyboard.type('d')
   await expect(body(page)).toBeFocused()
   await expect.poll(() => storedNotes(page)).toEqual([{ title: '', bodyMd: 'Hello\nWorld' }])
+  await page.keyboard.type(' next')
+  await expect.poll(() => storedNotes(page)).toEqual([{ title: '', bodyMd: 'Hello\nWorld next' }])
 })
 
 test('a row clicked in the same tick as New Note leaves the keys typed to the new note', async ({

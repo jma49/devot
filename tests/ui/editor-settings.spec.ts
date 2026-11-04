@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test, type TestWindow } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test, openApp, type TestWindow } from './fixtures'
 
 // Rust sends `devot://editor-settings-changed` to every window; the page re-sends it as
 // `devot:editor-settings-changed`, which these tests send to stand in for a change from the Settings window.
@@ -38,9 +38,7 @@ const markEditor = (page: Page) =>
     )
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('the editor starts with the stored settings', async ({ page }) => {

@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore, openNotePinned, statusPicker, bookPicker } from './fixtures'
+import {
+  expect,
+  test,
+  pickNoteMore,
+  openNotePinned,
+  statusPicker,
+  bookPicker,
+  openApp,
+} from './fixtures'
 
 // App shortcuts check metaKey (Command on macOS), so Meta is pressed on every platform.
 
@@ -58,9 +66,7 @@ async function search(page: Page, query: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('lists commands with their shortcuts and runs the one picked', async ({ page }) => {
@@ -221,7 +227,10 @@ test('notebooks: Return opens one, Shift+Return moves the open note there', asyn
     .click()
   await createNote(page, 'Soup')
 
-  await search(page, 'recip')
+  await search(page, 'b ')
+  await expect(field(page)).toHaveAttribute('placeholder', 'Search notebooks...')
+  await expect(palette(page).getByRole('button', { name: 'Back' })).toBeVisible()
+  await field(page).fill('recip')
   await expect(group(page, 'Notebooks').getByRole('option')).toHaveText(['Recipes'])
   await expect(palette(page).locator('#palette-keys')).toContainText('Open Notebook')
   await page.keyboard.down('Shift')
@@ -232,6 +241,7 @@ test('notebooks: Return opens one, Shift+Return moves the open note there', asyn
   await expect(bookPicker(page)).toHaveAttribute('data-value', /.+/)
   await expect(bookPicker(page).locator('.popup-value')).toHaveText(/Recipes/)
   await search(page, 'recip')
+  await expect(group(page, 'Notebooks').getByRole('option')).toHaveText(['Recipes'])
   await page.keyboard.down('Shift')
   await expect(palette(page).locator('#palette-keys')).not.toContainText('Move Note to Notebook')
   await page.keyboard.up('Shift')
@@ -539,24 +549,6 @@ test('runs the Trash commands: Restore, Delete Permanently, Empty Trash', async 
   await expect(confirm).toContainText('\u201cGone\u201d')
   await confirm.getByRole('button', { name: 'Delete Permanently' }).click()
   await expect(noteRows(page)).toHaveCount(0)
-})
-
-test('b and a space scope the palette to notebooks; Shift+Return files the open note there', async ({
-  page,
-}) => {
-  await createBook(page, 'Recipes')
-  await sidebar(page)
-    .getByRole('button', { name: /All Notes/ })
-    .click()
-  await createNote(page, 'Soup')
-  await page.keyboard.press('Meta+KeyK')
-  await field(page).fill('b ')
-  await expect(field(page)).toHaveAttribute('placeholder', 'Search notebooks...')
-  await expect(palette(page).getByRole('button', { name: 'Back' })).toBeVisible()
-  await field(page).fill('recip')
-  await field(page).press('Shift+Enter')
-  await expect(palette(page)).toBeHidden()
-  await expect(bookPicker(page).locator('.popup-value')).toHaveText(/Recipes/)
 })
 
 test('Escape steps back from a query to the scope, to the sources, then closes', async ({

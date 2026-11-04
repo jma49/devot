@@ -176,4 +176,9 @@ describe('listCaption', () => {
     expect(listCaption(3, undefined, 'en')).toBe('3 notes')
     expect(listCaption(1, 'In Work', 'en')).toBe('In Work \u00b7 1 note')
   })
+
+  it('says when a search matched more notes than it shows', () => {
+    expect(listCaption(200, undefined, 'en', true)).toBe('More than 200 notes')
+    expect(listCaption(200, 'Work', 'en', true)).toBe('Work \u00b7 More than 200 notes')
+  })
 })

@@ -1,5 +1,6 @@
 // A quit that is called off after a window had already answered: Rust sends `devot://exit-cancelled`
 // and every window starts its Markdown mirror again, since answering had stopped it (A039).
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { listenExitCancelled, EXIT_CANCELLED_EVENT } from '../../src/renderer/src/exitCancelled'
 
@@ -15,19 +16,16 @@ afterEach(() => {
 })
 
 describe('listenExitCancelled', () => {
-  it('starts the window again when a held quit is called off', async () => {
+  it('starts the window again when a held quit is called off, under the event name Rust sends', async () => {
     const stop = vi.fn<() => void>()
-    let handler: (() => void) | undefined
-    tauri.listen.mockImplementation((_event, h) => {
-      handler = h
-      return Promise.resolve(stop)
-    })
+    tauri.listen.mockResolvedValue(stop)
     const restart = vi.fn<() => void>()
 
     const unlisten = await listenExitCancelled(restart)
-    expect(tauri.listen).toHaveBeenCalledWith(EXIT_CANCELLED_EVENT, restart)
-    handler?.()
-    expect(restart).toHaveBeenCalledOnce()
+    const rust = readFileSync('src-tauri/src/exit.rs', 'utf8')
+    const sent = /EXIT_CANCELLED_EVENT: &str = "([^"]+)"/.exec(rust)?.[1]
+    expect(sent).toBe(EXIT_CANCELLED_EVENT)
+    expect(tauri.listen).toHaveBeenCalledWith(sent, restart)
     unlisten()
     expect(stop).toHaveBeenCalledOnce()
   })

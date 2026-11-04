@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore } from './fixtures'
+import { expect, test, pickNoteMore, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
@@ -81,9 +81,7 @@ async function addTag(page: Page, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('renaming a tag onto another tag’s name is refused with a notice', async ({ page }) => {

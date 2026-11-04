@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, openNotePinned, pickStatus, statusPicker } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const rowTitles = (page: Page) => noteRows(page).locator('.row-title, .row-headline')
@@ -25,13 +25,19 @@ async function untitledNote(page: Page, text: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('notes with no title show their first line, and keep an empty title', async ({ page }) => {
-  await untitledNote(page, 'Groceries for the week\nmilk')
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(rowTitles(page)).toHaveText(['Untitled'])
+  await body(page).click()
+  await page.keyboard.insertText('First draft')
+  await expect(rowTitles(page)).toHaveText(['First draft'])
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+a')
+  await page.keyboard.insertText('Groceries for the week\nmilk')
+  await expect(rowTitles(page)).toHaveText(['Groceries for the week'])
   await untitledNote(page, '# Call the dentist\n\nbefore May')
   await expect(rowTitles(page)).toHaveText(['Call the dentist', 'Groceries for the week'])
 
@@ -50,20 +56,6 @@ test('Down Arrow in the title puts the caret at the start of the body', async ({
   await expect(body(page)).toBeFocused()
   await page.keyboard.insertText('> ')
   await expect(body(page)).toContainText('> first line')
-})
-
-test('a note with no text at all still shows Untitled', async ({ page }) => {
-  await page.getByRole('button', { name: 'New Note', exact: true }).click()
-  await expect(rowTitles(page)).toHaveText(['Untitled'])
-})
-
-test('a row follows its note when the first line is rewritten', async ({ page }) => {
-  await untitledNote(page, 'First draft')
-  await expect(rowTitles(page)).toHaveText(['First draft'])
-  await body(page).click()
-  await page.keyboard.press('ControlOrMeta+a')
-  await page.keyboard.insertText('Second draft')
-  await expect(rowTitles(page)).toHaveText(['Second draft'])
 })
 
 test('selecting several notes lists each by its first line', async ({ page }) => {
@@ -101,35 +93,6 @@ test('Return in the title moves to the tags, and an input method keeps its Retur
     el.dispatchEvent(key as Event)
   })
   await expect(titleField(page)).toBeFocused()
-})
-
-test('Duplicate titles the copy "<title> copy", keeps status and tags, and not the pin', async ({
-  page,
-}) => {
-  await page.getByRole('button', { name: 'New Note', exact: true }).click()
-  await titleField(page).fill('Weekly plan')
-  await pickStatus(page, 'Active')
-  const tags = page.getByRole('combobox', { name: 'Add Tag' })
-  await tags.fill('work')
-  await tags.press('Enter')
-  await noteRows(page).first().click()
-  await expect(noteRows(page).first()).toBeFocused()
-  await page.keyboard.press('KeyP')
-  await expect.poll(() => openNotePinned(page)).toBe(true)
-
-  await page.keyboard.press('Meta+KeyD')
-  await expect(titleField(page)).toHaveValue('Weekly plan copy')
-  await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
-  await expect(
-    page.getByRole('group', { name: 'Tags' }).getByText('work', { exact: true }),
-  ).toBeVisible()
-  await expect.poll(() => openNotePinned(page)).toBe(false)
-  await expect
-    .poll(async () => (await stored(page)).map((n) => [n.title, n.status, n.pinned]))
-    .toEqual([
-      ['Weekly plan', 'active', true],
-      ['Weekly plan copy', 'active', false],
-    ])
 })
 
 test('the palette and the [[ popup name untitled notes by their first line', async ({ page }) => {

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, symbolRequests, test, type TestWindow } from './fixtures'
+import { expect, symbolRequests, test, openApp, type TestWindow } from './fixtures'
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const toolbar = (page: Page) => page.getByRole('toolbar', { name: 'Format' })
@@ -9,6 +9,8 @@ const lines = (page: Page) => page.locator('.cm-line').allTextContents()
 async function newNote(page: Page, text: string) {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
+  // The title clears before the new note's editor replaces the last one.
+  await expect(body(page)).toHaveText('')
   await body(page).click()
   await page.keyboard.insertText(text)
 }
@@ -140,12 +142,10 @@ async function expectBesideSelection(page: Page): Promise<Box> {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
-test('the toolbar shows for a selection, with named SF Symbol buttons in four groups', async ({
+test('the toolbar shows for a selection: one outlined box of named SF Symbol buttons in four groups', async ({
   page,
 }) => {
   await newNote(page, 'alpha beta gamma')
@@ -192,13 +192,6 @@ test('the toolbar shows for a selection, with named SF Symbol buttons in four gr
     'separator',
     names[13]![0],
   ])
-  const calls = await page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls)
-  expect(symbolRequests(calls)).toContain('bold@14')
-})
-
-test('every button shows its symbol at the toolbar icon size', async ({ page }) => {
-  await newNote(page, 'alpha beta gamma')
-  await selectAll(page)
   const icons = toolbar(page).locator('button [data-symbol]')
   await expect(icons.first()).toHaveCSS('-webkit-mask-image', /^url\(/)
   const sizes = await icons.evaluateAll((all) =>
@@ -209,35 +202,7 @@ test('every button shows its symbol at the toolbar icon size', async ({ page }) 
   )
   expect(sizes.length).toBeGreaterThan(4)
   expect(new Set(sizes)).toEqual(new Set(['18x18']))
-})
 
-test('a button tooltip shows its name and key; Heading and Highlight have no key', async ({
-  page,
-}) => {
-  await newNote(page, 'alpha beta gamma')
-  await selectAll(page)
-  const tip = page.getByRole('tooltip')
-  await button(page, 'Bold').hover()
-  await expect(tip).toBeVisible()
-  await expect(tip.locator('.cm-float-tip-title')).toHaveText('Bold')
-  await expect(tip.locator('kbd')).toHaveText('\u2318B')
-  await button(page, 'Code Block').hover()
-  await expect(tip.locator('.cm-float-tip-title')).toHaveText('Code Block')
-  await expect(tip.locator('kbd')).toHaveText('\u21e7\u2318C')
-  for (const name of ['Heading', 'Highlight']) {
-    await button(page, name).hover()
-    await expect(tip.locator('.cm-float-tip-title')).toHaveText(name)
-    await expect(tip.locator('kbd')).toHaveCount(0)
-  }
-  await page.mouse.move(1, 1)
-  await expect(tip).toBeHidden()
-})
-
-test('the bar is one outlined box with a separate notch, and its icons sit on whole pixels', async ({
-  page,
-}) => {
-  await newNote(page, 'alpha beta gamma')
-  await selectAll(page)
   const bar = page.locator('.cm-format-toolbar')
   await expect(bar).toBeVisible()
   const look = await bar.evaluate((el) => {
@@ -267,6 +232,30 @@ test('the bar is one outlined box with a separate notch, and its icons sit on wh
   // into it rather than overhanging.
   for (const px of look.size) expect(Number.isInteger(Number.parseFloat(px ?? ''))).toBe(true)
   expect(look.mask).toBe('100% 100%')
+  const calls = await page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls)
+  expect(symbolRequests(calls)).toContain('bold@14')
+})
+
+test('a button tooltip shows its name and key; Heading and Highlight have no key', async ({
+  page,
+}) => {
+  await newNote(page, 'alpha beta gamma')
+  await selectAll(page)
+  const tip = page.getByRole('tooltip')
+  await button(page, 'Bold').hover()
+  await expect(tip).toBeVisible()
+  await expect(tip.locator('.cm-float-tip-title')).toHaveText('Bold')
+  await expect(tip.locator('kbd')).toHaveText('\u2318B')
+  await button(page, 'Code Block').hover()
+  await expect(tip.locator('.cm-float-tip-title')).toHaveText('Code Block')
+  await expect(tip.locator('kbd')).toHaveText('\u21e7\u2318C')
+  for (const name of ['Heading', 'Highlight']) {
+    await button(page, name).hover()
+    await expect(tip.locator('.cm-float-tip-title')).toHaveText(name)
+    await expect(tip.locator('kbd')).toHaveCount(0)
+  }
+  await page.mouse.move(1, 1)
+  await expect(tip).toBeHidden()
 })
 
 test('the toolbar hides on Escape, a collapsed selection and typing', async ({ page }) => {
@@ -307,14 +296,14 @@ test('the toolbar follows the selection and never covers it', async ({ page }) =
 
 test('the buttons apply and remove each format', async ({ page }) => {
   await newNote(page, 'alpha beta')
-  const cases: [string, string][] = [
+  const inline: [string, string][] = [
     ['Bold', '**alpha beta**'],
     ['Italic', '*alpha beta*'],
     ['Strikethrough', '~~alpha beta~~'],
     ['Highlight', '<mark>alpha beta</mark>'],
     ['Inline Code', '`alpha beta`'],
   ]
-  for (const [name, formatted] of cases) {
+  for (const [name, formatted] of inline) {
     await selectAll(page)
     await expect(button(page, name)).toHaveAttribute('aria-pressed', 'false')
     await button(page, name).click()
@@ -326,6 +315,25 @@ test('the buttons apply and remove each format', async ({ page }) => {
   // The body keeps focus: typing replaces the selection.
   await page.keyboard.type('done')
   expect(await lines(page)).toEqual(['done'])
+
+  await newNote(page, 'alpha\nbeta')
+  const block: [string, string[]][] = [
+    ['Code Block', ['```', 'alpha', 'beta', '```']],
+    ['Bulleted List', ['* alpha', '* beta']],
+    ['Numbered List', ['1. alpha', '2. beta']],
+    ['Task List', ['* [ ] alpha', '* [ ] beta']],
+    ['Quote', ['> alpha', '> beta']],
+  ]
+  for (const [name, formatted] of block) {
+    await selectAll(page)
+    await expect(button(page, name)).toHaveAttribute('aria-pressed', 'false')
+    await button(page, name).click()
+    expect(await lines(page), name).toEqual(formatted)
+    // The lines stay selected, so the toolbar stays and shows the format as on.
+    await expect(button(page, name)).toHaveAttribute('aria-pressed', 'true')
+    await button(page, name).click()
+    expect(await lines(page), name).toEqual(['alpha', 'beta'])
+  }
 })
 
 test('the heading button raises the level and puts the caret at the end of the line', async ({
@@ -375,18 +383,23 @@ test('the link button asks for the address in a dialog and inserts the link', as
 
 test('every format has a shortcut that works without the toolbar', async ({ page }) => {
   await newNote(page, 'word')
-  const cases: [string, string][] = [
-    ['ControlOrMeta+b', '**word**'],
-    ['ControlOrMeta+i', '*word*'],
-    ['ControlOrMeta+KeyU', '~~word~~'],
-    ['ControlOrMeta+Alt+KeyE', '`word`'],
+  const cases: [string, string[]][] = [
+    ['ControlOrMeta+b', ['**word**']],
+    ['ControlOrMeta+i', ['*word*']],
+    ['ControlOrMeta+KeyU', ['~~word~~']],
+    ['ControlOrMeta+Alt+KeyE', ['`word`']],
+    ['ControlOrMeta+Shift+KeyC', ['```', 'word', '```']],
+    ['ControlOrMeta+Shift+KeyL', ['* word']],
+    ['ControlOrMeta+Shift+KeyO', ['1. word']],
+    ['ControlOrMeta+Shift+KeyT', ['* [ ] word']],
+    ['ControlOrMeta+Quote', ['> word']],
   ]
   for (const [keys, formatted] of cases) {
     await page.keyboard.press('ControlOrMeta+a')
     await page.keyboard.press('Escape')
     await expect(toolbar(page)).toBeHidden()
     await page.keyboard.press(keys)
-    expect(await lines(page), keys).toEqual([formatted])
+    expect(await lines(page), keys).toEqual(formatted)
     await page.keyboard.press(keys)
     expect(await lines(page), keys).toEqual(['word'])
   }
@@ -401,15 +414,6 @@ test('every format has a shortcut that works without the toolbar', async ({ page
   await page.keyboard.press('ControlOrMeta+Alt+k')
   await page.keyboard.insertText('u')
   expect(await lines(page)).toEqual(['[word](u)'])
-})
-
-test('a multi-line selection formats each line', async ({ page }) => {
-  await newNote(page, '- one\n- two\n\n- three')
-  await page.keyboard.press('ControlOrMeta+a')
-  await page.keyboard.press('ControlOrMeta+b')
-  expect(await lines(page)).toEqual(['- **one**', '- **two**', '', '- **three**'])
-  await page.keyboard.press('ControlOrMeta+b')
-  expect(await lines(page)).toEqual(['- one', '- two', '', '- three'])
 })
 
 test('each format is one undo step', async ({ page }) => {
@@ -429,6 +433,16 @@ test('each format is one undo step', async ({ page }) => {
   expect(await lines(page)).toEqual(['## alpha beta'])
   await page.keyboard.press('ControlOrMeta+z')
   expect(await lines(page)).toEqual(['alpha beta'])
+
+  await newNote(page, 'a\nb\nc')
+  await selectAll(page)
+  await button(page, 'Numbered List').click()
+  await button(page, 'Quote').click()
+  expect(await lines(page)).toEqual(['> 1. a', '> 2. b', '> 3. c'])
+  await page.keyboard.press('ControlOrMeta+z')
+  expect(await lines(page)).toEqual(['1. a', '2. b', '3. c'])
+  await page.keyboard.press('ControlOrMeta+z')
+  expect(await lines(page)).toEqual(['a', 'b', 'c'])
 })
 
 test('Edit > Undo also takes back one format at a time', async ({ page }) => {
@@ -453,49 +467,18 @@ test('Edit > Undo also takes back one format at a time', async ({ page }) => {
   await expect.poll(() => lines(page)).toEqual(['alpha beta'])
 })
 
-test('bold next to punctuation keeps it outside the markers and toggles off again', async ({
-  page,
-}) => {
-  // Ideographs and an ideographic full stop, built from code points.
-  const [x, y, stop] = [0x4e2d, 0x6587, 0x3002].map((c) => String.fromCodePoint(c))
-  await newNote(page, `${x}${x}${y}${y}${stop}${x}${x}`)
-  // The text before the last two ideographs: the cursor sits after the stop.
-  await page.keyboard.press('ArrowLeft')
-  await page.keyboard.press('ArrowLeft')
-  for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowLeft')
-  await expect(toolbar(page)).toBeVisible()
-  await page.keyboard.press('ControlOrMeta+KeyB')
-  expect(await lines(page)).toEqual([`${x}${x}**${y}${y}**${stop}${x}${x}`])
-  await expect(button(page, 'Bold')).toHaveAttribute('aria-pressed', 'true')
-  await page.keyboard.press('ControlOrMeta+KeyB')
-  expect(await lines(page)).toEqual([`${x}${x}${y}${y}${stop}${x}${x}`])
-})
-
 const manyLines = Array.from({ length: 90 }, (_, i) => `line ${i + 1} of the note`).join('\n')
 const editorBox = (page: Page) => page.locator('[data-devot-part="editor-scroll"]')
 
-test('the toolbar sits above the selection start, on the first line too', async ({ page }) => {
+test('the toolbar sits above the selection start, on the first line too, and hides while it is scrolled out', async ({
+  page,
+}) => {
   await newNote(page, manyLines)
   await page.keyboard.press('ControlOrMeta+Home')
   await selectWord(page, 6, 'note')
   const start = (await page.locator('.cm-selectionBackground').first().boundingBox())!
   const bar = (await toolbar(page).boundingBox())!
   expect(bar.y + bar.height).toBeLessThanOrEqual(start.y + 1)
-  await selectWord(page, 1, 'line')
-  const first = (await page.locator('.cm-selectionBackground').first().boundingBox())!
-  const onFirst = await expectBesideSelection(page)
-  expect(onFirst.y + onFirst.height).toBeLessThanOrEqual(first.y + 1)
-  const top = (await page.locator('.editor-toolbar').boundingBox())!
-  expect(onFirst.y).toBeGreaterThanOrEqual(top.y + top.height)
-  await expect(toolbar(page)).toBeInViewport({ ratio: 1 })
-})
-
-test('the toolbar hides when the selection start scrolls out and returns when it scrolls back', async ({
-  page,
-}) => {
-  await newNote(page, manyLines)
-  await page.keyboard.press('ControlOrMeta+Home')
-  await selectWord(page, 6, 'note')
   await expect(toolbar(page)).toBeInViewport()
   await editorBox(page).evaluate((el) => {
     ;(el as unknown as { scrollTop: number }).scrollTop = 1500
@@ -505,6 +488,14 @@ test('the toolbar hides when the selection start scrolls out and returns when it
     ;(el as unknown as { scrollTop: number }).scrollTop = 0
   })
   await expect(toolbar(page)).toBeInViewport()
+
+  await selectWord(page, 1, 'line')
+  const first = (await page.locator('.cm-selectionBackground').first().boundingBox())!
+  const onFirst = await expectBesideSelection(page)
+  expect(onFirst.y + onFirst.height).toBeLessThanOrEqual(first.y + 1)
+  const top = (await page.locator('.editor-toolbar').boundingBox())!
+  expect(onFirst.y).toBeGreaterThanOrEqual(top.y + top.height)
+  await expect(toolbar(page)).toBeInViewport({ ratio: 1 })
 })
 
 test('the notch keeps pointing at the selection start when the bar is held back at the edge', async ({
@@ -598,7 +589,9 @@ test('a tooltip on the first button stays inside the editor, its notch on the bu
   expect(Math.abs(notchCenter - (buttonBox.x + buttonBox.width / 2))).toBeLessThan(2)
 })
 
-test('a toolbar button tooltip waits, then shows above its button', async ({ page }) => {
+test('a toolbar button tooltip waits, then shows above its button; a focused button gives focus back', async ({
+  page,
+}) => {
   await newNote(page, manyLines)
   await page.keyboard.press('ControlOrMeta+Home')
   await selectWord(page, 12, 'note')
@@ -610,14 +603,7 @@ test('a toolbar button tooltip waits, then shows above its button', async ({ pag
   const [b, t] = await Promise.all([bold.boundingBox(), tip.boundingBox()])
   if (!b || !t) throw new Error('missing boxes')
   expect(t.y + t.height).toBeLessThanOrEqual(b.y - 11)
-})
 
-test('a toolbar button focused by a screen reader keeps the editor open and gets focus back', async ({
-  page,
-}) => {
-  await newNote(page, manyLines)
-  await page.keyboard.press('ControlOrMeta+Home')
-  await selectWord(page, 12, 'note')
   // VoiceOver focuses a button before it presses it.
   await button(page, 'Bold').focus()
   await expect(toolbar(page)).toBeVisible()

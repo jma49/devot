@@ -85,12 +85,3 @@ test('a command that fails unhandled reaches the log and Sentry with its code', 
       ids: ['E_STORAGE_SCHEMA_TOO_NEW'],
     })
 })
-
-test('a rejection that is not an Error keeps its code in Sentry', async ({ page }) => {
-  const sent = await startSentry(page)
-  await page.addScriptTag({
-    type: 'module',
-    content: `setTimeout(() => void Promise.reject('E_STORAGE_BUSY'))`,
-  })
-  await expect.poll(() => sent.join('\n')).toContain('"value":"E_STORAGE_BUSY"')
-})

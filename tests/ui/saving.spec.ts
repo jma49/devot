@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, test, openApp, type TestWindow } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
@@ -45,9 +45,7 @@ async function createNote(page: Page, title: string, text = '') {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('changes that cannot be saved stay, are reported and are saved once writing works', async ({

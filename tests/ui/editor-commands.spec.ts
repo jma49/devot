@@ -4,6 +4,7 @@ import {
   changeShortcutsElsewhere,
   expect,
   test,
+  openApp,
   type TestWindow,
 } from './fixtures'
 
@@ -78,9 +79,7 @@ const clipboardReads = (page: Page) =>
   )
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('Shift+Cmd+H inserts a horizontal rule under the line, and the palette offers it', async ({

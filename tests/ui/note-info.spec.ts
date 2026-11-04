@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 async function newNote(page: Page, title: string, body = '') {
   const before = await page.getByRole('listbox', { name: 'Notes' }).getByRole('option').count()
@@ -21,9 +21,7 @@ const showPreview = (page: Page) =>
   page.getByRole('group', { name: 'View mode' }).getByRole('button', { name: 'Preview' }).click()
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('shows task progress and dates in the note info card', async ({ page }) => {

@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test'
-import { clipboardWrites, expect, pickMenuItem, shownMenu, test, type TestWindow } from './fixtures'
+import {
+  clipboardWrites,
+  expect,
+  pickMenuItem,
+  shownMenu,
+  test,
+  openApp,
+  type TestWindow,
+} from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -48,9 +56,7 @@ async function chipMenu(page: Page, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('a tag chip has its own menu', async ({ page }) => {
