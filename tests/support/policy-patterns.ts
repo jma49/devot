@@ -74,3 +74,7 @@ export const RAW_TIME_ASSERTION = new RegExp(
     String.raw`expect\([^)]*${DURATION_NAME}\s*<=?[^)]*\)\.toBe\(true\)`,
   ].join('|'),
 )
+
+/** A test that mocks the database (better-sqlite3, the core's storage, the test adapter) instead of using a real file. */
+export const DATABASE_MOCK =
+  /\bvi\.(?:do)?[mM]ock\(\s*['"`](?:better-sqlite3|[^'"`]*\/(?:storage|sqlite-adapter)(?:\.tsx?)?)['"`]/
