@@ -1,6 +1,8 @@
 import type { TagColorValue } from '../../../core/storage'
 import type { NoteSummary } from '../../../core'
 import type { BookNode } from '../../../core/books'
+import { parseSearch, tagClause } from '../../../core/search'
+import { sameName } from '../../../core/tagNames'
 import { shortcutLabel } from '../commands/keys'
 import { COMMANDS, commandKeys, type CommandHandlers } from '../commands/registry'
 import { displayTitle } from '../headlines'
@@ -168,9 +170,16 @@ export function outlineEntries(markdown: string): PaletteEntry[] {
   return out
 }
 
-export function withTagClause(query: string, tagName: string): string {
-  const clause = `tag:${/[\s"]/.test(tagName) ? `"${tagName.replaceAll('"', '')}"` : tagName}`
-  if (query.split(/\s+/).includes(clause)) return query
+/** The query with a clause for the tag added, unless it already has one. */
+export function withTagClause(query: string, tag: { id: string; name: string }): string {
+  const has = parseSearch(query).some(
+    (c) =>
+      !c.negate &&
+      ((c.field === 'tag' && sameName(c.value, tag.name)) ||
+        (c.field === 'tagId' && c.value === tag.id)),
+  )
+  if (has) return query
+  const clause = tagClause(tag)
   const base = query.trimEnd()
   return base === '' ? `${clause} ` : `${base} ${clause} `
 }

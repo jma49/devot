@@ -3602,7 +3602,7 @@ export function App() {
           },
           meta: {
             label: t('palette.addToFilter'),
-            run: () => changeQuery(withTagClause(query, entry.label)),
+            run: () => changeQuery(withTagClause(query, { id: entry.id, name: entry.label })),
           },
           shift:
             editing && openNote && !selectedIsTemplate && !openNote.tagIds.includes(entry.id)

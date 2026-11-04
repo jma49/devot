@@ -402,6 +402,17 @@ describe('renaming a tag a saved search names', () => {
     expect((await searches.list())[0]?.query).toBe('tag:office title:plan')
   })
 
+  it('leaves a clause alone while another tag still has the old name', async () => {
+    const { searches, tags, storage } = setup()
+    const work = await tags.ensure('Work')
+    const [mine] = await tags.list()
+    const twin = '0190a000-0000-7000-8000-0000000000aa'
+    await storage.putTag({ ...mine!, id: twin })
+    await searches.create('Work', 'tag:Work -tag:work is:active')
+    await tags.rename(work, 'Office')
+    expect((await searches.list())[0]?.query).toBe('tag:Work -tag:work is:active')
+  })
+
   it('keeps both rewrites when two tags in one query are renamed at once', async () => {
     const { searches, tags } = setup()
     const work = await tags.ensure('work')

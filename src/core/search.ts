@@ -218,6 +218,12 @@ export function tagQuery(tag: { id: string; name: string }): string {
   return parsesBack(named, 'hashtag', tag.name) ? named : `tagId:${tag.id}`
 }
 
+/** A clause for this tag that keeps meaning it when it is gone: `tag:Name`, or by ID when no quoting holds the name. */
+export function tagClause(tag: { id: string; name: string }): string {
+  const named = `tag:${searchValue(tag.name)}`
+  return parsesBack(named, 'tag', tag.name) ? named : `tagId:${tag.id}`
+}
+
 /** A query for this notebook: by name, or by ID when no quoting holds the name. */
 export function bookQuery(book: { id: string; name: string }): string {
   const named = `in:${searchValue(book.name)}`
@@ -240,9 +246,7 @@ export function pinTagNames(
     if (clause.field !== 'hashtag') continue
     const tag = tags.find((t) => sameName(t.name, clause.value))
     if (!tag) continue
-    const named = `tag:${searchValue(tag.name)}`
-    const spelled = parsesBack(named, 'tag', tag.name) ? named : `tagId:${tag.id}`
-    text = text.slice(0, start) + spelled + text.slice(end)
+    text = text.slice(0, start) + tagClause(tag) + text.slice(end)
   }
   return text
 }
@@ -258,8 +262,7 @@ export function renameTagInQuery(
   name: string,
   byId = false,
 ): string {
-  const named = `tag:${searchValue(name)}`
-  const spelled = !byId && parsesBack(named, 'tag', name) ? named : `tagId:${tag.id}`
+  const spelled = byId ? `tagId:${tag.id}` : tagClause({ id: tag.id, name })
   let text = wellFormed(query)
   for (const { clause, start, end } of scanSearch(text).reverse()) {
     if (clause.field !== 'tag' && clause.field !== 'hashtag') continue
