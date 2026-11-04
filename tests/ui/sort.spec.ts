@@ -116,6 +116,7 @@ test.beforeEach(async ({ page }) => {
 
 test('the sort pop-up lists the six orders and shows the current one', async ({ page }) => {
   await createNote(page, 'First')
+  await expect(sortButton(page)).toHaveText('Date Updated')
   await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Date Updated (Newest First)')
   await openSortMenu(page)
   expect(await shownMenu(page)).toEqual(menuWith('Date Updated (Newest First)', true))
@@ -131,6 +132,7 @@ test('the sort pop-up lists the six orders and shows the current one', async ({ 
   })
 
   await pickMenuItem(page, 'Title (Z to A)')
+  await expect(sortButton(page)).toHaveText('Title')
   await expect(sortButton(page)).toHaveAttribute('title', 'Sorted by Title (Z to A)')
   await openSortMenu(page)
   expect(await shownMenu(page)).toEqual(menuWith('Title (Z to A)', false))

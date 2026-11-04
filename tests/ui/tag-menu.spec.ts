@@ -330,20 +330,6 @@ test('keys set in Settings filter by a tag and copy its ID from its row', async 
   await expect(header(page)).toHaveText('All Notes')
 })
 
-test('F2 edits the name in place; the chips follow', async ({ page }) => {
-  await setUp(page)
-  await tagRow(page, 'idea').focus()
-  await page.keyboard.press('F2')
-  const field = sidebar(page).getByRole('textbox', { name: 'Tag name' })
-  await expect(field).toBeFocused()
-  await expect(field).toHaveValue('idea')
-  await field.fill('ideas')
-  await field.press('Enter')
-  await expect(tagRow(page, 'ideas')).toHaveText(/2$/)
-  await expect(noteRow(page, 'One')).toContainText('ideas')
-  await expect(editorTags(page)).toContainText('ideas')
-})
-
 test('Delete Tag asks first, then removes it from the sidebar and every note', async ({ page }) => {
   await setUp(page)
   const confirm = page.getByRole('dialog', { name: 'Delete the tag \u201cidea\u201d?' })

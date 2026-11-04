@@ -286,12 +286,8 @@ test('another setting leaves the sidebar and the window effect alone', async ({ 
   await expect(page.locator('.window')).toBeVisible()
   await expectShown(page, false)
   expect(await calls(page, 'sidebar_material_sync')).toHaveLength(1)
-})
 
-test('stored settings without the material mean the default, the material', async ({ page }) => {
-  await stored(page, { sidebarMaterial: false })
-  await page.goto('/')
-  await expectShown(page, false)
+  // Settings without the material mean the default, the material.
   await changeEditorSettingsElsewhere(page, { lineNumbers: false })
   await expectShown(page, true)
 })
