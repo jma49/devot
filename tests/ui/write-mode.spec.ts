@@ -466,13 +466,63 @@ test.describe('a new install', () => {
     await expect(boxes.nth(1)).toBeChecked()
     await boxes.first().click()
     await expect(boxes.first()).toBeChecked()
-    await expect.poll(() => lines(page)).toEqual([' write', ' read', 'end'])
+    await expect.poll(() => lines(page)).toEqual(['write', 'read', 'end'])
     await page.keyboard.insertText('!')
     // The caret's line keeps its checkbox.
     await page.keyboard.press('ArrowUp')
     await expect(boxes).toHaveCount(2)
-    await expect.poll(() => lines(page)).toEqual([' write', ' read', 'end!'])
+    await expect.poll(() => lines(page)).toEqual(['write', 'read', 'end!'])
     expect(await source(page)).toEqual(['- [x] write', '- [x] read', 'end!'])
+  })
+
+  test('draws a done and an open task box alike, on the list mark column and the text centre', async ({
+    page,
+  }) => {
+    await createNote(page, 'Aligned', '- item\n- [x] done\n- [ ] open\nend')
+    await body(page).click()
+    await page.keyboard.press('ControlOrMeta+End')
+    await expect(page.locator('.cm-wm-task-box')).toHaveCount(2)
+    await expect(page.locator('.cm-md-task-done')).toHaveText('done')
+
+    const measure = async () => {
+      const [done, open] = await page.locator('.cm-wm-task-box').evaluateAll((els) =>
+        els.map((el) => {
+          const r = el.getBoundingClientRect()
+          return { x: r.x, y: r.y, width: r.width, height: r.height }
+        }),
+      )
+      const bullet = await page.locator('.cm-wm-bullet').boundingBox()
+      return {
+        boxes: [done, open],
+        bullet,
+        texts: [await charBox(page, 1, 'done'), await charBox(page, 2, 'open')],
+      }
+    }
+
+    const away = await measure()
+    const [done, open] = away.boxes
+    if (!done || !open || !away.bullet) throw new Error('E_TEST_NO_BOX')
+    const fontSize = await page
+      .locator('.cm-wm-task')
+      .first()
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+    expect(Math.abs(done.width - 0.875 * fontSize)).toBeLessThanOrEqual(0.5)
+    expect(open.width).toBeCloseTo(done.width, 1)
+    expect(open.height).toBeCloseTo(done.height, 1)
+    expect(Math.abs(open.x - done.x)).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(done.x - away.bullet.x)).toBeLessThanOrEqual(1)
+    for (const [i, box] of [done, open].entries()) {
+      const text = away.texts[i]
+      if (!text) throw new Error('E_TEST_NO_TEXT')
+      expect(Math.abs(box.y + box.height / 2 - (text.y + text.height / 2))).toBeLessThanOrEqual(1)
+      expect(text.x).toBeGreaterThan(box.x + box.width)
+    }
+    expect(Math.abs((away.texts[0]?.x ?? 0) - (away.texts[1]?.x ?? 0))).toBeLessThanOrEqual(0.5)
+
+    // A task's box is never source, so the caret on its line moves nothing.
+    await page.keyboard.press('ArrowUp')
+    await page.keyboard.press('End')
+    expect(await measure()).toEqual(away)
   })
 
   test('folds front matter to one row that opens on click', async ({ page }) => {

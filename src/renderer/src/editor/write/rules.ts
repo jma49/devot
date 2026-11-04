@@ -305,10 +305,12 @@ export function writeRanges(
     return found
   }
 
+  /** The box stands in for the space after the marker too, so the item's text starts where the box's gap ends. */
   function task(start: number, marker: SyntaxNode) {
-    if (!oneLine(start, marker.to)) return
+    const end = marker.to + spaceAfter(marker.to)
+    if (!oneLine(start, end)) return
     const done = /x/i.test(text(marker.from, marker.to))
-    out.push({ kind: 'task', from: start, to: marker.to, box: marker.from, done })
+    out.push({ kind: 'task', from: start, to: end, box: marker.from, done })
   }
 
   /** A list's mark is never source: a bullet drawn over it, or a number, and the caret passes it as one unit. */

@@ -72,7 +72,9 @@ export function lineStyles(
           return
         case 'Task': {
           const box = node.getChild('TaskMarker')
-          if (box && /x/i.test(text(box))) mark(box.to, node.to, 'cm-md-task-done')
+          if (!box || !/x/i.test(text(box))) return
+          const start = box.to + (/^[ \t]*/.exec(doc.sliceString(box.to, node.to))?.[0].length ?? 0)
+          mark(start, node.to, 'cm-md-task-done')
           return
         }
         case 'InlineCode': {

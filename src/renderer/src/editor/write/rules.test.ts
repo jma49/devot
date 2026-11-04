@@ -261,11 +261,19 @@ describe('Write mode lists and tasks', () => {
     expect(shown('1. one\n2. two')).toBe('1. one\n2. two')
   })
 
-  it('show a checkbox in place of a task box and its list mark', () => {
-    expect(shown('- [ ] open\n- [x] done\n- [X] also')).toBe(
-      '{todo} open\n{done} done\n{done} also',
-    )
-    expect(shown('1. [ ] first')).toBe('1. {todo} first')
+  it('show a checkbox in place of a task box, its list mark and the space after', () => {
+    expect(shown('- [ ] open\n- [x] done\n- [X] also')).toBe('{todo}open\n{done}done\n{done}also')
+    expect(shown('1. [ ] first')).toBe('1. {todo}first')
+    expect(shown('- [ ]\ttabbed\n  - [x] nested')).toBe('{todo}tabbed\n  {done}nested')
+  })
+
+  it('give a checked and an open task the same stand-in, so their text starts at one x', () => {
+    const { ranges } = rangesOf('- [x] done\n- [ ] open')
+    const tasks = ranges.filter((r) => r.kind === 'task')
+    expect(tasks.map((r) => [r.to - r.from, r.kind === 'task' && r.box - r.from])).toEqual([
+      [6, 2],
+      [6, 2],
+    ])
   })
 
   it('in a quote hide the quote mark too', () => {
@@ -357,7 +365,7 @@ describe('the elements the selection meets', () => {
 
   it('keep a list mark, a task box and a quote mark drawn on the caret line', () => {
     expect(shown('- a\n- b', caret(2))).toBe('{bullet1} a\n{bullet1} b')
-    expect(shown('- [ ] open', caret(8))).toBe('{todo} open')
+    expect(shown('- [ ] open', caret(8))).toBe('{todo}open')
     expect(shown('> quote', caret(3))).toBe('quote')
   })
 
