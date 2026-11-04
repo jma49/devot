@@ -9,6 +9,7 @@ import {
   TOKEN_SUBPROTOCOL_PREFIX,
 } from '../../src/core/sync/protocol.ts'
 import { isRelaySecret, tokenDevice, validSecret } from './tokens.ts'
+import type { RateLimiter } from './limiter.ts'
 import { HOST_OPS, type PairingOp } from './pairing.ts'
 import type { Reply } from './vault.ts'
 
@@ -191,3 +192,29 @@ export async function socketTarget(
 }
 
 export const isSocketPath = (pathname: string) => VAULT_PATH.exec(pathname)?.[2] === '/socket'
+
+/** Taking and confirming a pairing and enrolling need no token, so anyone who knows the relay can call them. */
+export function isAnonymousPath(pathname: string): boolean {
+  const pairing = PAIRING_PATH.exec(pathname)?.[2]
+  return (
+    pairing === 'take' || pairing === 'confirm' || VAULT_PATH.exec(pathname)?.[2] === '/devices'
+  )
+}
+
+// A device pairs or enrolls a few times at most; a loop of these calls would use up the owner's
+// Durable Object quota. Per address, for each instance of the front.
+export const ANONYMOUS_BURST = 30
+export const ANONYMOUS_PER_SECOND = 0.1
+
+/** The answer that refuses an anonymous call over its address's rate, or null to go on. */
+export function anonymousLimit(
+  limiter: RateLimiter,
+  request: Request,
+  address: string,
+  now: number,
+): Response | null {
+  if (!isAnonymousPath(new URL(request.url).pathname)) return null
+  const wait = limiter.take(address, now)
+  if (wait === 0) return null
+  return json(429, { v: PROTOCOL_VERSION, type: 'error', code: 'E_SYNC_RATE', retryAfter: wait })
+}

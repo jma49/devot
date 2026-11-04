@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
 import { expect, it } from 'vitest'
+import { ANONYMOUS_BURST } from '../../relay/src/front'
+import { postJson, randomId } from './client'
 import { relaySuite } from './suite'
 
 // The Cloudflare host runs locally in workerd through Miniflare, bundled from
@@ -24,7 +26,7 @@ it('wrangler.toml binds the vault object on SQLite storage, as the tests run it'
   expect(wrangler).not.toMatch(/new_classes/)
 })
 
-relaySuite('a Durable Object (Miniflare)', async () => {
+async function startWorker() {
   const bundle = await build({
     entryPoints: [`relay/${setting('main')}`],
     bundle: true,
@@ -50,4 +52,33 @@ relaySuite('a Durable Object (Miniflare)', async () => {
   })
   const url = (await mf.ready).toString().replace(/\/$/, '')
   return { url, secret, close: () => mf.dispose() }
+}
+
+relaySuite('a Durable Object (Miniflare)', startWorker)
+
+it('refuses a burst of the routes anyone may call before they reach a Durable Object', async () => {
+  const host = await startWorker()
+  try {
+    const take = (from: string) =>
+      postJson(
+        `${host.url}/v1/pairings/${randomId()}/take`,
+        { v: 1, type: 'take' },
+        { 'cf-connecting-ip': from },
+      )
+    for (let n = 0; n < ANONYMOUS_BURST; n += 1) {
+      expect((await take('192.0.2.1')).status).toBe(404)
+    }
+    const refused = await take('192.0.2.1')
+    expect(refused).toMatchObject({ status: 429, body: { code: 'E_SYNC_RATE' } })
+    expect(Number(refused.body['retryAfter'])).toBeGreaterThan(0)
+    const enroll = await postJson(
+      `${host.url}/v1/vaults/${randomId()}/devices`,
+      { v: 1, type: 'enroll', secret: randomId(32), label: 'x' },
+      { 'cf-connecting-ip': '192.0.2.1' },
+    )
+    expect(enroll.status).toBe(429)
+    expect((await take('192.0.2.2')).status).toBe(404)
+  } finally {
+    await host.close()
+  }
 })

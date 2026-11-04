@@ -439,7 +439,7 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
       const offer = toBase64Url(bytes(86, 3))
       const proof = toBase64Url(bytes(40, 4))
 
-      it('hands the sealed offer out once and the confirmation to the vault’s devices', async () => {
+      it('hands the sealed offer out once and the confirmation to the device that opened it', async () => {
         const vault = await createVault(host, 'mac')
         const id = randomId()
         const token = vault.first.token
@@ -469,8 +469,13 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
           body: { code: 'E_SYNC_PAIRING_GONE' },
         })
         const phone = await enrolled(host, vault, 'phone')
+        for (const op of ['status', 'close'] as const) {
+          expect(
+            await pairingRequest(host, id, op, { vault: vault.vault }, phone.token),
+          ).toMatchObject({ status: 404, body: { code: 'E_SYNC_PAIRING_GONE' } })
+        }
         expect(
-          await pairingRequest(host, id, 'status', { vault: vault.vault }, phone.token),
+          await pairingRequest(host, id, 'status', { vault: vault.vault }, token),
         ).toMatchObject({ status: 200, body: { state: 'confirmed', proof } })
 
         expect(

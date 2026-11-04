@@ -59,6 +59,40 @@ describe('Tauri command permissions', () => {
     expect(mains.map((c) => c.windows)).toEqual([MAIN_WINDOWS])
   })
 
+  it('grants no core permission set, and the main windows only the core commands their page calls', () => {
+    const sets = allCapabilities()
+      .flatMap(permissionIds)
+      .filter((p) => p.startsWith('core:') && !/:(allow|deny)-/.test(p))
+    expect(sets).toEqual([])
+    const main = capabilities().find((c) => c.identifier === 'main')!
+    expect(
+      permissionIds(main)
+        .filter((p) => p.startsWith('core:'))
+        .sort(),
+    ).toEqual([
+      // getVersion, for crash reports and the sync status.
+      'core:app:allow-version',
+      // listen and unlisten, also for one window (listenHere); never emit or emit-to, so a page
+      // cannot send another window a Rust-only event such as a note relay.
+      'core:event:allow-listen',
+      'core:event:allow-unlisten',
+      // Context menus (contextMenu.ts): built, updated in place and popped up; never the menu bar.
+      'core:menu:allow-insert',
+      'core:menu:allow-new',
+      'core:menu:allow-popup',
+      'core:menu:allow-remove',
+      'core:menu:allow-set-checked',
+      'core:menu:allow-set-text',
+      // A closed context menu frees its items.
+      'core:resources:allow-close',
+      // The developer tools shortcut, in builds that have them.
+      'core:webview:allow-internal-toggle-devtools',
+      // The toolbar drags the window and double-clicking it zooms.
+      'core:window:allow-internal-toggle-maximize',
+      'core:window:allow-start-dragging',
+    ])
+  })
+
   it('lets only main windows open another one and tell the others the library changed', () => {
     expect(windowsWith('allow-main-window-new')).toEqual(['main'])
     expect(windowsWith('allow-main-windows-changed')).toEqual(['main'])
