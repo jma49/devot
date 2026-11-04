@@ -287,6 +287,73 @@ describe('merging notebooks and tags', () => {
   })
 })
 
+describe('merging when each device made the row', () => {
+  const book: BookState = {
+    kind: 'book',
+    id: ID,
+    name: 'Templates',
+    nameHlc: hlc(1),
+    parentId: null,
+    parentHlc: '',
+    createdAt: 1,
+    updatedAt: 1,
+    deletedAt: null,
+    deletedHlc: '',
+    sortKey: 'a0',
+    sortKeyHlc: hlc(1),
+    icon: null,
+    iconColor: null,
+    iconHlc: '',
+  }
+  const tag: TagState = {
+    kind: 'tag',
+    id: ID,
+    name: 'daily',
+    nameHlc: hlc(1),
+    createdAt: 1,
+    updatedAt: 1,
+    deletedAt: null,
+    deletedHlc: '',
+    color: null,
+    colorHlc: '',
+  }
+  const search: SearchState = {
+    kind: 'search',
+    id: ID,
+    name: 'Open work',
+    nameHlc: hlc(1),
+    query: 'is:active',
+    queryHlc: hlc(1),
+    sortKey: 'a0',
+    sortKeyHlc: hlc(1),
+    createdAt: 1,
+    updatedAt: 1,
+    deletedAt: null,
+    deletedHlc: '',
+  }
+  type Outcome = { record: { createdAt: number }; localNews: boolean; remoteNews: boolean }
+  const cases: [string, (local: number, remote: number) => Outcome][] = [
+    ['notebook', (l, r) => mergeBook({ ...book, createdAt: l }, { ...book, createdAt: r })],
+    ['tag', (l, r) => mergeTag({ ...tag, createdAt: l }, { ...tag, createdAt: r })],
+    [
+      'saved search',
+      (l, r) => mergeSearch({ ...search, createdAt: l }, { ...search, createdAt: r }),
+    ],
+  ]
+
+  for (const [what, merge] of cases) {
+    it(`keeps the earlier creation time of a ${what} on both sides, and says who must take it`, () => {
+      const here = merge(900, 100)
+      const there = merge(100, 900)
+      expect(here.record.createdAt).toBe(100)
+      expect(there.record).toEqual(here.record)
+      expect(here).toMatchObject({ localNews: false, remoteNews: true })
+      expect(there).toMatchObject({ localNews: true, remoteNews: false })
+      expect(merge(100, 100)).toMatchObject({ localNews: false, remoteNews: false })
+    })
+  }
+})
+
 describe('saved search records', () => {
   const search = (patch: Partial<SearchState> = {}): SearchState => ({
     kind: 'search',

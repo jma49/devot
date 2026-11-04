@@ -17,6 +17,7 @@ import {
   newWriter,
   readWrites,
   seedWelcome,
+  TEMPLATES_BOOK_ID,
   type StorageAdapter,
   type WelcomeContent,
 } from '../../src/core'
@@ -224,6 +225,18 @@ describe('sync between two devices', () => {
     await sameNote(a, b, id)
   })
 
+  it('forgets push times once they leave the breaker’s window', async () => {
+    const clock = { now: Date.now() }
+    const { a } = await pair({ a: { now: () => clock.now } })
+    await a.notes.create('First')
+    await a.notes.create('Second')
+    await a.sync()
+    expect(a.engine.pushesRemembered()).toBe(2)
+    clock.now += 60_001
+    await a.sync()
+    expect(a.engine.pushesRemembered()).toBe(0)
+  })
+
   it('merges edits both devices made offline, each once, and keeps the local text as a merge', async () => {
     const { a, b } = await pair()
     const id = await a.notes.create('Plan')
@@ -372,6 +385,70 @@ describe('sync between two devices', () => {
       name: 'Moved often',
       sortKey: longer,
     })
+  })
+
+  it('settles on the earlier creation time of a row both devices made, then stops pushing it', async () => {
+    const { a, b } = await pair()
+    const tagId = '0192a6f0-0000-7000-8000-0000000000ab'
+    const searchId = '0192a6f0-0000-7000-8000-0000000000ac'
+    const make = async (d: Device, createdAt: number) => {
+      const hlc = d.clock.tick()
+      await d.storage.putBook({
+        id: TEMPLATES_BOOK_ID,
+        name: 'Templates',
+        nameHlc: hlc,
+        parentId: null,
+        parentHlc: '',
+        createdAt,
+        updatedAt: createdAt,
+        deletedAt: null,
+        deletedHlc: null,
+        aiAccess: false,
+        aiAccessHlc: '',
+        sortKey: 'a0',
+        sortKeyHlc: hlc,
+        icon: null,
+        iconColor: null,
+        iconHlc: '',
+      })
+      await d.storage.putTag({
+        id: tagId,
+        name: 'daily',
+        nameHlc: hlc,
+        createdAt,
+        updatedAt: createdAt,
+        deletedAt: null,
+        deletedHlc: null,
+        color: null,
+        colorHlc: '',
+      })
+      await d.storage.putSavedSearch({
+        id: searchId,
+        name: 'Open',
+        nameHlc: hlc,
+        query: 'is:active',
+        queryHlc: hlc,
+        sortKey: 'a0',
+        sortKeyHlc: hlc,
+        createdAt,
+        updatedAt: createdAt,
+        deletedAt: null,
+        deletedHlc: null,
+      })
+    }
+    await make(b, 100)
+    await make(a, 900)
+    const created = async (d: Device) => [
+      (await d.storage.listBooks()).find((x) => x.id === TEMPLATES_BOOK_ID)?.createdAt,
+      (await d.storage.listTags()).find((x) => x.id === tagId)?.createdAt,
+      (await d.storage.listSavedSearches()).find((x) => x.id === searchId)?.createdAt,
+    ]
+    await settle(a, b)
+    expect(await created(a)).toEqual([100, 100, 100])
+    expect(await created(b)).toEqual([100, 100, 100])
+    const pushes = a.transport.pushes + b.transport.pushes
+    await settle(a, b)
+    expect(a.transport.pushes + b.transport.pushes).toBe(pushes)
   })
 
   it('syncs saved searches with their order, name, query and deletion', async () => {

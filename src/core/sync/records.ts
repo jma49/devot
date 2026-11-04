@@ -616,7 +616,9 @@ const sortKeyOf = (local: BookState, remote: BookState): Field<string> =>
     ? { value: remote.sortKey, hlc: remote.sortKeyHlc }
     : { value: local.sortKey, hlc: local.sortKeyHlc }
 
+// A row each device made (Templates, written on first use) keeps the earlier creation time everywhere.
 const bookAhead = (of: BookState, than: BookState) =>
+  of.createdAt < than.createdAt ||
   of.nameHlc > than.nameHlc ||
   of.parentHlc > than.parentHlc ||
   of.deletedHlc > than.deletedHlc ||
@@ -646,7 +648,7 @@ export function mergeBook(local: BookState, remote: BookState): Merged<BookState
     nameHlc: name.hlc,
     parentId: parent.value,
     parentHlc: parent.hlc,
-    createdAt: local.createdAt,
+    createdAt: Math.min(local.createdAt, remote.createdAt),
     updatedAt: Math.max(local.updatedAt, remote.updatedAt),
     deletedAt: deleted.value,
     deletedHlc: deleted.hlc,
@@ -664,7 +666,10 @@ export function mergeBook(local: BookState, remote: BookState): Merged<BookState
 }
 
 const tagAhead = (of: TagState, than: TagState) =>
-  of.nameHlc > than.nameHlc || of.colorHlc > than.colorHlc || of.deletedHlc > than.deletedHlc
+  of.createdAt < than.createdAt ||
+  of.nameHlc > than.nameHlc ||
+  of.colorHlc > than.colorHlc ||
+  of.deletedHlc > than.deletedHlc
 
 export function mergeTag(local: TagState, remote: TagState): Merged<TagState> {
   const name = newer(
@@ -684,7 +689,7 @@ export function mergeTag(local: TagState, remote: TagState): Merged<TagState> {
     id: local.id,
     name: name.value,
     nameHlc: name.hlc,
-    createdAt: local.createdAt,
+    createdAt: Math.min(local.createdAt, remote.createdAt),
     updatedAt: Math.max(local.updatedAt, remote.updatedAt),
     deletedAt: deleted.value,
     deletedHlc: deleted.hlc,
@@ -695,6 +700,7 @@ export function mergeTag(local: TagState, remote: TagState): Merged<TagState> {
 }
 
 const searchAhead = (of: SearchState, than: SearchState) =>
+  of.createdAt < than.createdAt ||
   of.nameHlc > than.nameHlc ||
   of.queryHlc > than.queryHlc ||
   of.deletedHlc > than.deletedHlc ||
@@ -729,7 +735,7 @@ export function mergeSearch(local: SearchState, remote: SearchState): Merged<Sea
     queryHlc: query.hlc,
     sortKey: sortKey.value,
     sortKeyHlc: sortKey.hlc,
-    createdAt: local.createdAt,
+    createdAt: Math.min(local.createdAt, remote.createdAt),
     updatedAt: Math.max(local.updatedAt, remote.updatedAt),
     deletedAt: deleted.value,
     deletedHlc: deleted.hlc,

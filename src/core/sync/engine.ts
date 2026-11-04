@@ -163,6 +163,8 @@ export interface SyncEngine {
   syncNow(): Promise<void>
   /** Resolves once no task is running or queued. */
   idle(): Promise<void>
+  /** Internal, for tests: how many records the push breaker still holds times for. */
+  pushesRemembered(): number
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -759,7 +761,20 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     }
   }
 
+  function forgetOldPushes() {
+    const since = now() - BREAKER_WINDOW_MS
+    for (const [id, times] of pushTimes) if ((times.at(-1) ?? 0) <= since) pushTimes.delete(id)
+  }
+
   async function pushAll() {
+    try {
+      await pushEach()
+    } finally {
+      forgetOldPushes()
+    }
+  }
+
+  async function pushEach() {
     const upload = await trackUpload()
     let full: QuotaPaused | undefined
     try {
@@ -991,6 +1006,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       void failed(new Error(event.code))
     },
     status: () => status,
+    pushesRemembered: () => pushTimes.size,
     syncNow: () => enqueue(() => connect()).catch(() => undefined),
     async idle() {
       for (let seen: Promise<void> | undefined; seen !== queue;) {

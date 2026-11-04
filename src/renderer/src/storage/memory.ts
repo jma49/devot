@@ -128,6 +128,7 @@ function mergeTag(current: TagRecord | undefined, next: TagRecord): TagRecord {
   if (!current) return next
   return {
     ...current,
+    createdAt: Math.min(current.createdAt, next.createdAt),
     updatedAt: Math.max(current.updatedAt, next.updatedAt),
     ...newer(current, next, 'name', 'nameHlc'),
     ...newer(current, next, 'color', 'colorHlc'),
@@ -147,6 +148,7 @@ function mergeSavedSearch(
       : {}
   return {
     ...current,
+    createdAt: Math.min(current.createdAt, next.createdAt),
     updatedAt: Math.max(current.updatedAt, next.updatedAt),
     ...newer(current, next, 'name', 'nameHlc'),
     ...newer(current, next, 'query', 'queryHlc'),
@@ -159,6 +161,7 @@ function mergeBook(current: BookRecord | undefined, next: BookRecord): BookRecor
   if (!current) return next
   return {
     ...current,
+    createdAt: Math.min(current.createdAt, next.createdAt),
     updatedAt: Math.max(current.updatedAt, next.updatedAt),
     ...newer(current, next, 'name', 'nameHlc'),
     ...newer(current, next, 'parentId', 'parentHlc'),

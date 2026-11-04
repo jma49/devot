@@ -808,6 +808,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
                          THEN excluded.deleted_at ELSE deleted_at END,
        deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
                           THEN excluded.deleted_hlc ELSE deleted_hlc END,
+       created_at = MIN(excluded.created_at, created_at),
        updated_at = MAX(excluded.updated_at, updated_at)`,
   )
   // Same statements as the Rust store (list_saved_searches, put_saved_search).
@@ -832,6 +833,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
                          THEN excluded.deleted_at ELSE deleted_at END,
        deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
                           THEN excluded.deleted_hlc ELSE deleted_hlc END,
+       created_at = MIN(excluded.created_at, created_at),
        updated_at = MAX(excluded.updated_at, updated_at)`,
   )
   const putNoteTag = db.prepare(
@@ -871,6 +873,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
                          THEN excluded.deleted_at ELSE deleted_at END,
        deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
                           THEN excluded.deleted_hlc ELSE deleted_hlc END,
+       created_at = MIN(excluded.created_at, created_at),
        updated_at = MAX(excluded.updated_at, updated_at)`,
   )
 
