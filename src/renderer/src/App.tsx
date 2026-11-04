@@ -217,7 +217,8 @@ import { displayTitle, displayTitles, newestUntitled, useHeadlines } from './hea
 import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
 import { LINE_COMMANDS } from './editor/lineCommands'
-import { NoteEditor, type ApplyRestore, type EditorHandle, type EditorPlace } from './NoteEditor'
+import type { EditorHandle } from './editor/handle'
+import { NoteEditor, type ApplyRestore, type EditorPlace } from './NoteEditor'
 import { BODY_PLACEHOLDER_MS, useLateAttribute } from './late'
 import {
   changeEditorSettings,

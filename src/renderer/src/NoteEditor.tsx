@@ -5,8 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 
 import { flushSync } from 'react-dom'
 import { yCollab, ySyncAnnotation } from 'y-codemirror.next'
 import * as Y from 'yjs'
-import type { ImageSize } from '../../core/images'
-import { readWrites, reviewSteps, type AgentWrite, type ReviewStep } from '../../core/authorship'
+import { readWrites, type AgentWrite } from '../../core/authorship'
 import { BODY } from '../../core/notes'
 import { authorshipMarks } from './editor/authorship'
 import { authorshipUndo, undoneWrites } from './editor/authorshipUndo'
@@ -14,15 +13,8 @@ import { imageFiles, storeImages } from './attachments'
 import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
-import type { CommandId } from './commands/registry'
 import { invoke } from './ipc'
-import {
-  linkOpener,
-  lineCommands,
-  linkForNewNote,
-  runEditCommand,
-  type LinkAt,
-} from './editor/lineCommands'
+import { linkOpener, lineCommands } from './editor/lineCommands'
 import { overwrite } from './editor/overwrite'
 import {
   EDITOR_MENU,
@@ -40,15 +32,14 @@ import { tauriMenus, useContextMenu, type MenuPoint } from './contextMenu'
 import { copyText } from './noteMenu'
 import { lookUp, startSpeaking, stopSpeaking } from './textServices'
 import type { ShowAlertMenu } from './editor/alertMenu'
-import { moveRange, moveSelection, selectedText, trackExtract } from './editor/extract'
+import { trackExtract } from './editor/extract'
 import { editorFind, editorFindTarget } from './editor/find'
-import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
 import { noteHighlighting } from './editor/highlighting'
 import { systemMenus, systemMenusAvailable } from './editor/systemMenu'
 import type { Suggester } from '../../core/aiSuggest'
 import { aiEditStart, useAiMenu, type AiEditChoice, type StartAiEdit } from './editor/aiMenu'
-import { acceptSpec, ghostText, suggestAt } from './editor/ghostText'
+import { ghostText } from './editor/ghostText'
 import { imageSizeBar } from './editor/ImageSizeBar'
 import { tableToolbar } from './editor/TableToolbar'
 import { linkTooltip } from './editor/linkTooltip'
@@ -71,16 +62,15 @@ import {
   newFromSelectionKeys,
   pastePlain,
   pastePlainKeys,
-  pasteUrlAsIn,
   pasteUrlAsKeys,
-  setImageSize,
 } from './editor/noteKeys'
 import { editorLayoutWatch, editorScrollPane } from './editor/scrollPane'
+import { editorHandle, REMOTE, type EditorHandle } from './editor/handle'
 import { shadowContainer } from './editor/shadowFrame'
 import { editorTheme, popupSpace } from './editor/theme'
-import { insertCommand, insertKeymap, type InsertId } from './editor/insert'
-import { imageActions, imageAt, viewImageAt } from './editor/images'
-import { TABLE_COMMANDS, inTable, tableKeymap, type TableCommandId } from './editor/tableCommands'
+import { insertKeymap } from './editor/insert'
+import { imageActions } from './editor/images'
+import { tableKeymap } from './editor/tableCommands'
 import { tableTyping } from './editor/tableTyping'
 import { markdownLineStyles } from './editor/lineStyles'
 import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
@@ -91,7 +81,6 @@ import { countsReporter, recount, type EditorCounts } from './editor/counts'
 import { selectionEdges } from './editor/selectionEdges'
 import { editorCompletions } from './editor/completions'
 import { chooseTemplate } from './editor/hints'
-import { taskToggle } from './editor/tasks'
 import { setToolbarFocus } from './editor/toolbarState'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
 import { catchUp } from './editor/catchUp'
@@ -105,12 +94,7 @@ import { useEditorSettings } from './editorSettings'
 import type { FindTarget } from './find/target'
 import { keyboardIsFree, typingElsewhere } from './focus'
 import { t } from './i18n'
-import {
-  imageMenuTarget,
-  type ImageMenuTarget,
-  type ImageSource,
-  type ShowImageMenu,
-} from './imageMenu'
+import { imageMenuTarget, type ShowImageMenu } from './imageMenu'
 import type { ViewedImage } from './ImageViewer'
 import { linkCompletion, type LinkSources } from './linkCompletion'
 import { setWriteFocus, writeFocusTracking, writeMode, type WriteRenderer } from './editor/write'
@@ -119,7 +103,6 @@ import type { Core } from './core-client'
 import type { ScrollPane } from './preview/scrollSync'
 import { clampSelection, clampTop, type EditorTop, type SelectionState } from './lastState'
 
-const REMOTE = 'remote'
 // The note being left while the next one loads: on screen, but nothing typed may land in it.
 const pausedSlot = new Compartment()
 const PAUSED = [
@@ -185,53 +168,6 @@ export type ApplyRestore = (update: Uint8Array) => void
 export interface EditorPlace {
   selection: SelectionState
   top?: EditorTop
-}
-
-export interface EditorHandle {
-  noteId: string
-  /** The replica's state vector, so the core sends only what it lacks (NoteService.open). */
-  vector: () => Uint8Array
-  /** Takes in the core's state after it merged another process's writes: shown outside the undo history, not sent back. */
-  takeState: (state: Uint8Array) => void
-  /** Like `takeState`, for a change the user asked for (a template filling the note): one undo step, not sent back. */
-  takeStep: (state: Uint8Array) => void
-  focus: () => void
-  focusStart: () => void
-  remeasure: () => void
-  format: (id: FormatId) => void
-  insert: (id: InsertId) => void
-  text: () => string
-  /** Caret to the start of line `line` (1-based), scrolled to the view's top (outline entry) or middle (Go to Line). */
-  goToLine: (line: number, where?: 'start' | 'center', focus?: boolean) => void
-  inTable: () => boolean
-  table: (id: TableCommandId) => void
-  hasSelection: () => boolean
-  /** Hands the selected text to `make` and puts the text it resolves to (a note link) in its place, as one undo step (editor/extract.ts). */
-  moveSelection: (make: (text: string) => Promise<string | null>) => Promise<boolean>
-  linkAtCursor: () => LinkAt | null
-  /** Like `moveSelection`, for a range. */
-  moveRange: (
-    from: number,
-    to: number,
-    make: (text: string) => Promise<string | null>,
-  ) => Promise<boolean>
-  pastePlain: () => Promise<void>
-  suggest: () => void
-  /** Takes the inline suggestion shown at the caret; false when none is shown. */
-  acceptSuggestion: () => boolean
-  runLine: (id: CommandId) => void
-  pasteUrlAs: () => Promise<void>
-  imageAtCursor: () => ImageMenuTarget | null
-  /** Shows that image in the viewer (an attachment only); false when there is none. */
-  viewImage: () => boolean
-  /** Gives the image at `source` a size as one change; false when that text is no longer that image. */
-  setImageSize: (source: ImageSource, size: ImageSize) => boolean
-  /** Ticks or unticks the task whose mark is at `at` as one change; false when no box is there any more. */
-  toggleTask: (at: number) => boolean
-  /** Review Changes: the places the writes in `writeIds` changed, as the replica has them now (reviewSteps). */
-  reviewSteps: (writeIds: ReadonlySet<string>) => ReviewStep[]
-  /** Selects `from`-`to` and scrolls it to the middle, leaving the keyboard where it is. */
-  reveal: (from: number, to: number) => void
 }
 
 /** What the paste chooser fetches, through Rust (https only, capped). */
@@ -943,94 +879,7 @@ export function NoteEditor({
           doc.destroy()
           void core.unhold(noteId)
         },
-        handle: {
-          noteId,
-          vector: () => Y.encodeStateVector(doc),
-          takeState: (update) => Y.applyUpdate(doc, update, REMOTE),
-          takeStep: applyStep,
-          focus: () => ready.focus(),
-          focusStart: () => {
-            ready.focus()
-            ready.dispatch({ selection: { anchor: 0 }, scrollIntoView: true })
-          },
-          remeasure: () => ready.requestMeasure(),
-          format: (id) => {
-            ready.focus()
-            formatCommand(id)(ready)
-          },
-          insert: (id) => {
-            ready.focus()
-            insertCommand(id)(ready)
-          },
-          text: () => ready.state.doc.toString(),
-          goToLine: (line, where = 'start', focus = true) => {
-            const lines = ready.state.doc
-            const at = lines.line(Math.min(lines.lines, Math.max(1, Math.floor(line)))).from
-            if (focus) ready.focus()
-            ready.dispatch({
-              selection: EditorSelection.cursor(at),
-              effects: EditorView.scrollIntoView(
-                at,
-                where === 'center' ? { y: 'center' } : { y: 'start', yMargin: 24 },
-              ),
-            })
-          },
-          inTable: () => inTable(ready.state),
-          table: (id) => {
-            ready.focus()
-            const tr = TABLE_COMMANDS[id](ready.state)
-            if (tr) ready.dispatch(tr)
-          },
-          hasSelection: () => selectedText(ready.state) !== null,
-          moveSelection: (make) => moveSelection(ready, make, () => shown.current === s),
-          linkAtCursor: () => linkForNewNote(ready.state, ready.state.selection.main.head) ?? null,
-          moveRange: (from, to, make) =>
-            moveRange(ready, from, to, make, () => shown.current === s),
-          pastePlain: () => {
-            ready.focus()
-            return pastePlain(ready)
-          },
-          suggest: () => {
-            ready.focus()
-            suggestAt(ready)
-          },
-          acceptSuggestion: () => {
-            const spec = acceptSpec(ready.state)
-            if (spec) ready.dispatch(spec)
-            return spec !== null
-          },
-          runLine: (id) => {
-            ready.focus()
-            runEditCommand(ready, id)
-          },
-          pasteUrlAs: () => {
-            ready.focus()
-            return pasteUrlAsIn(ready)
-          },
-          imageAtCursor: () => {
-            const image = imageAt(ready.state, ready.state.selection.main.head)
-            return image ? imageMenuTarget(image) : null
-          },
-          viewImage: () => viewImageAt(ready),
-          setImageSize: (source, size) => setImageSize(ready, source, size),
-          toggleTask: (at) => {
-            const change = taskToggle(ready.state, at)
-            if (change) ready.dispatch(change)
-            return change !== null
-          },
-          reviewSteps: (writeIds) => reviewSteps(doc, writeIds, noteId),
-          reveal: (from, to) => {
-            const length = ready.state.doc.length
-            const anchor = Math.min(from, length)
-            const head = Math.min(to, length)
-            ready.dispatch({
-              selection: { anchor, head },
-              effects: EditorView.scrollIntoView(EditorSelection.range(anchor, head), {
-                y: 'center',
-              }),
-            })
-          },
-        },
+        handle: editorHandle(ready, doc, noteId, applyStep, () => shown.current === s),
       }
       shown.current = s
       loaded.current?.(text.toString())
