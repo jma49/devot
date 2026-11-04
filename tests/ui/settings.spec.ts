@@ -1303,6 +1303,29 @@ test('the search capsule lines up with the rows, and every control ends on the c
   }
 })
 
+test('cards end on one right edge whether or not the pane scrolls', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 680 })
+  await openSettings(page, 'General')
+  const edges = async (pane: string) => {
+    await tab(page, pane).click()
+    await expect(page.getByRole('tabpanel', { name: pane })).toBeVisible()
+    return page.evaluate(() => {
+      const scroller = document.querySelector('.settings-pane')!
+      return {
+        scrolls: scroller.scrollHeight > scroller.clientHeight,
+        rights: [...document.querySelectorAll('.settings-card')].map(
+          (card) => card.getBoundingClientRect().right,
+        ),
+      }
+    })
+  }
+  const general = await edges('General')
+  const preview = await edges('Preview')
+  expect([general.scrolls, preview.scrolls]).toEqual([true, false])
+  const right = general.rights[0]!
+  for (const edge of [...general.rights, ...preview.rights]) expect(edge).toBeCloseTo(right, 1)
+})
+
 test('the selected pane turns a lighter grey, not a colour, while the window is behind another', async ({
   page,
 }) => {
