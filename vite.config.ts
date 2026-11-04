@@ -18,6 +18,10 @@ export default defineConfig({
   // A define, not an env variable, so no .env file can turn it on; the release build fails
   // if the storage is in dist/ (scripts/sentry/ui.ts).
   define: { DEVOT_UI_TEST: 'false' },
+  // The CSS minifier would write `rgb(… / 0.7)` as #rrggbbaa, rounding alpha to 1/255 steps, so
+  // painted colours would drift from the tokens (tests/scripts/css-minify.test.ts). 16384 is
+  // lightningcss's Features.HexAlphaColors; lightningcss comes with Vite, not as our dependency.
+  css: { lightningcss: { include: 16384 } },
   // Markdown parsing runs in a Web Worker, where the DOM builds of some
   // packages (they decode entities through `document`) fail.
   resolve: { conditions: ['worker', ...defaultClientConditions] },
