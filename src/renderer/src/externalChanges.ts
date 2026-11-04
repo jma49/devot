@@ -4,7 +4,7 @@
 // the UI tests can send too, merges the changes into the notes the core holds
 // and reloads its lists (see App).
 import { useEffect, useRef } from 'react'
-import { listenHere } from './windowEvents'
+import { listenHere, unlistenLater } from './windowEvents'
 
 export const DB_CHANGED = 'devot:db-changed'
 /**
@@ -50,19 +50,14 @@ export function useExternalChanges(onChange: (() => Promise<void>) | undefined) 
         })
     }
     window.addEventListener(DB_CHANGED, reload)
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    if (!DEVOT_UI_TEST) {
-      // Rust sends the event to each main window in turn; the event module's `listen` would hear all of them.
-      void listenHere('devot://db-changed', () => window.dispatchEvent(new CustomEvent(DB_CHANGED)))
-        .then((stop) => {
-          if (stopped) stop()
-          else unlisten = stop
-        })
-        .catch(() => console.warn('W_EXTERNAL_LISTEN_FAILED'))
-    }
+    // Rust sends the event to each main window in turn; the event module's `listen` would hear all of them.
+    const unlisten = DEVOT_UI_TEST
+      ? undefined
+      : unlistenLater(
+          listenHere('devot://db-changed', () => window.dispatchEvent(new CustomEvent(DB_CHANGED))),
+          () => console.warn('W_EXTERNAL_LISTEN_FAILED'),
+        )
     return () => {
-      stopped = true
       window.removeEventListener(DB_CHANGED, reload)
       unlisten?.()
     }

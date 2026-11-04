@@ -194,7 +194,7 @@ import {
   keyboardIsFree,
 } from './focus'
 import { coalesced, listsLink, openMainWindow } from './mainWindows'
-import { listenHere } from './windowEvents'
+import { listenHere, unlistenLater } from './windowEvents'
 import { listenExitCancelled } from './exitCancelled'
 import { resumeMirrorAfterCancelledQuit } from './mirror'
 import { useFocusRescue } from './focusRescue'
@@ -1426,18 +1426,14 @@ export function App() {
   useEffect(() => {
     const run = () => void rebuildIndexRef.current()
     window.addEventListener(REBUILD_SEARCH_INDEX, run)
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    if (!DEVOT_UI_TEST) {
-      void listenHere('devot://rebuild-search-index', () =>
-        window.dispatchEvent(new CustomEvent(REBUILD_SEARCH_INDEX)),
-      ).then((stop) => {
-        if (stopped) stop()
-        else unlisten = stop
-      })
-    }
+    const unlisten = DEVOT_UI_TEST
+      ? undefined
+      : unlistenLater(
+          listenHere('devot://rebuild-search-index', () =>
+            window.dispatchEvent(new CustomEvent(REBUILD_SEARCH_INDEX)),
+          ),
+        )
     return () => {
-      stopped = true
       window.removeEventListener(REBUILD_SEARCH_INDEX, run)
       unlisten?.()
     }
@@ -1651,31 +1647,24 @@ export function App() {
   // capture window sent, and the list shows it.
   useEffect(() => {
     if (!core || DEVOT_UI_TEST) return
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    void listenHere<unknown>(QUICK_CAPTURE_EVENT, (e) => {
-      const request = readCaptureRequest(e.payload)
-      if (!request) return
-      void answerCapture(
-        request,
-        (id) => invoke('quick_capture_claim', { id }),
-        async (r) => {
-          await core.capture(r.title, r.body, r.bookId)
-        },
-        (id, error) => invoke('quick_capture_done', { id, error }),
-      ).then((saved) => {
-        if (!saved) return
-        track('note.created', { from: 'quick_capture' })
-        void refresh(core)
-      })
-    }).then((stop) => {
-      if (stopped) stop()
-      else unlisten = stop
-    })
-    return () => {
-      stopped = true
-      unlisten?.()
-    }
+    return unlistenLater(
+      listenHere<unknown>(QUICK_CAPTURE_EVENT, (e) => {
+        const request = readCaptureRequest(e.payload)
+        if (!request) return
+        void answerCapture(
+          request,
+          (id) => invoke('quick_capture_claim', { id }),
+          async (r) => {
+            await core.capture(r.title, r.body, r.bookId)
+          },
+          (id, error) => invoke('quick_capture_done', { id, error }),
+        ).then((saved) => {
+          if (!saved) return
+          track('note.created', { from: 'quick_capture' })
+          void refresh(core)
+        })
+      }),
+    )
   }, [core, refresh])
 
   // The local HTTP API: this window's core answers each call Rust checked.
@@ -1831,17 +1820,14 @@ export function App() {
       })
     }
     window.addEventListener(CLOSE_EVENT, closed)
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    if (!DEVOT_UI_TEST) {
-      void import('@tauri-apps/api/webviewWindow').then(async ({ getCurrentWebviewWindow }) => {
-        const stop = await getCurrentWebviewWindow().listen('devot://note-window-close', closed)
-        if (stopped) stop()
-        else unlisten = stop
-      })
-    }
+    const unlisten = DEVOT_UI_TEST
+      ? undefined
+      : unlistenLater(
+          import('@tauri-apps/api/webviewWindow').then(({ getCurrentWebviewWindow }) =>
+            getCurrentWebviewWindow().listen('devot://note-window-close', closed),
+          ),
+        )
     return () => {
-      stopped = true
       window.removeEventListener(CLOSE_EVENT, closed)
       unlisten?.()
     }

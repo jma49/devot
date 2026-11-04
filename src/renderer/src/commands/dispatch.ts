@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { earlyKeysWaiting } from '../editor/earlyKeys'
 import { isImeKey } from '../ime'
-import { listenHere } from '../windowEvents'
+import { listenHere, unlistenLater } from '../windowEvents'
 import { rememberKey } from './keys'
 import { windowCommand, type CommandHandlers } from './registry'
 
@@ -111,20 +111,15 @@ export function useMenuEvent(
       }
     }
     window.addEventListener(pageEvent, show)
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    if (!DEVOT_UI_TEST) {
-      listenHere(tauriEvent, (event) =>
-        window.dispatchEvent(new CustomEvent(pageEvent, { detail: event.payload })),
-      )
-        .then((stop) => {
-          if (stopped) stop()
-          else unlisten = stop
-        })
-        .catch(() => console.warn('W_MENU_LISTEN_FAILED', tauriEvent))
-    }
+    const unlisten = DEVOT_UI_TEST
+      ? undefined
+      : unlistenLater(
+          listenHere(tauriEvent, (event) =>
+            window.dispatchEvent(new CustomEvent(pageEvent, { detail: event.payload })),
+          ),
+          () => console.warn('W_MENU_LISTEN_FAILED', tauriEvent),
+        )
     return () => {
-      stopped = true
       window.removeEventListener(pageEvent, show)
       unlisten?.()
     }

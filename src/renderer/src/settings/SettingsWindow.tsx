@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Icon } from '../icons/Icon'
 import { t } from '../i18n'
-import { listenHere } from '../windowEvents'
+import { listenHere, unlistenLater } from '../windowEvents'
 import { AiSection } from './AiSection'
 import { AppearanceSection } from './AppearanceSection'
 import { EditingSection } from './EditingSection'
@@ -120,20 +120,15 @@ export function SettingsWindow() {
       if (isPane(next)) latestShow.current(next)
     }
     window.addEventListener(SHOW_PANE, asked)
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    if (!DEVOT_UI_TEST) {
-      listenHere<unknown>(PANE_EVENT, (e) =>
-        window.dispatchEvent(new CustomEvent(SHOW_PANE, { detail: e.payload })),
-      )
-        .then((stop) => {
-          if (stopped) stop()
-          else unlisten = stop
-        })
-        .catch(() => console.warn('W_SETTINGS_LISTEN_FAILED'))
-    }
+    const unlisten = DEVOT_UI_TEST
+      ? undefined
+      : unlistenLater(
+          listenHere<unknown>(PANE_EVENT, (e) =>
+            window.dispatchEvent(new CustomEvent(SHOW_PANE, { detail: e.payload })),
+          ),
+          () => console.warn('W_SETTINGS_LISTEN_FAILED'),
+        )
     return () => {
-      stopped = true
       window.removeEventListener(SHOW_PANE, asked)
       unlisten?.()
     }
@@ -143,21 +138,12 @@ export function SettingsWindow() {
   // grey one says the window is behind another.
   useEffect(() => {
     if (DEVOT_UI_TEST) return
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    void import('@tauri-apps/api/window')
-      .then(({ getCurrentWindow }) =>
+    return unlistenLater(
+      import('@tauri-apps/api/window').then(({ getCurrentWindow }) =>
         getCurrentWindow().onFocusChanged(({ payload }) => setFocused(payload)),
-      )
-      .then((stop) => {
-        if (stopped) stop()
-        else unlisten = stop
-      })
-      .catch(() => console.warn('W_SETTINGS_FOCUS_FAILED'))
-    return () => {
-      stopped = true
-      unlisten?.()
-    }
+      ),
+      () => console.warn('W_SETTINGS_FOCUS_FAILED'),
+    )
   }, [])
 
   const results = searchSettings(query, t)
