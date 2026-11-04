@@ -1245,7 +1245,7 @@ title: Daily Report {{date}}
   'aiSettings.provider.openai': 'OpenAI-compatible',
   'aiSettings.endpoint': 'Endpoint',
   'aiSettings.endpointHint':
-    'Where requests go: an https address, or an http address for a server on this Mac. Leave empty for the default.',
+    'Where requests go: an https address, or an http address for a server on this Mac. Leave empty for the default. Moving to another server removes the stored key.',
   'aiSettings.model': 'Model',
   'aiSettings.modelHint': 'The model to ask. Leave empty for the default.',
   'aiSettings.modelRequiredHint': 'The name of the model to ask on this server.',

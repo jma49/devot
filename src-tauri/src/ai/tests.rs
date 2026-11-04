@@ -10,8 +10,8 @@ use serde_json::{Value, json};
 
 use super::keychain::{KeyStore, MemoryKeys};
 use super::provider::{GenerateRequest, Message, ProviderId, Role, Stop};
-use super::settings::{FILE, SettingsStore};
-use super::{Ai, KeyState};
+use super::settings::{AiSettings, FILE, SettingsStore};
+use super::{Ai, KeyState, Snapshot};
 use crate::licence::Gate;
 
 const KEY: &str = "test-key-0123456789";
@@ -620,4 +620,81 @@ fn the_key_is_never_written_to_the_settings_file() {
         let text = std::fs::read_to_string(entry.unwrap().path()).unwrap();
         assert!(!text.contains(KEY));
     }
+}
+
+fn endpoint_of(settings: &mut AiSettings, id: ProviderId) -> &mut String {
+    match id {
+        ProviderId::Anthropic => &mut settings.anthropic.endpoint,
+        ProviderId::Openai => &mut settings.openai.endpoint,
+    }
+}
+
+fn key_of(snapshot: &Snapshot, id: ProviderId) -> KeyState {
+    match id {
+        ProviderId::Anthropic => snapshot.anthropic.key,
+        ProviderId::Openai => snapshot.openai.key,
+    }
+}
+
+#[test]
+fn a_stored_key_never_goes_to_a_server_it_was_not_entered_for() {
+    for c in contracts() {
+        let mock = Mock::replying(200, (c.ok)("Hi").to_string());
+        let elsewhere = Mock::replying(200, (c.ok)("Hi").to_string());
+        let app = setup(c.id, &mock.base);
+        let other = match c.id {
+            ProviderId::Anthropic => ProviderId::Openai,
+            ProviderId::Openai => ProviderId::Anthropic,
+        };
+        app.keys.set(c.id, KEY).unwrap();
+        app.keys.set(other, KEY).unwrap();
+
+        let mut same_server = app.ai.settings.get();
+        *endpoint_of(&mut same_server, c.id) = format!("{}/v1/", mock.base);
+        let view = app.ai.set_settings(same_server).unwrap();
+        assert_eq!(key_of(&view, c.id), KeyState::Set, "{:?}", c.id);
+
+        let mut moved = app.ai.settings.get();
+        *endpoint_of(&mut moved, c.id) = elsewhere.base.clone();
+        let view = app.ai.set_settings(moved).unwrap();
+        assert_eq!(key_of(&view, c.id), KeyState::Unset, "{:?}", c.id);
+        assert_eq!(key_of(&view, other), KeyState::Set, "{:?}", c.id);
+        assert_eq!(app.ai.generate(&ask()).unwrap_err(), "E_AI_KEY_MISSING");
+        assert_eq!((elsewhere.hits(), mock.hits()), (0, 0));
+    }
+}
+
+struct StuckKeys;
+
+impl KeyStore for StuckKeys {
+    fn has(&self, _: ProviderId) -> Result<bool, &'static str> {
+        Ok(true)
+    }
+
+    fn get(&self, _: ProviderId) -> Result<Option<String>, &'static str> {
+        Ok(Some(KEY.to_string()))
+    }
+
+    fn set(&self, _: ProviderId, _: &str) -> Result<(), &'static str> {
+        Ok(())
+    }
+
+    fn clear(&self, _: ProviderId) -> Result<(), &'static str> {
+        Err("E_AI_KEYCHAIN_FAILED")
+    }
+}
+
+#[test]
+fn an_endpoint_does_not_move_while_its_key_cannot_be_removed() {
+    let dir = tempfile::tempdir().unwrap();
+    let ai = Ai::new(
+        SettingsStore::new(&dir.path().join(FILE)),
+        Arc::new(StuckKeys),
+        Gate::open(),
+    );
+    let before = ai.settings.get();
+    let mut moved = before.clone();
+    moved.anthropic.endpoint = "https://gateway.example.com".into();
+    assert_eq!(ai.set_settings(moved).unwrap_err(), "E_AI_KEYCHAIN_FAILED");
+    assert_eq!(ai.settings.get(), before);
 }

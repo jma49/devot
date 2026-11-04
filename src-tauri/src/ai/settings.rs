@@ -139,6 +139,13 @@ pub fn clean_endpoint(endpoint: &str) -> Result<String, &'static str> {
     Ok(url.as_str().trim_end_matches('/').to_string())
 }
 
+pub fn same_origin(a: &str, b: &str) -> bool {
+    match (Url::parse(a), Url::parse(b)) {
+        (Ok(a), Ok(b)) => a.origin() == b.origin(),
+        _ => false,
+    }
+}
+
 /// A model name as providers write them (`claude-sonnet-5-5`, `llama3.2:3b`, `vendor/model@2`); empty means the default.
 pub fn clean_model(model: &str) -> Result<String, &'static str> {
     let model = model.trim();
@@ -299,6 +306,21 @@ mod tests {
             "",
         ] {
             assert_eq!(clean_endpoint(bad), Err("E_AI_ENDPOINT_INVALID"), "{bad}");
+        }
+    }
+
+    #[test]
+    fn an_origin_is_its_scheme_host_and_port() {
+        let anthropic = "https://api.anthropic.com";
+        assert!(same_origin(anthropic, "https://api.anthropic.com:443/v1"));
+        for other in [
+            "http://api.anthropic.com",
+            "https://api.anthropic.com:8443",
+            "https://api.anthropic.com.evil.test",
+            "https://gateway.example.com",
+            "not a url",
+        ] {
+            assert!(!same_origin(anthropic, other), "{other}");
         }
     }
 

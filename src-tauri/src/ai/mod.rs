@@ -90,7 +90,18 @@ impl Ai {
         }
     }
 
+    /// A key is for the server it was entered for: an endpoint that moves to another origin takes its provider's key away first.
     pub fn set_settings(&self, settings: AiSettings) -> Result<Snapshot, &'static str> {
+        let settings = settings.validated()?;
+        let before = self.settings.get();
+        for id in ProviderId::ALL {
+            if !settings::same_origin(&before.of(id).endpoint, &settings.of(id).endpoint) {
+                match self.keys.clear(id) {
+                    Ok(()) | Err("E_AI_KEYCHAIN_UNAVAILABLE") => {}
+                    Err(code) => return Err(code),
+                }
+            }
+        }
         self.settings.set(settings)?;
         Ok(self.snapshot())
     }
