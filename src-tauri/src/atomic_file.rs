@@ -193,6 +193,15 @@ impl Folder {
         Ok(folder)
     }
 
+    /// Makes the names in it durable, a rename into it included. The handle may be open for
+    /// search only (`folder_flags`), so the folder is opened for reading to sync it; `sync_all`
+    /// is F_FULLFSYNC on macOS.
+    fn sync(&self) -> io::Result<()> {
+        let flags = OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC;
+        let fd = rustix::fs::openat(&*self.fd, ".", flags, Mode::empty())?;
+        File::from(fd).sync_all()
+    }
+
     pub fn folder(&self, name: impl AsRef<OsStr>) -> io::Result<Self> {
         let name = plain(name.as_ref())?;
         let flags = folder_flags() | OFlags::NOFOLLOW;
@@ -550,6 +559,11 @@ impl TempFile {
         }
         put(&self.folder, &self.name, into, plain(name)?, place)?;
         self.placed = true;
+        if flush {
+            // Best effort: the file is whole on disk already, and some volumes (FAT, network
+            // shares) refuse to sync a folder.
+            let _ = into.sync();
+        }
         Ok(())
     }
 }
@@ -647,13 +661,11 @@ impl TempDir {
         let own = self.open_own()?;
         own.read_file(name)?.sync_all()?;
         let (dir, to) = split(target)?;
-        put(
-            &own,
-            OsStr::new(name),
-            &Folder::open(dir)?,
-            plain(to)?,
-            place,
-        )
+        let into = Folder::open(dir)?;
+        put(&own, OsStr::new(name), &into, plain(to)?, place)?;
+        // Best effort, as for a flushed `TempFile`.
+        let _ = into.sync();
+        Ok(())
     }
 
     pub fn copy_to(&self, name: &str, into: &Folder, to: &str, place: Place) -> io::Result<()> {
@@ -729,6 +741,17 @@ mod tests {
             .collect();
         names.sort();
         names
+    }
+
+    #[test]
+    fn syncs_a_folder_it_opened_for_search_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = Folder::open(dir.path()).unwrap();
+        folder.sync().unwrap();
+        folder
+            .write("settings.json", b"{}", Place::Replace)
+            .unwrap();
+        assert_eq!(names(dir.path()), ["settings.json"]);
     }
 
     #[test]
