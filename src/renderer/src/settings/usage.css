@@ -32,6 +32,11 @@
 }
 .usage-filters > .select {
   margin-inline-start: auto;
+  max-width: 100%;
+}
+.usage-filters > .select > select {
+  width: 100%;
+  text-overflow: ellipsis;
 }
 .usage-card {
   background: var(--color-fill-settings-card);
@@ -242,6 +247,8 @@
 
 .usage-type-label {
   display: flex;
+  min-width: 0;
+  overflow-wrap: anywhere;
   gap: var(--space-6);
   align-items: center;
 }

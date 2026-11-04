@@ -22,6 +22,8 @@ const events = [
     properties: { scope: 'all', clauses: 1, results: '1' },
   },
   { id: 1, at: AT - 40 * 86400000, name: 'future.event', properties: {} },
+  // From another Devot version, with a name longer than the pane is wide.
+  { id: 0, at: AT - 41 * 86400000, name: `future.${'long'.repeat(60)}`, properties: {} },
 ]
 
 test.beforeEach(async ({ page }) => {
@@ -71,7 +73,7 @@ test('clearing removes the chart data and list and keeps the empty dashboard usa
 }) => {
   await page.getByRole('combobox', { name: 'Event type' }).selectOption('future.event')
   await page.getByRole('button', { name: 'Show Events', exact: true }).click()
-  await expect(page.locator('.usage-events li')).toHaveCount(4)
+  await expect(page.locator('.usage-events li')).toHaveCount(5)
   // From the keyboard: the button turns off (aria-disabled) and keeps the keyboard.
   const clear = page.getByRole('button', { name: 'Clear Usage Data\u2026' })
   await clear.focus()
