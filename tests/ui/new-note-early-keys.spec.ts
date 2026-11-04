@@ -49,6 +49,8 @@ test('Return, Backspace and Tab typed before a new note opens edit its body in o
   await page.keyboard.type('d')
   await expect(body(page)).toBeFocused()
   await expect.poll(() => storedNotes(page)).toEqual([{ title: '', bodyMd: 'Hello\nWorld' }])
+  await page.keyboard.type(' next')
+  await expect.poll(() => storedNotes(page)).toEqual([{ title: '', bodyMd: 'Hello\nWorld next' }])
 })
 
 test('a row clicked in the same tick as New Note leaves the keys typed to the new note', async ({

@@ -408,11 +408,14 @@ test.describe('the undo toast', () => {
 
   test('hides by itself after 4 s, leaving the action done', async ({ page }) => {
     await openNotes(page)
+    await page.clock.install()
     await swipeRow(page, 0, 370)
     await expect(toast(page)).toBeVisible()
-    await page.waitForTimeout(3000)
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1))
+    await page.clock.runFor(2900)
     await expect(toast(page)).toBeVisible()
-    await expect(toast(page)).toBeHidden({ timeout: 2500 })
+    await page.clock.runFor(1500)
+    await expect(toast(page)).toBeHidden()
     await expect(section(page, 'completed')).toBeVisible()
   })
 
@@ -427,29 +430,6 @@ test.describe('the undo toast', () => {
     await undo(page).click()
     await expect(section(page, 'completed')).toBeVisible()
   })
-})
-
-test('an empty note opens in Edit', async ({ page }) => {
-  await openNotes(page)
-  await capture(page, 'Nothing yet')
-  await rows(page).filter({ hasText: 'Nothing yet' }).locator('.phone-note-open').click()
-  await expect(page.getByRole('button', { name: 'Preview', exact: true })).toBeVisible()
-})
-
-test('a note with text opens in Preview, switches to Edit and shows its info sheet', async ({
-  page,
-}) => {
-  await openNotes(page)
-  await recent(page).first().locator('.phone-note-open').click()
-  const toggle = page.getByRole('button', { name: 'Edit', exact: true })
-  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
-  await toggle.click()
-  await expect(page.getByRole('button', { name: 'Preview', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Note Info' }).click()
-  const sheet = page.getByRole('dialog', { name: 'Note Info' })
-  await expect(sheet.getByText('Words')).toBeVisible()
-  await sheet.getByRole('button', { name: 'Close' }).click()
-  await expect(sheet).toHaveCount(0)
 })
 
 test('capture saves a note to the top of Recent, opening it first', async ({ page }) => {

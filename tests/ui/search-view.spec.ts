@@ -82,6 +82,14 @@ test('Shift+Cmd+F searches the current view; Shift+Opt+Cmd+F searches every note
   await expect(search(page)).toHaveValue('')
   await expect(header(page)).toHaveText('Work')
   await expect(search(page)).toHaveAttribute('placeholder', 'Search')
+
+  await page.keyboard.press('Meta+Alt+Shift+KeyF')
+  await expect(search(page)).toBeFocused()
+  await page.keyboard.type('nothing matches this')
+  await expect(noteRows(page)).toHaveCount(0)
+  await showAllNotes(page)
+  await expect(search(page)).toHaveValue('')
+  await expect(noteRows(page)).toHaveCount(2)
 })
 
 test('searching a filter narrows within it', async ({ page }) => {

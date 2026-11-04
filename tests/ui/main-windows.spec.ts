@@ -71,8 +71,6 @@ async function openSecondWindow(context: BrowserContext, label = 'main-2') {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
   await openApp(page)
 })
 
@@ -164,8 +162,14 @@ test('windows settle: once nobody types, nothing is written any more', async ({
   await expect(body(page)).toContainText('Start. More.')
   const written = () => page.evaluate(() => localStorage.getItem('devot.test.notes'))
   await expect.poll(written).toContain('Start. More.')
-  // The lists reload 400 ms after the news, and the news waits 250 ms: a second is ample.
-  await page.waitForTimeout(1500)
+  // The lists reload 400 ms after the news, and the news waits 250 ms: 700 ms without a write is settled.
+  await expect
+    .poll(async () => {
+      const before = await written()
+      await page.waitForTimeout(700)
+      return before === (await written())
+    })
+    .toBe(true)
   const settled = await written()
   await page.waitForTimeout(1500)
   expect(await written()).toBe(settled)

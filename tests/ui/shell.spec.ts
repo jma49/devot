@@ -148,7 +148,7 @@ test('icons are SF Symbols, cached per name, size and appearance', async ({ page
   expect((await requests()).filter((r) => r === 'square.and.pencil@14')).toHaveLength(2)
 })
 
-test('the note list selection is the same accent wash with the keyboard and without, and has no bar', async ({
+test('the note list selection is the same accent wash with the keyboard and without, and has no bar; the sidebar selection is neutral', async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: 'light' })
@@ -159,10 +159,18 @@ test('the note list selection is the same accent wash with the keyboard and with
   const rows = page.getByRole('listbox', { name: 'Notes' })
   const beta = rows.getByRole('option', { name: /Beta/ })
   const alphaRow = rows.getByRole('option', { name: /Alpha/ })
+  const allNotes = page
+    .getByRole('navigation', { name: 'Sidebar' })
+    .getByRole('button', { name: /^All Notes/ })
   await expect(beta).toHaveAttribute('aria-selected', 'true')
+  await expect(allNotes).toHaveAttribute('aria-current', 'true')
+  await expect(page.getByRole('textbox', { name: 'Title' })).toBeFocused()
 
   expect(alpha(await css(beta, 'background-color'))).toBeCloseTo(0.2, 2)
   const wash = await css(beta, 'background-color')
+  const neutral = await css(allNotes, 'background-color')
+  expect(neutral).not.toBe('rgba(0, 0, 0, 0)')
+  expect(wash).not.toBe(neutral)
   expect(await css(beta, 'box-shadow')).toBe('none')
   const text = await css(beta, 'color')
 
@@ -172,6 +180,7 @@ test('the note list selection is the same accent wash with the keyboard and with
   expect(await css(beta, 'box-shadow')).toBe('none')
   expect(await css(beta, 'color')).toBe(text)
   expect(await css(alphaRow, 'box-shadow')).toBe('none')
+  await expect.poll(() => css(allNotes, 'background-color')).toBe(neutral)
 
   await page.keyboard.press('ArrowDown')
   await expect(alphaRow).toHaveAttribute('aria-selected', 'true')
@@ -179,6 +188,11 @@ test('the note list selection is the same accent wash with the keyboard and with
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Alpha')
   await page.keyboard.press('ArrowUp')
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Beta')
+
+  await allNotes.focus()
+  await expect.poll(() => css(allNotes, 'background-color')).toBe(neutral)
+  await expect(allNotes).toHaveCSS('box-shadow', 'none')
+  await expect.poll(() => css(beta, 'background-color')).toBe(wash)
 })
 
 test('coded console warnings reach the local log without other arguments', async ({ page }) => {

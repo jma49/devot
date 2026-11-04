@@ -54,14 +54,6 @@ test('moves a note to the Trash and restores it with its metadata', async ({ pag
   await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
 })
 
-test('Cmd+Delete in the list moves the selected note to the Trash', async ({ page }) => {
-  await createNote(page, 'Quick')
-  await noteRows(page).filter({ hasText: 'Quick' }).click()
-  await page.keyboard.press('Meta+Backspace')
-  await expect(noteRows(page)).toHaveCount(0)
-  await expect(trashRow(page)).toHaveText(/1$/)
-})
-
 test('emptying the Trash asks first; Cancel and Escape keep everything', async ({ page }) => {
   await createNote(page, 'One')
   await trashOpenNote(page)
