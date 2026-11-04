@@ -453,6 +453,7 @@ export const coreApi = {
   },
   syncReceived: (event: SyncEvent) => sync?.received(event),
   syncTouch: () => sync?.touch(),
+  syncAfterRestore: (choice: 'merge' | 'keep') => sync?.afterRestore(choice),
 }
 
 export type CoreApi = typeof coreApi

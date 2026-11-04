@@ -1120,6 +1120,8 @@ title: Daily Report {{date}}
     'Sync has stopped ({code}). In Settings > Sync, turn Sync This Device off and on to try again, or set this device up again.',
   'sync.notice.stoppedAdvice': 'Sync has stopped ({code}). {advice}',
   'sync.advice.protocol': 'Update Devot and your relay to the same release.',
+  'sync.advice.restoreChoice':
+    'A backup was restored here: choose in the main window whether to merge or keep this Mac\u2019s copy.',
   'sync.advice.circuit':
     'A note kept changing back and forth between devices. Turn Sync This Device off and on in Settings > Sync to try again.',
   'sync.notice.storageFull':
@@ -1455,6 +1457,11 @@ title: Daily Report {{date}}
   'backups.restore': 'Restore\u2026',
   'backups.restoreLabel': 'Restore the backup from {date}',
   'backups.unverified': 'Unverified copy',
+  'sync.restore.message': 'Sync the notes restored from a backup?',
+  'sync.restore.detail':
+    'Merge brings back the changes your other devices made since the backup. Keep This Mac\u2019s Copy makes the restored notes replace them on every device. Notes deleted for good on another device can\u2019t come back either way.',
+  'sync.restore.merge': 'Merge',
+  'sync.restore.keep': 'Keep This Mac\u2019s Copy',
   'backups.confirmRestore': 'Restore the backup from {date}?',
   'backups.confirmRestoreDetail':
     'Your current notes will be replaced. Devot backs them up first, so you can go back to them.',

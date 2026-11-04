@@ -37,6 +37,8 @@ const CHECK_EVERY: Duration = Duration::from_secs(3600);
 pub const FAILED_EVENT: &str = "devot://backup-failed";
 pub const PREPARE_EVENT: &str = "devot://restore-prepare";
 pub const DONE_EVENT: &str = "devot://restore-done";
+/// The `sync_state` key a restore sets; the engine's `RESTORED_AT`.
+const RESTORED_AT: &str = "restoredAt";
 /// A window that has not stopped by then calls the restore off.
 const PREPARE_TIMEOUT: Duration = Duration::from_secs(5);
 const PREPARE_POLL: Duration = Duration::from_millis(50);
@@ -591,7 +593,10 @@ impl Backups {
             }
         }
         db.write(storage::Write::Content, move |store| {
-            store.restore_from(&source)
+            store.restore_from(&source)?;
+            // Read by the sync engine when sync is next turned on: it asks whether this copy
+            // wins over other devices' later changes (src/core/sync/engine.ts, #515).
+            store.sync_set_state(RESTORED_AT, &now.to_string())
         })
         .await
         .map_err(|e| {
@@ -1057,6 +1062,9 @@ mod tests {
 
         let copy = list(&backups.dir).remove(0);
         assert_eq!((copy.kind, copy.verified), (Kind::RawSafety, false));
+        let state = block_on(db.call(|store| store.sync_state())).unwrap();
+        let marker = (RESTORED_AT.to_string(), (NOW + 2 * HOUR).to_string());
+        assert!(state.contains(&marker), "{state:?}");
         assert_eq!(std::fs::read(backups.dir.join(&copy.id)).unwrap(), damaged);
         assert!(backups.dir.join(format!("{}-wal", copy.id)).exists());
         assert!(block_on(db.call(|store| store.integrity_ok())).unwrap());

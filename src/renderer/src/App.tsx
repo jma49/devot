@@ -64,6 +64,7 @@ import { BackupNotice } from './BackupNotice'
 import { SyncNotice } from './SyncNotice'
 import { ActivationBar, TrialEndedBar, TrialReminder } from './TrialNotices'
 import { runSync, runsSync, startSyncStatus, useSyncSnapshot } from './sync'
+import { RestoreSyncChoice } from './RestoreSyncChoice'
 import { licenceEntitlements, startLicence, useEditing } from './licence'
 import { useLicenceLink } from './LicenceLink'
 import { Notices } from './Notices'
@@ -4459,6 +4460,12 @@ export function App() {
       ) : null}
       {backupsOpen ? (
         <BackupsDialog onRestore={restore} onClose={closeBackups} readOnly={!editing} />
+      ) : null}
+      {core && runsSync(label) ? (
+        <RestoreSyncChoice
+          snapshot={syncSnapshot}
+          onChoose={(choice) => core.syncAfterRestore(choice)}
+        />
       ) : null}
       <Notices>
         <ActivationBar />

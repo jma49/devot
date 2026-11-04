@@ -11,11 +11,14 @@
 // again. Revoked, unknown or refused devices stop until the user acts; the relay's quota cap pauses
 // pushes until its next 00:00 UTC; anything else retries with backoff and jitter.
 
+import * as Y from 'yjs'
+import { textEdits } from '../diff'
 import { errorCode } from '../errors'
 import { fileLinks } from '../files'
 import { receiveStored, type Clock } from '../hlc'
 import { clipTitle } from '../noteLimits'
 import { isNotebookIcon } from '../notebookIcons'
+import { BODY } from '../notes'
 import { MERGE, REVISION_EVERY_MS, textLength } from '../revisions'
 import { countWords } from '../words'
 import { quotaResetAt } from './protocol'
@@ -36,6 +39,7 @@ import {
   mergeRecord,
   stampsOf,
   bodyFacts,
+  textOf,
   tombstone,
   tombstoneFile,
   type BookState,
@@ -53,6 +57,7 @@ import {
   type SyncLocal,
   type SyncStore,
 } from './store'
+import { RESTORE_CHOICE, RESTORED_AT } from './restore'
 import { STORAGE_FULL, type PulledRecord, type SyncEvent, type SyncTransport } from './transport'
 
 export const PUSH_IDLE_MS = 3_000
@@ -81,6 +86,8 @@ const WRITE_TRIES = 5
 const UPLOAD_TOTAL = 'uploadTotal'
 /** The build that skipped a record it could not read, in `sync_state`; a different build pulls everything again. */
 const SKIPPED_BY = 'skippedBy'
+/** After Keep: the HLC of the choice, until the first full pull after it; '' otherwise. */
+const KEEP_BEFORE = 'keepRestoredBefore'
 
 export type SyncState = 'off' | 'connecting' | 'syncing' | 'idle' | 'offline' | 'paused' | 'stopped'
 
@@ -163,6 +170,13 @@ export interface SyncEngine {
   syncNow(): Promise<void>
   /** Resolves once no task is running or queued. */
   idle(): Promise<void>
+  /**
+   * After a backup was restored (`RESTORE_CHOICE`): `merge` syncs as usual, so the other devices'
+   * later changes come back; `keep` gives every record here fresh clocks and puts this device's
+   * text back over bodies changed elsewhere before the choice, so the restored notes win. A note
+   * another device purged stays purged either way.
+   */
+  afterRestore(choice: 'merge' | 'keep'): Promise<void>
   /** Internal, for tests: how many records the push breaker still holds times for. */
   pushesRemembered(): number
 }
@@ -374,6 +388,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   /** A record this build could not read came in during the current pull. */
   let unreadable = false
   const pushTimes = new Map<string, number[]>()
+  /** `KEEP_BEFORE` during a pull. */
+  let keepBefore = ''
   /** Attachment ID to why it stays local: the relay refused it (or cannot hold it), or it would be refused as a larger one was. */
   const unsynced = new Map<string, { print: string; code: string }>()
   /** Whether the relay said (in its welcome) that it holds attachments within a share. */
@@ -466,6 +482,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   async function connect(again = false) {
     if (connected) return syncAll()
     if (status.state === 'stopped' && !again) return
+    if (await waitsForRestoreChoice()) return
     set({ state: 'connecting' })
     const welcome = await transport.connect()
     relayOffset = welcome.time - now()
@@ -498,6 +515,92 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     await syncAll()
   }
 
+  /** A library that never synced has nothing later to bring back, so nobody is asked. */
+  async function waitsForRestoreChoice() {
+    const state = await sync.syncState()
+    if (!state[RESTORED_AT]) return false
+    if (!(Number(state['since']) > 0)) {
+      await sync.syncSetState(RESTORED_AT, '')
+      return false
+    }
+    set({ state: 'stopped', code: RESTORE_CHOICE })
+    return true
+  }
+
+  /** Every field of every live record gets a new HLC, so it wins each merge; bodies are put back as they are pulled (`keptBody`). */
+  async function keepRestored() {
+    const tick = () => clock.tick()
+    const notes = [...(await storage.listNotes()), ...(await storage.listTrash())].map((n) => n.id)
+    for (let at = 0; at < notes.length; at += MAX_SYNC_IDS) {
+      for (const row of await sync.syncRead(notes.slice(at, at + MAX_SYNC_IDS))) {
+        if (!row.note || row.note.purged) continue
+        const note = row.note.note
+        await storage.putNote({
+          ...note,
+          titleHlc: tick(),
+          bookHlc: tick(),
+          statusHlc: tick(),
+          pinnedHlc: tick(),
+          datesHlc: tick(),
+          deletedHlc: tick(),
+        })
+        for (const tag of row.note.tags) await storage.putNoteTag({ ...tag, hlc: tick() })
+      }
+    }
+    // A key never given stays unset (books.ts `unkeyed`).
+    const keyed = (sortKey: string) => (sortKey === '' ? {} : { sortKeyHlc: tick() })
+    for (const book of await storage.listBooks()) {
+      await storage.putBook({
+        ...book,
+        nameHlc: tick(),
+        parentHlc: tick(),
+        iconHlc: tick(),
+        ...keyed(book.sortKey),
+        deletedHlc: tick(),
+      })
+    }
+    for (const tag of await storage.listTags()) {
+      await storage.putTag({ ...tag, nameHlc: tick(), colorHlc: tick(), deletedHlc: tick() })
+    }
+    for (const search of await storage.listSavedSearches()) {
+      await storage.putSavedSearch({
+        ...search,
+        nameHlc: tick(),
+        queryHlc: tick(),
+        ...keyed(search.sortKey),
+        deletedHlc: tick(),
+      })
+    }
+    await sync.syncSetState(KEEP_BEFORE, tick())
+    if (notes.length > 0) options.onApplied?.(notes)
+  }
+
+  /** After Keep: a body another device changed before the choice is edited back to this device's text, on top of both, so every device ends with it. */
+  function keptBody(mine: SyncRecord | null, remote: SyncRecord, merged: MergedNote): MergedNote {
+    const record = merged.record
+    if (keepBefore === '' || mine?.kind !== 'note' || mine.purged) return merged
+    if (remote.kind !== 'note' || remote.bodyHlc > keepBefore) return merged
+    if (record.kind !== 'note' || record.purged) return merged
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, record.ydoc)
+    const text = doc.getText(BODY)
+    const edits = textEdits(text.toString(), textOf(mine.ydoc))
+    if (edits.length === 0) return merged
+    doc.transact(() => {
+      for (const edit of edits.reverse()) {
+        if (edit.end > edit.start) text.delete(edit.start, edit.end - edit.start)
+        if (edit.text) text.insert(edit.start, edit.text)
+      }
+    })
+    return {
+      record: { ...record, ydoc: Y.encodeStateAsUpdate(doc), bodyHlc: clock.tick() },
+      localNews: true,
+      remoteNews: true,
+      bodyChanged: false,
+      bothEdited: false,
+    }
+  }
+
   async function syncAll() {
     set({ state: 'syncing' })
     await pullAll()
@@ -513,6 +616,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
   async function pullAll() {
     const state = await sync.syncState()
+    keepBefore = state[KEEP_BEFORE] ?? ''
     let since = Number(state['since'] ?? '0') || 0
     let skippedBy = state[SKIPPED_BY] ?? ''
     const build = options.build
@@ -541,7 +645,11 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       const advanced = page.next > since
       since = Math.max(since, page.next)
       await sync.syncSetState('since', String(since))
-      if (!page.more || !advanced) return
+      if (!page.more || !advanced) break
+    }
+    if (keepBefore !== '') {
+      keepBefore = ''
+      await sync.syncSetState(KEEP_BEFORE, '')
     }
   }
 
@@ -606,7 +714,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       return false
     }
     const merged = mine
-      ? mergeRecord(mine, remote)
+      ? keptBody(mine, remote, mergeRecord(mine, remote) as MergedNote)
       : { record: remote, localNews: false, remoteNews: !('purged' in remote && remote.purged) }
     if (merged.remoteNews) await write(local, merged.record, merged as MergedNote, remote)
     if (merged.remoteNews && mine?.kind === 'tag' && merged.record.kind === 'tag') {
@@ -1006,6 +1114,14 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       void failed(new Error(event.code))
     },
     status: () => status,
+    afterRestore: (choice) =>
+      enqueue(async () => {
+        if (!(await sync.syncState())[RESTORED_AT]) return
+        if (choice === 'keep') await keepRestored()
+        await sync.syncSetState(RESTORED_AT, '')
+        set({ code: null })
+        await connect(true)
+      }).catch(() => undefined),
     pushesRemembered: () => pushTimes.size,
     syncNow: () => enqueue(() => connect()).catch(() => undefined),
     async idle() {
