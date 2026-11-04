@@ -25,7 +25,7 @@ import { noteWindowLabel, relayLink } from '../noteRelay'
 import { Notices } from '../Notices'
 import { LivePreview } from '../preview/Preview'
 import { SaveNotice } from '../SaveNotice'
-import { createQuitGuard, newProblems } from '../saving'
+import { saveEdits, useSaveAtTrialEnd, useSaveOnHide, useSaveProblems } from '../saveGuards'
 import { textStore } from '../textStore'
 import { useEditorSetting } from '../editorSettings'
 import { OutlinePanel, lineStore } from '../outline/OutlinePanel'
@@ -36,8 +36,6 @@ import { ActivationBar, TrialEndedBar } from '../TrialNotices'
 
 export const CLOSE_EVENT = 'devot:note-window-close'
 export const FLUSH_EVENT = 'devot:flush-before-exit'
-
-const saveEdits = (core: Core) => core.flush().catch(() => {})
 
 /** Hears what Rust asks of this window: the global quit, and the close of this window alone. */
 function listenAsked(onClose: () => void, onQuit: () => void): () => void {
@@ -90,42 +88,24 @@ export function NoteWindow() {
   const outlineRoom = useOutlineRoom(panesRef, mode, noteId)
   const outlineShown = outlineSetting && outlineRoom
   const [viewing, setViewing] = useState<ViewedImage | null>(null)
-  const [problems, setProblems] = useState<SaveProblem[]>([])
-  const problemsRef = useRef<SaveProblem[]>([])
-  const [dismissed, setDismissed] = useState(false)
   const [held, setHeld] = useState<'quit' | 'close' | undefined>()
   // The note went to the Trash, or was purged, while this window showed it: read-only from then on.
   const [gone, setGone] = useState<'trashed' | 'purged'>()
   const editing = useEditing()
   useEffect(() => startLicence(), [])
-  // The trial ended with the note open: what was typed is saved as the window turns read-only.
-  const wasEditing = useRef(editing)
-  useEffect(() => {
-    if (wasEditing.current && !editing && core)
-      void core.flush({ versions: true }).catch(() => console.warn('W_TRIAL_END_SAVE_FAILED'))
-    wasEditing.current = editing
-  }, [editing, core])
-  const [quitGuard] = useState(createQuitGuard)
-  const [closeGuard] = useState(createQuitGuard)
+  useSaveAtTrialEnd(editing, core)
   const showAlertMenu = useAlertMenu()
   const setImageSize = useCallback<SetImageSize>((source, size) => {
     editorRef.current?.setImageSize(source, size)
   }, [])
   const showImageMenu = useImageMenu(setImageSize)
 
-  const onSaveProblems = useCallback(
-    (next: SaveProblem[]) => {
-      const fresh = newProblems(problemsRef.current, next)
-      problemsRef.current = next
-      for (const problem of fresh) console.warn('W_NOTE_SAVE_FAILED', problem.id, problem.code)
-      if (fresh.length > 0) setDismissed(false)
-      quitGuard.update(next)
-      closeGuard.update(next)
-      if (next.length === 0) setHeld(undefined)
-      setProblems(next)
-    },
-    [quitGuard, closeGuard],
-  )
+  const { problems, noticeShown, setDismissed, quitGuard, closeGuard, onSaveProblems } =
+    useSaveProblems(
+      useCallback((_previous: readonly SaveProblem[], next: SaveProblem[]) => {
+        if (next.length === 0) setHeld(undefined)
+      }, []),
+    )
 
   const takeIn = useCallback((change: TakenIn) => {
     if (change.kind === 'title') return setTitle(change.title)
@@ -183,16 +163,7 @@ export function NoteWindow() {
 
   useEffect(() => nameWindow(title || t('note.untitled')), [title])
 
-  useEffect(() => {
-    if (!core) return
-    const flush = () => void saveEdits(core)
-    window.addEventListener('pagehide', flush)
-    document.addEventListener('visibilitychange', flush)
-    return () => {
-      window.removeEventListener('pagehide', flush)
-      document.removeEventListener('visibilitychange', flush)
-    }
-  }, [core])
+  useSaveOnHide(core)
 
   // Heard from the start: Rust waits for an answer to every close and quit, and a window still
   // opening, or one that could not open its note, has nothing of its own to save.
@@ -221,7 +192,7 @@ export function NoteWindow() {
           return invoke('app_exit_cancel')
         }),
     )
-  }, [quitGuard, closeGuard])
+  }, [quitGuard, closeGuard, setDismissed])
 
   useEffect(
     () =>
@@ -388,7 +359,7 @@ export function NoteWindow() {
           </div>
         ) : null}
         <ImageActionNotice />
-        {problems.length > 0 && !dismissed ? (
+        {noticeShown ? (
           <SaveNotice
             problems={problems}
             quitHeld={held === 'quit'}

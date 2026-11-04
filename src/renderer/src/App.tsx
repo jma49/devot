@@ -87,7 +87,7 @@ import {
 import { ExportNotice, failureOf, type ExportFailure } from './ExportNotice'
 import { SaveNotice } from './SaveNotice'
 import { isImeKey } from './ime'
-import { createQuitGuard, newProblems } from './saving'
+import { saveEdits, useSaveAtTrialEnd, useSaveOnHide, useSaveProblems } from './saveGuards'
 import { BackupsDialog } from './BackupsDialog'
 import { BookPicker, bookOptions, currentBookOption, NO_BOOK } from './BookPicker'
 import { useContextMenu, type MenuPoint } from './contextMenu'
@@ -356,9 +356,6 @@ const LAST_STATE_SAVE_MS = 400
 const LISTS_WROTE_MS = 250
 const LISTS_RELOAD_MS = 400
 const CLOSE_EVENT = 'devot:note-window-close'
-
-/** Flushes pending edits; a failed save stays in the core (which retries and reports it), so the caller goes on. */
-const saveEdits = (core: Core) => core.flush().catch(() => {})
 
 function SidebarToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) {
   // Re-render on keymap changes: the tooltip names the key in effect.
@@ -635,15 +632,9 @@ export function App() {
     action: 'print' | 'exportPdf'
     id: string
   }>()
-  // Notes the core could not save yet (saving.ts). Their notice shows unless dismissed since the last new failure; the first quit after a failure is held.
-  const [saveProblems, setSaveProblems] = useState<SaveProblem[]>([])
-  const [saveNoticeDismissed, setSaveNoticeDismissed] = useState(false)
+  // The first quit or close after a save failure is held (saving.ts, useSaveProblems).
   const [quitHeld, setQuitHeld] = useState(false)
-  const saveProblemsRef = useRef<SaveProblem[]>([])
-  const quitGuard = useMemo(() => createQuitGuard(), [])
-  const closeGuard = useMemo(() => createQuitGuard(), [])
   const [closeHeld, setCloseHeld] = useState(false)
-  const saveNoticeShown = saveProblems.length > 0 && !saveNoticeDismissed
   const importJobs = useRef<ImportJob[]>([])
   const [importJob, setImportJob] = useState<ImportJob>()
   const [importKey, setImportKey] = useState(0)
@@ -776,27 +767,28 @@ export function App() {
     })
   }, [])
 
-  /** The core's unsaved notes: each new failure is logged by code and brings the notice back; once a note saves, the lists show what is stored. */
-  const onSaveProblems = useCallback(
-    (next: SaveProblem[]) => {
-      const previous = saveProblemsRef.current
-      saveProblemsRef.current = next
-      const fresh = newProblems(previous, next)
-      for (const problem of fresh) console.warn('W_NOTE_SAVE_FAILED', problem.id, problem.code)
-      if (fresh.length > 0) setSaveNoticeDismissed(false)
-      quitGuard.update(next)
-      closeGuard.update(next)
-      if (next.length === 0) {
-        setQuitHeld(false)
-        setCloseHeld(false)
-      }
-      setSaveProblems(next)
-      const c = coreRef.current
-      if (c && previous.some((p) => !next.some((n) => n.id === p.id))) {
-        void refresh(c).catch(() => {})
-      }
-    },
-    [quitGuard, closeGuard, refresh],
+  // Notes the core could not save yet: once a note saves, the lists show what is stored.
+  const {
+    problems: saveProblems,
+    noticeShown: saveNoticeShown,
+    setDismissed: setSaveNoticeDismissed,
+    quitGuard,
+    closeGuard,
+    onSaveProblems,
+  } = useSaveProblems(
+    useCallback(
+      (previous: readonly SaveProblem[], next: SaveProblem[]) => {
+        if (next.length === 0) {
+          setQuitHeld(false)
+          setCloseHeld(false)
+        }
+        const c = coreRef.current
+        if (c && previous.some((p) => !next.some((n) => n.id === p.id))) {
+          void refresh(c).catch(() => {})
+        }
+      },
+      [refresh],
+    ),
   )
 
   // Callbacks that outlive a render (finished import, New Notebook) change view through the latest rules (`showLibrary`).
@@ -1726,11 +1718,9 @@ export function App() {
     [core, reloadAgentWrites],
   )
 
+  useSaveOnHide(core)
   useEffect(() => {
     if (!core) return
-    const flush = () => void saveEdits(core)
-    window.addEventListener('pagehide', flush)
-    document.addEventListener('visibilitychange', flush)
     // Quitting: Rust holds the exit, asks us to save, and exits on our reply.
     // When a note could not be saved, the first such quit is called off
     // instead: the window stays with the changes and the notice says so
@@ -1782,24 +1772,13 @@ export function App() {
     }
     return () => {
       stopped = true
-      window.removeEventListener('pagehide', flush)
-      document.removeEventListener('visibilitychange', flush)
       unlisten?.()
       unlistenCancel?.()
       unlistenIdle?.()
     }
-  }, [core, quitGuard, markShownSeen])
+  }, [core, quitGuard, markShownSeen, setSaveNoticeDismissed])
 
-  // The trial ended with notes open: what was typed is saved (Rust still takes a note's text for a
-  // few minutes) as the window turns read-only.
-  const wasEditing = useRef(editing)
-  useEffect(() => {
-    if (wasEditing.current && !editing && core) {
-      saveNow.current?.()
-      void core.flush({ versions: true }).catch(() => console.warn('W_TRIAL_END_SAVE_FAILED'))
-    }
-    wasEditing.current = editing
-  }, [editing, core])
+  useSaveAtTrialEnd(editing, core, () => saveNow.current?.())
 
   // A window File > New Window opened closes after saving, as a note window does (main_windows.rs): Rust holds the close and asks. As for a quit, the first close whose save fails is called off, and the notice says so.
   useEffect(() => {
@@ -1831,7 +1810,7 @@ export function App() {
       window.removeEventListener(CLOSE_EVENT, closed)
       unlisten?.()
     }
-  }, [primary, closeGuard, markShownSeen])
+  }, [primary, closeGuard, markShownSeen, setSaveNoticeDismissed])
 
   // The other main windows wrote to the library: this one loads its lists and the notes it holds again, as for a change from another process.
   useEffect(() => {
