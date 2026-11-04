@@ -80,6 +80,14 @@ jobs:
           green=$(jq -r --arg head "$head" \
             'any(.workflow_runs[]; .head_sha == $head and .event == "pull_request" and .conclusion == "success")' \
             <<< "$runs")
+          # A merge through the merge queue was tested as this very commit.
+          queued=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=merge_group&per_page=100")
+          if jq -e --arg sha "$sha" \
+            'any(.workflow_runs[]; .head_sha == $sha and .event == "merge_group" and .conclusion == "success")' \
+            <<< "$queued" > /dev/null; then
+            head_tree=$merge_tree
+            green=true
+          fi
           node scripts/release/release.ts ci-gate "$pr" "$merge_tree" "$head_tree" "$green" || {
             echo "::error::CI has not passed on pull request #$pr's head ($head), or its tree differs from the tag."
             exit 1

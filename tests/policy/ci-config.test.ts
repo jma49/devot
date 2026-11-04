@@ -288,19 +288,40 @@ it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI_BUILD', 'UI'])(
   },
 )
 
-it('CI runs on every pull request, main push and manual run, with no label gate', () => {
+it('CI runs on every pull request, merge queue entry, main push and manual run, with no label gate', () => {
   const trigger = workflow.slice(0, workflow.indexOf('\njobs:'))
   expect(trigger).toMatch(/^ {2}pull_request:\n {4}types: \[opened, synchronize, reopened\]$/m)
+  expect(trigger).toMatch(/^ {2}merge_group:\n {4}types: \[checks_requested\]$/m)
   expect(trigger).toMatch(/^ {2}push:\n {4}branches: \[main\]$/m)
   expect(trigger).toMatch(/^ {2}workflow_dispatch:/m)
   expect(workflow).not.toMatch(/labels?\b/)
   // The first job decides what runs; a condition on it would skip every job, and a skipped required check reads as passing.
   expect(job('changes')).not.toMatch(/^ {4}if:/m)
-  const concurrency = /concurrency:\n((?: {2}.*\n)+)/.exec(workflow)?.[1] ?? ''
-  expect(concurrency).toContain(
-    "group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}\n",
+  // Only a pull request runs a subset: a merge queue entry tests everything, as main will be.
+  expect(job('changes')).toContain('if [ "$EVENT" = pull_request ]; then')
+})
+
+it('a newer push supersedes a pull request or main run, and a merge queue entry is never cancelled', () => {
+  const { concurrency } = parse(workflow) as {
+    concurrency: { group: string; 'cancel-in-progress': string }
+  }
+  expect(concurrency.group).toContain("format('pr-{0}', github.event.pull_request.number)")
+  expect(concurrency.group).toContain("github.event_name == 'push' && 'main'")
+  expect(concurrency.group).toContain("github.event_name == 'merge_group' && github.ref")
+  expect(concurrency['cancel-in-progress']).toBe(
+    "${{ github.event_name == 'pull_request' || github.event_name == 'push' }}",
   )
-  expect(concurrency).toContain("cancel-in-progress: ${{ github.event_name == 'pull_request' }}")
+})
+
+it('the title check reports in the merge queue, where it has no title to read', () => {
+  const titles = parse(read('.github/workflows/pr-title.yml')) as {
+    on: Record<string, { types: string[] }>
+    jobs: { title: { steps: { if?: string }[] } }
+  }
+  expect(titles.on['merge_group']?.types).toEqual(['checks_requested'])
+  expect(
+    titles.jobs.title.steps.every((step) => step.if === "github.event_name == 'pull_request'"),
+  ).toBe(true)
 })
 
 // Stand-in for lefthook's glob matcher (gobwas): `**` crosses folders, `*` does not, `/**/` needs a folder, `{a,b}` is either.

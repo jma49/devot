@@ -72,6 +72,9 @@ describe('the release workflow', () => {
     expect(gate).toContain('conclusion == "success"')
     expect(gate).toContain('event=pull_request')
     expect(gate).toContain('.event == "pull_request"')
+    expect(gate).toContain('event=merge_group&per_page=100')
+    expect(gate).toMatch(/head_sha=\$sha&event=merge_group/)
+    expect(gate).toContain('.event == "merge_group"')
     expect(workflow.indexOf('- name: Check the merged pull request passed CI')).toBeLessThan(
       workflow.indexOf('- name: Build'),
     )

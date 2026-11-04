@@ -1,8 +1,9 @@
 name: CI
 
-# CI runs on every pull request, every push to main, or when started by hand.
-# A new push to a pull request cancels its previous run. Pushes to main never
-# cancel one another: every main commit gets its own full run.
+# CI runs on every pull request, every merge queue entry, every push to main,
+# or when started by hand. A new push to a pull request cancels its previous
+# run, and a newer main commit cancels main's: the merge queue's full run on
+# each entry is the result a release relies on.
 #
 # A pull request runs only the jobs its files need (scripts/ci/changed-code.sh):
 # documentation-only changes skip the expensive jobs, the icon sources, the
@@ -28,15 +29,24 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  # The merge queue tests each queued pull request merged onto main, as the
+  # commit main will become; the release gate accepts that run.
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [main]
   workflow_dispatch:
 
 concurrency:
-  # Pull requests supersede their previous run. Main commits get a unique group,
-  # so every commit that can be released has a complete CI result.
-  group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # A pull request's new push supersedes its previous run, and a newer main
+  # commit supersedes main's: merges in a burst run once, on the last. A merge
+  # queue entry is never cancelled here: the queue removes entries itself.
+  group: >-
+    ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number)
+    || github.event_name == 'push' && 'main'
+    || github.event_name == 'merge_group' && github.ref
+    || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 permissions:
   contents: read

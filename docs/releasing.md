@@ -17,12 +17,12 @@ Releases are stable from 1.0.0 on; a beta is an optional preview of the next ver
 
 Release only when both are true:
 
-1. CI is green on the head commit of the pull request that was merged. CI runs on pull requests only, not on `main`.
-2. The tree of `main` equals the tree of that head commit (`git diff --quiet <head commit> origin/main`), so the build is of exactly what CI checked.
+1. CI checked exactly the tagged commit's tree: either the merge queue's run on that merge commit passed (the usual way, since pull requests merge through the queue), or CI is green on the head commit of the pull request that was merged and the tree of `main` equals that head's tree (`git diff --quiet <head commit> origin/main`).
+2. The tag is a merged pull request's merge commit on `main`.
 
-The release workflow checks both before it builds: the tag must be a merged pull request's merge commit, the merge tree must equal that pull request head's tree, and CI must have a successful run for that head. It fails with `E_RELEASE_NO_MERGED_PR`, `E_RELEASE_TREE_MISMATCH` or `E_RELEASE_CI_NOT_GREEN` otherwise, so a release cannot be made from a commit CI never checked.
+The release workflow checks this before it builds. It fails with `E_RELEASE_NO_MERGED_PR`, `E_RELEASE_TREE_MISMATCH` or `E_RELEASE_CI_NOT_GREEN` otherwise, so a release cannot be made from a commit CI never checked.
 
-A pull request whose branch is behind `main` when it merges fails the second condition: its merge commit also holds what `main` gained meanwhile. Bring the branch up to date with `main` before merging a pull request you mean to release, or release from the next pull request cut from the new `main`.
+A pull request merged outside the queue whose branch was behind `main` fails the tree check: its merge commit also holds what `main` gained meanwhile. Merge through the queue, or bring the branch up to date with `main` before merging a pull request you mean to release.
 
 ## Release
 
