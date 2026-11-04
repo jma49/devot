@@ -1306,9 +1306,11 @@ export function codeBlockCommand(state: EditorState): TransactionSpec | null {
   const tr = toggleCodeBlock(state)
   const { ranges, main } = state.selection
   if (!tr || ranges.length > 1 || !main.empty) return tr
-  const after = state.update(tr).state
-  const cursor = after.selection.main
-  const { doc } = after
+  // The new document and selection, without the new state: that would update every state field,
+  // and the Format menu asks this of each pause in typing (formatKeys.ts).
+  const after = state.update(tr)
+  const cursor = after.newSelection.main
+  const doc = after.newDoc
   const line = doc.lineAt(cursor.head)
   if (line.number < 2 || line.number >= doc.lines) return tr
   const above = doc.line(line.number - 1)
