@@ -5,14 +5,17 @@
 import { syntaxTree } from '@codemirror/language'
 import {
   EditorSelection,
+  type ChangeDesc,
   type EditorState,
   type SelectionRange,
   type Text,
+  type Transaction,
   type TransactionSpec,
 } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { videoEmbedUrl } from '../../../../core/preview/builtins'
 import { findImages } from '../images'
+import type { Span } from './changes'
 import { writeFocus } from './focus'
 
 export type WriteBlockKind = 'image' | 'math' | 'diagram' | 'embed'
@@ -54,24 +57,100 @@ export function imageEntry(image: { from: number; text: string }): number {
   return image.from + (altEnd > 0 ? altEnd : 2)
 }
 
-const cache = new WeakMap<Text, { tree: Tree; blocks: WriteBlock[] }>()
+interface Scan {
+  tree: Tree
+  blocks: WriteBlock[]
+  /** The start of a `$$` line no fence closes: nothing after it is a block. */
+  unclosed: number | null
+}
+
+const cache = new WeakMap<Text, Scan>()
 
 /** Every rendered block of the note, in order; only blocks at the top level, outside lists and quotes. */
 export function writeBlocksOf(state: EditorState, tree = syntaxTree(state)): readonly WriteBlock[] {
   const known = cache.get(state.doc)
   if (known?.tree === tree) return known.blocks
-  const blocks = scan(state, tree)
-  cache.set(state.doc, { tree, blocks })
+  const blocks: WriteBlock[] = []
+  const { unclosed } = scan(state, tree, 0, () => false, blocks)
+  cache.set(state.doc, { tree, blocks, unclosed })
   return blocks
 }
 
 /**
- * The block of the top level that holds a position, for positions asked in
- * increasing order: one pass over the top level, however many are asked.
+ * Keeps the blocks of a step's start for its end, read again only over
+ * `changed` (sorted spans of the new note, whole lines, from `changedSpans`)
+ * and as far past it as a block read there reaches. Returns the spans read
+ * again, past `changed` too where fences pair anew; null when the start's
+ * blocks were never read: they are read whole when asked for.
  */
-function topLevel(tree: Tree): (pos: number) => SyntaxNode | null {
+export function carryWriteBlocks(tr: Transaction, changed: readonly Span[]): Span[] | null {
+  const { state } = tr
+  const tree = syntaxTree(state)
+  if (cache.get(state.doc)?.tree === tree) return []
+  const before = cache.get(tr.startState.doc)
+  if (before?.tree !== syntaxTree(tr.startState)) return null
+  const read: Span[] = []
+  cache.set(state.doc, carry(before, state, tree, tr.changes, changed, read))
+  return read
+}
+
+function moved(block: WriteBlock, changes: ChangeDesc): WriteBlock {
+  if (changes.empty) return block
+  const from = changes.mapPos(block.from, -1)
+  const to = changes.mapPos(block.to, 1)
+  if (from === block.from && to === block.to) return block
+  return { ...block, from, to, entry: changes.mapPos(block.entry) }
+}
+
+function carry(
+  before: Scan,
+  state: EditorState,
+  tree: Tree,
+  changes: ChangeDesc,
+  changed: readonly Span[],
+  read: Span[],
+): Scan {
+  const old = before.blocks.map((b) => moved(b, changes))
+  let unclosed = before.unclosed === null ? null : changes.mapPos(before.unclosed, -1)
+  const out: WriteBlock[] = []
+  let k = 0
+  let r = 0
+  while (r < changed.length) {
+    let [from, limit] = changed[r++]!
+    while (k < old.length && old[k]!.to < from) out.push(old[k++]!)
+    if (k < old.length && old[k]!.from < from) from = old[k]!.from
+    if (unclosed !== null && unclosed <= limit) {
+      from = Math.min(from, unclosed)
+      limit = Infinity
+    }
+    // Reading stops at a line past the change that no old block takes: from
+    // there on, the old blocks are what reading on would find.
+    let stopped = 0
+    const stop = (pos: number) => {
+      while (k < old.length && old[k]!.from < pos) limit = Math.max(limit, old[k++]!.to)
+      if (unclosed !== null && unclosed < pos) limit = Infinity
+      while (r < changed.length && changed[r]![0] <= limit)
+        limit = Math.max(limit, changed[r++]![1])
+      stopped = pos
+      return pos > limit
+    }
+    const result = scan(state, tree, from, stop, out)
+    read.push([from, result.end ? state.doc.length : stopped - 1])
+    if (result.unclosed !== null) return { tree, blocks: out, unclosed: result.unclosed }
+    if (result.end) {
+      unclosed = null
+      k = old.length
+      break
+    }
+  }
+  while (k < old.length) out.push(old[k++]!)
+  return { tree, blocks: out, unclosed }
+}
+
+/** The top-level node at a position, for positions asked in increasing order from `from`. */
+function topLevel(tree: Tree, from: number): (pos: number) => SyntaxNode | null {
   const cursor = tree.cursor()
-  let more = cursor.firstChild()
+  let more = cursor.childAfter(from)
   return (pos) => {
     while (more && cursor.to <= pos) more = cursor.nextSibling()
     return more && cursor.from <= pos ? cursor.node : null
@@ -81,100 +160,118 @@ function topLevel(tree: Tree): (pos: number) => SyntaxNode | null {
 const CANDIDATE = /^ {0,3}(?:\$\$|```|~~~|<|https:\/\/|!\[)/
 
 /**
- * Reads the text line by line and asks the syntax tree only on lines that may
- * start a block (as images.ts does), which stays cheap on long notes.
+ * Reads the text line by line from the line at `from` and asks the syntax
+ * tree only on lines that may start a block (as images.ts does), which stays
+ * cheap on long notes. Stops before a line, outside every block, at whose
+ * start `stop` says so; `end` is whether it read to the end of the note.
  */
-function scan(state: EditorState, tree: Tree): WriteBlock[] {
+function scan(
+  state: EditorState,
+  tree: Tree,
+  from: number,
+  stop: (pos: number) => boolean,
+  out: WriteBlock[],
+): { unclosed: number | null; end: boolean } {
   const doc = state.doc
-  const out: WriteBlock[] = []
-  const lines: { from: number; text: string }[] = []
-  let line = { from: 0, text: '' }
-  for (const iter = doc.iter(); !iter.next().done;) {
-    if (iter.lineBreak) {
-      lines.push(line)
-      line = { from: line.from + line.text.length + 1, text: '' }
-    } else line.text += iter.value
+  const first = doc.lineAt(from)
+  const lines = doc.iterLines(first.number)
+  let pos = first.from
+  let text = ''
+  let started = false
+  const advance = (): boolean => {
+    if (started) pos += text.length + 1
+    started = true
+    if (lines.next().done) return false
+    text = lines.value
+    return true
   }
-  lines.push(line)
-  const topAt = topLevel(tree)
-  const lineEnd = (i: number) => lines[i]!.from + lines[i]!.text.length
-  const block = (kind: WriteBlockKind, first: number, last: number, entry: number) => {
-    const from = lines[first]!.from
-    const to = lineEnd(last)
-    out.push({ kind, from, to, entry, source: doc.sliceString(from, to) })
+  const topAt = topLevel(tree, pos)
+  const block = (kind: WriteBlockKind, start: number, end: number, entry: number) => {
+    out.push({ kind, from: start, to: end, entry, source: doc.sliceString(start, end) })
   }
-  for (let i = 0; i < lines.length; i++) {
-    const { from, text } = lines[i]!
+  const skipTo = (end: number): boolean => {
+    while (pos + text.length < end) if (!advance()) return false
+    return true
+  }
+  while (advance()) {
+    if (stop(pos)) return { unclosed: null, end: false }
     if (!CANDIDATE.test(text)) continue
-    const start = from + text.length - text.trimStart().length
+    const start = pos + text.length - text.trimStart().length
     const node = topAt(start)
     if (!node) continue
-    if (node.name === 'FencedCode') {
-      if (node.from === start) fence(node, i)
-      i = Math.max(i, doc.lineAt(node.to).number - 1)
-      continue
-    }
-    if (node.name === 'HTMLBlock') {
-      if (node.from === start) html(node, i)
-      i = Math.max(i, doc.lineAt(node.to).number - 1)
+    if (node.name === 'FencedCode' || node.name === 'HTMLBlock') {
+      if (node.from === start) (node.name === 'FencedCode' ? fence : html)(node)
+      if (!skipTo(node.to)) break
       continue
     }
     if (node.name !== 'Paragraph') continue
-    const single = node.from === start && node.to <= lineEnd(i)
+    const lineEnd = pos + text.length
+    const single = node.from === start && node.to <= lineEnd
     // A math fence starts a block inside a paragraph too, as the preview reads it.
     if (MATH_FENCE.test(text)) {
-      let close = i + 1
-      while (close < lines.length && !MATH_FENCE.test(lines[close]!.text)) close++
-      if (close === lines.length) return out
-      block('math', i, close, lineEnd(close - i >= 2 ? i + 1 : i))
-      i = close
+      const open = pos
+      let entry = lineEnd
+      let inside = 0
+      let closed = false
+      while (advance()) {
+        if (MATH_FENCE.test(text)) {
+          closed = true
+          break
+        }
+        if (++inside === 1) entry = pos + text.length
+      }
+      if (!closed) return { unclosed: open, end: true }
+      block('math', open, pos + text.length, inside >= 1 ? entry : lineEnd)
       continue
     }
     if (single && isMathLine(text)) {
-      block('math', i, i, lineEnd(i) - 2)
+      block('math', pos, lineEnd, lineEnd - 2)
       continue
     }
     const url = single ? EMBED_URL.exec(text)?.[1] : undefined
     if (url && videoEmbedUrl(url)) {
-      block('embed', i, i, lineEnd(i) - 1)
+      block('embed', pos, lineEnd, lineEnd - 1)
       continue
     }
-    if (text.includes('![')) imageLine(i)
+    if (text.includes('![')) imageLine()
   }
-  return out
+  return { unclosed: null, end: true }
 
-  function fence(node: SyntaxNode, i: number) {
+  function fence(node: SyntaxNode) {
     const info = node.getChild('CodeInfo')
     const lang = info
       ? doc.sliceString(info.from, info.to).trim().split(/\s/)[0]?.toLowerCase()
       : ''
     const kind = lang === 'mermaid' ? 'diagram' : lang === 'math' ? 'math' : null
-    const last = doc.lineAt(node.to).number - 1
+    const last = doc.lineAt(node.to)
     // An unclosed fence runs to the end of the note: it stays source while it is being written.
-    if (!kind || node.getChildren('CodeMark').length < 2 || last === i) return
-    block(kind, i, last, lineEnd(last - i >= 2 ? i + 1 : i))
+    if (!kind || node.getChildren('CodeMark').length < 2 || last.from === pos) return
+    const entry =
+      last.number - doc.lineAt(pos).number >= 2
+        ? doc.lineAt(pos + text.length + 1).to
+        : pos + text.length
+    block(kind, pos, last.to, entry)
   }
 
-  function imageLine(i: number) {
-    const from = lines[i]!.from
-    const to = lineEnd(i)
-    const images = findImages(state, from, to)
+  function imageLine() {
+    const end = pos + text.length
+    const images = findImages(state, pos, end)
     if (images.length === 0) return
-    let rest = lines[i]!.text
+    let rest = text
     for (let n = images.length - 1; n >= 0; n--) {
       const image = images[n]!
-      if (image.from < from || image.to > to) return
+      if (image.from < pos || image.to > end) return
       if (image.fileId === null && !IMAGE_SHOWN.test(image.url)) return
-      rest = rest.slice(0, image.from - from) + rest.slice(image.to - from)
+      rest = rest.slice(0, image.from - pos) + rest.slice(image.to - pos)
     }
     if (rest.trim() !== '') return
-    block('image', i, i, imageEntry(images[0]!))
+    block('image', pos, end, imageEntry(images[0]!))
   }
 
-  function html(node: SyntaxNode, i: number) {
-    const last = doc.lineAt(node.to).number - 1
-    if (!IFRAME.test(doc.sliceString(lines[i]!.from, lineEnd(last)))) return
-    block('embed', i, last, lineEnd(last) - 1)
+  function html(node: SyntaxNode) {
+    const last = doc.lineAt(node.to)
+    if (!IFRAME.test(doc.sliceString(pos, last.to))) return
+    block('embed', pos, last.to, last.to - 1)
   }
 }
 

@@ -7,9 +7,11 @@
 import { syntaxTree } from '@codemirror/language'
 import {
   Facet,
+  MapMode,
   StateEffect,
   StateField,
   type EditorState,
+  type Text,
   type TransactionSpec,
 } from '@codemirror/state'
 import {
@@ -64,36 +66,73 @@ function imageNodeAt(state: EditorState, pos: number): { from: number; to: numbe
   return null
 }
 
-export function findImages(state: EditorState, from = 0, to = state.doc.length): EditorImage[] {
-  const out: EditorImage[] = []
-  // The document's own line strings, without copying them: cheap on long notes.
+/** Where `![` starts between `from` and `to`, read line by line from the document's own strings. */
+function imageStarts(doc: Text, from: number, to: number): number[] {
+  const out: number[] = []
   let pos = from
-  for (const lines = state.doc.iterRange(from, to); !lines.next().done;) {
+  for (const lines = doc.iterRange(from, to); !lines.next().done;) {
     const chunk = lines.value
     if (!lines.lineBreak) {
-      for (let at = chunk.indexOf('!['); at >= 0; at = chunk.indexOf('![', at + 2)) {
-        const node = imageNodeAt(state, pos + at)
-        if (!node) continue
-        const text = state.sliceDoc(node.from, node.to)
-        const image = parseImageMarkdown(text)
-        if (!image) continue
-        out.push({
-          from: node.from,
-          to: node.to,
-          text,
-          alt: image.alt,
-          url: image.url,
-          fileId: attachmentId(image.url),
-          size: image.size,
-          dimensions: image.dimensions,
-          sizable: image.sizable,
-        })
-      }
+      for (let at = chunk.indexOf('!['); at >= 0; at = chunk.indexOf('![', at + 2))
+        out.push(pos + at)
     }
     pos += chunk.length
   }
   return out
 }
+
+function imageFrom(state: EditorState, start: number): EditorImage | null {
+  const node = imageNodeAt(state, start)
+  if (!node) return null
+  const text = state.sliceDoc(node.from, node.to)
+  const image = parseImageMarkdown(text)
+  if (!image) return null
+  return {
+    from: node.from,
+    to: node.to,
+    text,
+    alt: image.alt,
+    url: image.url,
+    fileId: attachmentId(image.url),
+    size: image.size,
+    dimensions: image.dimensions,
+    sizable: image.sizable,
+  }
+}
+
+const imagesFrom = (state: EditorState, starts: readonly number[]): EditorImage[] =>
+  starts.flatMap((start) => imageFrom(state, start) ?? [])
+
+export function findImages(state: EditorState, from = 0, to = state.doc.length): EditorImage[] {
+  return imagesFrom(state, imageStarts(state.doc, from, to))
+}
+
+const MAX_SEPARATE_CHANGES = 50
+
+/**
+ * Where `![` starts in the note, moved through each edit with only the changed lines read again,
+ * so the previews follow a keystroke without reading the whole note.
+ */
+const imageStartsField = StateField.define<readonly number[]>({
+  create: (state) => imageStarts(state.doc, 0, state.doc.length),
+  update(starts, tr) {
+    if (!tr.docChanged) return starts
+    const { doc } = tr.state
+    const lines: { from: number; to: number }[] = []
+    tr.changes.iterChangedRanges((_fromA, _toA, from, to) => {
+      const span = { from: doc.lineAt(from).from, to: doc.lineAt(to).to }
+      const last = lines.at(-1)
+      if (last && span.from <= last.to) last.to = Math.max(last.to, span.to)
+      else lines.push(span)
+    })
+    if (lines.length > MAX_SEPARATE_CHANGES) return imageStarts(doc, 0, doc.length)
+    const kept = starts.flatMap((start) => {
+      const at = tr.changes.mapPos(start, 1, MapMode.TrackDel)
+      return at === null || lines.some((l) => at >= l.from && at <= l.to) ? [] : [at]
+    })
+    return [...kept, ...lines.flatMap((l) => imageStarts(doc, l.from, l.to))].sort((a, b) => a - b)
+  },
+})
 
 export function imageAt(state: EditorState, pos: number): EditorImage | null {
   const line = state.doc.lineAt(pos)
@@ -176,7 +215,8 @@ export interface ImageLine {
 
 export function imageLines(state: EditorState): ImageLine[] {
   const byLine = new Map<number, EditorImage[]>()
-  for (const image of findImages(state)) {
+  const starts = state.field(imageStartsField, false)
+  for (const image of starts ? imagesFrom(state, starts) : findImages(state)) {
     if (!shows(image)) continue
     const at = state.doc.lineAt(image.to).to
     const images = byLine.get(at)
@@ -333,7 +373,7 @@ export const inlineImageField = StateField.define<DecorationSet>({
     tr.effects.some((effect) => effect.is(imageHostsLoaded))
       ? decorations(tr.state)
       : value,
-  provide: (field) => EditorView.decorations.from(field),
+  provide: (field) => [imageStartsField, EditorView.decorations.from(field)],
 })
 
 /** A site loaded here or in the preview shows its images in this editor too. */

@@ -56,6 +56,8 @@ import {
   seedWelcome,
 } from '../../core'
 import { errorCode } from '../../core/errors'
+import { noteCounts } from '../../core/noteCounts'
+import { createLivePreviewRenderer } from '../../core/preview/live'
 import { createSyncEngine, type SyncEngine, type SyncStatus } from '../../core/sync/engine'
 import type { SyncEvent } from '../../core/sync/transport'
 import { preparerOffThread } from './importWorker'
@@ -119,6 +121,13 @@ const required = () => {
   if (!service) throw new Error('E_CORE_NOT_READY')
   return service
 }
+
+const livePreview = createLivePreviewRenderer({
+  renderPieces: (markdown, options, known) =>
+    pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
+  linkTargets: (ids) => required().linkTargets(ids),
+  onTargetsFailed: () => console.warn('W_LINK_TARGETS_FAILED'),
+})
 
 const requiredTags = () => {
   if (!tags) throw new Error('E_CORE_NOT_READY')
@@ -396,9 +405,20 @@ export const coreApi = {
       sink,
     }),
   renderPreview: (markdown: string, options: PreviewOptions) => renderPreview(markdown, options),
+  noteCounts: (markdown: string) => noteCounts(markdown),
   /** The open note's preview in pieces; `known` are the keys of the pieces the page shows. */
   renderPreviewPieces: (markdown: string, options: PreviewOptions, known: string[]) =>
     pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
+  /**
+   * The open note's live preview: its pieces with the note's linked notes in, and its task
+   * progress and line count. Link targets are asked again when `scope` or the links change.
+   */
+  renderLivePreview: (
+    markdown: string,
+    options: Omit<PreviewOptions, 'noteLinks'>,
+    known: string[],
+    scope: string,
+  ) => livePreview(markdown, options, known, scope),
   /** Plugins' preview renderers (ADR 0005); `render` asks the page, which asks the plugin. Pieces rendered before render again. */
   setPluginRenderers: (specs: PluginRendererSpec[], render: RenderPluginBlock) => {
     // The page sends `render` as a proxy; the one before is let go so its port closes.

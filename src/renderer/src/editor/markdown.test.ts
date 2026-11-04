@@ -1,8 +1,14 @@
 import { markdownLanguage } from '@codemirror/lang-markdown'
-import { LanguageDescription, ensureSyntaxTree, syntaxTree } from '@codemirror/language'
+import { Language, LanguageDescription, ensureSyntaxTree, syntaxTree } from '@codemirror/language'
 import { languages } from '@codemirror/language-data'
 import { EditorState } from '@codemirror/state'
-import { TreeFragment, type ChangedRange, type PartialParse, type Tree } from '@lezer/common'
+import {
+  NodeProp,
+  TreeFragment,
+  type ChangedRange,
+  type PartialParse,
+  type Tree,
+} from '@lezer/common'
 import { highlightTree, tags } from '@lezer/highlight'
 import { MarkdownParser } from '@lezer/markdown'
 import { describe, expect, it } from 'vitest'
@@ -10,6 +16,7 @@ import { frontMatter } from '../../../core/import'
 import { light } from '../theme/tokens'
 import {
   FRONT_MATTER,
+  fenceLanguage,
   frontMatterTags,
   markupTags,
   noteHighlightStyle,
@@ -333,5 +340,54 @@ describe('Markdown source highlighting', () => {
     const at = classes(doc)
     expect(has(at[doc.indexOf('const')], tags.keyword)).toBe(true)
     expect(has(at[doc.indexOf('"s"')], tags.string)).toBe(true)
+  })
+})
+
+describe('fence languages', () => {
+  it('finds a fence language as CodeMirror does, with one placeholder while it loads', async () => {
+    const java = LanguageDescription.matchLanguageName(languages, 'java')
+    const loading = fenceLanguage('java')
+    expect(loading).toBeInstanceOf(Language)
+    expect(fenceLanguage('Java')).toBe(loading)
+    await java?.load()
+    for (const info of ['java', 'JAVA', 'nope', 'x-java'])
+      expect(fenceLanguage(info)).toBe(LanguageDescription.matchLanguageName(languages, info, true))
+  })
+
+  it('parses a fence again on a keystroke elsewhere only while it shows and its language loads', async () => {
+    const fence = '```cpp\nint a = 1;\n```\n'
+    const doc = `${fence}\n${'A line of prose.\n\n'.repeat(400)}${fence}`
+    const near = doc.indexOf('int')
+    const far = doc.lastIndexOf('int')
+    const mounted = (state: EditorState, pos: number) => {
+      let node = syntaxTree(state).resolveInner(pos, 1)
+      while (node.name !== 'FencedCode' && node.parent) node = node.parent
+      return node.tree?.prop(NodeProp.mounted)
+    }
+    const parsed = (state: EditorState) => {
+      ensureSyntaxTree(state, state.doc.length, 1e9)
+      return state.update({}).state
+    }
+    const typed = (state: EditorState) =>
+      state.update({ changes: { from: doc.indexOf('prose'), insert: 'x' } }).state
+    let state = parsed(EditorState.create({ doc, extensions: [noteMarkdown] }))
+    const nearBefore = mounted(state, near)
+    const farBefore = mounted(state, far)
+    expect(farBefore).toBeDefined()
+    state = typed(state)
+    expect(mounted(state, near)).not.toBe(nearBefore)
+    expect(mounted(state, far)).toBe(farBefore)
+
+    await LanguageDescription.matchLanguageName(languages, 'cpp')?.load()
+    state = typed(state)
+    const spans: string[] = []
+    highlightTree(
+      syntaxTree(state),
+      noteHighlightStyle,
+      (_f, _t, cls) => spans.push(cls),
+      near,
+      near + 3,
+    )
+    expect(spans).not.toEqual([])
   })
 })

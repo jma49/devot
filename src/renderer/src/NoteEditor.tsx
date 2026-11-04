@@ -321,7 +321,8 @@ interface Props {
   hidden: boolean
   /** Write mode: the marks of the lines without the caret hidden. */
   write?: boolean
-  onText: (text: string) => void
+  /** The body changed: `read` gives it, so only a reader that shows it pays for it. */
+  onText: (read: () => string) => void
   /** Once this editor has its note's body; never for an editor being left, unlike `onText`, which then reports an empty body. */
   onLoaded?: (text: string) => void
   links: LinkSources
@@ -638,7 +639,7 @@ export function NoteEditor({
         view?.destroy()
         editor.current = null
         box.current = null
-        report.current('')
+        report.current(() => '')
       })
     }
   }, [])
@@ -680,7 +681,8 @@ export function NoteEditor({
       Y.applyUpdate(doc, state, REMOTE)
       doc.on('update', forward)
       const text = doc.getText(BODY)
-      const reportText = () => report.current(text.toString())
+      const readText = () => text.toString()
+      const reportText = () => report.current(readText)
       text.observe(reportText)
       // True while a restored version is applied: an undo step of its own,
       // where every other change from the Yjs document is none (editor/undo.ts).
@@ -816,6 +818,7 @@ export function NoteEditor({
             countsReporter(
               (counts) => countsReport.current?.(counts),
               () => countsReport.current !== undefined,
+              (markdown) => core.noteCounts(markdown),
             ),
             EditorView.updateListener.of((update) => {
               if (!update.selectionSet && !update.docChanged) return

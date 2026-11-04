@@ -19,6 +19,7 @@ import {
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { textDiff } from '../../../../core/text'
 import { parseAlign, printTable, splitRow, type Align } from '../table'
+import { firstReaching, type Span as Lines } from './changes'
 
 /** A cell: the source between its pipes, and its text in it without the padding. */
 export interface TableCell {
@@ -61,19 +62,70 @@ const cache = new WeakMap<Text, { tree: Tree; tables: WriteTable[] }>()
 export function writeTablesOf(state: EditorState, tree = syntaxTree(state)): readonly WriteTable[] {
   const known = cache.get(state.doc)
   if (known?.tree === tree) return known.tables
+  const tables = tablesIn(state.doc, tree, 0, state.doc.length)
+  cache.set(state.doc, { tree, tables })
+  return tables
+}
+
+/** The tables whose nodes meet `from`..`to`. */
+function tablesIn(doc: Text, tree: Tree, from: number, to: number): WriteTable[] {
   const tables: WriteTable[] = []
   tree.iterate({
+    from,
+    to,
     enter: (ref) => {
       if (ref.name === 'Table') {
-        const table = read(state.doc, ref.node)
+        const table = read(doc, ref.node)
         if (table) tables.push(table)
         return false
       }
       return CONTAINERS.has(ref.name)
     },
   })
-  cache.set(state.doc, { tree, tables })
   return tables
+}
+
+/**
+ * Keeps the tables of a step's start for its end, read again only over
+ * `changed` (sorted spans of the new note, whole lines, from `changedSpans`).
+ * Returns the spans read again; null when the start's tables were never
+ * read: they are read whole when asked for.
+ */
+export function carryWriteTables(tr: Transaction, changed: readonly Lines[]): Lines[] | null {
+  const { state } = tr
+  const tree = syntaxTree(state)
+  if (cache.get(state.doc)?.tree === tree) return []
+  const before = cache.get(tr.startState.doc)
+  if (before?.tree !== syntaxTree(tr.startState)) return null
+  const reread: Lines[] = []
+  const old = before.tables.map((t) => movedTable(t, tr.changes))
+  const tables: WriteTable[] = []
+  let k = 0
+  for (let r = 0; r < changed.length;) {
+    let [from, to] = changed[r++]!
+    while (k < old.length && old[k]!.to < from) tables.push(old[k++]!)
+    let found: WriteTable[] = []
+    for (let grew = true; grew;) {
+      grew = false
+      for (; k < old.length && old[k]!.from <= to; k++) {
+        from = Math.min(from, old[k]!.from)
+        to = Math.max(to, old[k]!.to)
+      }
+      while (r < changed.length && changed[r]![0] <= to) to = Math.max(to, changed[r++]![1])
+      found = tablesIn(state.doc, tree, from, to)
+      for (const table of found) {
+        if (table.from >= from && table.to <= to) continue
+        from = Math.min(from, table.from)
+        to = Math.max(to, table.to)
+        grew = true
+      }
+    }
+    tables.push(...found)
+    reread.push([from, to])
+  }
+  while (k < old.length) tables.push(old[k++]!)
+  cache.set(state.doc, { tree, tables })
+  return reread
 }
 
 function read(doc: Text, node: SyntaxNode): WriteTable | null {
@@ -317,6 +369,22 @@ export function cellEdit(raw: string, caret: number | null): { text: string; off
   return { text: source.slice(lead, Math.max(end, at)), offset: at - lead }
 }
 
+/** The tables, in order, that a change meets, or comes within `margin` of. */
+export function tablesTouched(
+  tables: readonly WriteTable[],
+  changes: ChangeDesc,
+  margin = 0,
+): WriteTable[] {
+  const out: WriteTable[] = []
+  let next = 0
+  changes.iterChangedRanges((fromA, toA) => {
+    let i = Math.max(next, firstReaching(tables, fromA - margin))
+    for (; i < tables.length && tables[i]!.from - margin <= toA; i++) out.push(tables[i]!)
+    next = Math.max(next, i)
+  })
+  return out
+}
+
 /** Every change of `changes` that touches `table` lies inside one of its cells. */
 function editsCells(changes: ChangeSet, table: WriteTable): 'none' | 'cells' | 'other' {
   const cells = rowLines(table).flatMap((line) => line.cells)
@@ -327,6 +395,28 @@ function editsCells(changes: ChangeSet, table: WriteTable): 'none' | 'cells' | '
     result = inside ? 'cells' : 'other'
   })
   return result
+}
+
+function movedTable(table: WriteTable, changes: ChangeDesc): WriteTable {
+  if (changes.touchesRange(table.from, table.to)) return mapTable(table, changes)
+  const by = changes.mapPos(table.from) - table.from
+  if (by === 0) return table
+  return {
+    from: table.from + by,
+    to: table.to + by,
+    align: table.align,
+    lines: table.lines.map((line) => ({
+      ...line,
+      from: line.from + by,
+      to: line.to + by,
+      cells: line.cells.map((c) => ({
+        from: c.from + by,
+        to: c.to + by,
+        textFrom: c.textFrom + by,
+        textTo: c.textTo + by,
+      })),
+    })),
+  }
 }
 
 function mapTable(table: WriteTable, changes: ChangeDesc): WriteTable {
@@ -386,7 +476,7 @@ export function formatAfter(tr: Transaction): TransactionSpec | null {
   /** The caret's line start in `doc`, and where it goes in the printed line. */
   let placed: { from: number; column: number } | null = null
   const composed = start.field(composedTables, false) ?? null
-  for (const table of composed ?? writeTablesOf(start)) {
+  for (const table of composed ?? tablesTouched(writeTablesOf(start), tr.changes)) {
     const edits = editsCells(tr.changes, table)
     if (composed ? edits === 'other' : !shownTable(start, table) || edits !== 'cells') continue
     if (table.lines.some((line) => line.extra)) continue

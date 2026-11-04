@@ -2,8 +2,8 @@
 // by ID, so renaming a note never breaks them. The link index (the `links`
 // table) holds, for every note, the notes its Markdown links to: every
 // `devot://note/<UUIDv7>` in the body, wherever it appears. Migration 0007
-// backfills with the same rule.
-import type { NoteQuery, NoteSummary, StorageAdapter } from './storage'
+// backfills with the same rule. Backlinks are read from it.
+import type { NoteSummary, StorageAdapter } from './storage'
 import { TEMPLATES_BOOK_ID } from './templatesBook'
 
 export const MAX_NOTE_LINKS = 10_000
@@ -37,19 +37,10 @@ export const noteLink = (title: string, id: string): string =>
 
 export const MAX_BACKLINKS = 200
 
-export function backlinkQuery(id: string): NoteQuery {
-  return {
-    text: [{ field: 'body', value: noteUri(id), negate: false }],
-    sets: [{ kind: 'book', ids: [TEMPLATES_BOOK_ID], negate: true }],
-    pinned: null,
-  }
-}
-
-/** Live notes only (never the Trash or Templates), the note itself left out. */
-export async function findBacklinks(
-  storage: Pick<StorageAdapter, 'searchNotes'>,
+/** Live notes only (never the Trash or Templates), the note itself left out, most recently updated first. */
+export function findBacklinks(
+  storage: Pick<StorageAdapter, 'listBacklinks'>,
   id: string,
 ): Promise<NoteSummary[]> {
-  const found = await storage.searchNotes(backlinkQuery(id), MAX_BACKLINKS + 1)
-  return found.filter((note) => note.id !== id).slice(0, MAX_BACKLINKS)
+  return storage.listBacklinks(id, TEMPLATES_BOOK_ID, MAX_BACKLINKS)
 }

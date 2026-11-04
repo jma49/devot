@@ -25,14 +25,11 @@ export function parseHlc(text: string): Hlc {
   return { wall, counter: parseInt(match[2]!, 16), node: match[3]! }
 }
 
+/** As parseHlc reads it, without throwing: stores hold many empty stamps, and every list read checks them all (receiveStored). */
 export function isHlcText(text: unknown): text is string {
   if (typeof text !== 'string') return false
-  try {
-    parseHlc(text)
-    return true
-  } catch {
-    return false
-  }
+  const match = HLC.exec(text)
+  return match !== null && Number(match[1]) <= MAX_WALL
 }
 
 export const compareHlc = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)

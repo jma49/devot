@@ -4,8 +4,9 @@
 // keys (all `devot.test.*`) is in the bundle (scripts/sentry/ui.ts). It
 // merges records per field by HLC and compares body versions before it
 // writes, like the SQLite stores, and refuses the notes the app's note_put
-// refuses. It keeps no link index: nothing in the UI reads one yet. A note
-// a test stored without a body version is at version 0.
+// refuses. It keeps no link index: backlinks read the links in the stored
+// bodies (`noteLinks`), as the index holds them. A note a test stored
+// without a body version is at version 0.
 // A UI test makes note writes fail (a full disk, say) by putting an error
 // code in `devot.test.failNoteWrites`, makes writes slow with a number of
 // milliseconds in `devot.test.delayNoteWrites` (notes) or
@@ -27,6 +28,7 @@ import type {
   TagRecord,
 } from '../../../core'
 import { checkUpload, fileUri, type FileMeta } from '../../../core/files'
+import { noteLinks } from '../../../core/links'
 import { checkNote } from '../../../core/noteLimits'
 import { bodyExcerpt, excerptTerms } from '../../../core/search'
 import { savedSearchOrder } from '../../../core/savedSearches'
@@ -234,6 +236,12 @@ export const memoryStorage: StorageAdapter = {
     const { purgedAt: _, ...record } = n
     return { ...record, bodyVersion: n.bodyVersion ?? 0, ydoc: new Uint8Array(n.ydoc) }
   },
+  async openNote(id) {
+    const n = storedNote(id)
+    if (!n || n.purgedAt !== undefined || n.deletedAt !== null) return null
+    const { purgedAt: _, bodyMd: __, ...opened } = n
+    return { ...opened, bodyVersion: n.bodyVersion ?? 0, ydoc: new Uint8Array(n.ydoc) }
+  },
   async getBodies(ids) {
     return ids.flatMap((id) => {
       const n = storedNote(id)
@@ -262,6 +270,17 @@ export const memoryStorage: StorageAdapter = {
       if (found.length === limit) break
     }
     return found
+  },
+  async listBacklinks(id, excludeBookId, limit) {
+    const stored = new Map(read<Stored>(NOTES).map((n) => [n.id, n]))
+    return (await memoryStorage.listNotes())
+      .filter(
+        (note) =>
+          note.id !== id &&
+          note.bookId !== excludeBookId &&
+          noteLinks(stored.get(note.id)?.bodyMd ?? '').includes(id),
+      )
+      .slice(0, limit)
   },
   async putFile(meta, data) {
     const mime = checkUpload(meta, data)
@@ -492,6 +511,14 @@ export const memoryStorage: StorageAdapter = {
       book,
     )
     localStorage.setItem(BOOKS, JSON.stringify([...all.filter((b) => b.id !== book.id), next]))
+  },
+  async isLiveBook(id) {
+    return read<BookRecord>(BOOKS).some((b) => b.id === id && b.deletedAt === null)
+  },
+  async putBooks(books) {
+    const all = new Map(read<BookRecord>(BOOKS).map((b) => [b.id, b]))
+    for (const book of books) all.set(book.id, mergeBook(all.get(book.id), book))
+    localStorage.setItem(BOOKS, JSON.stringify([...all.values()]))
   },
   async listTags() {
     // Read like SQLite does: a colour neither the palette nor #rrggbb is none.

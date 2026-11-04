@@ -77,6 +77,7 @@ import {
   type CompactableVersion,
   type NoteBody,
   type NoteRecord,
+  type OpenedRecord,
   type NoteStatus,
   type NoteSummary,
   type RevisionKind,
@@ -347,7 +348,7 @@ interface Live {
   users: number
   /** Set when a retried write took in a title another process gave the note; mergeStored reports it. */
   retitled: boolean
-  /** The agent_writes rows storage holds of the note, as last written; undefined until the note's first write here, which derives them again. */
+  /** The agent_writes rows storage holds of the note, as last written; undefined until the note's first write here, which derives them again, and none for a note made here. */
   rows: readonly AgentWriteRow[] | undefined
   failures: number
   retry: Timer | undefined
@@ -397,7 +398,7 @@ const META_HLCS = [
   'datesHlc',
 ] as const
 
-const stampsOf = (record: NoteRecord) => META_HLCS.map((key) => record[key])
+const stampsOf = (record: OpenedRecord) => META_HLCS.map((key) => record[key])
 
 type MetaField = 'book' | 'status' | 'pinned'
 
@@ -551,7 +552,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       writes: 0,
       users: 0,
       retitled: false,
-      rows: undefined,
+      rows: fresh ? [] : undefined,
       failures: 0,
       retry: undefined,
       rev: {
@@ -831,8 +832,16 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       return derived.changed ? { ...note.record, agentWrites: derived.changed } : note.record
     })
     if (!record) return
+    // A note's first write here writes its rows again; none where none were known tells no one.
+    const authored =
+      record.agentWrites !== undefined && (note.rows !== undefined || record.agentWrites.length > 0)
     note.rows = rows
-    relay({ kind: 'saved', noteId: record.id, updatedAt: record.updatedAt })
+    relay({
+      kind: 'saved',
+      noteId: record.id,
+      updatedAt: record.updatedAt,
+      ...(authored ? { authored: true } : {}),
+    })
     const written = asWritten(record)
     note.record = { ...note.record, bodyVersion: written.bodyVersion }
     const before = note.saved
@@ -920,15 +929,19 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       pending.note = (async () => {
         try {
           await coldWrites.get(id)
-          const stored = await getStored(id)
-          if (!stored) throw new Error('E_NOTE_NOT_FOUND')
+          const opened = await storage.openNote(id)
+          if (!opened) throw new Error('E_NOTE_NOT_FOUND')
+          receiveStored(clock, stampsOf(opened))
+          const doc = new Y.Doc()
+          Y.applyUpdate(doc, opened.ydoc)
           // A title stored past the limit (by an older build) is cut here, so
           // the note's writes are taken. The stored one stays until a rename:
           // a write with the same HLC never replaces it.
-          const title = clipTitle(stored.title)
-          const record = title === stored.title ? stored : { ...stored, title }
-          const doc = new Y.Doc()
-          Y.applyUpdate(doc, record.ydoc)
+          const record: NoteRecord = {
+            ...opened,
+            title: clipTitle(opened.title),
+            bodyMd: doc.getText(BODY).toString(),
+          }
           const note = liveNote(record, doc, false)
           note.users = pending.users
           live.set(id, note)
@@ -1132,7 +1145,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
   /** Templates' row may be missing (another device deleted it in a Devot from before templates). */
   const isLiveBook = async (bookId: string) =>
-    bookId === TEMPLATES_BOOK_ID || (await storage.listBooks()).some((b) => b.id === bookId)
+    bookId === TEMPLATES_BOOK_ID || (await storage.isLiveBook(bookId))
 
   const requireBook = async (bookId: string | null) => {
     if (bookId !== null && !(await isLiveBook(bookId))) throw new Error('E_BOOK_NOT_FOUND')
@@ -1240,7 +1253,12 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         rows.map((row) => row.writeId),
       )
     }
-    relay({ kind: 'saved', noteId: id, updatedAt: at })
+    relay({
+      kind: 'saved',
+      noteId: id,
+      updatedAt: at,
+      ...(rows.length > 0 ? { authored: true } : {}),
+    })
     const note = liveNote(asWritten(record), doc, false)
     note.rows = rows
     live.set(id, note)

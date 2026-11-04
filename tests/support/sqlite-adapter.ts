@@ -46,6 +46,7 @@ import type {
   TextCondition,
   TrashedNote,
 } from '../../src/core/storage'
+import { MAX_PUT_BOOKS } from '../../src/core/storage'
 
 /**
  * The text a search field looks in. With ranked text, a body is read from
@@ -273,6 +274,20 @@ export const LIST_SQL = {
             body_version AS bodyVersion
      FROM notes INDEXED BY notes_list
      WHERE deleted_at IS NULL ORDER BY updated_at DESC, id DESC`,
+  /**
+   * Backlinks (`@id`, `@excludeBook`, `@limit`): the list's index in its order, keeping the notes
+   * the link index has as linking to the note, so it stops at a page and reads no row.
+   */
+  backlinks: `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
+            (SELECT group_concat(nt.tag_id) FROM note_tags nt
+               JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
+              WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds,
+            body_version AS bodyVersion
+     FROM notes INDEXED BY notes_list
+     WHERE deleted_at IS NULL AND purged_at IS NULL AND id <> @id
+       AND (book_id IS NULL OR book_id <> @excludeBook)
+       AND id IN (SELECT source_id FROM links WHERE target_id = @id)
+     ORDER BY updated_at DESC, id DESC LIMIT @limit`,
   /** Notes in the Trash (not purged), most recently deleted first. */
   trash: `SELECT id, title, deleted_at AS deletedAt, book_id AS bookId FROM notes INDEXED BY notes_trash
      WHERE deleted_at IS NOT NULL AND purged_at IS NULL ORDER BY deleted_at DESC, id DESC`,
@@ -665,6 +680,9 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     'SELECT id, title, body_md FROM notes WHERE id = ? AND purged_at IS NULL',
   )
   const trash = db.prepare<[], TrashedNote>(LIST_SQL.trash)
+  const backlinks = db.prepare<[{ id: string; excludeBook: string; limit: number }], SummaryRow>(
+    LIST_SQL.backlinks,
+  )
   // Wipes the content and keeps the tombstone; a purge is final.
   const purge = db.prepare(
     `UPDATE notes SET title = '', title_hlc = MAX(title_hlc, @hlc), body_md = '', ydoc = x'',
@@ -797,6 +815,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     'SELECT purged_at IS NOT NULL AS purged FROM notes WHERE id = ?',
   )
   const books = db.prepare<[], BookRow>('SELECT * FROM books WHERE deleted_at IS NULL')
+  const liveBook = db.prepare<[string]>('SELECT 1 FROM books WHERE id = ? AND deleted_at IS NULL')
   const userVersion = db.prepare<[], { user_version: number }>('PRAGMA user_version')
   const tags = db.prepare<[], TagRow>('SELECT * FROM tags WHERE deleted_at IS NULL')
   const putTag = db.prepare(
@@ -936,6 +955,12 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       const row = options?.trashed ? getAny.get(id) : get.get(id)
       return row ? toNote(row) : null
     },
+    async openNote(id) {
+      const row = get.get(id)
+      if (!row) return null
+      const { bodyMd: _, ...opened } = toNote(row)
+      return opened
+    },
     getBodies: async (ids) =>
       ids.flatMap((id) => {
         const row = bodyRow.get(id)
@@ -976,6 +1001,8 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         return excerpt === undefined ? toSummary(row) : { ...toSummary(row), excerpt }
       })
     },
+    listBacklinks: async (id, excludeBook, limit) =>
+      backlinks.all({ id, excludeBook, limit }).map(toSummary),
     searchNotesInBooks: async (query, bookIds, limit) =>
       bookIds.length === 0
         ? []
@@ -1123,8 +1150,17 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       return seenAgentWrites.run({ noteId, ids: JSON.stringify(writeIds) }).changes
     },
     listBooks: async () => books.all().map((row) => toBook(row)),
+    isLiveBook: async (id) => liveBook.get(id) !== undefined,
     async putBook(book) {
       putBook.run({ ...book, aiAccess: book.aiAccess ? 1 : 0 })
+    },
+    async putBooks(records) {
+      // As the Tauri command refuses.
+      if (records.length === 0 || records.length > MAX_PUT_BOOKS)
+        throw new Error('E_BOOKS_COUNT_INVALID')
+      db.transaction(() => {
+        for (const book of records) putBook.run({ ...book, aiAccess: book.aiAccess ? 1 : 0 })
+      }).immediate()
     },
     listTags: async () => tags.all().map((row) => toTag(row)),
     async putTag(tag) {

@@ -1,6 +1,7 @@
 // Storage over Tauri commands. Yjs states cross IPC as base64 strings, which
 // the core worker codes (see wire.ts): this side hands them to the commands
 // as they come, so a save or an open costs the UI thread nothing per byte.
+import * as Comlink from 'comlink'
 import { invoke } from '../ipc'
 import type {
   ActivityData,
@@ -23,6 +24,9 @@ export const tauriWire: WireStorage = {
   listNotes: () => invoke<NoteSummary[]>('notes_list'),
   getNote: (id, options) =>
     invoke<WireNote | null>('note_get', { id, trashed: options?.trashed ?? false }),
+  // Handed to the worker as it came, not copied.
+  openNote: (id) =>
+    invoke<ArrayBuffer>('note_open', { id }).then((frame) => Comlink.transfer(frame, [frame])),
   getBodies: (ids) => invoke<NoteBody[]>('notes_bodies', { ids }),
   // The worker found the links and checked the note and its agent_writes rows (what note_put refuses).
   putNote: (note, links) => {
@@ -31,6 +35,8 @@ export const tauriWire: WireStorage = {
     return invoke('note_put', { note: record, links, writes: agentWrites })
   },
   searchNotes: (query, limit) => invoke<NoteSummary[]>('notes_search', { query, limit }),
+  listBacklinks: (id, excludeBookId, limit) =>
+    invoke<NoteSummary[]>('note_backlinks', { id, excludeBookId, limit }),
   listTrash: () => invoke<TrashedNote[]>('notes_trash_list'),
   // The bytes travel as the raw request body, the rest in headers.
   putFile: (meta, data) =>
@@ -44,7 +50,9 @@ export const tauriWire: WireStorage = {
   copyFiles: (noteId, copies) => invoke('files_copy', { noteId, copies }),
   purgeNote: (id, at, hlc) => invoke('note_purge', { id, at, hlc }),
   listBooks: () => invoke<BookRecord[]>('books_list'),
+  isLiveBook: (id) => invoke<boolean>('book_is_live', { id }),
   putBook: (book) => invoke('book_put', { book }),
+  putBooks: (books) => invoke('books_put', { books }),
   listTags: () => invoke<TagRecord[]>('tags_list'),
   putTag: (tag) => invoke('tag_put', { tag }),
   renameTag: (tag, searches) => invoke('tag_rename', { tag, searches }),

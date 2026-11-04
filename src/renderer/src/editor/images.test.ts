@@ -108,6 +108,39 @@ describe('inline image previews', () => {
     s = s.update({ changes: { from: 0, to: s.doc.length } }).state
     expect(imageLines(s)).toEqual([])
   })
+
+  it('shows under each line the images a whole scan finds, through edits that change what reads as an image', () => {
+    const shown = (st: EditorState) => {
+      const at: number[] = []
+      for (let it = st.field(inlineImageField).iter(); it.value; it.next()) at.push(it.from)
+      return at
+    }
+    let s = state(
+      [
+        `![a](${FILE})`,
+        'text ![b](https://a.test/b.png)',
+        '',
+        'plain',
+        `![c](${OTHER}) ![d](${FILE})`,
+      ].join('\n'),
+    )
+    const edits: ((text: string) => { from: number; to?: number; insert?: string })[] = [
+      () => ({ from: 0, insert: '```\n' }),
+      () => ({ from: 0, to: 4 }),
+      (text) => ({ from: text.length, insert: `\n![e](${FILE})` }),
+      () => ({ from: 6, insert: '![' }),
+      () => ({ from: 6, to: 8 }),
+      (text) => ({ from: text.indexOf('plain'), insert: '> ' }),
+      (text) => ({ from: 0, to: text.indexOf('plain') }),
+      () => ({ from: 2, insert: '\n\n![f](x.png) ![' }),
+    ]
+    for (const edit of edits) {
+      s = s.update({ changes: edit(s.doc.toString()) }).state
+      const fresh = state(s.doc.toString())
+      expect([s.doc.toString(), shown(s)]).toEqual([s.doc.toString(), shown(fresh)])
+      expect(shown(s)).toEqual(imageLines(s).map((l) => l.at))
+    }
+  })
 })
 
 describe('setting an image size', () => {

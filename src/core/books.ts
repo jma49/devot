@@ -6,6 +6,7 @@ import { receiveStored, type Clock } from './hlc'
 import { compareKeys, isSortKey, keyBetween, MAX_SORT_KEY_LENGTH, sequentialKeys } from './order'
 import { isNotebookIcon } from './notebookIcons'
 import {
+  MAX_PUT_BOOKS,
   TAG_COLORS,
   type BookRecord,
   type NoteSummary,
@@ -32,6 +33,8 @@ export interface BookService {
   list(): Promise<BookRecord[]>
   /** After the others in `parentId` (null: top level), with Allow AI Access off unless `aiAccess`. */
   create(name: string, parentId: string | null, options?: { aiAccess?: boolean }): Promise<string>
+  /** As `create` for each in turn (the same names, keys, parents and clocks), in one write; nothing is written when a name or a parent is refused. Answers their IDs in order. */
+  createMany(drafts: readonly BookDraft[]): Promise<string[]>
   rename(id: string, name: string): Promise<void>
   /** Under `parentId` (null: top level), after the others there. */
   move(id: string, parentId: string | null): Promise<void>
@@ -39,12 +42,22 @@ export interface BookService {
   place(id: string, targetId: string, where: 'before' | 'after'): Promise<void>
   /** Also deletes the sub-notebooks; the notes are kept. */
   remove(id: string): Promise<void>
+  /** As `remove` for each, in one write. */
+  removeMany(ids: readonly string[]): Promise<void>
   /** For this notebook alone. */
   setAiAccess(id: string, on: boolean): Promise<void>
   /** Throws E_BOOK_ICON_INVALID for an unknown icon or colour. */
   setIcon(id: string, icon: string | null, color: TagColor | null): Promise<void>
   /** Keeps the order the notebooks show in (by name in the locale's collation, ahead of keyed siblings). The keys get no clock, so any later move wins; where two devices keyed a notebook differently the greater key wins on both. Run once when the core starts. */
   settleOrder(): Promise<void>
+}
+
+/** A notebook for `createMany`: under `parentId` (null: top level), or under the one made for the earlier draft at `parentIndex`. */
+export interface BookDraft {
+  name: string
+  parentId: string | null
+  parentIndex?: number
+  aiAccess?: boolean
 }
 
 export interface BookNode {
@@ -300,6 +313,88 @@ export function createBookService(options: BookServiceOptions): BookService {
     return key
   }
 
+  /**
+   * What `create` writes for each draft in turn, from `books` as listed: the siblings rekeyed
+   * where there is no room after the last, then the notebook. The siblings of each parent are
+   * found once, so a batch costs time linear in the notebooks.
+   */
+  const plan = (books: readonly BookRecord[], drafts: readonly BookDraft[]) => {
+    const byId = new Map(books.map((b) => [b.id, b]))
+    const parents = effectiveParents(books)
+    const children = new Map<string | null, BookRecord[]>()
+    for (const book of books) {
+      const parent = parents.get(book.id) ?? null
+      const list = children.get(parent)
+      if (list) list.push(book)
+      else children.set(parent, [book])
+    }
+    const sorted = new Set<string | null>()
+    const childrenOf = (parentId: string | null) => {
+      const list = children.get(parentId) ?? []
+      if (!sorted.has(parentId)) {
+        list.sort((a, b) => bookOrder(a, b, options.locale))
+        children.set(parentId, list)
+        sorted.add(parentId)
+      }
+      return list
+    }
+    const ids: string[] = []
+    const writes: BookRecord[] = []
+    for (const [index, { parentIndex: under, parentId }] of drafts.entries()) {
+      const found =
+        under === undefined
+          ? parentId === null || byId.has(parentId)
+          : Number.isInteger(under) && under >= 0 && under < index
+      if (!found) throw new Error('E_BOOK_NOT_FOUND')
+    }
+    let newest: string | null = null
+    for (const draft of drafts) {
+      // `create` lists the notebooks, so the clock takes in the newest stamp: the last one made.
+      if (newest !== null) clock.receive(newest)
+      const parentId = draft.parentIndex === undefined ? draft.parentId : ids[draft.parentIndex]!
+      const siblings = childrenOf(parentId)
+      const { key, others } = slotKeys(siblings, siblings.length)
+      for (const [i, sibling] of siblings.entries()) {
+        const next = others.get(sibling.id)
+        if (next === undefined) continue
+        const rekeyed = { ...sibling, sortKey: next, sortKeyHlc: clock.tick() }
+        const written = { ...rekeyed, updatedAt: Math.max(now(), rekeyed.createdAt) }
+        siblings[i] = written
+        byId.set(written.id, written)
+        writes.push(written)
+      }
+      const hlc = clock.tick()
+      const at = now()
+      const id = newId()
+      const book: BookRecord = {
+        id,
+        name: draft.name,
+        nameHlc: hlc,
+        parentId,
+        parentHlc: hlc,
+        createdAt: at,
+        updatedAt: at,
+        deletedAt: null,
+        deletedHlc: null,
+        aiAccess: draft.aiAccess === true,
+        aiAccessHlc: draft.aiAccess === true ? hlc : '',
+        sortKey: key,
+        sortKeyHlc: hlc,
+        icon: null,
+        iconColor: null,
+        iconHlc: '',
+      }
+      siblings.push(book)
+      children.set(id, [])
+      sorted.add(id)
+      byId.set(id, book)
+      ids.push(id)
+      writes.push(book)
+      newest = hlc
+    }
+    return { ids, writes }
+  }
+
   /** The parent and its clock change only when the notebook shows under another parent: one shown at the top level because its parent is missing keeps that parent when only reordered. */
   const putAt = async (
     books: readonly BookRecord[],
@@ -324,31 +419,22 @@ export function createBookService(options: BookServiceOptions): BookService {
     async create(name, parentId, extra) {
       const clean = cleanName(name)
       const books = await listBooks()
-      if (parentId !== null) findIn(books, parentId)
-      const siblings = siblingsOf(books, parentId)
-      const key = await slot(siblings, siblings.length)
-      const hlc = clock.tick()
-      const at = now()
-      const id = newId()
-      await storage.putBook({
-        id,
-        name: clean,
-        nameHlc: hlc,
-        parentId,
-        parentHlc: hlc,
-        createdAt: at,
-        updatedAt: at,
-        deletedAt: null,
-        deletedHlc: null,
-        aiAccess: extra?.aiAccess === true,
-        aiAccessHlc: extra?.aiAccess === true ? hlc : '',
-        sortKey: key,
-        sortKeyHlc: hlc,
-        icon: null,
-        iconColor: null,
-        iconHlc: '',
-      })
-      return id
+      const { ids, writes } = plan(books, [
+        { name: clean, parentId, ...(extra?.aiAccess ? { aiAccess: true } : {}) },
+      ])
+      for (const book of writes) await storage.putBook(book)
+      return ids[0]!
+    },
+
+    async createMany(drafts) {
+      const clean = drafts.map((draft) => ({ ...draft, name: cleanName(draft.name) }))
+      if (clean.length === 0) return []
+      const { ids, writes } = plan(await listBooks(), clean)
+      const latest = [...new Map(writes.map((book) => [book.id, book])).values()]
+      for (let i = 0; i < latest.length; i += MAX_PUT_BOOKS) {
+        await storage.putBooks(latest.slice(i, i + MAX_PUT_BOOKS))
+      }
+      return ids
     },
 
     async rename(id, name) {
@@ -387,6 +473,40 @@ export function createBookService(options: BookServiceOptions): BookService {
       const at = now()
       for (const book of books.filter((b) => doomed.has(b.id))) {
         await write({ ...book, deletedAt: at, deletedHlc: clock.tick() })
+      }
+    },
+
+    async removeMany(ids) {
+      if (ids.length === 0) return
+      const books = await listBooks()
+      const known = new Set(books.map((b) => b.id))
+      if (!ids.every((id) => known.has(id))) throw new Error('E_BOOK_NOT_FOUND')
+      const parents = effectiveParents(books)
+      const children = new Map<string, string[]>()
+      for (const [child, parent] of parents) {
+        if (parent === null) continue
+        const list = children.get(parent)
+        if (list) list.push(child)
+        else children.set(parent, [child])
+      }
+      const doomed = new Set<string>()
+      const visit = [...ids]
+      for (let id = visit.pop(); id !== undefined; id = visit.pop()) {
+        if (doomed.has(id)) continue
+        doomed.add(id)
+        visit.push(...(children.get(id) ?? []))
+      }
+      const at = now()
+      const deleted = books
+        .filter((b) => doomed.has(b.id))
+        .map((b) => ({
+          ...b,
+          deletedAt: at,
+          deletedHlc: clock.tick(),
+          updatedAt: Math.max(at, b.createdAt),
+        }))
+      for (let i = 0; i < deleted.length; i += MAX_PUT_BOOKS) {
+        await storage.putBooks(deleted.slice(i, i + MAX_PUT_BOOKS))
       }
     },
 

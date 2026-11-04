@@ -218,18 +218,28 @@ export interface NoteBody {
   bodyMd: string
 }
 
+/** The most notebooks one `putBooks` call takes (the Tauri command refuses more). */
+export const MAX_PUT_BOOKS = 5_000
+
 /** The most IDs one `getBodies` call takes (the Tauri command refuses more). */
 export const MAX_BODY_IDS = 500
+
+/** A note as its editor opens it: the body is left out, as the Yjs state holds it. */
+export type OpenedRecord = Omit<NoteRecord, 'bodyMd' | 'agentWrites'>
 
 export interface StorageAdapter {
   /** Notes not in the trash, most recently updated first. */
   listNotes(): Promise<NoteSummary[]>
   /** Null for a purged note; a note in the trash is returned only with `trashed`. */
   getNote(id: string, options?: { trashed?: boolean }): Promise<NoteRecord | null>
+  /** `getNote` for a note to load: its record without the body. Null for a note not stored or in the trash. */
+  openNote(id: string): Promise<OpenedRecord | null>
   /** One read for many notes (at most MAX_BODY_IDS), trashed ones included; purged and unknown IDs are left out. */
   getBodies(ids: readonly string[]): Promise<NoteBody[]>
   /** Live notes meeting every condition, best matches first, each with its excerpt; at most `limit`. */
   searchNotes(query: NoteQuery, limit: number): Promise<NoteSummary[]>
+  /** Live notes outside `excludeBookId` whose body links to `id` (the link index), the note itself left out, most recently updated first (then by ID, descending); at most `limit` (MAX_BACKLINKS), without excerpts. */
+  listBacklinks(id: string, excludeBookId: string, limit: number): Promise<NoteSummary[]>
   /** Not purged, most recently deleted first. */
   listTrash(): Promise<TrashedNote[]>
   /** Final: no later write restores it. An attachment another non-purged note still shows passes to that note, a live one before one in the Trash, then the smallest ID. */
@@ -241,7 +251,11 @@ export interface StorageAdapter {
   /** A file that does not exist is skipped. Throws E_NOTE_NOT_FOUND for an unknown or trashed note. */
   copyFiles(noteId: string, copies: readonly FileCopy[]): Promise<void>
   listBooks(): Promise<BookRecord[]>
+  /** Whether `listBooks` holds it, without reading every notebook. */
+  isLiveBook(id: string): Promise<boolean>
   putBook(book: BookRecord): Promise<void>
+  /** Each as `putBook`, in order, in one transaction: all of them or none. At most MAX_PUT_BOOKS. */
+  putBooks(books: readonly BookRecord[]): Promise<void>
   listTags(): Promise<TagRecord[]>
   putTag(tag: TagRecord): Promise<void>
   /** Writes the tag and the saved searches rewritten for its new name in one transaction: all of them or none. */

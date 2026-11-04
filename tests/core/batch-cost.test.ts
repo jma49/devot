@@ -102,7 +102,7 @@ describe('a batch change', () => {
     // Per note: the note read, its history checked, a baseline kept (these
     // notes have none yet), the note written and its event recorded.
     expect(s.calls()).toEqual({
-      listBooks: 1,
+      isLiveBook: 1,
       getNote: 100,
       listRevisions: 100,
       putRevision: 200,

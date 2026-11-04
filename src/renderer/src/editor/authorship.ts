@@ -102,7 +102,7 @@ export function markLabel(
   })
 }
 
-interface Authored {
+export interface Authored {
   runs: readonly AuthoredRun[]
   writes: ReadonlyMap<string, WriteInfo>
   segments: readonly MarkSegment[]
@@ -130,6 +130,19 @@ function read(ydoc: Y.Doc, noteId: string): Omit<Authored, 'segments'> {
       ]),
     ),
   }
+}
+
+/**
+ * What the marks read after a change to the replica; null when nothing changes: a note with no
+ * records that shows no marks, as most notes are, reads nothing on each keystroke.
+ */
+export function rereadAuthored(
+  current: Authored,
+  ydoc: Y.Doc,
+  noteId: string,
+): Omit<Authored, 'segments'> | null {
+  const next = read(ydoc, noteId)
+  return next === NONE && current.runs.length === 0 && current.writes.size === 0 ? null : next
 }
 
 /** The marks of the document's runs: set again after each change to the Yjs document, mapped through the editor's changes until then. */
@@ -245,7 +258,8 @@ export function authorshipMarks(ydoc: Y.Doc, noteId: string): Extension {
           this.pending = false
           // The editor takes a remote change in as Yjs applies it; until then the runs do not fit.
           if (this.destroyed || ydoc.getText(BODY).length !== this.view.state.doc.length) return
-          this.view.dispatch({ effects: setAuthored.of(read(ydoc, noteId)) })
+          const next = rereadAuthored(this.view.state.field(field), ydoc, noteId)
+          if (next) this.view.dispatch({ effects: setAuthored.of(next) })
         })
       }
 

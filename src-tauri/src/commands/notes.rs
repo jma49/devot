@@ -180,6 +180,74 @@ pub async fn note_get(
         .map_err(|e| e.to_string())
 }
 
+/// A note's fields as `note_open` sends them: all but the body and the Yjs state.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OpenedFields<'a> {
+    id: &'a str,
+    title: &'a str,
+    title_hlc: &'a str,
+    body_version: i64,
+    book_id: Option<&'a str>,
+    book_hlc: &'a str,
+    status: &'a str,
+    status_hlc: &'a str,
+    pinned: bool,
+    pinned_hlc: &'a str,
+    created_at: i64,
+    updated_at: i64,
+    dates_hlc: &'a str,
+    deleted_at: Option<i64>,
+    deleted_hlc: Option<&'a str>,
+}
+
+/// `note_open`'s answer, read by `openedNote` in src/renderer/src/storage/wire.ts: empty for a
+/// note not stored, otherwise the length of the fields' JSON (4 bytes, little-endian), the JSON,
+/// then the Yjs state as stored.
+pub(crate) fn opened_frame(note: Option<&NoteRecord>) -> Vec<u8> {
+    let Some(note) = note else {
+        return Vec::new();
+    };
+    let fields = serde_json::to_vec(&OpenedFields {
+        id: &note.id,
+        title: &note.title,
+        title_hlc: &note.title_hlc,
+        body_version: note.body_version,
+        book_id: note.book_id.as_deref(),
+        book_hlc: &note.book_hlc,
+        status: &note.status,
+        status_hlc: &note.status_hlc,
+        pinned: note.pinned,
+        pinned_hlc: &note.pinned_hlc,
+        created_at: note.created_at,
+        updated_at: note.updated_at,
+        dates_hlc: &note.dates_hlc,
+        deleted_at: note.deleted_at,
+        deleted_hlc: note.deleted_hlc.as_deref(),
+    })
+    .unwrap_or_default();
+    // The fields hold a title within MAX_TITLE_CHARS and short stamps, far below 4 GiB.
+    let length = u32::try_from(fields.len()).unwrap_or(u32::MAX);
+    let mut frame = Vec::with_capacity(4 + fields.len() + note.ydoc.len());
+    frame.extend_from_slice(&length.to_le_bytes());
+    frame.extend_from_slice(&fields);
+    frame.extend_from_slice(&note.ydoc);
+    frame
+}
+
+/// A note out of the Trash for its editor, as bytes rather than JSON, and without its body: the
+/// core reads that from the Yjs state it builds the note from (see `opened_frame`).
+#[tauri::command]
+pub async fn note_open(db: State<'_, Db>, id: String) -> Result<tauri::ipc::Response, String> {
+    if !valid_note_id(&id) {
+        return Err("E_NOTE_ID_INVALID".into());
+    }
+    db.call(move |store| store.get_note(&id, false))
+        .await
+        .map(|note| tauri::ipc::Response::new(opened_frame(note.as_ref())))
+        .map_err(|e| e.to_string())
+}
+
 /// MAX_BODY_IDS in src/core/storage.ts (a policy test checks they match).
 const MAX_BODY_IDS: usize = 500;
 
@@ -283,6 +351,35 @@ pub async fn notes_search(
         .map_err(|e| e.to_string())
 }
 
+/// Matches MAX_BACKLINKS in src/core/links.ts.
+const MAX_BACKLINKS: u32 = 200;
+
+fn validate_backlinks(id: &str, exclude_book_id: &str, limit: u32) -> Result<(), &'static str> {
+    if !valid_note_id(id) {
+        return Err("E_NOTE_ID_INVALID");
+    }
+    if !valid_note_id(exclude_book_id) {
+        return Err("E_BOOK_ID_INVALID");
+    }
+    if !(1..=MAX_BACKLINKS).contains(&limit) {
+        return Err("E_BACKLINKS_LIMIT_INVALID");
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn note_backlinks(
+    db: State<'_, Db>,
+    id: String,
+    exclude_book_id: String,
+    limit: u32,
+) -> Result<Vec<NoteSummary>, String> {
+    validate_backlinks(&id, &exclude_book_id, limit).map_err(String::from)?;
+    db.call(move |store| store.list_backlinks(&id, &exclude_book_id, limit))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn notes_trash_list(db: State<'_, Db>) -> Result<Vec<TrashedNote>, String> {
     db.call(|store| store.list_trash())
@@ -356,6 +453,21 @@ mod tests {
     }
 
     #[test]
+    fn opens_a_note_as_its_fields_and_state_without_the_body() {
+        assert!(opened_frame(None).is_empty());
+        let record = dto().into_record().unwrap();
+        let frame = opened_frame(Some(&record));
+        let length = u32::from_le_bytes(frame[..4].try_into().unwrap()) as usize;
+        let fields: serde_json::Value = serde_json::from_slice(&frame[4..4 + length]).unwrap();
+        assert_eq!(&frame[4 + length..], &[1, 2, 3]);
+        let mut expected = serde_json::to_value(dto()).unwrap();
+        let map = expected.as_object_mut().unwrap();
+        map.remove("bodyMd");
+        map.remove("ydoc");
+        assert_eq!(fields, expected);
+    }
+
+    #[test]
     fn accepts_a_valid_note_and_round_trips_through_the_dto() {
         let record = dto().into_record().unwrap();
         assert_eq!(record.ydoc, vec![1, 2, 3]);
@@ -380,6 +492,27 @@ mod tests {
             assert!(!valid_note_id(id), "{id} should be rejected");
         }
         assert!(valid_note_id(ID));
+    }
+
+    #[test]
+    fn takes_backlinks_of_a_note_outside_a_notebook_up_to_a_page() {
+        const TEMPLATES: &str = "00000000-0000-7000-8000-000000000001";
+        assert_eq!(validate_backlinks(ID, TEMPLATES, 1), Ok(()));
+        assert_eq!(validate_backlinks(ID, TEMPLATES, MAX_BACKLINKS), Ok(()));
+        assert_eq!(
+            validate_backlinks("note", TEMPLATES, 1),
+            Err("E_NOTE_ID_INVALID")
+        );
+        assert_eq!(
+            validate_backlinks(ID, "' OR 1 --", 1),
+            Err("E_BOOK_ID_INVALID")
+        );
+        for limit in [0, MAX_BACKLINKS + 1] {
+            assert_eq!(
+                validate_backlinks(ID, TEMPLATES, limit),
+                Err("E_BACKLINKS_LIMIT_INVALID")
+            );
+        }
     }
 
     /// TEMPLATES_BOOK_ID in src/core/books.ts (a policy test checks they match).

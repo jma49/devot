@@ -728,6 +728,39 @@ fn stores_notebooks_and_merges_them_per_field() {
 }
 
 #[test]
+fn stores_a_batch_of_notebooks_in_order_merging_each_as_one_alone() {
+    let (_dir, mut store) = temp_store();
+    let mut moved = book("b1", "Stale name", "0000000000000005-0000-a");
+    moved.parent_id = Some("b0".into());
+    moved.parent_hlc = "0000000000000020-0000-a".into();
+    store
+        .put_books(&[
+            book("b0", "Home", "0000000000000010-0000-a"),
+            book("b1", "Work", "0000000000000010-0000-a"),
+            moved,
+        ])
+        .unwrap();
+    let books = store.list_books().unwrap();
+    assert_eq!(books.len(), 2);
+    assert_eq!(books[1].name, "Work");
+    assert_eq!(books[1].parent_id.as_deref(), Some("b0"));
+}
+
+#[test]
+fn tells_a_live_notebook_from_a_deleted_or_unknown_one() {
+    let (_dir, mut store) = temp_store();
+    let mut deleted = book("b2", "Gone", "0000000000000010-0000-a");
+    deleted.deleted_at = Some(5);
+    deleted.deleted_hlc = Some("0000000000000011-0000-a".into());
+    store
+        .put_books(&[book("b1", "Work", "0000000000000010-0000-a"), deleted])
+        .unwrap();
+    assert!(store.book_is_live("b1").unwrap());
+    assert!(!store.book_is_live("b2").unwrap());
+    assert!(!store.book_is_live("b3").unwrap());
+}
+
+#[test]
 fn notebooks_keep_ai_access_off_by_default_and_merge_it_per_field() {
     let (_dir, mut store) = temp_store();
     store
@@ -2058,6 +2091,22 @@ fn lists_and_searches_read_covering_indexes() {
     };
     assert!(plan(NOTES_LIST_SQL, &[]).starts_with("SCAN notes USING COVERING INDEX notes_list"));
     assert!(plan(TRASH_LIST_SQL, &[]).starts_with("SEARCH notes USING COVERING INDEX notes_trash"));
+    let backlinks = plan(
+        &BACKLINKS_SQL
+            .replace("@id", "''")
+            .replace("@excludeBook", "''")
+            .replace("@limit", "200"),
+        &[],
+    );
+    assert!(
+        backlinks.starts_with("SCAN notes USING COVERING INDEX notes_list"),
+        "{backlinks}"
+    );
+    assert!(
+        backlinks.contains("SEARCH links USING COVERING INDEX links_target (target_id=?)"),
+        "{backlinks}"
+    );
+    assert!(!backlinks.contains("TEMP B-TREE"), "{backlinks}");
     let (sql, values) = search_sql(&words(&["snapshot"]), 200);
     let ranked = plan(&sql, &values);
     assert!(ranked.contains("MATERIALIZE hits"), "{ranked}");
@@ -2456,6 +2505,50 @@ fn an_attachment_no_other_note_shows_any_more_goes_with_its_note() {
         .trash_and_purge("a", 30, "0000000000000030-0000-a")
         .unwrap();
     assert_eq!(owner(&store, F1), None);
+}
+
+#[test]
+fn lists_the_live_notes_linking_to_a_note_outside_a_notebook_newest_first() {
+    let (_dir, mut store) = temp_store();
+    let target = "0192a6f0-0000-7000-8000-000000000001";
+    let templates = "00000000-0000-7000-8000-000000000001";
+    let links = [target.to_string()];
+    store.put_note(&note(target, "Target", 1), &links).unwrap();
+    store.put_note(&note("older", "Older", 50), &links).unwrap();
+    store.put_note(&note("b-newer", "B", 70), &links).unwrap();
+    store.put_note(&note("c-newer", "C", 70), &links).unwrap();
+    store
+        .put_note(&note("unrelated", "Unrelated", 90), &[])
+        .unwrap();
+    let mut template = note("template", "Template", 80);
+    template.book_id = Some(templates.into());
+    store.put_note(&template, &links).unwrap();
+    let mut trashed = note("trashed", "Trashed", 60);
+    trashed.deleted_at = Some(61);
+    trashed.deleted_hlc = Some("0000000000061-0000-test".into());
+    store.put_note(&trashed, &links).unwrap();
+    store
+        .put_note(&note("purged", "Purged", 65), &links)
+        .unwrap();
+    store
+        .trash_and_purge("purged", 66, "0000000000066-0000-test")
+        .unwrap();
+
+    let ids = |limit| -> Vec<String> {
+        store
+            .list_backlinks(target, templates, limit)
+            .unwrap()
+            .into_iter()
+            .map(|n| n.id)
+            .collect()
+    };
+    assert_eq!(ids(200), ["c-newer", "b-newer", "older"]);
+    assert_eq!(ids(2), ["c-newer", "b-newer"]);
+    let first = &store.list_backlinks(target, templates, 1).unwrap()[0];
+    assert_eq!(first.title, "C");
+    assert_eq!(first.updated_at, 70);
+    assert_eq!(first.body_version, 1);
+    assert_eq!(first.excerpt, None);
 }
 
 fn link_rows(store: &Store) -> Vec<(String, String)> {

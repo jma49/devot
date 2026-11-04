@@ -29,13 +29,20 @@ function setup(path = join(tempDir('devot-memory-'), 'devot.sqlite')) {
   const reads: string[] = []
   let gate: Promise<void> | undefined
   let refuse = (_record: NoteRecord) => false
+  const read = async (id: string) => {
+    reads.push(id)
+    const wait = gate
+    gate = undefined
+    if (wait) await wait
+  }
   const storage = Object.assign(Object.create(sqlite) as SqliteAdapter, {
     async getNote(id: string, options?: { trashed?: boolean }) {
-      reads.push(id)
-      const wait = gate
-      gate = undefined
-      if (wait) await wait
+      await read(id)
       return sqlite.getNote(id, options)
+    },
+    async openNote(id: string) {
+      await read(id)
+      return sqlite.openNote(id)
     },
     async putNote(record: NoteRecord) {
       if (refuse(record)) throw new Error('E_TEST_WRITE')

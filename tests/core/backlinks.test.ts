@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import {
   BODY,
+  MAX_BACKLINKS,
+  TEMPLATES_BOOK_ID,
   createBookService,
   createClock,
   createIdGenerator,
@@ -10,17 +12,28 @@ import {
   createTagService,
   createTemplateService,
   findBacklinks,
+  formatHlc,
   noteLink,
+  type NoteRecord,
+  type StorageAdapter,
 } from '../../src/core'
+import { restoreLocalStorage, useMemoryLocalStorage } from '../support/local-storage'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
 const open: SqliteAdapter[] = []
-afterEach(() => open.splice(0).forEach((a) => a.close()))
+afterEach(() => {
+  open.splice(0).forEach((a) => a.close())
+  restoreLocalStorage()
+})
 
-function setup() {
+function sqlite() {
   const storage = openSqliteAdapter(join(tempDir('devot-backlinks-'), 'devot.sqlite'))
   open.push(storage)
+  return storage
+}
+
+function setup(storage: StorageAdapter = sqlite()) {
   const clock = createClock('mac1')
   const newId = createIdGenerator()
   const notes = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
@@ -73,6 +86,88 @@ describe('findBacklinks', () => {
     const { storage, notes } = setup()
     const id = await notes.create('Alone')
     expect(await findBacklinks(storage, id)).toEqual([])
+  })
+
+  it('reads the link index, never the search index', async () => {
+    const { storage, notes } = setup()
+    const target = await notes.create('Target')
+    const linking = await notes.create('Linking')
+    await write(notes, linking, noteLink('Target', target))
+    const search = vi.spyOn(storage, 'searchNotes')
+    expect((await findBacklinks(storage, target)).map((n) => n.id)).toEqual([linking])
+    expect(search).not.toHaveBeenCalled()
+  })
+})
+
+const id = (i: number) => `0192a6f0-0000-7000-8000-${String(i).padStart(12, '0')}`
+
+function stored(i: number, bodyMd: string, more: Partial<NoteRecord> = {}): NoteRecord {
+  const hlc = formatHlc({ wall: i + 1, counter: 0, node: 'test' })
+  return {
+    id: id(i),
+    title: `Note ${i}`,
+    titleHlc: hlc,
+    bodyMd,
+    ydoc: new Uint8Array([0]),
+    bodyVersion: 0,
+    bookId: null,
+    bookHlc: hlc,
+    status: 'none',
+    statusHlc: '',
+    pinned: false,
+    pinnedHlc: '',
+    createdAt: i,
+    updatedAt: i,
+    deletedAt: null,
+    deletedHlc: null,
+    ...more,
+  }
+}
+
+describe('listBacklinks', () => {
+  async function scenario(storage: StorageAdapter) {
+    const target = id(0)
+    const link = noteLink('Target', target)
+    const notes = [
+      stored(0, `Myself ${link}`),
+      stored(1, link, { updatedAt: 50 }),
+      stored(2, link, { updatedAt: 70 }),
+      stored(3, `${link} twice ${link}`, { updatedAt: 70 }),
+      stored(4, link, { bookId: TEMPLATES_BOOK_ID }),
+      stored(5, link, { deletedAt: 9, deletedHlc: formatHlc({ wall: 9, counter: 0, node: 't' }) }),
+      stored(6, `Unrelated ${noteLink('Other', id(99))}`),
+      stored(7, `A longer ID devot://note/${target}0`),
+      stored(8, `Title only`, { title: `devot://note/${target}` }),
+    ]
+    for (const note of notes) await storage.putNote(note)
+    return {
+      all: (await storage.listBacklinks(target, TEMPLATES_BOOK_ID, MAX_BACKLINKS)).map((n) => n.id),
+      capped: (await storage.listBacklinks(target, TEMPLATES_BOOK_ID, 2)).map((n) => n.id),
+      summary: (await storage.listBacklinks(target, TEMPLATES_BOOK_ID, 1))[0],
+    }
+  }
+
+  it('lists live linking notes outside the notebook, newest first, then by ID, up to the limit', async () => {
+    const { all, capped, summary } = await scenario(sqlite())
+    expect(all).toEqual([id(3), id(2), id(1)])
+    expect(capped).toEqual([id(3), id(2)])
+    expect(summary).toEqual({
+      id: id(3),
+      title: 'Note 3',
+      createdAt: 3,
+      updatedAt: 70,
+      bodyVersion: 1,
+      bookId: null,
+      status: 'none',
+      pinned: false,
+      tagIds: [],
+    })
+  })
+
+  it('answers the same from the UI tests’ memory adapter', async () => {
+    useMemoryLocalStorage()
+    const { memoryStorage } = await import('../../src/renderer/src/storage/memory')
+    expect(await scenario(memoryStorage)).toEqual(await scenario(sqlite()))
   })
 })
 

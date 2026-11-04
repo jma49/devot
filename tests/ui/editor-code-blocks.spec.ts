@@ -46,3 +46,15 @@ test('a block in a quote has a box but no copy button', async ({ page }) => {
   await expect(page.locator('.cm-line.cm-codeblock')).toHaveCount(3)
   await expect(copyButton(page)).toHaveCount(0)
 })
+
+test('a block far down a long note shows its language once scrolled to', async ({ page }) => {
+  const prose = Array.from({ length: 300 }, (_, i) => `Line ${i} of prose.`).join('\n\n')
+  await newNote(
+    page,
+    `\`\`\`cpp\nint near = 1;\n\`\`\`\n\n${prose}\n\n\`\`\`cpp\nint far = 2;\n\`\`\`\n`,
+  )
+  await page.keyboard.press('ControlOrMeta+End')
+  const far = page.locator('.cm-line', { hasText: 'int far = 2;' })
+  await expect(far).toBeVisible()
+  await expect(far.locator('span', { hasText: /^int$/ })).toHaveCount(1)
+})

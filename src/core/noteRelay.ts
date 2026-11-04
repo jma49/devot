@@ -9,8 +9,8 @@ export type NoteRelayMessage =
   /** A core read the note in: what it holds, as a Yjs state vector, for the others to send what it lacks. */
   | { kind: 'want'; noteId: string; data: Uint8Array }
   | { kind: 'title'; noteId: string; title: string; hlc: string }
-  /** A write of the note was stored, dated `updatedAt` (for the lists). */
-  | { kind: 'saved'; noteId: string; updatedAt: number }
+  /** A write of the note was stored, dated `updatedAt` (for the lists); `authored` when it changed the note's agent_writes rows. */
+  | { kind: 'saved'; noteId: string; updatedAt: number; authored?: true }
   /** The note went to the Trash (`purged` false) or was deleted for good: its window turns read-only. */
   | { kind: 'gone'; noteId: string; purged: boolean }
 

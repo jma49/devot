@@ -43,7 +43,8 @@ function logFromWorker(entry: LogEntry) {
  * `windowed` carries what the core says to the other windows and takes in
  * from them (noteRelay.ts); a lean core, a note window's or a second main
  * window's, does less (see init). `onWrote` hears of each write to the library,
- * for the other main windows' lists (mainWindows.ts).
+ * for the other main windows' lists (mainWindows.ts); `onAuthored` of the note
+ * writes that changed agent_writes rows (see reportingNoteWrites).
  */
 export async function startCore(
   onSaveProblems: (problems: SaveProblem[]) => void,
@@ -52,6 +53,7 @@ export async function startCore(
   windowed: {
     lean?: boolean
     onWrote?: () => void
+    onAuthored?: () => void
     onRelay?: (message: WireRelay) => void
     onTakenIn?: (change: TakenIn) => void
   } = {},
@@ -62,7 +64,7 @@ export async function startCore(
     // another build of the app shares that, and two processes must never
     // stamp a write alike.
     start: (c) => {
-      const noted = reportingNoteWrites(wire, onNoteWrites)
+      const noted = reportingNoteWrites(wire, onNoteWrites, windowed.onAuthored)
       const served = windowed.onWrote ? reportingWrites(noted, windowed.onWrote) : noted
       return c.init(Comlink.proxy(served), newNodeId(), { lean: windowed.lean ?? false })
     },

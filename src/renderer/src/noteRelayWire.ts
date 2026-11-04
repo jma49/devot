@@ -6,7 +6,7 @@ export type WireRelay =
   | { kind: 'update'; noteId: string; data: string }
   | { kind: 'want'; noteId: string; data: string }
   | { kind: 'title'; noteId: string; title: string; hlc: string }
-  | { kind: 'saved'; noteId: string; updatedAt: number }
+  | { kind: 'saved'; noteId: string; updatedAt: number; authored?: true }
   | { kind: 'gone'; noteId: string; purged: boolean }
 
 /** What the worker sends the page on its own channel: a message for the other windows, or a change for this window's editor. */

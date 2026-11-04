@@ -19,6 +19,7 @@ import {
   preparerHere,
   replaceRanges,
   resolveImagePath,
+  type BookDraft,
   type BookNode,
   type ImportFolder,
   type ImportPreparer,
@@ -685,6 +686,57 @@ describe('Markdown folder import', () => {
     expect(report.problems).toEqual([{ path: 'A/Deep/a.md', code: 'E_TEST_WRITE_FAILED' }])
     expect(report).toMatchObject({ notes: 1, books: 1 })
     expect(names(buildBookTree(await sqlite.listBooks()))).toEqual([['Vault', ['Other']]])
+  })
+
+  it('makes every notebook in one write, as many and in the order the files need them', async () => {
+    const { sqlite, services, vault } = await setup()
+    const files = {
+      'B/b.md': '# B\n',
+      'A/Two/a2.md': '# A2\n',
+      'A/One/a1.md': '# A1\n',
+      'A/a.md': '# A\n',
+      'C/Deep/Deeper/c.md': '# C\n',
+    }
+    const calls: string[] = []
+    const books = {
+      ...services.books,
+      create: (name: string, parentId: string | null) => {
+        calls.push('create')
+        return services.books.create(name, parentId)
+      },
+      createMany: (drafts: readonly BookDraft[]) => {
+        calls.push(`createMany ${drafts.length}`)
+        return services.books.createMany(drafts)
+      },
+    }
+    const report = await importMarkdown({
+      ...services,
+      books,
+      scan: scanOf(files),
+      source: sourceFor(sqlite, files).source,
+    })
+    expect(calls).toEqual(['createMany 7'])
+    expect(report).toMatchObject({ notes: 5, books: 7, bookId: vault, problems: [] })
+    // The scan lists files by path; siblings follow the order the files first needed them.
+    expect(names(buildBookTree(await sqlite.listBooks()))).toEqual([
+      ['Vault', [['A', ['One', 'Two']], 'B', ['C', [['Deep', ['Deeper']]]]]],
+    ])
+  })
+
+  it('deletes again the notebooks of the files a stopped import did not reach', async () => {
+    const { sqlite, services } = await setup()
+    const files = { 'A/a.md': '# A\n', 'A/Sub/s.md': '# S\n', 'B/Deep/b.md': '# B\n' }
+    let read = 0
+    const { source } = sourceFor(sqlite, files)
+    const report = await importMarkdown({
+      ...services,
+      scan: scanOf(files),
+      source: { ...source, read: (path) => ((read += 1), source.read(path)) },
+      stopped: () => read >= 1,
+    })
+    // Files go in path order: A/Sub/s.md is the one imported.
+    expect(report).toMatchObject({ notes: 1, books: 2 })
+    expect(names(buildBookTree(await sqlite.listBooks()))).toEqual([['Vault', [['A', ['Sub']]]]])
   })
 
   it('stops after the file it is on when asked, and lists the rest', async () => {

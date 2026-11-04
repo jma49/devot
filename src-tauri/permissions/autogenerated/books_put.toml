@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-books-put"
+description = "Enables the books_put command without any pre-configured scope."
+commands.allow = ["books_put"]
+
+[[permission]]
+identifier = "deny-books-put"
+description = "Denies the books_put command without any pre-configured scope."
+commands.deny = ["books_put"]

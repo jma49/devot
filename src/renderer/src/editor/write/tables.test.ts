@@ -524,7 +524,9 @@ describe('the clip that keeps the selection layer off a grid', () => {
 describe('a grid drawn again', () => {
   /** Each layer's decorations, placed from `at`, with their classes. */
   const drawing = (state: EditorState, at: number) => {
-    const { decorations, outer, atomic } = tableRule(state, []) as BlockLayers
+    const pieces = tableRule.pieces(state, [], 0, state.doc.length)
+    const all = (layer: keyof BlockLayers) => pieces.flatMap((piece) => piece.layers[layer])
+    const [decorations, outer, atomic] = [all('decorations'), all('outer'), all('atomic')]
     const shown = (ranges: readonly Range<Decoration>[]) =>
       ranges.map((r) => {
         const spec = r.value.spec as { class?: string; widget?: { className?: string } }

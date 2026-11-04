@@ -8,6 +8,7 @@ import {
 import {
   EditorSelection,
   EditorState,
+  StateField,
   type Extension,
   type Transaction,
   type TransactionSpec,
@@ -444,6 +445,21 @@ describe('inertFormats', () => {
     const inert = inertFormats(s)
     for (const id of Object.keys(FORMAT_COMMANDS) as FormatId[])
       expect(FORMAT_COMMANDS[id](s) === null).toBe(inert.includes(id))
+  })
+
+  it('builds no editor state to find them, which would update every state field of the editor', () => {
+    let updates = 0
+    const counted = StateField.define({
+      create: () => 0,
+      update: (n) => {
+        updates += 1
+        return n
+      },
+    })
+    for (const marked of ['a |word', '|', 'text\n\n|\n\nmore', '- item |x', '```\n|code\n```']) {
+      inertFormats(state(marked, [noteMarkdown, counted]))
+      expect([marked, updates]).toEqual([marked, 0])
+    }
   })
 
   it('lists nothing for a long selection', () => {

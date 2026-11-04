@@ -1,6 +1,8 @@
+import fc from 'fast-check'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  TEMPLATES_BOOK_ID,
   buildBookTree,
   bookCounts,
   createBookService,
@@ -8,10 +10,13 @@ import {
   createIdGenerator,
   createNoteService,
   notesInBook,
+  type BookDraft,
   type BookRecord,
   type BookService,
   type NoteService,
+  type StorageAdapter,
 } from '../../src/core'
+import { restoreLocalStorage, useMemoryLocalStorage } from '../support/local-storage'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -340,5 +345,140 @@ describe('tree building is safe against bad data from sync', () => {
     walk(tree)
     expect(ids.sort()).toEqual(['a', 'b', 'c'])
     expect(tree.map((n) => n.id)).toEqual(['a'])
+  })
+})
+
+describe('creating many notebooks at once', () => {
+  /** A store with a notebook holding two from before sort keys, so a new sibling there rekeys them. */
+  async function seeded(dir: string, name: string) {
+    let tick = 0
+    const now = () => 1_000 + Math.floor((tick += 1) / 3)
+    let n = 0
+    const newId = () => `0192a6f0-0000-7000-8000-${String((n += 1)).padStart(12, '0')}`
+    const storage = openSqliteAdapter(join(dir, `${name}.sqlite`))
+    open.push(storage)
+    const writes: number[] = []
+    const counted: StorageAdapter = {
+      ...storage,
+      putBook: (book) => {
+        writes.push(1)
+        return storage.putBook(book)
+      },
+      putBooks: (list) => {
+        writes.push(list.length)
+        return storage.putBooks(list)
+      },
+    }
+    const clock = createClock('mac1', now)
+    const books = createBookService({ storage: counted, clock, newId, now })
+    const home = await books.create('Home', null)
+    const homeRecord = (await storage.listBooks()).find((b) => b.id === home)!
+    for (const [i, old] of ['Old b', 'Old a'].entries()) {
+      await storage.putBook({
+        ...homeRecord,
+        id: `0192a6f0-0000-7000-9000-00000000000${i}`,
+        name: old,
+        parentId: home,
+        sortKey: '',
+        sortKeyHlc: '',
+      })
+    }
+    writes.length = 0
+    return { storage, books, home, writes }
+  }
+
+  const draft = fc.record({
+    name: fc.constantFrom('Plan', 'plan', 'Zeta', 'Alpha', ' Padded '),
+    parent: fc.oneof(fc.constantFrom('top', 'home'), fc.nat({ max: 30 })),
+    aiAccess: fc.boolean(),
+  })
+
+  // Each run opens two stores, which a busy machine takes its time over.
+  it(
+    'makes the notebooks, keys, parents and clocks one by one would, in one write',
+    { timeout: 60_000 },
+    async () => {
+      const dir = tempDir('devot-books-many-')
+      let run = 0
+      await fc.assert(
+        fc.asyncProperty(fc.array(draft, { maxLength: 30 }), async (generated) => {
+          run += 1
+          const single = await seeded(dir, `single-${run}`)
+          const batch = await seeded(dir, `batch-${run}`)
+          const drafts: BookDraft[] = generated.map((d, i) => {
+            const base = { name: d.name, ...(d.aiAccess ? { aiAccess: true } : {}) }
+            if (typeof d.parent === 'number' && d.parent < i) {
+              return { ...base, parentId: null, parentIndex: d.parent }
+            }
+            return { ...base, parentId: d.parent === 'home' ? single.home : null }
+          })
+          const ids: string[] = []
+          for (const d of drafts) {
+            const parent = d.parentIndex === undefined ? d.parentId : ids[d.parentIndex]!
+            ids.push(await single.books.create(d.name, parent, { aiAccess: d.aiAccess === true }))
+          }
+          expect(await batch.books.createMany(drafts)).toEqual(ids)
+          expect(await batch.storage.listBooks()).toEqual(await single.storage.listBooks())
+          expect(batch.writes).toHaveLength(drafts.length === 0 ? 0 : 1)
+        }),
+        { numRuns: 20 },
+      )
+    },
+  )
+
+  it('writes nothing when a name or a parent is refused', async () => {
+    const { storage, books, home, writes } = await seeded(tempDir('devot-books-many-'), 'refused')
+    const before = await storage.listBooks()
+    const refused: BookDraft[][] = [
+      [
+        { name: 'Fine', parentId: home },
+        { name: '  ', parentId: null },
+      ],
+      [{ name: 'Fine', parentId: '0192a6f0-0000-7000-8000-0000000fffff' }],
+      [{ name: 'Fine', parentId: null, parentIndex: 0 }],
+      [{ name: 'Fine', parentId: TEMPLATES_BOOK_ID }],
+    ]
+    for (const drafts of refused) {
+      await expect(books.createMany(drafts)).rejects.toThrow(/^E_BOOK_(NAME_INVALID|NOT_FOUND)$/)
+    }
+    expect(writes).toEqual([])
+    expect(await storage.listBooks()).toEqual(before)
+  })
+})
+
+describe('a note made in a notebook', () => {
+  it('checks the notebook without reading every notebook', async () => {
+    const { storage, books, notes } = setup()
+    const work = await books.create('Work', null)
+    const gone = await books.create('Gone', null)
+    await books.remove(gone)
+    const list = vi.spyOn(storage, 'listBooks')
+    const id = await notes.create('Plan', work)
+    expect((await storage.getNote(id))?.bookId).toBe(work)
+    await expect(notes.create('Lost', gone)).rejects.toThrow('E_BOOK_NOT_FOUND')
+    expect(list).not.toHaveBeenCalled()
+  })
+
+  it('finds live notebooks alone, in SQLite and in the UI tests’ memory adapter', async () => {
+    useMemoryLocalStorage()
+    try {
+      const { memoryStorage } = await import('../../src/renderer/src/storage/memory')
+      const { storage } = setup()
+      for (const store of [storage, memoryStorage]) {
+        const books = createBookService({
+          storage: store,
+          clock: createClock('mac1'),
+          newId: createIdGenerator(),
+        })
+        const work = await books.create('Work', null)
+        const gone = await books.create('Gone', null)
+        await books.remove(gone)
+        expect(await store.isLiveBook(work)).toBe(true)
+        expect(await store.isLiveBook(gone)).toBe(false)
+        expect(await store.isLiveBook('0192a6f0-0000-7000-8000-0000000fffff')).toBe(false)
+      }
+    } finally {
+      restoreLocalStorage()
+    }
   })
 })
