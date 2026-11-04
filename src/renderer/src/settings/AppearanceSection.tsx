@@ -272,7 +272,7 @@ function PhoneThemePicker({
   )
 }
 
-/** One appearance's themes: Default, a divider, then the built-in ones, in one row that scrolls sideways. */
+/** One appearance's themes: Default, a divider, then the built-in ones, in one row that fits the card. */
 function ThemePicker({
   appearance,
   chosen,
