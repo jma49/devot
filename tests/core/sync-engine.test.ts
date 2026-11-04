@@ -396,6 +396,26 @@ describe('sync between two devices', () => {
     expect(a.engine.status()).toMatchObject({ state: 'idle', skipped: 0 })
   })
 
+  it('renames a tag in saved searches another device wrote before it heard of the rename', async () => {
+    const { a, b } = await pair()
+    const tag = await a.tags.ensure('Work')
+    const edited = await a.savedSearches.create('Open work', 'tag:Work')
+    await settle(a, b)
+    await a.tags.rename(tag, 'Office')
+    await a.sync()
+    // B is offline: it edits the search and saves a new one by the name it still has.
+    await b.savedSearches.setQuery(edited, 'tag:Work -is:done')
+    const added = await b.savedSearches.create('Work', '#Work')
+    await settle(b, a)
+    const queries = async (side: typeof a) =>
+      Object.fromEntries((await side.savedSearches.list()).map((s) => [s.id, s.query]))
+    const expected = { [edited]: 'tag:Office -is:done', [added]: 'tag:Office' }
+    expect(await queries(b)).toEqual(expected)
+    expect(await queries(a)).toEqual(expected)
+    expect(a.engine.status()).toMatchObject({ state: 'idle', skipped: 0 })
+    expect(b.engine.status()).toMatchObject({ state: 'idle', skipped: 0 })
+  })
+
   it('catches up after the relay was away', async () => {
     const { relay, a, b } = await pair()
     const id = await a.notes.create('Trip')

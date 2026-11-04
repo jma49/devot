@@ -23,6 +23,7 @@ import type {
   StorageAdapter,
   TagRecord,
 } from './storage'
+import { sameName } from './tagNames'
 import { charCount, trimWhitespace, wellFormed } from './text'
 
 export const MAX_SAVED_SEARCH_NAME_CHARS = 100
@@ -75,15 +76,18 @@ const stamps = (s: SavedSearchRecord) => [s.nameHlc, s.queryHlc, s.sortKeyHlc, s
  * The saved searches whose query names `tag`, each with the query it needs once the tag is called
  * `name`, so that it matches the same notes. A tag put by ID is spelled so when the name would make
  * the query too long; throws E_TAG_RENAME_SEARCH_TOO_LONG when a query cannot be kept in the limit
- * either way, so that no rename leaves a search pointing at nothing.
+ * either way, so that no rename leaves a search pointing at nothing. None while another of `tags`
+ * (the live ones) still has the old name: the clauses go on naming that tag.
  */
 export function retargetSavedSearches(
   searches: readonly SavedSearchRecord[],
+  tags: readonly Pick<TagRecord, 'id' | 'name'>[],
   tag: Pick<TagRecord, 'id' | 'name'>,
   name: string,
   clock: Clock,
   now: number,
 ): SavedSearchRecord[] {
+  if (tags.some((t) => t.id !== tag.id && sameName(t.name, tag.name))) return []
   receiveStored(clock, searches.flatMap(stamps))
   const retargeted: SavedSearchRecord[] = []
   for (const search of searches) {

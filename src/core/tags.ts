@@ -76,6 +76,20 @@ export const customTagColorProperties = (color: TagColorValue | null | undefined
 
 const tagStamps = (t: TagRecord) => [t.nameHlc, t.colorHlc, t.deletedHlc]
 
+// Tags are made and renamed one at a time on each storage, whichever tag service asks: each reads
+// the tags (a rename also the saved searches) before it writes, so two at once could both make a
+// tag of one name, or one write its rewrite of a search over the other's.
+const turns = new WeakMap<StorageAdapter, Promise<unknown>>()
+
+function inTurn<T>(storage: StorageAdapter, work: () => Promise<T>): Promise<T> {
+  const done = (turns.get(storage) ?? Promise.resolve()).then(work)
+  turns.set(
+    storage,
+    done.catch(() => undefined),
+  )
+  return done
+}
+
 export function createTagService(options: TagServiceOptions): TagService {
   const { storage, clock, newId } = options
   const now = options.now ?? Date.now
@@ -100,9 +114,6 @@ export function createTagService(options: TagServiceOptions): TagService {
   const write = (tag: TagRecord) =>
     storage.putTag({ ...tag, updatedAt: Math.max(now(), tag.createdAt) })
 
-  // Renames run one at a time: each reads the saved searches it rewrites, so a second one
-  // reading before the first wrote would write its own rewrite over the first's.
-  let renames: Promise<void> = Promise.resolve()
   const renameNow = async (id: string, clean: string) => {
     const all = await listTags()
     const tag = all.find((t) => t.id === id)
@@ -113,6 +124,7 @@ export function createTagService(options: TagServiceOptions): TagService {
     }
     const searches = retargetSavedSearches(
       await storage.listSavedSearches(),
+      all,
       tag,
       clean,
       clock,
@@ -122,6 +134,25 @@ export function createTagService(options: TagServiceOptions): TagService {
       { ...tag, name: clean, nameHlc: clock.tick(), updatedAt: Math.max(now(), tag.createdAt) },
       searches,
     )
+  }
+
+  const ensureNow = async (clean: string) => {
+    const found = (await listTags()).find((t) => sameName(t.name, clean))
+    if (found) return found.id
+    const at = now()
+    const tag: TagRecord = {
+      id: newId(),
+      name: clean,
+      nameHlc: clock.tick(),
+      createdAt: at,
+      updatedAt: at,
+      deletedAt: null,
+      deletedHlc: null,
+      color: null,
+      colorHlc: '',
+    }
+    await storage.putTag(tag)
+    return tag.id
   }
 
   const service: TagService = {
@@ -140,23 +171,7 @@ export function createTagService(options: TagServiceOptions): TagService {
 
     async ensure(name) {
       const clean = cleanTagName(name)
-      let tag = (await listTags()).find((t) => sameName(t.name, clean))
-      if (!tag) {
-        const at = now()
-        tag = {
-          id: newId(),
-          name: clean,
-          nameHlc: clock.tick(),
-          createdAt: at,
-          updatedAt: at,
-          deletedAt: null,
-          deletedHlc: null,
-          color: null,
-          colorHlc: '',
-        }
-        await storage.putTag(tag)
-      }
-      return tag.id
+      return inTurn(storage, () => ensureNow(clean))
     },
 
     async removeFromNote(noteId, tagId) {
@@ -166,9 +181,7 @@ export function createTagService(options: TagServiceOptions): TagService {
 
     async rename(id, name) {
       const clean = cleanTagName(name)
-      const done = renames.then(() => renameNow(id, clean))
-      renames = done.catch(() => undefined)
-      return done
+      return inTurn(storage, () => renameNow(id, clean))
     },
 
     async setColor(id, color) {
