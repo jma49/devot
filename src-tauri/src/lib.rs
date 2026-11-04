@@ -287,6 +287,7 @@ pub fn run() {
             #[cfg(desktop)]
             updates::update_restart,
             deep_link::deep_link_take,
+            cli_append::cli_append_claim,
             cli_append::cli_append_done,
             cli_append::cli_append_take,
             note_relay::note_relay_send,

@@ -2783,6 +2783,7 @@ export function App() {
         await core.flush()
         await refresh(core)
       },
+      claim: (id) => invoke('cli_append_claim', { id }),
       reply: (id, error) => invoke('cli_append_done', { id, error }),
     })
     // Listening first, then asking for what waits: no request is lost between.

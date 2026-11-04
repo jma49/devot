@@ -118,6 +118,7 @@
     "allow-update-download",
     "allow-update-restart",
     "allow-deep-link-take",
+    "allow-cli-append-claim",
     "allow-cli-append-done",
     "allow-cli-append-take",
     "allow-quick-capture-claim",

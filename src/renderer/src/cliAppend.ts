@@ -1,7 +1,7 @@
 // The main window's half of `devot append`: Rust sends each request as an event and waits for
-// `cli_append_done` (src-tauri/src/cli_append.rs). Requests run one at a time; a request Rust gave
-// up waiting for still runs, so a command that timed out may have landed. The answer is a code or
-// nothing, never the text.
+// `cli_append_done` (src-tauri/src/cli_append.rs). Requests run one at a time, each claimed first
+// (`cli_append_claim`): one Rust gave up on before the claim never runs, one it gives up on after
+// still lands (`E_CLI_APPEND_LATE`). The answer is a code or nothing, never the text.
 import {
   APPEND_POSITIONS,
   findNoteByTitle,
@@ -61,12 +61,14 @@ export async function resolveAppendTarget(
 }
 
 export interface CliAppendHost {
+  /** Rejects once Rust has given up on the request, which then never runs. */
+  claim: (id: number) => Promise<unknown>
   run: (request: CliAppendRequest) => Promise<void>
   reply: (id: number, error: string | null) => Promise<unknown>
 }
 
 /** Takes each event payload; one that is not a request is ignored. Resolves once the queue is empty. */
-export function cliAppendHost({ run, reply }: CliAppendHost) {
+export function cliAppendHost({ claim, run, reply }: CliAppendHost) {
   let queue: Promise<void> = Promise.resolve()
   return (payload: unknown): Promise<void> => {
     const request = readCliAppendRequest(payload)
@@ -75,6 +77,12 @@ export function cliAppendHost({ run, reply }: CliAppendHost) {
       return queue
     }
     queue = queue.then(async () => {
+      try {
+        await claim(request.id)
+      } catch (e) {
+        console.warn('W_CLI_APPEND_CLAIM_FAILED', errorCode(e))
+        return
+      }
       let error: string | null = null
       try {
         await run(request)
@@ -84,7 +92,7 @@ export function cliAppendHost({ run, reply }: CliAppendHost) {
       try {
         await reply(request.id, error)
       } catch (e) {
-        // Rust gave up waiting (the command got a timeout); a write is made all the same.
+        // Rust gave up waiting after the claim (the command got E_CLI_APPEND_LATE).
         console.warn('W_CLI_APPEND_ANSWER_FAILED', errorCode(e))
       }
     })
