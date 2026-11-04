@@ -283,25 +283,33 @@ export function writeRanges(
     return slashes % 2 === 1
   }
 
-  /** A code block's fence lines keep their height with their text hidden; the opening one names the language. */
+  /**
+   * A code block's fences turn transparent, so their lines keep the height they have as source (a long
+   * info string wraps the same); the opening line names the language. Only the fences in view are drawn.
+   */
   function fences(node: SyntaxNode) {
     if (showsLines(node.from, node.to)) return
     const marks = node.getChildren('CodeMark')
     const open = marks[0]
     if (!open || open.from !== node.from) return
     const first = doc.lineAt(open.from)
-    const info = node.getChild('CodeInfo')
-    const language = info ? parseCodeInfo(text(info.from, info.to)).language : null
-    if (language && oneLine(open.from, first.to))
-      out.push({
-        kind: 'codeLanguage',
-        from: open.from,
-        to: first.to,
-        label: codeLanguage(language).name,
-      })
-    else hide(open.from, first.to)
+    const inView = (a: number, b: number) => b >= from && a <= to && oneLine(a, b)
+    if (inView(open.from, first.to)) {
+      out.push({ kind: 'mark', from: open.from, to: first.to, className: 'cm-wm-fence' })
+      const info = node.getChild('CodeInfo')
+      const language = info ? parseCodeInfo(text(info.from, info.to)).language : null
+      if (language)
+        out.push({
+          kind: 'codeLanguage',
+          from: first.to,
+          to: first.to,
+          label: codeLanguage(language).name,
+        })
+    }
     const close = marks.length > 1 ? marks[marks.length - 1] : undefined
-    if (close && close.from > first.to) hide(close.from, doc.lineAt(close.from).to)
+    const last = close && close.from > first.to ? doc.lineAt(close.from) : null
+    if (close && last && inView(close.from, last.to))
+      out.push({ kind: 'mark', from: close.from, to: last.to, className: 'cm-wm-fence' })
   }
 
   /** A footnote with a definition: its number. */

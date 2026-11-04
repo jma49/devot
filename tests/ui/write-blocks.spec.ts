@@ -217,10 +217,12 @@ test('a code block hides its fences, keeping their lines, and names its language
 }) => {
   const text = ['Before', '', '```ts', 'const answer = 42', '```', '', 'After']
   await createNote(page, 'Code', text.join('\n'))
-  await expect
-    .poll(() => lines(page))
-    .toEqual(['Before', '', 'TypeScript', 'const answer = 42', '', '', 'After'])
   const language = page.locator('.cm-wm-code-language')
+  await expect(language).toHaveText('TypeScript')
+  // One mark per fence, split into spans where the code block's own marks (fence, info) nest in it.
+  const fences = page.locator('.cm-wm-fence')
+  expect(await fences.count()).toBeGreaterThanOrEqual(2)
+  for (const fence of await fences.all()) await expect(fence).toHaveCSS('color', 'rgba(0, 0, 0, 0)')
   await expect(language).toHaveCSS('font-size', '11px')
   await expect(language).toHaveCSS('position', 'absolute')
   const box = (await page.locator('.cm-line.cm-codeblock-first').boundingBox())!
@@ -231,6 +233,7 @@ test('a code block hides its fences, keeping their lines, and names its language
   await page.locator('.cm-line', { hasText: 'const answer' }).click()
   await expect.poll(() => lines(page)).toEqual(text)
   await expect(language).toHaveCount(0)
+  await expect(fences).toHaveCount(0)
   expect(await tops(page)).toEqual(before)
   await page.locator('.cm-line', { hasText: 'After' }).click()
   await expect(language).toHaveCount(1)
@@ -277,4 +280,9 @@ test('an image that does not load shows the block placeholder with its alt text'
   await expect(image).toHaveClass(/cm-wm-block-open/)
   await expect.poll(() => lines(page)).toEqual(['Top', `![Site plan](${broken})`, 'End'])
   await expect(viewer(page)).toBeHidden()
+  // The block draws again with the new alt text, and the image, whose address did not change, stays failed.
+  await page.keyboard.insertText(' v2')
+  await expect(image.locator('p')).toHaveAttribute('data-image-missing-alt', 'Site plan v2')
+  await expect(img).toHaveClass(/image-missing/)
+  await expect(img).toHaveAttribute('aria-label', 'Site plan v2: image could not be loaded')
 })

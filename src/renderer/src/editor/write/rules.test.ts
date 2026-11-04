@@ -165,7 +165,9 @@ describe('Write mode footnotes', () => {
   })
 
   it('leave a footnote in code, and a definition nothing refers to, as typed', () => {
-    expect(shown('`a[^1]`\n\n```\nb[^1]\n```\n\n[^1]: x')).toBe('a[^1]\n\n\nb[^1]\n\n\n[^1]: x')
+    expect(shown('`a[^1]`\n\n```\nb[^1]\n```\n\n[^1]: x')).toBe(
+      'a[^1]\n\n```\nb[^1]\n```\n\n[^1]: x',
+    )
   })
 })
 
@@ -228,20 +230,31 @@ describe('Write mode rules', () => {
     expect(marks('a\n\n***\n\nb')).toEqual(['cm-wm-rule '])
   })
 
-  it("hide a code block's fences, keeping their lines, and name its language", () => {
-    expect(shown('a\n\n```ts\nconst a = `x` * 2 // **no**\n```\n\nb')).toBe(
-      'a\n\n{lang TypeScript}\nconst a = `x` * 2 // **no**\n\n\nb',
-    )
-    expect(shown('~~~~\ncode\n~~~~')).toBe('\ncode\n')
-    expect(shown('```made-up title="x"\nx\n```')).toBe('{lang made-up}\nx\n')
-    expect(shown('```\nnot closed')).toBe('\nnot closed')
+  it("make a code block's fences transparent, keeping their text and lines, and name its language", () => {
+    const doc = 'a\n\n```ts\nconst a = `x` * 2 // **no**\n```\n\nb'
+    expect(shown(doc)).toBe('a\n\n```ts{lang TypeScript}\nconst a = `x` * 2 // **no**\n```\n\nb')
+    expect(marks(doc)).toEqual(['cm-wm-fence ```ts', 'cm-wm-fence ```'])
+    expect(marks('~~~~\ncode\n~~~~')).toEqual(['cm-wm-fence ~~~~', 'cm-wm-fence ~~~~'])
+    expect(shown('```made-up title="x"\nx\n```')).toBe('```made-up title="x"{lang made-up}\nx\n```')
+    expect(marks('```\nnot closed')).toEqual(['cm-wm-fence ```'])
   })
 
   it('show the fences of the code block the selection is in', () => {
     const doc = 'a\n\n```ts\ncode\n```\n\nb'
-    expect(shown(doc, caret(doc.indexOf('code')))).toBe(doc)
-    expect(shown(doc, caret(doc.indexOf('```')))).toBe(doc)
-    expect(shown(doc, caret(doc.length))).toBe('a\n\n{lang TypeScript}\ncode\n\n\nb')
+    for (const at of [doc.indexOf('code'), doc.indexOf('```')])
+      expect(rangesOf(doc, caret(at)).ranges.filter((r) => r.kind !== 'unit')).toEqual([])
+    expect(marks(doc)).toHaveLength(2)
+  })
+
+  it('draw only the fences in the range asked for', () => {
+    const body = Array.from({ length: 50 }, (_, i) => `line ${i}`).join('\n')
+    const doc = `\`\`\`ts\n${body}\n\`\`\``
+    const state = EditorState.create({ doc, extensions: [noteMarkdown] })
+    const tree = ensureSyntaxTree(state, doc.length, 1e9)
+    if (!tree) throw new Error('E_TEST_NO_TREE')
+    const middle = doc.indexOf('line 25')
+    expect(writeRanges(state, tree, [], middle, middle + 7)).toEqual([])
+    expect(writeRanges(state, tree, [], 0, 5).map((r) => r.kind)).toEqual(['mark', 'codeLanguage'])
   })
 
   it('leave indented code, HTML blocks and front matter as source', () => {

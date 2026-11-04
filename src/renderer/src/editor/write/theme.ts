@@ -68,6 +68,7 @@ export const writeTheme = EditorView.theme({
     color: token('syntax-link'),
     cursor: 'text',
   },
+  '&[data-write] .cm-wm-fence, &[data-write] .cm-wm-fence *': { color: 'transparent' },
   // Where the preview's code header puts its language, at the box's inner right edge.
   '.cm-wm-code-language': {
     position: 'absolute',

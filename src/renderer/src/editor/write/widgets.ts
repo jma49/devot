@@ -103,7 +103,7 @@ class NoteTitleWidget extends WidgetType {
   }
 }
 
-/** Out of the line's flow, so the fence line keeps the height it has as source. */
+/** At the end of the opening fence, out of the line's flow, so the line keeps the height it has as source. */
 class CodeLanguageWidget extends WidgetType {
   constructor(readonly label: string) {
     super()
@@ -156,7 +156,10 @@ const UNIT = Decoration.mark({})
 
 /** Whether the caret steps over `range` as one unit. */
 export const atomic = (range: WriteRange) =>
-  range.kind !== 'bullet' && range.kind !== 'mark' && range.kind !== 'line'
+  range.kind !== 'bullet' &&
+  range.kind !== 'mark' &&
+  range.kind !== 'line' &&
+  range.kind !== 'codeLanguage'
 
 /** Whether `range` is drawn; a unit only groups characters for the caret. */
 export const drawn = (range: WriteRange) => range.kind !== 'unit'
@@ -174,7 +177,7 @@ export function decorationOf(range: WriteRange): Decoration {
     case 'noteTitle':
       return Decoration.replace({ widget: new NoteTitleWidget(range.id) })
     case 'codeLanguage':
-      return Decoration.replace({ widget: new CodeLanguageWidget(range.label) })
+      return Decoration.widget({ widget: new CodeLanguageWidget(range.label), side: 1 })
     case 'footnote':
       return Decoration.replace({ widget: new FootnoteWidget(range.number, range.definition) })
     case 'mark':

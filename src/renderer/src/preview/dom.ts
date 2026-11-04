@@ -4,6 +4,7 @@
 import type { Element as HastElement, ElementContent, RootContent } from 'hast'
 import { find, html } from 'property-information'
 import { isCustomTagColor } from '../../../core/tags'
+import { isMissingImage, markMissing } from '../missingImages'
 import { ISLAND_ATTRIBUTE } from './islands'
 
 type HastChild = RootContent | ElementContent
@@ -62,6 +63,11 @@ function applyTagColor(el: Element): void {
 
 function syncAttributes(el: Element, node: HastElement): void {
   const next = attributes(node)
+  // A failed image fires no second error for the same address: its placeholder outlives the patch.
+  const failed =
+    el instanceof HTMLImageElement &&
+    isMissingImage(el) &&
+    el.getAttribute('src') === next.get('src')
   // What the page itself changed stays: an opened details is still open (a
   // box's tick is kept by hand below, for the same reason).
   const keepsOpen = el instanceof HTMLDetailsElement && !next.has('open')
@@ -74,6 +80,7 @@ function syncAttributes(el: Element, node: HastElement): void {
   }
   // A clicked box no longer follows its attribute; it shows what the note says.
   if (el instanceof HTMLInputElement) el.checked = next.has('checked')
+  if (failed) markMissing(el, true)
   applySwatch(el)
   applyTagColor(el)
 }
