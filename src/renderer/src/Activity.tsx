@@ -7,7 +7,7 @@ import { sheetOpen } from './commands/dispatch'
 import type { Core } from './core-client'
 import { countOf } from './format'
 import { currentLocale, format, t } from './i18n'
-import { listenHere } from './windowEvents'
+import { listenHere, unlistenLater } from './windowEvents'
 
 export const SHOW_ACTIVITY = 'devot:show-activity'
 
@@ -21,20 +21,15 @@ export function useActivityMenu(open: () => void) {
       if (!sheetOpen()) latest.current()
     }
     window.addEventListener(SHOW_ACTIVITY, show)
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    if (!DEVOT_UI_TEST) {
-      listenHere('devot://show-activity', () =>
-        window.dispatchEvent(new CustomEvent(SHOW_ACTIVITY)),
-      )
-        .then((stop) => {
-          if (stopped) stop()
-          else unlisten = stop
-        })
-        .catch(() => console.warn('W_ACTIVITY_MENU_LISTEN_FAILED'))
-    }
+    const unlisten = DEVOT_UI_TEST
+      ? undefined
+      : unlistenLater(
+          listenHere('devot://show-activity', () =>
+            window.dispatchEvent(new CustomEvent(SHOW_ACTIVITY)),
+          ),
+          () => console.warn('W_ACTIVITY_MENU_LISTEN_FAILED'),
+        )
     return () => {
-      stopped = true
       window.removeEventListener(SHOW_ACTIVITY, show)
       unlisten?.()
     }

@@ -715,15 +715,6 @@ impl Imports {
     }
 }
 
-async fn blocking<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
-) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(work)
-        .await
-        .map_err(|_| "E_IMPORT_FAILED".to_string())?
-        .map_err(String::from)
-}
-
 #[tauri::command]
 pub async fn import_read(
     imports: State<'_, Imports>,
@@ -731,7 +722,7 @@ pub async fn import_read(
     path: String,
 ) -> Result<String, String> {
     let (root, rel) = imports.root_for(id, &path, true)?;
-    blocking(move || read_note(&root, &rel)).await
+    crate::task::blocking("E_IMPORT_FAILED", move || read_note(&root, &rel)).await
 }
 
 #[tauri::command]
@@ -753,7 +744,10 @@ pub async fn import_attach(
         return Err("E_IMPORT_PATH_INVALID".into());
     }
     let (root, rel, shallow) = imports.place(id, &path, false)?;
-    let image = blocking(move || read_session_image(&root, &rel, shallow)).await?;
+    let image = crate::task::blocking("E_IMPORT_FAILED", move || {
+        read_session_image(&root, &rel, shallow)
+    })
+    .await?;
     let upload = Upload {
         id: file_id,
         note_id,

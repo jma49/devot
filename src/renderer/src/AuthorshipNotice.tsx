@@ -7,7 +7,7 @@ import type { AgentWriteSummary } from '../../core/storage'
 import { writerKey, writerLabel, writersLabel, type WriterRef } from './authorshipLabels'
 import { countOf, fullDate } from './format'
 import { currentLocale, format, t } from './i18n'
-import type { EditorHandle } from './NoteEditor'
+import type { EditorHandle } from './editor/handle'
 
 /** The step `by` away from `index`, kept inside the `count` steps there are. */
 export const stepFrom = (index: number, by: 1 | -1, count: number): number =>

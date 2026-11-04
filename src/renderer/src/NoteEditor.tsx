@@ -1,19 +1,11 @@
 import { isolateHistory } from '@codemirror/commands'
-import {
-  Compartment,
-  EditorSelection,
-  EditorState,
-  Facet,
-  Prec,
-  type Extension,
-} from '@codemirror/state'
-import { EditorView, keymap, tooltips } from '@codemirror/view'
+import { Compartment, EditorSelection, EditorState, Prec, type Extension } from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
 import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { yCollab, ySyncAnnotation } from 'y-codemirror.next'
 import * as Y from 'yjs'
-import type { ImageSize } from '../../core/images'
-import { readWrites, reviewSteps, type AgentWrite, type ReviewStep } from '../../core/authorship'
+import { readWrites, type AgentWrite } from '../../core/authorship'
 import { BODY } from '../../core/notes'
 import { authorshipMarks } from './editor/authorship'
 import { authorshipUndo, undoneWrites } from './editor/authorshipUndo'
@@ -21,17 +13,8 @@ import { imageFiles, storeImages } from './attachments'
 import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
-import { BOX_PAD } from './editor/boxes'
-import { readClipboardText } from './clipboard'
-import { editorCommandKeys, type CommandId } from './commands/registry'
 import { invoke } from './ipc'
-import {
-  linkOpener,
-  lineCommands,
-  linkForNewNote,
-  runEditCommand,
-  type LinkAt,
-} from './editor/lineCommands'
+import { linkOpener, lineCommands } from './editor/lineCommands'
 import { overwrite } from './editor/overwrite'
 import {
   EDITOR_MENU,
@@ -49,15 +32,14 @@ import { tauriMenus, useContextMenu, type MenuPoint } from './contextMenu'
 import { copyText } from './noteMenu'
 import { lookUp, startSpeaking, stopSpeaking } from './textServices'
 import type { ShowAlertMenu } from './editor/alertMenu'
-import { moveRange, moveSelection, selectedText, trackExtract } from './editor/extract'
+import { trackExtract } from './editor/extract'
 import { editorFind, editorFindTarget } from './editor/find'
-import { formatCommand, type FormatId } from './editor/formats'
 import { formatToolbar } from './editor/FormatToolbar'
 import { noteHighlighting } from './editor/highlighting'
 import { systemMenus, systemMenusAvailable } from './editor/systemMenu'
 import type { Suggester } from '../../core/aiSuggest'
 import { aiEditStart, useAiMenu, type AiEditChoice, type StartAiEdit } from './editor/aiMenu'
-import { acceptSpec, ghostText, suggestAt } from './editor/ghostText'
+import { ghostText } from './editor/ghostText'
 import { imageSizeBar } from './editor/ImageSizeBar'
 import { tableToolbar } from './editor/TableToolbar'
 import { linkTooltip } from './editor/linkTooltip'
@@ -72,26 +54,38 @@ import {
   takeEarlyKeys,
   type EarlyKeysTicket,
 } from './editor/earlyKeys'
+import {
+  imageCommandKeys,
+  newFromLink,
+  newFromLinkKeys,
+  newFromSelection,
+  newFromSelectionKeys,
+  pastePlain,
+  pastePlainKeys,
+  pasteUrlAsKeys,
+} from './editor/noteKeys'
 import { editorLayoutWatch, editorScrollPane } from './editor/scrollPane'
-import { insertCommand, insertKeymap, type InsertId } from './editor/insert'
-import { imageActions, imageAt, imageSizeChange, viewImageAt } from './editor/images'
-import { TABLE_COMMANDS, inTable, tableKeymap, type TableCommandId } from './editor/tableCommands'
+import { editorHandle, REMOTE, type EditorHandle } from './editor/handle'
+import { shadowContainer } from './editor/shadowFrame'
+import { editorTheme, popupSpace } from './editor/theme'
+import { insertKeymap } from './editor/insert'
+import { imageActions } from './editor/images'
+import { tableKeymap } from './editor/tableCommands'
 import { tableTyping } from './editor/tableTyping'
 import { markdownLineStyles } from './editor/lineStyles'
 import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
-import { pasteUrlAs, pasteUrls, plainPaste } from './editor/paste'
-import { pasteChooser, showChooser, type PasteFetcher } from './editor/pasteChooser'
+import { pasteUrls } from './editor/paste'
+import { pasteChooser, type PasteFetcher } from './editor/pasteChooser'
 import { editorSetup, reconfigureSetup } from './editor/settings'
 import { countsReporter, recount, type EditorCounts } from './editor/counts'
 import { selectionEdges } from './editor/selectionEdges'
 import { editorCompletions } from './editor/completions'
 import { chooseTemplate } from './editor/hints'
-import { taskToggle } from './editor/tasks'
 import { setToolbarFocus } from './editor/toolbarState'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
 import { catchUp } from './editor/catchUp'
 import { refusedEdits } from './editor/refusedEdits'
-import { reconfigureRegistryKeys, registryKeys } from './editor/registryKeys'
+import { reconfigureRegistryKeys } from './editor/registryKeys'
 import { setInertFormats } from './commands/formatMenu'
 import { subscribeKeymap } from './commands/shortcutSettings'
 import { FONT_SLOTS } from '../../core/editorSettings'
@@ -100,25 +94,15 @@ import { useEditorSettings } from './editorSettings'
 import type { FindTarget } from './find/target'
 import { keyboardIsFree, typingElsewhere } from './focus'
 import { t } from './i18n'
-import {
-  imageActionApplies,
-  imageKeys,
-  imageMenuTarget,
-  runImageAction,
-  type ImageMenuTarget,
-  type ImageSource,
-  type ShowImageMenu,
-} from './imageMenu'
+import { imageMenuTarget, type ShowImageMenu } from './imageMenu'
 import type { ViewedImage } from './ImageViewer'
 import { linkCompletion, type LinkSources } from './linkCompletion'
 import { setWriteFocus, writeFocusTracking, writeMode, type WriteRenderer } from './editor/write'
 import { previewLabels } from './preview/Preview'
-import contentCss from './preview/content.css?raw'
 import type { Core } from './core-client'
 import type { ScrollPane } from './preview/scrollSync'
 import { clampSelection, clampTop, type EditorTop, type SelectionState } from './lastState'
 
-const REMOTE = 'remote'
 // The note being left while the next one loads: on screen, but nothing typed may land in it.
 const pausedSlot = new Compartment()
 const PAUSED = [
@@ -186,73 +170,6 @@ export interface EditorPlace {
   top?: EditorTop
 }
 
-export interface EditorHandle {
-  noteId: string
-  /** The replica's state vector, so the core sends only what it lacks (NoteService.open). */
-  vector: () => Uint8Array
-  /** Takes in the core's state after it merged another process's writes: shown outside the undo history, not sent back. */
-  takeState: (state: Uint8Array) => void
-  /** Like `takeState`, for a change the user asked for (a template filling the note): one undo step, not sent back. */
-  takeStep: (state: Uint8Array) => void
-  focus: () => void
-  focusStart: () => void
-  remeasure: () => void
-  format: (id: FormatId) => void
-  insert: (id: InsertId) => void
-  text: () => string
-  /** Caret to the start of line `line` (1-based), scrolled to the view's top (outline entry) or middle (Go to Line). */
-  goToLine: (line: number, where?: 'start' | 'center', focus?: boolean) => void
-  inTable: () => boolean
-  table: (id: TableCommandId) => void
-  hasSelection: () => boolean
-  /** Hands the selected text to `make` and puts the text it resolves to (a note link) in its place, as one undo step (editor/extract.ts). */
-  moveSelection: (make: (text: string) => Promise<string | null>) => Promise<boolean>
-  linkAtCursor: () => LinkAt | null
-  /** Like `moveSelection`, for a range. */
-  moveRange: (
-    from: number,
-    to: number,
-    make: (text: string) => Promise<string | null>,
-  ) => Promise<boolean>
-  pastePlain: () => Promise<void>
-  suggest: () => void
-  /** Takes the inline suggestion shown at the caret; false when none is shown. */
-  acceptSuggestion: () => boolean
-  runLine: (id: CommandId) => void
-  pasteUrlAs: () => Promise<void>
-  imageAtCursor: () => ImageMenuTarget | null
-  /** Shows that image in the viewer (an attachment only); false when there is none. */
-  viewImage: () => boolean
-  /** Gives the image at `source` a size as one change; false when that text is no longer that image. */
-  setImageSize: (source: ImageSource, size: ImageSize) => boolean
-  /** Ticks or unticks the task whose mark is at `at` as one change; false when no box is there any more. */
-  toggleTask: (at: number) => boolean
-  /** Review Changes: the places the writes in `writeIds` changed, as the replica has them now (reviewSteps). */
-  reviewSteps: (writeIds: ReadonlySet<string>) => ReviewStep[]
-  /** Selects `from`-`to` and scrolls it to the middle, leaving the keyboard where it is. */
-  reveal: (from: number, to: number) => void
-}
-
-async function pastePlain(view: EditorView): Promise<void> {
-  const text = await readClipboardText().catch(() => {
-    console.warn('W_CLIPBOARD_READ_FAILED')
-    return ''
-  })
-  const spec = plainPaste(view.state, text)
-  if (spec) view.dispatch(spec)
-}
-
-async function pasteUrlAsIn(view: EditorView): Promise<void> {
-  const text = await readClipboardText().catch(() => {
-    console.warn('W_CLIPBOARD_READ_FAILED')
-    return ''
-  })
-  const spec = pasteUrlAs(view.state, text)
-  if (!spec) return
-  view.dispatch(spec)
-  showChooser(view)
-}
-
 /** What the paste chooser fetches, through Rust (https only, capped). */
 const linkFetcher: PasteFetcher = {
   title: async (url) => {
@@ -265,106 +182,6 @@ const linkFetcher: PasteFetcher = {
     return code
   },
 }
-
-const pasteUrlAsKeys = registryKeys(() =>
-  keymap.of(
-    editorCommandKeys('edit.pasteUrlAs').map((key) => ({
-      key,
-      run: (view: EditorView) => {
-        void pasteUrlAsIn(view)
-        return true
-      },
-      preventDefault: true,
-    })),
-  ),
-)
-
-/** Paste as Plain Text keys, ahead of CodeMirror's own bindings such as format and find. */
-const pastePlainKeys = registryKeys(() =>
-  Prec.high(
-    keymap.of(
-      editorCommandKeys('edit.pastePlain').map((key) => ({
-        key,
-        run: (view: EditorView) => {
-          void pastePlain(view)
-          return true
-        },
-        preventDefault: true,
-      })),
-    ),
-  ),
-)
-
-/** What New Note from Selection does here (the window makes the note); false when it cannot. */
-const newFromSelection = Facet.define<() => boolean, (() => boolean) | undefined>({
-  combine: (all) => all[0],
-})
-
-/** With text selected the keys hand it to the window; with none they do nothing. */
-const newFromSelectionKeys = registryKeys(() =>
-  Prec.high(
-    keymap.of(
-      editorCommandKeys('note.newFromSelection').map((key) => ({
-        key,
-        run: (view: EditorView) =>
-          selectedText(view.state) !== null && (view.state.facet(newFromSelection)?.() ?? false),
-        preventDefault: true,
-      })),
-    ),
-  ),
-)
-
-const newFromLink = Facet.define<() => boolean, (() => boolean) | undefined>({
-  combine: (all) => all[0],
-})
-
-const newFromLinkKeys = registryKeys(() =>
-  Prec.high(
-    keymap.of(
-      editorCommandKeys('note.newFromLink').map((key) => ({
-        key,
-        run: (view: EditorView) =>
-          linkForNewNote(view.state, view.state.selection.main.head) !== undefined &&
-          (view.state.facet(newFromLink)?.() ?? false),
-        preventDefault: true,
-      })),
-    ),
-  ),
-)
-
-function setImageSize(view: EditorView, source: ImageSource, size: ImageSize): boolean {
-  const change = imageSizeChange(view.state, source, size)
-  if (!change) {
-    console.warn('W_IMAGE_SIZE_STALE')
-    return false
-  }
-  view.dispatch(change)
-  return true
-}
-
-/** Image command keys (none by default): they do nothing when there is no image or the command does not apply. */
-const imageCommandKeys = registryKeys(() =>
-  Prec.high(
-    keymap.of([
-      ...imageKeys().map(({ action, key }) => ({
-        key,
-        run: (view: EditorView) => {
-          const image = imageAt(view.state, view.state.selection.main.head)
-          const target = image && imageMenuTarget(image)
-          if (!target || !imageActionApplies(action, target)) return false
-          void runImageAction(action, target, (source, size) => setImageSize(view, source, size))
-          return true
-        },
-        preventDefault: true,
-      })),
-      ...editorCommandKeys('image.view').map((key) => ({
-        key,
-        run: viewImageAt,
-        preventDefault: true,
-      })),
-    ]),
-  ),
-)
 
 /** The top line and the offset past its top. The scroll box is `scroller` (inside the shadow root), not CodeMirror's own. */
 function editorTop(view: EditorView, scroller: HTMLElement): EditorTop | undefined {
@@ -464,226 +281,6 @@ function attachImages(
     },
   })
   return { extension, choose }
-}
-
-/**
- * The editor lives in a shadow root: CodeMirror adds its styles there as constructed stylesheets, which the production CSP allows (in the document it would add <style> tags, which the CSP blocks). Theme variables inherit into it.
- */
-const theme = EditorView.theme({
-  '&': {
-    height: '100%',
-    backgroundColor: 'transparent',
-    color: 'var(--color-text-editor)',
-  },
-  '.cm-scroller': {
-    fontSize: 'var(--editor-font-size, var(--font-size-body))',
-    fontFamily: 'var(--editor-font-family, var(--font-family-mono))',
-    fontWeight: 'var(--editor-font-weight, normal)',
-    lineHeight: 'var(--editor-line-height, 1.5)',
-  },
-  '&.cm-focused': { outline: 'none' },
-  // The line's padding is the note's text column, and a box sits on it (editor/boxes.ts).
-  '.cm-content': {
-    '--box-edge': BOX_PAD,
-    fontKerning: 'normal',
-    lineBreak: 'strict',
-  },
-  '@supports (text-autospace: normal)': {
-    '.cm-content': { textAutospace: 'normal' },
-    '.cm-line.cm-codeblock, .cm-md-code': { textAutospace: 'no-autospace' },
-  },
-  // CodeMirror pads a line 6px on the start side and 2px on the end, and sizes
-  // every full row from the first line's padding. Equal sides keep that row on
-  // the note's column, which is where a box's outer edge sits (editor/boxes.ts).
-  // Each line reads in the direction of its own first strong character (see `perLineTextDirection`).
-  '.cm-line': { paddingInline: BOX_PAD, unicodeBidi: 'plaintext' },
-  '.cm-scroller::-webkit-scrollbar': {
-    width: 'var(--size-scrollbar)',
-    height: 'var(--size-scrollbar)',
-    background: 'transparent',
-  },
-  '.cm-scroller::-webkit-scrollbar-thumb': {
-    borderRadius: 'var(--radius-capsule)',
-    background: 'var(--color-fill-scrollbar)',
-  },
-  '.cm-cursor, .cm-dropCursor': {
-    borderLeftColor: 'var(--color-editor-caret)',
-    borderLeftWidth: 'var(--space-1)',
-  },
-  '.cm-placeholder': { color: 'var(--color-editor-placeholder)' },
-  // CodeMirror's own colours are for a light page; these follow the tokens,
-  // so the gutter, the active line and the selection read in both appearances.
-  // The pane behind is a translucent wash, so the gutter stays clear to match it. Only with wrapping off
-  // does the whole page scroll sideways under the sticky gutter; then it is opaque so that text does not show through.
-  '.cm-gutters': {
-    backgroundColor: 'transparent',
-    color: 'var(--color-text-tertiary)',
-    border: '0',
-  },
-  '.cm-scroller:has(> .cm-content:not(.cm-lineWrapping)) > .cm-gutters': {
-    backgroundColor: 'var(--color-surface-editor)',
-  },
-  '.cm-activeLine': { backgroundColor: 'var(--color-editor-active-line)' },
-  '.cm-activeLineGutter': {
-    backgroundColor: 'var(--color-editor-active-line)',
-    color: 'var(--color-text-primary)',
-  },
-  // The tint marks where the caret is, which only means something while the
-  // editor has the keyboard: a note opens with its caret on line 1, and an
-  // unfocused pane must not look as if the reader were typing there.
-  '&:not(.cm-focused) .cm-activeLine, &:not(.cm-focused) .cm-activeLineGutter': {
-    backgroundColor: 'transparent',
-  },
-  // The selection is drawn in a layer behind the lines, so the active line's tint lies over it.
-  // A solid tint that stands 1.3:1 from both; lighter while the editor does not have focus.
-  '.cm-selectionBackground': { backgroundColor: 'var(--color-accent-selection-inactive)' },
-  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
-    backgroundColor: 'var(--color-accent-selection)',
-  },
-  // A full row is the column. A code or table line's own padding sits inside its
-  // box (editor/selectionEdges.ts), so a side drawn at that padding grows back
-  // out to the column, and the first and last rows the rest of the way from the
-  // caret, so the tint wraps the box.
-  '& > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:not(:first-child):not(:last-child)':
-    {
-      boxSizing: 'content-box',
-      marginLeft: 'calc(-1 * var(--sel-box-left, 0px))',
-      paddingLeft: 'var(--sel-box-left, 0px)',
-      paddingRight: 'var(--sel-box-right, 0px)',
-    },
-  '& > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:first-child:not(:last-child)': {
-    boxSizing: 'content-box',
-    paddingRight: 'var(--sel-box-right, 0px)',
-  },
-  '& > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:last-child:not(:first-child)': {
-    boxSizing: 'content-box',
-    marginLeft: 'calc(-1 * var(--sel-box-left, 0px))',
-    paddingLeft: 'var(--sel-box-left, 0px)',
-  },
-  '&.cm-sel-reach-start > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:first-child':
-    {
-      boxSizing: 'content-box',
-      marginLeft: 'calc(-1 * var(--sel-reach-start, 0px))',
-      paddingLeft: 'var(--sel-reach-start, 0px)',
-    },
-  '&.cm-sel-reach-end > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground:last-child': {
-    boxSizing: 'content-box',
-    paddingRight: 'var(--sel-reach-end, 0px)',
-  },
-  '.cm-selectionMatch': { backgroundColor: 'var(--color-fill-match)' },
-  '.cm-foldPlaceholder': {
-    backgroundColor: 'var(--color-fill-track)',
-    color: 'var(--color-text-secondary)',
-    border: '0',
-  },
-  '.cm-tooltip': {
-    border: '0',
-    borderRadius: 'var(--radius-card)',
-    backgroundColor: 'var(--color-surface-editor)',
-    boxShadow: '0 0 0 0.5px var(--color-line-hairline)',
-    color: 'var(--color-text-primary)',
-  },
-})
-
-/**
- * Popups live in the frame around the scroll box so scrolling does not clip them: one over the first lines may reach up over the title and meta line, and a popup with no room above a line opens below it. A further box that clips (the split view's sideways scroll) holds them in too.
- */
-const popupSpace = (frame: HTMLElement) =>
-  tooltips({
-    parent: frame,
-    tooltipSpace: (view) => {
-      const root = view.dom.getRootNode()
-      const host = root instanceof ShadowRoot ? (root.host as HTMLElement) : view.dom
-      const box = host.getBoundingClientRect()
-      const pane = host.closest('[data-devot-part="editor"]')
-      const toolbar = pane?.querySelector('[data-devot-part="toolbar"]')
-      if (!pane || !toolbar) return box
-      let top = toolbar.getBoundingClientRect().bottom
-      for (let el = host.parentElement; el && el !== pane; el = el.parentElement) {
-        if (getComputedStyle(el).overflowY !== 'visible') {
-          top = Math.max(top, el.getBoundingClientRect().top)
-        }
-      }
-      return { left: box.left, right: box.right, top: Math.min(top, box.top), bottom: box.bottom }
-    },
-  })
-
-/** The preview's own content rules, for Write mode's rendered blocks. */
-const contentStyles = (() => {
-  let sheet: CSSStyleSheet | undefined
-  return () => {
-    if (!sheet) {
-      sheet = new CSSStyleSheet()
-      sheet.replaceSync(contentCss)
-    }
-    return sheet
-  }
-})()
-
-/** The editor's own styles in its shadow root, where the window's stylesheet does not reach. */
-const frameStyles = (() => {
-  let sheet: CSSStyleSheet | undefined
-  return () => {
-    if (!sheet) {
-      sheet = new CSSStyleSheet()
-      sheet.replaceSync(`
-        /* Grid stretching, not percentages: the scroll box is as tall as
-           the host when the window's layout gives it a height. */
-        :host,
-        .editor-frame { display: grid; min-height: 0; }
-        .editor-frame { position: relative; }
-        .editor-scroll { min-height: 0; }
-        /* The lines slide inside it with the panes (paneMotion.ts) without
-           ever making the box scroll sideways. */
-        .editor-root { overflow-x: clip; }
-        /* CodeMirror's popup layer covers the editor: only the popups in it
-           take the pointer. */
-        .editor-frame { pointer-events: none; }
-        .editor-scroll,
-        .editor-frame .cm-tooltip { pointer-events: auto; }
-        .editor-scroll {
-          box-sizing: border-box;
-          overflow: auto;
-          overflow-y: var(--editor-overflow-y, auto);
-          padding: var(--editor-padding);
-        }
-        .editor-scroll::-webkit-scrollbar {
-          width: var(--size-scrollbar);
-          height: var(--size-scrollbar);
-          background: transparent;
-        }
-        .editor-scroll::-webkit-scrollbar-thumb {
-          border-radius: var(--radius-capsule);
-          background: var(--color-fill-scrollbar);
-        }
-      `)
-    }
-    return sheet
-  }
-})()
-
-function shadowContainer(host: HTMLElement): {
-  root: ShadowRoot
-  frame: HTMLElement
-  scroller: HTMLElement
-  parent: HTMLElement
-} {
-  const root = host.shadowRoot ?? host.attachShadow({ mode: 'open' })
-  root.replaceChildren()
-  if (!root.adoptedStyleSheets.includes(frameStyles())) {
-    root.adoptedStyleSheets = [...root.adoptedStyleSheets, frameStyles(), contentStyles()]
-  }
-  const frame = document.createElement('div')
-  frame.className = 'editor-frame'
-  const scroller = document.createElement('div')
-  scroller.className = 'editor-scroll'
-  scroller.dataset['devotPart'] = 'editor-scroll'
-  const parent = document.createElement('div')
-  parent.className = 'editor-root'
-  scroller.appendChild(parent)
-  frame.appendChild(scroller)
-  root.appendChild(frame)
-  return { root, frame, scroller, parent }
 }
 
 interface Shown {
@@ -1120,7 +717,7 @@ export function NoteEditor({
             editorSetup(setupFor),
             // No keymap acts on the keys an input method composes with.
             imeKeys(),
-            theme,
+            editorTheme,
             selectionEdges,
             // Operators in code keep one style each, so code fonts form ligatures.
             noteHighlighting(noteHighlightStyle),
@@ -1282,94 +879,7 @@ export function NoteEditor({
           doc.destroy()
           void core.unhold(noteId)
         },
-        handle: {
-          noteId,
-          vector: () => Y.encodeStateVector(doc),
-          takeState: (update) => Y.applyUpdate(doc, update, REMOTE),
-          takeStep: applyStep,
-          focus: () => ready.focus(),
-          focusStart: () => {
-            ready.focus()
-            ready.dispatch({ selection: { anchor: 0 }, scrollIntoView: true })
-          },
-          remeasure: () => ready.requestMeasure(),
-          format: (id) => {
-            ready.focus()
-            formatCommand(id)(ready)
-          },
-          insert: (id) => {
-            ready.focus()
-            insertCommand(id)(ready)
-          },
-          text: () => ready.state.doc.toString(),
-          goToLine: (line, where = 'start', focus = true) => {
-            const lines = ready.state.doc
-            const at = lines.line(Math.min(lines.lines, Math.max(1, Math.floor(line)))).from
-            if (focus) ready.focus()
-            ready.dispatch({
-              selection: EditorSelection.cursor(at),
-              effects: EditorView.scrollIntoView(
-                at,
-                where === 'center' ? { y: 'center' } : { y: 'start', yMargin: 24 },
-              ),
-            })
-          },
-          inTable: () => inTable(ready.state),
-          table: (id) => {
-            ready.focus()
-            const tr = TABLE_COMMANDS[id](ready.state)
-            if (tr) ready.dispatch(tr)
-          },
-          hasSelection: () => selectedText(ready.state) !== null,
-          moveSelection: (make) => moveSelection(ready, make, () => shown.current === s),
-          linkAtCursor: () => linkForNewNote(ready.state, ready.state.selection.main.head) ?? null,
-          moveRange: (from, to, make) =>
-            moveRange(ready, from, to, make, () => shown.current === s),
-          pastePlain: () => {
-            ready.focus()
-            return pastePlain(ready)
-          },
-          suggest: () => {
-            ready.focus()
-            suggestAt(ready)
-          },
-          acceptSuggestion: () => {
-            const spec = acceptSpec(ready.state)
-            if (spec) ready.dispatch(spec)
-            return spec !== null
-          },
-          runLine: (id) => {
-            ready.focus()
-            runEditCommand(ready, id)
-          },
-          pasteUrlAs: () => {
-            ready.focus()
-            return pasteUrlAsIn(ready)
-          },
-          imageAtCursor: () => {
-            const image = imageAt(ready.state, ready.state.selection.main.head)
-            return image ? imageMenuTarget(image) : null
-          },
-          viewImage: () => viewImageAt(ready),
-          setImageSize: (source, size) => setImageSize(ready, source, size),
-          toggleTask: (at) => {
-            const change = taskToggle(ready.state, at)
-            if (change) ready.dispatch(change)
-            return change !== null
-          },
-          reviewSteps: (writeIds) => reviewSteps(doc, writeIds, noteId),
-          reveal: (from, to) => {
-            const length = ready.state.doc.length
-            const anchor = Math.min(from, length)
-            const head = Math.min(to, length)
-            ready.dispatch({
-              selection: { anchor, head },
-              effects: EditorView.scrollIntoView(EditorSelection.range(anchor, head), {
-                y: 'center',
-              }),
-            })
-          },
-        },
+        handle: editorHandle(ready, doc, noteId, applyStep, () => shown.current === s),
       }
       shown.current = s
       loaded.current?.(text.toString())

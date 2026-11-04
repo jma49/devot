@@ -220,15 +220,6 @@ fn check_bytes(id: &str, bytes: &[u8]) -> Result<(), &'static str> {
     if ok { Ok(()) } else { Err(INVALID) }
 }
 
-async fn blocking<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
-) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(work)
-        .await
-        .map_err(|_| FAILED.to_string())?
-        .map_err(String::from)
-}
-
 #[tauri::command]
 pub async fn font_import(
     app: AppHandle,
@@ -254,7 +245,7 @@ pub async fn font_import(
         _ => return Err(INVALID.into()),
     };
     let dir = app.path().app_data_dir().map_err(|_| FAILED.to_string())?;
-    blocking(move || Fonts::new(&dir).import(&picked).map(Some)).await
+    crate::task::blocking(FAILED, move || Fonts::new(&dir).import(&picked).map(Some)).await
 }
 
 /// AppKit is read on the main thread.
@@ -280,7 +271,7 @@ pub async fn fonts_installed(app: AppHandle) -> Result<Vec<String>, String> {
 #[tauri::command]
 pub async fn fonts_list(fonts: State<'_, std::sync::Arc<Fonts>>) -> Result<Vec<FontFile>, String> {
     let fonts = std::sync::Arc::clone(&fonts);
-    blocking(move || Ok(fonts.list())).await
+    crate::task::blocking(FAILED, move || Ok(fonts.list())).await
 }
 
 #[tauri::command]
@@ -289,7 +280,10 @@ pub async fn font_read(
     id: String,
 ) -> Result<tauri::ipc::Response, String> {
     let fonts = std::sync::Arc::clone(&fonts);
-    blocking(move || fonts.read(&id).map(tauri::ipc::Response::new)).await
+    crate::task::blocking(FAILED, move || {
+        fonts.read(&id).map(tauri::ipc::Response::new)
+    })
+    .await
 }
 
 #[cfg(test)]

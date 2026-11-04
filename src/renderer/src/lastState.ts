@@ -264,6 +264,60 @@ export function restorePlan(
   return { view, filter, ...(note ? { note } : {}), ...(workspace ? { workspace } : {}) }
 }
 
+/** What a main window shows now, for `lastStateOf`. */
+export interface WindowView {
+  inTrash: boolean
+  inTemplates: boolean
+  /** The notebook the library shows, if any. */
+  bookId: string | undefined
+  filter: NoteFilter | null
+  mode: Mode
+  selected: string | undefined
+  workspace: string | undefined
+  boards: readonly string[]
+  /** The open note's place as the editor and preview last reported it. */
+  note: NoteState | undefined
+  /** The state stored before the Trash showed. */
+  beforeTrash: LastState | undefined
+  /** Whether the editor has the keyboard; asked only with a note selected. */
+  keyboard: () => boolean
+}
+
+/**
+ * The state to store for the window as it is. While the Trash shows, the one from before it, with
+ * the boards as they are now, and the note's place if it is still the note that was open.
+ */
+export function lastStateOf(view: WindowView): LastState | undefined {
+  const known = view.note
+  if (view.inTrash) {
+    const before = view.beforeTrash
+    if (before?.note && known?.id === before.note.id) {
+      return { ...before, note: { ...known, keyboard: false }, boards: view.boards }
+    }
+    return before && { ...before, boards: view.boards }
+  }
+  let note: NoteState | undefined
+  if (view.selected !== undefined) {
+    note = {
+      ...(known?.id === view.selected ? known : { id: view.selected }),
+      keyboard: view.keyboard(),
+    }
+  }
+  return {
+    view: view.inTemplates
+      ? { kind: 'templates' }
+      : view.bookId !== undefined
+        ? { kind: 'book', id: view.bookId }
+        : { kind: 'all' },
+    // An agent's view is of this device's rows as they were: it is not restored.
+    filter: view.filter?.kind === 'agent' ? null : view.filter,
+    mode: view.mode,
+    ...(note ? { note } : {}),
+    ...(view.workspace !== undefined ? { workspace: view.workspace } : {}),
+    ...(view.boards.length > 0 ? { boards: view.boards } : {}),
+  }
+}
+
 export function clampSelection(selection: SelectionState, length: number): SelectionState {
   return {
     anchor: Math.min(selection.anchor, length),

@@ -87,7 +87,7 @@ import {
 import { ExportNotice, failureOf, type ExportFailure } from './ExportNotice'
 import { SaveNotice } from './SaveNotice'
 import { isImeKey } from './ime'
-import { createQuitGuard, newProblems } from './saving'
+import { saveEdits, useSaveAtTrialEnd, useSaveOnHide, useSaveProblems } from './saveGuards'
 import { BackupsDialog } from './BackupsDialog'
 import { BookPicker, bookOptions, currentBookOption, NO_BOOK } from './BookPicker'
 import { useContextMenu, type MenuPoint } from './contextMenu'
@@ -194,7 +194,7 @@ import {
   keyboardIsFree,
 } from './focus'
 import { coalesced, listsLink, openMainWindow } from './mainWindows'
-import { listenHere } from './windowEvents'
+import { listenHere, unlistenLater } from './windowEvents'
 import { listenExitCancelled } from './exitCancelled'
 import { resumeMirrorAfterCancelledQuit } from './mirror'
 import { useFocusRescue } from './focusRescue'
@@ -202,6 +202,7 @@ import {
   currentDefaultMode,
   currentLastStateStore,
   isBoardView,
+  lastStateOf,
   layoutOf,
   restorePlan,
   withLayout,
@@ -217,7 +218,8 @@ import { displayTitle, displayTitles, newestUntitled, useHeadlines } from './hea
 import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
 import { LINE_COMMANDS } from './editor/lineCommands'
-import { NoteEditor, type ApplyRestore, type EditorHandle, type EditorPlace } from './NoteEditor'
+import type { EditorHandle } from './editor/handle'
+import { NoteEditor, type ApplyRestore, type EditorPlace } from './NoteEditor'
 import { BODY_PLACEHOLDER_MS, useLateAttribute } from './late'
 import {
   changeEditorSettings,
@@ -355,9 +357,6 @@ const LAST_STATE_SAVE_MS = 400
 const LISTS_WROTE_MS = 250
 const LISTS_RELOAD_MS = 400
 const CLOSE_EVENT = 'devot:note-window-close'
-
-/** Flushes pending edits; a failed save stays in the core (which retries and reports it), so the caller goes on. */
-const saveEdits = (core: Core) => core.flush().catch(() => {})
 
 function SidebarToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) {
   // Re-render on keymap changes: the tooltip names the key in effect.
@@ -634,15 +633,9 @@ export function App() {
     action: 'print' | 'exportPdf'
     id: string
   }>()
-  // Notes the core could not save yet (saving.ts). Their notice shows unless dismissed since the last new failure; the first quit after a failure is held.
-  const [saveProblems, setSaveProblems] = useState<SaveProblem[]>([])
-  const [saveNoticeDismissed, setSaveNoticeDismissed] = useState(false)
+  // The first quit or close after a save failure is held (saving.ts, useSaveProblems).
   const [quitHeld, setQuitHeld] = useState(false)
-  const saveProblemsRef = useRef<SaveProblem[]>([])
-  const quitGuard = useMemo(() => createQuitGuard(), [])
-  const closeGuard = useMemo(() => createQuitGuard(), [])
   const [closeHeld, setCloseHeld] = useState(false)
-  const saveNoticeShown = saveProblems.length > 0 && !saveNoticeDismissed
   const importJobs = useRef<ImportJob[]>([])
   const [importJob, setImportJob] = useState<ImportJob>()
   const [importKey, setImportKey] = useState(0)
@@ -775,27 +768,28 @@ export function App() {
     })
   }, [])
 
-  /** The core's unsaved notes: each new failure is logged by code and brings the notice back; once a note saves, the lists show what is stored. */
-  const onSaveProblems = useCallback(
-    (next: SaveProblem[]) => {
-      const previous = saveProblemsRef.current
-      saveProblemsRef.current = next
-      const fresh = newProblems(previous, next)
-      for (const problem of fresh) console.warn('W_NOTE_SAVE_FAILED', problem.id, problem.code)
-      if (fresh.length > 0) setSaveNoticeDismissed(false)
-      quitGuard.update(next)
-      closeGuard.update(next)
-      if (next.length === 0) {
-        setQuitHeld(false)
-        setCloseHeld(false)
-      }
-      setSaveProblems(next)
-      const c = coreRef.current
-      if (c && previous.some((p) => !next.some((n) => n.id === p.id))) {
-        void refresh(c).catch(() => {})
-      }
-    },
-    [quitGuard, closeGuard, refresh],
+  // Notes the core could not save yet: once a note saves, the lists show what is stored.
+  const {
+    problems: saveProblems,
+    noticeShown: saveNoticeShown,
+    setDismissed: setSaveNoticeDismissed,
+    quitGuard,
+    closeGuard,
+    onSaveProblems,
+  } = useSaveProblems(
+    useCallback(
+      (previous: readonly SaveProblem[], next: SaveProblem[]) => {
+        if (next.length === 0) {
+          setQuitHeld(false)
+          setCloseHeld(false)
+        }
+        const c = coreRef.current
+        if (c && previous.some((p) => !next.some((n) => n.id === p.id))) {
+          void refresh(c).catch(() => {})
+        }
+      },
+      [refresh],
+    ),
   )
 
   // Callbacks that outlive a render (finished import, New Notebook) change view through the latest rules (`showLibrary`).
@@ -1425,18 +1419,14 @@ export function App() {
   useEffect(() => {
     const run = () => void rebuildIndexRef.current()
     window.addEventListener(REBUILD_SEARCH_INDEX, run)
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    if (!DEVOT_UI_TEST) {
-      void listenHere('devot://rebuild-search-index', () =>
-        window.dispatchEvent(new CustomEvent(REBUILD_SEARCH_INDEX)),
-      ).then((stop) => {
-        if (stopped) stop()
-        else unlisten = stop
-      })
-    }
+    const unlisten = DEVOT_UI_TEST
+      ? undefined
+      : unlistenLater(
+          listenHere('devot://rebuild-search-index', () =>
+            window.dispatchEvent(new CustomEvent(REBUILD_SEARCH_INDEX)),
+          ),
+        )
     return () => {
-      stopped = true
       window.removeEventListener(REBUILD_SEARCH_INDEX, run)
       unlisten?.()
     }
@@ -1650,31 +1640,24 @@ export function App() {
   // capture window sent, and the list shows it.
   useEffect(() => {
     if (!core || DEVOT_UI_TEST) return
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    void listenHere<unknown>(QUICK_CAPTURE_EVENT, (e) => {
-      const request = readCaptureRequest(e.payload)
-      if (!request) return
-      void answerCapture(
-        request,
-        (id) => invoke('quick_capture_claim', { id }),
-        async (r) => {
-          await core.capture(r.title, r.body, r.bookId)
-        },
-        (id, error) => invoke('quick_capture_done', { id, error }),
-      ).then((saved) => {
-        if (!saved) return
-        track('note.created', { from: 'quick_capture' })
-        void refresh(core)
-      })
-    }).then((stop) => {
-      if (stopped) stop()
-      else unlisten = stop
-    })
-    return () => {
-      stopped = true
-      unlisten?.()
-    }
+    return unlistenLater(
+      listenHere<unknown>(QUICK_CAPTURE_EVENT, (e) => {
+        const request = readCaptureRequest(e.payload)
+        if (!request) return
+        void answerCapture(
+          request,
+          (id) => invoke('quick_capture_claim', { id }),
+          async (r) => {
+            await core.capture(r.title, r.body, r.bookId)
+          },
+          (id, error) => invoke('quick_capture_done', { id, error }),
+        ).then((saved) => {
+          if (!saved) return
+          track('note.created', { from: 'quick_capture' })
+          void refresh(core)
+        })
+      }),
+    )
   }, [core, refresh])
 
   // The local HTTP API: this window's core answers each call Rust checked.
@@ -1736,11 +1719,9 @@ export function App() {
     [core, reloadAgentWrites],
   )
 
+  useSaveOnHide(core)
   useEffect(() => {
     if (!core) return
-    const flush = () => void saveEdits(core)
-    window.addEventListener('pagehide', flush)
-    document.addEventListener('visibilitychange', flush)
     // Quitting: Rust holds the exit, asks us to save, and exits on our reply.
     // When a note could not be saved, the first such quit is called off
     // instead: the window stays with the changes and the notice says so
@@ -1792,24 +1773,13 @@ export function App() {
     }
     return () => {
       stopped = true
-      window.removeEventListener('pagehide', flush)
-      document.removeEventListener('visibilitychange', flush)
       unlisten?.()
       unlistenCancel?.()
       unlistenIdle?.()
     }
-  }, [core, quitGuard, markShownSeen])
+  }, [core, quitGuard, markShownSeen, setSaveNoticeDismissed])
 
-  // The trial ended with notes open: what was typed is saved (Rust still takes a note's text for a
-  // few minutes) as the window turns read-only.
-  const wasEditing = useRef(editing)
-  useEffect(() => {
-    if (wasEditing.current && !editing && core) {
-      saveNow.current?.()
-      void core.flush({ versions: true }).catch(() => console.warn('W_TRIAL_END_SAVE_FAILED'))
-    }
-    wasEditing.current = editing
-  }, [editing, core])
+  useSaveAtTrialEnd(editing, core, () => saveNow.current?.())
 
   // A window File > New Window opened closes after saving, as a note window does (main_windows.rs): Rust holds the close and asks. As for a quit, the first close whose save fails is called off, and the notice says so.
   useEffect(() => {
@@ -1830,21 +1800,18 @@ export function App() {
       })
     }
     window.addEventListener(CLOSE_EVENT, closed)
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    if (!DEVOT_UI_TEST) {
-      void import('@tauri-apps/api/webviewWindow').then(async ({ getCurrentWebviewWindow }) => {
-        const stop = await getCurrentWebviewWindow().listen('devot://note-window-close', closed)
-        if (stopped) stop()
-        else unlisten = stop
-      })
-    }
+    const unlisten = DEVOT_UI_TEST
+      ? undefined
+      : unlistenLater(
+          import('@tauri-apps/api/webviewWindow').then(({ getCurrentWebviewWindow }) =>
+            getCurrentWebviewWindow().listen('devot://note-window-close', closed),
+          ),
+        )
     return () => {
-      stopped = true
       window.removeEventListener(CLOSE_EVENT, closed)
       unlisten?.()
     }
-  }, [primary, closeGuard, markShownSeen])
+  }, [primary, closeGuard, markShownSeen, setSaveNoticeDismissed])
 
   // The other main windows wrote to the library: this one loads its lists and the notes it holds again, as for a change from another process.
   useEffect(() => {
@@ -1959,35 +1926,20 @@ export function App() {
   const restorePreview = useRef<{ id: string; top: number }>(undefined)
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const currentState = (): LastState | undefined => {
-    const known = noteState.current
-    if (inTrash) {
-      const before = libraryState.current
-      if (before?.note && known?.id === before.note.id) {
-        return { ...before, note: { ...known, keyboard: false }, boards }
-      }
-      return before && { ...before, boards }
-    }
-    let note: NoteState | undefined
-    if (selected !== undefined) {
-      note = {
-        ...(known?.id === selected ? known : { id: selected }),
-        keyboard: inEditor(document.activeElement),
-      }
-    }
-    const state: LastState = {
-      view: inTemplates
-        ? { kind: 'templates' }
-        : libraryBook
-          ? { kind: 'book', id: libraryBook.id }
-          : { kind: 'all' },
-      // An agent's view is of this device's rows as they were: it is not restored.
-      filter: activeFilter?.kind === 'agent' ? null : activeFilter,
+    const state = lastStateOf({
+      inTrash,
+      inTemplates,
+      bookId: libraryBook?.id,
+      filter: activeFilter,
       mode,
-      ...(note ? { note } : {}),
-      ...(workspaceNode ? { workspace: workspaceNode.id } : {}),
-      ...(boards.length > 0 ? { boards } : {}),
-    }
-    libraryState.current = state
+      selected,
+      workspace: workspaceNode?.id,
+      boards,
+      note: noteState.current,
+      beforeTrash: libraryState.current,
+      keyboard: () => inEditor(document.activeElement),
+    })
+    if (!inTrash) libraryState.current = state
     return state
   }
   const saveNow = useRef<() => void>(undefined)

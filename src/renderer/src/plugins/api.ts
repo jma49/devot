@@ -7,6 +7,7 @@ import {
   type PluginPermission,
 } from '../../../core/plugins'
 import { invoke } from '../ipc'
+import { unlistenLater } from '../windowEvents'
 
 export const PLUGINS_CHANGED = 'devot:plugins-changed'
 /** A pick in the menu bar: `{ kind, plugin, id }` (src-tauri/src/plugins/menu.rs). */
@@ -62,21 +63,17 @@ export const saveExport = (plugin: string, format: string, title: string, text: 
 /** Calls `onChange` whenever plugins are installed, removed or turned on or off, in any window. */
 export function watchPlugins(onChange: () => void): () => void {
   window.addEventListener(PLUGINS_CHANGED, onChange)
-  let stopped = false
-  let unlisten: (() => void) | undefined
-  if (!DEVOT_UI_TEST) {
-    import('@tauri-apps/api/event')
-      .then(async ({ listen }) => {
-        const stop = await listen(PLUGINS_CHANGED_TAURI, () =>
-          window.dispatchEvent(new CustomEvent(PLUGINS_CHANGED)),
-        )
-        if (stopped) stop()
-        else unlisten = stop
-      })
-      .catch(() => console.warn('W_PLUGINS_LISTEN_FAILED'))
-  }
+  const unlisten = DEVOT_UI_TEST
+    ? undefined
+    : unlistenLater(
+        import('@tauri-apps/api/event').then(({ listen }) =>
+          listen(PLUGINS_CHANGED_TAURI, () =>
+            window.dispatchEvent(new CustomEvent(PLUGINS_CHANGED)),
+          ),
+        ),
+        () => console.warn('W_PLUGINS_LISTEN_FAILED'),
+      )
   return () => {
-    stopped = true
     window.removeEventListener(PLUGINS_CHANGED, onChange)
     unlisten?.()
   }

@@ -219,15 +219,6 @@ fn select_all(conn: &Connection) -> rusqlite::Result<Vec<UsageEvent>> {
     rows.collect()
 }
 
-async fn blocking<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
-) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(work)
-        .await
-        .map_err(|_| "E_USAGE_TASK".to_string())?
-        .map_err(String::from)
-}
-
 #[tauri::command]
 pub async fn usage_record(
     log: State<'_, Arc<UsageLog>>,
@@ -235,19 +226,22 @@ pub async fn usage_record(
     properties: Map<String, Value>,
 ) -> Result<(), String> {
     let log = Arc::clone(&log);
-    blocking(move || log.record(&name, &properties, crate::logs::now_ms())).await
+    crate::task::blocking("E_USAGE_TASK", move || {
+        log.record(&name, &properties, crate::logs::now_ms())
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn usage_list(log: State<'_, Arc<UsageLog>>) -> Result<Vec<UsageEvent>, String> {
     let log = Arc::clone(&log);
-    blocking(move || log.list(crate::logs::now_ms())).await
+    crate::task::blocking("E_USAGE_TASK", move || log.list(crate::logs::now_ms())).await
 }
 
 #[tauri::command]
 pub async fn usage_clear(log: State<'_, Arc<UsageLog>>) -> Result<(), String> {
     let log = Arc::clone(&log);
-    blocking(move || log.clear()).await
+    crate::task::blocking("E_USAGE_TASK", move || log.clear()).await
 }
 
 #[cfg(test)]

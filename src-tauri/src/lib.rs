@@ -60,6 +60,7 @@ mod startup;
 mod storage;
 mod strings;
 mod sync;
+mod task;
 #[cfg(test)]
 mod test_log;
 #[cfg(desktop)]
