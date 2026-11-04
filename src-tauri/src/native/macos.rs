@@ -3730,7 +3730,7 @@ extern "C-unwind" fn active_appearance(
 
 /// A window of the app's own window class, observed with key-value observing as the real one is:
 /// once marked it keeps the active appearance while it is not key, and a second call changes
-/// nothing. Another window of the class keeps its own answer, and an object that is no window is
+/// nothing. Other windows of the class keep their own answers, yes or no, and an object that is no window is
 /// refused. `Ok(false)` where the system has no glass.
 #[doc(hidden)]
 pub fn self_test_glass_stays_active() -> Result<bool, &'static str> {
@@ -3738,9 +3738,35 @@ pub fn self_test_glass_stays_active() -> Result<bool, &'static str> {
     use objc2::runtime::{ClassBuilder, NSObject};
     let mtm = MainThreadMarker::new().ok_or("E_NATIVE_NOT_MAIN_THREAD")?;
     let _app = NSApplication::sharedApplication(mtm);
+    /// The class above the app's window class answers yes for a window at half opacity, so an
+    /// unmarked window is seen to keep a yes as well as a no.
+    extern "C-unwind" fn half_opaque_is_active(
+        window: &AnyObject,
+        _cmd: objc2::runtime::Sel,
+    ) -> Bool {
+        // SAFETY: the receiver is a live NSWindow; `alphaValue` is public NSWindow API.
+        let alpha: f64 = unsafe { msg_send![window, alphaValue] };
+        Bool::new(alpha == HALF)
+    }
+    const HALF: f64 = 0.5;
+    let base = match AnyClass::get(c"DevotGlassTestBase") {
+        Some(class) => class,
+        None => {
+            let mut builder = ClassBuilder::new(c"DevotGlassTestBase", NSWindow::class())
+                .ok_or("E_GLASS_ACTIVE_TEST_CLASS")?;
+            // SAFETY: the method takes no arguments and returns a BOOL, as NSWindow's does.
+            unsafe {
+                builder.add_method(
+                    sel!(_hasActiveAppearanceIgnoringKeyFocus),
+                    half_opaque_is_active as extern "C-unwind" fn(_, _) -> _,
+                );
+            }
+            builder.register()
+        }
+    };
     let class = match AnyClass::get(c"DevotGlassTestWindow") {
         Some(class) => class,
-        None => ClassBuilder::new(c"DevotGlassTestWindow", NSWindow::class())
+        None => ClassBuilder::new(c"DevotGlassTestWindow", base)
             .ok_or("E_GLASS_ACTIVE_TEST_CLASS")?
             .register(),
     };
@@ -3749,7 +3775,7 @@ pub fn self_test_glass_stays_active() -> Result<bool, &'static str> {
         NSSize::new(400.0, 300.0),
     );
     let make = || -> Result<Retained<NSWindow>, &'static str> {
-        // SAFETY: a subclass of NSWindow that adds nothing, made as an NSWindow is: alloc, then
+        // SAFETY: a subclass of NSWindow without instance variables, made as an NSWindow is: alloc, then
         // the designated initializer with a valid frame, style, backing and defer flag.
         unsafe {
             let allocated: Allocated<AnyObject> = msg_send![class, alloc];
@@ -3768,6 +3794,8 @@ pub fn self_test_glass_stays_active() -> Result<bool, &'static str> {
     };
     let window = make()?;
     let other = make()?;
+    let half_opaque = make()?;
+    half_opaque.setAlphaValue(HALF);
     let pointer =
         |window: &Retained<NSWindow>| Retained::as_ptr(window).cast_mut().cast::<AnyObject>();
     let active = |window: &Retained<NSWindow>| -> Result<bool, &'static str> {
@@ -3814,6 +3842,9 @@ pub fn self_test_glass_stays_active() -> Result<bool, &'static str> {
         if active(&window)? || active(&other)? || window.isKeyWindow() {
             return Err("E_GLASS_ACTIVE_WINDOW_ACTIVE_BEFORE");
         }
+        if !active(&half_opaque)? {
+            return Err("E_GLASS_ACTIVE_TEST_BASE_INACTIVE");
+        }
         for _ in 0..2 {
             // SAFETY: a live window; main thread.
             if unsafe { keep_active_appearance(pointer(&window)) } != Ok(true) {
@@ -3823,7 +3854,7 @@ pub fn self_test_glass_stays_active() -> Result<bool, &'static str> {
                 return Err("E_GLASS_ACTIVE_WINDOW_INACTIVE_AFTER");
             }
         }
-        if active(&other)? {
+        if active(&other)? || !active(&half_opaque)? {
             return Err("E_GLASS_ACTIVE_OTHER_WINDOW_CHANGED");
         }
         Ok(true)
@@ -3834,6 +3865,7 @@ pub fn self_test_glass_stays_active() -> Result<bool, &'static str> {
     }
     window.close();
     other.close();
+    half_opaque.close();
     result
 }
 
