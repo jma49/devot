@@ -124,6 +124,7 @@ export function createTagService(options: TagServiceOptions): TagService {
     }
     const searches = retargetSavedSearches(
       await storage.listSavedSearches(),
+      all,
       tag,
       clean,
       clock,
