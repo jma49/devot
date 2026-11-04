@@ -1,5 +1,6 @@
 // Counts the words and characters of the note, and of the selection, once typing and moving have
-// paused (the editor footer shows them). A note is counted at most once per pause, never per keystroke.
+// paused (the editor footer shows them). A note is counted at most once per pause, never per keystroke,
+// and the editor has the core worker count it: a long note takes longer than a frame to count.
 import { StateEffect, type EditorState, type Extension } from '@codemirror/state'
 import { ViewPlugin } from '@codemirror/view'
 import { noteCounts, type NoteCounts } from '../../../core/noteCounts'
@@ -11,15 +12,23 @@ export interface EditorCounts extends NoteCounts {
   readonly selection: NoteCounts | null
 }
 
+/** Counts `markdown` as `noteCounts` does, perhaps elsewhere. */
+export type Counter = (markdown: string) => NoteCounts | Promise<NoteCounts>
+
+const then = <T, U>(value: T | Promise<T>, next: (value: T) => U): U | Promise<U> =>
+  value instanceof Promise ? value.then(next) : next(value)
+
 export class CountsPacer {
   private timer: ReturnType<typeof setTimeout> | undefined
-  private whole: NoteCounts | undefined
+  private whole: NoteCounts | Promise<NoteCounts> | undefined
   private stopped = false
+  private measured = 0
 
   constructor(
     private readonly current: () => EditorState,
     private readonly report: (counts: EditorCounts) => void,
     private readonly wanted: () => boolean = () => true,
+    private readonly count: Counter = (markdown) => noteCounts(markdown),
   ) {
     this.schedule(0)
   }
@@ -43,14 +52,22 @@ export class CountsPacer {
   private measure() {
     if (!this.wanted()) return
     const state = this.current()
-    this.whole ??= noteCounts(state.doc.toString())
+    const run = ++this.measured
+    const whole = (this.whole ??= this.count(state.doc.toString()))
     const picked = state.selection.ranges
       .filter((r) => !r.empty)
       .map((r) => state.sliceDoc(r.from, r.to))
-    this.report({
-      ...this.whole,
-      selection: picked.length > 0 ? noteCounts(picked.join('\n')) : null,
-    })
+    const selection = picked.length > 0 ? this.count(picked.join('\n')) : null
+    const counted = then(whole, (note) =>
+      then(selection, (part) => {
+        if (run === this.measured && !this.stopped) this.report({ ...note, selection: part })
+      }),
+    )
+    if (counted instanceof Promise)
+      counted.catch(() => {
+        if (this.whole === whole) this.whole = undefined
+        console.warn('W_COUNTS_FAILED')
+      })
   }
 }
 
@@ -61,9 +78,10 @@ export const recount = StateEffect.define<null>()
 export function countsReporter(
   report: (counts: EditorCounts) => void,
   wanted: () => boolean,
+  count?: Counter,
 ): Extension {
   return ViewPlugin.define((view) => {
-    const pacer = new CountsPacer(() => view.state, report, wanted)
+    const pacer = new CountsPacer(() => view.state, report, wanted, count)
     return {
       update: (update) => {
         const asked = update.transactions.some((tr) => tr.effects.some((e) => e.is(recount)))

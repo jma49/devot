@@ -2,6 +2,7 @@ import { EditorSelection, EditorState, type TransactionSpec } from '@codemirror/
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { expectWithinBudget } from '../../../../tests/support/budget'
 import * as counting from '../../../core/noteCounts'
+import type { NoteCounts } from '../../../core/noteCounts'
 import { COUNTS_DEBOUNCE_MS, CountsPacer, type EditorCounts } from './counts'
 
 function open(doc: string) {
@@ -119,5 +120,66 @@ describe('the count pacer', () => {
     const start = performance.now()
     for (let i = 0; i < 200; i++) dispatch({ changes: { from: length(), insert: 'x' } })
     expectWithinBudget(context, performance.now() - start, 400)
+  })
+})
+
+describe('a count pacer counting off the page', () => {
+  // A counter that answers when told, as the core worker does.
+  function offPage(doc: string) {
+    const asked: { text: string; answer: (c: NoteCounts) => void; fail: () => void }[] = []
+    const count = (text: string) =>
+      new Promise<NoteCounts>((answer, reject) =>
+        asked.push({ text, answer, fail: () => reject(new Error('E_TEST')) }),
+      )
+    const reports: EditorCounts[] = []
+    let state = EditorState.create({ doc })
+    const pacer = new CountsPacer(
+      () => state,
+      (c) => reports.push(c),
+      () => true,
+      count,
+    )
+    const dispatch = (spec: TransactionSpec) => {
+      const tr = state.update(spec)
+      state = tr.state
+      if (tr.docChanged || tr.selection) pacer.changed(tr.docChanged)
+    }
+    return { asked, reports, dispatch }
+  }
+
+  it('reports once the counter answers, and never counts on the page', async () => {
+    const count = vi.spyOn(counting, 'noteCounts')
+    const { asked, reports } = offPage('one two')
+    vi.advanceTimersByTime(0)
+    expect(asked.map((a) => a.text)).toEqual(['one two'])
+    expect(reports).toEqual([])
+    asked[0]!.answer({ words: 2, characters: 6 })
+    await vi.waitFor(() => expect(reports).toEqual([{ words: 2, characters: 6, selection: null }]))
+    expect(count).not.toHaveBeenCalled()
+  })
+
+  it('drops an answer for text that has changed since', async () => {
+    const { asked, reports, dispatch } = offPage('one')
+    vi.advanceTimersByTime(0)
+    dispatch({ changes: { from: 3, insert: ' two' } })
+    vi.advanceTimersByTime(COUNTS_DEBOUNCE_MS)
+    asked[0]!.answer({ words: 1, characters: 3 })
+    asked[1]!.answer({ words: 2, characters: 6 })
+    await vi.waitFor(() => expect(reports).toHaveLength(1))
+    await Promise.resolve()
+    expect(reports).toEqual([{ words: 2, characters: 6, selection: null }])
+  })
+
+  it('counts the note again at the next pause after a count failed', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { asked, reports, dispatch } = offPage('one')
+    vi.advanceTimersByTime(0)
+    asked[0]!.fail()
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledWith('W_COUNTS_FAILED'))
+    dispatch({ selection: { anchor: 1 } })
+    vi.advanceTimersByTime(COUNTS_DEBOUNCE_MS)
+    expect(asked.map((a) => a.text)).toEqual(['one', 'one'])
+    asked[1]!.answer({ words: 1, characters: 3 })
+    await vi.waitFor(() => expect(reports).toEqual([{ words: 1, characters: 3, selection: null }]))
   })
 })

@@ -818,6 +818,7 @@ export function NoteEditor({
             countsReporter(
               (counts) => countsReport.current?.(counts),
               () => countsReport.current !== undefined,
+              (markdown) => core.noteCounts(markdown),
             ),
             EditorView.updateListener.of((update) => {
               if (!update.selectionSet && !update.docChanged) return

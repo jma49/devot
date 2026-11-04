@@ -56,6 +56,7 @@ import {
   seedWelcome,
 } from '../../core'
 import { errorCode } from '../../core/errors'
+import { noteCounts } from '../../core/noteCounts'
 import { createLivePreviewRenderer } from '../../core/preview/live'
 import { createSyncEngine, type SyncEngine, type SyncStatus } from '../../core/sync/engine'
 import type { SyncEvent } from '../../core/sync/transport'
@@ -404,6 +405,7 @@ export const coreApi = {
       sink,
     }),
   renderPreview: (markdown: string, options: PreviewOptions) => renderPreview(markdown, options),
+  noteCounts: (markdown: string) => noteCounts(markdown),
   /** The open note's preview in pieces; `known` are the keys of the pieces the page shows. */
   renderPreviewPieces: (markdown: string, options: PreviewOptions, known: string[]) =>
     pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
