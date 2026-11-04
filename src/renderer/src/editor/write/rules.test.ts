@@ -233,6 +233,23 @@ describe('Write mode emoji and inline HTML', () => {
     expect(shown(doc, caret(doc.length))).toBe('{:tada:} and <kbd>A</kbd>')
   })
 
+  it('take an element whole, nested tags of its kind counted, and nothing inside it apart', () => {
+    expect(shown('<kbd>:tada:</kbd> <sup>**b**</sup>')).toBe(
+      '{<kbd>:tada:</kbd>} {<sup>**b**</sup>}',
+    )
+    expect(shown('<kbd>:tada:</kbd>', caret(0))).toBe('<kbd>:tada:</kbd>')
+    expect(shown('<sup>**b**</sup>', caret(0))).toBe('<sup>**b**</sup>')
+  })
+
+  it('leave an element holding other HTML or an image as source, whole', () => {
+    for (const doc of [
+      '<kbd><kbd>Ctrl</kbd>+<kbd>C</kbd></kbd> and :tada:',
+      '<sup><img src="https://example.com/a.png"></sup> and :tada:',
+      '<sup>![a](https://example.com/a.png)</sup> and :tada:',
+    ])
+      expect(shown(doc)).toBe(doc.replace(':tada:', '{:tada:}'))
+  })
+
   it('leave other HTML, a tag never closed and a shortcode in code as source', () => {
     expect(shown('<span>a</span> <kbd>b and `:tada:`')).toBe('<span>a</span> <kbd>b and :tada:')
   })
