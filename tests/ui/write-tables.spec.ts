@@ -213,6 +213,47 @@ test('fits every column to its widest cell on first draw, before the caret enter
   expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1.5)
 })
 
+/** How many columns each grid row lays out: one for a row whose column rule is not in effect. */
+const rowColumns = (page: Page) =>
+  page
+    .locator('.cm-line.cm-wm-row')
+    .evaluateAll((rows) =>
+      rows.map((row) => getComputedStyle(row).gridTemplateColumns.split(' ').length),
+    )
+
+test('keeps every grid in its columns across notes, modes and a root that lost the column sheet', async ({
+  page,
+}) => {
+  await createNote(page, 'Narrow', TABLE)
+  await createNote(
+    page,
+    'Wide',
+    '| Bold, italic, strikethrough | Press | Where |\n| --- | --- | --- |\n| New note | Cmd N | List |',
+  )
+  await expect.poll(() => rowColumns(page)).toEqual([3, 3])
+  await noteRows(page).filter({ hasText: 'Narrow' }).click()
+  await expect.poll(() => rowColumns(page)).toEqual([2, 2])
+  // Another script replaces the root's adopted sheets without the column sheet.
+  await page.locator('.editor').evaluate((host) => {
+    const root = host.shadowRoot!
+    root.adoptedStyleSheets = root.adoptedStyleSheets.filter(
+      (sheet) =>
+        !Array.from(sheet.cssRules).some((rule) =>
+          (rule as CSSStyleRule).selectorText?.startsWith('.cm-wm-cols-'),
+        ),
+    )
+  })
+  await intoCell(page, 'Tea')
+  await page.keyboard.type(' pot')
+  await expect.poll(() => rowColumns(page)).toEqual([2, 2])
+  await noteRows(page).filter({ hasText: 'Wide' }).click()
+  await expect.poll(() => rowColumns(page)).toEqual([3, 3])
+  await source(page)
+  await expect.poll(() => rowColumns(page)).toEqual([3, 3])
+  await noteRows(page).filter({ hasText: 'Narrow' }).click()
+  await expect.poll(() => rowColumns(page)).toEqual([2, 2])
+})
+
 test('keeps the table bar off the block above the table', async ({ page }) => {
   await createNote(page, 'Over', `$$\nE = mc^2\n$$\n\n${TABLE}\n\nLast line`)
   const math = page.locator('.cm-wm-block-math')
