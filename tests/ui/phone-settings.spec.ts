@@ -894,7 +894,7 @@ test('at twice the text size a Settings row puts its value under its whole label
     shell.style.setProperty('--phone-text-scale', '2')
     shell.dataset['textSize'] = 'accessibility'
   })
-  const row = root(page).getByRole('button', { name: /^Keyboard/ })
+  const row = root(page).getByRole('button', { name: /^Sync/ })
   const [label, value] = await Promise.all([
     row.locator('.phone-grouped-label').boundingBox(),
     row.locator('.phone-grouped-count').boundingBox(),
