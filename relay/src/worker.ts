@@ -1,7 +1,16 @@
 import { DurableObject } from 'cloudflare:workers'
 import { CLOSE, encodeFrame, SUBPROTOCOL } from '../../src/core/sync/protocol.ts'
-import { type Access, handleHttp, isSocketPath, socketTarget } from './front.ts'
-import { type PairingOp, PairingRelay } from './pairing.ts'
+import {
+  type Access,
+  ANONYMOUS_BURST,
+  ANONYMOUS_PER_SECOND,
+  anonymousLimit,
+  handleHttp,
+  isSocketPath,
+  socketTarget,
+} from './front.ts'
+import { RateLimiter } from './limiter.ts'
+import { gone, type PairingOp, PairingRelay } from './pairing.ts'
 import { type Outcome, type Reply, type Sql, type SqlValue, VaultRelay } from './vault.ts'
 
 // The Cloudflare host: the Worker is the front, one Durable Object on SQLite
@@ -133,7 +142,8 @@ export class PairingObject extends DurableObject<Env> {
     body: Record<string, unknown>,
     device: string,
   ): Promise<Reply> {
-    const relay = new PairingRelay(durableSql(this.ctx.storage))
+    const relay = PairingRelay.existing(durableSql(this.ctx.storage), op)
+    if (!relay) return gone()
     const reply = relay.handle(op, id, body, device)
     const at = relay.deleteAt()
     if (at === null) await this.ctx.storage.deleteAll()
@@ -154,10 +164,15 @@ function trySend(ws: WebSocket, data: string | Uint8Array): void {
   }
 }
 
+const anonymous = new RateLimiter(ANONYMOUS_BURST, ANONYMOUS_PER_SECOND)
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const vaultFor = (vault: string) => env.VAULTS.get(env.VAULTS.idFromName(vault))
     if (!isSocketPath(new URL(request.url).pathname)) {
+      const address = request.headers.get('cf-connecting-ip') ?? ''
+      const limited = anonymousLimit(anonymous, request, address, Date.now())
+      if (limited) return limited
       return handleHttp(request, env.RELAY_SECRET, {
         create: (vault, body) => vaultFor(vault).create(vault, body),
         enroll: (vault, body) => vaultFor(vault).enroll(vault, body),

@@ -85,3 +85,16 @@ it('answers status and close only to the device that opened the pairing', () => 
   })
   expect(relay.handle('close', ID, { vault: VAULT }, 'dev').status).toBe(200)
 })
+
+it('writes nothing for a request about a pairing never opened in its storage', () => {
+  const db = new Database(':memory:')
+  open.push(db)
+  const tables = () => db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all()
+  for (const op of ['take', 'confirm', 'status', 'close'] as const) {
+    expect(PairingRelay.existing(sqliteSql(db), op)).toBeNull()
+  }
+  expect(tables()).toEqual([])
+  const relay = PairingRelay.existing(sqliteSql(db), 'pair')
+  expect(relay?.handle('pair', ID, { vault: VAULT, offer }, 'dev').status).toBe(200)
+  expect(PairingRelay.existing(sqliteSql(db), 'take')?.handle('take', ID, {}).status).toBe(200)
+})

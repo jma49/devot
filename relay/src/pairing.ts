@@ -30,7 +30,7 @@ const errorReply = (status: number, code: string): Reply => ({
 })
 const ok = (body: Record<string, unknown>): Reply => ({ status: 200, body: { v: 1, ...body } })
 // Unknown, expired, taken and closed look the same, so nobody learns which pairings exist.
-const gone = () => errorReply(404, 'E_SYNC_PAIRING_GONE')
+export const gone = () => errorReply(404, 'E_SYNC_PAIRING_GONE')
 
 function sealed(text: unknown, max: number): Uint8Array<ArrayBuffer> | null {
   const bytes = fromBase64Url(text)
@@ -45,6 +45,13 @@ export class PairingRelay {
     this.sql = sql
     this.now = now
     this.sql.run(SCHEMA)
+  }
+
+  /** The pairings `sql` holds, or null for a request other than `pair` where none was ever opened: it then writes nothing. */
+  static existing(sql: Sql, op: PairingOp, now: () => number = Date.now): PairingRelay | null {
+    const made =
+      sql.all("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pairings'").length > 0
+    return made || op === 'pair' ? new PairingRelay(sql, now) : null
   }
 
   /** Runs one request; `device` is the opening device, checked by the front for host ops. */
