@@ -238,6 +238,25 @@ describe('the workflows', () => {
     }
   })
 
+  it.each([
+    // The first release of each whose action.yml says `using: node24`; GitHub removes Node 20.
+    ['actions/upload-artifact', [6, 0, 0]],
+    ['actions/download-artifact', [7, 0, 0]],
+    ['pnpm/action-setup', [4, 4, 0]],
+  ] as const)('pin %s to a release that runs on Node 24', (action, first) => {
+    const versions = workflows.flatMap(({ text }) =>
+      [...text.matchAll(new RegExp(`uses: ${action}@[0-9a-f]{40} # v([\\d.]+)`, 'g'))].map((m) =>
+        (m[1] ?? '').split('.').map(Number),
+      ),
+    )
+    expect(versions.length).toBeGreaterThan(0)
+    const older = versions.filter((v) => {
+      const at = first.findIndex((part, i) => (v[i] ?? 0) !== part)
+      return at !== -1 && (v[at] ?? 0) < first[at]!
+    })
+    expect(older.map((v) => v.join('.'))).toEqual([])
+  })
+
   it('name the Rust toolchain, the same one everywhere', () => {
     const toolchains = workflows.flatMap(({ text }) =>
       [...text.matchAll(/uses: dtolnay\/rust-toolchain@.*\n\s+with:\n(?:\s+\w+: .*\n)*/g)].map(
