@@ -355,6 +355,25 @@ describe('sync between two devices', () => {
     await sameNote(a, b, id)
   })
 
+  it('carries a notebook sort key as long as placing a notebook may make one, both ways', async () => {
+    const { a, b } = await pair()
+    const book = await a.books.create('Between', null)
+    const long = `a0${'V'.repeat(1000)}`
+    const stored = (await a.storage.listBooks()).find((x) => x.id === book)!
+    await a.storage.putBook({ ...stored, sortKey: long, sortKeyHlc: a.clock.tick() })
+    await settle(a, b)
+    expect((await b.storage.listBooks()).find((x) => x.id === book)?.sortKey).toBe(long)
+    await b.books.rename(book, 'Moved often')
+    const longer = `${long}${'k'.repeat(20)}`
+    const onB = (await b.storage.listBooks()).find((x) => x.id === book)!
+    await b.storage.putBook({ ...onB, sortKey: longer, sortKeyHlc: b.clock.tick() })
+    await settle(b, a)
+    expect((await a.storage.listBooks()).find((x) => x.id === book)).toMatchObject({
+      name: 'Moved often',
+      sortKey: longer,
+    })
+  })
+
   it('syncs saved searches with their order, name, query and deletion', async () => {
     const { a, b } = await pair()
     const work = await a.savedSearches.create('Open work', 'is:active tag:work')
