@@ -356,7 +356,7 @@ export function PhoneNote(props: {
               noteId={noteId}
               autoFocus={false}
               hidden={mode === 'preview'}
-              onText={(next) => showText(noteId, next)}
+              onText={(read) => showText(noteId, read())}
               onLoaded={(loaded) => noteLoaded(noteId, loaded)}
               links={links}
               showAlertMenu={showAlertMenu}

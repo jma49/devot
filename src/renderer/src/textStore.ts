@@ -7,19 +7,41 @@ import { useSyncExternalStore } from 'react'
  */
 export interface TextStore {
   get(): string
-  set(text: string): void
+  /**
+   * The text changed and `read` gives it: it is read only when asked for, at
+   * most once per change, and subscribers hear of changes once per frame, so
+   * typing with nothing showing the text never reads it.
+   */
+  changed(read: () => string): void
   subscribe(listener: () => void): () => void
 }
 
-export function textStore(initial = ''): TextStore {
+const animationFrame = (run: () => void) => {
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run)
+  else setTimeout(run, 0)
+}
+
+export function textStore(initial = '', nextFrame = animationFrame): TextStore {
   let text = initial
+  let unread: (() => string) | undefined
+  let telling = false
   const listeners = new Set<() => void>()
   return {
-    get: () => text,
-    set(next) {
-      if (next === text) return
-      text = next
-      for (const listener of [...listeners]) listener()
+    get() {
+      if (unread) {
+        text = unread()
+        unread = undefined
+      }
+      return text
+    },
+    changed(read) {
+      unread = read
+      if (telling || listeners.size === 0) return
+      telling = true
+      nextFrame(() => {
+        telling = false
+        for (const listener of [...listeners]) listener()
+      })
     },
     subscribe(listener) {
       listeners.add(listener)

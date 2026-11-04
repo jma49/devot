@@ -4353,7 +4353,7 @@ export function App() {
                 autoFocusIfFree={selected === restoreKeyboard.current}
                 hidden={mode === 'preview'}
                 write={mode === 'write'}
-                onText={openText.set}
+                onText={openText.changed}
                 links={{
                   find: findLinkTargets,
                   create: createLinkedNote,

@@ -8,10 +8,9 @@ import {
   useSyncExternalStore,
   type MouseEvent,
 } from 'react'
-import type { NoteLinkTarget, PreviewLabels, PreviewNote, RemoteImageWait } from '../../../core'
+import type { PreviewLabels, PreviewNote, RemoteImageWait } from '../../../core'
+import type { TaskProgress } from '../../../core/tasks'
 import { NOTES_LOADED } from '../externalChanges'
-import { noteLinks } from '../../../core/links'
-import { taskProgress } from '../../../core/tasks'
 import { fragmentId } from '../../../core/preview/headingIds'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
 import { useContextMenu, type MenuPoint } from '../contextMenu'
@@ -148,11 +147,9 @@ export function previewImageTarget(img: HTMLImageElement, markdown: string): Ima
   }
 }
 
-const lineCount = (text: string) => {
-  let lines = 1
-  for (let at = text.indexOf('\n'); at >= 0; at = text.indexOf('\n', at + 1)) lines += 1
-  return lines
-}
+const NO_TASKS: TaskProgress = { done: 0, total: 0 }
+
+const sameTasks = (a: TaskProgress, b: TaskProgress) => a.done === b.done && a.total === b.total
 
 const sameList = (a: readonly HTMLElement[], b: readonly HTMLElement[]) =>
   a.length === b.length && a.every((el, i) => el === b[i])
@@ -218,10 +215,10 @@ export function Preview({
   const scrollAsked = useRef(initialScroll)
   const scrolled = useRef(onScroll)
   const noteNow = useRef(info?.noteId)
-  /** The link targets the chips were rendered from (see `targetsFor`). */
-  const knownLinks = useRef<
-    { key: string; targets: Promise<Record<string, NoteLinkTarget>> } | undefined
-  >(undefined)
+  /** The notes the shown preview links to; their chips are asked for again when one of them changes. */
+  const shownLinks = useRef<readonly string[]>([])
+  const linksChanged = useRef(0)
+  const [tasks, setTasks] = useState<TaskProgress>(NO_TASKS)
   useEffect(() => {
     noteNow.current = info?.noteId
     findHandle.current = onFind
@@ -267,45 +264,26 @@ export function Preview({
 
   useEffect(() => {
     const islandRendered = () => scroll.current?.changed()
-    // What the note links to, for its chips: asked again when another
-    // note opens, the set of linked notes changes, or one of them changes.
-    const targetsFor = (text: string) => {
-      const ids = noteLinks(text)
-      if (ids.length === 0) return Promise.resolve({})
-      const key = `${noteNow.current ?? ''} ${ids.join(' ')}`
-      const known = knownLinks.current
-      if (known?.key !== key) {
-        const targets = core.linkTargets(ids).catch(() => {
-          console.warn('W_LINK_TARGETS_FAILED')
-          knownLinks.current = undefined
-          return undefined
-        })
-        knownLinks.current = { key, targets: targets.then((found) => found ?? {}) }
-        return targets
-      }
-      return known.targets
-    }
     const run = latestOnly(
       (input: RenderInput) =>
-        targetsFor(input.markdown)
-          .then((targets) =>
-            core.renderPreviewPieces(
-              input.markdown,
-              {
-                labels: previewLabels(),
-                loadedEmbeds: input.loadedEmbeds,
-                ...(input.remoteImages ? { remoteImages: input.remoteImages } : {}),
-                ...(targets ? { noteLinks: targets } : {}),
-                ...(input.note ? { note: previewNote(input.note) } : {}),
-              },
-              pieces.current.map((piece) => piece.key),
-            ),
+        core
+          .renderLivePreview(
+            input.markdown,
+            {
+              labels: previewLabels(),
+              loadedEmbeds: input.loadedEmbeds,
+              ...(input.remoteImages ? { remoteImages: input.remoteImages } : {}),
+              ...(input.note ? { note: previewNote(input.note) } : {}),
+            },
+            pieces.current.map((piece) => piece.key),
+            // The chips' notes are asked for again when another note opens or one of them changes.
+            `${noteNow.current ?? ''} ${linksChanged.current}`,
           )
           .then((next) => ({ next, input })),
       ({ next, input }) => {
         if (!host.current) return
         try {
-          pieces.current = patchPieces(host.current, pieces.current, next)
+          pieces.current = patchPieces(host.current, pieces.current, next.pieces)
         } catch {
           // The worker counted on a piece the page no longer has: start over.
           console.warn('W_PREVIEW_PIECES_RESET')
@@ -315,10 +293,12 @@ export function Preview({
           return
         }
         shown.current = input.markdown
+        shownLinks.current = next.links
+        setTasks((now) => (sameTasks(now, next.tasks) ? now : next.tasks))
         mounter.mount(host.current, islandContext.current, islandRendered)
         const blocks = codeBlocks(host.current)
         setCodes((now) => (sameList(now, blocks) ? now : blocks))
-        scroll.current?.changed(lineCount(input.markdown))
+        scroll.current?.changed(next.lines)
         if (!scrollAskedOnce.current && pieces.current.some((piece) => piece.nodes.length > 0)) {
           scrollAskedOnce.current = true
           const top = scrollAsked.current?.()
@@ -367,15 +347,13 @@ export function Preview({
   useEffect(() => {
     const changed = (event: Event) => {
       const noteId = (event as CustomEvent<string | undefined>).detail
-      if (noteId && !knownLinks.current?.key.split(' ').includes(noteId)) return
-      knownLinks.current = undefined
+      if (noteId && !shownLinks.current.includes(noteId)) return
+      linksChanged.current += 1
       render.current?.(input.current)
     }
     window.addEventListener(NOTES_LOADED, changed)
     return () => window.removeEventListener(NOTES_LOADED, changed)
   }, [])
-
-  const tasks = useMemo(() => taskProgress(markdown), [markdown])
 
   const onClick = (event: MouseEvent) => {
     const target = event.target as Element
