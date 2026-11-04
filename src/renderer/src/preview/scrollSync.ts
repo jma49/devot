@@ -131,6 +131,7 @@ function scrolledInside(target: unknown, pane: unknown, dy: number): boolean {
 }
 
 const maxOffset = (el: Scroller) => Math.max(0, el.scrollHeight - el.clientHeight)
+const atEnd = (pane: ScrollPane) => pane.element.scrollTop >= maxOffset(pane.element) - 1
 
 /**
  * Where the follower goes for the leader's position: the matching line, and
@@ -180,8 +181,9 @@ export function syncScrolling(
   const moving = new Set<ScrollPane>()
 
   const schedule = (pane: ScrollPane, laidOut = false) => {
-    // A pane that shrank reports the scroll it was clamped to; that is no lead.
-    if (relayout && pane !== leader) return
+    // A pane that shrank reports the scroll it was clamped to, at its new end; that is no lead.
+    // Any other scroll in the frame after a layout is the user's, and leads.
+    if (relayout && pane !== leader && (laidOut || atEnd(pane))) return
     leader = pane
     if (!laidOut) current = pane
     relayout ||= laidOut
@@ -301,7 +303,7 @@ export function syncScrolling(
       if (pane.element.scrollTop !== seen.get(pane)) {
         note(pane)
         // A pane at its end was most likely clamped by a shorter layout, which is no lead.
-        if (pane.element.scrollTop < maxOffset(pane.element) - 1) moving.add(pane)
+        if (!atEnd(pane)) moving.add(pane)
         return
       }
       if (current !== pane) schedule(other(pane), true)
