@@ -197,6 +197,14 @@ jobs:
           restore-keys: playwright-apt-${{ steps.image.outputs.id }}-
       - if: steps.apt.outputs.cache-matched-key != ''
         run: sudo cp ~/apt-archives/*.deb /var/cache/apt/archives/
+      # The browser download is the same for every shard of one Playwright version.
+      - id: playwright-version
+        run: echo "version=$(pnpm exec playwright --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
+      - id: browsers
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ steps.image.outputs.id }}-${{ steps.playwright-version.outputs.version }}
       - run: pnpm exec playwright install --with-deps webkit
       - run: pnpm test:ui --add-reporter=json --shard=${{ matrix.partitioned && '1/1' || format('{0}/{1}', matrix.shard, matrix.shards) }}
       - if: ${{ !cancelled() && github.ref == 'refs/heads/main' && matrix.shard == 1 && matrix.project == 'webkit' && steps.apt.outputs.cache-hit != 'true' }}
@@ -207,6 +215,12 @@ jobs:
         with:
           path: ~/apt-archives
           key: ${{ steps.apt.outputs.cache-primary-key }}
+      - if: ${{ !cancelled() && github.ref == 'refs/heads/main' && matrix.shard == 1 && matrix.project == 'webkit' && steps.browsers.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.browsers.outputs.cache-primary-key }}
       # Also after a green run: a test that failed once and passed on retry
       # leaves its trace here, which is the evidence for a flake.
       - if: ${{ !cancelled() }}
@@ -264,8 +278,12 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      # tauri::generate_context! embeds the built UI, so build it first.
-      - run: pnpm install --frozen-lockfile && pnpm ui:build
+      # The relay tests start the Node relay.
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      # tauri::generate_context! needs frontendDist to exist, but no Rust check or test reads the
+      # pages, so a placeholder stands in for a UI build (the UI tests build their own).
+      - run: mkdir -p dist && echo '<!doctype html><title>Devot</title>' > dist/index.html
         working-directory: .
       # Installs the toolchain, components and targets src-tauri/rust-toolchain.toml names.
       - run: rustup toolchain install
@@ -291,13 +309,8 @@ jobs:
         working-directory: src-tauri
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      # tauri::generate_context! embeds the built UI, so build it first.
-      - run: pnpm install --frozen-lockfile && pnpm ui:build
+      # A placeholder for the UI, as in rust-check.
+      - run: mkdir -p dist && echo '<!doctype html><title>Devot</title>' > dist/index.html
         working-directory: .
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2

@@ -161,6 +161,42 @@ it('reuses the browser packages but still installs them, and saves them once fro
   expect(saving).toContain("steps.apt.outputs.cache-hit != 'true'")
 })
 
+it('caches the WebKit download per Playwright version, restored by every shard and saved once from main', () => {
+  const ui = job('ui')
+  const version = ui.indexOf('id: playwright-version')
+  const restore = ui.indexOf('id: browsers')
+  const install = ui.indexOf('run: pnpm exec playwright install --with-deps webkit')
+  expect(version).toBeGreaterThan(0)
+  expect(restore).toBeGreaterThan(version)
+  expect(install).toBeGreaterThan(restore)
+  const restoring = ui.slice(restore, ui.indexOf('\n      - ', restore))
+  expect(restoring).toContain('actions/cache/restore@')
+  expect(restoring).toContain('path: ~/.cache/ms-playwright')
+  expect(restoring).toContain('steps.playwright-version.outputs.version')
+  const saveAt = ui.indexOf('path: ~/.cache/ms-playwright', install)
+  expect(saveAt).toBeGreaterThan(install)
+  const saving = ui.slice(ui.lastIndexOf('- if:', saveAt), saveAt)
+  expect(saving).toContain('actions/cache/save@')
+  expect(saving).toContain("github.ref == 'refs/heads/main'")
+  expect(saving).toContain("steps.browsers.outputs.cache-hit != 'true'")
+  expect(ui.slice(saveAt, ui.indexOf('\n      - ', saveAt))).toContain(
+    'key: ${{ steps.browsers.outputs.cache-primary-key }}',
+  )
+})
+
+it('builds no UI for the Rust jobs, which compile against a placeholder page', () => {
+  // generate_context! needs frontendDist to exist; no Rust test reads the real pages.
+  for (const name of ['rust-check', 'ios-check']) {
+    const body = job(name)
+    expect({ name, builds: /ui:build|vite build/.test(body) }).toEqual({ name, builds: false })
+    expect(body).toContain('dist/index.html')
+  }
+  // The relay tests start the Node relay, so the Linux job still installs the packages.
+  expect(commands(job('rust-check'))).toContain('pnpm install --frozen-lockfile')
+  expect(job('ios-check')).not.toContain('pnpm install')
+  expect(read('src-tauri/tauri.conf.json')).toContain('"frontendDist": "../dist"')
+})
+
 it('the web check fails when the quick checks, a UI shard or the change detection fails', () => {
   // `web` is a required check that sums up the jobs and runs even when they were skipped,
   // so a skipped job cannot read as passing a failed one.
