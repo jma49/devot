@@ -113,16 +113,16 @@ Stack only changes that depend on each other: the same tokens, the same styleshe
 
 ## Layout
 
-| Path                     | Contents                                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------------------------ |
-| `src/renderer`           | React UI (runs in the webview)                                                                   |
-| `src/core`               | Core library: plain TypeScript, no Tauri, no Node built-ins                                      |
-| `src-tauri`              | Rust app: commands, storage, native macOS code (`src/native`), the MCP bridge (`src/mcp_bridge`) |
-| `relay`                  | Sync relay, deployed on its own (`docs/sync-relay.md`)                                           |
-| `src-tauri/capabilities` | Which window may call which command                                                              |
-| `tests`                  | Security tests (Vitest) and UI tests (Playwright)                                                |
-| `design`                 | Design tokens, the icon map and the app icon source                                              |
-| `docs`                   | Architecture, decisions and the release process                                                  |
+| Path                     | Contents                                                                                                  |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `src/renderer`           | React UI (runs in the webview)                                                                            |
+| `src/core`               | Core library: plain TypeScript, no Tauri, no Node built-ins                                               |
+| `src-tauri`              | Rust app: commands, storage, native macOS code (`src/native`), the MCP bridge (`src/mcp_bridge`)          |
+| `relay`                  | Sync relay, deployed on its own (`docs/sync-relay.md`)                                                    |
+| `src-tauri/capabilities` | Which window may call which command                                                                       |
+| `tests`                  | Vitest tests (core, policy, security, relay, licence, UI code, scripts, tokens) and UI tests (Playwright) |
+| `design`                 | Design tokens, the icon map and the app icon source                                                       |
+| `docs`                   | Architecture, decisions and the release process                                                           |
 
 ## README clips
 
