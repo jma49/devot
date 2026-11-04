@@ -187,6 +187,55 @@ fn sqlite_failures_keep_their_kind_in_the_code() {
 }
 
 #[test]
+fn copying_pages_into_a_database_another_process_holds_gives_up_busy() {
+    let dir = tempfile::tempdir().unwrap();
+    let source_path = dir.path().join("source.sqlite");
+    let dest_path = dir.path().join("dest.sqlite");
+    Connection::open(&source_path)
+        .unwrap()
+        .execute_batch("CREATE TABLE t (x); INSERT INTO t VALUES (1);")
+        .unwrap();
+    let holder = Connection::open(&dest_path).unwrap();
+    holder
+        .execute_batch("CREATE TABLE u (y); BEGIN IMMEDIATE; INSERT INTO u VALUES (1);")
+        .unwrap();
+    let source = open_read_only(&source_path).unwrap();
+    let mut dest = Connection::open(&dest_path).unwrap();
+    dest.busy_timeout(Duration::ZERO).unwrap();
+    let started = Instant::now();
+    let error = copy_pages(&source, &mut dest, Duration::from_millis(200)).unwrap_err();
+    assert_eq!(error.to_string(), "E_STORAGE_BUSY");
+    assert!(started.elapsed() < Duration::from_secs(30), "it gave up");
+    holder.execute_batch("COMMIT").unwrap();
+    copy_pages(&source, &mut dest, Duration::from_millis(200)).unwrap();
+}
+
+#[test]
+fn restoring_a_damaged_backup_is_refused_and_leaves_the_library_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let backup = dir.path().join("backup.sqlite");
+    let (live_dir, mut store) = temp_store();
+    store.put_note(&note("a", "Before", 10), &[]).unwrap();
+    super::snapshot(&live_dir.path().join("devot.sqlite"), &backup).unwrap();
+    let mut bytes = std::fs::read(&backup).unwrap();
+    assert!(bytes.len() > 3 * 4096);
+    bytes[4096..3 * 4096].fill(0xff);
+    std::fs::write(&backup, bytes).unwrap();
+    store.put_note(&note("b", "After", 20), &[]).unwrap();
+
+    let refused = store.restore_from(&backup).unwrap_err();
+    assert_eq!(refused.to_string(), "E_BACKUP_DAMAGED");
+    let mut titles: Vec<String> = store
+        .list_notes()
+        .unwrap()
+        .into_iter()
+        .map(|n| n.title)
+        .collect();
+    titles.sort();
+    assert_eq!(titles, ["After", "Before"]);
+}
+
+#[test]
 fn upgrades_the_schema_v1_fixture() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("devot.sqlite");

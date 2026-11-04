@@ -166,14 +166,14 @@ fn next_seq(dir: &Path) -> u64 {
         .saturating_add(1)
 }
 
-/// Due when the last backup taken is a day old by the wall clock (`now`) and this process has not
-/// taken one within the last day (`since_last`, see `monotonic`; `None` before its first). A backup
-/// from the future means the clock was set back and its age is unknown: then only the second rule
-/// applies. So a clock set back, or set right after running slow, costs a backup a day, never one
-/// an hour.
+/// Due when the last backup taken (a safety copy is none) is a day old by the wall clock (`now`)
+/// and this process has not taken one within the last day (`since_last`, see `monotonic`; `None`
+/// before its first). A backup from the future means the clock was set back and its age is
+/// unknown: then only the second rule applies. So a clock set back, or set right after running
+/// slow, costs a backup a day, never one an hour.
 pub fn due(backups: &[BackupInfo], now: i64, since_last: Option<Duration>) -> bool {
     let a_day_since_ours = since_last.is_none_or(|ran| ran >= DAY);
-    match backups.first() {
+    match backups.iter().find(|b| b.kind == Kind::Backup) {
         None => true,
         Some(last) if last.created_at > now => a_day_since_ours,
         Some(last) => a_day_since_ours && now - last.created_at >= DAY_MS,
@@ -520,7 +520,11 @@ impl Backups {
         .await
         .map_err(|e| {
             log::warn!("W_BACKUP_RESTORE_FAILED {e}");
-            "E_BACKUP_RESTORE_FAILED"
+            let code = e.to_string();
+            ["E_BACKUP_DAMAGED", "E_STORAGE_BUSY"]
+                .into_iter()
+                .find(|shown| *shown == code)
+                .unwrap_or("E_BACKUP_RESTORE_FAILED")
         })?;
         log::info!("I_BACKUP_RESTORED");
         Ok(())
@@ -923,6 +927,26 @@ mod tests {
     }
 
     #[test]
+    fn a_damaged_backup_is_refused_with_its_code_and_restores_nothing() {
+        use tauri::async_runtime::block_on;
+        let (_dir, backups, db) = app_data();
+        let taken = backups.back_up(NOW).unwrap();
+        let path = backups.dir.join(&taken.id);
+        let mut bytes = std::fs::read(&path).unwrap();
+        bytes[4096..3 * 4096].fill(0xff);
+        std::fs::write(&path, bytes).unwrap();
+        block_on(db.write(storage::Write::Bookkeeping, |store| {
+            store.sync_set_state("since", "after-the-backup")
+        }))
+        .unwrap();
+
+        let refused = block_on(backups.restore(&db, &taken.id, NOW + HOUR));
+        assert_eq!(refused, Err("E_BACKUP_DAMAGED"));
+        let state = block_on(db.call(|store| store.sync_state())).unwrap();
+        assert!(state.contains(&("since".to_string(), "after-the-backup".to_string())));
+    }
+
+    #[test]
     fn eight_restores_keep_the_notes_from_before_the_first() {
         let (_dir, backups, db) = app_data();
         let week = a_week_of_backups(&backups);
@@ -1067,6 +1091,16 @@ mod tests {
         assert!(due(&[info(NOW + 60_000)], NOW, None));
         assert!(!due(&[info(NOW + 60_000)], NOW, hours(23)));
         assert!(due(&[info(NOW + 60_000)], NOW, hours(24)));
+    }
+
+    #[test]
+    fn a_restores_safety_copy_leaves_the_daily_backup_due() {
+        let safety = BackupInfo {
+            kind: Kind::Safety,
+            ..info(NOW - HOUR)
+        };
+        assert!(due(&[safety.clone(), info(NOW - DAY_MS)], NOW, None));
+        assert!(due(&[safety], NOW, None));
     }
 
     #[test]

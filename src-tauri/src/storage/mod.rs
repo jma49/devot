@@ -112,16 +112,47 @@ impl From<rusqlite::Error> for StorageError {
 
 pub type Result<T> = std::result::Result<T, StorageError>;
 
-/// One step reads a consistent snapshot; in WAL mode writers on other connections carry on
+/// How long a copy waits out another connection's lock; the database thread does nothing else
 /// meanwhile.
-fn copy_pages(from: &Connection, to: &mut Connection) -> Result<()> {
+const COPY_PATIENCE: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// One step reads a consistent snapshot; in WAL mode writers on other connections carry on
+/// meanwhile. Busy (E_STORAGE_BUSY) once a lock outlasts `patience`.
+fn copy_pages(from: &Connection, to: &mut Connection, patience: std::time::Duration) -> Result<()> {
     let backup = Backup::new(from, to)?;
+    let started = std::time::Instant::now();
     loop {
         match backup.step(-1)? {
             StepResult::Done => return Ok(()),
             StepResult::More => {}
+            _ if started.elapsed() >= patience => {
+                return Err(StorageError::Sqlite(rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_BUSY),
+                    None,
+                )));
+            }
             _ => std::thread::sleep(std::time::Duration::from_millis(50)),
         }
+    }
+}
+
+/// Refused (E_BACKUP_DAMAGED) when the backup fails `quick_check`, or SQLite finds it damaged
+/// while checking it.
+fn check_backup_intact(backup: &Connection) -> Result<()> {
+    use rusqlite::ErrorCode;
+    const DAMAGED: StorageError = StorageError::Refused("E_BACKUP_DAMAGED");
+    match backup.pragma_query_value(None, "quick_check", |row| row.get::<_, String>(0)) {
+        Ok(check) if check == "ok" => Ok(()),
+        Ok(_) => Err(DAMAGED),
+        Err(error)
+            if matches!(
+                error.sqlite_error_code(),
+                Some(ErrorCode::DatabaseCorrupt | ErrorCode::NotADatabase)
+            ) =>
+        {
+            Err(DAMAGED)
+        }
+        Err(error) => Err(error.into()),
     }
 }
 
@@ -134,7 +165,7 @@ fn open_read_only(path: &Path) -> Result<Connection> {
 pub fn snapshot(db_path: &Path, dest: &Path) -> Result<()> {
     let source = open_read_only(db_path)?;
     let mut copy = Connection::open(dest)?;
-    copy_pages(&source, &mut copy)?;
+    copy_pages(&source, &mut copy, COPY_PATIENCE)?;
     // The copy inherits WAL mode; a rollback journal keeps it one file, so
     // reading it later leaves no -wal or -shm beside it.
     copy.pragma_update(None, "journal_mode", "DELETE")?;
@@ -1255,11 +1286,12 @@ impl Store {
 
     pub fn restore_from(&mut self, path: &Path) -> Result<()> {
         let source = open_read_only(path)?;
+        check_backup_intact(&source)?;
         let version: u32 = source.pragma_query_value(None, "user_version", |row| row.get(0))?;
         if version > SCHEMA_VERSION {
             return Err(StorageError::NewerSchema(version));
         }
-        copy_pages(&source, &mut self.conn)?;
+        copy_pages(&source, &mut self.conn, COPY_PATIENCE)?;
         self.conn.pragma_update(None, "journal_mode", "WAL")?;
         self.migrate()
     }
