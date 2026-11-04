@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 // Write mode's tables (src/renderer/src/editor/write/tableGrid.ts): a table shows as a grid and the
 // caret edits its cells in place; the note's Markdown, read through Edit mode, stays a formatted GFM
@@ -131,9 +131,7 @@ const ABOVE = ['Above', '']
 test.use({ install: 'new' })
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('draws a table as a grid and types in a cell', async ({ page }) => {

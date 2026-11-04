@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 // Write mode's rendered blocks (src/renderer/src/editor/write/rendered.ts): images, formulas and
 // diagrams show as the preview shows them, a caret in one shows its source over the rendering, and
@@ -56,9 +56,7 @@ async function createNote(page: Page, title: string, text: string) {
 test.use({ install: 'new' })
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => localStorage.clear())
-  await page.reload()
+  await openApp(page)
 })
 
 test('a formula shows its source over its rendering while the caret is in it', async ({ page }) => {
