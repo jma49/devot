@@ -16,7 +16,7 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
 
 ## The trial, and what the license unlocks
 
-- **The trial:** three days (72 hours) from the first launch of a build that checks licences (one with a production key), so someone updating from a build that checked none gets their three days then. While it runs, everything works, sync and AI included. A valid license overrides it at any time.
+- **The trial:** 30 days from the first launch of a build that checks licences (one with a production key), so someone updating from a build that checked none gets their 30 days then. It was three days (72 hours) until the last amendment (Amended). While it runs, everything works, sync and AI included. A valid license overrides it at any time.
   - Its start and the latest time seen are kept in the keychain beside the license, which outlives a reinstall. Setting the clock back more than an hour before the latest time seen ends the trial rather than extending it. Erasing the keychain item gives a new trial: that is accepted, as builds without the check are (Risks).
   - A build without a production key never starts the clock and gates nothing.
 - **After the trial, without a license, Devot is read-only:** notes can be read, searched, copied and exported (`localNotes`, always free), but no note, notebook, tag, attachment, template or trash entry can be created, changed or deleted, nothing can be imported, and sync and AI are locked. Settings, window state, the license itself, backups of existing data, exports and the Markdown mirror keep working. Rust refuses every write of user content (`E_LICENCE_REQUIRED`), and a note being saved as the trial ends is still written for a few minutes, so nothing typed is lost.
