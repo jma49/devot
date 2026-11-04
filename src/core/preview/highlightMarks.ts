@@ -55,7 +55,7 @@ function split(
 ): { items: Item[]; delims: Delim[] } {
   const items: Item[] = []
   const delims: Delim[] = []
-  for (const node of children) {
+  for (const [index, node] of children.entries()) {
     if (node.type !== 'text' || !node.value.includes('==')) {
       items.push({ node })
       continue
@@ -69,7 +69,7 @@ function split(
       const before = at > 0 ? node.value.charAt(at - 1) : null
       const after = at + 2 < node.value.length ? node.value.charAt(at + 2) : null
       items.push({ delim: delims.length })
-      delims.push(flank(before, after, children, node))
+      delims.push(flank(before, after, index, children.length))
       last = at + 2
     }
     if (last < node.value.length)
@@ -79,15 +79,9 @@ function split(
 }
 
 /** Strikethrough's flanking rule; `null` is the edge of the text node, so the neighbouring node or the block's edge. */
-function flank(
-  before: string | null,
-  after: string | null,
-  children: readonly PhrasingContent[],
-  node: Text,
-): Delim {
-  const index = children.indexOf(node)
+function flank(before: string | null, after: string | null, index: number, count: number): Delim {
   const b = before ?? (index > 0 ? 'a' : '')
-  const a = after ?? (index < children.length - 1 ? 'a' : '')
+  const a = after ?? (index < count - 1 ? 'a' : '')
   const sBefore = SPACE_OR_EDGE.test(b)
   const sAfter = SPACE_OR_EDGE.test(a)
   const pBefore = PUNCTUATION.test(b)
@@ -110,29 +104,40 @@ function pair(delims: Delim[]): void {
 }
 
 function build(items: readonly Item[], delims: readonly Delim[]): PhrasingContent[] {
+  const itemOf: number[] = []
+  for (const [i, item] of items.entries()) if ('delim' in item) itemOf[item.delim] = i
+  return buildRange(items, delims, itemOf, 0, items.length)
+}
+
+function buildRange(
+  items: readonly Item[],
+  delims: readonly Delim[],
+  itemOf: readonly number[],
+  from: number,
+  to: number,
+): PhrasingContent[] {
   const out: PhrasingContent[] = []
   const push = (node: PhrasingContent) => {
     const prev = out[out.length - 1]
     if (node.type === 'text' && prev?.type === 'text') prev.value += node.value
     else out.push(node)
   }
-  for (let i = 0; i < items.length; i++) {
+  for (let i = from; i < to; i++) {
     const item = items[i] as Item
     if ('node' in item) {
       push(item.node)
       continue
     }
-    const delim = delims[item.delim] as Delim
-    const partner = delim.partner
+    const partner = (delims[item.delim] as Delim).partner
     if (partner === undefined || partner < item.delim) {
       if (partner === undefined) push({ type: 'text', value: '==' })
       continue
     }
-    const end = items.findIndex((it, n) => n > i && 'delim' in it && it.delim === partner)
+    const end = itemOf[partner] as number
     const mark = {
       type: 'highlightMark',
       data: { hName: 'mark' },
-      children: build(items.slice(i + 1, end), delims),
+      children: buildRange(items, delims, itemOf, i + 1, end),
     }
     push(mark as unknown as PhrasingContent)
     i = end
