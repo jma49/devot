@@ -133,7 +133,7 @@ export function shownWidth(source: string): number {
 
 // Column widths go in a stylesheet of their own, one rule per set of widths:
 // the page's content security policy refuses style attributes.
-const columnClasses = new Map<string, string>()
+const columnRules = new Map<string, { name: string; rule: CSSRule }>()
 let columnSheet: CSSStyleSheet | null | undefined
 let serial = 0
 
@@ -148,27 +148,73 @@ function sheet(): CSSStyleSheet | null {
   return columnSheet
 }
 
-function columnsClass(widths: readonly number[]): string {
-  const key = widths.join(',')
-  const known = columnClasses.get(key)
-  if (known) return known
+// Returned only while its rule is in the column sheet.
+function columnsClass(widths: readonly number[]): string | null {
   const rules = sheet()
+  if (!rules) return null
+  const key = widths.join(',')
+  const known = columnRules.get(key)
+  if (known && known.rule.parentStyleSheet === rules) return known.name
   const name = `cm-wm-cols-${serial++}`
-  columnClasses.set(key, name)
   const tracks = widths.map(
     (w, c) => `minmax(0, calc(${w}ch + 2 * var(--space-5) + ${EDGES + (c === 0 ? 1 : 0)}px))`,
   )
-  rules?.insertRule(`.${name} { grid-template-columns: ${tracks.join(' ')}; }`)
+  try {
+    const at = rules.insertRule(
+      `.${name} { grid-template-columns: ${tracks.join(' ')}; }`,
+      rules.cssRules.length,
+    )
+    columnRules.set(key, { name, rule: rules.cssRules[at]! })
+  } catch {
+    return null
+  }
   return name
 }
 
-const adoptColumns = ViewPlugin.define((view) => {
-  const rules = sheet()
-  const root = view.root as Document | ShadowRoot
-  if (rules && root.adoptedStyleSheets && !root.adoptedStyleSheets.includes(rules))
-    root.adoptedStyleSheets = [...root.adoptedStyleSheets, rules]
-  return {}
-})
+type StyledRoot = { adoptedStyleSheets: CSSStyleSheet[] }
+
+/**
+ * Keeps a growing stylesheet in effect in a root. The sheet is adopted again
+ * whenever the root's list lost it (another script replaced the list), the
+ * root changed, or the sheet gained rules since: adopting a list anew restyles
+ * the root, where a rule added to an adopted sheet may not (issue 560).
+ */
+export class SheetAdoption {
+  private root: StyledRoot | null = null
+  private rules = -1
+
+  constructor(private readonly adopted: CSSStyleSheet) {}
+
+  ensure(root: StyledRoot): void {
+    const list = root.adoptedStyleSheets
+    const rules = this.adopted.cssRules.length
+    if (root === this.root && rules === this.rules && list.includes(this.adopted)) return
+    root.adoptedStyleSheets = [...list.filter((s) => s !== this.adopted), this.adopted]
+    this.root = root
+    this.rules = rules
+  }
+}
+
+const adoptColumns = ViewPlugin.fromClass(
+  class {
+    private readonly adoption: SheetAdoption | null
+
+    constructor(private readonly view: EditorView) {
+      const rules = sheet()
+      this.adoption = rules ? new SheetAdoption(rules) : null
+      this.ensure()
+    }
+
+    update() {
+      this.ensure()
+    }
+
+    private ensure() {
+      const root = this.view.root as Partial<StyledRoot>
+      if (this.adoption && root.adoptedStyleSheets) this.adoption.ensure(root as StyledRoot)
+    }
+  },
+)
 
 function widthsOf(state: EditorState, table: WriteTable): number[] {
   return table.align.map((_, column) => {
@@ -193,7 +239,7 @@ function grid(state: EditorState, table: WriteTable, layers: BlockLayers): void 
   rows.forEach(({ line, boxes }, r) => {
     const look = [
       'cm-wm-row',
-      columns,
+      columns ?? '',
       r === 0 ? 'cm-wm-row-head' : r % 2 === 0 ? 'cm-wm-row-even' : '',
       r === rows.length - 1 ? 'cm-wm-row-last' : '',
     ]

@@ -7,7 +7,7 @@ import { noteMarkdown } from '../markdown'
 import { parseTable, printTable } from '../table'
 import { writeBlocks } from './blocks'
 import { writeFocusTracking } from './focus'
-import { bandsClip, layerY, shownWidth, writeTables } from './tableGrid'
+import { SheetAdoption, bandsClip, layerY, shownWidth, writeTables } from './tableGrid'
 import {
   atomicSpans,
   caretInCell,
@@ -518,5 +518,57 @@ describe('the clip that keeps the selection layer off a grid', () => {
       [160, 300],
       [340.5, 1e6],
     ])
+  })
+})
+
+describe('the column sheet in the editor root', () => {
+  const growingSheet = () => {
+    const rules: unknown[] = []
+    return { sheet: { cssRules: rules } as unknown as CSSStyleSheet, add: () => rules.push({}) }
+  }
+  const other = {} as CSSStyleSheet
+
+  it('adopts the sheet after the root sheets and leaves an unchanged root alone', () => {
+    const { sheet } = growingSheet()
+    const root = { adoptedStyleSheets: [other] }
+    const adoption = new SheetAdoption(sheet)
+    adoption.ensure(root)
+    const adopted = root.adoptedStyleSheets
+    expect(adopted).toEqual([other, sheet])
+    adoption.ensure(root)
+    expect(root.adoptedStyleSheets).toBe(adopted)
+  })
+
+  it('adopts it again once the root list is replaced without it', () => {
+    const { sheet } = growingSheet()
+    const root = { adoptedStyleSheets: [other] }
+    const adoption = new SheetAdoption(sheet)
+    adoption.ensure(root)
+    root.adoptedStyleSheets = [other]
+    adoption.ensure(root)
+    expect(root.adoptedStyleSheets).toEqual([other, sheet])
+  })
+
+  it('adopts the list anew when the sheet gains a rule, so the root restyles', () => {
+    const { sheet, add } = growingSheet()
+    const root = { adoptedStyleSheets: [sheet, other] }
+    const adoption = new SheetAdoption(sheet)
+    adoption.ensure(root)
+    const adopted = root.adoptedStyleSheets
+    expect(adopted).toEqual([other, sheet])
+    add()
+    adoption.ensure(root)
+    expect(root.adoptedStyleSheets).not.toBe(adopted)
+    expect(root.adoptedStyleSheets).toEqual([other, sheet])
+  })
+
+  it('adopts it in a new root', () => {
+    const { sheet } = growingSheet()
+    const adoption = new SheetAdoption(sheet)
+    const first = { adoptedStyleSheets: [] as CSSStyleSheet[] }
+    const second = { adoptedStyleSheets: [other] }
+    adoption.ensure(first)
+    adoption.ensure(second)
+    expect(second.adoptedStyleSheets).toEqual([other, sheet])
   })
 })
