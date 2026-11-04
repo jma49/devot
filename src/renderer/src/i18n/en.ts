@@ -1415,7 +1415,6 @@ title: Daily Report {{date}}
   'usage.loading': 'Loading usage data…',
   'usage.retained':
     'Charts use the records still stored on this Mac; older or excess records are not included.',
-  'usage.calendar': 'Days with recorded activity',
   'usage.rangeDates': '{start} – {end}',
   'usage.title': 'Usage Data',
   'usage.detail':
