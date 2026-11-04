@@ -96,7 +96,9 @@ function slideThumb(group: HTMLElement, from: number, to: number): void {
   const segments = segmentsOf(group)
   const start = segments[from]
   const target = segments[to]
-  if (!start || !target) return
+  // No segment chosen (Write mode beside the view modes): nothing pressed to slide to, and none left behind.
+  if (!target) return dropThumb(group)
+  if (!start) return
   const thumb = thumbOf(group, start)
   if (carried) thumb.style.transform = thumbTransform(carried.x, carried.lift)
   carried = null

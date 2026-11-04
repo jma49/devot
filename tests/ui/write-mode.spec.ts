@@ -14,6 +14,8 @@ const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const lines = (page: Page) => page.locator('.cm-line').allTextContents()
 const modes = (page: Page) => page.getByRole('group', { name: 'View mode' })
+const writeButton = (page: Page) =>
+  page.locator('.editor-toolbar').getByRole('button', { name: 'Write Mode', exact: true })
 const findBar = (page: Page) => page.getByRole('search', { name: 'Find in Note' })
 
 const runCommand = (page: Page, id: string) =>
@@ -34,7 +36,8 @@ async function source(page: Page): Promise<string[]> {
   await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Edit')
   const text = await lines(page)
   await runCommand(page, 'view.write')
-  await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Write')
+  await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect(modes(page).getByRole('button', { pressed: true })).toHaveCount(0)
   return text
 }
 
@@ -169,15 +172,63 @@ test.describe('a new install', () => {
     await openApp(page)
   })
 
-  test('opens notes in Write mode', async ({ page }) => {
+  test('opens notes in Write mode, its own button before the view modes', async ({ page }) => {
     await createNote(page, 'First')
-    await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Write')
+    await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'true')
+    await expect(modes(page).getByRole('button', { pressed: true })).toHaveCount(0)
     const names = await modes(page)
       .getByRole('button')
       .evaluateAll((buttons) =>
         buttons.map((b) => (b as unknown as { ariaLabel: string | null }).ariaLabel),
       )
-    expect(names).toEqual(['Write', 'Edit', 'Split', 'Preview'])
+    expect(names).toEqual(['Edit', 'Split', 'Preview'])
+    const button = await writeButton(page).boundingBox()
+    const group = await modes(page).boundingBox()
+    if (!button || !group) throw new Error('E_TEST_NO_BOX')
+    expect(group.x - (button.x + button.width)).toBeCloseTo(8, 0)
+  })
+
+  test('Write and the view modes are one choice: picking one leaves the other', async ({
+    page,
+  }) => {
+    await createNote(page, 'One', '**bold**\nend')
+    const toolbarBoxes = () =>
+      page
+        .locator('.editor-toolbar')
+        .getByRole('button')
+        .evaluateAll((buttons) =>
+          buttons.map((b) => {
+            const r = b.getBoundingClientRect()
+            return [r.x, r.width]
+          }),
+        )
+    const before = await toolbarBoxes()
+    await modes(page).getByRole('button', { name: 'Split' }).click()
+    await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'false')
+    await expect(page.getByRole('article', { name: 'Preview' })).toBeVisible()
+    await expect.poll(() => lines(page)).toEqual(['**bold**', 'end'])
+    await writeButton(page).click()
+    await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'true')
+    await expect(modes(page).getByRole('button', { pressed: true })).toHaveCount(0)
+    // No segment is chosen, so the thumb neither slides nor stays behind.
+    await expect(page.locator('.segment-thumb')).toHaveCount(0)
+    await expect(page.getByRole('article', { name: 'Preview' })).toBeHidden()
+    await expect.poll(() => lines(page)).toEqual(['bold', 'end'])
+    await modes(page).getByRole('button', { name: 'Preview' }).click()
+    await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'false')
+    await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Preview')
+    await expect(page.locator('.segment-thumb')).toHaveCount(0)
+    expect(await toolbarBoxes()).toEqual(before)
+  })
+
+  test('the Write Mode command switches to Write from Preview', async ({ page }) => {
+    await createNote(page, 'Command', '**bold**\nend')
+    await runCommand(page, 'view.preview')
+    await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Preview')
+    await runCommand(page, 'view.write')
+    await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'true')
+    await expect(modes(page).getByRole('button', { pressed: true })).toHaveCount(0)
+    await expect.poll(() => lines(page)).toContainEqual('bold')
   })
 
   test('shows a typed note as a document, with the source of the element at the caret', async ({
@@ -429,8 +480,9 @@ test.describe('switching between Write and Edit', () => {
     await expect
       .poll(async () => (await topLine()).replace(/^## |\*\*/g, ''))
       .toBe(before.replace(/^## |\*\*/g, ''))
-    await modes(page).getByRole('button', { name: 'Write' }).click()
-    await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Write')
+    await writeButton(page).click()
+    await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'true')
+    await expect(modes(page).getByRole('button', { pressed: true })).toHaveCount(0)
     await expect.poll(topLine).toBe(before)
     await body(page).focus()
     await page.keyboard.insertText('!')
@@ -445,7 +497,8 @@ test.describe('switching between Write and Edit', () => {
     await page.keyboard.press('Meta+KeyE')
     await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Preview')
     await page.keyboard.press('Meta+KeyE')
-    await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Write')
+    await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'true')
+    await expect(modes(page).getByRole('button', { pressed: true })).toHaveCount(0)
     await expect.poll(() => lines(page)).toContainEqual('bold')
   })
 })

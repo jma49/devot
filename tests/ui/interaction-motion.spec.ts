@@ -59,6 +59,37 @@ test('a segment thumb slides to the new mode, on top of the final state, and is 
   await expect(group).not.toHaveAttribute('data-sliding')
 })
 
+test('choosing Write mid-slide drops the thumb, and leaving Write slides none', async ({
+  page,
+}) => {
+  await openApp(page)
+  await newNote(page).click()
+  const group = page.getByRole('group', { name: 'View mode' })
+  const write = page
+    .locator('.editor-toolbar')
+    .getByRole('button', { name: 'Write Mode', exact: true })
+  await group.getByRole('button', { name: 'Preview' }).click()
+  await write.click()
+  await expect(write).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.segment-thumb')).toHaveCount(0)
+  await expect(group).not.toHaveAttribute('data-sliding')
+  await page.evaluate(() => {
+    const w = globalThis as unknown as { devotThumbSeen?: boolean }
+    new MutationObserver(() => {
+      if (document.querySelector('.segment-thumb')) w.devotThumbSeen = true
+    }).observe(document.body, { childList: true, subtree: true })
+  })
+  await group.getByRole('button', { name: 'Split' }).click()
+  await expect(group.getByRole('button', { pressed: true })).toHaveAccessibleName('Split')
+  await expect(write).toHaveAttribute('aria-pressed', 'false')
+  await page.waitForTimeout(300)
+  expect(
+    await page.evaluate(
+      () => (globalThis as unknown as { devotThumbSeen?: boolean }).devotThumbSeen,
+    ),
+  ).toBeUndefined()
+})
+
 test('dragging the thumb to another segment selects it', async ({ page }) => {
   await openApp(page)
   await newNote(page).click()
