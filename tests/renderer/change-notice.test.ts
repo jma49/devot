@@ -11,3 +11,9 @@ it('says why a tag rename that would overfill a saved search is refused', () => 
 it('falls back to the generic notice for other codes', () => {
   expect(changeMessage('E_OTHER')).toContain('E_OTHER')
 })
+
+it('says a note left the Trash before it could be deleted, without the code', () => {
+  const message = changeMessage('E_NOTE_NOT_TRASHED')
+  expect(message).toContain('Trash')
+  expect(message).not.toContain('E_NOTE_NOT_TRASHED')
+})

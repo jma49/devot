@@ -1551,6 +1551,8 @@ title: Daily Report {{date}}
   'change.tagNameInvalid': 'A tag name is one line of at most {max} characters.',
   'change.tagRenameSearchTooLong':
     'This tag cannot take that name: a saved search that uses it would pass {max} characters. Shorten the name or edit that search ({code}).',
+  'change.noteNotTrashed':
+    'This note is no longer in the Trash, so it was not deleted. It may have been restored in another window or on another device.',
   'change.bookNameInvalid': 'A notebook name is one line of at most {max} characters.',
   'export.failed': 'The export did not complete ({code}).',
   'export.partial':

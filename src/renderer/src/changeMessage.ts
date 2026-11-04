@@ -5,7 +5,7 @@ import { currentLocale, format, t } from './i18n'
 
 const number = (n: number) => new Intl.NumberFormat(currentLocale()).format(n)
 
-/** What a refused change says: a name's rule for a refused name, else the code. */
+/** What a refused change says: a name's rule for a refused name, a note that left the Trash, else the code. */
 export function changeMessage(code: string): string {
   switch (code) {
     case 'E_TAG_NAME_TAKEN':
@@ -17,6 +17,8 @@ export function changeMessage(code: string): string {
         max: number(MAX_SAVED_SEARCH_QUERY_CHARS),
         code,
       })
+    case 'E_NOTE_NOT_TRASHED':
+      return t('change.noteNotTrashed')
     case 'E_BOOK_NAME_INVALID':
       return format(t('change.bookNameInvalid'), { max: number(MAX_BOOK_NAME_CHARS) })
     default:
