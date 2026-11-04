@@ -25,7 +25,8 @@ import { displayWidth } from '../table'
 import { spec } from '../formatContext'
 import { locate, rewrite, tableCommand } from '../tableCommands'
 import { tableRowTypingOff } from '../tableTyping'
-import { writeBlockRule, type BlockLayers, type BlockRule } from './blocks'
+import { writeBlockRule, type BlockLayers, type BlockPiece, type BlockRule } from './blocks'
+import { firstReaching } from './changes'
 import {
   DELIMITER,
   atomicSpans,
@@ -40,6 +41,8 @@ import {
   structureSpans,
   visibleSpan,
   writeTablesOf,
+  tablesTouched,
+  carryWriteTables,
   formatAfter,
   composedTables,
   type Span,
@@ -291,7 +294,6 @@ const drawings = new Map<string, Drawing>()
 const DRAWINGS_KEPT = 1000
 // The same table (one note text and tree) is placed once: a caret move places no table again.
 const placed = new WeakMap<WriteTable, BlockLayers>()
-const LAYERS = ['decorations', 'outer', 'atomic'] as const
 
 const untouched = (state: EditorState, table: WriteTable) =>
   state.selection.ranges.every((r) => r.to < table.from || r.from > table.to)
@@ -321,39 +323,48 @@ function drawn(state: EditorState, table: WriteTable): Drawing {
   }
 }
 
-/** Every table at the top level of the note as a grid, but one with several cursors in it. */
-export const tableRule: BlockRule = (state) => {
-  const layers: BlockLayers = { decorations: [], outer: [], atomic: [] }
-  for (const table of writeTablesOf(state)) {
-    if (!shownTable(state, table)) continue
-    if (!untouched(state, table)) {
-      grid(state, table, layers)
-      continue
-    }
-    let ranges = placed.get(table)
-    if (!ranges) {
-      const key = drawingKey(state, table)
-      let drawing = drawings.get(key)
-      if (!drawing) {
-        if (drawings.size >= DRAWINGS_KEPT) drawings.clear()
-        drawing = drawn(state, table)
-        drawings.set(key, drawing)
-      }
-      const place = (from: readonly Placed[]) =>
-        from.map((p) => p.value.range(table.from + p.from, table.from + p.to))
-      ranges = {
-        decorations: place(drawing.decorations),
-        outer: place(drawing.outer),
-        atomic: place(drawing.atomic),
-      }
-      placed.set(table, ranges)
-    }
-    for (const layer of LAYERS) {
-      const into = layers[layer] as Range<Decoration>[]
-      for (const range of ranges[layer]) into.push(range)
-    }
+function placedOf(state: EditorState, table: WriteTable): BlockLayers {
+  if (!untouched(state, table)) {
+    const layers: BlockLayers = { decorations: [], outer: [], atomic: [] }
+    grid(state, table, layers)
+    return layers
   }
+  const known = placed.get(table)
+  if (known) return known
+  const key = drawingKey(state, table)
+  let drawing = drawings.get(key)
+  if (!drawing) {
+    if (drawings.size >= DRAWINGS_KEPT) drawings.clear()
+    drawing = drawn(state, table)
+    drawings.set(key, drawing)
+  }
+  const place = (from: readonly Placed[]) =>
+    from.map((p) => p.value.range(table.from + p.from, table.from + p.to))
+  const layers = {
+    decorations: place(drawing.decorations),
+    outer: place(drawing.outer),
+    atomic: place(drawing.atomic),
+  }
+  placed.set(table, layers)
   return layers
+}
+
+/** Every table of the note as a grid, but one with several cursors in it; a piece takes the line breaks around it. */
+export const tableRule: BlockRule = {
+  pieces(state, _revealed, from, to) {
+    const tables = writeTablesOf(state)
+    const length = state.doc.length
+    const out: BlockPiece[] = []
+    for (let i = firstReaching(tables, from - 1); i < tables.length; i++) {
+      const table = tables[i]!
+      if (table.from - 1 > to) break
+      if (!shownTable(state, table)) continue
+      const layers = placedOf(state, table)
+      out.push({ from: Math.max(0, table.from - 1), to: Math.min(length, table.to + 1), layers })
+    }
+    return out
+  },
+  carry: carryWriteTables,
 }
 
 /**
@@ -371,15 +382,13 @@ const keepStructure = EditorState.changeFilter.of((tr) => {
   if (!userEdit(tr) || tr.isUserEvent('input.format')) return true
   const start = tr.startState
   const kept: number[] = []
-  for (const table of writeTablesOf(start)) {
+  for (const table of tablesTouched(writeTablesOf(start), tr.changes, 1)) {
     if (!shownTable(start, table)) continue
-    let touched = false
     let whole = false
     tr.changes.iterChangedRanges((fromA, toA) => {
-      if (fromA <= table.to + 1 && toA >= table.from - 1) touched = true
       if (fromA <= table.from && toA >= table.to) whole = true
     })
-    if (!touched || whole) continue
+    if (whole) continue
     for (const [from, to] of structureSpans(table, start.doc.length)) kept.push(from, to)
   }
   return kept.length === 0 ? true : kept
@@ -396,14 +405,12 @@ const formatCells = EditorState.transactionFilter.of((tr) => {
   // goes into the nearest cell.
   const caret = caretOf(tr.newSelection)
   if (caret === null) return tr
-  for (const table of writeTablesOf(tr.state)) {
-    if (table.from > caret) break
-    if (!shownTable(tr.state, table)) continue
-    const target = caretInCell(table, caret)
-    if (target !== null && target !== caret)
-      return [tr, { selection: EditorSelection.cursor(target), sequential: true }]
-  }
-  return tr
+  const tables = writeTablesOf(tr.state)
+  const table = tables[firstReaching(tables, caret)]
+  if (!table || !shownTable(tr.state, table)) return tr
+  const target = caretInCell(table, caret)
+  if (target === null || target === caret) return tr
+  return [tr, { selection: EditorSelection.cursor(target), sequential: true }]
 })
 
 const nextRow = tableCommand('nextRow', true)
@@ -475,6 +482,7 @@ const gridSelectionClip = ViewPlugin.fromClass(
       const { view } = this
       const { state } = view
       const bands: Span[] = []
+      if (state.selection.ranges.every((r) => r.empty)) return ''
       for (const table of writeTablesOf(state)) {
         if (!shownTable(state, table) || crossingRanges(table, state.selection).length === 0)
           continue

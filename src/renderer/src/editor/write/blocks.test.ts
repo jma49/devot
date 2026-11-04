@@ -1,10 +1,23 @@
-import { ensureSyntaxTree } from '@codemirror/language'
-import { EditorState, type Extension } from '@codemirror/state'
-import { EditorView, type DecorationSet } from '@codemirror/view'
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
+import {
+  EditorSelection,
+  EditorState,
+  type Extension,
+  type Range,
+  type TransactionSpec,
+} from '@codemirror/state'
+import { EditorView, type Decoration, type DecorationSet } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
+import {
+  randomChange,
+  randomNote,
+  seeded,
+  type Random,
+} from '../../../../../tests/support/random-notes'
 import { noteMarkdown } from '../markdown'
 import { writeBlocks } from './blocks'
-import { setWriteFocus, writeFocusTracking } from './focus'
+import { setWriteFocus, writeFocus, writeFocusTracking } from './focus'
+import { writeTables } from './tableGrid'
 
 const NOTE = '---\ntitle: Plan\ntags: [a, b]\n# not a key\n---\nBody **text**'
 
@@ -120,5 +133,87 @@ describe('rendered blocks in Write mode', () => {
   it('show a selection over them whole', () => {
     const state = stateOf(doc).update({ selection: { anchor: 4, head: 4 + IMAGE.length } }).state
     expect(rendered(state)[0]).toBe(`4-${4 + IMAGE.length} image selected`)
+  })
+})
+
+describe('the blocks after a step', () => {
+  const extensions = [
+    noteMarkdown,
+    writeFocusTracking,
+    writeBlocks,
+    writeTables,
+    EditorState.allowMultipleSelections.of(true),
+  ]
+
+  /** Every decoration the blocks give the editor, in order. */
+  function drawn(state: EditorState): Range<Decoration>[] {
+    const out: Range<Decoration>[] = []
+    for (const facet of [EditorView.decorations, EditorView.outerDecorations]) {
+      for (const source of state.facet(facet)) {
+        if (typeof source === 'function') continue
+        for (let i = (source as DecorationSet).iter(); i.value; i.next())
+          out.push(i.value.range(i.from, i.to))
+      }
+    }
+    return out
+  }
+
+  /** The note, its selection and its focus drawn from nothing. */
+  function fresh(state: EditorState): EditorState {
+    const doc = state.doc.toString()
+    const start = EditorState.create({
+      doc,
+      selection: state.selection,
+      extensions,
+    })
+    ensureSyntaxTree(start, doc.length, 1e9)
+    return start.update({ effects: setWriteFocus.of(state.field(writeFocus)) }).state
+  }
+
+  function randomStep(next: Random, state: EditorState): TransactionSpec {
+    const length = state.doc.length
+    const at = () => Math.floor(next() * (length + 1))
+    const kind = next()
+    if (kind < 0.4) {
+      const change = randomChange(next, state.doc.toString())
+      const end = change.from + change.insert.length
+      return {
+        changes: change,
+        selection: { anchor: end },
+        ...(next() < 0.7 ? { userEvent: 'input.type' } : {}),
+      }
+    }
+    if (kind < 0.55) return { effects: setWriteFocus.of(next() < 0.7) }
+    const ranges = [EditorSelection.range(at(), next() < 0.6 ? at() : at())]
+    if (kind < 0.65) ranges.push(EditorSelection.cursor(at()))
+    if (kind > 0.85) ranges[0] = EditorSelection.cursor(ranges[0]!.head)
+    return { selection: EditorSelection.create(ranges), userEvent: 'select' }
+  }
+
+  it('are what drawing the note from nothing gives', () => {
+    const next = seeded(3)
+    for (let note = 0; note < 40; note++) {
+      let state = fresh(EditorState.create({ doc: randomNote(next), extensions }))
+      for (let i = 0; i < 25; i++) {
+        state = state.update(randomStep(next, state)).state
+        if (next() < 0.5) {
+          ensureSyntaxTree(state, state.doc.length, 1e9)
+          state = state.update({}).state
+        }
+        // The parser reading an edit can tell some notes apart from reading them anew
+        // (a table's rows); the blocks follow the tree the editor has.
+        const anew = fresh(state)
+        if (syntaxTree(state).toString() !== syntaxTree(anew).toString()) continue
+        const expected = drawn(anew)
+        const actual = drawn(state)
+        const where = { doc: state.doc.toString(), selection: state.selection.toJSON() }
+        expect({ ...where, at: actual.map((r) => `${r.from}-${r.to}`) }).toEqual({
+          ...where,
+          at: expected.map((r) => `${r.from}-${r.to}`),
+        })
+        const same = actual.map((r, k) => r.value.eq(expected[k]!.value))
+        expect({ ...where, same }).toEqual({ ...where, same: same.map(() => true) })
+      }
+    }
   })
 })
