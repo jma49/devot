@@ -44,6 +44,222 @@
               {
                 "name": "@tauri-apps/api",
                 "message": "The core library must not depend on Tauri; the UI layer adapts it."
+              },
+              {
+                "name": "assert",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "assert/strict",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "async_hooks",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "buffer",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "child_process",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "cluster",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "console",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "constants",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "crypto",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "dgram",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "diagnostics_channel",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "dns",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "dns/promises",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "domain",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "events",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "fs",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "fs/promises",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "http",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "http2",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "https",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "inspector",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "inspector/promises",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "module",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "net",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "os",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "path",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "path/posix",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "path/win32",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "perf_hooks",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "process",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "punycode",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "querystring",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "readline",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "readline/promises",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "repl",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "stream",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "stream/consumers",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "stream/promises",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "stream/web",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "string_decoder",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "sys",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "timers",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "timers/promises",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "tls",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "trace_events",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "tty",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "url",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "util",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "util/types",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "v8",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "vm",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "wasi",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "worker_threads",
+                "message": "The core library must run outside Node (UI worker, iOS)."
+              },
+              {
+                "name": "zlib",
+                "message": "The core library must run outside Node (UI worker, iOS)."
               }
             ],
             "patterns": [
@@ -70,6 +286,222 @@
               {
                 "name": "better-sqlite3",
                 "message": "The UI reaches data through Tauri commands."
+              },
+              {
+                "name": "assert",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "assert/strict",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "async_hooks",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "buffer",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "child_process",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "cluster",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "console",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "constants",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "crypto",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "dgram",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "diagnostics_channel",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "dns",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "dns/promises",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "domain",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "events",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "fs",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "fs/promises",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "http",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "http2",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "https",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "inspector",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "inspector/promises",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "module",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "net",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "os",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "path",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "path/posix",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "path/win32",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "perf_hooks",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "process",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "punycode",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "querystring",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "readline",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "readline/promises",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "repl",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "stream",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "stream/consumers",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "stream/promises",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "stream/web",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "string_decoder",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "sys",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "timers",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "timers/promises",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "tls",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "trace_events",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "tty",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "url",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "util",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "util/types",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "v8",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "vm",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "wasi",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "worker_threads",
+                "message": "The UI runs in a webview and has no Node modules."
+              },
+              {
+                "name": "zlib",
+                "message": "The UI runs in a webview and has no Node modules."
               }
             ],
             "patterns": [

@@ -230,12 +230,32 @@ describe('the workflows', () => {
   })
 
   it('pin every action to a commit, with the version it is', () => {
+    const all = workflows.flatMap(({ text }) => [...text.matchAll(/^\s*(?:-\s+)?uses:/gm)])
+    expect(all.length).toBeGreaterThan(10)
     for (const { name, text } of workflows) {
       const uses = [...text.matchAll(/^\s*(?:-\s+)?uses:\s*(.*)$/gm)].map((m) => m[1]!)
-      expect({ name, count: uses.length }).not.toEqual({ name, count: 0 })
       const loose = uses.filter((u) => !/^[\w.-]+\/[\w./-]+@[0-9a-f]{40} # v\d+(\.\d+)*$/.test(u))
       expect({ name, loose }).toEqual({ name, loose: [] })
     }
+  })
+
+  it.each([
+    // The first release of each whose action.yml says `using: node24`; GitHub removes Node 20.
+    ['actions/upload-artifact', [6, 0, 0]],
+    ['actions/download-artifact', [7, 0, 0]],
+    ['pnpm/action-setup', [4, 4, 0]],
+  ] as const)('pin %s to a release that runs on Node 24', (action, first) => {
+    const versions = workflows.flatMap(({ text }) =>
+      [...text.matchAll(new RegExp(`uses: ${action}@[0-9a-f]{40} # v([\\d.]+)`, 'g'))].map((m) =>
+        (m[1] ?? '').split('.').map(Number),
+      ),
+    )
+    expect(versions.length).toBeGreaterThan(0)
+    const older = versions.filter((v) => {
+      const at = first.findIndex((part, i) => (v[i] ?? 0) !== part)
+      return at !== -1 && (v[at] ?? 0) < first[at]!
+    })
+    expect(older.map((v) => v.join('.'))).toEqual([])
   })
 
   it('name the Rust toolchain, the same one everywhere', () => {

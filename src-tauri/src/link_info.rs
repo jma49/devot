@@ -381,15 +381,43 @@ mod tests {
         assert_eq!(page_title("<p>no title</p>"), None);
     }
 
+    /// How many times as long four times the input takes: about 4 for linear work, 16 for
+    /// quadratic, whatever the machine's speed or load (as in `storage::readable`'s tests). Each
+    /// size keeps its fastest run over interleaved rounds, so a load spike has to hit every round.
+    fn fourfold_growth(work: impl Fn(&str), make: impl Fn(usize) -> String, n: usize) -> f64 {
+        use std::time::{Duration, Instant};
+        let (small_input, large_input) = (make(n), make(4 * n));
+        let fastest = |input: &str| {
+            (0..5)
+                .map(|_| {
+                    let started = Instant::now();
+                    work(input);
+                    started.elapsed()
+                })
+                .min()
+                .unwrap_or_default()
+        };
+        let (mut small, mut large) = (Duration::MAX, Duration::MAX);
+        for _ in 0..3 {
+            small = small.min(fastest(&small_input));
+            large = large.min(fastest(&large_input));
+        }
+        // Timer noise below a millisecond says nothing about growth.
+        large.as_secs_f64() / small.max(Duration::from_millis(1)).as_secs_f64()
+    }
+
     #[test]
     fn decodes_a_title_of_ampersands_in_linear_time() {
-        for raw in [
-            "&".repeat(512 * 1024),
-            format!("{};", "&".repeat(512 * 1024)),
-        ] {
-            let start = std::time::Instant::now();
-            assert_eq!(decode_entities(&raw), raw);
-            assert!(start.elapsed() < std::time::Duration::from_millis(50));
+        let decode = |raw: &str| assert_eq!(decode_entities(raw), raw);
+        let makes: [fn(usize) -> String; 2] =
+            [|n| "&".repeat(n), |n| format!("{};", "&".repeat(n))];
+        for make in makes {
+            let growth = fourfold_growth(decode, make, 128 * 1024);
+            assert!(
+                growth < 11.0,
+                "four times the input took {growth:.1} times as long"
+            );
+            decode(&make(512 * 1024));
         }
         assert_eq!(decode_entities("&amp;&#x2014;&ampx;"), "&\u{2014}&ampx;");
         assert_eq!(decode_entities("&&&&&&&&&&&&&&amp;"), "&&&&&&&&&&&&&&");

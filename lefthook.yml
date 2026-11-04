@@ -46,6 +46,13 @@ pre-push:
         - '*.{ts,tsx,js,mjs,cjs,json,yml,yaml,css,html}'
         - '**/*.{ts,tsx,js,mjs,cjs,json,yml,yaml,css,html,rs,sql,sqlite}'
       run: pnpm test:fast
+    # Policy and token tests read README.md, CLAUDE.md, the design notes and
+    # the README images, which the unit-tests glob leaves out.
+    - name: policy-tests
+      glob:
+        - '*.{md,png,jpg,jpeg,gif,webp,svg}'
+        - '**/*.{md,png,jpg,jpeg,gif,webp,svg}'
+      run: pnpm test:policy
     - name: rust
       glob:
         - 'src-tauri/*.{rs,toml,json}'

@@ -1,9 +1,9 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join, normalize } from 'node:path'
 import { expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { gitIn } from '../support/git-files'
+import { gitIn, listFiles } from '../support/git-files'
 import { tempDir } from '../support/temp-dirs'
 
 // The documented gate must be the real one: `pnpm check` runs what CI runs.
@@ -50,10 +50,11 @@ it('every cargo step of the CI rust job is a step of pnpm rust:check', () => {
   expect(scripts['rust:check']).toContain('cargo deny check')
 })
 
-it('CI compiles the app for iOS and the Rust gate waits for it', () => {
-  // No other job builds the phone's `cfg` branches, and they need Apple's SDK.
+it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () => {
+  // No other job builds the Mac's or the phone's `cfg` branches, and they need Apple's SDK.
   const ios = job('ios-check')
   expect(ios).toContain('runs-on: macos-')
+  expect(commands(ios)).toContain('cargo clippy --all-targets -- -D warnings')
   expect(ios).toContain("needs.changes.outputs.rust != 'false'")
   expect(ios).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(ios).toContain('targets: aarch64-apple-ios-sim')
@@ -98,7 +99,6 @@ it('every job runs unless the change detection said it is not needed', () => {
 })
 
 it('documentation-only pull requests skip heavy jobs but still report every required gate', () => {
-  expect(job('policy-check')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('web-checks')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('unit-tests')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('ui')).toContain("needs.changes.outputs.docs_only != 'true'")
@@ -107,6 +107,31 @@ it('documentation-only pull requests skip heavy jobs but still report every requ
   for (const gate of ['web', 'rust', 'policy']) {
     expect(job(gate)).toMatch(/^ {4}if: \$\{\{ always\(\) \}\}$/m)
   }
+})
+
+type Step = { if?: string; run?: string }
+const policySteps = () =>
+  (parse(workflow) as { jobs: Record<string, { if?: string; steps: Step[] }> }).jobs[
+    'policy-check'
+  ]!
+
+it('documentation-only pull requests still run the format check and the tests that read the docs', () => {
+  // README.md, CLAUDE.md, the design notes and the README images are read by policy and token tests.
+  for (const file of ['README.md', 'CLAUDE.md', 'design/layout.md', 'docs/images/x.png']) {
+    expect(docsOnly([file])).toBe(true)
+  }
+  const policy = policySteps()
+  expect(policy.if).toBe("needs.changes.outputs.web != 'true'")
+  const runs = (condition: string) =>
+    policy.steps.filter((s) => s.if === condition).map((s) => s.run)
+  expect(policy.steps.find((s) => s.run === 'pnpm format:check')?.if).toBeUndefined()
+  expect(runs("needs.changes.outputs.docs_only == 'true'")).toEqual(['pnpm test:policy'])
+  expect(runs("needs.changes.outputs.docs_only != 'true'")).toEqual(
+    expect.arrayContaining(['pnpm lint', 'pnpm typecheck', 'pnpm test']),
+  )
+  const policyRun = scripts['test:policy']?.split(' ') ?? []
+  expect(policyRun.slice(0, 2)).toEqual(['vitest', 'run'])
+  for (const path of ['tests/policy', 'tests/tokens']) expect(policyRun).toContain(path)
 })
 
 it('uses the setup caches only where the job installs those dependencies', () => {
@@ -318,9 +343,30 @@ it('changed-code.sh runs both jobs when anything else changes', () => {
     'web=true rust=true',
   )
   expect(changedCode(['.github/workflows/ci.yml'])).toBe('web=true rust=true')
-  expect(changedCode(['tests/policy/ci-config.test.ts'])).toBe('web=true rust=true')
   expect(changedCode(['package.json'])).toBe('web=true rust=true')
   expect(changedCode(['design/tokens/base.tokens.json'])).toBe('web=true rust=true')
+})
+
+it('changed-code.sh needs only the web jobs for TypeScript tests and UI specs', () => {
+  expect(changedCode(['tests/policy/ci-config.test.ts', 'tests/ui/editor.spec.ts'])).toBe(
+    'web=true rust=false',
+  )
+  expect(changedCode(['tests/support/budget.ts'])).toBe('web=true rust=false')
+})
+
+it('changed-code.sh runs the Rust job for every file under tests/ that the Rust tests read', () => {
+  const rustSources = listFiles('.', 'src-tauri').filter((f) => f.endsWith('.rs'))
+  const readByRust = rustSources.flatMap((file) =>
+    [...readFileSync(file, 'utf8').matchAll(/"((?:\.\.\/)+tests\/[\w./-]+)"/g)].map((m) =>
+      normalize(join(dirname(file), m[1] ?? '')),
+    ),
+  )
+  const shared = readByRust.filter((path) => path.startsWith('tests/'))
+  expect(shared).toContain('tests/support/names.json')
+  // manifest.rs names its file from CARGO_MANIFEST_DIR, which the pattern above does not resolve.
+  for (const path of [...shared, 'tests/fixtures/plugins/manifests.json']) {
+    expect({ path, jobs: changedCode([path]) }).toEqual({ path, jobs: 'web=true rust=true' })
+  }
 })
 
 it('changed-code.sh runs both jobs when it learns of no files', () => {
@@ -380,6 +426,13 @@ it('the pre-push hook runs the Rust step only for pushes that change Rust or Car
       'docs/architecture.md',
     ]),
   ).toEqual([])
+})
+
+it('the pre-push hook runs the policy tests for pushes of docs and images, which they read', () => {
+  const docs = ['README.md', 'CLAUDE.md', 'design/layout.md', 'docs/images/x.png', 'docs/x.webp']
+  expect(pushedBy('policy-tests', docs)).toEqual(docs)
+  const push = lefthook.slice(lefthook.indexOf('- name: policy-tests'))
+  expect(push).toMatch(/^ {6}run: pnpm test:policy$/m)
 })
 
 it('the pre-push hook runs the type check and unit tests for code and config, not for docs or images', () => {

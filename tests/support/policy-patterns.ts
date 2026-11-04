@@ -49,7 +49,8 @@ export function hasColorLiteral(line: string): boolean {
 }
 
 /** The system temp folder named in code; tests reach it only through tempDir. */
-export const TEMP_FOLDER_REFERENCE = /\btmpdir\b|\bTMPDIR\b/
+export const TEMP_FOLDER_REFERENCE =
+  /\btmpdir\b|\bTMPDIR\b|['"`]\/tmp\b|\bprocess\.env(?:\.|\[['"])(?:TMP|TEMP)\b/
 
 /** The generated design tokens are the one place colours are written out. */
 const GENERATED_TOKENS = /theme\/tokens\.(css|ts)$/
@@ -63,5 +64,17 @@ export function isColorChecked(path: string): boolean {
 }
 
 /** A duration compared straight against a limit, which fails on an overloaded machine instead of skipping. */
-export const RAW_TIME_ASSERTION =
-  /expect\((?:ms|elapsed|took|duration|time)\b[^)]*\)\.toBeLessThan|expect\([^)]*(?:performance|Date)\.now\(\)[^)]*\)\.toBeLessThan/
+const DURATION_NAME = String.raw`\b(?:ms|elapsed|took|duration|time|spent|latency|\w+(?:Ms|Millis|Elapsed|Duration|Spent))\b`
+const CLOCK_DIFFERENCE = String.raw`-\s*(?:start|started|begin|before|t0)\b`
+export const RAW_TIME_ASSERTION = new RegExp(
+  [
+    String.raw`expect\(${DURATION_NAME}[^)]*\)\.toBeLessThan`,
+    String.raw`expect\([^)]*(?:performance|Date)\.now\(\)[^)]*\)\.toBeLessThan`,
+    String.raw`expect\([^)]*${CLOCK_DIFFERENCE}[^)]*\)\.toBeLessThan`,
+    String.raw`expect\([^)]*${DURATION_NAME}\s*<=?[^)]*\)\.toBe\(true\)`,
+  ].join('|'),
+)
+
+/** A test that mocks the database (better-sqlite3, the core's storage, the test adapter) instead of using a real file. */
+export const DATABASE_MOCK =
+  /\bvi\.(?:do)?[mM]ock\(\s*['"`](?:better-sqlite3|[^'"`]*\/(?:storage|sqlite-adapter)(?:\.tsx?)?)['"`]/
