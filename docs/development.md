@@ -58,12 +58,14 @@ Development and production CSP run in separate jobs, each starting only its own 
 
 The `changes` job is the path filter. It writes `docs_only=true` when every changed path is documentation, and the expensive jobs then skip; `policy-check` still runs the format check and `pnpm test:policy`, whose tests read the docs. The `web`, `rust` and `policy` jobs always run as small gates, so the required checks are still reported instead of staying pending.
 
-Refresh the recorded durations from a complete local run after a large change:
+Refresh the recorded durations after a large change, and when `tests/policy/ci-config.test.ts` finds more than five specs the file does not know or one it names that is gone. The reports of a full CI run on `main` measure the runners the shards run on:
 
 ```sh
-PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/ui-report.json pnpm test:ui --reporter=json
-node scripts/ci/ui-timings.ts scripts/ci/ui-durations.json /tmp/ui-report.json
+gh run download <run ID> -p 'playwright-results-*' -D /tmp/ui-reports
+node scripts/ci/ui-timings.ts scripts/ci/ui-durations.json /tmp/ui-reports/*/report.json
 ```
+
+A complete local run works too: `PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/ui-report.json pnpm test:ui --reporter=json`, then the same script with `/tmp/ui-report.json`.
 
 Specs the file does not know cost as much as the median known spec. Pricing them at the slowest spec instead left a few new files each holding a shard's worth of planned work, so the measured shards ran far longer than those shards.
 

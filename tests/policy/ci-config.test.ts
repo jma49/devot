@@ -197,6 +197,16 @@ it('builds no UI for the Rust jobs, which compile against a placeholder page', (
   expect(read('src-tauri/tauri.conf.json')).toContain('"frontendDist": "../dist"')
 })
 
+it('the UI shard plan knows nearly every spec and no removed one', () => {
+  // An unrecorded spec is priced at the median, so a few new ones are fine; many unbalance the shards.
+  const durations = JSON.parse(read('scripts/ci/ui-durations.json')) as Record<string, number>
+  const specs = listFiles('.', 'tests').filter((f) => /^tests\/ui(?:-csp)?\/.+\.spec\.ts$/.test(f))
+  expect(specs.length).toBeGreaterThan(100)
+  const unrecorded = specs.filter((spec) => !(spec in durations))
+  expect(unrecorded.length, `refresh ui-durations.json for ${unrecorded}`).toBeLessThanOrEqual(5)
+  expect(Object.keys(durations).filter((spec) => !specs.includes(spec))).toEqual([])
+})
+
 it('the web check fails when the quick checks, a UI shard or the change detection fails', () => {
   // `web` is a required check that sums up the jobs and runs even when they were skipped,
   // so a skipped job cannot read as passing a failed one.
