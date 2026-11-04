@@ -1240,11 +1240,11 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.2941, 0.3333, 0.3882],
-          "hex": "#4b5563",
-          "alpha": 0.2
+          "components": [0.9804, 0.9804, 0.9804],
+          "hex": "#fafafa",
+          "alpha": 0.06
         },
-        "$description": "The line with the cursor."
+        "$description": "The line with the cursor: the text ink at 6%, a neutral wash."
       },
       "placeholder": {
         "$type": "color",
@@ -1398,10 +1398,10 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.3647, 0.5961, 0.9725],
-          "hex": "#5d98f8"
+          "components": [0.3804, 0.6078, 0.9725],
+          "hex": "#619bf8"
         },
-        "$description": "The note alert: its bar and its [!KIND] label. Spec hsl(217 91% 60%), lightened 17% toward white so it keeps 4.5:1 on the editor, the active line and the selection."
+        "$description": "The note alert: its bar and its [!KIND] label. Spec hsl(217 91% 60%), lightened 19% toward white so it keeps 4.5:1 on the editor, the active line and the selection."
       },
       "tip": {
         "$type": "color",
@@ -1416,10 +1416,10 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.7333, 0.4784, 0.9765],
-          "hex": "#bb7af9"
+          "components": [0.7412, 0.4941, 0.9765],
+          "hex": "#bd7ef9"
         },
-        "$description": "The important alert: its bar and its [!KIND] label. Spec hsl(271 91% 65%), lightened 22% toward white so it keeps 4.5:1 on the editor, the active line and the selection."
+        "$description": "The important alert: its bar and its [!KIND] label. Spec hsl(271 91% 65%), lightened 24% toward white so it keeps 4.5:1 on the editor, the active line and the selection."
       },
       "warning": {
         "$type": "color",
@@ -1434,10 +1434,10 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.9529, 0.4314, 0.4314],
-          "hex": "#f36e6e"
+          "components": [0.9529, 0.4549, 0.4549],
+          "hex": "#f37474"
         },
-        "$description": "The caution alert: its bar and its [!KIND] label. Spec hsl(0 84% 60%), lightened 23% toward white so it keeps 4.5:1 on the editor, the active line and the selection."
+        "$description": "The caution alert: its bar and its [!KIND] label. Spec hsl(0 84% 60%), lightened 26% toward white so it keeps 4.5:1 on the editor, the active line and the selection."
       }
     },
     "tag": {
@@ -1515,8 +1515,8 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.9529, 0.4314, 0.4314],
-          "hex": "#f36e6e"
+          "components": [0.9529, 0.4549, 0.4549],
+          "hex": "#f37474"
         },
         "$description": "Deleted text in the editor: the invalid colour."
       },
@@ -1542,10 +1542,10 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.549, 0.5608, 0.9608],
-          "hex": "#8c8ff5"
+          "components": [0.5608, 0.5725, 0.9647],
+          "hex": "#8f92f6"
         },
-        "$description": "List marks at levels 1, 3, 5.... Spec hsl(239 84% 67%), lightened 26% toward white so it keeps 4.5:1 on the editor, the active line and the selection."
+        "$description": "List marks at levels 1, 3, 5.... Spec hsl(239 84% 67%), lightened 28% toward white so it keeps 4.5:1 on the editor, the active line and the selection."
       },
       "list-alt": {
         "$type": "color",
@@ -1587,10 +1587,10 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.9529, 0.4314, 0.4314],
-          "hex": "#f36e6e"
+          "components": [0.9529, 0.4549, 0.4549],
+          "hex": "#f37474"
         },
-        "$description": "Invalid code. Spec hsl(0 84% 60%), lightened 23% toward white so it keeps 4.5:1 on the editor, the active line and the selection."
+        "$description": "Invalid code. Spec hsl(0 84% 60%), lightened 26% toward white so it keeps 4.5:1 on the editor, the active line and the selection."
       },
       "class": {
         "$type": "color",
