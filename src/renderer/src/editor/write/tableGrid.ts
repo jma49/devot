@@ -177,7 +177,7 @@ type StyledRoot = { adoptedStyleSheets: CSSStyleSheet[] }
  * Keeps a growing stylesheet in effect in a root. The sheet is adopted again
  * whenever the root's list lost it (another script replaced the list), the
  * root changed, or the sheet gained rules since: adopting a list anew restyles
- * the root, where a rule added to an adopted sheet may not (#560).
+ * the root, where a rule added to an adopted sheet may not (issue 560).
  */
 export class SheetAdoption {
   private root: StyledRoot | null = null
