@@ -86,7 +86,8 @@ test('quick switches show only the last note chosen, with its own text and undo'
   await row(page, 'First').click()
   await expect(body(page)).toHaveText('First body.')
   await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('First')
-  await page.waitForTimeout(1200)
+  // Past slowCore's 500 ms delay on the reply to the Second open.
+  await page.waitForTimeout(700)
   await expect(body(page)).toHaveText('First body.')
 
   await body(page).click()

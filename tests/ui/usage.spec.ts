@@ -66,6 +66,7 @@ test('records note creation and searches without their text', async ({ page }) =
 })
 
 test('a query typed key by key counts as one search', async ({ page }) => {
+  await page.clock.install()
   await createNote(page, 'Relay design')
   await search(page).pressSequentially('relay', { delay: 200 })
   await expect(header(page)).toHaveText('Search')
@@ -75,7 +76,7 @@ test('a query typed key by key counts as one search', async ({ page }) => {
   // The count comes once the results have settled (a second after the last
   // key): poll for it instead of guessing how long a loaded machine takes.
   await expect.poll(searches).toEqual(one)
-  await page.waitForTimeout(1500)
+  await page.clock.runFor(1500)
   expect(await searches()).toEqual(one)
 })
 
