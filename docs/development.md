@@ -50,7 +50,8 @@ Pull requests select browser tests separately from the Web and Rust build jobs. 
 
 - A changed UI spec runs that file. A removed spec runs the remaining specs in its project; renames include both old and new paths.
 - Exact source allowlists cover Find, update checking, tooltip placement and Mermaid rendering. Their selections include cross-feature consumers and the production CSP suite. For example, tooltip placement also runs note-link hover coverage, Find also runs IME and read-only coverage, and Mermaid also runs export and scroll restoration coverage. Update these mappings when a feature gains another consumer.
-- Shared application code, global event handling, styles, core code, UI fixtures, dependency files, build configuration and unknown paths run the full UI suite. A missing mapped spec also falls back to full coverage.
+- Other sources go by the UI's module graph (`scripts/ci/ui-graph.ts`, read from the import statements): a file a page loads runs the full suite; a file loaded only behind the phone layout's lazy import runs the phone specs; a file no page loads runs no browser. Specs that import a file themselves also run. `tests/scripts/ui-graph.test.ts` fails when a source is unreachable, so a missed import form cannot skip specs.
+- UI fixtures, test support, dependency files, build configuration and unknown paths run the full UI suite. A missing mapped spec also falls back to full coverage.
 - Documentation-only changes skip the heavy build and test jobs; the always-on `web`, `rust` and `policy` gates still report success. Unit tests, Rust-only, relay and licence-service changes need no browser run, and their existing build, type and Vitest checks still apply.
 - Manual workflow runs select the full suite. Empty change lists and missing selection outputs also retain full coverage.
 

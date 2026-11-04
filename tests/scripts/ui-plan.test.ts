@@ -1,5 +1,7 @@
 import { globSync } from 'node:fs'
-import { expect, it } from 'vitest'
+import { resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import { uiGraph } from '../../scripts/ci/ui-graph.ts'
 import { planUi } from '../../scripts/ci/ui-plan.ts'
 
 const specs = [
@@ -191,4 +193,39 @@ it('retains new specs and deterministic assignments when durations are missing',
   expect(forward.matrix).toEqual(reversed.matrix)
   expect(forward.matrix.include.every((job) => job.files.length > 0)).toBe(true)
   expect(forward.matrix.include.flatMap((job) => job.files).sort()).toEqual([...files].sort())
+})
+
+describe('with the module graph', () => {
+  const graph = uiGraph(resolve(import.meta.dirname, '../..'))
+  const all = globSync(['tests/ui/**/*.spec.ts', 'tests/ui-csp/**/*.spec.ts'])
+  const phone = all.filter((file) => file.startsWith('tests/ui/phone-')).sort()
+
+  it('runs only the phone specs for a file only the phone layout loads', () => {
+    const plan = planUi(['src/renderer/src/phone/PhoneSheet.tsx'], all, false, {}, graph)
+    expect(plan.mode).toBe('targeted')
+    expect(plan.files).toEqual(phone)
+    expect(planUi(['design/app-icon/dove-small.svg'], all, false, {}, graph).files).toEqual(phone)
+  })
+
+  it('runs everything for a file a page loads, phone folder or not', () => {
+    for (const file of [
+      'src/renderer/src/phone/navigation.ts',
+      'src/core/notes.ts',
+      'design/icons/symbols.json',
+    ]) {
+      expect({ file, mode: planUi([file], all, false, {}, graph).mode }).toEqual({
+        file,
+        mode: 'full',
+      })
+    }
+  })
+
+  it('keeps the full run for shared test support a spec imports', () => {
+    expect(planUi(['tests/support/png.ts'], all, false, {}, graph).mode).toBe('full')
+    expect(planUi(['src-tauri/tauri.conf.json'], all, false, {}, graph).mode).toBe('full')
+  })
+
+  it('runs no browser for a source no page loads', () => {
+    expect(planUi(['src/renderer/src/menuLines.ts'], all, false, {}, graph).mode).toBe('none')
+  })
 })
