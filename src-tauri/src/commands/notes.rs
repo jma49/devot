@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 pub(crate) const MAX_TITLE_CHARS: usize = 1_000;
-const MAX_HLC_LEN: usize = 64;
 pub(crate) const MAX_BODY_BYTES: usize = 32 * 1024 * 1024;
 pub(crate) const MAX_YDOC_BYTES: usize = 64 * 1024 * 1024;
 /// Matches MAX_NOTE_LINKS in src/core/links.ts, which the AI service checks before it writes.
@@ -73,8 +72,23 @@ pub(crate) fn valid_note_id(id: &str) -> bool {
         .is_ok_and(|u| u.get_version_num() == 7 && u.hyphenated().to_string() == id)
 }
 
+/// The core's shape (`parseHlc` in src/core/hlc.ts): `<16-digit wall ms>-<4 hex counter>-<node>`.
+/// Storage orders stamps as text, so a stamp of any other shape could win every later merge.
 pub(crate) fn valid_hlc(hlc: &str) -> bool {
-    !hlc.is_empty() && hlc.len() <= MAX_HLC_LEN && hlc.is_ascii()
+    const MAX_WALL: u64 = 8_640_000_000_000_000;
+    let mut parts = hlc.splitn(3, '-');
+    let (Some(wall), Some(counter), Some(node)) = (parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+    wall.len() == 16
+        && wall.bytes().all(|b| b.is_ascii_digit())
+        && wall.parse::<u64>().is_ok_and(|w| w <= MAX_WALL)
+        && counter.len() == 4
+        && counter
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+        && (1..=32).contains(&node.len())
+        && node.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'z'))
 }
 
 impl NoteDto {
@@ -302,6 +316,22 @@ mod tests {
     use super::*;
 
     const ID: &str = "0192a6f0-0000-7000-8000-000000000001";
+
+    #[derive(Deserialize)]
+    struct Stamps {
+        valid: Vec<String>,
+        invalid: Vec<String>,
+    }
+
+    #[test]
+    fn takes_the_stamps_the_core_takes_and_no_others() {
+        let stamps: Stamps =
+            serde_json::from_str(include_str!("../../tests/fixtures/hlc-stamps.json")).unwrap();
+        let refused: Vec<&String> = stamps.valid.iter().filter(|s| !valid_hlc(s)).collect();
+        assert!(refused.is_empty(), "{refused:?}");
+        let taken: Vec<&String> = stamps.invalid.iter().filter(|s| valid_hlc(s)).collect();
+        assert!(taken.is_empty(), "{taken:?}");
+    }
 
     fn dto() -> NoteDto {
         NoteDto {

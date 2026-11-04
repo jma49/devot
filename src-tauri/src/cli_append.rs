@@ -66,10 +66,15 @@ impl Inbox {
     }
 }
 
+struct Waiting {
+    reply: SyncSender<Outcome>,
+    claimed: bool,
+}
+
 #[derive(Default)]
 pub struct Appends {
     next: AtomicU64,
-    waiting: Mutex<HashMap<u64, SyncSender<Outcome>>>,
+    waiting: Mutex<HashMap<u64, Waiting>>,
     inbox: Mutex<Inbox>,
 }
 
@@ -81,22 +86,40 @@ impl Appends {
         }
         let id = self.next.fetch_add(1, Ordering::SeqCst) + 1;
         let (reply, answer) = sync_channel(1);
-        waiting.insert(id, reply);
+        waiting.insert(
+            id,
+            Waiting {
+                reply,
+                claimed: false,
+            },
+        );
         Ok((id, answer))
+    }
+
+    /// The window takes a request before it writes it; false once Rust has given up on it.
+    fn claim(&self, id: u64) -> bool {
+        let Ok(mut waiting) = self.waiting.lock() else {
+            return false;
+        };
+        waiting.get_mut(&id).map(|w| w.claimed = true).is_some()
     }
 
     /// False for an ID that is not waiting (answered already, timed out, or never asked).
     fn answer(&self, id: u64, answer: Outcome) -> bool {
-        let reply = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
-        reply.is_some_and(|reply| reply.send(answer).is_ok())
+        let waiting = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
+        waiting.is_some_and(|w| w.reply.send(answer).is_ok())
     }
 
-    fn forget(&self, id: u64) {
-        if let Ok(mut waiting) = self.waiting.lock() {
-            waiting.remove(&id);
-        }
+    /// Stops waiting, with the code to answer: an unclaimed request never runs, a claimed (or just
+    /// answered) one may still land, so the command must not be simply run again.
+    fn give_up(&self, id: u64) -> &'static str {
+        let waiting = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
         if let Ok(mut inbox) = self.inbox.lock() {
             inbox.held.retain(|request| request.id != id);
+        }
+        match waiting {
+            Some(w) if !w.claimed => "E_CLI_APPEND_TIMEOUT",
+            _ => "E_CLI_APPEND_LATE",
         }
     }
 
@@ -134,15 +157,15 @@ impl Appends {
         if let Some(label) = target
             && !emit(&label, request)
         {
-            self.forget(id);
+            self.give_up(id);
             return Err("E_CLI_APPEND_UNAVAILABLE".into());
         }
         match answer.recv_timeout(timeout) {
             Ok(answer) => answer,
             Err(_) => {
-                self.forget(id);
-                log::warn!("W_CLI_APPEND_TIMEOUT {id}");
-                Err("E_CLI_APPEND_TIMEOUT".into())
+                let code = self.give_up(id);
+                log::warn!("W_CLI_APPEND_TIMEOUT {id} {code}");
+                Err(code.into())
             }
         }
     }
@@ -244,6 +267,23 @@ pub fn cli_append_take(
         return Err("E_CLI_APPEND_WINDOW".into());
     }
     Ok(appends.take(window.label()))
+}
+
+/// From the main window before it runs the request (`cliAppend.ts`); refused once Rust gave up.
+#[tauri::command]
+pub fn cli_append_claim(
+    window: WebviewWindow,
+    appends: State<'_, Appends>,
+    id: u64,
+) -> Result<(), String> {
+    if !is_main(window.label()) {
+        return Err("E_CLI_APPEND_WINDOW".into());
+    }
+    if appends.claim(id) {
+        Ok(())
+    } else {
+        Err("E_CLI_APPEND_UNKNOWN".into())
+    }
 }
 
 /// From the main window once it ran the request (`cliAppend.ts`).
@@ -368,6 +408,23 @@ mod tests {
             Err("E_CLI_APPEND_TIMEOUT".into())
         );
         assert!(appends.waiting.lock().unwrap().is_empty(), "forgotten");
+    }
+
+    #[test]
+    fn a_request_claimed_before_the_timeout_reports_that_it_may_still_land() {
+        let appends = Arc::new(Appends::default());
+        ready(&appends, "main");
+        let claiming = Arc::clone(&appends);
+        let late = appends.ask(
+            &append(),
+            Duration::from_millis(50),
+            None,
+            move |_, request| claiming.claim(request.id),
+        );
+        assert_eq!(late, Err("E_CLI_APPEND_LATE".into()));
+        assert!(!appends.claim(1), "given up on");
+        assert!(!appends.answer(1, Ok(())), "forgotten");
+        assert!(appends.waiting.lock().unwrap().is_empty());
     }
 
     #[test]

@@ -1464,6 +1464,8 @@ title: Daily Report {{date}}
   'backups.restoreFailed': 'The backup could not be restored ({code}).',
   'backups.restoreWindows':
     'The backup was not restored: another Devot window did not get ready in time ({code}). Try again.',
+  'backups.restoreSyncOn':
+    'A backup can\u2019t be restored while sync is on: the next sync would bring back the changes made since ({code}).',
   'backups.autoFailed': 'The automatic backup failed ({code}).',
   'backups.show': 'Show Backups',
   'notice.dismiss': 'Dismiss',

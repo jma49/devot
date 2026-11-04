@@ -57,6 +57,7 @@ describe('a request from the devot command', () => {
     const ran: number[] = []
     const answered: [number, string | null][] = []
     const take = cliAppendHost({
+      claim: async () => {},
       run: async (request) => {
         ran.push(request.id)
         if (request.id === 2) throw new Error('E_HEADING_NOT_FOUND')
@@ -76,5 +77,25 @@ describe('a request from the devot command', () => {
       [2, 'E_HEADING_NOT_FOUND'],
       [3, 'E_CLI_APPEND_FAILED'],
     ])
+  })
+
+  it('never runs a request Rust gave up on before the window claimed it', async () => {
+    const ran: number[] = []
+    const answered: number[] = []
+    const take = cliAppendHost({
+      claim: async (id) => {
+        if (id === 1) throw new Error('E_CLI_APPEND_UNKNOWN')
+      },
+      run: async (request) => {
+        ran.push(request.id)
+      },
+      reply: async (id) => {
+        answered.push(id)
+      },
+    })
+    void take(REQUEST)
+    await take({ ...REQUEST, id: 2 })
+    expect(ran).toEqual([2])
+    expect(answered).toEqual([2])
   })
 })

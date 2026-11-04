@@ -4,6 +4,7 @@
 //! after the gate a build that checks licences sets (`guard`) let it through.
 
 use super::{Result, StorageError, Store};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::{Arc, OnceLock, mpsc};
 use tokio::sync::oneshot;
@@ -39,8 +40,12 @@ impl Db {
             .spawn(move || match Store::open(&path) {
                 Ok(mut store) => {
                     let _ = ready_tx.send(Ok(()));
+                    // A job that panics drops its reply, so its caller gets a code, and the
+                    // thread lives on for the next one (a Transaction rolls back as it unwinds).
                     for job in inbox {
-                        job(&mut store);
+                        if catch_unwind(AssertUnwindSafe(|| job(&mut store))).is_err() {
+                            log::error!("E_DB_JOB_PANIC");
+                        }
                     }
                 }
                 Err(error) => {
@@ -100,8 +105,12 @@ impl Db {
         let job: Job = Box::new(move |store| {
             let _ = reply.send(work(store));
         });
-        self.jobs.send(job).expect("E_DB_THREAD_GONE");
-        answer.await.expect("E_DB_THREAD_GONE")
+        self.jobs
+            .send(job)
+            .map_err(|_| StorageError::Refused("E_DB_THREAD_GONE"))?;
+        answer
+            .await
+            .map_err(|_| StorageError::Refused("E_DB_JOB_PANIC"))?
     }
 }
 
@@ -169,6 +178,27 @@ mod tests {
         licence.set(&testing::key(testing::ID)).unwrap();
         block_on(db.write(Write::Content, |store| store.put_note(&note("after"), &[]))).unwrap();
         assert_eq!(ids(&db).len(), 2);
+    }
+
+    #[test]
+    fn a_panicking_job_returns_a_code_and_the_next_job_still_runs() {
+        use tauri::async_runtime::block_on;
+        test_log::capture();
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::spawn(&dir.path().join("devot.sqlite")).unwrap();
+        let failed = block_on(db.write(Write::Content, |store| -> Result<()> {
+            store.put_note(&note("before"), &[])?;
+            panic!("a job that panics");
+        }));
+        assert_eq!(failed.unwrap_err().to_string(), "E_DB_JOB_PANIC");
+        assert!(
+            test_log::lines().contains(&"ERROR E_DB_JOB_PANIC".to_string()),
+            "{:?}",
+            test_log::lines()
+        );
+        block_on(db.write(Write::Content, |store| store.put_note(&note("after"), &[]))).unwrap();
+        let notes = block_on(db.call(|store| store.list_notes())).unwrap();
+        assert_eq!(notes.len(), 2);
     }
 
     #[test]

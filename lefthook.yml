@@ -56,6 +56,6 @@ pre-push:
     - name: rust
       glob:
         - 'src-tauri/*.{rs,toml,json}'
-        - 'src-tauri/**/*.{rs,toml,json,sql}'
+        - 'src-tauri/**/*.{rs,toml,json,sql,sqlite}'
         - 'src-tauri/Cargo.lock'
       run: export PATH="$HOME/.cargo/bin:/opt/homebrew/opt/rustup/bin:/usr/local/opt/rustup/bin:$PATH" && cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test

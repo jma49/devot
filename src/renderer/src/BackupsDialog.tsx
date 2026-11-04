@@ -13,7 +13,12 @@ interface Failure {
 }
 
 const restoreFailure = (code: string): Failure => ({
-  message: code === 'E_BACKUP_RESTORE_WINDOWS' ? 'backups.restoreWindows' : 'backups.restoreFailed',
+  message:
+    code === 'E_BACKUP_RESTORE_WINDOWS'
+      ? 'backups.restoreWindows'
+      : code === 'E_BACKUP_SYNC_ON'
+        ? 'backups.restoreSyncOn'
+        : 'backups.restoreFailed',
   code,
 })
 

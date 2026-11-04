@@ -197,6 +197,7 @@ fn main() {
             "update_download",
             "update_restart",
             "deep_link_take",
+            "cli_append_claim",
             "cli_append_done",
             "cli_append_take",
             "settings_mcp_setup",

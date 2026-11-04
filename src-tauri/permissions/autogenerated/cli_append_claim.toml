@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cli-append-claim"
+description = "Enables the cli_append_claim command without any pre-configured scope."
+commands.allow = ["cli_append_claim"]
+
+[[permission]]
+identifier = "deny-cli-append-claim"
+description = "Denies the cli_append_claim command without any pre-configured scope."
+commands.deny = ["cli_append_claim"]
