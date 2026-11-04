@@ -510,16 +510,31 @@ pub fn resolve(root: &Path, rel: &str) -> Result<(PathBuf, u64), &'static str> {
     Ok((path, meta.len()))
 }
 
-fn read_capped(path: &Path, max: u64) -> Result<Vec<u8>, &'static str> {
-    let file = std::fs::File::open(path).map_err(|_| "E_IMPORT_UNREADABLE")?;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Capped {
+    Unreadable,
+    TooLarge,
+}
+
+/// Reads at most `max` bytes, and one more to tell a reader that holds more.
+pub fn read_capped(reader: impl Read, max: u64) -> Result<Vec<u8>, Capped> {
     let mut data = Vec::new();
-    file.take(max + 1)
+    reader
+        .take(max + 1)
         .read_to_end(&mut data)
-        .map_err(|_| "E_IMPORT_UNREADABLE")?;
+        .map_err(|_| Capped::Unreadable)?;
     if data.len() as u64 > max {
-        return Err("E_IMPORT_FILE_TOO_LARGE");
+        return Err(Capped::TooLarge);
     }
     Ok(data)
+}
+
+fn read_file_capped(path: &Path, max: u64) -> Result<Vec<u8>, &'static str> {
+    let file = std::fs::File::open(path).map_err(|_| "E_IMPORT_UNREADABLE")?;
+    read_capped(file, max).map_err(|capped| match capped {
+        Capped::Unreadable => "E_IMPORT_UNREADABLE",
+        Capped::TooLarge => "E_IMPORT_FILE_TOO_LARGE",
+    })
 }
 
 pub fn read_note(root: &Path, rel: &str) -> Result<String, &'static str> {
@@ -527,8 +542,8 @@ pub fn read_note(root: &Path, rel: &str) -> Result<String, &'static str> {
     if size > MAX_NOTE_BYTES {
         return Err("E_IMPORT_FILE_TOO_LARGE");
     }
-    let text =
-        String::from_utf8(read_capped(&path, MAX_NOTE_BYTES)?).map_err(|_| "E_IMPORT_NOT_UTF8")?;
+    let text = String::from_utf8(read_file_capped(&path, MAX_NOTE_BYTES)?)
+        .map_err(|_| "E_IMPORT_NOT_UTF8")?;
     Ok(match text.strip_prefix('\u{feff}') {
         Some(rest) => rest.to_owned(),
         None => text,
@@ -546,7 +561,7 @@ pub fn read_image(root: &Path, rel: &str) -> Result<Image, &'static str> {
     if size == 0 || size > MAX_FILE_BYTES as u64 {
         return Err("E_FILE_SIZE_INVALID");
     }
-    let data = read_capped(&path, MAX_FILE_BYTES as u64).map_err(|code| match code {
+    let data = read_file_capped(&path, MAX_FILE_BYTES as u64).map_err(|code| match code {
         "E_IMPORT_FILE_TOO_LARGE" => "E_FILE_SIZE_INVALID",
         other => other,
     })?;

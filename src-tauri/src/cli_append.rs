@@ -4,10 +4,9 @@
 //! as links do, so one sent while Devot is still starting is not lost. Devot is not brought forward.
 //! Logs carry the request's ID and codes, never the text.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{SyncSender, sync_channel};
+use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
 use serde::Serialize;
@@ -15,6 +14,7 @@ use tauri::webview::{PageLoadEvent, PageLoadPayload};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, WebviewWindow, Window, WindowEvent};
 
 use crate::main_windows::is_main;
+use crate::pending::{GaveUp, Pending, Refused};
 
 pub(crate) const EVENT: &str = "devot://cli-append";
 /// Covers a window still loading after a launch, then the write itself (the HTTP API allows 15 s).
@@ -66,60 +66,46 @@ impl Inbox {
     }
 }
 
-struct Waiting {
-    reply: SyncSender<Outcome>,
-    claimed: bool,
-}
-
-#[derive(Default)]
 pub struct Appends {
-    next: AtomicU64,
-    waiting: Mutex<HashMap<u64, Waiting>>,
+    waiting: Pending<Outcome>,
     inbox: Mutex<Inbox>,
 }
 
-impl Appends {
-    fn wait(&self) -> Result<(u64, std::sync::mpsc::Receiver<Outcome>), &'static str> {
-        let mut waiting = self.waiting.lock().map_err(|_| "E_CLI_APPEND_FAILED")?;
-        if waiting.len() >= MAX_WAITING {
-            return Err("E_CLI_APPEND_BUSY");
+impl Default for Appends {
+    fn default() -> Self {
+        Self {
+            waiting: Pending::with_limit(MAX_WAITING),
+            inbox: Mutex::default(),
         }
-        let id = self.next.fetch_add(1, Ordering::SeqCst) + 1;
-        let (reply, answer) = sync_channel(1);
-        waiting.insert(
-            id,
-            Waiting {
-                reply,
-                claimed: false,
-            },
-        );
-        Ok((id, answer))
+    }
+}
+
+impl Appends {
+    fn wait(&self) -> Result<(u64, Receiver<Outcome>), &'static str> {
+        self.waiting.wait().map_err(|refused| match refused {
+            Refused::Busy => "E_CLI_APPEND_BUSY",
+            Refused::Failed => "E_CLI_APPEND_FAILED",
+        })
     }
 
-    /// The window takes a request before it writes it; false once Rust has given up on it.
     fn claim(&self, id: u64) -> bool {
-        let Ok(mut waiting) = self.waiting.lock() else {
-            return false;
-        };
-        waiting.get_mut(&id).map(|w| w.claimed = true).is_some()
+        self.waiting.claim(id)
     }
 
-    /// False for an ID that is not waiting (answered already, timed out, or never asked).
     fn answer(&self, id: u64, answer: Outcome) -> bool {
-        let waiting = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
-        waiting.is_some_and(|w| w.reply.send(answer).is_ok())
+        self.waiting.answer(id, answer)
     }
 
     /// Stops waiting, with the code to answer: an unclaimed request never runs, a claimed (or just
     /// answered) one may still land, so the command must not be simply run again.
     fn give_up(&self, id: u64) -> &'static str {
-        let waiting = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
+        let gave_up = self.waiting.give_up(id);
         if let Ok(mut inbox) = self.inbox.lock() {
             inbox.held.retain(|request| request.id != id);
         }
-        match waiting {
-            Some(w) if !w.claimed => "E_CLI_APPEND_TIMEOUT",
-            _ => "E_CLI_APPEND_LATE",
+        match gave_up {
+            GaveUp::Unclaimed => "E_CLI_APPEND_TIMEOUT",
+            GaveUp::MayLand => "E_CLI_APPEND_LATE",
         }
     }
 
@@ -407,7 +393,7 @@ mod tests {
             appends.ask(&append(), Duration::from_millis(20), None, |_, _| true),
             Err("E_CLI_APPEND_TIMEOUT".into())
         );
-        assert!(appends.waiting.lock().unwrap().is_empty(), "forgotten");
+        assert!(!appends.waiting.busy(), "forgotten");
     }
 
     #[test]
@@ -424,7 +410,7 @@ mod tests {
         assert_eq!(late, Err("E_CLI_APPEND_LATE".into()));
         assert!(!appends.claim(1), "given up on");
         assert!(!appends.answer(1, Ok(())), "forgotten");
-        assert!(appends.waiting.lock().unwrap().is_empty());
+        assert!(!appends.waiting.busy());
     }
 
     #[test]

@@ -14,10 +14,8 @@ pub mod server;
 pub mod settings;
 pub mod token;
 
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::{SyncSender, sync_channel};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -30,6 +28,8 @@ use routes::{Call, Client};
 use server::{Dispatch, Gate, Limits, Server};
 use settings::{HttpApiSettings, SettingsStore, check_port};
 use token::{Scope, TokenStore};
+
+use crate::pending::Pending;
 
 pub const EVENT: &str = "devot://http-api";
 /// A write may wait behind a save, an import's file or a busy database.
@@ -53,41 +53,24 @@ type Answer = Result<Value, String>;
 
 /// Calls handed to the main window and not answered yet.
 #[derive(Default)]
-pub struct Answers {
-    next: AtomicU64,
-    waiting: Mutex<HashMap<u64, SyncSender<Answer>>>,
-}
+pub struct Answers(Pending<Answer>);
 
 impl Answers {
-    fn wait(&self) -> Option<(u64, std::sync::mpsc::Receiver<Answer>)> {
-        let id = self.next.fetch_add(1, Ordering::SeqCst) + 1;
-        let (reply, answer) = sync_channel(1);
-        self.waiting.lock().ok()?.insert(id, reply);
-        Some((id, answer))
-    }
-
     /// False for an ID that is not waiting (answered already, timed out, or never asked).
     fn answer(&self, id: u64, answer: Answer) -> bool {
-        let reply = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
-        reply.is_some_and(|reply| reply.send(answer).is_ok())
-    }
-
-    fn forget(&self, id: u64) {
-        if let Ok(mut waiting) = self.waiting.lock() {
-            waiting.remove(&id);
-        }
+        self.0.answer(id, answer)
     }
 
     /// Whether a call is on its way through the core.
     fn busy(&self) -> bool {
-        self.waiting.lock().map_or(true, |w| !w.is_empty())
+        self.0.busy()
     }
 
     /// Hands `call` on with `emit` and waits for its answer; `emit` is false when the event could not
     /// be sent. Tauri sends an event no window listens for without an error, so a window that is
     /// not listening yet shows as a timeout.
     fn ask(&self, call: &Call, timeout: Duration, emit: impl FnOnce(Request) -> bool) -> Answer {
-        let (id, answer) = self.wait().ok_or("E_HTTP_API_FAILED")?;
+        let (id, answer) = self.0.wait().map_err(|_| "E_HTTP_API_FAILED")?;
         let request = Request {
             id,
             op: call.op.as_str(),
@@ -96,13 +79,13 @@ impl Answers {
             client: call.client.clone(),
         };
         if !emit(request) {
-            self.forget(id);
+            self.0.forget(id);
             return Err("E_HTTP_API_UNAVAILABLE".into());
         }
         match answer.recv_timeout(timeout) {
             Ok(answer) => answer,
             Err(_) => {
-                self.forget(id);
+                self.0.forget(id);
                 log::warn!("W_HTTP_API_TIMEOUT {} {id}", call.op.as_str());
                 Err("E_HTTP_API_TIMEOUT".into())
             }

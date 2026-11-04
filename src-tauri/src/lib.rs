@@ -51,6 +51,7 @@ mod net;
 mod note_relay;
 mod note_window;
 pub mod page_setup;
+mod pending;
 mod plugins;
 mod settings;
 mod sidebar_glass;
