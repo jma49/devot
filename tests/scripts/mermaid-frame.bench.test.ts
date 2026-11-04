@@ -15,6 +15,9 @@ it('the Mermaid frame is one classic script with nothing left to fetch', async (
   expect(code).not.toMatch(/\bimport\s*\(/)
   expect(code).not.toContain('import.meta')
   expect([...modules].some((id) => id.endsWith('/mermaid-frame.ts'))).toBe(true)
+  for (const name of ['mermaid', '@plantuml/core', 'markmap-lib', 'markmap-view']) {
+    expect([...modules].some((id) => id.includes(`/node_modules/${name}/`))).toBe(true)
+  }
 }, 180_000)
 
 it('the frame page loads only that script, as a classic script', () => {
