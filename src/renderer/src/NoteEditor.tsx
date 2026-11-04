@@ -90,6 +90,7 @@ import { taskToggle } from './editor/tasks'
 import { setToolbarFocus } from './editor/toolbarState'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
 import { catchUp } from './editor/catchUp'
+import { refusedEdits } from './editor/refusedEdits'
 import { reconfigureRegistryKeys, registryKeys } from './editor/registryKeys'
 import { setInertFormats } from './commands/formatMenu'
 import { subscribeKeymap } from './commands/shortcutSettings'
@@ -747,6 +748,8 @@ interface Props {
   onNewFromLink?: (() => void) | undefined
   onImagesRefused?: (codes: string[]) => void
   onOpenFailed?: (noteId: string, code: string) => void
+  /** The core refused typing (the note purged elsewhere, a body over the limit); it is logged either way. */
+  onEditRefused?: (noteId: string, code: string) => void
   onChooseTemplate?: (() => void) | undefined
   onOpenNote?: (noteId: string) => void
   /** Shown but not changed: the trial is over without a licence. */
@@ -783,6 +786,7 @@ export function NoteEditor({
   onNewFromLink,
   onImagesRefused,
   onOpenFailed,
+  onEditRefused,
   onChooseTemplate,
   onOpenNote,
   readOnly = false,
@@ -823,6 +827,7 @@ export function NoteEditor({
   const fromLink = useRef(onNewFromLink)
   const imagesRefused = useRef(onImagesRefused)
   const openFailed = useRef(onOpenFailed)
+  const editRefused = useRef(onEditRefused)
   const chooseTemplateRef = useRef(onChooseTemplate)
   const templateOffered = onChooseTemplate !== undefined && !readOnly
   const templateShown = useRef(templateOffered)
@@ -926,6 +931,7 @@ export function NoteEditor({
     fromLink.current = onNewFromLink
     imagesRefused.current = onImagesRefused
     openFailed.current = onOpenFailed
+    editRefused.current = onEditRefused
     noteOpener.current = onOpenNote
     loading.current = onLoading
     preopened.current = takePreopened
@@ -1064,8 +1070,9 @@ export function NoteEditor({
       }
       const { root, frame, scroller, parent } = (box.current ??= shadowContainer(el))
       const doc = new Y.Doc()
+      const refused = refusedEdits(noteId, (id, code) => editRefused.current?.(id, code))
       const forward = (update: Uint8Array, origin: unknown) => {
-        if (origin !== REMOTE && origin !== RESTORE) void core.applyUpdate(noteId, update)
+        if (origin !== REMOTE && origin !== RESTORE) core.applyUpdate(noteId, update).catch(refused)
       }
       Y.applyUpdate(doc, state, REMOTE)
       doc.on('update', forward)

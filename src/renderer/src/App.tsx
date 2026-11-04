@@ -4403,6 +4403,7 @@ export function App() {
                 onNewFromLink={inTrash || !editing ? undefined : () => void noteFromLink(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
+                onEditRefused={(_id, code) => setChangeNotice(code)}
                 onChooseTemplate={
                   inTrash || !editing
                     ? undefined

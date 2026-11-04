@@ -113,3 +113,15 @@ test('a Duplicate or New Note the core refuses says why', async ({ page }) => {
   await expect(notice).toBeVisible()
   await expect(rows).toHaveCount(1)
 })
+
+test('typing the core refuses says why instead of being lost silently (#531)', async ({ page }) => {
+  await slowCore(page, [])
+  await openApp(page)
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  const body = page.getByRole('textbox', { name: 'Note body' })
+  await body.click()
+  const notice = page.getByRole('alert').filter({ hasText: 'The change could not be made' })
+  await failCoreCalls(page, ['applyUpdate'])
+  await page.keyboard.type('Lost')
+  await expect(notice).toBeVisible()
+})
