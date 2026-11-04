@@ -95,6 +95,30 @@ describe('Markdown dialect', () => {
     for (const href of links) expect(given).toContain(fragmentId(href.slice(1)))
   })
 
+  it('highlights ==text== as <mark>, as the editor reads it', async () => {
+    const tree = await render('A ==key **bold**== word and ==two==.\n')
+    expect(tags(tree, 'mark').map(text)).toEqual(['key bold', 'two'])
+    expect(text(tree)).toBe('A key bold word and two.')
+  })
+
+  it('leaves == that does not flank text, or sits in code, as written', async () => {
+    const md = 'a == b == c, x===y===z, ==open, `==code==`\n'
+    const tree = await render(md)
+    expect(tags(tree, 'mark')).toEqual([])
+    expect(text(tree)).toBe('a == b == c, x===y===z, ==open, ==code==')
+  })
+
+  it('reads an escaped = as text, as the editor does', async () => {
+    const tree = await render('\\==literal== and ==a\\==b== and > &#61;=x==\n')
+    expect(tags(tree, 'mark').map(text)).toEqual(['a==b'])
+    expect(text(tree)).toBe('==literal== and a==b and > ==x==')
+  })
+
+  it('highlights across the lines of a quote', async () => {
+    const tree = await render('> one ==two\n> three== four\n')
+    expect(tags(tree, 'mark').map(text)).toEqual(['two\nthree'])
+  })
+
   it('finds task marks in nested, ordered and quoted lists, and leaves raw HTML boxes disabled', async () => {
     const md =
       '1. [X] a\n   - [ ] b\n\n> * [ ] c\n\n<ul><li><input type="checkbox" disabled> d</li></ul>'

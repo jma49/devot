@@ -537,7 +537,7 @@
   --color-editor-active-line: rgb(0 0 0 / 0.03);
   --color-editor-placeholder: rgb(15 23 41 / 0.2);
   --color-editor-completion-selected: #ebe7fe;
-  --color-editor-code-fill: rgb(225 231 239 / 0.1);
+  --color-editor-code-fill: rgb(28 27 25 / 0.065);
   --color-editor-code-border: rgb(203 213 225 / 0.5);
   --color-editor-quote-bar: #94a3b8;
   --color-editor-mark-fill: rgb(231 176 8 / 0.3);
@@ -768,7 +768,7 @@
     --color-editor-active-line: rgb(250 250 250 / 0.06);
     --color-editor-placeholder: rgb(243 244 246 / 0.2);
     --color-editor-completion-selected: #4d1d95;
-    --color-editor-code-fill: rgb(82 82 82 / 0.2);
+    --color-editor-code-fill: rgb(235 232 226 / 0.08);
     --color-editor-code-border: rgb(190 219 254 / 0.1);
     --color-editor-quote-bar: #94a3b8;
     --color-editor-mark-fill: rgb(231 176 8 / 0.3);
@@ -1000,7 +1000,7 @@
   --color-editor-active-line: rgb(250 250 250 / 0.06);
   --color-editor-placeholder: rgb(243 244 246 / 0.2);
   --color-editor-completion-selected: #4d1d95;
-  --color-editor-code-fill: rgb(82 82 82 / 0.2);
+  --color-editor-code-fill: rgb(235 232 226 / 0.08);
   --color-editor-code-border: rgb(190 219 254 / 0.1);
   --color-editor-quote-bar: #94a3b8;
   --color-editor-mark-fill: rgb(231 176 8 / 0.3);
@@ -1231,7 +1231,7 @@
   --color-editor-active-line: rgb(0 0 0 / 0.03);
   --color-editor-placeholder: rgb(15 23 41 / 0.2);
   --color-editor-completion-selected: #ebe7fe;
-  --color-editor-code-fill: rgb(225 231 239 / 0.1);
+  --color-editor-code-fill: rgb(28 27 25 / 0.065);
   --color-editor-code-border: rgb(203 213 225 / 0.5);
   --color-editor-quote-bar: #94a3b8;
   --color-editor-mark-fill: rgb(231 176 8 / 0.3);
@@ -1462,7 +1462,7 @@
   --color-editor-active-line: rgb(31 30 29 / 0.03);
   --color-editor-placeholder: rgb(31 30 29 / 0.5);
   --color-editor-completion-selected: #ebe7fe;
-  --color-editor-code-fill: rgb(31 30 29 / 0.04);
+  --color-editor-code-fill: rgb(31 30 29 / 0.065);
   --color-editor-code-border: rgb(31 30 29 / 0.15);
   --color-editor-quote-bar: #a8a69c;
   --color-editor-mark-fill: rgb(231 176 8 / 0.3);
@@ -1693,7 +1693,7 @@
     --color-editor-active-line: rgb(250 249 245 / 0.06);
     --color-editor-placeholder: rgb(250 249 245 / 0.5);
     --color-editor-completion-selected: #4d1d95;
-    --color-editor-code-fill: rgb(250 249 245 / 0.05);
+    --color-editor-code-fill: rgb(250 249 245 / 0.08);
     --color-editor-code-border: rgb(250 249 245 / 0.1);
     --color-editor-quote-bar: #8c8a82;
     --color-editor-mark-fill: rgb(231 176 8 / 0.3);
@@ -1925,7 +1925,7 @@
   --color-editor-active-line: rgb(250 249 245 / 0.06);
   --color-editor-placeholder: rgb(250 249 245 / 0.5);
   --color-editor-completion-selected: #4d1d95;
-  --color-editor-code-fill: rgb(250 249 245 / 0.05);
+  --color-editor-code-fill: rgb(250 249 245 / 0.08);
   --color-editor-code-border: rgb(250 249 245 / 0.1);
   --color-editor-quote-bar: #8c8a82;
   --color-editor-mark-fill: rgb(231 176 8 / 0.3);
@@ -2156,7 +2156,7 @@
   --color-editor-active-line: rgb(31 30 29 / 0.03);
   --color-editor-placeholder: rgb(31 30 29 / 0.5);
   --color-editor-completion-selected: #ebe7fe;
-  --color-editor-code-fill: rgb(31 30 29 / 0.04);
+  --color-editor-code-fill: rgb(31 30 29 / 0.065);
   --color-editor-code-border: rgb(31 30 29 / 0.15);
   --color-editor-quote-bar: #a8a69c;
   --color-editor-mark-fill: rgb(231 176 8 / 0.3);

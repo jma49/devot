@@ -1,6 +1,6 @@
 // How the editor shapes Markdown beyond the colours of the highlight style
 // (markdown.ts): heading lines at their own sizes, list marks by depth,
-// struck-through done tasks, inline code chips, `<mark>` highlights, quote
+// struck-through done tasks, inline code chips, `==` and `<mark>` highlights, quote
 // and alert bars, and tables in a box. Everything here is read from the
 // syntax tree and drawn as decorations over the source; the text is never
 // changed.
@@ -82,6 +82,13 @@ export function lineStyles(
           // The chip holds the code only; the backticks stay outside it.
           if (open && close) mark(open.to, close.from, 'cm-md-code')
           return false
+        }
+        case 'Highlight': {
+          const marks = node.getChildren('HighlightMark')
+          const open = marks[0]
+          const close = marks[marks.length - 1]
+          if (open && close && close !== open) mark(open.to, close.from, 'cm-md-mark')
+          return
         }
         case 'HTMLTag': {
           if (!MARK_OPEN.test(text(node))) return

@@ -1213,13 +1213,8 @@
       },
       "code-fill": {
         "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [0.9804, 0.9765, 0.9608],
-          "hex": "#faf9f5",
-          "alpha": 0.05
-        },
-        "$description": "Behind inline code, code blocks and tables in the editor."
+        "$value": "{color.fill.card}",
+        "$description": "Behind inline code in the editor: the card's ink wash, so the chip reads on the editor's wash too."
       },
       "code-border": {
         "$type": "color",
