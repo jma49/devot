@@ -202,6 +202,7 @@ import {
   currentDefaultMode,
   currentLastStateStore,
   isBoardView,
+  lastStateOf,
   layoutOf,
   restorePlan,
   withLayout,
@@ -1925,35 +1926,20 @@ export function App() {
   const restorePreview = useRef<{ id: string; top: number }>(undefined)
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const currentState = (): LastState | undefined => {
-    const known = noteState.current
-    if (inTrash) {
-      const before = libraryState.current
-      if (before?.note && known?.id === before.note.id) {
-        return { ...before, note: { ...known, keyboard: false }, boards }
-      }
-      return before && { ...before, boards }
-    }
-    let note: NoteState | undefined
-    if (selected !== undefined) {
-      note = {
-        ...(known?.id === selected ? known : { id: selected }),
-        keyboard: inEditor(document.activeElement),
-      }
-    }
-    const state: LastState = {
-      view: inTemplates
-        ? { kind: 'templates' }
-        : libraryBook
-          ? { kind: 'book', id: libraryBook.id }
-          : { kind: 'all' },
-      // An agent's view is of this device's rows as they were: it is not restored.
-      filter: activeFilter?.kind === 'agent' ? null : activeFilter,
+    const state = lastStateOf({
+      inTrash,
+      inTemplates,
+      bookId: libraryBook?.id,
+      filter: activeFilter,
       mode,
-      ...(note ? { note } : {}),
-      ...(workspaceNode ? { workspace: workspaceNode.id } : {}),
-      ...(boards.length > 0 ? { boards } : {}),
-    }
-    libraryState.current = state
+      selected,
+      workspace: workspaceNode?.id,
+      boards,
+      note: noteState.current,
+      beforeTrash: libraryState.current,
+      keyboard: () => inEditor(document.activeElement),
+    })
+    if (!inTrash) libraryState.current = state
     return state
   }
   const saveNow = useRef<() => void>(undefined)

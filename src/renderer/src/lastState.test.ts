@@ -4,6 +4,7 @@ import {
   clampTop,
   defaultMode,
   isBoardView,
+  lastStateOf,
   lastStateStore,
   layoutOf,
   withLayout,
@@ -11,6 +12,7 @@ import {
   restorePlan,
   serializeLastState,
   type LastState,
+  type WindowView,
 } from './lastState'
 
 const NOTE = '019a0000-0000-7000-8000-000000000001'
@@ -353,5 +355,63 @@ describe('list layouts', () => {
     boards = withLayout(boards, boards[0]!, 'board')
     expect(boards.at(-1)).toBe('all|019a0000-0000-7000-8000-000000000020')
     expect(withLayout(boards, 'trash', 'board')).toBe(boards)
+  })
+})
+
+describe('lastStateOf', () => {
+  const shown: WindowView = {
+    inTrash: false,
+    inTemplates: false,
+    bookId: BOOK,
+    filter: { kind: 'tag', tagId: TAG },
+    mode: 'edit',
+    selected: NOTE,
+    workspace: PARENT,
+    boards: ['all|'],
+    note: { id: NOTE, selection: { anchor: 2, head: 4 }, keyboard: false },
+    beforeTrash: undefined,
+    keyboard: () => true,
+  }
+
+  it('stores the view, the open note with its place and whether it has the keyboard', () => {
+    expect(lastStateOf(shown)).toEqual({
+      view: { kind: 'book', id: BOOK },
+      filter: { kind: 'tag', tagId: TAG },
+      mode: 'edit',
+      note: { id: NOTE, selection: { anchor: 2, head: 4 }, keyboard: true },
+      workspace: PARENT,
+      boards: ['all|'],
+    })
+  })
+
+  it('leaves out what is not there, and asks for the keyboard only with a note open', () => {
+    let asked = false
+    const state = lastStateOf({
+      ...shown,
+      bookId: undefined,
+      filter: { kind: 'agent', writer: 'mcp:a', noteIds: new Set() },
+      selected: undefined,
+      workspace: undefined,
+      boards: [],
+      keyboard: () => (asked = true),
+    })
+    expect(state).toEqual({ view: { kind: 'all' }, filter: null, mode: 'edit' })
+    expect(asked).toBe(false)
+    expect(lastStateOf({ ...shown, inTemplates: true, note: undefined })?.view).toEqual({
+      kind: 'templates',
+    })
+  })
+
+  it('keeps the state from before the Trash, with the boards and the place it has now', () => {
+    const before = lastStateOf(shown)
+    expect(lastStateOf({ ...shown, inTrash: true, beforeTrash: undefined })).toBeUndefined()
+    const moved = { id: NOTE, previewTop: 30, keyboard: true }
+    expect(
+      lastStateOf({ ...shown, inTrash: true, beforeTrash: before, note: moved, boards: [] }),
+    ).toEqual({ ...before, note: { ...moved, keyboard: false }, boards: [] })
+    const other = { id: PARENT, keyboard: true }
+    expect(lastStateOf({ ...shown, inTrash: true, beforeTrash: before, note: other })).toEqual(
+      before,
+    )
   })
 })
