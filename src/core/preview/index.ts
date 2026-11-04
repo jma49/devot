@@ -209,7 +209,7 @@ async function transformed(
   const mdast = parser.parse(markdown) as MdastRoot
   const head = mdast.children[0]
   const frontmatter = head?.type === 'yaml' ? head.value : null
-  const tree = parser.runSync(mdast) as HastRoot
+  const tree = parser.runSync(mdast, markdown) as HastRoot
   const context = { ...options, frontmatter, source: markdown }
   for (const renderer of renderers) await renderer.transform(tree, context)
   return tree

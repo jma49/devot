@@ -118,6 +118,7 @@ describe('Write mode links', () => {
     expect(marks('see [[Plan]]')).toEqual(['cm-wm-note-chip Plan'])
     expect(shown('see [[Plan]]', caret(6))).toBe('see [[Plan]]')
     expect(shown('x[[1]] and [[a] b]')).toBe('x[[1]] and [[a] b]')
+    expect(shown('a \\[[Plan]]')).toBe('a [[Plan]]')
   })
 
   it('leave images to the image rules', () => {
@@ -143,6 +144,25 @@ describe('Write mode footnotes', () => {
       '[^1]: First.',
       '{^1:}The note.',
     ])
+  })
+
+  it('count as the preview does: escapes and indented code left out, references in definitions last', () => {
+    const numbers = (doc: string) => shown(doc).split('\n')[0]
+    expect(numbers('\\[^a] and x[^b] then y[^a]\n\n[^a]: A\n[^b]: B')).toBe(
+      '[^a] and x{^1} then y{^2}',
+    )
+    expect(
+      shown('Main[^a] then [^c]\n\n[^a]: includes [^b]\n[^b]: B\n[^c]: C').split('\n')[2],
+    ).toBe('{^1:}includes {^3}')
+    expect(shown('Text\n\n    x[^a]\n\ny[^a]\n\n[^a]: A').split('\n')[4]).toBe('y{^1}')
+  })
+
+  it('read a definition inside a quote or a list, and a reference followed by a colon', () => {
+    expect(shown('> x[^a]\n>\n> [^a]: note')).toBe('x{^1}\n\n{^1:}note')
+    expect(shown('- x[^a]\n- [^a]: note')).toBe('{bullet1} x{^1}\n{bullet1} {^1:}note')
+    expect(shown('x[^a]: suffix and y[^a]\n\n[^a]: note').split('\n')[0]).toBe(
+      'x{^1}: suffix and y{^1}',
+    )
   })
 
   it('leave a footnote in code, and a definition nothing refers to, as typed', () => {

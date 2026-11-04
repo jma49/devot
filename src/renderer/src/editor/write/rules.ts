@@ -270,6 +270,14 @@ export function writeRanges(
     if (oneLine(node.from, end)) out.push({ kind: 'unit', from: node.from, to: end })
   }
 
+  /** Whether the character at `pos` follows an odd run of backslashes. */
+  function escapedAt(pos: number): boolean {
+    const start = doc.lineAt(pos).from
+    let slashes = 0
+    for (let at = pos - 1; at >= start && text(at, at + 1) === '\\'; at--) slashes++
+    return slashes % 2 === 1
+  }
+
   /** A footnote with a definition: its number. */
   function footnoteNumber(label: string): number | undefined {
     return footnoteNumbers(doc).get(footnoteKey(label))
@@ -277,9 +285,8 @@ export function writeRanges(
 
   /** `[^label]: ` at the start of a paragraph or a link reference: drawn as its number while its lines are not selected. */
   function footnoteDefinition(node: SyntaxNode): boolean {
-    const line = doc.lineAt(node.from)
-    const match = FOOTNOTE_DEFINITION.exec(line.text.slice(node.from - line.from))
-    if (!match || node.from - line.from > 3) return false
+    const match = FOOTNOTE_DEFINITION.exec(text(node.from, doc.lineAt(node.from).to))
+    if (!match || escapedAt(node.from)) return false
     const number = footnoteNumber(match[1] as string)
     if (number === undefined) return false
     const end = node.from + match[0].length
@@ -292,7 +299,9 @@ export function writeRanges(
   function footnoteReference(node: SyntaxNode): boolean {
     const label = FOOTNOTE_REF.exec(text(node.from, node.to))?.[1]
     if (label === undefined || footnoteNumber(label) === undefined) return false
-    if (text(node.to, node.to + 1) === ':') return true
+    const parent = node.parent
+    const opensBlock = parent?.from === node.from && parent.name === 'Paragraph'
+    if (opensBlock && text(node.to, node.to + 1) === ':') return true
     if (!shows(node.from, node.to) && oneLine(node.from, node.to)) {
       const number = footnoteNumber(label) as number
       out.push({ kind: 'footnote', from: node.from, to: node.to, number, definition: false })
@@ -305,6 +314,7 @@ export function writeRanges(
     if (close.to !== node.to || node.from < 1) return false
     if (text(node.from - 1, node.from) !== '[' || text(node.to, node.to + 1) !== ']') return false
     if (node.from >= 2 && WORD_CHAR.test(text(node.from - 2, node.from - 1))) return false
+    if (escapedAt(node.from - 1)) return false
     if (shows(node.from - 1, node.to + 1)) return true
     if (!oneLine(node.from - 1, node.to + 1)) return true
     hide(node.from - 1, open.to)
