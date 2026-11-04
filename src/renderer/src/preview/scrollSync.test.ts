@@ -373,12 +373,23 @@ describe('syncScrolling', () => {
     flush()
     editor.userScroll(30)
     flush()
-    // The preview got shorter: the browser clamps its offset and reports it.
+    // The preview got shorter: the browser clamps its offset to the new end and reports it.
+    preview.element.scrollHeight = 120
     preview.relayout()
     preview.userScroll(20)
     flush()
     expect(editor.element.scrollTop).toBe(30)
-    expect(preview.element.scrollTop).toBe(60)
+    expect(preview.element.scrollTop).toBe(20)
+  })
+
+  it('keeps a scroll that comes in the frame after its pane was laid out anew', () => {
+    const { editor, preview, flush } = setup()
+    flush()
+    preview.relayout()
+    preview.userScroll(400)
+    flush()
+    expect(preview.element.scrollTop).toBe(400)
+    expect(editor.element.scrollTop).toBe(200)
   })
 
   it('blends into the end over the last screen, without a jump', () => {
