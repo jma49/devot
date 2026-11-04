@@ -2,6 +2,7 @@
 // device token and the socket; the main window's core worker runs the engine through the commands
 // here. After every change Rust sends `devot://sync-changed` with its snapshot to every window,
 // which re-sends it in the page as `devot:sync-changed` (the UI tests send that one).
+import { RESTORE_CHOICE } from '../../core/sync/restore'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import * as Comlink from 'comlink'
 import { MAX_WALL } from '../../core/hlc'
@@ -89,6 +90,7 @@ export { STORAGE_FULL }
 export const STOP_ADVICE: Readonly<Record<string, MessageKey>> = {
   E_SYNC_PROTOCOL: 'sync.advice.protocol',
   E_SYNC_CIRCUIT_OPEN: 'sync.advice.circuit',
+  [RESTORE_CHOICE]: 'sync.advice.restoreChoice',
 }
 
 const readCount = (value: unknown): number | null =>

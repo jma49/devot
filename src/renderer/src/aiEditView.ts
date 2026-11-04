@@ -5,6 +5,7 @@ import { licenceSnapshot, trialOver } from './licence'
 
 const REASONS: Record<string, MessageKey> = {
   E_LICENCE_REQUIRED: 'aiEdit.reason.licence',
+  E_LICENCE_UNREADABLE: 'aiEdit.reason.licenceUnreadable',
   E_AI_ACCESS_DENIED: 'aiEdit.reason.access',
   E_AI_KEY_MISSING: 'aiEdit.reason.noKey',
   E_AI_KEYCHAIN_UNAVAILABLE: 'aiEdit.reason.noKey',

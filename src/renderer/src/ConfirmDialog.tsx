@@ -16,6 +16,8 @@ export function ConfirmDialog(props: {
   message: string
   detail: string
   confirm: string
+  /** In place of Cancel, for a choice between two ways on; Escape still takes it. */
+  cancel?: string
   confirmFirst?: boolean
   destructive?: boolean
   onConfirm: () => void
@@ -67,7 +69,7 @@ export function ConfirmDialog(props: {
       </p>
       <div className="confirm-actions">
         <button type="button" className="button" onClick={props.onCancel} autoFocus>
-          {t('dialog.cancel')}
+          {props.cancel ?? t('dialog.cancel')}
         </button>
         <button
           type="button"

@@ -30,12 +30,15 @@ const DAY: Duration = Duration::from_secs(86_400);
 const PREFIX: &str = "devot-";
 const SUFFIX: &str = ".sqlite";
 const SAFETY: &str = "-before-restore";
+const RAW_SAFETY: &str = "-before-restore-raw";
 const STAMP_LEN: usize = 24;
 const FIRST_CHECK: Duration = Duration::from_secs(20);
 const CHECK_EVERY: Duration = Duration::from_secs(3600);
 pub const FAILED_EVENT: &str = "devot://backup-failed";
 pub const PREPARE_EVENT: &str = "devot://restore-prepare";
 pub const DONE_EVENT: &str = "devot://restore-done";
+/// The `sync_state` key a restore sets; the engine's `RESTORED_AT`.
+const RESTORED_AT: &str = "restoredAt";
 /// A window that has not stopped by then calls the restore off.
 const PREPARE_TIMEOUT: Duration = Duration::from_secs(5);
 const PREPARE_POLL: Duration = Duration::from_millis(50);
@@ -44,6 +47,15 @@ const PREPARE_POLL: Duration = Duration::from_millis(50);
 pub enum Kind {
     Backup,
     Safety,
+    /// A safety copy of a database that failed its check: the file's bytes with its `-wal` and
+    /// `-shm` beside it, never checked.
+    RawSafety,
+}
+
+impl Kind {
+    fn is_safety(self) -> bool {
+        matches!(self, Kind::Safety | Kind::RawSafety)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -56,6 +68,8 @@ pub struct BackupInfo {
     pub seq: u64,
     #[serde(skip)]
     pub kind: Kind,
+    /// Passed `quick_check` when it was taken; a raw safety copy did not.
+    pub verified: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,11 +84,12 @@ fn stamp(ms: i64) -> String {
 }
 
 /// `devot-2026-10-10T12-34-56-789Z-42.sqlite`: the UTC time, then the
-/// backup's number, then `-before-restore` for a safety copy.
+/// backup's number, then `-before-restore` for a safety copy (`-before-restore-raw` for a raw one).
 pub fn file_name(ms: i64, seq: u64, kind: Kind) -> String {
     let tag = match kind {
         Kind::Backup => "",
         Kind::Safety => SAFETY,
+        Kind::RawSafety => RAW_SAFETY,
     };
     format!("{PREFIX}{}-{seq}{tag}{SUFFIX}", stamp(ms))
 }
@@ -118,9 +133,13 @@ pub fn parse_name(name: &str) -> Option<Name> {
         "" => (0, Kind::Backup, unnumbered_name(created_at)),
         tail => {
             let tail = tail.strip_prefix('-')?;
-            let (number, kind) = tail
-                .strip_suffix(SAFETY)
-                .map_or((tail, Kind::Backup), |number| (number, Kind::Safety));
+            let (number, kind) = if let Some(number) = tail.strip_suffix(RAW_SAFETY) {
+                (number, Kind::RawSafety)
+            } else if let Some(number) = tail.strip_suffix(SAFETY) {
+                (number, Kind::Safety)
+            } else {
+                (tail, Kind::Backup)
+            };
             let seq = number.parse().ok()?;
             (seq, kind, file_name(created_at, seq, kind))
         }
@@ -149,6 +168,7 @@ pub fn list(dir: &Path) -> Vec<BackupInfo> {
                 size,
                 seq: name.seq,
                 kind: name.kind,
+                verified: name.kind != Kind::RawSafety,
             })
         })
         .collect();
@@ -206,17 +226,19 @@ pub fn prune(dir: &Path, taken: &str) {
     let mut first_copies = Vec::new();
     let mut after_kept = false;
     for b in backups.iter().rev() {
-        match b.kind {
-            Kind::Backup => after_kept = kept.contains(&b.id.as_str()),
-            Kind::Safety if after_kept => {
-                first_copies.push(b.id.as_str());
-                after_kept = false;
-            }
-            Kind::Safety => {}
+        if b.kind == Kind::Backup {
+            after_kept = kept.contains(&b.id.as_str());
+        } else if after_kept {
+            first_copies.push(b.id.as_str());
+            after_kept = false;
         }
     }
-    for (kind, keep) in [(Kind::Backup, KEEP), (Kind::Safety, KEEP_SAFETY)] {
-        let old = backups.iter().filter(|b| b.kind == kind).skip(keep);
+    // Raw safety copies count with the others; their side files go with them (`tidy`).
+    for (safety, keep) in [(false, KEEP), (true, KEEP_SAFETY)] {
+        let old = backups
+            .iter()
+            .filter(|b| b.kind.is_safety() == safety)
+            .skip(keep);
         for old in old.filter(|b| b.id != taken && !first_copies.contains(&b.id.as_str())) {
             if std::fs::remove_file(dir.join(&old.id)).is_err() {
                 log::warn!("W_BACKUP_PRUNE_FAILED");
@@ -305,27 +327,71 @@ const PARTIAL: &str = "backup.sqlite";
 /// under the next number, never over another file. A quit leaves the folder, locked until then, for
 /// `tidy`. The caller holds `Backups::lock`, so no other snapshot takes the same number.
 pub fn take(db_path: &Path, dir: &Path, now: i64, kind: Kind) -> Result<BackupInfo, &'static str> {
-    std::fs::create_dir_all(dir).map_err(|_| "E_BACKUP_DIR")?;
+    take_checked(db_path, dir, now, kind).map_err(|failed| match failed {
+        Taken::CheckFailed => "E_BACKUP_SNAPSHOT_FAILED",
+        Taken::Failed(code) => code,
+    })
+}
+
+enum Taken {
+    /// The copy was made but failed `quick_check`: the database itself is damaged.
+    CheckFailed,
+    Failed(&'static str),
+}
+
+fn take_checked(db_path: &Path, dir: &Path, now: i64, kind: Kind) -> Result<BackupInfo, Taken> {
+    std::fs::create_dir_all(dir).map_err(|_| Taken::Failed("E_BACKUP_DIR"))?;
     let seq = next_seq(dir);
     let id = file_name(now, seq, kind);
-    let partial = TempDir::new_in(dir).map_err(|_| "E_BACKUP_DIR")?;
+    let partial = TempDir::new_in(dir).map_err(|_| Taken::Failed("E_BACKUP_DIR"))?;
     // Dropped before the folder: locked until the file is in place or gone.
     let _writing = lock_folder(partial.path());
-    if storage::snapshot(db_path, &partial.path().join(PARTIAL)).is_err() {
-        return Err("E_BACKUP_SNAPSHOT_FAILED");
+    match storage::snapshot(db_path, &partial.path().join(PARTIAL)) {
+        Ok(()) => {}
+        Err(storage::StorageError::SnapshotCheckFailed) => return Err(Taken::CheckFailed),
+        Err(_) => return Err(Taken::Failed("E_BACKUP_SNAPSHOT_FAILED")),
     }
     let target = dir.join(&id);
     partial
         .persist(PARTIAL, &target, Place::New)
-        .map_err(|_| "E_BACKUP_RENAME_FAILED")?;
-    let size = std::fs::metadata(&target).map_or(0, |m| m.len());
-    Ok(BackupInfo {
+        .map_err(|_| Taken::Failed("E_BACKUP_RENAME_FAILED"))?;
+    Ok(info_of(&target, id, now, seq, kind))
+}
+
+fn info_of(target: &Path, id: String, now: i64, seq: u64, kind: Kind) -> BackupInfo {
+    let size = std::fs::metadata(target).map_or(0, |m| m.len());
+    BackupInfo {
         id,
         created_at: now,
         size,
         seq,
         kind,
-    })
+        verified: kind != Kind::RawSafety,
+    }
+}
+
+/// The database's bytes as they are, with its `-wal` and `-shm`, for a database whose snapshot
+/// failed its check, so a restore over it still leaves a copy to go back to. Each file is written
+/// whole under a temporary name, the side files first, so the copy is listed only once complete;
+/// the caller keeps the database from changing meanwhile.
+fn take_raw(db_path: &Path, dir: &Path, now: i64) -> Result<BackupInfo, &'static str> {
+    std::fs::create_dir_all(dir).map_err(|_| "E_BACKUP_DIR")?;
+    let into = atomic_file::Folder::open(dir).map_err(|_| "E_BACKUP_DIR")?;
+    let seq = next_seq(dir);
+    let id = file_name(now, seq, Kind::RawSafety);
+    let copy = |from: &Path, to: &str| {
+        let mut source = std::fs::File::open(from).map_err(|_| "E_BACKUP_SNAPSHOT_FAILED")?;
+        into.write_from(to, &mut source, Place::New)
+            .map_err(|_| "E_BACKUP_SNAPSHOT_FAILED")
+    };
+    for suffix in ["-wal", "-shm"] {
+        let from = PathBuf::from(format!("{}{suffix}", db_path.display()));
+        if from.exists() {
+            copy(&from, &format!("{id}{suffix}"))?;
+        }
+    }
+    copy(db_path, &id)?;
+    Ok(info_of(&dir.join(&id), id, now, seq, Kind::RawSafety))
 }
 
 pub struct Backups {
@@ -508,14 +574,29 @@ impl Backups {
         let _held = self.lock.lock().await;
         let source = self.source(id)?;
         let (db_path, dir) = (self.db_path.clone(), self.dir.clone());
-        tauri::async_runtime::spawn_blocking(move || {
+        let checked = tauri::async_runtime::spawn_blocking(move || {
             tidy(&dir);
-            take(&db_path, &dir, now, Kind::Safety)
+            take_checked(&db_path, &dir, now, Kind::Safety)
         })
         .await
-        .map_err(|_| "E_BACKUP_TASK")??;
+        .map_err(|_| "E_BACKUP_TASK")?;
+        match checked {
+            Ok(_) => {}
+            Err(Taken::Failed(code)) => return Err(code),
+            Err(Taken::CheckFailed) => {
+                log::warn!("W_BACKUP_SAFETY_RAW E_STORAGE_SNAPSHOT_CHECK_FAILED");
+                let (db_path, dir) = (self.db_path.clone(), self.dir.clone());
+                // On the database's thread, so no write lands between the file and its WAL.
+                db.call(move |_| Ok(take_raw(&db_path, &dir, now)))
+                    .await
+                    .map_err(|_| "E_BACKUP_SNAPSHOT_FAILED")??;
+            }
+        }
         db.write(storage::Write::Content, move |store| {
-            store.restore_from(&source)
+            store.restore_from(&source)?;
+            // Read by the sync engine when sync is next turned on: it asks whether this copy
+            // wins over other devices' later changes (src/core/sync/engine.ts, #515).
+            store.sync_set_state(RESTORED_AT, &now.to_string())
         })
         .await
         .map_err(|e| {
@@ -646,6 +727,7 @@ mod tests {
             size: 0,
             seq: 1,
             kind: Kind::Backup,
+            verified: true,
         }
     }
 
@@ -954,6 +1036,41 @@ mod tests {
         assert!(state.contains(&("since".to_string(), "after-the-backup".to_string())));
     }
 
+    /// Pages in the main file past the schema's: a table's b-tree, which `quick_check` reads.
+    fn damage_live_database(path: &Path) {
+        let other = rusqlite::Connection::open(path).unwrap();
+        other
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
+            .unwrap();
+        drop(other);
+        let mut bytes = std::fs::read(path).unwrap();
+        assert!(bytes.len() >= 4 * 4096, "{}", bytes.len());
+        bytes[4096..3 * 4096].fill(0xff);
+        std::fs::write(path, bytes).unwrap();
+    }
+
+    #[test]
+    fn a_restore_over_a_damaged_database_keeps_a_raw_copy_of_it() {
+        use tauri::async_runtime::block_on;
+        let (_dir, backups, db) = app_data();
+        let taken = backups.back_up(NOW).unwrap();
+        damage_live_database(&backups.db_path);
+        assert_eq!(backups.back_up(NOW + HOUR), Err("E_BACKUP_SNAPSHOT_FAILED"));
+        let damaged = std::fs::read(&backups.db_path).unwrap();
+
+        block_on(backups.restore(&db, &taken.id, NOW + 2 * HOUR)).unwrap();
+
+        let copy = list(&backups.dir).remove(0);
+        assert_eq!((copy.kind, copy.verified), (Kind::RawSafety, false));
+        let state = block_on(db.call(|store| store.sync_state())).unwrap();
+        let marker = (RESTORED_AT.to_string(), (NOW + 2 * HOUR).to_string());
+        assert!(state.contains(&marker), "{state:?}");
+        assert_eq!(std::fs::read(backups.dir.join(&copy.id)).unwrap(), damaged);
+        assert!(backups.dir.join(format!("{}-wal", copy.id)).exists());
+        assert!(block_on(db.call(|store| store.integrity_ok())).unwrap());
+        assert_eq!(serde_json::to_value(&copy).unwrap()["verified"], false);
+    }
+
     #[test]
     fn eight_restores_keep_the_notes_from_before_the_first() {
         let (_dir, backups, db) = app_data();
@@ -1026,11 +1143,26 @@ mod tests {
             ..backup
         };
         assert_eq!(parse_name(&copy), Some(safety));
+        let raw = file_name(NOW, 44, Kind::RawSafety);
+        assert_eq!(
+            raw,
+            "devot-2026-10-10T12-34-56-789Z-44-before-restore-raw.sqlite"
+        );
+        let raw_copy = Name {
+            seq: 44,
+            kind: Kind::RawSafety,
+            ..backup
+        };
+        assert_eq!(parse_name(&raw), Some(raw_copy));
         let unnumbered = unnumbered_name(NOW);
         assert_eq!(unnumbered, "devot-2026-10-10T12-34-56-789Z.sqlite");
         assert_eq!(parse_name(&unnumbered), Some(Name { seq: 0, ..backup }));
         for created_at in [0, 951_782_400_000, 4_102_444_800_000] {
-            for (seq, kind) in [(1, Kind::Backup), (u64::MAX, Kind::Safety)] {
+            for (seq, kind) in [
+                (1, Kind::Backup),
+                (u64::MAX, Kind::Safety),
+                (7, Kind::RawSafety),
+            ] {
                 let name = Name {
                     created_at,
                     seq,
@@ -1142,13 +1274,16 @@ mod tests {
         std::fs::create_dir(&backups).unwrap();
         let mut taken = Vec::new();
         for seq in 1..=19_u64 {
-            let kind = if seq % 2 == 0 {
-                Kind::Safety
-            } else {
-                Kind::Backup
+            let kind = match seq % 4 {
+                0 => Kind::RawSafety,
+                2 => Kind::Safety,
+                _ => Kind::Backup,
             };
             let name = file_name(NOW + i64::try_from(seq).unwrap() * HOUR, seq, kind);
             std::fs::write(backups.join(&name), b"backup").unwrap();
+            if kind == Kind::RawSafety {
+                std::fs::write(backups.join(format!("{name}-wal")), b"wal").unwrap();
+            }
             taken.push(name);
         }
         // The one just taken stays, even with a number that says otherwise
@@ -1157,26 +1292,29 @@ mod tests {
         let kept: Vec<(u64, Kind)> = list(&backups).iter().map(|b| (b.seq, b.kind)).collect();
         let backup = |seq| (seq, Kind::Backup);
         let safety = |seq| (seq, Kind::Safety);
+        let raw = |seq| (seq, Kind::RawSafety);
         assert_eq!(
             kept,
             [
                 backup(19),
                 safety(18),
                 backup(17),
-                safety(16),
+                raw(16),
                 backup(15),
                 safety(14),
                 backup(13),
-                safety(12),
+                raw(12),
                 backup(11),
                 safety(10),
                 backup(9),
-                safety(8),
+                raw(8),
                 backup(7),
                 safety(6),
                 backup(1),
             ]
         );
+        assert!(backups.join(format!("{}-wal", taken[7])).exists());
+        assert!(!backups.join(format!("{}-wal", taken[3])).exists());
     }
 
     #[test]

@@ -10,11 +10,11 @@
 
 use crate::commands::notes::{MAX_BODY_BYTES, MAX_TITLE_CHARS};
 use crate::editor_settings::{EditorSettingsStore, is_notebook_id};
+use crate::pending::{GaveUp, Pending};
 use crate::{exit, strings};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::image::Image;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -315,57 +315,33 @@ fn check(capture: &Capture) -> Result<(), &'static str> {
 
 type Answer = Result<(), String>;
 
-struct Waiting {
-    reply: oneshot::Sender<Answer>,
-    claimed: bool,
-}
-
 /// Captures handed to the main window and not answered yet.
 #[derive(Default)]
-pub struct Captures {
-    next: AtomicU64,
-    waiting: Mutex<HashMap<u64, Waiting>>,
-}
+pub struct Captures(Pending<Answer>);
 
 impl Captures {
     fn wait(&self) -> Option<(u64, oneshot::Receiver<Answer>)> {
-        let id = self.next.fetch_add(1, Ordering::SeqCst) + 1;
-        let (reply, answer) = oneshot::channel();
-        let waiting = Waiting {
-            reply,
-            claimed: false,
-        };
-        self.waiting.lock().ok()?.insert(id, waiting);
-        Some((id, answer))
+        self.0.wait_async().ok()
     }
 
-    /// The main window takes a capture before it writes it; false once Rust has given up on it.
     fn claim(&self, id: u64) -> bool {
-        let Ok(mut waiting) = self.waiting.lock() else {
-            return false;
-        };
-        waiting.get_mut(&id).map(|w| w.claimed = true).is_some()
+        self.0.claim(id)
     }
 
-    /// False for an ID that is not waiting (answered already, timed out, or never asked).
     fn answer(&self, id: u64, answer: Answer) -> bool {
-        let waiting = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
-        waiting.is_some_and(|w| w.reply.send(answer).is_ok())
+        self.0.answer(id, answer)
     }
 
     fn forget(&self, id: u64) {
-        if let Ok(mut waiting) = self.waiting.lock() {
-            waiting.remove(&id);
-        }
+        self.0.forget(id);
     }
 
     /// Stops waiting, with the code to show: an unclaimed capture is never written, a claimed (or
     /// just answered) one may still appear, so the window must not offer a plain retry.
     fn give_up(&self, id: u64) -> &'static str {
-        let waiting = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
-        match waiting {
-            Some(w) if !w.claimed => "E_QUICK_CAPTURE_TIMEOUT",
-            _ => "E_QUICK_CAPTURE_LATE",
+        match self.0.give_up(id) {
+            GaveUp::Unclaimed => "E_QUICK_CAPTURE_TIMEOUT",
+            GaveUp::MayLand => "E_QUICK_CAPTURE_LATE",
         }
     }
 }

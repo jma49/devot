@@ -56,7 +56,7 @@ pub(crate) fn refresh(
 
 /// What the daily schedule runs: the list from the licence pages, over the system TLS stack and
 /// the proxy settings the web client reads from the environment. `false` when the fetch failed,
-/// so the schedule tries again soon instead of waiting a day.
+/// so the schedule tries again sooner than a day (`schedule::retry_after`).
 pub(crate) fn refresh_from_site(licence: &Licence) -> bool {
     succeeded(refresh(licence, SITE, &net::get))
 }

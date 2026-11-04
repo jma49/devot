@@ -25,7 +25,13 @@ import { noteWindowLabel, relayLink } from '../noteRelay'
 import { Notices } from '../Notices'
 import { LivePreview } from '../preview/Preview'
 import { SaveNotice } from '../SaveNotice'
-import { saveEdits, useSaveAtTrialEnd, useSaveOnHide, useSaveProblems } from '../saveGuards'
+import {
+  answerAsked,
+  saveEdits,
+  useSaveAtTrialEnd,
+  useSaveOnHide,
+  useSaveProblems,
+} from '../saveGuards'
 import { textStore } from '../textStore'
 import { useEditorSetting } from '../editorSettings'
 import { OutlinePanel, lineStore } from '../outline/OutlinePanel'
@@ -168,29 +174,19 @@ export function NoteWindow() {
   // Heard from the start: Rust waits for an answer to every close and quit, and a window still
   // opening, or one that could not open its note, has nothing of its own to save.
   useEffect(() => {
-    // As the main window does: the first close or quit whose save fails is called off, and the
-    // notice says so; the next goes on without the changes.
-    const saved = (guard: typeof quitGuard) => {
-      const ready = coreRef.current
-      return ready
-        ? guard.answer(ready.flush({ versions: true }))
-        : Promise.resolve('exit' as const)
-    }
+    const answer = (asked: 'quit' | 'close') =>
+      void answerAsked(
+        asked,
+        asked === 'quit' ? quitGuard : closeGuard,
+        coreRef.current?.flush({ versions: true }),
+        () => {
+          setHeld(asked)
+          setDismissed(false)
+        },
+      )
     return listenAsked(
-      () =>
-        void saved(closeGuard).then(async (answer) => {
-          if (answer === 'exit') return invoke('note_window_close_ready')
-          setHeld('close')
-          setDismissed(false)
-          return invoke('note_window_close_cancel')
-        }),
-      () =>
-        void saved(quitGuard).then(async (answer) => {
-          if (answer === 'exit') return invoke('app_exit_ready')
-          setHeld('quit')
-          setDismissed(false)
-          return invoke('app_exit_cancel')
-        }),
+      () => answer('close'),
+      () => answer('quit'),
     )
   }, [quitGuard, closeGuard, setDismissed])
 

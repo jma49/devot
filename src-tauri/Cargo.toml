@@ -252,6 +252,10 @@ harness = false
 # Only src/native may opt back in, with a SAFETY comment on every block.
 unsafe_code = "deny"
 
+[lints.clippy]
+# The comment goes on the line(s) right above the block or the statement holding it.
+undocumented_unsafe_blocks = "deny"
+
 [profile.release]
 opt-level = 3
 lto = true

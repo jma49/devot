@@ -115,21 +115,16 @@ fn markdown_text(bytes: Vec<u8>) -> Result<String, &'static str> {
     Ok(text.replace("\r\n", "\n").replace('\r', "\n"))
 }
 
-fn read_capped(reader: impl Read) -> Result<Vec<u8>, String> {
-    let mut bytes = Vec::new();
-    reader
-        .take(import::MAX_NOTE_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|_| String::from("E_READ"))?;
-    if bytes.len() as u64 > import::MAX_NOTE_BYTES {
-        return Err(strings::CLI_INPUT_TOO_LARGE.into());
-    }
-    Ok(bytes)
+fn read_input(reader: impl Read) -> Result<Vec<u8>, String> {
+    import::read_capped(reader, import::MAX_NOTE_BYTES).map_err(|capped| match capped {
+        import::Capped::Unreadable => String::from("E_READ"),
+        import::Capped::TooLarge => strings::CLI_INPUT_TOO_LARGE.into(),
+    })
 }
 
 fn read_source(export: &Export) -> Result<Source, String> {
     let (bytes, title) = match &export.input {
-        Input::Stdin => (read_capped(std::io::stdin().lock()), None),
+        Input::Stdin => (read_input(std::io::stdin().lock()), None),
         Input::File(path) => {
             let shown = path.display().to_string();
             if !path.is_file() {
@@ -140,7 +135,7 @@ fn read_source(export: &Export) -> Result<Source, String> {
             let title = path
                 .file_stem()
                 .map(|stem| export::job_title(&stem.to_string_lossy()));
-            (read_capped(file), title)
+            (read_input(file), title)
         }
     };
     let bytes = bytes.map_err(|problem| match &export.input {
@@ -374,11 +369,11 @@ mod tests {
     fn refuses_input_over_the_note_limit() {
         let limit = import::MAX_NOTE_BYTES as usize;
         assert_eq!(
-            read_capped(&vec![b'a'; limit][..]).map(|b| b.len()),
+            read_input(&vec![b'a'; limit][..]).map(|b| b.len()),
             Ok(limit)
         );
         assert_eq!(
-            read_capped(&vec![b'a'; limit + 1][..]),
+            read_input(&vec![b'a'; limit + 1][..]),
             Err(strings::CLI_INPUT_TOO_LARGE.into())
         );
     }

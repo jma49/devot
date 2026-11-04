@@ -5,7 +5,7 @@ import { useEditorSetting } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
 import { isImeKey } from '../ime'
 import { invoke } from '../ipc'
-import { LICENCE_REQUIRED, startLicence, useEditing } from '../licence'
+import { LICENCE_REQUIRED, LICENCE_UNREADABLE, startLicence, useEditing } from '../licence'
 import { readNotebooks, subscribeNotebooks, type NotebookChoice } from '../notebookChoices'
 import { clearDraft, isEmptyCapture, notebookToShow, readDraft, writeDraft } from './draft'
 
@@ -16,6 +16,7 @@ const indented = (name: string, depth: number) => `${'  '.repeat(depth)}${name}`
 
 function failure(code: string): MessageKey {
   if (code === LICENCE_REQUIRED) return 'quickCapture.trialEnded'
+  if (code === LICENCE_UNREADABLE) return 'quickCapture.licenceUnreadable'
   if (code === 'E_BOOK_NOT_FOUND') return 'quickCapture.notebookGone'
   if (code === 'E_QUICK_CAPTURE_TIMEOUT' || code === 'E_QUICK_CAPTURE_NO_WINDOW')
     return 'quickCapture.noAnswer'

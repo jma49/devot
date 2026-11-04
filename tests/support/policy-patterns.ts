@@ -33,19 +33,40 @@ export function hasCjk(text: string): boolean {
 }
 
 /**
- * Whether a line writes out a colour: hex, rgb(), hsl(), or a named colour as a style value. A quoted name must be
- * lower case; a capitalised one such as 'Red' is a label.
+ * Whether a line writes out a colour: hex, rgb(), hsl(), or a named colour as a style value, an SVG or HTML
+ * colour attribute, `setAttribute`, `style.x =` or `setProperty`. A quoted name must be lower case; a capitalised
+ * one such as 'Red' is a label.
  */
 const COLOR_FUNCTION_OR_HEX = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(/i
-const COLOR_WORDS = 'white|black|red|green|blue|gray|grey'
+const COLOR_WORDS =
+  '(?:dark|light|medium|pale|deep|hot|dim|slate|sky|steel|royal|midnight|forest|sea|olive)?' +
+  '(?:white|black|red|green|blue|gr[ae]y|orange|purple|yellow|pink|brown|cyan|magenta|violet|indigo|teal|navy|' +
+  'maroon|lime|silver|gold|aqua|fuchsia|beige|crimson|coral|salmon|turquoise|lavender|tomato|khaki|plum|orchid)'
+const COLOR_ATTRIBUTE = '(?:fill|stroke|color|stop-color|flood-color|lighting-color|bgcolor)'
 // Unquoted (CSS): any case counts.
-const COLOR_NAME_BARE = new RegExp(`:\\s*(?:${COLOR_WORDS})\\b`, 'i')
+const COLOR_NAME_BARE = new RegExp(`:\\s*${COLOR_WORDS}\\b`, 'i')
 // Quoted (TypeScript): lower case only, a capitalised string is a label.
-const COLOR_NAME_QUOTED = new RegExp(`:\\s*['"](?:${COLOR_WORDS})\\b`)
+const COLOR_NAME_QUOTED = new RegExp(
+  [
+    `:\\s*['"\`]${COLOR_WORDS}\\b`,
+    `\\b${COLOR_ATTRIBUTE}\\s*=\\s*\\{?\\s*['"\`]${COLOR_WORDS}\\b`,
+    `setAttribute\\(\\s*['"\`]${COLOR_ATTRIBUTE}['"\`]\\s*,\\s*['"\`]${COLOR_WORDS}\\b`,
+    `\\.style\\.[\\w$]+\\s*=\\s*['"\`]${COLOR_WORDS}\\b`,
+    `setProperty\\(\\s*['"\`][\\w-]+['"\`]\\s*,\\s*['"\`]${COLOR_WORDS}\\b`,
+  ].join('|'),
+)
 export function hasColorLiteral(line: string): boolean {
   return (
     COLOR_FUNCTION_OR_HEX.test(line) || COLOR_NAME_BARE.test(line) || COLOR_NAME_QUOTED.test(line)
   )
+}
+
+/** An SVG mask reads luminance, not colour: white keeps what it covers and black cuts it out. */
+const COLOR_EXEMPTIONS: Record<string, RegExp> = {
+  'src/renderer/src/preview/mermaid-theme.ts': /^\s*const MASK_(?:KEEP|CUT) = '(?:white|black)'$/,
+}
+export function isColorExempt(path: string, line: string): boolean {
+  return COLOR_EXEMPTIONS[path]?.test(line) ?? false
 }
 
 /** The system temp folder named in code; tests reach it only through tempDir. */
@@ -78,3 +99,41 @@ export const RAW_TIME_ASSERTION = new RegExp(
 /** A test that mocks the database (better-sqlite3, the core's storage, the test adapter) instead of using a real file. */
 export const DATABASE_MOCK =
   /\bvi\.(?:do)?[mM]ock\(\s*['"`](?:better-sqlite3|[^'"`]*\/(?:storage|sqlite-adapter)(?:\.tsx?)?)['"`]/
+
+/**
+ * Line numbers of `unsafe` blocks and impls with no `SAFETY:` comment where clippy's undocumented_unsafe_blocks
+ * looks: the comment lines (attributes and blank lines in between allowed) right above the line, or above the
+ * statement that holds it.
+ */
+export function undocumentedUnsafe(source: string): number[] {
+  const lines = source.split('\n')
+  const code = (line: string) => line.replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/\/\/.*$/, '')
+  const documentedAbove = (index: number) => {
+    for (let j = index - 1; j >= 0; j--) {
+      const text = lines[j]!.trim()
+      if (text.startsWith('//')) {
+        if (text.includes('SAFETY:')) return true
+      } else if (text !== '' && !text.startsWith('#[')) {
+        return false
+      }
+    }
+    return false
+  }
+  const statementStart = (index: number) => {
+    let j = index
+    while (j > 0 && !/^let\b/.test(lines[j]!.trim())) {
+      const previous = lines[j - 1]!.trim()
+      if (previous === '' || previous.startsWith('//') || /[;{}]$/.test(code(previous).trim()))
+        break
+      j--
+    }
+    return j
+  }
+  return lines.flatMap((line, index) =>
+    /\bunsafe\b(?!\s*(?:fn|extern|trait|\())/.test(code(line)) &&
+    !documentedAbove(index) &&
+    !documentedAbove(statementStart(index))
+      ? [index + 1]
+      : [],
+  )
+}

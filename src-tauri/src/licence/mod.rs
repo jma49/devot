@@ -47,6 +47,9 @@ use crate::storage::Write;
 
 pub(crate) const CHANGED_EVENT: &str = "devot://licence-changed";
 pub(crate) const REQUIRED: &str = "E_LICENCE_REQUIRED";
+/// The gate's refusal when the keychain would not give the licence, the trial or the seat, which
+/// adding a licence does not fix; the item is read again at the next tick.
+pub(crate) const UNREADABLE: &str = "E_LICENCE_UNREADABLE";
 /// A pasted key may carry line breaks from an email; anything longer than this is not a key.
 const MAX_INPUT: usize = 4 * MAX_LENGTH;
 /// How often the trial is looked at while Devot runs: its end reaches the windows within this.
@@ -835,12 +838,30 @@ impl Licence {
             .is_ok_and(|trial| trial.running(now) || (what == Write::Body && trial.in_grace(now)))
     }
 
+    fn refusal(&self) -> &'static str {
+        let key = self.unread().ok().and_then(|code| *code);
+        let trial = self
+            .trial_lock()
+            .ok()
+            .and_then(|trial| trial.as_ref().and_then(|trial| trial.record.err()));
+        let seat = self.seat_unread.lock().ok().and_then(|code| *code);
+        if [key, trial, seat]
+            .into_iter()
+            .flatten()
+            .any(|code| code.starts_with("E_LICENCE_KEYCHAIN"))
+        {
+            UNREADABLE
+        } else {
+            REQUIRED
+        }
+    }
+
     /// Sync and AI call this before they connect or send.
     pub(crate) fn require(&self) -> Result<(), &'static str> {
         if self.unlocked(Write::Content) {
             Ok(())
         } else {
-            Err(REQUIRED)
+            Err(self.refusal())
         }
     }
 
@@ -850,7 +871,7 @@ impl Licence {
         if what == Write::Bookkeeping || self.unlocked(what) {
             Ok(())
         } else {
-            Err(REQUIRED)
+            Err(self.refusal())
         }
     }
 

@@ -1131,6 +1131,8 @@ fn once_the_trial_is_over_writes_are_refused_before_the_window_is_asked() {
     }
     assert_eq!(dispatch.inner.reached(), 4);
     assert_eq!(status_of("E_LICENCE_REQUIRED"), 403);
+    // The keychain is read again at the next tick, so the call may work later.
+    assert_eq!(status_of("E_LICENCE_UNREADABLE"), 503);
     licence
         .set(&crate::licence::testing::key(crate::licence::testing::ID))
         .unwrap();

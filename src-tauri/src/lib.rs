@@ -51,6 +51,7 @@ mod net;
 mod note_relay;
 mod note_window;
 pub mod page_setup;
+mod pending;
 mod plugins;
 mod settings;
 mod sidebar_glass;
@@ -330,6 +331,7 @@ pub fn run() {
         .on_page_load(|webview, payload| {
             deep_link::on_page_load(webview, payload);
             cli_append::on_page_load(webview, payload);
+            import::on_page_load(webview, payload);
         })
         .on_window_event(|window, event| {
             exit::on_window_event(window, event);
@@ -338,6 +340,7 @@ pub fn run() {
             note_window::on_window_event(window, event);
             deep_link::on_window_event(window, event);
             cli_append::on_window_event(window, event);
+            import::on_window_event(window, event);
             sync::on_window_event(window, event);
             #[cfg(desktop)]
             updates::on_window_event(window, event);

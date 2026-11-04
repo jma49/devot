@@ -3369,6 +3369,35 @@ fn a_revision_written_again_keeps_its_new_word_count() {
     assert_eq!(revisions[0].words, Some(5));
 }
 
+#[test]
+fn notebooks_tags_and_saved_searches_keep_the_earlier_creation_time() {
+    let (_dir, mut store) = temp_store();
+    let hlc = "0000000000000010-0000-a";
+    let tag = |created_at: i64| TagRecord {
+        id: "t".into(),
+        name: "idea".into(),
+        name_hlc: hlc.into(),
+        created_at,
+        updated_at: created_at,
+        deleted_at: None,
+        deleted_hlc: None,
+        color: None,
+        color_hlc: String::new(),
+    };
+    for created_at in [900, 100, 500] {
+        let mut b = book("b1", "Templates", hlc);
+        b.created_at = created_at;
+        store.put_book(&b).unwrap();
+        store.put_tag(&tag(created_at)).unwrap();
+        let mut s = saved_search("s1", "Open", hlc);
+        s.created_at = created_at;
+        store.put_saved_search(&s).unwrap();
+    }
+    assert_eq!(store.list_books().unwrap()[0].created_at, 100);
+    assert_eq!(store.list_tags().unwrap()[0].created_at, 100);
+    assert_eq!(store.list_saved_searches().unwrap()[0].created_at, 100);
+}
+
 fn saved_search(id: &str, name: &str, name_hlc: &str) -> SavedSearchRecord {
     SavedSearchRecord {
         id: id.into(),

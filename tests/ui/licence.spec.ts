@@ -280,6 +280,29 @@ test.describe('locked sync and AI', () => {
       { url: 'https://licence.devot.online/buy' },
     ])
   })
+
+  test('the main window says the keychain kept the licence back, with no Buy', async ({ page }) => {
+    await fakeRust(page, none())
+    await page.addInitScript(() => {
+      const w = globalThis as unknown as TestWindow
+      w.devotIpcMocks = {
+        ...w.devotIpcMocks,
+        sync_get: {
+          relayUrl: 'https://relay.example.com',
+          enabled: true,
+          vault: true,
+          enrolled: true,
+          status: { state: 'stopped', lastSync: null, code: 'E_LICENCE_UNREADABLE', tooLarge: 0 },
+        },
+      }
+    })
+    await openApp(page)
+    const notice = page.getByRole('alert').filter({ hasText: 'Sync has stopped' })
+    await expect(notice).toContainText('could not read its license from the keychain')
+    await expect(notice).toContainText('E_LICENCE_UNREADABLE')
+    await expect(notice).not.toContainText('trial')
+    await expect(notice.getByRole('button', { name: 'Buy a License' })).toHaveCount(0)
+  })
 })
 
 test.describe('the read-only library', () => {

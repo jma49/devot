@@ -7,8 +7,9 @@
 //! never walks symbolic links (an image may be reached through one, but only to a visible file
 //! inside the folder), and files over 10 MB are left out. Images are stored as attachments straight
 //! from disk, so their bytes never cross IPC.
-//! A folder scan runs on its own thread; closing the session (`import_finish`) cancels a scan still
-//! running. Nothing is written until the UI imports the scan.
+//! A folder scan runs on its own thread; closing the session (`import_finish`), or closing or
+//! reloading the main window that shows it, cancels a scan still running. Nothing is written until
+//! the UI imports the scan.
 
 use crate::commands::files::{MAX_FILE_BYTES, Upload, store_upload};
 use crate::commands::notes::valid_note_id;
@@ -21,7 +22,8 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::webview::{PageLoadEvent, PageLoadPayload};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State, Window, WindowEvent};
 use tauri_plugin_dialog::DialogExt;
 
 /// Markdown files and images share the attachments' size cap.
@@ -510,16 +512,31 @@ pub fn resolve(root: &Path, rel: &str) -> Result<(PathBuf, u64), &'static str> {
     Ok((path, meta.len()))
 }
 
-fn read_capped(path: &Path, max: u64) -> Result<Vec<u8>, &'static str> {
-    let file = std::fs::File::open(path).map_err(|_| "E_IMPORT_UNREADABLE")?;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Capped {
+    Unreadable,
+    TooLarge,
+}
+
+/// Reads at most `max` bytes, and one more to tell a reader that holds more.
+pub fn read_capped(reader: impl Read, max: u64) -> Result<Vec<u8>, Capped> {
     let mut data = Vec::new();
-    file.take(max + 1)
+    reader
+        .take(max + 1)
         .read_to_end(&mut data)
-        .map_err(|_| "E_IMPORT_UNREADABLE")?;
+        .map_err(|_| Capped::Unreadable)?;
     if data.len() as u64 > max {
-        return Err("E_IMPORT_FILE_TOO_LARGE");
+        return Err(Capped::TooLarge);
     }
     Ok(data)
+}
+
+fn read_file_capped(path: &Path, max: u64) -> Result<Vec<u8>, &'static str> {
+    let file = std::fs::File::open(path).map_err(|_| "E_IMPORT_UNREADABLE")?;
+    read_capped(file, max).map_err(|capped| match capped {
+        Capped::Unreadable => "E_IMPORT_UNREADABLE",
+        Capped::TooLarge => "E_IMPORT_FILE_TOO_LARGE",
+    })
 }
 
 pub fn read_note(root: &Path, rel: &str) -> Result<String, &'static str> {
@@ -527,8 +544,8 @@ pub fn read_note(root: &Path, rel: &str) -> Result<String, &'static str> {
     if size > MAX_NOTE_BYTES {
         return Err("E_IMPORT_FILE_TOO_LARGE");
     }
-    let text =
-        String::from_utf8(read_capped(&path, MAX_NOTE_BYTES)?).map_err(|_| "E_IMPORT_NOT_UTF8")?;
+    let text = String::from_utf8(read_file_capped(&path, MAX_NOTE_BYTES)?)
+        .map_err(|_| "E_IMPORT_NOT_UTF8")?;
     Ok(match text.strip_prefix('\u{feff}') {
         Some(rest) => rest.to_owned(),
         None => text,
@@ -546,7 +563,7 @@ pub fn read_image(root: &Path, rel: &str) -> Result<Image, &'static str> {
     if size == 0 || size > MAX_FILE_BYTES as u64 {
         return Err("E_FILE_SIZE_INVALID");
     }
-    let data = read_capped(&path, MAX_FILE_BYTES as u64).map_err(|code| match code {
+    let data = read_file_capped(&path, MAX_FILE_BYTES as u64).map_err(|code| match code {
         "E_IMPORT_FILE_TOO_LARGE" => "E_FILE_SIZE_INVALID",
         other => other,
     })?;
@@ -572,6 +589,13 @@ struct Session {
     roots: Vec<Root>,
     files: HashSet<String>,
     shallow: bool,
+    window: Option<String>,
+}
+
+/// A folder scan still running, and the main window that shows it.
+struct Begun {
+    cancelled: Arc<AtomicBool>,
+    window: Option<String>,
 }
 
 /// How deep an image of a picked file may be: in the file's own folder or
@@ -597,19 +621,26 @@ pub fn read_session_image(root: &Path, rel: &str, shallow: bool) -> Result<Image
     read_image(root, rel)
 }
 
+/// Each session belongs to the main window whose page shows it, once one does; a session handed
+/// over by the `devot` command belongs to none until it is released to a window (`own`). A window
+/// that closes or reloads loses its import sheets, so its sessions end with it (`release`).
 #[derive(Default)]
 pub struct Imports {
     next: AtomicU64,
-    pending: Mutex<HashMap<u64, Arc<AtomicBool>>>,
+    pending: Mutex<HashMap<u64, Begun>>,
     sessions: Mutex<HashMap<u64, Session>>,
 }
 
 impl Imports {
-    pub fn begin(&self) -> (u64, Arc<AtomicBool>) {
+    pub fn begin(&self, window: Option<&str>) -> (u64, Arc<AtomicBool>) {
         let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
         let cancelled = Arc::new(AtomicBool::new(false));
         if let Ok(mut pending) = self.pending.lock() {
-            pending.insert(id, cancelled.clone());
+            let begun = Begun {
+                cancelled: cancelled.clone(),
+                window: window.map(str::to_owned),
+            };
+            pending.insert(id, begun);
         }
         (id, cancelled)
     }
@@ -620,14 +651,15 @@ impl Imports {
         // `finish` takes first, so a finish never falls between them (and
         // the session it was meant to end is never left open).
         let mut pending = self.pending.lock().ok()?;
-        let flag = pending.remove(&id)?;
-        if flag.load(Ordering::Relaxed) {
+        let begun = pending.remove(&id)?;
+        if begun.cancelled.load(Ordering::Relaxed) {
             return None;
         }
         let session = Session {
             shallow: found.kind == Kind::Files,
             roots: found.roots,
             files: found.files.iter().map(|f| f.path.clone()).collect(),
+            window: begun.window,
         };
         self.sessions.lock().ok()?.insert(id, session);
         drop(pending);
@@ -643,7 +675,16 @@ impl Imports {
     }
 
     pub fn start(&self, found: Found, destination: Option<String>) -> Scan {
-        let (id, _) = self.begin();
+        self.start_in(None, found, destination)
+    }
+
+    pub fn start_in(
+        &self,
+        window: Option<&str>,
+        found: Found,
+        destination: Option<String>,
+    ) -> Scan {
+        let (id, _) = self.begin(window);
         // A session just begun is never cancelled: the fallback is not used.
         self.ready(id, found, destination).unwrap_or_else(|| Scan {
             id,
@@ -697,7 +738,7 @@ impl Imports {
         let scanning = self.pending.lock().map_or(0, |pending| {
             pending
                 .values()
-                .filter(|cancelled| !cancelled.load(Ordering::Relaxed))
+                .filter(|begun| !begun.cancelled.load(Ordering::Relaxed))
                 .count()
         });
         scanning + self.sessions.lock().map_or(0, |sessions| sessions.len())
@@ -705,13 +746,53 @@ impl Imports {
 
     pub fn finish(&self, id: u64) {
         if let Ok(pending) = self.pending.lock()
-            && let Some(flag) = pending.get(&id)
+            && let Some(begun) = pending.get(&id)
         {
-            flag.store(true, Ordering::Relaxed);
+            begun.cancelled.store(true, Ordering::Relaxed);
         }
         if let Ok(mut sessions) = self.sessions.lock() {
             sessions.remove(&id);
         }
+    }
+
+    /// `window` now shows the scanned session `id`.
+    pub fn own(&self, id: u64, window: &str) {
+        if let Ok(mut sessions) = self.sessions.lock()
+            && let Some(session) = sessions.get_mut(&id)
+        {
+            session.window = Some(window.to_owned());
+        }
+    }
+
+    /// Ends every session `window` shows, scanning or scanned, as `finish` would.
+    pub fn release(&self, window: &str) {
+        let mine = |owner: &Option<String>| owner.as_deref() == Some(window);
+        if let Ok(pending) = self.pending.lock() {
+            for begun in pending.values().filter(|begun| mine(&begun.window)) {
+                begun.cancelled.store(true, Ordering::Relaxed);
+            }
+        }
+        if let Ok(mut sessions) = self.sessions.lock() {
+            sessions.retain(|_, session| !mine(&session.window));
+        }
+    }
+}
+
+pub(crate) fn on_page_load<R: Runtime>(webview: &tauri::Webview<R>, payload: &PageLoadPayload<'_>) {
+    if !crate::main_windows::is_main(webview.label()) || payload.event() != PageLoadEvent::Started {
+        return;
+    }
+    if let Some(imports) = webview.try_state::<Imports>() {
+        imports.release(webview.label());
+    }
+}
+
+pub(crate) fn on_window_event(window: &Window, event: &WindowEvent) {
+    if !matches!(event, WindowEvent::Destroyed) || !crate::main_windows::is_main(window.label()) {
+        return;
+    }
+    if let Some(imports) = window.app_handle().try_state::<Imports>() {
+        imports.release(window.label());
     }
 }
 
@@ -859,7 +940,10 @@ pub fn pick(app: &AppHandle, pick: Pick, destination: Option<String>, target: &s
                 };
                 match pick_found(&paths, html) {
                     Ok(found) => {
-                        let scan = app.state::<Imports>().start(found, destination);
+                        let shown_in = crate::main_windows::live_or_front(&app, &target);
+                        let scan =
+                            app.state::<Imports>()
+                                .start_in(Some(&shown_in), found, destination);
                         log::info!(
                             "I_IMPORT_PICKED {} files={} skipped={}",
                             scan.id,
@@ -881,7 +965,8 @@ fn scan_in_background(
     destination: Option<String>,
     target: String,
 ) {
-    let (id, cancelled) = app.state::<Imports>().begin();
+    let shown_in = crate::main_windows::live_or_front(&app, &target);
+    let (id, cancelled) = app.state::<Imports>().begin(Some(&shown_in));
     let name = paths
         .first()
         .and_then(|p| p.file_name())
@@ -1423,7 +1508,7 @@ mod tests {
     fn a_session_closed_while_its_scan_runs_never_opens() {
         let dir = sample();
         let imports = Imports::default();
-        let (id, cancelled) = imports.begin();
+        let (id, cancelled) = imports.begin(None);
         imports.finish(id);
         assert!(cancelled.load(Ordering::Relaxed));
         assert_eq!(imports.ready(id, scan(dir.path()).unwrap(), None), None);
@@ -1431,7 +1516,7 @@ mod tests {
             imports.root_for(id, "Inbox.md", true),
             Err("E_IMPORT_SESSION")
         );
-        let (id, _) = imports.begin();
+        let (id, _) = imports.begin(None);
         assert!(imports.ready(id, scan(dir.path()).unwrap(), None).is_some());
         assert!(imports.root_for(id, "Inbox.md", true).is_ok());
     }
@@ -1502,7 +1587,7 @@ mod tests {
         let dir = sample();
         let found = scan(dir.path()).unwrap();
         let imports = Imports::default();
-        let (scanning, _) = imports.begin();
+        let (scanning, _) = imports.begin(None);
         let scanned = imports.start(found, None).id;
         assert_eq!(imports.open(), 2);
         imports.finish(scanning);
@@ -1511,12 +1596,48 @@ mod tests {
     }
 
     #[test]
+    fn a_window_that_closes_or_reloads_ends_the_sessions_it_shows_and_no_others() {
+        let dir = sample();
+        let found = scan(dir.path()).unwrap();
+        let imports = Imports::default();
+        let picked = imports.start_in(Some("main-2"), found.clone(), None).id;
+        let (scanning, cancelled) = imports.begin(Some("main-2"));
+        let handed = imports.start(found.clone(), None).id;
+        imports.own(handed, "main-2");
+        let held = imports.start(found.clone(), None).id;
+        let other = imports.start_in(Some("main"), found.clone(), None).id;
+        assert_eq!(imports.open(), 5);
+
+        imports.release("main-2");
+        assert_eq!(
+            imports.open(),
+            2,
+            "the held hand-off and main's session stay"
+        );
+        assert!(cancelled.load(Ordering::Relaxed));
+        assert_eq!(imports.ready(scanning, found, None), None);
+        for gone in [picked, handed] {
+            assert_eq!(
+                imports.root_for(gone, "Inbox.md", true).map(|_| ()),
+                Err("E_IMPORT_SESSION")
+            );
+        }
+        for kept in [held, other] {
+            assert!(imports.root_for(kept, "Inbox.md", true).is_ok());
+        }
+
+        imports.release("main");
+        assert_eq!(imports.open(), 1, "a hand-off no window took yet stays");
+        assert!(imports.pending.lock().unwrap().is_empty());
+    }
+
+    #[test]
     fn a_finish_racing_a_ready_scan_never_leaves_its_session_open() {
         let dir = sample();
         let found = scan(dir.path()).unwrap();
         let imports = Arc::new(Imports::default());
         for _ in 0..500 {
-            let (id, _) = imports.begin();
+            let (id, _) = imports.begin(None);
             let finisher = {
                 let imports = imports.clone();
                 std::thread::spawn(move || imports.finish(id))
@@ -1606,7 +1727,7 @@ mod tests {
         assert_eq!(picked.destination.as_deref(), Some(id));
         let json = serde_json::to_value(&picked).unwrap();
         assert_eq!(json["destination"], id);
-        let (next, _) = imports.begin();
+        let (next, _) = imports.begin(None);
         let scanned = imports
             .ready(next, scan(dir.path()).unwrap(), None)
             .unwrap();

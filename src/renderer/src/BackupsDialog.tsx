@@ -111,6 +111,9 @@ export function BackupsDialog(props: {
             return (
               <li key={b.id} className="backup-row">
                 <span className="backup-date">{date}</span>
+                {b.verified === false ? (
+                  <span className="backup-note">{t('backups.unverified')}</span>
+                ) : null}
                 <span className="backup-size">{fileSize(b.size, locale)}</span>
                 <button
                   type="button"

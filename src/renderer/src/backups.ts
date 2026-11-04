@@ -7,6 +7,8 @@ export interface BackupInfo {
   id: string
   createdAt: number
   size: number
+  /** False for a safety copy taken byte for byte from a library that failed its check. */
+  verified?: boolean
 }
 
 export interface BackupStatus {

@@ -262,9 +262,11 @@ impl DeepLinks {
             || main_windows::front_label(app),
             f,
             |target, link| {
-                if app.emit_to(target, EVENT, link).is_err() {
+                let sent = app.emit_to(target, EVENT, link).is_ok();
+                if !sent {
                     log::warn!("W_DEEP_LINK_EMIT_FAILED");
                 }
+                handed(app, target, link, sent);
             },
         );
     }
@@ -385,6 +387,22 @@ pub(crate) fn deliver<R: Runtime>(app: &AppHandle<R>, link: Link) {
     }
 }
 
+/// Files released to `window` belong to it from now on (`import::Imports::own`); ones that never
+/// reached it are finished, as no page will.
+fn handed<R: Runtime>(app: &AppHandle<R>, window: &str, link: &Link, sent: bool) {
+    let Link::Import { scan, .. } = link else {
+        return;
+    };
+    let Some(imports) = app.try_state::<crate::import::Imports>() else {
+        return;
+    };
+    if sent {
+        imports.own(scan.id, window);
+    } else {
+        imports.finish(scan.id);
+    }
+}
+
 /// Whether files handed over now would be held: the single-instance listener refuses the hand-off
 /// otherwise, so the `devot` command fails instead of losing them.
 pub(crate) fn room_for_import<R: Runtime>(app: &AppHandle<R>) -> bool {
@@ -498,7 +516,11 @@ pub fn deep_link_take(
     links: tauri::State<'_, DeepLinks>,
     window: tauri::WebviewWindow,
 ) -> Vec<Link> {
-    links.with(|inbox| inbox.take(window.label()))
+    let taken = links.with(|inbox| inbox.take(window.label()));
+    for link in &taken {
+        handed(window.app_handle(), window.label(), link, true);
+    }
+    taken
 }
 
 #[cfg(test)]

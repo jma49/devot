@@ -9,9 +9,11 @@ import {
   AUTHORSHIP_ID,
   cleanWriterName,
   clearAuthorship,
+  MAX_REPORTED_INVALID,
   newAuthorshipId,
   newWriter,
   packRanges,
+  readWriters,
   readWrites,
   recordTransaction,
   reverseWrites,
@@ -143,6 +145,22 @@ describe('recording a write', () => {
     expect(doc.getMap(WRITES).size).toBe(3)
     expect(warn).toHaveBeenCalledWith('W_AUTHORSHIP_RECORD_INVALID', 'note-1')
     expect(warn.mock.calls.flat().join(' ')).not.toContain('Text')
+    warn.mockRestore()
+  })
+
+  it('logs each invalid record once, remembering a bounded number of them', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const bad = new Y.Doc()
+    bad.getMap(WRITERS).set('not-a-writer', { v: 1 })
+    const logged = () => warn.mock.calls.filter((call) => call.includes('note-once')).length
+    readWriters(bad, 'note-once')
+    readWriters(bad, 'note-once')
+    expect(logged()).toBe(1)
+    const many = new Y.Doc()
+    for (let i = 0; i < MAX_REPORTED_INVALID; i += 1) many.getMap(WRITERS).set(`bad-${i}`, { v: 1 })
+    readWriters(many, 'note-many')
+    readWriters(bad, 'note-once')
+    expect(logged()).toBe(2)
     warn.mockRestore()
   })
 })

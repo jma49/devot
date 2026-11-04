@@ -4,6 +4,7 @@ import { currentLocale, format, t, type MessageKey } from './i18n'
 import { LICENCE_REQUIRED, licenceSnapshot, trialOver } from './licence'
 import { LicenceButton } from './LicenceLocked'
 import { STOP_ADVICE, STORAGE_FULL, usePauseOver, type SyncSnapshot } from './sync'
+import { RESTORE_CHOICE } from '../../core/sync/restore'
 import type { UsageNotice } from '../../core/sync/usage'
 import { USAGE_NOTICE_TEXT, useUsageNotice } from './syncUsage'
 
@@ -12,6 +13,7 @@ const STOPPED: Readonly<Record<string, MessageKey>> = {
   E_SYNC_UNAUTHORIZED: 'sync.notice.revoked',
   E_SYNC_CLOCK_SKEW: 'sync.notice.clock',
   E_LICENCE_REQUIRED: 'sync.notice.licence',
+  E_LICENCE_UNREADABLE: 'sync.notice.licenceUnreadable',
 }
 
 function stateMessage(snapshot: SyncSnapshot, pauseOver: boolean): string | undefined {
@@ -29,6 +31,8 @@ function stateMessage(snapshot: SyncSnapshot, pauseOver: boolean): string | unde
     return format(t('sync.notice.pausedUpload'), { time, ...uploadCounts(upload, locale) })
   }
   if (state === 'stopped' && code) {
+    // The main window asks (RestoreSyncChoice).
+    if (code === RESTORE_CHOICE) return undefined
     if (code === LICENCE_REQUIRED && trialOver(licenceSnapshot(), Date.now()))
       return t('sync.notice.licenceTrialEnded')
     const advice = STOP_ADVICE[code]

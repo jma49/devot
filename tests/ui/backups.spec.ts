@@ -85,6 +85,24 @@ test('lists backups newest first with their sizes; restoring asks first, then re
   await expect(page.getByRole('dialog', { name: 'Backups' })).toBeHidden()
 })
 
+test('marks a safety copy taken unchecked from a damaged library as unverified', async ({
+  page,
+}) => {
+  const RAW = {
+    id: 'devot-2026-10-10T09-00-00-000Z-3-before-restore-raw.sqlite',
+    createdAt: Date.UTC(2026, 9, 10, 9),
+    size: 300_000,
+    verified: false,
+  }
+  await open(page, {
+    backups_list: { backups: [RAW, { ...NEW, verified: true }], lastError: null },
+  })
+  await showBackups(page)
+  const rows = page.getByRole('dialog', { name: 'Backups' }).getByRole('listitem')
+  await expect(rows.nth(0)).toContainText('Unverified copy')
+  await expect(rows.nth(1)).not.toContainText('Unverified')
+})
+
 test('a failed restore keeps the dialog open with the code', async ({ page }) => {
   await open(page, {
     backups_list: { backups: [OLD], lastError: null },

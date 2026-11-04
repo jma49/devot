@@ -718,6 +718,7 @@ fn upsert_tag(conn: &Connection, tag: &TagRecord) -> Result<()> {
                              THEN excluded.deleted_at ELSE deleted_at END,
            deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
                               THEN excluded.deleted_hlc ELSE deleted_hlc END,
+           created_at = MIN(excluded.created_at, created_at),
            updated_at = MAX(excluded.updated_at, updated_at)",
         params![
             tag.id,
@@ -756,6 +757,7 @@ fn upsert_saved_search(conn: &Connection, search: &SavedSearchRecord) -> Result<
                              THEN excluded.deleted_at ELSE deleted_at END,
            deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
                               THEN excluded.deleted_hlc ELSE deleted_hlc END,
+           created_at = MIN(excluded.created_at, created_at),
            updated_at = MAX(excluded.updated_at, updated_at)",
         params![
             search.id,
@@ -1586,6 +1588,7 @@ impl Store {
                                  THEN excluded.deleted_at ELSE deleted_at END,
                deleted_hlc = CASE WHEN COALESCE(excluded.deleted_hlc, '') > COALESCE(deleted_hlc, '')
                                   THEN excluded.deleted_hlc ELSE deleted_hlc END,
+               created_at = MIN(excluded.created_at, created_at),
                updated_at = MAX(excluded.updated_at, updated_at)",
             params![
                 book.id,

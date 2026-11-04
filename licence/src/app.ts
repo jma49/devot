@@ -51,6 +51,9 @@ export const LIMITS = {
   /** /resend sends allowed a day in all, well under Resend's 100 a day, so issued mails keep room. */
   resendAllPerDay: 25,
   resendWindowSeconds: 3600,
+  /** /buy Checkout Sessions allowed an hour per IP, so a script cannot fill Stripe with sessions. */
+  buyPerIp: 10,
+  buyWindowSeconds: 3600,
   /** How long a mail claim holds before another sender may take it (a Resend call times out in 10 s). */
   mailClaimSeconds: 60,
   webhookBytes: 512 * 1024,
@@ -134,7 +137,17 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
    */
   const payable = (session: CheckoutSession): boolean => session.livemode || signer.kid === TEST_KID
 
-  async function checkout(origin: string): Promise<Response> {
+  async function checkout(request: Request, origin: string): Promise<Response> {
+    const seconds = Math.floor(now().getTime() / 1000)
+    const hour = Math.floor(seconds / LIMITS.buyWindowSeconds)
+    const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown'
+    if ((await store.hit(await rateKey('buy-ip', ip), hour)) > LIMITS.buyPerIp) {
+      log('I_LICENCE_BUY_LIMITED')
+      const page = errorPage('E_LICENCE_RATE_LIMITED', 429)
+      const wait = (hour + 1) * LIMITS.buyWindowSeconds - seconds
+      page.headers.set('Retry-After', String(wait))
+      return page
+    }
     const session = await stripe.createCheckoutSession(checkoutParams(config, origin))
     return new Response(null, { status: 303, headers: { Location: session.url } })
   }
@@ -486,7 +499,7 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
     try {
       switch (url.pathname) {
         case '/buy':
-          return await checkout(url.origin)
+          return await checkout(request, url.origin)
         case '/stripe/webhook':
           return await webhook(request)
         case '/done':

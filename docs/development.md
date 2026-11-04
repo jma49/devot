@@ -6,7 +6,7 @@ How to build, run and test Devot from a checkout. The rules every change follows
 
 - macOS 26 or later (Apple Silicon or Intel) and the Xcode command line tools (`xcode-select --install`), which are enough to run and test. A bundle with the layered app icon (`pnpm build`, `pnpm build:debug`) needs the full Xcode 26 or later: the command line tools have no `actool`, so the bundler only logs an error and leaves `Assets.car` out, and macOS 26 may then show the flat `icon.icns` in a box (`architecture.md`, Design system).
 - Node 24+ and pnpm 12 (`npm install -g pnpm@12`).
-- Rust through rustup (`brew install rustup` or [rustup.rs](https://rustup.rs), then `rustup default stable`). Make sure `cargo` is on your `PATH`; with Homebrew's rustup, add `$(brew --prefix rustup)/bin`.
+- Rust through rustup (`brew install rustup` or [rustup.rs](https://rustup.rs)). `src-tauri/rust-toolchain.toml` pins the release CI uses, with clippy, rustfmt and the iOS simulator target; run `rustup toolchain install` in `src-tauri` once (and again after the pin changes), and every `cargo` there uses it. Make sure `cargo` is on your `PATH`; with Homebrew's rustup, add `$(brew --prefix rustup)/bin`.
 
 ## Getting started
 
@@ -91,7 +91,7 @@ The iPhone app is at an early stage: it builds and starts with the desktop inter
 
 ```sh
 brew install xcodegen cocoapods
-rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+(cd src-tauri && rustup target add aarch64-apple-ios)  # the simulator target comes with rust-toolchain.toml
 xcodebuild -downloadPlatform iOS                 # the simulator, once
 pnpm tauri ios build --debug --target aarch64-sim  # src-tauri/gen/apple/build/arm64-sim/Devot.app
 pnpm tauri ios dev                               # run on a simulator or a connected iPhone

@@ -65,11 +65,17 @@ export function writeBlocksOf(state: EditorState, tree = syntaxTree(state)): rea
   return blocks
 }
 
-/** The block of the top level that holds `pos`, if any. */
-function topAt(tree: Tree, pos: number): SyntaxNode | null {
-  let node: SyntaxNode | null = tree.resolveInner(pos, 1)
-  while (node?.parent && node.parent.parent) node = node.parent
-  return node?.parent ? node : null
+/**
+ * The block of the top level that holds a position, for positions asked in
+ * increasing order: one pass over the top level, however many are asked.
+ */
+function topLevel(tree: Tree): (pos: number) => SyntaxNode | null {
+  const cursor = tree.cursor()
+  let more = cursor.firstChild()
+  return (pos) => {
+    while (more && cursor.to <= pos) more = cursor.nextSibling()
+    return more && cursor.from <= pos ? cursor.node : null
+  }
 }
 
 const CANDIDATE = /^ {0,3}(?:\$\$|```|~~~|<|https:\/\/|!\[)/
@@ -90,6 +96,7 @@ function scan(state: EditorState, tree: Tree): WriteBlock[] {
     } else line.text += iter.value
   }
   lines.push(line)
+  const topAt = topLevel(tree)
   const lineEnd = (i: number) => lines[i]!.from + lines[i]!.text.length
   const block = (kind: WriteBlockKind, first: number, last: number, entry: number) => {
     const from = lines[first]!.from
@@ -100,7 +107,7 @@ function scan(state: EditorState, tree: Tree): WriteBlock[] {
     const { from, text } = lines[i]!
     if (!CANDIDATE.test(text)) continue
     const start = from + text.length - text.trimStart().length
-    const node = topAt(tree, start)
+    const node = topAt(start)
     if (!node) continue
     if (node.name === 'FencedCode') {
       if (node.from === start) fence(node, i)
@@ -116,8 +123,9 @@ function scan(state: EditorState, tree: Tree): WriteBlock[] {
     const single = node.from === start && node.to <= lineEnd(i)
     // A math fence starts a block inside a paragraph too, as the preview reads it.
     if (MATH_FENCE.test(text)) {
-      const close = lines.findIndex((l, n) => n > i && MATH_FENCE.test(l.text))
-      if (close < 0) return out
+      let close = i + 1
+      while (close < lines.length && !MATH_FENCE.test(lines[close]!.text)) close++
+      if (close === lines.length) return out
       block('math', i, close, lineEnd(close - i >= 2 ? i + 1 : i))
       i = close
       continue

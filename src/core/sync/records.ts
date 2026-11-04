@@ -176,6 +176,9 @@ const isName = (v: unknown): v is string => typeof v === 'string' && v.length <=
 const isNullable = <T>(v: unknown, test: (v: unknown) => v is T): v is T | null =>
   v === null || test(v)
 const isShort = (v: unknown): v is string => typeof v === 'string' && v.length <= 200
+// As long as a placed row's key may grow before its siblings are renumbered.
+const isSortKeyText = (v: unknown): v is string =>
+  typeof v === 'string' && v.length <= MAX_SORT_KEY_LENGTH
 
 function readNote(h: Record<string, unknown>, ydoc: Uint8Array): NoteState {
   const tags = h['tags']
@@ -291,7 +294,7 @@ function readBook(h: Record<string, unknown>): BookState {
     isTime(h['updatedAt']) &&
     isNullable(h['deletedAt'], isTime) &&
     isOptionalHlc(h['deletedHlc']) &&
-    isShort(h['sortKey']) &&
+    isSortKeyText(h['sortKey']) &&
     isOptionalHlc(h['sortKeyHlc']) &&
     isNullable(h['icon'], isShort) &&
     isNullable(h['iconColor'], isShort) &&
@@ -342,9 +345,6 @@ function readTag(h: Record<string, unknown>): TagState {
 }
 
 const isQuery = (v: unknown): v is string => typeof v === 'string' && v.length <= 4000
-/** As long as a placed row's key may grow before its siblings are renumbered (slotKeys). */
-const isSearchKey = (v: unknown): v is string =>
-  typeof v === 'string' && v.length <= MAX_SORT_KEY_LENGTH
 
 function readSearch(h: Record<string, unknown>): SearchState {
   const valid =
@@ -352,7 +352,7 @@ function readSearch(h: Record<string, unknown>): SearchState {
     isOptionalHlc(h['nameHlc']) &&
     isQuery(h['query']) &&
     isOptionalHlc(h['queryHlc']) &&
-    isSearchKey(h['sortKey']) &&
+    isSortKeyText(h['sortKey']) &&
     isOptionalHlc(h['sortKeyHlc']) &&
     isTime(h['createdAt']) &&
     isTime(h['updatedAt']) &&
@@ -616,7 +616,9 @@ const sortKeyOf = (local: BookState, remote: BookState): Field<string> =>
     ? { value: remote.sortKey, hlc: remote.sortKeyHlc }
     : { value: local.sortKey, hlc: local.sortKeyHlc }
 
+// A row each device made (Templates, written on first use) keeps the earlier creation time everywhere.
 const bookAhead = (of: BookState, than: BookState) =>
+  of.createdAt < than.createdAt ||
   of.nameHlc > than.nameHlc ||
   of.parentHlc > than.parentHlc ||
   of.deletedHlc > than.deletedHlc ||
@@ -646,7 +648,7 @@ export function mergeBook(local: BookState, remote: BookState): Merged<BookState
     nameHlc: name.hlc,
     parentId: parent.value,
     parentHlc: parent.hlc,
-    createdAt: local.createdAt,
+    createdAt: Math.min(local.createdAt, remote.createdAt),
     updatedAt: Math.max(local.updatedAt, remote.updatedAt),
     deletedAt: deleted.value,
     deletedHlc: deleted.hlc,
@@ -664,7 +666,10 @@ export function mergeBook(local: BookState, remote: BookState): Merged<BookState
 }
 
 const tagAhead = (of: TagState, than: TagState) =>
-  of.nameHlc > than.nameHlc || of.colorHlc > than.colorHlc || of.deletedHlc > than.deletedHlc
+  of.createdAt < than.createdAt ||
+  of.nameHlc > than.nameHlc ||
+  of.colorHlc > than.colorHlc ||
+  of.deletedHlc > than.deletedHlc
 
 export function mergeTag(local: TagState, remote: TagState): Merged<TagState> {
   const name = newer(
@@ -684,7 +689,7 @@ export function mergeTag(local: TagState, remote: TagState): Merged<TagState> {
     id: local.id,
     name: name.value,
     nameHlc: name.hlc,
-    createdAt: local.createdAt,
+    createdAt: Math.min(local.createdAt, remote.createdAt),
     updatedAt: Math.max(local.updatedAt, remote.updatedAt),
     deletedAt: deleted.value,
     deletedHlc: deleted.hlc,
@@ -695,6 +700,7 @@ export function mergeTag(local: TagState, remote: TagState): Merged<TagState> {
 }
 
 const searchAhead = (of: SearchState, than: SearchState) =>
+  of.createdAt < than.createdAt ||
   of.nameHlc > than.nameHlc ||
   of.queryHlc > than.queryHlc ||
   of.deletedHlc > than.deletedHlc ||
@@ -729,7 +735,7 @@ export function mergeSearch(local: SearchState, remote: SearchState): Merged<Sea
     queryHlc: query.hlc,
     sortKey: sortKey.value,
     sortKeyHlc: sortKey.hlc,
-    createdAt: local.createdAt,
+    createdAt: Math.min(local.createdAt, remote.createdAt),
     updatedAt: Math.max(local.updatedAt, remote.updatedAt),
     deletedAt: deleted.value,
     deletedHlc: deleted.hlc,

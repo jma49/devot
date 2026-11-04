@@ -229,12 +229,16 @@ function readWrite(id: string, value: unknown): AgentWrite | null {
   }
 }
 
+/** Invalid records remembered as logged; past it the memory starts again, so a long run stays bounded. */
+export const MAX_REPORTED_INVALID = 1_000
+
 // Each invalid record is logged once per process: readers run on every save and gutter walk. A
 // key that is not an ID is text another program chose, and stays out of the log.
 const reported = new Set<string>()
 function invalid(noteId: string | undefined, key: string) {
   const seen = `${noteId ?? ''} ${key}`
   if (reported.has(seen)) return
+  if (reported.size >= MAX_REPORTED_INVALID) reported.clear()
   reported.add(seen)
   const ids = [...(noteId ? [noteId] : []), ...(AUTHORSHIP_ID.test(key) ? [key] : [])]
   console.warn('W_AUTHORSHIP_RECORD_INVALID', ...ids)
