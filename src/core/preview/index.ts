@@ -13,6 +13,7 @@ import { unified } from 'unified'
 import { BUILTIN_RENDERERS } from './builtins'
 import { splitBlocks } from './blocks'
 import { createSlugger, headingIds, ID_PREFIX } from './headingIds'
+import { remarkHighlightMarks } from './highlightMarks'
 import {
   createPluginRenderer,
   type MarkdownNodes,
@@ -64,6 +65,7 @@ const remark = (sanitize: Schema = schema) =>
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkMath)
+    .use(remarkHighlightMarks)
     // Front matter is shown by the `devot.frontmatter` renderer, not as text.
     // The sanitizer adds the one clobber prefix (`user-content-`): a second one
     // here would leave footnote ids out of reach of their links.

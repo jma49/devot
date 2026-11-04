@@ -41,6 +41,17 @@ export const writeTheme = EditorView.theme({
   '&[data-write] .cm-widgetBuffer': { verticalAlign: 'text-top' },
   '.cm-wm-alert-label': { fontWeight: 'var(--font-weight-semibold)' },
   '.cm-wm-note-chip': { textUnderlineOffset: '4px' },
+  // Raised by position, so the line keeps its height with the number as with its source.
+  '.cm-wm-footnote': {
+    position: 'relative',
+    top: '-0.5em',
+    fontSize: 'var(--font-size-caption)',
+    lineHeight: '0',
+    verticalAlign: 'baseline',
+    color: token('syntax-link'),
+    cursor: 'text',
+  },
+  '.cm-wm-footnote-definition': { marginInlineEnd: 'var(--space-2)' },
   '.cm-wm-note-title': { color: token('syntax-link'), textDecoration: 'underline' },
   '.cm-wm-note-missing': { color: token('text-tertiary'), textDecoration: 'line-through' },
   '.cm-line.cm-wm-rule': {

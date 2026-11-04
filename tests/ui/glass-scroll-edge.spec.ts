@@ -22,6 +22,11 @@ test('fades scrolled editor and preview independently, and restores the Classic 
   await expect(page.locator('.content')).toHaveAttribute('data-scrolled')
   await expect(panes).toHaveCSS('--scroll-edge-size', '28px')
   await expect(panes).not.toHaveCSS('mask-image', 'none')
+  // A few pixels down, the first line is not yet at the edge: the fade is no deeper than the scroll.
+  await preview.evaluate((el) => {
+    el.scrollTop = 6
+  })
+  await expect(panes).toHaveCSS('--scroll-edge-size', '6px')
   await preview.evaluate((el) => {
     el.scrollTop = 0
   })

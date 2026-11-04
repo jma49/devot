@@ -155,9 +155,46 @@ export const MarkupMarks: MarkdownConfig = {
   ],
 }
 
+const HighlightDelim = { resolve: 'Highlight', mark: 'HighlightMark' }
+const SPACE_OR_EDGE = /\s|^$/
+const PUNCTUATION = /[\p{S}\p{P}]/u
+const EQUALS = 61
+
+/** `==text==`, read with strikethrough's flanking rule; the preview reads it alike (core/preview/highlightMarks.ts). */
+export const Highlight: MarkdownConfig = {
+  defineNodes: [
+    { name: 'Highlight', style: { 'Highlight/...': tags.special(tags.content) } },
+    { name: 'HighlightMark', style: tags.processingInstruction },
+  ],
+  parseInline: [
+    {
+      name: 'Highlight',
+      parse(cx, next, pos) {
+        if (next !== EQUALS || cx.char(pos + 1) !== EQUALS || cx.char(pos + 2) === EQUALS) return -1
+        if (cx.char(pos - 1) === EQUALS) return -1
+        const before = cx.slice(pos - 1, pos)
+        const after = cx.slice(pos + 2, pos + 3)
+        const sBefore = SPACE_OR_EDGE.test(before)
+        const sAfter = SPACE_OR_EDGE.test(after)
+        const pBefore = PUNCTUATION.test(before)
+        const pAfter = PUNCTUATION.test(after)
+        return cx.addDelimiter(
+          HighlightDelim,
+          pos,
+          pos + 2,
+          !sAfter && (!pAfter || sBefore || pBefore),
+          !sBefore && (!pBefore || sAfter || pAfter),
+        )
+      },
+      after: 'Emphasis',
+    },
+  ],
+}
+
 export const noteParser = (markdownLanguage.parser as MarkdownParser).configure([
   FrontMatter,
   MarkupMarks,
+  Highlight,
 ])
 
 function startsWithFence(input: Input): boolean {

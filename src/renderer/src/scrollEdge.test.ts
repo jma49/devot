@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { isScrolled, scrollEdges } from './scrollEdge'
+import { isScrolled, scrolledBy, scrollEdges } from './scrollEdge'
 
 it('fades only after moving below the top, including fractional scrolling', () => {
   for (const top of [0, -1, -20, NaN]) expect(isScrolled(top)).toBe(false)
   for (const top of [0.1, 1, 4, 28, 500]) expect(isScrolled(top)).toBe(true)
+})
+
+it('gives the fade the depth scrolled, so text below the top keeps its colour', () => {
+  expect([0, -3, NaN, 6, 0.5, 120].map(scrolledBy)).toEqual([
+    '0px',
+    '0px',
+    '0px',
+    '6px',
+    '0.5px',
+    '120px',
+  ])
 })
 
 describe('scrollEdges', () => {

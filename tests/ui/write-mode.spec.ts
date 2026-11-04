@@ -274,6 +274,59 @@ test.describe('a new install', () => {
     expect(await source(page)).toEqual(['# Plan **more**', ...text.slice(1)])
   })
 
+  test('draws a highlight, a footnote, a double-bracket link and inline code without their marks', async ({
+    page,
+  }) => {
+    const text = ['Some ==marked== text, a note[^1], [[Plan]] and `code`.', '', '[^1]: The source.']
+    await createNote(page, 'Inline', text.join('\n'))
+    const rendered = 'Some marked text, a note1, Plan and code.'
+    await expect.poll(() => lines(page)).toEqual([rendered, '', text[2]])
+    await expect(page.locator('.cm-md-mark')).toHaveCSS(
+      'background-color',
+      'rgba(231, 176, 8, 0.3)',
+    )
+    await expect(page.locator('.cm-md-mark')).toHaveCSS('border-bottom-width', '2px')
+    const footnote = page.locator('.cm-wm-footnote')
+    await expect(footnote).toHaveCSS('font-size', '11px')
+    await expect(footnote).toHaveCSS('position', 'relative')
+    // The card's ink wash (WebKit keeps alpha in 1/255 steps).
+    await expect(page.locator('.cm-md-code')).toHaveCSS(
+      'background-color',
+      /^rgba\(28, 27, 25, 0\.06\d*\)$/,
+    )
+    const height = () =>
+      page
+        .locator('.cm-line')
+        .first()
+        .evaluate(
+          (row) =>
+            (
+              row as unknown as { getBoundingClientRect(): { height: number } }
+            ).getBoundingClientRect().height,
+        )
+    const drawn = await height()
+    await page.keyboard.press('ControlOrMeta+Home')
+    await expect.poll(() => lines(page)).toEqual([rendered, '', '1The source.'])
+    const mark = await charBox(page, 0, 'marked', 2)
+    await page.mouse.click(mark.x + 1, mark.y + mark.height / 2)
+    await expect
+      .poll(() => lines(page))
+      .toEqual(['Some ==marked== text, a note1, Plan and code.', '', '1The source.'])
+    const note = await charBox(page, 0, 'note', 3)
+    await page.mouse.click(note.x + note.width, note.y + note.height / 2)
+    await page.keyboard.press('ArrowRight')
+    await expect
+      .poll(() => lines(page))
+      .toEqual(['Some marked text, a note[^1], Plan and code.', '', '1The source.'])
+    expect(await height()).toBe(drawn)
+    const plan = await charBox(page, 0, 'Plan', 1)
+    await page.mouse.click(plan.x + 1, plan.y + plan.height / 2)
+    await expect
+      .poll(() => lines(page))
+      .toEqual(['Some marked text, a note1, [[Plan]] and code.', '', '1The source.'])
+    expect(await source(page)).toEqual(text)
+  })
+
   test('shows a horizontal rule as source only while the caret is on it', async ({ page }) => {
     await createNote(page, 'Rule', 'a\n\n---\n\nb')
     await expect.poll(() => lines(page)).toEqual(['a', '', '', '', 'b'])

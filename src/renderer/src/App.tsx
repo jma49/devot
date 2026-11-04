@@ -1,4 +1,4 @@
-import { isScrolled } from './scrollEdge'
+import { isScrolled, scrolledBy } from './scrollEdge'
 import { hasDesktopShell } from './platform'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type {
@@ -683,11 +683,18 @@ export function App() {
     const panes = panesRef.current
     const content = panes?.closest('.content')
     if (!panes || !content) return
+    const style = (el: Element) => (el as HTMLElement).style
     const update = () => {
-      const editor = isScrolled(editorPane?.element.scrollTop ?? 0)
-      const preview = isScrolled(previewPane?.element.scrollTop ?? 0)
+      const editorTop = editorPane?.element.scrollTop ?? 0
+      const previewTop = previewPane?.element.scrollTop ?? 0
+      const editor = isScrolled(editorTop)
+      const preview = isScrolled(previewTop)
+      const leadTop = editorOnly(mode) ? editorTop : mode === 'preview' ? previewTop : 0
       panes.toggleAttribute('data-editor-scrolled', editor)
       panes.toggleAttribute('data-preview-scrolled', preview)
+      style(panes).setProperty('--editor-scrolled-by', scrolledBy(editorTop))
+      style(panes).setProperty('--preview-scrolled-by', scrolledBy(previewTop))
+      style(content).setProperty('--pane-scrolled-by', scrolledBy(leadTop))
       content.toggleAttribute(
         'data-scrolled',
         editorOnly(mode) ? editor : mode === 'preview' ? preview : editor || preview,
@@ -699,6 +706,9 @@ export function App() {
     return () => {
       for (const el of scrollers) el.removeEventListener('scroll', update)
       content.removeAttribute('data-scrolled')
+      style(content).removeProperty('--pane-scrolled-by')
+      style(panes).removeProperty('--editor-scrolled-by')
+      style(panes).removeProperty('--preview-scrolled-by')
       panes.removeAttribute('data-editor-scrolled')
       panes.removeAttribute('data-preview-scrolled')
     }

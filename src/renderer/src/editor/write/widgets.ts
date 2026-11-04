@@ -103,6 +103,30 @@ class NoteTitleWidget extends WidgetType {
   }
 }
 
+class FootnoteWidget extends WidgetType {
+  constructor(
+    readonly number: number,
+    readonly definition: boolean,
+  ) {
+    super()
+  }
+
+  override eq(other: FootnoteWidget): boolean {
+    return other.number === this.number && other.definition === this.definition
+  }
+
+  override toDOM(): HTMLElement {
+    const mark = document.createElement('sup')
+    mark.className = this.definition ? 'cm-wm-footnote cm-wm-footnote-definition' : 'cm-wm-footnote'
+    mark.textContent = String(this.number)
+    return mark
+  }
+
+  override ignoreEvent(): boolean {
+    return false
+  }
+}
+
 const HIDE = Decoration.replace({})
 const RULE_LINE = Decoration.line({ class: 'cm-wm-rule' })
 const BULLETS = [1, 2, 3].map((n) => Decoration.mark({ class: `cm-wm-bullet cm-wm-bullet-${n}` }))
@@ -127,6 +151,8 @@ export function decorationOf(range: WriteRange): Decoration {
       return Decoration.replace({ widget: new AlertLabelWidget(range.alert) })
     case 'noteTitle':
       return Decoration.replace({ widget: new NoteTitleWidget(range.id) })
+    case 'footnote':
+      return Decoration.replace({ widget: new FootnoteWidget(range.number, range.definition) })
     case 'mark':
       return Decoration.mark({ class: range.className })
     case 'line':

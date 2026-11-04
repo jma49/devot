@@ -8026,10 +8026,26 @@ button.popup:focus-visible {
   transition: --scroll-edge-size var(--motion-duration-quick) var(--motion-easing-quick);
 }
 
-:root[data-sidebar-material='on'] .content[data-scrolled] > .panes:not(.panes-split),
-:root[data-sidebar-material='on'] .panes-split[data-editor-scrolled] > .editor,
+/* No deeper than the pane has scrolled (App.tsx), so the first line keeps its colour until it reaches the edge. */
+:root[data-sidebar-material='on'] .content[data-scrolled] > .panes:not(.panes-split) {
+  --scroll-edge-size: min(
+    var(--size-scroll-edge),
+    var(--pane-scrolled-by, var(--size-scroll-edge))
+  );
+}
+
+:root[data-sidebar-material='on'] .panes-split[data-editor-scrolled] > .editor {
+  --scroll-edge-size: min(
+    var(--size-scroll-edge),
+    var(--editor-scrolled-by, var(--size-scroll-edge))
+  );
+}
+
 :root[data-sidebar-material='on'] .panes-split[data-preview-scrolled] > .preview {
-  --scroll-edge-size: var(--size-scroll-edge);
+  --scroll-edge-size: min(
+    var(--size-scroll-edge),
+    var(--preview-scrolled-by, var(--size-scroll-edge))
+  );
 }
 
 :root[data-motion='reduced'][data-sidebar-material='on'] .content > .panes,

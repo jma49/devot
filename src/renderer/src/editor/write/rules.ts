@@ -11,6 +11,7 @@ import type { SyntaxNode, Tree } from '@lezer/common'
 import { noteIdOf } from '../../../../core/links'
 import { ALERT_KINDS, type AlertKind } from '../blocks'
 import { writeBlocksOf, type WriteBlock } from './blockRanges'
+import { FOOTNOTE_DEFINITION, FOOTNOTE_REF, footnoteKey, footnoteNumbers } from './footnotes'
 
 export type WriteRange =
   | { kind: 'hide'; from: number; to: number }
@@ -18,6 +19,7 @@ export type WriteRange =
   | { kind: 'task'; from: number; to: number; box: number; done: boolean }
   | { kind: 'alert'; from: number; to: number; alert: AlertKind }
   | { kind: 'noteTitle'; from: number; to: number; id: string }
+  | { kind: 'footnote'; from: number; to: number; number: number; definition: boolean }
   | { kind: 'mark'; from: number; to: number; className: string }
   | { kind: 'line'; from: number; to: number; className: string }
   | { kind: 'unit'; from: number; to: number }
@@ -121,6 +123,7 @@ const MARK_OPEN = /^<mark(?:\s[^>]*)?>$/i
 const MARK_CLOSE = /^<\/mark\s*>$/i
 const LISTS = new Set(['BulletList', 'OrderedList'])
 const SPACE = /[ \t]/
+const WORD_CHAR = /[\p{L}\p{N}]/u
 
 function listDepth(node: SyntaxNode): number {
   let depth = 0
@@ -157,6 +160,9 @@ export function writeRanges(
     to,
     enter: (ref) => {
       const name = ref.name
+      if (name === 'Paragraph' || name === 'LinkReference') {
+        if (footnoteDefinition(ref.node) && name === 'LinkReference') return false
+      }
       if (SOURCE_BLOCKS.has(name)) return false
       // A rendered block's source shows as written when it opens, on every line.
       if (name !== 'Document' && inBlock(rendered, ref.from)) return false
@@ -184,6 +190,7 @@ export function writeRanges(
       switch (name) {
         case 'EmphasisMark':
         case 'StrikethroughMark':
+        case 'HighlightMark':
         case 'CodeMark': {
           const span = node.parent
           if (span && !shows(span.from, span.to)) hide(node.from, node.to)
@@ -263,12 +270,58 @@ export function writeRanges(
     if (oneLine(node.from, end)) out.push({ kind: 'unit', from: node.from, to: end })
   }
 
+  /** A footnote with a definition: its number. */
+  function footnoteNumber(label: string): number | undefined {
+    return footnoteNumbers(doc).get(footnoteKey(label))
+  }
+
+  /** `[^label]: ` at the start of a paragraph or a link reference: drawn as its number while its lines are not selected. */
+  function footnoteDefinition(node: SyntaxNode): boolean {
+    const line = doc.lineAt(node.from)
+    const match = FOOTNOTE_DEFINITION.exec(line.text.slice(node.from - line.from))
+    if (!match || node.from - line.from > 3) return false
+    const number = footnoteNumber(match[1] as string)
+    if (number === undefined) return false
+    const end = node.from + match[0].length
+    if (!showsLines(node.from, node.to) && oneLine(node.from, end))
+      out.push({ kind: 'footnote', from: node.from, to: end, number, definition: true })
+    return true
+  }
+
+  /** `[^label]` with a definition, drawn as its number; `[^label]:` opens a definition. */
+  function footnoteReference(node: SyntaxNode): boolean {
+    const label = FOOTNOTE_REF.exec(text(node.from, node.to))?.[1]
+    if (label === undefined || footnoteNumber(label) === undefined) return false
+    if (text(node.to, node.to + 1) === ':') return true
+    if (!shows(node.from, node.to) && oneLine(node.from, node.to)) {
+      const number = footnoteNumber(label) as number
+      out.push({ kind: 'footnote', from: node.from, to: node.to, number, definition: false })
+    }
+    return true
+  }
+
+  /** `[[text]]` reads as one link to its text, its brackets marks. */
+  function doubleBracketed(node: SyntaxNode, open: SyntaxNode, close: SyntaxNode): boolean {
+    if (close.to !== node.to || node.from < 1) return false
+    if (text(node.from - 1, node.from) !== '[' || text(node.to, node.to + 1) !== ']') return false
+    if (node.from >= 2 && WORD_CHAR.test(text(node.from - 2, node.from - 1))) return false
+    if (shows(node.from - 1, node.to + 1)) return true
+    if (!oneLine(node.from - 1, node.to + 1)) return true
+    hide(node.from - 1, open.to)
+    hide(close.from, node.to + 1)
+    out.push({ kind: 'mark', from: open.to, to: close.from, className: 'cm-wm-note-chip' })
+    return true
+  }
+
   /** An inline link or a full reference: a shortcut reference (`[text]`) may be literal brackets, so it stays. */
   function link(node: SyntaxNode): false | undefined {
+    if (footnoteReference(node)) return false
     const marks = node.getChildren('LinkMark')
     const open = marks[0]
     const close = marks[1]
     const url = node.getChild('URL')
+    if (open && close && !url && !node.getChild('LinkLabel') && doubleBracketed(node, open, close))
+      return
     if (!open || !close || open.from !== node.from || (!url && !node.getChild('LinkLabel'))) return
     if (shows(node.from, node.to)) return false
     const id = url ? noteIdOf(text(url.from, url.to)) : undefined

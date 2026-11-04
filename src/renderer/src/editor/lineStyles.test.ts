@@ -86,6 +86,11 @@ describe('editor line styles', () => {
     expect(marked(doc, 'cm-md-mark-tag')).toEqual(['<mark>', '</mark>'])
   })
 
+  it('highlights the text between == marks, as between mark tags', () => {
+    expect(marked('A ==key **bold**== word', 'cm-md-mark')).toEqual(['key **bold**'])
+    expect(marked('a == b == c, x===y===z, ==open', 'cm-md-mark')).toEqual([])
+  })
+
   it('draws quotes with a bar and alerts in their kind', () => {
     const doc = '> plain\n\n> [!WARNING]\n> careful\n'
     const lines = lineClasses(doc)

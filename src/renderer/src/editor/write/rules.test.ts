@@ -34,6 +34,7 @@ const STAND_IN: Record<string, (r: WriteRange) => string> = {
   task: (r) => (r.kind === 'task' ? (r.done ? '{done}' : '{todo}') : ''),
   alert: (r) => (r.kind === 'alert' ? `{${r.alert}}` : ''),
   noteTitle: (r) => (r.kind === 'noteTitle' ? `{note ${r.id}}` : ''),
+  footnote: (r) => (r.kind === 'footnote' ? `{^${r.number}${r.definition ? ':' : ''}}` : ''),
 }
 
 /** The note as Write mode shows it: hidden marks gone, widgets as `{…}`. */
@@ -72,6 +73,13 @@ describe('Write mode hides inline marks', () => {
     expect(shown('run `npm i` now')).toBe('run npm i now')
     expect(shown('run ``a ` b`` now')).toBe('run a ` b now')
     expect(shown('a <mark>lit</mark> b')).toBe('a lit b')
+    expect(shown('a ==lit== b')).toBe('a lit b')
+  })
+
+  it('of a highlight, its text on the mark fill', () => {
+    expect(marks('a ==lit **up**== b')).toEqual([])
+    expect(shown('a ==lit **up**== b')).toBe('a lit up b')
+    expect(shown('a == b == c, x===y===z')).toBe('a == b == c, x===y===z')
   })
 
   it('of escapes, keeping the character escaped', () => {
@@ -105,8 +113,42 @@ describe('Write mode links', () => {
     expect(shown(`see [](devot://note/${NOTE}).`)).toBe(`see {note ${NOTE}}.`)
   })
 
+  it('in double brackets hide the brackets, the text keeping its link line', () => {
+    expect(shown('a wiki link [[QA Write mode]].')).toBe('a wiki link QA Write mode.')
+    expect(marks('see [[Plan]]')).toEqual(['cm-wm-note-chip Plan'])
+    expect(shown('see [[Plan]]', caret(6))).toBe('see [[Plan]]')
+    expect(shown('x[[1]] and [[a] b]')).toBe('x[[1]] and [[a] b]')
+  })
+
   it('leave images to the image rules', () => {
     expect(shown('![alt](a.png)')).toBe('![alt](a.png)')
+  })
+})
+
+describe('Write mode footnotes', () => {
+  const doc = 'One[^a] two[^1] again[^a] none[^x].\n\n[^1]: First.\n[^a]: The **note**.'
+
+  it('show a reference as its number, counted as the preview counts them', () => {
+    expect(shown(doc).split('\n')[0]).toBe('One{^1} two{^2} again{^1} none[^x].')
+  })
+
+  it('show a definition with its number, then its text', () => {
+    expect(shown(doc).split('\n').slice(2)).toEqual(['{^2:}First.', '{^1:}The note.'])
+  })
+
+  it('show the source of the one the selection meets', () => {
+    expect(shown(doc, caret(4)).split('\n')[0]).toBe('One[^a] two{^2} again{^1} none[^x].')
+    const definition = doc.indexOf('[^1]:') + 2
+    expect(shown(doc, caret(definition)).split('\n').slice(2)).toEqual([
+      '[^1]: First.',
+      '{^1:}The note.',
+    ])
+  })
+
+  it('leave a footnote in code, and a definition nothing refers to, as typed', () => {
+    expect(shown('`a[^1]`\n\n```\nb[^1]\n```\n\n[^1]: x')).toBe(
+      'a[^1]\n\n```\nb[^1]\n```\n\n[^1]: x',
+    )
   })
 })
 

@@ -2,6 +2,11 @@ export function isScrolled(scrollTop: number): boolean {
   return Number.isFinite(scrollTop) && scrollTop > 0
 }
 
+/** How far a pane has scrolled, as a CSS length: its top edge fades no deeper than that, so text just under the top is not faded before it reaches the edge. */
+export function scrolledBy(scrollTop: number): string {
+  return `${isScrolled(scrollTop) ? Math.round(scrollTop * 100) / 100 : 0}px`
+}
+
 interface ScrollMetrics {
   scrollTop: number
   scrollHeight: number

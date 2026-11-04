@@ -324,6 +324,15 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     expect(under(4.5, checkedOn(colours, lines))).toEqual([])
   })
 
+  it('draws inline code at 4.5:1 on its chip, also on the active line, and the chip as the card fill', () => {
+    expect(theme['color.editor.code-fill']).toBe(theme['color.fill.card'])
+    const editor = solid(theme, 'surface.editor')
+    const chips = [editor, over(theme, 'editor.active-line', editor)].map((line) =>
+      over(theme, 'editor.code-fill', line),
+    )
+    expect(worst(solid(theme, 'text.editor'), chips)).toBeGreaterThanOrEqual(4.5)
+  })
+
   it('draws the authorship mark at 3:1 on the editor, also on the active line and the editor wash', () => {
     const editor = solid(theme, 'surface.editor')
     const behind = [editor, over(theme, 'editor.active-line', editor), ...backdrops(theme)]
