@@ -1,7 +1,8 @@
-// Mermaid diagrams. Mermaid runs in a hidden same-origin frame
-// (mermaid.html): it needs a real page to measure text, and its libraries
-// assign to prototypes, which fails in this window, where Object.prototype is
-// frozen. The frame is created on the first diagram. Its SVG is rebuilt here
+// Mermaid diagrams. Mermaid runs in a hidden sandboxed frame (mermaid.html):
+// it needs a real page to measure text, and its libraries assign to
+// prototypes, which fails in this window, where Object.prototype is frozen.
+// The sandbox gives the frame an opaque origin, so it cannot reach this
+// window or its IPC. The frame is created on the first diagram. Its SVG is rebuilt here
 // node by node under the strict CSP: the embedded <style> becomes a
 // constructed stylesheet and `style` attributes go through the CSSOM, so no
 // inline style is ever parsed. Scripts, event handlers, foreign objects and
@@ -18,7 +19,6 @@ import {
   labelDiagram,
   MAX_SOURCE_LENGTH,
   READY,
-  targetOrigin,
   type FailureReason,
   type FrameMessage,
   type RenderRequest,
@@ -28,6 +28,10 @@ import { diagramPalette, exportPalette, type DiagramPalette } from './mermaid-th
 const SVG_NS = 'http://www.w3.org/2000/svg'
 const XLINK_NS = 'http://www.w3.org/1999/xlink'
 const DROPPED = new Set(['script', 'foreignObject', 'iframe', 'image', 'use'])
+
+/** Scripts only: without `allow-same-origin` the frame's origin is opaque. */
+export const MERMAID_FRAME_SANDBOX = 'allow-scripts'
+const FRAME_ORIGIN = 'null'
 
 const TIMEOUT_MS = 10_000
 const LOAD_TIMEOUT_MS = 30_000
@@ -52,12 +56,14 @@ function rendererPort(): Promise<MessagePort> {
     element.className = 'mermaid-frame'
     element.setAttribute('aria-hidden', 'true')
     element.tabIndex = -1
+    element.setAttribute('sandbox', MERMAID_FRAME_SANDBOX)
     window.addEventListener('message', (event) => {
       if (event.data !== READY || event.source !== element.contentWindow) return
-      if (event.origin !== location.origin && location.origin !== 'null') return
+      if (event.origin !== FRAME_ORIGIN) return
       const channel = new MessageChannel()
       channel.port1.onmessage = onReply
-      element.contentWindow?.postMessage(READY, targetOrigin(), [channel.port2])
+      // An opaque origin cannot be named as a target; the port goes only to this frame's window.
+      element.contentWindow?.postMessage(READY, '*', [channel.port2])
       if (connect) {
         connect(channel.port1)
         connect = undefined

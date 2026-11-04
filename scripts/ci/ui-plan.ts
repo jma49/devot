@@ -62,11 +62,12 @@ const features: { sources: string[]; specs: string[] }[] = [
       'src/renderer/src/preview/mermaid-protocol.ts',
       'src/renderer/src/preview/mermaid-theme.ts',
       'src/renderer/src/mermaid-frame.ts',
-      'src/renderer/src/mermaid-frame.css',
+      'scripts/vite/mermaid-frame.ts',
       'src/renderer/mermaid.html',
     ],
     specs: [
       'tests/ui/preview.spec.ts',
+      'tests/ui/mermaid-charts.spec.ts',
       'tests/ui/mermaid-style.spec.ts',
       'tests/ui/export.spec.ts',
       'tests/ui/restore.spec.ts',

@@ -1,11 +1,12 @@
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
 import { defaultClientConditions, defineConfig } from 'vite'
+import { mermaidFrame } from './scripts/vite/mermaid-frame.ts'
 
 // The UI is served to Tauri's webview (see src-tauri/tauri.conf.json).
 export default defineConfig({
   root: 'src/renderer',
-  plugins: [react()],
+  plugins: [react(), mermaidFrame()],
   clearScreen: false,
   // A phone reaches this Mac by its network address, which `tauri ios dev` passes here.
   server: { host: process.env.TAURI_DEV_HOST || false, port: 5173, strictPort: true },

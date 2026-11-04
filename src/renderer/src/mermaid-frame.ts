@@ -12,13 +12,15 @@ import {
   type RenderRequest,
 } from './preview/mermaid-protocol'
 import { diagramConfig, diagramTheme, finishDrawing } from './preview/mermaid-theme'
-import './mermaid-frame.css'
 
 let port: MessagePort | undefined
 /** Requests are drawn one after another (Mermaid's settings are global). */
 let queue: Promise<void> = Promise.resolve()
 
 const reply = (message: FrameMessage) => port?.postMessage(message)
+
+// Through the CSSOM: a stylesheet would be a CORS request from this sandboxed frame.
+document.body.style.margin = '0'
 
 async function draw(request: RenderRequest): Promise<void> {
   // Mermaid measures text in this document: give it the diagram's font.

@@ -292,3 +292,24 @@ test('derived Mermaid colours do not leak into the other charts', async ({ page 
   for (const label of labels)
     expect(contrast(channels(label.text), channels(label.shape))).toBeGreaterThanOrEqual(4.5)
 })
+
+test('the diagram frame is sandboxed away from the window and its IPC', async ({ page }) => {
+  await openDiagrams(page, PIE)
+  const element = page.locator('iframe.mermaid-frame')
+  await expect(element).toHaveAttribute('sandbox', 'allow-scripts')
+  const frame = await (await element.elementHandle())!.contentFrame()
+  const reach = await frame!.evaluate(() => {
+    const own = globalThis as unknown as { origin: string; parent: Record<string, unknown> }
+    try {
+      return { origin: own.origin, ipc: typeof own.parent['__TAURI_INTERNALS__'] }
+    } catch (error) {
+      return { origin: own.origin, ipc: (error as Error).name }
+    }
+  })
+  expect(reach).toEqual({ origin: 'null', ipc: 'SecurityError' })
+  expect(
+    await page.evaluate(
+      () => typeof (globalThis as Record<string, unknown>)['__TAURI_INTERNALS__'],
+    ),
+  ).toBe('object')
+})
