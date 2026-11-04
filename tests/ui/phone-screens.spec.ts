@@ -411,7 +411,6 @@ test.describe('the undo toast', () => {
     await page.clock.install()
     await swipeRow(page, 0, 370)
     await expect(toast(page)).toBeVisible()
-    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1))
     await page.clock.runFor(2900)
     await expect(toast(page)).toBeVisible()
     await page.clock.runFor(1500)
