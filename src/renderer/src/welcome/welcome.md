@@ -11,7 +11,7 @@ This is your library. Everything you write stays on this device, in a database i
 
 ## Write
 
-Each note has three views: _Show Editor_, _Show Editor and Preview_ and _Preview_. The editor shows your Markdown with its syntax highlighted; the preview shows the result and scrolls along with the editor.
+Each note has four views: _Show Write Mode_, _Show Editor_, _Show Editor and Preview_ and _Show Preview_. Write Mode has its own round button and renders the note as you write, revealing the Markdown of the element under the caret. The editor shows all your Markdown with its syntax highlighted; the preview shows the result and scrolls along with the editor.
 
 | Do this                       | Press                                                                           |
 | ----------------------------- | ------------------------------------------------------------------------------- |

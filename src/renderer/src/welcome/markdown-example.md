@@ -3,7 +3,7 @@ title: Markdown example
 description: A tour of the Markdown Devot understands
 ---
 
-Everything below is plain Markdown. Open this note in the editor (_Show Editor and Preview_) to see how each piece is written. The block above, between the two `---` lines, is _front matter_: Devot shows it in a box at the top of the preview.
+Everything below is plain Markdown. Open this note in the editor (_Show Editor_ or _Show Editor and Preview_) to see how each piece is written. The block above, between the two `---` lines, is _front matter_: Devot shows it in a box at the top of the preview.
 
 ## Headings
 
