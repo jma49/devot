@@ -113,12 +113,11 @@ describe('Write mode links', () => {
     expect(shown(`see [](devot://note/${NOTE}).`)).toBe(`see {note ${NOTE}}.`)
   })
 
-  it('in double brackets hide the brackets, the text keeping its link line', () => {
-    expect(shown('a wiki link [[QA Write mode]].')).toBe('a wiki link QA Write mode.')
-    expect(marks('see [[Plan]]')).toEqual(['cm-wm-note-chip Plan'])
+  it('in double brackets stay plain text with their brackets, as the preview shows them', () => {
+    expect(shown('a wiki link [[QA Write mode]].')).toBe('a wiki link [[QA Write mode]].')
+    expect(marks('see [[Plan]]')).toEqual(['cm-wm-plain [Plan]'])
     expect(shown('see [[Plan]]', caret(6))).toBe('see [[Plan]]')
-    expect(shown('x[[1]] and [[a] b]')).toBe('x[[1]] and [[a] b]')
-    expect(shown('a \\[[Plan]]')).toBe('a [[Plan]]')
+    expect(marks('a [x] b')).toEqual([])
   })
 
   it('leave images to the image rules', () => {

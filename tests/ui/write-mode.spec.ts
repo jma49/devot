@@ -274,12 +274,12 @@ test.describe('a new install', () => {
     expect(await source(page)).toEqual(['# Plan **more**', ...text.slice(1)])
   })
 
-  test('draws a highlight, a footnote, a double-bracket link and inline code without their marks', async ({
+  test('draws a highlight, a footnote and inline code without their marks, and [[text]] as plain text', async ({
     page,
   }) => {
     const text = ['Some ==marked== text, a note[^1], [[Plan]] and `code`.', '', '[^1]: The source.']
     await createNote(page, 'Inline', text.join('\n'))
-    const rendered = 'Some marked text, a note1, Plan and code.'
+    const rendered = 'Some marked text, a note1, [[Plan]] and code.'
     await expect.poll(() => lines(page)).toEqual([rendered, '', text[2]])
     await expect(page.locator('.cm-md-mark')).toHaveCSS(
       'background-color',
@@ -311,19 +311,22 @@ test.describe('a new install', () => {
     await page.mouse.click(mark.x + 1, mark.y + mark.height / 2)
     await expect
       .poll(() => lines(page))
-      .toEqual(['Some ==marked== text, a note1, Plan and code.', '', '1The source.'])
+      .toEqual(['Some ==marked== text, a note1, [[Plan]] and code.', '', '1The source.'])
     const note = await charBox(page, 0, 'note', 3)
     await page.mouse.click(note.x + note.width, note.y + note.height / 2)
     await page.keyboard.press('ArrowRight')
     await expect
       .poll(() => lines(page))
-      .toEqual(['Some marked text, a note[^1], Plan and code.', '', '1The source.'])
+      .toEqual(['Some marked text, a note[^1], [[Plan]] and code.', '', '1The source.'])
     expect(await height()).toBe(drawn)
-    const plan = await charBox(page, 0, 'Plan', 1)
-    await page.mouse.click(plan.x + 1, plan.y + plan.height / 2)
-    await expect
-      .poll(() => lines(page))
-      .toEqual(['Some marked text, a note1, [[Plan]] and code.', '', '1The source.'])
+    // As the preview shows it: no link line on the text or anything inside it.
+    const lined = await page
+      .locator('.cm-wm-plain, .cm-wm-plain *')
+      .evaluateAll(
+        (els) => els.filter((el) => getComputedStyle(el).textDecorationLine !== 'none').length,
+      )
+    expect(lined).toBe(0)
+    await expect(page.locator('.cm-wm-plain').first()).toBeAttached()
     expect(await source(page)).toEqual(text)
   })
 

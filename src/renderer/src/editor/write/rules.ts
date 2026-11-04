@@ -123,7 +123,6 @@ const MARK_OPEN = /^<mark(?:\s[^>]*)?>$/i
 const MARK_CLOSE = /^<\/mark\s*>$/i
 const LISTS = new Set(['BulletList', 'OrderedList'])
 const SPACE = /[ \t]/
-const WORD_CHAR = /[\p{L}\p{N}]/u
 
 function listDepth(node: SyntaxNode): number {
   let depth = 0
@@ -309,17 +308,11 @@ export function writeRanges(
     return true
   }
 
-  /** `[[text]]` reads as one link to its text, its brackets marks. */
-  function doubleBracketed(node: SyntaxNode, open: SyntaxNode, close: SyntaxNode): boolean {
+  /** `[[text]]` is no link in Devot's Markdown: plain text, brackets and all, as the preview shows it. */
+  function doubleBracketed(node: SyntaxNode, close: SyntaxNode): boolean {
     if (close.to !== node.to || node.from < 1) return false
     if (text(node.from - 1, node.from) !== '[' || text(node.to, node.to + 1) !== ']') return false
-    if (node.from >= 2 && WORD_CHAR.test(text(node.from - 2, node.from - 1))) return false
-    if (escapedAt(node.from - 1)) return false
-    if (shows(node.from - 1, node.to + 1)) return true
-    if (!oneLine(node.from - 1, node.to + 1)) return true
-    hide(node.from - 1, open.to)
-    hide(close.from, node.to + 1)
-    out.push({ kind: 'mark', from: open.to, to: close.from, className: 'cm-wm-note-chip' })
+    out.push({ kind: 'mark', from: node.from, to: node.to, className: 'cm-wm-plain' })
     return true
   }
 
@@ -330,8 +323,8 @@ export function writeRanges(
     const open = marks[0]
     const close = marks[1]
     const url = node.getChild('URL')
-    if (open && close && !url && !node.getChild('LinkLabel') && doubleBracketed(node, open, close))
-      return
+    if (open && close && !url && !node.getChild('LinkLabel') && doubleBracketed(node, close))
+      return false
     if (!open || !close || open.from !== node.from || (!url && !node.getChild('LinkLabel'))) return
     if (shows(node.from, node.to)) return false
     const id = url ? noteIdOf(text(url.from, url.to)) : undefined
