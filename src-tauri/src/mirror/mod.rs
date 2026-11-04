@@ -637,15 +637,6 @@ impl Mirror {
     }
 }
 
-async fn blocking<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
-) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(work)
-        .await
-        .map_err(|_| "E_MIRROR_TASK".to_string())?
-        .map_err(String::from)
-}
-
 fn announcer(app: &AppHandle) -> impl Fn(&Status) + Send + 'static {
     let app = app.clone();
     move |status| {
@@ -659,7 +650,7 @@ fn announcer(app: &AppHandle) -> impl Fn(&Status) + Send + 'static {
 pub async fn mirror_get(app: AppHandle, mirror: State<'_, Arc<Mirror>>) -> Result<Status, String> {
     let mirror = Arc::clone(&mirror);
     let notify = announcer(&app);
-    blocking(move || mirror.get(&notify)).await
+    crate::task::blocking("E_MIRROR_TASK", move || mirror.get(&notify)).await
 }
 
 #[tauri::command]
@@ -670,7 +661,7 @@ pub async fn mirror_set(
 ) -> Result<Status, String> {
     let mirror = Arc::clone(&mirror);
     let notify = announcer(&app);
-    blocking(move || mirror.set(&patch, &notify)).await
+    crate::task::blocking("E_MIRROR_TASK", move || mirror.set(&patch, &notify)).await
 }
 
 #[tauri::command]
@@ -684,7 +675,7 @@ pub async fn mirror_choose(
     };
     let mirror = Arc::clone(&mirror);
     let notify = announcer(&app);
-    blocking(move || mirror.choose(&picked, &notify)).await
+    crate::task::blocking("E_MIRROR_TASK", move || mirror.choose(&picked, &notify)).await
 }
 
 #[cfg(desktop)]
@@ -718,7 +709,7 @@ pub async fn mirror_confirm(
 ) -> Result<Status, String> {
     let mirror = Arc::clone(&mirror);
     let notify = announcer(&app);
-    blocking(move || mirror.confirm(token, &notify)).await
+    crate::task::blocking("E_MIRROR_TASK", move || mirror.confirm(token, &notify)).await
 }
 
 #[tauri::command]
@@ -729,7 +720,7 @@ pub async fn mirror_open(
 ) -> Result<Opened, String> {
     let mirror = Arc::clone(&mirror);
     let notify = announcer(&app);
-    blocking(move || mirror.open(known, &notify)).await
+    crate::task::blocking("E_MIRROR_TASK", move || mirror.open(known, &notify)).await
 }
 
 #[tauri::command]
@@ -741,7 +732,10 @@ pub async fn mirror_check(
 ) -> Result<HashMap<String, Option<String>>, String> {
     let mirror = Arc::clone(&mirror);
     let notify = announcer(&app);
-    blocking(move || mirror.check(generation, paths.as_deref(), &notify)).await
+    crate::task::blocking("E_MIRROR_TASK", move || {
+        mirror.check(generation, paths.as_deref(), &notify)
+    })
+    .await
 }
 
 /// Bytes are read one at a time from a blocking task, so they never cross IPC.
@@ -766,7 +760,10 @@ pub async fn mirror_apply(
     let mirror = Arc::clone(&mirror);
     let mut load = attachments(db.inner().clone());
     let notify = announcer(&app);
-    blocking(move || mirror.apply(generation, &ops, &mut load, &notify)).await
+    crate::task::blocking("E_MIRROR_TASK", move || {
+        mirror.apply(generation, &ops, &mut load, &notify)
+    })
+    .await
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -847,7 +844,7 @@ pub async fn mirror_hashes(db: State<'_, Db>, ids: Vec<String>) -> Result<Vec<Fi
         return Err("E_MIRROR_IDS_INVALID".into());
     }
     let mut load = attachments(db.inner().clone());
-    blocking(move || Ok(file_hashes(&ids, &mut load))).await
+    crate::task::blocking("E_MIRROR_TASK", move || Ok(file_hashes(&ids, &mut load))).await
 }
 
 pub fn manage(app: &tauri::App, data_dir: &Path) {

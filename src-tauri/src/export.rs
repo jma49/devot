@@ -616,15 +616,6 @@ impl Exports {
     }
 }
 
-async fn blocking<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
-) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(work)
-        .await
-        .map_err(|_| "E_EXPORT_FAILED".to_string())?
-        .map_err(String::from)
-}
-
 async fn load_attachment(db: &Db, file_id: String) -> Option<Attachment> {
     db.call(move |store| store.get_file(&file_id))
         .await
@@ -650,7 +641,10 @@ async fn page_with_images(db: &Db, page: String, images: Vec<PageImage>) -> Resu
             files.insert(image.file_id.clone(), (file.mime, file.data));
         }
     }
-    blocking(move || inline_images(&page, &images, |id| files.get(id).cloned())).await
+    crate::task::blocking("E_EXPORT_FAILED", move || {
+        inline_images(&page, &images, |id| files.get(id).cloned())
+    })
+    .await
 }
 
 /// Control characters (a pasted tab, say) become spaces and it is cut to MAX_TITLE_CHARS
@@ -770,7 +764,7 @@ pub async fn export_begin(
             };
             // The folder picked is opened once, here; the notebook's own is
             // made in it and opened from it, never through a link.
-            let (root, _) = blocking(move || {
+            let (root, _) = crate::task::blocking("E_EXPORT_FAILED", move || {
                 let parent = Folder::open(&parent).map_err(|_| "E_EXPORT_FOLDER_FAILED")?;
                 new_folder(&parent, &name)
             })
@@ -799,7 +793,10 @@ pub async fn export_attach(
         return Ok(path);
     }
     let file = load_attachment(&db, file_id.clone()).await;
-    blocking(move || app.state::<Exports>().attach(id, &file_id, || file)).await
+    crate::task::blocking("E_EXPORT_FAILED", move || {
+        app.state::<Exports>().attach(id, &file_id, || file)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -823,7 +820,10 @@ pub async fn export_write(
     } else {
         page_with_images(&db, text, images).await?
     };
-    blocking(move || app.state::<Exports>().write(id, &path, text.as_bytes())).await
+    crate::task::blocking("E_EXPORT_FAILED", move || {
+        app.state::<Exports>().write(id, &path, text.as_bytes())
+    })
+    .await
 }
 
 #[tauri::command]

@@ -937,19 +937,10 @@ fn installed_launch() -> Result<Launch, &'static str> {
     Ok(launch)
 }
 
-async fn blocking<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
-) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(work)
-        .await
-        .map_err(|_| String::from("E_MCP_TASK_FAILED"))?
-        .map_err(String::from)
-}
-
 /// Takes no arguments: what it reads is fixed here.
 #[tauri::command]
 pub async fn settings_mcp_setup(app: AppHandle) -> Result<McpSetup, String> {
-    blocking(move || {
+    crate::task::blocking("E_MCP_TASK_FAILED", move || {
         let home = home(&app)?;
         let launch = current_launch();
         Ok(McpSetup {
@@ -978,7 +969,7 @@ pub async fn settings_mcp_connect(
     from_settings(&window)?;
     let client = Client::parse(&client).map_err(String::from)?;
     check_revision(&revision)?;
-    blocking(move || {
+    crate::task::blocking("E_MCP_TASK_FAILED", move || {
         let launch = installed_launch()?;
         let home = home(&app)?;
         let path = client_path(client, &home);
@@ -1011,7 +1002,7 @@ pub async fn settings_mcp_disconnect(
     from_settings(&window)?;
     let client = Client::parse(&client).map_err(String::from)?;
     check_revision(&revision)?;
-    blocking(move || {
+    crate::task::blocking("E_MCP_TASK_FAILED", move || {
         let launch = current_launch();
         let home = home(&app)?;
         let path = client_path(client, &home);
@@ -1042,7 +1033,7 @@ pub async fn settings_mcp_open_extension(
     window: tauri::WebviewWindow,
 ) -> Result<(), String> {
     from_settings(&window)?;
-    blocking(move || {
+    crate::task::blocking("E_MCP_TASK_FAILED", move || {
         let launch = installed_launch()?;
         let bundle = bundle_path(Path::new(&launch.command)).ok_or(NO_APP)?;
         let bytes = extension_bytes(bundle, &app.package_info().version.to_string())?;

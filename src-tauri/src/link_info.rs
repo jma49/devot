@@ -15,25 +15,16 @@ const MAX_TITLE_CHARS: usize = 300;
 /// tried, shortest first.
 const MAX_REF_SEGMENTS: usize = 4;
 
-async fn blocking<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
-) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(work)
-        .await
-        .map_err(|_| "E_LINK_FAILED".to_string())?
-        .map_err(String::from)
-}
-
 #[tauri::command]
 pub async fn link_title(url: String) -> Result<Option<String>, String> {
     let url = net::https_url(&url).map_err(String::from)?;
-    blocking(move || fetch_title(&url)).await
+    crate::task::blocking("E_LINK_FAILED", move || fetch_title(&url)).await
 }
 
 #[tauri::command]
 pub async fn github_snippet(url: String) -> Result<String, String> {
     let candidates = github_contents_urls(&url).map_err(String::from)?;
-    blocking(move || fetch_snippet(&candidates)).await
+    crate::task::blocking("E_LINK_FAILED", move || fetch_snippet(&candidates)).await
 }
 
 fn fetch_title(url: &Url) -> Result<Option<String>, &'static str> {
