@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createClock, createIdGenerator, createNoteService } from '../../src/core'
+import { createClock, createIdGenerator, createNoteService, newWriter } from '../../src/core'
 import { reportingNoteWrites } from '../../src/renderer/src/noteWrites'
 import { fromWire, toWire } from '../../src/renderer/src/storage/wire'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
@@ -66,5 +66,45 @@ describe('reportingNoteWrites', () => {
     await expect(wrapped.putNote({ ...record!, updatedAt: 9_000 })).rejects.toThrow('not open')
     await reported()
     expect(heard).toEqual([])
+  })
+
+  it('tells of writes that change agent_writes rows, never of the owner’s own saves', async () => {
+    let authored = 0
+    const adapter = storage()
+    const notes = createNoteService({
+      storage: fromWire(
+        reportingNoteWrites(
+          toWire(adapter),
+          () => {},
+          () => (authored += 1),
+        ),
+      ),
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+      saveDelayMs: 5,
+    })
+    const id = await notes.create('A')
+    await reported()
+    authored = 0
+    await notes.setBody(id, 'typed')
+    await notes.flush()
+    await notes.setBody(id, 'typed more')
+    await notes.flush()
+    await reported()
+    expect(authored).toBe(0)
+
+    await notes.agentWrite(id, {
+      writer: newWriter('mcp', 'Claude Code', 'mcp00aa11bb22cc'),
+      markdown: 'Agent text.\n',
+    })
+    await notes.flush()
+    await reported()
+    expect(authored).toBe(1)
+    expect(await adapter.authoredNotes()).toEqual([id])
+
+    await notes.setBody(id, 'typed more\nAgent text.\nOwner text.\n')
+    await notes.flush()
+    await reported()
+    expect(authored).toBe(1)
   })
 })

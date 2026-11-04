@@ -38,6 +38,9 @@ pub enum NoteRelayMessage {
     Saved {
         note_id: String,
         updated_at: u64,
+        /// The write changed the note's agent_writes rows: the main windows read theirs again.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        authored: bool,
     },
 }
 
@@ -153,8 +156,33 @@ mod tests {
             )),
             NoteRelayMessage::Saved {
                 note_id: ID.into(),
-                updated_at: 12
+                updated_at: 12,
+                authored: false,
             }
+        );
+        let authored = NoteRelayMessage::Saved {
+            note_id: ID.into(),
+            updated_at: 12,
+            authored: true,
+        };
+        assert_eq!(
+            read(&format!(
+                r#"{{"kind":"saved","noteId":"{ID}","updatedAt":12,"authored":true}}"#
+            )),
+            authored
+        );
+        assert_eq!(
+            serde_json::to_value(&authored).unwrap(),
+            serde_json::json!({ "kind": "saved", "noteId": ID, "updatedAt": 12, "authored": true })
+        );
+        assert_eq!(
+            serde_json::to_value(NoteRelayMessage::Saved {
+                note_id: ID.into(),
+                updated_at: 12,
+                authored: false,
+            })
+            .unwrap(),
+            serde_json::json!({ "kind": "saved", "noteId": ID, "updatedAt": 12 })
         );
         assert!(
             serde_json::from_str::<NoteRelayMessage>(&format!(
@@ -216,6 +244,7 @@ mod tests {
         let late = NoteRelayMessage::Saved {
             note_id: ID.into(),
             updated_at: MAX_SAFE_INTEGER + 1,
+            authored: false,
         };
         assert_eq!(late.check(), Err("E_NOTE_TIME_INVALID"));
     }

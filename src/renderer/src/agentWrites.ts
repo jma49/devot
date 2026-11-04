@@ -157,8 +157,9 @@ export const sameSummaries = (
   })
 
 /**
- * This device's rows, read again whenever `when` changes (the note list after a write) and after
- * `reload`. A read that loses a race to a later one, or finds the rows unchanged, is dropped.
+ * This device's rows, read again whenever `when` changes (the lists reloaded, or a write changed a
+ * note's rows; never for the owner's own saves) and after `reload`. A read that loses a race to a
+ * later one, or finds the rows unchanged, is dropped.
  */
 export function useAgentWrites(core: Core | undefined, when: unknown) {
   const [view, setView] = useState<AgentWritesView>(EMPTY)
@@ -170,7 +171,7 @@ export function useAgentWrites(core: Core | undefined, when: unknown) {
     const ask = (asked.current += 1)
     Promise.all([core.agentWrites(MAX_AGENT_WRITES_LISTED), core.authoredNotes()]).then(
       ([rows, authored]) => {
-        // Each save reads again; the same rows keep the same view, so typing renders neither the window nor the sidebar.
+        // The same rows keep the same view, so a read renders neither the window nor the sidebar.
         if (ask !== asked.current) return
         if (sameSummaries(shown.current, rows) && sameNotes(shownAuthored.current, authored)) return
         shown.current = rows

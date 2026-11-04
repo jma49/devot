@@ -749,27 +749,35 @@ export function App() {
   // Counts palette actions that have finished; see `closePalette`.
   const [paletteDone, setPaletteDone] = useState(0)
 
-  const refresh = useCallback(async (c: Core) => {
-    const [listed, nextBooks, nextTags, nextTrash, nextSearches] = await Promise.all([
-      c.listWithTemplates(),
-      c.listBooks(),
-      c.listTags(),
-      c.listTrash(),
-      c.listSavedSearches(),
-    ])
-    const nextNotes = listed.notes
-    setTrash(nextTrash)
-    // Notes that did not change keep their objects (and their rows their render).
-    setTemplates((prev) => keepUnchanged(prev, listed.templates))
-    setNotes((prev) => keepUnchanged(prev, nextNotes))
-    setBooks(nextBooks)
-    setTags(nextTags.sort((a, b) => compareNames(a.name, b.name, navigator.languages)))
-    setSavedSearches(nextSearches)
-    // Results follow edits, renames, trash and restore.
-    if (latestSearch.current.query.trim()) runSearch.current?.(latestSearch.current)
-    window.dispatchEvent(new CustomEvent(NOTES_LOADED))
-    return { notes: nextNotes, templates: listed.templates, books: nextBooks }
-  }, [])
+  // Moves when this device's agent_writes rows may have changed: a reload of the lists, or a write that changed a note's rows.
+  const [authorship, setAuthorship] = useState(0)
+  const authorshipChanged = useCallback(() => setAuthorship((n) => n + 1), [])
+
+  const refresh = useCallback(
+    async (c: Core) => {
+      const [listed, nextBooks, nextTags, nextTrash, nextSearches] = await Promise.all([
+        c.listWithTemplates(),
+        c.listBooks(),
+        c.listTags(),
+        c.listTrash(),
+        c.listSavedSearches(),
+      ])
+      const nextNotes = listed.notes
+      setTrash(nextTrash)
+      // Notes that did not change keep their objects (and their rows their render).
+      setTemplates((prev) => keepUnchanged(prev, listed.templates))
+      setNotes((prev) => keepUnchanged(prev, nextNotes))
+      authorshipChanged()
+      setBooks(nextBooks)
+      setTags(nextTags.sort((a, b) => compareNames(a.name, b.name, navigator.languages)))
+      setSavedSearches(nextSearches)
+      // Results follow edits, renames, trash and restore.
+      if (latestSearch.current.query.trim()) runSearch.current?.(latestSearch.current)
+      window.dispatchEvent(new CustomEvent(NOTES_LOADED))
+      return { notes: nextNotes, templates: listed.templates, books: nextBooks }
+    },
+    [authorshipChanged],
+  )
 
   // Every note write dates the note in the lists at once, so an edited note moves without a reload.
   // Not for a change that reloads the lists when done (`changeBooks`): a re-dated note could move before the reload removes it, sending the keyboard to the wrong row.
@@ -934,7 +942,7 @@ export function App() {
       )),
     [trash],
   )
-  const agentWrites = useAgentWrites(core, notes)
+  const agentWrites = useAgentWrites(core, authorship)
   // In a workspace the Agents section counts only its notes, and choosing an agent lists only those.
   const workspaceNoteIds = useMemo(
     () =>
@@ -1265,6 +1273,7 @@ export function App() {
     void startCore(onSaveProblems, showWrites, onCoreFailure, {
       lean: !primary,
       onWrote: lists.wrote,
+      onAuthored: authorshipChanged,
       onRelay: (message) => {
         if (relay.gate.allows(message)) relay.link.send(message)
       },
@@ -1307,6 +1316,7 @@ export function App() {
     nextSheet,
     onSaveProblems,
     showWrites,
+    authorshipChanged,
     onCoreFailure,
     takeIn,
     relay,
@@ -2425,6 +2435,7 @@ export function App() {
           console.warn('W_NOTE_RELAY_IN_FAILED', message.noteId, errorCode(e))
         })
       if (message.kind === 'saved') {
+        if (message.authored) authorshipChanged()
         // A note made there (a `[[` link to a new note) is not listed yet.
         if (knownNotes.current.has(message.noteId)) {
           showWrites(new Map([[message.noteId, message.updatedAt]]))
@@ -2435,7 +2446,7 @@ export function App() {
       }
     })
     return () => void listening.then((stop) => stop())
-  }, [core, relay, showWrites, retitleListed, refresh])
+  }, [core, relay, showWrites, retitleListed, refresh, authorshipChanged])
   useEffect(() => () => clearTimeout(typedTitleTimer.current), [])
   const rename = (next: string) => {
     if (!core || !selected) return

@@ -347,7 +347,7 @@ interface Live {
   users: number
   /** Set when a retried write took in a title another process gave the note; mergeStored reports it. */
   retitled: boolean
-  /** The agent_writes rows storage holds of the note, as last written; undefined until the note's first write here, which derives them again. */
+  /** The agent_writes rows storage holds of the note, as last written; undefined until the note's first write here, which derives them again, and none for a note made here. */
   rows: readonly AgentWriteRow[] | undefined
   failures: number
   retry: Timer | undefined
@@ -551,7 +551,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       writes: 0,
       users: 0,
       retitled: false,
-      rows: undefined,
+      rows: fresh ? [] : undefined,
       failures: 0,
       retry: undefined,
       rev: {
@@ -831,8 +831,16 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       return derived.changed ? { ...note.record, agentWrites: derived.changed } : note.record
     })
     if (!record) return
+    // A note's first write here writes its rows again; none where none were known tells no one.
+    const authored =
+      record.agentWrites !== undefined && (note.rows !== undefined || record.agentWrites.length > 0)
     note.rows = rows
-    relay({ kind: 'saved', noteId: record.id, updatedAt: record.updatedAt })
+    relay({
+      kind: 'saved',
+      noteId: record.id,
+      updatedAt: record.updatedAt,
+      ...(authored ? { authored: true } : {}),
+    })
     const written = asWritten(record)
     note.record = { ...note.record, bodyVersion: written.bodyVersion }
     const before = note.saved
@@ -1240,7 +1248,12 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         rows.map((row) => row.writeId),
       )
     }
-    relay({ kind: 'saved', noteId: id, updatedAt: at })
+    relay({
+      kind: 'saved',
+      noteId: id,
+      updatedAt: at,
+      ...(rows.length > 0 ? { authored: true } : {}),
+    })
     const note = liveNote(asWritten(record), doc, false)
     note.rows = rows
     live.set(id, note)

@@ -4,7 +4,7 @@
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
-import { BODY, type NoteServiceOptions, type StorageAdapter } from '../../src/core'
+import { BODY, newWriter, type NoteServiceOptions, type StorageAdapter } from '../../src/core'
 import { windowsOn } from '../support/note-windows'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
@@ -145,6 +145,20 @@ describe('two windows showing one note', () => {
     await w.note.notes.flush()
     const record = await stored(w.storage, w.id)
     expect(w.main.inbox).toEqual([{ kind: 'saved', noteId: w.id, updatedAt: record.updatedAt }])
+  })
+
+  it('tell the other windows of a write that changed the note’s agent_writes rows', async () => {
+    const w = await twoWindows()
+    await w.show(w.note, w.id)
+    await w.deliverAll()
+    w.main.inbox.length = 0
+    await w.note.notes.agentWrite(w.id, {
+      writer: newWriter('mcp', 'Claude Code', 'mcp00aa11bb22cc'),
+      markdown: 'Agent text.\n',
+    })
+    await w.note.notes.flush()
+    const saved = w.main.inbox.filter((message) => message.kind === 'saved')
+    expect(saved).toEqual([expect.objectContaining({ noteId: w.id, authored: true })])
   })
 
   it('take the newer of two titles, whichever arrives last', async () => {
