@@ -51,6 +51,8 @@ const button = (page: Page, name: string) => dialog(page).getByRole('button', { 
 const destinations = (page: Page) => dialog(page).getByRole('listbox', { name: 'Import into' })
 
 async function confirm(page: Page, into?: string) {
+  // The dialog renders after the scan arrives; its first step offers Continue or Import.
+  await expect(button(page, 'Continue').or(button(page, 'Import')).first()).toBeVisible()
   if (await button(page, 'Continue').isVisible()) await button(page, 'Continue').click()
   if (into) await destinations(page).getByRole('option', { name: into }).click()
   await button(page, 'Import').click()
