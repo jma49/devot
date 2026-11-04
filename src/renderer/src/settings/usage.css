@@ -1,9 +1,6 @@
 .usage-dashboard {
-  --usage-inset: var(--space-8);
+  --usage-inset: var(--space-7);
   font-variant-numeric: tabular-nums;
-}
-.settings-section.usage-dashboard > p {
-  padding-inline: var(--space-2);
 }
 .usage-privacy {
   display: flex;
@@ -21,111 +18,32 @@
   gap: var(--space-6);
   margin-bottom: var(--space-6);
 }
-.usage-filters .segmented {
-  display: flex;
-  padding: var(--space-1);
-  height: var(--size-toolbar-control);
-  border-radius: var(--radius-capsule);
-  background: var(--color-fill-glass-control);
-  box-shadow:
-    var(--glass-rim),
-    0 1px var(--space-4) var(--color-shadow-glass);
-}
 .usage-filters .segment {
   width: auto;
   min-width: calc(var(--space-10) * 2);
-  height: 100%;
-  white-space: nowrap;
-  border: 0;
-  border-radius: var(--radius-capsule);
   padding-inline: var(--space-7);
-  color: var(--color-text-secondary);
-  background: transparent;
+  white-space: nowrap;
   font: inherit;
   font-size: var(--font-size-footnote);
-}
-.usage-filters .segment[aria-pressed='true'] {
-  background: var(--color-fill-glass-control);
-  box-shadow:
-    var(--glass-rim),
-    0 1px var(--space-2) var(--color-shadow-glass);
-  color: var(--color-text-primary);
 }
 .usage-date-range {
   color: var(--color-text-secondary);
   font-size: var(--font-size-footnote);
 }
-.usage-filter {
+.usage-filters > .select {
   margin-inline-start: auto;
-  max-width: 100%;
-  padding: var(--space-3) var(--space-6);
-  border: 0;
-  border-radius: var(--radius-capsule);
-  background: var(--color-fill-settings-card);
-  color: var(--color-text-primary);
-  font: inherit;
-  font-size: var(--font-size-footnote);
 }
-.usage-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-6);
-  margin-bottom: var(--space-9);
-}
-.usage-stat,
 .usage-card {
   background: var(--color-fill-settings-card);
-  border-radius: var(--radius-sidebar);
+  border-radius: var(--radius-settings-card);
   padding: var(--space-7) var(--usage-inset);
 }
-.usage-stat {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.usage-stat > span {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-footnote);
-}
-.usage-stat > strong {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  font-size: calc(var(--font-size-title) + var(--space-3));
-  line-height: 1.2;
+.usage-stat-value {
   font-weight: var(--font-weight-semibold);
-  margin-block: var(--space-2);
 }
-.usage-stat small {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-regular);
-}
-.usage-stat strong small {
-  font-size: var(--font-size-row);
-}
-.usage-spark {
-  height: var(--space-9);
-  width: 100%;
-  margin-top: var(--space-5);
-}
-.usage-spark polyline {
-  stroke: var(--color-activity-level-4);
-  stroke-width: 1.5;
-  fill: none;
-  vector-effect: non-scaling-stroke;
-}
-.usage-days {
-  display: grid;
-  gap: 1px;
-  align-items: end;
-  height: var(--space-9);
-  margin-top: var(--space-5);
-}
-.usage-days span {
-  height: var(--space-5);
-  border-radius: var(--space-1);
+/* Rows in a card after a chart card or its note keep a section's distance, as titled sections do. */
+.settings-pane .usage-dashboard > :not(.usage-filters) + .settings-block {
+  margin-top: var(--space-9);
 }
 .usage-section-heading,
 .usage-chart-heading {
@@ -135,7 +53,8 @@
   gap: var(--space-6);
 }
 .usage-section-heading {
-  margin: var(--space-9) var(--space-2) var(--space-4);
+  margin: var(--space-9) 0 var(--space-4);
+  padding: 0 var(--space-7);
 }
 .usage-section-heading h3,
 .usage-chart-heading h4 {
@@ -286,26 +205,8 @@
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
 }
-.usage-storage {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-6);
-}
-.usage-storage small {
-  display: block;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-  margin-top: var(--space-1);
-}
-.usage-storage .usage-clear {
-  color: var(--color-text-destructive);
-}
-.usage-meter {
-  display: flex;
-  flex-basis: 100%;
-  align-items: center;
+.setting.usage-meter {
+  justify-content: flex-start;
   gap: var(--space-5);
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption);
@@ -337,25 +238,6 @@
     flex-basis: 100%;
     order: 2;
   }
-  .usage-stats {
-    gap: var(--space-3);
-  }
-  .usage-stat {
-    padding-inline: var(--space-6);
-  }
-  .usage-stat strong small {
-    font-size: var(--font-size-caption);
-  }
-}
-
-.usage-storage .button {
-  border: 0;
-  border-radius: var(--radius-capsule);
-  height: var(--size-settings-control);
-  background: var(--color-fill-glass-control);
-  box-shadow:
-    var(--glass-rim),
-    0 1px var(--space-2) var(--color-shadow-glass);
 }
 
 .usage-type-label {

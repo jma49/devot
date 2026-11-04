@@ -9,7 +9,7 @@ import { ConfirmDialog } from '../ConfirmDialog'
 import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { clearUsage, listUsage } from '../usage'
-import { Select, SettingsSection } from './controls'
+import { Select, Setting, SettingsSection } from './controls'
 import { useOnPhone } from './onPhone'
 import { PhoneSegmented } from '../phone/PhoneControls'
 import { usageActivity, usageDayInstant, type UsagePeriod } from '../../../core/usageActivity'
@@ -152,52 +152,22 @@ function GlassUsageSection() {
     })
 
   const stats = (
-    <div className="usage-stats" role="group" aria-label={t('usage.overview')}>
-      <div className="usage-stat">
-        <span>{t('usage.total')}</span>
-        <strong>{number(data.total)}</strong>
-        <small>{t('usage.periodDetail')}</small>
-        <svg
-          className="usage-spark"
-          viewBox="0 0 240 26"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <polyline
-            points={data.days
-              .map((day, i) => `${(i / (period - 1)) * 240},${24 - (day.count / max) * 22}`)
-              .join(' ')}
-          />
-        </svg>
-      </div>
-      <div className="usage-stat">
-        <span>{t('usage.active')}</span>
-        <strong>
-          {number(data.activeDays)}
-          <small>{format(t('usage.ofDays'), { days: number(period) })}</small>
-        </strong>
-        <small>{format(t('usage.dayShare'), { percent: percent(data.activeDays / period) })}</small>
-        <div
-          className="usage-days"
-          role="img"
-          aria-label={t('usage.calendar')}
-          style={{ gridTemplateColumns: `repeat(${period}, minmax(0, 1fr))` }}
-        >
-          {data.days.map((day) => (
-            <span
-              key={day.day}
-              title={dailyTitle(day)}
-              className={`activity-level-${day.count ? 3 : 0}`}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="usage-stat">
-        <span>{t('usage.notes')}</span>
-        <strong>{number(data.notes)}</strong>
-        <small>{t('usage.periodDetail')}</small>
-      </div>
-    </div>
+    <SettingsSection title="usage.overview" titleHidden>
+      <Setting label="usage.total" description={t('usage.periodDetail')}>
+        <span className="usage-stat-value">{number(data.total)}</span>
+      </Setting>
+      <Setting
+        label="usage.active"
+        description={format(t('usage.dayShare'), { percent: percent(data.activeDays / period) })}
+      >
+        <span className="usage-stat-value">
+          {number(data.activeDays)} {format(t('usage.ofDays'), { days: number(period) })}
+        </span>
+      </Setting>
+      <Setting label="usage.notes" description={t('usage.periodDetail')}>
+        <span className="usage-stat-value">{number(data.notes)}</span>
+      </Setting>
+    </SettingsSection>
   )
   const dailyChart = (
     <svg
@@ -544,14 +514,13 @@ function GlassUsageSection() {
               ))}
             </div>
             <span className="usage-date-range">{dateRange}</span>
-            <select
-              className="usage-filter"
+            <Select
               aria-label={t('usage.filter')}
               value={eventType}
               onChange={(e) => setEventType(e.target.value)}
             >
               {typeOptions}
-            </select>
+            </Select>
           </div>
           {stats}
           <div className="usage-section-heading">
@@ -632,49 +601,49 @@ function GlassUsageSection() {
           </div>
         </>
       )}
-      <div className="usage-section-heading">
-        <h3>{t('usage.storage')}</h3>
-      </div>
-      <div className="usage-card usage-storage">
-        <div>
-          <span>
-            {events === undefined
-              ? ''
-              : count === 0
-                ? t('usage.empty')
-                : countOf(count, locale, 'usage.countOne', 'usage.countOther')}
-          </span>
-          <small>{t('usage.limits')}</small>
+      <SettingsSection title="usage.storage" footnote={t('usage.retained')}>
+        <div className="setting usage-storage">
+          <div className="setting-text">
+            <span className="setting-label">
+              {events === undefined
+                ? ''
+                : count === 0
+                  ? t('usage.empty')
+                  : countOf(count, locale, 'usage.countOne', 'usage.countOther')}
+            </span>
+            <span className="setting-description">{t('usage.limits')}</span>
+          </div>
+          <div className="setting-control">
+            <div className="settings-buttons">
+              <button
+                type="button"
+                className="button"
+                aria-expanded={shown && count > 0}
+                aria-disabled={count === 0}
+                onClick={() => {
+                  if (count > 0) setShown((s) => !s)
+                }}
+              >
+                {shown && count > 0 ? t('usage.hide') : t('usage.show')}
+              </button>
+              <button
+                type="button"
+                className="button"
+                aria-disabled={count === 0}
+                onClick={() => {
+                  if (count > 0) setConfirming(true)
+                }}
+              >
+                {t('usage.clear')}
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="settings-buttons">
-          <button
-            type="button"
-            className="button"
-            aria-expanded={shown && count > 0}
-            aria-disabled={count === 0}
-            onClick={() => {
-              if (count > 0) setShown((s) => !s)
-            }}
-          >
-            {shown && count > 0 ? t('usage.hide') : t('usage.show')}
-          </button>
-          <button
-            type="button"
-            className="button usage-clear"
-            aria-disabled={count === 0}
-            onClick={() => {
-              if (count > 0) setConfirming(true)
-            }}
-          >
-            {t('usage.clear')}
-          </button>
-        </div>
-        <div className="usage-meter">
+        <div className="setting usage-meter">
           <progress max={10000} value={count} aria-label={t('usage.storage')} />
           <span>{format(t('usage.capacity'), { count: number(count), limit: number(10000) })}</span>
         </div>
-      </div>
-      <p className="usage-footnote">{t('usage.retained')}</p>
+      </SettingsSection>
       {eventList}
       {confirmDialog}
     </section>
