@@ -178,6 +178,8 @@ export const EXPORT_HEADER = '# Devot metadata'
 export const isExportBlock = (yaml: string) => yaml.split('\n')[0]?.trimEnd() === EXPORT_HEADER
 
 export function exportHeader(markdown: string): { meta: FrontMatterMeta; body: string } | null {
+  // Front matter opens the first line (import reads files without a byte order mark): a file without it is parsed once, not twice.
+  if (!markdown.startsWith('---')) return null
   const head = parse(markdown).children[0]
   const end = head?.position?.end.offset
   if (head?.type !== 'yaml' || end === undefined) return null

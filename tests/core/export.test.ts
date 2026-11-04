@@ -225,6 +225,8 @@ describe('Markdown files', () => {
     expect(exportHeader(ruled)?.body).toBe('---\nText\n')
     const untitled = markdownFile(entry('Text\n', { title: '' }), 'Untitled.md', new Map())
     expect(exportHeader(untitled)?.meta.title).toBe('')
+    expect(exportHeader(` ${out}`)).toBeNull()
+    expect(exportHeader('# Plan\n\n---\n# Devot metadata\n---\n')).toBeNull()
   })
 
   it("never changes a note's own front matter: Devot's block goes before it", () => {
