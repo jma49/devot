@@ -33,7 +33,10 @@ const calls = (page: Page, cmd: string) =>
 
 /** Makes a note in the main window, typed and saved; returns its ID. */
 async function noteInMain(page: Page, name: string, text: string) {
+  const before = await rows(page).count()
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(rows(page)).toHaveCount(before + 1)
+  await expect(title(page)).toHaveValue('')
   await title(page).fill(name)
   await body(page).click()
   await page.keyboard.type(text)
@@ -191,6 +194,29 @@ test('typing in a note window while the main window opens that note all shows th
   await expect(title(page)).toHaveValue('Plan')
   await win.keyboard.type(' Two')
   await expect(body(page)).toHaveText('Start. One Two')
+})
+
+test('a title changed in a note window while the main window opens that note shows there (#531)', async ({
+  page,
+  context,
+}) => {
+  const id = await noteInMain(page, 'Plan', 'Start.')
+  await noteInMain(page, 'Other', 'Else.')
+  const win = await openNoteWindow(context, id)
+  // The main window's answer for the title is late, so the rename lands while the note opens.
+  await slowCore(page, ['title'])
+  await page.reload()
+  await rows(page)
+    .filter({ hasText: /^Other/ })
+    .click()
+  await expect(title(page)).toHaveValue('Other')
+  await rows(page).filter({ hasText: /^Plan/ }).click()
+  // Once the main window's core holds the note, well inside the 500 ms the title answer takes.
+  await page.waitForTimeout(150)
+  await title(win).fill('Renamed')
+  await expect(body(page)).toHaveText('Start.')
+  await page.waitForTimeout(700)
+  await expect(title(page)).toHaveValue('Renamed')
 })
 
 test('closing a note window saves its edits first', async ({ page, context }) => {
