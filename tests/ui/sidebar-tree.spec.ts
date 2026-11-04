@@ -179,6 +179,19 @@ test('a child row draws its guide per row, and breaks it 2 px clear of its own c
   expect(plans.image).toContain('calc(50% - 9px)')
   expect(plans.image).toContain('calc(50% + 9px)')
 
+  // Work's guide runs on beside Plans' children, through the wrapper that holds them.
+  const through = await page
+    .locator('#books-tree ul[role="group"] ul[role="group"]')
+    .evaluate((el) => {
+      const style = getComputedStyle(el, '::before')
+      return {
+        x: el.parentElement!.getBoundingClientRect().x + parseFloat(style.left),
+        width: style.width,
+      }
+    })
+  expect(through.x).toBe(plans.x)
+  expect(through.width).toBe('1px')
+
   // A childless row keeps its guide whole.
   const deep = await guide('Deep')
   expect(deep.image).not.toContain('calc(')
@@ -189,9 +202,9 @@ test('rows answer the pointer, and the selected row and a drop target keep their
 }) => {
   await setUp(page)
   const fill = (token: string) =>
-    page.evaluate((name) => {
+    page.evaluate((tokenName) => {
       const probe = document.createElement('div')
-      probe.style.background = `var(${name})`
+      probe.style.background = `var(${tokenName})`
       document.body.append(probe)
       const color = getComputedStyle(probe).backgroundColor
       probe.remove()

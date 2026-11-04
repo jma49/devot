@@ -68,6 +68,7 @@ const hoverFills = rules.filter((r) => r.selector.includes(':hover') && r.body.h
 it('washes a hovered sidebar or note row in the inactive selection fill, leaving selected and drop rows alone', () => {
   const [hover] = hoverFills.filter((r) => r.selector.includes('.row:not'))
   expect(hover?.body.get('background')).toBe('var(--color-fill-row-selected-inactive)')
+  expect(hover?.body.get('transition-duration')).toBe('var(--motion-duration-hover)')
   for (const row of ['.source:not(', '.book-row:not(', '.row:not(']) {
     expect(hover?.selector).toContain(row)
   }
@@ -83,5 +84,8 @@ it('draws the tree guide per row, broken clear of a chevron, and not per group',
   expect(plain?.body.get('inset-block')).toBe('0')
   expect(broken?.body.get('--guide-gap')).toBe('calc(var(--size-icon-sm) / 2 + var(--space-1))')
   expect(broken?.body.get('background')).toContain('transparent')
-  expect(rules.filter((r) => /ul\[role='group'\]::before/.test(r.selector))).toEqual([])
+  const groups = rules.filter((r) => /ul\[role='group'\]::before/.test(r.selector))
+  expect(groups.map((r) => r.selector)).toEqual([
+    ":root[data-sidebar-material='on'] .books ul[role='group'] ul[role='group']::before",
+  ])
 })
