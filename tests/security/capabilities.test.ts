@@ -345,7 +345,12 @@ describe('Tauri command permissions', () => {
     expect(start).toBeGreaterThan(-1)
     const handler = app.slice(start, app.indexOf('CLOSE_EVENT, closed)', start))
     const commands = [...handler.matchAll(/invoke\('([a-z_]+)'/g)].map((m) => m[1] ?? '')
+    if (handler.includes("answerAsked(\n        'close'")) {
+      const guards = readFileSync('src/renderer/src/saveGuards.ts', 'utf8')
+      commands.push(...[...guards.matchAll(/^ {2}close: '([a-z_]+)'/gm)].map((m) => m[1] ?? ''))
+    }
     expect(commands).toContain('note_window_close_ready')
+    expect(commands).toContain('note_window_close_cancel')
     const granted = capabilities()
       .filter((c) => c.windows.includes('main-*'))
       .flatMap(permissionIds)
