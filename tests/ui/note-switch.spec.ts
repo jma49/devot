@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, openApp } from './fixtures'
+import { expect, test, openApp, type TestWindow } from './fixtures'
 import { slowCore } from './slowCore'
 
 // Switching notes keeps the note being left on screen until the next one's
@@ -153,4 +153,26 @@ test('keys typed after a switch is called off go to the note still shown, never 
   await expect
     .poll(() => storedBodies(page))
     .toEqual(['First: First body.', 'Second: Second body. P Q'])
+})
+
+const editorMenus = (page: Page) =>
+  page.evaluate(
+    () =>
+      (globalThis as unknown as TestWindow).devotIpcCalls.filter((c) =>
+        ['editor_menu_popup', 'plugin:menu|popup'].includes(c.cmd),
+      ).length,
+  )
+
+test('the note being left offers no editor menu while the next one loads, so nothing aims at the wrong note (#531)', async ({
+  page,
+}) => {
+  await row(page, 'First').click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('First')
+  await expect(shownBody(page)).toHaveText('Second body.')
+  const before = await editorMenus(page)
+  await shownBody(page).click({ button: 'right' })
+  await expect(shownBody(page)).toHaveText('First body.')
+  expect(await editorMenus(page)).toBe(before)
+  await body(page).click({ button: 'right' })
+  await expect.poll(() => editorMenus(page)).toBe(before + 1)
 })

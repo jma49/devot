@@ -893,6 +893,8 @@ export function NoteEditor({
   // Before the effect that shows a note, which reads them in the same commit.
   useLayoutEffect(() => {
     menuOpener.current = (view, at, pos) => {
+      // The note being left, still on screen while the next one loads: its menu would act on the next.
+      if (shown.current?.noteId !== noteId) return
       menuAt.current = at
       const target = editorMenuTarget(
         view.state,
