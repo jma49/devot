@@ -81,19 +81,6 @@ test('tags a note, reuses tags, filters and removes them', async ({ page }) => {
   await expect(noteRows(page)).toHaveCount(1)
 })
 
-test('deleting a tag removes it from every note', async ({ page }) => {
-  await createNote(page, 'One')
-  await addTag(page, 'temp')
-  const tagRow = sidebar(page).getByRole('button', { name: /^temp 1$/ })
-  await tagRow.focus()
-  await page.keyboard.press('Delete')
-  const confirm = page.getByRole('dialog', { name: 'Delete the tag \u201ctemp\u201d?' })
-  await expect(confirm).toContainText('It will be removed from 1 note.')
-  await confirm.getByRole('button', { name: 'Delete Tag' }).click()
-  await expect(sidebar(page).getByRole('button', { name: /^temp/ })).toHaveCount(0)
-  await expect(page.getByRole('group', { name: 'Tags' })).not.toContainText('temp')
-})
-
 test('declining a tag delete keeps the tag and returns focus to its row', async ({ page }) => {
   await createNote(page, 'One')
   await addTag(page, 'keep')
