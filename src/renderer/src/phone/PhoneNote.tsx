@@ -243,7 +243,12 @@ export function PhoneNote(props: {
     },
     create: async (title) => (store.core ? store.core.create(title, note?.bookId ?? null) : ''),
     discard: async (id) => {
-      await store.core?.trash(id)
+      const core = store.core
+      if (!core) return
+      await core
+        .trash(id)
+        .then(() => core.purge(id))
+        .catch(() => console.warn('W_NOTE_DROP_FAILED', id))
     },
     linked: () => {},
   }
