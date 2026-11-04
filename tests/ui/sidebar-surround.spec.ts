@@ -31,8 +31,13 @@ for (const colorScheme of ['light', 'dark'] as const) {
                 .evaluate((el) => el.style.getPropertyValue('--sidebar-surround-clip')),
             )
             .toContain(`H${viewport.width}V${viewport.height}H0Z`)
-          await page.evaluate(() => {
-            document.documentElement.dataset['nativeGlass'] = 'on'
+          // Isolate the surrounding sheet from the sidebar's CSS glass. The cutout must leave
+          // the root visible here, independently of how the sidebar paints its own material.
+          await sidebar.evaluate((el) => {
+            el.style.background = 'none'
+            el.style.boxShadow = 'none'
+            el.style.setProperty('-webkit-backdrop-filter', 'none')
+            el.style.setProperty('backdrop-filter', 'none')
           })
           const png = decodePng(await page.screenshot({ scale: 'css' }))
           const pixel = (x: number, y: number) => {
