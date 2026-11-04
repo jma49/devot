@@ -12,6 +12,7 @@ const STOPPED: Readonly<Record<string, MessageKey>> = {
   E_SYNC_UNAUTHORIZED: 'sync.notice.revoked',
   E_SYNC_CLOCK_SKEW: 'sync.notice.clock',
   E_LICENCE_REQUIRED: 'sync.notice.licence',
+  E_LICENCE_UNREADABLE: 'sync.notice.licenceUnreadable',
 }
 
 function stateMessage(snapshot: SyncSnapshot, pauseOver: boolean): string | undefined {

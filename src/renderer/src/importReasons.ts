@@ -29,6 +29,7 @@ const REASONS: Record<string, MessageKey> = {
   E_IMPORT_FILE_TYPE: 'import.reason.fileType',
   E_IMPORT_CANCELLED: 'import.reason.cancelled',
   E_LICENCE_REQUIRED: 'import.reason.trialEnded',
+  E_LICENCE_UNREADABLE: 'import.reason.licenceUnreadable',
 }
 
 export function importReason(code: string): MessageKey | null {

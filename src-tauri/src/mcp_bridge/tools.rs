@@ -83,6 +83,9 @@ fn hint(code: &str) -> String {
         "E_LICENCE_REQUIRED" => {
             "Devot's trial has ended, so it is read-only without a licence. Notes can still be read; add a licence in Devot to write."
         }
+        "E_LICENCE_UNREADABLE" => {
+            "Devot could not read its licence from the keychain, so it is read-only for now. Notes can still be read; the owner can check Settings > License in Devot."
+        }
         "E_HTTP_READ_ONLY" => {
             "Devot allows AI tools to read only. The owner can choose Read and Write in Settings > Integrations."
         }
@@ -746,6 +749,7 @@ mod tests {
             "E_BOOK_NAME_TAKEN",
             "E_STORAGE_BUSY",
             "E_LICENCE_REQUIRED",
+            "E_LICENCE_UNREADABLE",
             "E_HTTP_READ_ONLY",
             "E_MCP_ACCESS_OFF",
             "E_MCP_BACKGROUND_START_OFF",

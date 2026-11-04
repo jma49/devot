@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { proposalParts } from '../../core/aiEdit'
-import { aiEditFailure, proposalRows } from './aiEditView'
+import { aiEditFailure, aiSuggestFailure, proposalRows } from './aiEditView'
 
 describe('the proposal rows', () => {
   it('fold long runs of unchanged lines, keeping two on each side of a change', () => {
@@ -44,5 +44,14 @@ describe('why there is no proposal', () => {
       'The proposal could not be made or applied. (E_SOMETHING_ELSE)',
     )
     expect(aiEditFailure('E_AI_SELECTION_TOO_LARGE').message).toContain('20,000 characters')
+  })
+
+  it('tells a keychain that kept the licence back apart from a missing licence', () => {
+    const unreadable = aiEditFailure('E_LICENCE_UNREADABLE')
+    expect(unreadable.message).toContain('keychain')
+    expect(unreadable.message).toContain('(E_LICENCE_UNREADABLE)')
+    expect(unreadable.retry).toBe(true)
+    expect(aiEditFailure('E_LICENCE_REQUIRED').message).not.toContain('keychain')
+    expect(aiSuggestFailure('E_LICENCE_UNREADABLE')).toContain('keychain')
   })
 })

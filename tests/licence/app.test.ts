@@ -147,6 +147,25 @@ describe('buying', () => {
     expect(stripe.created[0]?.['managed_payments[enabled]']).toBeUndefined()
   })
 
+  it('/buy makes at most ten Checkout Sessions an hour per IP, then says when to come back', async () => {
+    clock = new Date('2026-10-24T09:45:00Z')
+    const buyFrom = (ip: string) => get('/buy', { 'CF-Connecting-IP': ip })
+    for (let i = 0; i < LIMITS.buyPerIp; i++) {
+      expect((await buyFrom('192.0.2.7')).status).toBe(303)
+    }
+    const limited = await buyFrom('192.0.2.7')
+    expect(limited.status).toBe(429)
+    expect(limited.headers.get('Retry-After')).toBe(String(15 * 60))
+    expect(await limited.text()).toContain('E_LICENCE_RATE_LIMITED')
+    expect(stripe.created).toHaveLength(LIMITS.buyPerIp)
+    expect(logs).toContain('I_LICENCE_BUY_LIMITED')
+    expect(logs.join('\n')).not.toContain('192.0.2.7')
+
+    expect((await buyFrom('192.0.2.8')).status).toBe(303)
+    clock = new Date(clock.getTime() + 15 * 60 * 1000)
+    expect((await buyFrom('192.0.2.7')).status).toBe(303)
+  })
+
   it('issues and mails one licence per paid session, whatever Stripe retries', async () => {
     const session = await buy('buyer@example.com')
     const event = rawSession(session)

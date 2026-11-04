@@ -729,6 +729,8 @@ title: Daily Report {{date}}
   'quickCapture.saveFailed': 'The note could not be saved ({code}). Your text is kept here.',
   'quickCapture.trialEnded':
     'Your Devot trial has ended, so no note can be saved. Add a license in Settings > License.',
+  'quickCapture.licenceUnreadable':
+    'The note could not be saved: Devot could not read its license from the keychain. Your text is kept here. See Settings > License.',
   'quickCapture.notebookGone': 'That notebook no longer exists ({code}). Choose another one.',
   'quickCapture.noAnswer':
     'Devot did not save the note in time ({code}). Your text is kept here; open Devot and try again.',
@@ -1136,6 +1138,8 @@ title: Daily Report {{date}}
     'Sync has stopped: it needs a Devot license. Your notes stay on this device. Add a license in Settings > License.',
   'sync.notice.licenceTrialEnded':
     'Sync has stopped: your trial has ended, and sync needs a Devot license. Your notes stay on this device. Add a license in Settings > License.',
+  'sync.notice.licenceUnreadable':
+    'Sync has stopped: Devot could not read its license from the keychain ({code}). Your notes stay on this device. See Settings > License.',
   'sync.notice.paused':
     'Sync paused until {time}: the relay has reached its quota for today. Your notes keep working on this device and sync after that.',
   'sync.notice.pausedUpload':
@@ -1623,6 +1627,8 @@ title: Daily Report {{date}}
   'import.reason.foldersUnsupported': 'Folders cannot be imported on this device.',
   'import.reason.trialEnded':
     'Your Devot trial has ended, so nothing can be imported. Add a license in Settings > License.',
+  'import.reason.licenceUnreadable':
+    'Devot could not read its license from the keychain, so nothing can be imported now. See Settings > License.',
   'format.toolbar': 'Format',
   'format.heading': 'Heading',
   'format.headingTitle': 'Heading',
@@ -1984,6 +1990,8 @@ title: Daily Report {{date}}
   'aiEdit.reason.access':
     'AI can only use notes in a notebook with Allow AI Access on. Turn it on in the notebook\u2019s menu.',
   'aiEdit.reason.licence': 'AI needs a Devot license. Add one in Settings > License.',
+  'aiEdit.reason.licenceUnreadable':
+    'Devot could not read its license from the keychain, so AI is locked for now. See Settings > License.',
   'aiEdit.reason.trialEnded':
     'Your trial has ended, and AI needs a Devot license. Add one in Settings > License.',
   'aiEdit.reason.noKey': 'No AI provider is set up. Add a key in Settings > AI.',

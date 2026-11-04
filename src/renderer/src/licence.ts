@@ -16,6 +16,8 @@ import { invoke } from './ipc'
 export const LICENCE_CHANGED = 'devot:licence-changed'
 /** What Rust and the core refuse sync and AI with when the licence does not include them. */
 export const LICENCE_REQUIRED = 'E_LICENCE_REQUIRED'
+/** What they refuse with instead when the keychain would not give the licence or the trial. */
+export const LICENCE_UNREADABLE = 'E_LICENCE_UNREADABLE'
 const CHANGED_EVENT = 'devot://licence-changed'
 
 /** The one place the licence pages' address is kept. */

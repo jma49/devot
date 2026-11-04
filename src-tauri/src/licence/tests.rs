@@ -879,7 +879,8 @@ fn a_trial_the_keychain_cannot_give_counts_as_ended_and_is_read_again_at_the_nex
             code: Some("E_LICENCE_KEYCHAIN"),
         }
     );
-    assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+    assert_eq!(s.licence.require_write(Write::Content), Err(UNREADABLE));
+    assert_eq!(s.licence.require(), Err(UNREADABLE));
     s.licence.snapshot();
     assert_eq!(s.trial.reads.load(Ordering::SeqCst), 1);
     s.trial.unreadable.store(false, Ordering::SeqCst);
@@ -967,8 +968,9 @@ fn a_denied_licence_read_keeps_the_key_and_is_asked_again_at_the_next_tick_not_a
         (LicenceState::None, Some("E_LICENCE_KEYCHAIN"))
     );
     for _ in 0..5 {
-        assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
+        assert_eq!(s.licence.require_write(Write::Content), Err(UNREADABLE));
     }
+    assert_eq!(s.licence.require(), Err(UNREADABLE));
     s.licence.snapshot();
     assert_eq!(s.store.reads.load(Ordering::SeqCst), 1);
     assert_eq!(

@@ -564,7 +564,11 @@ pub fn status_of(code: &str) -> u16 {
         | "E_AI_PATCH_AMBIGUOUS"
         | "E_HEADING_NOT_FOUND" => 409,
         "E_NOTE_BODY_TOO_LARGE" => 413,
-        "E_STORAGE_BUSY" | "E_CORE_NOT_READY" | "E_HTTP_API_UNAVAILABLE" | "E_APP_QUITTING" => 503,
+        "E_STORAGE_BUSY"
+        | "E_CORE_NOT_READY"
+        | "E_HTTP_API_UNAVAILABLE"
+        | "E_APP_QUITTING"
+        | "E_LICENCE_UNREADABLE" => 503,
         "E_HTTP_API_TIMEOUT" => 504,
         _ if code.starts_with("E_AI_")
             || code.starts_with("E_APPEND_")
