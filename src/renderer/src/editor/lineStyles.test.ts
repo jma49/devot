@@ -76,8 +76,9 @@ describe('editor line styles', () => {
     ])
   })
 
-  it('strikes through the text of a done task only', () => {
-    expect(marked('- [x] shipped\n- [ ] open\n', 'cm-md-task-done')).toEqual([' shipped'])
+  it('strikes through the text of a done task only, not the space after its box', () => {
+    expect(marked('- [x] shipped\n- [ ] open\n', 'cm-md-task-done')).toEqual(['shipped'])
+    expect(marked('- [x]\t two words\n', 'cm-md-task-done')).toEqual(['two words'])
   })
 
   it('highlights the text between mark tags and shrinks the tags', () => {
