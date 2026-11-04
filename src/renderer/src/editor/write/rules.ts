@@ -1,6 +1,6 @@
 // Write mode's rules for inline Markdown marks: which source characters an
 // element without the selection hides, and what stands in their place (a
-// bullet, a checkbox, an alert's label, a note's title). Pure: read from the
+// bullet, a checkbox, an alert's label, a note's title, an emoji). Pure: read from the
 // syntax tree and the selection, so the rules are tested over Markdown
 // without an editor. Blocks shown otherwise (tables, code, rendered images,
 // formulas and diagrams) keep their source here: `SOURCE_BLOCKS` and the
@@ -25,6 +25,7 @@ export type WriteRange =
   | { kind: 'mark'; from: number; to: number; className: string }
   | { kind: 'line'; from: number; to: number; className: string }
   | { kind: 'unit'; from: number; to: number }
+  | { kind: 'inline'; from: number; to: number; source: string }
 
 /** The selection's ranges that show source, in order and apart; a caret has `from === to`. */
 export type Selected = readonly { from: number; to: number }[]
@@ -123,6 +124,12 @@ const SETEXT = /^SetextHeading[12]$/
 const ALERT_LABEL = /^\[!(note|tip|important|warning|caution)\][ \t]*$/i
 const MARK_OPEN = /^<mark(?:\s[^>]*)?>$/i
 const MARK_CLOSE = /^<\/mark\s*>$/i
+const INLINE_HTML = /^<(kbd|sup|sub)(?:\s[^>]*)?>$/i
+const INLINE_HTML_CLOSE = {
+  kbd: /^<\/kbd\s*>$/i,
+  sup: /^<\/sup\s*>$/i,
+  sub: /^<\/sub\s*>$/i,
+} as const
 const LISTS = new Set(['BulletList', 'OrderedList'])
 const SPACE = /[ \t]/
 
@@ -230,18 +237,24 @@ export function writeRanges(
           }
           return
         case 'HTMLTag': {
-          if (!MARK_OPEN.test(text(node.from, node.to))) return
-          let close = node.nextSibling
-          while (
-            close &&
-            !(close.name === 'HTMLTag' && MARK_CLOSE.test(text(close.from, close.to)))
-          )
-            close = close.nextSibling
-          if (!close || shows(node.from, close.to)) return
-          hide(node.from, node.to)
-          hide(close.from, close.to)
+          const tag = text(node.from, node.to)
+          if (MARK_OPEN.test(tag)) {
+            const close = closingTag(node, MARK_CLOSE)
+            if (!close || shows(node.from, close.to)) return
+            hide(node.from, node.to)
+            hide(close.from, close.to)
+            return
+          }
+          const element = INLINE_HTML.exec(tag)?.[1]?.toLowerCase() as
+            | keyof typeof INLINE_HTML_CLOSE
+            | undefined
+          const close = element && closingTag(node, INLINE_HTML_CLOSE[element])
+          if (close) inline(node.from, close.to)
           return
         }
+        case 'Emoji':
+          inline(node.from, node.to)
+          return
         case 'Autolink':
           if (!shows(node.from, node.to))
             for (const mark of node.getChildren('LinkMark')) hide(mark.from, mark.to)
@@ -252,6 +265,18 @@ export function writeRanges(
       return
     },
   })
+
+  /** An element the preview's renderers draw (an emoji, `<kbd>`, `<sup>`, `<sub>`), drawn the same while unselected. */
+  function inline(a: number, b: number) {
+    if (!shows(a, b) && oneLine(a, b))
+      out.push({ kind: 'inline', from: a, to: b, source: text(a, b) })
+  }
+
+  function closingTag(open: SyntaxNode, close: RegExp): SyntaxNode | null {
+    let at = open.nextSibling
+    while (at && !(at.name === 'HTMLTag' && close.test(text(at.from, at.to)))) at = at.nextSibling
+    return at
+  }
 
   function task(start: number, marker: SyntaxNode) {
     if (!oneLine(start, marker.to)) return

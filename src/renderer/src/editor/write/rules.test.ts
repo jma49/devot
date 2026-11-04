@@ -2,6 +2,7 @@ import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { expectWithinBudget } from '../../../../../tests/support/budget'
+import example from '../../welcome/markdown-example.md?raw'
 import { noteMarkdown } from '../markdown'
 import { writeBlocksOf } from './blockRanges'
 import {
@@ -36,6 +37,7 @@ const STAND_IN: Record<string, (r: WriteRange) => string> = {
   noteTitle: (r) => (r.kind === 'noteTitle' ? `{note ${r.id}}` : ''),
   codeLanguage: (r) => (r.kind === 'codeLanguage' ? `{lang ${r.label}}` : ''),
   footnote: (r) => (r.kind === 'footnote' ? `{^${r.number}${r.definition ? ':' : ''}}` : ''),
+  inline: (r) => (r.kind === 'inline' ? `{${r.source}}` : ''),
 }
 
 /** The note as Write mode shows it: hidden marks gone, widgets as `{…}`. */
@@ -199,6 +201,40 @@ describe('Write mode quotes and alerts', () => {
 
   it('leave a label that is no alert kind', () => {
     expect(shown('> [!OTHER]\n> x')).toBe('[!OTHER]\nx')
+  })
+
+  it("draw the label of each of the Markdown example note's five alerts", () => {
+    const alerts = rangesOf(example).ranges.flatMap((r) => (r.kind === 'alert' ? [r.alert] : []))
+    expect(alerts).toEqual(['note', 'tip', 'important', 'warning', 'caution'])
+    const important = example.indexOf('> [!IMPORTANT]')
+    const onIt = rangesOf(example, caret(important + 4)).ranges.filter((r) => r.kind === 'alert')
+    expect(onIt.map((r) => r.kind === 'alert' && r.alert)).toEqual([
+      'note',
+      'tip',
+      'warning',
+      'caution',
+    ])
+  })
+})
+
+describe('Write mode emoji and inline HTML', () => {
+  it('draw an emoji shortcode and a kbd, sup or sub element in place of its source', () => {
+    expect(shown('Party :tada: now: <kbd>Cmd</kbd> N, x<sup>2</sup> and H<sub>2</sub>O')).toBe(
+      'Party {:tada:} now: {<kbd>Cmd</kbd>} N, x{<sup>2</sup>} and H{<sub>2</sub>}O',
+    )
+    expect(shown('<KBD class="k">A</KBD>')).toBe('{<KBD class="k">A</KBD>}')
+  })
+
+  it("show one element's source while the caret is in it or at its edge, the others drawn", () => {
+    const doc = ':tada: and <kbd>A</kbd>'
+    expect(shown(doc, caret(0))).toBe(':tada: and {<kbd>A</kbd>}')
+    expect(shown(doc, caret(6))).toBe(':tada: and {<kbd>A</kbd>}')
+    expect(shown(doc, caret(7))).toBe('{:tada:} and {<kbd>A</kbd>}')
+    expect(shown(doc, caret(doc.length))).toBe('{:tada:} and <kbd>A</kbd>')
+  })
+
+  it('leave other HTML, a tag never closed and a shortcode in code as source', () => {
+    expect(shown('<span>a</span> <kbd>b and `:tada:`')).toBe('<span>a</span> <kbd>b and :tada:')
   })
 })
 
