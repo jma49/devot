@@ -23,6 +23,9 @@
 # - Anything else under src-tauri/ (Rust code, Cargo files, migrations,
 #   capabilities, the app icons the binary embeds) needs the Rust job; the
 #   Vitest tests that read those files run in the `policy` job.
+# - The TypeScript tests and UI specs under tests/ need the web jobs; the
+#   shared fixtures (tests/fixtures/) and case files (tests/support/*.json)
+#   are also read by the Rust tests, so they need both.
 # - Everything else needs both: the Rust job builds the UI that the binary
 #   embeds, and a change to the tooling or CI itself could break either.
 # A list with no files needs both, so a doubt runs everything.
@@ -57,6 +60,15 @@ while IFS= read -r file; do
       ;;
     src-tauri/*)
       rust=true
+      docs_only=false
+      ;;
+    tests/fixtures/* | tests/support/*.json)
+      web=true
+      rust=true
+      docs_only=false
+      ;;
+    tests/*)
+      web=true
       docs_only=false
       ;;
     *)

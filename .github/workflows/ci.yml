@@ -10,6 +10,8 @@ name: CI
 # under src-tauri/ need the Rust jobs
 # (tauri.conf.json, whose CSP the UI tests use, and plugin-frame/, whose pages
 # only they run, need both; the licence test vectors need the Rust job too),
+# tests/ needs the web jobs (its fixtures and JSON case files, which the Rust
+# tests read, need both),
 # anything else needs both. When the web jobs are not
 # needed, `policy-check` runs the formatting check, lint, the type check and
 # all of Vitest, whose tests also read the documentation, the Rust sources,

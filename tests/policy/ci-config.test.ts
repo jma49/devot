@@ -1,9 +1,9 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join, normalize } from 'node:path'
 import { expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { gitIn } from '../support/git-files'
+import { gitIn, listFiles } from '../support/git-files'
 import { tempDir } from '../support/temp-dirs'
 
 // The documented gate must be the real one: `pnpm check` runs what CI runs.
@@ -343,9 +343,30 @@ it('changed-code.sh runs both jobs when anything else changes', () => {
     'web=true rust=true',
   )
   expect(changedCode(['.github/workflows/ci.yml'])).toBe('web=true rust=true')
-  expect(changedCode(['tests/policy/ci-config.test.ts'])).toBe('web=true rust=true')
   expect(changedCode(['package.json'])).toBe('web=true rust=true')
   expect(changedCode(['design/tokens/base.tokens.json'])).toBe('web=true rust=true')
+})
+
+it('changed-code.sh needs only the web jobs for TypeScript tests and UI specs', () => {
+  expect(changedCode(['tests/policy/ci-config.test.ts', 'tests/ui/editor.spec.ts'])).toBe(
+    'web=true rust=false',
+  )
+  expect(changedCode(['tests/support/budget.ts'])).toBe('web=true rust=false')
+})
+
+it('changed-code.sh runs the Rust job for every file under tests/ that the Rust tests read', () => {
+  const rustSources = listFiles('.', 'src-tauri').filter((f) => f.endsWith('.rs'))
+  const readByRust = rustSources.flatMap((file) =>
+    [...readFileSync(file, 'utf8').matchAll(/"((?:\.\.\/)+tests\/[\w./-]+)"/g)].map((m) =>
+      normalize(join(dirname(file), m[1] ?? '')),
+    ),
+  )
+  const shared = readByRust.filter((path) => path.startsWith('tests/'))
+  expect(shared).toContain('tests/support/names.json')
+  // manifest.rs names its file from CARGO_MANIFEST_DIR, which the pattern above does not resolve.
+  for (const path of [...shared, 'tests/fixtures/plugins/manifests.json']) {
+    expect({ path, jobs: changedCode([path]) }).toEqual({ path, jobs: 'web=true rust=true' })
+  }
 })
 
 it('changed-code.sh runs both jobs when it learns of no files', () => {
