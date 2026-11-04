@@ -1,5 +1,6 @@
 import { existsSync, globSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, normalize } from 'node:path'
+import { MERMAID_FRAME_ENTRY, MERMAID_FRAME_SCRIPT } from '../vite/mermaid-frame-entry.ts'
 
 // The UI's module graph, read with patterns rather than a parser so the change detection needs no
 // installed packages. Reading too many edges only runs more specs; a missed edge would skip specs,
@@ -7,6 +8,8 @@ import { dirname, join, normalize } from 'node:path'
 
 const SOURCES = ['src/**/*.{ts,tsx,css,md,svg}', 'design/app-icon/*.svg']
 const SPECS = ['tests/ui/**/*.ts', 'tests/ui-csp/**/*.ts']
+// Scripts a Vite plugin builds from a module of its own, which a page loads by their built name.
+const BUILT_SCRIPTS = new Map([[MERMAID_FRAME_SCRIPT, MERMAID_FRAME_ENTRY]])
 const IGNORED = /\.(?:bench\.)?test\.[cm]?[jt]sx?$|\.d\.ts$/
 
 const SPECIFIERS = [
@@ -47,7 +50,7 @@ export function uiGraph(root: string): UiGraph {
     for (const [, src] of readFileSync(join(root, page), 'utf8').matchAll(
       /<script[^>]*\bsrc="\/([^"]+)"/g,
     )) {
-      pages.set(page, normalize(join('src/renderer', src ?? '')))
+      pages.set(page, BUILT_SCRIPTS.get(src ?? '') ?? normalize(join('src/renderer', src ?? '')))
     }
   }
   const files = new Set(

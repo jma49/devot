@@ -3,6 +3,10 @@ import { dirname, join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import { boundaries } from '../../scripts/ci/ui-plan.ts'
 import { uiGraph, uiReach } from '../../scripts/ci/ui-graph.ts'
+import {
+  MERMAID_FRAME_ENTRY,
+  MERMAID_FRAME_SCRIPT,
+} from '../../scripts/vite/mermaid-frame-entry.ts'
 import { listFiles } from '../support/git-files'
 import { tempDir } from '../support/temp-dirs'
 
@@ -64,6 +68,19 @@ it('follows every import form the UI uses, up to the page that loads it', () => 
   // Only a unit test imports it, and unit tests are not part of the UI.
   expect(uiReach(graph, 'src/renderer/src/unused.ts')?.pages.size).toBe(0)
   expect(uiReach(graph, 'src/renderer/src/main.test.ts')).toBeUndefined()
+})
+
+it('starts a page that loads a plugin-built script at the module the plugin builds it from', () => {
+  const root = repo({
+    'src/renderer/mermaid.html': `<!doctype html><script src="/${MERMAID_FRAME_SCRIPT}" vite-ignore></script>`,
+    [MERMAID_FRAME_ENTRY]: "const render = () => import('./diagram')",
+    'src/renderer/src/diagram.ts': '',
+  })
+  const graph = uiGraph(root)
+  expect([...graph.pages]).toEqual([['src/renderer/mermaid.html', MERMAID_FRAME_ENTRY]])
+  expect(uiReach(graph, 'src/renderer/src/diagram.ts')?.pages).toEqual(
+    new Set([MERMAID_FRAME_ENTRY]),
+  )
 })
 
 it('stops at a lazily loaded boundary and names the specs that import a file themselves', () => {
