@@ -47,6 +47,7 @@ export function reportingWrites(storage: WireStorage, onWrote: () => void): Wire
     putFile: after((meta, data) => storage.putFile(meta, data)),
     copyFiles: after((noteId, copies) => storage.copyFiles(noteId, copies)),
     putBook: after((book) => storage.putBook(book)),
+    putBooks: after((books) => storage.putBooks(books)),
     putTag: after((tag) => storage.putTag(tag)),
     renameTag: after((tag, searches) => storage.renameTag(tag, searches)),
     putSavedSearch: after((search) => storage.putSavedSearch(search)),

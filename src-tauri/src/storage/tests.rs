@@ -728,6 +728,39 @@ fn stores_notebooks_and_merges_them_per_field() {
 }
 
 #[test]
+fn stores_a_batch_of_notebooks_in_order_merging_each_as_one_alone() {
+    let (_dir, mut store) = temp_store();
+    let mut moved = book("b1", "Stale name", "0000000000000005-0000-a");
+    moved.parent_id = Some("b0".into());
+    moved.parent_hlc = "0000000000000020-0000-a".into();
+    store
+        .put_books(&[
+            book("b0", "Home", "0000000000000010-0000-a"),
+            book("b1", "Work", "0000000000000010-0000-a"),
+            moved,
+        ])
+        .unwrap();
+    let books = store.list_books().unwrap();
+    assert_eq!(books.len(), 2);
+    assert_eq!(books[1].name, "Work");
+    assert_eq!(books[1].parent_id.as_deref(), Some("b0"));
+}
+
+#[test]
+fn tells_a_live_notebook_from_a_deleted_or_unknown_one() {
+    let (_dir, mut store) = temp_store();
+    let mut deleted = book("b2", "Gone", "0000000000000010-0000-a");
+    deleted.deleted_at = Some(5);
+    deleted.deleted_hlc = Some("0000000000000011-0000-a".into());
+    store
+        .put_books(&[book("b1", "Work", "0000000000000010-0000-a"), deleted])
+        .unwrap();
+    assert!(store.book_is_live("b1").unwrap());
+    assert!(!store.book_is_live("b2").unwrap());
+    assert!(!store.book_is_live("b3").unwrap());
+}
+
+#[test]
 fn notebooks_keep_ai_access_off_by_default_and_merge_it_per_field() {
     let (_dir, mut store) = temp_store();
     store

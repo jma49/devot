@@ -138,6 +138,8 @@ pub fn run() {
             commands::images::image_save,
             commands::books::books_list,
             commands::books::book_put,
+            commands::books::books_put,
+            commands::books::book_is_live,
             commands::tags::tags_list,
             commands::tags::tag_put,
             commands::tags::tag_rename,

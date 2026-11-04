@@ -218,6 +218,9 @@ export interface NoteBody {
   bodyMd: string
 }
 
+/** The most notebooks one `putBooks` call takes (the Tauri command refuses more). */
+export const MAX_PUT_BOOKS = 5_000
+
 /** The most IDs one `getBodies` call takes (the Tauri command refuses more). */
 export const MAX_BODY_IDS = 500
 
@@ -248,7 +251,11 @@ export interface StorageAdapter {
   /** A file that does not exist is skipped. Throws E_NOTE_NOT_FOUND for an unknown or trashed note. */
   copyFiles(noteId: string, copies: readonly FileCopy[]): Promise<void>
   listBooks(): Promise<BookRecord[]>
+  /** Whether `listBooks` holds it, without reading every notebook. */
+  isLiveBook(id: string): Promise<boolean>
   putBook(book: BookRecord): Promise<void>
+  /** Each as `putBook`, in order, in one transaction: all of them or none. At most MAX_PUT_BOOKS. */
+  putBooks(books: readonly BookRecord[]): Promise<void>
   listTags(): Promise<TagRecord[]>
   putTag(tag: TagRecord): Promise<void>
   /** Writes the tag and the saved searches rewritten for its new name in one transaction: all of them or none. */

@@ -512,6 +512,14 @@ export const memoryStorage: StorageAdapter = {
     )
     localStorage.setItem(BOOKS, JSON.stringify([...all.filter((b) => b.id !== book.id), next]))
   },
+  async isLiveBook(id) {
+    return read<BookRecord>(BOOKS).some((b) => b.id === id && b.deletedAt === null)
+  },
+  async putBooks(books) {
+    const all = new Map(read<BookRecord>(BOOKS).map((b) => [b.id, b]))
+    for (const book of books) all.set(book.id, mergeBook(all.get(book.id), book))
+    localStorage.setItem(BOOKS, JSON.stringify([...all.values()]))
+  },
   async listTags() {
     // Read like SQLite does: a colour neither the palette nor #rrggbb is none.
     return read<TagRecord>(TAGS)

@@ -1145,7 +1145,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
   /** Templates' row may be missing (another device deleted it in a Devot from before templates). */
   const isLiveBook = async (bookId: string) =>
-    bookId === TEMPLATES_BOOK_ID || (await storage.listBooks()).some((b) => b.id === bookId)
+    bookId === TEMPLATES_BOOK_ID || (await storage.isLiveBook(bookId))
 
   const requireBook = async (bookId: string | null) => {
     if (bookId !== null && !(await isLiveBook(bookId))) throw new Error('E_BOOK_NOT_FOUND')

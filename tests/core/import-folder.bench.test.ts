@@ -78,6 +78,16 @@ function sameNames(count: number): Vault {
   return { files, images }
 }
 
+/** `count` short notes, each three folders down in a folder of its own, ten of those to a parent: 4.1 notebooks a note. */
+function manyFolders(count: number): Vault {
+  const files: Record<string, string> = {}
+  for (let i = 0; i < count; i += 1) {
+    files[`Area ${Math.floor(i / 10)}/Folder ${i}/One/Two/Three/Note ${i}.md`] =
+      `# Note ${i}\n\nShort.\n`
+  }
+  return { files, images: [] }
+}
+
 async function importVault({ files, images }: Vault) {
   const made = services()
   const scan: ImportScan = {
@@ -139,6 +149,16 @@ describe('importing a Markdown folder', { timeout: TIMEOUT_MS }, () => {
     expect(report.problems).toEqual([])
     expect(report.links).toBe(100)
     expectLinearGrowth(context, (await importGrowth(sameNames, 100)).growth)
+  })
+})
+
+describe('importing thousands of folders', { timeout: TIMEOUT_MS }, () => {
+  // The notebooks are made in one write: making each alone listed every notebook made before it.
+  it('takes time linear in the folders', async (context) => {
+    const { report } = await importVault(manyFolders(400))
+    expect(report.problems).toEqual([])
+    expect(report.books).toBe(1640)
+    expectLinearGrowth(context, (await importGrowth(manyFolders, 400, 1)).growth)
   })
 })
 

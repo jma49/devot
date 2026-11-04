@@ -70,6 +70,8 @@ fn main() {
             "agent_writes_seen",
             "books_list",
             "book_put",
+            "books_put",
+            "book_is_live",
             "file_put",
             "files_copy",
             "image_copy",

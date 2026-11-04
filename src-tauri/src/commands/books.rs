@@ -89,9 +89,51 @@ pub async fn book_put(db: State<'_, Db>, book: BookRecord) -> Result<(), String>
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn book_is_live(db: State<'_, Db>, id: String) -> Result<bool, String> {
+    if !valid_note_id(&id) {
+        return Err("E_BOOK_ID_INVALID".into());
+    }
+    db.call(move |store| store.book_is_live(&id))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Matches MAX_PUT_BOOKS in src/core/storage.ts.
+const MAX_PUT_BOOKS: usize = 5_000;
+
+fn validate_all(books: &[BookRecord]) -> Result<(), &'static str> {
+    if books.is_empty() || books.len() > MAX_PUT_BOOKS {
+        return Err("E_BOOKS_COUNT_INVALID");
+    }
+    books.iter().try_for_each(validate)
+}
+
+#[tauri::command]
+pub async fn books_put(db: State<'_, Db>, books: Vec<BookRecord>) -> Result<(), String> {
+    validate_all(&books).map_err(String::from)?;
+    db.write(Write::Content, move |store| store.put_books(&books))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn takes_a_batch_of_valid_notebooks_and_refuses_it_whole_for_one_bad_one() {
+        assert_eq!(validate_all(&[book()]), Ok(()));
+        assert_eq!(validate_all(&vec![book(); MAX_PUT_BOOKS]), Ok(()));
+        assert_eq!(validate_all(&[]), Err("E_BOOKS_COUNT_INVALID"));
+        assert_eq!(
+            validate_all(&vec![book(); MAX_PUT_BOOKS + 1]),
+            Err("E_BOOKS_COUNT_INVALID")
+        );
+        let mut bad = book();
+        bad.name = String::new();
+        assert_eq!(validate_all(&[book(), bad]), Err("E_BOOK_NAME_INVALID"));
+    }
 
     const ID: &str = "0192a6f0-0000-7000-8000-0000000000b1";
     const HLC: &str = "0001728000000000-0000-node";

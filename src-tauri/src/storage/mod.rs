@@ -1569,9 +1569,22 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
+    /// Whether `list_books` holds it, without reading every notebook.
+    pub fn book_is_live(&self, id: &str) -> Result<bool> {
+        let mut statement = self.conn.prepare_cached(
+            "SELECT EXISTS (SELECT 1 FROM books WHERE id = ?1 AND deleted_at IS NULL)",
+        )?;
+        Ok(statement.query_row([id], |row| row.get(0))?)
+    }
+
     pub fn put_book(&mut self, book: &BookRecord) -> Result<()> {
+        self.put_books(std::slice::from_ref(book))
+    }
+
+    /// Each as `put_book`, in order, in one transaction: all of them or none.
+    pub fn put_books(&mut self, books: &[BookRecord]) -> Result<()> {
         let tx = self.conn.transaction()?;
-        tx.execute(
+        let mut put = tx.prepare_cached(
             "INSERT INTO books (id, name, name_hlc, parent_id, parent_hlc, created_at,
                                 updated_at, deleted_at, deleted_hlc, ai_access, ai_access_hlc,
                                 sort_key, sort_key_hlc, icon, icon_color, icon_hlc)
@@ -1602,7 +1615,9 @@ impl Store {
                                   THEN excluded.deleted_hlc ELSE deleted_hlc END,
                created_at = MIN(excluded.created_at, created_at),
                updated_at = MAX(excluded.updated_at, updated_at)",
-            params![
+        )?;
+        for book in books {
+            put.execute(params![
                 book.id,
                 book.name,
                 book.name_hlc,
@@ -1619,8 +1634,9 @@ impl Store {
                 book.icon,
                 book.icon_color,
                 book.icon_hlc
-            ],
-        )?;
+            ])?;
+        }
+        drop(put);
         tx.commit()?;
         Ok(())
     }

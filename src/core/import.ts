@@ -29,7 +29,7 @@ import { unified } from 'unified'
 import { isMap, isScalar, isSeq, parseDocument } from 'yaml'
 import { htmlToMarkdown, type HtmlImage } from './htmlImport'
 import { folderOf, isHtmlFile, noteFolder } from './importTree'
-import { MAX_BOOK_NAME_CHARS, type BookService } from './books'
+import { MAX_BOOK_NAME_CHARS, type BookDraft, type BookService } from './books'
 import { errorCode } from './errors'
 import { checkUpload, fileUri } from './files'
 import { splitImageSize, withImageSize } from './images'
@@ -801,15 +801,31 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   const prepare = options.prepare ?? preparerHere(newId)
   const destination = options.destination ?? null
   const problems: ImportProblem[] = [...scan.skipped]
-  // Notebooks are made when their first note is imported; `made` collects them so a failed file can take them back.
+  // The notebooks of every folder with files are made in one write before the first note, in the
+  // order the files first need them; those no imported note ends up in are deleted at the end.
   const folders = new Map<string, string | null>([['', destination]])
-  const folder = async (path: string, made: string[]): Promise<string | null> => {
-    const known = folders.get(path)
-    if (known !== undefined) return known
-    const parent = await folder(folderOf(path), made)
-    const id = await books.create(bookName(path.split('/').pop() ?? path), parent)
-    folders.set(path, id)
-    made.push(path)
+  const drafts: BookDraft[] = []
+  const draftPaths: string[] = []
+  const draftIndex = new Map<string, number>()
+  const plan = (path: string) => {
+    if (path === '' || draftIndex.has(path)) return
+    const parent = folderOf(path)
+    plan(parent)
+    const under = draftIndex.get(parent)
+    const name = bookName(path.split('/').pop() ?? path)
+    draftIndex.set(path, drafts.length)
+    draftPaths.push(path)
+    drafts.push(
+      under === undefined
+        ? { name, parentId: destination }
+        : { name, parentId: null, parentIndex: under },
+    )
+  }
+  for (const file of scan.files) plan(noteFolder(scan.kind, file.path))
+  let booksRefused = 'E_IMPORT_FAILED'
+  const folder = (path: string): string | null => {
+    const id = folders.get(path)
+    if (id === undefined) throw new Error(booksRefused)
     return id
   }
 
@@ -825,6 +841,14 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   const paths = scan.files.map((f) => f.path)
   const total = paths.length
   await onProgress?.(0, total)
+  if (drafts.length > 0 && !stopped?.()) {
+    try {
+      const ids = await books.createMany(drafts)
+      ids.forEach((id, i) => folders.set(draftPaths[i]!, id))
+    } catch (error) {
+      booksRefused = errorCode(error, 'E_IMPORT_FAILED')
+    }
+  }
   for (const [index, path] of paths.entries()) {
     if (stopped?.()) {
       for (const rest of paths.slice(index)) problems.push({ path: rest, code: 'E_IMPORT_STOPPED' })
@@ -832,13 +856,12 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
     }
     let id: string | undefined
     let stored = 0
-    const made: string[] = []
     const found: ImportProblem[] = []
     try {
       const prepared = await prepare.file(await source.read(path), path, store !== undefined)
       const { meta } = prepared
       let { text, images } = prepared
-      id = await notes.create(prepared.title, await folder(noteFolder(scan.kind, path), made))
+      id = await notes.create(prepared.title, folder(noteFolder(scan.kind, path)))
       const noteId = id
       for (const dropped of prepared.dropped) {
         found.push({ path, image: dropped, code: 'E_IMPORT_HTML_CONTENT_DROPPED' })
@@ -941,7 +964,7 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
       problems.push(...found)
     } catch (error) {
       problems.push({ path, code: errorCode(error, 'E_IMPORT_FAILED') })
-      if (!(await discard(id, made))) problems.push({ path, code: 'E_IMPORT_INCOMPLETE' })
+      if (!(await discard(id))) problems.push({ path, code: 'E_IMPORT_INCOMPLETE' })
     }
     await onProgress?.(index + 1, total)
   }
@@ -988,16 +1011,11 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
   }
 
   /** Takes back a failed file's note (purging also deletes its attachments) and the notebooks made only for it. False when that fails. */
-  async function discard(noteId: string | undefined, made: string[]): Promise<boolean> {
+  async function discard(noteId: string | undefined): Promise<boolean> {
+    if (noteId === undefined) return true
     try {
-      if (noteId !== undefined) {
-        await notes.trash(noteId)
-        await notes.purge(noteId)
-      }
-      for (const path of made.reverse()) {
-        await books.remove(folders.get(path) as string)
-        folders.delete(path)
-      }
+      await notes.trash(noteId)
+      await notes.purge(noteId)
       return true
     } catch {
       console.warn('W_IMPORT_CLEANUP_FAILED', noteId)
@@ -1005,6 +1023,25 @@ export async function importMarkdown(options: ImportOptions): Promise<ImportRepo
     }
   }
 
+  const used = new Set<string>()
+  for (const path of Object.keys(noteIds)) {
+    for (let at = noteFolder(scan.kind, path); at !== '' && !used.has(at); at = folderOf(at)) {
+      used.add(at)
+    }
+  }
+  const unused = draftPaths.filter((path) => folders.has(path) && !used.has(path))
+  if (unused.length > 0) {
+    const tops = unused.filter(
+      (path) => used.has(folderOf(path)) || !draftIndex.has(folderOf(path)),
+    )
+    try {
+      await books.removeMany(tops.map((path) => folders.get(path) as string))
+      for (const path of unused) folders.delete(path)
+    } catch (error) {
+      console.warn('W_IMPORT_CLEANUP_FAILED', errorCode(error, 'E_IMPORT_FAILED'))
+      problems.push({ path: tops[0]!, code: 'E_IMPORT_INCOMPLETE' })
+    }
+  }
   const madeBooks = [...folders.entries()].filter(([path]) => path !== '')
   const tops = madeBooks.filter(([path]) => !path.includes('/'))
   return {
