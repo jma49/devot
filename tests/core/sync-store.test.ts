@@ -79,6 +79,43 @@ it('gives each pending record’s edits, so the engine skips one it stamped alre
   expect(pending).toEqual({ id, edits: row?.entry?.edits })
 })
 
+it('passes an attachment on only to a newer owner, as the merge orders them', async () => {
+  const storage = sqlite()
+  const notes = createNoteService({
+    storage,
+    clock: createClock('mac'),
+    newId: createIdGenerator(),
+    saveDelayMs: 5,
+  })
+  const [low, high] = [await notes.create('One'), await notes.create('Two')].sort()
+  await notes.flush()
+  const file = {
+    id: '0192a6f0-0000-7000-8000-00000000f001',
+    name: 'board.png',
+    mime: 'image/png',
+    size: 3,
+    createdAt: 1,
+  }
+  const data = new Uint8Array([1, 2, 3])
+  const owner = async () => {
+    const [row] = await storage.syncRead([file.id])
+    return [row?.file?.noteId, row?.file?.noteHlc]
+  }
+  const newer = '0000000000000009-0000-mac'
+  const older = '0000000000000005-0000-mac'
+  await storage.syncFilePut({ ...file, noteId: low!, noteHlc: '' }, data)
+  await storage.syncFilePut({ ...file, noteId: high!, noteHlc: newer }, data)
+  expect(await owner()).toEqual([high, newer])
+  // A local hand-over that landed between the engine's read and its write keeps the file.
+  await storage.syncFilePut({ ...file, noteId: low!, noteHlc: older }, data)
+  expect(await owner()).toEqual([high, newer])
+  await storage.syncFilePut({ ...file, noteId: low!, noteHlc: newer }, data)
+  expect(await owner()).toEqual([high, newer])
+  storage.db.prepare(`UPDATE files SET note_id = ? WHERE id = ?`).run(low, file.id)
+  await storage.syncFilePut({ ...file, noteId: high!, noteHlc: newer }, data)
+  expect(await owner()).toEqual([high, newer])
+})
+
 it('reads and counts pending records from the partial index', () => {
   const storage = sqlite()
   const plan = (sql: string, params: object = {}) =>

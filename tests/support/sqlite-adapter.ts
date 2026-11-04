@@ -244,10 +244,16 @@ export const SYNC_SQL = {
   file: `SELECT id, note_id AS noteId, note_hlc AS noteHlc, name, mime, size, created_at AS createdAt
      FROM files WHERE id = @id`,
   fileData: `SELECT data FROM files WHERE id = @id`,
-  /** Bytes are written once: a row that exists takes only its owner and the owner's clock. */
+  /**
+   * Bytes are written once: a row that exists takes only its owner and the owner's clock, and only
+   * from a newer owner as mergeFile orders them, so a hand-over written since the engine read the
+   * row stays.
+   */
   filePut: `INSERT INTO files (id, note_id, note_hlc, name, mime, size, data, created_at)
      VALUES (@id, @noteId, @noteHlc, @name, @mime, @size, @data, @createdAt)
-     ON CONFLICT (id) DO UPDATE SET note_id = excluded.note_id, note_hlc = excluded.note_hlc`,
+     ON CONFLICT (id) DO UPDATE SET note_id = excluded.note_id, note_hlc = excluded.note_hlc
+     WHERE excluded.note_hlc > files.note_hlc
+       OR (excluded.note_hlc = files.note_hlc AND excluded.note_id > files.note_id)`,
   fileDelete: `DELETE FROM files WHERE id = @id`,
 } as const
 

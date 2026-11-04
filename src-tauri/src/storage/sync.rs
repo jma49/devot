@@ -31,7 +31,9 @@ const SYNC_FILE_DATA_SQL: &str = "SELECT data FROM files WHERE id = @id";
 const SYNC_FILE_PUT_SQL: &str =
     "INSERT INTO files (id, note_id, note_hlc, name, mime, size, data, created_at)
      VALUES (@id, @noteId, @noteHlc, @name, @mime, @size, @data, @createdAt)
-     ON CONFLICT (id) DO UPDATE SET note_id = excluded.note_id, note_hlc = excluded.note_hlc";
+     ON CONFLICT (id) DO UPDATE SET note_id = excluded.note_id, note_hlc = excluded.note_hlc
+     WHERE excluded.note_hlc > files.note_hlc
+       OR (excluded.note_hlc = files.note_hlc AND excluded.note_id > files.note_id)";
 const SYNC_FILE_DELETE_SQL: &str = "DELETE FROM files WHERE id = @id";
 const SYNC_NOTE_TAGS_SQL: &str =
     "SELECT note_id AS noteId, tag_id AS tagId, present, hlc FROM note_tags
@@ -641,6 +643,42 @@ mod tests {
         assert_eq!(file.note_id, OTHER);
         assert_eq!(file.note_hlc, "0001728000000009-0000-mac");
         assert_eq!(store.sync_file_data(FILE).unwrap().as_deref(), Some(PNG));
+    }
+
+    #[test]
+    fn passes_an_attachment_on_only_to_a_newer_owner() {
+        let (_dir, mut store) = store();
+        let owned_by = |note_id: &str, note_hlc: &str| SyncFileWrite {
+            file: SyncFile {
+                id: FILE.into(),
+                note_id: note_id.into(),
+                note_hlc: note_hlc.into(),
+                name: "shot.png".into(),
+                mime: "image/png".into(),
+                size: PNG.len() as i64,
+                created_at: 7,
+            },
+            data: PNG.to_vec(),
+        };
+        let owner = |store: &Store| {
+            let file = store
+                .sync_read(&[FILE.into()])
+                .unwrap()
+                .remove(0)
+                .file
+                .unwrap();
+            (file.note_id, file.note_hlc)
+        };
+        let newer = "0001728000000009-0000-mac";
+        store.sync_file_put(&owned_by(NOTE, newer)).unwrap();
+        store
+            .sync_file_put(&owned_by(OTHER, "0001728000000005-0000-mac"))
+            .unwrap();
+        assert_eq!(owner(&store), (NOTE.to_string(), newer.to_string()));
+        // Equal clocks: the greater note ID (OTHER), as the merge decides.
+        store.sync_file_put(&owned_by(OTHER, newer)).unwrap();
+        store.sync_file_put(&owned_by(NOTE, newer)).unwrap();
+        assert_eq!(owner(&store), (OTHER.to_string(), newer.to_string()));
     }
 
     #[test]
