@@ -1709,8 +1709,31 @@ impl Store {
     /// Wipes the note's content and tags, keeps its ID and clocks as a tombstone and marks it
     /// purged: final, `put_note` never changes a purged row. Its attachments go too, except those
     /// another note that is not purged still shows: they pass to that note (`HAND_OVER_FILES_SQL`).
+    /// Only a note in the Trash, or one with no title and no body, is purged here: a renderer
+    /// cannot destroy a live note in one call. A purge another device made (`sync_purge`) is not
+    /// limited, as that device checked it.
     pub fn purge_note(&mut self, id: &str, at: i64, hlc: &str) -> Result<()> {
+        let live: bool = self.conn.query_row(
+            "SELECT EXISTS (SELECT 1 FROM notes WHERE id = ?1 AND purged_at IS NULL
+               AND deleted_at IS NULL AND (title <> '' OR body_md <> ''))",
+            [id],
+            |row| row.get(0),
+        )?;
+        if live {
+            return Err(StorageError::Refused("E_NOTE_NOT_TRASHED"));
+        }
         self.purge(id, at, hlc, true)
+    }
+
+    /// Tests that purge a note they wrote: trashed first, as the app does.
+    #[cfg(test)]
+    pub(crate) fn trash_and_purge(&mut self, id: &str, at: i64, hlc: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE notes SET deleted_at = COALESCE(deleted_at, ?2),
+               deleted_hlc = MAX(COALESCE(deleted_hlc, ''), ?3) WHERE id = ?1",
+            params![id, at, hlc],
+        )?;
+        self.purge_note(id, at, hlc)
     }
 
     /// `here` is false for a purge another device made: its revisions and attachments stay as they

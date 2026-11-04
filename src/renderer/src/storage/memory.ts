@@ -292,6 +292,9 @@ export const memoryStorage: StorageAdapter = {
   },
   async purgeNote(id, at, hlc) {
     const all = read<Stored>(NOTES)
+    const found = all.find((n) => n.id === id && n.purgedAt === undefined)
+    if (found && found.deletedAt === null && (found.title !== '' || found.bodyMd !== ''))
+      throw new Error('E_NOTE_NOT_TRASHED')
     const next = all.map((n) =>
       n.id === id && n.purgedAt === undefined
         ? {

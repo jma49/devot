@@ -436,7 +436,7 @@ describe('a write made before the window hears of an outside write', () => {
       async getNote(id: string, options?: { trashed?: boolean }) {
         if (racing) {
           racing = false
-          await other.purgeNote(id, Date.now(), '9999999999999999-0000-zz')
+          await other.syncPurge(id, Date.now(), '9999999999999999-0000-zz')
         }
         return sqlite.getNote(id, options)
       },

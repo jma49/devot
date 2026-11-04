@@ -410,6 +410,57 @@ fn round_trips_a_note() {
 }
 
 #[test]
+fn purging_refuses_a_live_note_with_text_and_leaves_it_as_it_was() {
+    let (_dir, mut store) = temp_store();
+    store.put_note(&note("a", "Kept", 10), &[]).unwrap();
+    let untitled = NoteRecord {
+        title: String::new(),
+        ..note("b", "", 10)
+    };
+    store.put_note(&untitled, &[]).unwrap();
+    for id in ["a", "b"] {
+        let refused = store
+            .purge_note(id, 20, "0000000000000020-0000-test")
+            .unwrap_err();
+        assert_eq!(refused.to_string(), "E_NOTE_NOT_TRASHED", "{id}");
+    }
+    assert_eq!(store.get_note("a", false).unwrap().unwrap().title, "Kept");
+    assert_eq!(store.get_note("b", false).unwrap().unwrap().body_md, "# \n");
+}
+
+#[test]
+fn purges_a_trashed_note_an_empty_note_and_a_purge_from_another_device() {
+    let (_dir, mut store) = temp_store();
+    let trashed = NoteRecord {
+        deleted_at: Some(11),
+        deleted_hlc: Some("0000000000011-0000-test".into()),
+        ..note("a", "Old", 10)
+    };
+    let empty = NoteRecord {
+        title: String::new(),
+        body_md: String::new(),
+        ..note("b", "", 10)
+    };
+    store.put_note(&trashed, &[]).unwrap();
+    store.put_note(&empty, &[]).unwrap();
+    store.put_note(&note("c", "Synced", 10), &[]).unwrap();
+    for id in ["a", "b", "missing"] {
+        store
+            .purge_note(id, 20, "0000000000000020-0000-test")
+            .unwrap();
+    }
+    store
+        .sync_purge("c", 20, "0000000000000020-0000-other")
+        .unwrap();
+    for id in ["a", "b", "c"] {
+        assert_eq!(store.get_note(id, true).unwrap(), None, "{id}");
+    }
+    store
+        .purge_note("a", 30, "0000000000000030-0000-test")
+        .unwrap();
+}
+
+#[test]
 fn reads_bodies_in_one_call_without_purged_or_unknown_notes() {
     let (_dir, mut store) = temp_store();
     for (id, title) in [("a", "First"), ("b", "Second"), ("c", "Third")] {
@@ -422,7 +473,7 @@ fn reads_bodies_in_one_call_without_purged_or_unknown_notes() {
     };
     store.put_note(&trashed, &[]).unwrap();
     store
-        .purge_note("c", 20, "0000000000000020-0000-test")
+        .trash_and_purge("c", 20, "0000000000000020-0000-test")
         .unwrap();
     let ids: Vec<String> = ["b", "missing", "a", "c"].map(String::from).into();
     let body = |id: &str, title: &str| NoteBody {
@@ -606,7 +657,7 @@ fn refuses_a_write_based_on_another_body_version_and_one_to_a_purged_note() {
     // A purge is final: a write to a purged note is left alone, whatever its version, and its
     // writer is told the note is gone rather than that the write went through.
     store
-        .purge_note("a", 20, "0000000000000020-0000-test")
+        .trash_and_purge("a", 20, "0000000000000020-0000-test")
         .unwrap();
     for version in [0, 2, 3] {
         let refused = store
@@ -1167,7 +1218,7 @@ fn every_write_waits_out_another_writer() {
         ),
         (
             "purge_note",
-            Box::new(|s| s.purge_note("c", 70, "0000000000000070-0000-a")),
+            Box::new(|s| s.trash_and_purge("c", 70, "0000000000000070-0000-a")),
         ),
     ];
     for (name, write) in &writes {
@@ -1306,7 +1357,7 @@ fn lists_the_trash_and_purges_for_good() {
     assert!(store.get_note("a", true).unwrap().is_some());
 
     store
-        .purge_note("a", 30, "0000000000000030-0000-a")
+        .trash_and_purge("a", 30, "0000000000000030-0000-a")
         .unwrap();
     assert!(store.list_trash().unwrap().is_empty());
     assert!(store.get_note("a", true).unwrap().is_none());
@@ -1616,7 +1667,7 @@ fn the_search_index_follows_edits_and_purges() {
     assert_eq!(found(&store, "first"), 0);
     assert_eq!(found(&store, "second"), 1);
     store
-        .purge_note("a", 30, "0000000000000030-0000-a")
+        .trash_and_purge("a", 30, "0000000000000030-0000-a")
         .unwrap();
     assert_eq!(found(&store, "second"), 0);
 }
@@ -2192,7 +2243,7 @@ fn stores_attachments_for_live_notes_and_purges_them_with_the_note() {
     store.put_note(&trashed, &[]).unwrap();
     assert!(store.get_file("f1").unwrap().is_some());
     store
-        .purge_note("n", 30, "0000000000000030-0000-a")
+        .trash_and_purge("n", 30, "0000000000000030-0000-a")
         .unwrap();
     assert!(store.get_file("f1").unwrap().is_none());
 }
@@ -2212,7 +2263,7 @@ fn reads_bodies_of_live_notes_and_names_of_attachments_for_the_mirror() {
     purged.deleted_hlc = Some("0000000000000020-0000-a".into());
     store.put_note(&purged, &[]).unwrap();
     store
-        .purge_note("c", 30, "0000000000000030-0000-a")
+        .trash_and_purge("c", 30, "0000000000000030-0000-a")
         .unwrap();
     let ids = ["a", "b", "c", "missing"].map(String::from);
     assert_eq!(
@@ -2283,7 +2334,7 @@ fn copies_attachments_to_a_live_note_and_keeps_them_when_the_source_is_purged() 
     assert!(store.get_file("f4").unwrap().is_none());
 
     store
-        .purge_note("a", 60, "0000000000000060-0000-a")
+        .trash_and_purge("a", 60, "0000000000000060-0000-a")
         .unwrap();
     assert!(store.get_file("f1").unwrap().is_none());
     assert_eq!(store.get_file("f2").unwrap().unwrap().data, vec![1, 2, 3]);
@@ -2362,7 +2413,7 @@ fn purging_a_note_keeps_the_attachments_other_notes_still_show() {
     store.put_note(&titled, &[]).unwrap();
 
     store
-        .purge_note("a", 30, "0000000000000030-0000-a")
+        .trash_and_purge("a", 30, "0000000000000030-0000-a")
         .unwrap();
     assert_eq!(owner(&store, F1).as_deref(), Some("c"));
     assert_eq!(owner(&store, F2).as_deref(), Some("b"));
@@ -2371,16 +2422,16 @@ fn purging_a_note_keeps_the_attachments_other_notes_still_show() {
     assert_eq!(store.get_file(F1).unwrap().unwrap().data, vec![1, 2, 3]);
 
     store
-        .purge_note("b", 40, "0000000000000040-0000-a")
+        .trash_and_purge("b", 40, "0000000000000040-0000-a")
         .unwrap();
     assert_eq!(owner(&store, F2), None);
     assert_eq!(owner(&store, F1).as_deref(), Some("c"));
     store
-        .purge_note("c", 50, "0000000000000050-0000-a")
+        .trash_and_purge("c", 50, "0000000000000050-0000-a")
         .unwrap();
     assert_eq!(owner(&store, F1).as_deref(), Some("d"));
     store
-        .purge_note("d", 60, "0000000000000060-0000-a")
+        .trash_and_purge("d", 60, "0000000000000060-0000-a")
         .unwrap();
     assert_eq!(owner(&store, F1), None);
 }
@@ -2402,7 +2453,7 @@ fn an_attachment_no_other_note_shows_any_more_goes_with_its_note() {
         )
         .unwrap();
     store
-        .purge_note("a", 30, "0000000000000030-0000-a")
+        .trash_and_purge("a", 30, "0000000000000030-0000-a")
         .unwrap();
     assert_eq!(owner(&store, F1), None);
 }
@@ -2439,7 +2490,7 @@ fn keeps_each_notes_link_rows_with_its_latest_body() {
     store.put_note(&trashed, &["a".into()]).unwrap();
     assert_eq!(link_rows(&store), [pair("a", "d"), pair("b", "a")]);
     store
-        .purge_note("b", 13, "0000000000000013-0000-a")
+        .trash_and_purge("b", 13, "0000000000000013-0000-a")
         .unwrap();
     assert_eq!(link_rows(&store), [pair("a", "d")]);
     // A write to the purged note is refused, and leaves the links as they were.
@@ -2577,10 +2628,10 @@ fn restoring_a_snapshot_brings_back_every_record() {
         .put_note(&based_on(1, note("b", "Ideas renamed", 21)), &[])
         .unwrap();
     store
-        .purge_note("a", 22, "0000000000000022-0000-a")
+        .trash_and_purge("a", 22, "0000000000000022-0000-a")
         .unwrap();
     store
-        .purge_note("c", 22, "0000000000000022-0000-a")
+        .trash_and_purge("c", 22, "0000000000000022-0000-a")
         .unwrap();
     store
         .put_book(&book("bk", "Work", "0000000000000023-0000-a"))
@@ -2890,7 +2941,7 @@ fn trashing_keeps_revisions_and_purging_deletes_them_for_good() {
     assert_eq!(store.list_revisions("a").unwrap().len(), 1);
 
     store
-        .purge_note("a", 30, "0000000000000030-0000-a")
+        .trash_and_purge("a", 30, "0000000000000030-0000-a")
         .unwrap();
     assert!(store.list_revisions("a").unwrap().is_empty());
     store.put_revision(&version("r2", "a", 31, &[1])).unwrap();
@@ -2945,7 +2996,7 @@ fn lists_activity_since_a_time() {
     store.put_note(&c, &[]).unwrap();
     store.put_revision(&version("r7", "c", 400, &[1])).unwrap();
     store
-        .purge_note("c", 450, "0000000000000450-0000-a")
+        .trash_and_purge("c", 450, "0000000000000450-0000-a")
         .unwrap();
 
     let mut data = store.list_activity(100).unwrap();
@@ -3239,10 +3290,10 @@ fn lists_agent_writes_of_live_notes_and_purging_deletes_them() {
         [("a".into(), "AAAAAAAAAAA".into(), false)]
     );
     store
-        .purge_note("b", 20, "0000000000020-0000-test")
+        .trash_and_purge("b", 20, "0000000000020-0000-test")
         .unwrap();
     store
-        .purge_note("a", 20, "0000000000020-0000-test")
+        .trash_and_purge("a", 20, "0000000000020-0000-test")
         .unwrap();
     let left: i64 = store
         .conn
@@ -3269,7 +3320,7 @@ fn a_purged_note_leaves_no_text_in_the_file() {
             .unwrap();
         store.put_note(&note("b", "Kept", 10), &[]).unwrap();
         store
-            .purge_note("a", 30, "0000000000000030-0000-a")
+            .trash_and_purge("a", 30, "0000000000000030-0000-a")
             .unwrap();
         let secure: i64 = store
             .conn
