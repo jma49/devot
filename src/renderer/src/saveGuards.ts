@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SaveProblem } from '../../core'
 import type { Core } from './core-client'
-import { createQuitGuard, newProblems } from './saving'
+import { invoke } from './ipc'
+import { createQuitGuard, newProblems, type QuitGuard } from './saving'
 
 /** Flushes pending edits; a failed save stays in the core (which retries and reports it), so the caller goes on. */
 export const saveEdits = (core: Core) => core.flush().catch(() => {})
@@ -43,6 +44,38 @@ export function useSaveProblems(
     closeGuard,
     onSaveProblems,
   }
+}
+
+const READY = {
+  quit: 'app_exit_ready',
+  close: 'note_window_close_ready',
+} as const
+const CANCEL = {
+  quit: 'app_exit_cancel',
+  close: 'note_window_close_cancel',
+} as const
+
+/**
+ * Answers Rust's quit or close of this window, which it holds until then. A window with nothing to
+ * save (`save` undefined) goes. Otherwise `guard` decides on the save: the first one that fails is
+ * called off (`held` runs, so the window can say so), and the next goes on without the changes;
+ * `beforeExit` runs just before Rust is told to go on.
+ */
+export async function answerAsked(
+  asked: 'quit' | 'close',
+  guard: QuitGuard,
+  save: Promise<unknown> | undefined,
+  held: () => void,
+  beforeExit?: () => Promise<unknown>,
+): Promise<void> {
+  const answer = save ? await guard.answer(save) : 'exit'
+  if (answer === 'exit') {
+    await beforeExit?.()
+    await invoke(READY[asked])
+    return
+  }
+  held()
+  await invoke(CANCEL[asked])
 }
 
 /** Saves the pending edits when the page goes away or out of sight. */

@@ -87,7 +87,13 @@ import {
 import { ExportNotice, failureOf, type ExportFailure } from './ExportNotice'
 import { SaveNotice } from './SaveNotice'
 import { isImeKey } from './ime'
-import { saveEdits, useSaveAtTrialEnd, useSaveOnHide, useSaveProblems } from './saveGuards'
+import {
+  answerAsked,
+  saveEdits,
+  useSaveAtTrialEnd,
+  useSaveOnHide,
+  useSaveProblems,
+} from './saveGuards'
 import { BackupsDialog } from './BackupsDialog'
 import { BookPicker, bookOptions, currentBookOption, NO_BOOK } from './BookPicker'
 import { useContextMenu, type MenuPoint } from './contextMenu'
@@ -1747,18 +1753,22 @@ export function App() {
           // A running import stops after the file it is on, so no note
           // is left half made (unless that file outlasts the quit timeout).
           await core.stopImport()
-          if ((await quitGuard.answer(core.flush({ versions: true }))) === 'hold') {
-            setQuitHeld(true)
-            setSaveNoticeDismissed(false)
-            await invoke('app_exit_cancel')
-            return
-          }
-          // The notice's writes are seen before the app goes, so they do not come back on the next launch.
-          await markShownSeen({ reload: false })
-          // A mirror pass ends after the batch it is in, so its manifest
-          // lists every file it wrote; the next launch catches up.
-          await core.mirrorStop()
-          await invoke('app_exit_ready')
+          await answerAsked(
+            'quit',
+            quitGuard,
+            core.flush({ versions: true }),
+            () => {
+              setQuitHeld(true)
+              setSaveNoticeDismissed(false)
+            },
+            async () => {
+              // The notice's writes are seen before the app goes, so they do not come back on the next launch.
+              await markShownSeen({ reload: false })
+              // A mirror pass ends after the batch it is in, so its manifest
+              // lists every file it wrote; the next launch catches up.
+              await core.mirrorStop()
+            },
+          )
         })
         if (stopped) stop()
         else unlisten = stop
@@ -1797,17 +1807,17 @@ export function App() {
     const closed = () => {
       const ready = coreRef.current
       saveNow.current?.()
-      const saved = ready
-        ? closeGuard.answer(ready.stopImport().then(() => ready.flush({ versions: true })))
-        : Promise.resolve('exit' as const)
-      void saved.then((answer) => {
-        if (answer === 'exit')
-          // Seen before the window goes, as for a quit.
-          return markShownSeen({ reload: false }).then(() => invoke('note_window_close_ready'))
-        setCloseHeld(true)
-        setSaveNoticeDismissed(false)
-        return invoke('note_window_close_cancel')
-      })
+      void answerAsked(
+        'close',
+        closeGuard,
+        ready?.stopImport().then(() => ready.flush({ versions: true })),
+        () => {
+          setCloseHeld(true)
+          setSaveNoticeDismissed(false)
+        },
+        // Seen before the window goes, as for a quit.
+        () => markShownSeen({ reload: false }),
+      )
     }
     window.addEventListener(CLOSE_EVENT, closed)
     const unlisten = DEVOT_UI_TEST
