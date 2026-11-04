@@ -50,6 +50,8 @@ export const writeTheme = EditorView.theme({
   // Drawn, not native, so an open and a done box are one size: outlined open, filled done.
   '.cm-wm-task-box': {
     appearance: 'none',
+    // A control's own font would size the box apart from the check, which follows the line's.
+    font: 'inherit',
     boxSizing: 'border-box',
     width: TASK_BOX,
     height: TASK_BOX,

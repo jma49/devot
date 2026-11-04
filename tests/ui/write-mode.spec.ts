@@ -476,6 +476,11 @@ test.describe('a new install', () => {
     const away = await measure()
     const [done, open] = away.boxes
     if (!done || !open || !away.bullet) throw new Error('E_TEST_NO_BOX')
+    const fontSize = await page
+      .locator('.cm-wm-task')
+      .first()
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+    expect(Math.abs(done.width - 0.875 * fontSize)).toBeLessThanOrEqual(0.5)
     expect(open.width).toBeCloseTo(done.width, 1)
     expect(open.height).toBeCloseTo(done.height, 1)
     expect(Math.abs(open.x - done.x)).toBeLessThanOrEqual(0.5)
