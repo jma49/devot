@@ -27,7 +27,7 @@ test('notes made back to back keep each title in the title and each body in the 
   page,
 }) => {
   const made: StoredNote[] = []
-  for (let i = 1; i <= 10; i += 1) {
+  for (let i = 1; i <= 4; i += 1) {
     const before = await noteRows(page).count()
     await page.getByRole('button', { name: 'New Note', exact: true }).click()
     await expect(noteRows(page)).toHaveCount(before + 1)

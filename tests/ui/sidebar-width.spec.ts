@@ -26,15 +26,17 @@ test.beforeEach(async ({ page }) => {
   await openApp(page)
 })
 
-test('the sidebar is 200 px wide, resizes from 170 to 500 px by its edge and keeps its width', async ({
+test('the sidebar is 200 px wide, resizes from 170 to 500 px by its edge or the keyboard, resets and keeps its width', async ({
   page,
 }) => {
   await expect(sidebar(page)).toBeVisible()
   expect(await width(page)).toBe(200)
+  const listBefore = await listWidth(page)
 
   await dragEdge(page, 80)
   await expect.poll(() => width(page)).toBe(280)
   await expect(handle(page)).toHaveAttribute('aria-valuenow', '280')
+  expect(await listWidth(page)).toBe(listBefore)
 
   await page.reload()
   await expect.poll(() => width(page)).toBe(280)
@@ -43,11 +45,11 @@ test('the sidebar is 200 px wide, resizes from 170 to 500 px by its edge and kee
   await expect.poll(() => width(page)).toBe(500)
   await dragEdge(page, -600)
   await expect.poll(() => width(page)).toBe(170)
-})
 
-test('the edge resizes with the keyboard and resets to the default', async ({ page }) => {
   await handle(page).focus()
   await expect(handle(page)).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => width(page)).toBe(200)
   await page.keyboard.press('ArrowRight')
   await expect.poll(() => width(page)).toBe(210)
   await page.keyboard.press('Shift+ArrowLeft')
@@ -68,13 +70,6 @@ test('the edge resizes with the keyboard and resets to the default', async ({ pa
   await handle(page).dblclick()
   await expect.poll(() => width(page)).toBe(200)
   await expect(handle(page)).toHaveAttribute('aria-valuenow', '200')
-})
-
-test('the sidebar width does not change the note list width', async ({ page }) => {
-  const before = await listWidth(page)
-  await dragEdge(page, 100)
-  await expect.poll(() => width(page)).toBe(300)
-  expect(await listWidth(page)).toBe(before)
 })
 
 test('a hidden sidebar has no edge to grab', async ({ page }) => {

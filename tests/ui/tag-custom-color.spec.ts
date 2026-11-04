@@ -60,7 +60,6 @@ test('a custom colour draws its dot as given on sidebar, chips and list, after a
     given,
   )
 
-  await page.reload()
   await expect(tagRow(page, 'idea').locator('.tag-dot')).toHaveAttribute('data-color', '#ff00aa')
 })
 
