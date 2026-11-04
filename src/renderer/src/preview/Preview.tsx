@@ -39,10 +39,10 @@ import { useAppearance } from '../icons/Icon'
 import { shownTheme, subscribeAppearance } from '../theme/appearance'
 import { patchPieces, type ShownPiece } from './dom'
 import { previewFindTarget } from './find'
-import { createIslandMounter, createIslandRegistry } from './islands'
+import { createIslandMounter } from './islands'
+import { islands } from './islandRegistry'
 import { CodeCopyButtons, codeBlocks } from './CodeCopy'
 import { latestOnly } from './latest'
-import { mermaidIsland } from './mermaid'
 import { NoteInfo } from './NoteInfo'
 import type { NoteInfoData } from './infoCard'
 import type { SetNoteDates } from './NoteInfo'
@@ -50,8 +50,6 @@ import { previewScrollPane, type PreviewScrollPane, type ScrollPane } from './sc
 import { frontMatterChange, type FrontMatterChange } from './frontMatterApply'
 
 const NOTE_LINK = /^devot:\/\/note\/([0-9a-f-]{36})$/
-
-export const islands = createIslandRegistry([mermaidIsland])
 
 export function previewLabels(): PreviewLabels {
   return {

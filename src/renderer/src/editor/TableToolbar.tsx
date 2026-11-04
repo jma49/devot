@@ -1,8 +1,3 @@
-// The table bar: while the caret is in a Markdown table, a floating bar above
-// the caret's row runs the table commands (format, align, move, add, delete).
-// It shows while the editor has the keyboard focus, one caret and no selection
-// are in the table, no completion list is open, and Settings > Editing >
-// Toolbar is on.
 import { completionStatus } from '@codemirror/autocomplete'
 import type { EditorState, Extension } from '@codemirror/state'
 import { EditorView, showTooltip, type Tooltip, type TooltipView } from '@codemirror/view'
@@ -23,9 +18,16 @@ import {
   useFloatTip,
 } from './floating'
 import type { Align } from './table'
-import { TABLE_COMMANDS, inTable, tableBarStatus, type TableCommandId } from './tableCommands'
+import {
+  TABLE_COMMANDS,
+  inTable,
+  locate,
+  tableBarStatus,
+  type TableCommandId,
+} from './tableCommands'
 import { commandTip, type Tip } from './toolbarButtons'
 import { releaseBarFocus, toolbarOff, toolbarState, toolbarStateExtension } from './toolbarState'
+import { writeActive } from './write/active'
 
 export type TableBarId = Extract<
   TableCommandId,
@@ -85,6 +87,23 @@ export function tableBarAt(state: EditorState): { pos: number } | null {
   return { pos: state.doc.lineAt(state.selection.main.head).from }
 }
 
+export function tableBarAbove(state: EditorState): { pos: number } | null {
+  if (tableBarAt(state) === null) return null
+  const at = locate(state)
+  return at ? { pos: at.from } : null
+}
+
+/** The bar's top edge: above the table, else below the header row, else at the scroller's top. */
+export function placeTableBar(
+  table: { top: number; headerBottom: number },
+  scroller: { top: number },
+  bar: { height: number },
+): number {
+  const above = table.top - bar.height - BAR_GAP
+  if (above >= scroller.top) return above
+  return Math.max(scroller.top, table.headerBottom)
+}
+
 const ALIGN_OF: Partial<Record<TableBarId, Align>> = {
   alignLeft: 'left',
   alignCenter: 'center',
@@ -133,7 +152,11 @@ function TableBar({ view }: { view: EditorView }) {
   )
 }
 
-function createBar(view: EditorView): TooltipView {
+// The note editor scrolls its own box around CodeMirror's, which never scrolls.
+const editorScroller = (view: EditorView): Element =>
+  view.dom.closest('[data-devot-part="editor-scroll"]') ?? view.scrollDOM
+
+function createBar(view: EditorView, aboveTable = false): TooltipView {
   const dom = document.createElement('div')
   dom.className = 'cm-float-bar cm-table-bar'
   const root = createRoot(barContent(dom))
@@ -146,8 +169,37 @@ function createBar(view: EditorView): TooltipView {
     dom.style.maxWidth = max
     return true
   }
+  // The grid's corner is the header row's first cell; the line around it has its own margin.
+  const tableEdge = (pos: number) => {
+    const row = view.domAtPos(pos).node
+    const cell = (row instanceof Element ? row : row.parentElement)
+      ?.closest('.cm-wm-row')
+      ?.querySelector('.cm-wm-cell')
+    if (cell) {
+      const rect = cell.getBoundingClientRect()
+      return { left: rect.left, top: rect.top, headerBottom: rect.bottom }
+    }
+    const block = view.lineBlockAt(pos)
+    return {
+      left: view.contentDOM.getBoundingClientRect().left,
+      top: view.documentTop + block.top,
+      headerBottom: view.documentTop + block.bottom,
+    }
+  }
   return {
     dom,
+    // A rect the bar's own offset turns into the placed bar top.
+    ...(aboveTable
+      ? {
+          getCoords: (pos: number) => {
+            const edge = tableEdge(pos)
+            const scroller = editorScroller(view).getBoundingClientRect()
+            const height = dom.getBoundingClientRect().height
+            const y = placeTableBar(edge, scroller, { height }) + height + BAR_GAP
+            return { left: edge.left, right: edge.left, top: y, bottom: y }
+          },
+        }
+      : {}),
     mount: () => {
       fit(view.dom.getBoundingClientRect().width)
       flushSync(render)
@@ -163,7 +215,7 @@ function createBar(view: EditorView): TooltipView {
       )
         render()
     },
-    offset: { x: -NOTCH_X, y: BAR_GAP },
+    offset: { x: aboveTable ? 0 : -NOTCH_X, y: BAR_GAP },
     resize: false,
     destroy: () => {
       releaseBarFocus(view, dom)
@@ -172,10 +224,17 @@ function createBar(view: EditorView): TooltipView {
   }
 }
 
+// Stable functions: CodeMirror keeps a tooltip's view only while `create` is the same function.
+const createBarAboveTable = (view: EditorView) => createBar(view, true)
+
 const barTooltip = showTooltip.compute(
-  [toolbarState, toolbarOff, 'selection', 'doc'],
+  [toolbarState, toolbarOff, writeActive, 'selection', 'doc'],
   (state): Tooltip | null => {
     if (state.readOnly) return null
+    if (state.facet(writeActive)) {
+      const at = tableBarAbove(state)
+      return at ? { pos: at.pos, above: true, strictSide: true, create: createBarAboveTable } : null
+    }
     const at = tableBarAt(state)
     return at ? { pos: at.pos, above: true, create: createBar } : null
   },

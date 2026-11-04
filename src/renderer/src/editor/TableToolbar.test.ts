@@ -1,12 +1,21 @@
-import { EditorSelection, EditorState, type Extension } from '@codemirror/state'
+import { Compartment, EditorSelection, EditorState, type Extension } from '@codemirror/state'
+import { showTooltip, type Tooltip } from '@codemirror/view'
 import { describe, expect, it, afterEach } from 'vitest'
 import { effectiveKeymap } from '../commands/keymap'
 import { setCommandKeys, command } from '../commands/registry'
 import { ICONS } from '../icons/symbols'
 import { noteMarkdown } from './markdown'
 import { tableBarStatus } from './tableCommands'
-import { TABLE_BAR_GROUPS, tableBarAt, tableBarTip } from './TableToolbar'
+import {
+  TABLE_BAR_GROUPS,
+  placeTableBar,
+  tableBarAbove,
+  tableBarAt,
+  tableBarTip,
+  tableToolbar,
+} from './TableToolbar'
 import { setToolbarFocus, toolbarOff, toolbarState } from './toolbarState'
+import { writeActive } from './write/active'
 
 const DOC = 'intro\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nafter'
 
@@ -136,5 +145,67 @@ describe('tableBarStatus', () => {
     expect(at(BIG, BIG.indexOf('| 1') + 2)!.align).toBe('left')
     expect(at(BIG, BIG.indexOf('2'))!.align).toBe('right')
     expect(at(DOC, rowStart + 2)!.align).toBe('none')
+  })
+})
+
+describe('tableBarAbove', () => {
+  it('is the start of the table whichever row the caret is on', () => {
+    const header = DOC.indexOf('| a')
+    expect(tableBarAbove(make(rowStart + 4))).toEqual({ pos: header })
+    expect(tableBarAbove(make(header + 2))).toEqual({ pos: header })
+  })
+
+  it('is null where the bar does not show', () => {
+    expect(tableBarAbove(make(2))).toBeNull()
+    expect(tableBarAbove(make(rowStart + 4, { focused: false }))).toBeNull()
+    expect(tableBarAbove(make(rowStart + 4, { off: true }))).toBeNull()
+  })
+})
+
+describe('placeTableBar', () => {
+  const bar = { height: 40 }
+
+  it('puts the bar above the table, outside its grid, when there is room', () => {
+    const y = placeTableBar({ top: 300, headerBottom: 340 }, { top: 100 }, bar)
+    expect(y + bar.height).toBeLessThanOrEqual(300)
+  })
+
+  it('pins the bar below the header row when the table starts too near the scroller top', () => {
+    expect(placeTableBar({ top: 110, headerBottom: 150 }, { top: 100 }, bar)).toBe(150)
+  })
+
+  it('pins the bar to the scroller top once the header has scrolled out', () => {
+    expect(placeTableBar({ top: -200, headerBottom: -160 }, { top: 100 }, bar)).toBe(100)
+  })
+})
+
+describe('the table bar tooltip', () => {
+  const mode = new Compartment()
+  const shown = (state: EditorState) =>
+    state.facet(showTooltip).filter((t): t is Tooltip => t !== null)
+
+  function inMode(on: boolean) {
+    const state = EditorState.create({
+      doc: DOC,
+      selection: EditorSelection.cursor(rowStart + 4),
+      extensions: [noteMarkdown, tableToolbar, mode.of(writeActive.of(on))],
+    })
+    return state.update({ effects: setToolbarFocus.of(true) }).state
+  }
+
+  const switchTo = (state: EditorState, on: boolean) =>
+    state.update({ effects: mode.reconfigure(writeActive.of(on)) }).state
+
+  it('sits above the table in Write mode and at the caret row in Edit mode', () => {
+    expect(shown(inMode(true))[0]).toMatchObject({ pos: DOC.indexOf('| a'), strictSide: true })
+    expect(shown(inMode(false))[0]).toMatchObject({ pos: rowStart })
+  })
+
+  it('changes placement when the mode switches, with the caret where it was', () => {
+    const edit = inMode(false)
+    const write = switchTo(edit, true)
+    expect(write.selection.main.head).toBe(edit.selection.main.head)
+    expect(shown(write)[0]).toMatchObject({ pos: DOC.indexOf('| a'), strictSide: true })
+    expect(shown(switchTo(write, false))[0]).toMatchObject({ pos: rowStart })
   })
 })

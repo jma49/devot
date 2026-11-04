@@ -376,16 +376,17 @@ export function inTable(state: EditorState): boolean {
  * takes the key, so the editor's own binding cannot move a line out of it.
  * Return before a row's first character goes on too: the editor's new line
  * opens a line above the row (above a table at the top of a note, or a
- * blank line that ends the table there).
+ * blank line that ends the table there), unless `atRowStart` (a table drawn
+ * as a grid, where that place is the first cell's start).
  */
-export function tableCommand(id: TableCommandId): Command {
+export function tableCommand(id: TableCommandId, atRowStart = false): Command {
   return (view) => {
     const { state } = view
     const { from, to } = state.selection.main
     if (state.selection.ranges.length > 1 || completionStatus(state) === 'active') return false
     if (state.doc.lineAt(from).number !== state.doc.lineAt(to).number) return false
     const at = locate(state)
-    if (!at || (id === 'nextRow' && at.rowStart)) return false
+    if (!at || (id === 'nextRow' && at.rowStart && !atRowStart)) return false
     const tr = edit(state, at, id)
     if (tr) view.dispatch(tr)
     return true

@@ -16,6 +16,8 @@ export interface IslandContext {
   signal?: AbortSignal | undefined
   /** The width the element has, for an island whose `followsWidth` says its drawing depends on it. */
   width?: number | undefined
+  /** Where a drawing's stylesheet goes when the element is not in the document itself (the editor's shadow root). */
+  styleRoot?: DocumentOrShadowRoot | undefined
 }
 
 export interface IslandContent {

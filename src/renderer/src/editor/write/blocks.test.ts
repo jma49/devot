@@ -60,12 +60,65 @@ describe('front matter in Write mode', () => {
       userEvent: 'input.type.compose',
     }).state
     expect(blocks(composing)).toEqual([])
-    const after = composing.update({}).state
+    // A change from elsewhere (the parser, a sync) may come inside the same composition.
+    const parsed = composing.update({}).state
+    expect(blocks(parsed)).toEqual([])
+    const after = parsed.update({
+      selection: { anchor: NOTE.length + 1 },
+      userEvent: 'select',
+    }).state
     expect(blocks(after)).toEqual([`0-${fenceEnd + 1} title, tags`])
   })
 
   it('is no block in a note without front matter, or with a fence that is not closed', () => {
     expect(blocks(stateOf('Body'))).toEqual([])
     expect(blocks(stateOf('---\ntitle: x\nBody'))).toEqual([])
+  })
+})
+
+describe('rendered blocks in Write mode', () => {
+  const IMAGE = '![Plan](https://example.com/plan.png)'
+  const doc = `Top\n${IMAGE}\n\n$$\nx^2\n$$\nEnd`
+  const math = doc.indexOf('$$')
+
+  /** Each block decoration as `from-to kind look`; an open one is a point under its source. */
+  function rendered(state: EditorState): string[] {
+    const out: string[] = []
+    for (const source of state.facet(EditorView.decorations)) {
+      if (typeof source === 'function') continue
+      ;(source as DecorationSet).between(0, state.doc.length, (from, to, deco) => {
+        const widget = deco.spec.widget as { block?: { kind: string }; look?: string } | undefined
+        if (widget?.block) out.push(`${from}-${to} ${widget.block.kind} ${widget.look}`)
+      })
+    }
+    return out
+  }
+
+  it('take their lines while closed', () => {
+    expect(rendered(stateOf(doc, 0))).toEqual([
+      `4-${4 + IMAGE.length} image closed`,
+      `${math}-${math + 9} math closed`,
+    ])
+  })
+
+  it('show their source with the rendering under it while the caret is in them, focused', () => {
+    const state = stateOf(doc, math + 4).update({ effects: setWriteFocus.of(true) }).state
+    expect(rendered(state)).toEqual([
+      `4-${4 + IMAGE.length} image closed`,
+      `${math + 9}-${math + 9} math open`,
+    ])
+  })
+
+  it('open for a caret at the start or end of their source', () => {
+    const focus = { effects: setWriteFocus.of(true) }
+    const start = stateOf(doc, 4).update(focus).state
+    expect(rendered(start)[0]).toBe(`${4 + IMAGE.length}-${4 + IMAGE.length} image open`)
+    const end = stateOf(doc, math + 9).update(focus).state
+    expect(rendered(end)[1]).toBe(`${math + 9}-${math + 9} math open`)
+  })
+
+  it('show a selection over them whole', () => {
+    const state = stateOf(doc).update({ selection: { anchor: 4, head: 4 + IMAGE.length } }).state
+    expect(rendered(state)[0]).toBe(`4-${4 + IMAGE.length} image selected`)
   })
 })
