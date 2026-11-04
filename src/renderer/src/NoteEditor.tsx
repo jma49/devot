@@ -89,6 +89,8 @@ import { chooseTemplate } from './editor/hints'
 import { taskToggle } from './editor/tasks'
 import { setToolbarFocus } from './editor/toolbarState'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
+import { catchUp } from './editor/catchUp'
+import { refusedEdits } from './editor/refusedEdits'
 import { reconfigureRegistryKeys, registryKeys } from './editor/registryKeys'
 import { setInertFormats } from './commands/formatMenu'
 import { subscribeKeymap } from './commands/shortcutSettings'
@@ -746,6 +748,8 @@ interface Props {
   onNewFromLink?: (() => void) | undefined
   onImagesRefused?: (codes: string[]) => void
   onOpenFailed?: (noteId: string, code: string) => void
+  /** The core refused typing (the note purged elsewhere, a body over the limit); it is logged either way. */
+  onEditRefused?: (noteId: string, code: string) => void
   onChooseTemplate?: (() => void) | undefined
   onOpenNote?: (noteId: string) => void
   /** Shown but not changed: the trial is over without a licence. */
@@ -782,6 +786,7 @@ export function NoteEditor({
   onNewFromLink,
   onImagesRefused,
   onOpenFailed,
+  onEditRefused,
   onChooseTemplate,
   onOpenNote,
   readOnly = false,
@@ -822,6 +827,7 @@ export function NoteEditor({
   const fromLink = useRef(onNewFromLink)
   const imagesRefused = useRef(onImagesRefused)
   const openFailed = useRef(onOpenFailed)
+  const editRefused = useRef(onEditRefused)
   const chooseTemplateRef = useRef(onChooseTemplate)
   const templateOffered = onChooseTemplate !== undefined && !readOnly
   const templateShown = useRef(templateOffered)
@@ -892,6 +898,8 @@ export function NoteEditor({
   // Before the effect that shows a note, which reads them in the same commit.
   useLayoutEffect(() => {
     menuOpener.current = (view, at, pos) => {
+      // The note being left, still on screen while the next one loads: its menu would act on the next.
+      if (shown.current?.noteId !== noteId) return
       menuAt.current = at
       const target = editorMenuTarget(
         view.state,
@@ -923,6 +931,7 @@ export function NoteEditor({
     fromLink.current = onNewFromLink
     imagesRefused.current = onImagesRefused
     openFailed.current = onOpenFailed
+    editRefused.current = onEditRefused
     noteOpener.current = onOpenNote
     loading.current = onLoading
     preopened.current = takePreopened
@@ -1008,6 +1017,8 @@ export function NoteEditor({
     scrollToTop(view, scroller, top)
   }, [hidden])
 
+  // Keys kept for a note whose switch was called off before its body showed: the note shown next takes them.
+  const carriedKeys = useRef<EarlyKeysTicket | undefined>(undefined)
   const mounted = useRef(false)
   useLayoutEffect(() => {
     mounted.current = true
@@ -1016,6 +1027,8 @@ export function NoteEditor({
       // StrictMode mounts again at once; the note stays shown for it.
       queueMicrotask(() => {
         if (mounted.current) return
+        carriedKeys.current?.fail()
+        carriedKeys.current = undefined
         const view = editor.current?.view
         if (view) shown.current?.close(view.state)
         shown.current = null
@@ -1030,7 +1043,9 @@ export function NoteEditor({
   useLayoutEffect(() => {
     let cancelled = false
     let held = false
-    let keys: EarlyKeysTicket | undefined
+    let keys = carriedKeys.current
+    carriedKeys.current = undefined
+    keys?.claim(noteId)
     const unpublish = () => {
       if (restoreRef) restoreRef.current = null
       if (handleRef) handleRef.current = null
@@ -1047,7 +1062,7 @@ export function NoteEditor({
       scrollHandle.current?.(editorScrollPane(view, scroller))
     }
 
-    const show = (state: Uint8Array) => {
+    const show = (state: Uint8Array, handedOver = false) => {
       const el = host.current
       if (!el) {
         void core.unhold(noteId)
@@ -1055,8 +1070,9 @@ export function NoteEditor({
       }
       const { root, frame, scroller, parent } = (box.current ??= shadowContainer(el))
       const doc = new Y.Doc()
+      const refused = refusedEdits(noteId, (id, code) => editRefused.current?.(id, code))
       const forward = (update: Uint8Array, origin: unknown) => {
-        if (origin !== REMOTE && origin !== RESTORE) void core.applyUpdate(noteId, update)
+        if (origin !== REMOTE && origin !== RESTORE) core.applyUpdate(noteId, update).catch(refused)
       }
       Y.applyUpdate(doc, state, REMOTE)
       doc.on('update', forward)
@@ -1359,26 +1375,35 @@ export function NoteEditor({
       loaded.current?.(text.toString())
       reportText()
       publish(s)
-      // The body took a while to load: a title or palette field the user
-      // went to meanwhile keeps the keyboard.
+      // Opened before this editor was published: changes sent in between reached no editor.
+      if (handedOver) {
+        void catchUp(
+          doc,
+          (known) => core.open(noteId, known),
+          () => shown.current === s,
+          REMOTE,
+        )
+      }
       const settle = () => {
         if (shown.current !== s) return
-        const take = focusOnlyIfFree.current
-          ? keyboardIsFree()
-          : !typingElsewhere(document.activeElement, el)
-        if (
-          (focusOnOpen.current || keys !== undefined) &&
-          take &&
-          !earlyKeysKeptForAnother(noteId)
-        ) {
-          view.focus()
-        }
-        const typed = takeEarlyKeys(noteId)
-        if (typed.length) replayEarlyKeys(view, typed)
+        takeKeyboard(view, el)
         if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
       }
       // Focus and typing taken in the commit's layout effects are lost: the caret goes back to the start.
       queueMicrotask(settle)
+    }
+
+    // The body took a while to load: a title or palette field the user
+    // went to meanwhile keeps the keyboard.
+    const takeKeyboard = (view: EditorView, el: HTMLElement) => {
+      const take = focusOnlyIfFree.current
+        ? keyboardIsFree()
+        : !typingElsewhere(document.activeElement, el)
+      if ((focusOnOpen.current || keys !== undefined) && take && !earlyKeysKeptForAnother(noteId)) {
+        view.focus()
+      }
+      const typed = takeEarlyKeys(noteId)
+      if (typed.length) replayEarlyKeys(view, typed)
     }
 
     const given = preopened.current?.(core, noteId)
@@ -1386,17 +1411,25 @@ export function NoteEditor({
     if (now?.noteId === noteId && now.core === core) {
       // Already shown and held: the window's hold is one too many.
       if (given) void core.unhold(noteId)
-      editor.current?.view.dispatch({ effects: pausedSlot.reconfigure([]) })
+      const view = editor.current?.view
+      view?.dispatch({ effects: pausedSlot.reconfigure([]) })
       publish(now)
+      // Back to the note still on screen: it takes the keyboard the switch took away.
+      const el = host.current
+      if (view && el && keys) {
+        queueMicrotask(() => {
+          if (shown.current === now) takeKeyboard(view, el)
+        })
+      }
     } else if (given) {
-      show(given)
+      show(given, true)
     } else {
       held = true
       loading.current?.(true)
       const leaving = editor.current?.view
       if (leaving) {
         // Keys typed into the note being left are kept for this one instead.
-        if (leaving.hasFocus) {
+        if (!keys && leaving.hasFocus) {
           leaving.contentDOM.blur()
           keys = startEarlyKeys()
           keys.claim(noteId)
@@ -1417,6 +1450,7 @@ export function NoteEditor({
         (e: unknown) => {
           if (cancelled) return
           keys?.fail()
+          keys = undefined
           loading.current?.(false)
           openFailed.current?.(noteId, errorCode(e))
         },
@@ -1428,6 +1462,7 @@ export function NoteEditor({
       if (held) {
         void core.unhold(noteId)
         loading.current?.(false)
+        carriedKeys.current = keys
       }
       unpublish()
     }

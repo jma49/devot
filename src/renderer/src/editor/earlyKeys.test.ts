@@ -162,6 +162,20 @@ describe('earlyKeys', () => {
     expect(text(slot.take('new'))).toBe('ab')
   })
 
+  it('hands the keys to the note claimed last when a switch is called off, never to the one left (#520)', () => {
+    const { target, slot, givenBack } = setup('editor')
+    const ticket = slot.start()
+    ticket.claim('left-loading')
+    typeKeys(target, ['a', 'b'])
+    ticket.claim('shown')
+    typeKeys(target, ['c'])
+    vi.advanceTimersByTime(3000)
+    expect(slot.take('left-loading')).toEqual([])
+    expect(text(slot.take('shown'))).toBe('abc')
+    expect(slot.take('left-loading')).toEqual([])
+    expect(givenBack).toEqual([])
+  })
+
   it('keeps the keys for the note when the field left cannot take them back', () => {
     const { target, slot, givenBack } = setup('row', false)
     const ticket = slot.start()

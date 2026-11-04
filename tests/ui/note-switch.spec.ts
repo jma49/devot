@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, openApp } from './fixtures'
+import { expect, test, openApp, type TestWindow } from './fixtures'
 import { slowCore } from './slowCore'
 
 // Switching notes keeps the note being left on screen until the next one's
@@ -130,4 +130,49 @@ test('keys typed while the next note loads go to that note, not the one being le
   await expect
     .poll(() => storedBodies(page))
     .toEqual(['First: ZFirst body.', 'Second: Second body.'])
+})
+
+test('keys typed after a switch is called off go to the note still shown, never to the one left loading (#520)', async ({
+  page,
+}) => {
+  await body(page).click()
+  await page.keyboard.press('End')
+  await page.keyboard.press('Meta+[')
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('First')
+  await page.keyboard.type(' P')
+  // Forward again before First's body arrives: Second, still on screen, is the note again.
+  await page.keyboard.press('Meta+]')
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Second')
+  await expect(body(page)).toBeFocused()
+  await page.keyboard.type(' Q')
+  await expect(body(page)).toHaveText('Second body. P Q')
+  // Past slowCore's 500 ms delay on the reply to the First open.
+  await page.waitForTimeout(700)
+  await page.keyboard.press('Meta+[')
+  await expect(body(page)).toHaveText('First body.')
+  await expect
+    .poll(() => storedBodies(page))
+    .toEqual(['First: First body.', 'Second: Second body. P Q'])
+})
+
+const editorMenus = (page: Page) =>
+  page.evaluate(
+    () =>
+      (globalThis as unknown as TestWindow).devotIpcCalls.filter((c) =>
+        ['editor_menu_popup', 'plugin:menu|popup'].includes(c.cmd),
+      ).length,
+  )
+
+test('the note being left offers no editor menu while the next one loads, so nothing aims at the wrong note (#531)', async ({
+  page,
+}) => {
+  await row(page, 'First').click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('First')
+  await expect(shownBody(page)).toHaveText('Second body.')
+  const before = await editorMenus(page)
+  await shownBody(page).click({ button: 'right' })
+  await expect(shownBody(page)).toHaveText('First body.')
+  expect(await editorMenus(page)).toBe(before)
+  await body(page).click({ button: 'right' })
+  await expect.poll(() => editorMenus(page)).toBe(before + 1)
 })

@@ -1,5 +1,6 @@
 import type { BrowserContext, Page } from '@playwright/test'
 import { expect, mockTauri, openApp, pickMenuItem, test, type TestWindow } from './fixtures'
+import { slowCore } from './slowCore'
 
 // A note in a window of its own (note.html, src-tauri/src/note_window.rs). Rust opens the window and
 // carries the relay; here `note_window_note` is mocked, and both pages of one browser share the
@@ -32,7 +33,10 @@ const calls = (page: Page, cmd: string) =>
 
 /** Makes a note in the main window, typed and saved; returns its ID. */
 async function noteInMain(page: Page, name: string, text: string) {
+  const before = await rows(page).count()
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(rows(page)).toHaveCount(before + 1)
+  await expect(title(page)).toHaveValue('')
   await title(page).fill(name)
   await body(page).click()
   await page.keyboard.type(text)
@@ -167,6 +171,52 @@ test('a note link chip in the main window follows a rename made in the note wind
   const win = await openNoteWindow(context, alpha)
   await title(win).fill('Renamed')
   await expect(chip).toContainText('Renamed')
+})
+
+test('typing in a note window while the main window opens that note all shows there (#511)', async ({
+  page,
+  context,
+}) => {
+  const id = await noteInMain(page, 'Plan', 'Start.')
+  await noteInMain(page, 'Other', 'Else.')
+  const win = await openNoteWindow(context, id)
+  // The main window's body arrives well before its title, as on a busy machine.
+  await slowCore(page, ['title'])
+  await page.reload()
+  await rows(page)
+    .filter({ hasText: /^Other/ })
+    .click()
+  await expect(title(page)).toHaveValue('Other')
+  await body(win).click()
+  await win.keyboard.press('End')
+  await rows(page).filter({ hasText: /^Plan/ }).click()
+  await win.keyboard.type(' One', { delay: 100 })
+  await expect(title(page)).toHaveValue('Plan')
+  await win.keyboard.type(' Two')
+  await expect(body(page)).toHaveText('Start. One Two')
+})
+
+test('a title changed in a note window while the main window opens that note shows there (#531)', async ({
+  page,
+  context,
+}) => {
+  const id = await noteInMain(page, 'Plan', 'Start.')
+  await noteInMain(page, 'Other', 'Else.')
+  const win = await openNoteWindow(context, id)
+  // The main window's answer for the title is late, so the rename lands while the note opens.
+  await slowCore(page, ['title'])
+  await page.reload()
+  await rows(page)
+    .filter({ hasText: /^Other/ })
+    .click()
+  await expect(title(page)).toHaveValue('Other')
+  await rows(page).filter({ hasText: /^Plan/ }).click()
+  // Once the main window's core holds the note, well inside the 500 ms the title answer takes.
+  await page.waitForTimeout(150)
+  await title(win).fill('Renamed')
+  await expect(body(page)).toHaveText('Start.')
+  await page.waitForTimeout(700)
+  await expect(title(page)).toHaveValue('Renamed')
 })
 
 test('closing a note window saves its edits first', async ({ page, context }) => {

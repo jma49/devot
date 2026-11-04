@@ -560,8 +560,11 @@ export function App() {
   // The list draws the note being opened as selected at once.
   const [openingId, setOpeningId] = useState<string>()
   const switching = openingId !== undefined && openingId !== selected
+  // A title another window gave the note being opened, before its own title arrived.
+  const openingTitle = useRef<{ noteId: string; title: string } | undefined>(undefined)
   const startOpening = (id: string) => {
     openingRef.current = id
+    openingTitle.current = undefined
     setOpeningId(id)
     return ++opens.current
   }
@@ -1239,6 +1242,7 @@ export function App() {
   const takeIn = useCallback((change: TakenIn) => {
     if (change.kind === 'title') {
       if (shownNote.current === change.noteId) setTitle(change.title)
+      else if (openingRef.current === change.noteId) openingTitle.current = change
       return
     }
     const editor = editorRef.current
@@ -1257,7 +1261,7 @@ export function App() {
     })
       .then(async (c) => {
         started = c
-        if (!alive) return
+        if (!alive) return stopCore(c)
         setCore(() => c)
         coreRef.current = c
         // A library that has never held anything starts with a few notes. The
@@ -1907,8 +1911,11 @@ export function App() {
     }
     if (body) handOver({ core, noteId: id, state: body })
     setTakesKeyboard(keyboard || paletteFromEditor.current ? id : undefined)
+    // Titles from other windows apply to this note from now on, before the render that selects it.
+    shownNote.current = id
     setSelected(id)
-    setTitle(name)
+    const relayed = openingTitle.current
+    setTitle(relayed?.noteId === id ? relayed.title : name)
     if (!fromTrail) moveTrail(visit(trailRef.current, id))
     // A note opened outside the workspace (a note link, a search over every
     // note, the palette) leaves it.
@@ -4403,6 +4410,7 @@ export function App() {
                 onNewFromLink={inTrash || !editing ? undefined : () => void noteFromLink(selected)}
                 onImagesRefused={setImageNotice}
                 onOpenFailed={closeUnopenable}
+                onEditRefused={(_id, code) => setChangeNotice(code)}
                 onChooseTemplate={
                   inTrash || !editing
                     ? undefined

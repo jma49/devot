@@ -507,3 +507,42 @@ test('the tag field is concentric with the sheet', async ({ page }) => {
   })
   expect(radius).toBeCloseTo(expected, 0)
 })
+
+test('a New Note picked from [[ and then not linked is purged, not left in the Trash (#531)', async ({
+  page,
+}) => {
+  await note(page).getByRole('button', { name: 'Edit', exact: true }).click()
+  const content = note(page).locator('.cm-content')
+  await content.click()
+  await page.keyboard.press('ControlOrMeta+End')
+  await page.keyboard.type(' [[')
+  await page.keyboard.insertText('Plan B')
+  const option = page
+    .locator('.cm-tooltip-autocomplete')
+    .getByRole('option', { name: 'New Note “Plan B”' })
+  await expect(option).toBeVisible()
+  // Past CodeMirror's interactionDelay, during which a pick is ignored.
+  await page.waitForTimeout(150)
+  await page.evaluate(() => localStorage.setItem('devot.test.delayNoteWrites', 'hold'))
+  await option.click()
+  // The brackets change under the pick, so the note made for it is not linked.
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.type('!')
+  await page.evaluate(() => localStorage.removeItem('devot.test.delayNoteWrites'))
+  // A purge clears the title; a note only trashed keeps it.
+  const purged = () =>
+    page.evaluate(() => {
+      const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
+        title: string
+        purgedAt?: number
+      }[]
+      return {
+        purged: notes.some((n) => n.purgedAt !== undefined),
+        kept: notes.some((n) => n.title === 'Plan B'),
+      }
+    })
+  await expect.poll(purged).toEqual({ purged: true, kept: false })
+  await expect(content).toContainText('[[Plan !B]]')
+})

@@ -75,6 +75,30 @@ test('a worker that does not load says so, and Try Again starts it', async ({ pa
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
 })
 
+test('a window runs one core worker, though StrictMode starts it twice in development (#531)', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const live = new Set<Worker>()
+    window.Worker = class extends window.Worker {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options)
+        if (String(url).includes('core.worker')) live.add(this)
+      }
+      override terminate() {
+        live.delete(this)
+        super.terminate()
+      }
+    }
+    ;(globalThis as { devotCoreWorkers?: () => number }).devotCoreWorkers = () => live.size
+  })
+  await page.reload()
+  await createNote(page, 'Started')
+  const workers = () =>
+    page.evaluate(() => (globalThis as { devotCoreWorkers?: () => number }).devotCoreWorkers?.())
+  await expect.poll(workers).toBe(1)
+})
+
 test('a warning from the core worker reaches the local log by code', async ({ page }) => {
   await page.reload()
   await createNote(page, 'Warned')
