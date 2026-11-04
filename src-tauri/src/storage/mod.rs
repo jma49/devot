@@ -58,7 +58,7 @@ pub enum StorageError {
     /// The note was deleted for good: nothing is written, and its writer is told.
     Purged,
     RebuildStopped,
-    /// The write gate's code (`Db::guard`).
+    /// A code the call was refused with: the write gate's (`Db::guard`), or the database thread's.
     Refused(&'static str),
 }
 
