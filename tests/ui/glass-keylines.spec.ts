@@ -141,6 +141,17 @@ test('toolbar groups start and end on the note keylines, in every view', async (
   expect(Math.abs((await inkLeft(line)) - (await left(first)))).toBeLessThan(1)
 })
 
+test('the title, the first pill and the text start 32 from the divider', async ({ page }) => {
+  await changeEditorSettingsElsewhere(page, { lineNumbers: false })
+  await noteWithBody(page, 'Plan', 'Text')
+  const origin = await left(page.locator('.content'))
+  const from = async (locator: Locator) => Math.round((await left(locator)) - origin)
+
+  expect(await from(page.locator('.title'))).toBe(32)
+  expect(await from(page.locator('.note-meta > *').first())).toBe(32)
+  expect(Math.round((await inkLeft(page.locator('.cm-line').first())) - origin)).toBe(32)
+})
+
 test('Classic keeps its own edges', async ({ page }) => {
   await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
   await noteWithBody(page, 'Plan', 'Text')
