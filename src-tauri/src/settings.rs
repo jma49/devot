@@ -63,6 +63,9 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
         .title(strings::SETTINGS_TITLE)
         .theme(theme)
         .inner_size(WIDTH, HEIGHT)
+        .on_navigation(crate::navigation::app_pages_only(
+            crate::navigation::AppOrigins::of(app),
+        ))
         // The page draws the toolbar and the sidebar itself, over the system's sidebar material.
         .transparent(true)
         .resizable(false);

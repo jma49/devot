@@ -15,7 +15,9 @@ import {
   type AlertKind,
   type PreviewNote,
   type PreviewRenderer,
+  type RemoteImageWait,
 } from './registry'
+import { remoteImageHost } from './remoteImages'
 import { fillPlaceholders } from '../text'
 import { createCodeRenderer } from './code'
 import { glyph } from './glyphs'
@@ -313,13 +315,28 @@ const swatches: PreviewRenderer = {
 }
 
 /** Reference images and raw HTML get no `data-image-from`/`data-image-to` (where the image is in the Markdown, so its size can be set from the preview). */
+/** In place of an image from the web until its site is loaded: nothing is fetched from it. */
+function remoteImagePlaceholder(host: string, labels: RemoteImageWait): Element {
+  return el('span', { className: ['image-placeholder'], dataRemoteImageHost: host }, [
+    el('span', { className: ['image-placeholder-text'] }, [
+      txt(fillPlaceholders(labels.from, { origin: host })),
+    ]),
+    el('button', { type: 'button', className: ['embed-load'], dataRemoteImageLoad: true }, [
+      txt(labels.load),
+    ]),
+  ])
+}
+
 const images: PreviewRenderer = {
   id: 'devot.images',
   apiVersion: PREVIEW_API_VERSION,
-  transform(tree, { source }) {
+  transform(tree, { source, remoteImages }) {
     rewrite(tree, (node, parent) => {
       if (node.tagName !== 'img') return undefined
       const src = node.properties['src']
+      const host = typeof src === 'string' ? remoteImageHost(src) : null
+      if (remoteImages && host !== null && !remoteImages.loadedHosts.includes(host))
+        return remoteImagePlaceholder(host, remoteImages)
       const names: string[] = []
       let size: string = 'auto'
       if (typeof src === 'string') {

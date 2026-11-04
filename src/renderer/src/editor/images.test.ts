@@ -10,7 +10,9 @@ import {
   imageLines,
   imageSizeChange,
   inlineImageField,
+  remoteImagesWait,
 } from './images'
+import { forgetLoadedImageHosts, loadImagesFrom } from '../remoteImages'
 
 const ID = '0192a6f0-0000-7000-8000-00000000f001'
 const FILE = `devot://file/${ID}`
@@ -173,5 +175,30 @@ describe('the image the size bar is for', () => {
     expect(imageForBar(whole)?.alt).toBe('a')
     const more = state(doc).update({ selection: EditorSelection.range(0, end) }).state
     expect(imageForBar(more)).toBeNull()
+  })
+})
+
+describe('images from the web while they wait for Load', () => {
+  const waiting = (doc: string, wait: boolean) => {
+    const s = EditorState.create({
+      doc,
+      extensions: [noteMarkdown, inlineImageField, remoteImagesWait.of(wait)],
+    })
+    const out: (string | null)[] = []
+    for (let at = s.field(inlineImageField).iter(); at.value; at.next()) {
+      const widget = at.value.spec['widget'] as { images: { waitsFor: string | null }[] }
+      out.push(...widget.images.map((image) => image.waitsFor))
+    }
+    return out
+  }
+  const doc = `![a](${FILE}) ![b](https://Pixel.test/p.png)\n`
+
+  it('wait by their site, until it is loaded this session; attachments never wait', () => {
+    forgetLoadedImageHosts()
+    expect(waiting(doc, false)).toEqual([null, null])
+    expect(waiting(doc, true)).toEqual([null, 'pixel.test'])
+    loadImagesFrom('pixel.test')
+    expect(waiting(doc, true)).toEqual([null, null])
+    forgetLoadedImageHosts()
   })
 })

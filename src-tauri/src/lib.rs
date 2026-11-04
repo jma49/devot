@@ -47,6 +47,7 @@ mod menu_bar;
 mod mirror;
 #[doc(hidden)]
 pub mod native;
+mod navigation;
 mod net;
 mod note_relay;
 mod note_window;

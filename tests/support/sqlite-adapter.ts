@@ -678,6 +678,11 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const searchSecureDelete = db.prepare<[bigint]>(
     "INSERT INTO notes_fts (notes_fts, rank) VALUES ('secure-delete', ?)",
   )
+  // As Rust's `purge_note`: only a trashed note or one with no text.
+  const liveWithText = db.prepare(
+    `SELECT 1 FROM notes WHERE id = ? AND purged_at IS NULL AND deleted_at IS NULL
+       AND (title <> '' OR body_md <> '')`,
+  )
   const dropLinks = db.prepare('DELETE FROM note_tags WHERE note_id = ?')
   // The link index: same statements as the Rust store (put_note, purge_note).
   const dropNoteLinks = db.prepare('DELETE FROM links WHERE source_id = ?')
@@ -1005,6 +1010,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     },
     listTrash: async () => trash.all(),
     async purgeNote(id, at, hlc) {
+      if (liveWithText.get(id)) throw new Error('E_NOTE_NOT_TRASHED')
       purgeWith(id, at, hlc, true)
     },
     async syncPending(after, limit) {

@@ -270,7 +270,10 @@ pub(crate) fn build(
     }
     let mut builder = WebviewWindowBuilder::from_config(app, &config)
         .map_err(|_| "E_MAIN_WINDOW_FAILED")?
-        .on_new_window(crate::external::on_new_window);
+        .on_new_window(crate::external::on_new_window)
+        .on_navigation(crate::navigation::app_and_frames(
+            crate::navigation::AppOrigins::of(app),
+        ));
     if let Some(stored) = &stored {
         builder = builder.initialization_script(crate::editor_settings::initial_script(stored));
     }

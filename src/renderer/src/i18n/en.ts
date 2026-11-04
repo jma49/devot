@@ -632,6 +632,8 @@ title: Daily Report {{date}}
   'embed.from': 'Embedded content from {origin}',
   'embed.load': 'Load',
   'embed.videoTitle': 'Embedded video',
+  'image.remoteFrom': 'Image from {origin}',
+  'image.remoteLoad': 'Load',
   'mermaid.label': 'Diagram',
   'mermaid.labelNamed': 'Diagram: {name}',
   'mermaid.error': 'This diagram has an error and cannot be drawn.',
@@ -851,6 +853,9 @@ title: Daily Report {{date}}
   'previewSettings.syncScroll': 'Synced Scrolling',
   'previewSettings.syncScrollHint':
     'Whether the editor and the preview scroll together in split view.',
+  'previewSettings.remoteImages': 'Load Images from the Web',
+  'previewSettings.remoteImagesHint':
+    "Whether images from the web load by themselves. When off, each site's images wait for Load until Devot quits.",
   'previewSettings.failed': 'The preview settings could not be saved ({code}).',
   'appearanceSettings.title': 'Appearance',
   'appearanceSettings.groupAppearance': 'Appearance',
@@ -1546,6 +1551,8 @@ title: Daily Report {{date}}
   'change.tagNameInvalid': 'A tag name is one line of at most {max} characters.',
   'change.tagRenameSearchTooLong':
     'This tag cannot take that name: a saved search that uses it would pass {max} characters. Shorten the name or edit that search ({code}).',
+  'change.noteNotTrashed':
+    'This note is no longer in the Trash, so it was not deleted. It may have been restored in another window or on another device.',
   'change.bookNameInvalid': 'A notebook name is one line of at most {max} characters.',
   'export.failed': 'The export did not complete ({code}).',
   'export.partial':

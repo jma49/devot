@@ -30,6 +30,7 @@ export const enPhone: Partial<Messages> = {
   'editorSettings.importedFontHint': 'TTF, OTF or WOFF, up to 50 MB',
   'previewSettings.fontSizeHint': '',
   'previewSettings.syncScrollHint': 'Editor and preview move together',
+  'previewSettings.remoteImagesHint': 'Off, each site waits for Load',
   'appearanceSettings.animationsHint': 'Can follow Reduce Motion',
   'generalSettings.crashReportsHint': 'Sends error codes, never note text',
   'aiSettings.detail': 'Sent only when you ask, to your chosen provider.',

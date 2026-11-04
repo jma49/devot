@@ -1250,8 +1250,10 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       await storage.copyFiles(id, copies)
     } catch (error) {
       live.delete(id)
+      // Storage purges only a trashed note.
       await storage
-        .purgeNote(id, now(), clock.tick())
+        .putNote({ ...asWritten(record), deletedAt: now(), deletedHlc: clock.tick() })
+        .then(() => storage.purgeNote(id, now(), clock.tick()))
         .catch(() => console.warn('W_NOTE_COPY_CLEANUP_FAILED', id))
       throw error
     }

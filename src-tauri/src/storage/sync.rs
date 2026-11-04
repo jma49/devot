@@ -592,7 +592,7 @@ mod tests {
         let seen = looked_at(&mut store, FILE);
         assert!(!pending(&store, "", 10).contains(&FILE.to_string()));
         store
-            .purge_note(NOTE, 9, "0001728000000009-0000-mac")
+            .trash_and_purge(NOTE, 9, "0001728000000009-0000-mac")
             .unwrap();
         let gone = store.sync_read(&[FILE.into()]).unwrap().remove(0);
         assert!(gone.file.is_none());
@@ -632,7 +632,7 @@ mod tests {
         store.put_note(&heir, &[]).unwrap();
         store.put_file(&attachment(FILE, NOTE)).unwrap();
         store
-            .purge_note(NOTE, 9, "0001728000000009-0000-mac")
+            .trash_and_purge(NOTE, 9, "0001728000000009-0000-mac")
             .unwrap();
         let file = store
             .sync_read(&[FILE.into()])

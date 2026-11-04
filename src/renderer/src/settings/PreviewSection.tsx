@@ -25,6 +25,12 @@ export function PreviewSection() {
           checked={settings.syncScroll}
           onChange={(syncScroll) => change({ syncScroll })}
         />
+        <SettingToggle
+          label="previewSettings.remoteImages"
+          description="previewSettings.remoteImagesHint"
+          checked={settings.loadRemoteImages}
+          onChange={(loadRemoteImages) => change({ loadRemoteImages })}
+        />
       </SettingsSection>
     </section>
   )

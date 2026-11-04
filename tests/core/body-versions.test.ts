@@ -111,6 +111,7 @@ describe.each(ADAPTERS)('note writes in the %s adapter', (_, make) => {
     })
 
     // A purge is final: a write to a purged note is left alone, whatever its version.
+    await storage.putNote(record('one two', { bodyVersion: 2, deletedAt: 5, deletedHlc: LATER }))
     await storage.purgeNote(ID, 5, LATER)
     await storage.putNote(record('revived', { bodyVersion: 0 }))
     await storage.putNote(record('revived', { bodyVersion: 2 }))

@@ -2,10 +2,23 @@
 // Previews are block widgets from a state field (only state decorations may change the editor's vertical layout),
 // each with one fixed height known before its images load, so lines never move as images arrive or fail. Finding
 // images scans the text for `![` and asks the syntax tree only there, which stays cheap on long notes. Attachments
-// (devot://file) and https images show; the app's CSP loads no plain http images.
+// (devot://file) and https images show; the app's CSP loads no plain http images. While Settings > Preview > Load Images
+// from the Web is off, an https image from a site not loaded this session shows a Load button in its place.
 import { syntaxTree } from '@codemirror/language'
-import { Facet, StateField, type EditorState, type TransactionSpec } from '@codemirror/state'
-import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import {
+  Facet,
+  StateEffect,
+  StateField,
+  type EditorState,
+  type TransactionSpec,
+} from '@codemirror/state'
+import {
+  Decoration,
+  EditorView,
+  ViewPlugin,
+  WidgetType,
+  type DecorationSet,
+} from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import {
   attachmentId,
@@ -14,8 +27,11 @@ import {
   type ImageDimensions,
   type ImageSize,
 } from '../../../core/images'
+import { remoteImageHost } from '../../../core/preview/remoteImages'
 import type { MenuPoint } from '../contextMenu'
+import { format, t } from '../i18n'
 import { isMissingImage, MISSING_IMAGE, watchMissingImages } from '../missingImages'
+import { loadedImageHosts, loadImagesFrom, onLoadedImageHosts } from '../remoteImages'
 import { sizes } from '../theme/tokens'
 
 export interface EditorImage {
@@ -172,20 +188,43 @@ export function imageLines(state: EditorState): ImageLine[] {
   return Array.from(byLine, ([at, images]) => ({ at, images })).sort((a, b) => a.at - b.at)
 }
 
+/** True while images from the web wait for Load (the setting is off). */
+export const remoteImagesWait = Facet.define<boolean, boolean>({
+  combine: (values) => values.some(Boolean),
+})
+
+const imageHostsLoaded = StateEffect.define<null>()
+
+/** The site an image waits for, or null when it shows. */
+function waitingFor(state: EditorState, url: string): string | null {
+  if (!state.facet(remoteImagesWait)) return null
+  const host = remoteImageHost(url)
+  return host !== null && !loadedImageHosts().includes(host) ? host : null
+}
+
+interface ShownImage {
+  url: string
+  alt: string
+  waitsFor: string | null
+}
+
 const HEIGHT = Number.parseFloat(sizes['size.inline-image-height'])
 
 const stops = new WeakMap<HTMLElement, () => void>()
 
 /** The images under one line. Only their URLs and alt texts matter for redrawing. */
 class ImagesWidget extends WidgetType {
-  constructor(readonly images: readonly { url: string; alt: string }[]) {
+  constructor(readonly images: readonly ShownImage[]) {
     super()
   }
 
   override eq(other: ImagesWidget): boolean {
     return (
       other.images.length === this.images.length &&
-      other.images.every((i, n) => i.url === this.images[n]?.url && i.alt === this.images[n]?.alt)
+      other.images.every((i, n) => {
+        const mine = this.images[n]
+        return i.url === mine?.url && i.alt === mine.alt && i.waitsFor === mine.waitsFor
+      })
     )
   }
 
@@ -196,9 +235,14 @@ class ImagesWidget extends WidgetType {
   override toDOM(view: EditorView): HTMLElement {
     const box = document.createElement('div')
     box.className = 'cm-inline-images'
-    // The Markdown line above already names each image.
-    box.setAttribute('aria-hidden', 'true')
-    for (const { url, alt } of this.images) {
+    // The Markdown line above already names each image; a Load button must stay reachable.
+    if (this.images.every((image) => image.waitsFor === null))
+      box.setAttribute('aria-hidden', 'true')
+    for (const { url, alt, waitsFor } of this.images) {
+      if (waitsFor !== null) {
+        box.appendChild(remotePlaceholder(waitsFor))
+        continue
+      }
       const img = document.createElement('img')
       img.className = 'cm-inline-image'
       img.alt = alt
@@ -213,6 +257,7 @@ class ImagesWidget extends WidgetType {
       const img = event.target instanceof HTMLImageElement ? event.target : null
       if (!img) return null
       const index = Array.prototype.indexOf.call(box.children, img)
+      // Placeholders hold their images' places, so the index still counts every image.
       const at = view.state.doc.lineAt(view.posAtDOM(box)).to
       const shown = imageLines(view.state).find((line) => line.at === at)?.images ?? []
       return { img, image: shown[index] ?? null }
@@ -249,12 +294,29 @@ export const inlineImagesHidden = Facet.define<boolean, boolean>({
   combine: (values) => values.some(Boolean),
 })
 
+function remotePlaceholder(host: string): HTMLElement {
+  const box = document.createElement('span')
+  box.className = 'cm-remote-image'
+  const text = document.createElement('span')
+  text.className = 'cm-remote-image-text'
+  text.textContent = format(t('image.remoteFrom'), { origin: host })
+  const load = document.createElement('button')
+  load.type = 'button'
+  load.className = 'embed-load'
+  load.textContent = t('image.remoteLoad')
+  load.addEventListener('click', () => loadImagesFrom(host))
+  box.append(text, load)
+  return box
+}
+
 function decorations(state: EditorState): DecorationSet {
   if (state.facet(inlineImagesHidden)) return Decoration.none
   return Decoration.set(
     imageLines(state).map((line) =>
       Decoration.widget({
-        widget: new ImagesWidget(line.images.map(({ url, alt }) => ({ url, alt }))),
+        widget: new ImagesWidget(
+          line.images.map(({ url, alt }) => ({ url, alt, waitsFor: waitingFor(state, url) })),
+        ),
         block: true,
         side: 1,
       }).range(line.at),
@@ -265,10 +327,19 @@ function decorations(state: EditorState): DecorationSet {
 export const inlineImageField = StateField.define<DecorationSet>({
   create: decorations,
   update: (value, tr) =>
-    tr.docChanged || tr.reconfigured || syntaxTree(tr.startState) !== syntaxTree(tr.state)
+    tr.docChanged ||
+    tr.reconfigured ||
+    syntaxTree(tr.startState) !== syntaxTree(tr.state) ||
+    tr.effects.some((effect) => effect.is(imageHostsLoaded))
       ? decorations(tr.state)
       : value,
   provide: (field) => EditorView.decorations.from(field),
+})
+
+/** A site loaded here or in the preview shows its images in this editor too. */
+const followLoadedHosts = ViewPlugin.define((view) => {
+  const stop = onLoadedImageHosts(() => view.dispatch({ effects: imageHostsLoaded.of(null) }))
+  return { destroy: stop }
 })
 
 const theme = EditorView.theme({
@@ -290,6 +361,18 @@ const theme = EditorView.theme({
     cursor: 'zoom-in',
   },
   '.cm-inline-image-failed': { visibility: 'hidden' },
+  '.cm-remote-image': {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--space-5)',
+    alignSelf: 'center',
+    minWidth: 0,
+    padding: 'var(--space-3) var(--space-5)',
+    borderRadius: 'var(--radius-card)',
+    background: 'var(--color-fill-track)',
+    color: 'var(--color-text-secondary)',
+  },
+  '.cm-remote-image-text': { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   // An attachment that has not arrived: a box where the image will be.
   [`.cm-inline-image.${MISSING_IMAGE}`]: {
     height: '100%',
@@ -301,4 +384,4 @@ const theme = EditorView.theme({
   },
 })
 
-export const inlineImages = [inlineImageField, theme]
+export const inlineImages = [inlineImageField, followLoadedHosts, theme]

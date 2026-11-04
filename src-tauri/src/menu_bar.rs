@@ -270,6 +270,9 @@ pub fn open_quick_capture(app: &AppHandle) {
         .minimizable(false)
         .maximizable(false)
         .center()
+        .on_navigation(crate::navigation::app_pages_only(
+            crate::navigation::AppOrigins::of(app),
+        ))
         .build();
     match built {
         Ok(window) => {

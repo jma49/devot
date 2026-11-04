@@ -1,4 +1,0 @@
-/* The Mermaid frame is never visible; it only needs layout for measuring. */
-body {
-  margin: 0;
-}

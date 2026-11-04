@@ -24,22 +24,15 @@ function fakeApp(at: string): string {
   return at
 }
 
-function run(options: { spotlight?: string[]; arg?: string; home?: string } = {}) {
+function run(options: { arg?: string; home?: string } = {}) {
   const root = tempDir('devot-launcher-')
   const home = options.home ?? join(root, 'home')
   mkdirSync(home, { recursive: true })
-  const mdfind = join(root, 'mdfind')
-  writeFileSync(
-    mdfind,
-    `#!/bin/sh\nprintf '%s\\n' ${(options.spotlight ?? []).map(quoted).join(' ')}\n`,
-  )
-  chmodSync(mdfind, 0o755)
-  let script = replacedOnce(
+  const script = replacedOnce(
     LAUNCHER,
     ' /Applications/Devot.app ',
     ` ${quoted(join(root, 'Applications/Devot.app'))} `,
   )
-  script = replacedOnce(script, '/usr/bin/mdfind', quoted(mdfind))
   const path = join(root, 'devot-mcp.sh')
   writeFileSync(path, script)
   const result = spawnSync('/bin/sh', [path, ...(options.arg ? [options.arg] : [])], {
@@ -65,14 +58,12 @@ describe('the MCP launcher', () => {
     expect(result.stdout).toBe(`ran ${app} --cli mcp\n`)
   })
 
-  it('skips Spotlight hits that are not a Mac app, such as an iOS build', () => {
-    const elsewhere = tempDir('devot-elsewhere-')
-    const ios = join(elsewhere, 'ios/Devot.app')
-    mkdirSync(ios, { recursive: true })
-    const app = fakeApp(join(elsewhere, 'Tools/Devot.app'))
-    const result = run({ spotlight: [ios, app] })
-    expect(result.status).toBe(0)
-    expect(result.stdout).toBe(`ran ${app} --cli mcp\n`)
+  it('never searches for a copy elsewhere by its bundle identifier', () => {
+    expect(LAUNCHER).not.toMatch(/mdfind|kMDItem|io\.github\.jma49\.devot/)
+    fakeApp(join(tempDir('devot-elsewhere-'), 'Downloads/Devot.app'))
+    const result = run()
+    expect(result.status).toBe(1)
+    expect(result.stdout).toBe('')
   })
 
   it('says Devot is missing, with its code and what to do, and keeps stdout empty', () => {

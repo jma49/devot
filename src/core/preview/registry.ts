@@ -22,6 +22,13 @@ export interface PreviewLabels {
   codeSource: string
 }
 
+export interface RemoteImageWait {
+  loadedHosts: readonly string[]
+  /** `{origin}` is the image's site. */
+  from: string
+  load: string
+}
+
 export type AlertKind = 'note' | 'tip' | 'important' | 'warning' | 'caution'
 
 export interface NoteLinkTarget {
@@ -56,6 +63,8 @@ export interface PreviewNote {
 export interface PreviewOptions {
   labels: PreviewLabels
   loadedEmbeds: readonly string[]
+  /** Given only while images from the web wait for Load: each one from a site not in `loadedHosts` shows a placeholder. */
+  remoteImages?: RemoteImageWait
   /** Without it (exported pages) note links stay plain links; a link to a note missing here is a broken link. */
   noteLinks?: Readonly<Record<string, NoteLinkTarget>>
   /** Only the live preview gives it: exported pages, copies and templates show front matter as written. */

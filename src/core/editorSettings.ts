@@ -55,6 +55,8 @@ export interface EditorSettings {
   pasteUrl: PasteUrlStyle
   syncScroll: boolean
   inlineImages: boolean
+  /** Off: an image from the web waits for Load (Settings > Preview). */
+  loadRemoteImages: boolean
   appearance: AppearanceChoice
   /** The theme while the light appearance shows; `themeInEffect` picks between the two. */
   lightTheme: ThemeChoice
@@ -135,6 +137,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   pasteUrl: 'link',
   syncScroll: true,
   inlineImages: true,
+  loadRemoteImages: true,
   appearance: 'system',
   lightTheme: 'default',
   darkTheme: 'default',
@@ -307,6 +310,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   pasteUrl: oneOf(PASTE_URL_STYLES),
   syncScroll: isFlag,
   inlineImages: isFlag,
+  loadRemoteImages: isFlag,
   appearance: oneOf(APPEARANCES),
   lightTheme: oneOf(THEMES),
   darkTheme: oneOf(THEMES),

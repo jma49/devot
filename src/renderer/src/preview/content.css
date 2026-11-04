@@ -1039,6 +1039,24 @@
   color: var(--color-text-secondary);
 }
 
+.image-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-5);
+  max-width: 100%;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-card);
+  background: var(--color-fill-track);
+  color: var(--color-text-secondary);
+  vertical-align: middle;
+}
+
+.image-placeholder-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .embed-load {
   flex-shrink: 0;
   white-space: nowrap;

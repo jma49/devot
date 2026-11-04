@@ -69,6 +69,7 @@ test('mermaid diagrams render with their theme', async ({ page }) => {
   await newNote(page, '```mermaid\ngraph LR\n  Draft --> Done\n```')
   const rect = page.locator('.island-mermaid svg .node rect').first()
   await expect(rect).toBeVisible()
+  await expect(page.locator('iframe.mermaid-frame')).toHaveAttribute('sandbox', 'allow-scripts')
   await expect
     .poll(() =>
       rect.evaluate(
