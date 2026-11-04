@@ -8,7 +8,9 @@ import { languages } from '@codemirror/language-data'
 import {
   HighlightStyle,
   Language,
+  LanguageDescription,
   LanguageSupport,
+  ParseContext,
   defineLanguageFacet,
   languageDataProp,
 } from '@codemirror/language'
@@ -246,6 +248,58 @@ class FrontMatterParser extends Parser {
   }
 }
 
+/**
+ * The code of a fence whose language is still loading. CodeMirror's own
+ * placeholder parses every such fence again on each parse until the
+ * language arrives, which in a long note makes each keystroke slow; here
+ * only the fences in view are, and the others wait until they come into
+ * view, as a stream language's code does.
+ */
+class LoadingParser extends Parser {
+  private readonly skipping: Parser
+
+  constructor(loading: Promise<unknown>) {
+    super()
+    this.skipping = ParseContext.getSkippingParser(loading)
+    loading.catch(() => console.warn('W_CODE_LANGUAGE_LOAD_FAILED'))
+  }
+
+  createParse(
+    input: Input,
+    fragments: readonly TreeFragment[],
+    ranges: readonly { from: number; to: number }[],
+  ): PartialParse {
+    const cx = ParseContext.get()
+    const from = ranges[0]?.from ?? 0
+    const to = ranges.at(-1)?.to ?? from
+    if (!cx || (from < cx.viewport.to && to > cx.viewport.from))
+      return this.skipping.createParse(input, fragments, ranges)
+    cx.skipUntilInView(from, to)
+    return {
+      parsedPos: to,
+      stoppedAt: null,
+      stopAt: () => undefined,
+      advance: () => new Tree(NodeType.none, [], [], to - from),
+    }
+  }
+}
+
+const loadingData = defineLanguageFacet()
+const loadingLanguages = new WeakMap<Promise<LanguageSupport>, Language>()
+
+/** The language of a fence's info word: CodeMirror's lookup, with its own placeholder while one loads. */
+export function fenceLanguage(info: string): LanguageDescription | Language | null {
+  const found = LanguageDescription.matchLanguageName(languages, info, true)
+  if (!found || found.support) return found
+  const loading = found.load()
+  let placeholder = loadingLanguages.get(loading)
+  if (!placeholder) {
+    placeholder = new Language(loadingData, new LoadingParser(loading))
+    loadingLanguages.set(loading, placeholder)
+  }
+  return placeholder
+}
+
 // `markdown` adds its wrappers (code in fenced blocks) after those of its
 // base, so the base already reads front matter: its wrapper must come first.
 // Pasting a URL as a link is the editor's own (editor/paste.ts), so a paste
@@ -253,7 +307,7 @@ class FrontMatterParser extends Parser {
 // own parser, loaded the first time a note uses it.
 const support = markdown({
   base: new Language(markdownLanguage.data, noteParser, [], 'markdown'),
-  codeLanguages: languages,
+  codeLanguages: fenceLanguage,
   pasteURLAsLink: false,
 })
 
