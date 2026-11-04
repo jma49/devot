@@ -42,6 +42,14 @@ fn main() {
             "main_thread: Look Up fonts resolve: system, monospaced, installed with traits, file, fallback"
         );
 
+        match macos::self_test_glass_stays_active() {
+            Ok(true) => println!(
+                "main_thread: a main window keeps the glass's active look when it is not key"
+            ),
+            Ok(false) => println!("main_thread: no system glass here; windows are left alone"),
+            Err(code) => panic!("the glass's active look: {code}"),
+        }
+
         macos::self_test_editor_menu()
             .expect("the editor's menu offers guesses, the page's and the system's items");
         println!(
