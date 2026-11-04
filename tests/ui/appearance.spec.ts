@@ -5,18 +5,16 @@ import {
   openSettings,
   paintedBackground,
   test,
+  tokenColour,
   type TestWindow,
 } from './fixtures'
 
 // A chosen appearance marks the root (`data-appearance`) and the generated tokens switch with it whatever the system
 // shows. Stored with the editor settings, so a Settings window change arrives as `devot:editor-settings-changed`.
 
-const EDITOR = { light: '#ffffff', dark: '#0a0a0a' } as const
+const EDITOR = { light: 'rgb(255, 255, 255)', dark: 'rgb(10, 10, 10)' } as const
 
-const editorSurface = (page: Page) =>
-  page.evaluate(() =>
-    getComputedStyle(document.documentElement).getPropertyValue('--color-surface-editor').trim(),
-  )
+const editorSurface = (page: Page) => tokenColour(page, '--color-surface-editor')
 
 const settingsCalls = (page: Page) =>
   page.evaluate(() =>
@@ -187,14 +185,8 @@ test.describe('the theme choices in Settings', () => {
     await expect(picker(page, 'Dark').getByRole('radio', { name: 'Default' })).toBeChecked()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'ivory')
     await expect
-      .poll(() =>
-        page.evaluate(() =>
-          getComputedStyle(document.documentElement)
-            .getPropertyValue('--color-surface-sidebar-opaque')
-            .trim(),
-        ),
-      )
-      .toBe('#f5f4ed')
+      .poll(() => tokenColour(page, '--color-surface-sidebar-opaque'))
+      .toBe('rgb(245, 244, 237)')
     await expect.poll(() => settingsCalls(page)).toEqual([{ lightTheme: 'ivory' }])
 
     await picker(page, 'Dark').getByText('Tide', { exact: true }).click()

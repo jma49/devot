@@ -696,6 +696,20 @@ export function paintedColour(css: string): string {
   return alpha === 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
+/** A colour token as the root resolves it, not as written: the build's minifier rewrites `#ffffff` as `#fff`. */
+export async function tokenColour(page: Page, token: `--color-${string}`): Promise<string> {
+  return paintedColour(
+    await page.evaluate((name) => {
+      const probe = document.createElement('i')
+      probe.style.color = `var(${name})`
+      document.documentElement.append(probe)
+      const colour = getComputedStyle(probe).color
+      probe.remove()
+      return colour
+    }, token),
+  )
+}
+
 export async function paintedBackground(element: Locator): Promise<string> {
   return paintedColour(
     await element.evaluate((el) => {
