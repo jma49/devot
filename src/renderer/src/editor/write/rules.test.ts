@@ -147,8 +147,7 @@ describe('Write mode footnotes', () => {
   })
 
   it('count as the preview does: escapes and indented code left out, references in definitions last', () => {
-    const numbers = (doc: string) => shown(doc).split('\n')[0]
-    expect(numbers('\\[^a] and x[^b] then y[^a]\n\n[^a]: A\n[^b]: B')).toBe(
+    expect(shown('\\[^a] and x[^b] then y[^a]\n\n[^a]: A\n[^b]: B').split('\n')[0]).toBe(
       '[^a] and x{^1} then y{^2}',
     )
     expect(
