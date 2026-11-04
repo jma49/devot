@@ -1454,6 +1454,7 @@ title: Daily Report {{date}}
   'backups.done': 'Done',
   'backups.restore': 'Restore\u2026',
   'backups.restoreLabel': 'Restore the backup from {date}',
+  'backups.unverified': 'Unverified copy',
   'backups.confirmRestore': 'Restore the backup from {date}?',
   'backups.confirmRestoreDetail':
     'Your current notes will be replaced. Devot backs them up first, so you can go back to them.',
