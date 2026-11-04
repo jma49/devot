@@ -18,6 +18,7 @@ import {
   searchValue,
   bookQuery,
   tagQuery,
+  tagClause,
   MAX_TERM_CHARS,
   SEARCH_LIMIT,
   type BookRecord,
@@ -779,6 +780,16 @@ describe('the phone search syntax on SQLite', () => {
     expect(tagQuery({ id, name: 'Weekly notes' })).toBe('#"Weekly notes"')
     expect(tagQuery({ id, name: `it's "big"` })).toBe(`#'it's "big"'`)
     expect(bookQuery({ id, name: 'Weekly notes' })).toBe('in:"Weekly notes"')
+  })
+
+  it('spells a tag: clause that parses back to the tag, or its ID', () => {
+    const id = '0190a000-0000-7000-8000-000000000001'
+    for (const name of ['Work', 'Weekly notes', 'Q&A "draft"', "'quoted'", `it's "big"`]) {
+      const clause = tagClause({ id, name })
+      expect(clause.startsWith('tag:')).toBe(true)
+      expect(parseSearch(clause)).toEqual([{ field: 'tag', value: name, negate: false }])
+    }
+    expect(tagClause({ id, name: `Clients' "urgent"` })).toBe(`tagId:${id}`)
   })
 
   it('falls back to the ID for a name no quoting can hold', () => {
