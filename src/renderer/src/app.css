@@ -600,6 +600,15 @@ button {
   background: var(--color-fill-row-selected-inactive);
 }
 
+/* Under the pointer: the wash one step under the selected fill. Selected and drop-target rows keep theirs. */
+.source:not([aria-pressed='true'], [aria-current='true'], .drop-fill):hover,
+.books li:not([aria-selected='true']) > .book-row:not(.drop-fill):hover,
+.row:not([aria-selected='true']):hover {
+  background: var(--color-fill-row-selected-inactive);
+  transition-duration: var(--motion-duration-hover);
+  transition-timing-function: var(--motion-easing-out);
+}
+
 .rows:focus-within .row[data-open] {
   box-shadow: inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill);
 }
@@ -6773,15 +6782,39 @@ button.popup:focus-visible {
   height: 100%;
 }
 
-/* The group's item carries the parent's depth, so this runs down from the parent's icon. */
-:root[data-sidebar-material='on'] .books ul[role='group']::before {
+/* Each child row draws its parent's guide down its own height, so it can break where a chevron sits. */
+:root[data-sidebar-material='on'] .books ul[role='group'] > li[role='treeitem']::after {
   content: '';
   position: absolute;
   inset-block: 0;
-  inset-inline-start: calc(var(--book-indent) + var(--size-icon-md) / 2);
+  inset-inline-start: calc(var(--book-indent) - var(--space-7) + var(--size-icon-md) / 2);
   width: 1px;
   background: var(--color-line-separator);
   pointer-events: none;
+}
+
+/* A nested group sits beside its parent's row and carries the parent's depth, so it keeps the grandparent's guide running through it. */
+:root[data-sidebar-material='on'] .books ul[role='group'] ul[role='group']::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--book-indent) - var(--space-7) + var(--size-icon-md) / 2);
+  width: 1px;
+  background: var(--color-line-separator);
+  pointer-events: none;
+}
+
+/* The guide stops `space.1` short of the chevron's box, above and below, centred on the row. */
+:root[data-sidebar-material='on']
+  .books
+  ul[role='group']
+  > li[role='treeitem'][aria-expanded]::after {
+  --guide-gap: calc(var(--size-icon-sm) / 2 + var(--space-1));
+  background: linear-gradient(
+    var(--color-line-separator) calc(50% - var(--guide-gap)),
+    transparent calc(50% - var(--guide-gap)) calc(50% + var(--guide-gap)),
+    var(--color-line-separator) calc(50% + var(--guide-gap))
+  );
 }
 
 @property --scroll-edge-bottom-size {

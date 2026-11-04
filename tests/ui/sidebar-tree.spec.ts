@@ -135,15 +135,6 @@ test('depth steps 16 px, keeps each chevron inside its row, and guides down the 
     expect(chevron.x + chevron.width).toBeLessThanOrEqual((await box(icon(parent))).x)
   }
 
-  const guide = await page
-    .locator('#books-tree ul[role="group"]')
-    .first()
-    .evaluate((el) => {
-      const style = getComputedStyle(el, '::before')
-      return { width: style.width, position: style.position, color: style.backgroundColor }
-    })
-  expect(guide.width).toBe('1px')
-  expect(guide.position).toBe('absolute')
   const separator = await page.evaluate(() => {
     const probe = document.createElement('div')
     probe.style.background = 'var(--color-line-separator)'
@@ -152,7 +143,87 @@ test('depth steps 16 px, keeps each chevron inside its row, and guides down the 
     probe.remove()
     return color
   })
-  expect(guide.color).toBe(separator)
+  const guide = await book(page, 'Plans').evaluate((el) => {
+    const style = getComputedStyle(el, '::after')
+    return { width: style.width, position: style.position, image: style.backgroundImage }
+  })
+  expect(guide.width).toBe('1px')
+  expect(guide.position).toBe('absolute')
+  expect(guide.image).toContain(separator)
+})
+
+test('a child row draws its guide per row, and breaks it 2 px clear of its own chevron', async ({
+  page,
+}) => {
+  await setUp(page)
+  const guide = (value: string) =>
+    book(page, value).evaluate((el) => {
+      const style = getComputedStyle(el, '::after')
+      const li = el.getBoundingClientRect()
+      return {
+        x: li.x + parseFloat(style.left),
+        image: style.backgroundImage,
+      }
+    })
+
+  const plans = await guide('Plans')
+  const chevron = await box(row(page, 'Plans').locator('.disclosure .chevron'))
+  const parentIcon = await box(
+    row(page, 'Work').locator(':is(.icon, .icon-svg):not(.disclosure *)'),
+  )
+  expect(plans.x).toBe(parentIcon.x + parentIcon.width / 2)
+  // The line meets the chevron's 14 px box, so it breaks 2 px clear of it: an 18 px gap centred on the row.
+  expect(chevron.width).toBe(14)
+  expect(plans.x).toBeGreaterThanOrEqual(chevron.x)
+  expect(plans.x).toBeLessThanOrEqual(chevron.x + chevron.width)
+  expect(plans.image).toContain('calc(50% - 9px)')
+  expect(plans.image).toContain('calc(50% + 9px)')
+
+  // Work's guide runs on beside Plans' children, through the wrapper that holds them.
+  const through = await page
+    .locator('#books-tree ul[role="group"] ul[role="group"]')
+    .evaluate((el) => {
+      const style = getComputedStyle(el, '::before')
+      return {
+        x: el.parentElement!.getBoundingClientRect().x + parseFloat(style.left),
+        width: style.width,
+      }
+    })
+  expect(through.x).toBe(plans.x)
+  expect(through.width).toBe('1px')
+
+  // A childless row keeps its guide whole.
+  const deep = await guide('Deep')
+  expect(deep.image).not.toContain('calc(')
+})
+
+test('rows answer the pointer, and the selected row and a drop target keep their fill', async ({
+  page,
+}) => {
+  await setUp(page)
+  const fill = (token: string) =>
+    page.evaluate((tokenName) => {
+      const probe = document.createElement('div')
+      probe.style.background = `var(${tokenName})`
+      document.body.append(probe)
+      const color = getComputedStyle(probe).backgroundColor
+      probe.remove()
+      return color
+    }, token)
+  const hover = await fill('--color-fill-row-selected-inactive')
+  const clear = 'rgba(0, 0, 0, 0)'
+  const home = row(page, 'Home')
+  await expect(home).toHaveCSS('background-color', clear)
+  await home.hover()
+  await expect(home).toHaveCSS('background-color', hover)
+  await source(page, 'Trash').hover()
+  await expect(source(page, 'Trash')).toHaveCSS('background-color', hover)
+  await expect(home).toHaveCSS('background-color', clear)
+
+  await row(page, 'Garden').click()
+  const selected = await fill('--color-fill-row-selected')
+  await expect(row(page, 'Garden')).toHaveCSS('background-color', selected)
+  expect(selected).not.toBe(hover)
 })
 
 test('the footer is a 20 px capsule 8 px from the sidebar edges, concentric with its corners', async ({
