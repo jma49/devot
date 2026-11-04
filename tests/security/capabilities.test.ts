@@ -201,7 +201,6 @@ describe('Tauri command permissions', () => {
       'allow-settings-mcp-setup',
       'allow-settings-open-data-folder',
       'allow-settings-show-backups',
-      'allow-sidebar-glass',
       'allow-symbol-png',
       // Settings > Sync sets the relay and turns sync on or off; the relay's secret goes in, once.
       // It offers the recovery key until it is saved, pairs and joins devices, lists and removes them, and shows the relay's storage.
@@ -548,7 +547,7 @@ describe('the iPhone capability', () => {
 
   it('leaves out what touches the Mac, plugins or the local HTTP API', () => {
     const desktop = permissionIds(phone[0]!).filter((p) =>
-      /cli-tool|plugin-|data-folder|mirror-|http-api|font-import|main-window|update-|start-dragging|sidebar-glass/.test(
+      /cli-tool|plugin-|data-folder|mirror-|http-api|font-import|main-window|update-|start-dragging/.test(
         p,
       ),
     )

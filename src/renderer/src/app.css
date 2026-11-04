@@ -6621,12 +6621,17 @@ button.popup:focus-visible {
 
 /* Glass interface (Settings > Appearance > Interface style: Glass). Two materials only: one sheet the
    note list and the editor share, and glass controls floating over it. The sidebar floats inset from
-   the window; on macOS 26 the system draws its glass (sidebarGlass.ts), elsewhere a tint over the
-   sheet stands in. A cutout in the surrounding sheet leaves native glass uncovered. */
+   the window and is drawn in CSS with the controls' own fill, so it shows the theme's surface through
+   the same wash as every other glass control. A cutout in the surrounding sheet leaves it uncovered. */
 :root[data-sidebar-material='on'] body {
   --radius-settings-card: var(--radius-glass-card);
   --glass-sheet: color(
     from var(--color-surface-sheet) srgb r g b /
+      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
+  );
+  /* The sidebar takes the glass controls' own fill, so the two read as one material. */
+  --glass-sidebar: color(
+    from var(--color-fill-glass-control) srgb r g b /
       clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
   );
   --glass-backdrop: blur(var(--space-9)) saturate(1.8);
@@ -6689,17 +6694,14 @@ button.popup:focus-visible {
   border-radius: var(--radius-sidebar);
   background-color: transparent;
   background-image:
-    linear-gradient(var(--color-surface-glass), var(--color-surface-glass)), var(--backdrop, none),
+    linear-gradient(var(--glass-sidebar), var(--glass-sidebar)), var(--backdrop, none),
     linear-gradient(var(--glass-sheet), var(--glass-sheet));
   background-attachment: scroll, fixed, scroll;
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
   box-shadow:
     var(--glass-rim),
     0 var(--space-2) var(--space-8) var(--color-shadow-glass);
-}
-
-:root[data-sidebar-material='on'][data-native-glass='on'] .sidebar {
-  background-image: none;
-  box-shadow: none;
 }
 
 :root[data-sidebar-material='on']
@@ -7688,7 +7690,7 @@ button.popup:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-/* Settings shares the library's sheet and its rounded cutout for native glass. */
+/* Settings shares the library's sheet and its rounded cutout for the floating sidebar. */
 :root[data-sidebar-material='on'] .settings-main {
   background: transparent;
 }
@@ -7703,17 +7705,14 @@ button.popup:focus-visible {
   border-radius: var(--radius-sidebar);
   background-color: transparent;
   background-image:
-    linear-gradient(var(--color-surface-glass), var(--color-surface-glass)), var(--backdrop, none),
+    linear-gradient(var(--glass-sidebar), var(--glass-sidebar)), var(--backdrop, none),
     linear-gradient(var(--glass-sheet), var(--glass-sheet));
   background-attachment: scroll, fixed, scroll;
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
   box-shadow:
     var(--glass-rim),
     0 var(--space-2) var(--space-8) var(--color-shadow-glass);
-}
-
-:root[data-sidebar-material='on'][data-native-glass='on'] .settings-nav {
-  background-image: none;
-  box-shadow: none;
 }
 
 :root[data-sidebar-material='on'] :is(.settings-pane, .settings-toolbar) {
@@ -8002,12 +8001,11 @@ button.popup:focus-visible {
 }
 
 /* Accessibility preferences override every translucent surface, including shadow-root popups
-   which inherit these variables. The native sidebar is removed by sidebarGlass.ts as well. */
+   which inherit these variables. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   :root[data-sidebar-material='on'] body {
     --glass-sheet: var(--color-surface-editor);
     --glass-backdrop: none;
-    --color-surface-glass: var(--color-surface-sidebar-opaque);
     --color-fill-glass-control: var(--color-surface-editor);
     --color-surface-popover: var(--color-surface-editor);
     --color-surface-float-bar: var(--color-surface-editor);

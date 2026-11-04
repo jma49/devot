@@ -664,26 +664,6 @@
         },
         "$description": "Glass interface: the one wash the note list and the editor share over the window material, also the ring around the floating sidebar."
       },
-      "glass-tint": {
-        "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [1, 1, 1],
-          "hex": "#ffffff",
-          "alpha": 0
-        },
-        "$description": "Glass interface: the tint on the system's sidebar glass; none in light."
-      },
-      "glass": {
-        "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [1.0, 1.0, 1.0],
-          "hex": "#ffffff",
-          "alpha": 0.45
-        },
-        "$description": "Glass interface: the floating sidebar's tint over the sheet where the system draws no glass of its own (before macOS 26)."
-      },
       "glass-popover": {
         "$type": "color",
         "$value": {
