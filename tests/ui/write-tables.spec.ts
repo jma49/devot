@@ -252,6 +252,15 @@ test('keeps every grid in its columns across notes, modes and a root that lost t
   await expect.poll(() => rowColumns(page)).toEqual([3, 3])
   await noteRows(page).filter({ hasText: 'Narrow' }).click()
   await expect.poll(() => rowColumns(page)).toEqual([2, 2])
+  // The column rules are gone from the sheet: a class remembered for the same widths is not used without its rule.
+  await page.locator('.editor').evaluate((host) => {
+    for (const sheet of host.shadowRoot!.adoptedStyleSheets)
+      for (let i = sheet.cssRules.length - 1; i >= 0; i--)
+        if ((sheet.cssRules[i] as CSSStyleRule).selectorText?.startsWith('.cm-wm-cols-'))
+          sheet.deleteRule(i)
+  })
+  await noteRows(page).filter({ hasText: 'Wide' }).click()
+  await expect.poll(() => rowColumns(page)).toEqual([3, 3])
 })
 
 test('keeps the table bar off the block above the table', async ({ page }) => {

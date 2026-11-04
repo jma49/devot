@@ -148,7 +148,7 @@ function sheet(): CSSStyleSheet | null {
   return columnSheet
 }
 
-/** The class that lays a row out in `widths`; its rule is in the column sheet whenever it is returned. */
+// Returned only while its rule is in the column sheet.
 function columnsClass(widths: readonly number[]): string | null {
   const rules = sheet()
   if (!rules) return null
