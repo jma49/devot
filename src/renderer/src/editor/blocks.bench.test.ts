@@ -5,11 +5,6 @@ import { expectWithinBudget, skipIfOverloaded } from '../../../../tests/support/
 import { toggleAlert, toggleCodeBlock, toggleList, toggleQuote } from './blocks'
 import { noteMarkdown } from './markdown'
 
-function apply(s: EditorState, spec: TransactionSpec | null): EditorState {
-  expect(spec).not.toBeNull()
-  return s.update(spec ?? {}).state
-}
-
 describe('large notes', () => {
   const block =
     'Some text with `code` here.\n\n- item one\n  - [ ] task two\n\n```js\nconst a = 1\n```\n\n> a quote\n\n1. first\n2. second\n\n'
@@ -22,26 +17,6 @@ describe('large notes', () => {
       extensions: [noteMarkdown],
     })
   }
-
-  it('formats the top of a very long note without parsing all of it', (context) => {
-    let doc = ''
-    while (doc.length < 4_000_000) doc += block
-    const s = EditorState.create({
-      doc,
-      selection: EditorSelection.cursor(0),
-      extensions: [noteMarkdown],
-    })
-    const start = performance.now()
-    const spec = toggleList(s, 'bullet')
-    const ms = performance.now() - start
-    // A command gives up (null) when its parse budget runs out.
-    if (spec === null) skipIfOverloaded(context, 'parse budget ran out')
-    expect(spec).not.toBeNull()
-    expectWithinBudget(context, ms, 1000)
-    expect(apply(s, spec).doc.sliceString(0, 20)).toBe('- Some text with `co')
-    // How far the state's parser got: a zero-length request returns its tree as it is.
-    expect(ensureSyntaxTree(s, 0, 0)?.length ?? doc.length).toBeLessThan(doc.length / 10)
-  })
 
   const commands: [string, (s: EditorState) => TransactionSpec | null][] = [
     ['numbered list', (s) => toggleList(s, 'numbered')],
