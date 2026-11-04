@@ -3,10 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import {
   BODY,
+  createBookService,
   createClock,
   createIdGenerator,
   createNoteService,
   createTagService,
+  createTemplateService,
   findBacklinks,
   noteLink,
 } from '../../src/core'
@@ -21,11 +23,11 @@ function setup() {
   open.push(storage)
   const clock = createClock('mac1')
   const newId = createIdGenerator()
-  return {
-    storage,
-    notes: createNoteService({ storage, clock, newId, saveDelayMs: 5 }),
-    tags: createTagService({ storage, clock, newId }),
-  }
+  const notes = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
+  const books = createBookService({ storage, clock, newId })
+  const tags = createTagService({ storage, clock, newId })
+  const templates = createTemplateService({ storage, notes, books, tags, clock, newId })
+  return { storage, notes, tags, templates }
 }
 
 async function write(notes: ReturnType<typeof setup>['notes'], id: string, text: string) {
@@ -52,6 +54,18 @@ describe('findBacklinks', () => {
 
     const found = await findBacklinks(storage, target)
     expect(found.map((n) => n.title)).toEqual(['Linking'])
+    expect((await notes.backlinks(target)).map((n) => n.id)).toEqual([linking])
+  })
+
+  it('leaves out a template that links to the note', async () => {
+    const { storage, notes, templates } = setup()
+    const target = await notes.create('Target')
+    const linking = await notes.create('Linking')
+    const template = await templates.create('Weekly review')
+    await write(notes, linking, noteLink('Target', target))
+    await write(notes, template, `Carry over ${noteLink('Target', target)}`)
+
+    expect((await findBacklinks(storage, target)).map((n) => n.id)).toEqual([linking])
     expect((await notes.backlinks(target)).map((n) => n.id)).toEqual([linking])
   })
 
