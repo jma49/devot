@@ -226,6 +226,15 @@ export function cellTints(table: WriteTable, selection: EditorSelection): CellTi
   )
 }
 
+/** Whether a selection that takes whole cells runs to the end of `line`, where a short row's missing cells are drawn. */
+export function reachesRowEnd(
+  table: WriteTable,
+  line: TableLine,
+  selection: EditorSelection,
+): boolean {
+  return crossingRanges(table, selection).some((r) => r.from < line.to && r.to >= line.to)
+}
+
 /** The source a cell's box does not show: pipes, padding and the delimiter row. */
 export function hiddenSpans(table: WriteTable, caret: number | null): Span[] {
   return cellBoxes(table).flatMap(({ line, boxes }) =>

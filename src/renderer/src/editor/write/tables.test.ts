@@ -7,7 +7,7 @@ import { noteMarkdown } from '../markdown'
 import { parseTable, printTable } from '../table'
 import { writeBlocks } from './blocks'
 import { writeFocusTracking } from './focus'
-import { bandsClip, shownWidth, writeTables } from './tableGrid'
+import { bandsClip, layerY, shownWidth, writeTables } from './tableGrid'
 import {
   atomicSpans,
   caretInCell,
@@ -422,6 +422,29 @@ describe('the grid', () => {
     expect(tinted(above)).toEqual([])
   })
 
+  it("selects a short row's missing cells only when the selection runs to the row's end", () => {
+    const doc = '| a | b | c |\n| - | - | - |\n| Tea |\n\nBelow'
+    const missingSelected = (state: EditorState) => {
+      const out: boolean[] = []
+      for (const source of state.facet(EditorView.decorations)) {
+        if (typeof source === 'function') continue
+        ;(source as DecorationSet).between(0, state.doc.length, (_from, _to, deco) => {
+          const widget = deco.spec.widget as { className?: string } | undefined
+          if (widget?.className?.includes('cm-wm-cell-missing'))
+            out.push(widget.className.includes('cm-wm-cell-selected'))
+        })
+      }
+      return out
+    }
+    const tea = doc.indexOf('Tea')
+    expect(
+      missingSelected(step(stateOf(doc), { selection: { anchor: 2, head: tea + 1 } })),
+    ).toEqual([false, false])
+    expect(
+      missingSelected(step(stateOf(doc), { selection: { anchor: 2, head: doc.length } })),
+    ).toEqual([true, true])
+  })
+
   it('draws no box for a table several cursors are in', () => {
     const doc = '| a | b |\n| - | - |\n| 1 | 2 |'
     const cursors = EditorSelection.create([EditorSelection.cursor(2), EditorSelection.cursor(6)])
@@ -474,6 +497,12 @@ describe('the tints of a selection in a grid', () => {
 })
 
 describe('the clip that keeps the selection layer off a grid', () => {
+  it("measures a line block in the layer's units, under a scaled view too", () => {
+    const frame = { documentTop: 150, scrollerTop: 100, scrollTop: 40, scaleY: 1 }
+    expect(layerY(60, frame)).toBe(150)
+    expect(layerY(60, { ...frame, documentTop: 136, scaleY: 0.9 })).toBeCloseTo(126)
+  })
+
   it('leaves everything but the bands the grids take', () => {
     expect(bandsClip([])).toBe('')
     const clip = bandsClip([

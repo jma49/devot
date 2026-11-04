@@ -34,6 +34,7 @@ import {
   caretOf,
   cellTints,
   crossingRanges,
+  reachesRowEnd,
   hiddenSpans,
   shownTable,
   structureSpans,
@@ -218,8 +219,7 @@ function grid(state: EditorState, table: WriteTable, layers: BlockLayers): void 
       if (shownFrom === shownTo)
         decorations.push((cell.to === cell.from ? blankAtEnd : blank).range(shownFrom))
     })
-    // A missing cell is selected with the row's end.
-    const missingTint = rowTints.at(-1) === 'selected' ? 'selected' : null
+    const missingTint = reachesRowEnd(table, line, state.selection) ? 'selected' : null
     for (let c = line.cells.length; c < table.align.length; c++) {
       const widget = new MissingCell(c, `${cellClass(c, missingTint)} cm-wm-cell-missing`)
       decorations.push(Decoration.widget({ widget, side: 1 + c }).range(line.to))
@@ -300,6 +300,18 @@ const gridReturn: Command = (view) => {
 const FAR = 1e6
 
 /**
+ * A line block's top (or bottom) in the selection layer's units. CodeMirror
+ * places a selection's rectangles at client offsets from the scroll box's
+ * content corner and scales the layer back by the view's scale.
+ */
+export function layerY(
+  block: number,
+  frame: { documentTop: number; scrollerTop: number; scrollTop: number; scaleY: number },
+): number {
+  return frame.documentTop - frame.scrollerTop + (block + frame.scrollTop) * frame.scaleY
+}
+
+/**
  * A clip path that leaves out the given bands (top, bottom) across the whole
  * width, in the selection layer's coordinates; empty for none.
  */
@@ -350,10 +362,13 @@ const gridSelectionClip = ViewPlugin.fromClass(
         bands.push([view.lineBlockAt(table.from).top, view.lineBlockAt(table.to).bottom])
       }
       if (bands.length === 0) return ''
-      // The layer's origin is the scroll box's content corner; line blocks count from the document's top.
-      const scroller = view.scrollDOM.getBoundingClientRect()
-      const offset = (view.documentTop - scroller.top) / view.scaleY + view.scrollDOM.scrollTop
-      return bandsClip(bands.map(([a, b]): Span => [a + offset, b + offset]))
+      const frame = {
+        documentTop: view.documentTop,
+        scrollerTop: view.scrollDOM.getBoundingClientRect().top,
+        scrollTop: view.scrollDOM.scrollTop,
+        scaleY: view.scaleY,
+      }
+      return bandsClip(bands.map(([a, b]): Span => [layerY(a, frame), layerY(b, frame)]))
     }
 
     private write(clip: string) {
