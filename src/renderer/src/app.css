@@ -4559,15 +4559,14 @@ button {
 .settings-pane {
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
-  /* Room for a scroll bar whether or not the pane scrolls, so the controls
-     end at the same edge on every pane. */
-  scrollbar-gutter: stable;
+  /* The scroll bar is a fixed width, so the pane always reserves it and its body pulls it out of
+     the keyline: the cards end on one edge whether or not the pane scrolls (design/layout.md). */
+  overflow-y: scroll;
   background: var(--color-surface-editor);
 }
 
 .settings-pane-body {
-  padding: var(--space-4) var(--space-9) var(--space-9);
+  padding: var(--space-4) calc(var(--space-9) - var(--size-scrollbar)) var(--space-9) var(--space-9);
 }
 
 .settings-section p {

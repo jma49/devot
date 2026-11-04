@@ -19,7 +19,7 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 - **Outline:** a column `size.outline-width` (220) at the editor pane's right edge, beside the scroll bar's reserve, with rows of body size on `space.3` sides; each level steps `space.7`. It is hidden in focus mode and when the panes would fall below `size.pane-min-width` each.
 - **Write mode's table bar:** above the rendered table, outside the grid, on the table's left edge (`BAR_GAP` clear of the header row). The table's first row line always carries a bar's height plus `BAR_GAP` of padding above the header, so the bar sits in that space and never covers the block above. When the editor has no room above the table the bar stays at the top of the visible part of the table, below the header row, and never covers it. Edit mode keeps the bar over the row above the caret.
 - **Split view:** each pane uses the editor keyline inside its own width.
-- **Scroll bars:** `.rows`, `.preview` and the editor always reserve the scroll bar, pulled out of the keyline, so right edges stay put.
+- **Scroll bars:** `.rows`, `.preview`, the editor and the Settings pane always reserve the scroll bar, pulled out of the keyline, so right edges stay put.
 - **Exceptions:** in focus mode the editor toolbar starts at `window-controls-inset`, and with the sidebar hidden the list toolbar keeps its start padding, so neither meets the traffic lights. The Settings toolbar keeps its own corner rule.
 
 ## Separators and captions
