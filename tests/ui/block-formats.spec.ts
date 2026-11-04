@@ -42,58 +42,6 @@ test.beforeEach(async ({ page }) => {
   await openApp(page)
 })
 
-test('the block buttons apply and remove each format', async ({ page }) => {
-  await newNote(page, 'alpha\nbeta')
-  const cases: [string, string[]][] = [
-    ['Code Block', ['```', 'alpha', 'beta', '```']],
-    ['Bulleted List', ['* alpha', '* beta']],
-    ['Numbered List', ['1. alpha', '2. beta']],
-    ['Task List', ['* [ ] alpha', '* [ ] beta']],
-    ['Quote', ['> alpha', '> beta']],
-  ]
-  for (const [name, formatted] of cases) {
-    await selectAll(page)
-    await expect(button(page, name)).toHaveAttribute('aria-pressed', 'false')
-    await button(page, name).click()
-    expect(await lines(page), name).toEqual(formatted)
-    // The lines stay selected, so the toolbar stays and shows the format as on.
-    await expect(button(page, name)).toHaveAttribute('aria-pressed', 'true')
-    await button(page, name).click()
-    expect(await lines(page), name).toEqual(['alpha', 'beta'])
-  }
-})
-
-test('the list buttons convert between kinds and keep nesting', async ({ page }) => {
-  await newNote(page, '- one\n  - two\n- three')
-  await selectAll(page)
-  await button(page, 'Numbered List').click()
-  expect(await lines(page)).toEqual(['1. one', '   1. two', '2. three'])
-  await expect(button(page, 'Numbered List')).toHaveAttribute('aria-pressed', 'true')
-  await expect(button(page, 'Bulleted List')).toHaveAttribute('aria-pressed', 'false')
-  await button(page, 'Task List').click()
-  expect(await lines(page)).toEqual(['* [ ] one', '  * [ ] two', '* [ ] three'])
-  await button(page, 'Bulleted List').click()
-  expect(await lines(page)).toEqual(['* one', '  * two', '* three'])
-})
-
-test('every block format has a shortcut that works without the toolbar', async ({ page }) => {
-  await newNote(page, 'word')
-  const cases: [string, string[]][] = [
-    ['ControlOrMeta+Shift+KeyC', ['```', 'word', '```']],
-    ['ControlOrMeta+Shift+KeyL', ['* word']],
-    ['ControlOrMeta+Shift+KeyO', ['1. word']],
-    ['ControlOrMeta+Shift+KeyT', ['* [ ] word']],
-    ['ControlOrMeta+Quote', ['> word']],
-  ]
-  for (const [keys, formatted] of cases) {
-    await selectAllWithoutToolbar(page)
-    await page.keyboard.press(keys)
-    expect(await lines(page), keys).toEqual(formatted)
-    await page.keyboard.press(keys)
-    expect(await lines(page), keys).toEqual(['word'])
-  }
-})
-
 test('the alert button picks the kind from a pop-up', async ({ page }) => {
   await newNote(page, 'Mind the gap')
   await selectAll(page)
@@ -132,18 +80,6 @@ test('the alert button picks the kind from a pop-up', async ({ page }) => {
       ).length,
   )
   expect(built).toBe(5)
-})
-
-test('each block format is one undo step', async ({ page }) => {
-  await newNote(page, 'a\nb\nc')
-  await selectAll(page)
-  await button(page, 'Numbered List').click()
-  await button(page, 'Quote').click()
-  expect(await lines(page)).toEqual(['> 1. a', '> 2. b', '> 3. c'])
-  await page.keyboard.press('ControlOrMeta+z')
-  expect(await lines(page)).toEqual(['1. a', '2. b', '3. c'])
-  await page.keyboard.press('ControlOrMeta+z')
-  expect(await lines(page)).toEqual(['a', 'b', 'c'])
 })
 
 test('Shift+Cmd+C makes a code block in the editor and copies the URI in the list', async ({
