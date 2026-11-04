@@ -3,7 +3,6 @@
 import { trimWhitespace } from '../text'
 
 export const PLUGIN_API_VERSION = 1
-export const MANIFEST_FILE = 'devot-plugin.json'
 
 export const PLUGIN_PERMISSIONS = [
   'note.read',
