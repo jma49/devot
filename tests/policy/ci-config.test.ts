@@ -98,7 +98,6 @@ it('every job runs unless the change detection said it is not needed', () => {
 })
 
 it('documentation-only pull requests skip heavy jobs but still report every required gate', () => {
-  expect(job('policy-check')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('web-checks')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('unit-tests')).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(job('ui')).toContain("needs.changes.outputs.docs_only != 'true'")
@@ -107,6 +106,31 @@ it('documentation-only pull requests skip heavy jobs but still report every requ
   for (const gate of ['web', 'rust', 'policy']) {
     expect(job(gate)).toMatch(/^ {4}if: \$\{\{ always\(\) \}\}$/m)
   }
+})
+
+type Step = { if?: string; run?: string }
+const policySteps = () =>
+  (parse(workflow) as { jobs: Record<string, { if?: string; steps: Step[] }> }).jobs[
+    'policy-check'
+  ]!
+
+it('documentation-only pull requests still run the format check and the tests that read the docs', () => {
+  // README.md, CLAUDE.md, the design notes and the README images are read by policy and token tests.
+  for (const file of ['README.md', 'CLAUDE.md', 'design/layout.md', 'docs/images/x.png']) {
+    expect(docsOnly([file])).toBe(true)
+  }
+  const policy = policySteps()
+  expect(policy.if).toBe("needs.changes.outputs.web != 'true'")
+  const runs = (condition: string) =>
+    policy.steps.filter((s) => s.if === condition).map((s) => s.run)
+  expect(policy.steps.find((s) => s.run === 'pnpm format:check')?.if).toBeUndefined()
+  expect(runs("needs.changes.outputs.docs_only == 'true'")).toEqual(['pnpm test:policy'])
+  expect(runs("needs.changes.outputs.docs_only != 'true'")).toEqual(
+    expect.arrayContaining(['pnpm lint', 'pnpm typecheck', 'pnpm test']),
+  )
+  const policyRun = scripts['test:policy']?.split(' ') ?? []
+  expect(policyRun.slice(0, 2)).toEqual(['vitest', 'run'])
+  for (const path of ['tests/policy', 'tests/tokens']) expect(policyRun).toContain(path)
 })
 
 it('uses the setup caches only where the job installs those dependencies', () => {
@@ -380,6 +404,13 @@ it('the pre-push hook runs the Rust step only for pushes that change Rust or Car
       'docs/architecture.md',
     ]),
   ).toEqual([])
+})
+
+it('the pre-push hook runs the policy tests for pushes of docs and images, which they read', () => {
+  const docs = ['README.md', 'CLAUDE.md', 'design/layout.md', 'docs/images/x.png', 'docs/x.webp']
+  expect(pushedBy('policy-tests', docs)).toEqual(docs)
+  const push = lefthook.slice(lefthook.indexOf('- name: policy-tests'))
+  expect(push).toMatch(/^ {6}run: pnpm test:policy$/m)
 })
 
 it('the pre-push hook runs the type check and unit tests for code and config, not for docs or images', () => {

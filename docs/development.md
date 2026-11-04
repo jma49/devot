@@ -31,6 +31,7 @@ Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Appl
 | `pnpm sentry:debug-files`       | Upload the release build's debug symbols to Sentry when set up                                               |
 | `pnpm test` / `pnpm test:watch` | Vitest                                                                                                       |
 | `pnpm test:fast`                | Vitest without the benchmarks and builds (`*.bench.test.ts`); what the pre-push hook runs                    |
+| `pnpm test:policy`              | Policy and token tests, which also read the docs; what docs-only pushes and pull requests run                |
 | `pnpm test:ui`                  | Playwright UI tests (WebKit, IPC mocked)                                                                     |
 | `pnpm bench`                    | Renderer performance baseline into `docs/benchmarks/results.json` (WebKit, IPC mocked)                       |
 | `pnpm bench:app`                | Launch time and memory of a built Devot.app (macOS, needs Accessibility)                                     |
@@ -55,7 +56,7 @@ Pull requests select browser tests separately from the Web and Rust build jobs. 
 
 Development and production CSP run in separate jobs, each starting only its own server. Measured development selections target about 560 seconds of recorded work per shard and cap at fourteen; a set without measured durations uses one shard per six spec files, capped at eight. Production CSP currently has one spec and uses one job. The planner assigns each spec to exactly one shard, balancing the recorded durations in `scripts/ci/ui-durations.json`, and each job runs only its own files. Each CI job runs two Playwright workers: four workers on a four-core runner starved WebKit's rendering processes and produced motion and rendering failures. Local runs use the same two unless `DEVOT_UI_WORKERS` raises them. More shards reduce work per runner but still depend on GitHub runner availability and account concurrency limits. Traces from failures and retries retain project and shard names, and each job uploads its JSON report.
 
-The `changes` job is the path filter. It writes `docs_only=true` when every changed path is documentation, and the expensive jobs then skip. The `web`, `rust` and `policy` jobs always run as small gates, so the required checks are still reported instead of staying pending.
+The `changes` job is the path filter. It writes `docs_only=true` when every changed path is documentation, and the expensive jobs then skip; `policy-check` still runs the format check and `pnpm test:policy`, whose tests read the docs. The `web`, `rust` and `policy` jobs always run as small gates, so the required checks are still reported instead of staying pending.
 
 Refresh the recorded durations from a complete local run after a large change:
 

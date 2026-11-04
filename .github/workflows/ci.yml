@@ -14,7 +14,8 @@ name: CI
 # needed, `policy-check` runs the formatting check, lint, the type check and
 # all of Vitest, whose tests also read the documentation, the Rust sources,
 # migrations and capabilities, run the relay on both of its hosts and the
-# licence Worker in workerd.
+# licence Worker in workerd. For documentation-only changes it runs only the
+# formatting check and the policy and token tests, which read the docs.
 #
 # Every job runs unless the change detection said `false` for it, so missing
 # outputs run everything rather than nothing.
@@ -74,11 +75,12 @@ jobs:
 
   # Pull requests without web changes: the checks that read the docs, the
   # Rust side, the relay and the licence Worker, which the web jobs would
-  # otherwise run. Documentation-only changes skip this; the always-on
-  # `policy` gate below still satisfies the required check.
+  # otherwise run. Documentation-only changes run only the format check and
+  # the policy and token tests, which read README.md, CLAUDE.md, the design
+  # notes and the README images.
   policy-check:
     needs: changes
-    if: needs.changes.outputs.web != 'true' && needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.web != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -90,9 +92,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
+      - if: needs.changes.outputs.docs_only == 'true'
+        run: pnpm test:policy
+      - if: needs.changes.outputs.docs_only != 'true'
+        run: pnpm lint
+      - if: needs.changes.outputs.docs_only != 'true'
+        run: pnpm typecheck
+      - if: needs.changes.outputs.docs_only != 'true'
+        run: pnpm test
 
   # Required check for the policy work. It runs even when policy-check was
   # skipped and fails when the change detection or policy-check failed.
