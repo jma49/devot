@@ -1165,7 +1165,7 @@
           "components": [0.949, 0.9216, 0.9922],
           "hex": "#f2ebfd"
         },
-        "$description": "Behind selected text when the editor does not have focus: the same tint at 13/30 of its strength."
+        "$description": "Behind selected text when the editor does not have focus: the caret colour at 10% over the editor, solid; the lightest that stands 1.15:1 from the editor and from the active line."
       },
       "on-fill": {
         "$type": "color",
