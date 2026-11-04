@@ -77,6 +77,35 @@ describe('tags on SQLite', () => {
     expect((await notes.list())[0]?.tagIds).toEqual([])
   })
 
+  it('creates one tag when the same name is asked for at once, from any tag service', async () => {
+    const { storage, tags } = setup()
+    const other = createTagService({
+      storage,
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+    })
+    const ids = await Promise.all([tags.ensure('Work'), other.ensure('work'), tags.ensure('WORK')])
+    expect(new Set(ids).size).toBe(1)
+    expect((await tags.list()).map((t) => t.name)).toEqual(['Work'])
+  })
+
+  it('never leaves two tags of one name when a rename and a new tag race', async () => {
+    const { storage, tags } = setup()
+    const home = await tags.ensure('Home')
+    const other = createTagService({
+      storage,
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+    })
+    const [renamed, ensured] = await Promise.allSettled([
+      tags.rename(home, 'Work'),
+      other.ensure('Work'),
+    ])
+    expect(renamed.status).toBe('fulfilled')
+    expect(ensured).toEqual({ status: 'fulfilled', value: home })
+    expect((await tags.list()).map((t) => t.name)).toEqual(['Work'])
+  })
+
   it('keeps the newer membership write', async () => {
     const { storage, notes, tags } = setup()
     const id = await notes.create('A')

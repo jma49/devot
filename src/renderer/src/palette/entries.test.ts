@@ -160,9 +160,21 @@ describe('outlineEntries', () => {
 })
 
 describe('withTagClause', () => {
+  const id = '0190a000-0000-7000-8000-000000000001'
+  const tag = (name: string) => ({ id, name })
+
   it('adds a tag clause once, quoting names with spaces', () => {
-    expect(withTagClause('', 'urgent')).toBe('tag:urgent ')
-    expect(withTagClause('milk', 'deep focus')).toBe('milk tag:"deep focus" ')
-    expect(withTagClause('tag:urgent ', 'urgent')).toBe('tag:urgent ')
+    expect(withTagClause('', tag('urgent'))).toBe('tag:urgent ')
+    expect(withTagClause('milk', tag('deep focus'))).toBe('milk tag:"deep focus" ')
+    expect(withTagClause('tag:urgent ', tag('urgent'))).toBe('tag:urgent ')
+    expect(withTagClause('milk tag:"deep focus" ', tag('deep focus'))).toBe(
+      'milk tag:"deep focus" ',
+    )
+  })
+
+  it('names the tag itself when its name has quotes', () => {
+    expect(withTagClause('', tag('Q&A "draft"'))).toBe(`tag:'Q&A "draft"' `)
+    expect(withTagClause('', tag("'quoted'"))).toBe(`tag:"'quoted'" `)
+    expect(withTagClause('milk', tag(`Clients' "urgent"`))).toBe(`milk tagId:${id} `)
   })
 })

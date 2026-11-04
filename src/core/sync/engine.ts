@@ -26,7 +26,8 @@ import type {
   StorageAdapter,
   TagRecord,
 } from '../storage'
-import { isTagColor, isTagColorValue } from '../tags'
+import { retargetSavedSearches } from '../savedSearches'
+import { isTagColor, isTagColorValue, sameName } from '../tags'
 import {
   bodyPrint,
   decodeRecord,
@@ -605,6 +606,9 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       ? mergeRecord(mine, remote)
       : { record: remote, localNews: false, remoteNews: !('purged' in remote && remote.purged) }
     if (merged.remoteNews) await write(local, merged.record, merged as MergedNote, remote)
+    if (merged.remoteNews && mine?.kind === 'tag' && merged.record.kind === 'tag') {
+      await followRename(mine, merged.record)
+    }
     const [after] = merged.remoteNews ? await sync.syncRead([remote.id]) : [local]
     const bodyHlc = merged.record.kind === 'note' ? merged.record.bodyHlc : ''
     const state = stateOf(after, bodyHlc) ?? merged.record
@@ -618,6 +622,26 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       synced: after?.entry?.synced ?? 0,
     })
     return merged.remoteNews
+  }
+
+  /**
+   * A rename pulled for a tag also renames it in the saved searches here, as a rename made here
+   * does: one saved here by the old name before the rename came would otherwise name no tag. The
+   * rewrites are ordinary edits, pushed with the rest.
+   */
+  async function followRename(before: TagState, after: TagState) {
+    if (after.deletedAt !== null || sameName(before.name, after.name)) return
+    const tags = await storage.listTags()
+    for (const search of await storage.listSavedSearches()) {
+      let rewritten: SavedSearchRecord[]
+      try {
+        rewritten = retargetSavedSearches([search], tags, before, after.name, clock, now())
+      } catch (error) {
+        console.warn('W_SYNC_SEARCH_NOT_RETARGETED', search.id, errorCode(error))
+        continue
+      }
+      for (const record of rewritten) await storage.putSavedSearch(record)
+    }
   }
 
   /** A body version taken in the last REVISION_EVERY_MS: changes that only came from other devices are kept no more often than typing here is (#216). */
