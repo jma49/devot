@@ -326,6 +326,9 @@ pub fn open(app: &AppHandle, id: &str) -> Result<(), &'static str> {
         .theme(theme)
         .min_inner_size(MIN_WIDTH, MIN_HEIGHT)
         .on_new_window(crate::external::on_new_window)
+        .on_navigation(crate::navigation::app_and_frames(
+            crate::navigation::AppOrigins::of(app),
+        ))
         .build()
         .map_err(|_| "E_NOTE_WINDOW_OPEN_FAILED")?;
     bring_forward(&window);

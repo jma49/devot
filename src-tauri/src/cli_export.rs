@@ -189,7 +189,10 @@ pub(crate) fn run(request: Export) -> i32 {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App(PAGE.into()))
                 .visible(false)
-                .incognito(true);
+                .incognito(true)
+                .on_navigation(crate::navigation::app_pages_only(
+                    crate::navigation::AppOrigins::of(app),
+                ));
             #[cfg(desktop)]
             let window = window.focused(false);
             window.build()?;
