@@ -131,3 +131,26 @@ test('keys typed while the next note loads go to that note, not the one being le
     .poll(() => storedBodies(page))
     .toEqual(['First: ZFirst body.', 'Second: Second body.'])
 })
+
+test('keys typed after a switch is called off go to the note still shown, never to the one left loading (#520)', async ({
+  page,
+}) => {
+  await body(page).click()
+  await page.keyboard.press('End')
+  await page.keyboard.press('Meta+[')
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('First')
+  await page.keyboard.type(' P')
+  // Forward again before First's body arrives: Second, still on screen, is the note again.
+  await page.keyboard.press('Meta+]')
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Second')
+  await expect(body(page)).toBeFocused()
+  await page.keyboard.type(' Q')
+  await expect(body(page)).toHaveText('Second body. P Q')
+  // Past slowCore's 500 ms delay on the reply to the First open.
+  await page.waitForTimeout(700)
+  await page.keyboard.press('Meta+[')
+  await expect(body(page)).toHaveText('First body.')
+  await expect
+    .poll(() => storedBodies(page))
+    .toEqual(['First: First body.', 'Second: Second body. P Q'])
+})

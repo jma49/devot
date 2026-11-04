@@ -1009,6 +1009,8 @@ export function NoteEditor({
     scrollToTop(view, scroller, top)
   }, [hidden])
 
+  // Keys kept for a note whose switch was called off before its body showed: the note shown next takes them.
+  const carriedKeys = useRef<EarlyKeysTicket | undefined>(undefined)
   const mounted = useRef(false)
   useLayoutEffect(() => {
     mounted.current = true
@@ -1017,6 +1019,8 @@ export function NoteEditor({
       // StrictMode mounts again at once; the note stays shown for it.
       queueMicrotask(() => {
         if (mounted.current) return
+        carriedKeys.current?.fail()
+        carriedKeys.current = undefined
         const view = editor.current?.view
         if (view) shown.current?.close(view.state)
         shown.current = null
@@ -1031,7 +1035,9 @@ export function NoteEditor({
   useLayoutEffect(() => {
     let cancelled = false
     let held = false
-    let keys: EarlyKeysTicket | undefined
+    let keys = carriedKeys.current
+    carriedKeys.current = undefined
+    keys?.claim(noteId)
     const unpublish = () => {
       if (restoreRef) restoreRef.current = null
       if (handleRef) handleRef.current = null
@@ -1369,26 +1375,26 @@ export function NoteEditor({
           REMOTE,
         )
       }
-      // The body took a while to load: a title or palette field the user
-      // went to meanwhile keeps the keyboard.
       const settle = () => {
         if (shown.current !== s) return
-        const take = focusOnlyIfFree.current
-          ? keyboardIsFree()
-          : !typingElsewhere(document.activeElement, el)
-        if (
-          (focusOnOpen.current || keys !== undefined) &&
-          take &&
-          !earlyKeysKeptForAnother(noteId)
-        ) {
-          view.focus()
-        }
-        const typed = takeEarlyKeys(noteId)
-        if (typed.length) replayEarlyKeys(view, typed)
+        takeKeyboard(view, el)
         if (place.top && scroller.clientHeight > 0) scrollToTop(view, scroller, place.top)
       }
       // Focus and typing taken in the commit's layout effects are lost: the caret goes back to the start.
       queueMicrotask(settle)
+    }
+
+    // The body took a while to load: a title or palette field the user
+    // went to meanwhile keeps the keyboard.
+    const takeKeyboard = (view: EditorView, el: HTMLElement) => {
+      const take = focusOnlyIfFree.current
+        ? keyboardIsFree()
+        : !typingElsewhere(document.activeElement, el)
+      if ((focusOnOpen.current || keys !== undefined) && take && !earlyKeysKeptForAnother(noteId)) {
+        view.focus()
+      }
+      const typed = takeEarlyKeys(noteId)
+      if (typed.length) replayEarlyKeys(view, typed)
     }
 
     const given = preopened.current?.(core, noteId)
@@ -1396,8 +1402,16 @@ export function NoteEditor({
     if (now?.noteId === noteId && now.core === core) {
       // Already shown and held: the window's hold is one too many.
       if (given) void core.unhold(noteId)
-      editor.current?.view.dispatch({ effects: pausedSlot.reconfigure([]) })
+      const view = editor.current?.view
+      view?.dispatch({ effects: pausedSlot.reconfigure([]) })
       publish(now)
+      // Back to the note still on screen: it takes the keyboard the switch took away.
+      const el = host.current
+      if (view && el && keys) {
+        queueMicrotask(() => {
+          if (shown.current === now) takeKeyboard(view, el)
+        })
+      }
     } else if (given) {
       show(given, true)
     } else {
@@ -1406,7 +1420,7 @@ export function NoteEditor({
       const leaving = editor.current?.view
       if (leaving) {
         // Keys typed into the note being left are kept for this one instead.
-        if (leaving.hasFocus) {
+        if (!keys && leaving.hasFocus) {
           leaving.contentDOM.blur()
           keys = startEarlyKeys()
           keys.claim(noteId)
@@ -1427,6 +1441,7 @@ export function NoteEditor({
         (e: unknown) => {
           if (cancelled) return
           keys?.fail()
+          keys = undefined
           loading.current?.(false)
           openFailed.current?.(noteId, errorCode(e))
         },
@@ -1438,6 +1453,7 @@ export function NoteEditor({
       if (held) {
         void core.unhold(noteId)
         loading.current?.(false)
+        carriedKeys.current = keys
       }
       unpublish()
     }
