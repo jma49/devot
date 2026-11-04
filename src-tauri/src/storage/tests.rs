@@ -216,7 +216,11 @@ fn upgrades_the_schema_v1_fixture() {
 fn upgrades_the_fixtures_of_released_schemas() {
     const LAUNCH: &str = "0192a6f0-0000-7000-8000-000000000001";
     const INBOX: &str = "0192a6f0-0000-7000-8000-000000000002";
-    for name in ["schema-v18.sqlite", "schema-v19.sqlite"] {
+    for name in [
+        "schema-v18.sqlite",
+        "schema-v19.sqlite",
+        "schema-v23.sqlite",
+    ] {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("devot.sqlite");
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -281,6 +285,67 @@ fn upgrades_the_fixtures_of_released_schemas() {
         assert_eq!(links, 1, "{name}");
         assert_eq!(store.list_revisions(LAUNCH).unwrap().len(), 2, "{name}");
     }
+}
+
+/// v1.1.0's library is a synced one: its sync state, records of every kind and agent writes
+/// come through the later migrations as they were.
+#[test]
+fn upgrades_the_synced_schema_v23_fixture() {
+    const LAUNCH: &str = "0192a6f0-0000-7000-8000-000000000001";
+    const BOARD: &str = "0192a6f0-0000-7000-8000-00000000f001";
+    const PURGED_FILE: &str = "0192a6f0-0000-7000-8000-00000000f002";
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    let fixture = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/schema-v23.sqlite"
+    );
+    std::fs::copy(fixture, &path).unwrap();
+    let store = Store::open(&path).unwrap();
+    assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
+    assert!(store.integrity_ok().unwrap());
+
+    let state = store.sync_state().unwrap();
+    assert!(state.contains(&("since".to_string(), "42".to_string())));
+    assert!(state.contains(&("epoch".to_string(), "fixture-epoch".to_string())));
+    let mut read = store
+        .sync_read(&[LAUNCH.into(), BOARD.into(), PURGED_FILE.into()])
+        .unwrap()
+        .into_iter();
+    let launch = read.next().unwrap().entry.unwrap();
+    assert_eq!((launch.kind.as_str(), launch.version), ("note", 5));
+    assert_eq!(launch.body_hlc, "0000001790000000010-0000-fixture");
+    assert_eq!(
+        launch.edits, launch.synced,
+        "the note is as synced as it was"
+    );
+    let board = read.next().unwrap();
+    assert_eq!(board.entry.unwrap().version, 8);
+    assert_eq!(
+        board.file.unwrap().note_hlc,
+        "0000001790000000040-0000-fixture"
+    );
+    let purged = read.next().unwrap();
+    assert!(
+        purged.file.is_none(),
+        "a purged attachment stays a tombstone"
+    );
+    assert_eq!(
+        purged.entry.map(|e| (e.kind, e.version)),
+        Some(("file".into(), 9))
+    );
+    let pending: Vec<String> = store
+        .sync_pending("", 100)
+        .unwrap()
+        .into_iter()
+        .map(|p| p.id)
+        .collect();
+    assert!(!pending.contains(&LAUNCH.to_string()));
+    assert!(!pending.contains(&BOARD.to_string()));
+
+    let writes = store.list_agent_writes(10).unwrap();
+    assert_eq!(writes.len(), 1);
+    assert_eq!((writes[0].write_id.as_str(), writes[0].seen), ("w1", false));
 }
 
 #[test]
