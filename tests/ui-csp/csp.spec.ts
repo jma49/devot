@@ -478,9 +478,9 @@ for (const glass of [true, false]) {
       await section.getByRole('button', { name: '7 Days', exact: true }).click()
       await expect(section.locator('.usage-daily rect')).toHaveCount(7)
       await section.getByRole('combobox', { name: 'Event type' }).selectOption('search.run')
-      await expect(section.locator('.usage-stat strong').first()).toHaveText('0')
+      await expect(section.locator('.usage-stat-value').first()).toHaveText('0')
       await section.getByRole('combobox', { name: 'Event type' }).selectOption('note.created')
-      await expect(section.locator('.usage-stat strong').first()).toHaveText('1')
+      await expect(section.locator('.usage-stat-value').first()).toHaveText('1')
       await expect(section.locator('.usage-type-track i').first()).not.toHaveCSS('width', '0px')
     }
     await section.getByRole('button', { name: 'Show Events' }).click()
