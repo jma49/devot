@@ -134,6 +134,48 @@ test('Glass code in the editor and the preview is filled with no border', async 
   await expect(inline).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
 })
 
+test('Glass Edit mode draws a table box with fill only and list-row corners', async ({ page }) => {
+  await openApp(page)
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Note body' }).click()
+  await page.keyboard.insertText('| a |\n| - |\n| b |\n\nAfter.')
+  await expect(page.locator('.cm-md-table-first')).toHaveCount(1)
+  const edge = (selector: string, property: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((el, name) => getComputedStyle(el, '::before').getPropertyValue(name), property)
+  const fill = await tokenColour(page, '--color-code-block-bg')
+  expect(await edge('.cm-md-table-first', 'background-color')).toBe(fill)
+  for (const side of ['top', 'right', 'bottom', 'left'])
+    expect(await edge('.cm-md-table-first', `border-${side}-width`)).toBe('0px')
+  expect(await edge('.cm-md-table-first', 'border-top-left-radius')).toBe('12px')
+  expect(await edge('.cm-md-table-last', 'border-bottom-width')).toBe('0px')
+  expect(await edge('.cm-md-table-last', 'border-bottom-right-radius')).toBe('12px')
+})
+
+test('the Write button takes the toolbar hover wash, pressed or not', async ({ page }) => {
+  await openNote(page)
+  const write = page.getByRole('button', { name: 'Write Mode' })
+  const more = page.getByRole('button', { name: 'More', exact: true })
+  const hovered = async (button: Locator) => {
+    await button.hover()
+    await expect(button).toHaveCSS('box-shadow', /1\d{3}px inset/)
+    return button.evaluate((el) => {
+      const style = getComputedStyle(el)
+      return { background: style.backgroundColor, shadow: style.boxShadow }
+    })
+  }
+  const wash = await tokenColour(page, '--color-fill-tool-hover')
+  const expected = await hovered(more)
+  expect(expected.shadow).toContain(wash)
+  for (const pressed of ['false', 'true']) {
+    await expect(write).toHaveAttribute('aria-pressed', pressed)
+    expect(await hovered(write)).toEqual(expected)
+    await write.click()
+  }
+})
+
 test('tables and alerts keep their edges in Glass', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
@@ -153,6 +195,14 @@ test('Classic keeps its pills, Add Tag and code borders', async ({ page }) => {
   await expect(addTag(page)).toHaveCSS('border-top-style', 'dashed')
   await expect(page.locator('.note-meta .popup').first()).toHaveCSS('height', '22px')
   await expect(page.locator('.cm-md-code').first()).toHaveCSS('border-top-width', '1px')
+  await page.locator('.cm-line').last().click()
+  await page.keyboard.insertText('\n\n| a |\n| - |\n| b |')
+  expect(
+    await page
+      .locator('.cm-md-table-first')
+      .first()
+      .evaluate((el) => getComputedStyle(el, '::before').borderTopWidth),
+  ).toBe('1px')
   await showPreview(page)
   await expect(page.locator('.preview pre').first()).toHaveCSS('border-top-width', '1px')
   await expect(page.locator('.preview p > code')).toHaveCSS('border-top-left-radius', '4px')
