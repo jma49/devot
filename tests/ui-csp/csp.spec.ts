@@ -894,3 +894,19 @@ test('a plugin runs in its sandboxed frames and draws in the preview under the p
   await expect(page.locator('.plugin-block strong')).toHaveText('HI')
   expect(await violations(page)).toEqual([])
 })
+
+test('local PlantUML and Markmap diagrams render under the production policy', async ({ page }) => {
+  await start(page)
+  await newNote(
+    page,
+    '```plantuml\n@startuml\nAlice -> Bob: Hello\n@enduml\n```\n\n```markmap\n# Notes\n## Ideas\n- Capture\n```',
+  )
+  const uml = page.locator('.island-plantuml svg')
+  const map = page.locator('.island-markmap svg')
+  await expect(uml).toBeVisible({ timeout: 30_000 })
+  await expect(map).toBeVisible({ timeout: 30_000 })
+  await expect(uml).toContainText('Hello')
+  await expect(map).toContainText('Capture')
+  await expect(map.locator('path').first()).toHaveAttribute('stroke-width', /[1-9]/)
+  expect(await violations(page)).toEqual([])
+})

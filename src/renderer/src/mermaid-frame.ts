@@ -4,6 +4,7 @@
 // through the private port the parent hands over, and the parent rebuilds the
 // returned SVG safely (preview/mermaid.ts).
 import mermaid from 'mermaid'
+import { markmapDrawing, plantumlDrawing } from './diagram-frame'
 import {
   isRenderRequest,
   READY,
@@ -21,8 +22,22 @@ const reply = (message: FrameMessage) => port?.postMessage(message)
 
 // Through the CSSOM: a stylesheet would be a CORS request from this sandboxed frame.
 document.body.style.margin = '0'
+// Hidden frames may suspend animation frames; layout libraries still need their next turn.
+window.requestAnimationFrame = (callback) =>
+  window.setTimeout(() => callback(performance.now()), 16)
+window.cancelAnimationFrame = (id) => window.clearTimeout(id)
 
 async function draw(request: RenderRequest): Promise<void> {
+  if (request.kind === 'plantuml' || request.kind === 'markmap') {
+    try {
+      const svg = await (request.kind === 'plantuml' ? plantumlDrawing : markmapDrawing)(request)
+      reply({ type: 'rendered', id: request.id, svg })
+    } catch {
+      reply({ type: 'failed', id: request.id, reason: 'parse' })
+    }
+    return
+  }
+
   // Mermaid measures text in this document: give it the diagram's font.
   document.body.style.fontFamily = request.fontFamily
   document.body.style.fontSize = request.fontSize

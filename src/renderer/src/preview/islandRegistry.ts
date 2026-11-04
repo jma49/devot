@@ -1,5 +1,5 @@
 import { createIslandRegistry } from './islands'
-import { mermaidIsland } from './mermaid'
+import { mermaidIsland, plantumlIsland, markmapIsland } from './mermaid'
 
 /** The islands the preview and Write mode draw. */
-export const islands = createIslandRegistry([mermaidIsland])
+export const islands = createIslandRegistry([mermaidIsland, plantumlIsland, markmapIsland])

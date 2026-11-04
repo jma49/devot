@@ -60,7 +60,7 @@ Devot needs macOS 26 or later on Apple Silicon. Updates arrive in the app: Devot
 </p>
 
 - A Markdown editor with editor-only, split and preview modes, synced scrolling and a Focus Mode.
-- A safe live preview with GitHub-flavoured Markdown, syntax-highlighted code blocks, math, Mermaid diagrams, emoji, alerts, task lists and YouTube and Vimeo embeds that load only when you ask.
+- A safe live preview with GitHub-flavoured Markdown, syntax-highlighted code blocks, math, Mermaid and PlantUML diagrams, Markmap mind maps, emoji, alerts, task lists and YouTube and Vimeo embeds that load only when you ask.
 - Tables you edit with keys: move between cells, add, move and align rows and columns, format the table.
 - Pasted and dropped images and other attachments, with sizes and an image viewer.
 - Find and Replace with case and regular expressions, multiple cursors, line commands and slash commands.

@@ -61,7 +61,13 @@ const KEY = /^(?:(?:Mod|Ctrl|Alt|Shift)\+){1,4}[^\s+]{1,12}$/
 
 export const RESERVED_PLUGIN_FOLDER = '__devot'
 /** Built-in renderers draw these (math, the Mermaid island). */
-export const RESERVED_LANGUAGES: readonly string[] = ['math', 'mermaid']
+export const RESERVED_LANGUAGES: readonly string[] = [
+  'math',
+  'mermaid',
+  'plantuml',
+  'puml',
+  'markmap',
+]
 
 const LIMITS = {
   id: 64,

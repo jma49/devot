@@ -317,3 +317,25 @@ describe('HTML pages', () => {
     expect(PAGE_CSP).toContain('img-src data: https: http:')
   })
 })
+
+it.each(['plantuml', 'markmap'])(
+  'exports %s SVG or preserves source when drawing fails',
+  async (kind) => {
+    const source = kind === 'plantuml' ? '@startuml\nA -> B\n@enduml' : '# Notes\n## Ideas'
+    const tree = await renderPreview(`\`\`\`${kind}\n${source}\n\`\`\``, {
+      labels,
+      loadedEmbeds: [],
+    })
+    const drawn = pageBody(tree, {
+      nonce: NONCE,
+      island: (engine, code) => {
+        expect(engine).toBe(kind)
+        expect(code).toBe(`${source}\n`)
+        return SVG
+      },
+    })
+    expect(drawn.html).toContain(`class="island island-${kind}"><svg`)
+    expect(drawn.html).not.toMatch(/<script|foreignObject|onload|evil\.example/i)
+    expect(pageBody(tree, { nonce: NONCE }).html).toContain(`class="language-${kind}"`)
+  },
+)
