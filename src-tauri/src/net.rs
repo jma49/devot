@@ -74,21 +74,42 @@ fn public_v4(ip: Ipv4Addr) -> bool {
         || ip.is_link_local()
         || ip.is_unspecified()
         || ip.is_broadcast()
+        || ip.is_multicast()
         || a == 0
         // Carrier-grade NAT, 100.64.0.0/10.
-        || (a == 100 && (64..128).contains(&b)))
+        || (a == 100 && (64..128).contains(&b))
+        // IETF protocol assignments 192.0.0.0/24, benchmarking 198.18.0.0/15, reserved 240.0.0.0/4.
+        || (a == 192 && b == 0 && ip.octets()[2] == 0)
+        || (a == 198 && (b & 0xfe) == 18)
+        || a >= 240)
+}
+
+/// The IPv4 address an IPv6 one carries: mapped `::ffff:a.b.c.d`, compatible `::a.b.c.d`, NAT64 `64:ff9b::/96` and 6to4 `2002::/16`.
+fn embedded_v4(ip: Ipv6Addr) -> Option<Ipv4Addr> {
+    let v4 = |high: u16, low: u16| Ipv4Addr::from((u32::from(high) << 16) | u32::from(low));
+    match ip.segments() {
+        [0, 0, 0, 0, 0, 0 | 0xffff, high, low] | [0x64, 0xff9b, 0, 0, 0, 0, high, low] => {
+            Some(v4(high, low))
+        }
+        [0x2002, high, low, ..] => Some(v4(high, low)),
+        _ => None,
+    }
 }
 
 fn public_v6(ip: Ipv6Addr) -> bool {
-    let first = ip.segments()[0];
-    match ip.to_ipv4_mapped() {
-        Some(mapped) => public_v4(mapped),
+    let [first, second, third, ..] = ip.segments();
+    if ip.is_loopback() || ip.is_unspecified() {
+        return false;
+    }
+    match embedded_v4(ip) {
+        Some(v4) => public_v4(v4),
         None => {
-            !(ip.is_loopback()
-                || ip.is_unspecified()
+            !(ip.is_multicast()
                 // Unique local fc00::/7 and link-local fe80::/10.
                 || (first & 0xfe00) == 0xfc00
-                || (first & 0xffc0) == 0xfe80)
+                || (first & 0xffc0) == 0xfe80
+                // Local-use NAT64 64:ff9b:1::/48 translates to whatever the network chooses.
+                || (first, second, third) == (0x64, 0xff9b, 1))
         }
     }
 }
@@ -395,6 +416,39 @@ mod tests {
             "https://[2001:db8::1]/",
         ] {
             assert!(public_host(&Url::parse(url).unwrap()), "{url}");
+        }
+    }
+
+    #[test]
+    fn refuses_special_ranges_and_private_addresses_inside_ipv6() {
+        for refused in [
+            "192.0.0.1",
+            "198.18.0.1",
+            "198.19.255.255",
+            "224.0.0.1",
+            "239.255.255.250",
+            "240.0.0.1",
+            "255.255.255.254",
+            "64:ff9b::c0a8:101",
+            "64:ff9b::7f00:1",
+            "64:ff9b::a9fe:a9fe",
+            "64:ff9b:1::808:808",
+            "2002:c0a8:101::1",
+            "2002:7f00:1::",
+            "::c0a8:101",
+            "::7f00:1",
+            "ff02::1",
+        ] {
+            assert!(!public_ip(refused.parse().unwrap()), "{refused}");
+        }
+        for public in [
+            "93.184.215.14",
+            "198.20.0.1",
+            "64:ff9b::808:808",
+            "2002:808:808::1",
+            "2606:4700::1111",
+        ] {
+            assert!(public_ip(public.parse().unwrap()), "{public}");
         }
     }
 
