@@ -8,6 +8,7 @@ import type { AlertKind } from '../blocks'
 import type { LoadPreview } from '../../notePreview'
 import { t } from '../../i18n'
 import { taskToggle } from '../tasks'
+import { InlineWidget } from './inline'
 import type { WriteRange } from './rules'
 
 /** Loads a linked note's title for a note link with no text of its own. */
@@ -188,5 +189,7 @@ export function decorationOf(range: WriteRange): Decoration {
         : Decoration.line({ class: range.className })
     case 'unit':
       return UNIT
+    case 'inline':
+      return Decoration.replace({ widget: new InlineWidget(range.source) })
   }
 }

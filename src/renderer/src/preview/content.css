@@ -153,19 +153,19 @@
   text-decoration-skip-ink: auto;
 }
 
-/* line-height 0 keeps scripts from pushing their line apart. */
-.preview :is(sup, sub) {
+/* line-height 0 keeps scripts from pushing their line apart. Write mode's inline elements share these rules. */
+:is(.preview, .cm-wm-inline) :is(sup, sub) {
   position: relative;
   font-size: calc(var(--note-size-script) * 1em);
   line-height: 0;
   vertical-align: baseline;
 }
 
-.preview sup {
+:is(.preview, .cm-wm-inline) sup {
   top: -0.5em;
 }
 
-.preview sub {
+:is(.preview, .cm-wm-inline) sub {
   bottom: -0.25em;
 }
 
@@ -312,7 +312,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.preview kbd {
+:is(.preview, .cm-wm-inline) kbd {
   display: inline-block;
   padding: 0 var(--space-2);
   border: 1px solid var(--color-line-hairline);

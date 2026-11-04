@@ -28,7 +28,7 @@ export const writeRenderer = Facet.define<WriteRenderer, WriteRenderer | null>({
 })
 
 /** Most recently used first out: maps keep insertion order. */
-class Recent<V> {
+export class Recent<V> {
   private readonly map = new Map<string, V>()
   constructor(private readonly limit: number) {}
   get(key: string): V | undefined {

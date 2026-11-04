@@ -330,6 +330,32 @@ test.describe('a new install', () => {
     expect(await source(page)).toEqual(text)
   })
 
+  test('draws an emoji, a key and raised and lowered text as the preview does, one source under the caret', async ({
+    page,
+  }) => {
+    const text = ['Party :tada: then <kbd>Cmd</kbd> N, x<sup>2</sup> and H<sub>2</sub>O', '', 'End']
+    await createNote(page, 'Inline HTML', text.join('\n'))
+    const tada = String.fromCodePoint(0x1f389)
+    await expect
+      .poll(() => lines(page))
+      .toEqual([`Party ${tada} then Cmd N, x2 and H2O`, '', 'End'])
+    const key = page.locator('.cm-wm-inline kbd')
+    await expect(key).toHaveText('Cmd')
+    await expect(key).toHaveCSS('border-bottom-width', '2px')
+    await expect(page.locator('.cm-wm-inline sup')).toHaveCSS('position', 'relative')
+    await expect(page.locator('.cm-wm-inline sub')).toHaveText('2')
+    const heights = () =>
+      page
+        .locator('.cm-line')
+        .evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height))
+    const [drawn, , plain] = await heights()
+    expect(drawn).toBe(plain)
+    await page.locator('.cm-wm-inline').first().click()
+    await expect.poll(() => lines(page)).toEqual(['Party :tada: then Cmd N, x2 and H2O', '', 'End'])
+    expect((await heights())[0]).toBe(drawn)
+    expect(await source(page)).toEqual(text)
+  })
+
   test('shows a horizontal rule as source only while the caret is on it', async ({ page }) => {
     await createNote(page, 'Rule', 'a\n\n---\n\nb')
     await expect.poll(() => lines(page)).toEqual(['a', '', '', '', 'b'])
