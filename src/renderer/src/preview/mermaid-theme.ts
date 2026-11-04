@@ -379,6 +379,10 @@ export function labelledTicks(positions: readonly number[], width: number): numb
   return kept
 }
 
+// A mask reads luminance, not colour; white keeps what it covers and black cuts it out.
+const MASK_KEEP = 'white'
+const MASK_CUT = 'black'
+
 /** Cuts the gaps between pie slices out of the drawing, so what shows through them is the real surface: glass has no colour a line could match. */
 function cutPieGaps(root: Element): void {
   const slices = Array.from(root.querySelectorAll('path.pieCircle'))
@@ -399,13 +403,13 @@ function cutPieGaps(root: Element): void {
   for (const [name, value] of Object.entries(bounds)) mask.setAttribute(name, value)
   const kept = make('rect')
   for (const [name, value] of Object.entries(bounds)) kept.setAttribute(name, value)
-  kept.setAttribute('fill', 'white')
+  kept.setAttribute('fill', MASK_KEEP)
   mask.append(kept)
   for (const slice of slices) {
     const cut = make('path')
     cut.setAttribute('d', slice.getAttribute('d') ?? '')
     cut.setAttribute('fill', 'none')
-    cut.setAttribute('stroke', 'black')
+    cut.setAttribute('stroke', MASK_CUT)
     cut.setAttribute('stroke-width', String(parseFloat(sizes['space.1'])))
     mask.append(cut)
   }

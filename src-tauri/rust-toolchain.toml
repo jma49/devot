@@ -1,0 +1,5 @@
+# CI and release builds install exactly this (`rustup toolchain install`), so local clippy matches CI.
+[toolchain]
+channel = "1.99.0"
+components = ["clippy", "rustfmt"]
+targets = ["aarch64-apple-ios-sim"]

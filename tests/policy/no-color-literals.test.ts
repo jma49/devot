@@ -1,7 +1,8 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { hasColorLiteral, isColorChecked } from '../support/policy-patterns'
+import { listFiles } from '../support/git-files'
+import { hasColorLiteral, isColorChecked, isColorExempt } from '../support/policy-patterns'
 
 // UI colours come only from generated tokens; CodeMirror themes live in .ts files, so TypeScript is scanned too.
 const UI_ROOT = 'src/renderer/src'
@@ -13,15 +14,36 @@ function files(dir: string): string[] {
   })
 }
 
+// The plugin frame and the HTML pages paint before the UI's styles load, so they are scanned too.
+const pages = () => [
+  ...listFiles('.', 'src-tauri/plugin-frame'),
+  ...listFiles('.', 'src/renderer').filter((file) => /^src\/renderer\/[^/]+\.html$/.test(file)),
+]
+
 it('UI styles use design tokens, not colour literals', () => {
-  const offenders = files(UI_ROOT)
-    .filter(isColorChecked)
-    .flatMap((file) =>
-      readFileSync(file, 'utf8')
-        .split('\n')
-        .flatMap((line, i) => (hasColorLiteral(line) ? [`${file}:${i + 1}: ${line.trim()}`] : [])),
-    )
+  const scanned = [...files(UI_ROOT).filter(isColorChecked), ...pages()]
+  expect(scanned).toEqual(
+    expect.arrayContaining(['src-tauri/plugin-frame/runtime.js', 'src/renderer/index.html']),
+  )
+  const offenders = scanned.flatMap((file) =>
+    readFileSync(file, 'utf8')
+      .split('\n')
+      .flatMap((line, i) =>
+        hasColorLiteral(line) && !isColorExempt(file, line)
+          ? [`${file}:${i + 1}: ${line.trim()}`]
+          : [],
+      ),
+  )
   expect(offenders).toEqual([])
+})
+
+it("only the Mermaid pie's mask luminance is exempt, by name", () => {
+  const theme = 'src/renderer/src/preview/mermaid-theme.ts'
+  expect(isColorExempt(theme, "const MASK_KEEP = 'white'")).toBe(true)
+  expect(isColorExempt(theme, "const MASK_CUT = 'black'")).toBe(true)
+  expect(isColorExempt(theme, "kept.setAttribute('fill', 'white')")).toBe(false)
+  expect(isColorExempt('src/renderer/src/Other.tsx', "const MASK_KEEP = 'white'")).toBe(false)
+  expect(readFileSync(theme, 'utf8')).toContain("setAttribute('fill', MASK_KEEP)")
 })
 
 it('the scan covers CSS, TSX and TS but not the generated tokens or tests', () => {
@@ -53,6 +75,20 @@ it('the colour pattern catches literals in TypeScript and leaves tokens alone', 
     'color: RED;',
     'background: White',
     "{ background: '#fff8' }",
+    "{ color: 'orange' }",
+    'border-color: Purple;',
+    "{ fill: 'yellow' }",
+    "{ color: 'pink' }",
+    "{ color: 'lightgray' }",
+    "{ stroke: 'darkblue' }",
+    '<rect fill="white" />',
+    "<path stroke='black' />",
+    "<circle fill={'orange'} />",
+    '<stop stop-color="purple" />',
+    "rect.setAttribute('fill', 'white')",
+    'path.setAttribute("stroke", "teal")',
+    "el.style.color = 'red'",
+    "el.style.setProperty('--accent', 'gold')",
   ]
   const tokens = [
     "{ color: 'var(--text)' }",
@@ -61,6 +97,14 @@ it('the colour pattern catches literals in TypeScript and leaves tokens alone', 
     "'tagColor.red': 'Red',",
     'color: var(--accent);',
     "const x = this.#cache.get('k')",
+    "{ status: 'shared' }",
+    "{ state: 'ordered' }",
+    '<rect fill="none" stroke="currentColor" />',
+    "rect.setAttribute('fill', 'var(--accent)')",
+    "rect.setAttribute('class', 'white')",
+    "el.style.color = 'var(--text)'",
+    "const name = 'Orange'",
+    '<meta name="color-scheme" content="light dark" />',
   ]
   expect(literals.filter((line) => !hasColorLiteral(line))).toEqual([])
   expect(tokens.filter(hasColorLiteral)).toEqual([])

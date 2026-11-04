@@ -57,7 +57,8 @@ it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () =>
   expect(commands(ios)).toContain('cargo clippy --all-targets -- -D warnings')
   expect(ios).toContain("needs.changes.outputs.rust != 'false'")
   expect(ios).toContain("needs.changes.outputs.docs_only != 'true'")
-  expect(ios).toContain('targets: aarch64-apple-ios-sim')
+  expect(commands(ios)).toContain('rustup toolchain install')
+  expect(read('src-tauri/rust-toolchain.toml')).toMatch(/^targets = \[.*"aarch64-apple-ios-sim"/m)
   expect(commands(ios)).toContain(
     'cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings',
   )

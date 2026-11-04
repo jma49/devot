@@ -267,10 +267,8 @@ jobs:
       # tauri::generate_context! embeds the built UI, so build it first.
       - run: pnpm install --frozen-lockfile && pnpm ui:build
         working-directory: .
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
-        with:
-          toolchain: 1.99.0
-          components: rustfmt, clippy
+      # Installs the toolchain, components and targets src-tauri/rust-toolchain.toml names.
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
@@ -301,11 +299,7 @@ jobs:
       # tauri::generate_context! embeds the built UI, so build it first.
       - run: pnpm install --frozen-lockfile && pnpm ui:build
         working-directory: .
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
-        with:
-          toolchain: 1.99.0
-          components: clippy
-          targets: aarch64-apple-ios-sim
+      - run: rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
@@ -322,9 +316,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
-        with:
-          toolchain: 1.99.0
+      # The action runs in its own container with its own Rust; it only reads the manifest.
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
           manifest-path: src-tauri/Cargo.toml

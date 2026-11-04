@@ -258,14 +258,46 @@ describe('the workflows', () => {
     expect(older.map((v) => v.join('.'))).toEqual([])
   })
 
-  it('name the Rust toolchain, the same one everywhere', () => {
-    const toolchains = workflows.flatMap(({ text }) =>
-      [...text.matchAll(/uses: dtolnay\/rust-toolchain@.*\n\s+with:\n(?:\s+\w+: .*\n)*/g)].map(
-        (m) => /toolchain: (\S+)/.exec(m[0])?.[1],
-      ),
+  it('take the Rust toolchain from rust-toolchain.toml, never a version of their own', () => {
+    const building = workflows.filter(({ text }) => /\bcargo |tauri build/.test(text))
+    expect(building.map(({ name }) => name)).toEqual(
+      expect.arrayContaining(['ci.yml', 'release.yml']),
     )
-    expect(toolchains.length).toBeGreaterThan(1)
-    expect(toolchains[0]).toMatch(/^\d+\.\d+\.\d+$/)
-    expect(new Set(toolchains).size).toBe(1)
+    for (const { name, text } of workflows) {
+      expect({ name, pinned: /dtolnay\/rust-toolchain|toolchain: \d/.test(text) }).toEqual({
+        name,
+        pinned: false,
+      })
+    }
+    for (const { name, text } of building) {
+      expect({ name, installs: text.includes('rustup toolchain install') }).toEqual({
+        name,
+        installs: true,
+      })
+    }
+  })
+})
+
+describe('rust-toolchain.toml', () => {
+  const file = readFileSync('src-tauri/rust-toolchain.toml', 'utf8')
+  const list = (key: string) =>
+    [
+      ...(new RegExp(`^${key} = \\[(.*)\\]$`, 'm').exec(file)?.[1] ?? '').matchAll(/"([^"]+)"/g),
+    ].map((m) => m[1])
+
+  it('pins one exact release', () => {
+    expect(file).toMatch(/^channel = "\d+\.\d+\.\d+"$/m)
+  })
+
+  it('brings the components CI runs', () => {
+    expect(list('components')).toEqual(expect.arrayContaining(['clippy', 'rustfmt']))
+  })
+
+  it('brings every target a workflow compiles for', () => {
+    const targets = workflows.flatMap(({ text }) =>
+      [...text.matchAll(/cargo [^\n]*--target (\S+)/g)].map((m) => m[1]),
+    )
+    expect(targets.length).toBeGreaterThan(0)
+    expect(list('targets')).toEqual(expect.arrayContaining(targets))
   })
 })

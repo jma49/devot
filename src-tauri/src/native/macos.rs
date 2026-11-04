@@ -3264,11 +3264,11 @@ fn build_editor_menu(
     }
     builder.add_entries(&menu, entries);
     menu.addItem(&builder.separator());
-    // SAFETY: the class object is a live NSObject class; asking it answers
-    // whether the class method exists on this system.
     let class = (NSMenuItem::class() as *const AnyClass)
         .cast_mut()
         .cast::<AnyObject>();
+    // SAFETY: the class object is a live NSObject class; asking it answers
+    // whether the class method exists on this system.
     if unsafe { responds(class, sel!(writingToolsItems)) } {
         for item in NSMenuItem::writingToolsItems(mtm).to_vec() {
             menu.addItem(&item);
