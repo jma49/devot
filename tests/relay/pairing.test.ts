@@ -33,12 +33,12 @@ it('refuses a take once the code expired, and forgets the pairing after its grac
     status: 404,
     body: { code: 'E_SYNC_PAIRING_GONE' },
   })
-  expect(relay.handle('status', ID, { vault: VAULT })).toMatchObject({
+  expect(relay.handle('status', ID, { vault: VAULT }, 'dev')).toMatchObject({
     status: 200,
     body: { state: 'open' },
   })
   clock.now += PAIRING.graceMs
-  expect(relay.handle('status', ID, { vault: VAULT })).toMatchObject({ status: 404 })
+  expect(relay.handle('status', ID, { vault: VAULT }, 'dev')).toMatchObject({ status: 404 })
   expect(db.prepare('SELECT COUNT(*) AS n FROM pairings').get()).toEqual({ n: 0 })
   expect(relay.deleteAt()).toBeNull()
 })
@@ -52,7 +52,7 @@ it('keeps a confirmation made in time until the grace ends, and never the taken 
   clock.now += 1
   expect(relay.handle('confirm', ID, { proof }).status).toBe(200)
   clock.now += PAIRING.graceMs - 1
-  expect(relay.handle('status', ID, { vault: VAULT })).toMatchObject({
+  expect(relay.handle('status', ID, { vault: VAULT }, 'dev')).toMatchObject({
     status: 200,
     body: { state: 'confirmed', proof },
   })
@@ -65,4 +65,23 @@ it('sweeps expired pairings on any request, so a Node relay keeps none for long'
   clock.now += PAIRING.ttlMs + PAIRING.graceMs
   relay.handle('take', 'CCCCCCCCCCCCCCCCCCCCCC', {})
   expect(db.prepare('SELECT COUNT(*) AS n FROM pairings').get()).toEqual({ n: 0 })
+})
+
+it('answers status and close only to the device that opened the pairing', () => {
+  const { relay, db } = pairingsAt(0)
+  relay.handle('pair', ID, { vault: VAULT, offer }, 'dev')
+  relay.handle('take', ID, {})
+  relay.handle('confirm', ID, { proof })
+  for (const op of ['status', 'close'] as const) {
+    expect(relay.handle(op, ID, { vault: VAULT }, 'other')).toMatchObject({
+      status: 404,
+      body: { code: 'E_SYNC_PAIRING_GONE' },
+    })
+  }
+  expect(db.prepare('SELECT COUNT(*) AS n FROM pairings').get()).toEqual({ n: 1 })
+  expect(relay.handle('status', ID, { vault: VAULT }, 'dev')).toMatchObject({
+    status: 200,
+    body: { state: 'confirmed', proof },
+  })
+  expect(relay.handle('close', ID, { vault: VAULT }, 'dev').status).toBe(200)
 })

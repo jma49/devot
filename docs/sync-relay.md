@@ -134,7 +134,7 @@ Version 1. Every message is an envelope `{"v": 1, "type": …}`; a relay refuses
 | `POST /v1/pairings/<pairing>/status` with `Authorization: Bearer <token>` | `status`: `vault`        | `pairing`: `state`, `expires`, `time`, and `proof` |
 | `POST /v1/pairings/<pairing>/close` with `Authorization: Bearer <token>`  | `close`: `vault`         | `closed`                                           |
 
-- `pair`, `status` and `close` need the token of a device of `vault`, checked as a socket's is: the MAC at the front, then the token's hash in the vault (a removed device gets 401). `status` and `close` find only a pairing of that vault.
+- `pair`, `status` and `close` need the token of a device of `vault`, checked as a socket's is: the MAC at the front, then the token's hash in the vault (a removed device gets 401). `status` and `close` find only a pairing that device opened; to any other device, of that vault or another, it is gone.
 - A pairing's offer can be taken for 10 minutes (`PAIRING.ttlMs`) and once: `take` deletes it. `state` goes `open`, `taken`, `confirmed`; `proof` comes with `confirmed`. A take after the expiry, a second take or confirmation, and a pairing that is unknown or closed all get `E_SYNC_PAIRING_GONE` (404), so nobody learns which pairings exist. A pairing ID opened twice gets `E_SYNC_PAIRING_EXISTS` (409).
 - **Kept:** the pairing ID, the vault ID, the opening device, the state, the offer until it is taken and the proof, for at most 1 minute past the expiry. On Cloudflare each pairing is a `PairingObject` whose alarm then deletes it; on Node they live in memory and every request sweeps the expired ones.
 - An offer is at most 512 bytes and a proof 256.

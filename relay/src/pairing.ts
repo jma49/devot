@@ -58,9 +58,9 @@ export class PairingRelay {
       case 'confirm':
         return this.confirm(id, body)
       case 'status':
-        return this.status(id, body)
+        return this.status(id, body, device)
       case 'close':
-        return this.close(id, body)
+        return this.close(id, body, device)
     }
   }
 
@@ -75,10 +75,14 @@ export class PairingRelay {
     return this.sql.run('DELETE FROM pairings WHERE expires + ? <= ?', PAIRING.graceMs, this.now())
   }
 
-  private row(id: string, vault?: unknown) {
-    const row = this.sql.all('SELECT * FROM pairings WHERE id = ?', id)[0]
-    if (!row || (vault !== undefined && row['vault'] !== vault)) return undefined
-    return row
+  private row(id: string) {
+    return this.sql.all('SELECT * FROM pairings WHERE id = ?', id)[0]
+  }
+
+  /** The pairing as its opening device sees it; another device of the vault learns nothing. */
+  private own(id: string, vault: unknown, device: string) {
+    const row = this.row(id)
+    return row && row['vault'] === vault && row['device'] === device ? row : undefined
   }
 
   private open(id: string, body: Record<string, unknown>, device: string): Reply {
@@ -122,8 +126,8 @@ export class PairingRelay {
     })
   }
 
-  private status(id: string, body: Record<string, unknown>): Reply {
-    const row = this.row(id, body['vault'])
+  private status(id: string, body: Record<string, unknown>, device: string): Reply {
+    const row = this.own(id, body['vault'], device)
     if (!row) return gone()
     const state = row['state'] as PairingState
     const proof = row['proof'] instanceof Uint8Array ? toBase64Url(row['proof']) : undefined
@@ -136,8 +140,8 @@ export class PairingRelay {
     })
   }
 
-  private close(id: string, body: Record<string, unknown>): Reply {
-    if (!this.row(id, body['vault'])) return gone()
+  private close(id: string, body: Record<string, unknown>, device: string): Reply {
+    if (!this.own(id, body['vault'], device)) return gone()
     this.sql.run('DELETE FROM pairings WHERE id = ?', id)
     return ok({ type: 'closed' })
   }
