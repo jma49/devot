@@ -2,9 +2,16 @@ import { history } from '@codemirror/commands'
 import { EditorState, Text } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
-import { applyAgentEdit, newWriter, readWrites } from '../../../core/authorship'
+import { applyAgentEdit, newWriter, readWrites, WRITES } from '../../../core/authorship'
 import { fullDate } from '../format'
-import { authoredField, markLabel, markSegments, segmentRange, type WriteInfo } from './authorship'
+import {
+  authoredField,
+  markLabel,
+  markSegments,
+  rereadAuthored,
+  segmentRange,
+  type WriteInfo,
+} from './authorship'
 import { keepUndo, noteState } from './undo'
 
 const doc = Text.of(['one', 'two', 'three', 'four', 'five'])
@@ -131,5 +138,44 @@ describe('the marks’ state', () => {
     const field = authoredField(ydoc, 'note')
     const state = EditorState.create({ doc: 'Text.\n', extensions: field })
     expect(state.field(field).runs).toEqual([])
+  })
+
+  it('reads nothing again after a change while the note has no records and shows no marks', () => {
+    const ydoc = new Y.Doc()
+    ydoc.getText('body').insert(0, 'Text.\n')
+    const field = authoredField(ydoc, 'note')
+    const state = EditorState.create({ doc: 'Text.\n', extensions: field })
+    ydoc.getText('body').insert(0, 'X')
+    expect(rereadAuthored(state.field(field), ydoc, 'note')).toBeNull()
+  })
+
+  it('reads the runs again after a change to a note with records', () => {
+    const ydoc = new Y.Doc()
+    ydoc.getText('body').insert(0, 'Intro.\n')
+    applyAgentEdit(ydoc, {
+      writer: newWriter('mcp', 'Claude Code', 'p'),
+      at: 1,
+      markdown: 'Intro.\nAgent line.\n',
+    })
+    const field = authoredField(ydoc, 'note')
+    const state = EditorState.create({ doc: ydoc.getText('body').toString(), extensions: field })
+    ydoc.getText('body').insert(0, 'X')
+    expect(rereadAuthored(state.field(field), ydoc, 'note')?.runs).toHaveLength(1)
+  })
+
+  it('clears the marks once the note has no records left', () => {
+    const ydoc = new Y.Doc()
+    ydoc.getText('body').insert(0, 'Intro.\n')
+    applyAgentEdit(ydoc, {
+      writer: newWriter('mcp', 'Claude Code', 'p'),
+      at: 1,
+      markdown: 'Intro.\nAgent line.\n',
+    })
+    const field = authoredField(ydoc, 'note')
+    const state = EditorState.create({ doc: ydoc.getText('body').toString(), extensions: field })
+    ydoc.getMap(WRITES).clear()
+    const next = rereadAuthored(state.field(field), ydoc, 'note')
+    expect(next?.runs).toEqual([])
+    expect(next?.writes.size).toBe(0)
   })
 })
