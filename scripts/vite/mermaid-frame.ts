@@ -44,11 +44,15 @@ export function mermaidFrame(): Plugin {
   return {
     name: 'devot-mermaid-frame',
     configureServer(server) {
+      // Built ahead, so the first diagram does not wait seconds for the bundle.
+      const warm = () => void bundle().catch(() => (cached = undefined))
+      warm()
       server.watcher.on('change', (file) => {
-        if (!cached) return
-        cached.then(
+        cached?.then(
           ({ modules }) => {
-            if (modules.has(file)) cached = undefined
+            if (!modules.has(file)) return
+            cached = undefined
+            warm()
           },
           () => (cached = undefined),
         )

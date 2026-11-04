@@ -36,7 +36,11 @@ it('the dependency scan finds the packages only the core worker imports', async 
   }
   // The MCP server and the database adapter run in Node, never in the UI.
   const nodeOnly = ['@modelcontextprotocol/sdk', 'better-sqlite3']
-  const expected = importedPackages(Object.keys(dependencies).filter((n) => !nodeOnly.includes(n)))
+  // Only the Mermaid frame imports it, and that is built apart (scripts/vite/mermaid-frame.ts).
+  const builtApart = ['mermaid']
+  const expected = importedPackages(
+    Object.keys(dependencies).filter((n) => !nodeOnly.includes(n) && !builtApart.includes(n)),
+  )
   expect(expected).toEqual(
     expect.arrayContaining(['rehype-raw', 'rehype-sanitize', 'remark-rehype']),
   )
