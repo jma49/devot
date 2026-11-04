@@ -130,7 +130,7 @@ describe('token compiler', () => {
     expect(lightBlock).toContain('--color-accent-text: var(--system-accent-text-light, #2856a2);')
     expect(darkBlock).toContain('--color-accent-text: var(--system-accent-text-dark, #7ea6d8);')
     expect(lightBlock).toContain(
-      '--color-accent-selection: var(--system-accent-selection-light, #e3d6fb);',
+      '--color-accent-selection: var(--system-accent-selection-light, #e7dcfc);',
     )
     expect(darkBlock).toContain(
       '--color-accent-selection: var(--system-accent-selection-dark, #29233a);',

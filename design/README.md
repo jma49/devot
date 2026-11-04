@@ -49,8 +49,8 @@ Tokens use the [W3C Design Tokens (DTCG)](https://www.designtokens.org/) format.
 - **Glass sidebar:** rows of every kind sit `size.sidebar-row-inset` from the sidebar's edges with `radius.sidebar-row` corners, and a nested row's highlight starts at the same left edge as a top-level one. Each level indents 16 px (`space.7`), a parent's chevron stays inside the row in the room before its icon, and a 1 px `color.line.separator` guide runs from an open notebook's icon down its children. The list between the pinned rows and Trash fades over `size.sidebar-scroll-edge` at an edge only while more lies beyond it, and a `color.line.separator` hairline shows under the pinned rows once it has scrolled; the list always reserves its scroll bar, pulled into the inset, so its rows line up with the pinned ones. The footer is a capsule `size.sidebar-footer` (24) high at the same inset, so it shares a centre with the sidebar's corners (8 + 10 = 18) and its ends line up with the rows'. The Settings navigation follows the same rule. Main and Settings windows ask macOS for a 26 px corner (`round_window_corner`), the corner it gives windows with a native toolbar; without it the corner is 16 px, which no 8 px inset can follow; toolbar controls sit as far from the window's right edge as from its top, concentric with that corner.
 - **Glass details:** Settings shares the inset native sidebar and a single content sheet, with 18 px cards and a glass history capsule. The library sidebar selects with a neutral fill; the note list selects with the accent wash even without keyboard focus, with no focus bar. Its header shows the note count below the title, times sit beside row titles and excerpts wrap to two lines. The footer shows the real backup and mirror status. Reduced transparency or increased contrast replaces glass with opaque surfaces and removes native glass.
 - **Type:** the system UI font (SF Pro) and SF Mono, not bundled. Body 13 pt, captions and section headers 11 pt, sidebar rows 30 px with no gap between them. Scroll bars are 6 px wide.
-- **Selection:** one strength for every pane. The pane that has the keyboard draws its selected row with a wash of `color.accent.fill` at `opacity.list-selected`, with a `size.list-focus-bar` bar in `color.accent.fill` on its left edge (in the note list, on the open note's row); a pane without the keyboard (the sidebar or the note list) draws its selected row with the neutral `color.fill.row-selected-inactive`. Text keeps its colours either way. A sidebar row or note row under the pointer takes the same `color.fill.row-selected-inactive` wash, one step under the selected fill, so the pointer is answered before the click; a selected row keeps its fill and a drop target keeps the drop fill. In the Glass interface the accent only marks what is selected or active: the selected sidebar row's icon is `color.accent.text` on its neutral fill, and the active view mode segment's icon is too.
-- **Text and lines:** tiers of one ink per appearance (`color.ink.text`, `color.ink.line`). Text: body 87%, under the pointer 80%, secondary 60%, placeholders and disabled 40%, selected 95% (`color.text.*`, each naming its tier); a tier is the ink over the editor, moved toward black or white only where contrast needs it. Lines: borders 15% (light) or 10% (dark), internal dividers 10% (`color.line.hairline`, `color.line.separator`).
+- **Selection:** one strength for every pane. The pane that has the keyboard draws its selected row with a wash of `color.accent.fill` at `opacity.list-selected`, with a `size.list-focus-bar` bar in `color.accent.fill` on its left edge (in the note list, on the open note's row); a pane without the keyboard (the sidebar or the note list) draws its selected row with the neutral `color.fill.row-selected-inactive`. Text keeps its colours either way. A sidebar row or note row under the pointer takes the same `color.fill.row-selected-inactive` wash, one step under the selected fill, so the pointer is answered before the click; a selected row keeps its fill and a drop target keeps the drop fill. In the Glass interface the accent only marks what is selected or active: the selected sidebar row's icon is `color.accent.text` on its neutral fill, and the active view mode segment's icon is too. In the editor only the caret and the selection take a hue; the active line is a neutral wash (Text and lines).
+- **Text and lines:** tiers of one ink per appearance (`color.ink.text`, `color.ink.line`). Text: body 87%, under the pointer 80%, secondary 60%, placeholders and disabled 40%, selected 95% (`color.text.*`, each naming its tier); a tier is the ink over the editor, moved toward black or white only where contrast needs it. Lines: borders 15% (light) or 10% (dark), internal dividers 10% (`color.line.hairline`, `color.line.separator`). The editor's active line is the text ink too, a neutral wash at 3% (light) or 6% (dark) (`color.editor.active-line`): it marks where the caret is, and only the caret and the selection are violet.
 - **Surfaces:** the sidebar sits furthest from the editor, the note list one small step closer, the editor at the end; panes are divided by 1 px lines, never shadows. Floating things rest on the two-layer pop-up shadow.
 - **Focus:** custom controls show one ring, `size.focus-ring` wide in `color.focus.ring` on their edge (just inside a control that clips, such as a scroll list); native form controls keep the system ring. The ring is the accent fill at a design strength of 40% (light) or 30% (dark), raised to the least that keeps 3:1 on every surface (79% and 97%); with the system accent it is worked out the same way (`theme/accent.ts`).
 - **Disabled:** a control that cannot be used shows at `opacity.disabled`.
@@ -79,8 +79,8 @@ Text meets WCAG AA in both appearances: 4.5:1 for text, 3:1 for graphics such as
 | --------------------------------- | --------- | --------- |
 | `color.accent.fill` (white text)  | `#3472d6` | `#4576b2` |
 | `color.accent.text`               | `#2856a2` | `#7ea6d8` |
-| `color.accent.selection`          | `#e3d6fb` | `#29233a` |
-| `color.accent.selection-inactive` | `#efe7fd` | `#1d1927` |
+| `color.accent.selection`          | `#e7dcfc` | `#29233a` |
+| `color.accent.selection-inactive` | `#f2ebfd` | `#1d1927` |
 | `color.text.secondary`            | `#595959` | `#a3a3a3` |
 | `color.text.tertiary`             | `#676767` | `#909090` |
 | `color.status.active`             | `#545d69` | `#94a3b8` |
@@ -94,20 +94,20 @@ Text meets WCAG AA in both appearances: 4.5:1 for text, 3:1 for graphics such as
 | `color.syntax.heading`            | `#ab205e` | `#f471b5` |
 | `color.syntax.link`               | `#09665f` | `#14b8a5` |
 | `color.syntax.comment`            | `#535b67` | `#9ca3b0` |
-| `color.syntax.list`               | `#4c4eb8` | `#8c8ff5` |
+| `color.syntax.list`               | `#4c4eb8` | `#8f92f6` |
 | `color.syntax.list-alt`           | `#93440c` | `#f97415` |
 | `color.syntax.markup`             | `#1e53c5` | `#61a6fa` |
 | `color.syntax.keyword`            | `#6d34d1` | `#a689fa` |
 | `color.syntax.string`             | `#0e692f` | `#36d399` |
 | `color.syntax.function`           | `#06637b` | `#67e8f9` |
-| `color.syntax.invalid`            | `#a72f2f` | `#f36e6e` |
-| `color.alert.note`                | `#2959a7` | `#5d98f8` |
+| `color.syntax.invalid`            | `#a72f2f` | `#f37474` |
+| `color.alert.note`                | `#2959a7` | `#619bf8` |
 | `color.alert.tip`                 | `#116831` | `#21c45d` |
-| `color.alert.important`           | `#773caf` | `#bb7af9` |
+| `color.alert.important`           | `#773caf` | `#bd7ef9` |
 | `color.alert.warning`             | `#93440c` | `#f97415` |
-| `color.alert.caution`             | `#a72f2f` | `#f36e6e` |
+| `color.alert.caution`             | `#a72f2f` | `#f37474` |
 
-The editor selection is a solid tint of the caret colour (`color.editor.caret`): the caret mixed into the editor surface until the selection stands 1.3:1 from the editor and from the active line (CodeMirror draws the selection under the lines, so the active line's tint, `color.editor.active-line`, lies over it there). That is the least that reads, so the editor's text colours lose as little contrast on it as they can. While the editor does not have focus the selection is the same mix at 13/30 of the strength. The editor text colours (body, front matter, links, every syntax and alert colour) keep 4.5:1 on the editor, on the active line and on both selections, which is why the light syntax colours are deeper than their design values. Only the de-emphasised tertiary text (section labels, rules) drops to 3:1, on the selection only.
+The editor selection is a solid tint of the caret colour (`color.editor.caret`): the caret mixed into the editor surface until the selection stands 1.3:1 from the editor and from the active line (CodeMirror draws the selection under the lines, so the active line's tint, `color.editor.active-line`, lies over it there). That is the least that reads, so the editor's text colours lose as little contrast on it as they can. While the editor does not have focus the selection is the lightest mix that stands 1.15:1 from both. The editor text colours (body, front matter, links, every syntax and alert colour) keep 4.5:1 on the editor, on the active line and on both selections, which is why the light syntax colours are deeper than their design values and some dark ones lighter. Only the de-emphasised tertiary text (section labels, rules) drops to 3:1, on the selection only.
 
 The destructive label sits on a raised button face, which is lighter than the surface in the dark appearance, so it has its own token. Tag colours are labelled dots, not text, and keep the system palette.
 
@@ -209,7 +209,7 @@ A warm theme: ivory surfaces and warm near-black text (light), warm charcoal and
 | `color.alert.important`                                  | `#6b4a9a`                      | `#b8a3e3`                                     |
 | `color.accent.fill` (text on it: `color.accent.on-fill`) | `#3472d6` (white)              | `#5884ba` (`#141413`)                         |
 | `color.accent.text`                                      | `#2856a2`                      | `#a2bfe3`                                     |
-| `color.accent.selection` / `-inactive`                   | `#e3d6fb` / `#efe7fd`          | `#1c1828` / `#27262b`                         |
+| `color.accent.selection` / `-inactive`                   | `#e7dcfc` / `#f2ebfd`          | `#1c1828` / `#27262b`                         |
 
 The tag colours keep their hues in warm, softer tints (red `#c8483c`, orange `#d97a2b`, yellow `#c99a1f`, green `#4f9a3a`, blue `#3f7fc4`, purple `#8a5cc0`, pink `#cc5a85`, gray `#8a8982` in light; `#e5776d`, `#e8955a`, `#d9ae4a`, `#82c261`, `#6aa3de`, `#b394e0`, `#e48aab`, `#a3a199` in dark); each chip label is the tag colour moved toward black (light) or white (dark) as far as 4.5:1 on its chip needs. Syntax colours are the default theme's, warm-shifted only for quote and comment (warm greys), and moved only where a pair failed. The menu row hover (`color.fill.hover`) is the warm ink at 5% (light) or 8% (dark), and the dim behind a dialog (`color.fill.backdrop`) is `#1f1e1d` at 30% (light) or 50% (dark; the dark surfaces are close to that ink, so it needs more). The kit's "strong" line (40%) has no counterpart token, so no token uses it.
 
