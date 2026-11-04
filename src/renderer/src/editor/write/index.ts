@@ -18,6 +18,7 @@ import { writeBlockKeys } from './blockKeys'
 import { writeBlocks } from './blocks'
 import { imageDoubleClick, remoteImageRedraw, writeRenderer, type WriteRenderer } from './rendered'
 import { selectedIn } from './focus'
+import { carryFootnotes } from './footnotes'
 import { selectedKey, writeRanges, type Selected, type WriteRange } from './rules'
 import { tableTheme, writeTables } from './tableGrid'
 import { writeTheme } from './theme'
@@ -69,6 +70,7 @@ const marks = ViewPlugin.fromClass(
     }
 
     update(update: ViewUpdate) {
+      for (const tr of update.transactions) carryFootnotes(tr)
       // Decorations drawn again inside an input method's composition can drop or reorder what it typed.
       if (update.view.compositionStarted) {
         if (update.docChanged) {

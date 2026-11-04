@@ -1,9 +1,10 @@
 import { ensureSyntaxTree } from '@codemirror/language'
-import { EditorSelection, EditorState } from '@codemirror/state'
+import { EditorSelection, EditorState, type TransactionSpec } from '@codemirror/state'
 import { describe, it } from 'vitest'
 import { expectWithinBudget } from '../../../../../tests/support/budget'
 import { noteMarkdown } from '../markdown'
 import { setWriteFocus, writeFocusTracking } from './focus'
+import { carryFootnotes, footnoteNumbers } from './footnotes'
 import { writeMode } from './index'
 
 const FRAME_MS = 8
@@ -55,14 +56,16 @@ function settled(state: EditorState): EditorState {
   return state.update({}).state
 }
 
-const typed = (state: EditorState): EditorState => {
+const typing = (state: EditorState): TransactionSpec => {
   const at = state.selection.main.head
-  return state.update({
+  return {
     changes: { from: at, insert: 'x' },
     selection: EditorSelection.cursor(at + 1),
     userEvent: 'input.type',
-  }).state
+  }
 }
+
+const typed = (state: EditorState): EditorState => state.update(typing(state)).state
 
 const moved = (state: EditorState): EditorState =>
   state.update({
@@ -91,5 +94,21 @@ describe('Write mode in a long mixed note', () => {
 
   it('moves the caret within a frame', (context) => {
     expectWithinBudget(context, median(moved), FRAME_MS)
+  })
+
+  it('numbers its footnotes again after a keystroke in a fraction of a frame', (context) => {
+    let state = mixedNote()
+    footnoteNumbers(state.doc)
+    const times: number[] = []
+    for (let i = 0; i < 31; i++) {
+      const tr = state.update(typing(state))
+      const started = performance.now()
+      carryFootnotes(tr)
+      footnoteNumbers(tr.newDoc)
+      if (i >= 10) times.push(performance.now() - started)
+      state = tr.state
+    }
+    times.sort((a, b) => a - b)
+    expectWithinBudget(context, times[times.length >> 1]!, 1)
   })
 })
