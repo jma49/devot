@@ -278,8 +278,10 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
 
-  # The phone's `cfg` branches compile only against Apple's SDK.
+  # The Mac's and the phone's `cfg` branches compile only against Apple's SDK:
+  # rust-check on Linux leaves out native/macos.rs and the other macOS code.
   ios-check:
+    name: macOS and iOS compile
     needs: changes
     if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
     runs-on: macos-26
@@ -306,6 +308,7 @@ jobs:
         with:
           workspaces: src-tauri
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo clippy --all-targets -- -D warnings
       - run: cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings
 
   # Cargo-deny reads the manifest and lockfile, not the built app. It runs in
@@ -341,7 +344,7 @@ jobs:
           echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS deny=$DENY"
           {
             printf '### Rust merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'iOS compile' "$IOS" 'Cargo deny' "$DENY"
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'Cargo deny' "$DENY"
           } >> "$GITHUB_STEP_SUMMARY"
           for result in "$CHANGES" "$RUST" "$IOS" "$DENY"; do
             case "$result" in

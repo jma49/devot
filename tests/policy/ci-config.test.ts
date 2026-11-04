@@ -50,10 +50,11 @@ it('every cargo step of the CI rust job is a step of pnpm rust:check', () => {
   expect(scripts['rust:check']).toContain('cargo deny check')
 })
 
-it('CI compiles the app for iOS and the Rust gate waits for it', () => {
-  // No other job builds the phone's `cfg` branches, and they need Apple's SDK.
+it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () => {
+  // No other job builds the Mac's or the phone's `cfg` branches, and they need Apple's SDK.
   const ios = job('ios-check')
   expect(ios).toContain('runs-on: macos-')
+  expect(commands(ios)).toContain('cargo clippy --all-targets -- -D warnings')
   expect(ios).toContain("needs.changes.outputs.rust != 'false'")
   expect(ios).toContain("needs.changes.outputs.docs_only != 'true'")
   expect(ios).toContain('targets: aarch64-apple-ios-sim')
