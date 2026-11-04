@@ -104,6 +104,22 @@ test('a failed restore keeps the dialog open with the code', async ({ page }) =>
   ])
 })
 
+test('a restore refused while sync is on says why', async ({ page }) => {
+  await open(page, {
+    backups_list: { backups: [OLD], lastError: null },
+    backup_restore: { error: 'E_BACKUP_SYNC_ON' },
+  })
+  await showBackups(page)
+  await page.getByRole('button', { name: /^Restore the backup from/ }).click()
+  await page
+    .getByRole('dialog', { name: /Restore the backup/ })
+    .getByRole('button', { name: 'Restore' })
+    .click()
+  await expect(page.getByRole('alert')).toHaveText(
+    'A backup can’t be restored while sync is on: the next sync would bring back the changes made since (E_BACKUP_SYNC_ON).',
+  )
+})
+
 test('a backup restored from another window: this one saves, writes nothing more, then reloads', async ({
   page,
 }) => {

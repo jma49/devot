@@ -264,6 +264,26 @@ fn says_when_the_device_is_revoked_or_unknown() {
 }
 
 #[test]
+fn the_service_says_whether_sync_is_on() {
+    let dir = tempfile::tempdir().unwrap();
+    let secrets: Arc<Secrets> = Arc::default();
+    let service = SyncService::new(
+        SettingsStore::new(&dir.path().join(super::settings::FILE)),
+        secrets,
+        Arc::new(|_, _| {}),
+        Gate::open(),
+    );
+    assert!(!service.enabled());
+    service
+        .set(SettingsPatch {
+            relay_url: None,
+            enabled: Some(true),
+        })
+        .unwrap();
+    assert!(service.enabled());
+}
+
+#[test]
 fn the_service_creates_the_vault_once_and_connects_with_the_kept_token() {
     let relay = NodeRelay::start();
     let dir = tempfile::tempdir().unwrap();

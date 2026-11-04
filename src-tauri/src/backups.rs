@@ -610,6 +610,14 @@ pub async fn backup_restore(
     db: State<'_, storage::Db>,
     id: String,
 ) -> Result<(), String> {
+    // The relay's newer clocks would win the next sync's merges and its purges are final, so the
+    // restore would be undone within a cycle (#515).
+    if app
+        .try_state::<std::sync::Arc<crate::sync::service::SyncService>>()
+        .is_some_and(|sync| sync.enabled())
+    {
+        return Err("E_BACKUP_SYNC_ON".into());
+    }
     let backups = app.state::<Backups>();
     backups.source(&id)?;
     let asked = others_with_a_core(window.label(), app.webview_windows().into_keys());

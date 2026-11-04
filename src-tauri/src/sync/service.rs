@@ -302,6 +302,11 @@ impl SyncService {
         self.shifted.fetch_add(ms, Ordering::Relaxed);
     }
 
+    /// From the settings alone, without the keychain `snapshot` reads.
+    pub(crate) fn enabled(&self) -> bool {
+        self.settings.get().enabled
+    }
+
     fn relay(&self) -> Result<RelayUrl, &'static str> {
         RelayUrl::parse(&self.settings.get().relay_url).map_err(|_| "E_SYNC_NO_RELAY")
     }
