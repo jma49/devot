@@ -64,44 +64,52 @@ for (const colorScheme of ['light', 'dark'] as const) {
       const background = svg.locator('.edgeLabel rect.background').first()
       expect(await computed(background, 'fill')).toBe('none')
     })
-
-    test('an edge label sits beside its line and arrowheads are small', async ({ page }) => {
-      const svg = await openDiagram(page)
-      const marker = svg.locator('marker[id$="-pointEnd-margin"]').first()
-      expect(await marker.getAttribute('markerWidth')).toBe('6')
-      expect(await marker.getAttribute('markerHeight')).toBe('8')
-
-      const overlaps = await svg.evaluate((root) => {
-        const box = root.querySelector('.edgeLabel rect.background')!.getBoundingClientRect()
-        const scale =
-          root.getBoundingClientRect().width /
-          (root as unknown as SVGSVGElement).viewBox.baseVal.width
-        const path = root.querySelector<SVGPathElement>('[data-id="L_B_C_0"].flowchart-link')!
-        const matrix = path.getScreenCTM()!
-        const length = path.getTotalLength()
-        let hits = 0
-        for (let at = 0; at <= length; at += 1 / scale) {
-          const point = path.getPointAtLength(at).matrixTransform(matrix)
-          if (
-            point.x >= box.left &&
-            point.x <= box.right &&
-            point.y >= box.top &&
-            point.y <= box.bottom
-          )
-            hits += 1
-        }
-        return hits
-      })
-      expect(overlaps).toBe(0)
-      const fits = await svg.evaluate((root) => {
-        const frame = root.getBoundingClientRect()
-        const box = root.querySelector('.edgeLabel rect.background')!.getBoundingClientRect()
-        return box.bottom <= frame.bottom + 0.5 && box.right <= frame.right + 0.5
-      })
-      expect(fits).toBe(true)
-    })
   })
 }
+
+// Geometry and marker sizes only: the same in either appearance.
+test('an edge label sits beside its line and arrowheads are small', async ({ page }) => {
+  const svg = await openDiagram(page)
+  const marker = svg.locator('marker[id$="-pointEnd-margin"]').first()
+  expect(await marker.getAttribute('markerWidth')).toBe('6')
+  expect(await marker.getAttribute('markerHeight')).toBe('8')
+
+  const overlaps = await svg.evaluate((root) => {
+    const box = root.querySelector('.edgeLabel rect.background')!.getBoundingClientRect()
+    const scale =
+      root.getBoundingClientRect().width / (root as unknown as SVGSVGElement).viewBox.baseVal.width
+    const path = root.querySelector<SVGPathElement>('[data-id="L_B_C_0"].flowchart-link')!
+    const matrix = path.getScreenCTM()!
+    const length = path.getTotalLength()
+    let hits = 0
+    for (let at = 0; at <= length; at += 1 / scale) {
+      const point = path.getPointAtLength(at).matrixTransform(matrix)
+      if (
+        point.x >= box.left &&
+        point.x <= box.right &&
+        point.y >= box.top &&
+        point.y <= box.bottom
+      )
+        hits += 1
+    }
+    return hits
+  })
+  expect(overlaps).toBe(0)
+  const fits = await svg.evaluate((root) => {
+    const frame = root.getBoundingClientRect()
+    const box = root.querySelector('.edgeLabel rect.background')!.getBoundingClientRect()
+    return box.bottom <= frame.bottom + 0.5 && box.right <= frame.right + 0.5
+  })
+  expect(fits).toBe(true)
+  const clearance = await svg.evaluate((root) => {
+    const text = root.querySelector('.edgeLabel text')!.getBoundingClientRect()
+    const line = root.querySelector('[data-id="L_B_C_0"].flowchart-link')!.getBoundingClientRect()
+    const scale =
+      root.getBoundingClientRect().width / (root as unknown as SVGSVGElement).viewBox.baseVal.width
+    return (text.top - line.bottom) / scale
+  })
+  expect(clearance).toBeGreaterThanOrEqual(0)
+})
 
 test('a diagram follows a change of appearance and of theme', async ({ page }) => {
   const svg = await openDiagram(page)

@@ -7,6 +7,8 @@ import {
   test,
   openNotePinned,
   openApp,
+  pickStatus,
+  statusPicker,
   type TestWindow,
 } from './fixtures'
 
@@ -177,6 +179,10 @@ test('copy shortcuts write the link and the URI of the selected note', async ({ 
 test('Duplicate copies the title, body and notebook and opens the copy', async ({ page }) => {
   await createBook(page, 'Work')
   await createNote(page, 'Weekly plan', '# Goals\n\nShip the menu.')
+  await pickStatus(page, 'Active')
+  const tags = page.getByRole('combobox', { name: 'Add Tag' })
+  await tags.fill('work')
+  await tags.press('Enter')
   await focusRow(page, 'Weekly plan')
   const original = (await stored(page)).find((n) => n.title === 'Weekly plan')
   await page.keyboard.press('Meta+KeyD')
@@ -190,6 +196,10 @@ test('Duplicate copies the title, body and notebook and opens the copy', async (
   })
   expect(copy?.bookId).toBeTruthy()
   await expect(body(page)).toContainText('Ship the menu.')
+  await expect(statusPicker(page)).toHaveAttribute('data-value', 'active')
+  await expect(
+    page.getByRole('group', { name: 'Tags' }).getByText('work', { exact: true }),
+  ).toBeVisible()
   await expect(noteRows(page).and(page.locator('[aria-selected="true"]'))).toBeFocused()
   await page.keyboard.press('Meta+Shift+KeyC')
   await expect.poll(() => clipboardWrites(page)).toEqual([`devot://note/${copy?.id}`])
@@ -353,17 +363,6 @@ test('Move to Notebook takes the typed notebook, not a parent or No Notebook', a
     .toBe((await books()).find((b) => b.name === 'Notes')?.id)
 })
 
-test('Cmd+Delete moves the selected note to the trash', async ({ page }) => {
-  await createNote(page, 'Keep')
-  await createNote(page, 'Drop')
-  await focusRow(page, 'Drop')
-  await page.keyboard.press('Meta+Backspace')
-  await expect(noteRows(page)).toHaveText([/Keep/])
-  await expect
-    .poll(async () => (await stored(page)).find((n) => n.title === 'Drop')?.deletedAt)
-    .toBeTruthy()
-})
-
 test('shortcuts do nothing while the editor or a text field has focus', async ({ page }) => {
   await createNote(page, 'Typing', 'mp')
   // The editor: keys type, and Cmd+C stays the editor's (Cmd+D and
@@ -414,6 +413,9 @@ test('the Trash offers only its own menu and no note shortcuts', async ({ page }
   await createNote(page, 'Old')
   await focusRow(page, 'Old')
   await page.keyboard.press('Meta+Backspace')
+  await expect
+    .poll(async () => (await stored(page)).find((n) => n.title === 'Old')?.deletedAt)
+    .toBeTruthy()
   await page.getByRole('button', { name: /^Trash\b/ }).click()
   await expect(noteRow(page, 'Old')).toHaveCount(1)
   await noteRow(page, 'Old').click({ button: 'right' })

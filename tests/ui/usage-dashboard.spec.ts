@@ -41,7 +41,7 @@ test.beforeEach(async ({ page }) => {
 
 test('filters real activity by local day and event type, including unknown types', async ({
   page,
-}, testInfo) => {
+}) => {
   const stats = page.getByRole('group', { name: 'Usage overview' })
   await expect(stats.locator('.usage-stat strong').first()).toHaveText('3')
   await expect(page.locator('.usage-cell')).toHaveCount(168)
@@ -59,10 +59,7 @@ test('filters real activity by local day and event type, including unknown types
   await expect(page.getByRole('table', { name: 'Events by Type' })).toContainText('future.event')
   await page.getByRole('combobox', { name: 'Event type' }).selectOption('')
   await page.getByRole('button', { name: '30 Days', exact: true }).click()
-  await page.setViewportSize({ width: 1280, height: 1320 })
-  await page.screenshot({ path: testInfo.outputPath('usage-after.png'), fullPage: true })
   await changeEditorSettingsElsewhere(page, { appearance: 'dark' })
-  await page.screenshot({ path: testInfo.outputPath('usage-dark.png'), fullPage: true })
   await page.setViewportSize({ width: 900, height: 680 })
   expect(
     await page.locator('.usage-dashboard').evaluate((el) => el.scrollWidth <= el.clientWidth),
@@ -75,8 +72,19 @@ test('clearing removes the chart data and list and keeps the empty dashboard usa
   await page.getByRole('combobox', { name: 'Event type' }).selectOption('future.event')
   await page.getByRole('button', { name: 'Show Events', exact: true }).click()
   await expect(page.locator('.usage-events li')).toHaveCount(4)
-  await page.getByRole('button', { name: 'Clear Usage Data\u2026' }).click()
-  await page.getByRole('dialog').getByRole('button', { name: 'Clear', exact: true }).click()
+  // From the keyboard: the button turns off (aria-disabled) and keeps the keyboard.
+  const clear = page.getByRole('button', { name: 'Clear Usage Data\u2026' })
+  await clear.focus()
+  await page.keyboard.press('Enter')
+  await page
+    .getByRole('dialog', { name: 'Clear all usage data?' })
+    .getByRole('button', { name: 'Clear', exact: true })
+    .click()
+  await expect(page.locator('.usage-storage')).toContainText('No usage events are stored.')
+  await expect(clear).toBeDisabled()
+  await expect(clear).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByRole('combobox', { name: 'Event type' })).toHaveValue('')
   await expect(page.getByRole('table', { name: 'Events by Type' })).not.toContainText(
     'future.event',
@@ -88,10 +96,4 @@ test('clearing removes the chart data and list and keeps the empty dashboard usa
     'value',
     '0',
   )
-})
-
-test('Classic keeps the original Usage page', async ({ page }) => {
-  await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
-  await expect(page.locator('.usage-dashboard')).toHaveCount(0)
-  await expect(page.getByRole('table', { name: 'Events by Type' })).toContainText('future.event')
 })

@@ -17,7 +17,6 @@ const PIE = `pie title Week
   "Reading" : 30
   "Review" : 20
   "Other" : 10`
-const FLOW = 'flowchart LR\n  A[Idea] --> B[Draft]\n  B -->|changes| C[Review]'
 const GIT = `gitGraph
   commit
   branch develop
@@ -233,23 +232,6 @@ test('the today line runs under the bars', async ({ page }) => {
     return Boolean(line.compareDocumentPosition(bar) & 4)
   })
   expect(under).toBe(true)
-})
-
-test('an edge label clears its line by the line width and paints nothing over it', async ({
-  page,
-}) => {
-  const svgs = await openDiagrams(page, FLOW)
-  const svg = svgs.first()
-  const background = svg.locator('.edgeLabel rect.background').first()
-  expect(await computed(background, 'fill')).toBe('none')
-  const clearance = await svg.evaluate((root) => {
-    const text = root.querySelector('.edgeLabel text')!.getBoundingClientRect()
-    const line = root.querySelector('[data-id="L_B_C_0"].flowchart-link')!.getBoundingClientRect()
-    const scale =
-      root.getBoundingClientRect().width / (root as unknown as SVGSVGElement).viewBox.baseVal.width
-    return (text.top - line.bottom) / scale
-  })
-  expect(clearance).toBeGreaterThanOrEqual(0)
 })
 
 test('derived Mermaid colours do not leak into the other charts', async ({ page }) => {

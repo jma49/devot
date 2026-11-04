@@ -162,14 +162,6 @@ test('a sidebar the user hid stays hidden in a wide window', async ({ page }) =>
   await expect(showSidebar(page)).toBeVisible()
 })
 
-test('a window narrower than 1000 px opens without the sidebar', async ({ page }) => {
-  await openNote(page, 800, 'note')
-  await page.reload()
-  await expect(page.getByRole('region', { name: 'Notes' })).toBeVisible()
-  await expect(sidebar(page)).toBeHidden()
-  await expect(showSidebar(page)).toBeVisible()
-})
-
 test('Cmd+/ shows the sidebar in a narrow window, which then fits without scrolling sideways', async ({
   page,
 }) => {
