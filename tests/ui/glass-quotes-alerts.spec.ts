@@ -5,7 +5,6 @@ const KINDS = ['note', 'tip', 'important', 'warning', 'caution']
 const ALERTS = KINDS.map((kind) => `> [!${kind.toUpperCase()}]\n> About ${kind}.`).join('\n\n')
 const DOC = `> A quote that runs\n> over two lines.\n\n${ALERTS}\n\nAfter.`
 const TRANSPARENT = 'rgba(0, 0, 0, 0)'
-const SCREENSHOTS = '/tmp/devot-agents/gap10'
 
 const before = (target: Locator, property: string) =>
   target.evaluate(
@@ -30,7 +29,9 @@ const showPreview = (page: Page) =>
     .getByRole('button', { name: 'Preview', exact: true })
     .click()
 
-test('Glass preview draws tinted alert cards and a straight quote bar', async ({ page }) => {
+test('Glass preview draws tinted alert cards and a straight quote bar', async ({
+  page,
+}, testInfo) => {
   await openNote(page)
   await showPreview(page)
 
@@ -61,10 +62,10 @@ test('Glass preview draws tinted alert cards and a straight quote bar', async ({
     }),
   )
   expect(gaps).toEqual([10, 10, 10, 10])
-  await page.screenshot({ path: `${SCREENSHOTS}/preview-glass-light.png` })
+  await page.screenshot({ path: testInfo.outputPath('preview-glass-light.png') })
 })
 
-test('Classic preview keeps the border bars', async ({ page }) => {
+test('Classic preview keeps the border bars', async ({ page }, testInfo) => {
   await openNote(page)
   await showPreview(page)
   await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
@@ -81,10 +82,12 @@ test('Classic preview keeps the border bars', async ({ page }) => {
     await expect(alert).toHaveCSS('box-shadow', 'none')
     await expect(alert).toHaveCSS('padding', '2px 0px 2px 12px')
   }
-  await page.screenshot({ path: `${SCREENSHOTS}/preview-classic.png` })
+  await page.screenshot({ path: testInfo.outputPath('preview-classic.png') })
 })
 
-test('Glass editor rounds the quote bar and tints alert lines as one card', async ({ page }) => {
+test('Glass editor rounds the quote bar and tints alert lines as one card', async ({
+  page,
+}, testInfo) => {
   await openNote(page)
   await changeEditorSettingsElsewhere(page, { highlightActiveLine: true })
 
@@ -123,10 +126,10 @@ test('Glass editor rounds the quote bar and tints alert lines as one card', asyn
     }),
   )
   expect(edges[1]!.top).toBe(edges[0]!.bottom)
-  await page.screenshot({ path: `${SCREENSHOTS}/editor-glass-light.png` })
+  await page.screenshot({ path: testInfo.outputPath('editor-glass-light.png') })
 })
 
-test('Classic editor keeps the square bars', async ({ page }) => {
+test('Classic editor keeps the square bars', async ({ page }, testInfo) => {
   await openNote(page)
   await changeEditorSettingsElsewhere(page, { sidebarMaterial: false, highlightActiveLine: true })
 
@@ -153,5 +156,5 @@ test('Classic editor keeps the square bars', async ({ page }) => {
     'background-color',
     TRANSPARENT,
   )
-  await page.screenshot({ path: `${SCREENSHOTS}/editor-classic.png` })
+  await page.screenshot({ path: testInfo.outputPath('editor-classic.png') })
 })

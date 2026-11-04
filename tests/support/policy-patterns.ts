@@ -49,7 +49,8 @@ export function hasColorLiteral(line: string): boolean {
 }
 
 /** The system temp folder named in code; tests reach it only through tempDir. */
-export const TEMP_FOLDER_REFERENCE = /\btmpdir\b|\bTMPDIR\b/
+export const TEMP_FOLDER_REFERENCE =
+  /\btmpdir\b|\bTMPDIR\b|['"`]\/tmp\b|\bprocess\.env(?:\.|\[['"])(?:TMP|TEMP)\b/
 
 /** The generated design tokens are the one place colours are written out. */
 const GENERATED_TOKENS = /theme\/tokens\.(css|ts)$/
