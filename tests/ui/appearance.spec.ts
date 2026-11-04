@@ -254,12 +254,17 @@ test.describe('the theme choices in Settings', () => {
           return {
             scroll: el.scrollWidth - el.clientWidth,
             overflow: getComputedStyle(el).overflowX,
+            lines: new Set(
+              [...el.querySelectorAll('.swatch')].map((swatch) =>
+                Math.round(swatch.getBoundingClientRect().top),
+              ),
+            ).size,
             past: [...el.querySelectorAll('.choice')]
               .map((choice) => choice.getBoundingClientRect().right - edge)
               .filter((by) => by > 0.5),
           }
         })
-        expect(fit).toEqual({ scroll: 0, overflow: 'visible', past: [] })
+        expect(fit).toEqual({ scroll: 0, overflow: 'visible', lines: 1, past: [] })
       }
     })
   }
