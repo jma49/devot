@@ -1,13 +1,6 @@
 import { isolateHistory } from '@codemirror/commands'
-import {
-  Compartment,
-  EditorSelection,
-  EditorState,
-  Facet,
-  Prec,
-  type Extension,
-} from '@codemirror/state'
-import { EditorView, keymap } from '@codemirror/view'
+import { Compartment, EditorSelection, EditorState, Prec, type Extension } from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
 import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { yCollab, ySyncAnnotation } from 'y-codemirror.next'
@@ -21,8 +14,7 @@ import { imageFiles, storeImages } from './attachments'
 import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
-import { readClipboardText } from './clipboard'
-import { editorCommandKeys, type CommandId } from './commands/registry'
+import type { CommandId } from './commands/registry'
 import { invoke } from './ipc'
 import {
   linkOpener,
@@ -71,17 +63,29 @@ import {
   takeEarlyKeys,
   type EarlyKeysTicket,
 } from './editor/earlyKeys'
+import {
+  imageCommandKeys,
+  newFromLink,
+  newFromLinkKeys,
+  newFromSelection,
+  newFromSelectionKeys,
+  pastePlain,
+  pastePlainKeys,
+  pasteUrlAsIn,
+  pasteUrlAsKeys,
+  setImageSize,
+} from './editor/noteKeys'
 import { editorLayoutWatch, editorScrollPane } from './editor/scrollPane'
 import { shadowContainer } from './editor/shadowFrame'
 import { editorTheme, popupSpace } from './editor/theme'
 import { insertCommand, insertKeymap, type InsertId } from './editor/insert'
-import { imageActions, imageAt, imageSizeChange, viewImageAt } from './editor/images'
+import { imageActions, imageAt, viewImageAt } from './editor/images'
 import { TABLE_COMMANDS, inTable, tableKeymap, type TableCommandId } from './editor/tableCommands'
 import { tableTyping } from './editor/tableTyping'
 import { markdownLineStyles } from './editor/lineStyles'
 import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
-import { pasteUrlAs, pasteUrls, plainPaste } from './editor/paste'
-import { pasteChooser, showChooser, type PasteFetcher } from './editor/pasteChooser'
+import { pasteUrls } from './editor/paste'
+import { pasteChooser, type PasteFetcher } from './editor/pasteChooser'
 import { editorSetup, reconfigureSetup } from './editor/settings'
 import { countsReporter, recount, type EditorCounts } from './editor/counts'
 import { selectionEdges } from './editor/selectionEdges'
@@ -92,7 +96,7 @@ import { setToolbarFocus } from './editor/toolbarState'
 import { keepUndo, noteState, yjsHistory } from './editor/undo'
 import { catchUp } from './editor/catchUp'
 import { refusedEdits } from './editor/refusedEdits'
-import { reconfigureRegistryKeys, registryKeys } from './editor/registryKeys'
+import { reconfigureRegistryKeys } from './editor/registryKeys'
 import { setInertFormats } from './commands/formatMenu'
 import { subscribeKeymap } from './commands/shortcutSettings'
 import { FONT_SLOTS } from '../../core/editorSettings'
@@ -102,10 +106,7 @@ import type { FindTarget } from './find/target'
 import { keyboardIsFree, typingElsewhere } from './focus'
 import { t } from './i18n'
 import {
-  imageActionApplies,
-  imageKeys,
   imageMenuTarget,
-  runImageAction,
   type ImageMenuTarget,
   type ImageSource,
   type ShowImageMenu,
@@ -233,26 +234,6 @@ export interface EditorHandle {
   reveal: (from: number, to: number) => void
 }
 
-async function pastePlain(view: EditorView): Promise<void> {
-  const text = await readClipboardText().catch(() => {
-    console.warn('W_CLIPBOARD_READ_FAILED')
-    return ''
-  })
-  const spec = plainPaste(view.state, text)
-  if (spec) view.dispatch(spec)
-}
-
-async function pasteUrlAsIn(view: EditorView): Promise<void> {
-  const text = await readClipboardText().catch(() => {
-    console.warn('W_CLIPBOARD_READ_FAILED')
-    return ''
-  })
-  const spec = pasteUrlAs(view.state, text)
-  if (!spec) return
-  view.dispatch(spec)
-  showChooser(view)
-}
-
 /** What the paste chooser fetches, through Rust (https only, capped). */
 const linkFetcher: PasteFetcher = {
   title: async (url) => {
@@ -265,106 +246,6 @@ const linkFetcher: PasteFetcher = {
     return code
   },
 }
-
-const pasteUrlAsKeys = registryKeys(() =>
-  keymap.of(
-    editorCommandKeys('edit.pasteUrlAs').map((key) => ({
-      key,
-      run: (view: EditorView) => {
-        void pasteUrlAsIn(view)
-        return true
-      },
-      preventDefault: true,
-    })),
-  ),
-)
-
-/** Paste as Plain Text keys, ahead of CodeMirror's own bindings such as format and find. */
-const pastePlainKeys = registryKeys(() =>
-  Prec.high(
-    keymap.of(
-      editorCommandKeys('edit.pastePlain').map((key) => ({
-        key,
-        run: (view: EditorView) => {
-          void pastePlain(view)
-          return true
-        },
-        preventDefault: true,
-      })),
-    ),
-  ),
-)
-
-/** What New Note from Selection does here (the window makes the note); false when it cannot. */
-const newFromSelection = Facet.define<() => boolean, (() => boolean) | undefined>({
-  combine: (all) => all[0],
-})
-
-/** With text selected the keys hand it to the window; with none they do nothing. */
-const newFromSelectionKeys = registryKeys(() =>
-  Prec.high(
-    keymap.of(
-      editorCommandKeys('note.newFromSelection').map((key) => ({
-        key,
-        run: (view: EditorView) =>
-          selectedText(view.state) !== null && (view.state.facet(newFromSelection)?.() ?? false),
-        preventDefault: true,
-      })),
-    ),
-  ),
-)
-
-const newFromLink = Facet.define<() => boolean, (() => boolean) | undefined>({
-  combine: (all) => all[0],
-})
-
-const newFromLinkKeys = registryKeys(() =>
-  Prec.high(
-    keymap.of(
-      editorCommandKeys('note.newFromLink').map((key) => ({
-        key,
-        run: (view: EditorView) =>
-          linkForNewNote(view.state, view.state.selection.main.head) !== undefined &&
-          (view.state.facet(newFromLink)?.() ?? false),
-        preventDefault: true,
-      })),
-    ),
-  ),
-)
-
-function setImageSize(view: EditorView, source: ImageSource, size: ImageSize): boolean {
-  const change = imageSizeChange(view.state, source, size)
-  if (!change) {
-    console.warn('W_IMAGE_SIZE_STALE')
-    return false
-  }
-  view.dispatch(change)
-  return true
-}
-
-/** Image command keys (none by default): they do nothing when there is no image or the command does not apply. */
-const imageCommandKeys = registryKeys(() =>
-  Prec.high(
-    keymap.of([
-      ...imageKeys().map(({ action, key }) => ({
-        key,
-        run: (view: EditorView) => {
-          const image = imageAt(view.state, view.state.selection.main.head)
-          const target = image && imageMenuTarget(image)
-          if (!target || !imageActionApplies(action, target)) return false
-          void runImageAction(action, target, (source, size) => setImageSize(view, source, size))
-          return true
-        },
-        preventDefault: true,
-      })),
-      ...editorCommandKeys('image.view').map((key) => ({
-        key,
-        run: viewImageAt,
-        preventDefault: true,
-      })),
-    ]),
-  ),
-)
 
 /** The top line and the offset past its top. The scroll box is `scroller` (inside the shadow root), not CodeMirror's own. */
 function editorTop(view: EditorView, scroller: HTMLElement): EditorTop | undefined {
