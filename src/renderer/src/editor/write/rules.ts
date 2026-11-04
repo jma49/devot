@@ -102,11 +102,10 @@ export function isRevealed(revealed: Revealed, line: number): boolean {
   return false
 }
 
-/** Shown as their source; tables are rendered in place by a later step of Write mode. */
+/** Shown as their source. A table's cells take marks like a paragraph (tableGrid.ts draws the grid). */
 export const SOURCE_BLOCKS = new Set([
   'FencedCode',
   'CodeBlock',
-  'Table',
   'HTMLBlock',
   'CommentBlock',
   'ProcessingInstructionBlock',
