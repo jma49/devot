@@ -223,12 +223,26 @@ export function savedSearchQuery(
 
 /** Whether a listed note meets the query's conditions on its fields; its text is not at hand. */
 export function meetsConditions(note: NoteSummary, query: NoteQuery): boolean {
-  if (query.pinned !== null && query.pinned !== note.pinned) return false
-  return query.sets.every((set) => {
-    const values =
-      set.kind === 'book' ? [note.bookId] : set.kind === 'tag' ? note.tagIds : [note.status]
-    return values.some((v) => v !== null && set.ids.includes(v)) !== set.negate
-  })
+  return conditionsOf(query)(note)
+}
+
+// The sidebar counts every saved search over every listed note on each change, so each set is looked up by hash, not searched.
+function conditionsOf(query: NoteQuery): (note: NoteSummary) => boolean {
+  const { pinned } = query
+  const sets = query.sets.map((set) => ({ ...set, ids: new Set(set.ids) }))
+  return (note) => {
+    if (pinned !== null && pinned !== note.pinned) return false
+    for (const { kind, ids, negate } of sets) {
+      const hit =
+        kind === 'book'
+          ? note.bookId !== null && ids.has(note.bookId)
+          : kind === 'tag'
+            ? note.tagIds.some((id) => ids.has(id))
+            : ids.has(note.status)
+      if (hit === negate) return false
+    }
+    return true
+  }
 }
 
 /**
@@ -242,7 +256,8 @@ export function countMatches(
 ): number | null {
   if (query === null) return 0
   if (query.text.length > 0) return null
+  const meets = conditionsOf(query)
   let count = 0
-  for (const note of notes) if (meetsConditions(note, query)) count += 1
+  for (const note of notes) if (meets(note)) count += 1
   return count
 }
