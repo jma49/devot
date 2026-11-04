@@ -276,10 +276,83 @@ function grid(state: EditorState, table: WriteTable, layers: BlockLayers): void 
     atomic.push(atom.range(from, to))
 }
 
+interface Placed {
+  value: Decoration
+  from: number
+  to: number
+}
+
+type Drawing = Record<keyof BlockLayers, Placed[]>
+
+// A table no selection range meets draws the same wherever it is, so the
+// drawing is kept by its shape and text, relative to its start: a keystroke or
+// a caret move elsewhere draws no table again. Cleared when it grows past this.
+const drawings = new Map<string, Drawing>()
+const DRAWINGS_KEPT = 1000
+// The same table (one note text and tree) is placed once: a caret move places no table again.
+const placed = new WeakMap<WriteTable, BlockLayers>()
+const LAYERS = ['decorations', 'outer', 'atomic'] as const
+
+const untouched = (state: EditorState, table: WriteTable) =>
+  state.selection.ranges.every((r) => r.to < table.from || r.from > table.to)
+
+function drawingKey(state: EditorState, table: WriteTable): string {
+  const at = table.from
+  const shape = table.lines.map((line) => {
+    const cells = line.cells.map(
+      (c) => `${c.from - at} ${c.to - at} ${c.textFrom - at} ${c.textTo - at}`,
+    )
+    return `${line.from - at} ${line.to - at} ${line.extra ? 1 : 0} ${line.prefix.length} ${cells.join(' ')}`
+  })
+  // The caret's span around a table stops at the note's edges.
+  const edges = `${at === 0 ? 1 : 0}${table.to >= state.doc.length ? 1 : 0}`
+  return `${edges}|${table.align.join(' ')}|${shape.join('|')}|${state.doc.sliceString(at, table.to)}`
+}
+
+function drawn(state: EditorState, table: WriteTable): Drawing {
+  const layers: BlockLayers = { decorations: [], outer: [], atomic: [] }
+  grid(state, table, layers)
+  const relative = (ranges: readonly Range<Decoration>[]) =>
+    ranges.map((r) => ({ value: r.value, from: r.from - table.from, to: r.to - table.from }))
+  return {
+    decorations: relative(layers.decorations),
+    outer: relative(layers.outer),
+    atomic: relative(layers.atomic),
+  }
+}
+
 /** Every table at the top level of the note as a grid, but one with several cursors in it. */
 export const tableRule: BlockRule = (state) => {
   const layers: BlockLayers = { decorations: [], outer: [], atomic: [] }
-  for (const table of writeTablesOf(state)) if (shownTable(state, table)) grid(state, table, layers)
+  for (const table of writeTablesOf(state)) {
+    if (!shownTable(state, table)) continue
+    if (!untouched(state, table)) {
+      grid(state, table, layers)
+      continue
+    }
+    let ranges = placed.get(table)
+    if (!ranges) {
+      const key = drawingKey(state, table)
+      let drawing = drawings.get(key)
+      if (!drawing) {
+        if (drawings.size >= DRAWINGS_KEPT) drawings.clear()
+        drawing = drawn(state, table)
+        drawings.set(key, drawing)
+      }
+      const place = (from: readonly Placed[]) =>
+        from.map((p) => p.value.range(table.from + p.from, table.from + p.to))
+      ranges = {
+        decorations: place(drawing.decorations),
+        outer: place(drawing.outer),
+        atomic: place(drawing.atomic),
+      }
+      placed.set(table, ranges)
+    }
+    for (const layer of LAYERS) {
+      const into = layers[layer] as Range<Decoration>[]
+      for (const range of ranges[layer]) into.push(range)
+    }
+  }
   return layers
 }
 

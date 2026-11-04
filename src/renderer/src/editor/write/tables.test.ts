@@ -1,13 +1,13 @@
 import { history, undo } from '@codemirror/commands'
 import { ensureSyntaxTree } from '@codemirror/language'
-import { EditorSelection, EditorState, type TransactionSpec } from '@codemirror/state'
-import { EditorView, type DecorationSet } from '@codemirror/view'
+import { EditorSelection, EditorState, type Range, type TransactionSpec } from '@codemirror/state'
+import { EditorView, type Decoration, type DecorationSet } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
 import { noteMarkdown } from '../markdown'
 import { parseTable, printTable } from '../table'
-import { writeBlocks } from './blocks'
+import { writeBlocks, type BlockLayers } from './blocks'
 import { writeFocusTracking } from './focus'
-import { SheetAdoption, bandsClip, layerY, shownWidth, writeTables } from './tableGrid'
+import { SheetAdoption, bandsClip, layerY, shownWidth, tableRule, writeTables } from './tableGrid'
 import {
   atomicSpans,
   caretInCell,
@@ -518,6 +518,51 @@ describe('the clip that keeps the selection layer off a grid', () => {
       [160, 300],
       [340.5, 1e6],
     ])
+  })
+})
+
+describe('a grid drawn again', () => {
+  /** Each layer's decorations, placed from `at`, with their classes. */
+  const drawing = (state: EditorState, at: number) => {
+    const { decorations, outer, atomic } = tableRule(state, []) as BlockLayers
+    const shown = (ranges: readonly Range<Decoration>[]) =>
+      ranges.map((r) => {
+        const spec = r.value.spec as { class?: string; widget?: { className?: string } }
+        return `${r.from - at}-${r.to - at} ${spec.class ?? spec.widget?.className ?? ''}`
+      })
+    return { decorations: shown(decorations), outer: shown(outer), atomic: shown(atomic) }
+  }
+
+  it('is the same after the table moves, and changes once the caret enters it', () => {
+    const doc = `Intro\n\n${TABLE}\n\nOutro`
+    const at = doc.indexOf('|')
+    const before = stateOf(doc, 0)
+    const drawn = drawing(before, at)
+    const words = 'More words '
+    const moved = type(before, words)
+    expect(drawing(moved, at + words.length)).toEqual(drawn)
+    const tea = moved.doc.toString().indexOf('Tea') + 1
+    const inside = step(moved, { selection: { anchor: tea } })
+    const entered = drawing(inside, at + words.length)
+    expect(entered).not.toEqual(drawn)
+    expect(drawing(stateOf(inside.doc.toString(), tea), at + words.length)).toEqual(entered)
+  })
+
+  it('draws two tables of the same text alike', () => {
+    const doc = `${TABLE}\n\nBetween\n\n${TABLE}\n\nEnd`
+    const { outer } = drawing(stateOf(doc, doc.indexOf('Between')), 0)
+    const half = outer.length / 2
+    const second = drawing(stateOf(doc, doc.indexOf('Between')), doc.lastIndexOf(TABLE)).outer
+    expect(second.slice(half)).toEqual(outer.slice(0, half))
+  })
+
+  it('steps out of a table at the end of the note, wherever it was drawn before', () => {
+    const lastAtom = (doc: string) => drawing(stateOf(doc, 0), 0).atomic.at(-1)
+    const within = `x\n\n${TABLE}\n`
+    const atEnd = `x\n\n${TABLE}`
+    // From after the last cell's text (` |`, and the line break after it) to the end.
+    expect(lastAtom(within)).toBe(`${within.length - 3}-${within.length} `)
+    expect(lastAtom(atEnd)).toBe(`${atEnd.length - 2}-${atEnd.length} `)
   })
 })
 
