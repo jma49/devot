@@ -79,6 +79,27 @@ test('Activity has a top bar and moves the lens to the third place', async ({ pa
   expect(lens!.x).toBeCloseTo(button!.x, 0)
 })
 
+test('the lens springs to the last tab without showing past the bar', async ({ page }) => {
+  await tab(page, 'Settings').click()
+  const spill = await tabs(page).evaluate(
+    (bar) =>
+      new Promise<number>((resolve) => {
+        const lens = bar.querySelector('.phone-tabbar-lens')!
+        const clipped = getComputedStyle(bar).overflow === 'clip'
+        const start = performance.now()
+        let most = 0
+        const sample = () => {
+          const over = lens.getBoundingClientRect().right - bar.getBoundingClientRect().right
+          most = Math.max(most, clipped ? 0 : over)
+          if (performance.now() - start < 800) requestAnimationFrame(sample)
+          else resolve(most)
+        }
+        requestAnimationFrame(sample)
+      }),
+  )
+  expect(spill).toBeLessThanOrEqual(0)
+})
+
 test('the capture sheet grows from the circle, 374 by 440, and goes back', async ({ page }) => {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: 'New Note' })

@@ -7,34 +7,32 @@ import type { IconName } from '../icons/symbols'
 import { PANES, PANE_TABS, type PaneId } from '../settings/panes'
 import { startSyncStatus, useSyncSnapshot } from '../sync'
 import { doveMask } from './dove'
-import { useGlassPrefs } from './glassPrefs'
 import { PhoneDetailSheet } from './PhoneSheet'
 import { licenceRow, paneMatches } from './settingsRows'
 
+/** The panes that open on a phone; the rest are left out of its Settings. */
+type PhonePane = Exclude<PaneId, 'keyboard' | 'mirror' | 'integrations' | 'plugins'>
+
 interface Row {
-  readonly pane?: PaneId
+  readonly pane: PhonePane
   readonly label: MessageKey
   readonly icon: IconName
   readonly value?: string
   readonly alert?: boolean
 }
 
-const PANE_ICONS: Readonly<Record<PaneId, IconName>> = {
+const PANE_ICONS: Readonly<Record<PhonePane, IconName>> = {
   general: 'phone.settings.general',
   appearance: 'phone.settings.appearance',
   editing: 'phone.settings.editing',
   preview: 'phone.settings.preview',
-  keyboard: 'phone.settings.keyboard',
-  mirror: 'phone.settings.mirror',
   sync: 'phone.settings.sync',
   ai: 'phone.settings.ai',
-  integrations: 'phone.settings.integrations',
-  plugins: 'phone.settings.plugins',
   usage: 'phone.settings.usage',
   licence: 'phone.settings.licence',
 }
 
-const paneRow = (pane: PaneId, value?: string, alert?: boolean): Row => ({
+const paneRow = (pane: PhonePane, value?: string, alert?: boolean): Row => ({
   pane,
   label: PANE_TABS[pane].label,
   icon: PANE_ICONS[pane],
@@ -42,51 +40,28 @@ const paneRow = (pane: PaneId, value?: string, alert?: boolean): Row => ({
   ...(alert === undefined ? {} : { alert }),
 })
 
-const macRow = (pane: PaneId): Row => ({
-  label: PANE_TABS[pane].label,
-  icon: PANE_ICONS[pane],
-})
-
-const HTTP_API_ROW: Row = { label: 'httpApi.title', icon: 'phone.settings.api' }
-
-/** The panes that open on a phone, the ones Settings' search can find. */
-const OPEN_PANES: readonly PaneId[] = PANES.filter(
-  (pane) =>
-    pane !== 'keyboard' && pane !== 'mirror' && pane !== 'integrations' && pane !== 'plugins',
-)
+const OPEN_PANES = PANES.filter((pane): pane is PhonePane => pane in PANE_ICONS)
 
 function SettingsRow(props: { row: Row; onOpen: (pane: PaneId) => void }) {
   const { row } = props
-  const onMac = row.pane === undefined
   return (
     <li className="phone-grouped-row">
-      <button
-        type="button"
-        className="phone-grouped-open"
-        disabled={onMac}
-        onClick={() => row.pane && props.onOpen(row.pane)}
-      >
+      <button type="button" className="phone-grouped-open" onClick={() => props.onOpen(row.pane)}>
         <span className="phone-row-icon">
           <Icon name={row.icon} size="phone-row" />
         </span>
         <span className="phone-grouped-text">
           <span className="phone-grouped-label">{t(row.label)}</span>
-          {(row.value || onMac) && (
-            <span className="phone-grouped-count">
-              {onMac ? t('phone.settings.onMac') : row.value}
-            </span>
-          )}
+          {row.value && <span className="phone-grouped-count">{row.value}</span>}
         </span>
         {row.alert && (
           <span className="phone-alert-badge" aria-label={t('phone.badge.attention')}>
             !
           </span>
         )}
-        {!onMac && (
-          <span className="phone-chevron">
-            <Icon name="phone.disclosure" size="xs" weight="medium" />
-          </span>
-        )}
+        <span className="phone-chevron">
+          <Icon name="phone.disclosure" size="xs" weight="medium" />
+        </span>
       </button>
     </li>
   )
@@ -156,7 +131,6 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
   const licence = useLicence()
   const version = useVersion()
   const sync = useSyncSnapshot()
-  const glass = useGlassPrefs()
   const [now] = useState(() => Date.now())
   const [searching, setSearching] = useState(false)
   const [trialOpen, setTrialOpen] = useState(false)
@@ -166,27 +140,15 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
   const groups: readonly { title?: MessageKey; rows: readonly Row[] }[] = [
     {
       title: 'phone.settings.group.general',
-      rows: [
-        paneRow('general'),
-        paneRow(
-          'appearance',
-          t(glass.style === 'glass' ? 'phone.appearance.glass' : 'phone.appearance.classic'),
-        ),
-        paneRow('editing'),
-        paneRow('preview'),
-        macRow('keyboard'),
-      ],
+      rows: [paneRow('general'), paneRow('appearance'), paneRow('editing'), paneRow('preview')],
     },
     {
       title: 'phone.settings.group.sync',
-      rows: [
-        paneRow('sync', t(sync.enabled ? 'phone.settings.on' : 'phone.settings.off')),
-        macRow('mirror'),
-      ],
+      rows: [paneRow('sync', t(sync.enabled ? 'phone.settings.on' : 'phone.settings.off'))],
     },
     {
       title: 'phone.settings.group.ai',
-      rows: [paneRow('ai'), macRow('integrations'), HTTP_API_ROW, macRow('plugins')],
+      rows: [paneRow('ai')],
     },
     { rows: [paneRow('usage'), paneRow('licence', state.label, state.needsAttention)] },
   ]

@@ -3,14 +3,14 @@ import { glassSurface, readGlassPrefs } from './glassPrefs'
 
 describe('readGlassPrefs', () => {
   it('starts as the design glass', () => {
-    expect(readGlassPrefs(null, null)).toEqual({ style: 'glass', transparency: 0 })
+    expect(readGlassPrefs(null)).toEqual({ transparency: 0 })
   })
 
-  it('reads a stored choice and refuses anything else', () => {
-    expect(readGlassPrefs('classic', '40')).toEqual({ style: 'classic', transparency: 40 })
-    expect(readGlassPrefs('other', 'x')).toEqual({ style: 'glass', transparency: 0 })
-    expect(readGlassPrefs(null, '900').transparency).toBe(100)
-    expect(readGlassPrefs(null, '-900').transparency).toBe(-100)
+  it('reads a stored amount, keeps it in range and refuses anything else', () => {
+    expect(readGlassPrefs('40')).toEqual({ transparency: 40 })
+    expect(readGlassPrefs('x')).toEqual({ transparency: 0 })
+    expect(readGlassPrefs('900').transparency).toBe(100)
+    expect(readGlassPrefs('-900').transparency).toBe(-100)
   })
 })
 

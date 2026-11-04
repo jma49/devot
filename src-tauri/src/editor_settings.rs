@@ -695,13 +695,21 @@ impl EditorSettingsStore {
 
 #[tauri::command]
 pub async fn editor_settings_get(
+    app: AppHandle,
     store: State<'_, Arc<EditorSettingsStore>>,
 ) -> Result<Snapshot, String> {
     let store = Arc::clone(&store);
-    tauri::async_runtime::spawn_blocking(move || store.get())
+    let snapshot = tauri::async_runtime::spawn_blocking(move || store.get())
         .await
         .map_err(|_| "E_EDITOR_SETTINGS_TASK".to_string())?
-        .map_err(String::from)
+        .map_err(String::from)?;
+    // An iOS window is built without a theme and its scene connects after setup: the page's first
+    // read is when its window surely exists.
+    #[cfg(target_os = "ios")]
+    crate::native::show_appearance(&app, snapshot.settings.appearance.window_theme());
+    #[cfg(not(target_os = "ios"))]
+    let _ = app;
+    Ok(snapshot)
 }
 
 /// Every window takes the chosen appearance, so its material, its controls and the page's
@@ -710,12 +718,7 @@ pub fn announce(app: &AppHandle, next: &Snapshot) {
     if app.emit(CHANGED_EVENT, next).is_err() {
         log::warn!("W_EDITOR_SETTINGS_EMIT_FAILED");
     }
-    let theme = next.settings.appearance.window_theme();
-    for window in app.webview_windows().values() {
-        if window.set_theme(theme).is_err() {
-            log::warn!("W_WINDOW_THEME_FAILED");
-        }
-    }
+    crate::native::show_appearance(app, next.settings.appearance.window_theme());
     #[cfg(desktop)]
     crate::menu::show_editor_settings(app, next);
     #[cfg(desktop)]

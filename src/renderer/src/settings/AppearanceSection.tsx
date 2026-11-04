@@ -383,29 +383,17 @@ export function AppearanceSection() {
           />
         </PhoneGroup>
         <PhoneGroup>
-          <PhoneSegmented
-            label={t('phone.appearance.interface')}
-            description={t('phone.appearance.interfaceHint')}
-            value={phoneGlass.style}
-            options={[
-              { value: 'glass', label: t('phone.appearance.glass') },
-              { value: 'classic', label: t('phone.appearance.classic') },
-            ]}
-            onChange={(chosen) => setGlassPrefs({ style: chosen })}
+          <PhoneSlider
+            label={t('phone.appearance.transparency')}
+            min={-TRANSPARENCY_MAX}
+            max={TRANSPARENCY_MAX}
+            step={TRANSPARENCY_STEP}
+            value={phoneGlass.transparency}
+            minLabel={t('phone.appearance.solid')}
+            maxLabel={t('phone.appearance.clear')}
+            valueText={signed.format(phoneGlass.transparency)}
+            onChange={(transparency) => setGlassPrefs({ transparency })}
           />
-          {phoneGlass.style === 'glass' ? (
-            <PhoneSlider
-              label={t('phone.appearance.transparency')}
-              min={-TRANSPARENCY_MAX}
-              max={TRANSPARENCY_MAX}
-              step={TRANSPARENCY_STEP}
-              value={phoneGlass.transparency}
-              minLabel={t('phone.appearance.solid')}
-              maxLabel={t('phone.appearance.clear')}
-              valueText={signed.format(phoneGlass.transparency)}
-              onChange={(transparency) => setGlassPrefs({ transparency })}
-            />
-          ) : null}
         </PhoneGroup>
         <SettingsSection title="appearanceSettings.lightMode" titleSuffix={modeTitle('light')}>
           <PhoneThemePicker

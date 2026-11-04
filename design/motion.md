@@ -109,7 +109,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 
 - **Push and pop:** rule 3. The new screen slides in from the right over `motion.duration.phone-push` on `motion.easing.phone-push`; the one below moves 30% left and dims `opacity.phone-dim-push`.
 - **Back swipe:** rule 1, then rule 3. The screen tracks the finger; past `size.phone-back-threshold` or on a flick it pops, otherwise it returns.
-- **Tab bar lens:** rule 4. It slides with `bouncy` and squashes to `motion.scale.phone-lens-x` by `motion.scale.phone-lens-y` over `motion.duration.phone-lens`; the selected icon pops over `motion.duration.phone-pop`.
+- **Tab bar lens:** rule 4. It slides with `bouncy` and squashes to `motion.scale.phone-lens-x` by `motion.scale.phone-lens-y` over `motion.duration.phone-lens`, clipped to the bar so the overshoot at the first and last tab stays inside it; the selected icon pops over `motion.duration.phone-pop`.
 - **Note list sections and Library groups:** rule 3. A head's chevron turns over `motion.duration.phone-chevron` on `motion.easing.phone-push`; the section's rows fold away or open with `gentle` while fading over `motion.duration.ring`, and what is below follows. Show more goes at once as the rows open. Under Reduce Motion the rows crossfade and the chevron is simply turned.
 - **Activity week menu:** the same pop-up as the status filter menu. The stats and ranking change at once (rule 2).
 - **Status filter menu:** a pop-up from its button: grows and fades over `motion.duration.popover`, and closes at once. The filtered rows change at once (rule 2).
