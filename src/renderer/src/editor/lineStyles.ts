@@ -460,6 +460,15 @@ const theme = EditorView.theme({
     borderBottomLeftRadius: 'var(--radius-button)',
     borderBottomRightRadius: 'var(--radius-button)',
   },
+  [glass('.cm-md-table::before')]: { border: '0' },
+  [glass('.cm-md-table-first::before')]: {
+    borderTopLeftRadius: 'var(--radius-list-row)',
+    borderTopRightRadius: 'var(--radius-list-row)',
+  },
+  [glass('.cm-md-table-last::before')]: {
+    borderBottomLeftRadius: 'var(--radius-list-row)',
+    borderBottomRightRadius: 'var(--radius-list-row)',
+  },
   '.cm-md-table-header': { fontWeight: 'var(--font-weight-bold)' },
 })
 
