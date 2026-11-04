@@ -7,6 +7,7 @@ import { syntaxTree } from '@codemirror/language'
 import {
   ChangeSet,
   EditorSelection,
+  type SelectionRange,
   StateField,
   type ChangeDesc,
   type ChangeSpec,
@@ -190,6 +191,48 @@ export function cellBoxes(table: WriteTable): { line: TableLine; boxes: Span[] }
     ])
     return { line, boxes }
   })
+}
+
+export type CellTint = 'caret' | 'selected' | null
+
+const inOneCell = (table: WriteTable, from: number, to: number) =>
+  table.lines.some((line) => line.cells.some((c) => from >= c.from && to <= c.to))
+
+/** The selection's ranges that take whole cells of `table`: those that meet it and leave a cell. */
+export function crossingRanges(
+  table: WriteTable,
+  selection: EditorSelection,
+): readonly SelectionRange[] {
+  return selection.ranges.filter(
+    (r) => !r.empty && r.from < table.to && r.to > table.from && !inOneCell(table, r.from, r.to),
+  )
+}
+
+/**
+ * Per row of `cellBoxes`, each box's tint: the caret's cell carries the active
+ * line, and every cell a selection meets once it leaves a cell is selected
+ * whole. A selection inside one cell is drawn as text.
+ */
+export function cellTints(table: WriteTable, selection: EditorSelection): CellTint[][] {
+  const caret = caretOf(selection)
+  const crossing = crossingRanges(table, selection)
+  return cellBoxes(table).map(({ boxes }) =>
+    boxes.map(([from, to], k): CellTint => {
+      if (crossing.some((r) => r.from < to && r.to > from)) return 'selected'
+      // The place right before a pipe is the cell's end, not the next cell's start.
+      const inBox = caret !== null && caret <= to && (caret > from || (k === 0 && caret === from))
+      return inBox ? 'caret' : null
+    }),
+  )
+}
+
+/** Whether a selection that takes whole cells runs to the end of `line`, where a short row's missing cells are drawn. */
+export function reachesRowEnd(
+  table: WriteTable,
+  line: TableLine,
+  selection: EditorSelection,
+): boolean {
+  return crossingRanges(table, selection).some((r) => r.from < line.to && r.to >= line.to)
 }
 
 /** The source a cell's box does not show: pipes, padding and the delimiter row. */

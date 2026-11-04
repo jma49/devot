@@ -19,6 +19,7 @@ import {
   WidgetType,
   keymap,
   type Command,
+  type ViewUpdate,
 } from '@codemirror/view'
 import { displayWidth } from '../table'
 import { spec } from '../formatContext'
@@ -31,6 +32,9 @@ import {
   cellBoxes,
   caretInCell,
   caretOf,
+  cellTints,
+  crossingRanges,
+  reachesRowEnd,
   hiddenSpans,
   shownTable,
   structureSpans,
@@ -38,6 +42,7 @@ import {
   writeTablesOf,
   formatAfter,
   composedTables,
+  type Span,
   type WriteTable,
 } from './tables'
 
@@ -184,6 +189,7 @@ function grid(state: EditorState, table: WriteTable, layers: BlockLayers): void 
   const outer = layers.outer as Range<Decoration>[]
   const atomic = layers.atomic as Range<Decoration>[]
   const rows = cellBoxes(table)
+  const tints = cellTints(table, state.selection)
   rows.forEach(({ line, boxes }, r) => {
     const look = [
       'cm-wm-row',
@@ -192,8 +198,16 @@ function grid(state: EditorState, table: WriteTable, layers: BlockLayers): void 
       r === rows.length - 1 ? 'cm-wm-row-last' : '',
     ]
     decorations.push(Decoration.line({ class: look.filter(Boolean).join(' ') }).range(line.from))
-    const cellClass = (c: number) =>
-      `cm-wm-cell cm-wm-align-${table.align[c] ?? 'none'}${c === 0 ? ' cm-wm-cell-first' : ''}`
+    const rowTints = tints[r]!
+    const cellClass = (c: number, tint = rowTints[c]) =>
+      [
+        'cm-wm-cell',
+        `cm-wm-align-${table.align[c] ?? 'none'}`,
+        c === 0 ? 'cm-wm-cell-first' : '',
+        tint ? `cm-wm-cell-${tint}` : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
     const short = line.cells.length < table.align.length
     boxes.forEach(([from, to], c) => {
       // A short row's missing cells come after its last box.
@@ -205,8 +219,9 @@ function grid(state: EditorState, table: WriteTable, layers: BlockLayers): void 
       if (shownFrom === shownTo)
         decorations.push((cell.to === cell.from ? blankAtEnd : blank).range(shownFrom))
     })
+    const missingTint = reachesRowEnd(table, line, state.selection) ? 'selected' : null
     for (let c = line.cells.length; c < table.align.length; c++) {
-      const widget = new MissingCell(c, `${cellClass(c)} cm-wm-cell-missing`)
+      const widget = new MissingCell(c, `${cellClass(c, missingTint)} cm-wm-cell-missing`)
       decorations.push(Decoration.widget({ widget, side: 1 + c }).range(line.to))
     }
   })
@@ -282,6 +297,96 @@ const gridReturn: Command = (view) => {
   return table !== undefined && shownTable(view.state, table) && nextRow(view)
 }
 
+const FAR = 1e6
+
+/**
+ * A line block's top (or bottom) in the selection layer's units. CodeMirror
+ * places a selection's rectangles at client offsets from the scroll box's
+ * content corner and scales the layer back by the view's scale.
+ */
+export function layerY(
+  block: number,
+  frame: { documentTop: number; scrollerTop: number; scrollTop: number; scaleY: number },
+): number {
+  return frame.documentTop - frame.scrollerTop + (block + frame.scrollTop) * frame.scaleY
+}
+
+/**
+ * A clip path that leaves out the given bands (top, bottom) across the whole
+ * width, in the selection layer's coordinates; empty for none.
+ */
+export function bandsClip(bands: readonly Span[]): string {
+  if (bands.length === 0) return ''
+  const rects: string[] = []
+  let top = -FAR
+  for (const [from, to] of [...bands].sort((a, b) => a[0] - b[0])) {
+    if (from > top) rects.push(`M -${FAR} ${top} H ${FAR} V ${from} H -${FAR} Z`)
+    top = Math.max(top, to)
+  }
+  rects.push(`M -${FAR} ${top} H ${FAR} V ${FAR} H -${FAR} Z`)
+  return `path('${rects.join(' ')}')`
+}
+
+// CodeMirror draws a selection as rectangles over whole line boxes, and a
+// grid's row is a line as wide as the column with its cells at the left, the
+// table bar's room above the header in the first. Where a selection takes
+// whole cells (the cells tint themselves), the selection layer leaves out the
+// grid's lines, so nothing beside or above the grid is tinted.
+const gridSelectionClip = ViewPlugin.fromClass(
+  class {
+    private readonly request: { read: () => string; write: (clip: string) => void }
+    private clip = ''
+
+    constructor(private readonly view: EditorView) {
+      this.request = { read: () => this.read(), write: (clip) => this.write(clip) }
+      view.requestMeasure(this.request)
+    }
+
+    update(update: ViewUpdate) {
+      if (
+        update.docChanged ||
+        update.selectionSet ||
+        update.viewportChanged ||
+        update.geometryChanged
+      )
+        this.view.requestMeasure(this.request)
+    }
+
+    private read(): string {
+      const { view } = this
+      const { state } = view
+      const bands: Span[] = []
+      for (const table of writeTablesOf(state)) {
+        if (!shownTable(state, table) || crossingRanges(table, state.selection).length === 0)
+          continue
+        bands.push([view.lineBlockAt(table.from).top, view.lineBlockAt(table.to).bottom])
+      }
+      if (bands.length === 0) return ''
+      const frame = {
+        documentTop: view.documentTop,
+        scrollerTop: view.scrollDOM.getBoundingClientRect().top,
+        scrollTop: view.scrollDOM.scrollTop,
+        scaleY: view.scaleY,
+      }
+      return bandsClip(bands.map(([a, b]): Span => [layerY(a, frame), layerY(b, frame)]))
+    }
+
+    private write(clip: string) {
+      if (clip === this.clip) return
+      this.clip = clip
+      this.layer()?.style.setProperty('clip-path', clip)
+    }
+
+    private layer(): HTMLElement | null {
+      return this.view.scrollDOM.querySelector(':scope > .cm-selectionLayer')
+    }
+
+    destroy() {
+      this.layer()?.style.removeProperty('clip-path')
+    }
+  },
+)
+
 export const writeTables: Extension = [
   composedTables,
   writeBlockRule.of(tableRule),
@@ -289,6 +394,7 @@ export const writeTables: Extension = [
   formatCells,
   tableRowTypingOff.of(true),
   adoptColumns,
+  gridSelectionClip,
   Prec.highest(keymap.of([{ key: 'Enter', run: gridReturn }])),
 ]
 
@@ -302,6 +408,8 @@ export const tableTheme = EditorView.theme({
     paddingInline: 'var(--space-3)',
   },
   '&[data-write] .cm-line.cm-wm-row::before': { display: 'none' },
+  // The caret's cell carries the active line, not its row (see the cell rules below).
+  '&[data-write] .cm-line.cm-wm-row.cm-activeLine': { backgroundColor: 'transparent' },
   // Room for the table bar above the header, so it never covers the block above.
   '&[data-write] .cm-line.cm-wm-row.cm-md-table-first': {
     paddingTop: 'calc(var(--size-float-toolbar-height) + var(--size-float-notch-height))',
@@ -325,6 +433,20 @@ export const tableTheme = EditorView.theme({
   // The header's text is the table's, not a heading's.
   '.cm-wm-row-head .cm-md-table-header > span': { color: 'inherit' },
   '.cm-wm-row-even .cm-wm-cell': { backgroundColor: token('table-stripe') },
+  // Over the cell's own fill, as a code box carries it (editor/codeBlocks.ts); only while the
+  // editor has the keyboard and draws the active line.
+  '&.cm-focused .cm-activeLine .cm-wm-cell-caret': {
+    backgroundImage: `linear-gradient(${token('editor-active-line')}, ${token('editor-active-line')})`,
+  },
+  // A selection lies under the lines, so a selected cell is the selection's tint under its own fill.
+  '.cm-wm-cell.cm-wm-cell-selected': { backgroundColor: token('accent-selection-inactive') },
+  '&.cm-focused .cm-wm-cell.cm-wm-cell-selected': { backgroundColor: token('accent-selection') },
+  '.cm-wm-row-head .cm-wm-cell.cm-wm-cell-selected': {
+    backgroundImage: `linear-gradient(${token('table-head')}, ${token('table-head')})`,
+  },
+  '.cm-wm-row-even .cm-wm-cell.cm-wm-cell-selected': {
+    backgroundImage: `linear-gradient(${token('table-stripe')}, ${token('table-stripe')})`,
+  },
   '.cm-wm-align-center': { textAlign: 'center' },
   '.cm-wm-align-right': { textAlign: 'end' },
 })

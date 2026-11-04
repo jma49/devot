@@ -7,11 +7,12 @@ import { noteMarkdown } from '../markdown'
 import { parseTable, printTable } from '../table'
 import { writeBlocks } from './blocks'
 import { writeFocusTracking } from './focus'
-import { shownWidth, writeTables } from './tableGrid'
+import { bandsClip, layerY, shownWidth, writeTables } from './tableGrid'
 import {
   atomicSpans,
   caretInCell,
   cellEdit,
+  cellTints,
   cellSource,
   hiddenSpans,
   structureSpans,
@@ -370,7 +371,7 @@ describe('the grid', () => {
   it('boxes every cell from its pipe, with its column alignment', () => {
     const doc = '| a | b |\n| - | -: |\n| 1 | 2 |'
     expect(boxes(stateOf(doc))).toEqual([
-      '| a =cm-wm-cell cm-wm-align-none cm-wm-cell-first',
+      '| a =cm-wm-cell cm-wm-align-none cm-wm-cell-first cm-wm-cell-caret',
       '| b |\n| - | -: |=cm-wm-cell cm-wm-align-right',
       '| 1 =cm-wm-cell cm-wm-align-none cm-wm-cell-first',
       '| 2 |=cm-wm-cell cm-wm-align-right',
@@ -390,9 +391,132 @@ describe('the grid', () => {
     expect(missing).toEqual([`${state.doc.length}:1`, `${state.doc.length}:2`])
   })
 
+  const tinted = (state: EditorState) =>
+    boxes(state)
+      .filter((box) => /cm-wm-cell-(caret|selected)/.test(box))
+      .map((box) => box.replace(/=.*cm-wm-cell-(caret|selected).*$/s, '=$1'))
+
+  it("tints the caret's cell, not its row, and only while the selection is a caret", () => {
+    const doc = '| a | b |\n| - | - |\n| 1 | 2 |'
+    expect(tinted(stateOf(doc, doc.indexOf('b') + 1))).toEqual(['| b |\n| - | - |=caret'])
+    expect(tinted(stateOf(doc, doc.indexOf('1')))).toEqual(['| 1 =caret'])
+    const word = step(stateOf(doc), {
+      selection: { anchor: doc.indexOf('1'), head: doc.indexOf('1') + 1 },
+    })
+    expect(tinted(word)).toEqual([])
+  })
+
+  it('tints every cell a selection crosses whole, and none outside it', () => {
+    const doc = 'Above\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nBelow'
+    const fromA = step(stateOf(doc), {
+      selection: { anchor: doc.indexOf('a'), head: doc.indexOf('1') + 1 },
+    })
+    expect(tinted(fromA)).toEqual(['| a =selected', '| b |\n| - | - |=selected', '| 1 =selected'])
+    const all = step(stateOf(doc), {
+      selection: { anchor: 0, head: doc.length },
+    })
+    expect(tinted(all)).toHaveLength(4)
+    const above = step(stateOf(doc), {
+      selection: { anchor: 0, head: doc.indexOf('|') },
+    })
+    expect(tinted(above)).toEqual([])
+  })
+
+  it("selects a short row's missing cells only when the selection runs to the row's end", () => {
+    const doc = '| a | b | c |\n| - | - | - |\n| Tea |\n\nBelow'
+    const missingSelected = (state: EditorState) => {
+      const out: boolean[] = []
+      for (const source of state.facet(EditorView.decorations)) {
+        if (typeof source === 'function') continue
+        ;(source as DecorationSet).between(0, state.doc.length, (_from, _to, deco) => {
+          const widget = deco.spec.widget as { className?: string } | undefined
+          if (widget?.className?.includes('cm-wm-cell-missing'))
+            out.push(widget.className.includes('cm-wm-cell-selected'))
+        })
+      }
+      return out
+    }
+    const tea = doc.indexOf('Tea')
+    expect(
+      missingSelected(step(stateOf(doc), { selection: { anchor: 2, head: tea + 1 } })),
+    ).toEqual([false, false])
+    expect(
+      missingSelected(step(stateOf(doc), { selection: { anchor: 2, head: doc.length } })),
+    ).toEqual([true, true])
+  })
+
   it('draws no box for a table several cursors are in', () => {
     const doc = '| a | b |\n| - | - |\n| 1 | 2 |'
     const cursors = EditorSelection.create([EditorSelection.cursor(2), EditorSelection.cursor(6)])
     expect(boxes(step(stateOf(doc), { selection: cursors }))).toEqual([])
+  })
+})
+
+describe('the tints of a selection in a grid', () => {
+  const doc = '| Name | Qty |\n| ---- | --: |\n| Tea  |   2 |\n| Pot  |   1 |'
+  const tints = (anchor: number, head = anchor) => {
+    const state = step(stateOf(doc), { selection: { anchor, head } })
+    return cellTints(writeTablesOf(state)[0]!, state.selection)
+  }
+
+  it("marks the caret's cell, its first box from the row's start", () => {
+    expect(tints(doc.indexOf('Qty'))).toEqual([
+      [null, 'caret'],
+      [null, null],
+      [null, null],
+    ])
+    expect(tints(doc.indexOf('Tea'))).toEqual([
+      [null, null],
+      ['caret', null],
+      [null, null],
+    ])
+  })
+
+  it('leaves a selection inside one cell to be drawn as text', () => {
+    const tea = doc.indexOf('Tea')
+    expect(
+      tints(tea, tea + 2)
+        .flat()
+        .filter(Boolean),
+    ).toEqual([])
+  })
+
+  it('takes every cell from the first the selection meets to the last, once it leaves a cell', () => {
+    const tea = doc.indexOf('Tea')
+    expect(tints(tea, doc.indexOf('1'))).toEqual([
+      [null, null],
+      ['selected', 'selected'],
+      ['selected', 'selected'],
+    ])
+    expect(tints(doc.indexOf('Qty') + 1, tea + 1)).toEqual([
+      [null, 'selected'],
+      ['selected', null],
+      [null, null],
+    ])
+  })
+})
+
+describe('the clip that keeps the selection layer off a grid', () => {
+  it("measures a line block in the layer's units, under a scaled view too", () => {
+    const frame = { documentTop: 150, scrollerTop: 100, scrollTop: 40, scaleY: 1 }
+    expect(layerY(60, frame)).toBe(150)
+    expect(layerY(60, { ...frame, documentTop: 136, scaleY: 0.9 })).toBeCloseTo(126)
+  })
+
+  it('leaves everything but the bands the grids take', () => {
+    expect(bandsClip([])).toBe('')
+    const clip = bandsClip([
+      [100, 160],
+      [300, 340.5],
+    ])
+    const rects = [
+      ...clip.matchAll(/M -?\d+(?:\.\d+)? (-?\d+(?:\.\d+)?) H -?\d+ V (-?\d+(?:\.\d+)?)/g),
+    ].map((m) => [Number(m[1]), Number(m[2])])
+    expect(clip).toMatch(/^path\('.*'\)$/)
+    expect(rects).toEqual([
+      [-1e6, 100],
+      [160, 300],
+      [340.5, 1e6],
+    ])
   })
 })
