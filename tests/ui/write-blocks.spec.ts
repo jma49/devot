@@ -14,6 +14,8 @@ const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const lines = (page: Page) => page.locator('.cm-line').allTextContents()
 const modes = (page: Page) => page.getByRole('group', { name: 'View mode' })
+const writeButton = (page: Page) =>
+  page.locator('.editor-toolbar').getByRole('button', { name: 'Write Mode', exact: true })
 const viewer = (page: Page) => page.getByRole('dialog', { name: /^Image Viewer/ })
 
 /** Whether the bottom of `upper` is at or above the top of `lower`. */
@@ -40,7 +42,8 @@ async function source(page: Page): Promise<string[]> {
   await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Edit')
   const text = await lines(page)
   await runCommand(page, 'view.write')
-  await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Write')
+  await expect(writeButton(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect(modes(page).getByRole('button', { pressed: true })).toHaveCount(0)
   return text
 }
 

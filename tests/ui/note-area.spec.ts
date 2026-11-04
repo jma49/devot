@@ -67,7 +67,7 @@ test('the toolbar starts with focus mode, Back and Forward and ends with the vie
     'Focus Mode',
     'Back',
     'Forward',
-    'Write',
+    'Write Mode',
     'Edit',
     'Split',
     'Preview',

@@ -222,6 +222,18 @@ describe('defaultMode', () => {
     const raw = { ...JSON.parse(serializeLastState(written)), mode: 'later' } as object
     expect(parseLastState(JSON.stringify(raw))?.mode).toBe('edit')
   })
+
+  it('reads a Write switch kept beside Edit as Write mode, and drops the switch', () => {
+    const kept = (patch: object) =>
+      parseLastState(JSON.stringify({ v: 1, view: { kind: 'all' }, filter: null, ...patch }))
+    expect(kept({ mode: 'edit', write: true })?.mode).toBe('write')
+    expect(kept({ mode: 'edit', write: false })?.mode).toBe('edit')
+    expect(kept({ mode: 'edit', write: 'yes' })?.mode).toBe('edit')
+    expect(kept({ mode: 'split', write: true })?.mode).toBe('split')
+    expect(kept({ mode: 'preview', write: true })?.mode).toBe('preview')
+    expect(kept({ mode: 'edit', write: true })).not.toHaveProperty('write')
+    expect(serializeLastState(kept({ mode: 'edit', write: true })!)).not.toContain('"write":')
+  })
 })
 
 describe('restorePlan', () => {

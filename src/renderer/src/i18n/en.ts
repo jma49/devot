@@ -585,7 +585,7 @@ title: Daily Report {{date}}
   'editor.foldLine': 'Fold line',
   'editor.unfoldLine': 'Unfold line',
   'mode.label': 'View mode',
-  'mode.write': 'Write',
+  'mode.write': 'Write Mode',
   'mode.edit': 'Edit',
   'mode.split': 'Split',
   'mode.preview': 'Preview',

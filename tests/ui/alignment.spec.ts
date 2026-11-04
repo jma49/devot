@@ -142,16 +142,19 @@ test('toolbar buttons sit on the toolbar centre line, and so do the traffic ligh
 test('Glass toolbar glyphs share an 18 point box in 32 point capsules', async ({ page }) => {
   await newNote(page, 'Plan')
   const toolbar = page.locator('.editor-toolbar')
-  for (const name of ['Focus Mode', 'Back', 'Forward', 'More']) {
+  for (const name of ['Focus Mode', 'Back', 'Forward', 'Write Mode', 'More']) {
     const icon = toolbar.getByRole('button', { name, exact: true }).locator('.icon')
     expect((await box(icon)).width).toBe(18)
   }
+  const write = await box(toolbar.getByRole('button', { name: 'Write Mode', exact: true }))
+  expect([write.width, write.height]).toEqual([32, 32])
   const newNoteIcon = page.getByRole('button', { name: 'New Note', exact: true }).locator('.icon')
   expect((await box(newNoteIcon)).width).toBe(18)
 
   const modes = toolbar.getByRole('group', { name: 'View mode' })
   const modesBox = await box(modes)
-  expect(modesBox.width).toBe(180)
+  expect(modesBox.width).toBe(136)
+  expect(modesBox.x - (write.x + write.width)).toBe(8)
   expect(modesBox.height).toBe(32)
   const offsets = new Set<string>()
   for (const segment of await modes.getByRole('button').all()) {

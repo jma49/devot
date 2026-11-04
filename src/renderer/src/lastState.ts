@@ -150,11 +150,13 @@ export function parseLastState(raw: string | null): LastState | undefined {
     return undefined
   }
   if (!isObject(value) || value['v'] !== VERSION) return undefined
-  const mode = value['mode']
+  const stored = value['mode']
+  const mode = typeof stored === 'string' && MODES.includes(stored) ? (stored as Mode) : 'edit'
   const state: LastState = {
     view: readView(value['view']),
     filter: readFilter(value['filter']),
-    mode: typeof mode === 'string' && MODES.includes(mode) ? (mode as Mode) : 'edit',
+    // A test build kept Write as a switch beside Edit.
+    mode: mode === 'edit' && value['write'] === true ? 'write' : mode,
   }
   const note = readNote(value['note'])
   if (note) state.note = note

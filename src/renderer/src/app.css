@@ -2528,6 +2528,10 @@ button {
   box-shadow: none;
 }
 
+.write-mode[aria-pressed='true'] {
+  color: var(--color-accent-text);
+}
+
 .trail-buttons {
   display: flex;
   gap: var(--space-1);
