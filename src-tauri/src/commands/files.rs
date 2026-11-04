@@ -107,7 +107,7 @@ pub async fn store_upload(db: &Db, upload: Upload, data: Vec<u8>) -> Result<(), 
         name: upload.name,
         mime: mime.into(),
         data,
-        created_at: now_ms(),
+        created_at: crate::logs::now_ms(),
     };
     let stored = db
         .write(Write::Content, move |store| store.put_file(&file))
@@ -144,7 +144,7 @@ pub async fn files_copy(
     copies: Vec<FileCopy>,
 ) -> Result<(), String> {
     validate_copies(&note_id, &copies).map_err(String::from)?;
-    let at = now_ms();
+    let at = crate::logs::now_ms();
     let copied = db
         .write(Write::Content, move |store| {
             store.copy_files(&note_id, &copies, at)
@@ -156,13 +156,6 @@ pub async fn files_copy(
     } else {
         Err("E_NOTE_NOT_FOUND".into())
     }
-}
-
-fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
 }
 
 pub fn file_id_from_uri(uri: &str) -> Option<&str> {
