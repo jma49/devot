@@ -31,6 +31,8 @@ afterEach(() => open.splice(0).forEach((db) => db.close()))
 
 function sqlite(): SqliteAdapter {
   const storage = openSqliteAdapter(join(tempDir('devot-lists-'), 'devot.sqlite'))
+  // These tests compare query results, not durability: syncing every write to disk only costs time.
+  storage.db.pragma('synchronous = OFF')
   open.push(storage)
   return storage
 }

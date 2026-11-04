@@ -32,7 +32,7 @@ import {
   type StorageAdapter,
 } from './storage'
 import { cleanTagName, createTagService, sameName } from './tags'
-import { lineFeeds, trimWhitespace, wellFormed } from './text'
+import { isHighSurrogate, isLowSurrogate, lineFeeds, trimWhitespace, wellFormed } from './text'
 
 export const AI_SEARCH_LIMIT = 20
 export const MAX_AI_SEARCH_LIMIT = 50
@@ -209,9 +209,6 @@ export interface AiService {
 }
 
 const ELLIPSIS = String.fromCodePoint(0x2026)
-const isHigh = (code: number) => code >= 0xd800 && code <= 0xdbff
-const isLow = (code: number) => code >= 0xdc00 && code <= 0xdfff
-
 export function snippet(text: string, terms: readonly string[], radius = SNIPPET_RADIUS): string {
   const pattern = terms
     .filter((t) => t.length > 0)
@@ -221,8 +218,8 @@ export function snippet(text: string, terms: readonly string[], radius = SNIPPET
   const at = pattern ? Math.max(0, text.search(new RegExp(pattern, 'iu'))) : 0
   let start = Math.max(0, at - radius)
   let end = Math.min(text.length, at + radius)
-  if (start > 0 && isLow(text.charCodeAt(start))) start -= 1
-  if (end < text.length && isHigh(text.charCodeAt(end - 1))) end += 1
+  if (start > 0 && isLowSurrogate(text.charCodeAt(start))) start -= 1
+  if (end < text.length && isHighSurrogate(text.charCodeAt(end - 1))) end += 1
   const body = text.slice(start, end).replace(/\s+/g, ' ').trim()
   if (!body) return ''
   return `${start > 0 ? ELLIPSIS : ''}${body}${end < text.length ? ELLIPSIS : ''}`

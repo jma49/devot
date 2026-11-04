@@ -5,27 +5,17 @@ name: CI
 # run, and a newer main commit cancels main's: the merge queue's full run on
 # each entry is the result a release relies on.
 #
-# A pull request runs only the jobs its files need (scripts/ci/changed-code.sh):
-# documentation-only changes skip the expensive jobs, the icon sources, the
-# sync relay (relay/) and the licence Worker (licence/) need no build, changes
-# under src-tauri/ need the Rust jobs
-# (tauri.conf.json, whose CSP the UI tests use, and plugin-frame/, whose pages
-# only they run, need both; the licence test vectors need the Rust job too),
-# tests/ needs the web jobs (its fixtures and JSON case files, which the Rust
-# tests read, need both),
-# anything else needs both. When the web jobs are not
-# needed, `policy-check` runs the formatting check, lint, the type check and
-# all of Vitest, whose tests also read the documentation, the Rust sources,
-# migrations and capabilities, run the relay on both of its hosts and the
-# licence Worker in workerd. For documentation-only changes it runs only the
-# formatting check and the policy and token tests, which read the docs.
-#
-# Every job runs unless the change detection said `false` for it, so missing
-# outputs run everything rather than nothing.
+# A pull request runs only the jobs its files need: scripts/ci/changed-code.sh
+# says which paths need the web and the Rust jobs, scripts/ci/ui-plan.ts which
+# UI specs run. Without web changes, `policy-check` runs the format check,
+# lint, the type check and all of Vitest, whose tests also read the docs, the
+# Rust sources, migrations and capabilities and run the relay and the licence
+# Worker; for documentation alone, only the format check and the policy and
+# token tests. Every job runs unless the change detection said `false` for it,
+# so missing outputs run everything rather than nothing.
 #
 # The required checks are `web`, `rust` and `policy`. Their gate jobs always
-# run, including for documentation-only pull requests, so a skipped heavy job
-# cannot leave a required check pending.
+# run, so a skipped heavy job cannot leave a required check pending.
 on:
   pull_request:
     types: [opened, synchronize, reopened]

@@ -430,7 +430,6 @@ describe('COMMANDS', () => {
 describe('labels with shortcuts', () => {
   const titles: [MessageKey, CommandId][] = [
     ['mode.focusTitle', 'view.focus'],
-    ['history.buttonTitle', 'note.history'],
     ['format.boldTitle', 'format.bold'],
     ['format.italicTitle', 'format.italic'],
     ['format.strikethroughTitle', 'format.strikethrough'],

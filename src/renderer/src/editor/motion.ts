@@ -1,8 +1,7 @@
 // How the editor's pop-ups appear and go, for its CodeMirror themes (they
 // live in the editor's shadow root, so the app stylesheet's keyframes do not
-// reach them). Durations, curves and the scales are design tokens; Reduce
-// Motion sets `--popover-enter-scale` and `--popover-exit-scale` to 1
-// (app.css), so a pop-up then only fades.
+// reach them). Durations, curves and the scale are design tokens; Reduce
+// Motion sets `--popover-enter-scale` to 1 (app.css), so a pop-up then only fades.
 import { ViewPlugin, type EditorView } from '@codemirror/view'
 import { leaveClosingCopy, rememberScrolls, takeOverClosingCopy, tooltipMotion } from '../closing'
 
@@ -11,13 +10,8 @@ export const motionKeyframes = {
     from: { opacity: '0', scale: 'var(--popover-enter-scale)' },
   },
   '@keyframes cm-fade-in': { from: { opacity: '0' } },
-  '@keyframes cm-popover-out': {
-    to: { opacity: '0', scale: 'var(--popover-exit-scale)' },
-  },
   '@keyframes cm-fade-out': { to: { opacity: '0' } },
 }
-
-export const popoverIn = 'cm-popover-in var(--motion-duration-popover) var(--motion-easing-move)'
 
 /**
  * Only fades. For CodeMirror tooltips, which CodeMirror places from their
@@ -28,9 +22,6 @@ export const fadeIn = 'cm-fade-in var(--motion-duration-fade) var(--motion-easin
 export const buttonIn = 'cm-popover-in var(--motion-duration-toggle) var(--motion-easing-move)'
 
 export const tipIn = 'cm-fade-in var(--motion-duration-popover) var(--motion-easing-standard)'
-
-export const popoverOut =
-  'cm-popover-out var(--motion-duration-popover) var(--motion-easing-standard) forwards'
 
 const tipOut = 'cm-fade-out var(--motion-duration-popover) var(--motion-easing-standard) forwards'
 

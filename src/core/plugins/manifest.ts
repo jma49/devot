@@ -3,7 +3,6 @@
 import { trimWhitespace } from '../text'
 
 export const PLUGIN_API_VERSION = 1
-export const MANIFEST_FILE = 'devot-plugin.json'
 
 export const PLUGIN_PERMISSIONS = [
   'note.read',
@@ -82,7 +81,7 @@ const fail = (code: string): never => {
   throw new Error(code)
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const length = (value: string) => [...value].length

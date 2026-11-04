@@ -20,8 +20,8 @@ export function replaceRanges(text: string, edits: readonly TextEdit[]): string 
   return out
 }
 
-const isHigh = (code: number) => code >= 0xd800 && code <= 0xdbff
-const isLow = (code: number) => code >= 0xdc00 && code <= 0xdfff
+export const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff
+export const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff
 
 /** A lone surrogate becomes U+FFFD, as the UTF-8 encoding storage uses would, so a body is always valid JSON and every save is taken. */
 export function wellFormed(text: string): string {
@@ -29,12 +29,12 @@ export function wellFormed(text: string): string {
   let out = ''
   for (let i = 0; i < text.length; i += 1) {
     const code = text.charCodeAt(i)
-    if (isHigh(code)) {
-      if (isLow(text.charCodeAt(i + 1))) {
+    if (isHighSurrogate(code)) {
+      if (isLowSurrogate(text.charCodeAt(i + 1))) {
         out += text.slice(i, i + 2)
         i += 1
       } else out += '�'
-    } else out += isLow(code) ? '�' : text[i]
+    } else out += isLowSurrogate(code) ? '�' : text[i]
   }
   return out
 }
@@ -47,7 +47,7 @@ export function textDiff(
   const max = Math.min(from.length, to.length)
   let prefix = 0
   while (prefix < max && from.charCodeAt(prefix) === to.charCodeAt(prefix)) prefix += 1
-  if (prefix > 0 && prefix < max && isHigh(from.charCodeAt(prefix - 1))) prefix -= 1
+  if (prefix > 0 && prefix < max && isHighSurrogate(from.charCodeAt(prefix - 1))) prefix -= 1
   let suffix = 0
   while (
     suffix < max - prefix &&
@@ -55,7 +55,7 @@ export function textDiff(
   ) {
     suffix += 1
   }
-  if (suffix > 0 && isLow(from.charCodeAt(from.length - suffix))) suffix -= 1
+  if (suffix > 0 && isLowSurrogate(from.charCodeAt(from.length - suffix))) suffix -= 1
   return {
     index: prefix,
     remove: from.length - prefix - suffix,
