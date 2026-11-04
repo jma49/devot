@@ -149,11 +149,17 @@ const writeFor = (on: boolean, core: Core) =>
 
 /** Write mode's images, formulas and diagrams, by the preview's renderers in the core. */
 const blockRenderer = (core: Core): WriteRenderer => ({
-  render: (markdown, loadedEmbeds) =>
+  render: (markdown, loadedEmbeds, remoteImages) =>
     core
       .renderPreviewPieces(
         markdown,
-        { labels: previewLabels(), loadedEmbeds: [...loadedEmbeds] },
+        {
+          labels: previewLabels(),
+          loadedEmbeds: [...loadedEmbeds],
+          ...(remoteImages
+            ? { remoteImages: { ...remoteImages, loadedHosts: [...remoteImages.loadedHosts] } }
+            : {}),
+        },
         [],
       )
       .then((pieces) => pieces.flatMap((piece) => piece.nodes ?? [])),

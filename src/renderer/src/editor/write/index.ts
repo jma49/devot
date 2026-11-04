@@ -16,7 +16,7 @@ import { inlineImagesHidden } from '../images'
 import { writeActive } from './active'
 import { writeBlockKeys } from './blockKeys'
 import { writeBlocks } from './blocks'
-import { imageDoubleClick, writeRenderer, type WriteRenderer } from './rendered'
+import { imageDoubleClick, remoteImageRedraw, writeRenderer, type WriteRenderer } from './rendered'
 import { selectedIn } from './focus'
 import { selectedKey, writeRanges, type Selected, type WriteRange } from './rules'
 import { tableTheme, writeTables } from './tableGrid'
@@ -177,6 +177,7 @@ export function writeMode(options: WriteModeOptions = {}): Extension {
   return [
     marks,
     imageDoubleClick,
+    remoteImageRedraw,
     clickedWords(),
     writeBlocks,
     writeTables,

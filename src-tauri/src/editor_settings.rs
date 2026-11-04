@@ -192,6 +192,8 @@ pub struct EditorSettings {
     pub paste_url: PasteUrl,
     pub sync_scroll: bool,
     pub inline_images: bool,
+    /// Settings > Preview > Load Images from the Web: off, a remote image waits for Load.
+    pub load_remote_images: bool,
     pub appearance: Appearance,
     /// Ivory ignores the system accent.
     pub light_theme: Theme,
@@ -271,6 +273,7 @@ impl Default for EditorSettings {
             paste_url: PasteUrl::Link,
             sync_scroll: true,
             inline_images: true,
+            load_remote_images: true,
             appearance: Appearance::System,
             light_theme: Theme::Default,
             dark_theme: Theme::Default,
@@ -409,6 +412,7 @@ impl EditorSettings {
             "pasteUrl" => self.paste_url = choice(value)?,
             "syncScroll" => self.sync_scroll = flag(value)?,
             "inlineImages" => self.inline_images = flag(value)?,
+            "loadRemoteImages" => self.load_remote_images = flag(value)?,
             "appearance" => self.appearance = choice(value)?,
             "lightTheme" => self.light_theme = choice(value)?,
             "darkTheme" => self.dark_theme = choice(value)?,
@@ -816,6 +820,10 @@ mod tests {
         assert!(d.auto_download_updates);
         assert!(!d.menu_bar, "menu bar mode is opt-in");
         assert!(d.inline_images);
+        assert!(
+            d.load_remote_images,
+            "remote images load unless the owner turns it off"
+        );
         assert_eq!(d.appearance, Appearance::System);
         assert_eq!(d.light_theme, Theme::Default);
         assert_eq!(d.dark_theme, Theme::Default);
@@ -828,6 +836,7 @@ mod tests {
         let mut value = serde_json::to_value(EditorSettings::default()).unwrap();
         // Checked apart: one json! of every key passes the macro recursion limit.
         let map = value.as_object_mut().unwrap();
+        assert_eq!(map.remove("loadRemoteImages"), Some(Value::Bool(true)));
         let keys: Vec<String> = map
             .keys()
             .filter(|k| k.starts_with("page"))
@@ -1073,6 +1082,10 @@ mod tests {
         assert_eq!(plus.default_notebook, None);
         assert_eq!(next.paste_url, PasteUrl::Link);
         assert!(!next.inline_images);
+        let waiting = EditorSettings::default()
+            .with(&patch(json!({ "loadRemoteImages": false })))
+            .unwrap();
+        assert!(!waiting.load_remote_images);
         assert!(!next.line_numbers && !next.highlight_active_line);
         assert_eq!(next.line_wrapping, LineWrapping::Off);
         for (name, mode) in [
@@ -1268,6 +1281,8 @@ mod tests {
             json!({ "inlineImages": "on" }),
             json!({ "inlineImages": 1 }),
             json!({ "inlineImages": null }),
+            json!({ "loadRemoteImages": "off" }),
+            json!({ "loadRemoteImages": 0 }),
             json!({ "appearance": "auto" }),
             json!({ "appearance": "Dark" }),
             json!({ "appearance": true }),

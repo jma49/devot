@@ -39,6 +39,7 @@ const ENTRIES: readonly SettingsEntry[] = [
   { pane: 'editing', label: 'editorSettings.lineHeight' },
   { pane: 'preview', label: 'previewSettings.fontSize' },
   { pane: 'preview', label: 'previewSettings.syncScroll' },
+  { pane: 'preview', label: 'previewSettings.remoteImages' },
   { pane: 'mirror', label: 'mirror.folderLabel' },
   { pane: 'mirror', label: 'mirror.includeAttachments' },
   { pane: 'sync', label: 'syncSettings.relay' },

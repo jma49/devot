@@ -5,22 +5,31 @@
 // diagrams are the preview's islands. A box keeps the height its block had
 // last, or the one its image is known to have, until its content is in place.
 // A click puts the caret in the block's source; a double click on an image
-// opens the viewer.
+// opens the viewer. An image from the web that waits for Load (editor/images.ts)
+// is neither drawn nor measured until its site is loaded.
 import { Facet, type Extension } from '@codemirror/state'
-import { EditorView, WidgetType } from '@codemirror/view'
+import { EditorView, ViewPlugin, WidgetType } from '@codemirror/view'
 import type { RootContent } from 'hast'
+import type { RemoteImageWait } from '../../../../core'
+import { remoteImageHost } from '../../../../core/preview/remoteImages'
+import { t } from '../../i18n'
+import { loadedImageHosts, loadImagesFrom, onLoadedImageHosts } from '../../remoteImages'
 import { isMissingImage, watchMissingImages } from '../../missingImages'
 import { patchChildren } from '../../preview/dom'
 import { islands } from '../../preview/islandRegistry'
 import { createIslandMounter, ISLAND_ATTRIBUTE, type IslandMounter } from '../../preview/islands'
 import { shownAppearance, shownTheme, subscribeAppearance } from '../../theme/appearance'
-import { findImages, imageActions } from '../images'
+import { findImages, imageActions, remoteImagesWait } from '../images'
 import { parseImageMarkdown } from '../../../../core/images'
 import { imageEntry, writeBlocksOf, type BlockLook, type WriteBlock } from './blockRanges'
 
 export interface WriteRenderer {
   /** `markdown` as the preview renders it: the sanitised tree of its blocks. */
-  render(markdown: string, loadedEmbeds: readonly string[]): Promise<readonly RootContent[]>
+  render(
+    markdown: string,
+    loadedEmbeds: readonly string[],
+    remoteImages?: RemoteImageWait,
+  ): Promise<readonly RootContent[]>
 }
 
 export const writeRenderer = Facet.define<WriteRenderer, WriteRenderer | null>({
@@ -60,8 +69,21 @@ let imageChrome = 48
 let contentWidth = 0
 
 const embedsOf = (view: EditorView) => loadedEmbeds.get(view) ?? []
-const keyOf = (block: WriteBlock, embeds: readonly string[]) =>
-  `${block.kind}\u0000${block.source}${block.kind === 'embed' ? `\u0000${embeds.join(' ')}` : ''}`
+
+/** The sites whose images in `source` wait for Load, or null while images from the web load by themselves. */
+function waitingHosts(view: EditorView, source: string): string[] | null {
+  if (!view.state.facet(remoteImagesWait)) return null
+  const loaded = loadedImageHosts()
+  return parseLine(source).flatMap(({ url }) => {
+    const host = remoteImageHost(url)
+    return host !== null && !loaded.includes(host) ? [host] : []
+  })
+}
+
+const keyOf = (block: WriteBlock, embeds: readonly string[], waiting: string[] | null = null) =>
+  `${block.kind}\u0000${block.source}${block.kind === 'embed' ? `\u0000${embeds.join(' ')}` : ''}${
+    waiting && waiting.length > 0 ? `\u0000wait ${waiting.join(' ')}` : ''
+  }`
 
 const learning = new Set<string>()
 
@@ -170,13 +192,28 @@ function blockOf(view: EditorView, box: HTMLElement): WriteBlock | null {
   return writeBlocksOf(view.state).find((b) => b.from === at || b.to === at) ?? null
 }
 
+/** Draws the blocks again when images from the web start or stop waiting, or a site is loaded. */
+export const remoteImageRedraw = ViewPlugin.define((view) => {
+  const redraw = () => {
+    for (const box of view.dom.querySelectorAll<HTMLElement>('.cm-wm-block-image'))
+      drawn.get(box)?.draw(embedsOf(view))
+  }
+  const stop = onLoadedImageHosts(redraw)
+  return {
+    update(update) {
+      if (update.startState.facet(remoteImagesWait) !== update.state.facet(remoteImagesWait))
+        redraw()
+    },
+    destroy: stop,
+  }
+})
+
 export class RenderedBlockWidget extends WidgetType {
   constructor(
     readonly block: WriteBlock,
     readonly look: BlockLook,
   ) {
     super()
-    if (block.kind === 'image') for (const { url } of parseLine(block.source)) learnImage(url)
   }
 
   override eq(other: RenderedBlockWidget): boolean {
@@ -207,6 +244,13 @@ export class RenderedBlockWidget extends WidgetType {
   override toDOM(view: EditorView): HTMLElement {
     contentWidth = view.contentDOM.clientWidth || contentWidth
     const block = this.block
+    if (block.kind === 'image') {
+      const waiting = waitingHosts(view, block.source) ?? []
+      for (const { url } of parseLine(block.source)) {
+        const host = remoteImageHost(url)
+        if (host === null || !waiting.includes(host)) learnImage(url)
+      }
+    }
     const box = document.createElement('div')
     box.className = `cm-wm-block cm-wm-block-${block.kind}`
     setLook(box, this.look)
@@ -287,13 +331,21 @@ export class RenderedBlockWidget extends WidgetType {
     }
     const draw = (embeds: readonly string[]) => {
       const now = shown.block
-      const key = keyOf(now, embeds)
+      const waiting = waitingHosts(view, now.source)
+      const key = keyOf(now, embeds, waiting)
       shown.key = key
       const known = trees.get(key)
       if (known) return place(known)
       const renderer = view.state.facet(writeRenderer)
       if (!renderer) return
-      renderer.render(now.source, embeds).then(
+      const remote: RemoteImageWait | undefined = waiting
+        ? {
+            loadedHosts: loadedImageHosts(),
+            from: t('image.remoteFrom'),
+            load: t('image.remoteLoad'),
+          }
+        : undefined
+      renderer.render(now.source, embeds, remote).then(
         (nodes) => {
           trees.set(key, nodes)
           if (shown.key === key && drawn.get(box) === shown) place(nodes)
@@ -316,7 +368,7 @@ export class RenderedBlockWidget extends WidgetType {
       event.preventDefault()
       if (openClicked(view, event)) return
       const target = event.target as Element
-      if (target.closest('[data-embed-load]')) return
+      if (target.closest('[data-embed-load], [data-remote-image-load]')) return
       const now = blockOf(view, box)
       if (!now) return
       let entry = now.entry
@@ -339,6 +391,11 @@ export class RenderedBlockWidget extends WidgetType {
       view.focus()
     })
     box.addEventListener('click', (event) => {
+      const remote = (event.target as Element).closest('[data-remote-image-load]')
+      const site = remote
+        ?.closest('[data-remote-image-host]')
+        ?.getAttribute('data-remote-image-host')
+      if (site) return loadImagesFrom(site)
       const load = (event.target as Element).closest('[data-embed-load]')
       if (!load) return
       const src = load.closest('[data-embed-src]')?.getAttribute('data-embed-src')

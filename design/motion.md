@@ -100,6 +100,7 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 - **Import sheet's wiki links checkbox:** rule 2. A system checkbox: it changes at once, with no motion of ours. The summary's count of links kept as text appears with the rest of the summary.
 - **Sync after a restore (Merge or Keep This Mac's Copy):** a modal dialog with the dialog motion (the confirmation's, Merge in Cancel's place); it goes once a choice is made, and the sync status that follows changes in place with no motion. Reduced motion follows the dialog's rule.
 - **Open Today's Note:** rule 2. The day's note opens as another note does, and a workspace it is outside goes at once, as leaving a workspace always does; a note just made shows its row as a new note's does. Its Settings rows (General > Daily Notes) are pop-ups with the Settings row fill.
+- **An image from the web waiting for Load** (Load Images from the Web off): rule 2. The placeholder shows in the image's place in the preview, in Write mode's image blocks and under its line in the editor; Load swaps every placeholder of that site for its image at once, and the button has the press of any button. Images that arrive later appear as any image does.
 - **Image viewer:** opens and closes as a modal dialog does. **Plugin panel:** opens as one and closes at once, because a closing copy would run its frame again.
 
 ## iPhone

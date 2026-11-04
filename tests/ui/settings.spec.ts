@@ -1199,6 +1199,17 @@ test('Preview has synced scrolling; its font size sits in Appearance', async ({ 
   await expect(editor(page).getByRole('switch', { name: 'Synced Scrolling' })).toHaveCount(0)
 })
 
+test('Preview loads images from the web by default and can make them wait', async ({ page }) => {
+  await page.addInitScript(() => {
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = { usage_list: [] }
+  })
+  await openSettings(page, 'Preview')
+  const remote = preview(page).getByRole('switch', { name: 'Load Images from the Web' })
+  await expect(remote).toBeChecked()
+  await remote.uncheck()
+  await expect.poll(() => setCalls(page)).toEqual([{ loadRemoteImages: false }])
+})
+
 test('Integrations says under AI Tools when no notebook allows AI access, and opens nothing', async ({
   page,
 }) => {

@@ -454,6 +454,40 @@ describe('embeds', () => {
     expect(frame(tree)?.properties['src']).toBe(src)
   })
 
+  describe('images from the web', () => {
+    const wait = (loadedHosts: string[] = []) => ({
+      remoteImages: { loadedHosts, from: 'Image from {origin}', load: 'Load' },
+    })
+    const file = 'devot://file/0192a6f0-0000-7000-8000-000000000001'
+    const md = `![Pixel](https://Tracker.example/p.png) ![Pic](${file})`
+
+    it('load by themselves unless they are asked to wait', async () => {
+      const tree = await render(md)
+      expect(tags(tree, 'img').map((img) => img.properties['src'])).toContain(
+        'https://Tracker.example/p.png',
+      )
+      expect(byClass(tree, 'image-placeholder')).toHaveLength(0)
+    })
+
+    it('wait for Load by their site, and attachments still show', async () => {
+      const tree = await render(md, wait(['other.example']))
+      const srcs = tags(tree, 'img').map((img) => String(img.properties['src']))
+      expect(srcs).toEqual([file])
+      const [placeholder] = byClass(tree, 'image-placeholder')
+      expect(placeholder?.properties['dataRemoteImageHost']).toBe('tracker.example')
+      expect(placeholder && text(placeholder)).toBe('Image from tracker.exampleLoad')
+      const [button] = tags({ type: 'root', children: [placeholder!] }, 'button')
+      expect(button?.properties['dataRemoteImageLoad']).toBe(true)
+      expect(JSON.stringify(tree)).not.toMatch(/p\.png/)
+    })
+
+    it('load once their site is loaded', async () => {
+      const tree = await render(md, wait(['tracker.example']))
+      expect(byClass(tree, 'image-placeholder')).toHaveLength(0)
+      expect(tags(tree, 'img')).toHaveLength(2)
+    })
+  })
+
   it('removes iframes that are not https', async () => {
     for (const src of ['http://example.com', 'javascript:alert(1)', 'data:text/html,x', '/local']) {
       const tree = await render(`<iframe src="${src}"></iframe>`)

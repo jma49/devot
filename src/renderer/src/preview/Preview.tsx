@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
   type MouseEvent,
 } from 'react'
-import type { NoteLinkTarget, PreviewLabels, PreviewNote } from '../../../core'
+import type { NoteLinkTarget, PreviewLabels, PreviewNote, RemoteImageWait } from '../../../core'
 import { NOTES_LOADED } from '../externalChanges'
 import { noteLinks } from '../../../core/links'
 import { taskProgress } from '../../../core/tasks'
@@ -31,6 +31,8 @@ import type { ViewedImage } from '../ImageViewer'
 import type { Core } from '../core-client'
 import { isMissingImage, watchMissingImages } from '../missingImages'
 import { previewsFor } from '../notePreview'
+import { useEditorSetting } from '../editorSettings'
+import { loadImagesFrom, useLoadedImageHosts } from '../remoteImages'
 import { NoteHover } from './NoteHover'
 import { useText, type TextStore } from '../textStore'
 import type { FindTarget } from '../find/target'
@@ -99,6 +101,7 @@ function previewNote(fields: PreviewNoteFields): PreviewNote {
 interface RenderInput {
   markdown: string
   loadedEmbeds: string[]
+  remoteImages: RemoteImageWait | undefined
   note: PreviewNoteFields | undefined
 }
 
@@ -187,6 +190,15 @@ export function Preview({
   const pane = useRef<HTMLElement>(null)
   const host = useRef<HTMLDivElement>(null)
   const [loadedEmbeds, setLoadedEmbeds] = useState<string[]>([])
+  const loadRemoteImages = useEditorSetting('loadRemoteImages')
+  const loadedHosts = useLoadedImageHosts()
+  const remoteImages = useMemo(
+    () =>
+      loadRemoteImages
+        ? undefined
+        : { loadedHosts, from: t('image.remoteFrom'), load: t('image.remoteLoad') },
+    [loadRemoteImages, loadedHosts],
+  )
   const [refusedLink, setRefusedLink] = useState<string>()
   const appearance = useAppearance()
   const theme = useSyncExternalStore(subscribeAppearance, shownTheme, () => '')
@@ -282,6 +294,7 @@ export function Preview({
               {
                 labels: previewLabels(),
                 loadedEmbeds: input.loadedEmbeds,
+                ...(input.remoteImages ? { remoteImages: input.remoteImages } : {}),
                 ...(targets ? { noteLinks: targets } : {}),
                 ...(input.note ? { note: previewNote(input.note) } : {}),
               },
@@ -342,12 +355,12 @@ export function Preview({
     [noteKey],
   )
   useEffect(
-    () => render.current?.({ markdown, loadedEmbeds, note: fields }),
-    [markdown, loadedEmbeds, fields],
+    () => render.current?.({ markdown, loadedEmbeds, remoteImages, note: fields }),
+    [markdown, loadedEmbeds, remoteImages, fields],
   )
-  const input = useRef<RenderInput>({ markdown, loadedEmbeds, note: fields })
+  const input = useRef<RenderInput>({ markdown, loadedEmbeds, remoteImages, note: fields })
   useEffect(() => {
-    input.current = { markdown, loadedEmbeds, note: fields }
+    input.current = { markdown, loadedEmbeds, remoteImages, note: fields }
   })
   useEffect(() => onPluginRenderersChanged(() => render.current?.(input.current)), [])
   // Another window or process can change a note a chip shows.
@@ -381,6 +394,14 @@ export function Preview({
         apply.getAttribute('data-frontmatter-value'),
       )
       if (change) onApplyFrontMatter?.(change)
+      return
+    }
+    const remote = target.closest('[data-remote-image-load]')
+    if (remote) {
+      const site = remote
+        .closest('[data-remote-image-host]')
+        ?.getAttribute('data-remote-image-host')
+      if (site) loadImagesFrom(site)
       return
     }
     const load = target.closest('[data-embed-load]')

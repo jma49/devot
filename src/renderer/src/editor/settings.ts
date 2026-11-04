@@ -43,7 +43,7 @@ import { shortcutCodeMirror } from '../commands/keys'
 import { COMMANDS, commandKeys, defaultKeys } from '../commands/registry'
 import { t } from '../i18n'
 import { listBullet } from './blocks'
-import { inlineImages } from './images'
+import { inlineImages, remoteImagesWait } from './images'
 import { pasteUrlStyle } from './paste'
 import { registryKeys } from './registryKeys'
 import { toolbarOff } from './toolbarState'
@@ -264,6 +264,7 @@ const PARTS = {
   bullet: (s: EditorSettings): Extension => listBullet.of(s.listMarker),
   pasteUrl: (s: EditorSettings): Extension => pasteUrlStyle.of(s.pasteUrl),
   images: (s: EditorSettings): Extension => (s.inlineImages ? inlineImages : []),
+  remoteImages: (s: EditorSettings): Extension => remoteImagesWait.of(!s.loadRemoteImages),
   toolbar: (s: EditorSettings): Extension => (s.toolbar ? [] : toolbarOff.of(true)),
   scrollPastEnd: (s: EditorSettings): Extension => (s.scrollPastEnd ? pastEnd : []),
   scrollMargin: (s: EditorSettings): Extension => {
@@ -289,6 +290,7 @@ const READS: Readonly<Record<Part, readonly (keyof EditorSettings)[]>> = {
   bullet: ['listMarker'],
   pasteUrl: ['pasteUrl'],
   images: ['inlineImages'],
+  remoteImages: ['loadRemoteImages'],
   toolbar: ['toolbar'],
   scrollPastEnd: ['scrollPastEnd'],
   scrollMargin: ['cursorScrollMargin', 'scrollPastEnd', 'fontSize', 'lineHeight'],

@@ -58,6 +58,7 @@ describe('editor settings', () => {
       pasteUrl: 'link',
       syncScroll: true,
       inlineImages: true,
+      loadRemoteImages: true,
       appearance: 'system',
       lightTheme: 'default',
       darkTheme: 'default',
@@ -270,6 +271,9 @@ describe('editor settings', () => {
     for (const pasteUrl of PASTE_URL_STYLES)
       expect(checkEditorSettingsPatch({ pasteUrl })).toEqual({ pasteUrl })
     expect(checkEditorSettingsPatch({ syncScroll: false })).toEqual({ syncScroll: false })
+    expect(checkEditorSettingsPatch({ loadRemoteImages: false })).toEqual({
+      loadRemoteImages: false,
+    })
     expect(checkEditorSettingsPatch({ autoDownloadUpdates: false })).toEqual({
       autoDownloadUpdates: false,
     })
@@ -321,6 +325,8 @@ describe('editor settings', () => {
       { syncScroll: 1 },
       { inlineImages: 'on' },
       { inlineImages: 1 },
+      { loadRemoteImages: 'off' },
+      { loadRemoteImages: 0 },
       { appearance: 'auto' },
       { appearance: true },
       { systemAccent: 'on' },
