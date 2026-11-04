@@ -124,7 +124,6 @@ function compose(page: Page, lineIndex: number, col: number, parts: string[]) {
 }
 
 const TABLE = '| Item | Qty |\n| --- | --: |\n| Tea | 2 |'
-// Text above the table leaves room for the table bar, which would otherwise sit over its first row.
 const NOTE = `Above\n\n${TABLE}`
 const ABOVE = ['Above', '']
 
@@ -193,6 +192,36 @@ test('moves a column from the table bar and keeps the caret in its cell', async 
     '| ---: | ---- |',
     '|    2 | Tea  |',
   ])
+})
+
+test('fits every column to its widest cell on first draw, before the caret enters the table', async ({
+  page,
+}) => {
+  await createNote(
+    page,
+    'Widths',
+    `${TABLE}\n\n| Name | Quantity | Notes |\n| --- | --- | --- |\n| Tea | 2 | Hot |\n\nLast line`,
+  )
+  await expect(cells(page).first()).toBeVisible()
+  // Every row is one line: a wrapped cell would be a line taller (the header's top hairline is a pixel).
+  const heights = await page
+    .locator('.cm-wm-cell')
+    .evaluateAll((all) => all.map((cell) => cell.getBoundingClientRect().height))
+  expect(heights).toHaveLength(10)
+  expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1.5)
+})
+
+test('keeps the table bar off the block above the table', async ({ page }) => {
+  await createNote(page, 'Over', `$$\nE = mc^2\n$$\n\n${TABLE}\n\nLast line`)
+  const math = page.locator('.cm-wm-block-math')
+  await expect(math.locator('math')).toHaveCount(1)
+  await intoCell(page, 'Tea')
+  await expect(bar(page)).toBeVisible()
+  const above = (await math.boundingBox())!
+  const box = (await page.locator('.cm-table-bar').boundingBox())!
+  const head = (await page.locator('.cm-wm-row-head .cm-wm-cell').first().boundingBox())!
+  expect(box.y).toBeGreaterThanOrEqual(above.y + above.height)
+  expect(box.y + box.height).toBeLessThanOrEqual(head.y)
 })
 
 test('shows the table bar above the grid, at its left edge, without covering the header', async ({

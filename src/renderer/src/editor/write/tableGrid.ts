@@ -115,6 +115,8 @@ const atom = Decoration.mark({})
 
 const MIN_COLUMN = 3
 const MAX_COLUMN = 48
+// A column's track takes its cell's hairlines (the first cell has one more) and a pixel for the text's rounding.
+const EDGES = 2
 // Marks a cell's width does not count: emphasis, code and the parts of a link but its text.
 const LINK = /!?\[([^\]]*)\]\([^)]*\)/g
 const MARKS = /\*\*|__|~~|==|[*`]|\\(?=[^\s])/g
@@ -148,7 +150,9 @@ function columnsClass(widths: readonly number[]): string {
   const rules = sheet()
   const name = `cm-wm-cols-${serial++}`
   columnClasses.set(key, name)
-  const tracks = widths.map((w) => `minmax(0, calc(${w}ch + 2 * var(--space-5) + 1px))`)
+  const tracks = widths.map(
+    (w, c) => `minmax(0, calc(${w}ch + 2 * var(--space-5) + ${EDGES + (c === 0 ? 1 : 0)}px))`,
+  )
   rules?.insertRule(`.${name} { grid-template-columns: ${tracks.join(' ')}; }`)
   return name
 }
@@ -298,6 +302,10 @@ export const tableTheme = EditorView.theme({
     paddingInline: 'var(--space-3)',
   },
   '&[data-write] .cm-line.cm-wm-row::before': { display: 'none' },
+  // Room for the table bar above the header, so it never covers the block above.
+  '&[data-write] .cm-line.cm-wm-row.cm-md-table-first': {
+    paddingTop: 'calc(var(--size-float-toolbar-height) + var(--size-float-notch-height))',
+  },
   // Out of the grid's cells: CodeMirror puts these beside widgets for the caret.
   '&[data-write] .cm-line.cm-wm-row > .cm-widgetBuffer': { position: 'absolute' },
   '.cm-wm-cell': {
