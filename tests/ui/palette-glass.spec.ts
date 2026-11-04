@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, openApp, test } from './fixtures'
 
 const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palette' })
 const paletteField = (page: Page) => palette(page).locator('.palette-field')
@@ -13,7 +13,7 @@ async function openPalette(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
 })
 
 test.describe('Glass', () => {
