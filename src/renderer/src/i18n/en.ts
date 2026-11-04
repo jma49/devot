@@ -1270,14 +1270,10 @@ title: Daily Report {{date}}
   'integrations.temporary':
     'Devot is running from a disk image or a temporary copy. Move it to Applications and open it again before connecting a client.',
   'integrations.setupFailed': 'Devot could not read the client configurations ({code}).',
-  'integrations.noAiAccessTitle': 'No notebook allows AI access',
   'integrations.noAiAccess':
-    'MCP clients see no notes until a notebook allows AI access. Right-click a notebook in the sidebar and choose Allow AI Access, or choose several notebooks at once.',
+    'No notebook allows AI access yet, so AI tools see no notes. Use Choose\u2026 in the Notebooks row, or right-click a notebook in the sidebar and choose Allow AI Access.',
   'integrations.noNotebooks':
-    'Devot has no notebooks yet. Create one in the sidebar, then turn on Allow AI Access; an MCP client can also create one with create_notebook.',
-  'integrations.chooseNotebooks': 'Choose Notebooks\u2026',
-  'integrations.later': 'Later',
-  'integrations.openDevot': 'Open Devot',
+    'Devot has no notebooks yet, so AI tools see no notes. Create one in the sidebar, then turn on Allow AI Access; an AI tool can also create one with create_notebook.',
   'integrations.aiAccessCount': '{allowed} of {notebooks} notebooks allow AI access.',
   'integrations.claudeCode': 'Claude Code',
   'integrations.claudeCodeHint': 'Or run this command in Terminal.',
