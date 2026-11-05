@@ -332,7 +332,10 @@ for (const [code, advice] of Object.entries(REFUSALS)) {
     await panel.getByRole('button', { name: 'This Is My First Device' }).click()
     await panel.getByLabel('Relay Secret').fill('secret')
     await panel.getByRole('button', { name: 'Create Vault' }).click()
-    await expect(panel.getByRole('alert')).toContainText(`(${code}). ${advice}`)
+    await expect(panel.getByRole('alert')).toContainText(
+      `The vault could not be created. ${advice}`,
+    )
+    await expect(panel.getByRole('alert')).not.toContainText(code)
   })
 }
 
