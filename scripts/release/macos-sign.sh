@@ -129,8 +129,7 @@ if [ $search_list -eq 1 ]; then
   listed=1
 fi
 
-# By hash: the certificate the profile check accepted, which codesign also takes when it cannot
-# build its chain to a trusted root, as for the tests' self-signed one.
+# By hash, so codesign signs with the certificate the profile check accepted.
 sign() {
   codesign --force --sign "$certificate" --keychain "$keychain" --timestamp "$@"
 }

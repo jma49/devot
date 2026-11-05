@@ -16,13 +16,16 @@ import { tempDir } from '../support/temp-dirs'
 
 // Runs scripts/release/macos-sign.sh on this Mac with a throwaway self-signed identity, in a
 // keychain the script makes under a temp folder; notarization is skipped, or answered by a stand-in
-// xcrun. The login keychain and the keychain search list are never changed.
+// xcrun. The login keychain is never used. On CI the script runs with --search-list, as the
+// release job does, because codesign on the GitHub runners finds no identity in a keychain off the
+// search list; elsewhere the search list is never changed.
 const SCRIPT = 'scripts/release/macos-sign.sh'
 const IDENTITY = 'Developer ID Application: Devot Test (TESTTEAM01)'
 const PASSWORD = 'throwaway-p12-password'
 const API_KEY_TEXT = 'throwaway-api-key-text'
 const TIMEOUT = 300_000
 const ENTITLEMENTS = 'tests/fixtures/signing/test.entitlements'
+const SEARCH_LIST = process.env['CI'] === 'true' ? ['--search-list'] : []
 
 function tool(file: string, args: string[], options: { input?: string } = {}): string {
   return execFileSync(file, args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...options })
@@ -147,7 +150,7 @@ interface Run {
 function sign(certificate: string, app: string, args: string[], env: Record<string, string> = {}) {
   const scratch = tempDir('devot-sign-scratch-')
   const out = join(tempDir('devot-sign-out-'), 'out')
-  const result = spawnSync(SCRIPT, [...args, app, out], {
+  const result = spawnSync(SCRIPT, [...SEARCH_LIST, ...args, app, out], {
     env: {
       PATH: process.env['PATH'] ?? '',
       HOME: process.env['HOME'] ?? '',
