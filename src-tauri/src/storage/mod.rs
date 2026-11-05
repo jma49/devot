@@ -1373,6 +1373,18 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
+    /// The notes the owner wrote or kept, trashed ones included: purged notes and the fixed-ID
+    /// first-launch ones (`00000000-0000-7000-8000-…`, the same on every device) are left out.
+    pub fn own_note_count(&self) -> Result<u64> {
+        let count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM notes WHERE purged_at IS NULL
+               AND id NOT LIKE '00000000-0000-7000-8000-%'",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(u64::try_from(count).unwrap_or(0))
+    }
+
     /// The bodies of `ids` in their order, trashed notes included; purged and unknown IDs are left out.
     pub fn get_bodies(&self, ids: &[String]) -> Result<Vec<NoteBody>> {
         let mut statement = self.conn.prepare_cached(

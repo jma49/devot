@@ -4,9 +4,11 @@
 //! in tests. CloudKit stores records sealed under the vault key, never plaintext or the key.
 
 mod batch;
+pub(crate) mod current;
 mod encoding;
 pub(crate) mod error;
 pub(crate) mod kit;
+pub(crate) mod pairing;
 pub(crate) mod staging;
 mod transport;
 

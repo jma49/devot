@@ -132,3 +132,94 @@ impl SecretStore for Keychain {
         Err(SyncError::KeychainUnavailable)
     }
 }
+
+/// The keychain group the Mac and the iPhone app share (`keychain-access-groups`).
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+const ACCESS_GROUP: &str = "WMG3HG38DV.io.github.jma49.devot";
+/// `errSecMissingEntitlement`: what a build without the access group would get from the keychain.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+const MISSING_ENTITLEMENT: i32 = -34018;
+
+/// The iCloud Keychain's handover item (`sync::handover`): a synchronizable generic password in the
+/// access group the Mac and the iPhone app share, in the data protection keychain, readable after
+/// the first unlock, under `service`. Only a build with Devot's iCloud entitlements may use it; any
+/// other reads nothing and writes nothing.
+pub(crate) struct SyncedKeychain {
+    #[cfg_attr(
+        not(any(target_os = "macos", target_os = "ios")),
+        expect(dead_code, reason = "only the Security framework reads them")
+    )]
+    service: &'static str,
+    #[cfg_attr(
+        not(any(target_os = "macos", target_os = "ios")),
+        expect(dead_code, reason = "only the Security framework reads them")
+    )]
+    available: bool,
+}
+
+impl SyncedKeychain {
+    /// `available` is whether this build carries the iCloud entitlements, the access group among them.
+    pub(crate) fn new(service: &'static str, available: bool) -> Self {
+        Self { service, available }
+    }
+}
+
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+impl SecretStore for SyncedKeychain {
+    fn read(&self, account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, SyncError> {
+        if !self.available {
+            return Ok(None);
+        }
+        crate::native::ios::synced_keychain::read(self.service, account, ACCESS_GROUP)
+            .map(|item| item.map(Zeroizing::new))
+            .map_err(SyncError::Keychain)
+    }
+
+    fn add(&self, account: &str, secret: &[u8]) -> Result<bool, SyncError> {
+        if !self.available {
+            return Err(SyncError::Keychain(MISSING_ENTITLEMENT));
+        }
+        crate::native::ios::synced_keychain::add(self.service, account, ACCESS_GROUP, secret)
+            .map_err(SyncError::Keychain)
+    }
+
+    fn replace(&self, account: &str, secret: &[u8]) -> Result<(), SyncError> {
+        if !self.add(account, secret)? {
+            crate::native::ios::synced_keychain::update(
+                self.service,
+                account,
+                ACCESS_GROUP,
+                secret,
+            )
+            .map_err(SyncError::Keychain)?;
+        }
+        Ok(())
+    }
+
+    fn remove(&self, account: &str) -> Result<bool, SyncError> {
+        if !self.available {
+            return Ok(false);
+        }
+        crate::native::ios::synced_keychain::delete(self.service, account, ACCESS_GROUP)
+            .map_err(SyncError::Keychain)
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "ios")))]
+impl SecretStore for SyncedKeychain {
+    fn read(&self, _: &str) -> Result<Option<Zeroizing<Vec<u8>>>, SyncError> {
+        Ok(None)
+    }
+
+    fn add(&self, _: &str, _: &[u8]) -> Result<bool, SyncError> {
+        Err(SyncError::KeychainUnavailable)
+    }
+
+    fn replace(&self, _: &str, _: &[u8]) -> Result<(), SyncError> {
+        Err(SyncError::KeychainUnavailable)
+    }
+
+    fn remove(&self, _: &str) -> Result<bool, SyncError> {
+        Ok(false)
+    }
+}

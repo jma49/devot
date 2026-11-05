@@ -8,7 +8,8 @@
 //! when it connects, unless it was removed from that vault.
 //!
 //! A vault on iCloud (`sync::cloudkit`) connects, pulls and pushes through the same commands, with
-//! no relay, token or socket: the Apple ID is the access check.
+//! no relay, token or socket: the Apple ID is the access check. A device with no vault looks for its
+//! Apple ID's vault (`icloud_look`) and joins it through the iCloud Keychain's handover item.
 
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -23,8 +24,13 @@ use zeroize::Zeroizing;
 use super::client::{
     self, Connection, DeviceInfo, Event, PairingState, RelayUrl, RelayUsage, Welcome,
 };
+use super::cloudkit::current::{self, Claim};
+use super::cloudkit::kit::vault_zone;
+use super::cloudkit::pairing::ICloudPairing;
 use super::cloudkit::{self, CloudKit, ICloud, ICloudState, Staging};
 use super::file_record;
+use super::handover;
+use super::keychain::SyncedKeychain;
 use super::pairing::{self, Pairing, PairingChannel, Qr, RelayPairing};
 use super::settings::{DeviceCredentials, SettingsStore};
 use super::{MAX_RECORD_BYTES, SecretStore, Vault};
@@ -32,6 +38,11 @@ use crate::licence::Gate;
 
 pub(crate) const CHANGED_EVENT: &str = "devot://sync-changed";
 pub(crate) const SOCKET_EVENT: &str = "devot://sync-event";
+/// A pairing on show through iCloud may have moved on: check it now, as the subscription stands in
+/// for polling there.
+pub(crate) const PAIRING_EVENT: &str = "devot://sync-pairing";
+const OTHER_VAULT: &str = "E_SYNC_ICLOUD_OTHER_VAULT";
+const OTHER_ACCOUNT: &str = "E_SYNC_ICLOUD_OTHER_ACCOUNT";
 const MAX_RELAY_SECRET: usize = 1024;
 const MAX_RECOVERY_KEY: usize = 512;
 const STATES: [&str; 7] = [
@@ -145,6 +156,56 @@ pub(crate) struct Snapshot {
     /// This device has a token for the relay set and that vault.
     pub enrolled: bool,
     pub status: StatusView,
+    /// What the last look for the Apple ID's vault found, while this device runs.
+    pub icloud_join: Option<ICloudJoinView>,
+}
+
+/// What this device found of its Apple ID's vault on iCloud, for Settings > Sync and the notice:
+/// `unavailable` (with its `code`), `none` (the Apple ID has no vault yet), `joined`, `ask` (the
+/// library holds `notes`), `declined`, or `fallback`, a pairing code or the recovery key, with its
+/// `reason`: `missing` (no handover item here), `otherVault` or `unreadable`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ICloudJoinView {
+    pub state: &'static str,
+    pub notes: Option<u64>,
+    pub reason: Option<&'static str>,
+    pub code: Option<&'static str>,
+}
+
+impl ICloudJoinView {
+    fn is(state: &'static str) -> Self {
+        Self {
+            state,
+            notes: None,
+            reason: None,
+            code: None,
+        }
+    }
+
+    fn unavailable(code: &'static str) -> Self {
+        Self {
+            code: Some(code),
+            ..Self::is("unavailable")
+        }
+    }
+
+    fn fallback(reason: &'static str, code: Option<&'static str>) -> Self {
+        Self {
+            reason: Some(reason),
+            code,
+            ..Self::is("fallback")
+        }
+    }
+}
+
+/// What a look for the Apple ID's vault found.
+enum Found {
+    /// This device holds a vault, and never joins another.
+    Held,
+    View(ICloudJoinView),
+    /// The handover item names the vault `current` names.
+    Vault(Box<Vault>),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -306,6 +367,7 @@ struct Hosting {
     vault: String,
     expires: i64,
     taken: AtomicBool,
+    icloud: bool,
 }
 
 pub(crate) type Emit = Arc<dyn Fn(&'static str, Value) + Send + Sync>;
@@ -332,6 +394,9 @@ pub(crate) struct SyncService {
     hosting: Mutex<Option<Arc<Hosting>>>,
     kit: Arc<dyn CloudKit>,
     staging: Arc<Staging>,
+    /// The iCloud Keychain's handover item (`sync::handover`).
+    handover: Secrets,
+    look: Mutex<Option<ICloudJoinView>>,
     /// Moves this service's clock in tests of expiry.
     shifted: AtomicI64,
 }
@@ -453,8 +518,15 @@ impl SyncService {
             hosting: Mutex::new(None),
             staging: Arc::new(Staging::new(&settings_dir.join(cloudkit::staging::DIR))),
             kit: Arc::new(cloudkit::kit::Unavailable),
+            handover: Arc::new(SyncedKeychain::new(handover::SERVICE, false)),
+            look: Mutex::new(None),
             shifted: AtomicI64::new(0),
         }
+    }
+
+    pub(crate) fn with_handover(mut self, store: Secrets) -> Self {
+        self.handover = store;
+        self
     }
 
     /// iCloud through `kit`; its asset staging folder is swept here, before any upload.
@@ -507,6 +579,7 @@ impl SyncService {
             vault: vault.is_some(),
             enrolled,
             status: self.status.lock().map(|s| s.clone()).unwrap_or_default(),
+            icloud_join: self.look.lock().ok().and_then(|look| look.clone()),
         }
     }
 
@@ -617,9 +690,13 @@ impl SyncService {
     }
 
     /// Shows a new pairing code: seals the vault under it and leaves the offer on the relay
-    /// (docs/adr/0008-sync-device-pairing.md). A code shown before is closed.
+    /// (docs/adr/0008-sync-device-pairing.md), or for a vault on iCloud in zone `devot`. A code
+    /// shown before is closed.
     pub(crate) fn pairing_open(&self) -> Result<PairingView, &'static str> {
         self.licence.require()?;
+        if self.on_icloud() {
+            return self.pairing_open_icloud();
+        }
         let relay = self.relay()?;
         let vault = self.held_vault()?;
         let credentials = self.credentials(&relay, &vault)?;
@@ -632,10 +709,40 @@ impl SyncService {
         let channel = RelayPairing::host(relay.clone(), vault_id.clone(), token);
         channel.open(pairing.id(), &offer)?;
         let link = pairing.link(&relay);
+        self.show(pairing, Box::new(channel), vault_id, expires, &link, false)
+    }
+
+    /// The offer waits in zone `devot`, where only this Apple ID's devices see it.
+    fn pairing_open_icloud(&self) -> Result<PairingView, &'static str> {
+        let vault = self.held_vault()?;
+        current::ready(self.kit.as_ref())?;
+        self.pairing_cancel();
+        let pairing = Pairing::generate().map_err(|e| e.code())?;
+        let now = self.now();
+        let expires = now.saturating_add(pairing::TTL_MS);
+        let offer = pairing
+            .seal_icloud_offer(&vault, expires)
+            .map_err(|e| e.code())?;
+        let channel = ICloudPairing::host(Arc::clone(&self.kit), expires, now);
+        channel.open(pairing.id(), &offer)?;
+        let link = pairing.icloud_link();
+        let vault_id = vault.id().to_string();
+        self.show(pairing, Box::new(channel), vault_id, expires, &link, true)
+    }
+
+    fn show(
+        &self,
+        pairing: Pairing,
+        channel: Box<dyn PairingChannel>,
+        vault_id: String,
+        expires: i64,
+        link: &str,
+        icloud: bool,
+    ) -> Result<PairingView, &'static str> {
         let view = PairingView {
             code: pairing.code().to_string(),
             link: link.to_string(),
-            qr: pairing::qr(&link)?,
+            qr: pairing::qr(link)?,
             expires,
         };
         log::info!(
@@ -644,16 +751,26 @@ impl SyncService {
         );
         *self.hosting.lock().map_err(|_| "E_SYNC_INTERNAL")? = Some(Arc::new(Hosting {
             pairing,
-            channel: Box::new(channel),
+            channel,
             vault: vault_id,
             expires,
             taken: AtomicBool::new(false),
+            icloud,
         }));
         Ok(view)
     }
 
-    /// Asks the relay how the pairing on show is going. A confirmation counts only when it opens
-    /// under the code's key; then the pairing is closed.
+    /// Whether this device's vault syncs through iCloud.
+    fn on_icloud(&self) -> bool {
+        let settings = self.settings.get();
+        Vault::load(self.secrets.as_ref())
+            .ok()
+            .flatten()
+            .is_some_and(|vault| settings.icloud_for(&vault.id().to_string()).is_some())
+    }
+
+    /// Asks the relay (or zone `devot`) how the pairing on show is going. A confirmation counts only
+    /// when it opens under the code's key; then the pairing is closed.
     pub(crate) fn pairing_check(&self) -> Result<PairingCheck, &'static str> {
         let hosting = self
             .hosting
@@ -711,7 +828,7 @@ impl SyncService {
         }
     }
 
-    /// Closes the pairing on show, on the relay too when it answers.
+    /// Closes the pairing on show, where its offer waits too when that answers.
     pub(crate) fn pairing_cancel(&self) {
         let hosting = self.hosting.lock().ok().and_then(|mut h| h.take());
         if let Some(hosting) = hosting {
@@ -743,10 +860,18 @@ impl SyncService {
 
     /// Joins the vault a pairing code (or the link its QR code holds) hands over: takes the offer,
     /// enrolls this device, keeps the vault and confirms to the device that shows the code. A link
-    /// must name the relay set in Settings: the page asks before it sets a relay from a link.
-    pub(crate) fn join_with_code(&self, text: &str) -> Result<Snapshot, &'static str> {
+    /// must name the relay set in Settings: the page asks before it sets a relay from a link. A code
+    /// alone goes through iCloud when `icloud`, the page's choice; a link names its own way.
+    pub(crate) fn join_with_code_via(
+        &self,
+        text: &str,
+        icloud: bool,
+    ) -> Result<Snapshot, &'static str> {
         self.licence.require()?;
         let entered = pairing::read(text).map_err(|e| e.code())?;
+        if entered.icloud || (icloud && entered.relay.is_none()) {
+            return self.join_icloud_with_code(&entered.pairing);
+        }
         let relay = self.relay()?;
         if entered
             .relay
@@ -781,6 +906,56 @@ impl SyncService {
             log::warn!("W_SYNC_PAIRING_CONFIRM {code} pairing={}", pairing.id());
         }
         log::info!("I_SYNC_JOINED vault={} device={device}", vault.id());
+        Ok(self.changed())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn join_with_code(&self, text: &str) -> Result<Snapshot, &'static str> {
+        self.join_with_code_via(text, false)
+    }
+
+    /// Takes the offer from zone `devot`, keeps the vault it seals and confirms with this device's
+    /// ID in the vault. An offer this Apple ID cannot see, when it has no vault either, was shown on
+    /// another Apple ID.
+    fn join_icloud_with_code(&self, pairing: &Pairing) -> Result<Snapshot, &'static str> {
+        let kit = self.kit.as_ref();
+        // Refused before the offer is taken, so the code still works on another device.
+        if Vault::load(self.secrets.as_ref())
+            .map_err(|e| e.code())?
+            .is_some()
+        {
+            return Err("E_SYNC_VAULT_EXISTS");
+        }
+        current::ready(kit)?;
+        let channel = ICloudPairing::join(Arc::clone(&self.kit));
+        let offer =
+            channel
+                .take(pairing.id())
+                .map_err(|code| match (code, current::read(kit)) {
+                    ("E_SYNC_PAIRING_GONE", Ok(None)) => OTHER_ACCOUNT,
+                    _ => code,
+                })?;
+        let vault = pairing.open_icloud_offer(&offer, self.now()).map_err(|e| {
+            log::warn!("W_SYNC_PAIRING_OFFER {} pairing={}", e.code(), pairing.id());
+            e.code()
+        })?;
+        self.belongs(&vault)?;
+        let vault = self.keep_icloud(vault, true)?;
+        let vault_id = vault.id().to_string();
+        let device = self
+            .settings
+            .get()
+            .icloud_for(&vault_id)
+            .map(|state| state.device.clone())
+            .ok_or("E_SYNC_INTERNAL")?;
+        let confirmed = pairing
+            .seal_confirmation(&device)
+            .map_err(|e| e.code())
+            .and_then(|proof| channel.confirm(pairing.id(), &proof));
+        if let Err(code) = confirmed {
+            log::warn!("W_SYNC_PAIRING_CONFIRM {code} pairing={}", pairing.id());
+        }
+        log::info!("I_SYNC_JOINED vault={vault_id} device={device} via=icloud");
         Ok(self.changed())
     }
 
@@ -1044,11 +1219,17 @@ impl SyncService {
         }
     }
 
-    /// Syncs this device's vault through iCloud from its next connect, and turns sync on. With no
-    /// vault here it makes one, or restores it from `recovery_key`; a key for another vault than
-    /// the one held is refused. Moving a vault that other devices sync through a relay (the moved
-    /// marker, a new epoch) and joining through the iCloud Keychain are Settings' (#604, #606).
-    pub(crate) fn use_icloud(&self, recovery_key: Option<&str>) -> Result<Snapshot, &'static str> {
+    /// Syncs this device's vault through iCloud from its next connect, and turns sync on, once
+    /// `current` names it. With no vault here it makes one, or restores it from `recovery_key`; a
+    /// key for another vault than the one held is refused. A new vault is kept only after its
+    /// `current` was saved; one that lost to another device's is dropped, and this device looks
+    /// for the winner as at launch, with `notes` in its library. Moving a vault that other devices
+    /// sync through a relay (the moved marker, a new epoch) is Settings' (#606).
+    pub(crate) fn use_icloud(
+        &self,
+        recovery_key: Option<&str>,
+        notes: u64,
+    ) -> Result<Snapshot, &'static str> {
         self.licence.require()?;
         if !self.kit.available() {
             return Err(cloudkit::error::UNAVAILABLE);
@@ -1056,21 +1237,67 @@ impl SyncService {
         if recovery_key.is_some_and(|key| key.len() > MAX_RECOVERY_KEY) {
             return Err("E_SYNC_RECOVERY_FORMAT");
         }
+        let named = recovery_key
+            .map(Vault::from_recovery_key)
+            .transpose()
+            .map_err(|e| e.code())?;
         let held = Vault::load(self.secrets.as_ref()).map_err(|e| e.code())?;
-        let vault = match (held, recovery_key) {
-            (Some(held), Some(key)) => {
-                let named = Vault::from_recovery_key(key).map_err(|e| e.code())?;
-                if !held.same(&named) {
-                    return Err("E_SYNC_VAULT_EXISTS");
-                }
+        if let (Some(held), Some(named)) = (&held, &named)
+            && !held.same(named)
+        {
+            return Err("E_SYNC_VAULT_EXISTS");
+        }
+        current::ready(self.kit.as_ref())?;
+        let vault = match (held, named) {
+            (Some(held), _) => {
+                self.claim(&held)?;
                 held
             }
-            (Some(held), None) => held,
-            (None, Some(key)) => {
-                Vault::restore(self.secrets.as_ref(), key).map_err(|e| e.code())?
+            (None, Some(named)) => {
+                self.belongs(&named)?;
+                named
             }
-            (None, None) => Vault::create(self.secrets.as_ref()).map_err(|e| e.code())?,
+            (None, None) => {
+                let vault = Vault::generate().map_err(|e| e.code())?;
+                if let Claim::Lost(_) = current::claim(self.kit.as_ref(), &vault.id().to_string())?
+                {
+                    return self.icloud_look(notes);
+                }
+                vault
+            }
         };
+        let vault = self.keep_icloud(vault, recovery_key.is_some())?;
+        log::info!("I_SYNC_ICLOUD_USED vault={}", vault.id());
+        Ok(self.changed())
+    }
+
+    /// Saves `current` naming `vault` unless it names another, which this device never replaces.
+    fn claim(&self, vault: &Vault) -> Result<(), &'static str> {
+        match current::claim(self.kit.as_ref(), &vault.id().to_string())? {
+            Claim::Won => Ok(()),
+            Claim::Lost(_) => Err(OTHER_VAULT),
+        }
+    }
+
+    /// Whether this Apple ID syncs `vault`: `current` names it, or its zone is there from before
+    /// `current` and it claims it now. Any other vault would start a second copy that never meets
+    /// the first.
+    fn belongs(&self, vault: &Vault) -> Result<(), &'static str> {
+        let kit = self.kit.as_ref();
+        let id = vault.id().to_string();
+        match current::read(kit)? {
+            Some(current) if current == id => Ok(()),
+            Some(_) => Err(OTHER_VAULT),
+            None if current::zone_exists(kit, &vault_zone(&id))? => self.claim(vault),
+            None => Err(OTHER_ACCOUNT),
+        }
+    }
+
+    /// Keeps `vault` in this device's own item (never replacing another), syncs it through iCloud,
+    /// turns sync on and leaves it in the handover item. A vault `joined`, not made here, never
+    /// shows its recovery key.
+    fn keep_icloud(&self, vault: Vault, joined: bool) -> Result<Vault, &'static str> {
+        let vault = Vault::join(self.secrets.as_ref(), vault).map_err(|e| e.code())?;
         let vault_id = vault.id().to_string();
         self.disconnect();
         let mut settings = self.settings.get();
@@ -1078,12 +1305,119 @@ impl SyncService {
             settings.icloud = Some(ICloudState::new(&vault_id));
         }
         settings.enabled = true;
-        if recovery_key.is_some() {
-            settings.recovery_shown = vault_id.clone();
+        settings.icloud_declined.clear();
+        if joined {
+            settings.recovery_shown = vault_id;
         }
         self.settings.set(&settings)?;
-        log::info!("I_SYNC_ICLOUD_USED vault={vault_id}");
+        self.hand_over(&vault);
+        Ok(vault)
+    }
+
+    /// Leaves `vault`, which `current` names, in the handover item for this Apple ID's other
+    /// devices. The device-only item is this device's copy, so a failure here is only logged.
+    fn hand_over(&self, vault: &Vault) {
+        let store = self.handover.as_ref();
+        let there = handover::read(store)
+            .ok()
+            .flatten()
+            .is_some_and(|item| item.same(vault));
+        if !there && let Err(e) = handover::write(store, vault) {
+            log::warn!("W_SYNC_HANDOVER_WRITE {} vault={}", e.code(), vault.id());
+        }
+    }
+
+    /// Looks for the Apple ID's vault, as at launch and when the account changes. A device that
+    /// holds no vault joins it on its own when the handover item names it and the library holds no
+    /// `notes`; with notes it asks, once. Declined, or with no item, Settings offers the fallback.
+    pub(crate) fn icloud_look(&self, notes: u64) -> Result<Snapshot, &'static str> {
+        let view = match self.find() {
+            Found::Held => return Ok(self.snapshot()),
+            Found::View(view) => view,
+            Found::Vault(vault) => {
+                if self.settings.get().icloud_declined == vault.id().to_string() {
+                    ICloudJoinView::is("declined")
+                } else if notes > 0 {
+                    ICloudJoinView {
+                        notes: Some(notes),
+                        ..ICloudJoinView::is("ask")
+                    }
+                } else {
+                    let vault = self.keep_icloud(*vault, true)?;
+                    log::info!("I_SYNC_JOINED vault={} via=keychain", vault.id());
+                    ICloudJoinView::is("joined")
+                }
+            }
+        };
+        self.set_look(view);
         Ok(self.changed())
+    }
+
+    /// The owner's answer to the question `icloud_look` asked: join, or leave sync off and the offer
+    /// in Settings. The item and `current` are read again, so the answer applies to the vault they
+    /// name now.
+    pub(crate) fn icloud_join(&self, accept: bool) -> Result<Snapshot, &'static str> {
+        let vault = match self.find() {
+            Found::Held => return Err("E_SYNC_VAULT_EXISTS"),
+            Found::View(view) => {
+                self.set_look(view);
+                return Ok(self.changed());
+            }
+            Found::Vault(vault) => *vault,
+        };
+        let view = if accept {
+            let vault = self.keep_icloud(vault, true)?;
+            log::info!("I_SYNC_JOINED vault={} via=keychain", vault.id());
+            ICloudJoinView::is("joined")
+        } else {
+            let mut settings = self.settings.get();
+            settings.icloud_declined = vault.id().to_string();
+            self.settings.set(&settings)?;
+            log::info!("I_SYNC_ICLOUD_DECLINED vault={}", vault.id());
+            ICloudJoinView::is("declined")
+        };
+        self.set_look(view);
+        Ok(self.changed())
+    }
+
+    fn find(&self) -> Found {
+        if let Err(code) = self.licence.require() {
+            return Found::View(ICloudJoinView::unavailable(code));
+        }
+        match Vault::load(self.secrets.as_ref()) {
+            Ok(Some(_)) => return Found::Held,
+            Ok(None) => {}
+            Err(e) => return Found::View(ICloudJoinView::unavailable(e.code())),
+        }
+        let kit = self.kit.as_ref();
+        let current = match current::ready(kit).and_then(|()| current::read(kit)) {
+            Ok(Some(current)) => current,
+            Ok(None) => return Found::View(ICloudJoinView::is("none")),
+            Err(code) => return Found::View(ICloudJoinView::unavailable(code)),
+        };
+        Found::View(match handover::read(self.handover.as_ref()) {
+            Ok(Some(vault)) if vault.id().to_string() == current => {
+                return Found::Vault(Box::new(vault));
+            }
+            Ok(Some(vault)) => {
+                log::info!(
+                    "I_SYNC_HANDOVER_OTHER item={} current={current}",
+                    vault.id()
+                );
+                ICloudJoinView::fallback("otherVault", None)
+            }
+            Ok(None) => ICloudJoinView::fallback("missing", None),
+            Err(e) => {
+                log::warn!("W_SYNC_HANDOVER_UNREADABLE {}", e.code());
+                ICloudJoinView::fallback("unreadable", Some(e.code()))
+            }
+        })
+    }
+
+    fn set_look(&self, view: ICloudJoinView) {
+        if let Ok(mut look) = self.look.lock() {
+            *look = Some(view);
+        }
     }
 
     /// After `E_SYNC_ICLOUD_DELETED`, when the owner chose to upload again: the next connect makes
@@ -1307,6 +1641,14 @@ impl SyncService {
     pub(crate) fn icloud_changed(&self) {
         if matches!(self.live(), Ok(LiveRef::ICloud(_))) {
             (self.emit)(SOCKET_EVENT, json!({ "type": "changed", "cursor": "" }));
+        }
+        let hosting = self
+            .hosting
+            .lock()
+            .ok()
+            .is_some_and(|hosting| hosting.as_ref().is_some_and(|h| h.icloud));
+        if hosting {
+            (self.emit)(PAIRING_EVENT, Value::Null);
         }
     }
 

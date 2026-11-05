@@ -39,6 +39,10 @@ const FORMAT: u8 = 1;
 const NONCE_BYTES: usize = 12;
 const TAG_BYTES: usize = 16;
 const OFFER_BYTES: usize = 1 + 8 + ID_BYTES + KEY_BYTES;
+/// An offer that names its transport: version 2, the transport's byte after the key. A relay's
+/// offer stays version 1, which every build reads.
+const OFFER_VERSION_TRANSPORT: u8 = 2;
+const TRANSPORT_ICLOUD: u8 = 1;
 const MAX_DEVICE_BYTES: usize = 64;
 
 const SALT: &[u8] = b"devot/sync/pairing/v1";
@@ -50,6 +54,7 @@ const CHECKSUM_LABEL: &[u8] = b"devot/sync/pairing/code/v1";
 
 const LINK_SCHEME: &str = "devot";
 const LINK_HOST: &str = "pair";
+const VIA_ICLOUD: &str = "icloud";
 
 /// One pairing's secret and what derives from it. `Debug` shows the pairing ID only.
 pub(crate) struct Pairing {
@@ -66,11 +71,13 @@ impl fmt::Debug for Pairing {
     }
 }
 
-/// What the joining device typed, pasted or scanned: the pairing, and the relay a link named.
+/// What the joining device typed, pasted or scanned: the pairing, and the relay a link named or
+/// whether it named iCloud. A code alone names neither.
 #[derive(Debug)]
 pub(crate) struct Entered {
     pub pairing: Pairing,
     pub relay: Option<RelayUrl>,
+    pub icloud: bool,
 }
 
 impl Pairing {
@@ -123,6 +130,17 @@ impl Pairing {
         Zeroizing::new(url.into())
     }
 
+    /// What the QR code holds for a vault on iCloud: `devot://pair?via=icloud&code=<code>`.
+    pub(crate) fn icloud_link(&self) -> Zeroizing<String> {
+        let code = Zeroizing::new(self.code().replace('-', ""));
+        let mut url =
+            Url::parse(&format!("{LINK_SCHEME}://{LINK_HOST}")).expect("a fixed link parses");
+        url.query_pairs_mut()
+            .append_pair("via", VIA_ICLOUD)
+            .append_pair("code", &code);
+        Zeroizing::new(url.into())
+    }
+
     /// Seals the vault for whoever holds this code, until `expires` (ms, this device's clock).
     pub(crate) fn seal_offer(&self, vault: &Vault, expires: i64) -> Result<Vec<u8>, SyncError> {
         let mut plain = Zeroizing::new(Vec::with_capacity(OFFER_BYTES));
@@ -133,15 +151,46 @@ impl Pairing {
         self.seal(OFFER_AD, &plain)
     }
 
+    /// An offer of a vault on iCloud, which names its transport, so it never opens as a relay's.
+    pub(crate) fn seal_icloud_offer(
+        &self,
+        vault: &Vault,
+        expires: i64,
+    ) -> Result<Vec<u8>, SyncError> {
+        let mut plain = Zeroizing::new(Vec::with_capacity(OFFER_BYTES + 1));
+        plain.push(OFFER_VERSION_TRANSPORT);
+        plain.extend_from_slice(&expires.to_be_bytes());
+        plain.extend_from_slice(vault.id().as_bytes());
+        plain.extend_from_slice(vault.key());
+        plain.push(TRANSPORT_ICLOUD);
+        self.seal(OFFER_AD, &plain)
+    }
+
     /// The vault an offer holds. Anything that does not open under this code's key fails with
     /// `E_SYNC_PAIRING_AUTH` (a relay's substitute, another pairing's offer, a confirmation), and
     /// an offer past its expiry by more than the allowed clock difference with
-    /// `E_SYNC_PAIRING_EXPIRED`.
+    /// `E_SYNC_PAIRING_EXPIRED`. An offer of a vault on iCloud fails here as any other does.
     pub(crate) fn open_offer(&self, sealed: &[u8], now: i64) -> Result<Vault, SyncError> {
         let plain = self.open(OFFER_AD, sealed)?;
         if plain.len() != OFFER_BYTES || plain[0] != VERSION {
             return Err(SyncError::PairingAuth);
         }
+        Self::offered(&plain, now)
+    }
+
+    /// An offer of a vault on iCloud; a relay's fails with `E_SYNC_PAIRING_AUTH`.
+    pub(crate) fn open_icloud_offer(&self, sealed: &[u8], now: i64) -> Result<Vault, SyncError> {
+        let plain = self.open(OFFER_AD, sealed)?;
+        if plain.len() != OFFER_BYTES + 1
+            || plain[0] != OFFER_VERSION_TRANSPORT
+            || plain[OFFER_BYTES] != TRANSPORT_ICLOUD
+        {
+            return Err(SyncError::PairingAuth);
+        }
+        Self::offered(&plain[..OFFER_BYTES], now)
+    }
+
+    fn offered(plain: &[u8], now: i64) -> Result<Vault, SyncError> {
         let expires =
             i64::from_be_bytes(plain[1..9].try_into().map_err(|_| SyncError::PairingAuth)?);
         if now > expires.saturating_add(SKEW_MS) {
@@ -236,26 +285,34 @@ pub(crate) fn read(text: &str) -> Result<Entered, SyncError> {
             return Err(SyncError::PairingFormat);
         }
         let mut relay = None;
+        let mut via = None;
         let mut code = None;
         for (name, value) in url.query_pairs() {
             match name.as_ref() {
                 "relay" if relay.is_none() => relay = Some(Zeroizing::new(value.into_owned())),
+                "via" if via.is_none() => via = Some(value.into_owned()),
                 "code" if code.is_none() => code = Some(Zeroizing::new(value.into_owned())),
                 _ => return Err(SyncError::PairingFormat),
             }
         }
-        let relay = relay
-            .and_then(|r| RelayUrl::parse(&r).ok())
-            .ok_or(SyncError::PairingFormat)?;
         let code = code.ok_or(SyncError::PairingFormat)?;
+        let relay = match (relay, via.as_deref()) {
+            (Some(relay), None) => {
+                Some(RelayUrl::parse(&relay).map_err(|_| SyncError::PairingFormat)?)
+            }
+            (None, Some(VIA_ICLOUD)) => None,
+            _ => return Err(SyncError::PairingFormat),
+        };
         return Ok(Entered {
             pairing: decode(&code)?,
-            relay: Some(relay),
+            icloud: relay.is_none(),
+            relay,
         });
     }
     Ok(Entered {
         pairing: decode(text)?,
         relay: None,
+        icloud: false,
     })
 }
 
@@ -286,9 +343,8 @@ fn checksum(payload: &[u8]) -> [u8; CHECKSUM_BYTES] {
     sum
 }
 
-/// Where a pairing's sealed offer and the joining device's sealed confirmation wait. The relay
-/// is the one today; docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md adds one for
-/// a vault in iCloud.
+/// Where a pairing's sealed offer and the joining device's sealed confirmation wait: the relay, or
+/// for a vault on iCloud a record in zone `devot` (`cloudkit::pairing`).
 pub(crate) trait PairingChannel: Send + Sync {
     /// Leaves the offer. Its expiry is the one sealed inside it, not the channel's.
     fn open(&self, id: &str, offer: &[u8]) -> Result<(), &'static str>;

@@ -3793,3 +3793,28 @@ fn a_library_that_pushed_but_never_pulled_counts_as_synced() {
             .any(|(key, value)| key == "hasSynced" && value == "1")
     );
 }
+
+#[test]
+fn counts_the_owner_s_notes_without_purged_or_first_launch_ones() {
+    let (_dir, mut store) = temp_store();
+    assert_eq!(store.own_note_count().unwrap(), 0);
+    for id in [
+        "00000000-0000-7000-8000-000000000011",
+        "00000000-0000-7000-8000-000000000012",
+        "00000000-0000-7000-8000-000000000000",
+    ] {
+        store.put_note(&note(id, "First launch", 10), &[]).unwrap();
+    }
+    assert_eq!(store.own_note_count().unwrap(), 0);
+    for id in ["a", "b", "c"] {
+        store.put_note(&note(id, "Mine", 10), &[]).unwrap();
+    }
+    let mut trashed = note("d", "Trashed", 10);
+    trashed.deleted_at = Some(15);
+    trashed.deleted_hlc = Some("0000000000015-0000-test".into());
+    store.put_note(&trashed, &[]).unwrap();
+    store
+        .trash_and_purge("c", 20, "0000000000000020-0000-test")
+        .unwrap();
+    assert_eq!(store.own_note_count().unwrap(), 3, "a, b and the trashed d");
+}

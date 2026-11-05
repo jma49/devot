@@ -30,6 +30,9 @@ pub(crate) struct SyncSettings {
     /// The vault this names syncs through iCloud; any other vault, through the relay.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icloud: Option<ICloudState>,
+    /// The Apple ID's vault this device was asked to join and declined, so it is asked once.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub icloud_declined: String,
 }
 
 impl SyncSettings {

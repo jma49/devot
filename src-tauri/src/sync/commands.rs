@@ -78,15 +78,22 @@ pub async fn sync_pairing_cancel(sync: State<'_, Arc<SyncService>>) -> Result<()
     .await
 }
 
-/// A pairing code as typed or pasted, or the link its QR code holds.
+/// A pairing code as typed or pasted, or the link its QR code holds. `via` is the way a code alone
+/// goes: `relay` (the default) or `icloud`.
 #[tauri::command]
 pub async fn sync_join_code(
     sync: State<'_, Arc<SyncService>>,
     code: String,
+    via: Option<String>,
 ) -> Result<Snapshot, String> {
+    let icloud = match via.as_deref() {
+        None | Some("relay") => false,
+        Some("icloud") => true,
+        Some(_) => return Err("E_SYNC_PAIRING_VIA".into()),
+    };
     let code = zeroize::Zeroizing::new(code);
     task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| {
-        sync.join_with_code(&code)
+        sync.join_with_code_via(&code, icloud)
     })
     .await
 }
@@ -202,6 +209,7 @@ pub async fn sync_icloud_status(sync: State<'_, Arc<SyncService>>) -> Result<ICl
 #[tauri::command]
 pub async fn sync_icloud_use(
     sync: State<'_, Arc<SyncService>>,
+    db: State<'_, Db>,
     recovery_key: Option<String>,
 ) -> Result<Snapshot, String> {
     if recovery_key
@@ -211,10 +219,65 @@ pub async fn sync_icloud_use(
         return Err("E_SYNC_RECOVERY_FORMAT".into());
     }
     let key = recovery_key.map(zeroize::Zeroizing::new);
+    let notes = own_notes(&db).await?;
     task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| {
-        sync.use_icloud(key.as_deref().map(String::as_str))
+        sync.use_icloud(key.as_deref().map(String::as_str), notes)
     })
     .await
+}
+
+/// Looks for the Apple ID's vault now, as at launch: Settings' way to look again.
+#[tauri::command]
+pub async fn sync_icloud_look(
+    sync: State<'_, Arc<SyncService>>,
+    db: State<'_, Db>,
+) -> Result<Snapshot, String> {
+    let notes = own_notes(&db).await?;
+    task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| {
+        sync.icloud_look(notes)
+    })
+    .await
+}
+
+/// The owner's answer to joining the Apple ID's vault with notes in the library.
+#[tauri::command]
+pub async fn sync_icloud_join(
+    sync: State<'_, Arc<SyncService>>,
+    accept: bool,
+) -> Result<Snapshot, String> {
+    task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| {
+        sync.icloud_join(accept)
+    })
+    .await
+}
+
+async fn own_notes(db: &Db) -> Result<u64, String> {
+    db.call(|store| store.own_note_count())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Looks for the Apple ID's vault at launch and when the account changes; the outcome reaches the
+/// windows in the snapshot.
+#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
+pub(crate) async fn look_for_icloud_vault(app: tauri::AppHandle) {
+    use tauri::Manager as _;
+    let (Some(sync), Some(db)) = (app.try_state::<Arc<SyncService>>(), app.try_state::<Db>())
+    else {
+        return;
+    };
+    let looked = match own_notes(&db).await {
+        Ok(notes) => {
+            task::blocking_with(sync.inner(), "E_SYNC_INTERNAL", move |sync| {
+                sync.icloud_look(notes)
+            })
+            .await
+        }
+        Err(code) => Err(code),
+    };
+    if let Err(code) = looked {
+        log::info!("I_SYNC_ICLOUD_LOOK_FAILED {code}");
+    }
 }
 
 #[tauri::command]

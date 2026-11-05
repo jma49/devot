@@ -12,6 +12,7 @@ pub(crate) mod commands;
 mod crockford;
 mod error;
 pub(crate) mod file_record;
+pub(crate) mod handover;
 mod keychain;
 mod pairing;
 mod record;
