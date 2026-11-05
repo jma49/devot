@@ -6,6 +6,9 @@
 //! Joining (a pairing code or the recovery key) enrolls the device and then keeps the vault in the
 //! keychain; a device that holds the vault key and no token for the relay also enrolls on its own
 //! when it connects, unless it was removed from that vault.
+//!
+//! A vault on iCloud (`sync::cloudkit`) connects, pulls and pushes through the same commands, with
+//! no relay, token or socket: the Apple ID is the access check.
 
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -20,6 +23,7 @@ use zeroize::Zeroizing;
 use super::client::{
     self, Connection, DeviceInfo, Event, PairingState, RelayUrl, RelayUsage, Welcome,
 };
+use super::cloudkit::{self, CloudKit, ICloud, ICloudState, Staging};
 use super::file_record;
 use super::pairing::{self, Pairing, PairingChannel, Qr, RelayPairing};
 use super::settings::{DeviceCredentials, SettingsStore};
@@ -134,6 +138,8 @@ impl StatusView {
 pub(crate) struct Snapshot {
     pub relay_url: String,
     pub enabled: bool,
+    /// Where this device's vault syncs: `relay` or `icloud`.
+    pub transport: &'static str,
     /// The keychain holds a vault key.
     pub vault: bool,
     /// This device has a token for the relay set and that vault.
@@ -153,9 +159,11 @@ pub(crate) struct SettingsPatch {
 pub(crate) struct PulledDto {
     pub id: String,
     pub version: u64,
-    pub seq: u64,
-    /// A relay has no change tags.
-    pub tag: &'static str,
+    /// The relay's; iCloud has none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seq: Option<u64>,
+    /// '' on a relay, which has no change tags.
+    pub tag: String,
     pub kind: String,
     pub data: Option<String>,
     pub error: Option<&'static str>,
@@ -165,8 +173,7 @@ pub(crate) struct PulledDto {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PullDto {
     pub records: Vec<PulledDto>,
-    #[serde(serialize_with = "client::serialize_cursor")]
-    pub next: u64,
+    pub next: String,
     pub more: bool,
 }
 
@@ -175,20 +182,67 @@ pub(crate) struct PullDto {
 pub(crate) enum PushDto {
     Pushed {
         version: u64,
-        seq: u64,
-        tag: &'static str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        seq: Option<u64>,
+        tag: String,
     },
     Rejected {
         version: u64,
-        tag: &'static str,
+        tag: String,
     },
-    /// The relay's quota cap; the engine reads a pause without a code as this one.
+    /// The relay's quota cap when it has no code; on iCloud a busy CloudKit (until a time) or a full
+    /// iCloud (no end).
     Paused {
         until: Option<i64>,
         limit: Option<&'static str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        code: Option<&'static str>,
     },
     /// The relay's share for attachments is used up.
     Full,
+    /// From a batch only: this item failed with `code`.
+    Failed {
+        code: &'static str,
+    },
+}
+
+/// One record of a batched push, as the engine sends it.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct PushItemDto {
+    pub id: String,
+    pub base: u64,
+    pub data: String,
+    pub kind: String,
+    #[serde(default)]
+    pub tag: String,
+}
+
+/// What Settings needs to offer iCloud: whether this build may use it, and the account's state.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ICloudView {
+    pub available: bool,
+    /// `available`, `noAccount`, `restricted` or `temporarilyUnavailable`; null without the container.
+    pub account: Option<&'static str>,
+}
+
+/// The welcome of either transport.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub(crate) enum Connected {
+    Relay(Welcome),
+    ICloud(cloudkit::Welcome),
+}
+
+#[cfg(test)]
+impl Connected {
+    pub(crate) fn relay(self) -> Welcome {
+        match self {
+            Self::Relay(welcome) => welcome,
+            Self::ICloud(_) => panic!("connected through iCloud"),
+        }
+    }
 }
 
 /// Turning sync on: the snapshot, and the recovery key the first time this device's vault is
@@ -257,10 +311,16 @@ struct Hosting {
 pub(crate) type Emit = Arc<dyn Fn(&'static str, Value) + Send + Sync>;
 pub(crate) type Secrets = Arc<dyn SecretStore + Send + Sync>;
 
-struct Live {
-    connection: Arc<Connection>,
-    vault: Arc<Vault>,
+enum Live {
+    Relay {
+        connection: Arc<Connection>,
+        vault: Arc<Vault>,
+    },
+    ICloud(Arc<ICloud>),
 }
+
+/// Most records one batched push takes: the engine sends at most 100.
+const MAX_BATCH: usize = 200;
 
 pub(crate) struct SyncService {
     settings: SettingsStore,
@@ -270,11 +330,110 @@ pub(crate) struct SyncService {
     emit: Emit,
     licence: Gate,
     hosting: Mutex<Option<Arc<Hosting>>>,
+    kit: Arc<dyn CloudKit>,
+    staging: Arc<Staging>,
     /// Moves this service's clock in tests of expiry.
     shifted: AtomicI64,
 }
 
 const MAX_SAFE: u64 = 9_007_199_254_740_991;
+
+enum LiveRef {
+    Relay(Arc<Connection>, Arc<Vault>),
+    ICloud(Arc<ICloud>),
+}
+
+/// A record to push, checked as the command's arguments: its plaintext.
+fn checked_item(
+    id: &str,
+    base: u64,
+    data: &str,
+    kind: &str,
+) -> Result<Zeroizing<Vec<u8>>, &'static str> {
+    if !matches!(kind, "record" | "file") {
+        return Err("E_SYNC_KIND_INVALID");
+    }
+    if !crate::commands::notes::valid_note_id(id) {
+        return Err("E_SYNC_ID_INVALID");
+    }
+    if base >= MAX_SAFE {
+        return Err("E_SYNC_VERSION_INVALID");
+    }
+    if data.len() > MAX_RECORD_BYTES.div_ceil(3) * 4 {
+        return Err("E_SYNC_TOO_LARGE");
+    }
+    let plaintext = Zeroizing::new(
+        STANDARD
+            .decode(data.as_bytes())
+            .map_err(|_| "E_SYNC_RECORD_INVALID")?,
+    );
+    if plaintext.is_empty() {
+        return Err("E_SYNC_RECORD_INVALID");
+    }
+    if kind == "file" {
+        file_record::check(id, &plaintext).inspect_err(|code| {
+            log::warn!("W_SYNC_FILE_REFUSED {code} id={id}");
+        })?;
+    }
+    Ok(plaintext)
+}
+
+/// A pulled record for the engine. An attachment is checked as a paste is, before the web view sees it.
+fn pulled(
+    id: String,
+    version: u64,
+    seq: Option<u64>,
+    tag: String,
+    kind: String,
+    plaintext: Result<Zeroizing<Vec<u8>>, &'static str>,
+) -> PulledDto {
+    let opened = plaintext.and_then(|bytes| {
+        if kind == "file" {
+            file_record::check(&id, &bytes)?;
+        }
+        Ok(bytes)
+    });
+    let (data, error) = match opened {
+        Ok(bytes) => (Some(STANDARD.encode(bytes.as_slice())), None),
+        Err(code) => {
+            if kind == "record" {
+                log::warn!("W_SYNC_RECORD_UNREADABLE {code} id={id}");
+            } else if kind == "file" {
+                log::warn!("W_SYNC_FILE_REFUSED {code} id={id}");
+            }
+            (None, Some(code))
+        }
+    };
+    PulledDto {
+        id,
+        version,
+        seq,
+        tag,
+        kind,
+        data,
+        error,
+    }
+}
+
+fn push_dto(answer: cloudkit::PushAnswer) -> PushDto {
+    match answer {
+        cloudkit::PushAnswer::Pushed { version, tag } => PushDto::Pushed {
+            version,
+            seq: None,
+            tag,
+        },
+        cloudkit::PushAnswer::Rejected { version, tag } => PushDto::Rejected { version, tag },
+        cloudkit::PushAnswer::Paused { until, code } => {
+            log::info!("I_SYNC_ICLOUD_PAUSED {code} until={}", until.unwrap_or(0));
+            PushDto::Paused {
+                until,
+                limit: None,
+                code: Some(code),
+            }
+        }
+        cloudkit::PushAnswer::Failed(code) => PushDto::Failed { code },
+    }
+}
 
 impl SyncService {
     pub(crate) fn new(
@@ -283,6 +442,7 @@ impl SyncService {
         emit: Emit,
         licence: Gate,
     ) -> Self {
+        let settings_dir = settings.dir();
         Self {
             settings,
             secrets,
@@ -291,8 +451,17 @@ impl SyncService {
             emit,
             licence,
             hosting: Mutex::new(None),
+            staging: Arc::new(Staging::new(&settings_dir.join(cloudkit::staging::DIR))),
+            kit: Arc::new(cloudkit::kit::Unavailable),
             shifted: AtomicI64::new(0),
         }
+    }
+
+    /// iCloud through `kit`; its asset staging folder is swept here, before any upload.
+    pub(crate) fn with_icloud(mut self, kit: Arc<dyn CloudKit>) -> Self {
+        self.kit = kit;
+        self.staging.sweep();
+        self
     }
 
     fn now(&self) -> i64 {
@@ -327,9 +496,14 @@ impl SyncService {
                     c.token != REVOKED && c.fits(&settings.relay_url, &vault.id().to_string())
                 })
         });
+        let transport = match &vault {
+            Some(vault) if settings.icloud_for(&vault.id().to_string()).is_some() => "icloud",
+            _ => "relay",
+        };
         Snapshot {
             relay_url: settings.relay_url,
             enabled: settings.enabled,
+            transport,
             vault: vault.is_some(),
             enrolled,
             status: self.status.lock().map(|s| s.clone()).unwrap_or_default(),
@@ -406,7 +580,9 @@ impl SyncService {
             return Ok(None);
         };
         let shown = self.settings.get().recovery_shown == vault.id().to_string();
-        Ok((!shown && self.snapshot().enrolled).then(|| vault.recovery_key()))
+        let snapshot = self.snapshot();
+        let ready = snapshot.enrolled || snapshot.transport == "icloud";
+        Ok((!shown && ready).then(|| vault.recovery_key()))
     }
 
     pub(crate) fn recovery_saved(&self) -> Result<(), &'static str> {
@@ -664,7 +840,7 @@ impl SyncService {
         let relay = self.relay()?;
         let vault = self.held_vault()?;
         let credentials = self.credentials(&relay, &vault)?;
-        if let Ok((connection, _)) = self.live() {
+        if let Ok((connection, _)) = self.live_relay() {
             return work(&connection);
         }
         let (connection, _) = Connection::open(
@@ -759,18 +935,25 @@ impl SyncService {
         }
     }
 
-    pub(crate) fn connect(&self) -> Result<Welcome, &'static str> {
+    /// `has_synced` is the library's own "has synced" state (`sync_state`), which decides on
+    /// iCloud whether a vault zone found gone is a deletion to ask about.
+    pub(crate) fn connect(&self, has_synced: bool) -> Result<Connected, &'static str> {
         let settings = self.settings.get();
         if !settings.enabled {
             return Err("E_SYNC_OFF");
         }
         // A device that already syncs stops here, at its next connect.
         self.licence.require()?;
-        let relay = self.relay()?;
         let vault = Vault::load(self.secrets.as_ref())
             .map_err(|e| e.code())?
             .ok_or("E_SYNC_NO_VAULT_KEY")?;
         let vault_id = vault.id().to_string();
+        if let Some(state) = settings.icloud_for(&vault_id) {
+            return self
+                .connect_icloud(vault, state, has_synced)
+                .map(Connected::ICloud);
+        }
+        let relay = self.relay()?;
         // A removed device stays out under any address of the relay: only a join lets it back in.
         let credentials =
             match DeviceCredentials::load(self.secrets.as_ref()).map_err(|e| e.code())? {
@@ -795,11 +978,130 @@ impl SyncService {
             "I_SYNC_CONNECTED vault={vault_id} device={}",
             welcome.device
         );
-        *self.live.lock().map_err(|_| "E_SYNC_INTERNAL")? = Some(Live {
+        *self.live.lock().map_err(|_| "E_SYNC_INTERNAL")? = Some(Live::Relay {
             connection: Arc::new(connection),
             vault: Arc::new(vault),
         });
+        Ok(Connected::Relay(welcome))
+    }
+
+    fn connect_icloud(
+        &self,
+        vault: Vault,
+        state: &ICloudState,
+        has_synced: bool,
+    ) -> Result<cloudkit::Welcome, &'static str> {
+        self.disconnect();
+        let icloud = ICloud::new(
+            Arc::clone(&self.kit),
+            Arc::new(vault),
+            Arc::clone(&self.staging),
+        );
+        let (welcome, kept) = icloud
+            .connect(state, has_synced, DEVICE_LABEL, self.now())
+            .inspect_err(|code| log::info!("I_SYNC_ICLOUD_REFUSED {code}"))?;
+        if kept != *state {
+            let mut settings = self.settings.get();
+            if settings
+                .icloud
+                .as_ref()
+                .is_some_and(|s| s.vault == kept.vault)
+            {
+                settings.icloud = Some(kept);
+                self.settings.set(&settings)?;
+            }
+        }
+        log::info!(
+            "I_SYNC_ICLOUD_CONNECTED vault={} device={}",
+            state.vault,
+            welcome.device
+        );
+        *self.live.lock().map_err(|_| "E_SYNC_INTERNAL")? = Some(Live::ICloud(Arc::new(icloud)));
         Ok(welcome)
+    }
+
+    /// Whether this build may use iCloud, and the account's state, for Settings. Touches CloudKit
+    /// only in a build with the container.
+    pub(crate) fn icloud_status(&self) -> ICloudView {
+        use cloudkit::kit::Account;
+        if !self.kit.available() {
+            return ICloudView {
+                available: false,
+                account: None,
+            };
+        }
+        let account = match self.kit.account() {
+            Ok(Account::Available) => "available",
+            Ok(Account::Missing) => "noAccount",
+            Ok(Account::Restricted) => "restricted",
+            Ok(Account::TemporarilyUnavailable | Account::CouldNotDetermine) | Err(_) => {
+                "temporarilyUnavailable"
+            }
+        };
+        ICloudView {
+            available: true,
+            account: Some(account),
+        }
+    }
+
+    /// Syncs this device's vault through iCloud from its next connect, and turns sync on. With no
+    /// vault here it makes one, or restores it from `recovery_key`; a key for another vault than
+    /// the one held is refused. Moving a vault that other devices sync through a relay (the moved
+    /// marker, a new epoch) and joining through the iCloud Keychain are Settings' (#604, #606).
+    pub(crate) fn use_icloud(&self, recovery_key: Option<&str>) -> Result<Snapshot, &'static str> {
+        self.licence.require()?;
+        if !self.kit.available() {
+            return Err(cloudkit::error::UNAVAILABLE);
+        }
+        if recovery_key.is_some_and(|key| key.len() > MAX_RECOVERY_KEY) {
+            return Err("E_SYNC_RECOVERY_FORMAT");
+        }
+        let held = Vault::load(self.secrets.as_ref()).map_err(|e| e.code())?;
+        let vault = match (held, recovery_key) {
+            (Some(held), Some(key)) => {
+                let named = Vault::from_recovery_key(key).map_err(|e| e.code())?;
+                if !held.same(&named) {
+                    return Err("E_SYNC_VAULT_EXISTS");
+                }
+                held
+            }
+            (Some(held), None) => held,
+            (None, Some(key)) => {
+                Vault::restore(self.secrets.as_ref(), key).map_err(|e| e.code())?
+            }
+            (None, None) => Vault::create(self.secrets.as_ref()).map_err(|e| e.code())?,
+        };
+        let vault_id = vault.id().to_string();
+        self.disconnect();
+        let mut settings = self.settings.get();
+        if settings.icloud_for(&vault_id).is_none() {
+            settings.icloud = Some(ICloudState::new(&vault_id));
+        }
+        settings.enabled = true;
+        if recovery_key.is_some() {
+            settings.recovery_shown = vault_id.clone();
+        }
+        self.settings.set(&settings)?;
+        log::info!("I_SYNC_ICLOUD_USED vault={vault_id}");
+        Ok(self.changed())
+    }
+
+    /// After `E_SYNC_ICLOUD_DELETED`, when the owner chose to upload again: the next connect makes
+    /// the vault's zone again under a new epoch, and this device uploads everything.
+    pub(crate) fn icloud_upload_again(&self) -> Result<Snapshot, &'static str> {
+        self.licence.require()?;
+        let vault = self.held_vault()?;
+        let mut settings = self.settings.get();
+        let state = settings
+            .icloud
+            .as_mut()
+            .filter(|state| state.vault == vault.id().to_string())
+            .ok_or("E_SYNC_ICLOUD_NOT_USED")?;
+        state.zone_seen = false;
+        self.settings.set(&settings)?;
+        self.disconnect();
+        log::info!("I_SYNC_ICLOUD_UPLOAD_AGAIN vault={}", vault.id());
+        Ok(self.changed())
     }
 
     fn open(
@@ -828,52 +1130,59 @@ impl SyncService {
         )
     }
 
-    fn live(&self) -> Result<(Arc<Connection>, Arc<Vault>), &'static str> {
+    fn live(&self) -> Result<LiveRef, &'static str> {
         let live = self.live.lock().map_err(|_| "E_SYNC_INTERNAL")?;
-        let live = live.as_ref().ok_or("E_SYNC_OFFLINE")?;
-        Ok((Arc::clone(&live.connection), Arc::clone(&live.vault)))
+        Ok(match live.as_ref().ok_or("E_SYNC_OFFLINE")? {
+            Live::Relay { connection, vault } => {
+                LiveRef::Relay(Arc::clone(connection), Arc::clone(vault))
+            }
+            Live::ICloud(icloud) => LiveRef::ICloud(Arc::clone(icloud)),
+        })
     }
 
-    pub(crate) fn pull(&self, since: u64) -> Result<PullDto, &'static str> {
-        let (connection, vault) = self.live()?;
-        let page = client::pull(&connection, &vault, since)?;
-        Ok(PullDto {
-            records: page
-                .records
-                .into_iter()
-                .map(|record| {
-                    let opened = record.plaintext.and_then(|bytes| {
-                        // An attachment is checked as a paste is, before the web view sees it.
-                        if record.kind == "file" {
-                            file_record::check(&record.id, &bytes)?;
-                        }
-                        Ok(bytes)
-                    });
-                    let (data, error) = match opened {
-                        Ok(bytes) => (Some(STANDARD.encode(bytes.as_slice())), None),
-                        Err(code) => {
-                            if record.kind == "record" {
-                                log::warn!("W_SYNC_RECORD_UNREADABLE {code} id={}", record.id);
-                            } else if record.kind == "file" {
-                                log::warn!("W_SYNC_FILE_REFUSED {code} id={}", record.id);
-                            }
-                            (None, Some(code))
-                        }
-                    };
-                    PulledDto {
-                        id: record.id,
-                        version: record.version,
-                        seq: record.seq,
-                        tag: "",
-                        kind: record.kind,
-                        data,
-                        error,
-                    }
+    fn live_relay(&self) -> Result<(Arc<Connection>, Arc<Vault>), &'static str> {
+        match self.live()? {
+            LiveRef::Relay(connection, vault) => Ok((connection, vault)),
+            LiveRef::ICloud(_) => Err("E_SYNC_OFFLINE"),
+        }
+    }
+
+    pub(crate) fn pull(&self, since: &str) -> Result<PullDto, &'static str> {
+        match self.live()? {
+            LiveRef::Relay(connection, vault) => {
+                let page = client::pull(&connection, &vault, client::seq_of(since)?)?;
+                Ok(PullDto {
+                    records: page
+                        .records
+                        .into_iter()
+                        .map(|r| {
+                            pulled(
+                                r.id,
+                                r.version,
+                                Some(r.seq),
+                                String::new(),
+                                r.kind,
+                                r.plaintext,
+                            )
+                        })
+                        .collect(),
+                    next: client::cursor_of(page.next),
+                    more: page.more,
                 })
-                .collect(),
-            next: page.next,
-            more: page.more,
-        })
+            }
+            LiveRef::ICloud(icloud) => {
+                let page = icloud.pull(since)?;
+                Ok(PullDto {
+                    records: page
+                        .records
+                        .into_iter()
+                        .map(|r| pulled(r.id, r.version, None, r.tag, r.kind, r.plaintext))
+                        .collect(),
+                    next: page.next,
+                    more: page.more,
+                })
+            }
+        }
     }
 
     pub(crate) fn push(
@@ -882,42 +1191,42 @@ impl SyncService {
         base: u64,
         data: &str,
         kind: &str,
+        tag: &str,
     ) -> Result<PushDto, &'static str> {
-        if !matches!(kind, "record" | "file") {
-            return Err("E_SYNC_KIND_INVALID");
-        }
-        if !crate::commands::notes::valid_note_id(id) {
-            return Err("E_SYNC_ID_INVALID");
-        }
-        if base >= MAX_SAFE {
-            return Err("E_SYNC_VERSION_INVALID");
-        }
-        if data.len() > MAX_RECORD_BYTES.div_ceil(3) * 4 {
-            return Err("E_SYNC_TOO_LARGE");
-        }
-        let plaintext = Zeroizing::new(
-            STANDARD
-                .decode(data.as_bytes())
-                .map_err(|_| "E_SYNC_RECORD_INVALID")?,
-        );
-        if plaintext.is_empty() {
-            return Err("E_SYNC_RECORD_INVALID");
-        }
-        if kind == "file" {
-            file_record::check(id, &plaintext).inspect_err(|code| {
-                log::warn!("W_SYNC_FILE_REFUSED {code} id={id}");
-            })?;
-        }
-        let (connection, vault) = self.live()?;
+        let plaintext = checked_item(id, base, data, kind)?;
+        let (connection, vault) = match self.live()? {
+            LiveRef::Relay(connection, vault) => (connection, vault),
+            LiveRef::ICloud(icloud) => {
+                let item = cloudkit::Item {
+                    id,
+                    base,
+                    tag,
+                    plaintext: &plaintext,
+                    kind,
+                };
+                return match icloud.push_many(&[item], self.now()).pop() {
+                    Some(cloudkit::PushAnswer::Failed(code))
+                    | Some(cloudkit::PushAnswer::Paused { code, .. })
+                        if code == cloudkit::error::TOO_LARGE =>
+                    {
+                        Err(code)
+                    }
+                    Some(cloudkit::PushAnswer::Failed(code)) => Err(code),
+                    Some(answer) => Ok(push_dto(answer)),
+                    None => Err("E_SYNC_INTERNAL"),
+                };
+            }
+        };
         match client::push(&connection, &vault, id, base, &plaintext, kind) {
             Ok(client::PushReply::Pushed { version, seq }) => Ok(PushDto::Pushed {
                 version,
-                seq,
-                tag: "",
+                seq: Some(seq),
+                tag: String::new(),
             }),
-            Ok(client::PushReply::Rejected { version }) => {
-                Ok(PushDto::Rejected { version, tag: "" })
-            }
+            Ok(client::PushReply::Rejected { version }) => Ok(PushDto::Rejected {
+                version,
+                tag: String::new(),
+            }),
             Ok(client::PushReply::Full) => {
                 log::info!("I_SYNC_ATTACHMENTS_FULL id={id}");
                 Ok(PushDto::Full)
@@ -928,7 +1237,11 @@ impl SyncService {
                     until.unwrap_or(0),
                     limit.unwrap_or("unknown")
                 );
-                Ok(PushDto::Paused { until, limit })
+                Ok(PushDto::Paused {
+                    until,
+                    limit,
+                    code: None,
+                })
             }
             Err("E_SYNC_TOO_LARGE") => {
                 log::warn!("W_SYNC_TOO_LARGE id={id}");
@@ -938,10 +1251,80 @@ impl SyncService {
         }
     }
 
+    /// A batch on iCloud, in modify operations within its caps; one answer per item, in order. The
+    /// relay takes one push at a time, which the engine runs itself (`pushOneByOne`).
+    pub(crate) fn push_many(&self, items: &[PushItemDto]) -> Result<Vec<PushDto>, &'static str> {
+        if items.len() > MAX_BATCH {
+            return Err("E_SYNC_BATCH_TOO_LARGE");
+        }
+        let total: usize = items.iter().map(|i| i.data.len()).sum();
+        if total > MAX_RECORD_BYTES.div_ceil(3) * 4 {
+            return Err("E_SYNC_BATCH_TOO_LARGE");
+        }
+        for item in items {
+            if !crate::commands::sync::valid_tag(&item.tag) {
+                return Err("E_SYNC_TAG_INVALID");
+            }
+        }
+        let LiveRef::ICloud(icloud) = self.live()? else {
+            return Err("E_SYNC_BATCH_UNSUPPORTED");
+        };
+        let checked: Vec<Result<Zeroizing<Vec<u8>>, &'static str>> = items
+            .iter()
+            .map(|i| checked_item(&i.id, i.base, &i.data, &i.kind))
+            .collect();
+        let ready: Vec<cloudkit::Item<'_>> = items
+            .iter()
+            .zip(&checked)
+            .filter_map(|(item, plaintext)| {
+                Some(cloudkit::Item {
+                    id: &item.id,
+                    base: item.base,
+                    tag: &item.tag,
+                    plaintext: plaintext.as_ref().ok()?,
+                    kind: &item.kind,
+                })
+            })
+            .collect();
+        let mut answers = icloud.push_many(&ready, self.now()).into_iter();
+        Ok(checked
+            .iter()
+            .map(|plaintext| match plaintext {
+                Err(code) => PushDto::Failed { code },
+                Ok(_) => answers.next().map_or(
+                    PushDto::Failed {
+                        code: "E_SYNC_INTERNAL",
+                    },
+                    push_dto,
+                ),
+            })
+            .collect())
+    }
+
     pub(crate) fn disconnect(&self) {
         let live = self.live.lock().ok().and_then(|mut live| live.take());
-        if let Some(live) = live {
-            live.connection.close();
+        if let Some(Live::Relay { connection, .. }) = live {
+            connection.close();
+        }
+    }
+
+    /// A silent push said a watched zone changed: the engine pulls, as for a relay's `changed`.
+    pub(crate) fn icloud_changed(&self) {
+        if matches!(self.live(), Ok(LiveRef::ICloud(_))) {
+            (self.emit)(SOCKET_EVENT, json!({ "type": "changed", "cursor": "" }));
+        }
+    }
+
+    /// `CKAccountChanged`: the engine of a vault on iCloud looks at the account again.
+    pub(crate) fn icloud_account_changed(&self) {
+        let settings = self.settings.get();
+        let on_icloud = Vault::load(self.secrets.as_ref())
+            .ok()
+            .flatten()
+            .is_some_and(|vault| settings.icloud_for(&vault.id().to_string()).is_some());
+        if settings.enabled && on_icloud {
+            log::info!("I_SYNC_ICLOUD_ACCOUNT_CHANGED");
+            (self.emit)(SOCKET_EVENT, json!({ "type": "account" }));
         }
     }
 
@@ -967,6 +1350,7 @@ mod tests {
         let paused = PushDto::Paused {
             until: Some(1_793_145_600_000),
             limit: Some("storedBytes"),
+            code: None,
         };
         assert_eq!(
             serde_json::to_value(paused).unwrap(),
@@ -978,7 +1362,7 @@ mod tests {
     fn hands_the_relay_s_seq_to_the_engine_as_an_opaque_cursor_and_takes_it_back() {
         let page = PullDto {
             records: vec![],
-            next: 42,
+            next: client::cursor_of(42),
             more: false,
         };
         assert_eq!(
@@ -987,7 +1371,7 @@ mod tests {
         );
         let start = PullDto {
             records: vec![],
-            next: 0,
+            next: client::cursor_of(0),
             more: false,
         };
         assert_eq!(serde_json::to_value(start).unwrap()["next"], json!(""));
@@ -999,7 +1383,7 @@ mod tests {
         }
         let rejected = PushDto::Rejected {
             version: 3,
-            tag: "",
+            tag: String::new(),
         };
         assert_eq!(
             serde_json::to_value(rejected).unwrap(),

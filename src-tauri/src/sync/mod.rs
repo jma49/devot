@@ -7,6 +7,7 @@
 //! key until this device says it was saved.
 
 pub(crate) mod client;
+pub(crate) mod cloudkit;
 pub(crate) mod commands;
 mod crockford;
 mod error;
@@ -45,6 +46,8 @@ fn ends_pairing(label: &str, event: &tauri::WindowEvent) -> bool {
 
 #[cfg(test)]
 mod attachment_relay_tests;
+#[cfg(test)]
+mod icloud_service_tests;
 #[cfg(test)]
 mod pairing_relay_tests;
 #[cfg(test)]

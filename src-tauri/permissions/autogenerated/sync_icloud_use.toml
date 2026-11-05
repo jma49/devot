@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sync-icloud-use"
+description = "Enables the sync_icloud_use command without any pre-configured scope."
+commands.allow = ["sync_icloud_use"]
+
+[[permission]]
+identifier = "deny-sync-icloud-use"
+description = "Denies the sync_icloud_use command without any pre-configured scope."
+commands.deny = ["sync_icloud_use"]

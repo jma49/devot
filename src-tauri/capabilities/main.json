@@ -44,6 +44,7 @@
     "allow-sync-connect",
     "allow-sync-pull",
     "allow-sync-push",
+    "allow-sync-push-many",
     "allow-sync-disconnect",
     "allow-sync-status-report",
     "allow-sync-pending",

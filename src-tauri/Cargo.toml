@@ -94,6 +94,30 @@ tauri-plugin-global-shortcut = "2"
 security-framework = "3"
 security-framework-sys = "2"
 core-foundation = "0.10"
+# Sync through iCloud (`native::ios::cloudkit`, on macOS too).
+objc2-cloud-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "block2",
+  "CKAsset",
+  "CKContainer",
+  "CKDatabase",
+  "CKDatabaseOperation",
+  "CKError",
+  "CKFetchRecordZoneChangesOperation",
+  "CKFetchRecordZonesOperation",
+  "CKFetchRecordsOperation",
+  "CKModifyRecordZonesOperation",
+  "CKModifyRecordsOperation",
+  "CKModifySubscriptionsOperation",
+  "CKNotification",
+  "CKOperation",
+  "CKRecord",
+  "CKRecordID",
+  "CKRecordZone",
+  "CKRecordZoneID",
+  "CKServerChangeToken",
+  "CKSubscription",
+] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # The system HTTPS proxy for `net` (`net::proxy`), through SCDynamicStoreCopyProxies; already
@@ -119,6 +143,9 @@ objc2-foundation = { version = "0.3", features = [
   "NSString",
   "NSData",
   "NSDictionary",
+  "NSBundle",
+  "NSCoder",
+  "NSKeyedArchiver",
   "NSArray",
   "NSUserDefaults",
   "NSDistributedNotificationCenter",
@@ -219,11 +246,23 @@ objc2 = { version = "0.6", features = ["exception"] }
 block2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = [
   "std",
+  "block2",
   "NSArray",
+  "NSBundle",
+  "NSCoder",
   "NSData",
+  "NSDate",
+  "NSDictionary",
   "NSEnumerator",
+  "NSError",
+  "NSKeyedArchiver",
+  "NSNotification",
+  "NSObject",
+  "NSOperation",
   "NSSet",
   "NSString",
+  "NSURL",
+  "NSValue",
 ] }
 objc2-core-foundation = { version = "0.3", default-features = false, features = [
   "std",

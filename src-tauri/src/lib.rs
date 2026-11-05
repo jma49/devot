@@ -170,6 +170,10 @@ pub fn run() {
             sync::commands::sync_connect,
             sync::commands::sync_pull,
             sync::commands::sync_push,
+            sync::commands::sync_push_many,
+            sync::commands::sync_icloud_status,
+            sync::commands::sync_icloud_use,
+            sync::commands::sync_icloud_upload_again,
             sync::commands::sync_disconnect,
             sync::commands::sync_status_report,
             commands::sync::sync_pending,
@@ -467,12 +471,33 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
         std::sync::Arc::new(ai::keychain::Keychain::new(&app.config().identifier)),
         licence::Gate::of(&licence),
     )));
-    app.manage(std::sync::Arc::new(sync::service::SyncService::new(
-        sync::settings::SettingsStore::new(&data_dir.join(sync::settings::FILE)),
-        std::sync::Arc::new(sync::Keychain::for_app(&app.config().identifier)),
-        sync_emitter(app.handle().clone()),
-        licence::Gate::of(&licence),
-    )));
+    let sync_service = std::sync::Arc::new(
+        sync::service::SyncService::new(
+            sync::settings::SettingsStore::new(&data_dir.join(sync::settings::FILE)),
+            std::sync::Arc::new(sync::Keychain::for_app(&app.config().identifier)),
+            sync_emitter(app.handle().clone()),
+            licence::Gate::of(&licence),
+        )
+        .with_icloud(sync::cloudkit::platform()),
+    );
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    {
+        let changed = std::sync::Arc::downgrade(&sync_service);
+        let account = std::sync::Arc::downgrade(&sync_service);
+        native::watch_icloud(
+            Box::new(move || {
+                if let Some(sync) = changed.upgrade() {
+                    sync.icloud_changed();
+                }
+            }),
+            Box::new(move || {
+                if let Some(sync) = account.upgrade() {
+                    sync.icloud_account_changed();
+                }
+            }),
+        );
+    }
+    app.manage(sync_service);
     app.manage(std::sync::Arc::new(fonts::Fonts::new(data_dir)));
     let plugins = std::sync::Arc::new(plugins::Plugins::new(data_dir));
     plugins.sweep();

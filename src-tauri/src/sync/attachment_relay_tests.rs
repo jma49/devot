@@ -73,15 +73,15 @@ fn checks_an_attachment_as_a_paste_on_the_way_in_and_on_the_way_out() {
     let service = service_on(&relay, dir.path(), secrets.clone());
     service.create_vault(SECRET).unwrap();
     service.recovery_saved().unwrap();
-    let welcome = service.connect().unwrap();
+    let welcome = service.connect(false).unwrap().relay();
     assert_eq!(welcome.attachments, Some("on"));
 
     let image = envelope(FILE, "image/png", &png(5000));
     assert!(matches!(
-        service.push(FILE, 0, &b64(&image), "file"),
+        service.push(FILE, 0, &b64(&image), "file", ""),
         Ok(PushDto::Pushed { version: 1, .. })
     ));
-    let page = service.pull(welcome.seq).unwrap();
+    let page = service.pull(&client::cursor_of(welcome.seq)).unwrap();
     assert_eq!(page.records.len(), 1);
     assert_eq!(page.records[0].kind, "file");
     assert_eq!(page.records[0].data.as_deref(), Some(b64(&image).as_str()));
@@ -98,7 +98,8 @@ fn checks_an_attachment_as_a_paste_on_the_way_in_and_on_the_way_out() {
             "0192f4c8-7a1b-7c3d-8e9f-0123456789b1",
             0,
             &b64(&svg),
-            "file"
+            "file",
+            ""
         ),
         Err("E_FILE_TYPE_REFUSED")
     );
@@ -112,15 +113,16 @@ fn checks_an_attachment_as_a_paste_on_the_way_in_and_on_the_way_out() {
             "0192f4c8-7a1b-7c3d-8e9f-0123456789b2",
             0,
             &b64(&big),
-            "file"
+            "file",
+            ""
         ),
         Err("E_FILE_SIZE_INVALID")
     );
     assert_eq!(
-        service.push(FILE, 1, &b64(&image), "folder"),
+        service.push(FILE, 1, &b64(&image), "folder", ""),
         Err("E_SYNC_KIND_INVALID")
     );
-    assert!(service.pull(page.next).unwrap().records.is_empty());
+    assert!(service.pull(&page.next).unwrap().records.is_empty());
 
     // ... and nothing a device with the key sends past that check is handed to the web view.
     let vault = Vault::load(secrets.as_ref()).unwrap().unwrap();
@@ -152,7 +154,7 @@ fn checks_an_attachment_as_a_paste_on_the_way_in_and_on_the_way_out() {
             Ok(PushReply::Pushed { .. })
         ));
     }
-    let page = service.pull(page.next).unwrap();
+    let page = service.pull(&page.next).unwrap();
     assert_eq!(page.records.len(), 3);
     let errors: Vec<_> = page.records.iter().map(|r| r.error).collect();
     assert_eq!(

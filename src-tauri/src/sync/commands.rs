@@ -4,11 +4,17 @@ use tauri::State;
 
 use crate::task;
 
-use super::client::{DeviceInfo, RelayUsage, Welcome};
+use crate::storage::Db;
+
+use super::client::{DeviceInfo, RelayUsage};
 use super::service::{
-    Created, PairingCheck, PairingView, PullDto, PushDto, SettingsPatch, Snapshot, StatusView,
-    SyncService,
+    Connected, Created, ICloudView, PairingCheck, PairingView, PullDto, PushDto, PushItemDto,
+    SettingsPatch, Snapshot, StatusView, SyncService,
 };
+
+/// The longest cursor the engine keeps (`MAX_CURSOR` in commands/sync.rs).
+const MAX_CURSOR: usize = 4096;
+const MAX_RECOVERY_KEY: usize = 512;
 
 #[tauri::command]
 pub async fn sync_get(sync: State<'_, Arc<SyncService>>) -> Result<Snapshot, String> {
@@ -119,8 +125,29 @@ pub async fn sync_device_remove(
 }
 
 #[tauri::command]
-pub async fn sync_connect(sync: State<'_, Arc<SyncService>>) -> Result<Welcome, String> {
-    task::blocking_with(&sync, "E_SYNC_INTERNAL", |sync| sync.connect()).await
+pub async fn sync_connect(
+    sync: State<'_, Arc<SyncService>>,
+    db: State<'_, Db>,
+) -> Result<Connected, String> {
+    let state = db
+        .call(|store| store.sync_state())
+        .await
+        .map_err(|e| e.to_string())?;
+    let has_synced = state
+        .iter()
+        .any(|(key, value)| key == "hasSynced" && value == "1");
+    task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| {
+        sync.connect(has_synced)
+    })
+    .await
+}
+
+/// A relay's cursor is digits; iCloud's, an archived change token in base64.
+pub(crate) fn valid_cursor(cursor: &str) -> bool {
+    cursor.len() <= MAX_CURSOR
+        && cursor
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='))
 }
 
 #[tauri::command]
@@ -128,8 +155,10 @@ pub async fn sync_pull(
     sync: State<'_, Arc<SyncService>>,
     since: String,
 ) -> Result<PullDto, String> {
-    let since = super::client::seq_of(&since).map_err(String::from)?;
-    task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| sync.pull(since)).await
+    if !valid_cursor(&since) {
+        return Err("E_SYNC_CURSOR_INVALID".into());
+    }
+    task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| sync.pull(&since)).await
 }
 
 #[tauri::command]
@@ -141,14 +170,58 @@ pub async fn sync_push(
     kind: Option<String>,
     tag: Option<String>,
 ) -> Result<PushDto, String> {
-    // A relay has no change tags; one is still checked before it is dropped.
     if !tag.as_deref().is_none_or(crate::commands::sync::valid_tag) {
         return Err("E_SYNC_TAG_INVALID".into());
     }
     task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| {
-        sync.push(&id, base, &data, kind.as_deref().unwrap_or("record"))
+        sync.push(
+            &id,
+            base,
+            &data,
+            kind.as_deref().unwrap_or("record"),
+            tag.as_deref().unwrap_or(""),
+        )
     })
     .await
+}
+
+/// A batch for iCloud; every item is checked as `sync_push` checks one.
+#[tauri::command]
+pub async fn sync_push_many(
+    sync: State<'_, Arc<SyncService>>,
+    items: Vec<PushItemDto>,
+) -> Result<Vec<PushDto>, String> {
+    task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| sync.push_many(&items)).await
+}
+
+#[tauri::command]
+pub async fn sync_icloud_status(sync: State<'_, Arc<SyncService>>) -> Result<ICloudView, String> {
+    task::blocking_with(&sync, "E_SYNC_INTERNAL", |sync| Ok(sync.icloud_status())).await
+}
+
+#[tauri::command]
+pub async fn sync_icloud_use(
+    sync: State<'_, Arc<SyncService>>,
+    recovery_key: Option<String>,
+) -> Result<Snapshot, String> {
+    if recovery_key
+        .as_ref()
+        .is_some_and(|key| key.len() > MAX_RECOVERY_KEY)
+    {
+        return Err("E_SYNC_RECOVERY_FORMAT".into());
+    }
+    let key = recovery_key.map(zeroize::Zeroizing::new);
+    task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| {
+        sync.use_icloud(key.as_deref().map(String::as_str))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn sync_icloud_upload_again(
+    sync: State<'_, Arc<SyncService>>,
+) -> Result<Snapshot, String> {
+    task::blocking_with(&sync, "E_SYNC_INTERNAL", |sync| sync.icloud_upload_again()).await
 }
 
 #[tauri::command]
