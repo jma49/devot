@@ -11,6 +11,7 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { fixtureProfile } from '../support/provisioning-profile'
 import { tempDir } from '../support/temp-dirs'
 
 // Runs scripts/release/macos-sign.sh on this Mac with a throwaway self-signed identity, in a
@@ -21,6 +22,7 @@ const IDENTITY = 'Developer ID Application: Devot Test (TESTTEAM01)'
 const PASSWORD = 'throwaway-p12-password'
 const API_KEY_TEXT = 'throwaway-api-key-text'
 const TIMEOUT = 300_000
+const ENTITLEMENTS = 'tests/fixtures/signing/test.entitlements'
 
 function tool(file: string, args: string[], options: { input?: string } = {}): string {
   return execFileSync(file, args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...options })
@@ -189,6 +191,7 @@ describe.skipIf(process.platform !== 'darwin')('signing on a Mac', () => {
       tool('codesign', ['--verify', '--deep', '--strict', signed])
       expectSignedCode(signed)
       expectSignedCode(join(signed, 'Contents', 'Frameworks', 'libextra.dylib'))
+      expect(existsSync(join(signed, 'Contents', 'embedded.provisionprofile'))).toBe(false)
 
       const dmg = join(run.out, 'Devot.dmg')
       tool('codesign', ['--verify', '--strict', dmg])
@@ -220,6 +223,67 @@ describe.skipIf(process.platform !== 'darwin')('signing on a Mac', () => {
       } finally {
         tool('hdiutil', ['detach', '-quiet', mount])
       }
+    },
+    TIMEOUT,
+  )
+
+  it(
+    'with the profile, embeds it and signs only the main executable with exactly the entitlements',
+    () => {
+      const profile = fixtureProfile()
+      const run = sign(certificate, app, ['--skip-notarization', '--entitlements', ENTITLEMENTS], {
+        APPLE_PROVISIONING_PROFILE: readFileSync(profile).toString('base64'),
+      })
+      expect(run.output).toContain('Signed: Devot.dmg, Devot.app.tar.gz')
+      expect(run.status).toBe(0)
+      expect(readdirSync(run.scratch)).toEqual([])
+
+      const unpacked = tempDir('devot-sign-unpacked-')
+      tool('tar', ['-xzf', join(run.out, 'Devot.app.tar.gz'), '-C', unpacked])
+      const signed = join(unpacked, 'Devot.app')
+      tool('codesign', ['--verify', '--deep', '--strict', signed])
+      expect(readFileSync(join(signed, 'Contents', 'embedded.provisionprofile'))).toEqual(
+        readFileSync(profile),
+      )
+      const carried = (path: string) =>
+        tool('plutil', ['-convert', 'json', '-o', '-', '-'], {
+          input: tool('codesign', ['-d', '--entitlements', '-', '--xml', path]),
+        })
+      const wanted = tool('plutil', ['-convert', 'json', '-o', '-', ENTITLEMENTS])
+      expect(JSON.parse(carried(join(signed, 'Contents', 'MacOS', 'devot')))).toEqual(
+        JSON.parse(wanted),
+      )
+      expect(
+        tool('codesign', [
+          '-d',
+          '--entitlements',
+          '-',
+          '--xml',
+          join(signed, 'Contents', 'Frameworks', 'libextra.dylib'),
+        ]),
+      ).toBe('')
+    },
+    TIMEOUT,
+  )
+
+  it(
+    'stops before signing when the profile does not grant the entitlements',
+    () => {
+      const profile = fixtureProfile({
+        edit: (plist) =>
+          plist.replace('<string>TESTTEAM01.*</string>', '<string>OTHERTEAM1.*</string>'),
+      })
+      const state = before()
+      const run = sign(certificate, app, ['--skip-notarization', '--entitlements', ENTITLEMENTS], {
+        APPLE_PROVISIONING_PROFILE: readFileSync(profile).toString('base64'),
+      })
+      expect(run.status).toBe(1)
+      expect(run.output).toMatch(
+        /::error::E_SIGN_PROFILE_ENTITLEMENTS: .* grant keychain-access-groups;/,
+      )
+      expect(run.output).not.toContain('Importing')
+      expect(keychainState()).toBe(state)
+      expect(readdirSync(run.scratch)).toEqual([])
     },
     TIMEOUT,
   )

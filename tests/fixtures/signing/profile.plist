@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AppIDName</key>
+	<string>Devot sign test</string>
+	<key>CreationDate</key>
+	<date>2026-11-05T00:00:00Z</date>
+	<key>DeveloperCertificates</key>
+	<array>
+		<data>AAAA</data>
+	</array>
+	<key>Entitlements</key>
+	<dict>
+		<key>com.apple.application-identifier</key>
+		<string>TESTTEAM01.io.github.jma49.devot.signtest</string>
+		<key>com.apple.developer.aps-environment</key>
+		<string>production</string>
+		<key>com.apple.developer.icloud-container-environment</key>
+		<string>Production</string>
+		<key>com.apple.developer.icloud-container-identifiers</key>
+		<array>
+			<string>iCloud.io.github.jma49.devot.signtest</string>
+		</array>
+		<key>com.apple.developer.icloud-services</key>
+		<string>*</string>
+		<key>com.apple.developer.team-identifier</key>
+		<string>TESTTEAM01</string>
+		<key>com.apple.developer.ubiquity-container-identifiers</key>
+		<array>
+			<string>iCloud.io.github.jma49.devot.signtest</string>
+		</array>
+		<key>keychain-access-groups</key>
+		<array>
+			<string>TESTTEAM01.*</string>
+		</array>
+	</dict>
+	<key>ExpirationDate</key>
+	<date>EXPIRATION_DATE</date>
+	<key>Name</key>
+	<string>Devot sign test Developer ID</string>
+	<key>Platform</key>
+	<array>
+		<string>OSX</string>
+	</array>
+	<key>ProvisionsAllDevices</key>
+	<true/>
+	<key>TeamIdentifier</key>
+	<array>
+		<string>TESTTEAM01</string>
+	</array>
+	<key>TeamName</key>
+	<string>Devot Test</string>
+	<key>Version</key>
+	<integer>1</integer>
+</dict>
+</plist>

@@ -26,6 +26,7 @@ name: Release
 #   secrets.APPLE_CERTIFICATE                   base64 of the Developer ID Application .p12
 #   secrets.APPLE_CERTIFICATE_PASSWORD          its password
 #   secrets.APPLE_API_KEY_P8                    the App Store Connect API key (AuthKey_<id>.p8)
+#   secrets.APPLE_PROVISIONING_PROFILE_MACOS    base64 of the Developer ID provisioning profile
 # and in the repository settings:
 #   vars.TAURI_UPDATER_PUBKEY                   the matching public key, built into the app
 #   vars.APPLE_SIGNING_IDENTITY                 "Developer ID Application: <name> (<team ID>)"
@@ -196,12 +197,15 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          # The script decodes it into its own folder under RUNNER_TEMP and removes it.
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE_MACOS }}
           APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
           APPLE_API_KEY_ID: ${{ vars.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER_ID: ${{ vars.APPLE_API_ISSUER_ID }}
         run: |
           ditto -x -k handover/Devot.app.zip "$RUNNER_TEMP/adhoc"
-          scripts/release/macos-sign.sh --search-list "$RUNNER_TEMP/adhoc/Devot.app" signed
+          scripts/release/macos-sign.sh --search-list --entitlements src-tauri/macos/Devot.entitlements \
+            "$RUNNER_TEMP/adhoc/Devot.app" signed
           mkdir out
           mv signed/Devot.dmg "out/Devot_${VERSION}_aarch64.dmg"
           mv signed/Devot.app.tar.gz "out/Devot_${VERSION}_aarch64.app.tar.gz"

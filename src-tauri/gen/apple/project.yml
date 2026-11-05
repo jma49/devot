@@ -58,6 +58,8 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 1.0.0
         CFBundleVersion: "1.0.0"
+        # Empty in a build that is not signed, which then has no iCloud entitlements either.
+        DevotCloudKitContainer: $(DEVOT_CLOUDKIT_CONTAINER)
     entitlements:
       path: devot_iOS/devot_iOS.entitlements
     scheme:
@@ -66,6 +68,8 @@ targets:
         RUST_LOG: info
     settings:
       base:
+        DEVOT_CLOUDKIT_CONTAINER: $(DEVOT_CLOUDKIT_CONTAINER_SIGNED_$(CODE_SIGNING_ALLOWED))
+        DEVOT_CLOUDKIT_CONTAINER_SIGNED_YES: iCloud.io.github.jma49.devot
         ENABLE_BITCODE: false
         ARCHS: [arm64]
         VALID_ARCHS: arm64 

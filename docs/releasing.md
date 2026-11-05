@@ -80,7 +80,7 @@ xcrun devicectl device install app --device <device ID> <scratch folder>/Payload
 git restore package.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/gen/apple
 ```
 
-A development build needs a signing team (docs/development.md, iOS). Remove the `build` folder the build leaves in `src-tauri/gen/apple` afterwards.
+A development build needs a signing team (docs/development.md, iOS) and a development profile that grants the app's iCloud container, push and keychain group (see Signing the app, iCloud entitlements). With automatic signing, Xcode makes that profile from the App ID. Remove the `build` folder the build leaves in `src-tauri/gen/apple` afterwards.
 
 ## Update feed
 
@@ -97,13 +97,49 @@ The same daily schedule fetches the license Worker's revocation list, also in a 
 Releases are signed with the owner's Developer ID Application certificate, with the hardened runtime and a secure timestamp, and notarized by Apple, so Gatekeeper opens them without a warning and the hardened runtime keeps injected libraries out of the signed app. `scripts/release/macos-sign.sh` does it all in the notarize job:
 
 1. It imports the certificate into a keychain made for the run (a random password, under `RUNNER_TEMP`) and deletes that keychain when it ends, whatever happens. The keychain goes on the runner's search list for the run (`--search-list`), so codesign also finds an intermediate certificate the `.p12` carries.
-2. It signs every piece of code in the bundle inside out (nested Mach-O files and bundles first, then the app) with `--options runtime --timestamp`. The app gets no entitlements: WebKit runs JavaScript, and its JIT, in its own processes; the app loads no library of another team (only Apple's frameworks); it sends Apple events only through `/usr/bin/osascript` (installing the command line tool), and the updater's privileged install runs its script inside the app; the crash reporter, a second copy of the app, reads only the memory the crashed app hands it over Mach IPC. The bundled `devot` command is a shell script among the resources, sealed with them. The ad-hoc builds already ran with the hardened runtime and no entitlements.
-3. It checks the app: `codesign --verify --deep --strict`, the hardened runtime, the timestamp and no entitlements (`codesign -d --entitlements`) on every Mach-O, and that the signature's authority is `APPLE_SIGNING_IDENTITY` and its Team ID the one the identity names.
-4. It has a `ditto` zip of the app notarized (`scripts/release/macos-notarize.sh`, with the API key written to a file under `RUNNER_TEMP` and removed; see Waiting for Apple below) and staples the ticket to the app, then checks it again with `xcrun stapler validate` and `spctl -a -t exec -vv`, which must answer `source=Notarized Developer ID`.
-5. It makes the dmg from the stapled app (`scripts/release/macos-dmg.sh`: the app and a link to `/Applications`, the app's icon as the volume icon, HFS+, compressed; as before, no Finder window layout), signs it, has it notarized and staples it, and checks it with `xcrun stapler validate`, `spctl -a -t open --context context:primary-signature -vv` and `hdiutil verify`.
-6. It packs the updater bundle from the stapled app, without AppleDouble (`._`) entries, which the updater would unpack into the bundle and so break its seal, and checks that the unpacked copy still verifies and carries its ticket. The sign job signs that bundle with the updater key.
+2. It checks the Developer ID provisioning profile (`scripts/release/macos-profile.sh`, see iCloud entitlements below) and embeds it as `Contents/embedded.provisionprofile`.
+3. It signs every piece of code in the bundle inside out (nested Mach-O files and bundles first, then the app) with `--options runtime --timestamp`. Only the app's own signature, which is its main executable's, carries entitlements: exactly the set in `src-tauri/macos/Devot.entitlements` (`--entitlements`). Every other Mach-O gets none. The bundled `devot` command is a shell script among the resources, sealed with them.
+4. It checks the app: `codesign --verify --deep --strict`, the hardened runtime and the timestamp on every Mach-O, that the signature's authority is `APPLE_SIGNING_IDENTITY` and its Team ID the one the identity names, and that the profile is embedded. `scripts/release/macos-entitlements.sh` checks that the main executable carries exactly the set in the file and that no other Mach-O carries any entitlement; otherwise it fails with `E_SIGN_ENTITLEMENTS`.
+5. It has a `ditto` zip of the app notarized (`scripts/release/macos-notarize.sh`, with the API key written to a file under `RUNNER_TEMP` and removed; see Waiting for Apple below) and staples the ticket to the app, then checks it again with `xcrun stapler validate` and `spctl -a -t exec -vv`, which must answer `source=Notarized Developer ID`.
+6. It makes the dmg from the stapled app (`scripts/release/macos-dmg.sh`: the app and a link to `/Applications`, the app's icon as the volume icon, HFS+, compressed; as before, no Finder window layout), signs it, has it notarized and staples it, and checks it with `xcrun stapler validate`, `spctl -a -t open --context context:primary-signature -vv` and `hdiutil verify`.
+7. It packs the updater bundle from the stapled app, without AppleDouble (`._`) entries, which the updater would unpack into the bundle and so break its seal, and checks that the unpacked copy still verifies and carries its ticket. The sign job signs that bundle with the updater key.
 
-A missing secret or variable, an identity of another form, a signature by another identity or team, or a notarization that does not end `Accepted` fails the run with an annotation that says which (`E_SIGN_…`). On a refused notarization it prints the submission ID and the notary log. No secret is ever printed.
+A missing secret or variable, an identity of another form, a profile that fails its checks, a signature by another identity or team, or a notarization that does not end `Accepted` fails the run with an annotation that says which (`E_SIGN_…`). On a refused notarization it prints the submission ID and the notary log. No secret is ever printed.
+
+### iCloud entitlements
+
+iCloud sync (ADR 0015) needs CloudKit, push and a keychain group that the iPhone app shares. A Developer ID app gets these only through entitlements, and macOS accepts them only when an embedded provisioning profile from the same team grants them. So the main executable carries:
+
+- `com.apple.application-identifier` (`WMG3HG38DV.io.github.jma49.devot`) and `com.apple.developer.team-identifier`;
+- `com.apple.developer.icloud-services` (`CloudKit`), `com.apple.developer.icloud-container-identifiers` (`iCloud.io.github.jma49.devot`) and `com.apple.developer.icloud-container-environment` (`Production`; a Developer ID build always uses Production);
+- `com.apple.developer.aps-environment` (`production`), so CloudKit can push changes;
+- `keychain-access-groups` (`WMG3HG38DV.io.github.jma49.devot`), the data-protection keychain group shared with the iPhone app.
+
+Only the main executable needs them, because it is the only process that calls CloudKit and the keychain. Before iCloud sync the app needed no entitlements for its other work, and it still needs none for it: WebKit runs JavaScript, and its JIT, in its own processes; the app loads no library of another team (only Apple's frameworks); it sends Apple events only through `/usr/bin/osascript` (installing the command line tool), and the updater's privileged install runs its script inside the app; the crash reporter, a second copy of the app, reads only the memory the crashed app hands it over Mach IPC. Restricted entitlements on any other Mach-O would also need the profile to cover that code, so the check refuses them.
+
+`scripts/release/macos-profile.sh` checks the profile before anything is signed. It must be for macOS and for the team the identity names. It must be for the App ID `<team ID>.<bundle ID>`, which the entitlements file must name too. It must grant every entitlement in the file, either as the same value, as `*`, or by a `<team ID>.*` wildcard. It must also be valid for at least 30 more days. Otherwise the run fails with `E_SIGN_PROFILE_TEAM`, `E_SIGN_PROFILE_PLATFORM`, `E_SIGN_PROFILE_APP_ID`, `E_SIGN_PROFILE_ENTITLEMENTS` (naming the entitlements it lacks) or `E_SIGN_PROFILE_EXPIRING`. When one of these fails, make a new profile in the portal and replace the secret. A Developer ID profile lasts as long as its certificate.
+
+Builds without the profile, which are local `pnpm tauri build`, the CI checks, `build:debug` and forks, are still made and carry no entitlements. Without `--entitlements`, `macos-sign.sh` signs that way as well. Such a build has no CloudKit container. Once iCloud sync is built, it reports `E_SYNC_CLOUDKIT_UNAVAILABLE` there and offers only the relay (ADR 0015). Never add the entitlements to `tauri.conf.json`: macOS kills an ad-hoc signed app that claims restricted entitlements at launch.
+
+The iPhone app carries the same container, keychain group and push in `src-tauri/gen/apple/devot_iOS/devot_iOS.entitlements`. Xcode takes the App ID and team from the profile, and it changes `aps-environment` to `production` when it exports for the App Store. `ExportOptions.plist` asks for the Production container environment. A signed build writes the container ID into its `Info.plist` (`DevotCloudKitContainer`, from the `DEVOT_CLOUDKIT_CONTAINER` build setting), and an unsigned build leaves it empty. That is how the app tells on iOS whether it may touch CloudKit.
+
+#### Owner steps before the first release with iCloud
+
+In the Apple Developer portal (Certificates, Identifiers & Profiles):
+
+1. **Identifiers > App IDs:** `io.github.jma49.devot` is an explicit App ID with **iCloud** (CloudKit support), **Push Notifications** and **In-App Purchase**.
+2. **Identifiers > iCloud Containers:** `iCloud.io.github.jma49.devot`, assigned to that App ID. A container can never be deleted.
+3. **Keychain sharing:** the group `WMG3HG38DV.io.github.jma49.devot` needs no portal step. The profiles grant it through `WMG3HG38DV.*`.
+4. **Profiles:** a **Developer ID** profile for the Mac app, and an **App Store** profile for the iPhone app, both for that App ID. A development profile for a `.dev` App ID with its own container is optional, for testing against CloudKit's Development environment.
+5. **GitHub, the `release` environment:** `APPLE_PROVISIONING_PROFILE_MACOS` and `APPLE_PROVISIONING_PROFILE_IOS`, each the profile in base64 (`base64 -i Devot.provisionprofile | pbcopy`), next to the credentials below.
+
+In the CloudKit Console, for the container:
+
+1. In the **Development** environment, let a development-signed build create the record types `DevotVault`, `DevotMeta`, `DevotDevice`, `DevotClock`, `DevotRecord` and `DevotPairing` and their fields.
+2. **Deploy Schema Changes to Production** before the first release that uses them. A Developer ID or App Store build uses Production, where record types are never created on first save: an undeployed type fails the save with code 12 (`Cannot create new type`).
+3. Indexes: the transport looks records up only by record name and fetches zone changes, so it needs no index beyond those CloudKit keeps. When the transport (#603) starts querying a field, that field needs a queryable index, deployed the same way.
+
+Deploy every later schema change to Production before the release that needs it. Production can only add record types and fields; it never removes them.
 
 ### Waiting for Apple
 
@@ -120,6 +156,8 @@ In the `release` environment, as secrets:
 - `APPLE_CERTIFICATE`: the Developer ID Application certificate with its private key, exported from Keychain Access as a `.p12`, in base64 (`base64 -i DeveloperID.p12 | pbcopy`).
 - `APPLE_CERTIFICATE_PASSWORD`: the password the `.p12` was exported with.
 - `APPLE_API_KEY_P8`: the whole text of the App Store Connect team API key (`AuthKey_<key ID>.p8`, Users and Access > Integrations, role Developer).
+- `APPLE_PROVISIONING_PROFILE_MACOS`: the Developer ID provisioning profile in base64. The notarize job passes it to `macos-sign.sh` as `APPLE_PROVISIONING_PROFILE`, and the script decodes it into its own folder under `RUNNER_TEMP`, never into the checkout. The script never prints the profile.
+- `APPLE_PROVISIONING_PROFILE_IOS`, `APPLE_DISTRIBUTION_CERTIFICATE` and `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`: the App Store profile and the Apple Distribution certificate for the iPhone app. No workflow reads them yet.
 
 In the repository settings, as variables:
 
@@ -138,6 +176,8 @@ APPLE_CERTIFICATE=$(base64 -i test-identity.p12) APPLE_CERTIFICATE_PASSWORD=<pas
   APPLE_SIGNING_IDENTITY='Developer ID Application: <name> (<team ID>)' \
   scripts/release/macos-sign.sh --skip-notarization path/to/Devot.app out
 ```
+
+`tests/scripts/macos-sign.bench.test.ts` also signs with `--entitlements tests/fixtures/signing/test.entitlements` and a test profile made from `tests/fixtures/signing/profile.plist`. That profile is signed with a throwaway key, never with a real profile or secret. `tests/scripts/macos-profile.test.ts` and `tests/scripts/macos-entitlements.test.ts` cover the two checks on a Mac.
 
 `pnpm tauri build` stays ad-hoc signed (see Building locally): only the release workflow signs with the Developer ID.
 

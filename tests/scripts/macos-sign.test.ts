@@ -54,6 +54,21 @@ describe('the signing script', () => {
     expect(output).toMatch(/E_SIGN_CREDENTIALS_MISSING: APPLE_CERTIFICATE not set/)
   })
 
+  it('needs the provisioning profile to sign with entitlements, and an entitlements file that exists', () => {
+    const entitled = run(CREDENTIALS, '--entitlements', 'src-tauri/macos/Devot.entitlements')
+    expect(entitled.status).toBe(1)
+    expect(entitled.output).toMatch(
+      /::error::E_SIGN_CREDENTIALS_MISSING: APPLE_PROVISIONING_PROFILE not set/,
+    )
+    expect(entitled.output).not.toContain('Importing')
+
+    for (const args of [['--entitlements'], ['--entitlements', 'no/such.entitlements']]) {
+      const { status, output } = run(CREDENTIALS, ...args)
+      expect({ args, status }).toEqual({ args, status: 1 })
+      expect(output).toContain('::error::E_SIGN_USAGE: --entitlements needs an entitlements file')
+    }
+  })
+
   it('refuses an identity that does not name a Developer ID Application certificate and its team', () => {
     for (const identity of [
       'Apple Development: Devot Test (TESTTEAM01)',
@@ -68,9 +83,15 @@ describe('the signing script', () => {
   })
 
   it('never prints a secret, even when it fails', () => {
-    for (const env of [CREDENTIALS, { ...CREDENTIALS, APPLE_SIGNING_IDENTITY: 'x' }]) {
-      const { output } = run(env)
-      for (const secret of ['p12-password-value', 'Y2VydGlmaWNhdGU=', 'api-key-text'])
+    const profile = { ...CREDENTIALS, APPLE_PROVISIONING_PROFILE: 'cHJvZmlsZS1ibG9i' }
+    for (const env of [CREDENTIALS, { ...CREDENTIALS, APPLE_SIGNING_IDENTITY: 'x' }, profile]) {
+      const { output } = run(env, '--entitlements', 'src-tauri/macos/Devot.entitlements')
+      for (const secret of [
+        'p12-password-value',
+        'Y2VydGlmaWNhdGU=',
+        'api-key-text',
+        'cHJvZmlsZS1ibG9i',
+      ])
         expect(output).not.toContain(secret)
     }
   })
@@ -111,15 +132,23 @@ describe('the signing script', () => {
     const script = readFileSync(SCRIPT, 'utf8')
     for (const check of [
       'codesign --verify --deep --strict "$app"',
-      'codesign -d --entitlements - --xml "$path"',
+      '"$script_dir/macos-profile.sh" "$profile" "$entitlements" "$team" "$bundle_id"',
+      '"$script_dir/macos-entitlements.sh" "$app" ${entitlements:+"$entitlements"}',
       'xcrun stapler validate "$app"',
       'spctl -a -t exec -vv "$app"',
       'xcrun stapler validate "$dmg"',
       'spctl -a -t open --context context:primary-signature -vv "$dmg"',
     ])
       expect(script).toContain(check)
-    expect(script).toMatch(/sign --options runtime "\$app"\n/)
-    expect(script).not.toMatch(/--entitlements [^-]|login\.keychain|default-keychain|set -x/)
+    // Only the app's own signature, which is its main executable's, carries entitlements.
+    expect(script.match(/^ *sign .*$/gm)).toEqual([
+      '    sign --options runtime "$path"',
+      '    sign --options runtime "$path"',
+      '  sign --options runtime --entitlements "$entitlements" "$app"',
+      '  sign --options runtime "$app"',
+      'sign "$dmg"',
+    ])
+    expect(script).not.toMatch(/login\.keychain|default-keychain|set -x/)
   })
 })
 

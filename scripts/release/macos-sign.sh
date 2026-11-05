@@ -4,7 +4,8 @@
 # disk image from it (macos-dmg.sh) and signs, notarizes and staples that, then packs the updater
 # bundle from the stapled app. It runs only Apple's tools.
 #
-#   scripts/release/macos-sign.sh [--skip-notarization] [--search-list] <Name.app> <out dir>
+#   scripts/release/macos-sign.sh [--skip-notarization] [--search-list] [--entitlements <file>]
+#     <Name.app> <out dir>
 #
 # Writes <out dir>/<Name>.dmg and <out dir>/<Name>.app.tar.gz. Reads from the environment:
 #   APPLE_CERTIFICATE           base64 of the Developer ID Application .p12
@@ -13,12 +14,15 @@
 #   APPLE_API_KEY_P8            the text of the App Store Connect API key (AuthKey_<id>.p8)
 #   APPLE_API_KEY_ID            its key ID
 #   APPLE_API_ISSUER_ID         its issuer ID (a team key)
+#   APPLE_PROVISIONING_PROFILE  base64 of the Developer ID provisioning profile (with --entitlements)
 #
 # The certificate goes into a keychain made for the run and deleted when it ends; no other keychain
 # is used. --search-list puts that keychain on the user's search list for the run, so codesign also
 # finds an intermediate certificate the .p12 carries (CI only). --skip-notarization needs no API
 # key and leaves out notarizing, stapling and Gatekeeper's checks, which a local run with a
-# self-signed identity cannot pass.
+# self-signed identity cannot pass. --entitlements embeds the provisioning profile, after
+# macos-profile.sh has checked it grants them, and signs the main executable with exactly that set;
+# without it, as for a build with no profile, no code carries any.
 # Errors are GitHub annotations with a code; no secret is ever printed.
 set -euo pipefail
 
@@ -29,22 +33,30 @@ fail() {
 
 notarize=1
 search_list=0
+entitlements=
 while [ $# -gt 0 ]; do
   case $1 in
     --skip-notarization) notarize=0 ;;
     --search-list) search_list=1 ;;
+    --entitlements)
+      [ $# -gt 1 ] && [ -f "$2" ] || fail "E_SIGN_USAGE: --entitlements needs an entitlements file"
+      entitlements=$2
+      shift
+      ;;
     --*) fail "E_SIGN_USAGE: unknown option $1" ;;
     *) break ;;
   esac
   shift
 done
-[ $# -eq 2 ] || fail "E_SIGN_USAGE: macos-sign.sh [--skip-notarization] [--search-list] <Name.app> <out dir>"
+[ $# -eq 2 ] ||
+  fail "E_SIGN_USAGE: macos-sign.sh [--skip-notarization] [--search-list] [--entitlements <file>] <Name.app> <out dir>"
 input=${1%/}
 out=$2
 [ -d "$input/Contents" ] || fail "E_SIGN_NO_APP: $input is not an app bundle"
 
 required="APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY"
 [ $notarize -eq 1 ] && required="$required APPLE_API_KEY_P8 APPLE_API_KEY_ID APPLE_API_ISSUER_ID"
+[ -n "$entitlements" ] && required="$required APPLE_PROVISIONING_PROFILE"
 missing=
 for name in $required; do
   [ -n "${!name:-}" ] || missing="$missing $name"
@@ -74,6 +86,15 @@ cleanup() {
   rm -rf "$work"
 }
 trap cleanup EXIT
+
+profile=
+if [ -n "$entitlements" ]; then
+  profile=$work/embedded.provisionprofile
+  (umask 077 && printf '%s' "$APPLE_PROVISIONING_PROFILE" | base64 -D > "$profile") 2> /dev/null ||
+    fail "E_SIGN_PROFILE_UNREADABLE: APPLE_PROVISIONING_PROFILE is not base64"
+  bundle_id=$(plutil -extract CFBundleIdentifier raw -o - "$input/Contents/Info.plist")
+  "$script_dir/macos-profile.sh" "$profile" "$entitlements" "$team" "$bundle_id"
+fi
 
 echo "Importing the certificate into a keychain for this run"
 keychain_password=$(uuidgen)
@@ -111,6 +132,7 @@ app=$work/app/$name
 mkdir "$work/app"
 ditto "$input" "$app"
 main=$app/Contents/MacOS/$(plutil -extract CFBundleExecutable raw "$app/Contents/Info.plist")
+[ -z "$profile" ] || cp "$profile" "$app/Contents/embedded.provisionprofile"
 
 echo "Signing $name inside out"
 # -depth lists what a folder holds before the folder, so nested code is signed before its bundle.
@@ -122,8 +144,12 @@ while IFS= read -r -d '' path; do
   fi
 done < <(find "$app/Contents" -depth \( -type d \( -name '*.app' -o -name '*.framework' \
   -o -name '*.xpc' -o -name '*.appex' -o -name '*.bundle' -o -name '*.plugin' \) -o -type f \) -print0)
-# No entitlements: the app needs none (docs/releasing.md, Signing the app).
-sign --options runtime "$app"
+# Only the main executable carries entitlements (docs/releasing.md, Signing the app).
+if [ -n "$entitlements" ]; then
+  sign --options runtime --entitlements "$entitlements" "$app"
+else
+  sign --options runtime "$app"
+fi
 
 # check_signed <path> code|image [stapled]
 check_signed() {
@@ -140,8 +166,6 @@ check_signed() {
   if [ "$2" = code ]; then
     grep -q '^CodeDirectory .*flags=0x[0-9a-f]*([^)]*runtime' <<< "$info" ||
       fail "E_SIGN_NO_RUNTIME: ${path#"$work"/} is not signed with the hardened runtime"
-    [ -z "$(codesign -d --entitlements - --xml "$path" 2> /dev/null)" ] ||
-      fail "E_SIGN_ENTITLEMENTS: ${path#"$work"/} carries entitlements; the app needs none"
   fi
 }
 
@@ -150,6 +174,11 @@ check_app() {
   local app=$1 path verdict
   codesign --verify --deep --strict "$app"
   check_signed "$app" code "${2:-}"
+  "$script_dir/macos-entitlements.sh" "$app" ${entitlements:+"$entitlements"}
+  if [ -n "$profile" ]; then
+    cmp -s "$profile" "$app/Contents/embedded.provisionprofile" ||
+      fail "E_SIGN_PROFILE_NOT_EMBEDDED: ${app#"$work"/} does not hold the provisioning profile"
+  fi
   while IFS= read -r -d '' path; do
     if is_macho "$path"; then check_signed "$path" code "${2:-}"; fi
   done < <(find "$app/Contents" -type f -print0)
