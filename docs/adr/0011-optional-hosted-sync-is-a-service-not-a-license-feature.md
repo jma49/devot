@@ -1,6 +1,6 @@
 # A hosted sync service, if it ever ships, is a separate service, not a license feature
 
-Status: accepted.
+Status: accepted. Amended by ADR 0014: on the iPhone, a hosted service would also be sold as an App Store in-app purchase.
 
 Devot stays sold once. The license unlocks every feature, on every device, for every release, with no reduced rights for anyone who runs their own relay or none (ADR 0006). Running a relay yourself stays the supported way to sync (ADR 0004), and its limits are shown plainly in the app. A Devot-hosted sync service may come later for people who do not want to run a relay. If it does, it is a separate storage service, billed periodically by what it stores. It is not part of the license, and no feature is held back to sell it. This amends ADR 0004 and ADR 0006.
 

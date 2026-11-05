@@ -17,3 +17,13 @@ Terms the code and the docs use with one meaning each.
 - **Confirmation:** the new device's device ID, sealed under the same key, which tells the showing device the pairing worked.
 - **Recovery key:** the vault ID and key as 85 characters with a checksum, shown when the vault is made until the owner says it was saved. With the relay's address, it lets a device join when no other device is at hand.
 - **Joining:** a device takes a vault from a pairing code or the recovery key, enrolls, and then keeps the vault in its keychain. A device never replaces a vault it holds with another one.
+
+## Licensing
+
+- **Licence:** a signed key, `devot1.…`, that unlocks editing, sync and AI in every version; checked offline (docs/adr/0006-source-available-and-sold-once.md). Sold through the licence Worker, or got by a licence exchange.
+- **Seat:** one of a licence's three devices, taken when the Worker activates the licence on it; the device keeps a signed 30-day **lease** that it renews (docs/adr/0009-licences-activated-on-three-devices.md).
+- **Trial:** the 30 days in which everything works before a licence or purchase is needed. On the Mac and in iPhone development builds it is kept in the keychain; in an App Store build it is the trial purchase.
+- **App Store build:** the release build of the iPhone app that is uploaded to the App Store; only it reads StoreKit and hides every way to pay outside the App Store (docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md).
+- **App Store purchase:** the Devot Pro in-app purchase, which unlocks the iPhone app without taking a seat.
+- **Trial purchase:** the free 30-day Trial in-app purchase; the trial ends 30 days after its purchase date.
+- **Licence exchange:** the Worker's check of an App Store purchase with Apple, answered with that purchase's one licence, signed again from its row: the same key every time while the signing kid is unchanged.
