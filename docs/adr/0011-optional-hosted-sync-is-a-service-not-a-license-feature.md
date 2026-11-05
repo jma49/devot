@@ -16,7 +16,7 @@ Devot stays sold once. The license unlocks every feature, on every device, for e
 - Hosting is a separate, optional, periodically billed storage service for anyone, not a tier of the license.
 - A person who runs their own relay (on Cloudflare's free plan or a server of their own) loses nothing and sees the same features. The app reports that relay's storage honestly: what it holds, what it may hold as the relay itself says, and what is left (docs/sync-relay.md, Quota). It never assumes a host's limits.
 - When a relay's storage nears its cap, the app says so once and says what to do: remove images or notes, or use a larger server. Hosting is not mentioned there, because there is nothing to offer yet.
-- Nothing is built now: no billing, no accounts, no hosted endpoint, no interest form, and no other sync backend (CloudKit included; lifted by ADR 0015, which syncs through the owner's own iCloud and runs nothing for Devot).
+- Nothing is built now: no billing, no accounts, no hosted endpoint, no interest form, and no other sync backend (CloudKit included).
 
 ## Not decided
 
@@ -31,3 +31,7 @@ Devot stays sold once. The license unlocks every feature, on every device, for e
 - Hosting never appears in the app, the Welcome screen or the first launch. Settings > Sync stays the one place where sync is set up, and its first question is only whether this is the first device or another one.
 - A relay's storage is read from the relay itself (`usage`: stored bytes, image bytes and the relay's own `caps`), so the figures are right for any host, and a relay that does not say its caps is shown as such. A relay run with `RELAY_QUOTA=off` is shown as having no cap.
 - The decision is revisited only when there is evidence of demand and a costed plan. It then gets its own ADR, which settles the points under "Not decided".
+
+## Amended
+
+ADR 0015: "no other sync backend (CloudKit included)" no longer holds. A vault may sync through the owner's own iCloud, which Devot neither runs nor bills; the rest of this ADR stands.
