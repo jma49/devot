@@ -638,31 +638,89 @@ describe('focus', () => {
     expect(a.engine.status().state).toBe('idle')
   })
 
-  it('connects at once, through the backoff, when a window comes to the front offline', async () => {
+  /** An engine whose connects fail with `code` until `reachable` is set; its reads of the sync state wait while `hold` does. */
+  async function unreachable(code: string) {
     const { a, fa } = fakePair()
-    const calls = counting(fa)
-    let unreachable = true
+    const calls = { connects: 0 }
+    const net = { reachable: false, hold: undefined as Promise<void> | undefined, held: false }
     const connect = fa.connect.bind(fa)
     fa.connect = async () => {
-      if (unreachable) throw new Error('E_SYNC_OFFLINE')
+      calls.connects += 1
+      if (!net.reachable) throw new Error(code)
       return connect()
+    }
+    const syncState = a.storage.syncState.bind(a.storage)
+    const sync = Object.create(a.storage) as typeof a.storage
+    sync.syncState = async () => {
+      if (net.hold) {
+        net.held = true
+        await net.hold
+      }
+      return syncState()
     }
     await a.engine.stop()
     a.engine = createSyncEngine({
       storage: a.storage,
-      sync: a.storage,
+      sync,
       transport: fa,
       clock: createClock('mac'),
       newId: createIdGenerator(),
     })
     a.engine.start()
     cleanups.push(() => a.engine.stop())
-    await vi.waitFor(() => expect(a.engine.status().state).toBe('offline'))
+    await vi.waitFor(() => expect(a.engine.status()).toMatchObject({ state: 'offline', code }))
+    return { a, calls, net }
+  }
+
+  it('connects at once, through the backoff, when a window comes to the front offline', async () => {
+    const { a, calls, net } = await unreachable('E_SYNC_OFFLINE')
     const before = calls.connects
-    unreachable = false
+    net.reachable = true
     for (let i = 0; i < 3; i += 1) a.engine.focused()
     await a.engine.idle()
     expect(calls.connects - before).toBe(1)
+    expect(a.engine.status().state).toBe('idle')
+  })
+
+  it('connects once when a second front event comes while the first connect starts', async () => {
+    const { a, calls, net } = await unreachable('E_SYNC_OFFLINE')
+    const before = calls.connects
+    let release = () => {}
+    net.hold = new Promise((resolve) => (release = resolve))
+    a.engine.focused()
+    await vi.waitFor(() => expect(net.held).toBe(true))
+    a.engine.focused()
+    net.hold = undefined
+    release()
+    await a.engine.idle()
+    expect(calls.connects - before).toBe(1)
+    expect(a.engine.status().state).toBe('offline')
+  })
+
+  it.each(['E_SYNC_ICLOUD_BUSY', 'E_SYNC_RATE'])(
+    'waits out %s when a window comes to the front',
+    async (code) => {
+      const { a, calls, net } = await unreachable(code)
+      const before = calls.connects
+      net.reachable = true
+      a.engine.focused()
+      await a.engine.idle()
+      expect(calls.connects - before).toBe(0)
+      expect(a.engine.status()).toMatchObject({ state: 'offline', code })
+    },
+  )
+
+  it('pulls on the relay when a window comes to the front, so a socket that died meanwhile is found', async () => {
+    const { a, fa } = fakePair()
+    await a.sync()
+    const calls = counting(fa)
+    fa.open = false
+    a.engine.focused()
+    await a.engine.idle()
+    expect(a.engine.status()).toMatchObject({ state: 'offline', code: 'E_SYNC_OFFLINE' })
+    a.engine.focused()
+    await a.engine.idle()
+    expect(calls.connects).toBe(1)
     expect(a.engine.status().state).toBe('idle')
   })
 })

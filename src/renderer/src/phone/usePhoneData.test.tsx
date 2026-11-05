@@ -26,6 +26,7 @@ const core = {
     calls.push('merged')
     return []
   },
+  flush: async () => void calls.push('saved'),
 }
 
 vi.mock('../backups', () => ({ listBackups: async () => ({ backups: [] }) }))
@@ -43,14 +44,14 @@ afterEach(() => {
   calls.length = 0
 })
 
-it('merges what sync wrote into the notes in memory, then reloads the lists', async () => {
+it('merges what sync wrote into the notes in memory, saves them, then reloads the lists', async () => {
   const data = renderHook(() => usePhoneData(), { props: {} })
   await vi.waitFor(() => expect(data.current.core).not.toBeNull())
   stored = [NOTE]
   calls.length = 0
   act(() => void window.dispatchEvent(new CustomEvent(DB_CHANGED)))
   await vi.waitFor(() => expect(data.current.notes).toEqual([NOTE]))
-  expect(calls).toEqual(['merged', 'listed'])
+  expect(calls).toEqual(['merged', 'saved', 'listed'])
 })
 
 it('tells the screens listening what a note in memory took in', async () => {

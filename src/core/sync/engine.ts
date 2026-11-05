@@ -166,6 +166,9 @@ const ENDLESS_PAUSES = new Set([ICLOUD_FULL, ICLOUD_SIGNED_OUT, ICLOUD_RESTRICTE
 const pausedBy = (result: Extract<PushResult, { type: 'paused' }>) =>
   new Paused(result.code ?? QUOTA, result.until, result.limit === 'storedBytes')
 
+/** Refusals that name their own wait (CloudKit's retry-after, the relay's rate limit): a window coming to the front does not cut it short. */
+const TOLD_TO_WAIT = new Set(['E_SYNC_ICLOUD_BUSY', 'E_SYNC_RATE'])
+
 /** Codes that stop sync until the user acts (Settings > Sync). */
 const STOPPING = new Set([
   'E_SYNC_REVOKED',
@@ -235,7 +238,7 @@ export interface SyncEngine {
    * another device purged stays purged either way.
    */
   afterRestore(choice: 'merge' | 'keep'): Promise<void>
-  /** A window came to the front: an offline device or a pause with no end (a full iCloud) connects now, and a vault on iCloud is fetched. */
+  /** A window came to the front: an offline device or a pause with no end (a full iCloud) connects now, unless told to wait (`E_SYNC_ICLOUD_BUSY`, `E_SYNC_RATE`); a connected one runs a pass. */
   focused(): void
   /** Internal, for tests: how many records the push breaker still holds times for. */
   pushesRemembered(): number
@@ -1421,10 +1424,18 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       }).catch(() => undefined),
     focused() {
       if (!running) return
-      if (status.state === 'paused' && status.pausedUntil === null) return queueConnect(false)
-      // Someone is back at the app (an iPhone out of the background, say): no waiting out the backoff.
-      if (status.state === 'offline') return queueConnect(false)
-      if (via === 'icloud') queuePass()
+      // No timer means a connect is under way already.
+      const waiting = reconnectTimer !== undefined
+      if (status.state === 'paused' && status.pausedUntil === null) {
+        if (waiting) queueConnect(false)
+        return
+      }
+      if (status.state === 'offline') {
+        if (waiting && !TOLD_TO_WAIT.has(status.code ?? '')) queueConnect(false)
+        return
+      }
+      // A pass finds a socket that died while the machine slept, whose own timers stopped with it.
+      queuePass()
     },
     pushesRemembered: () => pushTimes.size,
     syncNow: () => enqueue(() => connect()).catch(() => undefined),

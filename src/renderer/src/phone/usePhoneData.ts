@@ -11,6 +11,7 @@ import { listBackups } from '../backups'
 import { startCore, stopCore, type Core } from '../core-client'
 import { errorCode } from '../../../core/errors'
 import { useExternalChanges } from '../externalChanges'
+import { saveEdits } from '../saveGuards'
 import { welcomeContent } from '../welcome/content'
 
 export interface PhoneData {
@@ -128,12 +129,13 @@ export function usePhoneData(): PhoneStore {
     }
   }, [load, refresh, takenIn])
 
-  // Sync wrote what other devices changed: the notes in memory take it in before the next save, then the lists reload.
+  // Sync wrote what other devices changed: the notes in memory take it in and are saved, then the lists reload.
   const { core } = data
   useExternalChanges(
     core
       ? async () => {
           await core.mergeStored()
+          await saveEdits(core)
           await load(core)
         }
       : undefined,
