@@ -527,6 +527,8 @@ describe('rate limits', () => {
     expect((await exchange(jws)).status).toBe(200)
   })
 
+  // About 45 signed exchanges: a loaded CI runner can pass the default 5 s, and a timed-out
+  // test keeps writing to the shared database under the next one.
   it('allows 10 an hour per purchase, and an over-limit IP spends none of it', async () => {
     for (let i = 0; i < APP_STORE_LIMITS.exchangePerIp; i++) {
       const id = `40000000000${String(i).padStart(2, '0')}`
@@ -545,7 +547,7 @@ describe('rate limits', () => {
     expect(answers.slice(APP_STORE_LIMITS.exchangePerTransaction).every((s) => s === 429)).toBe(
       true,
     )
-  })
+  }, 20_000)
 })
 
 describe('notifications', () => {
