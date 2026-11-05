@@ -127,6 +127,7 @@ describe('the release workflow', () => {
       'secrets.APPLE_API_KEY_P8',
       'secrets.APPLE_CERTIFICATE',
       'secrets.APPLE_CERTIFICATE_PASSWORD',
+      'secrets.APPLE_PROVISIONING_PROFILE_MACOS',
       'vars.APPLE_API_ISSUER_ID',
       'vars.APPLE_API_KEY_ID',
       'vars.APPLE_SIGNING_IDENTITY',
@@ -140,15 +141,28 @@ describe('the release workflow', () => {
     expect(notarize).toMatch(/^    environment: release$/m)
     expect(notarize).toMatch(/^    runs-on: macos-/m)
     expect(notarize).not.toMatch(
-      /\bpnpm\b|\bnpx\b|\bnpm\b|\bnode\b|\bcargo\b|\btauri\b|cache:|GITHUB_TOKEN|setup-node|action-setup/,
+      /\bpnpm\b|\bnpx\b|\bnpm\b|\bnode\b|\bcargo\b|(?<!src-)\btauri\b|cache:|GITHUB_TOKEN|setup-node|action-setup/,
     )
     const actions = [...notarize.matchAll(/uses: ([\w-]+\/[\w-]+)@/g)].map((m) => m[1])
     expect(new Set(actions)).toEqual(
       new Set(['actions/checkout', 'actions/download-artifact', 'actions/upload-artifact']),
     )
     expect(step('Sign, notarize and staple the app and the dmg')).toContain(
-      'scripts/release/macos-sign.sh --search-list ',
+      'scripts/release/macos-sign.sh --search-list --entitlements src-tauri/macos/Devot.entitlements ',
     )
+  })
+
+  it('hands the provisioning profile to the signing script, which keeps it out of the checkout', () => {
+    const signing = step('Sign, notarize and staple the app and the dmg')
+    expect(signing).toContain(
+      'APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE_MACOS }}',
+    )
+    expect(signing).not.toMatch(/base64|provisionprofile/)
+    // No iPhone release runs here yet.
+    expect(workflow).not.toContain('APPLE_PROVISIONING_PROFILE_IOS')
+    const script = readFileSync('scripts/release/macos-sign.sh', 'utf8')
+    expect(script).toMatch(/^work=\$\(mktemp -d "\$\{RUNNER_TEMP:-/m)
+    expect(script).toContain('profile=$work/embedded.provisionprofile')
   })
 
   it('ships only what the notarize job signed: the build hands over the ad-hoc app alone', () => {

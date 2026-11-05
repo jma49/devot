@@ -467,8 +467,11 @@
 					arm64,
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = devot_iOS/devot_iOS.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "$(DEVOT_ENTITLEMENTS_$(DEVOT_ICLOUD))";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVOT_CLOUDKIT_CONTAINER = "$(DEVOT_CLOUDKIT_CONTAINER_$(DEVOT_ICLOUD))";
+				DEVOT_CLOUDKIT_CONTAINER_YES = iCloud.io.github.jma49.devot;
+				DEVOT_ENTITLEMENTS_YES = devot_iOS/devot_iOS.entitlements;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -498,8 +501,11 @@
 					arm64,
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = devot_iOS/devot_iOS.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "$(DEVOT_ENTITLEMENTS_$(DEVOT_ICLOUD))";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVOT_CLOUDKIT_CONTAINER = "$(DEVOT_CLOUDKIT_CONTAINER_$(DEVOT_ICLOUD))";
+				DEVOT_CLOUDKIT_CONTAINER_YES = iCloud.io.github.jma49.devot;
+				DEVOT_ENTITLEMENTS_YES = devot_iOS/devot_iOS.entitlements;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (

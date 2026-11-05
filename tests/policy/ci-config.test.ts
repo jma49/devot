@@ -71,6 +71,32 @@ it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () =>
   expect(gate).toContain('for result in "$CHANGES" "$RUST" "$IOS" "$DENY"')
 })
 
+it("runs the signing scripts' tests, which need Apple's tools, on a Mac for every pull request with web or script changes", () => {
+  // scripts/ and tests/ count as web changes (scripts/ci/changed-code.sh).
+  const mac = job('mac-scripts')
+  expect(mac).toContain('runs-on: macos-')
+  expect(mac).toMatch(
+    /^ {4}if: needs\.changes\.outputs\.web != 'false' && needs\.changes\.outputs\.docs_only != 'true'$/m,
+  )
+  expect(commands(mac)).toContain('pnpm vitest run tests/scripts/macos-')
+})
+
+it('every Vitest test that skips without a Mac or its tools runs in the macOS job', () => {
+  // Reads the skipIf/runIf conditions; on the Linux runners such a test would never run at all.
+  const mac =
+    /'darwin'|\b(?:codesign|security|xcrun|notarytool|stapler|plutil|hdiutil|spctl|ditto|xcodebuild|actool|devicectl)\b/
+  const macOnly = listFiles('.', 'tests')
+    .filter((file) => /\.test\.ts$/.test(file))
+    .filter((file) =>
+      [...read(file).matchAll(/\.(?:skipIf|runIf)\((.*)$/gm)].some((m) => mac.test(m[1] ?? '')),
+    )
+  const filters = commands(job('mac-scripts'))
+    .filter((c) => c.startsWith('pnpm vitest run '))
+    .flatMap((c) => c.split(' ').slice(3))
+  expect(macOnly).toEqual(expect.arrayContaining(['tests/scripts/macos-sign.bench.test.ts']))
+  expect(macOnly.filter((file) => !filters.some((f) => file.startsWith(f)))).toEqual([])
+})
+
 it('the updater plugin is not a phone dependency', () => {
   // It turns on reqwest's rustls without a provider, and `tauri ios dev` then panics at launch.
   const manifest = read('src-tauri/Cargo.toml')
@@ -248,19 +274,21 @@ it('the UI shard plan knows nearly every spec and no removed one', () => {
   expect(Object.keys(durations).filter((spec) => !specs.includes(spec))).toEqual([])
 })
 
-it('the web check fails when the quick checks, the UI build, a UI shard or the change detection fails', () => {
+it('the web check fails when the quick checks, the UI build, a UI shard, the Mac script tests or the change detection fails', () => {
   // `web` is a required check that sums up the jobs and runs even when they were skipped,
   // so a skipped job cannot read as passing a failed one. A failed UI build skips every shard.
   const web = job('web')
-  expect(web).toMatch(/^ {4}needs: \[changes, web-checks, unit-tests, ui-build, ui\]$/m)
+  expect(web).toMatch(
+    /^ {4}needs: \[changes, web-checks, unit-tests, ui-build, ui, mac-scripts\]$/m,
+  )
   expect(web).toMatch(/^ {4}if: \$\{\{ always\(\) \}\}$/m)
-  for (const need of ['changes', 'web-checks', 'unit-tests', 'ui-build', 'ui']) {
+  for (const need of ['changes', 'web-checks', 'unit-tests', 'ui-build', 'ui', 'mac-scripts']) {
     expect(web).toContain(`needs.${need}.result`)
   }
   expect(web).toMatch(/failure\|cancelled/)
 })
 
-it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI_BUILD', 'UI'])(
+it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI_BUILD', 'UI', 'MAC'])(
   'the required gate rejects failed or cancelled %s results',
   (need) => {
     const config = parse(workflow) as {
@@ -276,6 +304,7 @@ it.each(['CHANGES', 'CHECKS', 'TESTS', 'UI_BUILD', 'UI'])(
       TESTS: 'success',
       UI_BUILD: 'success',
       UI: 'success',
+      MAC: 'success',
     }
     for (const result of ['success', 'skipped', 'failure', 'cancelled']) {
       const run = spawnSync('bash', ['-e', '-c', command], {

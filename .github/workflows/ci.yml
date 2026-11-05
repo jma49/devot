@@ -260,12 +260,31 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The signing scripts' tests need Apple's tools and skip on the Linux runners.
+  # A change to scripts/ or tests/ counts as a web change, so a Rust-only one
+  # skips them.
+  mac-scripts:
+    name: macOS script tests
+    needs: changes
+    if: needs.changes.outputs.web != 'false' && needs.changes.outputs.docs_only != 'true'
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm vitest run tests/scripts/macos-
+
   # The required web check. It runs even when the jobs it sums up were
   # skipped (a pull request without web changes) and fails when any of them,
   # or the change detection, failed or was cancelled. A failed UI build skips
   # the shards, so the gate reads the build's result too.
   web:
-    needs: [changes, web-checks, unit-tests, ui-build, ui]
+    needs: [changes, web-checks, unit-tests, ui-build, ui, mac-scripts]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -276,13 +295,14 @@ jobs:
           TESTS: ${{ needs.unit-tests.result }}
           UI_BUILD: ${{ needs.ui-build.result }}
           UI: ${{ needs.ui.result }}
+          MAC: ${{ needs.mac-scripts.result }}
         run: |
-          echo "changes=$CHANGES web-checks=$CHECKS unit-tests=$TESTS ui-build=$UI_BUILD ui=$UI"
+          echo "changes=$CHANGES web-checks=$CHECKS unit-tests=$TESTS ui-build=$UI_BUILD ui=$UI mac-scripts=$MAC"
           {
             printf '### Web merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Quick checks' "$CHECKS" 'Unit and integration tests' "$TESTS" 'UI test build' "$UI_BUILD" 'UI regression tests' "$UI"
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Quick checks' "$CHECKS" 'Unit and integration tests' "$TESTS" 'UI test build' "$UI_BUILD" 'UI regression tests' "$UI" 'macOS script tests' "$MAC"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$CHANGES" "$CHECKS" "$TESTS" "$UI_BUILD" "$UI"; do
+          for result in "$CHANGES" "$CHECKS" "$TESTS" "$UI_BUILD" "$UI" "$MAC"; do
             case "$result" in
               failure|cancelled) exit 1 ;;
             esac

@@ -77,7 +77,7 @@ This changes ADR 0004 and ADR 0008 for iCloud vaults: the Apple ID, not pairing,
 
 ## Builds without Devot's container
 
-Before anything touches `CKContainer`, which raises an Objective-C exception in a process without the entitlement, Rust checks that the build carries the container: on macOS by reading the entitlement (`SecTaskCopyValueForEntitlement`), on iOS by the container ID the signed build writes into its `Info.plist`, and on both inside `guarded`. A build without it (`.dev`, local, forks, CI) reports `E_SYNC_CLOUDKIT_UNAVAILABLE` and offers only the relay.
+Before anything touches `CKContainer`, which raises an Objective-C exception in a process without the entitlement, Rust checks that the build carries the container: on macOS by reading the entitlement (`SecTaskCopyValueForEntitlement`), on iOS by the container ID that a build with the iCloud entitlements (`DEVOT_ICLOUD=YES`, `docs/releasing.md`) writes into its `Info.plist`, and on both inside `guarded`. A build without it (`.dev`, local, forks, CI) reports `E_SYNC_CLOUDKIT_UNAVAILABLE` and offers only the relay.
 
 ## Native code: `objc2-cloud-kit`, not a Swift shim
 

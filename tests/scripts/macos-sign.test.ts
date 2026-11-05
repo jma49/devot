@@ -54,6 +54,21 @@ describe('the signing script', () => {
     expect(output).toMatch(/E_SIGN_CREDENTIALS_MISSING: APPLE_CERTIFICATE not set/)
   })
 
+  it('needs the provisioning profile to sign with entitlements, and an entitlements file that exists', () => {
+    const entitled = run(CREDENTIALS, '--entitlements', 'src-tauri/macos/Devot.entitlements')
+    expect(entitled.status).toBe(1)
+    expect(entitled.output).toMatch(
+      /::error::E_SIGN_CREDENTIALS_MISSING: APPLE_PROVISIONING_PROFILE not set/,
+    )
+    expect(entitled.output).not.toContain('Importing')
+
+    for (const args of [['--entitlements'], ['--entitlements', 'no/such.entitlements']]) {
+      const { status, output } = run(CREDENTIALS, ...args)
+      expect({ args, status }).toEqual({ args, status: 1 })
+      expect(output).toContain('::error::E_SIGN_USAGE: --entitlements needs an entitlements file')
+    }
+  })
+
   it('refuses an identity that does not name a Developer ID Application certificate and its team', () => {
     for (const identity of [
       'Apple Development: Devot Test (TESTTEAM01)',
@@ -68,9 +83,15 @@ describe('the signing script', () => {
   })
 
   it('never prints a secret, even when it fails', () => {
-    for (const env of [CREDENTIALS, { ...CREDENTIALS, APPLE_SIGNING_IDENTITY: 'x' }]) {
-      const { output } = run(env)
-      for (const secret of ['p12-password-value', 'Y2VydGlmaWNhdGU=', 'api-key-text'])
+    const profile = { ...CREDENTIALS, APPLE_PROVISIONING_PROFILE: 'cHJvZmlsZS1ibG9i' }
+    for (const env of [CREDENTIALS, { ...CREDENTIALS, APPLE_SIGNING_IDENTITY: 'x' }, profile]) {
+      const { output } = run(env, '--entitlements', 'src-tauri/macos/Devot.entitlements')
+      for (const secret of [
+        'p12-password-value',
+        'Y2VydGlmaWNhdGU=',
+        'api-key-text',
+        'cHJvZmlsZS1ibG9i',
+      ])
         expect(output).not.toContain(secret)
     }
   })
@@ -99,6 +120,87 @@ describe('the signing script', () => {
     expect(made.filter((call) => call.startsWith('list-keychains'))).toEqual([])
   })
 
+  describe('picking the identity', () => {
+    const OLD = 'A'.repeat(40)
+    const RENEWED = 'B'.repeat(40)
+    const listed = (hash: string, note = '') => `  1) ${hash} "${IDENTITY}"${note}`
+
+    /** Runs the script with stand-ins for Apple's tools; codesign records its arguments and fails. */
+    function withIdentities(found: string[]) {
+      const dir = tempDir('devot-macos-sign-')
+      const bin = join(dir, 'bin')
+      const calls = join(dir, 'codesign-calls')
+      const made = join(dir, 'security-calls')
+      mkdirSync(bin)
+      const standIns: Record<string, string> = {
+        security: [
+          `printf '%s\\n' "$1" >> ${JSON.stringify(made)}`,
+          'if [ "$1" = find-identity ]; then',
+          `  printf '%s\\n' ${found.map((line) => JSON.stringify(line)).join(' ')}`,
+          'fi',
+        ].join('\n'),
+        uuidgen: 'echo throwaway-keychain-password',
+        base64: 'cat > /dev/null; echo p12',
+        ditto: 'cp -R "$1" "$2"',
+        plutil: 'echo devot',
+        codesign: `printf '%s\\n' "$*" >> ${JSON.stringify(calls)}; exit 1`,
+      }
+      for (const [name, body] of Object.entries(standIns)) {
+        writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`)
+        chmodSync(join(bin, name), 0o755)
+      }
+      const result = runIn(
+        dir,
+        { ...CREDENTIALS, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+        '--skip-notarization',
+      )
+      const read = (file: string) => {
+        try {
+          return readFileSync(file, 'utf8').trim().split('\n')
+        } catch {
+          return []
+        }
+      }
+      return { ...result, codesign: read(calls), security: read(made) }
+    }
+
+    it('stops before signing when the certificate holds two identities of that name', () => {
+      // A .p12 exported with both an expired certificate and its renewal.
+      const signed = withIdentities([
+        'Policy: Code Signing',
+        '  Matching identities',
+        listed(OLD, ' (CSSMERR_TP_CERT_EXPIRED)'),
+        listed(RENEWED),
+        '     2 identities found',
+        '',
+        '  Valid identities only',
+        listed(RENEWED),
+        '     1 valid identities found',
+      ])
+      expect(signed.status).toBe(1)
+      expect(signed.output).toContain('::error::E_SIGN_IDENTITY_AMBIGUOUS:')
+      expect(signed.output).not.toContain(OLD)
+      expect(signed.codesign).toEqual([])
+      expect(signed.security).toContain('delete-keychain')
+    })
+
+    it('signs with the hash of the identity it found, so codesign cannot pick another', () => {
+      const signed = withIdentities([
+        'Policy: Code Signing',
+        '  Matching identities',
+        listed(RENEWED),
+        '     1 identities found',
+        '',
+        '  Valid identities only',
+        listed(RENEWED),
+        '     1 valid identities found',
+      ])
+      expect(signed.status).toBe(1)
+      expect(signed.codesign).toHaveLength(1)
+      expect(signed.codesign[0]).toMatch(new RegExp(`^--force --sign ${RENEWED} --keychain \\S+ `))
+    })
+  })
+
   it('unlocks the keychain again before signing the dmg, after the notarization wait', () => {
     const script = readFileSync(SCRIPT, 'utf8')
     expect(script).toMatch(
@@ -111,15 +213,23 @@ describe('the signing script', () => {
     const script = readFileSync(SCRIPT, 'utf8')
     for (const check of [
       'codesign --verify --deep --strict "$app"',
-      'codesign -d --entitlements - --xml "$path"',
+      '"$script_dir/macos-profile.sh" "$profile" "$entitlements" "$team" "$bundle_id" "$certificate"',
+      '"$script_dir/macos-entitlements.sh" "$app" ${entitlements:+"$entitlements"}',
       'xcrun stapler validate "$app"',
       'spctl -a -t exec -vv "$app"',
       'xcrun stapler validate "$dmg"',
       'spctl -a -t open --context context:primary-signature -vv "$dmg"',
     ])
       expect(script).toContain(check)
-    expect(script).toMatch(/sign --options runtime "\$app"\n/)
-    expect(script).not.toMatch(/--entitlements [^-]|login\.keychain|default-keychain|set -x/)
+    // Only the app's own signature, which is its main executable's, carries entitlements.
+    expect(script.match(/^ *sign .*$/gm)).toEqual([
+      '    sign --options runtime "$path"',
+      '    sign --options runtime "$path"',
+      '  sign --options runtime --entitlements "$entitlements" "$app"',
+      '  sign --options runtime "$app"',
+      'sign "$dmg"',
+    ])
+    expect(script).not.toMatch(/login\.keychain|default-keychain|set -x/)
   })
 })
 

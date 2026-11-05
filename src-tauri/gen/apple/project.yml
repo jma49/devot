@@ -58,14 +58,19 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 1.0.0
         CFBundleVersion: "1.0.0"
-    entitlements:
-      path: devot_iOS/devot_iOS.entitlements
+        DevotCloudKitContainer: $(DEVOT_CLOUDKIT_CONTAINER)
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full
         RUST_LOG: info
     settings:
       base:
+        # DEVOT_ICLOUD=YES, set only by the build that ships, gives the build the iCloud entitlements
+        # and its container in Info.plist; without it the build has neither (docs/releasing.md).
+        CODE_SIGN_ENTITLEMENTS: $(DEVOT_ENTITLEMENTS_$(DEVOT_ICLOUD))
+        DEVOT_ENTITLEMENTS_YES: devot_iOS/devot_iOS.entitlements
+        DEVOT_CLOUDKIT_CONTAINER: $(DEVOT_CLOUDKIT_CONTAINER_$(DEVOT_ICLOUD))
+        DEVOT_CLOUDKIT_CONTAINER_YES: iCloud.io.github.jma49.devot
         ENABLE_BITCODE: false
         ARCHS: [arm64]
         VALID_ARCHS: arm64 
