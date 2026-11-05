@@ -54,7 +54,10 @@ export const WHY: Readonly<Record<string, MessageKey>> = {
 export function failureText(message: MessageKey, code: string): string {
   const why = WHY[code]
   if (!why) return format(t(message), { code })
-  return `${t(message).replace(' ({code})', '')} ${t(why)}`
+  const sentence = t(message).replace(' ({code})', '')
+  if (sentence.includes('{code}')) return format(t(message), { code })
+  const reason = t(why)
+  return `${sentence} ${/[.!?]$/.test(reason) ? reason : `${reason}.`}`
 }
 
 /** Call once when a failure is caught: the code that failureText leaves out of the text reaches the log. */

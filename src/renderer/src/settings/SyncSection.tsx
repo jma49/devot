@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { errorCode } from '../backups'
+import { QUOTA } from '../../../core/sync/transport'
 import { countOf, untilTime, uploadCounts } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { licenceEntitlements, startLicence, useLicence, useTrialOver } from '../licence'
@@ -65,19 +66,40 @@ function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string):
       ? pauseText(pausedUntil, pauseOver, locale, code)
       : t(STATES[shown]),
   ]
-  if (shown === 'stopped' && code && STOP_ADVICE[code]) parts.push(t(STOP_ADVICE[code]))
+  const words = shown === 'stopped' && code ? (STOP_ADVICE[code] ?? REVOKED_WORDS[code]) : undefined
+  if (words) parts.push(t(words))
   return [...parts, ...statusDetails(snapshot, locale)].join(' ')
 }
 
-const wordedCode = (code: string) =>
-  code === STORAGE_FULL || code in STOP_ADVICE || icloudWordsCode(code)
+const REVOKED_WORDS: Readonly<Record<string, MessageKey>> = {
+  E_SYNC_REVOKED: 'syncSettings.stoppedRevoked',
+  E_SYNC_UNAUTHORIZED: 'syncSettings.stoppedRevoked',
+}
+const UNREACHABLE = new Set(['E_SYNC_OFFLINE', 'E_SYNC_RELAY_FAILED'])
+
+/** True when the status row shows words for the code in this state, so no code goes beside them. */
+function wordedCode(snapshot: SyncSnapshot): boolean {
+  const { state, code, pausedUntil } = snapshot.status
+  if (!code) return false
+  if (icloudWordsCode(snapshot)) return true
+  switch (state) {
+    case 'stopped':
+      return code in STOP_ADVICE || code in REVOKED_WORDS
+    case 'paused':
+      return pausedUntil !== null && (code === STORAGE_FULL || code === QUOTA)
+    case 'offline':
+      return UNREACHABLE.has(code)
+    default:
+      return false
+  }
+}
 
 function statusDetails(snapshot: SyncSnapshot, locale: string): string[] {
   const { state, lastSync, code, upload } = snapshot.status
   const parts: string[] = []
   if (upload && snapshot.enabled)
     parts.push(format(t('syncSettings.upload'), uploadCounts(upload, locale)))
-  if (code && snapshot.enabled && state !== 'idle' && !wordedCode(code))
+  if (code && snapshot.enabled && state !== 'idle' && !wordedCode(snapshot))
     parts.push(format(t('syncSettings.code'), { code }))
   parts.push(
     lastSync === null

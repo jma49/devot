@@ -362,7 +362,9 @@ test('turns sync off and on, and shows the status Rust reports', async ({ page }
     enrolled: true,
     status: { state: 'stopped', lastSync: null, code: 'E_SYNC_REVOKED', tooLarge: 2 },
   })
-  await expect(panel).toContainText('Stopped. Code E_SYNC_REVOKED. Not synced yet.')
+  await expect(panel).toContainText(
+    'Stopped. This device was removed from sync. Your notes stay on this device. Not synced yet.',
+  )
   await expect(panel).toContainText('2 notes are too large for the relay and stay on this device.')
 })
 
@@ -467,8 +469,9 @@ test('says what to do when sync stopped for the protocol or the loop breaker', a
   await openApp(page)
   const notice = page.getByRole('alert').filter({ hasText: 'Sync has stopped' })
   await expect(notice).toHaveText(
-    /Sync has stopped \(E_SYNC_PROTOCOL\)\. Update Devot and your relay to the same release\./,
+    /^Sync has stopped\. Update Devot and your relay to the same release\./,
   )
+  await expect(notice).not.toContainText('E_SYNC_PROTOCOL')
   await sendSnapshot(page, { ...snapshot, status: { ...stopped, code: 'E_SYNC_CIRCUIT_OPEN' } })
   await expect(notice).toContainText('Turn Sync This Device off and on in Settings > Sync')
   await sendSnapshot(page, { ...snapshot, status: { ...stopped, code: 'E_SYNC_NO_VAULT_KEY' } })
@@ -894,7 +897,10 @@ test('lists the devices again with Try Again when the relay was out of reach', a
   await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true })
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
-  await expect(panel).toContainText('The devices could not be listed. ')
+  await expect(panel).toContainText(
+    'The devices could not be listed. The relay could not be reached, or it answered with an error.',
+  )
+  await expect(panel).not.toContainText('E_SYNC_OFFLINE')
   await expect(panel.getByRole('listitem')).toHaveCount(0)
   await page.evaluate(() => {
     delete (globalThis as unknown as { devotDevicesFails?: string }).devotDevicesFails
@@ -918,7 +924,9 @@ test('Try Again says when the listing fails again, and hands focus to the list w
   await expect(retry).toBeVisible()
   await retry.focus()
   await page.keyboard.press('Enter')
-  await expect(panel.getByRole('status').first()).toHaveText(/^The devices could not be listed\. /)
+  await expect(panel.getByRole('status').first()).toHaveText(
+    'The devices could not be listed. The relay could not be reached, or it answered with an error.',
+  )
   await page.evaluate(() => {
     delete (globalThis as unknown as { devotDevicesFails?: string }).devotDevicesFails
   })
@@ -1157,8 +1165,9 @@ test.describe('the relay’s quota cap', () => {
     await openSettings(page, 'Sync')
     const panel = page.getByRole('tabpanel')
     await expect(panel).toContainText(
-      /Sync paused until 9:00\sAM: the relay has reached its quota for today\. 20,000 of 45,000 items uploaded\. Code E_SYNC_QUOTA\./,
+      /Sync paused until 9:00\sAM: the relay has reached its quota for today\. 20,000 of 45,000 items uploaded\. Last synced/,
     )
+    await expect(panel).not.toContainText('E_SYNC_QUOTA')
     await expect(panel).toContainText('Your relay comes from an earlier release')
   })
 

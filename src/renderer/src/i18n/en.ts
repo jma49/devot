@@ -1003,6 +1003,8 @@ title: Daily Report {{date}}
   'syncSettings.state.paused': 'Paused.',
   'syncSettings.state.stopped': 'Stopped.',
   'syncSettings.code': 'Code {code}.',
+  'syncSettings.stoppedRevoked':
+    'This device was removed from sync. Your notes stay on this device.',
   'syncSettings.lastSync': 'Last synced {time}.',
   'syncSettings.neverSynced': 'Not synced yet.',
   'syncSettings.tooLargeOne': '{count} note is too large for the relay and stays on this device.',
@@ -1286,7 +1288,7 @@ title: Daily Report {{date}}
     'Sync is paused: this device’s clock is more than 5 minutes off. Set the date and time automatically to sync again.',
   'sync.notice.stopped':
     'Sync has stopped ({code}). In Settings > Sync, turn Sync This Device off and on to try again, or set this device up again.',
-  'sync.notice.stoppedAdvice': 'Sync has stopped ({code}). {advice}',
+  'sync.notice.stoppedAdvice': 'Sync has stopped. {advice}',
   'sync.advice.protocol': 'Update Devot and your relay to the same release.',
   'sync.advice.restoreChoice':
     'A backup was restored here: choose in the main window whether to merge or keep this Mac\u2019s copy.',
