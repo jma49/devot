@@ -111,6 +111,7 @@ const STATUS: Partial<Record<LicenceCode, number>> = {
   E_APP_STORE_NOT_FOUND: 404,
   E_APP_STORE_MISMATCH: 409,
   E_APP_STORE_UNREACHABLE: 503,
+  E_APP_STORE_UPSTREAM: 503,
 }
 
 /** A label the buyer can recognise their device by; never markup, never long. */

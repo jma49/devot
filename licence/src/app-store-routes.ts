@@ -4,7 +4,7 @@
  * names a transaction: the decisions use Apple's own answer. Logs carry codes and licence IDs,
  * never a JWS, a transaction ID or a key.
  */
-import { verifyAppleJws } from './apple.ts'
+import { MAX_TRANSACTION_JWS, verifyAppleJws } from './apple.ts'
 import {
   type AppleAnswer,
   type AppleApi,
@@ -15,10 +15,10 @@ import {
   refusal,
   type Transaction,
 } from './app-store.ts'
-import { LicenceError } from './errors.ts'
+import { type LicenceCode, LicenceError } from './errors.ts'
 import { APP_STORE_LICENSEE, instant, newLicenceId, type Signer, signLicence } from './format.ts'
 import { json, readBody } from './http.ts'
-import type { Store } from './store.ts'
+import type { AppStoreCheck, Store } from './store.ts'
 
 export interface AppStoreDeps {
   config: AppStoreConfig
@@ -58,16 +58,24 @@ export function appStoreRoutes(ctx: Context) {
   const { deps, store, now, log } = ctx
   const { config } = deps
 
-  async function verified(jws: unknown): Promise<Transaction> {
-    const transaction = readTransaction(await verifyAppleJws(jws, now(), deps.root))
+  const readJws = async (jws: unknown, at = now()) =>
+    readTransaction(await verifyAppleJws(jws, at, deps.root, MAX_TRANSACTION_JWS))
+
+  /** The client's JWS: refused as the caller's. */
+  async function claimed(jws: unknown): Promise<Transaction> {
+    const transaction = await readJws(jws)
     if (!transaction) throw new LicenceError('E_APP_STORE_SIGNATURE')
     return transaction
   }
 
+  /** Apple's own answer: one that fails verification is Apple's fault, not the caller's. */
   async function fromApple(answer: AppleAnswer): Promise<Transaction> {
     switch (answer.status) {
-      case 'found':
-        return verified(answer.signedTransactionInfo)
+      case 'found': {
+        const transaction = await readJws(answer.signedTransactionInfo)
+        if (!transaction) throw new LicenceError('E_APP_STORE_UPSTREAM')
+        return transaction
+      }
       case 'not-found':
         throw new LicenceError('E_APP_STORE_NOT_FOUND')
       case 'unreachable':
@@ -122,22 +130,20 @@ export function appStoreRoutes(ctx: Context) {
     if (typeof value !== 'object' || Array.isArray(value) || typeof jws !== 'string') {
       throw new LicenceError('E_LICENCE_BAD_REQUEST')
     }
-    const claimed = await verified(jws)
-    const early = refusal(claimed, config)
+    const named = await claimed(jws)
+    const early = refusal(named, config)
     if (early) throw new LicenceError(early)
-    if (claimed.revoked) throw new LicenceError('E_LICENCE_REVOKED')
-    const environment = claimed.environment as AppStoreEnvironment
-    await limit(request, environment, claimed.originalTransactionId)
+    if (named.revoked) throw new LicenceError('E_LICENCE_REVOKED')
+    const environment = named.environment as AppStoreEnvironment
+    await limit(request, environment, named.originalTransactionId)
 
-    const current = await fromApple(
-      await deps.apple.transaction(environment, claimed.transactionId),
-    )
+    const current = await fromApple(await deps.apple.transaction(environment, named.transactionId))
     const refused = refusal(current, config)
     if (refused) throw new LicenceError(refused)
     if (
       current.environment !== environment ||
-      current.originalTransactionId !== claimed.originalTransactionId ||
-      current.transactionId !== claimed.transactionId
+      current.originalTransactionId !== named.originalTransactionId ||
+      current.transactionId !== named.transactionId
     ) {
       throw new LicenceError('E_APP_STORE_MISMATCH')
     }
@@ -149,7 +155,10 @@ export function appStoreRoutes(ctx: Context) {
       environment,
       originalTransactionId: current.originalTransactionId,
       transactionId: current.transactionId,
-      purchasedAt: instant(new Date(current.originalPurchaseDate)),
+      purchasedAt:
+        current.originalPurchaseDate === null
+          ? null
+          : instant(new Date(current.originalPurchaseDate)),
       licenceId: newLicenceId(),
       at: instant(now()),
     })
@@ -183,7 +192,12 @@ export function appStoreRoutes(ctx: Context) {
       return json({ code: 'E_LICENCE_BAD_REQUEST' }, 400)
     }
     if (typeof signedPayload !== 'string') return json({ code: 'E_LICENCE_BAD_REQUEST' }, 400)
-    const payload = await verifyAppleJws(signedPayload, now(), deps.root)
+    const payload = await verifyAppleJws(
+      signedPayload,
+      now(),
+      deps.root,
+      APP_STORE_LIMITS.notificationBytes,
+    )
     if (!payload) return unverified()
     const data = payload['data'] as Record<string, unknown> | undefined
     const type = payload['notificationType']
@@ -205,9 +219,7 @@ export function appStoreRoutes(ctx: Context) {
       log(`I_APP_STORE_NOTIFICATION ${type}`)
       return json({ received: true }, 200)
     }
-    const transaction = readTransaction(
-      await verifyAppleJws(data['signedTransactionInfo'], now(), deps.root),
-    )
+    const transaction = await readJws(data['signedTransactionInfo'])
     if (
       !transaction ||
       transaction.bundleId !== config.bundleId ||
@@ -229,42 +241,55 @@ export function appStoreRoutes(ctx: Context) {
     return json({ received: true }, 200)
   }
 
+  /** Why Apple's answer refuses a renewal, or null; revokes the licence when Apple has. */
+  async function judged(
+    answer: Extract<AppleAnswer, { status: 'found' | 'not-found' }>,
+    due: AppStoreCheck,
+    at: Date,
+  ): Promise<LicenceCode | null> {
+    if (answer.status === 'not-found') return 'E_APP_STORE_NOT_FOUND'
+    const current = await readJws(answer.signedTransactionInfo, at)
+    if (!current) return 'E_APP_STORE_UPSTREAM'
+    if (
+      current.originalTransactionId !== due.originalTransactionId ||
+      current.environment !== due.environment
+    ) {
+      return 'E_APP_STORE_MISMATCH'
+    }
+    if (current.revoked) {
+      await revoke(due.environment, due.originalTransactionId, 'RENEWAL')
+      return 'E_LICENCE_REVOKED'
+    }
+    return refusal(current, config)
+  }
+
   /**
    * At `/activate`, after the seat is granted: asks Apple about an App Store licence at most once
-   * a day, whatever the answer. Throws to refuse the lease; only Apple being unreachable (or the
-   * Worker's own token refused) lets it through unchecked.
+   * a day, whatever the answer. Throws to refuse the lease. A refusal is stored and refuses every
+   * lease until a later check Apple answers well; only Apple being unreachable (or the Worker's
+   * own token refused) lets a licence with no standing refusal through unchecked.
    */
   async function renewal(licenceId: string): Promise<void> {
     const at = now()
     const before = instant(new Date(at.getTime() - APP_STORE_LIMITS.checkEveryMs))
-    const check = await store.claimAppStoreCheck(licenceId, instant(at), before)
-    if (!check) return
-    const answer = await deps.apple.transaction(check.environment, check.transactionId)
-    if (answer.status === 'unreachable') {
-      log(`E_APP_STORE_UNREACHABLE ${licenceId} ${answer.detail}`)
-      return
-    }
-    if (answer.status === 'config') {
-      log(`E_LICENCE_CONFIG ${licenceId} ${answer.detail}`)
-      return
-    }
-    if (answer.status === 'not-found') throw new LicenceError('E_APP_STORE_NOT_FOUND', licenceId)
-    const current = readTransaction(
-      await verifyAppleJws(answer.signedTransactionInfo, at, deps.root),
+    const { due, refusal: standing } = await store.claimAppStoreCheck(
+      licenceId,
+      instant(at),
+      before,
     )
-    if (!current) throw new LicenceError('E_APP_STORE_SIGNATURE', licenceId)
-    if (
-      current.originalTransactionId !== check.originalTransactionId ||
-      current.environment !== check.environment
-    ) {
-      throw new LicenceError('E_APP_STORE_MISMATCH', licenceId)
+    const refuse = (code: LicenceCode | null) => {
+      if (code) throw new LicenceError(code, licenceId)
     }
-    if (current.revoked) {
-      await revoke(check.environment, check.originalTransactionId, 'RENEWAL')
-      throw new LicenceError('E_LICENCE_REVOKED', licenceId)
+    if (!due) return refuse(standing)
+    const answer = await deps.apple.transaction(due.environment, due.transactionId)
+    if (answer.status === 'unreachable' || answer.status === 'config') {
+      const code = answer.status === 'unreachable' ? 'E_APP_STORE_UNREACHABLE' : 'E_LICENCE_CONFIG'
+      log(`${code} ${licenceId} ${answer.detail}`)
+      return refuse(standing)
     }
-    const refused = refusal(current, config)
-    if (refused) throw new LicenceError(refused, licenceId)
+    const refused = await judged(answer, due, at)
+    await store.settleAppStoreCheck(licenceId, refused)
+    refuse(refused)
   }
 
   return { exchange, notification, renewal }

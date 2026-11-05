@@ -86,7 +86,7 @@ impl fmt::Debug for MacKey {
 }
 
 /// The Worker's refusals the iPhone tells apart; any other is refused or failed, by its status.
-const EXCHANGE_CODES: [&str; 9] = [
+const EXCHANGE_CODES: [&str; 10] = [
     "E_LICENCE_REVOKED",
     "E_LICENCE_RATE_LIMITED",
     "E_LICENCE_CONFIG",
@@ -96,6 +96,7 @@ const EXCHANGE_CODES: [&str; 9] = [
     "E_APP_STORE_MISMATCH",
     "E_APP_STORE_SIGNATURE",
     "E_APP_STORE_UNREACHABLE",
+    "E_APP_STORE_UPSTREAM",
 ];
 const EXCHANGE_FAILED: &str = "E_APP_STORE_EXCHANGE_FAILED";
 
@@ -353,6 +354,11 @@ mod tests {
                 "503 Service Unavailable",
                 r#"{"code":"E_APP_STORE_UNREACHABLE"}"#,
                 "E_APP_STORE_UNREACHABLE",
+            ),
+            (
+                "503 Service Unavailable",
+                r#"{"code":"E_APP_STORE_UPSTREAM"}"#,
+                "E_APP_STORE_UPSTREAM",
             ),
             ("429 Too Many Requests", "{}", "E_LICENCE_RATE_LIMITED"),
             (

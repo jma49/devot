@@ -34,8 +34,8 @@ const SIGNATURE_HASHES: Record<string, 'SHA-256' | 'SHA-384'> = {
   '1.2.840.10045.4.3.2': 'SHA-256',
   '1.2.840.10045.4.3.3': 'SHA-384',
 }
-/** Far over any JWS Apple signs, so a huge body costs one length check. */
-const MAX_JWS = 16 * 1024
+/** Far over any transaction JWS Apple signs, so a huge one costs one length check. */
+export const MAX_TRANSACTION_JWS = 16 * 1024
 
 export interface Certificate {
   bytes: Uint8Array
@@ -178,14 +178,16 @@ function json(part: string | undefined): Record<string, unknown> | null {
 /**
  * The payload of a JWS Apple signed, or null. `root` is Apple Root CA - G3 outside tests. Every
  * certificate must be valid at the payload's `signedDate` or at `now`: StoreKit may hand over a
- * transaction signed long ago, and the exchange asks Apple for the current one anyway.
+ * transaction signed long ago, and the exchange asks Apple for the current one anyway. A
+ * notification nests whole JWSs, so it is given a larger `maxLength`.
  */
 export async function verifyAppleJws(
   jws: unknown,
   now: Date,
   root: Uint8Array = APPLE_ROOT_CA_G3,
+  maxLength = MAX_TRANSACTION_JWS,
 ): Promise<Record<string, unknown> | null> {
-  if (typeof jws !== 'string' || jws.length > MAX_JWS) return null
+  if (typeof jws !== 'string' || jws.length > maxLength) return null
   const parts = jws.split('.')
   if (parts.length !== 3) return null
   const header = json(parts[0])

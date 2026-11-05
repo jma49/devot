@@ -50,11 +50,13 @@ export interface Transaction {
   type: string
   ownership: string
   environment: string
-  originalPurchaseDate: number
+  originalPurchaseDate: number | null
   revoked: boolean
 }
 
 const TRANSACTION_ID = /^\d{1,20}$/
+/** The furthest instant a JavaScript Date holds. */
+const MAX_DATE_MS = 8.64e15
 
 export function readTransaction(payload: Record<string, unknown> | null): Transaction | null {
   if (!payload) return null
@@ -79,9 +81,11 @@ export function readTransaction(payload: Record<string, unknown> | null): Transa
     ownership: text('inAppOwnershipType') ?? '',
     environment: text('environment') ?? '',
     originalPurchaseDate:
-      typeof originalPurchaseDate === 'number' && Number.isSafeInteger(originalPurchaseDate)
+      typeof originalPurchaseDate === 'number' &&
+      Number.isSafeInteger(originalPurchaseDate) &&
+      Math.abs(originalPurchaseDate) <= MAX_DATE_MS
         ? originalPurchaseDate
-        : 0,
+        : null,
     revoked: payload['revocationDate'] !== undefined && payload['revocationDate'] !== null,
   }
 }

@@ -313,7 +313,7 @@ describe('the exchange', () => {
     const real = signing
     signing = await chain()
     try {
-      expect(await exchange(jws)).toMatchObject({ code: 'E_APP_STORE_SIGNATURE' })
+      expect(await exchange(jws)).toMatchObject({ status: 503, code: 'E_APP_STORE_UPSTREAM' })
     } finally {
       signing = real
     }
@@ -437,6 +437,23 @@ describe('the exchange', () => {
     })
     const deactivate = await post('/deactivate', { key: result.key, device: device(1) })
     expect(await deactivate.json()).toEqual({ code: 'E_LICENCE_UNKNOWN_KID' })
+  })
+
+  it("stores Apple's original purchase date, and none when Apple's answer has none", async () => {
+    const purchasedAt = async () =>
+      (
+        await db.prepare('SELECT purchased_at FROM app_store_licences').first<{
+          purchased_at: string | null
+        }>()
+      )?.purchased_at
+    expect((await exchange((await bought()).jws)).status).toBe(200)
+    expect(await purchasedAt()).toBe('2026-11-01T00:00:00Z')
+    await db.prepare('DELETE FROM app_store_licences').run()
+    for (const originalPurchaseDate of [undefined, 'yesterday', 9e15]) {
+      expect((await exchange((await bought({ originalPurchaseDate })).jws)).status).toBe(200)
+      expect(await purchasedAt()).toBeNull()
+      await db.prepare('DELETE FROM app_store_licences').run()
+    }
   })
 
   it('returns the same key byte for byte when asked again, with one row', async () => {
@@ -648,6 +665,18 @@ describe('notifications', () => {
     expect(await revokedList()).toEqual([])
   })
 
+  it('takes a notification over 16 KB, as one carrying renewal info may be', async () => {
+    const { payload, jws } = await bought()
+    const { id } = await exchange(jws)
+    const result = await notify(
+      'REFUND',
+      { ...payload, revocationDate: NOW.getTime() },
+      { data: { signedRenewalInfo: 'x'.repeat(20 * 1024) } },
+    )
+    expect(result).toEqual({ status: 200, body: { received: true } })
+    expect(await revokedList()).toEqual([id])
+  })
+
   it('refuses a body over 64 KB, and answers 500 when the write fails so Apple retries', async () => {
     const big = JSON.stringify({ signedPayload: 'x'.repeat(APP_STORE_LIMITS.notificationBytes) })
     expect((await post('/app-store/notifications', big)).status).toBe(413)
@@ -706,6 +735,56 @@ describe('the renewal check at /activate', () => {
     apple.transactions.clear()
     expect(await activate(key, 1)).toEqual({ status: 404, body: { code: 'E_APP_STORE_NOT_FOUND' } })
     expect(logs).toContain(`E_APP_STORE_NOT_FOUND ${id}`)
+  })
+
+  it("a refusal stands for every device until Apple's next good answer, still one call a day", async () => {
+    const { payload, key } = await exchanged()
+    const otherChain = await chain()
+    const refusals: [string, number, () => void][] = [
+      ['E_APP_STORE_NOT_FOUND', 404, () => apple.transactions.clear()],
+      [
+        'E_APP_STORE_MISMATCH',
+        409,
+        () => apple.put({ ...payload, originalTransactionId: '2000000000000077' }),
+      ],
+      ['E_APP_STORE_UPSTREAM', 503, () => (signing = otherChain)],
+    ]
+    const real = signing
+    let day = 2
+    for (const [code, status, refuse] of refusals) {
+      clock = later(day)
+      apple.calls.length = 0
+      refuse()
+      const refused = { status, body: { code } }
+      expect(await activate(key, 1)).toEqual(refused)
+      apple.transactions.clear()
+      apple.put(payload)
+      signing = real
+      expect(await activate(key, 1)).toEqual(refused)
+      expect(await activate(key, 2)).toEqual(refused)
+      clock = later(day + 0.9)
+      expect(await activate(key, 3)).toEqual(refused)
+      expect(apple.calls).toHaveLength(1)
+      clock = later(day + 1)
+      for (const n of [1, 2, 3]) expect((await activate(key, n)).status).toBe(200)
+      expect(apple.calls).toHaveLength(2)
+      day += 2
+    }
+  })
+
+  it('a standing refusal is kept while Apple cannot be reached, and a new exchange clears it', async () => {
+    const { payload, key } = await exchanged()
+    const jws = await signJws(payload, signing)
+    clock = later(2)
+    apple.transactions.clear()
+    expect((await activate(key, 1)).status).toBe(404)
+    clock = later(3)
+    apple.failure = 503
+    expect(await activate(key, 1)).toEqual({ status: 404, body: { code: 'E_APP_STORE_NOT_FOUND' } })
+    apple.failure = null
+    apple.put(payload)
+    expect((await exchange(jws)).status).toBe(200)
+    expect((await activate(key, 1)).status).toBe(200)
   })
 
   it('a family-shared or mismatched answer refuses without a lease', async () => {

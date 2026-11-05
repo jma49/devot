@@ -187,6 +187,9 @@ describe('a key exchanged for an App Store purchase', () => {
     expect(licenceProblem('E_LICENCE_REVOKED')).toBe(
       'This license has been revoked. (E_LICENCE_REVOKED)',
     )
+    expect(licenceProblem('E_APP_STORE_UPSTREAM')).toBe(
+      'The App Store’s answer could not be checked. Try again later. (E_APP_STORE_UPSTREAM)',
+    )
   })
 })
 

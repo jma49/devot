@@ -1,5 +1,5 @@
 import type { AppStoreEnvironment } from './app-store.ts'
-import { LicenceError } from './errors.ts'
+import { type LicenceCode, LicenceError } from './errors.ts'
 import { newLicenceId } from './format.ts'
 
 /** The D1 calls the store makes, so tests and the Worker hand it the same database type. */
@@ -85,6 +85,7 @@ export interface AppStoreLicence {
   purchasedAt: string | null
   issuedAt: string | null
   checkedAt: string | null
+  checkRefusal: string | null
   revokedAt: string | null
 }
 
@@ -92,7 +93,7 @@ export interface Exchange {
   environment: AppStoreEnvironment
   originalTransactionId: string
   transactionId: string
-  purchasedAt: string
+  purchasedAt: string | null
   /** Used only when the purchase has no row yet. */
   licenceId: string
   at: string
@@ -131,10 +132,17 @@ export interface Store {
   /** Marks a notification seen without acting on it. */
   noteNotification(notificationUuid: string, at: string): Promise<void>
   /**
-   * Claims a licence's daily App Store check: sets checked_at whatever Apple answers. Null when it
-   * was checked after `before`, or is not a live App Store licence.
+   * Claims a licence's daily App Store check: sets checked_at whatever Apple answers. `due` is null
+   * when it was checked after `before`, or is not a live App Store licence; `refusal` is the code
+   * the last check stored, whether or not this one is due.
    */
-  claimAppStoreCheck(licenceId: string, at: string, before: string): Promise<AppStoreCheck | null>
+  claimAppStoreCheck(
+    licenceId: string,
+    at: string,
+    before: string,
+  ): Promise<{ due: AppStoreCheck | null; refusal: LicenceCode | null }>
+  /** Stores a check's refusal, or clears it after an answer that refused nothing. */
+  settleAppStoreCheck(licenceId: string, refusal: LicenceCode | null): Promise<void>
   purchase(sessionId: string): Promise<PurchaseRecord | null>
   /** Issues a new licence for a session, once; a second call returns the first. */
   issue(fulfilment: Fulfilment): Promise<Fulfilled>
@@ -227,6 +235,7 @@ interface AppStoreRow {
   purchased_at: string | null
   issued_at: string | null
   checked_at: string | null
+  check_refusal: string | null
   revoked_at: string | null
 }
 
@@ -238,6 +247,7 @@ const toAppStore = (row: AppStoreRow): AppStoreLicence => ({
   purchasedAt: row.purchased_at,
   issuedAt: row.issued_at,
   checkedAt: row.checked_at,
+  checkRefusal: row.check_refusal,
   revokedAt: row.revoked_at,
 })
 
@@ -289,7 +299,8 @@ export function d1Store(db: SqlDatabase): Store {
              transaction_id = excluded.transaction_id,
              purchased_at = COALESCE(purchased_at, excluded.purchased_at),
              issued_at = COALESCE(issued_at, excluded.issued_at),
-             checked_at = excluded.checked_at
+             checked_at = excluded.checked_at,
+             check_refusal = NULL
            WHERE revoked_at IS NULL`,
         )
         .bind(
@@ -356,26 +367,44 @@ export function d1Store(db: SqlDatabase): Store {
     },
 
     async claimAppStoreCheck(licenceId, at, before) {
-      const row = await db
+      const claimed = await db
         .prepare(
           `UPDATE app_store_licences SET checked_at = ?2
            WHERE licence_id = ?1 AND revoked_at IS NULL AND issued_at IS NOT NULL
              AND transaction_id IS NOT NULL AND (checked_at IS NULL OR checked_at <= ?3)
-           RETURNING environment, original_transaction_id, transaction_id`,
+           RETURNING environment, original_transaction_id, transaction_id, check_refusal`,
         )
         .bind(licenceId, at, before)
         .first<{
           environment: AppStoreEnvironment
           original_transaction_id: string
           transaction_id: string
+          check_refusal: LicenceCode | null
         }>()
-      return row
-        ? {
-            environment: row.environment,
-            originalTransactionId: row.original_transaction_id,
-            transactionId: row.transaction_id,
-          }
-        : null
+      if (claimed) {
+        return {
+          due: {
+            environment: claimed.environment,
+            originalTransactionId: claimed.original_transaction_id,
+            transactionId: claimed.transaction_id,
+          },
+          refusal: claimed.check_refusal,
+        }
+      }
+      const standing = await db
+        .prepare(
+          'SELECT check_refusal FROM app_store_licences WHERE licence_id = ?1 AND revoked_at IS NULL',
+        )
+        .bind(licenceId)
+        .first<{ check_refusal: LicenceCode | null }>()
+      return { due: null, refusal: standing?.check_refusal ?? null }
+    },
+
+    async settleAppStoreCheck(licenceId, refusal) {
+      await db
+        .prepare('UPDATE app_store_licences SET check_refusal = ?2 WHERE licence_id = ?1')
+        .bind(licenceId, refusal)
+        .run()
     },
 
     async purchase(sessionId) {

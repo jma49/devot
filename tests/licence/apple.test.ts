@@ -190,6 +190,16 @@ describe('a JWS the App Store signed', () => {
     expect(await verify(garbage)).toBeNull()
   })
 
+  it('takes a larger size limit when the caller gives one, and refuses past it', async () => {
+    const notification = await signJws(transaction({ padding: 'x'.repeat(20 * 1024) }), good)
+    expect(await verify(notification)).toBeNull()
+    expect(await verifyAppleJws(notification, NOW, good.root.der, 64 * 1024)).toMatchObject({
+      transactionId: '2000000123456789',
+    })
+    const huge = await signJws(transaction({ padding: 'x'.repeat(64 * 1024) }), good)
+    expect(await verifyAppleJws(huge, NOW, good.root.der, 64 * 1024)).toBeNull()
+  })
+
   it('reads certificates with long lengths and both time forms', async () => {
     const far = await certificate({
       name: 'Far',

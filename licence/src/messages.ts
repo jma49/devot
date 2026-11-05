@@ -74,6 +74,7 @@ export const MESSAGES = {
     E_APP_STORE_FAMILY_SHARED: 'A purchase shared through Family Sharing has no Mac licence.',
     E_APP_STORE_NOT_FOUND: 'The App Store does not know that purchase.',
     E_APP_STORE_UNREACHABLE: 'The App Store did not answer. Please try again in a moment.',
+    E_APP_STORE_UPSTREAM: 'The App Store answer could not be checked. Please try again later.',
     E_APP_STORE_MISMATCH: 'That purchase does not match the App Store record of it.',
   },
   mail: {

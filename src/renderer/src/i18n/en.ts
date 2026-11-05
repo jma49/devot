@@ -1272,6 +1272,7 @@ title: Daily Report {{date}}
   'licence.reason.storeNoReply': 'The App Store did not reply.',
   'licence.reason.storeUnavailable': 'The App Store cannot be used on this device.',
   'licence.reason.storeUnverified': 'The App Store could not verify the purchase.',
+  'licence.reason.storeUpstream': 'The App Store’s answer could not be checked. Try again later.',
   'licence.reason.noPro': 'This Apple Account holds no Devot Pro purchase.',
   'licence.reason.storeProduct': 'This purchase comes with no license key.',
   'licence.reason.familyShared':

@@ -37,6 +37,7 @@ const REASONS: Readonly<Record<string, MessageKey>> = {
   E_APP_STORE_SIGNATURE: 'licence.reason.storeUnverified',
   E_APP_STORE_EXCHANGE_REFUSED: 'licence.reason.storeUnverified',
   E_APP_STORE_UNREACHABLE: 'licence.reason.storeNoReply',
+  E_APP_STORE_UPSTREAM: 'licence.reason.storeUpstream',
   E_APP_STORE_EXCHANGE_FAILED: 'licence.reason.exchangeFailed',
   E_LICENCE_CONFIG: 'licence.reason.exchangeFailed',
   E_LICENCE_REVOKED: 'licence.reason.revoked',
