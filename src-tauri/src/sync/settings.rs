@@ -61,6 +61,14 @@ pub(crate) struct RelayDevice {
 }
 
 impl SyncSettings {
+    /// Forgets a move to iCloud this device started and the relay devices kept for it.
+    pub(crate) fn call_off_move(&mut self) {
+        if !self.moving.is_empty() {
+            self.moving.clear();
+            self.unseen = None;
+        }
+    }
+
     /// What this device keeps of `vault` on iCloud, when that vault is on iCloud.
     pub(crate) fn icloud_for(&self, vault: &str) -> Option<&ICloudState> {
         self.icloud.as_ref().filter(|state| state.vault == vault)
@@ -118,6 +126,25 @@ impl SettingsStore {
             .write
             .lock()
             .map_err(|_| "E_SYNC_SETTINGS_WRITE_FAILED")?;
+        self.write(settings)
+    }
+
+    /// Reads, changes and writes the settings under the write lock, so a change made from another
+    /// thread between the read and the write is not lost to another `update`.
+    pub(crate) fn update(
+        &self,
+        change: impl FnOnce(&mut SyncSettings),
+    ) -> Result<(), &'static str> {
+        let _writing = self
+            .write
+            .lock()
+            .map_err(|_| "E_SYNC_SETTINGS_WRITE_FAILED")?;
+        let mut settings = self.get();
+        change(&mut settings);
+        self.write(&settings)
+    }
+
+    fn write(&self, settings: &SyncSettings) -> Result<(), &'static str> {
         let json =
             serde_json::to_vec_pretty(settings).map_err(|_| "E_SYNC_SETTINGS_WRITE_FAILED")?;
         crate::atomic_file::write_replacing(&self.path, &json)

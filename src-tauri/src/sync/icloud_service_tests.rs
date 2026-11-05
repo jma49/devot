@@ -1551,6 +1551,12 @@ mod moving_from_a_relay {
             .to_string()
     }
 
+    fn kept_unseen(device: &OnRelay) -> Option<super::super::settings::Unseen> {
+        SettingsStore::new(&device.dir.path().join(FILE))
+            .get()
+            .unseen
+    }
+
     fn moving(device: &OnRelay) -> String {
         SettingsStore::new(&device.dir.path().join(FILE))
             .get()
@@ -1761,6 +1767,7 @@ mod moving_from_a_relay {
             .unwrap();
         assert!(!off.move_started);
         assert_eq!(moving(&mac), "");
+        assert_eq!(kept_unseen(&mac), None);
     }
 
     #[test]
@@ -1777,6 +1784,7 @@ mod moving_from_a_relay {
             })
             .unwrap();
         assert!(same.move_started);
+        assert!(kept_unseen(&mac).is_some());
         let elsewhere = mac
             .service
             .set(super::super::service::SettingsPatch {
@@ -1786,6 +1794,7 @@ mod moving_from_a_relay {
             .unwrap();
         assert!(!elsewhere.move_started);
         assert_eq!(moving(&mac), "");
+        assert_eq!(kept_unseen(&mac), None);
     }
 
     #[test]
@@ -1917,6 +1926,17 @@ mod moving_from_a_relay {
         let waiting = unseen(&mac);
         assert_eq!(waiting.len(), 1);
         assert_eq!(waiting[0].id, relay_device(&phone));
+    }
+
+    #[test]
+    fn a_marker_the_relay_refuses_forgets_the_devices_kept_for_the_move() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let (mac, _phone) = two_on_relay(&relay, &kit);
+        mac.service.fail_next_marker();
+        assert_eq!(mac.service.use_icloud(None, 3).err(), Some("E_TEST_MARKER"));
+        assert_eq!(moving(&mac), "");
+        assert_eq!(kept_unseen(&mac), None);
     }
 
     #[test]
