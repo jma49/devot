@@ -81,8 +81,13 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(trial.purchaseDate, trial.originalPurchaseDate)
 
         session.clearTransactions()
+        let (updates, continuation) = AsyncStream<Reply>.makeStream()
+        let listening = Store.listen { continuation.yield($0) }
+        defer { listening.cancel() }
         let tenDaysAgo = Date().addingTimeInterval(-10 * 24 * 3600)
         try await session.buyProduct(identifier: Store.trial, options: [.purchaseDate(tenDaysAgo)])
+        // A purchase made outside the app reaches it as an update, not before buyProduct returns.
+        _ = try await next(updates, continuation) { $0.transaction?.productId == Store.trial }
         let held = await Store.entitlements()
         let entitlements = try XCTUnwrap(held.transactions)
         let restored = try XCTUnwrap(entitlements.first { $0.productId == Store.trial })
