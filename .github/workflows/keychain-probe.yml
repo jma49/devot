@@ -1,0 +1,70 @@
+name: Keychain probe (spike, #612)
+
+# Spike only, never merged. Runs on a pushed vprobe-keychain-* tag: the release environment admits
+# v* refs only. Inspects both provisioning profiles (fields and entitlement keys, never the blob),
+# builds and signs the probe with the Developer ID profile, notarizes it, and uploads it.
+on:
+  push:
+    tags: ['vprobe-keychain-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    environment: release
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Inspect the provisioning profiles
+        env:
+          PROFILE_MACOS: ${{ secrets.APPLE_PROVISIONING_PROFILE_MACOS }}
+          PROFILE_IOS: ${{ secrets.APPLE_PROVISIONING_PROFILE_IOS }}
+        run: |
+          dir=$(mktemp -d "$RUNNER_TEMP/profiles.XXXXXX")
+          for label in MACOS IOS; do
+            var=PROFILE_$label
+            if [ -z "${!var}" ]; then echo "[$label] secret is empty"; continue; fi
+            (umask 077 && printf '%s' "${!var}" | base64 -D > "$dir/$label.profile") || { echo "[$label] not base64"; continue; }
+            security cms -D -i "$dir/$label.profile" -o "$dir/$label.plist" 2> /dev/null || { echo "[$label] not a CMS profile"; continue; }
+            python3 -I spikes/keychain-sync/inspect-profile.py "$label" "$dir/$label.plist"
+          done
+          rm -rf "$dir"
+      - name: Build and sign the probe
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+          PROFILE_MACOS: ${{ secrets.APPLE_PROVISIONING_PROFILE_MACOS }}
+        run: spikes/keychain-sync/build.sh out
+      - name: Notarize and staple
+        continue-on-error: true
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ vars.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ vars.APPLE_API_ISSUER_ID }}
+        run: |
+          key=$(mktemp "$RUNNER_TEMP/key.XXXXXX")
+          (umask 077 && printf '%s\n' "$APPLE_API_KEY_P8" > "$key")
+          ditto -c -k --keepParent out/KeychainProbe.app "$RUNNER_TEMP/n.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/n.zip" --key "$key" --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" --wait --timeout 30m
+          rm -f "$key"
+          xcrun stapler staple out/KeychainProbe.app
+          spctl -a -t exec -vv out/KeychainProbe.app 2>&1 || true
+      - name: Launch on the runner (no iCloud account here)
+        run: |
+          out/KeychainProbe.app/Contents/MacOS/probe cycle || echo "exit $?"
+          log show --last 2m --style compact --predicate 'process == "amfid" OR process == "taskgated-helper" OR process == "taskgated"' 2> /dev/null | grep -i probe | tail -20 || true
+      - name: Pack
+        run: ditto -c -k --keepParent out/KeychainProbe.app KeychainProbe.app.zip
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: keychain-probe
+          path: KeychainProbe.app.zip
+          if-no-files-found: error
+          retention-days: 1
