@@ -301,7 +301,7 @@ test('says why the relay address or the vault was refused', async ({ page }) => 
   await relay.fill('http://relay.example.test')
   await relay.blur()
   await expect(panel.getByRole('alert')).toHaveText(
-    'The relay address could not be saved (E_SYNC_RELAY_URL_INVALID). A relay’s address starts with https:// (http:// only for a relay on this computer).',
+    'The relay address could not be saved. A relay’s address starts with https:// (http:// only for a relay on this computer).',
   )
   await relay.fill(RELAY)
   await relay.blur()
@@ -309,7 +309,7 @@ test('says why the relay address or the vault was refused', async ({ page }) => 
   await panel.getByLabel('Relay Secret').fill('wrong')
   await panel.getByRole('button', { name: 'Create Vault' }).click()
   await expect(panel.getByRole('alert')).toHaveText(
-    'The vault could not be created (E_SYNC_RELAY_SECRET). The relay did not accept that secret. Check RELAY_SECRET on the relay.',
+    'The vault could not be created. The relay did not accept that secret. Check RELAY_SECRET on the relay.',
   )
   await expect(panel.getByLabel('Relay Secret')).toHaveValue('wrong')
 })
@@ -555,7 +555,7 @@ test('refuses a pasted link to a relay Devot cannot use, without asking first', 
   await panel.getByRole('textbox', { name: 'Join With a Code' }).fill(link)
   await panel.getByRole('button', { name: 'Join With a Code' }).click()
   await expect(panel.getByRole('alert')).toHaveText(
-    'This device could not join the vault (E_SYNC_RELAY_URL_INVALID). A relay’s address starts with https:// (http:// only for a relay on this computer).',
+    'This device could not join the vault. A relay’s address starts with https:// (http:// only for a relay on this computer).',
   )
   await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(await calls(page, 'sync_set')).toEqual([])
@@ -585,7 +585,7 @@ test('says why joining failed, and that an older relay needs an update', async (
   await panel.getByRole('textbox', { name: 'Join With a Code' }).fill(CODE)
   await panel.getByRole('button', { name: 'Join With a Code' }).click()
   await expect(panel.getByRole('alert')).toHaveText(
-    'This device could not join the vault (E_SYNC_RELAY_OUTDATED). Your relay is from before pairing: update it (docs/sync-relay.md, Update the relay). The recovery key works with it meanwhile.',
+    'This device could not join the vault. Your relay is from before pairing: update it (docs/sync-relay.md, Update the relay). The recovery key works with it meanwhile.',
   )
   await expect(panel.getByRole('textbox', { name: 'Join With a Code' })).toHaveValue(CODE)
 })
@@ -701,9 +701,7 @@ test('keeps polling while the relay is out of reach, and closes the code when th
     ;(globalThis as unknown as { devotStrangerEnrolled: boolean }).devotStrangerEnrolled = true
   })
   await fail('E_SYNC_PAIRING_AUTH')
-  await expect(panel.getByRole('alert')).toHaveText(
-    /^The pairing stopped \(E_SYNC_PAIRING_AUTH\)\./,
-  )
+  await expect(panel.getByRole('alert')).toHaveText(/^The pairing stopped\./)
   await expect(pairingCode(panel)).toHaveCount(0)
   expect(await calls(page, 'sync_pairing_cancel')).toHaveLength(1)
   await expect(items).toHaveCount(3)
@@ -769,7 +767,7 @@ test('brings a failure from a row far down the section into view', async ({ page
   await panel.getByRole('button', { name: /^Remove Devot for iOS/ }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Remove', exact: true }).click()
   await expect(panel.getByRole('alert')).toHaveText(
-    /^The device could not be removed \(E_SYNC_OFFLINE\)\. The relay could not be reached/,
+    /^The device could not be removed\. The relay could not be reached/,
   )
   await expect(panel.getByRole('alert')).toBeInViewport()
 })
@@ -893,7 +891,7 @@ test('lists the devices again with Try Again when the relay was out of reach', a
   await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true })
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
-  await expect(panel).toContainText('The devices could not be listed (E_SYNC_OFFLINE).')
+  await expect(panel).toContainText('The devices could not be listed. ')
   await expect(panel.getByRole('listitem')).toHaveCount(0)
   await page.evaluate(() => {
     delete (globalThis as unknown as { devotDevicesFails?: string }).devotDevicesFails
@@ -917,9 +915,7 @@ test('Try Again says when the listing fails again, and hands focus to the list w
   await expect(retry).toBeVisible()
   await retry.focus()
   await page.keyboard.press('Enter')
-  await expect(panel.getByRole('status').first()).toHaveText(
-    'The devices could not be listed (E_SYNC_OFFLINE).',
-  )
+  await expect(panel.getByRole('status').first()).toHaveText(/^The devices could not be listed\. /)
   await page.evaluate(() => {
     delete (globalThis as unknown as { devotDevicesFails?: string }).devotDevicesFails
   })
