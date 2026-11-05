@@ -32,6 +32,42 @@ describe('issue', () => {
     })
   })
 
+  it('signs a renewal under the ID it is given', async () => {
+    const id = 'AAAAAAAAAAAAAAAAAAAAAA'
+    const issued = await issue({
+      seed: env.LICENCE_SIGNING_KEY,
+      kid: 'test',
+      licensee: 'friend@example.com',
+      now: NOW,
+      id,
+    })
+    expect(issued.id).toBe(id)
+    const verified = await verifyLicence(issued.key, publicKeys)
+    expect(verified.ok && verified.payload.id).toBe(id)
+  })
+
+  it('takes the ID from --id, before or after the address', async () => {
+    const id = 'renewed_licence-ID0123'
+    for (const args of [
+      ['--id', id, 'friend@example.com'],
+      ['friend@example.com', `--id=${id}`],
+    ]) {
+      let out = ''
+      const status = await main(
+        args,
+        env,
+        (t) => (out += t),
+        () => {},
+        NOW,
+      )
+      expect(status).toBe(0)
+      expect(out).toContain(`Licence ID: ${id}\n`)
+      const key = out.match(/^Key: (devot1\.\S+)$/m)?.[1] ?? ''
+      const verified = await verifyLicence(key, publicKeys)
+      expect(verified.ok && verified.payload.id).toBe(id)
+    }
+  })
+
   it('prints the key, its ID and the link, and never the seed', async () => {
     let out = ''
     let err = ''
@@ -57,6 +93,10 @@ describe('issue', () => {
       [[], env],
       [['not an address'], env],
       [['a@example.com', 'b@example.com'], env],
+      [['--id', 'too-short', 'a@example.com'], env],
+      [['--id', 'AAAAAAAAAAAAAAAAAAAAA!', 'a@example.com'], env],
+      [['a@example.com', '--id'], env],
+      [['--unknown', 'a@example.com'], env],
       [['a@example.com'], { LICENCE_KID: 'test' }],
       [['a@example.com'], { LICENCE_SIGNING_KEY: env.LICENCE_SIGNING_KEY }],
       [['a@example.com'], { ...env, LICENCE_SIGNING_KEY: 'short' }],

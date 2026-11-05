@@ -127,6 +127,23 @@ pub fn peer_uid(socket: std::os::fd::RawFd) -> Option<u32> {
     (done == 0).then_some(uid)
 }
 
+/// The strings in a CoreFoundation array (the system proxy's bypass list); other items are skipped.
+pub fn cf_array_strings(
+    list: &system_configuration::core_foundation::array::CFArray,
+) -> Vec<String> {
+    use system_configuration::core_foundation::base::{CFType, CFTypeRef, TCFType};
+    use system_configuration::core_foundation::string::CFString;
+    list.iter()
+        .map(|item| {
+            // SAFETY: every item of a CFArray is a live CoreFoundation object the array retains
+            // while `list` is borrowed; the get rule takes a retain of its own.
+            unsafe { CFType::wrap_under_get_rule(*item as CFTypeRef) }
+        })
+        .filter_map(|item| item.downcast::<CFString>())
+        .map(|text| text.to_string())
+        .collect()
+}
+
 /// `WKInactiveSchedulingPolicyNone`: macOS 14 and later.
 const INACTIVE_SCHEDULING_NONE: isize = 2;
 

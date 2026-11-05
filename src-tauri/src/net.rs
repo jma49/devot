@@ -1,4 +1,4 @@
-//! Outbound web requests: the one small blocking client every feature that fetches from the web goes through. https only and public hosts only, redirects included (each hop is checked, by name and by the addresses it resolves to), with a time cap for the whole call and a cap on the bytes read. Errors are codes, never URLs. Call it from a blocking task, never the main thread. Through a proxy set in the environment, the proxy resolves the names it is sent, so only their spelling is checked.
+//! Outbound web requests: the one small blocking client every feature that fetches from the web goes through. https only and public hosts only, redirects included (each hop is checked, by name and by the addresses it resolves to), with a time cap for the whole call and a cap on the bytes read. Errors are codes, never URLs. Call it from a blocking task, never the main thread. Requests go through the proxy the environment sets, else the macOS system HTTPS proxy (`proxy`); through a proxy, the proxy resolves the names it is sent, so only their spelling is checked.
 
 use std::io::Read;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
@@ -6,6 +6,8 @@ use std::time::{Duration, Instant};
 use tauri::Url;
 use ureq::unversioned::resolver::{DefaultResolver, ResolvedSocketAddrs, Resolver};
 use ureq::unversioned::transport::{DefaultConnector, NextTimeout};
+
+mod proxy;
 
 pub const MAX_URL_LEN: usize = 2048;
 pub const MAX_REDIRECTS: u32 = 5;
@@ -184,6 +186,15 @@ impl<R: Resolver> Resolver for PublicOnly<R> {
     }
 }
 
+/// Tests reach this machine directly, so they keep to the environment's proxy alone.
+fn proxy_for(url: &Url, strict: bool) -> Option<ureq::Proxy> {
+    ureq::Proxy::try_from_env().or_else(|| {
+        let host = url.host_str().filter(|_| strict)?;
+        let uri = proxy::https_proxy(&proxy::system(), host)?;
+        ureq::Proxy::new(&uri).ok()
+    })
+}
+
 fn redirect_target(
     from: &Url,
     status: u16,
@@ -238,6 +249,7 @@ fn post_with<R: Resolver>(
                 .build(),
         )
         .https_only(strict)
+        .proxy(proxy_for(post.url, strict))
         .max_redirects(0)
         .timeout_global(Some(post.timeout))
         .http_status_as_error(false)
@@ -306,6 +318,7 @@ fn fetch_with<R: Resolver>(
                     .build(),
             )
             .https_only(strict)
+            .proxy(proxy_for(&url, strict))
             .max_redirects(0)
             .timeout_global(Some(left))
             .http_status_as_error(false)
