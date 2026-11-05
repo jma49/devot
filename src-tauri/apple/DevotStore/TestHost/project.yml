@@ -42,5 +42,7 @@ schemes:
       targets:
         DevotStoreHost: all
         DevotStoreTests: [test]
+    run:
+      storeKitConfiguration: ../DevotStore.storekit
     test:
       targets: [DevotStoreTests]
