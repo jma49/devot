@@ -44,6 +44,7 @@ use trial::Record;
 pub(crate) use trial::TrialView;
 
 use crate::storage::Write;
+use crate::task;
 
 pub(crate) const CHANGED_EVENT: &str = "devot://licence-changed";
 pub(crate) const REQUIRED: &str = "E_LICENCE_REQUIRED";
@@ -1104,20 +1105,12 @@ pub(crate) fn watch_trial(licence: &Arc<Licence>) {
     }
 }
 
-async fn blocking<T: Send + 'static>(
-    licence: &Arc<Licence>,
-    work: impl FnOnce(&Licence) -> Result<T, &'static str> + Send + 'static,
-) -> Result<T, String> {
-    let licence = Arc::clone(licence);
-    tauri::async_runtime::spawn_blocking(move || work(&licence))
-        .await
-        .map_err(|_| "E_LICENCE_INTERNAL".to_string())?
-        .map_err(String::from)
-}
-
 #[tauri::command]
 pub async fn licence_get(licence: Tauri<'_, Arc<Licence>>) -> Result<Snapshot, String> {
-    blocking(&licence, |licence| Ok(licence.snapshot())).await
+    task::blocking_with(&licence, "E_LICENCE_INTERNAL", |licence| {
+        Ok(licence.snapshot())
+    })
+    .await
 }
 
 #[tauri::command]
@@ -1125,18 +1118,21 @@ pub async fn licence_set(
     licence: Tauri<'_, Arc<Licence>>,
     key: String,
 ) -> Result<Snapshot, String> {
-    blocking(&licence, move |licence| licence.set(&key)).await
+    task::blocking_with(&licence, "E_LICENCE_INTERNAL", move |licence| {
+        licence.set(&key)
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn licence_remove(licence: Tauri<'_, Arc<Licence>>) -> Result<Snapshot, String> {
-    blocking(&licence, |licence| licence.remove()).await
+    task::blocking_with(&licence, "E_LICENCE_INTERNAL", |licence| licence.remove()).await
 }
 
 /// Settings > Licence's Retry: asks the Worker for this device's seat now.
 #[tauri::command]
 pub async fn licence_refresh(licence: Tauri<'_, Arc<Licence>>) -> Result<Snapshot, String> {
-    blocking(&licence, |licence| {
+    task::blocking_with(&licence, "E_LICENCE_INTERNAL", |licence| {
         licence.refresh_activation()?;
         Ok(licence.snapshot())
     })
