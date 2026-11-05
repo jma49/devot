@@ -105,8 +105,8 @@ describe('the iPhone app', () => {
     expect(reasons).toEqual({
       // The app's own files: the database, attachments, backups and logs, all in its container.
       NSPrivacyAccessedAPICategoryFileTimestamp: ['C617.1'],
-      // statfs, fstatfs and statvfs read a volume's flags and file system type before writing to
-      // it (SQLite's locking style, atomic_file's read-only check), never its free space.
+      // SQLite's locking style and atomic_file's read-only check read a volume's flags and file
+      // system type with statfs, fstatfs and statvfs before writing, never its free space.
       NSPrivacyAccessedAPICategoryDiskSpace: ['E174.1'],
     })
   })
