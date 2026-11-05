@@ -971,7 +971,7 @@ pub async fn editor_menu_popup(
 
 /// Whether this build holds Devot's iCloud container, asked once.
 #[cfg(any(target_os = "macos", target_os = "ios"))]
-fn holds_icloud_container() -> bool {
+pub(crate) fn holds_icloud_container() -> bool {
     static HELD: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *HELD.get_or_init(|| {
         #[cfg(target_os = "macos")]

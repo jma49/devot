@@ -62,6 +62,8 @@
     "allow-sync-device-remove",
     "allow-sync-icloud-status",
     "allow-sync-icloud-use",
+    "allow-sync-icloud-look",
+    "allow-sync-icloud-join",
     "allow-sync-icloud-upload-again",
     "allow-licence-get",
     "allow-licence-set",

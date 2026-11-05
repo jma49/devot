@@ -21,6 +21,10 @@ pub(crate) const TYPE_RECORD: &str = "DevotRecord";
 pub(crate) const TYPE_META: &str = "DevotMeta";
 pub(crate) const TYPE_DEVICE: &str = "DevotDevice";
 pub(crate) const TYPE_CLOCK: &str = "DevotClock";
+pub(crate) const TYPE_VAULT: &str = "DevotVault";
+pub(crate) const TYPE_PAIRING: &str = "DevotPairing";
+/// The record in zone `devot` that names the Apple ID's one vault.
+pub(crate) const CURRENT: &str = "current";
 
 /// A field value. A fetched asset arrives as `Bytes`: its file is read before the fetch ends.
 #[derive(Clone, PartialEq, Eq)]

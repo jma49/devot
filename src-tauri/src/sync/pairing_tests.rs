@@ -252,3 +252,105 @@ fn a_joining_device_s_channel_only_takes_and_confirms() {
     assert_eq!(channel.poll(&id).err(), Some("E_SYNC_PAIRING_ROLE"));
     assert_eq!(channel.close(&id), Err("E_SYNC_PAIRING_ROLE"));
 }
+
+#[test]
+fn the_icloud_link_names_icloud_and_the_code() {
+    let pairing = fixed_pairing();
+    let link = pairing.icloud_link();
+    assert_eq!(
+        link.as_str(),
+        "devot://pair?via=icloud&code=0400E3GN3GHJMC9R7X34TN2VC9MNJTDF"
+    );
+    let read = pairing::read(&format!(" {} ", link.as_str())).unwrap();
+    assert_eq!(read.pairing.id(), pairing.id());
+    assert!(read.icloud);
+    assert_eq!(read.relay, None);
+    let typed = pairing::read(&pairing.code()).unwrap();
+    assert!(!typed.icloud, "a code alone names no way");
+    let relayed = pairing::read(&pairing.link(&relay())).unwrap();
+    assert!(!relayed.icloud);
+
+    let code = pairing.code().replace('-', "");
+    for bad in [
+        format!("devot://pair?via=icloud&relay=https%3A%2F%2Frelay.example.com&code={code}"),
+        format!("devot://pair?via=relay&code={code}"),
+        format!("devot://pair?via=icloud&via=icloud&code={code}"),
+        "devot://pair?via=icloud".to_string(),
+    ] {
+        assert_eq!(
+            pairing::read(&bad).map(|_| ()),
+            Err(SyncError::PairingFormat),
+            "{bad}"
+        );
+    }
+}
+
+#[test]
+fn an_icloud_offer_names_its_transport_and_never_opens_as_a_relays() {
+    let vault = fixed_vault();
+    let pairing = fixed_pairing();
+    let offer = pairing.seal_icloud_offer(&vault, NOW + TTL_MS).unwrap();
+    assert_eq!(offer.len(), 1 + 12 + 58 + 16);
+    let joined = pairing::read(&pairing.icloud_link()).unwrap().pairing;
+    assert!(same_vault(
+        &joined.open_icloud_offer(&offer, NOW).unwrap(),
+        &vault
+    ));
+    assert!(!offer.windows(32).any(|w| w == vault.key()));
+
+    assert_eq!(
+        joined.open_offer(&offer, NOW).map(|_| ()),
+        Err(SyncError::PairingAuth),
+        "a relay's device never reads an iCloud offer"
+    );
+    let relays = pairing.seal_offer(&vault, NOW + TTL_MS).unwrap();
+    assert_eq!(
+        joined.open_icloud_offer(&relays, NOW).map(|_| ()),
+        Err(SyncError::PairingAuth)
+    );
+}
+
+#[test]
+fn a_forged_swapped_or_expired_icloud_offer_does_not_open() {
+    let vault = fixed_vault();
+    let pairing = fixed_pairing();
+    let offer = pairing.seal_icloud_offer(&vault, NOW + TTL_MS).unwrap();
+    let other = Pairing::generate().unwrap();
+    let forged = other
+        .seal_icloud_offer(&Vault::generate().unwrap(), NOW + TTL_MS)
+        .unwrap();
+    let swapped = other.seal_icloud_offer(&vault, NOW + TTL_MS).unwrap();
+    for sealed in [forged, swapped] {
+        assert_eq!(
+            pairing.open_icloud_offer(&sealed, NOW).map(|_| ()),
+            Err(SyncError::PairingAuth)
+        );
+    }
+    for at in [0, 5, 20, offer.len() - 1] {
+        let mut tampered = offer.clone();
+        tampered[at] ^= 1;
+        assert_eq!(
+            pairing.open_icloud_offer(&tampered, NOW).map(|_| ()),
+            Err(SyncError::PairingAuth),
+            "byte {at}"
+        );
+    }
+    let confirmation = pairing.seal_confirmation("device-1").unwrap();
+    assert_eq!(
+        pairing.open_icloud_offer(&confirmation, NOW).map(|_| ()),
+        Err(SyncError::PairingAuth)
+    );
+    assert_eq!(
+        pairing.open_confirmation(&offer),
+        Err(SyncError::PairingAuth)
+    );
+
+    let short = pairing.seal_icloud_offer(&vault, NOW).unwrap();
+    assert!(pairing.open_icloud_offer(&short, NOW + SKEW_MS).is_ok());
+    assert_eq!(
+        pairing
+            .open_icloud_offer(&short, NOW + SKEW_MS + 1)
+            .map(|_| ()),
+        Err(SyncError::PairingExpired)
+    );
+}

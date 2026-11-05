@@ -173,6 +173,8 @@ pub fn run() {
             sync::commands::sync_push_many,
             sync::commands::sync_icloud_status,
             sync::commands::sync_icloud_use,
+            sync::commands::sync_icloud_look,
+            sync::commands::sync_icloud_join,
             sync::commands::sync_icloud_upload_again,
             sync::commands::sync_disconnect,
             sync::commands::sync_status_report,
@@ -478,12 +480,14 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
             sync_emitter(app.handle().clone()),
             licence::Gate::of(&licence),
         )
-        .with_icloud(sync::cloudkit::platform()),
+        .with_icloud(sync::cloudkit::platform())
+        .with_handover(std::sync::Arc::new(sync::handover::platform())),
     );
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     {
         let changed = std::sync::Arc::downgrade(&sync_service);
         let account = std::sync::Arc::downgrade(&sync_service);
+        let app_handle = app.handle().clone();
         native::watch_icloud(
             Box::new(move || {
                 if let Some(sync) = changed.upgrade() {
@@ -494,10 +498,15 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
                 if let Some(sync) = account.upgrade() {
                     sync.icloud_account_changed();
                 }
+                tauri::async_runtime::spawn(sync::commands::look_for_icloud_vault(
+                    app_handle.clone(),
+                ));
             }),
         );
     }
     app.manage(sync_service);
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    tauri::async_runtime::spawn(sync::commands::look_for_icloud_vault(app.handle().clone()));
     app.manage(std::sync::Arc::new(fonts::Fonts::new(data_dir)));
     let plugins = std::sync::Arc::new(plugins::Plugins::new(data_dir));
     plugins.sweep();

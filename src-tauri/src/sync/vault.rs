@@ -109,6 +109,7 @@ impl Vault {
     }
 
     /// Keeps the vault a recovery key holds in `store`, which must hold none yet.
+    #[cfg(test)]
     pub(crate) fn restore(store: &dyn SecretStore, recovery_key: &str) -> Result<Self, SyncError> {
         Self::keep_new(store, Self::from_recovery_key(recovery_key)?)
     }
@@ -140,13 +141,6 @@ impl Vault {
     }
 
     /// Removes the vault from `store`; `false` when there was none.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "leaving a vault on purpose, a follow-up of #336, is its caller"
-        )
-    )]
     pub(crate) fn delete(store: &dyn SecretStore) -> Result<bool, SyncError> {
         store.remove(ITEM_ACCOUNT)
     }

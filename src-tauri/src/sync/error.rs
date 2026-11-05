@@ -28,6 +28,8 @@ pub(crate) enum SyncError {
     PairingVersion,
     PairingAuth,
     PairingExpired,
+    HandoverVersion,
+    HandoverCorrupt,
 }
 
 impl SyncError {
@@ -53,6 +55,8 @@ impl SyncError {
             Self::PairingVersion => "E_SYNC_PAIRING_VERSION",
             Self::PairingAuth => "E_SYNC_PAIRING_AUTH",
             Self::PairingExpired => "E_SYNC_PAIRING_EXPIRED",
+            Self::HandoverVersion => "E_SYNC_HANDOVER_VERSION",
+            Self::HandoverCorrupt => "E_SYNC_HANDOVER_CORRUPT",
         }
     }
 }
