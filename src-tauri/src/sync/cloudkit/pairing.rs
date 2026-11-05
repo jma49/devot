@@ -114,7 +114,7 @@ fn closed(record: CkRecord) -> CkRecord {
 }
 
 fn code(e: &CkError) -> &'static str {
-    error::code_of(&e, "pairing")
+    error::code_of(e, "pairing")
 }
 
 impl PairingChannel for ICloudPairing {
