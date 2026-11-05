@@ -1411,12 +1411,19 @@ impl SyncService {
     }
 
     /// The device now signed in to another Apple ID takes the vault's item off this device, so its
-    /// copy never reaches that Apple ID's iCloud Keychain. The device-only item stays.
+    /// copy does not stay in that Apple ID's iCloud Keychain. An Apple ID whose `current` names the
+    /// vault (or that cannot be read) keeps it: the item is its own. The device-only item stays.
     fn forget_handover(&self, vault: &Vault) {
+        let id = vault.id().to_string();
+        let elsewhere = current::read(self.kit.as_ref())
+            .is_ok_and(|current| current.as_deref() != Some(id.as_str()));
+        if !elsewhere {
+            return;
+        }
         match handover::remove(self.handover.as_ref(), vault) {
-            Ok(true) => log::info!("I_SYNC_HANDOVER_REMOVED vault={}", vault.id()),
+            Ok(true) => log::info!("I_SYNC_HANDOVER_REMOVED vault={id}"),
             Ok(false) => {}
-            Err(e) => log::warn!("W_SYNC_HANDOVER_REMOVE {e} vault={}", vault.id()),
+            Err(e) => log::warn!("W_SYNC_HANDOVER_REMOVE {e} vault={id}"),
         }
     }
 
@@ -1575,7 +1582,18 @@ impl SyncService {
         }
         let kit = self.kit.as_ref();
         current::ready(kit)?;
-        if !account.is_empty() && account != cloudkit::account_of(kit)? {
+        let signed_in = cloudkit::account_of(kit)?;
+        if account.is_empty() {
+            // Never connected, so no Apple ID is kept: `current` here must name the vault. This
+            // Apple ID is kept now, so a retry after a failure part way is checked as any other.
+            if current::read(kit)?.as_deref() != Some(id.as_str()) {
+                return Err(NO_VAULT);
+            }
+            if let Some(state) = settings.icloud.as_mut().filter(|s| s.vault == id) {
+                state.account = signed_in;
+                self.settings.set(&settings)?;
+            }
+        } else if account != signed_in {
             return Err(cloudkit::error::ACCOUNT_CHANGED);
         }
         self.pairing_cancel();

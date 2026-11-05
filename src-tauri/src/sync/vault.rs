@@ -129,8 +129,14 @@ impl Vault {
         }
     }
 
+    /// The key is compared in constant time.
     pub(crate) fn same(&self, other: &Self) -> bool {
-        self.id == other.id && self.key[..] == other.key[..]
+        let differ = self
+            .key
+            .iter()
+            .zip(other.key.iter())
+            .fold(0u8, |acc, (a, b)| acc | (a ^ b));
+        self.id == other.id && std::hint::black_box(differ) == 0
     }
 
     pub(crate) fn load(store: &dyn SecretStore) -> Result<Option<Self>, SyncError> {
