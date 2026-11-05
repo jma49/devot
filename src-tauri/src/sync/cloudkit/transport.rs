@@ -166,7 +166,8 @@ impl ICloud {
     /// its device row, and subscribes. `has_synced` is the library's "has synced" state: with it,
     /// a vault zone this device saw before and finds gone stops sync (`E_SYNC_ICLOUD_DELETED`) and
     /// nothing is uploaded; without it the zone is made again, under a new epoch, but only while
-    /// `current` names the vault.
+    /// `current` names the vault. With zone `devot` gone the vault was left, or is being left, and
+    /// sync stops too.
     pub(crate) fn connect(
         &self,
         state: &ICloudState,
@@ -201,7 +202,12 @@ impl ICloud {
             ZONE_CLOCK.to_string(),
         ];
         let exist = kit.zones_exist(&zones).map_err(failure)?;
+        let devot_gone = !exist.first().copied().unwrap_or(false);
         let vault_zone_gone = !exist.get(1).copied().unwrap_or(false);
+        if devot_gone {
+            log::warn!("W_SYNC_ICLOUD_DEVOT_GONE vault={}", state.vault);
+            return Err(error::DELETED);
+        }
         if vault_zone_gone && state.zone_seen && has_synced {
             log::warn!("W_SYNC_ICLOUD_ZONE_GONE vault={}", state.vault);
             return Err(error::DELETED);

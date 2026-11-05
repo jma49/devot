@@ -1176,7 +1176,7 @@ fn leaving_removes_the_vault_from_the_apple_id_and_the_others_ask_first() {
     assert!(!left.vault && !left.enabled);
     assert_eq!(
         kit.deleted_zones(),
-        [vault_zone(&vault).as_str(), ZONE_DEVOT, "devot-clock"]
+        [ZONE_DEVOT, vault_zone(&vault).as_str(), "devot-clock"]
     );
     assert!(handed_over(keychain.as_ref()).is_none());
     assert!(held(&mac).is_none());
@@ -1267,7 +1267,7 @@ fn a_leave_that_failed_part_way_is_retried_to_the_same_end() {
 
     kit.fail_zone_delete(&zone, CkError::of(code::NETWORK_UNAVAILABLE));
     assert_eq!(mac.service.icloud_leave(&key).err(), Some(error::OFFLINE));
-    assert!(kit.zone_exists(&zone) && kit.zone_exists(ZONE_DEVOT));
+    assert!(kit.zone_exists(&zone) && !kit.zone_exists(ZONE_DEVOT));
     assert!(held(&mac).is_some() && handed_over(keychain.as_ref()).is_some());
 
     kit.fail_zone_delete("devot-clock", CkError::of(code::REQUEST_RATE_LIMITED));
@@ -1291,8 +1291,40 @@ fn a_leave_that_failed_part_way_is_retried_to_the_same_end() {
     assert!(handed_over(keychain.as_ref()).is_none() && held(&mac).is_none());
     assert_eq!(
         kit.deleted_zones(),
-        [zone.as_str(), ZONE_DEVOT, "devot-clock"]
+        [ZONE_DEVOT, zone.as_str(), "devot-clock"]
     );
+}
+
+#[test]
+fn a_device_that_connects_part_way_through_a_leave_stops_instead_of_making_the_vault_again() {
+    use super::cloudkit::error::code;
+    use super::cloudkit::kit::CkError;
+    let kit = Arc::new(Fake::new());
+    let keychain = Arc::new(Secrets::default());
+    let (mac, phone) = two_in_the_vault(&kit, &keychain);
+    let joiner = device_with(&kit, &keychain);
+    joiner.service.icloud_look(0).unwrap();
+    let zone = vault_zone(&held(&mac).unwrap().id().to_string());
+    let key = recovery_key_of(&mac);
+
+    // `current` is gone and the vault's zone is still there.
+    kit.fail_zone_delete(&zone, CkError::of(code::NETWORK_UNAVAILABLE));
+    assert_eq!(mac.service.icloud_leave(&key).err(), Some(error::OFFLINE));
+    assert_eq!(current_vault(&kit), None);
+    assert!(kit.zone_exists(&zone));
+
+    let (saves, zones) = (kit.calls(Op::Save), kit.calls(Op::SaveZones));
+    assert_eq!(phone.service.connect(true).err(), Some(error::DELETED));
+    assert_eq!(joiner.service.connect(false).err(), Some(error::DELETED));
+    assert_eq!(kit.calls(Op::Save), saves, "nothing uploaded");
+    assert_eq!(kit.calls(Op::SaveZones), zones, "no zone made again");
+
+    mac.service.icloud_leave(&key).unwrap();
+    for zone in [zone.as_str(), ZONE_DEVOT, "devot-clock"] {
+        assert!(!kit.zone_exists(zone), "{zone}");
+    }
+    assert_eq!(joiner.service.connect(false).err(), Some(error::DELETED));
+    assert_eq!(kit.calls(Op::SaveZones), zones, "still none made again");
 }
 
 #[test]
