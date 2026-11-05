@@ -6,6 +6,8 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
 
+// Only the macOS reader builds these; elsewhere `system()` answers no settings.
+#[cfg_attr(not(any(target_os = "macos", test)), allow(dead_code))]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Value {
     Number(i64),
@@ -16,6 +18,7 @@ pub(crate) enum Value {
 /// The proxy dictionary as SystemConfiguration answers it, keyed by its own names.
 pub(crate) type Settings = HashMap<String, Value>;
 
+#[cfg(target_os = "macos")]
 const KEYS: [&str; 5] = [
     "HTTPSEnable",
     "HTTPSProxy",
