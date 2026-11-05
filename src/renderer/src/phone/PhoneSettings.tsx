@@ -14,6 +14,7 @@ import { OnPhone } from '../settings/onPhone'
 import type { IconName } from '../icons/symbols'
 import { PANES, PANE_TABS, type PaneId } from '../settings/panes'
 import { startSyncStatus, useSyncSnapshot } from '../sync'
+import { syncNeedsOwner } from '../syncICloud'
 import { doveMask } from './dove'
 import { PhoneDetailSheet } from './PhoneSheet'
 import { licenceRow, paneMatches } from './settingsRows'
@@ -194,7 +195,13 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
     },
     {
       title: 'phone.settings.group.sync',
-      rows: [paneRow('sync', t(sync.enabled ? 'phone.settings.on' : 'phone.settings.off'))],
+      rows: [
+        paneRow(
+          'sync',
+          t(sync.enabled ? 'phone.settings.on' : 'phone.settings.off'),
+          syncNeedsOwner(sync),
+        ),
+      ],
     },
     {
       title: 'phone.settings.group.ai',

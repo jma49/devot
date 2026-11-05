@@ -73,6 +73,7 @@ import {
   START,
   STORAGE_FULL,
   storedCursor,
+  TAG_INVALID,
   VAULT_MOVED,
   type PulledRecord,
   type PushItem,
@@ -1072,6 +1073,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       bytes = 0
       const results = await transport.pushMany(sent.map((ready) => ready.item))
       const again: string[] = []
+      const untagged: string[] = []
       // A batch need not be atomic: items after one that ends the pass may still have been pushed.
       let ended: unknown
       for (const [at, ready] of sent.entries()) {
@@ -1086,10 +1088,19 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
           again.push(ready.id)
           continue
         }
+        if (outcome === 'untagged') {
+          untagged.push(ready.id)
+          continue
+        }
         refused(outcome)
         if (!kept(ready.id)) upload.step()
       }
       if (ended !== undefined) throw ended
+      for (const id of untagged) {
+        const paused = await pushOne(id)
+        refused(paused)
+        if (!paused && !kept(id)) upload.step()
+      }
       if (again.length === 0) return
       await sleep(backoff(0))
       await pullAll()
@@ -1240,15 +1251,22 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
   /**
    * Takes in the transport's answer to one push. Returns the refusal when the storage is full (it
-   * lasts past 00:00 UTC, and smaller records and purges still fit), and 'rejected' when another
-   * device wrote first.
+   * lasts past 00:00 UTC, and smaller records and purges still fit), 'rejected' when another
+   * device wrote first, and 'untagged' when the record's tag was cleared to be pushed once more.
    */
   async function settle(
     ready: Ready,
     result: PushResult,
-  ): Promise<Paused | undefined | 'rejected'> {
+  ): Promise<Paused | undefined | 'rejected' | 'untagged'> {
     const { id, entry, stamped, print, state } = ready
     if (result.type === 'failed') {
+      // The cleared tag cannot be refused again, so this retries once.
+      if (result.code === TAG_INVALID && ready.item.tag !== '') {
+        console.warn('W_SYNC_TAG_CLEARED', id)
+        serverTags.delete(id)
+        await sync.syncPut({ ...entry, ...stamped, tag: '' })
+        return 'untagged'
+      }
       if (!recordFailure(result.code, ready.item.kind)) throw new Error(result.code)
       if (result.code === 'E_SYNC_BAD_MESSAGE') {
         // A relay that does not know attachments: the image stays here and the owner is told to update.
@@ -1311,6 +1329,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         result = { type: 'failed', code: errorCode(error, 'E_SYNC_FAILED') }
       }
       const outcome = await settle(ready, result)
+      if (outcome === 'untagged') continue
       if (outcome !== 'rejected') return outcome
       if (attempt >= MAX_PUSH_RETRIES) {
         console.warn('W_SYNC_PUSH_PARKED', id)

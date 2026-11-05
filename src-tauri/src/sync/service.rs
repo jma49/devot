@@ -31,6 +31,7 @@ use super::cloudkit::{self, CloudKit, ICloud, ICloudState, Staging};
 use super::file_record;
 use super::handover;
 use super::keychain::SyncedKeychain;
+use super::moved;
 use super::pairing::{self, Pairing, PairingChannel, Qr, RelayPairing};
 use super::settings::{DeviceCredentials, SettingsStore};
 use super::{MAX_RECORD_BYTES, SecretStore, Vault};
@@ -44,6 +45,7 @@ pub(crate) const PAIRING_EVENT: &str = "devot://sync-pairing";
 const OTHER_VAULT: &str = "E_SYNC_ICLOUD_OTHER_VAULT";
 const OTHER_ACCOUNT: &str = "E_SYNC_ICLOUD_OTHER_ACCOUNT";
 const NO_VAULT: &str = "E_SYNC_ICLOUD_NO_VAULT";
+const VAULT_MOVED: &str = "E_SYNC_VAULT_MOVED";
 const MAX_RELAY_SECRET: usize = 1024;
 const MAX_RECOVERY_KEY: usize = 512;
 const STATES: [&str; 7] = [
@@ -1031,8 +1033,14 @@ impl SyncService {
         result
     }
 
-    /// The vault's devices. Not gated by the licence: seeing and removing access never is.
+    /// The vault's devices. Not gated by the licence: seeing and removing access never is. On
+    /// iCloud they are its device rows, each with the day it was last seen in `created`.
     pub(crate) fn devices(&self) -> Result<Vec<DeviceInfo>, &'static str> {
+        let vault = self.held_vault()?;
+        if let Some(state) = self.settings.get().icloud_for(&vault.id().to_string()) {
+            current::ready(self.kit.as_ref())?;
+            return cloudkit::devices(self.kit.as_ref(), &vault, &state.device);
+        }
         self.with_connection(client::devices)
     }
 
@@ -1226,8 +1234,11 @@ impl SyncService {
     /// `current` names it. With no vault here it makes one, or restores it from `recovery_key`; a
     /// key for another vault than the one held is refused. A new vault is kept before its `current`
     /// is saved; one that lost to another device's is removed again, and this device looks for the
-    /// winner as at launch, with `notes` in its library. Moving a vault that other devices
-    /// sync through a relay (the moved marker, a new epoch) is Settings' (#606).
+    /// winner as at launch, with `notes` in its library. A vault this device syncs through a relay
+    /// claims `current`, then leaves the moved marker there unless it is following one, so the
+    /// relay's other devices stop rather than drift apart. A refused marker keeps this device on the
+    /// relay with `current` still claimed, which a retry reuses; iCloud's own epoch makes the first
+    /// connect upload all.
     pub(crate) fn use_icloud(
         &self,
         recovery_key: Option<&str>,
@@ -1254,6 +1265,7 @@ impl SyncService {
         let vault = match (held, named) {
             (Some(held), _) => {
                 self.claim(&held)?;
+                self.leave_relay(&held)?;
                 held
             }
             (None, Some(named)) => {
@@ -1268,6 +1280,29 @@ impl SyncService {
         let vault = self.keep_icloud(vault, recovery_key.is_some())?;
         log::info!("I_SYNC_ICLOUD_USED vault={}", vault.id());
         Ok(self.changed())
+    }
+
+    /// Leaves the moved marker on the relay this device is enrolled on for `vault`. Nothing to leave
+    /// when the vault is on iCloud already, the device is not enrolled, or it follows a marker.
+    fn leave_relay(&self, vault: &Vault) -> Result<(), &'static str> {
+        let following = self
+            .status
+            .lock()
+            .is_ok_and(|s| s.code.as_deref() == Some(VAULT_MOVED));
+        if self.on_icloud() || following {
+            return Ok(());
+        }
+        let Ok(relay) = self.relay() else {
+            return Ok(());
+        };
+        match self.credentials(&relay, vault) {
+            Err("E_SYNC_NOT_ENROLLED") => return Ok(()),
+            other => other?,
+        };
+        self.with_connection(|connection| moved::leave_relay(connection, vault))
+            .inspect_err(|code| log::warn!("W_SYNC_MOVED_MARKER {code} vault={}", vault.id()))?;
+        log::info!("I_SYNC_MOVED_MARKER vault={} to=icloud", vault.id());
+        Ok(())
     }
 
     /// Saves `current` naming `vault` unless it names another, which this device never replaces.
@@ -1456,8 +1491,10 @@ impl SyncService {
         }
     }
 
-    /// After `E_SYNC_ICLOUD_DELETED`, when the owner chose to upload again: the next connect makes
-    /// the vault's zone again under a new epoch, and this device uploads everything.
+    /// When the owner chose to upload again after `E_SYNC_ICLOUD_DELETED`, or to move the vault
+    /// into the Apple ID now signed in after `E_SYNC_ICLOUD_ACCOUNT_CHANGED`: `current` there names
+    /// the vault (never replacing another), and the next connect makes its zone under a new epoch,
+    /// so this device uploads everything.
     pub(crate) fn icloud_upload_again(&self) -> Result<Snapshot, &'static str> {
         self.licence.require()?;
         let vault = self.held_vault()?;
@@ -1467,10 +1504,22 @@ impl SyncService {
             .as_mut()
             .filter(|state| state.vault == vault.id().to_string())
             .ok_or("E_SYNC_ICLOUD_NOT_USED")?;
+        current::ready(self.kit.as_ref())?;
+        let account = cloudkit::account_of(self.kit.as_ref())?;
+        let moved = !state.account.is_empty() && state.account != account;
+        self.claim(&vault)?;
+        state.account = account;
         state.zone_seen = false;
+        state.subscribed = false;
+        state.device_day = 0;
         self.settings.set(&settings)?;
+        self.hand_over(&vault);
         self.disconnect();
-        log::info!("I_SYNC_ICLOUD_UPLOAD_AGAIN vault={}", vault.id());
+        if moved {
+            log::info!("I_SYNC_ICLOUD_MOVED_ACCOUNT vault={}", vault.id());
+        } else {
+            log::info!("I_SYNC_ICLOUD_UPLOAD_AGAIN vault={}", vault.id());
+        }
         Ok(self.changed())
     }
 
@@ -1625,17 +1674,19 @@ impl SyncService {
         if total > MAX_RECORD_BYTES.div_ceil(3) * 4 {
             return Err("E_SYNC_BATCH_TOO_LARGE");
         }
-        for item in items {
-            if !crate::commands::sync::valid_tag(&item.tag) {
-                return Err("E_SYNC_TAG_INVALID");
-            }
-        }
         let LiveRef::ICloud(icloud) = self.live()? else {
             return Err("E_SYNC_BATCH_UNSUPPORTED");
         };
+        // A tag that is not one (one kept from before a switch, say) fails its item alone.
         let checked: Vec<Result<Zeroizing<Vec<u8>>, &'static str>> = items
             .iter()
-            .map(|i| checked_item(&i.id, i.base, &i.data, &i.kind))
+            .map(|i| {
+                if crate::commands::sync::valid_tag(&i.tag) {
+                    checked_item(&i.id, i.base, &i.data, &i.kind)
+                } else {
+                    Err(cloudkit::error::TAG_INVALID)
+                }
+            })
             .collect();
         let ready: Vec<cloudkit::Item<'_>> = items
             .iter()

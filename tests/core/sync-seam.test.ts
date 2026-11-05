@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createClock, createIdGenerator, createNoteService } from '../../src/core'
 import { createSyncEngine, type SyncEngineOptions } from '../../src/core/sync/engine'
-import { encodeMoved, leaveMovedMarker, MOVED_ID } from '../../src/core/sync/moved'
+import { encodeMoved, leaveMovedMarker, MOVED_ID, readMoved } from '../../src/core/sync/moved'
 import { decodeRecord } from '../../src/core/sync/records'
 import {
   ICLOUD_FULL,
@@ -257,6 +257,36 @@ describe('a backlog in batches', () => {
     expect(pendingAfterBatch ?? (await a.storage.syncPendingCount())).toBe(1)
   })
 
+  it.each([
+    ['a single push', 1],
+    ['a batch', 4],
+  ])('clears a change tag the transport cannot read and pushes once more, in %s', async (_, n) => {
+    const { vault, a, fa } = fakePair({ uploadShownFrom: 3 })
+    const ids: string[] = []
+    for (let i = 0; i < n; i += 1) ids.push(await a.notes.create(`Note ${i}`))
+    await a.sync()
+    const [bad] = ids as [string]
+    const entry = (await a.entry(bad))!
+    await a.storage.syncPut({ ...entry, tag: 'not-a-tag' })
+    let refusals = 0
+    vault.refuse = (item) => {
+      if (item.tag !== 'not-a-tag') return undefined
+      refusals += 1
+      return { type: 'failed', code: 'E_SYNC_TAG_INVALID' }
+    }
+    for (const id of ids) await a.notes.setTitle(id, `Renamed ${id}`)
+    const batchesBefore = fa.batches.length
+    await a.sync()
+    expect(fa.batches.length > batchesBefore).toBe(n > 1)
+    expect(refusals).toBe(1)
+    expect(a.engine.status()).toMatchObject({ state: 'idle', code: null })
+    for (const id of ids) {
+      expect(vault.records.get(id)?.version).toBe(2)
+      expect((await a.entry(id))?.tag).toBe(vault.records.get(id)?.tag)
+    }
+    expect(await a.storage.syncPendingCount()).toBe(0)
+  })
+
   it('keeps single pushes for a few records', async () => {
     const { a, fa } = fakePair()
     await a.notes.create('Alone')
@@ -391,6 +421,14 @@ describe('the moved marker', () => {
     expect(vault.records.has(id)).toBe(true)
     expect(await a.storage.syncPendingCount()).toBe(0)
     expect(a.engine.status()).toMatchObject({ state: 'idle', code: null })
+  })
+
+  // The same bytes as moved.rs's frames_the_marker_as_the_core_reads_it: Rust leaves the marker.
+  it('reads the marker Rust leaves on the relay', () => {
+    const head = `{"id":"${MOVED_ID}","kind":"moved","to":"icloud"}`
+    const bytes = new Uint8Array([1, 0, 0, 0, head.length, ...new TextEncoder().encode(head)])
+    expect(readMoved(bytes)).toBe('icloud')
+    expect(encodeMoved('icloud')).toEqual(bytes)
   })
 
   it('is a body today’s decoder refuses, so older builds skip it', () => {

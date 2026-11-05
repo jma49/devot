@@ -5,6 +5,7 @@ import { STOP_ADVICE, STORAGE_FULL, type SyncSnapshot } from './sync'
 import { RESTORE_CHOICE } from '../../core/sync/restore'
 import type { UsageNotice } from '../../core/sync/usage'
 import { USAGE_NOTICE_TEXT } from './syncUsage'
+import { BEFORE_JOINING, icloudAttention, icloudNotice } from './syncICloud'
 
 const STOPPED: Readonly<Record<string, MessageKey>> = {
   E_SYNC_REVOKED: 'sync.notice.revoked',
@@ -16,9 +17,8 @@ const STOPPED: Readonly<Record<string, MessageKey>> = {
 
 function stateMessage(snapshot: SyncSnapshot, pauseOver: boolean): string | undefined {
   const { state, code, pausedUntil, upload } = snapshot.status
-  // Until each cause has its own words (issue 606), an iCloud pause says only that it is one.
-  if (state === 'paused' && snapshot.transport === 'icloud')
-    return format(t('sync.notice.pausedICloud'), { code: code ?? '' })
+  const icloud = icloudAttention(snapshot)
+  if (icloud && icloud.kind !== 'joined') return icloudNotice(icloud, pauseOver)
   if (state === 'paused' && pausedUntil !== null) {
     const locale = currentLocale()
     if (pauseOver) {
@@ -40,7 +40,7 @@ function stateMessage(snapshot: SyncSnapshot, pauseOver: boolean): string | unde
     if (advice) return format(t('sync.notice.stoppedAdvice'), { code, advice: t(advice) })
     return format(t(STOPPED[code] ?? 'sync.notice.stopped'), { code })
   }
-  return undefined
+  return icloud ? icloudNotice(icloud, pauseOver) : undefined
 }
 
 function usageMessage(snapshot: SyncSnapshot, usage: UsageNotice | null): string | undefined {
@@ -55,7 +55,10 @@ export function syncNoticeMessages(
   pauseOver: boolean,
   usage: UsageNotice | null,
 ): string[] {
-  if (!snapshot.enabled) return []
+  if (!snapshot.enabled) {
+    const icloud = icloudAttention(snapshot)
+    return icloud && BEFORE_JOINING.has(icloud.kind) ? [icloudNotice(icloud, pauseOver)] : []
+  }
   const { tooLarge } = snapshot.status
   return [
     stateMessage(snapshot, pauseOver),

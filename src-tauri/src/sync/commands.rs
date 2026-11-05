@@ -292,6 +292,15 @@ pub async fn sync_icloud_upload_again(
     task::blocking_with(&sync, "E_SYNC_INTERNAL", |sync| sync.icloud_upload_again()).await
 }
 
+/// About what the vault holds on its transport, from the records here: Settings shows it for iCloud,
+/// whose storage Devot does not read.
+#[tauri::command]
+pub async fn sync_icloud_storage(db: State<'_, Db>) -> Result<u64, String> {
+    db.call(|store| store.sync_stored_bytes())
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn sync_disconnect(sync: State<'_, Arc<SyncService>>) -> Result<(), String> {
     task::blocking_with(&sync, "E_SYNC_INTERNAL", |sync| {

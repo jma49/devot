@@ -14,7 +14,7 @@ mod transport;
 
 pub(crate) use kit::CloudKit;
 pub(crate) use staging::Staging;
-pub(crate) use transport::{ICloud, ICloudState, Item, PushAnswer, Welcome};
+pub(crate) use transport::{ICloud, ICloudState, Item, PushAnswer, Welcome, account_of, devices};
 
 /// The CloudKit this build has: the platform's, or none off Apple's platforms.
 pub(crate) fn platform() -> std::sync::Arc<dyn CloudKit> {

@@ -1141,6 +1141,104 @@ title: Daily Report {{date}}
     'The vault is at its device limit. Remove a device you no longer use from another device, then try again.',
   'syncSettings.why.enrollDenied':
     'The relay refused this device: the key or code belongs to another vault.',
+  'syncSettings.icloudDetail':
+    'Your notes sync through iCloud between the devices signed in to your Apple ID. Devot encrypts them before they leave this device, so Apple cannot read them.',
+  'syncSettings.enabledHintIcloud':
+    'Changes go to iCloud 3 seconds after you stop typing, and at least every 10 seconds while you type.',
+  'syncSettings.transport': 'Syncs Through',
+  'syncSettings.transportIcloud':
+    'iCloud, with your notes encrypted by Devot before they leave this device.',
+  'syncSettings.transportRelay': 'A relay you run yourself.',
+  'syncSettings.transportQuestionHint':
+    'With iCloud there is nothing to set up: the devices signed in to your Apple ID find your vault themselves. Devot encrypts your notes before they leave this device.',
+  'syncSettings.useIcloud': 'Sync Through iCloud',
+  'syncSettings.transportRelayAdvanced': 'Use My Own Relay',
+  'syncSettings.useIcloudInstead': 'Use iCloud Instead',
+  'syncSettings.icloudUnavailableBuild':
+    'This build of Devot cannot sync through iCloud. Turn sync off here, or use a release build of Devot.',
+  'syncSettings.icloudSignedOut':
+    'Sign in to iCloud in System Settings to sync through it. Your notes stay on this device meanwhile.',
+  'syncSettings.icloudRestricted':
+    'iCloud is restricted on this device, by Screen Time or by whoever manages it, so Devot cannot sync through it. Your notes stay on this device.',
+  'syncSettings.icloudTemporarilyUnavailable':
+    'iCloud is not available right now. Devot tries again by itself, and your notes stay on this device meanwhile.',
+  'syncSettings.icloudFull':
+    'Your iCloud storage is full, so changes from this device are not syncing. Free up iCloud storage or get more in System Settings > Apple Account > iCloud; sync goes on by itself after that.',
+  'syncSettings.icloudPausedUntil': 'Sync paused until {time}: iCloud asked Devot to wait.',
+  'syncSettings.resumingICloud': 'iCloud takes changes again; sync resumes in a moment.',
+  'syncSettings.icloudAccountChanged':
+    'This device is now signed in to another Apple ID than the one this vault syncs through. Move the vault into this Apple ID, or turn sync off.',
+  'syncSettings.icloudMoveToThisAccount': 'Move to This Apple ID',
+  'syncSettings.icloudMoveConfirm': 'Move this vault into the Apple ID signed in now?',
+  'syncSettings.icloudMoveDetail':
+    'This device uploads all its notes there. Devices on the other Apple ID stop syncing with this one until they follow, by signing in to this Apple ID and moving there too.',
+  'syncSettings.icloudMoveButton': 'Move',
+  'syncSettings.icloudDeleted':
+    'This vault’s data was removed from iCloud, perhaps under iCloud storage. Upload it again from this device, or turn sync off.',
+  'syncSettings.icloudUploadAgain': 'Upload Again',
+  'syncSettings.icloudUploadConfirm': 'Upload this vault to iCloud again?',
+  'syncSettings.icloudUploadDetail':
+    'This device uploads all its notes. Your other devices take part again when they next sync.',
+  'syncSettings.icloudUploadButton': 'Upload',
+  'syncSettings.turnOff': 'Turn Sync Off',
+  'syncSettings.icloudJoined':
+    'This device found your vault through the iCloud Keychain and joined it. Sync is on.',
+  'syncSettings.icloudJoinAsk':
+    'Your Apple ID already syncs a Devot vault. Join it? The {count} notes here go into it and reach your other devices.',
+  'syncSettings.icloudJoin': 'Join',
+  'syncSettings.icloudDecline': 'Not Now',
+  'syncSettings.icloudDeclined':
+    'Your Apple ID syncs a Devot vault, which you chose not to join yet. Join it whenever you like.',
+  'syncSettings.icloudKeychainMissing':
+    'Your Apple ID syncs a Devot vault, but its key has not reached this device through the iCloud Keychain. Join with a pairing code from one of your devices, or with the recovery key.',
+  'syncSettings.icloudOtherItem':
+    'The iCloud Keychain holds the key of another vault than the one your Apple ID syncs. Join with a pairing code from one of your devices, or with the recovery key.',
+  'syncSettings.icloudOtherAccount':
+    'The code comes from a device signed in to another Apple ID. Show a code on a device signed in to this one, or sign in to that Apple ID here.',
+  'syncSettings.icloudStorage': 'Stored in iCloud',
+  'syncSettings.icloudStorageValue':
+    'About {size}, added up from the notes and images this vault syncs.',
+  'syncSettings.icloudStorageReading': 'Adding up what the vault stores…',
+  'syncSettings.icloudStorageFailed': 'What the vault stores could not be added up ({code}).',
+  'syncSettings.icloudStorageManaged':
+    'Your iCloud storage, and how much of it is left, is managed in System Settings > Apple Account > iCloud.',
+  'syncSettings.icloudDevicesHint':
+    'The devices syncing this vault through your Apple ID, with the day each was last seen. A device that signed out stays listed.',
+  'syncSettings.deviceSeen': 'Seen {date}',
+  'syncSettings.vaultMoved': 'This vault moved to iCloud on another of your devices.',
+  'syncSettings.vaultMovedHint': 'Follow it to keep syncing here.',
+  'syncSettings.vaultMovedElsewhere': 'Set up sync again to follow it.',
+  'syncSettings.vaultMovedFollow': 'Follow to iCloud',
+  'syncSettings.switchTransport': 'Move to iCloud',
+  'syncSettings.switchTransportHint': 'Sync this vault through iCloud instead of the relay.',
+  'syncSettings.switchTransportConfirm': 'Move this vault from the relay to iCloud?',
+  'syncSettings.switchTransportDetail':
+    'This device uploads all its notes to iCloud and leaves word on the relay. Your other devices follow when they next sync.',
+  'syncSettings.switchTransportButton': 'Move',
+  'syncSettings.icloudChangeFailed': 'Sync through iCloud could not be changed ({code}).',
+  'syncSettings.pairHintIcloud':
+    'Only for a device that did not join by itself through the iCloud Keychain. Show a code here and scan it on the new device. It works once, for 10 minutes.',
+  'syncSettings.joinCodeIcloudHint':
+    'The code one of your devices on this Apple ID shows under Add a Device, or the link its QR code holds.',
+  'syncSettings.joinRecoveryIcloudHint':
+    'The recovery key you saved when you first turned sync on.',
+  'syncSettings.recoveryHintIcloud':
+    'Keep this key in your password manager, or print it. With it, a device on your Apple ID joins your vault even when no other device is left. Once you say you saved it, Devot does not show it again.',
+  'syncSettings.why.icloudBusy': 'iCloud is busy. Try again in a few minutes.',
+  'syncSettings.why.icloudOtherVault':
+    'Your Apple ID already syncs another vault, which Devot never replaces. Join it with a pairing code from one of its devices instead.',
+  'syncSettings.why.icloudNoVault':
+    'Your Apple ID does not sync the vault of that key. Check that this device is signed in to the Apple ID that syncs it.',
+  'syncSettings.why.icloudNotUsed': 'This vault does not sync through iCloud.',
+  'syncSettings.why.icloudFailed': 'iCloud answered with an error. Try again later.',
+  'syncSettings.why.icloudZoneMissing':
+    'The vault’s data is not in iCloud yet. Try again in a moment.',
+  'syncSettings.why.icloudRecordInvalid':
+    'iCloud holds something this release of Devot cannot read. Update Devot.',
+  'syncSettings.why.icloudStaging':
+    'Devot could not keep an image on this device for iCloud. Check that the disk has room.',
+  'syncSettings.why.movedRefused':
+    'The relay did not take the word that tells your other devices the vault moved, so it still syncs through the relay. Try again once the relay has room.',
   'sync.notice.revoked':
     'This device was removed from sync, so sync has stopped. Your notes stay on this device.',
   'sync.notice.clock':
@@ -1177,14 +1275,38 @@ title: Daily Report {{date}}
     'Sync paused until {time}: the relay has reached its quota for today. Your notes keep working on this device and sync after that.',
   'sync.notice.pausedUpload':
     'Sync paused until {time}: the relay has reached its quota for today, with {sent} of {total} items uploaded. The upload goes on after that; your notes keep working on this device.',
-  'sync.notice.pausedICloud':
-    'Sync is paused: iCloud is not taking changes from this device right now ({code}). Your notes keep working on this device.',
   'sync.notice.resuming':
     'The relay’s quota for today has reset; sync resumes in a moment. Your notes keep working on this device.',
   'sync.notice.resumingUpload':
     'The relay’s quota for today has reset; sync resumes in a moment, with {sent} of {total} items uploaded so far.',
   'sync.notice.tooLargeOne': '{count} note is too large to sync and stays on this device only.',
   'sync.notice.tooLargeOther': '{count} notes are too large to sync and stay on this device only.',
+  'sync.notice.icloudSignedOut':
+    'Sync is paused: this device is not signed in to iCloud. Sign in to iCloud in System Settings to sync again; your notes stay on this device.',
+  'sync.notice.icloudRestricted':
+    'Sync is paused: iCloud is restricted on this device, by Screen Time or by whoever manages it. Your notes stay on this device.',
+  'sync.notice.icloudTemporarilyUnavailable':
+    'iCloud is not available right now. Sync tries again by itself; your notes keep working on this device.',
+  'sync.notice.icloudFull':
+    'Sync is paused: your iCloud storage is full, so changes from this device are not syncing. Free up iCloud storage or get more in System Settings > Apple Account > iCloud; sync goes on by itself after that.',
+  'sync.notice.icloudPausedUntil':
+    'Sync paused until {time}: iCloud asked Devot to wait. Your notes keep working on this device.',
+  'sync.notice.icloudAccountChanged':
+    'Sync has stopped: this device is signed in to another Apple ID than the one your vault syncs through on iCloud. In Settings > Sync, move the vault into this Apple ID or turn sync off.',
+  'sync.notice.icloudDeleted':
+    'Sync has stopped: your vault’s data was removed from iCloud. In Settings > Sync, upload it again from this device or turn sync off.',
+  'sync.notice.icloudUnavailableBuild':
+    'Sync has stopped: this build of Devot cannot sync through iCloud. Turn sync off in Settings > Sync, or use a release build of Devot.',
+  'sync.notice.vaultMoved':
+    'Sync has stopped: your vault moved to iCloud on another of your devices. Follow it in Settings > Sync.',
+  'sync.notice.icloudJoined':
+    'This device found your vault through the iCloud Keychain and joined it. Sync is on.',
+  'sync.notice.icloudJoinAsk':
+    'Your Apple ID syncs a Devot vault. To join it with the {count} notes here, open Settings > Sync.',
+  'sync.notice.icloudKeychainMissing':
+    'Your Apple ID syncs a Devot vault, but its key has not reached this device. Join with a pairing code or the recovery key in Settings > Sync.',
+  'sync.notice.icloudOtherItem':
+    'The iCloud Keychain holds the key of another vault than the one your Apple ID syncs. Join with a pairing code or the recovery key in Settings > Sync.',
   'licenceSettings.title': 'License',
   'licenceSettings.detail':
     'Devot works fully for a 30-day trial. After it, notes can still be read, searched, copied and exported, but editing them, sync and AI need a Devot license. A license is bought once, checked on this device without going online, and unlocks everything in every version of Devot, with nothing to renew.',
