@@ -18,6 +18,7 @@ import {
   verifySignature,
   versionFromTag,
   withCargoVersion,
+  withIosVersion,
   withPackageVersion,
 } from '../../scripts/release/release'
 import { tempDir } from '../support/temp-dirs'
@@ -78,6 +79,27 @@ describe('release versions', () => {
     )
     const real = readFileSync(join(root, 'src-tauri/Cargo.toml'), 'utf8')
     expect(withCargoVersion(real, '0.3.0-beta.1')).toContain('\nversion = "0.3.0-beta.1"\n')
+  })
+
+  it('writes the version without its prerelease into the iPhone app', () => {
+    const plist = [
+      '\t<key>CFBundleShortVersionString</key>',
+      '\t<string>1.0.0</string>',
+      '\t<key>CFBundleVersion</key>',
+      '\t<string>1.0.0</string>',
+    ].join('\n')
+    expect(withIosVersion(plist, '1.0.2-beta1')).toBe(plist.replaceAll('1.0.0', '1.0.2'))
+    const yml = '        CFBundleShortVersionString: 1.0.0\n        CFBundleVersion: "1.0.0"\n'
+    expect(withIosVersion(yml, '1.1.2')).toBe(
+      '        CFBundleShortVersionString: 1.1.2\n        CFBundleVersion: "1.1.2"\n',
+    )
+    expect(() => withIosVersion('<key>CFBundleName</key>', '1.1.2')).toThrow(
+      'E_RELEASE_IOS_VERSION_MISSING',
+    )
+    for (const file of ['devot_iOS/Info.plist', 'project.yml']) {
+      const real = readFileSync(join(root, 'src-tauri/gen/apple', file), 'utf8')
+      expect(withIosVersion(real, '9.8.7').match(/9\.8\.7/g)).toHaveLength(2)
+    }
   })
 
   it('writes the version into package.json', () => {

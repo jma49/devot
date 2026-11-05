@@ -72,15 +72,15 @@ The iPhone app is not on the App Store or TestFlight yet, so a release reaches a
 
 ```sh
 git switch --detach <tag>
-node scripts/release/release.ts set-version <tag>   # a local change; do not commit it
+node scripts/release/release.ts set-version <tag>   # also the iPhone app's version; a local change, do not commit it
 pnpm tauri ios build                               # src-tauri/gen/apple/build/arm64/Devot.ipa
 xcrun devicectl list devices
 unzip -q src-tauri/gen/apple/build/arm64/Devot.ipa -d <scratch folder>
 xcrun devicectl device install app --device <device ID> <scratch folder>/Payload/Devot.app
-git restore package.json src-tauri/Cargo.toml
+git restore package.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/gen/apple
 ```
 
-A development build needs a signing team (docs/development.md, iOS). Remove `src-tauri/gen/apple/build` afterwards.
+A development build needs a signing team (docs/development.md, iOS). Remove the `build` folder the build leaves in `src-tauri/gen/apple` afterwards.
 
 ## Update feed
 
