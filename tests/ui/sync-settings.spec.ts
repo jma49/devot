@@ -925,7 +925,7 @@ test('Try Again says when the listing fails again, and hands focus to the list w
   await retry.focus()
   await page.keyboard.press('Enter')
   await expect(panel.getByRole('status').first()).toHaveText(
-    'The devices could not be listed. The relay could not be reached, or it answered with an error.',
+    /^The devices could not be listed\. The relay could not be reached, or it answered with an error\./,
   )
   await page.evaluate(() => {
     delete (globalThis as unknown as { devotDevicesFails?: string }).devotDevicesFails
