@@ -101,22 +101,35 @@ fn ck(code: i64) -> CkError {
 }
 
 #[test]
-fn a_failed_call_is_logged_with_its_cloudkit_code_and_site_only() {
+fn a_failed_line_names_its_cause_and_site_but_no_content() {
     assert_eq!(
-        error::failed_line(12, "current"),
-        "W_SYNC_ICLOUD_FAILED code=12 at=current"
-    );
-    assert_eq!(
-        error::failed_line(0, "push-answer"),
-        "W_SYNC_ICLOUD_FAILED empty at=push-answer"
+        error::failed_line("code=12", "current", 1),
+        "W_SYNC_ICLOUD_FAILED code=12 at=current count=1"
     );
     assert_eq!(error::code_of(&ck(12), "current"), error::FAILED);
     assert_eq!(error::code_of(&ck(code::QUOTA_EXCEEDED), "x"), error::FULL);
     assert_eq!(error::empty("x"), error::FAILED);
+    assert_eq!(error::unusable("x"), error::FAILED);
+}
+
+#[test]
+fn failures_of_one_pass_log_once_per_cause_with_a_count() {
+    let mut tally = error::FailedTally::default();
+    for _ in 0..37 {
+        tally.note(Some(15));
+    }
+    tally.note(Some(12));
+    tally.note(None);
+    tally.note(None);
     assert_eq!(
-        error::refused(&ck(code::SERVER_RECORD_CHANGED), 0),
-        Refused::Failed(error::FAILED)
+        tally.lines("push"),
+        [
+            "W_SYNC_ICLOUD_FAILED empty at=push count=2",
+            "W_SYNC_ICLOUD_FAILED code=12 at=push count=1",
+            "W_SYNC_ICLOUD_FAILED code=15 at=push count=37",
+        ]
     );
+    assert!(error::FailedTally::default().lines("push").is_empty());
 }
 
 // The error table of ADR 0015, one code at a time.

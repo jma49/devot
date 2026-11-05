@@ -116,22 +116,51 @@ pub(crate) fn classify(error: &CkError) -> Failure {
 pub(crate) fn code_of(error: &CkError, at: &str) -> &'static str {
     let code = classify(error).code();
     if code == FAILED {
-        log::warn!("{}", failed_line(error.code, at));
+        log::warn!("{}", failed_line(&format!("code={}", error.code), at, 1));
     }
     code
 }
 
 /// `FAILED` for a call CloudKit answered with nothing to use, logged with the call site `at`.
 pub(crate) fn empty(at: &str) -> &'static str {
-    log::warn!("{}", failed_line(0, at));
+    log::warn!("{}", failed_line("empty", at, 1));
     FAILED
 }
 
-pub(crate) fn failed_line(code: i64, at: &str) -> String {
-    if code == 0 {
-        format!("W_SYNC_ICLOUD_FAILED empty at={at}")
-    } else {
-        format!("W_SYNC_ICLOUD_FAILED code={code} at={at}")
+/// `FAILED` for a record CloudKit returned that Devot cannot use, logged with the call site `at`.
+pub(crate) fn unusable(at: &str) -> &'static str {
+    log::warn!("{}", failed_line("unusable", at, 1));
+    FAILED
+}
+
+pub(crate) fn failed_line(cause: &str, at: &str, count: usize) -> String {
+    format!("W_SYNC_ICLOUD_FAILED {cause} at={at} count={count}")
+}
+
+/// The failures of one pass over many records, logged as one line per distinct cause.
+#[derive(Default)]
+pub(crate) struct FailedTally(std::collections::BTreeMap<Option<i64>, usize>);
+
+impl FailedTally {
+    /// Counts a failure with CloudKit code `code`, or `None` for an answer that never came.
+    pub(crate) fn note(&mut self, code: Option<i64>) {
+        *self.0.entry(code).or_default() += 1;
+    }
+
+    pub(crate) fn lines(&self, at: &str) -> Vec<String> {
+        self.0
+            .iter()
+            .map(|(code, count)| match code {
+                Some(code) => failed_line(&format!("code={code}"), at, *count),
+                None => failed_line("empty", at, *count),
+            })
+            .collect()
+    }
+
+    pub(crate) fn log(&self, at: &str) {
+        for line in self.lines(at) {
+            log::warn!("{line}");
+        }
     }
 }
 
@@ -176,7 +205,7 @@ pub(crate) fn refused(error: &CkError, now: i64) -> Refused {
             Some(server) => Refused::Rejected {
                 server: server.clone(),
             },
-            None => Refused::Failed(code_of(error, "push")),
+            None => Refused::Failed(FAILED),
         },
         Failure::Busy { retry_after_ms } => Refused::Paused {
             until: Some(now.saturating_add(i64::try_from(retry_after_ms).unwrap_or(i64::MAX))),
@@ -187,6 +216,6 @@ pub(crate) fn refused(error: &CkError, now: i64) -> Refused {
             code: FULL,
         },
         Failure::TooMany | Failure::Again => Refused::Again,
-        _ => Refused::Failed(code_of(error, "push")),
+        other => Refused::Failed(other.code()),
     }
 }

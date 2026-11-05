@@ -28,7 +28,11 @@ pub(crate) fn ready(kit: &dyn CloudKit) -> Result<(), &'static str> {
 /// The vault `current` names; `None` when this Apple ID has none (or no zone `devot` yet).
 pub(crate) fn read(kit: &dyn CloudKit) -> Result<Option<String>, &'static str> {
     match kit.fetch(ZONE_DEVOT, &[CURRENT.to_string()]) {
-        Ok(records) => Ok(records.into_iter().next().flatten().and_then(vault_of)),
+        Ok(records) => Ok(records
+            .into_iter()
+            .next()
+            .flatten()
+            .and_then(|record| vault_of(&record))),
         Err(e) if classify(&e) == Failure::ZoneGone => Ok(None),
         Err(e) => Err(code(e)),
     }
@@ -59,7 +63,7 @@ pub(crate) fn claim(kit: &dyn CloudKit, vault: &str) -> Result<Claim, &'static s
         }
         Err(e) => match (classify(&e), &e.server_record) {
             (Failure::Changed, Some(server)) => {
-                vault_of((**server).clone()).ok_or_else(|| error::empty("current-vault"))?
+                vault_of(server).ok_or_else(|| error::unusable("current-vault"))?
             }
             _ => return Err(error::code_of(&e, "current")),
         },
@@ -111,7 +115,7 @@ pub(crate) fn zone_exists(kit: &dyn CloudKit, zone: &str) -> Result<bool, &'stat
     Ok(exists.first().copied().unwrap_or(false))
 }
 
-fn vault_of(record: CkRecord) -> Option<String> {
+fn vault_of(record: &CkRecord) -> Option<String> {
     if record.kind != TYPE_VAULT {
         return None;
     }
@@ -158,7 +162,7 @@ mod tests {
     }
 
     #[test]
-    fn a_save_refused_for_a_missing_record_type_still_fails_the_claim() {
+    fn a_server_rejected_save_fails_the_claim_with_failed() {
         let kit = Fake::new();
         kit.fail_record(CURRENT, CkError::of(code::SERVER_REJECTED_REQUEST));
         assert_eq!(claim(&kit, A), Err(error::FAILED));

@@ -296,7 +296,7 @@ impl ICloud {
                 (Failure::Changed, Some(server)) => server
                     .text("epoch")
                     .map(str::to_string)
-                    .ok_or_else(|| error::empty("epoch-record")),
+                    .ok_or_else(|| error::unusable("epoch-record")),
                 _ => Err(error::code_of(&e, "epoch")),
             },
         }
@@ -462,6 +462,7 @@ impl ICloud {
         let mut runs: VecDeque<Range<usize>> = batch::plan(&sizes).into();
         let mut retried = vec![false; prepared.len()];
         let mut ended: Option<PushAnswer> = None;
+        let mut failed = error::FailedTally::default();
         while let Some(run) = runs.pop_front() {
             if let Some(end) = &ended {
                 for p in &prepared[run] {
@@ -492,7 +493,9 @@ impl ICloud {
                         }
                         Refused::Failed(code) => PushAnswer::Failed(code),
                     };
-                    log::warn!("W_SYNC_ICLOUD_SAVE code={}", e.code);
+                    if answer == PushAnswer::Failed(error::FAILED) {
+                        failed.note(Some(e.code));
+                    }
                     for p in &prepared[run] {
                         results[p.index] = Some(answer.clone());
                     }
@@ -508,6 +511,10 @@ impl ICloud {
                             .chain(std::iter::repeat_with(|| None)),
                     ) {
                         let p = &prepared[at];
+                        let outcome_code = outcome
+                            .as_ref()
+                            .and_then(|o| o.as_ref().err())
+                            .map(|e| e.code);
                         let answer = match outcome {
                             Some(Ok(record)) => PushAnswer::Pushed {
                                 version: p.version,
@@ -521,8 +528,11 @@ impl ICloud {
                                 }
                                 other => answer_of(other),
                             },
-                            None => PushAnswer::Failed(error::empty("push-answer")),
+                            None => PushAnswer::Failed(error::FAILED),
                         };
+                        if answer == PushAnswer::Failed(error::FAILED) {
+                            failed.note(outcome_code);
+                        }
                         if matches!(
                             &answer,
                             PushAnswer::Paused {
@@ -538,10 +548,17 @@ impl ICloud {
             }
         }
         self.staging.remove(&staged);
-        results
+        let answers = results
             .into_iter()
-            .map(|r| r.unwrap_or_else(|| PushAnswer::Failed(error::empty("push-result"))))
-            .collect()
+            .map(|r| {
+                r.unwrap_or_else(|| {
+                    failed.note(None);
+                    PushAnswer::Failed(error::FAILED)
+                })
+            })
+            .collect();
+        failed.log("push");
+        answers
     }
 
     fn prepare(
