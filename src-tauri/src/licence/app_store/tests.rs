@@ -6,12 +6,13 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
 
 use super::super::activation::State as SeatState;
+use super::super::client::MacKey;
 use super::super::client::Reply as ActivationReply;
 use super::super::store::{KeyStore, MemoryKey};
 use super::super::testing::{ID, key, sign, test_keys};
 use super::super::trial::{LENGTH_MS, TrialSource, TrialState};
 use super::super::{KEYS_OFF, Licence, REQUIRED, Snapshot};
-use super::{Bought, Limits, Storefront};
+use super::{Bought, Limits, Storefront, mac_key};
 use crate::app_store::fake::{FakeAppStore, transaction};
 use crate::app_store::{
     AppStore, Ownership, Product, Purchase, Restore, RevocationReason, StoreError, StoreProduct,
@@ -631,4 +632,63 @@ fn only_the_two_products_can_be_named() {
     for other in ["", "Pro", "io.github.jma49.devot.pro", "trial ", "lifetime"] {
         assert_eq!(super::product_of(other), None, "{other}");
     }
+}
+
+fn issued(transaction: &str) -> Result<MacKey, &'static str> {
+    Ok(MacKey {
+        key: format!("key-for-{transaction}"),
+        id: ID.to_owned(),
+    })
+}
+
+#[test]
+fn a_mac_key_is_asked_for_with_the_held_pro_purchase_alone() {
+    let setup = app_store();
+    let asked = std::sync::Mutex::new(Vec::new());
+    let exchange = |transaction: &str| {
+        asked.lock().expect("asked").push(transaction.to_owned());
+        issued(transaction)
+    };
+    assert_eq!(mac_key(&setup.licence, exchange), Err("E_APP_STORE_NO_PRO"));
+    entitled(
+        &setup,
+        vec![
+            transaction(Product::Trial, 1, START),
+            StoreTransaction {
+                ownership: Ownership::FamilyShared,
+                ..transaction(Product::Pro, 2, START)
+            },
+        ],
+    );
+    assert_eq!(mac_key(&setup.licence, exchange), Err("E_APP_STORE_NO_PRO"));
+    assert!(asked.lock().expect("asked").is_empty());
+
+    let pro = transaction(Product::Pro, 3, START);
+    entitled(&setup, vec![pro.clone()]);
+    let key = mac_key(&setup.licence, exchange).expect("key");
+    assert_eq!(key.key, format!("key-for-{}", pro.jws));
+    assert_eq!(*asked.lock().expect("asked"), vec![pro.jws.clone()]);
+    assert_eq!(
+        setup.licence.snapshot().id,
+        None,
+        "the key is never added here"
+    );
+
+    setup.licence.take_transaction(refunded(pro, START));
+    assert_eq!(mac_key(&setup.licence, exchange), Err("E_APP_STORE_NO_PRO"));
+}
+
+#[test]
+fn a_mac_key_refusal_is_the_workers_code_and_other_builds_have_none() {
+    let setup = app_store();
+    entitled(&setup, vec![transaction(Product::Pro, 1, START)]);
+    assert_eq!(
+        mac_key(&setup.licence, |_| Err("E_LICENCE_REVOKED")),
+        Err("E_LICENCE_REVOKED")
+    );
+    let direct = build(true, true, Arc::new(MemoryKey::default()));
+    assert_eq!(
+        mac_key(&direct.licence, issued),
+        Err("E_APP_STORE_UNAVAILABLE")
+    );
 }

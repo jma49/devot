@@ -19,8 +19,13 @@ export const PENDING_RELOAD_SECONDS = 5
 /** Reloads before the waiting page stops, so a forgotten tab does not poll Stripe for days. */
 export const PENDING_CHECKS = 60
 
+/** The devices page and its answers as the App Store app opens them: no link to the website. */
+export const APP_DEVICES_PATH = '/devices?from=app'
+
 interface PageOptions {
   status?: number
+  /** Opened from an App Store build: no header or footer link to the website, which sells. */
+  app?: boolean
   script?: boolean
   refresh?: { seconds: number; url: string }
 }
@@ -38,12 +43,16 @@ function page(title: string, body: string, options: PageOptions = {}): Response 
     `<link rel="stylesheet" href="${ASSETS.style}">`,
     options.script ? `<script src="${ASSETS.copy}" defer></script>` : '',
   ].join('')
+  const brand = `${doveSvg(28)}<span>${escapeHtml(MESSAGES.product)}</span>`
   const html =
     `<!doctype html><html lang="en"><head>${head}</head><body>` +
-    `<header class="bar"><a class="brand" href="${MESSAGES.siteUrl}" aria-label="${escapeHtml(MESSAGES.home)}">` +
-    `${doveSvg(28)}<span>${escapeHtml(MESSAGES.product)}</span></a></header>` +
+    (options.app
+      ? `<header class="bar"><span class="brand">${brand}</span></header>`
+      : `<header class="bar"><a class="brand" href="${MESSAGES.siteUrl}" aria-label="${escapeHtml(MESSAGES.home)}">${brand}</a></header>`) +
     `<main><h1>${escapeHtml(title)}</h1>${body}</main>` +
-    `<footer class="foot"><a href="${MESSAGES.siteUrl}">${escapeHtml(MESSAGES.site)}</a></footer>` +
+    (options.app
+      ? ''
+      : `<footer class="foot"><a href="${MESSAGES.siteUrl}">${escapeHtml(MESSAGES.site)}</a></footer>`) +
     `</body></html>`
   return new Response(html, { status: options.status ?? 200, headers: PAGE_HEADERS })
 }
@@ -130,14 +139,16 @@ export function devicesPage(
   devices: DeviceRow[] | null,
   limit: number,
   notice?: string,
+  app = false,
 ): Response {
+  const action = app ? APP_DEVICES_PATH : '/devices'
   const form =
-    `<form method="post" action="/devices" class="form">` +
+    `<form method="post" action="${action}" class="form">` +
     `<label for="key">${escapeHtml(MESSAGES.devicesField)}</label>` +
     `<input id="key" type="password" name="key" required maxlength="1024" autocomplete="off" spellcheck="false">` +
     `<button class="button primary" type="submit">${escapeHtml(MESSAGES.devicesButton)}</button></form>`
   if (!key || !devices) {
-    return page(MESSAGES.devicesTitle, p(MESSAGES.devicesBody, 'lead') + form)
+    return page(MESSAGES.devicesTitle, p(MESSAGES.devicesBody, 'lead') + form, { app })
   }
   const rows = devices
     .map(
@@ -146,7 +157,7 @@ export function devicesPage(
         `<span class="muted">${escapeHtml(device.device)}</span>` +
         `<span class="muted">${escapeHtml(MESSAGES.devicesAdded)} ${escapeHtml(device.createdAt)}` +
         ` · ${escapeHtml(MESSAGES.devicesSeen)} ${escapeHtml(device.lastSeenAt)}</span>` +
-        `<form method="post" action="/devices">` +
+        `<form method="post" action="${action}">` +
         `<input type="hidden" name="key" value="${escapeHtml(key)}">` +
         `<input type="hidden" name="device" value="${escapeHtml(device.device)}">` +
         `<button class="button" type="submit">${escapeHtml(MESSAGES.devicesRemove)}</button>` +
@@ -160,14 +171,15 @@ export function devicesPage(
       `<p class="lead">${devices.length} ${escapeHtml(MESSAGES.devicesCount)} ${limit}.</p>` +
       (devices.length === 0 ? p(MESSAGES.devicesEmpty) : `<ul class="devices">${rows}</ul>`) +
       form,
+    { app },
   )
 }
 
-export function errorPage(code: LicenceCode, status: number): Response {
+export function errorPage(code: LicenceCode, status: number, app = false): Response {
   return page(
     MESSAGES.errorTitle,
     p(MESSAGES.errors[code], 'lead') +
       `<p class="code">${escapeHtml(MESSAGES.errorCode)}: <code>${code}</code></p>`,
-    { status },
+    { status, app },
   )
 }

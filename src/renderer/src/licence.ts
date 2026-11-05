@@ -50,6 +50,9 @@ export interface AppStoreSnapshot {
 /** The trial's length, as Rust runs it (src-tauri/src/licence/trial.rs, `LENGTH_MS`). */
 export const TRIAL_DAYS = 30
 
+/** Who a key exchanged for an App Store purchase is for (licence/src/format.ts): Apple names no buyer. */
+export const APP_STORE_LICENSEE = 'App Store purchase'
+
 /** The code while an App Store build has not read its purchases yet. */
 export const APP_STORE_UNREAD = 'E_APP_STORE_UNREAD'
 
@@ -368,6 +371,33 @@ export async function restorePurchases(): Promise<LicenceSnapshot> {
   publish(next)
   return next ?? snapshot
 }
+
+/** The Mac licence key of the Devot Pro purchase this Apple account holds. */
+export interface MacKey {
+  readonly key: string
+  readonly id: string
+}
+
+const MAC_KEY = /^devot1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
+
+/**
+ * Get a Mac License Key: Rust sends the purchase's signed transaction to the licence Worker and
+ * answers with its key, which this device never adds. Rejects with a code.
+ */
+export async function getMacKey(): Promise<MacKey> {
+  const value = await invoke<unknown>('store_mac_key')
+  const { key, id } = (typeof value === 'object' && value !== null ? value : {}) as Record<
+    string,
+    unknown
+  >
+  if (typeof key !== 'string' || !MAC_KEY.test(key) || !isLicenceId(id)) {
+    throw new Error('E_APP_STORE_EXCHANGE_FAILED')
+  }
+  return { key, id }
+}
+
+/** The link that offers `key` to Devot on a Mac, as the licence mail writes it (licence/src/mail.ts). */
+export const licenceLink = (key: string): string => `devot://licence?key=${encodeURIComponent(key)}`
 
 /** Add Licence: Settings, at the Licence pane. */
 export const openLicenceSettings = () =>

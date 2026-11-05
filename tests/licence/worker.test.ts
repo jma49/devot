@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { build } from 'esbuild'
 import { Miniflare, type Request as WorkerRequest } from 'miniflare'
 import { afterAll, beforeAll, expect, it } from 'vitest'
-import { fromBase64Url, verifyRevocations } from '../../licence/src/format'
+import { publicKeyRing, SANDBOX_KID, SANDBOX_SEED } from '../../licence/src/app-store'
+import { fromBase64Url, toBase64Url, verifyRevocations } from '../../licence/src/format'
 import type { SqlDatabase } from '../../licence/src/store'
 import { STRIPE_VERSION } from '../../licence/src/stripe'
 import { migrate, vectors } from './support'
@@ -161,5 +162,56 @@ it('answers E_LICENCE_CONFIG until the secrets are set', async () => {
     await css.text()
   } finally {
     await bare.dispose()
+  }
+})
+
+it('signs sandbox purchases with the public test seed, under the test kid', () => {
+  expect(SANDBOX_KID).toBe(testKey?.kid)
+  expect(SANDBOX_SEED).toBe(testKey?.seed)
+  expect(setting('APP_STORE_BUNDLE_ID')).toBe('io.github.jma49.devot')
+  expect(setting('APP_STORE_PRODUCT_PRO')).toBe('io.github.jma49.devot.pro')
+  expect(wrangler).not.toMatch(/APP_STORE_KEY = |APP_STORE_KEY_ID = |APP_STORE_ISSUER_ID = /)
+})
+
+it('keeps the test kid out of a production ring, even when LICENCE_KEYS lists it', () => {
+  const own = new Uint8Array(32).fill(7)
+  const older = { 'prod-2025': new Uint8Array(32).fill(8), test: publicKeys.test }
+  expect(Object.keys(publicKeyRing('prod-2026', own, older)).sort()).toEqual([
+    'prod-2025',
+    'prod-2026',
+  ])
+  expect(Object.keys(publicKeyRing('test', publicKeys.test, older)).sort()).toEqual([
+    'prod-2025',
+    'test',
+  ])
+})
+
+it('answers the App Store routes with E_LICENCE_CONFIG until their secrets are set', async () => {
+  for (const path of ['/app-store/exchange', '/app-store/notifications']) {
+    const response = await fetch(`${url}${path}`, { method: 'POST', body: '{}' })
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ code: 'E_LICENCE_CONFIG' })
+  }
+})
+
+it('a production Worker refuses a key signed under the test seed at /activate', async () => {
+  const seed = toBase64Url(new Uint8Array(32).map((_, i) => (i * 13 + 5) & 0xff))
+  const production = worker({
+    ...secrets,
+    LICENCE_KID: 'prod-2026',
+    LICENCE_SIGNING_KEY: seed,
+    LICENCE_KEYS: JSON.stringify({ test: testKey?.publicKey }),
+  })
+  try {
+    const base = (await production.ready).toString().replace(/\/$/, '')
+    await migrate((await production.getD1Database('DB')) as unknown as SqlDatabase)
+    const sandboxKey = vectors.licences[0]?.key ?? ''
+    const response = await fetch(`${base}/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ key: sandboxKey, device: 'D'.repeat(22), label: 'Mac' }),
+    })
+    expect(await response.json()).toEqual({ code: 'E_LICENCE_UNKNOWN_KID' })
+  } finally {
+    await production.dispose()
   }
 })

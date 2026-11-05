@@ -59,6 +59,15 @@ impl Purchases {
             .any(|transaction| grants(transaction, Product::Pro))
     }
 
+    /// The App Store's signed transaction for the Devot Pro purchase held, as StoreKit gave it: what
+    /// the licence Worker exchanges for a Mac licence key.
+    pub(crate) fn pro_transaction(&self) -> Option<&str> {
+        self.held
+            .values()
+            .find(|transaction| grants(transaction, Product::Pro))
+            .map(|transaction| transaction.jws.as_str())
+    }
+
     /// When the Trial was first bought by this Apple account, from Apple's signed transaction.
     pub(crate) fn trial_start(&self) -> Option<i64> {
         self.held
@@ -213,8 +222,29 @@ mod tests {
         ];
         for transaction in refused {
             assert!(!grants(&transaction, Product::Pro), "{transaction:?}");
-            assert!(!held(vec![transaction]).pro());
+            let purchases = held(vec![transaction]);
+            assert!(!purchases.pro());
+            assert_eq!(purchases.pro_transaction(), None);
         }
+    }
+
+    #[test]
+    fn hands_over_the_signed_transaction_of_the_pro_purchase_alone() {
+        let trial = transaction(Product::Trial, 1, NOW);
+        let family = StoreTransaction {
+            ownership: Ownership::FamilyShared,
+            ..transaction(Product::Pro, 2, NOW)
+        };
+        assert_eq!(
+            held(vec![trial.clone(), family.clone()]).pro_transaction(),
+            None
+        );
+        let pro = transaction(Product::Pro, 3, NOW);
+        let purchases = held(vec![trial, family, pro.clone()]);
+        assert_eq!(purchases.pro_transaction(), Some(pro.jws.as_str()));
+        let mut refunded = purchases;
+        refunded.apply(revoked(pro), NOW);
+        assert_eq!(refunded.pro_transaction(), None);
     }
 
     #[test]

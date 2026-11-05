@@ -16,6 +16,7 @@ import { PANES, PANE_TABS, type PaneId } from '../settings/panes'
 import { startSyncStatus, useSyncSnapshot } from '../sync'
 import { syncNeedsOwner } from '../syncICloud'
 import { doveMask } from './dove'
+import { MacKeyRow } from './PhoneMacKey'
 import { PhoneDetailSheet } from './PhoneSheet'
 import { licenceRow, paneMatches } from './settingsRows'
 
@@ -209,7 +210,16 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
     },
     {
       rows: [paneRow('usage'), paneRow('licence', state.label, state.needsAttention)],
-      ...(store ? { after: <RestoreRow /> } : {}),
+      ...(store
+        ? {
+            after: (
+              <>
+                <RestoreRow />
+                {licence.appStore?.pro && <MacKeyRow />}
+              </>
+            ),
+          }
+        : {}),
     },
   ]
   const summary = version ? `${version} · ${state.label}` : state.label

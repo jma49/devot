@@ -7,6 +7,8 @@ export const LICENCE_PREFIX = 'devot1'
 export const ACTIVATION_PREFIX = 'devot1dev'
 export const REVOCATIONS_PREFIX = 'devot1rev'
 export const PLAN = 'pro'
+/** The licensee of a key the App Store exchange signs: never an address, so never a person. */
+export const APP_STORE_LICENSEE = 'App Store purchase'
 
 export interface LicencePayload {
   id: string

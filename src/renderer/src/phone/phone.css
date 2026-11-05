@@ -2809,6 +2809,14 @@ button.phone-grouped-open:active:not(:disabled) {
   opacity: var(--opacity-disabled);
 }
 
+/* The Mac licence key: one long word, broken anywhere, selectable to copy by hand. */
+.phone-mac-key {
+  color: var(--color-phone-text);
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .phone-settings-action .phone-grouped-label {
   color: var(--color-accent-text);
 }
