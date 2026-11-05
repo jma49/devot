@@ -1219,6 +1219,10 @@ title: Daily Report {{date}}
   'syncSettings.vaultMovedHint': 'Follow it to keep syncing here.',
   'syncSettings.vaultMovedElsewhere': 'Set up sync again to follow it.',
   'syncSettings.vaultMovedFollow': 'Follow to iCloud',
+  'syncSettings.vaultMovedHere':
+    'The move of this vault to iCloud started on this device and did not finish.',
+  'syncSettings.vaultMovedHereHint': 'Finish it to keep syncing here.',
+  'syncSettings.vaultMovedFinish': 'Finish Moving to iCloud',
   'syncSettings.switchTransport': 'Move to iCloud',
   'syncSettings.switchTransportHint': 'Sync this vault through iCloud instead of the relay.',
   'syncSettings.switchTransportConfirm': 'Move this vault from the relay to iCloud?',
@@ -1320,6 +1324,8 @@ title: Daily Report {{date}}
     'Sync has stopped: this build of Devot cannot sync through iCloud. Turn sync off in Settings > Sync, or use a release build of Devot.',
   'sync.notice.vaultMoved':
     'Sync has stopped: your vault moved to iCloud on another of your devices. Follow it in Settings > Sync.',
+  'sync.notice.vaultMovedHere':
+    'Sync has stopped: the move of your vault to iCloud started on this device and did not finish. Finish it in Settings > Sync.',
   'sync.notice.icloudJoined':
     'This device found your vault through the iCloud Keychain and joined it. Sync is on.',
   'sync.notice.icloudJoinAsk':

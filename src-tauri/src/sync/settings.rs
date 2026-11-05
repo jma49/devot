@@ -33,6 +33,11 @@ pub(crate) struct SyncSettings {
     /// The Apple ID's vault this device was asked to join and declined, so it is asked once.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub icloud_declined: String,
+    /// The vault this device started moving from its relay to iCloud and has not switched yet:
+    /// recorded before the moved marker is left, so a device that quits in between finishes the
+    /// move when its engine finds that marker.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub moving: String,
 }
 
 impl SyncSettings {
@@ -136,5 +141,45 @@ impl DeviceCredentials {
 
     pub(crate) fn fits(&self, relay: &str, vault: &str) -> bool {
         self.relay == relay && self.vault == vault
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_a_file_written_before_moves_were_recorded() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE);
+        std::fs::write(
+            &path,
+            br#"{"relayUrl":"https://relay.example","enabled":true,"recoveryShown":"v1"}"#,
+        )
+        .unwrap();
+        let settings = SettingsStore::new(&path).get();
+        assert_eq!(settings.relay_url, "https://relay.example");
+        assert!(settings.enabled);
+        assert_eq!(settings.recovery_shown, "v1");
+        assert_eq!(settings.moving, "");
+    }
+
+    #[test]
+    fn writes_a_started_move_only_while_there_is_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE);
+        let store = SettingsStore::new(&path);
+        let mut settings = SyncSettings {
+            moving: "v1".into(),
+            ..SyncSettings::default()
+        };
+        store.set(&settings).unwrap();
+        assert_eq!(store.get().moving, "v1");
+        settings.moving.clear();
+        store.set(&settings).unwrap();
+        // A file with no move in progress reads in a build from before moves were recorded.
+        let written: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(written.get("moving"), None);
     }
 }

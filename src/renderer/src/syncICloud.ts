@@ -100,6 +100,7 @@ export type ICloudAttention =
         | 'deleted'
         | 'noContainer'
         | 'moved'
+        | 'movedHere'
         | 'joined'
     }
   | { kind: 'busy'; until: number | null }
@@ -140,7 +141,10 @@ export function icloudAttention(snapshot: SyncSnapshot): ICloudAttention | undef
     held &&
     (state === 'paused' || state === 'stopped' || state === 'offline')
   )
-    return ofCode(held, pausedUntil)
+    // Rust finishes a move this device started at once; this is the one it could not finish yet.
+    return held === 'moved' && snapshot.moveStarted
+      ? { kind: 'movedHere' }
+      : ofCode(held, pausedUntil)
   const join = snapshot.icloudJoin
   if (!join) return undefined
   if (join.state === 'joined' && snapshot.transport === 'icloud')
@@ -164,6 +168,7 @@ export const NEEDS_OWNER = new Set<ICloudAttention['kind']>([
   'deleted',
   'noContainer',
   'moved',
+  'movedHere',
   'ask',
   'fallback',
 ])
@@ -174,7 +179,14 @@ export function syncNeedsOwner(snapshot: SyncSnapshot): boolean {
   return attention !== undefined && NEEDS_OWNER.has(attention.kind)
 }
 
-export type ICloudAction = 'moveHere' | 'uploadAgain' | 'turnOff' | 'follow' | 'join' | 'decline'
+export type ICloudAction =
+  | 'moveHere'
+  | 'uploadAgain'
+  | 'turnOff'
+  | 'follow'
+  | 'finish'
+  | 'join'
+  | 'decline'
 
 const SETTINGS_LINES: Readonly<Record<ICloudAttention['kind'], MessageKey>> = {
   signedOut: 'syncSettings.icloudSignedOut',
@@ -186,6 +198,7 @@ const SETTINGS_LINES: Readonly<Record<ICloudAttention['kind'], MessageKey>> = {
   deleted: 'syncSettings.icloudDeleted',
   noContainer: 'syncSettings.icloudUnavailableBuild',
   moved: 'syncSettings.vaultMoved',
+  movedHere: 'syncSettings.vaultMovedHere',
   joined: 'syncSettings.icloudJoined',
   ask: 'syncSettings.icloudJoinAsk',
   fallback: 'syncSettings.icloudKeychainMissing',
@@ -201,6 +214,7 @@ const NOTICES: Readonly<Record<ICloudAttention['kind'], MessageKey>> = {
   deleted: 'sync.notice.icloudDeleted',
   noContainer: 'sync.notice.icloudUnavailableBuild',
   moved: 'sync.notice.vaultMoved',
+  movedHere: 'sync.notice.vaultMovedHere',
   joined: 'sync.notice.icloudJoined',
   ask: 'sync.notice.icloudJoinAsk',
   fallback: 'sync.notice.icloudKeychainMissing',
@@ -244,6 +258,10 @@ export function icloudLine(
     case 'moved':
       return snapshot.transport === 'relay' && icloud.available
         ? { text: withHint(text, 'syncSettings.vaultMovedHint'), actions: ['follow'] }
+        : { text: withHint(text, 'syncSettings.vaultMovedElsewhere'), actions: [] }
+    case 'movedHere':
+      return icloud.available
+        ? { text: withHint(text, 'syncSettings.vaultMovedHereHint'), actions: ['finish'] }
         : { text: withHint(text, 'syncSettings.vaultMovedElsewhere'), actions: [] }
     case 'ask':
       return { text, actions: ['join', 'decline'] }

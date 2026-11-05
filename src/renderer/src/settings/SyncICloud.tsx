@@ -25,6 +25,7 @@ const ACTION_LABELS: Readonly<Record<ICloudAction, MessageKey>> = {
   uploadAgain: 'syncSettings.icloudUploadAgain',
   turnOff: 'syncSettings.turnOff',
   follow: 'syncSettings.vaultMovedFollow',
+  finish: 'syncSettings.vaultMovedFinish',
   join: 'syncSettings.icloudJoin',
   decline: 'syncSettings.icloudDecline',
 }
@@ -49,6 +50,7 @@ const RUN: Readonly<Record<ICloudAction, () => Promise<unknown>>> = {
   uploadAgain: uploadToICloudAgain,
   turnOff: () => changeSync({ enabled: false }),
   follow: () => syncThroughICloud(),
+  finish: () => syncThroughICloud(),
   join: () => answerICloudJoin(true),
   decline: () => answerICloudJoin(false),
 }

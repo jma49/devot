@@ -26,6 +26,7 @@ export function rust(over: {
   enrolled?: boolean
   status?: Record<string, unknown>
   icloudJoin?: Record<string, unknown> | null
+  moveStarted?: boolean
 }): SyncSnapshot {
   const snapshot = readSnapshot({
     relayUrl: over.transport === 'relay' ? 'https://relay.example.test' : '',
@@ -35,6 +36,7 @@ export function rust(over: {
     enrolled: over.enrolled ?? false,
     status: { state: 'idle', lastSync: null, code: null, tooLarge: 0, ...over.status },
     icloudJoin: over.icloudJoin ?? null,
+    moveStarted: over.moveStarted ?? false,
   })
   if (!snapshot) throw new Error('unread')
   return snapshot
@@ -99,6 +101,34 @@ describe('the iCloud states', () => {
     expect(
       icloudLine({ kind: 'moved' }, moved, { available: false, account: null }, false).actions,
     ).toEqual([])
+  })
+
+  it('says a move to iCloud this device started and did not finish began here', () => {
+    const unfinished = rust({
+      transport: 'relay',
+      enrolled: true,
+      moveStarted: true,
+      status: { state: 'stopped', code: 'E_SYNC_VAULT_MOVED' },
+    })
+    const attention = icloudAttention(unfinished)
+    expect(attention).toEqual({ kind: 'movedHere' })
+    if (!attention) throw new Error('no attention')
+    const line = icloudLine(attention, unfinished, ICLOUD, false)
+    expect(line.text).toMatch(/started on this device/)
+    expect(line.text).not.toMatch(/another of your devices/)
+    expect(line.actions).toEqual(['finish'])
+    expect(icloudNotice(attention, false)).toMatch(/started on this device/)
+    expect(syncNeedsOwner(unfinished)).toBe(true)
+    const withoutICloud = icloudLine(
+      attention,
+      unfinished,
+      { available: false, account: null },
+      false,
+    )
+    expect(withoutICloud.actions).toEqual([])
+    expect(withoutICloud.text).toMatch(/Set up sync again/)
+    // A started move counts only while sync stops on the marker.
+    expect(icloudAttention(rust({ transport: 'relay', moveStarted: true }))).toBeUndefined()
   })
 
   it('leaves a relay vault and a healthy iCloud vault alone', () => {

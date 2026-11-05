@@ -468,7 +468,11 @@ export function SyncSection() {
   ) : null
   const showsTransport = onICloud || (snapshot.enrolled && icloud.available)
   const offersICloud =
-    snapshot.enrolled && !onICloud && icloud.account === 'available' && attention?.kind !== 'moved'
+    snapshot.enrolled &&
+    !onICloud &&
+    icloud.account === 'available' &&
+    attention?.kind !== 'moved' &&
+    attention?.kind !== 'movedHere'
   const joinedNote =
     attention?.kind === 'joined' && line ? <SettingsNote>{line.text}</SettingsNote> : null
   const toggleOff = !onICloud && snapshot.relayUrl === ''
