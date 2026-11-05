@@ -66,22 +66,7 @@ granted=$(jq -r '.["com.apple.application-identifier"] // empty' "$work/granted.
 [ "$(jq -r '.["com.apple.application-identifier"] // empty' "$work/wanted.json")" = "$app_id" ] ||
   fail "E_SIGN_PROFILE_APP_ID: $(basename "$entitlements") does not name $app_id"
 
-# A profile grants a string value as itself, as "*", or by a "<prefix>.*" wildcard; an array
-# value needs each element granted.
-missing=$(jq -r --slurpfile granted "$work/granted.json" '
-  def grants($p; $v):
-    if ($p | type) == "array" then any($p[]; grants(.; $v))
-    elif ($p | type) == "string" and ($v | type) == "string" then
-      $p == $v or $p == "*" or (($p | endswith(".*")) and ($v | startswith($p[:-1])))
-    else $p == $v end;
-  ($granted[0]) as $g
-  | [to_entries[]
-    | select(.key as $k | .value as $v
-        | ($g | has($k) | not)
-          or (if ($v | type) == "array" then any($v[]; grants($g[$k]; .) | not)
-              else grants($g[$k]; $v) | not end))
-    | .key]
-  | sort | join(" ")' "$work/wanted.json")
+missing=$(jq -r --slurpfile granted "$work/granted.json" -f "$(dirname "$0")/profile-grants.jq" "$work/wanted.json")
 [ -z "$missing" ] ||
   fail "E_SIGN_PROFILE_ENTITLEMENTS: the provisioning profile does not grant $missing; make a new one for the App ID (docs/releasing.md, Signing the app)"
 

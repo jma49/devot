@@ -101,5 +101,10 @@ describe("the iPhone app's iCloud switch", () => {
       expect(file).not.toMatch(/^\s*DEVOT_ICLOUD\s*[:=]/m)
       expect(file).not.toContain('CODE_SIGNING_ALLOWED')
     }
+    // The App Store build ships: it sets the switch as a build setting (app-store.ts project-settings).
+    expect(readFileSync('.github/workflows/app-store.yml', 'utf8')).toContain(
+      'node scripts/release/app-store.ts project-settings',
+    )
+    expect(readFileSync('scripts/release/app-store.ts', 'utf8')).toContain("DEVOT_ICLOUD: 'YES',")
   })
 })

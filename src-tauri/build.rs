@@ -20,6 +20,7 @@ fn sentry_dsn() {
 
 /// Read by `data_folder::Build::this`; a tag's release build without it stops here.
 fn release_marker() {
+    // xcodebuild gives an iPhone build no GITHUB_REF_TYPE; app-store.ts marker-check covers it.
     for key in ["DEVOT_RELEASE_BUILD", "GITHUB_REF_TYPE"] {
         println!("cargo:rerun-if-env-changed={key}");
     }

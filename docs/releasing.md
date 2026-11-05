@@ -68,19 +68,57 @@ Only the newest stable release is kept, plus a beta newer than it if one is out.
 
 ## The iPhone app
 
-The iPhone app is not on the App Store or TestFlight yet, so a release reaches an iPhone as a development build signed by the owner's team, built on a Mac from the tagged commit and installed on a registered device. It is never attached to the GitHub release: its provisioning profile lists the registered devices.
+Until the App Store build (below) is in TestFlight, a release reaches the owner's iPhone as a development build signed by the owner's team, built on a Mac from the tagged commit and installed on a registered device. It is never attached to the GitHub release: its provisioning profile lists the registered devices.
 
 ```sh
 git switch --detach <tag>
 node scripts/release/release.ts set-version <tag>   # also the iPhone app's version; a local change, do not commit it
-DEVOT_ICLOUD=YES pnpm tauri ios build              # src-tauri/gen/apple/build/arm64/Devot.ipa
+node scripts/release/app-store.ts icloud-settings src-tauri/gen/apple/devot.xcodeproj/project.pbxproj   # a local change too
+pnpm tauri ios build                                # src-tauri/gen/apple/build/arm64/Devot.ipa
 xcrun devicectl list devices
 unzip -q src-tauri/gen/apple/build/arm64/Devot.ipa -d <scratch folder>
 xcrun devicectl device install app --device <device ID> <scratch folder>/Payload/Devot.app
 git restore package.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/gen/apple
 ```
 
-A development build needs a signing team (docs/development.md, iOS). `DEVOT_ICLOUD=YES` gives it the iCloud entitlements and container (see Signing the app, iCloud entitlements), so it also needs a development profile of the owner's team that grants the app's iCloud container, push and keychain group. With automatic signing, Xcode makes that profile from the App ID. The export uses CloudKit's Production environment, as the Mac app does (`ExportOptions.plist`). Remove the `build` folder the build leaves in `src-tauri/gen/apple` afterwards.
+A development build needs a signing team (docs/development.md, iOS). `icloud-settings` writes `DEVOT_ICLOUD = YES` into the iPhone app's build settings, which gives it the iCloud entitlements and container (see Signing the app, iCloud entitlements), so it also needs a development profile of the owner's team that grants the app's iCloud container, push and keychain group. With automatic signing, Xcode makes that profile from the App ID. The export uses CloudKit's Production environment, as the Mac app does (`ExportOptions.plist`). Remove the `build` folder the build leaves in `src-tauri/gen/apple` afterwards.
+
+## The App Store build
+
+`.github/workflows/app-store.yml` makes the iPhone app for the App Store (ADR 0014). It runs for every release tag, on demand (Actions > App Store > Run workflow), and for a pull request that changes the workflow, its scripts or `src-tauri/gen/apple`. It has two jobs:
+
+1. **build** runs the dependencies' code with a read-only token and no Apple secret. It sets the version (a tag's, as the release workflow does) and the build number, then archives the app unsigned (`pnpm tauri ios build --archive-only --no-sign`) with `DEVOT_RELEASE_BUILD=1`, `DEVOT_DISTRIBUTION=app-store` (an App Store build, docs/licensing.md) and `DEVOT_ICLOUD=YES` (Signing the app, iCloud entitlements). The Tauri CLI starts `xcodebuild` with only its own variables (`TAURI_*`, `CARGO_*`, `RUST_*`), so these three and `DEVOT_SENTRY_DSN` cannot come from the job's environment: `app-store.ts project-settings` writes them into the checkout's Xcode project as build settings of the iPhone app, and Xcode hands them to the Rust build through its Run Script phase. `marker-check` then reads rustc's dep-info to confirm the Rust build saw both markers. `scripts/release/app-store.ts check-bundle` checks the archived app's bundle ID, that it is for the iPhone only, the iCloud container in its `Info.plist`, `ITSAppUsesNonExemptEncryption`, the version and the build number. `privacy-check` checks that `PrivacyInfo.xcprivacy` gives a reason for every required-reason API the binary calls, found with `nm -u` and the binary's Objective-C class and selector names. A failure is an `E_APP_STORE_…` annotation.
+2. **export** runs only for a tag, after the same release gate as the release workflow, in the `release` environment, and runs no dependency code. `scripts/release/ios-export.sh` imports the Apple Distribution certificate into a keychain made for the run and checks the App Store profile with `scripts/release/ios-profile.sh`. The profile must be for iOS, an App Store profile (no device list, no `get-task-allow`), for the team, App ID and certificate, grant every signing entitlement, and be valid for 30 more days (`E_SIGN_PROFILE_…`). The script signs the app with `devot_iOS.entitlements` plus the App ID, the team, `aps-environment` `production` and CloudKit's Production environment, exports the `.ipa` with `ExportOptions-AppStore.plist`, and checks its signature, embedded profile, privacy manifest and entitlements (`E_EXPORT_…`). The `.ipa` stays on the run as the `ipa` artifact for 7 days. When the repository variable `APP_STORE_UPLOAD` is `true`, the script then uploads it to App Store Connect with the API key; otherwise the run says it did not upload. The API key reaches the job only when it uploads.
+
+A pull request and a run on demand stop after `build`, because the `release` environment takes only `v*` tags. So signing, export and upload first run on a tag; a beta tag is the way to try them.
+
+**Version and build number.** `CFBundleShortVersionString` is the release version without its beta suffix (`1.2.0-beta3` ships as `1.2.0`), because App Store Connect takes only numbers there. `CFBundleVersion` is `<run number>.<run attempt>` of the App Store workflow (`app-store.ts version`), which grows with every run and every re-run, so each upload has a new build number. App Store Connect refuses a build number lower than one it has, and GitHub counts runs per workflow file, so never rename `app-store.yml`: a renamed workflow starts again at 1. The betas and the stable release of one version share its version string. The development build (The iPhone app above) is unchanged and keeps `ExportOptions.plist`.
+
+**Export compliance.** Devot uses encryption of its own beside Apple's: sync seals notes with AES-256-GCM under keys derived with HKDF-SHA256 (ADR 0015), licences are verified with Ed25519, and the relay and the licence Worker are reached over HTTPS. These are standard, published algorithms, not proprietary ones. So `ITSAppUsesNonExemptEncryption` is `true` in `project.yml` and `Info.plist`, and App Store Connect asks about the build's encryption. The owner answers there: the app uses encryption; it uses standard encryption algorithms instead of, or in addition to, Apple's operating system; and whether the app is offered in France, which needs a declaration to France's ANSSI. If App Store Connect issues an export compliance code, add it as `ITSEncryptionExportComplianceCode` to both files, so later builds skip the questions. With these answers two filings fall to the owner as the developer, not to Apple: the yearly self-classification report to the US Bureau of Industry and Security (due by 1 February for the year before), and, while the app is offered in France, the declaration to ANSSI.
+
+**Privacy.** `src-tauri/gen/apple/devot_iOS/PrivacyInfo.xcprivacy` declares no tracking and what leaves the device: the purchase the licence Worker checks (Purchase History), the random device ID of a licence seat (Device ID) and, once the user turns them on, crash reports to Sentry (Crash Data). Each is used only for the app's function. The device ID is linked to the user: the Worker keeps it, with the seat's label, under the licence, whose licensee is the buyer's email. The label is the build's fixed name (`Devot for iPhone`), not the device's name, so it is no data type of its own. The purchase and crash reports are not linked. It gives reason `C617.1` for file timestamps, which the app reads only for files in its own container, and `E174.1` for disk space: `statfs`, `fstatfs` and `statvfs` read a volume's flags and file system type before the app writes to it (SQLite picks its locking style that way, and `atomic_file` checks for a read-only volume), never its free space, and Apple's list has no closer reason. App Store Connect's privacy label must match: Identifiers (Device ID) linked to the user, Purchases and Diagnostics (Crash Data) not linked, each for App Functionality and none used for tracking. When a dependency starts calling another required-reason API, `privacy-check` fails and names it: add the category with its reason.
+
+### Owner steps for the App Store
+
+1. **App Store Connect > Business:** sign the Paid Apps agreement and complete tax and banking.
+2. **Apps > New App:** iOS, name Devot, bundle ID `io.github.jma49.devot` (the App ID with iCloud, push and In-App Purchase; Signing the app, Owner steps before the first release with iCloud). Under **Pricing and Availability**, untick the Mac (iPhone and iPad apps on Apple silicon Macs) and Apple Vision Pro availability, which are on by default: the Mac app is sold with a licence key, and the iPhone app is built for the iPhone only.
+3. **In-App Purchases**, both non-consumable and with Family Sharing off: `io.github.jma49.devot.pro` (Devot Pro, US$29.99) and `io.github.jma49.devot.trial` (30-day Trial, free).
+4. **Certificates > Apple Distribution:** make the certificate, export it with its private key from Keychain Access as a `.p12`, then:
+   ```sh
+   base64 -i Distribution.p12 | gh secret set --env release APPLE_DISTRIBUTION_CERTIFICATE
+   gh secret set --env release APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD   # asks for the .p12's password
+   ```
+5. **Profiles > App Store Connect:** an App Store profile for `io.github.jma49.devot` with that certificate. It grants the iCloud container, push and the keychain group through the App ID. Make it again after renewing the certificate.
+   ```sh
+   base64 -i Devot_App_Store.mobileprovision | gh secret set --env release APPLE_PROVISIONING_PROFILE_IOS
+   ```
+6. **The upload key:** the team API key the release workflow already uses (`APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID`; Credentials below) uploads builds with its Developer role. A key without that right needs the App Manager role, or a new key in the same secret and variables.
+7. **Turn the upload on** once the app record exists: `gh variable set APP_STORE_UPLOAD --body true`. Until then a tag's run signs and exports the `.ipa` but does not upload it.
+8. **Before submitting:** answer export compliance (above), fill the privacy label (above), the age rating, screenshots and description, deploy the CloudKit schema to Production (Owner steps before the first release with iCloud), add sandbox testers, and write review notes that explain Guideline 3.1.3(b) for Enter License Key, with a complimentary production licence key for App Review (docs/licensing.md). Then submit the build for review.
+
+### Before the first submission
+
+Push a beta tag and check that the export job signs, exports and (with `APP_STORE_UPLOAD` on) uploads, and that App Store Connect accepts the build and its privacy manifest. Then, from TestFlight on an iPhone: buy Devot Pro and the Trial in the sandbox, restore them, enter a licence key, and sync through iCloud against CloudKit's Production environment.
 
 ## Update feed
 
@@ -123,7 +161,7 @@ The script reads the profile with `security cms -D`, which does not check that A
 
 Builds without the profile, which are local `pnpm tauri build`, the CI checks, `build:debug` and forks, are still made and carry no entitlements. Without `--entitlements`, `macos-sign.sh` signs that way as well. Such a build has no CloudKit container. Once iCloud sync is built, it reports `E_SYNC_CLOUDKIT_UNAVAILABLE` there and offers only the relay (ADR 0015). Never add the entitlements to `tauri.conf.json`: macOS kills an ad-hoc signed app that claims restricted entitlements at launch.
 
-The iPhone app carries the same container, keychain group and push in `src-tauri/gen/apple/devot_iOS/devot_iOS.entitlements`, but only in a build made with `DEVOT_ICLOUD=YES` in its environment. `pnpm tauri ios build` and `dev` take it only that way; a direct `xcodebuild` run also takes it as a build setting. Only the builds that ship set it: today the owner's iPhone build (The iPhone app above), and the App Store build once it is in the release workflow (#610). Such a build signs with the entitlements file (`CODE_SIGN_ENTITLEMENTS`) and writes the container ID into its `Info.plist` (`DevotCloudKitContainer`, from the `DEVOT_CLOUDKIT_CONTAINER` build setting). Every other build, which is local `pnpm tauri ios dev` and `build`, the CI checks and forks, has neither, so it signs with any team and reports `E_SYNC_CLOUDKIT_UNAVAILABLE` (ADR 0015). That is how the app tells on iOS whether it may touch CloudKit. Xcode takes the App ID and team from the profile, and it changes `aps-environment` to `production` when it exports for the App Store. The file names no container environment: a development-signed build that runs from Xcode or `pnpm tauri ios dev` uses Development, and `ExportOptions.plist` asks for Production when a build is exported.
+The iPhone app carries the same container, keychain group and push in `src-tauri/gen/apple/devot_iOS/devot_iOS.entitlements`, but only in a build whose Xcode build settings have `DEVOT_ICLOUD = YES`. The Tauri CLI starts `xcodebuild` without the shell's other variables, so setting it in the environment of `pnpm tauri ios build` or `dev` does nothing: `node scripts/release/app-store.ts icloud-settings <project.pbxproj>` writes it into the checkout's project (undo with `git restore src-tauri/gen/apple`), and a direct `xcodebuild` run takes it as an argument (`DEVOT_ICLOUD=YES`). Only the builds that ship set it: the owner's iPhone build and the App Store build (The iPhone app and The App Store build above). Such a build signs with the entitlements file (`CODE_SIGN_ENTITLEMENTS`) and writes the container ID into its `Info.plist` (`DevotCloudKitContainer`, from the `DEVOT_CLOUDKIT_CONTAINER` build setting). Every other build, which is local `pnpm tauri ios dev` and `build`, the CI checks and forks, has neither, so it signs with any team and reports `E_SYNC_CLOUDKIT_UNAVAILABLE` (ADR 0015). That is how the app tells on iOS whether it may touch CloudKit. Xcode takes the App ID and team from the profile, and it changes `aps-environment` to `production` when it exports for the App Store. The file names no container environment: a development-signed build that runs from Xcode or `pnpm tauri ios dev` uses Development, and `ExportOptions.plist` asks for Production when a build is exported.
 
 #### Owner steps before the first release with iCloud
 
@@ -137,7 +175,7 @@ In the Apple Developer portal (Certificates, Identifiers & Profiles):
 
 In the CloudKit Console, for the container:
 
-1. In the **Development** environment, let a development-signed build create the record types (`DEVOT_ICLOUD=YES pnpm tauri ios dev` on a registered iPhone, signed by the owner's team) `DevotVault`, `DevotMeta`, `DevotDevice`, `DevotClock`, `DevotRecord` and `DevotPairing` and their fields.
+1. In the **Development** environment, let a development-signed build create the record types (`pnpm tauri ios dev` after `icloud-settings`, iCloud entitlements above, on a registered iPhone, signed by the owner's team) `DevotVault`, `DevotMeta`, `DevotDevice`, `DevotClock`, `DevotRecord` and `DevotPairing` and their fields.
 2. **Deploy Schema Changes to Production** before the first release that uses them. A Developer ID or App Store build uses Production, where record types are never created on first save: an undeployed type fails the save with code 12 (`Cannot create new type`).
 3. Indexes: the transport looks records up only by record name and fetches zone changes, so it needs no index beyond those CloudKit keeps. When the transport (#603) starts querying a field, that field needs a queryable index, deployed the same way.
 
@@ -159,7 +197,7 @@ In the `release` environment, as secrets:
 - `APPLE_CERTIFICATE_PASSWORD`: the password the `.p12` was exported with.
 - `APPLE_API_KEY_P8`: the whole text of the App Store Connect team API key (`AuthKey_<key ID>.p8`, Users and Access > Integrations, role Developer).
 - `APPLE_PROVISIONING_PROFILE_MACOS`: the Developer ID provisioning profile in base64. The notarize job passes it to `macos-sign.sh` as `APPLE_PROVISIONING_PROFILE`, and the script decodes it into its own folder under `RUNNER_TEMP`, never into the checkout. The script never prints the profile.
-- `APPLE_PROVISIONING_PROFILE_IOS`, `APPLE_DISTRIBUTION_CERTIFICATE` and `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`: the App Store profile and the Apple Distribution certificate for the iPhone app. No workflow reads them yet.
+- `APPLE_PROVISIONING_PROFILE_IOS`, `APPLE_DISTRIBUTION_CERTIFICATE` and `APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD`: the App Store profile and the Apple Distribution certificate for the iPhone app, read only by the App Store workflow's export job (The App Store build above).
 
 In the repository settings, as variables:
 

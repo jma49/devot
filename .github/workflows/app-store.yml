@@ -1,0 +1,242 @@
+name: App Store
+
+# The iPhone app for the App Store (docs/releasing.md, The App Store build). A release tag
+# (vMAJOR.MINOR.PATCH-betaN), a run on demand, and a pull request that changes this build make
+# the App Store archive: iPhone only, the App Store marker, the iCloud container and the privacy
+# manifest, with CFBundleVersion from this workflow's run counter; `build` checks all of them.
+# Only a tag's run goes on (the release environment takes only v* tags): `export` signs the
+# archive with the Apple Distribution certificate and the App Store profile, exports the .ipa and
+# checks it, and uploads it to App Store Connect when the repository variable APP_STORE_UPLOAD is
+# `true`. Uploading puts the build in App Store Connect and TestFlight; submitting it for review
+# stays the owner's step.
+#
+# As in release.yml, `build` runs the dependencies' code with a read-only token and no Apple
+# secret; `export` holds the Apple credentials and runs only Apple's tools and
+# scripts/release/ios-*.sh.
+#
+# Needs, in the `release` environment (deployments limited to v* tags):
+#   secrets.APPLE_DISTRIBUTION_CERTIFICATE           base64 of the Apple Distribution .p12
+#   secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD  its password
+#   secrets.APPLE_PROVISIONING_PROFILE_IOS           base64 of the App Store provisioning profile
+#   secrets.APPLE_API_KEY_P8                         the App Store Connect API key (AuthKey_<id>.p8), for uploads
+# and in the repository settings:
+#   vars.APPLE_API_KEY_ID, vars.APPLE_API_ISSUER_ID  the API key's ID and issuer
+#   vars.APP_STORE_UPLOAD                            `true` once App Store Connect has the app record
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/app-store.yml
+      - scripts/release/app-store.ts
+      - scripts/release/ios-*.sh
+      - src-tauri/gen/apple/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-store-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The release gate of release.yml, word for word (tests/policy/app-store-build.test.ts).
+  verify:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # The documented gate, checked rather than remembered: the tag is a
+      # merged pull request's merge commit, the tree is that pull request
+      # head's tree, and CI passed on that head (docs/releasing.md).
+      - name: Check the merged pull request passed CI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          prs=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/pulls")
+          pr=$(jq -r --arg sha "$sha" \
+            '[.[] | select(.merged_at != null and .merge_commit_sha == $sha)] | first | .number // empty' <<< "$prs")
+          if [ -z "$pr" ]; then
+            echo "::error::E_RELEASE_NO_MERGED_PR: ${{ github.ref_name }} is not a merged pull request's merge commit."
+            exit 1
+          fi
+          head=$(jq -r --arg sha "$sha" \
+            '[.[] | select(.merged_at != null and .merge_commit_sha == $sha)] | first | .head.sha' <<< "$prs")
+          merge_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$sha" --jq .tree.sha)
+          head_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$head" --jq .tree.sha)
+          runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$head&event=pull_request&per_page=100")
+          green=$(jq -r --arg head "$head" \
+            'any(.workflow_runs[]; .head_sha == $head and .event == "pull_request" and .conclusion == "success")' \
+            <<< "$runs")
+          # A merge through the merge queue was tested as this very commit.
+          queued=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=merge_group&per_page=100")
+          if jq -e --arg sha "$sha" \
+            'any(.workflow_runs[]; .head_sha == $sha and .event == "merge_group" and .conclusion == "success")' \
+            <<< "$queued" > /dev/null; then
+            head_tree=$merge_tree
+            green=true
+          fi
+          node scripts/release/release.ts ci-gate "$pr" "$merge_tree" "$head_tree" "$green" || {
+            echo "::error::CI has not passed on pull request #$pr's head ($head), or its tree differs from the tag."
+            exit 1
+          }
+
+  # Runs the dependencies' code (pnpm install, build scripts, build.rs) with a read-only token and
+  # no secret but Sentry's DSN, which ships in the app anyway. The archive it hands over is unsigned.
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    outputs:
+      short: ${{ steps.version.outputs.short }}
+      build: ${{ steps.version.outputs.build }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          # main's history, to check that the tag is on it.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check the tag is on main
+        if: github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$TAG is not on main: tag a commit of main (see docs/releasing.md)."
+            exit 1
+          fi
+      - run: brew install xcodegen
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Set the version and the build number
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          if [ "$REF_TYPE" = tag ]; then
+            node scripts/release/release.ts set-version "$TAG" > /dev/null
+          fi
+          version=$(jq -r .version package.json)
+          node scripts/release/app-store.ts version "$version" "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - run: rustup toolchain install
+        working-directory: src-tauri
+      - run: rustup target add aarch64-apple-ios
+        working-directory: src-tauri
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri
+          # Only tags and pull requests run here, whose caches serve no later run and crowd out main's.
+          save-if: false
+      # The release marker, the App Store marker (src-tauri/src/distribution.rs) and the iCloud
+      # switch (docs/releasing.md, iCloud entitlements). The Tauri CLI starts xcodebuild with only
+      # its own variables, so they go into this checkout's project as build settings, which Xcode
+      # hands to the Rust build.
+      - name: Set the App Store build settings
+        env:
+          DEVOT_SENTRY_DSN: ${{ secrets.DEVOT_SENTRY_DSN }}
+        run: node scripts/release/app-store.ts project-settings src-tauri/gen/apple/devot.xcodeproj/project.pbxproj
+      - name: Archive the App Store build
+        env:
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          config=$(jq -nc --arg build "$BUILD" '{ bundle: { iOS: { bundleVersion: $build } } }')
+          pnpm tauri ios build --archive-only --no-sign --config "$config"
+      - name: Check and hand over the archive
+        env:
+          SHORT: ${{ steps.version.outputs.short }}
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          archive=$(find src-tauri/gen/apple/build -maxdepth 2 -name '*.xcarchive' -type d)
+          if [ -z "$archive" ] || [ "$(wc -l <<< "$archive")" -ne 1 ]; then
+            echo "::error::E_APP_STORE_ARCHIVE: the build made no single .xcarchive."
+            exit 1
+          fi
+          deps=$(find src-tauri/target -type d -path '*/aarch64-apple-ios/release/deps')
+          if [ -z "$deps" ] || [ "$(wc -l <<< "$deps")" -ne 1 ]; then
+            echo "::error::E_APP_STORE_MARKER: the build left no single iPhone release build folder."
+            exit 1
+          fi
+          node scripts/release/app-store.ts marker-check "$deps"
+          app=$(find "$archive/Products/Applications" -maxdepth 1 -name '*.app' -type d)
+          checks=$RUNNER_TEMP/checks
+          mkdir "$checks"
+          plutil -convert json -o "$checks/info.json" "$app/Info.plist"
+          node scripts/release/app-store.ts check-bundle "$checks/info.json" "$SHORT" "$BUILD"
+          plutil -lint "$app/PrivacyInfo.xcprivacy"
+          plutil -convert json -o "$checks/privacy.json" "$app/PrivacyInfo.xcprivacy"
+          binary=$app/$(plutil -extract CFBundleExecutable raw "$app/Info.plist")
+          nm -u "$binary" > "$checks/symbols.txt"
+          for section in __objc_methname __objc_classname; do
+            otool -v -s __TEXT "$section" "$binary" >> "$checks/strings.txt"
+          done
+          node scripts/release/app-store.ts privacy-check "$checks/privacy.json" "$checks/symbols.txt" "$checks/strings.txt"
+          # ditto keeps the bundle's symlinks and extended attributes, which an artifact of the bare folder would lose.
+          mkdir handover
+          ditto -c -k --keepParent "$archive" handover/archive.zip
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: archive
+          path: handover/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Holds the Apple Distribution certificate, the App Store profile and the upload key; runs only
+  # Apple's tools and the committed scripts, no dependency code (no pnpm install).
+  export:
+    needs: [verify, build]
+    if: github.ref_type == 'tag'
+    environment: release
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: archive
+          path: handover
+      - name: Sign, export and upload the iPhone app
+        env:
+          APPLE_DISTRIBUTION_CERTIFICATE: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE }}
+          APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          # The script decodes it into its own folder under RUNNER_TEMP and removes it.
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE_IOS }}
+          UPLOAD: ${{ vars.APP_STORE_UPLOAD }}
+          # The upload key reaches the job only when it uploads.
+          APPLE_API_KEY_P8: ${{ vars.APP_STORE_UPLOAD == 'true' && secrets.APPLE_API_KEY_P8 || '' }}
+          APPLE_API_KEY_ID: ${{ vars.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ vars.APPLE_API_ISSUER_ID }}
+        run: |
+          ditto -x -k handover/archive.zip "$RUNNER_TEMP/archive"
+          archive=$(find "$RUNNER_TEMP/archive" -maxdepth 1 -name '*.xcarchive' -type d)
+          upload=
+          if [ "$UPLOAD" = true ]; then
+            upload=--upload
+          else
+            echo "::notice::Not uploaded: the repository variable APP_STORE_UPLOAD is not true (docs/releasing.md, The App Store build)."
+          fi
+          scripts/release/ios-export.sh $upload src-tauri/gen/apple/devot_iOS/devot_iOS.entitlements "$archive" out
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ipa
+          path: out/
+          if-no-files-found: error
+          retention-days: 7
