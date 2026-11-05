@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use tauri::Url;
 use zeroize::Zeroizing;
 
-use super::client::RelayUrl;
+use super::client::{self, PairingState, RelayUrl};
 use super::crockford;
 use super::vault::{ID_BYTES, KEY_BYTES, VaultId, random};
 use super::{SyncError, Vault};
@@ -284,6 +284,71 @@ fn checksum(payload: &[u8]) -> [u8; CHECKSUM_BYTES] {
     let mut sum = [0; CHECKSUM_BYTES];
     sum.copy_from_slice(&digest[..CHECKSUM_BYTES]);
     sum
+}
+
+/// Where a pairing's sealed offer and the joining device's sealed confirmation wait. The relay
+/// is the one today; docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md adds one for
+/// a vault in iCloud.
+pub(crate) trait PairingChannel: Send + Sync {
+    /// Leaves the offer. Its expiry is the one sealed inside it, not the channel's.
+    fn open(&self, id: &str, offer: &[u8]) -> Result<(), &'static str>;
+    /// Takes the offer, which is handed out once.
+    fn take(&self, id: &str) -> Result<Vec<u8>, &'static str>;
+    fn confirm(&self, id: &str, proof: &[u8]) -> Result<(), &'static str>;
+    fn poll(&self, id: &str) -> Result<PairingState, &'static str>;
+    fn close(&self, id: &str) -> Result<(), &'static str>;
+}
+
+/// Pairing through the relay's `/v1/pairings` routes.
+pub(crate) struct RelayPairing {
+    relay: RelayUrl,
+    /// The showing device's vault ID and device token; a joining device has neither.
+    host: Option<(String, Zeroizing<String>)>,
+}
+
+impl RelayPairing {
+    pub(crate) fn host(relay: RelayUrl, vault: String, token: Zeroizing<String>) -> Self {
+        Self {
+            relay,
+            host: Some((vault, token)),
+        }
+    }
+
+    pub(crate) fn join(relay: RelayUrl) -> Self {
+        Self { relay, host: None }
+    }
+
+    fn hosting(&self) -> Result<(&str, &str), &'static str> {
+        self.host
+            .as_ref()
+            .map(|(vault, token)| (vault.as_str(), token.as_str()))
+            .ok_or("E_SYNC_PAIRING_ROLE")
+    }
+}
+
+impl PairingChannel for RelayPairing {
+    fn open(&self, id: &str, offer: &[u8]) -> Result<(), &'static str> {
+        let (vault, token) = self.hosting()?;
+        client::pairing_open(&self.relay, vault, token, id, offer).map(|_| ())
+    }
+
+    fn take(&self, id: &str) -> Result<Vec<u8>, &'static str> {
+        client::pairing_take(&self.relay, id)
+    }
+
+    fn confirm(&self, id: &str, proof: &[u8]) -> Result<(), &'static str> {
+        client::pairing_confirm(&self.relay, id, proof)
+    }
+
+    fn poll(&self, id: &str) -> Result<PairingState, &'static str> {
+        let (vault, token) = self.hosting()?;
+        client::pairing_status(&self.relay, vault, token, id)
+    }
+
+    fn close(&self, id: &str) -> Result<(), &'static str> {
+        let (vault, token) = self.hosting()?;
+        client::pairing_close(&self.relay, vault, token, id)
+    }
 }
 
 /// A QR code's modules, row by row, `1` for dark; the page draws them.

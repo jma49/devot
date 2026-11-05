@@ -1,4 +1,4 @@
-use super::pairing::{self, Pairing, TTL_MS};
+use super::pairing::{self, Pairing, PairingChannel, RelayPairing, TTL_MS};
 use super::tests::{MemoryStore, fixed_vault, to_hex};
 use super::{SyncError, Vault};
 
@@ -241,4 +241,14 @@ fn the_qr_code_holds_the_link_as_modules() {
     assert!(qr.modules.bytes().all(|b| b == b'0' || b == b'1'));
     // The finder pattern's first row, top left.
     assert_eq!(&qr.modules[..7], "1111111");
+}
+
+#[test]
+fn a_joining_device_s_channel_only_takes_and_confirms() {
+    // Port 9 is discard: a request that went out would fail with a network code, not this one.
+    let channel = RelayPairing::join(super::client::RelayUrl::parse("http://127.0.0.1:9").unwrap());
+    let id = fixed_pairing().id().to_string();
+    assert_eq!(channel.open(&id, b"offer"), Err("E_SYNC_PAIRING_ROLE"));
+    assert_eq!(channel.poll(&id).err(), Some("E_SYNC_PAIRING_ROLE"));
+    assert_eq!(channel.close(&id), Err("E_SYNC_PAIRING_ROLE"));
 }

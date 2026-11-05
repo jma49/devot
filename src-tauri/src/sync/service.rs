@@ -21,7 +21,7 @@ use super::client::{
     self, Connection, DeviceInfo, Event, PairingState, RelayUrl, RelayUsage, Welcome,
 };
 use super::file_record;
-use super::pairing::{self, Pairing, Qr};
+use super::pairing::{self, Pairing, PairingChannel, Qr, RelayPairing};
 use super::settings::{DeviceCredentials, SettingsStore};
 use super::{MAX_RECORD_BYTES, SecretStore, Vault};
 use crate::licence::Gate;
@@ -242,9 +242,8 @@ impl PairingCheck {
 /// The pairing this device shows. Only one at a time: a new code closes the last.
 struct Hosting {
     pairing: Pairing,
-    relay: RelayUrl,
+    channel: Box<dyn PairingChannel>,
     vault: String,
-    token: Zeroizing<String>,
     expires: i64,
     taken: AtomicBool,
 }
@@ -448,7 +447,8 @@ impl SyncService {
         let offer = pairing.seal_offer(&vault, expires).map_err(|e| e.code())?;
         let vault_id = vault.id().to_string();
         let token = Zeroizing::new(credentials.token);
-        client::pairing_open(&relay, &vault_id, &token, pairing.id(), &offer)?;
+        let channel = RelayPairing::host(relay.clone(), vault_id.clone(), token);
+        channel.open(pairing.id(), &offer)?;
         let link = pairing.link(&relay);
         let view = PairingView {
             code: pairing.code().to_string(),
@@ -462,9 +462,8 @@ impl SyncService {
         );
         *self.hosting.lock().map_err(|_| "E_SYNC_INTERNAL")? = Some(Arc::new(Hosting {
             pairing,
-            relay,
+            channel: Box::new(channel),
             vault: vault_id,
-            token,
             expires,
             taken: AtomicBool::new(false),
         }));
@@ -486,12 +485,7 @@ impl SyncService {
             self.end_pairing(&hosting);
             return Ok(Self::ended(&hosting));
         }
-        let state = client::pairing_status(
-            &hosting.relay,
-            &hosting.vault,
-            &hosting.token,
-            hosting.pairing.id(),
-        );
+        let state = hosting.channel.poll(hosting.pairing.id());
         match state {
             Ok(PairingState::Open) if now > hosting.expires => {
                 self.end_pairing(&hosting);
@@ -557,12 +551,7 @@ impl SyncService {
     }
 
     fn close_on_relay(hosting: &Hosting) {
-        let closed = client::pairing_close(
-            &hosting.relay,
-            &hosting.vault,
-            &hosting.token,
-            hosting.pairing.id(),
-        );
+        let closed = hosting.channel.close(hosting.pairing.id());
         if let Err(code) = closed
             && code != "E_SYNC_PAIRING_GONE"
         {
@@ -592,7 +581,8 @@ impl SyncService {
             return Err("E_SYNC_VAULT_EXISTS");
         }
         let pairing = entered.pairing;
-        let offer = client::pairing_take(&relay, pairing.id())?;
+        let channel = RelayPairing::join(relay.clone());
+        let offer = channel.take(pairing.id())?;
         let vault = pairing.open_offer(&offer, self.now()).map_err(|e| {
             log::warn!("W_SYNC_PAIRING_OFFER {} pairing={}", e.code(), pairing.id());
             e.code()
@@ -604,7 +594,7 @@ impl SyncService {
         let confirmed = pairing
             .seal_confirmation(&device)
             .map_err(|e| e.code())
-            .and_then(|proof| client::pairing_confirm(&relay, pairing.id(), &proof));
+            .and_then(|proof| channel.confirm(pairing.id(), &proof));
         if let Err(code) = confirmed {
             log::warn!("W_SYNC_PAIRING_CONFIRM {code} pairing={}", pairing.id());
         }
