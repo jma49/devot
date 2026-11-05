@@ -26,6 +26,7 @@ import { DevicesRow, JoinRows, PairingRow, RecoveryKeyPanel } from './SyncDevice
 import {
   ICloudActions,
   ICloudStorageRows,
+  LeaveICloudRow,
   MoveToICloudRow,
   TransportQuestion,
   TransportRow,
@@ -471,6 +472,9 @@ export function SyncSection() {
   const joinedNote =
     attention?.kind === 'joined' && line ? <SettingsNote>{line.text}</SettingsNote> : null
   const toggleOff = !onICloud && snapshot.relayUrl === ''
+  const leaveRow = onICloud ? (
+    <LeaveICloudRow onLeft={() => announce(t('syncSettings.icloudLeft'))} failed={failed} />
+  ) : null
   const stateNotes = (
     <>
       {snapshot.enabled && snapshot.status.relayOutdated ? (
@@ -596,6 +600,7 @@ export function SyncSection() {
           </PhoneGroup>
         ) : null}
         {inVault ? <PhoneGroup>{pairingRow}</PhoneGroup> : null}
+        {leaveRow ? <PhoneGroup>{leaveRow}</PhoneGroup> : null}
       </section>
     )
   }
@@ -649,6 +654,7 @@ export function SyncSection() {
             />
           </>
         ) : null}
+        {leaveRow}
       </SettingsSection>
     </section>
   )

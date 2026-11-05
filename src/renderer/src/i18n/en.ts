@@ -1226,6 +1226,15 @@ title: Daily Report {{date}}
     'This device uploads all its notes to iCloud and leaves word on the relay. Your other devices follow when they next sync.',
   'syncSettings.switchTransportButton': 'Move',
   'syncSettings.icloudChangeFailed': 'Sync through iCloud could not be changed ({code}).',
+  'syncSettings.icloudLeave': 'Leave This Vault',
+  'syncSettings.icloudLeaveHint':
+    'Removes the vault from this Apple ID. Your notes stay on every device, and the other devices ask before they sync again. To pause sync and keep the vault, turn sync off.',
+  'syncSettings.icloudLeaveKey': 'Recovery Key',
+  'syncSettings.icloudLeaveKeyHint':
+    'Type this vault’s recovery key to leave it. Nothing is removed from iCloud until you do.',
+  'syncSettings.icloudLeaveButton': 'Leave This Vault',
+  'syncSettings.icloudLeft': 'The vault was removed from iCloud. Your notes stay here.',
+  'syncSettings.icloudLeaveFailed': 'The vault could not be left ({code}).',
   'syncSettings.pairHintIcloud':
     'Only for a device that did not join by itself through the iCloud Keychain. Show a code here and scan it on the new device. It works once, for 10 minutes.',
   'syncSettings.joinCodeIcloudHint':
@@ -1240,6 +1249,8 @@ title: Daily Report {{date}}
   'syncSettings.why.icloudNoVault':
     'Your Apple ID does not sync the vault of that key. Check that this device is signed in to the Apple ID that syncs it.',
   'syncSettings.why.icloudNotUsed': 'This vault does not sync through iCloud.',
+  'syncSettings.why.leaveOtherKey':
+    'That is the recovery key of another vault. Type the key of the vault this device syncs.',
   'syncSettings.why.icloudFailed': 'iCloud answered with an error. Try again later.',
   'syncSettings.why.icloudZoneMissing':
     'The vault’s data is not in iCloud yet. Try again in a moment.',

@@ -16,6 +16,7 @@ use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
 use super::batch;
+use super::current;
 use super::encoding::{self, Size};
 use super::error::{self, Failure, Refused, classify};
 use super::kit::{
@@ -164,7 +165,8 @@ impl ICloud {
     /// Checks the account, the zones and the epoch, saves this device's clock and (at most daily)
     /// its device row, and subscribes. `has_synced` is the library's "has synced" state: with it,
     /// a vault zone this device saw before and finds gone stops sync (`E_SYNC_ICLOUD_DELETED`) and
-    /// nothing is uploaded; without it the zone is made again, under a new epoch.
+    /// nothing is uploaded; without it the zone is made again, under a new epoch, but only while
+    /// `current` names the vault.
     pub(crate) fn connect(
         &self,
         state: &ICloudState,
@@ -202,6 +204,11 @@ impl ICloud {
         let vault_zone_gone = !exist.get(1).copied().unwrap_or(false);
         if vault_zone_gone && state.zone_seen && has_synced {
             log::warn!("W_SYNC_ICLOUD_ZONE_GONE vault={}", state.vault);
+            return Err(error::DELETED);
+        }
+        // Every way into iCloud claims `current` first, so a vault it does not name was left.
+        if vault_zone_gone && current::read(kit)?.as_deref() != Some(state.vault.as_str()) {
+            log::warn!("W_SYNC_ICLOUD_NOT_CURRENT vault={}", state.vault);
             return Err(error::DELETED);
         }
         let missing: Vec<String> = zones

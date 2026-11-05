@@ -74,6 +74,13 @@ export const answerICloudJoin = async (accept: boolean) =>
 export const uploadToICloudAgain = async () =>
   adoptSnapshot(await invoke<unknown>('sync_icloud_upload_again'))
 
+/**
+ * Removes the vault from this Apple ID once `recoveryKey` proves it is this one
+ * (E_SYNC_RECOVERY_OTHER_VAULT otherwise). The notes here stay; the vault's keys on this device go.
+ */
+export const leaveICloudVault = async (recoveryKey: string) =>
+  adoptSnapshot(await invoke<unknown>('sync_icloud_leave', { recoveryKey }))
+
 /** About what the vault takes in iCloud, from the records here, in bytes. */
 export async function icloudStoredBytes(): Promise<number> {
   const bytes = await invoke<unknown>('sync_icloud_storage')

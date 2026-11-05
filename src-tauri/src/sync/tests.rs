@@ -699,3 +699,22 @@ fn saving_the_device_credentials_never_leaves_the_keychain_without_them() {
     let kept = DeviceCredentials::load(&store).unwrap();
     assert_eq!(kept.map(|c| c.token), Some("kept".to_string()));
 }
+
+#[test]
+fn the_same_vault_has_its_id_and_every_byte_of_its_key() {
+    let vault = fixed_vault();
+    let with_key = |change: Option<usize>| {
+        let mut key = Zeroizing::new([0; 32]);
+        for (i, byte) in key.iter_mut().enumerate() {
+            *byte = i as u8 ^ u8::from(change == Some(i));
+        }
+        Vault::from_parts(vault.id(), key)
+    };
+    assert!(vault.same(&with_key(None)));
+    for byte in [0, 17, 31] {
+        assert!(!vault.same(&with_key(Some(byte))), "{byte}");
+    }
+    let other_id = Vault::from_parts(VaultId::from_bytes([7; 16]), Zeroizing::new([0; 32]));
+    let same_key = Vault::from_parts(VaultId::from_bytes([7; 16]), Zeroizing::new(*vault.key()));
+    assert!(!vault.same(&same_key) && !other_id.same(&same_key));
+}

@@ -5,6 +5,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { setIPhoneWording } from '../i18n'
+import { enPhone } from '../i18n/phone'
 import { OnPhone } from './onPhone'
 import { SyncSection } from './SyncSection'
 import { SYNC_CHANGED } from '../sync'
@@ -32,6 +33,10 @@ vi.mock('../ipc', () => ({
       case 'sync_icloud_join':
       case 'sync_icloud_upload_again':
       case 'sync_set':
+        return answers.snapshot
+      case 'sync_icloud_leave':
+        if ((args as { recoveryKey?: string }).recoveryKey !== 'THIS-VAULT')
+          throw new Error('E_SYNC_RECOVERY_OTHER_VAULT')
         return answers.snapshot
       case 'sync_icloud_status':
         if (answers.icloud instanceof Error) throw answers.icloud
@@ -126,6 +131,11 @@ const buttons = (el: HTMLElement) =>
   }))
 const button = (el: HTMLElement, text: string) =>
   [...el.querySelectorAll('button')].find((b) => b.textContent?.trim() === text)
+const type = (input: HTMLInputElement, text: string) =>
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, text)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
 
 describe.each([
   ['the Mac', false],
@@ -354,4 +364,60 @@ describe.each([
     expect(without.textContent).not.toContain('Syncs Through')
     expect(without.querySelector('input[type=url]')).not.toBeNull()
   })
+
+  it('leaves an iCloud vault only once its recovery key is typed', async () => {
+    const el = await show(snapshot({}), ICLOUD, phone)
+    expect(el.textContent).toMatch(/notes stay/i)
+    expect(el.querySelector('input[type=text]')).toBeNull()
+    await act(async () => button(el, 'Leave This Vault…')?.click())
+    const key = el.querySelector<HTMLInputElement>('input[type=text]')
+    expect(key).not.toBeNull()
+    const hint = key?.getAttribute('aria-describedby')
+    expect(hint && document.getElementById(hint)?.textContent).toMatch(
+      phone ? /^Removed from iCloud for every device$/ : /recovery key/,
+    )
+    expect(button(el, 'Leave This Vault')?.disabled).toBe(true)
+    expect(calls.some((c) => c.cmd === 'sync_icloud_leave')).toBe(false)
+    if (!key) return
+    type(key, 'OTHER-VAULT')
+    await act(async () => button(el, 'Leave This Vault')?.click())
+    await settle()
+    expect(el.textContent).toMatch(/recovery key of another vault/)
+    type(key, 'THIS-VAULT')
+    await act(async () => button(el, 'Leave This Vault')?.click())
+    await settle()
+    expect(calls.filter((c) => c.cmd === 'sync_icloud_leave').map((c) => c.args)).toEqual([
+      { recoveryKey: 'OTHER-VAULT' },
+      { recoveryKey: 'THIS-VAULT' },
+    ])
+    await act(() => new Promise((resolve) => setTimeout(resolve, 60)))
+    expect(el.textContent).toMatch(/removed from iCloud\. (Your )?notes stay here/i)
+  })
+
+  it('cancels leaving without a word to Rust, and offers it to no relay vault', async () => {
+    const el = await show(snapshot({}), ICLOUD, phone)
+    await act(async () => button(el, 'Leave This Vault…')?.click())
+    await act(async () => button(el, 'Cancel')?.click())
+    expect(el.querySelector('input[type=text]')).toBeNull()
+    expect(button(el, 'Leave This Vault…')).toBeDefined()
+    expect(calls.some((c) => c.cmd === 'sync_icloud_leave')).toBe(false)
+    act(() => root?.unmount())
+    root = undefined
+    const relay = await show(snapshot({ transport: 'relay', enrolled: true }), ICLOUD, phone)
+    expect(button(relay, 'Leave This Vault…')).toBeUndefined()
+  })
+})
+
+it('points the key field at its hint only when there is one', async () => {
+  const shown = enPhone['syncSettings.icloudLeaveKeyHint']
+  enPhone['syncSettings.icloudLeaveKeyHint'] = ''
+  try {
+    const el = await show(snapshot({}), ICLOUD, true)
+    await act(async () => button(el, 'Leave This Vault…')?.click())
+    const key = el.querySelector<HTMLInputElement>('input[type=text]')
+    expect(key).not.toBeNull()
+    expect(key?.hasAttribute('aria-describedby')).toBe(false)
+  } finally {
+    Object.assign(enPhone, { 'syncSettings.icloudLeaveKeyHint': shown })
+  }
 })

@@ -82,8 +82,11 @@ impl Device {
     }
 }
 
+/// An Apple ID whose `current` names a new vault, as `use_icloud` leaves it before a first connect.
 fn setup() -> (Arc<Fake>, Arc<Vault>) {
-    (Arc::new(Fake::new()), Arc::new(Vault::generate().unwrap()))
+    let (kit, vault) = (Arc::new(Fake::new()), Arc::new(Vault::generate().unwrap()));
+    super::current::claim(kit.as_ref(), &vault.id().to_string()).unwrap();
+    (kit, vault)
 }
 
 fn pushed_tag(result: &PushAnswer) -> String {
@@ -661,6 +664,30 @@ fn a_first_connect_takes_the_epoch_another_device_just_saved() {
     kit.delete_zone(&zone);
     let mut b = device(&kit, &vault);
     assert_eq!(b.connect(false).unwrap().epoch, epoch);
+}
+
+#[test]
+fn a_vault_zone_gone_is_made_again_only_while_current_names_the_vault() {
+    let (kit, vault) = setup();
+    let zone = vault_zone(&vault.id().to_string());
+    // Joined and connected, but never pushed or pulled; then the vault was left elsewhere.
+    let mut phone = device(&kit, &vault);
+    phone.connect(false).unwrap();
+    kit.delete_zone(&zone);
+    kit.delete_zone(ZONE_DEVOT);
+    kit.delete_zone(ZONE_CLOCK);
+    let (saves, zones) = (kit.calls(Op::Save), kit.calls(Op::SaveZones));
+    assert_eq!(phone.connect(false), Err("E_SYNC_ICLOUD_DELETED"));
+    // A device that joined while the vault was being left never saw the zone.
+    let mut joiner = device(&kit, &vault);
+    assert_eq!(joiner.connect(false), Err("E_SYNC_ICLOUD_DELETED"));
+    assert_eq!(kit.calls(Op::Save), saves, "nothing uploaded");
+    assert_eq!(kit.calls(Op::SaveZones), zones, "no zone made again");
+
+    let other = Vault::generate().unwrap().id().to_string();
+    super::current::claim(kit.as_ref(), &other).unwrap();
+    assert_eq!(phone.connect(false), Err("E_SYNC_ICLOUD_DELETED"));
+    assert!(!kit.zone_exists(&zone));
 }
 
 #[test]

@@ -292,6 +292,22 @@ pub async fn sync_icloud_upload_again(
     task::blocking_with(&sync, "E_SYNC_INTERNAL", |sync| sync.icloud_upload_again()).await
 }
 
+/// Leave This Vault: the vault's recovery key confirms it.
+#[tauri::command]
+pub async fn sync_icloud_leave(
+    sync: State<'_, Arc<SyncService>>,
+    recovery_key: String,
+) -> Result<Snapshot, String> {
+    if recovery_key.len() > MAX_RECOVERY_KEY {
+        return Err("E_SYNC_RECOVERY_FORMAT".into());
+    }
+    let key = zeroize::Zeroizing::new(recovery_key);
+    task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| {
+        sync.icloud_leave(&key)
+    })
+    .await
+}
+
 /// About what the vault holds on its transport, from the records here: Settings shows it for iCloud,
 /// whose storage Devot does not read.
 #[tauri::command]

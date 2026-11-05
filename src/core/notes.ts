@@ -161,8 +161,14 @@ export interface StatusUndo {
 export interface NoteService {
   list(limit?: number): Promise<NoteSummary[]>
   create(title?: string, bookId?: string | null): Promise<string>
-  /** Makes note `id` holding `markdown` as a Yjs state every device builds byte for byte alike, so copies seeded on two devices merge as one (first-launch notes). */
-  seed(id: string, title: string, bookId: string | null, markdown: string): Promise<void>
+  /** Makes note `id` holding `markdown` as a Yjs state every device builds byte for byte alike, so copies seeded on two devices merge as one (first-launch notes). One write, so its dates stay equal until the owner changes it (Rust's `own_note_count`). */
+  seed(
+    id: string,
+    title: string,
+    bookId: string | null,
+    markdown: string,
+    pinned?: boolean,
+  ): Promise<void>
   open(id: string, known?: Uint8Array): Promise<OpenedNote>
   /** Pending edits included; loads the note for an editor to open next. Throws E_NOTE_NOT_FOUND. */
   title(id: string): Promise<string>
@@ -1228,6 +1234,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     status: NoteStatus = 'none',
     id = newId(),
     rowsSeen = false,
+    pinned = false,
   ) => {
     const at = now()
     const record: NoteRecord = {
@@ -1241,8 +1248,8 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       bookHlc: bookId === null ? '' : clock.tick(),
       status,
       statusHlc: status === 'none' ? '' : clock.tick(),
-      pinned: false,
-      pinnedHlc: '',
+      pinned,
+      pinnedHlc: pinned ? clock.tick() : '',
       createdAt: at,
       updatedAt: at,
       deletedAt: null,
@@ -1317,14 +1324,14 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       return record.id
     },
 
-    async seed(id, title, bookId, markdown) {
+    async seed(id, title, bookId, markdown, pinned = false) {
       const seeded = new Y.Doc()
       seeded.clientID = seedClient(id, markdown)
       seeded.getText(BODY).insert(0, lineFeeds(markdown))
       // Edits go on under a client of this device's own: two devices writing as the seed's client would give two changes one ID.
       const doc = new Y.Doc()
       Y.applyUpdate(doc, Y.encodeStateAsUpdate(seeded))
-      await insertNote(title, await liveBook(bookId), doc, [], 'none', id)
+      await insertNote(title, await liveBook(bookId), doc, [], 'none', id, false, pinned)
     },
 
     duplicate: (id, copy) =>

@@ -183,6 +183,8 @@ pub(crate) trait CloudKit: Send + Sync {
     /// Whether each zone exists, in order.
     fn zones_exist(&self, zones: &[String]) -> Result<Vec<bool>, CkError>;
     fn save_zones(&self, zones: &[String]) -> Result<(), CkError>;
+    /// Deletes these zones with every record in them; a zone already gone is no error.
+    fn delete_zones(&self, zones: &[String]) -> Result<(), CkError>;
     /// The records of these names in `zone`, `None` for one that does not exist.
     fn fetch(&self, zone: &str, names: &[String]) -> Result<Vec<Option<CkRecord>>, CkError>;
     /// Saves not atomically: one result per record, in order, each the record as saved.
@@ -215,6 +217,9 @@ impl CloudKit for Unavailable {
         Err(unavailable())
     }
     fn save_zones(&self, _: &[String]) -> Result<(), CkError> {
+        Err(unavailable())
+    }
+    fn delete_zones(&self, _: &[String]) -> Result<(), CkError> {
         Err(unavailable())
     }
     fn fetch(&self, _: &str, _: &[String]) -> Result<Vec<Option<CkRecord>>, CkError> {

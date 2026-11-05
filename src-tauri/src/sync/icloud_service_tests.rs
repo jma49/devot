@@ -612,6 +612,11 @@ fn with_no_handover_item_or_one_for_another_vault_settings_offers_the_fallback()
         held(&phone).is_none(),
         "an answer never joins a vault the item does not name"
     );
+    assert_eq!(
+        current_vault(&kit),
+        Some(held(&mac).unwrap().id().to_string()),
+        "nor writes current"
+    );
 
     use super::SecretStore as _;
     keychain
@@ -851,6 +856,7 @@ fn an_expired_icloud_offer_is_refused_by_the_joining_device() {
 struct Flaky {
     items: Secrets,
     failures: AtomicUsize,
+    removals: AtomicUsize,
 }
 
 const FLAKY_STATUS: i32 = -25308;
@@ -863,11 +869,19 @@ impl Flaky {
         })
     }
 
+    fn failing_removals(removals: usize) -> Arc<Self> {
+        Arc::new(Self {
+            removals: AtomicUsize::new(removals),
+            ..Self::default()
+        })
+    }
+
     fn write(&self) -> Result<(), SyncError> {
-        match self
-            .failures
-            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
-        {
+        Self::fail(&self.failures)
+    }
+
+    fn fail(left: &AtomicUsize) -> Result<(), SyncError> {
+        match left.try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1)) {
             Ok(_) => Err(SyncError::Keychain(FLAKY_STATUS)),
             Err(_) => Ok(()),
         }
@@ -890,6 +904,7 @@ impl SecretStore for Flaky {
     }
 
     fn remove(&self, account: &str) -> Result<bool, SyncError> {
+        Self::fail(&self.removals)?;
         self.items.remove(account)
     }
 }
@@ -1036,14 +1051,368 @@ fn a_handover_item_that_could_not_be_written_is_written_at_a_later_connect() {
     mac.service.connect(false).unwrap();
     let vault = held(&mac).unwrap();
     assert!(handed_over(keychain.as_ref()).unwrap().same(&vault));
+}
+
+#[test]
+fn a_device_in_the_vault_current_names_writes_an_item_naming_another_again() {
+    let kit = Arc::new(Fake::new());
+    let keychain = Arc::new(Secrets::default());
+    let mac = device_with(&kit, &keychain);
+    mac.service.use_icloud(None, 0).unwrap();
+    let vault = held(&mac).unwrap();
 
     let other = Vault::generate().unwrap();
     super::handover::write(keychain.as_ref(), &other).unwrap();
     mac.service.connect(false).unwrap();
-    assert!(
-        handed_over(keychain.as_ref()).unwrap().same(&other),
-        "an item naming another vault is #613's"
+    assert!(handed_over(keychain.as_ref()).unwrap().same(&vault));
+
+    let damaged = [1, 0, 0];
+    use super::SecretStore as _;
+    keychain
+        .replace(super::handover::ACCOUNT, &damaged)
+        .unwrap();
+    mac.service.connect(false).unwrap();
+    assert!(handed_over(keychain.as_ref()).unwrap().same(&vault));
+
+    keychain
+        .replace(super::handover::ACCOUNT, &[2, 0, 0])
+        .unwrap();
+    mac.service.connect(false).unwrap();
+    assert_eq!(
+        keychain
+            .read(super::handover::ACCOUNT)
+            .unwrap()
+            .unwrap()
+            .as_slice(),
+        [2, 0, 0],
+        "a later build's item stays"
     );
+}
+
+#[test]
+fn a_device_in_a_vault_current_does_not_name_leaves_the_item_as_it_is() {
+    use super::cloudkit::CloudKit as _;
+    use super::cloudkit::kit::{SavePolicy, Value};
+    let kit = Arc::new(Fake::new());
+    let keychain = Arc::new(Secrets::default());
+    let mac = device_with(&kit, &keychain);
+    mac.service.use_icloud(None, 0).unwrap();
+    mac.service.connect(false).unwrap();
+    mac.service.disconnect();
+    let winner = Vault::generate().unwrap();
+    let mut current = kit.record(ZONE_DEVOT, "current").unwrap();
+    current.set("vault", Value::Text(winner.id().to_string()));
+    kit.save(ZONE_DEVOT, &[current], SavePolicy::Overwrite)
+        .unwrap();
+    super::handover::write(keychain.as_ref(), &winner).unwrap();
+
+    mac.service.connect(false).unwrap();
+    assert!(handed_over(keychain.as_ref()).unwrap().same(&winner));
+}
+
+#[test]
+fn an_account_change_takes_the_vault_s_handover_item_off_this_device() {
+    let first = Arc::new(Fake::new());
+    let keychain = Arc::new(Secrets::default());
+    let mac = device_with(&first, &keychain);
+    mac.service.use_icloud(None, 0).unwrap();
+    mac.service.connect(true).unwrap();
+    mac.service.disconnect();
+    let vault = held(&mac).unwrap();
+
+    let second = Arc::new(Fake::new());
+    second.switch_user("_user-two");
+    let switched = on_apple_id(&second, &mac, &keychain);
+    assert_eq!(switched.connect(true).err(), Some(error::ACCOUNT_CHANGED));
+    assert!(
+        handed_over(keychain.as_ref()).is_none(),
+        "the key does not stay in the next Apple ID's keychain"
+    );
+    assert!(
+        held(&mac).unwrap().same(&vault),
+        "this device keeps its own"
+    );
+
+    let theirs = Vault::generate().unwrap();
+    super::handover::write(keychain.as_ref(), &theirs).unwrap();
+    assert_eq!(switched.connect(true).err(), Some(error::ACCOUNT_CHANGED));
+    assert!(
+        handed_over(keychain.as_ref()).unwrap().same(&theirs),
+        "the new Apple ID's own item stays"
+    );
+
+    switched.icloud_upload_again().unwrap();
+    assert!(handed_over(keychain.as_ref()).unwrap().same(&vault));
+}
+
+/// A Mac and an iPhone on one Apple ID, both in its vault, each having synced a note.
+fn two_in_the_vault(kit: &Arc<Fake>, keychain: &Arc<Secrets>) -> (Device, Device) {
+    let mac = device_with(kit, keychain);
+    mac.service.use_icloud(None, 0).unwrap();
+    mac.service.connect(true).unwrap();
+    mac.service
+        .push(NOTE, 0, &b64(b"first"), "record", "")
+        .unwrap();
+    let phone = device_with(kit, keychain);
+    phone.service.icloud_look(0).unwrap();
+    phone.service.connect(true).unwrap();
+    assert_eq!(phone.service.pull("").unwrap().records.len(), 1);
+    (mac, phone)
+}
+
+fn recovery_key_of(device: &Device) -> String {
+    held(device).unwrap().recovery_key().to_string()
+}
+
+#[test]
+fn leaving_removes_the_vault_from_the_apple_id_and_the_others_ask_first() {
+    let kit = Arc::new(Fake::new());
+    let keychain = Arc::new(Secrets::default());
+    let (mac, phone) = two_in_the_vault(&kit, &keychain);
+    let vault = held(&mac).unwrap().id().to_string();
+    let key = recovery_key_of(&mac);
+
+    let left = mac.service.icloud_leave(&key).unwrap();
+    assert!(!left.vault && !left.enabled);
+    assert_eq!(
+        kit.deleted_zones(),
+        [vault_zone(&vault).as_str(), ZONE_DEVOT, "devot-clock"]
+    );
+    assert!(handed_over(keychain.as_ref()).is_none());
+    assert!(held(&mac).is_none());
+    assert_eq!(mac.service.connect(true).err(), Some("E_SYNC_OFF"));
+    assert_eq!(current_vault(&kit), None);
+
+    let (saves, zones) = (kit.calls(Op::Save), kit.calls(Op::SaveZones));
+    assert_eq!(phone.service.connect(true).err(), Some(error::DELETED));
+    assert_eq!(kit.calls(Op::Save), saves, "it uploads nothing");
+    assert_eq!(kit.calls(Op::SaveZones), zones, "and remakes no zone");
+    assert!(
+        held(&phone).unwrap().id().to_string() == vault,
+        "it keeps its vault, to upload again or turn sync off"
+    );
+}
+
+#[test]
+fn leaving_needs_this_vault_s_recovery_key_and_deletes_nothing_without_it() {
+    let kit = Arc::new(Fake::new());
+    let keychain = Arc::new(Secrets::default());
+    let (mac, _phone) = two_in_the_vault(&kit, &keychain);
+    let other = Vault::generate().unwrap().recovery_key().to_string();
+    for (key, refused) in [
+        ("", "E_SYNC_RECOVERY_FORMAT"),
+        ("not a key", "E_SYNC_RECOVERY_FORMAT"),
+        (other.as_str(), "E_SYNC_RECOVERY_OTHER_VAULT"),
+    ] {
+        assert_eq!(mac.service.icloud_leave(key).err(), Some(refused), "{key}");
+    }
+    let long = "A".repeat(513);
+    assert_eq!(
+        mac.service.icloud_leave(&long).err(),
+        Some("E_SYNC_RECOVERY_FORMAT")
+    );
+    assert_eq!(kit.calls(Op::DeleteZones), 0);
+    assert!(handed_over(keychain.as_ref()).is_some());
+    assert!(held(&mac).is_some() && mac.service.snapshot().enabled);
+}
+
+#[test]
+fn leaving_needs_a_vault_on_icloud_and_the_apple_id_it_syncs_with() {
+    let kit = Arc::new(Fake::new());
+    let mac = device(&kit);
+    assert_eq!(
+        mac.service.icloud_leave("x").err(),
+        Some("E_SYNC_NO_VAULT_KEY")
+    );
+    Vault::create(mac.secrets.as_ref()).unwrap();
+    let key = recovery_key_of(&mac);
+    assert_eq!(
+        mac.service.icloud_leave(&key).err(),
+        Some("E_SYNC_ICLOUD_NOT_USED")
+    );
+
+    let first = Arc::new(Fake::new());
+    let keychain = Arc::new(Secrets::default());
+    let (mac, _phone) = two_in_the_vault(&first, &keychain);
+    first.switch_user("_user-two");
+    assert_eq!(
+        mac.service.icloud_leave(&recovery_key_of(&mac)).err(),
+        Some(error::ACCOUNT_CHANGED)
+    );
+    assert_eq!(
+        first.calls(Op::DeleteZones),
+        0,
+        "never another Apple ID's zones"
+    );
+    assert!(held(&mac).is_some());
+}
+
+#[test]
+fn a_leave_that_failed_part_way_is_retried_to_the_same_end() {
+    use super::cloudkit::error::code;
+    use super::cloudkit::kit::CkError;
+    let kit = Arc::new(Fake::new());
+    let keychain = Flaky::failing_removals(1);
+    let mac = device_of(
+        &kit,
+        Arc::clone(&keychain) as _,
+        Arc::new(Secrets::default()),
+        Gate::open(),
+    );
+    mac.service.use_icloud(None, 0).unwrap();
+    mac.service.connect(true).unwrap();
+    let vault = held(&mac).unwrap();
+    let key = recovery_key_of(&mac);
+    let zone = vault_zone(&vault.id().to_string());
+
+    kit.fail_zone_delete(&zone, CkError::of(code::NETWORK_UNAVAILABLE));
+    assert_eq!(mac.service.icloud_leave(&key).err(), Some(error::OFFLINE));
+    assert!(kit.zone_exists(&zone) && kit.zone_exists(ZONE_DEVOT));
+    assert!(held(&mac).is_some() && handed_over(keychain.as_ref()).is_some());
+
+    kit.fail_zone_delete("devot-clock", CkError::of(code::REQUEST_RATE_LIMITED));
+    assert_eq!(mac.service.icloud_leave(&key).err(), Some(error::BUSY));
+    assert!(!kit.zone_exists(&zone) && !kit.zone_exists(ZONE_DEVOT));
+    assert!(held(&mac).is_some() && handed_over(keychain.as_ref()).is_some());
+
+    assert_eq!(
+        mac.service.icloud_leave(&key).err(),
+        Some("E_SYNC_KEYCHAIN"),
+        "the handover item could not be removed"
+    );
+    assert!(!kit.zone_exists("devot-clock"));
+    assert!(
+        held(&mac).is_some(),
+        "the key stays here until the item is gone"
+    );
+
+    let left = mac.service.icloud_leave(&key).unwrap();
+    assert!(!left.vault && !left.enabled);
+    assert!(handed_over(keychain.as_ref()).is_none() && held(&mac).is_none());
+    assert_eq!(
+        kit.deleted_zones(),
+        [zone.as_str(), ZONE_DEVOT, "devot-clock"]
+    );
+}
+
+#[test]
+fn a_device_that_never_synced_stops_after_a_leave_instead_of_making_the_vault_again() {
+    let kit = Arc::new(Fake::new());
+    let keychain = Arc::new(Secrets::default());
+    let mac = device_with(&kit, &keychain);
+    mac.service.use_icloud(None, 0).unwrap();
+    mac.service.connect(true).unwrap();
+    let vault = held(&mac).unwrap().id().to_string();
+    let phone = device_with(&kit, &keychain);
+    phone.service.icloud_look(0).unwrap();
+    phone.service.connect(false).unwrap();
+    phone.service.disconnect();
+    // Joined through the keychain before the leave, and connects only after it.
+    let joiner = device_with(&kit, &keychain);
+    joiner.service.icloud_look(0).unwrap();
+
+    mac.service.icloud_leave(&recovery_key_of(&mac)).unwrap();
+    let (saves, zones) = (kit.calls(Op::Save), kit.calls(Op::SaveZones));
+    assert_eq!(phone.service.connect(false).err(), Some(error::DELETED));
+    assert_eq!(joiner.service.connect(false).err(), Some(error::DELETED));
+    assert_eq!(kit.calls(Op::Save), saves, "nothing uploaded");
+    assert_eq!(kit.calls(Op::SaveZones), zones, "no zone made again");
+    assert!(
+        handed_over(keychain.as_ref()).is_none(),
+        "no item written again"
+    );
+    assert_eq!(current_vault(&kit), None);
+
+    phone.service.icloud_upload_again().unwrap();
+    phone.service.connect(true).unwrap();
+    assert!(kit.zone_exists(&vault_zone(&vault)));
+    assert_eq!(current_vault(&kit), Some(vault));
+}
+
+/// `device` signed in to another Apple ID, `kit`, whose iCloud Keychain is `keychain`.
+fn on_apple_id(kit: &Arc<Fake>, device: &Device, keychain: &Arc<Secrets>) -> SyncService {
+    SyncService::new(
+        SettingsStore::new(&device._dir.path().join(FILE)),
+        Arc::clone(&device.secrets),
+        Arc::new(|_, _| ()),
+        Gate::open(),
+    )
+    .with_icloud(Arc::clone(kit) as _)
+    .with_handover(Arc::clone(keychain) as _)
+}
+
+#[test]
+fn an_account_change_keeps_the_item_of_a_vault_the_new_apple_id_syncs() {
+    let first = Arc::new(Fake::new());
+    let (mac, phone) = two_in_the_vault(&first, &Arc::new(Secrets::default()));
+    let vault = held(&mac).unwrap();
+
+    let second = Arc::new(Fake::new());
+    second.switch_user("_user-two");
+    let theirs = Arc::new(Secrets::default());
+    let moved = on_apple_id(&second, &phone, &theirs);
+    assert_eq!(moved.connect(true).err(), Some(error::ACCOUNT_CHANGED));
+    moved.icloud_upload_again().unwrap();
+    moved.connect(true).unwrap();
+    assert!(handed_over(theirs.as_ref()).unwrap().same(&vault));
+
+    let mac_there = on_apple_id(&second, &mac, &theirs);
+    assert_eq!(mac_there.connect(true).err(), Some(error::ACCOUNT_CHANGED));
+    assert!(
+        handed_over(theirs.as_ref()).unwrap().same(&vault),
+        "the new Apple ID syncs the vault: its item stays"
+    );
+}
+
+#[test]
+fn a_vault_never_connected_is_left_only_from_the_apple_id_current_names_it_on() {
+    let first = Arc::new(Fake::new());
+    let mac = device(&first);
+    mac.service.use_icloud(None, 0).unwrap();
+    let key = recovery_key_of(&mac);
+    let second = Arc::new(Fake::new());
+    second.switch_user("_user-two");
+    let elsewhere = on_apple_id(&second, &mac, &Arc::new(Secrets::default()));
+    assert_eq!(
+        elsewhere.icloud_leave(&key).err(),
+        Some("E_SYNC_ICLOUD_NO_VAULT")
+    );
+    device(&second).service.use_icloud(None, 0).unwrap();
+    assert_eq!(
+        elsewhere.icloud_leave(&key).err(),
+        Some("E_SYNC_ICLOUD_NO_VAULT")
+    );
+    assert_eq!(second.calls(Op::DeleteZones), 0);
+    assert!(held(&mac).is_some());
+
+    use super::cloudkit::error::code;
+    use super::cloudkit::kit::CkError;
+    first.fail_zone_delete("devot-clock", CkError::of(code::REQUEST_RATE_LIMITED));
+    assert_eq!(mac.service.icloud_leave(&key).err(), Some(error::BUSY));
+    assert_eq!(current_vault(&first), None);
+    let left = mac.service.icloud_leave(&key).unwrap();
+    assert!(
+        !left.vault && held(&mac).is_none(),
+        "a retry ends the leave"
+    );
+}
+
+#[test]
+fn turning_sync_off_keeps_the_vault_on_icloud() {
+    let kit = Arc::new(Fake::new());
+    let keychain = Arc::new(Secrets::default());
+    let (mac, _phone) = two_in_the_vault(&kit, &keychain);
+    let off = mac
+        .service
+        .set(super::service::SettingsPatch {
+            enabled: Some(false),
+            ..Default::default()
+        })
+        .unwrap();
+    assert!(off.vault && !off.enabled);
+    assert_eq!(off.transport, "icloud");
+    assert_eq!(kit.calls(Op::DeleteZones), 0);
+    assert!(handed_over(keychain.as_ref()).is_some());
 }
 
 #[test]

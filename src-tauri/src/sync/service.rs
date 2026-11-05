@@ -46,6 +46,7 @@ const OTHER_VAULT: &str = "E_SYNC_ICLOUD_OTHER_VAULT";
 const OTHER_ACCOUNT: &str = "E_SYNC_ICLOUD_OTHER_ACCOUNT";
 const NO_VAULT: &str = "E_SYNC_ICLOUD_NO_VAULT";
 const VAULT_MOVED: &str = "E_SYNC_VAULT_MOVED";
+const RECOVERY_OTHER_VAULT: &str = "E_SYNC_RECOVERY_OTHER_VAULT";
 const MAX_RELAY_SECRET: usize = 1024;
 const MAX_RECOVERY_KEY: usize = 512;
 const STATES: [&str; 7] = [
@@ -1184,7 +1185,12 @@ impl SyncService {
         );
         let (welcome, kept) = icloud
             .connect(state, has_synced, DEVICE_LABEL, self.now())
-            .inspect_err(|code| log::info!("I_SYNC_ICLOUD_REFUSED {code}"))?;
+            .inspect_err(|code| {
+                log::info!("I_SYNC_ICLOUD_REFUSED {code}");
+                if *code == cloudkit::error::ACCOUNT_CHANGED {
+                    self.forget_handover(&vault);
+                }
+            })?;
         if kept != *state {
             let mut settings = self.settings.get();
             if settings
@@ -1201,7 +1207,7 @@ impl SyncService {
             state.vault,
             welcome.device
         );
-        self.hand_over_if_missing(&vault);
+        self.hand_over_at_connect(&vault);
         *self.live.lock().map_err(|_| "E_SYNC_INTERNAL")? = Some(Live::ICloud(Arc::new(icloud)));
         Ok(welcome)
     }
@@ -1384,11 +1390,40 @@ impl SyncService {
         }
     }
 
-    /// At each connect, writes the item a first write left missing. One naming another vault is
-    /// left as it is (#613).
-    fn hand_over_if_missing(&self, vault: &Vault) {
-        if let Ok(None) = handover::read(self.handover.as_ref()) {
+    /// At each connect, writes the item a first write left missing, and one naming another vault
+    /// (or damaged) while `current` names this one. A later build's item is left as it is.
+    fn hand_over_at_connect(&self, vault: &Vault) {
+        let named = match handover::read(self.handover.as_ref()) {
+            Ok(None) => return self.write_handover(vault),
+            Ok(Some(item)) if item.same(vault) => return,
+            Ok(Some(item)) => Some(item.id()),
+            Err(super::SyncError::HandoverCorrupt) => None,
+            Err(_) => return,
+        };
+        let id = vault.id().to_string();
+        if current::read(self.kit.as_ref()).is_ok_and(|current| current.as_deref() == Some(&id)) {
+            match named {
+                Some(other) => log::info!("I_SYNC_HANDOVER_REWRITTEN item={other} vault={id}"),
+                None => log::info!("I_SYNC_HANDOVER_REWRITTEN vault={id}"),
+            }
             self.write_handover(vault);
+        }
+    }
+
+    /// The device now signed in to another Apple ID takes the vault's item off this device, so its
+    /// copy does not stay in that Apple ID's iCloud Keychain. An Apple ID whose `current` names the
+    /// vault (or that cannot be read) keeps it: the item is its own. The device-only item stays.
+    fn forget_handover(&self, vault: &Vault) {
+        let id = vault.id().to_string();
+        let elsewhere = current::read(self.kit.as_ref())
+            .is_ok_and(|current| current.as_deref() != Some(id.as_str()));
+        if !elsewhere {
+            return;
+        }
+        match handover::remove(self.handover.as_ref(), vault) {
+            Ok(true) => log::info!("I_SYNC_HANDOVER_REMOVED vault={id}"),
+            Ok(false) => {}
+            Err(e) => log::warn!("W_SYNC_HANDOVER_REMOVE {e} vault={id}"),
         }
     }
 
@@ -1520,6 +1555,70 @@ impl SyncService {
         } else {
             log::info!("I_SYNC_ICLOUD_UPLOAD_AGAIN vault={}", vault.id());
         }
+        Ok(self.changed())
+    }
+
+    /// Leave This Vault (docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md, Leaving
+    /// the vault): removes the vault from this Apple ID, which is its membership. The vault's own
+    /// recovery key confirms it; any other key, or the Apple ID not the one the vault syncs with,
+    /// deletes nothing. Sync turns off, then the zones go, then the handover item, then this
+    /// device's own item, so a failure part way keeps the key here and a retry ends the same. Notes
+    /// stay on every device; the others find the zone gone and ask before uploading again.
+    pub(crate) fn icloud_leave(&self, recovery_key: &str) -> Result<Snapshot, &'static str> {
+        if recovery_key.len() > MAX_RECOVERY_KEY {
+            return Err("E_SYNC_RECOVERY_FORMAT");
+        }
+        let vault = self.held_vault()?;
+        let id = vault.id().to_string();
+        let mut settings = self.settings.get();
+        let account = settings
+            .icloud_for(&id)
+            .ok_or("E_SYNC_ICLOUD_NOT_USED")?
+            .account
+            .clone();
+        let named = Vault::from_recovery_key(recovery_key).map_err(|e| e.code())?;
+        if !named.same(&vault) {
+            return Err(RECOVERY_OTHER_VAULT);
+        }
+        let kit = self.kit.as_ref();
+        current::ready(kit)?;
+        let signed_in = cloudkit::account_of(kit)?;
+        if account.is_empty() {
+            // Never connected, so no Apple ID is kept: `current` here must name the vault. This
+            // Apple ID is kept now, so a retry after a failure part way is checked as any other.
+            if current::read(kit)?.as_deref() != Some(id.as_str()) {
+                return Err(NO_VAULT);
+            }
+            if let Some(state) = settings.icloud.as_mut().filter(|s| s.vault == id) {
+                state.account = signed_in;
+                self.settings.set(&settings)?;
+            }
+        } else if account != signed_in {
+            return Err(cloudkit::error::ACCOUNT_CHANGED);
+        }
+        self.pairing_cancel();
+        self.disconnect();
+        if settings.enabled {
+            settings.enabled = false;
+            self.settings.set(&settings)?;
+        }
+        current::leave(kit, &id)?;
+        handover::remove(self.handover.as_ref(), &vault).map_err(|e| {
+            log::warn!("W_SYNC_HANDOVER_REMOVE {e} vault={id}");
+            e.code()
+        })?;
+        Vault::delete(self.secrets.as_ref()).map_err(|e| {
+            log::warn!("W_SYNC_VAULT_REMOVE {e} vault={id}");
+            e.code()
+        })?;
+        let mut settings = self.settings.get();
+        settings.icloud = None;
+        settings.icloud_declined.clear();
+        self.settings.set(&settings)?;
+        if let Ok(mut look) = self.look.lock() {
+            *look = None;
+        }
+        log::info!("I_SYNC_ICLOUD_LEFT vault={id}");
         Ok(self.changed())
     }
 

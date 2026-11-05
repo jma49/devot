@@ -46,6 +46,24 @@ describe('first-launch notes', () => {
     expect((await storage.listBooks()).map((b) => b.name)).toEqual(['Getting started'])
   })
 
+  it('writes each note once, so its dates say it is as seeded', async () => {
+    const storage = openSqliteAdapter(join(tempDir('devot-welcome-'), 'devot.sqlite'))
+    open.push(storage)
+    let at = 1_000
+    const now = () => (at += 7)
+    await seedWelcome({
+      storage,
+      clock: createClock('mac1'),
+      newId: createIdGenerator(),
+      now,
+      content,
+    })
+    const listed = await storage.listNotes()
+    expect(listed).toHaveLength(2)
+    expect(listed.map((n) => n.updatedAt)).toEqual(listed.map((n) => n.createdAt))
+    expect(listed.find((n) => n.id === A)?.pinned).toBe(true)
+  })
+
   it('leaves a library that already has notes alone', async () => {
     const { storage, seed, notes } = setup()
     await notes.create('Mine')
