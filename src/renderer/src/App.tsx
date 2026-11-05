@@ -96,7 +96,7 @@ import {
   useSaveProblems,
 } from './saveGuards'
 import { BackupsDialog } from './BackupsDialog'
-import { BookPicker, bookOptions, currentBookOption, NO_BOOK } from './BookPicker'
+import { BookPicker } from './BookPicker'
 import { useContextMenu, type MenuPoint } from './contextMenu'
 import {
   CHIP_MENU,
@@ -134,15 +134,7 @@ import { usePlugins } from './plugins/usePlugins'
 import { firstImported, openDestination } from './cliOpen'
 import { noteTarget, useDeepLinks, type DeepLink } from './deepLink'
 import { StartFailure } from './StartFailure'
-import {
-  IMAGE_COMMANDS,
-  imageActionApplies,
-  runImageAction,
-  useImageMenu,
-  type ImageAction,
-  type ImageMenuTarget,
-  type SetImageSize,
-} from './imageMenu'
+import { useImageMenu, type ImageMenuTarget, type SetImageSize } from './imageMenu'
 import { ImageViewer, type ViewedImage } from './ImageViewer'
 import { DB_CHANGED, NOTES_LOADED, useExternalChanges } from './externalChanges'
 import { useMarkdownMirror } from './MarkdownMirror'
@@ -150,6 +142,7 @@ import { latestOnly } from './preview/latest'
 import { SearchField } from './SearchField'
 import { areaOf, areaTargets, nextArea, usePaneTab, visible, type Area } from './areas'
 import { inEditor, sheetOpen, useMenuEvent, useWindowCommands } from './commands/dispatch'
+import { appHandlers } from './commands/appHandlers'
 import { useCommandMenu } from './commands/commandMenu'
 import { useFormatMenu } from './commands/formatMenu'
 import { shortcutLabel } from './commands/keys'
@@ -159,14 +152,7 @@ import { editingAllowed } from './licence'
 import { invoke } from './ipc'
 import { titleWithKey } from './commands/titles'
 import { ToolTips } from './ToolTips'
-import {
-  COMMANDS,
-  formatOf,
-  insertOf,
-  tableOf,
-  withoutChanges,
-  type CommandHandlers,
-} from './commands/registry'
+import { withoutChanges, type CommandHandlers } from './commands/registry'
 import { CommandPalette, type PaletteActions } from './palette/CommandPalette'
 import {
   commandEntries,
@@ -177,7 +163,7 @@ import {
 } from './palette/entries'
 import type { PaletteEntry, PaletteSource } from './palette/results'
 import { bookDeleteDetail, noteCount } from './format'
-import { openAfter, selectAll, type ListSelection } from './listSelection'
+import { openAfter, type ListSelection } from './listSelection'
 import { SelectionSummary } from './SelectionSummary'
 import { TrashView } from './TrashView'
 import { Icon, ToolIcon } from './icons/Icon'
@@ -200,7 +186,7 @@ import {
   isSecondaryLabel,
   keyboardIsFree,
 } from './focus'
-import { coalesced, listsLink, openMainWindow } from './mainWindows'
+import { coalesced, listsLink } from './mainWindows'
 import { listenHere, unlistenLater } from './windowEvents'
 import { listenExitCancelled } from './exitCancelled'
 import { resumeMirrorAfterCancelledQuit } from './mirror'
@@ -226,16 +212,10 @@ import { refuseTextDrops } from './dragData'
 import { displayTitle, displayTitles, newestUntitled, useHeadlines } from './headlines'
 import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
-import { LINE_COMMANDS } from './editor/lineCommands'
 import type { EditorHandle } from './editor/handle'
 import { NoteEditor, type ApplyRestore, type EditorPlace } from './NoteEditor'
 import { BODY_PLACEHOLDER_MS, useLateAttribute } from './late'
-import {
-  changeEditorSettings,
-  editorSettings,
-  stepEditorFontSize,
-  useEditorSetting,
-} from './editorSettings'
+import { changeEditorSettings, editorSettings, useEditorSetting } from './editorSettings'
 import { ModeControl, editorOnly, type Mode } from './ModeControl'
 import { relayGate, relayLink } from './noteRelay'
 import { NoteList } from './NoteList'
@@ -268,16 +248,7 @@ import {
 } from './listUpdates'
 import { useNoteActions } from './noteActions'
 import { useTrashMenu } from './trashMenu'
-import {
-  NOTE_COMMANDS,
-  SELECTION_ONLY,
-  TRASH_COMMANDS,
-  type ExportAction,
-  type NoteAction,
-  type NoteMenuAction,
-  type TrashAction,
-  copyText,
-} from './noteMenu'
+import { type ExportAction, type NoteAction, type TrashAction, copyText } from './noteMenu'
 import { applyOrder, orderChip, orderLabel, sortLocales, sortView, useListOrder } from './noteSort'
 import { LivePreview } from './preview/Preview'
 import { tagChanges, type FrontMatterChange } from './preview/frontMatterApply'
@@ -308,16 +279,13 @@ import {
   agentFilter,
   Sidebar,
   STATUSES,
-  stepSidebarRow,
   type Selection,
   type SidebarMenus,
   type SidebarWorkspace,
 } from './Sidebar'
 import { useKept, useStable } from './stable'
-import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
-import { restartNow, useUpdates } from './UpdateNotice'
-import { checkForUpdates } from './updates'
+import { useUpdates } from './UpdateNotice'
 import { track } from './usage'
 import { HTTP_API_DONE_TEST, HTTP_API_EVENT, httpApiHost } from './httpApiHost'
 import { CLI_APPEND_EVENT, cliAppendHost, resolveAppendTarget } from './cliAppend'
@@ -3313,264 +3281,102 @@ export function App() {
   const openSearchFieldMenu = useStable((at: MenuPoint) => {
     if (editing) void showSearchFieldMenu({ query }, at)
   })
-  const handlers: CommandHandlers = {
-    'palette.open': { run: () => openPalette() },
-    'search.view': { run: () => startSearch('view') },
-    'search.all': { run: () => startSearch('all') },
-    ...(core && query.trim() ? { 'search.save': { run: saveSearch } } : {}),
-    'view.focus': { run: toggleFocus },
-    'view.sidebar': {
-      run: () => {
+  const handlers = appHandlers(
+    {
+      coreReady: core !== undefined,
+      query,
+      sidebarShown,
+      syncScroll,
+      historyBarShown,
+      outlineShown,
+      authorshipShown,
+      listDates,
+      mirrorOn: mirror.status.folder !== null,
+      inWorkspace: workspaceNode !== undefined,
+      updateReady: updates.status.state === 'ready',
+      focus,
+      inTrash,
+      inTemplates,
+      trash,
+      selected,
+      multiIds,
+      selectedNotes,
+      listedIds,
+      listedSet,
+      shownSelection,
+      canBoard,
+      boardShown,
+      canGallery,
+      galleryShown,
+      canGoBack: backAt !== undefined,
+      canGoForward: forwardAt !== undefined,
+      hasNext: nextId !== undefined,
+      hasPrevious: previousId !== undefined,
+      builtIn,
+      openNote,
+      selectedIsTemplate,
+      tree,
+      mode,
+      palette: {
+        open: paletteOpen,
+        inTable: paletteInTable,
+        selection: paletteSelection,
+        link: paletteLink,
+        image: paletteImage,
+      },
+      findCommands: find.commands,
+    },
+    {
+      openPalette,
+      startSearch,
+      saveSearch,
+      toggleFocus,
+      toggleSidebar: () => {
         sidebarKeyEcho.current = performance.now() + MENU_ECHO_MS
         toggleSidebar()
       },
-      label: sidebarShown ? 'command.hideSidebar' : 'command.showSidebar',
-    },
-    'view.focusNoteList': {
-      run: () => requestFocus({ kind: 'area', area: 'list' }),
-    },
-    'view.nextSidebarRow': { run: () => stepSidebarRow(1) },
-    'view.previousSidebarRow': { run: () => stepSidebarRow(-1) },
-    'view.nextArea': { run: () => moveArea(1) },
-    'view.previousArea': { run: () => moveArea(-1) },
-    'view.fontBigger': { run: () => stepEditorFontSize(1) },
-    'view.fontSmaller': { run: () => stepEditorFontSize(-1) },
-    'view.fontReset': { run: () => stepEditorFontSize(0) },
-    'view.syncScroll': {
-      run: () =>
-        changeEditorSettings({
-          syncScroll: !editorSettings().syncScroll,
-        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
-      label: syncScroll ? 'command.syncScrollOff' : 'command.syncScrollOn',
-    },
-    'view.historyBar': {
-      run: () =>
-        changeEditorSettings({
-          historyBar: !editorSettings().historyBar,
-        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
-      label: historyBarShown ? 'command.hideHistoryBar' : 'command.showHistoryBar',
-    },
-    'view.outline': {
-      run: () =>
-        changeEditorSettings({
-          outline: !editorSettings().outline,
-        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
-      label: outlineShown ? 'command.hideOutline' : 'command.showOutline',
-    },
-    'view.authorship': {
-      run: () =>
-        changeEditorSettings({
-          authorship: !editorSettings().authorship,
-        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
-      label: authorshipShown ? 'command.hideAuthorship' : 'command.showAuthorship',
-    },
-    'view.toggleListDates': {
-      run: () =>
-        changeEditorSettings({
-          listDates: editorSettings().listDates === 'absolute' ? 'relative' : 'absolute',
-        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
-      label: listDates === 'absolute' ? 'command.showRelativeDates' : 'command.showAbsoluteDates',
-    },
-    'view.allNotes': { run: () => showLibrary({ kind: 'all' }) },
-    'view.templates': { run: () => showLibrary({ kind: 'templates' }) },
-    'view.trash': { run: () => showLibrary({ kind: 'trash' }) },
-    'app.backups': { run: showBackups },
-    'app.newWindow': { run: () => void openMainWindow() },
-    'app.checkForUpdates': { run: checkForUpdates },
-    'app.exportAllMarkdown': { run: () => exportAll('exportMarkdown') },
-    'app.exportAllHtml': { run: () => exportAll('exportHtml') },
-    'app.rebuildSearchIndex': { run: rebuildIndex },
-    'mirror.chooseFolder': { run: mirror.choose },
-    'notebook.aiAccessMany': { run: () => setAiAccessPicker(true) },
-  }
-  if (mirror.status.folder !== null) handlers['mirror.turnOff'] = { run: mirror.turnOff }
-  if (workspaceNode) handlers['view.leaveWorkspace'] = { run: leaveWorkspace }
-  if (updates.status.state === 'ready') handlers['app.restartToUpdate'] = { run: restartNow }
-  if (!focus && !inTrash) {
-    handlers['view.sort'] = {
-      run: () => {
-        const anchor = sortButtonRef.current
-        if (visible(anchor)) return listOrder.show(anchor)
-      },
-    }
-  }
-  if (trash.length > 0) handlers['trash.empty'] = { run: () => setConfirm({ kind: 'empty' }) }
-  if (inTrash && selected !== undefined && trash.some((n) => n.id === selected) && !multiIds) {
-    const id = selected
-    for (const [action, commandId] of Object.entries(TRASH_COMMANDS)) {
-      handlers[commandId] = {
-        run: () => trashAction(action as TrashAction, id),
-      }
-    }
-  }
-  if (multiIds && inTrash) {
-    const ids = multiIds
-    handlers['trash.restore'] = {
-      run: () => restoreNotes(ids),
-      label: 'batch.restore',
-    }
-    handlers['trash.deleteForever'] = {
-      run: () => confirmDeleteMany(ids),
-      label: 'batch.deleteForever',
-    }
-  } else if (multiIds) {
-    const ids = multiIds
-    const run = (action: NoteMenuAction) => () => noteActions.runOn(action, ids)
-    handlers['note.move'] = { run: run('move'), label: 'batch.move' }
-    handlers['note.pin'] = {
-      run: run('pin'),
-      label: selectedNotes.every((n) => n.pinned) ? 'batch.unpin' : 'batch.pin',
-    }
-    handlers['note.copyLink'] = {
-      run: run('copyLink'),
-      label: 'batch.copyLinks',
-    }
-    handlers['note.trash'] = { run: run('trash'), label: 'batch.trash' }
-    if (!inTemplates) {
-      for (const [status, commandId] of Object.entries(STATUS_COMMANDS)) {
-        handlers[commandId] = {
-          run: () => setNotesStatus(ids, status as NoteStatus),
-        }
-      }
-      handlers['note.addTag'] = { run: run('addTag') }
-      if (selectedNotes.some((n) => n.tagIds.length > 0)) {
-        handlers['note.removeTag'] = { run: run('removeTag') }
-      }
-    }
-  }
-  if (!focus && listedIds.length > 1) {
-    handlers['list.selectAll'] = {
-      run: () => changeSelection(selectAll(shownSelection, selected, listedIds)),
-    }
-  }
-  if (canBoard) {
-    handlers['view.toggleBoard'] = {
-      run: () => changeLayout(boardShown ? 'list' : 'board'),
-      label: boardShown ? 'command.showList' : 'command.showBoard',
-    }
-  }
-  if (canGallery) {
-    handlers['view.toggleGallery'] = {
-      run: () => changeLayout(galleryShown ? 'list' : 'gallery'),
-      label: galleryShown ? 'command.showList' : 'command.showGallery',
-    }
-  }
-  const boardTargets =
-    multiIds ?? (selected !== undefined && listedSet.has(selected) ? [selected] : undefined)
-  if (boardShown && boardTargets) {
-    handlers['status.next'] = { run: () => stepCards(boardTargets, 1) }
-    handlers['status.previous'] = { run: () => stepCards(boardTargets, -1) }
-  }
-  if (core) {
-    handlers['note.new'] = {
-      run: () => {
-        if (inTrash) showLibrary({ kind: 'all' })
-        return create()
-      },
-    }
-    handlers['notebook.new'] = { run: () => createBook(null) }
-    if (selected !== undefined || multiIds || builtIn !== undefined)
-      handlers['note.close'] = { run: closeNote }
-    if (backAt !== undefined) handlers['note.back'] = { run: () => step(-1) }
-    if (forwardAt !== undefined) handlers['note.forward'] = { run: () => step(1) }
-    if (nextId !== undefined) handlers['note.next'] = { run: () => openListed(1) }
-    if (previousId !== undefined) handlers['note.previous'] = { run: () => openListed(-1) }
-    handlers['note.newFromTemplate'] = {
-      run: () => setPicking({ recent: recentTemplates.load() }),
-    }
-    handlers['note.today'] = { run: openToday }
-  }
-  if (openNote && !selectedIsTemplate && editingAllowed()) {
-    handlers['note.quickTag'] = { run: () => setQuickTagNote(openNote.id) }
-  }
-  if (openNote) {
-    const id = openNote.id
-    for (const [action, commandId] of Object.entries(NOTE_COMMANDS)) {
-      if (SELECTION_ONLY.has(action as NoteAction)) continue
-      if (action === 'openWindow' && selectedIsTemplate) continue
-      handlers[commandId] = {
-        run: () => noteActions.run(action as NoteAction, id),
-      }
-    }
-    handlers['note.pin'] = {
-      run: () => noteActions.run('pin', id),
-      label: openNote.pinned ? 'note.unpin' : 'note.pin',
-    }
-    // Control+Command+1 to 5 set the open note's status. A template's own
-    // status is not shown and not used (its front matter sets one).
-    if (!selectedIsTemplate) {
-      for (const [status, commandId] of Object.entries(STATUS_COMMANDS)) {
-        handlers[commandId] = {
-          run: () => setStatus(id, status as NoteStatus),
-        }
-      }
-    }
-    const bookId = currentBookOption(bookOptions(tree), openNote.bookId)
-    if (bookId !== NO_BOOK && !selectedIsTemplate) {
-      handlers['note.showNotebook'] = {
-        run: () => showLibrary({ kind: 'book', id: bookId }),
-      }
-    }
-    handlers['view.write'] = { run: () => setMode('write') }
-    handlers['view.edit'] = { run: () => setMode('edit') }
-    handlers['view.togglePreview'] = {
-      run: () => {
+      focusArea: (area) => requestFocus({ kind: 'area', area }),
+      moveArea: (by) => moveArea(by),
+      showLibrary: (next) => showLibrary(next),
+      showBackups,
+      exportAll,
+      rebuildIndex,
+      chooseMirror: mirror.choose,
+      turnOffMirror: mirror.turnOff,
+      pickAiAccess: () => setAiAccessPicker(true),
+      leaveWorkspace,
+      sortAnchor: () => sortButtonRef.current,
+      showOrder: listOrder.show,
+      askEmptyTrash: () => setConfirm({ kind: 'empty' }),
+      trashAction,
+      restoreNotes,
+      confirmDeleteMany,
+      runOn: noteActions.runOn,
+      runNoteAction: noteActions.run,
+      setNotesStatus,
+      changeSelection,
+      changeLayout,
+      stepCards,
+      create,
+      createBook,
+      closeNote,
+      step,
+      openListed,
+      pickTemplate: () => setPicking({ recent: recentTemplates.load() }),
+      openToday,
+      quickTag: setQuickTagNote,
+      setStatus,
+      setMode,
+      togglePreview: () => {
         previewKeyEcho.current = performance.now() + MENU_ECHO_MS
         togglePreview()
       },
-    }
-    handlers['view.split'] = { run: () => setMode('split') }
-    handlers['view.preview'] = { run: () => setMode('preview') }
-    if (mode !== 'preview') {
-      for (const c of COMMANDS) {
-        const formatId = formatOf(c.id)
-        if (formatId) handlers[c.id] = { run: () => editorRef.current?.format(formatId) }
-        const insertId = insertOf(c.id)
-        if (insertId) handlers[c.id] = { run: () => editorRef.current?.insert(insertId) }
-        const tableId = paletteOpen && paletteInTable ? tableOf(c.id) : undefined
-        if (tableId) handlers[c.id] = { run: () => editorRef.current?.table(tableId) }
-      }
-      handlers['edit.pastePlain'] = {
-        run: () => editorRef.current?.pastePlain(),
-      }
-      for (const commandId of LINE_COMMANDS) {
-        handlers[commandId] = {
-          run: () => editorRef.current?.runLine(commandId),
-        }
-      }
-      handlers['edit.goToLine'] = { run: () => openPalette('line') }
-      if (!inTrash) handlers['ai.suggest'] = { run: () => editorRef.current?.suggest() }
-      handlers['edit.pasteUrlAs'] = {
-        run: () => editorRef.current?.pasteUrlAs(),
-      }
-      if (paletteOpen && paletteSelection) {
-        handlers['note.newFromSelection'] = {
-          run: () => noteFromSelection(id),
-        }
-      }
-      if (paletteOpen && paletteLink) {
-        handlers['note.newFromLink'] = {
-          run: () => noteFromLink(id),
-        }
-      }
-      const image = paletteOpen ? paletteImage : null
-      if (image?.fileId)
-        handlers['image.view'] = {
-          run: () => void editorRef.current?.viewImage(),
-        }
-      if (image) {
-        for (const [action, commandId] of Object.entries(IMAGE_COMMANDS)) {
-          if (!imageActionApplies(action as ImageAction, image)) continue
-          handlers[commandId] = {
-            run: () => runImageAction(action as ImageAction, image, setImageSize),
-          }
-        }
-      }
-    }
-  }
-  // Find works while a note is open; its keys run ahead of the editor's (useFind).
-  Object.assign(handlers, find.commands)
-  if (handlers['note.move']) handlers['note.moveAnywhere'] = handlers['note.move']
+      editor: () => editorRef.current,
+      noteFromSelection,
+      noteFromLink,
+      setImageSize,
+    },
+  )
   const commands = editing ? handlers : withoutChanges(handlers)
   useWindowCommands(commands)
   useFormatMenu(commands)
