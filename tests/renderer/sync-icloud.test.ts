@@ -119,6 +119,14 @@ describe('the iCloud states', () => {
     expect(line.actions).toEqual(['finish'])
     expect(icloudNotice(attention, false)).toMatch(/started on this device/)
     expect(syncNeedsOwner(unfinished)).toBe(true)
+    const withoutICloud = icloudLine(
+      attention,
+      unfinished,
+      { available: false, account: null },
+      false,
+    )
+    expect(withoutICloud.actions).toEqual([])
+    expect(withoutICloud.text).toMatch(/Set up sync again/)
     // A started move counts only while sync stops on the marker.
     expect(icloudAttention(rust({ transport: 'relay', moveStarted: true }))).toBeUndefined()
   })

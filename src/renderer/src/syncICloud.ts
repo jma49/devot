@@ -260,7 +260,9 @@ export function icloudLine(
         ? { text: withHint(text, 'syncSettings.vaultMovedHint'), actions: ['follow'] }
         : { text: withHint(text, 'syncSettings.vaultMovedElsewhere'), actions: [] }
     case 'movedHere':
-      return { text: withHint(text, 'syncSettings.vaultMovedHereHint'), actions: ['finish'] }
+      return icloud.available
+        ? { text: withHint(text, 'syncSettings.vaultMovedHereHint'), actions: ['finish'] }
+        : { text: withHint(text, 'syncSettings.vaultMovedElsewhere'), actions: [] }
     case 'ask':
       return { text, actions: ['join', 'decline'] }
     default:

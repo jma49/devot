@@ -408,6 +408,9 @@ pub(crate) struct SyncService {
     switching: Mutex<()>,
     /// Moves this service's clock in tests of expiry.
     shifted: AtomicI64,
+    /// Fails the next switch to iCloud as if the app quit just before it.
+    #[cfg(test)]
+    quits_before_switch: std::sync::atomic::AtomicBool,
 }
 
 const MAX_SAFE: u64 = 9_007_199_254_740_991;
@@ -531,6 +534,8 @@ impl SyncService {
             look: Mutex::new(None),
             switching: Mutex::new(()),
             shifted: AtomicI64::new(0),
+            #[cfg(test)]
+            quits_before_switch: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -556,6 +561,11 @@ impl SyncService {
     #[cfg(test)]
     pub(crate) fn shift_clock(&self, ms: i64) {
         self.shifted.fetch_add(ms, Ordering::Relaxed);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn quit_before_next_switch(&self) {
+        self.quits_before_switch.store(true, Ordering::Relaxed);
     }
 
     /// From the settings alone, without the keychain `snapshot` reads.
@@ -614,12 +624,14 @@ impl SyncService {
             };
             if url != settings.relay_url {
                 self.disconnect();
+                settings.moving.clear();
             }
             settings.relay_url = url;
         }
         if let Some(enabled) = patch.enabled {
             if !enabled {
                 self.disconnect();
+                settings.moving.clear();
             }
             settings.enabled = enabled;
         }
@@ -1254,9 +1266,9 @@ impl SyncService {
     /// winner as at launch, with `notes` in its library. A vault this device syncs through a relay
     /// claims `current`, records the move, then leaves the moved marker there unless it is following
     /// one, so the relay's other devices stop rather than drift apart; a device that quits before it
-    /// switches finishes the move when its engine finds that marker. A refused marker keeps this
-    /// device on the relay with `current` still claimed, which a retry reuses; iCloud's own epoch
-    /// makes the first connect upload all.
+    /// switches finishes the move when its engine finds that marker while `current` names the vault.
+    /// A refused marker keeps this device on the relay with `current` still claimed, which a retry
+    /// reuses; iCloud's own epoch makes the first connect upload all.
     pub(crate) fn use_icloud(
         &self,
         recovery_key: Option<&str>,
@@ -1341,11 +1353,12 @@ impl SyncService {
     }
 
     /// The engine stopped on a moved marker. When this device started the move and quit before it
-    /// switched, that marker is its own: it switches now, as `use_icloud` would have. When it
-    /// cannot yet (iCloud signed out, say), it stays stopped, and Settings says the move started
-    /// here.
+    /// switched, it switches now, as `use_icloud` would have, if `current` still names the vault.
+    /// Otherwise (iCloud signed out, another Apple ID, a restored backup) it stays stopped, and
+    /// Settings says the move started here so the owner finishes it.
     fn finish_started_move(&self) {
         let Ok(_switching) = self.switching.lock() else {
+            log::warn!("W_SYNC_MOVE_UNFINISHED E_SYNC_INTERNAL");
             return;
         };
         let settings = self.settings.get();
@@ -1357,7 +1370,7 @@ impl SyncService {
             return;
         }
         let finished = current::ready(self.kit.as_ref())
-            .and_then(|()| self.claim(&vault))
+            .and_then(|()| self.named(&id))
             .and_then(|()| self.keep_icloud(vault, false));
         match finished {
             Ok(_) => {
@@ -1370,6 +1383,15 @@ impl SyncService {
                 }
             }
             Err(code) => log::warn!("W_SYNC_MOVE_UNFINISHED {code} vault={id}"),
+        }
+    }
+
+    /// Whether `current` names `vault`; never saves it, so no vault goes to an Apple ID unasked.
+    fn named(&self, vault: &str) -> Result<(), &'static str> {
+        match current::read(self.kit.as_ref())? {
+            Some(current) if current == vault => Ok(()),
+            Some(_) => Err(OTHER_VAULT),
+            None => Err(NO_VAULT),
         }
     }
 
@@ -1423,6 +1445,10 @@ impl SyncService {
     /// turns sync on and leaves it in the handover item. A vault `joined`, not made here, never
     /// shows its recovery key.
     fn keep_icloud(&self, vault: Vault, joined: bool) -> Result<Vault, &'static str> {
+        #[cfg(test)]
+        if self.quits_before_switch.swap(false, Ordering::Relaxed) {
+            return Err("E_TEST_QUIT");
+        }
         let vault = Vault::join(self.secrets.as_ref(), vault).map_err(|e| e.code())?;
         let vault_id = vault.id().to_string();
         self.disconnect();
