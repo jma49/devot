@@ -91,6 +91,12 @@ it("the callbacks' C types match on both sides", () => {
   expect(ios).toContain('type StoreUpdate = extern "C" fn(json: *const u8, len: usize);')
 })
 
+it("build.rs leaves each of the Swift package's C functions to the iPhone app's link", () => {
+  const listed = /const STORE_BRIDGE: &\[&str\] = &\[([^\]]*)\]/.exec(read('src-tauri/build.rs'))
+  const names = [...(listed?.[1] ?? '').matchAll(/"(\w+)"/g)].map((match) => match[1])
+  expect(names.sort()).toEqual([...swiftFunctions().keys()].sort())
+})
+
 it('only native/ios.rs declares or calls the bridge', () => {
   const callers = listFiles('.', 'src-tauri/src')
     .filter((file) => file.startsWith('src-tauri/src/') && file.endsWith('.rs'))
