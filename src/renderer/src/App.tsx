@@ -54,7 +54,7 @@ import { errorCode } from './backups'
 import { BackupNotice } from './BackupNotice'
 import { SyncNotice } from './SyncNotice'
 import { ActivationBar, TrialEndedBar, TrialReminder } from './TrialNotices'
-import { runSync, runsSync, startSyncStatus, useSyncSnapshot } from './sync'
+import { runsSync, startSyncStatus, useSyncEngine, useSyncSnapshot } from './sync'
 import { RestoreSyncChoice } from './RestoreSyncChoice'
 import { licenceEntitlements, startLicence, useEditing } from './licence'
 import { useLicenceLink } from './LicenceLink'
@@ -582,11 +582,7 @@ export function App() {
   // `main` hosts what runs once (the mirror, compaction); a window File > New Window opened does not (mainWindows.ts).
   const [label] = useState(currentWindowLabel)
   const primary = !isSecondaryLabel(label)
-  // The engine needs Rust's storage and socket, which the UI tests' build does not have.
-  useEffect(
-    () => (core && runsSync(label) && !DEVOT_UI_TEST ? runSync(core) : undefined),
-    [core, label],
-  )
+  useSyncEngine(core, label)
   // What this window's core says to the other windows, and hears from them (noteRelay.ts).
   const [relay] = useState(() => ({ link: relayLink(label), gate: relayGate(false) }))
   const [lists] = useState(() => {

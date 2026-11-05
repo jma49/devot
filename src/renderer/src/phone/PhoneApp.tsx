@@ -28,6 +28,8 @@ import { PhoneLibrary } from './PhoneLibrary'
 import { usePhoneData, type PhoneData } from './usePhoneData'
 import { haptic } from './haptics'
 import { startLicence, useLicence } from '../licence'
+import { currentWindowLabel } from '../focus'
+import { useSyncEngine } from '../sync'
 import { licenceRow, welcomeDue } from './settingsRows'
 import { openPurchase, usePurchaseOpen } from '../purchaseSheet'
 import { PhonePurchaseSheet } from './PhonePurchase'
@@ -220,6 +222,8 @@ const ARRIVAL_MS = 1200
 export function PhoneApp() {
   const [state, dispatch] = useReducer(navigate, undefined, initialNavigation)
   const store = usePhoneData()
+  const [label] = useState(currentWindowLabel)
+  useSyncEngine(store.core, label)
   const [drag, setDrag] = useState(0)
   const [dragging, setDragging] = useState(false)
   const [arrivedId, setArrivedId] = useState<string | null>(null)
