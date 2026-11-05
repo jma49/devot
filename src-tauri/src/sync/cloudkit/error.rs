@@ -5,6 +5,7 @@
 use super::kit::CkError;
 
 /// `CKErrorCode` values (CloudKit's `CKError.h`), and one of Devot's own.
+#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
 pub(crate) mod code {
     pub(crate) const INTERNAL_ERROR: i64 = 1;
     pub(crate) const PARTIAL_FAILURE: i64 = 2;

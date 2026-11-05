@@ -5,6 +5,7 @@
 use std::fmt;
 use std::path::PathBuf;
 
+#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
 pub(crate) const CONTAINER: &str = "iCloud.io.github.jma49.devot";
 
 /// One per Apple ID: `current`, pairing offers, each vault's epoch and its device rows.
@@ -120,6 +121,7 @@ impl CkRecord {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
 pub(crate) enum Account {
     Available,
     Missing,
