@@ -997,11 +997,16 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       bytes = 0
       const results = await transport.pushMany(sent.map((ready) => ready.item))
       const again: string[] = []
+      // A batch need not be atomic: items after one that ends the pass may still have been pushed.
+      let ended: unknown
       for (const [at, ready] of sent.entries()) {
-        const outcome = await settle(
-          ready,
-          results[at] ?? { type: 'failed', code: 'E_SYNC_PROTOCOL' },
-        )
+        let outcome: Awaited<ReturnType<typeof settle>>
+        try {
+          outcome = await settle(ready, results[at] ?? { type: 'failed', code: 'E_SYNC_PROTOCOL' })
+        } catch (error) {
+          ended ??= error
+          continue
+        }
         if (outcome === 'rejected') {
           again.push(ready.id)
           continue
@@ -1009,6 +1014,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         refused(outcome)
         if (!kept(ready.id)) upload.step()
       }
+      if (ended !== undefined) throw ended
       if (again.length === 0) return
       await sleep(backoff(0))
       await pullAll()

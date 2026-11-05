@@ -227,12 +227,63 @@ describe('a backlog in batches', () => {
     expect(await a.storage.syncPendingCount()).toBe(1)
   })
 
+  it('settles every result of a batch, also those after one that ends the pass', async () => {
+    const { vault, a, fa } = fakePair({ uploadShownFrom: 3 })
+    const ids = [
+      await a.notes.create('One'),
+      await a.notes.create('Two'),
+      await a.notes.create('Three'),
+      await a.notes.create('Four'),
+    ]
+    let first: string | undefined
+    vault.refuse = (item) =>
+      (first ??= item.id) === item.id
+        ? { type: 'paused', until: Date.now() + 60_000, code: 'E_SYNC_ICLOUD_BUSY' }
+        : undefined
+    // The next pass pulls first, which would settle them anyway: count before it.
+    let pendingAfterBatch: number | undefined
+    const pull = fa.pull.bind(fa)
+    fa.pull = async (since) => {
+      if (fa.batches.length > 0) pendingAfterBatch ??= await a.storage.syncPendingCount()
+      return pull(since)
+    }
+    await a.sync()
+    expect(a.engine.status()).toMatchObject({ state: 'paused', code: 'E_SYNC_ICLOUD_BUSY' })
+    expect(fa.batches[0]).toEqual(expect.arrayContaining(ids))
+    for (const id of ids.filter((other) => other !== first)) {
+      expect(vault.records.get(id)?.version).toBe(1)
+    }
+    expect(pendingAfterBatch ?? (await a.storage.syncPendingCount())).toBe(1)
+  })
+
   it('keeps single pushes for a few records', async () => {
     const { a, fa } = fakePair()
     await a.notes.create('Alone')
     await a.sync()
     expect(fa.batches).toEqual([])
     expect(fa.pushes).toBe(1)
+  })
+})
+
+describe('a stop while a pass is queued', () => {
+  it('stays stopped when a change arrived before the revocation', async () => {
+    const { a, fa } = fakePair()
+    await a.sync()
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    fa.beforePush = () => held
+    await a.notes.create('In flight')
+    await a.notes.flush()
+    void a.engine.syncNow()
+    await vi.waitFor(() => expect(a.engine.status().state).toBe('syncing'))
+    a.engine.received({ type: 'changed', cursor: '' })
+    a.engine.received({ type: 'closed', code: 'E_SYNC_REVOKED' })
+    await vi.waitFor(() => expect(a.engine.status().state).toBe('stopped'))
+    const pulls = fa.pulls
+    release()
+    await a.engine.idle()
+    expect(a.engine.status()).toMatchObject({ state: 'stopped', code: 'E_SYNC_REVOKED' })
+    expect(fa.pulls).toBe(pulls)
   })
 })
 
