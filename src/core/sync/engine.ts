@@ -177,6 +177,8 @@ const STOPPING = new Set([
   'E_SYNC_CLOCK_SKEW',
   'E_SYNC_CIRCUIT_OPEN',
   VAULT_MOVED,
+  // The vault's key was changed on another device: Settings offers to join its successor.
+  'E_SYNC_VAULT_ROTATED',
   // iCloud: a build without the container, a vault whose data the owner deleted (Settings asks
   // whether to upload again), and another account signed in.
   'E_SYNC_CLOUDKIT_UNAVAILABLE',

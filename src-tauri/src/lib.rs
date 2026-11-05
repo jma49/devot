@@ -159,6 +159,7 @@ pub fn run() {
             sync::commands::sync_get,
             sync::commands::sync_set,
             sync::commands::sync_vault_create,
+            sync::commands::sync_vault_rotate,
             sync::commands::sync_recovery_key,
             sync::commands::sync_recovery_saved,
             sync::commands::sync_pairing_open,

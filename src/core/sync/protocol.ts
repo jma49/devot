@@ -102,6 +102,9 @@ export type ClientMessage =
   | { type: 'time'; rid?: number }
   | { type: 'usage'; rid?: number }
 
+/** A retired vault's refusal of push, pull and enroll; it carries the successor (docs/adr/0017-sync-key-rotation.md). */
+export const VAULT_ROTATED = 'E_SYNC_VAULT_ROTATED'
+
 export type RelayMessage =
   | {
       type: 'welcome'
@@ -113,6 +116,10 @@ export type RelayMessage =
       quota?: 'on' | 'off'
       /** Whether the relay enforces the attachment share; absent from a relay older than it. */
       attachments?: 'on' | 'off'
+      /** `on` from a relay that can retire a vault; absent from one older than that. */
+      rotation?: 'on'
+      /** The successor of a retired vault. */
+      retired?: string
     }
   | { type: 'records'; rid?: number; records: RecordHead[]; next: number; more: boolean }
   | { type: 'pushed'; rid?: number; id: string; version: number; seq: number }
@@ -131,9 +138,11 @@ export type RelayMessage =
       /** With E_SYNC_QUOTA: the limit that tripped and when pushes are taken again (`quotaResetAt`). */
       limit?: QuotaLimit
       until?: number
+      /** With E_SYNC_VAULT_ROTATED: the vault that succeeds this one. */
+      successor?: string
     }
 
-/** HTTP bodies: vault creation and device enrollment, and the relay's answers. */
+/** HTTP bodies: vault creation, device enrollment and retirement, and the relay's answers. */
 export interface CreateRequest {
   type: 'create'
   /** base64url of the 32-byte verifier of the enrollment secret (enrollmentVerifier). */
@@ -145,6 +154,16 @@ export interface EnrollRequest {
   /** base64url of the 32-byte enrollment secret the client derives from the vault key. */
   secret: string
   label: string
+}
+/** POSTed to `/v1/vaults/<vault>/retire` with the relay secret (docs/adr/0017-sync-key-rotation.md). */
+export interface RetireRequest {
+  type: 'retire'
+  /** A live vault on the same relay. */
+  successor: string
+}
+export interface RetiredReply {
+  type: 'retired'
+  successor: string
 }
 export interface EnrolledReply {
   type: 'enrolled'

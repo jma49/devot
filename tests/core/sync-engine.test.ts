@@ -27,7 +27,7 @@ import {
   type SyncStatus,
 } from '../../src/core/sync/engine'
 import { startNodeRelay, type NodeRelay, type NodeRelayOptions } from '../../relay/src/node/server'
-import { createVault, enrolled, type RelayHost, type TestVault } from '../relay/client'
+import { createVault, enrolled, type RelayHost, retireVault, type TestVault } from '../relay/client'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { windowsOn } from '../support/note-windows'
 import { RelayTransport, type RelayTransportOptions } from '../support/sync-relay'
@@ -664,6 +664,19 @@ describe('sync between two devices', () => {
     await a.engine.idle()
     await settle(a, b)
     expect((await sameNote(a, b, id))?.title).toBe('Theirs, later')
+  })
+
+  it('stops and keeps its changes when another device retires the vault for a successor', async () => {
+    const { relay, vault, b } = await pair()
+    const successor = (await createVault(relay.host, 'next')).vault
+    expect((await retireVault(relay.host, vault.vault, successor)).status).toBe(200)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    await b.engine.idle()
+    expect(b.engine.status()).toMatchObject({ state: 'stopped', code: 'E_SYNC_VAULT_ROTATED' })
+    const id = await b.notes.create('Kept here')
+    await b.sync()
+    expect(b.engine.status().code).toBe('E_SYNC_VAULT_ROTATED')
+    expect((await b.note(id))?.title).toBe('Kept here')
   })
 
   it('stops and says so when the device is revoked', async () => {

@@ -22,6 +22,10 @@ export type Access = 'ok' | 'no-vault' | 'unknown'
 export interface Vaults {
   create(vault: string, body: Record<string, unknown>): Promise<Reply>
   enroll(vault: string, body: Record<string, unknown>): Promise<Reply>
+  /** Retires `vault` and tells its sockets; the front has checked the relay secret. */
+  retire(vault: string, body: Record<string, unknown>): Promise<Reply>
+  /** Whether `vault` exists and is not retired. */
+  live(vault: string): Promise<boolean>
   /** Whether `token` is still `device`'s token in `vault` (its MAC is checked already). */
   authenticate(vault: string, device: string, token: string): Promise<Access>
   /** `device` is the opening device for `pair`, `status` and `close`, else ''. */
@@ -34,7 +38,7 @@ export interface SocketTarget {
   token: string
 }
 
-const VAULT_PATH = /^\/v1\/vaults\/([^/]+)(\/devices|\/socket)?$/
+const VAULT_PATH = /^\/v1\/vaults\/([^/]+)(\/devices|\/retire|\/socket)?$/
 const PAIRING_PATH = /^\/v1\/pairings\/([^/]+)(?:\/(take|confirm|status|close))?$/
 
 export function json(status: number, body: Record<string, unknown>): Response {
@@ -74,8 +78,8 @@ export async function handleHttp(
   if (!match || !isVaultId(vault) || match[2] === '/socket' || request.method !== 'POST') {
     return notFound()
   }
-  const creating = match[2] === undefined
-  if (creating) {
+  const route = match[2] === undefined ? 'create' : match[2] === '/retire' ? 'retire' : 'enroll'
+  if (route !== 'enroll') {
     const presented = bearer(request)
     if (!presented || !(await isRelaySecret(secret, presented))) {
       return errorResponse(401, 'E_SYNC_UNAUTHORIZED')
@@ -83,11 +87,26 @@ export async function handleHttp(
   }
   const message = await readMessage(request)
   if (message instanceof Response) return message
-  if (message['type'] !== (creating ? 'create' : 'enroll')) {
-    return errorResponse(400, 'E_SYNC_BAD_MESSAGE')
-  }
-  const reply = creating ? await vaults.create(vault, message) : await vaults.enroll(vault, message)
+  if (message['type'] !== route) return errorResponse(400, 'E_SYNC_BAD_MESSAGE')
+  const reply =
+    route === 'create'
+      ? await vaults.create(vault, message)
+      : route === 'enroll'
+        ? await vaults.enroll(vault, message)
+        : await retire(vaults, vault, message)
   return json(reply.status, reply.body)
+}
+
+/** A successor must be a live vault on this relay, so a retire cannot name one nobody can join. */
+async function retire(vaults: Vaults, vault: string, message: Record<string, unknown>) {
+  const successor = message['successor']
+  const refuse = (status: number, code: string): Reply => ({
+    status,
+    body: { v: PROTOCOL_VERSION, type: 'error', code },
+  })
+  if (!isVaultId(successor) || successor === vault) return refuse(400, 'E_SYNC_BAD_MESSAGE')
+  if (!(await vaults.live(successor))) return refuse(409, 'E_SYNC_NO_SUCCESSOR')
+  return vaults.retire(vault, message)
 }
 
 const bearer = (request: Request) =>
@@ -193,12 +212,14 @@ export async function socketTarget(
 
 export const isSocketPath = (pathname: string) => VAULT_PATH.exec(pathname)?.[2] === '/socket'
 
-/** Taking and confirming a pairing and enrolling need no token, so anyone who knows the relay can call them. */
+/**
+ * Taking and confirming a pairing and enrolling need no token, so anyone who knows the relay can
+ * call them; a retire needs no token either, only the relay secret, which a loop would guess at.
+ */
 export function isAnonymousPath(pathname: string): boolean {
   const pairing = PAIRING_PATH.exec(pathname)?.[2]
-  return (
-    pairing === 'take' || pairing === 'confirm' || VAULT_PATH.exec(pathname)?.[2] === '/devices'
-  )
+  const vault = VAULT_PATH.exec(pathname)?.[2]
+  return pairing === 'take' || pairing === 'confirm' || vault === '/devices' || vault === '/retire'
 }
 
 // A device pairs or enrolls a few times at most; a loop of these calls would use up the owner's

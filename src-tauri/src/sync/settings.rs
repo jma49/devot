@@ -14,6 +14,8 @@ use super::{SecretStore, SyncError};
 
 pub(crate) const FILE: &str = "sync-settings.json";
 const DEVICE_ACCOUNT: &str = "device";
+/// The successor's token of a rotation that has not switched yet.
+const NEXT_DEVICE_ACCOUNT: &str = "device-next";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,6 +44,13 @@ pub(crate) struct SyncSettings {
     /// there: Settings names them, so the owner knows which still have to follow.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unseen: Option<Unseen>,
+    /// A rotation this device started and has not switched yet (docs/adr/0017-sync-key-rotation.md).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rotating: Option<Rotation>,
+    /// A vault this device found retired, with its successor: the one vault a join may put in its
+    /// place.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rotated: Option<Rotation>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -60,6 +69,13 @@ pub(crate) struct RelayDevice {
     pub created: i64,
 }
 
+/// A vault and the one that succeeds it, by ID.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Rotation {
+    pub from: String,
+    pub to: String,
+}
+
 impl SyncSettings {
     /// Forgets a move to iCloud this device started and the relay devices kept for it.
     pub(crate) fn call_off_move(&mut self) {
@@ -72,6 +88,14 @@ impl SyncSettings {
     /// What this device keeps of `vault` on iCloud, when that vault is on iCloud.
     pub(crate) fn icloud_for(&self, vault: &str) -> Option<&ICloudState> {
         self.icloud.as_ref().filter(|state| state.vault == vault)
+    }
+
+    /// The successor this device knows of for `vault`, when it found that vault retired.
+    pub(crate) fn successor_of(&self, vault: &str) -> Option<&str> {
+        self.rotated
+            .as_ref()
+            .filter(|rotated| rotated.from == vault)
+            .map(|rotated| rotated.to.as_str())
     }
 }
 
@@ -184,6 +208,22 @@ impl DeviceCredentials {
 
     pub(crate) fn forget(store: &dyn SecretStore) -> Result<(), SyncError> {
         store.remove(DEVICE_ACCOUNT).map(|_| ())
+    }
+
+    /// The successor's token a rotation keeps until it switches.
+    pub(crate) fn load_next(store: &dyn SecretStore) -> Result<Option<Self>, SyncError> {
+        Ok(store
+            .read(NEXT_DEVICE_ACCOUNT)?
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok()))
+    }
+
+    pub(crate) fn save_next(&self, store: &dyn SecretStore) -> Result<(), SyncError> {
+        let bytes = Zeroizing::new(serde_json::to_vec(self).map_err(|_| SyncError::VaultCorrupt)?);
+        store.replace(NEXT_DEVICE_ACCOUNT, &bytes)
+    }
+
+    pub(crate) fn forget_next(store: &dyn SecretStore) -> Result<(), SyncError> {
+        store.remove(NEXT_DEVICE_ACCOUNT).map(|_| ())
     }
 
     pub(crate) fn fits(&self, relay: &str, vault: &str) -> bool {

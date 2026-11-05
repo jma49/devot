@@ -23,6 +23,7 @@ import { PhoneGroup } from '../phone/PhoneControls'
 import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
 import { useOnPhone } from './onPhone'
 import { DevicesRow, JoinRows, PairingRow, RecoveryKeyPanel } from './SyncDevices'
+import { RotateKeyRow } from './SyncRotate'
 import {
   ICloudActions,
   ICloudStorageRows,
@@ -128,6 +129,9 @@ export function SyncSection() {
   const icloud = useICloudStatus(snapshot)
   const onICloud = snapshot.vault && snapshot.transport === 'icloud'
   const inVault = snapshot.enrolled || onICloud
+  // Another device changed the key: only its successor can be joined, and no code is shown.
+  const rotatedAway =
+    !onICloud && (snapshot.rotated || snapshot.status.code === 'E_SYNC_VAULT_ROTATED')
   const attention = icloudAttention(snapshot)
   const line = attention ? icloudLine(attention, snapshot, icloud, pauseOver) : undefined
   const statusLine = attention && line && !OUTSIDE_STATUS.has(attention.kind) ? line : undefined
@@ -365,6 +369,19 @@ export function SyncSection() {
   const joinRows = (
     <JoinRows locked={locked} relayUrl={snapshot.relayUrl} onJoined={joined} failed={failed} />
   )
+  const rotatedRows = rotatedAway ? (
+    <>
+      <SettingsNote>{t('syncSettings.rotatedAway')}</SettingsNote>
+      {joinRows}
+    </>
+  ) : null
+  const rotated = (key: string | null) => {
+    if (key) {
+      setRecoveryKey(key)
+      setKeyFocus(true)
+    }
+    announce(t('syncSettings.rotated'))
+  }
   const pathRow = (hint: MessageKey) => (
     <Setting label="syncSettings.setup" description={t(hint)}>
       <div className="settings-buttons">
@@ -603,7 +620,8 @@ export function SyncSection() {
             />
           </PhoneGroup>
         ) : null}
-        {inVault ? <PhoneGroup>{pairingRow}</PhoneGroup> : null}
+        {rotatedRows ? <PhoneGroup>{rotatedRows}</PhoneGroup> : null}
+        {inVault && !rotatedAway ? <PhoneGroup>{pairingRow}</PhoneGroup> : null}
         {leaveRow ? <PhoneGroup>{leaveRow}</PhoneGroup> : null}
       </section>
     )
@@ -640,16 +658,19 @@ export function SyncSection() {
         {stateNotes}
         {onICloud ? <ICloudStorageRows snapshot={snapshot} /> : <UsageRows snapshot={snapshot} />}
         {offersICloud ? <MoveToICloudRow locked={locked} failed={failed} /> : null}
+        {rotatedRows}
         {inVault ? (
           <>
-            <PairingRow
-              icloud={onICloud}
-              locked={locked}
-              focusRequest={focusPairing}
-              onDevicesChanged={devicesChanged}
-              onAnnounce={announce}
-              failed={failed}
-            />
+            {rotatedAway ? null : (
+              <PairingRow
+                icloud={onICloud}
+                locked={locked}
+                focusRequest={focusPairing}
+                onDevicesChanged={devicesChanged}
+                onAnnounce={announce}
+                failed={failed}
+              />
+            )}
             <DevicesRow
               icloud={onICloud}
               refresh={devicesVersion}
@@ -657,6 +678,9 @@ export function SyncSection() {
               failed={failed}
             />
           </>
+        ) : null}
+        {snapshot.enrolled && !onICloud && !rotatedAway ? (
+          <RotateKeyRow onRotated={rotated} failed={failed} />
         ) : null}
         {leaveRow}
       </SettingsSection>

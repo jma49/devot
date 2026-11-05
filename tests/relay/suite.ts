@@ -1,5 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { CLOSE, LIMITS, PAIRING, SUBPROTOCOL, toBase64Url } from '../../src/core/sync/protocol'
+import {
+  CLOSE,
+  LIMITS,
+  PAIRING,
+  SUBPROTOCOL,
+  toBase64Url,
+  VAULT_ROTATED,
+} from '../../src/core/sync/protocol'
 import {
   bytes,
   connect,
@@ -10,6 +17,7 @@ import {
   postJson,
   randomId,
   type RelayHost,
+  retireVault,
   socketProtocols,
   socketUrl,
   TestSocket,
@@ -432,6 +440,71 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
         mac.socket.send({ type: 'devices' })
         expect((await mac.socket.expect('devices')).message['devices']).toHaveLength(1)
         mac.socket.close()
+      })
+    })
+
+    describe('retiring', () => {
+      it('retires a vault only with the relay secret, never on a device token alone', async () => {
+        const old = await createVault(host)
+        const next = await createVault(host)
+        const kept = await connect(host, old.vault, old.first.token)
+        kept.socket.send({ type: 'retire', rid: 1, successor: next.vault })
+        expect((await kept.socket.expect('error')).message).toMatchObject({
+          rid: 1,
+          code: 'E_SYNC_BAD_MESSAGE',
+        })
+        for (const secret of [null, old.first.token, `${host.secret}x`]) {
+          expect(await retireVault(host, old.vault, next.vault, secret)).toMatchObject({
+            status: 401,
+            body: { code: 'E_SYNC_UNAUTHORIZED' },
+          })
+        }
+        kept.socket.send({ type: 'pull', rid: 2, since: 0 })
+        expect((await kept.socket.expect('records')).message['rid']).toBe(2)
+
+        expect(await retireVault(host, old.vault, next.vault)).toMatchObject({
+          status: 200,
+          body: { type: 'retired', successor: next.vault },
+        })
+        await kept.socket.expect('changed')
+        kept.socket.send({ type: 'pull', rid: 3, since: 0 })
+        expect((await kept.socket.expect('error')).message).toMatchObject({
+          rid: 3,
+          code: VAULT_ROTATED,
+          successor: next.vault,
+        })
+        expect(await retireVault(host, old.vault, next.vault)).toMatchObject({
+          status: 200,
+          body: { type: 'retired', successor: next.vault },
+        })
+        const other = await createVault(host)
+        expect(await retireVault(host, old.vault, other.vault)).toMatchObject({
+          status: 409,
+          body: { code: VAULT_ROTATED, successor: next.vault },
+        })
+        kept.socket.close()
+      })
+
+      it('retires only for a successor the relay holds that is not retired itself', async () => {
+        const old = await createVault(host)
+        expect(await retireVault(host, old.vault, randomId())).toMatchObject({
+          status: 409,
+          body: { code: 'E_SYNC_NO_SUCCESSOR' },
+        })
+        for (const successor of [old.vault, 'short', 7]) {
+          expect(await retireVault(host, old.vault, successor)).toMatchObject({ status: 400 })
+        }
+        expect(await retireVault(host, randomId(), old.vault)).toMatchObject({
+          status: 404,
+          body: { code: 'E_SYNC_NO_VAULT' },
+        })
+        const next = await createVault(host)
+        expect((await retireVault(host, old.vault, next.vault)).status).toBe(200)
+        const third = await createVault(host)
+        expect(await retireVault(host, third.vault, old.vault)).toMatchObject({
+          status: 409,
+          body: { code: 'E_SYNC_NO_SUCCESSOR' },
+        })
       })
     })
 

@@ -1232,6 +1232,19 @@ title: Daily Report {{date}}
   'syncSettings.switchTransportDetail':
     'This device uploads all its notes to iCloud and leaves word on the relay. Your other devices follow when they next sync.',
   'syncSettings.switchTransportButton': 'Move',
+  'syncSettings.rotate': 'Change Vault Key',
+  'syncSettings.rotateHint':
+    'Locks out a lost or removed device that still has the key. Your notes move to a new vault, and your other devices join it again with a pairing code or the new recovery key.',
+  'syncSettings.rotateSecretHint':
+    'Enter the relay\u2019s secret to make the new vault. It is used once and not kept.',
+  'syncSettings.rotateButton': 'Change Key',
+  'syncSettings.rotateFailed': 'The vault key could not be changed ({code}).',
+  'syncSettings.rotated':
+    'The vault key was changed. Save the new recovery key, then join your other devices again.',
+  'syncSettings.rotatedAway':
+    'The vault key was changed on another device. To sync again, enter a pairing code from a device that has the new key, or the new recovery key. Your notes stay here.',
+  'syncSettings.why.rotated':
+    'This key was changed. Use a pairing code from a device that has the new key, or the new recovery key.',
   'syncSettings.icloudChangeFailed': 'Sync through iCloud could not be changed ({code}).',
   'syncSettings.icloudLeave': 'Leave This Vault',
   'syncSettings.icloudLeaveHint':
@@ -1279,6 +1292,8 @@ title: Daily Report {{date}}
     'A backup was restored here: choose in the main window whether to merge or keep this Mac\u2019s copy.',
   'sync.advice.moved':
     'This vault now syncs another way. Set up sync again in Settings > Sync to follow it.',
+  'sync.advice.rotated':
+    'The vault key was changed on another device. Join again in Settings > Sync with a pairing code or the new recovery key.',
   'sync.advice.circuit':
     'A note kept changing back and forth between devices. Turn Sync This Device off and on in Settings > Sync to try again.',
   'sync.notice.storageFull':

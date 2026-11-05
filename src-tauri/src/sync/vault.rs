@@ -11,6 +11,8 @@ pub(super) const ID_BYTES: usize = 16;
 pub(super) const KEY_BYTES: usize = 32;
 
 const ITEM_ACCOUNT: &str = "vault";
+/// The new key of a rotation that has not switched yet (docs/adr/0017-sync-key-rotation.md).
+const NEXT_ACCOUNT: &str = "vault-next";
 const ITEM_VERSION: u8 = 1;
 const ITEM_BYTES: usize = 1 + ID_BYTES + KEY_BYTES;
 
@@ -161,6 +163,31 @@ impl Vault {
     /// Removes the vault from `store`; `false` when there was none.
     pub(crate) fn delete(store: &dyn SecretStore) -> Result<bool, SyncError> {
         store.remove(ITEM_ACCOUNT)
+    }
+
+    /// The new key a rotation waits to switch to.
+    pub(crate) fn load_next(store: &dyn SecretStore) -> Result<Option<Self>, SyncError> {
+        store
+            .read(NEXT_ACCOUNT)?
+            .map(|item| Self::from_item(&item))
+            .transpose()
+    }
+
+    /// Makes a rotation's new key and keeps it beside the vault, which stays as it is.
+    pub(crate) fn create_next(store: &dyn SecretStore) -> Result<Self, SyncError> {
+        let next = Self::generate()?;
+        store.replace(NEXT_ACCOUNT, &next.item())?;
+        Ok(next)
+    }
+
+    pub(crate) fn delete_next(store: &dyn SecretStore) -> Result<bool, SyncError> {
+        store.remove(NEXT_ACCOUNT)
+    }
+
+    /// Puts `vault` in place of the one `store` holds: the end of a rotation, or a join of the
+    /// vault that succeeds a retired one. Nothing else may replace a vault.
+    pub(crate) fn replace(store: &dyn SecretStore, vault: &Self) -> Result<(), SyncError> {
+        store.replace(ITEM_ACCOUNT, &vault.item())
     }
 
     fn keep_new(store: &dyn SecretStore, vault: Self) -> Result<Self, SyncError> {

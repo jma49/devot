@@ -43,6 +43,20 @@ pub async fn sync_vault_create(
     .await
 }
 
+/// Rotates the vault's key (docs/adr/0017-sync-key-rotation.md). The relay secret makes the
+/// successor in one request and is never stored; the answer carries the new recovery key.
+#[tauri::command]
+pub async fn sync_vault_rotate(
+    sync: State<'_, Arc<SyncService>>,
+    relay_secret: String,
+) -> Result<Created, String> {
+    let secret = zeroize::Zeroizing::new(relay_secret);
+    task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| {
+        sync.rotate_vault(&secret)
+    })
+    .await
+}
+
 /// The recovery key until this device says it was saved; then `null`.
 #[tauri::command]
 pub async fn sync_recovery_key(
