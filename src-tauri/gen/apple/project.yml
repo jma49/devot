@@ -62,6 +62,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 1.0.0
         CFBundleVersion: "1.0.0"
+        ITSAppUsesNonExemptEncryption: true
         DevotCloudKitContainer: $(DEVOT_CLOUDKIT_CONTAINER)
     scheme:
       environmentVariables:
@@ -76,6 +77,8 @@ targets:
         DEVOT_CLOUDKIT_CONTAINER: $(DEVOT_CLOUDKIT_CONTAINER_$(DEVOT_ICLOUD))
         DEVOT_CLOUDKIT_CONTAINER_YES: iCloud.io.github.jma49.devot
         ENABLE_BITCODE: false
+        # iPhone only for the first App Store release (docs/adr/0014); the iPad comes later.
+        TARGETED_DEVICE_FAMILY: 1
         ARCHS: [arm64]
         VALID_ARCHS: arm64 
         LIBRARY_SEARCH_PATHS[arch=x86_64]: $(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)

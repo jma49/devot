@@ -101,5 +101,8 @@ describe("the iPhone app's iCloud switch", () => {
       expect(file).not.toMatch(/^\s*DEVOT_ICLOUD\s*[:=]/m)
       expect(file).not.toContain('CODE_SIGNING_ALLOWED')
     }
+    expect(readFileSync('.github/workflows/app-store.yml', 'utf8')).toMatch(
+      /^ {10}DEVOT_ICLOUD: 'YES'$/m,
+    )
   })
 })

@@ -103,7 +103,7 @@ it("runs the signing scripts' tests, which need Apple's tools, on a Mac for ever
   expect(mac).toMatch(
     /^ {4}if: needs\.changes\.outputs\.web != 'false' && needs\.changes\.outputs\.docs_only != 'true'$/m,
   )
-  expect(commands(mac)).toContain('pnpm vitest run tests/scripts/macos-')
+  expect(commands(mac)).toContain('pnpm vitest run tests/scripts/macos- tests/scripts/ios-')
 })
 
 it('every Vitest test that skips without a Mac or its tools runs in the macOS job', () => {

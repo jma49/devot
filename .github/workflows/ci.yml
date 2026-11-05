@@ -277,7 +277,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm vitest run tests/scripts/macos-
+      - run: pnpm vitest run tests/scripts/macos- tests/scripts/ios-
 
   # The required web check. It runs even when the jobs it sums up were
   # skipped (a pull request without web changes) and fails when any of them,

@@ -158,7 +158,7 @@ describe('the release workflow', () => {
       'APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE_MACOS }}',
     )
     expect(signing).not.toMatch(/base64|provisionprofile/)
-    // No iPhone release runs here yet.
+    // The iPhone app is signed in app-store.yml (tests/policy/app-store-build.test.ts).
     expect(workflow).not.toContain('APPLE_PROVISIONING_PROFILE_IOS')
     const script = readFileSync('scripts/release/macos-sign.sh', 'utf8')
     expect(script).toMatch(/^work=\$\(mktemp -d "\$\{RUNNER_TEMP:-/m)

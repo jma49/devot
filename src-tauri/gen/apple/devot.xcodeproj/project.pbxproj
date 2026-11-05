@@ -12,6 +12,7 @@
 		25FF7C6AD89BDF46F6776971 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2A194DD75CE5B8478FEF87CA /* MetalKit.framework */; };
 		312AE22B580698F3FB870669 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DFEA1C9C4F7A1C0534536CE /* UIKit.framework */; };
 		34A54B2346DC51B4E3B0211F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FBE599D35452B8F210FA9C16 /* LaunchScreen.storyboard */; };
+		3A01A734AA75AC6EEE68CBDC /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B7DEA7859D9821290A94C1BA /* PrivacyInfo.xcprivacy */; };
 		3E34BD18E5D1C1D22C05726F /* DevotStore in Frameworks */ = {isa = PBXBuildFile; productRef = FD657620152FD640D421F37A /* DevotStore */; };
 		470CE83CF46A2744935494CE /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86C0A5EEB7F57A978B69D46B /* QuartzCore.framework */; };
 		546674A79B42722B61E813D2 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0FB148315E9E9007B47A69EF /* CoreGraphics.framework */; };
@@ -129,6 +130,7 @@
 		B491872A67E4156E9E4CC151 /* note_relay.rs */ = {isa = PBXFileReference; path = note_relay.rs; sourceTree = "<group>"; };
 		B4F2D9C21CAB0F8ED0676AF2 /* pending.rs */ = {isa = PBXFileReference; path = pending.rs; sourceTree = "<group>"; };
 		B64C32B9180B7F62B8DF1447 /* atomic_file.rs */ = {isa = PBXFileReference; path = atomic_file.rs; sourceTree = "<group>"; };
+		B7DEA7859D9821290A94C1BA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B8EB4E8F453367105F0ACC6D /* relay_tests.rs */ = {isa = PBXFileReference; path = relay_tests.rs; sourceTree = "<group>"; };
 		B9DA79878C9798D58847E7E6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BFD5D62D96ADAC18CF4A8E27 /* sync.rs */ = {isa = PBXFileReference; path = sync.rs; sourceTree = "<group>"; };
@@ -285,6 +287,7 @@
 			children = (
 				F584E20712D9A153E50D9D2B /* devot_iOS.entitlements */,
 				2B0B2A1ED77BBB41889FE10E /* Info.plist */,
+				B7DEA7859D9821290A94C1BA /* PrivacyInfo.xcprivacy */,
 			);
 			path = devot_iOS;
 			sourceTree = "<group>";
@@ -586,6 +589,7 @@
 			files = (
 				9A4A08D4EDBF06F8EFBE279B /* Assets.xcassets in Resources */,
 				34A54B2346DC51B4E3B0211F /* LaunchScreen.storyboard in Resources */,
+				3A01A734AA75AC6EEE68CBDC /* PrivacyInfo.xcprivacy in Resources */,
 				ECF71358197693DC8F914453 /* assets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -720,7 +724,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.jma49.devot;
 				PRODUCT_NAME = Devot;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				VALID_ARCHS = arm64;
 			};
 			name = release;
@@ -754,7 +758,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.jma49.devot;
 				PRODUCT_NAME = Devot;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				VALID_ARCHS = arm64;
 			};
 			name = debug;
