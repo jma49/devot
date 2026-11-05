@@ -16,6 +16,7 @@ import {
 import { Setting, SettingsNote } from './controls'
 import { useOnPhone } from './onPhone'
 import type { Failure } from './SyncDevices'
+import { failureText, logFailure } from './syncWhy'
 
 // Settings > Sync for a vault on iCloud, and the question a device with none answers first
 // (docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md).
@@ -236,7 +237,7 @@ export function ICloudStorageRows(props: { snapshot: SyncSnapshot }) {
         if (current) setStored({ state: 'ready', bytes })
       },
       (e: unknown) => {
-        if (current) setStored({ state: 'failed', code: errorCode(e) })
+        if (current) setStored({ state: 'failed', code: logFailure(errorCode(e)) })
       },
     )
     return () => {
@@ -249,7 +250,7 @@ export function ICloudStorageRows(props: { snapshot: SyncSnapshot }) {
           size: fileSize(stored.bytes, currentLocale()),
         })
       : stored.state === 'failed'
-        ? format(t('syncSettings.icloudStorageFailed'), { code: stored.code })
+        ? failureText('syncSettings.icloudStorageFailed', stored.code)
         : t('syncSettings.icloudStorageReading')
   return (
     <>

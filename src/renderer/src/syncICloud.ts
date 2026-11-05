@@ -121,6 +121,9 @@ const BY_CODE: Readonly<Record<string, CodeKind>> = {
   [VAULT_MOVED]: 'moved',
 }
 
+/** True when the status line already words this code, so it needs no code beside it. */
+export const icloudWordsCode = (code: string) => code in BY_CODE
+
 /** Before a vault: why the look for the Apple ID's vault could not run. */
 const LOOK_BLOCKED = new Set<CodeKind>(['signedOut', 'restricted', 'unavailable'])
 

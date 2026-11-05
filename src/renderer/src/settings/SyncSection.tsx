@@ -18,7 +18,7 @@ import {
   type SyncSnapshot,
   type SyncStateName,
 } from '../sync'
-import { icloudAttention, icloudLine, useICloudStatus } from '../syncICloud'
+import { icloudAttention, icloudLine, icloudWordsCode, useICloudStatus } from '../syncICloud'
 import { PhoneGroup } from '../phone/PhoneControls'
 import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
 import { useOnPhone } from './onPhone'
@@ -33,7 +33,7 @@ import {
   TransportRow,
 } from './SyncICloud'
 import { UsageRows } from './SyncUsage'
-import { WHY } from './syncWhy'
+import { failureText, logFailure } from './syncWhy'
 
 const SAY_AFTER_MS = 50
 
@@ -69,12 +69,15 @@ function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string):
   return [...parts, ...statusDetails(snapshot, locale)].join(' ')
 }
 
+const wordedCode = (code: string) =>
+  code === STORAGE_FULL || code in STOP_ADVICE || icloudWordsCode(code)
+
 function statusDetails(snapshot: SyncSnapshot, locale: string): string[] {
   const { state, lastSync, code, upload } = snapshot.status
   const parts: string[] = []
   if (upload && snapshot.enabled)
     parts.push(format(t('syncSettings.upload'), uploadCounts(upload, locale)))
-  if (code && snapshot.enabled && state !== 'idle')
+  if (code && snapshot.enabled && state !== 'idle' && !wordedCode(code))
     parts.push(format(t('syncSettings.code'), { code }))
   parts.push(
     lastSync === null
@@ -152,7 +155,7 @@ export function SyncSection() {
     (message: MessageKey) => (e: unknown) => {
       say('')
       failures.current += 1
-      setError({ message, code: errorCode(e), n: failures.current })
+      setError({ message, code: logFailure(errorCode(e)), n: failures.current })
     },
     [say],
   )
@@ -252,7 +255,6 @@ export function SyncSection() {
   // A device that holds a vault the relay does not know reconnects to it; it never starts another.
   const held = !snapshot.enrolled && snapshot.vault && !onICloud
   const asksSecret = needsVault && (held || path === 'first')
-  const why = error ? WHY[error.code] : undefined
   const secretHint: MessageKey = !snapshot.vault
     ? 'syncSettings.secretHint'
     : snapshot.status.code === 'E_SYNC_REVOKED'
@@ -266,8 +268,7 @@ export function SyncSection() {
       </h2>
       {error ? (
         <p key={error.n} ref={alert} role="alert" className="settings-error">
-          {format(t(error.message), { code: error.code })}
-          {why ? ` ${t(why)}` : null}
+          {failureText(error.message, error.code)}
         </p>
       ) : null}
       <p className="visually-hidden" role="status" aria-live="polite">
