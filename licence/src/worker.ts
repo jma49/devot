@@ -1,4 +1,6 @@
 import { createApp } from './app.ts'
+import { appleApi, publicKeyRing, SANDBOX_KID, SANDBOX_SEED } from './app-store.ts'
+import type { AppStoreDeps } from './app-store-routes.ts'
 import { assetResponse } from './assets.ts'
 import { LicenceError } from './errors.ts'
 import { fromBase64Url, publicKeyFromSeed, signerFromSeed } from './format.ts'
@@ -22,6 +24,12 @@ export interface Env {
   MAX_DEVICES?: string
   /** Older public keys, by kid, as a JSON object, so their licences can still activate. */
   LICENCE_KEYS?: string
+  /** The In-App Purchase key's `.p8` (PKCS #8 PEM), its key ID and the issuer ID. */
+  APP_STORE_KEY?: string
+  APP_STORE_KEY_ID?: string
+  APP_STORE_ISSUER_ID?: string
+  APP_STORE_BUNDLE_ID?: string
+  APP_STORE_PRODUCT_PRO?: string
 }
 
 const REQUIRED = [
@@ -57,6 +65,34 @@ function olderKeys(value: string | undefined): Record<string, Uint8Array> {
   }
 }
 
+/** The App Store routes' dependencies, or null until every App Store setting is there. */
+async function appStoreDeps(env: Env): Promise<AppStoreDeps | null> {
+  const { APP_STORE_KEY, APP_STORE_KEY_ID, APP_STORE_ISSUER_ID } = env
+  const { APP_STORE_BUNDLE_ID, APP_STORE_PRODUCT_PRO } = env
+  if (
+    !APP_STORE_KEY ||
+    !APP_STORE_KEY_ID ||
+    !APP_STORE_ISSUER_ID ||
+    !APP_STORE_BUNDLE_ID ||
+    !APP_STORE_PRODUCT_PRO
+  ) {
+    return null
+  }
+  return {
+    config: { bundleId: APP_STORE_BUNDLE_ID, productPro: APP_STORE_PRODUCT_PRO },
+    apple: appleApi({
+      key: APP_STORE_KEY,
+      keyId: APP_STORE_KEY_ID,
+      issuerId: APP_STORE_ISSUER_ID,
+      bundleId: APP_STORE_BUNDLE_ID,
+    }),
+    sandboxSigner: await signerFromSeed(
+      SANDBOX_KID,
+      fromBase64Url(SANDBOX_SEED) ?? new Uint8Array(),
+    ),
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // The error pages' stylesheet loads even before the secrets are set.
@@ -74,10 +110,12 @@ export default {
       stripe: stripeClient(env.STRIPE_SECRET_KEY ?? ''),
       mailer: resendMailer(env.RESEND_API_KEY ?? '', env.MAIL_FROM ?? '', undefined, env.REPLY_TO),
       signer: await signerFromSeed(env.LICENCE_KID ?? '', seed),
-      publicKeys: {
-        ...olderKeys(env.LICENCE_KEYS),
-        [env.LICENCE_KID ?? '']: await publicKeyFromSeed(seed),
-      },
+      publicKeys: publicKeyRing(
+        env.LICENCE_KID ?? '',
+        await publicKeyFromSeed(seed),
+        olderKeys(env.LICENCE_KEYS),
+      ),
+      appStore: await appStoreDeps(env),
       config: {
         managedPayments: env.MANAGED_PAYMENTS === 'true',
         priceLicence: env.STRIPE_PRICE_LICENCE ?? '',

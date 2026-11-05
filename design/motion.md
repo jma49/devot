@@ -129,6 +129,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Pane slider:** rule 1. The thumb and fill follow the finger, and the glass or text changes as it goes.
 - **Detail sheet:** rule 3. It grows in with `gentle` like any sheet; Done and a drag down close it the same way.
 - **Purchase sheet** (App Store builds): rule 3, as the detail sheet. It rises at launch before the trial or once it has ended, and from Buy Devot Pro; Not Now, Escape and a drag down close it the same way. StoreKit's own sheets cover it while a purchase or Restore Purchases runs, with Apple's motion. A completed purchase or restore takes it away at once, as StoreKit's sheet comes down over it. Its buttons press as glass controls; the price, a pending note or a failure appear in place with no motion (rule 2).
+- **Mac licence key sheet** (App Store builds, Settings > Get a Mac License Key): rule 3, as the detail sheet. Getting the key, the key, a failure and Copied appear in place with no motion (rule 2). Copy Key, Share and Try Again press as glass controls; Share opens the system share sheet with its own motion.
 - **Restore Purchases row:** rule 2. The row presses as any Settings row; its value changes in place to Restoring and then to the outcome.
 - **Usage:** rule 2. A new period or event type replaces the figures, charts and lists at once; the period's pill moves as in any pane segmented control. Show Events opens the list at once.
 - **Settings search:** rule 2. The field and results appear at once, and results change as you type.

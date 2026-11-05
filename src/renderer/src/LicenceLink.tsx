@@ -4,7 +4,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import type { DeepLink } from './deepLink'
 import { format, t } from './i18n'
 import { addLicence, readCurrentLicence } from './licence'
-import { licenceProblem, planLicenceLink, type LicenceOffer } from './licenceView'
+import { licenceProblem, licenseeName, planLicenceLink, type LicenceOffer } from './licenceView'
 
 type LicenceLink = Extract<DeepLink, { kind: 'licence' }>
 
@@ -36,7 +36,7 @@ export function useLicenceLink(): {
                 ? 'deepLink.licenceAdded'
                 : 'deepLink.licenceAddedLocked',
             ),
-            { licensee: offer.licensee },
+            { licensee: licenseeName(offer.licensee, true) },
           ),
         ),
       (e: unknown) => setNotice(format(t('deepLink.licenceFailed'), { code: errorCode(e) })),

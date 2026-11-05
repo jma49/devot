@@ -69,6 +69,13 @@ export const MESSAGES = {
     E_LICENCE_DEVICE_LIMIT:
       'Every device this licence allows is in use. Remove one, then try again.',
     E_LICENCE_RATE_LIMITED: 'Too many attempts. Please try again in a while.',
+    E_APP_STORE_SIGNATURE: 'That purchase is not signed by the App Store.',
+    E_APP_STORE_PRODUCT: 'That purchase is not Devot Pro.',
+    E_APP_STORE_FAMILY_SHARED: 'A purchase shared through Family Sharing has no Mac licence.',
+    E_APP_STORE_NOT_FOUND: 'The App Store does not know that purchase.',
+    E_APP_STORE_UNREACHABLE: 'The App Store did not answer. Please try again in a moment.',
+    E_APP_STORE_UPSTREAM: 'The App Store answer could not be checked. Please try again later.',
+    E_APP_STORE_MISMATCH: 'That purchase does not match the App Store record of it.',
   },
   mail: {
     issuedSubject: 'Your Devot licence',

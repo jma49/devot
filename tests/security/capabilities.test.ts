@@ -552,7 +552,12 @@ describe('Tauri command permissions', () => {
 })
 
 /** StoreKit's purchases (docs/adr/0014): only an App Store build on an iPhone sells anything. */
-const PHONE_ONLY = ['allow-store-products', 'allow-store-purchase', 'allow-store-restore']
+const PHONE_ONLY = [
+  'allow-store-products',
+  'allow-store-purchase',
+  'allow-store-restore',
+  'allow-store-mac-key',
+]
 
 describe('the iPhone capability', () => {
   const phone = allCapabilities().filter(iosOnly)

@@ -3,7 +3,13 @@
 import type { LicenceState } from '../../core/entitlements'
 import { fullDate } from './format'
 import { format, t, type MessageKey } from './i18n'
-import { APP_STORE_UNREAD, soldOnAppStore, trialRunning, type LicenceSnapshot } from './licence'
+import {
+  APP_STORE_LICENSEE,
+  APP_STORE_UNREAD,
+  soldOnAppStore,
+  trialRunning,
+  type LicenceSnapshot,
+} from './licence'
 
 const REASONS: Readonly<Record<string, MessageKey>> = {
   E_LICENCE_MALFORMED: 'licence.reason.malformed',
@@ -23,7 +29,28 @@ const REASONS: Readonly<Record<string, MessageKey>> = {
   E_APP_STORE_NO_REPLY: 'licence.reason.storeNoReply',
   E_APP_STORE_UNAVAILABLE: 'licence.reason.storeUnavailable',
   E_APP_STORE_UNVERIFIED: 'licence.reason.storeUnverified',
+  E_APP_STORE_NO_PRO: 'licence.reason.noPro',
+  E_APP_STORE_PRODUCT: 'licence.reason.storeProduct',
+  E_APP_STORE_FAMILY_SHARED: 'licence.reason.familyShared',
+  E_APP_STORE_NOT_FOUND: 'licence.reason.storeUnverified',
+  E_APP_STORE_MISMATCH: 'licence.reason.storeUnverified',
+  E_APP_STORE_SIGNATURE: 'licence.reason.storeUnverified',
+  E_APP_STORE_EXCHANGE_REFUSED: 'licence.reason.storeUnverified',
+  E_APP_STORE_UNREACHABLE: 'licence.reason.storeNoReply',
+  E_APP_STORE_UPSTREAM: 'licence.reason.storeUpstream',
+  E_APP_STORE_EXCHANGE_FAILED: 'licence.reason.exchangeFailed',
+  E_LICENCE_CONFIG: 'licence.reason.exchangeFailed',
+  E_LICENCE_REVOKED: 'licence.reason.revoked',
 }
+
+/**
+ * Who a licence is for, as the windows name them: a key exchanged for an App Store purchase names
+ * no buyer. `inline` words it for the middle of a sentence.
+ */
+export const licenseeName = (licensee: string, inline = false): string =>
+  licensee === APP_STORE_LICENSEE
+    ? t(inline ? 'licence.appStoreLicenseeInline' : 'licence.appStoreLicensee')
+    : licensee
 
 export function licenceProblem(code: string): string {
   return format(t('licence.problem'), { reason: t(REASONS[code] ?? 'licence.reason.other'), code })
@@ -86,7 +113,7 @@ export function planLicenceLink(current: LicenceSnapshot, offer: LicenceOffer): 
       kind: 'ask',
       message: t('licence.replace.message'),
       detail: format(t('licence.replace.detailInvalid'), {
-        licensee: offer.licensee,
+        licensee: licenseeName(offer.licensee, true),
         id: offer.id,
       }),
     }
@@ -95,9 +122,9 @@ export function planLicenceLink(current: LicenceSnapshot, offer: LicenceOffer): 
     kind: 'ask',
     message: t('licence.replace.message'),
     detail: format(t('licence.replace.detail'), {
-      current: current.licensee,
+      current: licenseeName(current.licensee, true),
       currentId: current.id,
-      licensee: offer.licensee,
+      licensee: licenseeName(offer.licensee, true),
       id: offer.id,
     }),
   }

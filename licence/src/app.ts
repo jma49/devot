@@ -1,3 +1,4 @@
+import { type AppStoreDeps, appStoreRoutes } from './app-store-routes.ts'
 import { assetResponse } from './assets.ts'
 import { type CheckoutConfig, checkoutParams, LICENCE_KIND } from './checkout.ts'
 import { type LicenceCode, LicenceError } from './errors.ts'
@@ -12,10 +13,19 @@ import {
   signRevocations,
   verifyLicence,
 } from './format.ts'
+import { json, readBody } from './http.ts'
 import { licenceMail, type Mailer } from './mail.ts'
 import { MESSAGES } from './messages.ts'
-import { devicesPage, donePage, errorPage, pendingPage, resendPage, resentPage } from './pages.ts'
-import type { Fulfilled, Licence, Store } from './store.ts'
+import {
+  APP_DEVICES_PATH,
+  devicesPage,
+  donePage,
+  errorPage,
+  pendingPage,
+  resendPage,
+  resentPage,
+} from './pages.ts'
+import type { Fulfilled, Licence, LicenceRecord, Store } from './store.ts'
 import { type CheckoutSession, type StripeClient, toSession } from './stripe.ts'
 import { verifyStripeSignature } from './webhook.ts'
 
@@ -40,6 +50,8 @@ export interface AppDeps {
   now?: () => Date
   /** One line per event: a code and IDs, never an address or a key. */
   log?: (line: string) => void
+  /** The App Store routes; without them they answer E_LICENCE_CONFIG and Stripe keeps working. */
+  appStore?: AppStoreDeps | null
 }
 
 export const LIMITS = {
@@ -93,6 +105,13 @@ const STATUS: Partial<Record<LicenceCode, number>> = {
   E_LICENCE_MALFORMED: 400,
   E_LICENCE_UNKNOWN_KID: 400,
   E_LICENCE_SIGNATURE: 400,
+  E_APP_STORE_SIGNATURE: 400,
+  E_APP_STORE_PRODUCT: 403,
+  E_APP_STORE_FAMILY_SHARED: 403,
+  E_APP_STORE_NOT_FOUND: 404,
+  E_APP_STORE_MISMATCH: 409,
+  E_APP_STORE_UNREACHABLE: 503,
+  E_APP_STORE_UPSTREAM: 503,
 }
 
 /** A label the buyer can recognise their device by; never markup, never long. */
@@ -415,16 +434,16 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
    * has no row in D1 (docs/licensing.md, Complimentary licences): its signature is the root of
    * trust, and only a row that says it was revoked refuses it.
    */
-  async function licenceFor(key: unknown): Promise<{ id: string }> {
+  async function licenceFor(key: unknown): Promise<LicenceRecord & { id: string }> {
     if (typeof key !== 'string' || key.length === 0 || key.length > 1024) {
       throw new LicenceError('E_LICENCE_BAD_REQUEST')
     }
     const verified = await verifyLicence(key, deps.publicKeys)
     if (!verified.ok) throw new LicenceError(verified.code)
     const id = verified.payload.id
-    const licence = await store.licence(id)
+    const licence = await store.licenceRecord(id)
     if (licence?.revokedAt) throw new LicenceError('E_LICENCE_REVOKED', id)
-    return { id }
+    return { id, revokedAt: null, appStore: licence?.appStore ?? null }
   }
 
   function deviceOf(value: unknown): string {
@@ -458,6 +477,10 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
       log(`I_LICENCE_DEVICE_LIMIT ${licence.id}`)
       throw new LicenceError('E_LICENCE_DEVICE_LIMIT', licence.id)
     }
+    // Only after the seat: device IDs are the client's own, so asking Apple any earlier would let
+    // anyone spend the In-App Purchase key's quota.
+    if (licence.appStore && appStore) await appStore.renewal(licence.id)
+    else if (licence.appStore) log(`E_LICENCE_CONFIG ${licence.id} app-store`)
     const expiresAt = instant(new Date(now().getTime() + ACTIVATION_DAYS * 86_400_000))
     const lease = await signActivation(signer, { id: licence.id, device, issuedAt: at, expiresAt })
     log(`I_LICENCE_ACTIVATED ${licence.id} ${device}`)
@@ -474,8 +497,8 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
   }
 
   /** The page a buyer uses to free a seat, for a device they no longer have. */
-  async function devices(request: Request): Promise<Response> {
-    if (request.method === 'GET') return devicesPage(null, null, config.maxDevices)
+  async function devices(request: Request, app: boolean): Promise<Response> {
+    if (request.method === 'GET') return devicesPage(null, null, config.maxDevices, undefined, app)
     const form = new URLSearchParams(await readBody(request, LIMITS.formBytes))
     const key = form.get('key') ?? ''
     const licence = await licenceFor(key)
@@ -486,16 +509,25 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
       log(`I_LICENCE_DEACTIVATED ${licence.id} ${target} ${freed ? 'page' : 'none'}`)
       notice = freed ? MESSAGES.devicesRemoved : MESSAGES.devicesUnknown
     }
-    return devicesPage(key, await store.activations(licence.id), config.maxDevices, notice)
+    return devicesPage(key, await store.activations(licence.id), config.maxDevices, notice, app)
+  }
+
+  const appStore = deps.appStore
+    ? appStoreRoutes({ deps: deps.appStore, store, signer, now, log, rateKey })
+    : null
+  const appStoreRoute = () => {
+    if (!appStore) throw new LicenceError('E_LICENCE_CONFIG', 'app-store')
+    return appStore
   }
 
   return async (request) => {
     const url = new URL(request.url)
     const asset = assetResponse(url.pathname, request.method)
     if (asset) return asset
+    const fromApp = `${url.pathname}${url.search}` === APP_DEVICES_PATH
     const route = Object.hasOwn(ROUTES, url.pathname) ? ROUTES[url.pathname] : undefined
     if (!route) return errorPage('E_LICENCE_NOT_FOUND', 404)
-    if (!route.includes(request.method)) return errorPage('E_LICENCE_METHOD', 405)
+    if (!route.includes(request.method)) return errorPage('E_LICENCE_METHOD', 405, fromApp)
     try {
       switch (url.pathname) {
         case '/buy':
@@ -511,7 +543,11 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
         case '/deactivate':
           return await deactivate(request)
         case '/devices':
-          return await devices(request)
+          return await devices(request, fromApp)
+        case '/app-store/exchange':
+          return await appStoreRoute().exchange(request)
+        case '/app-store/notifications':
+          return await appStoreRoute().notification(request)
         default:
           return await revoked()
       }
@@ -521,8 +557,9 @@ export function createApp(deps: AppDeps): (request: Request) => Promise<Response
       const api =
         url.pathname === '/stripe/webhook' ||
         url.pathname === '/activate' ||
-        url.pathname === '/deactivate'
-      return api ? json({ code }, status) : errorPage(code, status)
+        url.pathname === '/deactivate' ||
+        url.pathname.startsWith('/app-store/')
+      return api ? json({ code }, status) : errorPage(code, status, fromApp)
     }
   }
 }
@@ -536,6 +573,8 @@ const ROUTES: Record<string, string[]> = {
   '/activate': ['POST'],
   '/deactivate': ['POST'],
   '/devices': ['GET', 'POST'],
+  '/app-store/exchange': ['POST'],
+  '/app-store/notifications': ['POST'],
 }
 
 function ours(session: CheckoutSession): boolean {
@@ -545,37 +584,4 @@ function ours(session: CheckoutSession): boolean {
 function expandedId(value: unknown): string | undefined {
   const id = (value as { id?: unknown } | null)?.id
   return typeof id === 'string' ? id : undefined
-}
-
-function json(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
-async function readBody(request: Request, limit: number): Promise<string> {
-  const declared = Number(request.headers.get('Content-Length') ?? 0)
-  if (declared > limit) throw new LicenceError('E_LICENCE_TOO_LARGE')
-  const reader = request.body?.getReader()
-  if (!reader) return ''
-  const parts: Uint8Array[] = []
-  let size = 0
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    size += value.length
-    if (size > limit) {
-      await reader.cancel()
-      throw new LicenceError('E_LICENCE_TOO_LARGE')
-    }
-    parts.push(value)
-  }
-  const body = new Uint8Array(size)
-  let at = 0
-  for (const part of parts) {
-    body.set(part, at)
-    at += part.length
-  }
-  return new TextDecoder().decode(body)
 }

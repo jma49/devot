@@ -131,6 +131,7 @@ fn main() {
             "store_products",
             "store_purchase",
             "store_restore",
+            "store_mac_key",
             "sync_get",
             "sync_set",
             "sync_vault_create",
