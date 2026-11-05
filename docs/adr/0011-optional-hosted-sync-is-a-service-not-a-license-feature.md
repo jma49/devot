@@ -1,6 +1,6 @@
 # A hosted sync service, if it ever ships, is a separate service, not a license feature
 
-Status: accepted. Amended by ADR 0014: on the iPhone, a hosted service would also be sold as an App Store in-app purchase.
+Status: accepted. Amended by ADR 0014: on the iPhone, a hosted service would also be sold as an App Store in-app purchase. Amended by ADR 0015: sync may also go through the owner's iCloud.
 
 Devot stays sold once. The license unlocks every feature, on every device, for every release, with no reduced rights for anyone who runs their own relay or none (ADR 0006). Running a relay yourself stays the supported way to sync (ADR 0004), and its limits are shown plainly in the app. A Devot-hosted sync service may come later for people who do not want to run a relay. If it does, it is a separate storage service, billed periodically by what it stores. It is not part of the license, and no feature is held back to sell it. This amends ADR 0004 and ADR 0006.
 
@@ -31,3 +31,7 @@ Devot stays sold once. The license unlocks every feature, on every device, for e
 - Hosting never appears in the app, the Welcome screen or the first launch. Settings > Sync stays the one place where sync is set up, and its first question is only whether this is the first device or another one.
 - A relay's storage is read from the relay itself (`usage`: stored bytes, image bytes and the relay's own `caps`), so the figures are right for any host, and a relay that does not say its caps is shown as such. A relay run with `RELAY_QUOTA=off` is shown as having no cap.
 - The decision is revisited only when there is evidence of demand and a costed plan. It then gets its own ADR, which settles the points under "Not decided".
+
+## Amended
+
+ADR 0015: "no other sync backend (CloudKit included)" no longer holds. A vault may sync through the owner's own iCloud, which Devot neither runs nor bills; the rest of this ADR stands.

@@ -7,6 +7,8 @@ Terms the code and the docs use with one meaning each.
 - **Relay:** the server that stores each record's latest encrypted state and tells a vault's devices when something changed. Each owner runs their own (docs/adr/0004-sync-without-accounts.md, docs/sync-relay.md). It never decrypts.
 - **Relay secret:** the relay's own secret (`RELAY_SECRET`). Creating a vault on the relay needs it; Devot sends it in that one request and never keeps it.
 - **Vault:** what a set of devices syncs: a random vault ID, which the relay knows, and a 256-bit vault key, which it never sees. The vault key lives in each device's keychain.
+- **Transport:** how a vault's devices reach its records: a relay, or the owner's iCloud (docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md). A vault uses one; switching starts a new epoch and uploads everything again.
+- **Handover item:** on a vault that syncs through iCloud, a synchronizable keychain item holding the vault ID and key, which the iCloud Keychain brings to the owner's other devices so they join without a code. Each device still keeps its own device-only copy.
 - **Record:** one note, notebook, tag, saved search or attachment, sealed under a key derived from the vault key (docs/adr/0002-sync-latest-state-per-record.md).
 - **Saved search:** a named query in the search field's syntax, kept and synced as a record of its own; the sidebar and the iPhone's Library list them with live counts.
 - **Enrollment secret:** derived from the vault key; a device presents it to the relay to become one of the vault's devices. The relay keeps only its verifier. It reveals nothing about the vault key.
