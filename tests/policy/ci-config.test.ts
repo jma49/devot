@@ -71,14 +71,30 @@ it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () =>
   expect(gate).toContain('for result in "$CHANGES" "$RUST" "$IOS" "$DENY"')
 })
 
-it("runs the signing scripts' tests, which need Apple's tools, on a Mac for every pull request with code", () => {
-  // On the Linux runners they skip.
+it("runs the signing scripts' tests, which need Apple's tools, on a Mac for every pull request with web or script changes", () => {
+  // scripts/ and tests/ count as web changes (scripts/ci/changed-code.sh).
   const mac = job('mac-scripts')
   expect(mac).toContain('runs-on: macos-')
-  expect(mac).toMatch(/^ {4}if: needs\.changes\.outputs\.docs_only != 'true'$/m)
+  expect(mac).toMatch(
+    /^ {4}if: needs\.changes\.outputs\.web != 'false' && needs\.changes\.outputs\.docs_only != 'true'$/m,
+  )
   expect(commands(mac)).toContain('pnpm vitest run tests/scripts/macos-')
-  for (const file of listFiles('.', 'tests/scripts').filter((f) => read(f).includes("'darwin'")))
-    expect(file).toMatch(/^tests\/scripts\/macos-/)
+})
+
+it('every Vitest test that skips without a Mac or its tools runs in the macOS job', () => {
+  // Reads the skipIf/runIf conditions; on the Linux runners such a test would never run at all.
+  const mac =
+    /'darwin'|\b(?:codesign|security|xcrun|notarytool|stapler|plutil|hdiutil|spctl|ditto|xcodebuild|actool|devicectl)\b/
+  const macOnly = listFiles('.', 'tests')
+    .filter((file) => /\.test\.ts$/.test(file))
+    .filter((file) =>
+      [...read(file).matchAll(/\.(?:skipIf|runIf)\((.*)$/gm)].some((m) => mac.test(m[1] ?? '')),
+    )
+  const filters = commands(job('mac-scripts'))
+    .filter((c) => c.startsWith('pnpm vitest run '))
+    .flatMap((c) => c.split(' ').slice(3))
+  expect(macOnly).toEqual(expect.arrayContaining(['tests/scripts/macos-sign.bench.test.ts']))
+  expect(macOnly.filter((file) => !filters.some((f) => file.startsWith(f)))).toEqual([])
 })
 
 it('the updater plugin is not a phone dependency', () => {

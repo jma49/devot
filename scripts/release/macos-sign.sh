@@ -108,10 +108,14 @@ security import "$work/certificate.p12" -k "$keychain" -f pkcs12 -P "$APPLE_CERT
   fail "E_SIGN_CERTIFICATE_IMPORT: the .p12 in APPLE_CERTIFICATE does not open with APPLE_CERTIFICATE_PASSWORD"
 rm -f "$work/certificate.p12"
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" > /dev/null
-certificate=$(security find-identity -p codesigning "$keychain" |
-  awk -v name="\"$identity\"" 'index($0, name) { print $2; exit }')
-[ -n "$certificate" ] ||
+# find-identity lists a valid identity twice, under all and under valid ones; the hashes tell them apart.
+certificates=$(security find-identity -p codesigning "$keychain" |
+  awk -v name="\"$identity\"" 'index($0, name) { print $2 }' | sort -u)
+[ -n "$certificates" ] ||
   fail "E_SIGN_IDENTITY_NOT_FOUND: the certificate holds no identity named by APPLE_SIGNING_IDENTITY"
+[ "$(wc -l <<< "$certificates")" -eq 1 ] ||
+  fail "E_SIGN_IDENTITY_AMBIGUOUS: the certificate holds $(wc -l <<< "$certificates" | tr -d ' ') identities named by APPLE_SIGNING_IDENTITY; export only the current one into the .p12"
+certificate=$certificates
 if [ -n "$profile" ]; then
   bundle_id=$(plutil -extract CFBundleIdentifier raw -o - "$input/Contents/Info.plist")
   "$script_dir/macos-profile.sh" "$profile" "$entitlements" "$team" "$bundle_id" "$certificate"
@@ -125,8 +129,10 @@ if [ $search_list -eq 1 ]; then
   listed=1
 fi
 
+# By hash: the certificate the profile check accepted, which codesign also takes when it cannot
+# build its chain to a trusted root, as for the tests' self-signed one.
 sign() {
-  codesign --force --sign "$identity" --keychain "$keychain" --timestamp "$@"
+  codesign --force --sign "$certificate" --keychain "$keychain" --timestamp "$@"
 }
 
 is_macho() {

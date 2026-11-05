@@ -261,10 +261,12 @@ jobs:
           retention-days: 7
 
   # The signing scripts' tests need Apple's tools and skip on the Linux runners.
+  # A change to scripts/ or tests/ counts as a web change, so a Rust-only one
+  # skips them.
   mac-scripts:
     name: macOS script tests
     needs: changes
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.web != 'false' && needs.changes.outputs.docs_only != 'true'
     runs-on: macos-26
     timeout-minutes: 20
     steps:
