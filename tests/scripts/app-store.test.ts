@@ -10,6 +10,7 @@ import {
   undeclaredReasons,
   usedReasonApis,
   withAppStoreSettings,
+  withICloudSettings,
 } from '../../scripts/release/app-store'
 import { tempDir } from '../support/temp-dirs'
 
@@ -263,6 +264,29 @@ describe('the App Store build settings', () => {
     expect(result.status).toBe(0)
     expect(readFileSync(copy, 'utf8')).toContain('DEVOT_DISTRIBUTION = "app-store";')
     expect(readFileSync(copy, 'utf8')).not.toContain('DEVOT_SENTRY_DSN')
+  })
+})
+
+// The owner's development build (docs/releasing.md, The iPhone app) has iCloud but stays a
+// development build: no release or App Store marker.
+describe('the iCloud build setting', () => {
+  it("sets only the iCloud switch, in both of the iPhone app's configurations", () => {
+    const original = readFileSync(PROJECT, 'utf8')
+    const project = withICloudSettings(original)
+    expect(project.split('\t\t\t\tDEVOT_ICLOUD = "YES";\n')).toHaveLength(3)
+    expect(project.replaceAll('\t\t\t\tDEVOT_ICLOUD = "YES";\n', '')).toBe(original)
+    expect(() => withICloudSettings(project)).toThrow(/^E_APP_STORE_PROJECT: .*DEVOT_ICLOUD/)
+  })
+
+  it('writes it into the project file it is given', () => {
+    const dir = tempDir('devot-icloud-project-')
+    const copy = join(dir, 'project.pbxproj')
+    writeFileSync(copy, readFileSync(PROJECT, 'utf8'))
+    const result = run('icloud-settings', copy)
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe('Set DEVOT_ICLOUD for the iPhone app.\n')
+    expect(readFileSync(copy, 'utf8')).toContain('DEVOT_ICLOUD = "YES";')
+    expect(readFileSync(copy, 'utf8')).not.toContain('DEVOT_DISTRIBUTION')
   })
 })
 

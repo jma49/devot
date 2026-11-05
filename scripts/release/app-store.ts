@@ -12,6 +12,10 @@
 //     own variables, so these reach Xcode, and the Rust build through Xcode's Run Script phase,
 //     only as build settings.
 //
+//   node scripts/release/app-store.ts icloud-settings <project.pbxproj>
+//     Writes only DEVOT_ICLOUD=YES, for the owner's development build with iCloud (docs/releasing.md,
+//     The iPhone app).
+//
 //   node scripts/release/app-store.ts marker-check <target>/aarch64-apple-ios/release/deps
 //     Checks from rustc's dep-info that the Rust build read DEVOT_RELEASE_BUILD=1 and
 //     DEVOT_DISTRIBUTION=app-store.
@@ -91,8 +95,7 @@ export const APP_STORE_SETTINGS = {
 const SETTINGS_ANCHOR = /^(\t+)DEVOT_ENTITLEMENTS_YES = devot_iOS\/devot_iOS\.entitlements;\n/gm
 
 /** The project with `settings` added to each of the iPhone app's two build configurations. */
-export function withAppStoreSettings(project: string, extra: Record<string, string> = {}): string {
-  const settings: Record<string, string> = { ...APP_STORE_SETTINGS, ...extra }
+function withSettings(project: string, settings: Record<string, string>): string {
   const set = Object.keys(settings).filter((name) =>
     new RegExp(`^\\s*${name} = `, 'm').test(project),
   )
@@ -114,6 +117,14 @@ export function withAppStoreSettings(project: string, extra: Record<string, stri
         .map(([name, value]) => `${indent}${name} = ${quoted(value)};\n`),
     ].join(''),
   )
+}
+
+export function withAppStoreSettings(project: string, extra: Record<string, string> = {}): string {
+  return withSettings(project, { ...APP_STORE_SETTINGS, ...extra })
+}
+
+export function withICloudSettings(project: string): string {
+  return withSettings(project, { DEVOT_ICLOUD: APP_STORE_SETTINGS.DEVOT_ICLOUD })
 }
 
 const MARKERS = {
@@ -239,6 +250,11 @@ function main(args: string[]) {
     )
     return
   }
+  if (command === 'icloud-settings' && rest.length === 1) {
+    writeFileSync(rest[0]!, withICloudSettings(readFileSync(rest[0]!, 'utf8')))
+    console.log('Set DEVOT_ICLOUD for the iPhone app.')
+    return
+  }
   if (command === 'marker-check' && rest.length === 1) {
     const deps = rest[0]!
     const infos = readdirSync(deps)
@@ -266,7 +282,7 @@ function main(args: string[]) {
     return
   }
   throw new Error(
-    '::error::E_APP_STORE_USAGE: version <version> <run number> <run attempt> | project-settings <project.pbxproj> | marker-check <deps dir> | check-bundle <info.json> <short> <build> | privacy-check <privacy.json> <symbols> <strings>',
+    '::error::E_APP_STORE_USAGE: version <version> <run number> <run attempt> | project-settings <project.pbxproj> | icloud-settings <project.pbxproj> | marker-check <deps dir> | check-bundle <info.json> <short> <build> | privacy-check <privacy.json> <symbols> <strings>',
   )
 }
 
