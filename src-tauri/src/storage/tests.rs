@@ -3694,7 +3694,7 @@ fn the_saved_searches_migration_keeps_the_sync_state_and_records() {
 }
 
 /// A library at schema v25 (the release before change tags), with its sync state as the relay left it.
-fn library_at_v25(since: Option<&str>) -> (tempfile::TempDir, std::path::PathBuf) {
+fn library_at_v25(since: Option<&str>, version: i64) -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("devot.sqlite");
     let conn = Connection::open(&path).unwrap();
@@ -3717,8 +3717,8 @@ fn library_at_v25(since: Option<&str>) -> (tempfile::TempDir, std::path::PathBuf
     }
     conn.execute(
         "INSERT INTO sync_records (id, kind, version, fingerprint, body_hlc, body_fp, edits, synced)
-         VALUES ('0192a6f0-0000-7000-8000-000000000001', 'note', 7, 'f', 'h', 'b', 3, 3)",
-        [],
+         VALUES ('0192a6f0-0000-7000-8000-000000000001', 'note', ?1, 'f', 'h', 'b', 3, 3)",
+        [version],
     )
     .unwrap();
     (dir, path)
@@ -3726,7 +3726,7 @@ fn library_at_v25(since: Option<&str>) -> (tempfile::TempDir, std::path::PathBuf
 
 #[test]
 fn the_change_tag_migration_keeps_every_entry_and_its_cursor() {
-    let (_dir, path) = library_at_v25(Some("60"));
+    let (_dir, path) = library_at_v25(Some("60"), 7);
     let mut store = Store::open(&path).unwrap();
     assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
     let id = "0192a6f0-0000-7000-8000-000000000001".to_string();
@@ -3773,7 +3773,7 @@ fn the_change_tag_migration_keeps_every_entry_and_its_cursor() {
 #[test]
 fn the_change_tag_migration_counts_only_a_library_that_got_past_the_start_as_synced() {
     for since in [None, Some("0"), Some(""), Some("007x")] {
-        let (_dir, path) = library_at_v25(since);
+        let (_dir, path) = library_at_v25(since, 0);
         let store = Store::open(&path).unwrap();
         let state = store.sync_state().unwrap();
         assert!(
@@ -3781,4 +3781,15 @@ fn the_change_tag_migration_counts_only_a_library_that_got_past_the_start_as_syn
             "{since:?} has not synced"
         );
     }
+}
+
+#[test]
+fn a_library_that_pushed_but_never_pulled_counts_as_synced() {
+    let (_dir, path) = library_at_v25(None, 7);
+    let state = Store::open(&path).unwrap().sync_state().unwrap();
+    assert!(
+        state
+            .iter()
+            .any(|(key, value)| key == "hasSynced" && value == "1")
+    );
 }

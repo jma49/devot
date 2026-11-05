@@ -1126,6 +1126,8 @@ title: Daily Report {{date}}
   'sync.advice.protocol': 'Update Devot and your relay to the same release.',
   'sync.advice.restoreChoice':
     'A backup was restored here: choose in the main window whether to merge or keep this Mac\u2019s copy.',
+  'sync.advice.moved':
+    'This vault now syncs another way. Set up sync again in Settings > Sync to follow it.',
   'sync.advice.circuit':
     'A note kept changing back and forth between devices. Turn Sync This Device off and on in Settings > Sync to try again.',
   'sync.notice.storageFull':
