@@ -81,16 +81,9 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(trial.purchaseDate, trial.originalPurchaseDate)
 
         session.clearTransactions()
-        let (updates, continuation) = AsyncStream<Reply>.makeStream()
-        let listening = Store.listen { continuation.yield($0) }
-        defer { listening.cancel() }
         let tenDaysAgo = Date().addingTimeInterval(-10 * 24 * 3600)
         try await session.buyProduct(identifier: Store.trial, options: [.purchaseDate(tenDaysAgo)])
-        // A purchase made outside the app reaches it as an update, not before buyProduct returns.
-        _ = try await next(updates, continuation) { $0.transaction?.productId == Store.trial }
-        let held = await Store.entitlements()
-        let entitlements = try XCTUnwrap(held.transactions)
-        let restored = try XCTUnwrap(entitlements.first { $0.productId == Store.trial })
+        let restored = try await entitlement(Store.trial)
         XCTAssertLessThan(abs(restored.originalPurchaseDate - milliseconds(tenDaysAgo)), 60_000)
     }
 
@@ -192,6 +185,19 @@ final class StoreTests: XCTestCase {
             return update
         }
         XCTFail("no matching transaction update within 30 s")
+        throw CancellationError()
+    }
+
+    // A purchase made with session.buyProduct reaches the entitlements after the call returns,
+    // and never as an update.
+    private func entitlement(_ productID: String) async throws -> TransactionReply {
+        for _ in 0..<300 {
+            if let held = await Store.entitlements().transactions?.first(where: { $0.productId == productID }) {
+                return held
+            }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        XCTFail("no entitlement to \(productID) within 30 s")
         throw CancellationError()
     }
 

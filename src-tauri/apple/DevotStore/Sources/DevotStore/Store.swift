@@ -8,6 +8,10 @@ enum Store {
     static let trial = "io.github.jma49.devot.trial"
     static let productIDs = [pro, trial]
 
+    // A purchase is missing from Transaction.unfinished for a while after it returns, so finish
+    // looks first among the transactions this bridge has handed to Rust.
+    private static let handed = Handed()
+
     static func products() async -> Reply {
         do {
             let products = try await Product.products(for: productIDs)
@@ -31,7 +35,9 @@ enum Store {
             switch try await product.purchase() {
             case .success(let result):
                 switch Checked(result) {
-                case .verified(_, let reply): return Reply(status: "purchased", transaction: reply)
+                case .verified(let transaction, let reply):
+                    await handed.keep(transaction)
+                    return Reply(status: "purchased", transaction: reply)
                 case .unverified(let code): return Reply(status: "unverified", code: code)
                 }
             case .pending:
@@ -69,6 +75,10 @@ enum Store {
 
     /// Finishes the unfinished verified transaction with this ID, if there is one.
     static func finish(_ transactionID: UInt64) async -> Reply {
+        if let transaction = await handed.take(transactionID) {
+            await transaction.finish()
+            return Reply(status: "finished")
+        }
         for await result in Transaction.unfinished {
             if case .verified(let transaction, _) = Checked(result), transaction.id == transactionID {
                 await transaction.finish()
@@ -89,8 +99,17 @@ enum Store {
     static func listen(_ deliver: @escaping @Sendable (Reply) -> Void) -> Task<Void, Never> {
         Task.detached {
             for await result in Transaction.updates {
+                if case .verified(let transaction) = result { await handed.keep(transaction) }
                 deliver(update(result))
             }
         }
     }
+}
+
+private actor Handed {
+    private var transactions: [UInt64: Transaction] = [:]
+
+    func keep(_ transaction: Transaction) { transactions[transaction.id] = transaction }
+
+    func take(_ id: UInt64) -> Transaction? { transactions.removeValue(forKey: id) }
 }

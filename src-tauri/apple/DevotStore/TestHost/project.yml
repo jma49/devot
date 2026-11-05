@@ -18,6 +18,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.jma49.devot.storetests
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        # get-task-allow marks a development build: storekitd refuses SKTestSession's
+        # configuration from an ad-hoc-signed app without it ("not entitled for
+        # OctaneSaveConfigurationRequest") and sends its purchases to the sandbox.
         CODE_SIGN_ENTITLEMENTS: Host/Host.entitlements
         CODE_SIGN_IDENTITY: '-'
         CODE_SIGN_STYLE: Manual
