@@ -189,6 +189,20 @@ export async function enrolled(host: RelayHost, vault: TestVault, label = 'secon
   return res.body as unknown as EnrolledReply
 }
 
+/** Retires `vault` for `successor` over HTTP; `secret` is what the request presents as the relay's. */
+export async function retireVault(
+  host: RelayHost,
+  vault: string,
+  successor: unknown,
+  secret: string | null = host.secret,
+) {
+  return postJson(
+    `${host.url}/v1/vaults/${vault}/retire`,
+    { v: 1, type: 'retire', successor },
+    secret === null ? {} : { authorization: `Bearer ${secret}` },
+  )
+}
+
 export const bytes = (length: number, fill: number) => new Uint8Array(length).fill(fill)
 
 /** A pairing request: `op` is `pair` (the pairing's own path) or a sub-route; `token` a device's. */

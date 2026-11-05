@@ -1,7 +1,8 @@
 //! Rotating a relay vault's key (docs/adr/0017-sync-key-rotation.md): the device makes a new vault,
-//! the successor, on the same relay, retires the old one for it and switches. Every step is kept
-//! before the next, so a rotation that stops part way is finished or dropped at the next connect,
-//! and the old vault stays as it was until the relay retires it.
+//! the successor, on the same relay, retires the old one for it and switches; both relay steps need
+//! the relay's secret. Every step is kept before the next, so a rotation that stops part way is
+//! switched or dropped at the next connect, or waits for the secret to retire, and the old vault
+//! stays as it was until the relay retires it.
 
 use super::super::client::{self, Connection, Enrollment, RelayUrl, Retire, Welcome};
 use super::super::settings::{DeviceCredentials, Rotation};
@@ -12,8 +13,8 @@ pub(super) const VAULT_ROTATED: &str = "E_SYNC_VAULT_ROTATED";
 const ROTATION_ICLOUD: &str = "E_SYNC_ROTATION_ICLOUD";
 
 impl SyncService {
-    /// Rotates the vault's key: makes the successor with the relay's secret, which is used for that
-    /// one request and dropped, retires the vault this device holds and switches to the successor.
+    /// Rotates the vault's key: with the relay's secret, which is used for these requests and
+    /// dropped, makes the successor and retires the vault this device holds, then switches to it.
     /// Not gated by the licence: taking access away never is. The new recovery key comes back to
     /// show until it is saved.
     pub(crate) fn rotate_vault(&self, relay_secret: &str) -> Result<Created, &'static str> {
@@ -40,9 +41,8 @@ impl SyncService {
             Box::new(|_| {}),
         )
         .inspect_err(|code| Self::refused(self.secrets.as_ref(), code))?;
-        let rotated = self.rotate_on(&relay, &relay_secret, &vault, &connection, &welcome);
         connection.close();
-        rotated?;
+        self.rotate_on(&relay, &relay_secret, &vault, &welcome)?;
         Ok(Created {
             snapshot: self.changed(),
             recovery_key: self.recovery_key()?.map(|key| key.to_string()),
@@ -54,7 +54,6 @@ impl SyncService {
         relay: &RelayUrl,
         relay_secret: &str,
         vault: &Vault,
-        connection: &Connection,
         welcome: &Welcome,
     ) -> Result<(), &'static str> {
         if let Some(successor) = &welcome.retired {
@@ -86,7 +85,7 @@ impl SyncService {
                 vault.id()
             );
         }
-        self.retire_and_switch(vault, &next, connection)
+        self.retire_and_switch(relay, relay_secret, vault, &next)
     }
 
     /// The rotation's new key: the one waiting for this vault, or a new one, recorded before
@@ -115,9 +114,10 @@ impl SyncService {
 
     fn retire_and_switch(
         &self,
+        relay: &RelayUrl,
+        relay_secret: &str,
         vault: &Vault,
         next: &Vault,
-        connection: &Connection,
     ) -> Result<(), &'static str> {
         let from = vault.id();
         #[cfg(test)]
@@ -127,19 +127,28 @@ impl SyncService {
         {
             return Err("E_SYNC_OFFLINE");
         }
-        match client::retire(connection, &next.id().to_string()) {
-            Ok(Retire::Done) => {}
-            Ok(Retire::Taken(winner)) => {
-                self.drop_rotation();
-                self.found_retired(vault, &winner)?;
-                log::info!("I_SYNC_ROTATION_LOST vault={from} successor={winner}");
-                return Err(VAULT_ROTATED);
-            }
-            Err("E_SYNC_BAD_MESSAGE") => return Err("E_SYNC_RELAY_OUTDATED"),
-            Err(code) => return Err(code),
+        match client::retire(
+            relay,
+            relay_secret,
+            &from.to_string(),
+            &next.id().to_string(),
+        )? {
+            Retire::Done => {}
+            Retire::Taken(winner) => return self.lost_race(vault, &winner),
         }
         log::info!("I_SYNC_RETIRED vault={from} successor={}", next.id());
         self.switch_to(next)
+    }
+
+    /// Another device retired `vault` first, for `winner`: this rotation's key and token go.
+    fn lost_race(&self, vault: &Vault, winner: &str) -> Result<(), &'static str> {
+        self.drop_rotation();
+        self.found_retired(vault, winner)?;
+        log::info!(
+            "I_SYNC_ROTATION_LOST vault={} successor={winner}",
+            vault.id()
+        );
+        Err(VAULT_ROTATED)
     }
 
     /// The local end of a rotation, once the old vault is retired. The vault item takes the new key
@@ -161,8 +170,9 @@ impl SyncService {
         Ok(())
     }
 
-    /// Finishes a rotation this device started, or drops one that never reached the relay, before
-    /// it connects. Returns the vault to connect with.
+    /// Before a connect: switches to the successor once the relay retired the old vault for it,
+    /// drops a rotation that cannot go on, and otherwise leaves it waiting for the relay secret,
+    /// which retiring needs. Returns the vault to connect with.
     pub(super) fn resume_rotation(
         &self,
         relay: &RelayUrl,
@@ -186,13 +196,18 @@ impl SyncService {
         match next {
             Some(next) if held == rotating.from && token_waits => {
                 let credentials = self.credentials(relay, &vault)?;
-                let (connection, _) =
+                let (connection, welcome) =
                     Connection::open(relay, &held, &credentials.token, Box::new(|_| {}))
                         .inspect_err(|code| Self::refused(secrets, code))?;
-                let switched = self.retire_and_switch(&vault, &next, &connection);
                 connection.close();
-                switched?;
-                Ok(next)
+                match welcome.retired {
+                    Some(successor) if successor == rotating.to => {
+                        self.switch_to(&next)?;
+                        Ok(next)
+                    }
+                    Some(winner) => self.lost_race(&vault, &winner).map(|()| vault),
+                    None => Ok(vault),
+                }
             }
             _ => {
                 self.drop_rotation();

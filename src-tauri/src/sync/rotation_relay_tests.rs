@@ -177,6 +177,15 @@ fn a_device_of_the_retired_vault_joins_with_the_new_recovery_key_and_no_other() 
         "only the successor may take the retired vault's place"
     );
     assert!(phone.service.snapshot().rotated);
+    assert_eq!(
+        phone
+            .service
+            .join_with_recovery(&phone.vault().recovery_key())
+            .err(),
+        Some(ROTATED),
+        "the old recovery key joins nothing, though the old token still opens a socket"
+    );
+    assert!(phone.service.snapshot().rotated);
     let joined = phone.service.join_with_recovery(&recovery).unwrap();
     assert!(joined.enrolled && !joined.rotated);
     assert_eq!(phone.vault().id(), mac.vault().id());
@@ -185,7 +194,7 @@ fn a_device_of_the_retired_vault_joins_with_the_new_recovery_key_and_no_other() 
 }
 
 #[test]
-fn a_rotation_stopped_before_the_retire_finishes_at_the_next_connect() {
+fn a_rotation_stopped_before_the_retire_waits_for_the_relay_secret_and_goes_on_with_it() {
     let relay = NodeRelay::start();
     let mac = Device::first(&relay);
     let phone = Device::paired(&relay, &mac);
@@ -214,11 +223,51 @@ fn a_rotation_stopped_before_the_retire_finishes_at_the_next_connect() {
     phone.service.connect(false).unwrap();
     phone.service.disconnect();
 
+    // Retiring needs the relay secret, which the device does not keep: the old vault syncs on.
     mac.service.connect(false).unwrap();
-    assert_ne!(mac.vault().id().to_string(), old_id);
+    assert_eq!(mac.vault().id().to_string(), old_id);
+    assert!(mac.holds("vault-next") && mac.holds("device-next"));
+    assert_eq!(
+        mac.service.rotate_vault("not-the-relay-secret").err(),
+        Some("E_SYNC_RELAY_SECRET")
+    );
+    assert!(mac.holds("vault-next") && mac.holds("device-next"));
+
+    mac.service.rotate_vault(SECRET).unwrap();
+    assert_eq!(
+        mac.vault().id(),
+        next.id(),
+        "the successor made first is kept"
+    );
     assert!(!mac.holds("vault-next") && !mac.holds("device-next"));
     assert!(mac.service.recovery_key().unwrap().is_some());
     assert_eq!(phone.service.connect(false).err(), Some(ROTATED));
+    mac.service.disconnect();
+}
+
+#[test]
+fn a_rotation_stopped_after_the_retire_switches_at_the_next_connect() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(&relay);
+    let old_id = mac.vault().id().to_string();
+    mac.service.quit_before_next_retire();
+    assert_eq!(
+        mac.service.rotate_vault(SECRET).err(),
+        Some("E_SYNC_OFFLINE")
+    );
+    let next_id = Vault::load_next(mac.secrets.as_ref())
+        .unwrap()
+        .unwrap()
+        .id()
+        .to_string();
+    assert_eq!(
+        client::retire(&relay.url, SECRET, &old_id, &next_id),
+        Ok(client::Retire::Done)
+    );
+
+    mac.service.connect(false).unwrap();
+    assert_eq!(mac.vault().id().to_string(), next_id);
+    assert!(!mac.holds("vault-next") && !mac.holds("device-next"));
     mac.service.disconnect();
 }
 
@@ -285,6 +334,22 @@ fn a_connected_device_is_told_at_once_and_a_retire_is_kept_for_the_first_success
     let id = vault.id().to_string();
     let (on_event, events) = super::relay_tests::events();
     let (socket, _) = Connection::open(&relay.url, &id, &phone.token(), on_event).unwrap();
+    let other = Vault::generate().unwrap();
+    let other_id = other.id().to_string();
+    client::create_vault(&relay.url, SECRET, &other, "other").unwrap();
+
+    // An enrolled device cannot retire the vault: not over its socket, not with its token.
+    let retire = json!({ "type": "retire", "successor": other_id });
+    assert_eq!(
+        client::send_raw(&socket, retire).err(),
+        Some("E_SYNC_BAD_MESSAGE")
+    );
+    for secret in [phone.token(), "not-the-relay-secret".to_string()] {
+        assert_eq!(
+            client::retire(&relay.url, &secret, &id, &other_id),
+            Err("E_SYNC_RELAY_SECRET")
+        );
+    }
 
     mac.service.rotate_vault(SECRET).unwrap();
     let successor = mac.vault().id().to_string();
@@ -293,14 +358,18 @@ fn a_connected_device_is_told_at_once_and_a_retire_is_kept_for_the_first_success
         Ok(client::Event::Changed(_))
     ));
     assert_eq!(client::pull(&socket, &vault, 0).err(), Some(ROTATED));
-    let other = Vault::generate().unwrap().id().to_string();
     assert_eq!(
-        client::retire(&socket, &other),
+        client::retire(&relay.url, SECRET, &id, &other_id),
         Ok(client::Retire::Taken(successor.clone()))
     );
     assert_eq!(
-        client::retire(&socket, &successor),
+        client::retire(&relay.url, SECRET, &id, &successor),
         Ok(client::Retire::Done)
+    );
+    let missing = Vault::generate().unwrap().id().to_string();
+    assert_eq!(
+        client::retire(&relay.url, SECRET, &id, &missing),
+        Err("E_SYNC_NO_SUCCESSOR")
     );
     let answer = client::send_raw(&socket, json!({ "type": "devices" })).unwrap();
     assert_eq!(answer.message["type"], "devices");

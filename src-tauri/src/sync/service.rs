@@ -1060,6 +1060,15 @@ impl SyncService {
         let held = Vault::load(self.secrets.as_ref()).map_err(|e| e.code())?;
         let successor = match &held {
             Some(held) if !held.same(&vault) => self.successor_of(&relay, held)?,
+            Some(held)
+                if self
+                    .settings
+                    .get()
+                    .successor_of(&held.id().to_string())
+                    .is_some() =>
+            {
+                return Err(VAULT_ROTATED);
+            }
             Some(held) if self.credentials(&relay, held).is_ok() => return Ok(self.changed()),
             _ => None,
         };

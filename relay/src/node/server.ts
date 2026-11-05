@@ -90,6 +90,16 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
         async enroll(vault, body) {
           return (await open(vault, false)?.relay.enroll(body)) ?? notFound
         },
+        async retire(vault, body) {
+          const opened = open(vault, false)
+          if (!opened) return notFound
+          const { reply, changed } = opened.relay.retire(body)
+          if (changed !== undefined) deliver(opened, null, { changed })
+          return reply
+        },
+        async live(vault) {
+          return open(vault, false)?.relay.live() ?? false
+        },
         async authenticate(vault, device, token) {
           return (await open(vault, false)?.relay.authenticate(device, token)) ?? 'no-vault'
         },
@@ -162,8 +172,8 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
   }
 }
 
-function deliver(vault: OpenVault, from: WebSocket, outcome: Outcome): void {
-  if (outcome.reply !== undefined) from.send(outcome.reply)
+function deliver(vault: OpenVault, from: WebSocket | null, outcome: Outcome): void {
+  if (outcome.reply !== undefined) from?.send(outcome.reply)
   if (outcome.changed !== undefined) {
     for (const ws of vault.sockets.keys()) {
       if (ws !== from && ws.readyState === WebSocket.OPEN) ws.send(outcome.changed)

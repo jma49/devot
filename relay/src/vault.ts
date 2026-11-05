@@ -137,8 +137,12 @@ function peekRid(data: Outgoing): number | undefined {
   }
 }
 
-function rotatedReply(rid: number | undefined, successor: string): Outcome {
+function rotatedFrame(rid: number | undefined, successor: string): Outcome {
   return { reply: encodeFrame({ type: 'error', rid, code: VAULT_ROTATED, successor }) }
+}
+
+function rotatedReply(successor: string): Reply {
+  return { status: 409, body: { v: 1, type: 'error', code: VAULT_ROTATED, successor } }
 }
 
 function revokedClose(device: string): NonNullable<Outcome['close']> {
@@ -168,6 +172,8 @@ export class VaultRelay {
   private readonly quota: QuotaCaps | null
   // Counted without a write of their own (refused messages and enrollments), added to the next one.
   private pending = { messages: 0, requests: 0 }
+  // The successor, read from storage once (push and pull check it); only `retire` changes it.
+  private retiredFor: string | null | undefined
 
   constructor(sql: Sql, vault: string, options: VaultOptions) {
     this.sql = sql
@@ -224,16 +230,16 @@ export class VaultRelay {
       return errorReply(400, 'E_SYNC_BAD_MESSAGE')
     }
     if (!this.exists()) return errorReply(404, 'E_SYNC_NO_VAULT')
-    const successor = this.successor()
-    if (successor !== null) {
-      this.pending.requests++
-      return { status: 409, body: { v: 1, type: 'error', code: VAULT_ROTATED, successor } }
-    }
     const verifier = await enrollmentVerifier(secret)
     const stored = this.sql.all('SELECT verifier, epoch FROM vault WHERE id = 1')[0]
     if (!stored || !sameBytes(verifier, stored['verifier'] as Uint8Array)) {
       this.pending.requests++
       return errorReply(403, 'E_SYNC_ENROLL_DENIED')
+    }
+    const successor = this.successor()
+    if (successor !== null) {
+      this.pending.requests++
+      return rotatedReply(successor)
     }
     const device = randomId()
     const { token, hash } = await issueToken(this.secret, this.vault, device)
@@ -322,7 +328,7 @@ export class VaultRelay {
       const successor = this.successor()
       if (successor !== null) {
         this.pending.messages++
-        return rotatedReply(rid, successor)
+        return rotatedFrame(rid, successor)
       }
     }
     switch (type) {
@@ -330,8 +336,6 @@ export class VaultRelay {
         return this.push(rid, message, payload)
       case 'pull':
         return this.pull(rid, message)
-      case 'retire':
-        return this.retire(rid, message)
       case 'devices':
         this.pending.messages++
         return { reply: encodeFrame({ type: 'devices', rid, devices: this.devices(device) }) }
@@ -498,16 +502,20 @@ export class VaultRelay {
     }
   }
 
-  /** Retires the vault for `successor`; the first successor named stays. */
-  private retire(rid: number | undefined, message: Record<string, unknown>): Outcome {
-    const successor = message['successor']
+  /**
+   * Retires the vault for `successor`; the first successor named stays. The front has checked the
+   * relay secret and that the successor is live (docs/adr/0017-sync-key-rotation.md).
+   */
+  retire(body: Record<string, unknown>): { reply: Reply; changed?: Outgoing } {
+    const successor = body['successor']
     if (!isVaultId(successor) || successor === this.vault) {
-      throw new ProtocolError('E_SYNC_BAD_MESSAGE')
+      return { reply: errorReply(400, 'E_SYNC_BAD_MESSAGE') }
     }
+    if (!this.exists()) return { reply: errorReply(404, 'E_SYNC_NO_VAULT') }
     const kept = this.sql.transaction(() => {
       const held = this.successor()
       if (held !== null) {
-        this.pending.messages++
+        this.pending.requests++
         return held
       }
       let rows = this.sql.run(RETIREMENT)
@@ -516,25 +524,34 @@ export class VaultRelay {
         successor,
         this.now(),
       )
-      this.count({ rows, messages: 1 })
+      this.count({ rows, requests: 1 })
       return successor
     })
-    if (kept !== successor) return rotatedReply(rid, kept)
-    return {
-      reply: encodeFrame({ type: 'retired', rid, successor }),
-      // Connected devices pull at once and find the vault retired.
-      changed: encodeFrame({ type: 'changed', seq: this.head() }),
-    }
+    if (kept !== successor) return { reply: rotatedReply(kept) }
+    const reply = { status: 200, body: { v: 1, type: 'retired', successor } }
+    if (this.retiredFor === successor) return { reply }
+    this.retiredFor = successor
+    // Connected devices pull at once and find the vault retired.
+    return { reply, changed: encodeFrame({ type: 'changed', seq: this.head() }) }
+  }
+
+  /** Whether the vault exists and is not retired: what a successor must be. */
+  live(): boolean {
+    return this.exists() && this.successor() === null
   }
 
   /** The vault that succeeds this one, once it is retired. */
   private successor(): string | null {
+    if (this.retiredFor !== undefined) return this.retiredFor
     const table = this.sql.all(
       "SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'retirement'",
     )
-    if (table.length === 0) return null
-    const row = this.sql.all('SELECT successor FROM retirement WHERE id = 1')[0]
-    return row ? String(row['successor']) : null
+    const row =
+      table.length > 0
+        ? this.sql.all('SELECT successor FROM retirement WHERE id = 1')[0]
+        : undefined
+    this.retiredFor = row ? String(row['successor']) : null
+    return this.retiredFor
   }
 
   private devices(current: string): DeviceInfo[] {

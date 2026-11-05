@@ -15,15 +15,17 @@ A removed or lost device still holds the vault key. On a relay it can enroll aga
 
 ### Who can rotate
 
-A device enrolled in the vault whose owner enters the relay's secret, the one that created the vault (ADR 0004). Making the successor is a vault creation, so the relay asks for that secret as it always does; the device does not keep it. So a stolen device that is still enrolled cannot rotate the owner out of their own vault, since it never held the relay secret. Rotation is not gated by the licence: taking access away is never locked (ADR 0008). The new vault's sync is, like any connect.
+A device enrolled in the vault whose owner enters the relay's secret, the one that created the vault (ADR 0004). Both steps on the relay need it: making the successor is a vault creation, and retiring the old vault is the relay owner's act too. The device uses the secret for those requests and does not keep it. So a stolen device that is still enrolled, or enrolled again with the old key, can neither rotate the owner out of their own vault nor retire it for a successor of its own: it never held the relay secret, and a device token retires nothing. Rotation is not gated by the licence: taking access away is never locked (ADR 0008). The new vault's sync is, like any connect.
 
 ### The relay's part
 
-One new socket message, `retire(successor)`, on the old vault, from an enrolled device:
+One new HTTP route, `POST /v1/vaults/<old>/retire` with `Authorization: Bearer <relay secret>` and the body `retire(successor)`. It is not a socket message, so a device token alone cannot retire a vault:
 
+- The front checks the relay secret the way it does for `create`, before anything reaches a vault's storage. Like enrolling, the route carries no token, so the front's per-address rate limit for anonymous routes covers it.
+- The successor must be a vault this relay holds that is not retired itself (`E_SYNC_NO_SUCCESSOR` otherwise), so a retire cannot name a vault nobody can join, or point two vaults at each other.
 - The vault keeps `retirement(successor, at)` in a table of its own, made by the first retire, so no existing table changes. A retire on a vault already retired to the same successor answers `retired` again; one naming another successor is refused with `E_SYNC_VAULT_ROTATED` and the successor kept. So two devices rotating at once end with one successor.
 - From then on the vault refuses `push`, `pull` and `enroll` with `E_SYNC_VAULT_ROTATED`, the error carrying `successor`. Tokens still authenticate, so a socket opens and its `welcome` carries `retired: <successor>`; listing and removing devices still work.
-- After the retire the relay sends `changed` to the vault's other sockets, so a device that is connected pulls at once and is refused, instead of waiting for its next edit.
+- After the retire the relay sends `changed` to the vault's sockets, so a device that is connected pulls at once and is refused, instead of waiting for its next edit.
 - The `welcome` of a relay that can retire carries `rotation: 'on'`. A device checks it before it makes anything, so an older relay costs nothing (`E_SYNC_RELAY_OUTDATED`) and leaves no successor behind.
 - Pairing on a retired vault is not refused by the relay: an offer for the old vault hands over a key whose vault takes no enrollment. Devot does not show a code for a retired vault.
 
@@ -33,21 +35,21 @@ Each step is kept before the next, so a rotation that stops anywhere either fini
 
 1. **Make the key.** A new vault goes into the device-only keychain under its own account (`vault-next`), beside the old one, and the sync settings record `rotating: { from, to }`. A rotation started again takes the waiting key instead of making another.
 2. **Make the successor** on the relay with the relay's secret (`create`); a successor that exists already, from an earlier try, is enrolled in with the new key's enrollment secret instead. Its token goes to its own account (`device-next`). A wrong relay secret stops here, with nothing retired.
-3. **Retire the old vault**, naming the successor. Retiring comes before the upload: until it, anyone holding the old key can enroll in the old vault and read what is pushed there.
+3. **Retire the old vault** with the relay's secret, naming the successor. Retiring comes before the upload: until it, anyone holding the old key can enroll in the old vault and read what is pushed there.
    - Another device won the race: its successor is named in the refusal. This device drops its own new key and token, records the winner as the old vault's successor and stops with `E_SYNC_VAULT_ROTATED`, like any other device. The successor it made stays on the relay empty, with one device; the relay has no delete.
 4. **Switch.** The vault item takes the new key, then the device-only token item takes the successor's token, then the settings forget `rotating`, and the `-next` items go. The recovery key is recorded as saved per vault ID, so the new one is on offer. The old key is gone from this device.
 5. **Upload.** The engine connects to the successor, finds a new epoch and uploads the whole library. The new recovery key is offered until the owner says it was saved, as for a new vault.
 
-A connect that finds `rotating` with a successor token waiting finishes steps 3 and 4 on its own. With no token waiting, the old vault was never retired: the waiting key and the record are dropped (`I_SYNC_ROTATION_DROPPED`) and the old vault syncs on. If a successor was made but its token was lost, that successor stays on the relay, empty, until wiping exists (follow-up).
+A connect that finds `rotating` with a successor token waiting reads the old vault's `welcome`. Retired for this successor: the device finishes step 4 on its own. Retired for another: it lost the race, as in step 3. Not retired: retiring needs the relay secret, which the device does not keep, so the old vault syncs on and the waiting key and token stay; the next rotation, with the secret, takes them and goes on from step 3. With no token waiting, the old vault was never retired: the waiting key and the record are dropped (`I_SYNC_ROTATION_DROPPED`) and the old vault syncs on. If a successor was made but its token was lost, that successor stays on the relay, empty, until wiping exists (follow-up).
 
 ### The other devices
 
 - A device that connects to a retired vault, or whose push or pull is refused with `E_SYNC_VAULT_ROTATED`, records the successor's ID (`rotated: { vault, successor }` in its sync settings) and stops. Its notes stay, and so do its unsynced changes.
 - Settings > Sync says the key was changed on another device and offers the two ways in: a pairing code from a device that already moved, and the new recovery key.
-- A join may replace the held vault only when the held vault is recorded as retired and the joined vault is its recorded successor. Every other rule of ADR 0008 stands: another vault is still never replaced. The relay says which vault succeeded, but cannot hand over its key: the offer opens only under the code's key, and the recovery key comes from the owner. A relay that names a false successor only makes the join refuse.
+- A join may replace the held vault only when the held vault is recorded as retired and the joined vault is its recorded successor. A join with the old key on a device that recorded the retirement is refused with `E_SYNC_VAULT_ROTATED`, though its old token still opens a socket. Every other rule of ADR 0008 stands: another vault is still never replaced. The relay says which vault succeeded, but cannot hand over its key: the offer opens only under the code's key, and the recovery key comes from the owner. A relay that names a false successor only makes the join refuse.
 - On joining, the device's whole library goes up to the successor (a new epoch), so changes it made after the rotating device's last pull reach the others. Nothing on any device is lost: every device holds all its records (ADR 0002).
 - A device offline during the rotation finds the retirement when it next connects, whenever that is: the retirement is kept for good.
-- A device removed before the rotation, which holds a revoked token, cannot connect to learn the successor, and so cannot join it: it stays out. Letting it back in waits on a way to leave a relay vault (ADR 0008's follow-up).
+- A device removed before the rotation, which holds a revoked token, cannot connect to learn the successor, and so cannot join it: it stays out. Letting it back in waits on a way to leave a relay vault (#646), which is also the way out for any device stuck on a vault it cannot use.
 
 ### What the removed device can still do
 
@@ -75,12 +77,13 @@ Not built yet; recorded here so the relay part does not decide it differently.
 
 - **Re-sealing in place under a new key generation.** It keeps the vault ID and the device tokens, but every device still on the old key that connects after the change would see a new epoch and upload its whole library under the old key into the rotated vault, including builds that do not know about generations. The store would hold records of two keys under one counter, and the old key would still enroll.
 - **Leaving the new key on the relay sealed under the old key** for the remaining devices to fetch with their tokens. The relay would refuse the removed device, but the box opens for anyone with the old key and the relay's storage. Sealing the new key to each remaining device needs per-device keys pinned before the loss; that is the follow-up that lets relay devices move without pairing again.
-- **Rotating without the relay secret**, on a device token alone. Any enrolled device, a stolen one included, could then retire the vault and lock the owner's devices out of their own fleet.
+- **Rotating or retiring without the relay secret**, on a device token alone. Any enrolled device, a stolen one included, could then retire the vault for a successor of its choosing before the owner rotates: the owner's devices would record that successor, refuse to rotate a retired vault and accept a join into nothing else, so the fleet would be locked out of its own vault. A retire over the socket, from an enrolled device, was built first and dropped for this.
+- **Proving the successor with a token of it** instead of the relay secret. It would let a rotation stopped before the retire finish at the next connect without the secret, but a device that is a member of any other live vault on the relay could still retire the vault for that one. The secret is simpler to reason about; a rotation stopped there waits for the owner to enter it again.
 
 ## Consequences
 
-- ADR 0002: a relay vault can be retired; it keeps a `retirement` table, refuses `push`, `pull` and `enroll` once retired, and its welcome says so.
+- ADR 0002: a relay vault can be retired, with the relay secret only; it keeps a `retirement` table, refuses `push`, `pull` and `enroll` once retired, and its welcome says so.
 - ADR 0008: "Locking out a lost device for good needs a new vault key" is this ADR. A join may replace a held vault that is retired, for its successor only.
 - ADR 0015: locking a device out of an iCloud vault is removing it from the Apple ID and then rotating, as above.
 - ADR 0016: a rotation is a new vault, so every store name changes with it; a store can link old and new names only by timing and sizes, as after the move to store names.
-- Follow-ups: rotation on iCloud (#641); per-device keys so relay devices follow without pairing again (#642); wiping a retired vault's records from the relay, and an orphaned successor left by a lost race (#643); listing, on the rotating device, the old vault's devices that have not joined the successor yet (#644).
+- Follow-ups: rotation on iCloud (#641); per-device keys so relay devices follow without pairing again (#642); wiping a retired vault's records from the relay, and an orphaned successor left by a lost race (#643); listing, on the rotating device, the old vault's devices that have not joined the successor yet (#644); leaving a relay vault, the recovery path for a stuck device (#646).

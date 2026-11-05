@@ -390,25 +390,34 @@ describe('retirement', () => {
     encodeFrame({ type: 'push', rid, id: 'r', base: 0, kind: 'record', chunks: [1] }, [
       new Uint8Array(1),
     ])
+  const rightSecret = () => toBase64Url(new Uint8Array(32).fill(1))
 
   it('says in the welcome that the relay can retire, and names no successor before it does', async () => {
     const { relay, device } = await vaultAt(at)
     const welcome = decodeFrame(relay.connected(device)).message
     expect(welcome).toMatchObject({ rotation: 'on' })
     expect(welcome).not.toHaveProperty('retired')
+    expect(relay.live()).toBe(true)
+  })
+
+  it('takes no retire over a socket: an enrolled device cannot retire the vault', async () => {
+    const { send } = await vaultAt(at, { limiter: roomy() })
+    expect(send({ type: 'retire', rid: 1, successor })).toMatchObject({
+      type: 'error',
+      rid: 1,
+      code: 'E_SYNC_BAD_MESSAGE',
+    })
+    expect(send(...record('r', 0))).toMatchObject({ type: 'pushed' })
   })
 
   it('refuses pushes, pulls and enrollments once retired, naming the successor', async () => {
     const { relay, device, send, enroll, db } = await vaultAt(at, { limiter: roomy() })
     const phone = await enroll('phone')
     expect(send(...record('r', 0))).toMatchObject({ type: 'pushed' })
-    const retired = relay.receive(device, encodeFrame({ type: 'retire', rid: 1, successor }))
-    expect(decodeFrame(retired.reply ?? '').message).toMatchObject({
-      type: 'retired',
-      rid: 1,
-      successor,
-    })
+    const retired = relay.retire({ successor })
+    expect(retired.reply).toEqual({ status: 200, body: { v: 1, type: 'retired', successor } })
     expect(decodeFrame(retired.changed ?? '').message).toMatchObject({ type: 'changed' })
+    expect(relay.live()).toBe(false)
 
     for (const from of [device, phone]) {
       const push = decodeFrame(relay.receive(from, pushFrame(2)).reply ?? '').message
@@ -416,48 +425,58 @@ describe('retirement', () => {
       const pull = relay.receive(from, encodeFrame({ type: 'pull', rid: 3, since: 0 })).reply
       expect(decodeFrame(pull ?? '').message).toMatchObject({ code: VAULT_ROTATED, successor })
     }
-    const again = await relay.enroll({
-      secret: toBase64Url(new Uint8Array(32).fill(1)),
-      label: 'thief',
-    })
+    const again = await relay.enroll({ secret: rightSecret(), label: 'again' })
     expect(again).toMatchObject({ status: 409, body: { code: VAULT_ROTATED, successor } })
     expect(db.prepare('SELECT COUNT(*) AS n FROM devices').get()).toEqual({ n: 2 })
     expect(decodeFrame(relay.connected(phone)).message).toMatchObject({ retired: successor })
     expect(send({ type: 'devices' })).toMatchObject({ type: 'devices' })
   })
 
+  it('checks the enrollment secret before it names the successor', async () => {
+    const { relay } = await vaultAt(at)
+    relay.retire({ successor })
+    const wrong = await relay.enroll({
+      secret: toBase64Url(new Uint8Array(32).fill(9)),
+      label: 'thief',
+    })
+    expect(wrong).toEqual({
+      status: 403,
+      body: { v: 1, type: 'error', code: 'E_SYNC_ENROLL_DENIED' },
+    })
+    const right = await relay.enroll({ secret: rightSecret(), label: 'phone' })
+    expect(right).toMatchObject({ status: 409, body: { code: VAULT_ROTATED, successor } })
+  })
+
+  it('keeps the retirement for a relay opened again on the same storage', async () => {
+    const { relay, db, enroll } = await vaultAt(at, { limiter: roomy() })
+    const device = await enroll('phone')
+    relay.retire({ successor })
+    const again = new VaultRelay(sqliteSql(db), relay.vault, { secret, log: () => {} })
+    expect(again.live()).toBe(false)
+    const push = decodeFrame(again.receive(device, pushFrame(4)).reply ?? '').message
+    expect(push).toMatchObject({ code: VAULT_ROTATED, successor })
+  })
+
   it('keeps the first successor: the same one is retired again, another is refused', async () => {
-    const { relay, device, enroll } = await vaultAt(at, { limiter: roomy() })
-    const phone = await enroll('phone')
-    const retire = (from: string, name: string) =>
-      decodeFrame(
-        relay.receive(from, encodeFrame({ type: 'retire', rid: 7, successor: name })).reply ?? '',
-      ).message
-    expect(retire(device, successor)).toMatchObject({ type: 'retired', successor })
-    expect(retire(device, successor)).toMatchObject({ type: 'retired', successor })
-    expect(retire(phone, 'another-0123456789abcd')).toMatchObject({
-      type: 'error',
-      code: VAULT_ROTATED,
-      successor,
+    const { relay } = await vaultAt(at)
+    expect(relay.retire({ successor }).reply.body).toMatchObject({ type: 'retired', successor })
+    const same = relay.retire({ successor })
+    expect(same.reply.body).toMatchObject({ type: 'retired', successor })
+    expect(same.changed).toBeUndefined()
+    expect(relay.retire({ successor: 'another-0123456789abcd' }).reply).toMatchObject({
+      status: 409,
+      body: { type: 'error', code: VAULT_ROTATED, successor },
     })
   })
 
   it('refuses a successor that is not a vault ID or is the vault itself', async () => {
     const { relay, send } = await vaultAt(at, { limiter: roomy() })
     for (const name of ['short', relay.vault, 7, undefined]) {
-      expect(send({ type: 'retire', successor: name })).toMatchObject({
-        code: 'E_SYNC_BAD_MESSAGE',
+      expect(relay.retire({ successor: name }).reply).toMatchObject({
+        status: 400,
+        body: { code: 'E_SYNC_BAD_MESSAGE' },
       })
     }
-    expect(send(...record('r', 0))).toMatchObject({ type: 'pushed' })
-  })
-
-  it('a revoked device cannot retire the vault', async () => {
-    const { relay, send, enroll } = await vaultAt(at, { limiter: roomy() })
-    const phone = await enroll('phone')
-    send({ type: 'revoke', device: phone })
-    const outcome = relay.receive(phone, encodeFrame({ type: 'retire', successor }))
-    expect(outcome.close).toMatchObject({ device: phone, code: CLOSE.revoked })
     expect(send(...record('r', 0))).toMatchObject({ type: 'pushed' })
   })
 })

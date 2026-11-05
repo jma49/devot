@@ -101,7 +101,6 @@ export type ClientMessage =
   | { type: 'revoke'; rid?: number; device: string }
   | { type: 'time'; rid?: number }
   | { type: 'usage'; rid?: number }
-  | { type: 'retire'; rid?: number; successor: string }
 
 /** A retired vault's refusal of push, pull and enroll; it carries the successor (docs/adr/0017-sync-key-rotation.md). */
 export const VAULT_ROTATED = 'E_SYNC_VAULT_ROTATED'
@@ -128,7 +127,6 @@ export type RelayMessage =
   | { type: 'changed'; seq: number }
   | { type: 'devices'; rid?: number; devices: DeviceInfo[] }
   | { type: 'revoked'; rid?: number; device: string }
-  | { type: 'retired'; rid?: number; successor: string }
   | { type: 'time'; rid?: number; time: number }
   | ({ type: 'usage'; rid?: number } & Usage)
   | {
@@ -144,7 +142,7 @@ export type RelayMessage =
       successor?: string
     }
 
-/** HTTP bodies: vault creation and device enrollment, and the relay's answers. */
+/** HTTP bodies: vault creation, device enrollment and retirement, and the relay's answers. */
 export interface CreateRequest {
   type: 'create'
   /** base64url of the 32-byte verifier of the enrollment secret (enrollmentVerifier). */
@@ -156,6 +154,16 @@ export interface EnrollRequest {
   /** base64url of the 32-byte enrollment secret the client derives from the vault key. */
   secret: string
   label: string
+}
+/** POSTed to `/v1/vaults/<vault>/retire` with the relay secret (docs/adr/0017-sync-key-rotation.md). */
+export interface RetireRequest {
+  type: 'retire'
+  /** A live vault on the same relay. */
+  successor: string
+}
+export interface RetiredReply {
+  type: 'retired'
+  successor: string
 }
 export interface EnrolledReply {
   type: 'enrolled'

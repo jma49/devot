@@ -77,6 +77,12 @@ it('refuses a burst of the routes anyone may call before they reach a Durable Ob
       { 'cf-connecting-ip': '192.0.2.1' },
     )
     expect(enroll.status).toBe(429)
+    const retire = await postJson(
+      `${host.url}/v1/vaults/${randomId()}/retire`,
+      { v: 1, type: 'retire', successor: randomId() },
+      { 'cf-connecting-ip': '192.0.2.1', authorization: `Bearer ${randomId(32)}` },
+    )
+    expect(retire.status).toBe(429)
     expect((await take('192.0.2.2')).status).toBe(404)
   } finally {
     await host.close()

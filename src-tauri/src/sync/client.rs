@@ -153,7 +153,7 @@ fn relay_code(value: &Value) -> Option<&'static str> {
     KNOWN_CODES.iter().copied().find(|known| *known == code)
 }
 
-const KNOWN_CODES: [&str; 21] = [
+const KNOWN_CODES: [&str; 22] = [
     "E_SYNC_BAD_MESSAGE",
     "E_SYNC_PROTOCOL",
     "E_SYNC_TOO_LARGE",
@@ -175,6 +175,7 @@ const KNOWN_CODES: [&str; 21] = [
     "E_SYNC_PAIRING_GONE",
     "E_SYNC_PAIRING_EXISTS",
     "E_SYNC_VAULT_ROTATED",
+    "E_SYNC_NO_SUCCESSOR",
 ];
 
 fn post(url: &str, body: &Value, bearer: Option<&str>) -> Result<Value, &'static str> {
@@ -1302,33 +1303,45 @@ pub(crate) enum Retire {
     Taken(String),
 }
 
-/// Retires the vault for `successor` (docs/adr/0017-sync-key-rotation.md): the relay refuses its
-/// pushes, pulls and enrollments from then on. A relay from before retirement answers
-/// `E_SYNC_BAD_MESSAGE`.
-pub(crate) fn retire(connection: &Connection, successor: &str) -> Result<Retire, &'static str> {
+/// Retires `vault` for `successor`, a live vault on the same relay
+/// (docs/adr/0017-sync-key-rotation.md): the relay refuses its pushes, pulls and enrollments from
+/// then on. Only the relay's secret retires a vault; it is used for this request and dropped.
+pub(crate) fn retire(
+    relay: &RelayUrl,
+    relay_secret: &str,
+    vault: &str,
+    successor: &str,
+) -> Result<Retire, &'static str> {
     if !valid_vault_id(successor) {
         return Err("E_SYNC_INTERNAL");
     }
-    let answer = connection.answer(
-        &object(json!({ "type": "retire", "successor": successor })),
-        &[],
-    )?;
-    let named = answer
-        .message
-        .get("successor")
-        .and_then(Value::as_str)
-        .filter(|id| valid_vault_id(id));
-    match (error_code(&answer), named) {
-        (None, Some(named))
-            if named == successor
-                && answer.message.get("type").and_then(Value::as_str) == Some("retired") =>
+    let body = json!({ "v": PROTOCOL_VERSION, "type": "retire", "successor": successor });
+    let named = |reply: &Value| {
+        reply
+            .get("successor")
+            .and_then(Value::as_str)
+            .filter(|id| valid_vault_id(id))
+            .map(str::to_string)
+    };
+    match post_answer(
+        &relay.vault_path(vault, "/retire"),
+        &body,
+        Some(relay_secret),
+    ) {
+        Ok(reply)
+            if reply.get("type").and_then(Value::as_str) == Some("retired")
+                && named(&reply).as_deref() == Some(successor) =>
         {
             Ok(Retire::Done)
         }
-        (Some("E_SYNC_VAULT_ROTATED"), Some(named)) if named == successor => Ok(Retire::Done),
-        (Some("E_SYNC_VAULT_ROTATED"), Some(named)) => Ok(Retire::Taken(named.to_string())),
-        (Some(code), _) => Err(code),
-        (None, _) => Err("E_SYNC_PROTOCOL"),
+        Ok(_) => Err("E_SYNC_PROTOCOL"),
+        Err(("E_SYNC_VAULT_ROTATED", reply)) => match named(&reply) {
+            Some(kept) if kept == successor => Ok(Retire::Done),
+            Some(kept) => Ok(Retire::Taken(kept)),
+            None => Err("E_SYNC_VAULT_ROTATED"),
+        },
+        Err(("E_SYNC_UNAUTHORIZED" | "E_SYNC_FORBIDDEN", _)) => Err("E_SYNC_RELAY_SECRET"),
+        Err((code, _)) => Err(code),
     }
 }
 
