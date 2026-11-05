@@ -389,12 +389,42 @@ pub(crate) fn pairing_close(
     pairing_post(relay, id, "close", json!({ "vault": vault }), Some(token)).map(|_| ())
 }
 
-/// The relay's greeting on a new socket.
+/// The relay's `seq` as the engine's opaque cursor (`Cursor` in src/core/sync/transport.ts):
+/// decimal, and empty for the start.
+pub(crate) fn cursor_of(seq: u64) -> String {
+    if seq == 0 {
+        String::new()
+    } else {
+        seq.to_string()
+    }
+}
+
+/// The engine's cursor as the relay's `seq`; a stored `0` from before opaque cursors is the start too.
+pub(crate) fn seq_of(cursor: &str) -> Result<u64, &'static str> {
+    if cursor.is_empty() {
+        return Ok(0);
+    }
+    if cursor.len() > 16 || !cursor.bytes().all(|b| b.is_ascii_digit()) {
+        return Err("E_SYNC_CURSOR_INVALID");
+    }
+    cursor
+        .parse::<u64>()
+        .ok()
+        .filter(|seq| *seq <= MAX_SAFE as u64)
+        .ok_or("E_SYNC_CURSOR_INVALID")
+}
+
+pub(crate) fn serialize_cursor<S: serde::Serializer>(seq: &u64, to: S) -> Result<S::Ok, S::Error> {
+    to.serialize_str(&cursor_of(*seq))
+}
+
+/// The relay's greeting on a new socket; the engine sees its `seq` as `cursor`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Welcome {
     pub time: i64,
     pub epoch: String,
+    #[serde(rename = "cursor", serialize_with = "serialize_cursor")]
     pub seq: u64,
     pub device: String,
     /// `on` or `off`; None from a relay older than the quota cap.

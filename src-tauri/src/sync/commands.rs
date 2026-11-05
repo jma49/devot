@@ -124,7 +124,11 @@ pub async fn sync_connect(sync: State<'_, Arc<SyncService>>) -> Result<Welcome, 
 }
 
 #[tauri::command]
-pub async fn sync_pull(sync: State<'_, Arc<SyncService>>, since: u64) -> Result<PullDto, String> {
+pub async fn sync_pull(
+    sync: State<'_, Arc<SyncService>>,
+    since: String,
+) -> Result<PullDto, String> {
+    let since = super::client::seq_of(&since).map_err(String::from)?;
     task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| sync.pull(since)).await
 }
 
@@ -135,7 +139,12 @@ pub async fn sync_push(
     base: u64,
     data: String,
     kind: Option<String>,
+    tag: Option<String>,
 ) -> Result<PushDto, String> {
+    // A relay has no change tags; one is still checked before it is dropped.
+    if !tag.as_deref().is_none_or(crate::commands::sync::valid_tag) {
+        return Err("E_SYNC_TAG_INVALID".into());
+    }
     task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| {
         sync.push(&id, base, &data, kind.as_deref().unwrap_or("record"))
     })

@@ -221,19 +221,19 @@ export const SYNC_SQL = {
   /** Records written since the engine last looked, by ID and edits, from the partial index sync_pending. */
   pending: `SELECT id, edits FROM sync_records WHERE edits <> synced AND id > @after ORDER BY id LIMIT @limit`,
   pendingCount: `SELECT COUNT(*) AS n FROM sync_records WHERE edits <> synced`,
-  entry: `SELECT id, kind, version, fingerprint, body_hlc AS bodyHlc, body_fp AS bodyFp, edits, synced
+  entry: `SELECT id, kind, version, tag, fingerprint, body_hlc AS bodyHlc, body_fp AS bodyFp, edits, synced
      FROM sync_records WHERE id = @id`,
   /** Keeps `edits`, which only storage's triggers move on. */
-  put: `INSERT INTO sync_records (id, kind, version, fingerprint, body_hlc, body_fp, synced)
-     VALUES (@id, @kind, @version, @fingerprint, @bodyHlc, @bodyFp, @synced)
+  put: `INSERT INTO sync_records (id, kind, version, tag, fingerprint, body_hlc, body_fp, synced)
+     VALUES (@id, @kind, @version, @tag, @fingerprint, @bodyHlc, @bodyFp, @synced)
      ON CONFLICT (id) DO UPDATE SET kind = excluded.kind, version = excluded.version,
-       fingerprint = excluded.fingerprint, body_hlc = excluded.body_hlc,
+       tag = excluded.tag, fingerprint = excluded.fingerprint, body_hlc = excluded.body_hlc,
        body_fp = excluded.body_fp, synced = excluded.synced`,
   state: `SELECT key, value FROM sync_state`,
   setState: `INSERT INTO sync_state (key, value) VALUES (@key, @value)
      ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
   /** A new vault epoch: nothing is on the relay, and every record is pending. */
-  reset: `UPDATE sync_records SET version = 0, fingerprint = '', synced = edits - 1`,
+  reset: `UPDATE sync_records SET version = 0, tag = '', fingerprint = '', synced = edits - 1`,
   /** The note's row as stored, trashed or purged. */
   note: `SELECT *, purged_at IS NOT NULL AS purged FROM notes WHERE id = @id`,
   noteTags: `SELECT note_id AS noteId, tag_id AS tagId, present, hlc FROM note_tags

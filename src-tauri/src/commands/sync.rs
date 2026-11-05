@@ -19,7 +19,20 @@ use crate::sync::file_record::{self, Fields};
 /// MAX_SYNC_IDS in src/core/sync/store.ts.
 const MAX_SYNC_IDS: usize = 100;
 const MAX_STATE_VALUE: usize = 128;
-const STATE_KEYS: [&str; 5] = ["since", "epoch", "lastSync", "uploadTotal", "skippedBy"];
+/// The pull cursor is the transport's: a decimal `seq` on a relay, an archived change token on iCloud.
+const MAX_CURSOR: usize = 4096;
+/// A change tag is the transport's too: empty on a relay, archived record system fields on iCloud.
+pub(crate) const MAX_TAG: usize = 8192;
+const STATE_KEYS: [&str; 8] = [
+    "since",
+    "epoch",
+    "lastSync",
+    "uploadTotal",
+    "skippedBy",
+    "hasSynced",
+    "restoredAt",
+    "keepRestoredBefore",
+];
 const MAX_VERSION: i64 = 9_007_199_254_740_991;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -80,14 +93,34 @@ fn validate_entry(entry: &SyncEntry) -> Result<(), &'static str> {
     if !(entry.body_hlc.is_empty() || valid_hlc(&entry.body_hlc)) {
         return Err("E_SYNC_ENTRY_HLC_INVALID");
     }
+    if !valid_tag(&entry.tag) {
+        return Err("E_SYNC_ENTRY_TAG_INVALID");
+    }
     Ok(())
+}
+
+/// Base64 of at most `MAX_TAG` characters, or empty.
+pub(crate) fn valid_tag(tag: &str) -> bool {
+    tag.len() <= MAX_TAG
+        && tag
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='))
 }
 
 fn validate_state(key: &str, value: &str) -> Result<(), &'static str> {
     if !STATE_KEYS.contains(&key) {
         return Err("E_SYNC_STATE_KEY_INVALID");
     }
-    if value.len() > MAX_STATE_VALUE || !value.bytes().all(|b| b.is_ascii_graphic()) {
+    let max = if key == "since" {
+        MAX_CURSOR
+    } else {
+        MAX_STATE_VALUE
+    };
+    if value.len() > max || !value.bytes().all(|b| b.is_ascii_graphic()) {
+        return Err("E_SYNC_STATE_VALUE_INVALID");
+    }
+    // Only a backup restore sets the marker (backups.rs); the engine only clears it.
+    if key == "restoredAt" && !value.is_empty() {
         return Err("E_SYNC_STATE_VALUE_INVALID");
     }
     Ok(())
@@ -269,11 +302,30 @@ mod tests {
             id: "0192a6f0-0000-7000-8000-000000000001".into(),
             kind: "note".into(),
             version: 2,
+            tag: String::new(),
             fingerprint: "a".repeat(64),
             body_hlc: "0001728000000000-0000-mac".into(),
             body_fp: String::new(),
             edits: 0,
             synced: 1,
+        }
+    }
+
+    #[test]
+    fn takes_an_opaque_change_tag_and_refuses_anything_else() {
+        let tagged = |tag: String| SyncEntry { tag, ..entry() };
+        assert_eq!(validate_entry(&tagged("Ab+/9=".into())), Ok(()));
+        assert_eq!(validate_entry(&tagged("A".repeat(MAX_TAG))), Ok(()));
+        for bad in [
+            "a b".to_string(),
+            "tag\n".into(),
+            "\u{e9}".into(),
+            "A".repeat(MAX_TAG + 1),
+        ] {
+            assert_eq!(
+                validate_entry(&tagged(bad)),
+                Err("E_SYNC_ENTRY_TAG_INVALID")
+            );
         }
     }
 
@@ -319,8 +371,23 @@ mod tests {
         assert_eq!(validate_state("skippedBy", "0.4.1"), Ok(()));
         assert_eq!(validate_state("skippedBy", ""), Ok(()));
         assert!(validate_state("token", "x").is_err());
-        assert!(validate_state("since", &"9".repeat(200)).is_err());
+        assert!(validate_state("since", &"9".repeat(MAX_CURSOR + 1)).is_err());
         assert!(validate_state("since", "a b").is_err());
+        assert!(validate_state("epoch", &"9".repeat(200)).is_err());
+    }
+
+    #[test]
+    fn keeps_an_opaque_cursor_and_the_restore_keys_the_engine_writes() {
+        assert_eq!(validate_state("since", ""), Ok(()));
+        assert_eq!(validate_state("since", &"A".repeat(MAX_CURSOR)), Ok(()));
+        assert_eq!(validate_state("hasSynced", "1"), Ok(()));
+        assert_eq!(
+            validate_state("keepRestoredBefore", "0001728000000000-0000-mac"),
+            Ok(())
+        );
+        assert_eq!(validate_state("keepRestoredBefore", ""), Ok(()));
+        assert_eq!(validate_state("restoredAt", ""), Ok(()));
+        assert!(validate_state("restoredAt", "1730000000000").is_err());
     }
 
     const FILE: &str = "0192a6f0-0000-7000-8000-00000000f001";

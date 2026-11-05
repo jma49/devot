@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createClock, createIdGenerator } from '../../src/core'
 import { createSyncEngine } from '../../src/core/sync/engine'
-import type { SyncTransport } from '../../src/core/sync/transport'
+import { pushOneByOne, type SyncTransport } from '../../src/core/sync/transport'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -28,7 +28,8 @@ it.each(['E_LICENCE_REQUIRED', 'E_LICENCE_UNREADABLE'])(
         throw new Error(code)
       },
       pull: async (since) => ({ records: [], next: since, more: false }),
-      push: async () => ({ type: 'pushed', version: 1, seq: 1 }),
+      push: async () => ({ type: 'pushed', version: 1, seq: 1, tag: '' }),
+      pushMany: (items) => pushOneByOne(transport.push, items),
       close: async () => {},
     }
     const engine = createSyncEngine({

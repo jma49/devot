@@ -3681,6 +3681,7 @@ fn the_saved_searches_migration_keeps_the_sync_state_and_records() {
         store.sync_state().unwrap(),
         vec![
             ("epoch".to_string(), "e1".to_string()),
+            ("hasSynced".to_string(), "1".to_string()),
             ("since".to_string(), "60".to_string())
         ]
     );
@@ -3690,4 +3691,94 @@ fn the_saved_searches_migration_keeps_the_sync_state_and_records() {
         Some(("tag".into(), 3))
     );
     assert!(store.sync_pending("", 10).unwrap().is_empty());
+}
+
+/// A library at schema v25 (the release before change tags), with its sync state as the relay left it.
+fn library_at_v25(since: Option<&str>) -> (tempfile::TempDir, std::path::PathBuf) {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    let conn = Connection::open(&path).unwrap();
+    for (index, sql) in MIGRATIONS.iter().take(25).enumerate() {
+        conn.execute_batch(sql).unwrap();
+        conn.pragma_update(None, "user_version", index as u32 + 1)
+            .unwrap();
+    }
+    conn.execute(
+        "INSERT INTO sync_state (key, value) VALUES ('epoch', 'e1'), ('lastSync', '1730000000000')",
+        [],
+    )
+    .unwrap();
+    if let Some(since) = since {
+        conn.execute(
+            "INSERT INTO sync_state (key, value) VALUES ('since', ?1)",
+            [since],
+        )
+        .unwrap();
+    }
+    conn.execute(
+        "INSERT INTO sync_records (id, kind, version, fingerprint, body_hlc, body_fp, edits, synced)
+         VALUES ('0192a6f0-0000-7000-8000-000000000001', 'note', 7, 'f', 'h', 'b', 3, 3)",
+        [],
+    )
+    .unwrap();
+    (dir, path)
+}
+
+#[test]
+fn the_change_tag_migration_keeps_every_entry_and_its_cursor() {
+    let (_dir, path) = library_at_v25(Some("60"));
+    let mut store = Store::open(&path).unwrap();
+    assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
+    let id = "0192a6f0-0000-7000-8000-000000000001".to_string();
+    let entry = store
+        .sync_read(std::slice::from_ref(&id))
+        .unwrap()
+        .remove(0)
+        .entry
+        .unwrap();
+    assert_eq!(
+        (
+            entry.version,
+            entry.tag.as_str(),
+            entry.fingerprint.as_str()
+        ),
+        (7, "", "f")
+    );
+    assert!(
+        store.sync_pending("", 10).unwrap().is_empty(),
+        "nothing uploads again"
+    );
+    let state: std::collections::BTreeMap<_, _> = store.sync_state().unwrap().into_iter().collect();
+    assert_eq!(state.get("since").map(String::as_str), Some("60"));
+    assert_eq!(state.get("epoch").map(String::as_str), Some("e1"));
+    assert_eq!(state.get("hasSynced").map(String::as_str), Some("1"));
+    store
+        .sync_put(&SyncEntry {
+            tag: "c2VydmVy".into(),
+            ..entry
+        })
+        .unwrap();
+    let again = store.sync_read(&[id]).unwrap().remove(0).entry.unwrap();
+    assert_eq!(again.tag, "c2VydmVy");
+    store.sync_reset().unwrap();
+    let reset = store
+        .sync_read(&["0192a6f0-0000-7000-8000-000000000001".to_string()])
+        .unwrap()
+        .remove(0)
+        .entry
+        .unwrap();
+    assert_eq!((reset.version, reset.tag.as_str()), (0, ""));
+}
+
+#[test]
+fn the_change_tag_migration_counts_only_a_library_that_got_past_the_start_as_synced() {
+    for since in [None, Some("0"), Some(""), Some("007x")] {
+        let (_dir, path) = library_at_v25(since);
+        let store = Store::open(&path).unwrap();
+        let state = store.sync_state().unwrap();
+        assert!(
+            !state.iter().any(|(key, _)| key == "hasSynced"),
+            "{since:?} has not synced"
+        );
+    }
 }

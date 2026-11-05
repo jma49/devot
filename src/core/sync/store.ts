@@ -1,4 +1,5 @@
-// What the sync engine keeps in the database beside the notes (schema v19, migrations/0019_sync.sql),
+// What the sync engine keeps in the database beside the notes (schema v19, migrations/0019_sync.sql;
+// change tags since v26),
 // and the reads it needs that the rest of the core does not: raw rows, deleted notebooks, tags
 // and saved searches and purged notes included. The Rust store and the better-sqlite3 adapter implement it alike.
 
@@ -16,6 +17,8 @@ export interface SyncEntry {
   kind: SyncKind
   /** The relay's version this device last saw; 0 for a record the relay does not hold yet. */
   version: number
+  /** The transport's change tag for that version, opaque; '' on a relay and for a record it does not hold. */
+  tag: string
   /** The state that version stands for here (see `fingerprint`); '' when none. */
   fingerprint: string
   bodyHlc: string
@@ -80,7 +83,7 @@ export interface SyncStore {
   syncPut(entry: SyncEntryWrite): Promise<void>
   syncState(): Promise<Record<string, string>>
   syncSetState(key: string, value: string): Promise<void>
-  /** A new vault epoch: no record is on the relay (version 0, no fingerprint) and every one is pending. */
+  /** A new vault epoch: no record is on the relay (version 0, no tag, no fingerprint) and every one is pending. */
   syncReset(): Promise<void>
   /** The bytes of an attachment, read when it is pushed; null when it is gone. */
   syncFileData(id: string): Promise<Uint8Array | null>

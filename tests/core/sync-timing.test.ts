@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createClock, createIdGenerator, createNoteService, observeWrites } from '../../src/core'
 import { createSyncEngine, PUSH_EVERY_MS, PUSH_IDLE_MS } from '../../src/core/sync/engine'
-import type { SyncTransport } from '../../src/core/sync/transport'
+import { pushOneByOne, type SyncTransport } from '../../src/core/sync/transport'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -23,12 +23,13 @@ function stubRelay() {
   const pushed: number[] = []
   let version = 0
   const transport: SyncTransport = {
-    connect: async () => ({ time: Date.now(), epoch: 'e1', seq: 0, device: 'd' }),
+    connect: async () => ({ time: Date.now(), epoch: 'e1', cursor: '', device: 'd' }),
     pull: async (since) => ({ records: [], next: since, more: false }),
     push: async () => {
       pushed.push(Date.now())
-      return { type: 'pushed', version: (version += 1), seq: version }
+      return { type: 'pushed', version: (version += 1), seq: version, tag: '' }
     },
+    pushMany: (items) => pushOneByOne(transport.push, items),
     close: async () => {},
   }
   return { transport, pushed }
@@ -84,14 +85,15 @@ it('waits out a quota pause until the relay’s reset, without trying again befo
   const transport: SyncTransport = {
     connect: async () => {
       connects += 1
-      return { time: Date.now(), epoch: 'e1', seq: 0, device: 'd', quota: 'on' }
+      return { time: Date.now(), epoch: 'e1', cursor: '', device: 'd', quota: 'on' }
     },
     pull: async (since) => ({ records: [], next: since, more: false }),
     // A relay that does not say until when: the engine takes its next 00:00 UTC.
     push: async () =>
       capped
         ? { type: 'paused', until: null }
-        : { type: 'pushed', version: (version += 1), seq: version },
+        : { type: 'pushed', version: (version += 1), seq: version, tag: '' },
+    pushMany: (items) => pushOneByOne(transport.push, items),
     close: async () => {},
   }
   const clock = createClock('mac')
@@ -129,13 +131,14 @@ it('rechecks a quota pause at least hourly, so a timer that fell behind during s
   const transport: SyncTransport = {
     connect: async () => {
       connects += 1
-      return { time: Date.now(), epoch: 'e1', seq: 0, device: 'd', quota: 'on' }
+      return { time: Date.now(), epoch: 'e1', cursor: '', device: 'd', quota: 'on' }
     },
     pull: async (since) => ({ records: [], next: since, more: false }),
     push: async () =>
       Date.now() < reset
         ? { type: 'paused', until: reset, limit: 'rowsWritten' }
-        : { type: 'pushed', version: (version += 1), seq: version },
+        : { type: 'pushed', version: (version += 1), seq: version, tag: '' },
+    pushMany: (items) => pushOneByOne(transport.push, items),
     close: async () => {},
   }
   const clock = createClock('mac')

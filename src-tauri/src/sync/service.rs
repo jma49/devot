@@ -154,6 +154,8 @@ pub(crate) struct PulledDto {
     pub id: String,
     pub version: u64,
     pub seq: u64,
+    /// A relay has no change tags.
+    pub tag: &'static str,
     pub kind: String,
     pub data: Option<String>,
     pub error: Option<&'static str>,
@@ -163,6 +165,7 @@ pub(crate) struct PulledDto {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PullDto {
     pub records: Vec<PulledDto>,
+    #[serde(serialize_with = "client::serialize_cursor")]
     pub next: u64,
     pub more: bool,
 }
@@ -173,10 +176,13 @@ pub(crate) enum PushDto {
     Pushed {
         version: u64,
         seq: u64,
+        tag: &'static str,
     },
     Rejected {
         version: u64,
+        tag: &'static str,
     },
+    /// The relay's quota cap; the engine reads a pause without a code as this one.
     Paused {
         until: Option<i64>,
         limit: Option<&'static str>,
@@ -809,7 +815,10 @@ impl SyncService {
             vault,
             token,
             Box::new(move |event| match event {
-                Event::Changed(seq) => emit(SOCKET_EVENT, json!({ "type": "changed", "seq": seq })),
+                Event::Changed(seq) => emit(
+                    SOCKET_EVENT,
+                    json!({ "type": "changed", "cursor": client::cursor_of(seq) }),
+                ),
                 Event::Closed(code) => {
                     Self::refused(secrets.as_ref(), code);
                     log::info!("I_SYNC_CLOSED {code}");
@@ -855,6 +864,7 @@ impl SyncService {
                         id: record.id,
                         version: record.version,
                         seq: record.seq,
+                        tag: "",
                         kind: record.kind,
                         data,
                         error,
@@ -900,8 +910,14 @@ impl SyncService {
         }
         let (connection, vault) = self.live()?;
         match client::push(&connection, &vault, id, base, &plaintext, kind) {
-            Ok(client::PushReply::Pushed { version, seq }) => Ok(PushDto::Pushed { version, seq }),
-            Ok(client::PushReply::Rejected { version }) => Ok(PushDto::Rejected { version }),
+            Ok(client::PushReply::Pushed { version, seq }) => Ok(PushDto::Pushed {
+                version,
+                seq,
+                tag: "",
+            }),
+            Ok(client::PushReply::Rejected { version }) => {
+                Ok(PushDto::Rejected { version, tag: "" })
+            }
             Ok(client::PushReply::Full) => {
                 log::info!("I_SYNC_ATTACHMENTS_FULL id={id}");
                 Ok(PushDto::Full)
@@ -955,6 +971,39 @@ mod tests {
         assert_eq!(
             serde_json::to_value(paused).unwrap(),
             json!({ "type": "paused", "until": 1_793_145_600_000_i64, "limit": "storedBytes" })
+        );
+    }
+
+    #[test]
+    fn hands_the_relay_s_seq_to_the_engine_as_an_opaque_cursor_and_takes_it_back() {
+        let page = PullDto {
+            records: vec![],
+            next: 42,
+            more: false,
+        };
+        assert_eq!(
+            serde_json::to_value(page).unwrap(),
+            json!({ "records": [], "next": "42", "more": false })
+        );
+        let start = PullDto {
+            records: vec![],
+            next: 0,
+            more: false,
+        };
+        assert_eq!(serde_json::to_value(start).unwrap()["next"], json!(""));
+        assert_eq!(client::seq_of(""), Ok(0));
+        assert_eq!(client::seq_of("0"), Ok(0));
+        assert_eq!(client::seq_of("42"), Ok(42));
+        for bad in ["-1", "4 2", "tok_1", "1e3", "99999999999999999"] {
+            assert_eq!(client::seq_of(bad), Err("E_SYNC_CURSOR_INVALID"), "{bad}");
+        }
+        let rejected = PushDto::Rejected {
+            version: 3,
+            tag: "",
+        };
+        assert_eq!(
+            serde_json::to_value(rejected).unwrap(),
+            json!({ "type": "rejected", "version": 3, "tag": "" })
         );
     }
 

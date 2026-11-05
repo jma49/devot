@@ -650,7 +650,7 @@ describe('sync between two devices', () => {
     const push = a.transport.push.bind(a.transport)
     let rejecting = true
     a.transport.push = async (record, base, plaintext) =>
-      rejecting ? { type: 'rejected', version: base + 1 } : push(record, base, plaintext)
+      rejecting ? { type: 'rejected', version: base + 1, tag: '' } : push(record, base, plaintext)
     await a.notes.setTitle(id, 'Mine')
     const before = a.transport.pulls
     await a.sync()
@@ -773,7 +773,8 @@ describe('what the relay announces and what this build cannot read', () => {
       pulls += 1
       return pull(since)
     }
-    for (let seq = 1; seq <= 50; seq += 1) a.engine.received({ type: 'changed', seq })
+    for (let seq = 1; seq <= 50; seq += 1)
+      a.engine.received({ type: 'changed', cursor: String(seq) })
     await a.engine.idle()
     // One pass for the burst, one more at most for an event that came while it ran.
     expect(pulls).toBeLessThanOrEqual(2)
@@ -786,7 +787,7 @@ describe('what the relay announces and what this build cannot read', () => {
     const id = await b.notes.create('From the future')
     await b.sync()
     const pull = a.transport.pull.bind(a.transport)
-    const sinces: number[] = []
+    const sinces: string[] = []
     let unreadable = true
     a.transport.pull = async (since) => {
       sinces.push(since)
@@ -809,10 +810,10 @@ describe('what the relay announces and what this build cannot read', () => {
     // The same build does not pull everything again on a restart.
     sinces.length = 0
     await a.restart()
-    expect(sinces.every((since) => since > 0)).toBe(true)
+    expect(sinces.every((since) => since !== '')).toBe(true)
     cfg.build = '1.1.0'
     await a.restart()
-    expect(sinces).toContain(0)
+    expect(sinces).toContain('')
     await a.sync()
     expect((await a.note(id))?.title).toBe('From the future')
     expect(a.engine.status().skipped).toBe(0)
@@ -825,14 +826,14 @@ describe('what the relay announces and what this build cannot read', () => {
     await b.sync()
     await a.sync()
     const pull = a.transport.pull.bind(a.transport)
-    const sinces: number[] = []
+    const sinces: string[] = []
     a.transport.pull = async (since) => {
       sinces.push(since)
       return pull(since)
     }
     cfg.build = '1.1.0'
     await a.restart()
-    expect(sinces.every((since) => since > 0)).toBe(true)
+    expect(sinces.every((since) => since !== '')).toBe(true)
   })
 })
 
