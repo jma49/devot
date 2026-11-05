@@ -9,7 +9,7 @@ xcodebuild build-for-testing -project DevotStoreTests.xcodeproj -scheme DevotSto
   -destination 'generic/platform=iOS Simulator' -derivedDataPath .build/dd -quiet || exit 1
 xcrun simctl list devices available --json | node -e '
   const { devices } = JSON.parse(require("fs").readFileSync(0, "utf8"))
-  for (const [runtime, list] of Object.entries(devices)) {
+  for (const [runtime, list] of Object.entries(devices).sort(([a], [b]) => b.localeCompare(a, "en", { numeric: true }))) {
     const phone = list.find((d) => d.name.startsWith("iPhone"))
     if (runtime.includes(".iOS-") && phone) console.log(`${phone.udid} ${runtime}`)
   }
@@ -19,8 +19,8 @@ xcrun simctl list devices available --json | node -e '
   xcrun simctl bootstatus "$device" -b >/dev/null 2>&1
   start=$(date '+%Y-%m-%d %H:%M:%S')
   xcodebuild test-without-building -project DevotStoreTests.xcodeproj -scheme DevotStoreTests \
-    -destination "id=$device" -derivedDataPath .build/dd 2>&1 |
-    grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test" | cut -c1-240
+    -destination "id=$device" -derivedDataPath .build/dd -test-iterations 3 2>&1 |
+    grep -E "failed \(|error: |\*\* TEST|Executed [0-9]+ test" | cut -c1-240
   echo "--- storekitd on $runtime"
   xcrun simctl spawn "$device" log show --start "$start" --style compact \
     --predicate 'process == "storekitd" AND (subsystem BEGINSWITH "com.apple.storekit" OR messageType == error)' 2>/dev/null |
