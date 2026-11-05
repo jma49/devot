@@ -1,31 +1,32 @@
 #!/bin/sh
-# CI helper: runs the StoreKit bridge's tests (src-tauri/apple/DevotStore) on an iPhone simulator.
-# StoreKit Test runs only inside an app, so XcodeGen makes a test project with an empty host app
-# from TestHost/project.yml; the project is generated here and never committed.
-# The iOS 26.5 simulator cannot load a StoreKit configuration outside the Xcode app (FB22237318),
-# so the newest iPhone runtime before it is used when there is one. DEVOT_STORE_SIMULATOR picks a
-# simulator by UDID instead.
-set -eu
+# DIAGNOSTIC RUN: builds once, then runs the StoreKit tests on one iPhone of every runtime and
+# prints storekitd's log for each. Replaced by the real script once the cause is known.
+set -u
 cd "$(dirname "$0")/../../src-tauri/apple/DevotStore/TestHost"
 xcodegen generate --quiet
-device=${DEVOT_STORE_SIMULATOR:-$(xcrun simctl list devices available --json | node -e '
+xcodebuild -version
+xcodebuild build-for-testing -project DevotStoreTests.xcodeproj -scheme DevotStoreTests \
+  -destination 'generic/platform=iOS Simulator' -derivedDataPath .build/dd -quiet || exit 1
+xcrun simctl list devices available --json | node -e '
   const { devices } = JSON.parse(require("fs").readFileSync(0, "utf8"))
-  const version = (runtime) => (runtime.match(/iOS-(\d+)-(\d+)/) ?? []).slice(1).map(Number)
-  const newer = (a, b) => version(b)[0] - version(a)[0] || version(b)[1] - version(a)[1]
-  const phones = (runtime) => devices[runtime].filter((d) => d.name.startsWith("iPhone"))
-  const runtimes = Object.keys(devices).filter((r) => r.includes(".iOS-") && phones(r).length).sort(newer)
-  console.error(`iPhone runtimes: ${runtimes.map((r) => version(r).join(".")).join(", ")}`)
-  const broken = (r) => version(r)[0] === 26 && version(r)[1] === 5
-  const runtime = runtimes.find((r) => !broken(r)) ?? runtimes[0]
-  if (!runtime) process.exit(1)
-  const phone = phones(runtime)[0]
-  console.error(`StoreKit tests on ${phone.name}, iOS ${version(runtime).join(".")}`)
-  console.log(phone.udid)
-')}
-log=$(mktemp)
-status=0
-xcodebuild test -project DevotStoreTests.xcodeproj -scheme DevotStoreTests \
-  -destination "id=$device" >"$log" 2>&1 || status=$?
-grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test" "$log" || tail -n 60 "$log"
-rm -f "$log"
-exit "$status"
+  for (const [runtime, list] of Object.entries(devices)) {
+    const phone = list.find((d) => d.name.startsWith("iPhone"))
+    if (runtime.includes(".iOS-") && phone) console.log(`${phone.udid} ${runtime}`)
+  }
+' | while read -r device runtime; do
+  echo "::group::StoreKit tests on $runtime"
+  xcrun simctl boot "$device" 2>/dev/null
+  xcrun simctl bootstatus "$device" -b >/dev/null 2>&1
+  start=$(date '+%Y-%m-%d %H:%M:%S')
+  xcodebuild test-without-building -project DevotStoreTests.xcodeproj -scheme DevotStoreTests \
+    -destination "id=$device" -derivedDataPath .build/dd 2>&1 |
+    grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test" | cut -c1-240
+  echo "--- storekitd on $runtime"
+  xcrun simctl spawn "$device" log show --start "$start" --style compact \
+    --predicate 'process == "storekitd" AND (subsystem BEGINSWITH "com.apple.storekit" OR messageType == error)' 2>/dev/null |
+    grep -E "XcodeTest|Octane|onfiguration|SKInternal|rror|products|IAP|Sandbox|Media API" |
+    grep -vE "Applying configuration overrides|ams_cookies|containermanager" | cut -c1-300 | head -n 120
+  xcrun simctl shutdown "$device" 2>/dev/null
+  echo "::endgroup::"
+done
+exit 1
