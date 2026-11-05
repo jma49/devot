@@ -51,7 +51,7 @@ import {
   workspaceParents,
   workspaceTree,
 } from '../../core/workspace'
-import { errorCode, onRestoreElsewhere } from './backups'
+import { errorCode } from './backups'
 import { BackupNotice } from './BackupNotice'
 import { SyncNotice } from './SyncNotice'
 import { ActivationBar, TrialEndedBar, TrialReminder } from './TrialNotices'
@@ -80,13 +80,7 @@ import {
 import { ExportNotice, failureOf, type ExportFailure } from './ExportNotice'
 import { SaveNotice } from './SaveNotice'
 import { isImeKey } from './ime'
-import {
-  answerAsked,
-  saveEdits,
-  useSaveAtTrialEnd,
-  useSaveOnHide,
-  useSaveProblems,
-} from './saveGuards'
+import { saveEdits, useSaveAtTrialEnd, useSaveOnHide, useSaveProblems } from './saveGuards'
 import { BackupsDialog } from './BackupsDialog'
 import { useSheets } from './sheets'
 import { BookPicker } from './BookPicker'
@@ -153,35 +147,29 @@ import { BuiltInTemplate, BuiltInTemplates } from './BuiltInTemplates'
 import { markWrite } from './lastWrite'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
-import { startCore, stopCore, type Core } from './core-client'
+import type { Core } from './core-client'
+import { useCoreSession, useCoreStart, useQuitAndClose } from './coreSession'
 import { warmUp } from './warmUp'
 import { startEarlyKeys } from './editor/earlyKeys'
-import { welcomeContent } from './welcome/content'
 import {
   currentFocusStore,
   currentSidebarStore,
   currentWindowLabel,
   isSecondaryLabel,
-  keyboardIsFree,
 } from './focus'
 import { coalesced, listsLink } from './mainWindows'
 import { listenHere, unlistenLater } from './windowEvents'
-import { listenExitCancelled } from './exitCancelled'
-import { resumeMirrorAfterCancelledQuit } from './mirror'
 import { useFocusRescue } from './focusRescue'
+import { useLastState } from './useLastState'
 import {
   currentDefaultMode,
   currentLastStateStore,
   isBoardView,
   isGalleryView,
-  lastStateOf,
   layoutOf,
-  restorePlan,
   withLayout,
-  type LastState,
   type ListLayout,
   type ViewLayouts,
-  type NoteState,
 } from './lastState'
 import type { FindTarget } from './find/target'
 import { useFind } from './find/useFind'
@@ -191,7 +179,7 @@ import { displayTitle, displayTitles, newestUntitled, useHeadlines } from './hea
 import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
 import type { EditorHandle } from './editor/handle'
-import { NoteEditor, type ApplyRestore, type EditorPlace } from './NoteEditor'
+import { NoteEditor, type ApplyRestore } from './NoteEditor'
 import { BODY_PLACEHOLDER_MS, useLateAttribute } from './late'
 import { changeEditorSettings, editorSettings, useEditorSetting } from './editorSettings'
 import { ModeControl, editorOnly, type Mode } from './ModeControl'
@@ -304,11 +292,9 @@ export const TOGGLE_SIDEBAR = 'devot:toggle-sidebar'
 /** A menu toggle this soon after the key did the same is that key press echoing through the menu; it is dropped. */
 const MENU_ECHO_MS = 500
 
-const LAST_STATE_SAVE_MS = 400
 // Other main windows hear of this window's writes this long after the first of a burst, and load their lists this long after hearing (mainWindows.ts).
 const LISTS_WROTE_MS = 250
 const LISTS_RELOAD_MS = 400
-const CLOSE_EVENT = 'devot:note-window-close'
 
 function SidebarToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) {
   // Re-render on keymap changes: the tooltip names the key in effect.
@@ -351,7 +337,8 @@ export function App() {
   const [lastState] = useState(() => lastStateStore.load())
   // Tooltips name the keys in effect; they follow the user's changes.
   useKeymap()
-  const [core, setCore] = useState<Core>()
+  const session = useCoreSession()
+  const { core, coreRef, startFailure, coreFailure, setCoreFailure, retryStart } = session
   // Every AI request goes through the access rule, with the notebooks as the core has them.
   const aiGenerator = useMemo(
     () =>
@@ -378,9 +365,6 @@ export function App() {
     [core, aiGenerator],
   )
   const [suggestNotice, setSuggestNotice] = useState<string>()
-  const [startFailure, setStartFailure] = useState<string>()
-  const [startAttempt, setStartAttempt] = useState(0)
-  const [coreFailure, setCoreFailure] = useState<string>()
   const loadHeadlines = useMemo(
     () => (core ? (ids: string[]) => core.headlines(ids) : undefined),
     [core],
@@ -586,7 +570,6 @@ export function App() {
   // The first quit or close after a save failure is held (saving.ts, useSaveProblems).
   const [quitHeld, setQuitHeld] = useState(false)
   const [closeHeld, setCloseHeld] = useState(false)
-  const coreRef = useRef<Core>(undefined)
   // The open note's Markdown mirrored for the preview; not App state, so typing renders only the preview.
   const [openText] = useState(() => textStore())
   const [historyFor, setHistoryFor] = useState<string>()
@@ -749,7 +732,7 @@ export function App() {
           void refresh(c).catch(() => {})
         }
       },
-      [refresh],
+      [coreRef, refresh],
     ),
   )
 
@@ -1145,10 +1128,6 @@ export function App() {
     [multiIds, noteById],
   )
 
-  const onCoreFailure = useCallback((code: string) => {
-    console.error(code)
-    setCoreFailure(code)
-  }, [])
   // Another window's change, or one the core merged in on saving: the editor and title field take it.
   const takeIn = useCallback((change: TakenIn) => {
     if (change.kind === 'title') {
@@ -1159,67 +1138,18 @@ export function App() {
     const editor = editorRef.current
     if (editor?.noteId === change.noteId) editor.takeState(change.update)
   }, [])
-  useEffect(() => {
-    let alive = true
-    let started: Core | undefined
-    void startCore(onSaveProblems, showWrites, onCoreFailure, {
-      lean: !primary,
-      onWrote: lists.wrote,
-      onAuthored: authorshipChanged,
-      onRelay: (message) => {
-        if (relay.gate.allows(message)) relay.link.send(message)
-      },
-      onTakenIn: takeIn,
-    })
-      .then(async (c) => {
-        started = c
-        if (!alive) return stopCore(c)
-        setCore(() => c)
-        coreRef.current = c
-        // A library that has never held anything starts with a few notes. The
-        // UI tests' libraries start empty, unless a test asks for the notes.
-        if (
-          primary &&
-          (!DEVOT_UI_TEST || (globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome)
-        ) {
-          await c.seedWelcome(welcomeContent()).catch((e: unknown) => {
-            console.warn('W_WELCOME_FAILED', errorCode(e))
-          })
-        }
-        await refresh(c)
-        setListsLoaded(true)
-        nextSheet()
-      })
-      .catch((e: unknown) => {
-        if (!alive) return
-        // Not an empty library: the window says why it has none.
-        if (started) stopCore(started)
-        coreRef.current = undefined
-        setCore(undefined)
-        const code = errorCode(e)
-        console.warn('W_CORE_START_FAILED', code)
-        setStartFailure(code)
-      })
-    return () => {
-      alive = false
-    }
-  }, [
+  useCoreStart(session, {
+    primary,
+    lists,
+    relay,
     refresh,
     nextSheet,
     onSaveProblems,
     showWrites,
     authorshipChanged,
-    onCoreFailure,
     takeIn,
-    relay,
-    lists,
-    primary,
-    startAttempt,
-  ])
-  const retryStart = () => {
-    setStartFailure(undefined)
-    setStartAttempt((n) => n + 1)
-  }
+    setListsLoaded,
+  })
 
   useSearchRuns(search, { scope: searchScope, inView })
   // Typing a search in the Trash or Templates leaves it: neither is searched.
@@ -1321,22 +1251,6 @@ export function App() {
       : undefined,
   )
 
-  useEffect(
-    () =>
-      onRestoreElsewhere(async () => {
-        if (!core) return
-        try {
-          await core.stopImport()
-          await saveEdits(core)
-          // In `main`: no sweep deletes from the restored notes what it chose from these.
-          await core.holdCompaction()
-        } finally {
-          stopCore(core)
-        }
-      }),
-    [core],
-  )
-
   // Quick capture (menu bar mode): this window's core makes the note the
   // capture window sent, and the list shows it.
   useEffect(() => {
@@ -1421,102 +1335,7 @@ export function App() {
   )
 
   useSaveOnHide(core)
-  useEffect(() => {
-    if (!core) return
-    // Quitting: Rust holds the exit, asks us to save, and exits on our reply.
-    // When a note could not be saved, the first such quit is called off
-    // instead: the window stays with the changes and the notice says so
-    // (saving.ts); quitting again goes on without them.
-    let unlisten: (() => void) | undefined
-    let unlistenCancel: (() => void) | undefined
-    let unlistenIdle: (() => void) | undefined
-    let stopped = false
-    if (!DEVOT_UI_TEST) {
-      void import('@tauri-apps/api/event').then(async ({ listen }) => {
-        const stop = await listen('devot://flush-before-exit', async () => {
-          saveNow.current?.()
-          // A running import stops after the file it is on, so no note
-          // is left half made (unless that file outlasts the quit timeout).
-          await core.stopImport()
-          await answerAsked(
-            'quit',
-            quitGuard,
-            core.flush({ versions: true }),
-            () => {
-              setQuitHeld(true)
-              setSaveNoticeDismissed(false)
-            },
-            async () => {
-              // The notice's writes are seen before the app goes, so they do not come back on the next launch.
-              await markShownSeen({ reload: false })
-              // A mirror pass ends after the batch it is in, so its manifest
-              // lists every file it wrote; the next launch catches up.
-              await core.mirrorStop()
-            },
-          )
-        })
-        if (stopped) stop()
-        else unlisten = stop
-        // A Devot an AI tool started asks before it quits by itself (background.rs): a save that
-        // fails here keeps it running, without the notice a quit's own failure would bring up.
-        const stopIdle = await listen('devot://background-idle-check', async () => {
-          saveNow.current?.()
-          const saved = await core.flush({ versions: true }).then(
-            () => true,
-            () => false,
-          )
-          await invoke('background_idle_answer', { saved })
-        })
-        if (stopped) stopIdle()
-        else unlistenIdle = stopIdle
-      })
-      // Another window called the quit off after this one had stopped its mirror: start it again.
-      void listenExitCancelled(() => resumeMirrorAfterCancelledQuit(core)).then((stop) => {
-        if (stopped) stop()
-        else unlistenCancel = stop
-      })
-    }
-    return () => {
-      stopped = true
-      unlisten?.()
-      unlistenCancel?.()
-      unlistenIdle?.()
-    }
-  }, [core, quitGuard, markShownSeen, setSaveNoticeDismissed])
-
-  useSaveAtTrialEnd(editing, core, () => saveNow.current?.())
-
-  // A window File > New Window opened closes after saving, as a note window does (main_windows.rs): Rust holds the close and asks. As for a quit, the first close whose save fails is called off, and the notice says so.
-  useEffect(() => {
-    if (primary) return
-    const closed = () => {
-      const ready = coreRef.current
-      saveNow.current?.()
-      void answerAsked(
-        'close',
-        closeGuard,
-        ready?.stopImport().then(() => ready.flush({ versions: true })),
-        () => {
-          setCloseHeld(true)
-          setSaveNoticeDismissed(false)
-        },
-        // Seen before the window goes, as for a quit.
-        () => markShownSeen({ reload: false }),
-      )
-    }
-    window.addEventListener(CLOSE_EVENT, closed)
-    const unlisten = DEVOT_UI_TEST
-      ? undefined
-      : unlistenLater(
-          import('@tauri-apps/api/webviewWindow').then(({ getCurrentWebviewWindow }) =>
-            getCurrentWebviewWindow().listen('devot://note-window-close', closed),
-          ),
-        )
-    return () => {
-      window.removeEventListener(CLOSE_EVENT, closed)
-      unlisten?.()
-    }
-  }, [primary, closeGuard, markShownSeen, setSaveNoticeDismissed])
+  useSaveAtTrialEnd(editing, core, () => saveNow())
 
   // The other main windows wrote to the library: this one loads its lists and the notes it holds again, as for a change from another process.
   useEffect(() => {
@@ -1623,142 +1442,52 @@ export function App() {
     warmUp(core)
   }, [core, restored])
   const mirror = useMarkdownMirror(core, restored && primary)
-  const noteState = useRef<NoteState>(undefined)
-  // The state outside the Trash, which is kept while the Trash shows.
-  const libraryState = useRef<LastState>(undefined)
-  // Restored note's place in editor and preview, applied once when it has loaded.
-  const restoreEditor = useRef<{ id: string; place: Partial<EditorPlace> }>(undefined)
-  const restorePreview = useRef<{ id: string; top: number }>(undefined)
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const currentState = (): LastState | undefined => {
-    const state = lastStateOf({
+  const {
+    saveNow,
+    editorPlaced,
+    previewScrolled,
+    restoreKeyboard,
+    takeEditorPlace,
+    takePreviewScroll,
+  } = useLastState({
+    store: lastStateStore,
+    saved: lastState,
+    core,
+    listsLoaded,
+    restored,
+    setRestored,
+    view: {
+      library,
+      filter,
+      workspace,
       inTrash,
       inTemplates,
       bookId: libraryBook?.id,
-      filter: activeFilter,
+      activeFilter,
       mode,
       selected,
-      workspace: workspaceNode?.id,
-      boards: layouts.boards,
-      galleries: layouts.galleries,
-      note: noteState.current,
-      beforeTrash: libraryState.current,
-      keyboard: () => inEditor(document.activeElement),
-    })
-    if (!inTrash) libraryState.current = state
-    return state
-  }
-  const saveNow = useRef<() => void>(undefined)
-  saveNow.current = () => {
-    clearTimeout(saveTimer.current)
-    if (!restored) return
-    const state = currentState()
-    if (state) lastStateStore.save(state)
-  }
-  const saveSoon = useCallback(() => {
-    clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => saveNow.current?.(), LAST_STATE_SAVE_MS)
-  }, [])
-  useEffect(
-    () => saveNow.current?.(),
-    [restored, library, filter, selected, mode, workspace, layouts],
-  )
-  // So is the state when the page goes away or out of sight, and the
-  // keyboard moving in or out of the editor soon after.
-  useEffect(() => {
-    const save = () => saveNow.current?.()
-    window.addEventListener('pagehide', save)
-    document.addEventListener('visibilitychange', save)
-    document.addEventListener('focusin', saveSoon)
-    return () => {
-      window.removeEventListener('pagehide', save)
-      document.removeEventListener('visibilitychange', save)
-      document.removeEventListener('focusin', saveSoon)
-      clearTimeout(saveTimer.current)
-    }
-  }, [saveSoon])
-  const editorPlaced = (id: string, place: EditorPlace) => {
-    const known = noteState.current?.id === id ? noteState.current : { id, keyboard: false }
-    noteState.current = {
-      ...known,
-      selection: place.selection,
-      ...(place.top ? { editorTop: place.top } : {}),
-    }
-    saveSoon()
-  }
-  const previewScrolled = (top: number) => {
-    if (selected === undefined) return
-    const known = noteState.current?.id === selected ? noteState.current : undefined
-    noteState.current = {
-      ...(known ?? { id: selected, keyboard: false }),
-      previewTop: top,
-    }
-    saveSoon()
-  }
-  // The view and filter the window started with: a view picked while it
-  // loads is the user's, and the restore leaves it alone.
-  const startView = useRef({ library, filter })
-  // Restores the last state once the lists have loaded; a gone notebook, tag or note falls back to none. The restored note is the first Back/Forward entry.
-  const restoreStarted = useRef(false)
-  const restoreKeyboard = useRef<string>(undefined)
-  useEffect(() => {
-    if (restoreKeyboard.current !== selected) restoreKeyboard.current = undefined
-  }, [selected])
-  const restoreLast = async () => {
-    try {
-      const untouched =
-        JSON.stringify({ library, filter }) === JSON.stringify(startView.current) &&
-        selected === undefined
-      const plan =
-        lastState && untouched
-          ? restorePlan(lastState, {
-              books: new Set(books.map((b) => b.id)),
-              tags: new Set(tags.map((tag) => tag.id)),
-              notes: new Set([...notes, ...templates].map((n) => n.id)),
-            })
-          : undefined
-      if (!plan) return
-      setLibrary(plan.view)
-      setFilter(plan.filter)
-      setWorkspace(plan.workspace ?? null)
-      const note = plan.note
-      if (!note) return
-      noteState.current = note
-      const place: Partial<EditorPlace> = {}
-      if (note.selection) place.selection = note.selection
-      if (note.editorTop) place.top = note.editorTop
-      restoreEditor.current = { id: note.id, place }
-      const preview = mode === 'preview'
-      if (preview && note.previewTop !== undefined) {
-        restorePreview.current = { id: note.id, top: note.previewTop }
-      }
-      // The keyboard goes to the editor only while it is nobody's: a search
-      // typed or focus put anywhere since launch is the user's, here and
-      // once the editor has loaded (`restoreKeyboard`).
-      const keyboard = note.keyboard && !preview && query === '' && keyboardIsFree()
-      if (keyboard) restoreKeyboard.current = note.id
-      await select(note.id, { keyboard })
-    } catch {
-      console.warn('W_LAST_STATE_RESTORE_FAILED')
-    } finally {
-      setRestored(true)
-    }
-  }
-  useEffect(() => {
-    if (!core || !listsLoaded || restoreStarted.current) return
-    restoreStarted.current = true
-    void restoreLast()
+      workspaceId: workspaceNode?.id,
+      layouts,
+    },
+    lists: { books, tags, notes, templates },
+    query,
+    setLibrary,
+    setFilter,
+    setWorkspace,
+    select,
   })
-  const takeEditorPlace = (id: string) => () => {
-    const pending = restoreEditor.current
-    restoreEditor.current = undefined
-    return pending?.id === id ? pending.place : undefined
-  }
-  const takePreviewScroll = () => {
-    const pending = restorePreview.current
-    restorePreview.current = undefined
-    return pending && pending.id === selected ? pending.top : undefined
-  }
+  useQuitAndClose({
+    core,
+    coreRef,
+    primary,
+    quitGuard,
+    closeGuard,
+    saveNow,
+    markShownSeen,
+    setSaveNoticeDismissed,
+    setQuitHeld,
+    setCloseHeld,
+  })
 
   const restoreTrashed = async (id: string) => {
     await changeBooks((c) => c.restore(id))
