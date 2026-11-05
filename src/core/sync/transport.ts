@@ -20,6 +20,8 @@ export const ICLOUD_SIGNED_OUT = 'E_SYNC_ICLOUD_SIGNED_OUT'
 export const ICLOUD_RESTRICTED = 'E_SYNC_ICLOUD_RESTRICTED'
 /** A stored cursor the transport no longer reads: the pull starts again from `START`, once. */
 export const CURSOR_INVALID = 'E_SYNC_CURSOR_INVALID'
+/** A stored change tag the transport cannot read (one kept from before a switch): the record is pushed again without it, once. */
+export const TAG_INVALID = 'E_SYNC_TAG_INVALID'
 
 /** Where the vault's records live; the moved marker names one. */
 export type TransportName = 'relay' | 'icloud'
