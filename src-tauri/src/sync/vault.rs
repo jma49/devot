@@ -17,6 +17,7 @@ const ITEM_BYTES: usize = 1 + ID_BYTES + KEY_BYTES;
 // HKDF labels: one per use, so the record key and the enrollment secret never coincide.
 const RECORD_KEY_INFO: &[u8] = b"devot/sync/record-key/v1";
 const ENROLLMENT_INFO: &[u8] = b"devot/sync/enrollment/v1";
+const NAME_KEY_INFO: &[u8] = b"devot/sync/record-name-key/v1";
 const VERIFIER_LABEL: &[u8] = b"devot-relay enrollment verifier v1";
 
 /// A vault's random ID, a UUIDv4. The relay knows it; it is not a secret.
@@ -51,6 +52,7 @@ pub(crate) struct Vault {
     id: VaultId,
     key: Zeroizing<[u8; KEY_BYTES]>,
     cipher: Aes256Gcm,
+    name_key: Zeroizing<[u8; KEY_BYTES]>,
 }
 
 impl fmt::Debug for Vault {
@@ -76,7 +78,13 @@ impl Vault {
         let record_key = derive(&id, &key, RECORD_KEY_INFO);
         let cipher = Aes256Gcm::new_from_slice(record_key.as_ref())
             .expect("an HKDF output of 32 bytes is an AES-256 key");
-        Self { id, key, cipher }
+        let name_key = derive(&id, &key, NAME_KEY_INFO);
+        Self {
+            id,
+            key,
+            cipher,
+            name_key,
+        }
     }
 
     pub(crate) fn id(&self) -> VaultId {
@@ -89,6 +97,10 @@ impl Vault {
 
     pub(super) fn cipher(&self) -> &Aes256Gcm {
         &self.cipher
+    }
+
+    pub(super) fn name_key(&self) -> &[u8; KEY_BYTES] {
+        &self.name_key
     }
 
     /// What this vault's devices present to the relay to enroll; the relay keeps only its

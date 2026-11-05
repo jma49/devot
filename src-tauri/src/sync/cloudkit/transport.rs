@@ -1,7 +1,7 @@
 //! The iCloud transport (ADR 0015): the relay's connect, pull and push over the CloudKit
-//! primitives. Records are sealed as on a relay; CloudKit sees sealed chunks, their sizes and the
-//! record IDs. The cursor is the vault zone's archived change token and a record's tag its archived
-//! system fields, both base64, both opaque to the engine.
+//! primitives. Records are sealed and named as on a relay; CloudKit sees sealed chunks, their sizes
+//! and the store names (ADR 0016). The cursor is the vault zone's archived change token and a
+//! record's tag its archived system fields, both base64, both opaque to the engine.
 
 use std::collections::VecDeque;
 use std::ops::Range;
@@ -24,8 +24,8 @@ use super::kit::{
     ZONE_CLOCK, ZONE_DEVOT, vault_zone,
 };
 use super::staging::Staging;
-use crate::sync::Vault;
 use crate::sync::client::DeviceInfo;
+use crate::sync::{Vault, names};
 
 /// Records per page of the change feed. Each may carry up to 16 assets of 1.9 MB, all held until
 /// the page is handed on.
@@ -90,6 +90,8 @@ pub(crate) struct Welcome {
 
 pub(crate) struct Pulled {
     pub id: String,
+    /// The name it is filed under; `id` too when it does not open.
+    pub name: String,
     pub version: u64,
     pub tag: String,
     pub kind: String,
@@ -382,12 +384,21 @@ impl ICloud {
             other => other,
         }
         .map_err(failure)?;
+        let mut legacy = 0usize;
         let records = changes
             .records
             .iter()
             .filter(|record| record.kind == super::kit::TYPE_RECORD)
+            .filter(|record| {
+                let left = names::is_legacy(&record.name);
+                legacy += usize::from(left);
+                !left
+            })
             .map(|record| self.open(record))
             .collect();
+        if legacy > 0 {
+            log::info!("I_SYNC_LEGACY_LEFT count={legacy}");
+        }
         Ok(Page {
             records,
             next: STANDARD.encode(&changes.token),
@@ -401,19 +412,29 @@ impl ICloud {
             .as_deref()
             .map(|s| STANDARD.encode(s))
             .unwrap_or_default();
+        let shown = names::shown_id(&record.name).to_string();
         match encoding::decode(record) {
-            Ok(decoded) => Pulled {
-                plaintext: self
-                    .vault
-                    .decrypt_record(&record.name, decoded.version, &decoded.chunks)
-                    .map_err(|e| e.code()),
-                id: record.name.clone(),
-                version: decoded.version,
-                tag,
-                kind: decoded.kind,
-            },
+            Ok(decoded) => {
+                let (id, plaintext) =
+                    match self
+                        .vault
+                        .open_stored(&record.name, decoded.version, &decoded.chunks)
+                    {
+                        Ok((id, plaintext)) => (id, Ok(plaintext)),
+                        Err(e) => (shown.clone(), Err(e.code())),
+                    };
+                Pulled {
+                    id,
+                    name: shown,
+                    version: decoded.version,
+                    tag,
+                    kind: decoded.kind,
+                    plaintext,
+                }
+            }
             Err(code) => Pulled {
-                id: record.name.clone(),
+                id: shown.clone(),
+                name: shown,
                 version: encoding::version_of(record).unwrap_or(0),
                 tag,
                 kind: record.text(encoding::KIND).unwrap_or("record").to_string(),
@@ -535,9 +556,9 @@ impl ICloud {
         } else {
             Some(STANDARD.decode(item.tag).map_err(|_| error::TAG_INVALID)?)
         };
-        let chunks = self
+        let (name, chunks) = self
             .vault
-            .encrypt_record(item.id, version, item.plaintext)
+            .seal_stored(item.id, version, item.plaintext)
             .map_err(|e| e.code())?;
         if chunks.len() > encoding::MAX_CHUNKS {
             log::warn!("W_SYNC_TOO_LARGE id={}", item.id);
@@ -545,7 +566,7 @@ impl ICloud {
         }
         let staging = &self.staging;
         let (record, size) =
-            encoding::encode(item.id, system, version, item.kind, &chunks, &mut |bytes| {
+            encoding::encode(&name, system, version, item.kind, &chunks, &mut |bytes| {
                 let path = staging.stage(bytes)?;
                 staged.push(path.clone());
                 Ok(path)

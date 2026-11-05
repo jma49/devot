@@ -24,8 +24,7 @@ use tungstenite::stream::MaybeTlsStream;
 use tungstenite::{Message, WebSocket};
 use zeroize::Zeroizing;
 
-use super::{MAX_CHUNK_BYTES, Vault, enrollment_verifier};
-use crate::commands::notes::valid_note_id;
+use super::{MAX_CHUNK_BYTES, Vault, enrollment_verifier, names};
 
 pub(crate) const PROTOCOL_VERSION: u64 = 1;
 const SUBPROTOCOL: &str = "devot-relay.1";
@@ -59,9 +58,6 @@ const CLOSE_GRACE: Duration = Duration::from_secs(2);
 /// What a request is given on top of `REQUEST_TIMEOUT` per byte of its frame, so a slow uplink can
 /// finish writing before the wait for the answer counts.
 const SLOWEST_UPLOAD_BYTES_PER_SECOND: u64 = 64 * 1024;
-/// Stands for the ID of a pulled record whose ID the relay sent as something else, so relay text
-/// never reaches the log or the web view.
-const UNREADABLE_ID: &str = "00000000-0000-0000-0000-000000000000";
 const MAX_RATE_WAITS: u32 = 10;
 const MAX_RATE_WAIT: Duration = Duration::from_secs(30);
 const USER_AGENT: &str = concat!("devot/", env!("CARGO_PKG_VERSION"));
@@ -912,6 +908,8 @@ fn fail_all(waiters: &Waiters, code: &'static str) {
 #[derive(Debug)]
 pub(crate) struct Pulled {
     pub id: String,
+    /// The name it is filed under; `id` too when it does not open.
+    pub name: String,
     pub version: u64,
     pub seq: u64,
     pub kind: String,
@@ -1005,8 +1003,9 @@ pub(crate) fn pull(
         .ok_or("E_SYNC_PROTOCOL")?;
     let mut at = 0usize;
     let mut records = Vec::with_capacity(heads.len());
+    let mut legacy = 0usize;
     for head in heads {
-        let id = head
+        let name = head
             .get("id")
             .and_then(Value::as_str)
             .ok_or("E_SYNC_PROTOCOL")?;
@@ -1033,19 +1032,25 @@ pub(crate) fn pull(
             chunks.push(answer.payload.get(at..end).ok_or("E_SYNC_PROTOCOL")?);
             at = end;
         }
+        if names::is_legacy(name) {
+            legacy += 1;
+            continue;
+        }
         let known = kind == "record" || kind == "file";
-        let (id, plaintext) = if !valid_note_id(id) {
-            (UNREADABLE_ID, Err("E_SYNC_RECORD_ID"))
+        let shown = names::shown_id(name).to_string();
+        let (id, plaintext) = if !names::is_readable(name) {
+            (names::UNREADABLE_ID.to_string(), Err("E_SYNC_RECORD_ID"))
         } else if known {
-            let opened = vault
-                .decrypt_record(id, version, &chunks)
-                .map_err(|error| error.code());
-            (id, opened)
+            match vault.open_stored(name, version, &chunks) {
+                Ok((id, plaintext)) => (id, Ok(plaintext)),
+                Err(error) => (shown.clone(), Err(error.code())),
+            }
         } else {
-            (id, Err("E_SYNC_KIND_UNSUPPORTED"))
+            (shown.clone(), Err("E_SYNC_KIND_UNSUPPORTED"))
         };
         records.push(Pulled {
-            id: id.to_string(),
+            id,
+            name: shown,
             version,
             seq,
             kind: if known { kind } else { "unknown" }.to_string(),
@@ -1054,6 +1059,9 @@ pub(crate) fn pull(
     }
     if at != answer.payload.len() {
         return Err("E_SYNC_PROTOCOL");
+    }
+    if legacy > 0 {
+        log::info!("I_SYNC_LEGACY_LEFT count={legacy}");
     }
     Ok(PullPage {
         records,
@@ -1071,7 +1079,8 @@ pub(crate) fn pull(
 }
 
 /// Seals `plaintext` as version `base + 1` of record `id` (of `kind`: `record`, or `file` for an
-/// attachment) and offers it to the relay, which takes it only while it still holds version `base`.
+/// attachment) and offers it to the relay under its store name, which takes it only while it still
+/// holds version `base`.
 /// A record the relay could not take stays here: `E_SYNC_TOO_LARGE`, found before anything is sent.
 pub(crate) fn push(
     connection: &Connection,
@@ -1085,19 +1094,20 @@ pub(crate) fn push(
     if super::chunk_count(plaintext.len()) > MAX_CHUNKS {
         return Err("E_SYNC_TOO_LARGE");
     }
-    let chunks = vault
-        .encrypt_record(id, version, plaintext)
-        .map_err(|error| match error {
-            super::SyncError::RecordTooLarge => "E_SYNC_TOO_LARGE",
-            other => other.code(),
-        })?;
+    let (name, chunks) =
+        vault
+            .seal_stored(id, version, plaintext)
+            .map_err(|error| match error {
+                super::SyncError::RecordTooLarge => "E_SYNC_TOO_LARGE",
+                other => other.code(),
+            })?;
     if chunks.len() > MAX_CHUNKS || chunks.iter().any(|c| c.len() > MAX_CHUNK_BYTES) {
         return Err("E_SYNC_TOO_LARGE");
     }
     let lengths: Vec<usize> = chunks.iter().map(Vec::len).collect();
     let message = object(json!({
         "type": "push",
-        "id": id,
+        "id": name,
         "base": base,
         "kind": kind,
         "chunks": lengths,
@@ -1566,7 +1576,7 @@ mod tests {
                 "v": PROTOCOL_VERSION, "type": "records", "rid": rid, "next": 1, "more": false,
                 "records": [
                     { "id": text, "version": 1, "seq": 1, "kind": "record", "chunks": [] },
-                    { "id": "0192f4c8-7a1b-7c3d-8e9f-0123456789ab", "version": 1, "seq": 2, "kind": text, "chunks": [] },
+                    { "id": "rxu4uJ8hTKMcEgXdgeBUXSxSjdN0wEYFePJqPmeknTl8", "version": 1, "seq": 2, "kind": text, "chunks": [] },
                 ],
             });
             socket.send(Message::text(answer.to_string())).unwrap();
@@ -1578,12 +1588,109 @@ mod tests {
         let [bad_id, bad_kind] = page.records.as_slice() else {
             panic!("two records expected");
         };
-        assert_eq!(bad_id.id, UNREADABLE_ID);
+        assert_eq!(bad_id.id, names::UNREADABLE_ID);
+        assert_eq!(bad_id.name, names::UNREADABLE_ID);
         assert_eq!(bad_id.plaintext.as_ref().err(), Some(&"E_SYNC_RECORD_ID"));
         assert_eq!(bad_kind.kind, "unknown");
         assert_eq!(
             bad_kind.plaintext.as_ref().err(),
             Some(&"E_SYNC_KIND_UNSUPPORTED")
+        );
+    }
+
+    const NOTE: &str = "0192f4c8-7a1b-7c3d-8e9f-0123456789ab";
+
+    /// Answers one request with `answer(request message, request payload)`.
+    fn answering(
+        answer: impl FnOnce(&Map<String, Value>, &[u8]) -> (Value, Vec<u8>) + Send + 'static,
+    ) -> RelayUrl {
+        fake_relay(move |mut socket| {
+            let request = decode(socket.read().unwrap()).unwrap();
+            let (mut message, payload) = answer(&request.message, &request.payload);
+            message["v"] = json!(PROTOCOL_VERSION);
+            message["rid"] = request.message.get("rid").cloned().unwrap_or(Value::Null);
+            let header = message.to_string();
+            let mut frame = (header.len() as u32).to_be_bytes().to_vec();
+            frame.extend_from_slice(header.as_bytes());
+            frame.extend_from_slice(&payload);
+            socket.send(Message::binary(frame)).unwrap();
+            let _ = socket.read();
+        })
+    }
+
+    #[test]
+    fn a_push_files_the_record_under_its_store_name() {
+        let vault = crate::sync::tests::fixed_vault();
+        let name = vault.store_name(NOTE);
+        let (seen, sent) = mpsc::channel();
+        let url = answering(move |message, payload| {
+            let _ = seen.send((message.clone(), payload.to_vec()));
+            (
+                json!({ "type": "pushed", "version": 1, "seq": 1 }),
+                Vec::new(),
+            )
+        });
+        let (connection, _) = Connection::open(&url, "v", "t", Box::new(|_| {})).unwrap();
+        assert_eq!(
+            push(&connection, &vault, NOTE, 0, b"a note", "record"),
+            Ok(PushReply::Pushed { version: 1, seq: 1 })
+        );
+        let (message, payload) = sent.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert_eq!(message.get("id"), Some(&json!(name)));
+        let text = format!("{message:?}");
+        assert!(!text.contains(NOTE) && !text.contains("0192f4c8"));
+        assert_eq!(
+            vault.open_stored(&name, 1, &[payload]).map(|(id, _)| id),
+            Ok(NOTE.to_string())
+        );
+    }
+
+    #[test]
+    fn a_pull_opens_store_names_to_their_ids_and_leaves_records_from_before_them() {
+        let vault = crate::sync::tests::fixed_vault();
+        let (name, named) = vault.seal_stored(NOTE, 2, b"a note").unwrap();
+        let (_, marker) = vault
+            .seal_stored(crate::sync::moved::MOVED_ID, 1, b"marker")
+            .unwrap();
+        let legacy = vault.encrypt_record(NOTE, 5, b"an older copy").unwrap();
+        let other = vault.store_name("0192f4c8-7a1b-7c3d-8e9f-0123456789ac");
+        let url = answering(move |_, _| {
+            let parts = [&legacy[0][..], &named[0], &marker[0], &named[0]];
+            let record = |id: &str, version: u64, seq: u64, chunk: &[u8]| json!({ "id": id, "version": version, "seq": seq, "kind": "record", "chunks": [chunk.len()] });
+            let message = json!({
+                "type": "records", "next": 4, "more": false,
+                "records": [
+                    record(NOTE, 5, 1, parts[0]),
+                    record(&name, 2, 2, parts[1]),
+                    record(crate::sync::moved::MOVED_ID, 1, 3, parts[2]),
+                    record(&other, 2, 4, parts[3]),
+                ],
+            });
+            (message, parts.concat())
+        });
+        let (connection, _) = Connection::open(&url, "v", "t", Box::new(|_| {})).unwrap();
+        let page = pull(&connection, &vault, 0).unwrap();
+        assert_eq!((page.next, page.more), (4, false));
+        type Seen<'a> = (&'a str, u64, Result<&'a [u8], &'a str>);
+        let seen: Vec<Seen<'_>> = page
+            .records
+            .iter()
+            .map(|r| {
+                (
+                    r.id.as_str(),
+                    r.seq,
+                    r.plaintext.as_deref().map(|p| p.as_slice()).map_err(|e| *e),
+                )
+            })
+            .collect();
+        let other_name = vault.store_name("0192f4c8-7a1b-7c3d-8e9f-0123456789ac");
+        assert_eq!(
+            seen,
+            vec![
+                (NOTE, 2, Ok(&b"a note"[..])),
+                (crate::sync::moved::MOVED_ID, 3, Ok(&b"marker"[..])),
+                (other_name.as_str(), 4, Err("E_SYNC_CHUNK_AUTH")),
+            ]
         );
     }
 

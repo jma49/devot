@@ -47,3 +47,18 @@ it('sends a batch to the relay one push at a time', async () => {
   expect(w.push).toHaveBeenCalledTimes(2)
   expect(w.pushMany).not.toHaveBeenCalled()
 })
+
+it('passes on the name a pulled record is filed under', async () => {
+  const w = wire()
+  w.pull.mockResolvedValueOnce({
+    records: [
+      { id: 'n1', name: 'rN1', version: 2, tag: '', kind: 'record', data: null, error: 'E_X' },
+    ],
+    next: '',
+    more: false,
+  })
+  const page = await fromWireTransport(w).pull('')
+  expect(page.records).toEqual([
+    { id: 'n1', name: 'rN1', version: 2, tag: '', kind: 'record', error: 'E_X' },
+  ])
+})

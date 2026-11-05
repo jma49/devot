@@ -168,6 +168,7 @@ fn a_second_device_restores_the_vault_from_its_recovery_key_and_syncs() {
     let page = phone.service.pull("").unwrap();
     assert_eq!(page.records.len(), 1);
     assert_eq!(page.records[0].id, NOTE);
+    assert_eq!(page.records[0].name, held(&mac).unwrap().store_name(NOTE));
     assert_eq!(
         page.records[0].data.as_deref(),
         Some(b64(b"first").as_str())
@@ -274,8 +275,11 @@ fn a_tag_that_is_not_one_fails_its_item_alone() {
     );
     assert!(matches!(answers[1], PushDto::Pushed { version: 1, .. }));
     assert!(
-        kit.record(&vault_zone(&held(&mac).unwrap().id().to_string()), NOTE)
-            .is_none()
+        kit.record(
+            &vault_zone(&held(&mac).unwrap().id().to_string()),
+            &held(&mac).unwrap().store_name(NOTE)
+        )
+        .is_none()
     );
 }
 
@@ -296,6 +300,17 @@ fn epoch(connected: Connected) -> String {
         Connected::ICloud(welcome) => welcome.epoch,
         Connected::Relay(_) => panic!("connected through a relay"),
     }
+}
+
+#[test]
+fn the_engine_sees_the_vaults_epoch_marked_for_store_names() {
+    let kit = Arc::new(Fake::new());
+    let mac = device(&kit);
+    mac.service.use_icloud(None, 0).unwrap();
+    let seen = epoch(mac.service.connect(true).unwrap());
+    let vault = held(&mac).unwrap().id().to_string();
+    let meta = kit.record(ZONE_DEVOT, &format!("meta-{vault}")).unwrap();
+    assert_eq!(seen, super::names::epoch(meta.text("epoch").unwrap()));
 }
 
 #[test]
@@ -394,7 +409,7 @@ fn a_full_icloud_pauses_with_its_code_and_no_end() {
     mac.service.use_icloud(None, 0).unwrap();
     mac.service.connect(false).unwrap();
     kit.fail_record(
-        NOTE,
+        &held(&mac).unwrap().store_name(NOTE),
         super::cloudkit::kit::CkError::of(error::code::QUOTA_EXCEEDED),
     );
     let answers = mac

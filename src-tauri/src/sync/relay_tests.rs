@@ -199,6 +199,7 @@ fn creates_enrolls_pushes_and_pulls_sealed_records() {
         (pulled.id.as_str(), pulled.version, pulled.kind.as_str()),
         (RECORD, 1, "record")
     );
+    assert_eq!(pulled.name, vault.store_name(RECORD));
     assert_eq!(
         pulled.plaintext.as_deref().map(|p| p.as_slice()),
         Ok(&first[..])
@@ -210,6 +211,8 @@ fn creates_enrolls_pushes_and_pulls_sealed_records() {
         page.records[0].plaintext.as_ref().err(),
         Some(&"E_SYNC_CHUNK_AUTH")
     );
+    // Under the same name as when it opens, so the engine can take it off the skipped count.
+    assert_eq!(page.records[0].name, vault.store_name(RECORD));
     mac_socket.close();
     phone_socket.close();
 }
@@ -318,6 +321,18 @@ fn the_service_creates_the_vault_once_and_connects_with_the_kept_token() {
         "{stored}"
     );
     let welcome = service.connect(false).unwrap().relay();
+    let token = DeviceCredentials::load(secrets.as_ref())
+        .unwrap()
+        .unwrap()
+        .token;
+    let vault_id = Vault::load(secrets.as_ref())
+        .unwrap()
+        .unwrap()
+        .id()
+        .to_string();
+    let (raw, relays) = Connection::open(&relay.url, &vault_id, &token, Box::new(|_| ())).unwrap();
+    raw.close();
+    assert_eq!(welcome.epoch, super::names::epoch(&relays.epoch));
     let data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"record");
     assert!(matches!(
         service.push(RECORD, 0, &data, "record", ""),

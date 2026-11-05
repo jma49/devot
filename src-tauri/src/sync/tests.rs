@@ -280,6 +280,7 @@ fn malformed_input_fails_with_its_code() {
 fn sealing_matches_known_answers() {
     let vault = fixed_vault();
     let at = ChunkAt {
+        label: super::record::AD_LABEL,
         record_id: RECORD,
         version: 7,
         index: 0,
@@ -294,6 +295,7 @@ fn sealing_matches_known_answers() {
     assert_eq!(&decrypt(&vault, 7, &[chunk]).unwrap(), b"devot sync");
 
     let at = ChunkAt {
+        label: super::record::AD_LABEL,
         record_id: RECORD,
         version: 1,
         index: 2,

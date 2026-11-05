@@ -27,6 +27,7 @@ export interface WireSync extends Omit<SyncStore, 'syncRead' | 'syncFileData' | 
 
 export interface WirePulled {
   id: string
+  name: string
   version: number
   seq?: number
   tag: string
@@ -96,6 +97,7 @@ export function fromWireTransport(
         ...page,
         records: page.records.map((r) => ({
           id: r.id,
+          name: r.name,
           version: r.version,
           ...(r.seq === undefined ? {} : { seq: r.seq }),
           tag: r.tag,
