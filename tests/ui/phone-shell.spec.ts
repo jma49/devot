@@ -79,25 +79,105 @@ test('Activity has a top bar and moves the lens to the third place', async ({ pa
   expect(lens!.x).toBeCloseTo(button!.x, 0)
 })
 
-test('the lens springs to the last tab without showing past the bar', async ({ page }) => {
-  await tab(page, 'Settings').click()
-  const spill = await tabs(page).evaluate(
-    (bar) =>
-      new Promise<number>((resolve) => {
+const INSET = 4
+const TAB = (286 - INSET * 2) / 4
+
+async function lensInBar(page: Page) {
+  const [bar, lens] = await Promise.all([
+    tabs(page).boundingBox(),
+    tabs(page).locator('.phone-tabbar-lens').boundingBox(),
+  ])
+  return {
+    left: lens!.x - bar!.x,
+    right: bar!.x + bar!.width - (lens!.x + lens!.width),
+    top: lens!.y - bar!.y,
+    bottom: bar!.y + bar!.height - (lens!.y + lens!.height),
+    width: lens!.width,
+    centre: lens!.x + lens!.width / 2,
+  }
+}
+
+const tenths = (n: number) => Math.round(n * 10) / 10
+
+test('the lens rests inside the bar by an even inset at the first and the last tab', async ({
+  page,
+}) => {
+  for (const [name, left, right] of [
+    ['Notes', INSET, INSET + TAB * 3],
+    ['Settings', INSET + TAB * 3, INSET],
+  ] as const) {
+    await tab(page, name).click()
+    await expect
+      .poll(async () => {
+        const at = await lensInBar(page)
+        return [at.left, at.right, at.top, at.bottom].map(tenths)
+      })
+      .toEqual([left, right, INSET, INSET])
+    await expect(tabs(page).locator('.phone-tabbar-lens')).toHaveCSS('border-radius', '27px')
+  }
+})
+
+test('the lens stretches on its way to the last tab and never passes the bar inner edge', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await tab(page, 'Notes').click()
+  await expect.poll(async () => tenths((await lensInBar(page)).left)).toBe(INSET)
+  const sampling = tabs(page).evaluate(
+    (bar, inset) =>
+      new Promise<{ spill: number; widest: number }>((resolve) => {
         const lens = bar.querySelector('.phone-tabbar-lens')!
-        const clipped = getComputedStyle(bar).overflow === 'clip'
         const start = performance.now()
-        let most = 0
+        let spill = -Infinity
+        let widest = 0
         const sample = () => {
-          const over = lens.getBoundingClientRect().right - bar.getBoundingClientRect().right
-          most = Math.max(most, clipped ? 0 : over)
-          if (performance.now() - start < 800) requestAnimationFrame(sample)
-          else resolve(most)
+          const outer = bar.getBoundingClientRect()
+          const box = lens.getBoundingClientRect()
+          spill = Math.max(
+            spill,
+            outer.left + inset - box.left,
+            box.right - (outer.right - inset),
+            outer.top + inset - box.top,
+            box.bottom - (outer.bottom - inset),
+          )
+          widest = Math.max(widest, box.width)
+          if (performance.now() - start < 1200) requestAnimationFrame(sample)
+          else resolve({ spill, widest })
         }
         requestAnimationFrame(sample)
       }),
+    INSET,
   )
-  expect(spill).toBeLessThanOrEqual(0)
+  await tab(page, 'Settings').click()
+  const { spill, widest } = await sampling
+  // A click lifts the lens for a moment, and the lift stays within the inset.
+  expect(spill).toBeLessThanOrEqual(1)
+  expect(widest).toBeGreaterThan(TAB * 1.15)
+  await expect.poll(async () => tenths((await lensInBar(page)).right)).toBe(INSET)
+})
+
+test('dragging the lens along the bar follows the finger and opens the nearest tab', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const lens = tabs(page).locator('.phone-tabbar-lens')
+  const notes = (await tab(page, 'Notes').boundingBox())!
+  const activity = (await tab(page, 'Activity').boundingBox())!
+  const y = notes.y + notes.height / 2
+  await page.mouse.move(notes.x + notes.width / 2, y)
+  await page.mouse.down()
+  await expect(lens).toHaveAttribute('data-lifted')
+  const finger = Math.round(activity.x + activity.width * 0.7)
+  await page.mouse.move(finger, y, { steps: 12 })
+  await expect
+    .poll(async () => Math.abs((await lensInBar(page)).centre - finger))
+    .toBeLessThanOrEqual(0.5)
+  await page.mouse.up()
+  await expect(tab(page, 'Activity')).toHaveAttribute('aria-current', 'page')
+  await expect(lens).not.toHaveAttribute('data-lifted')
+  await expect
+    .poll(async () => Math.abs((await lensInBar(page)).centre - (activity.x + activity.width / 2)))
+    .toBeLessThanOrEqual(0.5)
 })
 
 test('the capture sheet grows from the circle, 374 by 440, and goes back', async ({ page }) => {

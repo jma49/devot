@@ -120,9 +120,11 @@ describe('the phone layout tokens', () => {
 })
 
 describe('the phone motion tokens', () => {
-  it('squashes the lens as the spec does and takes 560 ms over capture', () => {
-    expect(Number(sizes['motion.scale.phone-lens-x'])).toBe(1.18)
-    expect(Number(sizes['motion.scale.phone-lens-y'])).toBe(0.86)
+  it('moves the lens on the platform default spring, and takes 560 ms over capture', () => {
+    expect(sizes['motion.spring.phone-lens-trail-damping']).toBe('1')
+    expect(sizes['motion.spring.phone-lens-trail-response']).toBe('0.5')
+    expect(Number(sizes['motion.spring.phone-lens-lead-response'])).toBeLessThan(0.5)
+    expect(Number(sizes['motion.scale.phone-lens-lift'])).toBe(1.08)
     expect(sizes['motion.duration.phone-capture']).toBe('560ms')
     expect(Number(sizes['motion.scale.phone-arrive'])).toBe(0.92)
   })
