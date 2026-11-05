@@ -26,7 +26,6 @@ function entitlements(path: string): Record<string, string | string[]> {
 }
 
 const ICLOUD = {
-  'com.apple.developer.icloud-container-environment': 'Production',
   'com.apple.developer.icloud-container-identifiers': [CONTAINER],
   'com.apple.developer.icloud-services': ['CloudKit'],
   'keychain-access-groups': [KEYCHAIN_GROUP],
@@ -38,13 +37,15 @@ describe('the entitlements', () => {
       'com.apple.application-identifier': `${TEAM}.io.github.jma49.devot`,
       'com.apple.developer.team-identifier': TEAM,
       'com.apple.developer.aps-environment': 'production',
+      'com.apple.developer.icloud-container-environment': 'Production',
       ...ICLOUD,
     })
   })
 
   // Xcode takes the App ID and team from the profile, and sets aps-environment to the App Store
-  // profile's value when it exports for the App Store.
-  it('give the iPhone app the same container, keychain group and push', () => {
+  // profile's value when it exports for the App Store. With no container environment a
+  // development-signed build uses Development; ExportOptions.plist asks for Production.
+  it('give the iPhone app the same container, keychain group and push, in the environment its profile gives', () => {
     expect(entitlements(IOS)).toEqual({ 'aps-environment': 'development', ...ICLOUD })
   })
 
@@ -68,28 +69,37 @@ describe('the entitlements', () => {
   })
 })
 
-describe("the iPhone app's container in Info.plist", () => {
-  // B3 reads it to tell a build signed with the container from one that is not (ADR 0015).
-  it('is set only when the build is signed, in the project and in the spec it is generated from', () => {
+describe("the iPhone app's iCloud switch", () => {
+  // B3 reads the container from Info.plist to tell a build that may touch CloudKit (ADR 0015).
+  it('gives the build its entitlements and the container in Info.plist only with DEVOT_ICLOUD=YES', () => {
     expect(readFileSync(`${APPLE}/devot_iOS/Info.plist`, 'utf8')).toMatch(
       /<key>DevotCloudKitContainer<\/key>\n\t<string>\$\(DEVOT_CLOUDKIT_CONTAINER\)<\/string>/,
     )
     const project = readFileSync(`${APPLE}/devot.xcodeproj/project.pbxproj`, 'utf8')
-    expect(
-      project.match(
-        /DEVOT_CLOUDKIT_CONTAINER = "\$\(DEVOT_CLOUDKIT_CONTAINER_SIGNED_\$\(CODE_SIGNING_ALLOWED\)\)";/g,
-      ),
-    ).toHaveLength(2)
-    expect(
-      project.match(new RegExp(`DEVOT_CLOUDKIT_CONTAINER_SIGNED_YES = ${CONTAINER};`, 'g')),
-    ).toHaveLength(2)
-    expect(project).not.toMatch(/DEVOT_CLOUDKIT_CONTAINER_SIGNED_NO/)
+    for (const setting of [
+      'CODE_SIGN_ENTITLEMENTS = "$(DEVOT_ENTITLEMENTS_$(DEVOT_ICLOUD))";',
+      'DEVOT_CLOUDKIT_CONTAINER = "$(DEVOT_CLOUDKIT_CONTAINER_$(DEVOT_ICLOUD))";',
+      `DEVOT_CLOUDKIT_CONTAINER_YES = ${CONTAINER};`,
+      'DEVOT_ENTITLEMENTS_YES = devot_iOS/devot_iOS.entitlements;',
+    ])
+      expect({ setting, count: project.split(setting).length - 1 }).toEqual({ setting, count: 2 })
+    expect(project.match(/CODE_SIGN_ENTITLEMENTS = /g)).toHaveLength(2)
 
     const spec = readFileSync(`${APPLE}/project.yml`, 'utf8')
-    expect(spec).toContain('DevotCloudKitContainer: $(DEVOT_CLOUDKIT_CONTAINER)')
-    expect(spec).toContain(
-      'DEVOT_CLOUDKIT_CONTAINER: $(DEVOT_CLOUDKIT_CONTAINER_SIGNED_$(CODE_SIGNING_ALLOWED))',
-    )
-    expect(spec).toContain(`DEVOT_CLOUDKIT_CONTAINER_SIGNED_YES: ${CONTAINER}`)
+    for (const setting of [
+      'DevotCloudKitContainer: $(DEVOT_CLOUDKIT_CONTAINER)',
+      'CODE_SIGN_ENTITLEMENTS: $(DEVOT_ENTITLEMENTS_$(DEVOT_ICLOUD))',
+      'DEVOT_CLOUDKIT_CONTAINER: $(DEVOT_CLOUDKIT_CONTAINER_$(DEVOT_ICLOUD))',
+      `DEVOT_CLOUDKIT_CONTAINER_YES: ${CONTAINER}`,
+      'DEVOT_ENTITLEMENTS_YES: devot_iOS/devot_iOS.entitlements',
+    ])
+      expect(spec).toContain(setting)
+    expect(spec).not.toMatch(/^\s*entitlements:/m)
+
+    // Only the build that ships passes the switch, so local, CI and fork builds have no container.
+    for (const file of [project, spec, readFileSync('.github/workflows/ci.yml', 'utf8')]) {
+      expect(file).not.toMatch(/^\s*DEVOT_ICLOUD\s*[:=]/m)
+      expect(file).not.toContain('CODE_SIGNING_ALLOWED')
+    }
   })
 })

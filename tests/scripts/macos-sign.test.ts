@@ -132,7 +132,7 @@ describe('the signing script', () => {
     const script = readFileSync(SCRIPT, 'utf8')
     for (const check of [
       'codesign --verify --deep --strict "$app"',
-      '"$script_dir/macos-profile.sh" "$profile" "$entitlements" "$team" "$bundle_id"',
+      '"$script_dir/macos-profile.sh" "$profile" "$entitlements" "$team" "$bundle_id" "$certificate"',
       '"$script_dir/macos-entitlements.sh" "$app" ${entitlements:+"$entitlements"}',
       'xcrun stapler validate "$app"',
       'spctl -a -t exec -vv "$app"',

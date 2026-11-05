@@ -21,8 +21,9 @@
 # finds an intermediate certificate the .p12 carries (CI only). --skip-notarization needs no API
 # key and leaves out notarizing, stapling and Gatekeeper's checks, which a local run with a
 # self-signed identity cannot pass. --entitlements embeds the provisioning profile, after
-# macos-profile.sh has checked it grants them, and signs the main executable with exactly that set;
-# without it, as for a build with no profile, no code carries any.
+# macos-profile.sh has checked it holds the signing certificate and grants them, and signs the
+# main executable with exactly that set; without it, as for a build with no profile, no code
+# carries any.
 # Errors are GitHub annotations with a code; no secret is ever printed.
 set -euo pipefail
 
@@ -92,8 +93,6 @@ if [ -n "$entitlements" ]; then
   profile=$work/embedded.provisionprofile
   (umask 077 && printf '%s' "$APPLE_PROVISIONING_PROFILE" | base64 -D > "$profile") 2> /dev/null ||
     fail "E_SIGN_PROFILE_UNREADABLE: APPLE_PROVISIONING_PROFILE is not base64"
-  bundle_id=$(plutil -extract CFBundleIdentifier raw -o - "$input/Contents/Info.plist")
-  "$script_dir/macos-profile.sh" "$profile" "$entitlements" "$team" "$bundle_id"
 fi
 
 echo "Importing the certificate into a keychain for this run"
@@ -109,8 +108,14 @@ security import "$work/certificate.p12" -k "$keychain" -f pkcs12 -P "$APPLE_CERT
   fail "E_SIGN_CERTIFICATE_IMPORT: the .p12 in APPLE_CERTIFICATE does not open with APPLE_CERTIFICATE_PASSWORD"
 rm -f "$work/certificate.p12"
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" > /dev/null
-security find-identity -p codesigning "$keychain" | grep -qF "\"$identity\"" ||
+certificate=$(security find-identity -p codesigning "$keychain" |
+  awk -v name="\"$identity\"" 'index($0, name) { print $2; exit }')
+[ -n "$certificate" ] ||
   fail "E_SIGN_IDENTITY_NOT_FOUND: the certificate holds no identity named by APPLE_SIGNING_IDENTITY"
+if [ -n "$profile" ]; then
+  bundle_id=$(plutil -extract CFBundleIdentifier raw -o - "$input/Contents/Info.plist")
+  "$script_dir/macos-profile.sh" "$profile" "$entitlements" "$team" "$bundle_id" "$certificate"
+fi
 if [ $search_list -eq 1 ]; then
   while IFS= read -r line; do
     line=${line#*\"}

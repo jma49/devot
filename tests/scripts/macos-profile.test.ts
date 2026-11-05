@@ -2,7 +2,11 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { fixtureProfile } from '../support/provisioning-profile'
+import {
+  certificateSha1,
+  fixtureCertificate,
+  fixtureProfile,
+} from '../support/provisioning-profile'
 import { tempDir } from '../support/temp-dirs'
 
 const SCRIPT = 'scripts/release/macos-profile.sh'
@@ -10,8 +14,14 @@ const ENTITLEMENTS = 'tests/fixtures/signing/test.entitlements'
 const TEAM = 'TESTTEAM01'
 const BUNDLE = 'io.github.jma49.devot.signtest'
 
-function check(profile: string, entitlements = ENTITLEMENTS, team = TEAM, bundle = BUNDLE) {
-  const result = spawnSync(SCRIPT, [profile, entitlements, team, bundle], {
+function check(
+  profile: string,
+  entitlements = ENTITLEMENTS,
+  team = TEAM,
+  bundle = BUNDLE,
+  certificate = certificateSha1(fixtureCertificate()),
+) {
+  const result = spawnSync(SCRIPT, [profile, entitlements, team, bundle, certificate], {
     env: { PATH: process.env['PATH'] ?? '', RUNNER_TEMP: tempDir('devot-profile-run-') },
     encoding: 'utf8',
   })
@@ -74,9 +84,20 @@ describe.skipIf(process.platform !== 'darwin')('the provisioning profile check',
     expect(check(other).output).toContain(
       `::error::E_SIGN_PROFILE_APP_ID: the provisioning profile is for ${TEAM}.io.github.jma49.other, not ${TEAM}.${BUNDLE}`,
     )
-    const { status, output } = check(fixtureProfile(), ENTITLEMENTS, TEAM, 'io.github.jma49.devot')
+    const dir = tempDir('devot-profile-app-id-')
+    const elsewhere = join(dir, 'other.entitlements')
+    writeFileSync(
+      elsewhere,
+      readFileSync(ENTITLEMENTS, 'utf8').replace(
+        `${TEAM}.${BUNDLE}<`,
+        `${TEAM}.io.github.jma49.other<`,
+      ),
+    )
+    const { status, output } = check(fixtureProfile(), elsewhere)
     expect(status).toBe(1)
-    expect(output).toContain('::error::E_SIGN_PROFILE_APP_ID')
+    expect(output).toContain(
+      `::error::E_SIGN_PROFILE_APP_ID: other.entitlements does not name ${TEAM}.${BUNDLE}`,
+    )
   })
 
   it('refuses a profile for the iPhone', () => {
@@ -84,6 +105,53 @@ describe.skipIf(process.platform !== 'darwin')('the provisioning profile check',
       edit: (plist) => plist.replace('<string>OSX</string>', '<string>iOS</string>'),
     })
     expect(check(profile).output).toContain('::error::E_SIGN_PROFILE_PLATFORM')
+  })
+
+  it('refuses a profile that is not for Developer ID, such as one for the Mac App Store', () => {
+    for (const edit of [
+      (plist: string) => plist.replace('\t<key>ProvisionsAllDevices</key>\n\t<true/>\n', ''),
+      (plist: string) =>
+        plist.replace(
+          '<key>ProvisionsAllDevices</key>\n\t<true/>',
+          '<key>ProvisionsAllDevices</key>\n\t<false/>',
+        ),
+    ]) {
+      const { status, output } = check(fixtureProfile({ edit }))
+      expect(status).toBe(1)
+      expect(output).toContain(
+        '::error::E_SIGN_PROFILE_NOT_DEVELOPER_ID: the provisioning profile does not provision all devices, so it is not a Developer ID profile',
+      )
+    }
+  })
+
+  // A renewed Developer ID certificate needs a new profile: macOS kills an app whose profile
+  // does not list the certificate that signed it.
+  it('accepts a profile only when it holds the signing certificate', () => {
+    const other = Buffer.from('another certificate').toString('base64')
+    const both = fixtureProfile({ certificates: [other, fixtureCertificate()] })
+    expect(check(both).status).toBe(0)
+
+    const { status, output } = check(fixtureProfile({ certificates: [other] }))
+    expect(status).toBe(1)
+    expect(output).toContain(
+      '::error::E_SIGN_PROFILE_CERTIFICATE: the provisioning profile does not hold the signing certificate; make a new one with the current Developer ID certificate (docs/releasing.md, Signing the app)',
+    )
+    expect(output).not.toContain(certificateSha1(other))
+    expect(check(fixtureProfile({ certificates: [] })).output).toContain(
+      '::error::E_SIGN_PROFILE_CERTIFICATE',
+    )
+  })
+
+  it('needs the signing certificate as a SHA-1', () => {
+    for (const certificate of [
+      '',
+      'not-a-hash',
+      certificateSha1(fixtureCertificate()).toLowerCase(),
+    ]) {
+      const { status, output } = check(fixtureProfile(), ENTITLEMENTS, TEAM, BUNDLE, certificate)
+      expect({ certificate, status }).toEqual({ certificate, status: 1 })
+      expect(output).toContain('::error::E_SIGN_USAGE')
+    }
   })
 
   it('names each entitlement the profile does not grant', () => {

@@ -34,7 +34,8 @@ function signature(path: string): string {
   return result.stderr
 }
 
-function throwawayCertificate(): string {
+/** The identity as a .p12 and its certificate as DER, both in base64. */
+function throwawayCertificate(): { p12: string; der: string } {
   const dir = tempDir('devot-sign-identity-')
   writeFileSync(
     join(dir, 'cert.cnf'),
@@ -81,7 +82,19 @@ function throwawayCertificate(): string {
     '-passout',
     `pass:${PASSWORD}`,
   ])
-  return readFileSync(at('id.p12')).toString('base64')
+  tool('/usr/bin/openssl', [
+    'x509',
+    '-in',
+    at('cert.pem'),
+    '-outform',
+    'DER',
+    '-out',
+    at('cert.der'),
+  ])
+  return {
+    p12: readFileSync(at('id.p12')).toString('base64'),
+    der: readFileSync(at('cert.der')).toString('base64'),
+  }
 }
 
 /** An app as the build job hands it over: ad-hoc signed, with a library, the CLI script and the icon. */
@@ -160,11 +173,14 @@ function expectSignedCode(path: string) {
 
 describe.skipIf(process.platform !== 'darwin')('signing on a Mac', () => {
   let certificate = ''
+  let der = ''
   let app = ''
   const before = () => keychainState()
 
   beforeAll(() => {
-    certificate = throwawayCertificate()
+    const identity = throwawayCertificate()
+    certificate = identity.p12
+    der = identity.der
     app = adHocApp()
   })
 
@@ -230,7 +246,7 @@ describe.skipIf(process.platform !== 'darwin')('signing on a Mac', () => {
   it(
     'with the profile, embeds it and signs only the main executable with exactly the entitlements',
     () => {
-      const profile = fixtureProfile()
+      const profile = fixtureProfile({ certificates: [der] })
       const run = sign(certificate, app, ['--skip-notarization', '--entitlements', ENTITLEMENTS], {
         APPLE_PROVISIONING_PROFILE: readFileSync(profile).toString('base64'),
       })
@@ -270,6 +286,7 @@ describe.skipIf(process.platform !== 'darwin')('signing on a Mac', () => {
     'stops before signing when the profile does not grant the entitlements',
     () => {
       const profile = fixtureProfile({
+        certificates: [der],
         edit: (plist) =>
           plist.replace('<string>TESTTEAM01.*</string>', '<string>OTHERTEAM1.*</string>'),
       })
@@ -281,7 +298,23 @@ describe.skipIf(process.platform !== 'darwin')('signing on a Mac', () => {
       expect(run.output).toMatch(
         /::error::E_SIGN_PROFILE_ENTITLEMENTS: .* grant keychain-access-groups;/,
       )
-      expect(run.output).not.toContain('Importing')
+      expect(run.output).not.toContain('Signing Devot.app')
+      expect(keychainState()).toBe(state)
+      expect(readdirSync(run.scratch)).toEqual([])
+    },
+    TIMEOUT,
+  )
+
+  it(
+    'stops before signing when the profile does not hold the signing certificate',
+    () => {
+      const state = before()
+      const run = sign(certificate, app, ['--skip-notarization', '--entitlements', ENTITLEMENTS], {
+        APPLE_PROVISIONING_PROFILE: readFileSync(fixtureProfile()).toString('base64'),
+      })
+      expect(run.status).toBe(1)
+      expect(run.output).toContain('::error::E_SIGN_PROFILE_CERTIFICATE')
+      expect(run.output).not.toContain('Signing Devot.app')
       expect(keychainState()).toBe(state)
       expect(readdirSync(run.scratch)).toEqual([])
     },
