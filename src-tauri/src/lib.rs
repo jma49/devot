@@ -13,6 +13,7 @@ mod build_env;
 mod cli;
 mod cli_append;
 mod cli_export;
+#[cfg(desktop)]
 mod cli_tool;
 mod commands;
 mod crash;
@@ -246,8 +247,11 @@ pub fn run() {
             background::background_idle_answer,
             settings::settings_ai_access_summary,
             settings::main_window_show,
+            #[cfg(desktop)]
             cli_tool::cli_tool_status,
+            #[cfg(desktop)]
             cli_tool::cli_tool_install,
+            #[cfg(desktop)]
             cli_tool::cli_tool_uninstall,
             editor_settings::editor_settings_get,
             editor_settings::editor_settings_set,

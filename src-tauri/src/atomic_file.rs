@@ -68,6 +68,7 @@ pub fn peer_uid(_: &std::os::unix::net::UnixStream) -> Option<u32> {
 }
 
 /// Whether `path` is on a volume mounted read-only, as a disk image is.
+#[cfg(desktop)]
 pub fn on_read_only_volume(path: &Path) -> bool {
     rustix::fs::statvfs(path).is_ok_and(|volume| {
         volume
