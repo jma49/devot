@@ -1,5 +1,7 @@
 # Sync needs no account: each owner runs their own relay
 
+Status: accepted. Amended by ADR 0015 for vaults on iCloud.
+
 Devot runs no hosted service. Sync goes through a relay the owner deploys themselves (a Cloudflare account on the Workers Free plan, or Node + SQLite on a server), and its URL is a client setting. Devices join a vault by pairing (QR code), which hands over the vault key and the relay's access token; pairing is the only identity sync needs. Accounts (#4) and web sharing (#11) wait until a hosted service is decided.
 
 ## Why
@@ -20,3 +22,5 @@ Devot runs no hosted service. Sync goes through a relay the owner deploys themse
 ADR 0006 adds one hosted service, the license Worker, which sells and reissues licences and never sees notes. Sync still needs no account.
 
 ADR 0011 leaves room for an optional, separately billed hosted sync service, not part of the license. Nothing is built for it; sync still needs no account.
+
+ADR 0015 lets a vault sync through the owner's iCloud instead of a relay. For such a vault the Apple ID, not pairing, decides which devices may join, and the vault key reaches them through the iCloud Keychain. Devot still runs no sync service and has no account of its own; vaults on a relay are unchanged.

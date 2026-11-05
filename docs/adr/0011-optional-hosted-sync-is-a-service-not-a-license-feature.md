@@ -1,6 +1,6 @@
 # A hosted sync service, if it ever ships, is a separate service, not a license feature
 
-Status: accepted. Amended by ADR 0014: on the iPhone, a hosted service would also be sold as an App Store in-app purchase.
+Status: accepted. Amended by ADR 0014: on the iPhone, a hosted service would also be sold as an App Store in-app purchase. Amended by ADR 0015: sync may also go through the owner's iCloud.
 
 Devot stays sold once. The license unlocks every feature, on every device, for every release, with no reduced rights for anyone who runs their own relay or none (ADR 0006). Running a relay yourself stays the supported way to sync (ADR 0004), and its limits are shown plainly in the app. A Devot-hosted sync service may come later for people who do not want to run a relay. If it does, it is a separate storage service, billed periodically by what it stores. It is not part of the license, and no feature is held back to sell it. This amends ADR 0004 and ADR 0006.
 
@@ -16,7 +16,7 @@ Devot stays sold once. The license unlocks every feature, on every device, for e
 - Hosting is a separate, optional, periodically billed storage service for anyone, not a tier of the license.
 - A person who runs their own relay (on Cloudflare's free plan or a server of their own) loses nothing and sees the same features. The app reports that relay's storage honestly: what it holds, what it may hold as the relay itself says, and what is left (docs/sync-relay.md, Quota). It never assumes a host's limits.
 - When a relay's storage nears its cap, the app says so once and says what to do: remove images or notes, or use a larger server. Hosting is not mentioned there, because there is nothing to offer yet.
-- Nothing is built now: no billing, no accounts, no hosted endpoint, no interest form, and no other sync backend (CloudKit included).
+- Nothing is built now: no billing, no accounts, no hosted endpoint, no interest form, and no other sync backend (CloudKit included; lifted by ADR 0015, which syncs through the owner's own iCloud and runs nothing for Devot).
 
 ## Not decided
 

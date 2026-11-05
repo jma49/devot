@@ -1,5 +1,7 @@
 # Devices pair with a one-time code that carries a 128-bit secret; the relay holds only a sealed offer
 
+Status: accepted. Amended by ADR 0015 for vaults on iCloud.
+
 A device that already syncs shows a pairing code: 128 random bits, as 32 characters to type or paste, and as a QR code that adds the relay's address. The code never reaches the relay. Both devices derive from it the pairing's ID, which the relay sees, and a key, which it does not. The existing device seals the vault's ID and key under that key and leaves the sealed offer on the relay for 10 minutes. The new device takes it once, opens it, enrolls with the relay on its own and returns a sealed confirmation. The recovery key, shown when the vault is made until the owner says it was saved, does the same job without another device: entered with the relay's address, it restores the vault and enrolls the device. This settles the design question of #336 (ADR 0004 left it open).
 
 ## What exists
@@ -80,3 +82,7 @@ Removing a device revokes its token, not its knowledge: it still holds the vault
 
 - docs/sync-relay.md documents the routes and how an owner updates their relay. docs/architecture.md and GLOSSARY.md name the pairing code, the offer and the recovery key.
 - Follow-ups: scanning the QR code inside Devot on iOS; acting on a `devot://pair` link (it should only fill in the join form, never join on its own); device names that tell two Macs apart (encrypted under the vault key so the relay does not see them); a way to leave a vault on purpose; key rotation, so a removed device that holds the vault key cannot join again.
+
+## Amended
+
+ADR 0015: on a vault that syncs through iCloud, devices on the same Apple ID join without a code, through a synchronizable keychain item. The pairing code stays as the fallback when that item does not arrive, with the offer kept as a CloudKit record instead of on a relay, and the recovery key needs no relay address. Everything above still holds for vaults on a relay.
