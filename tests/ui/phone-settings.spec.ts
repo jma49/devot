@@ -902,3 +902,31 @@ test('at twice the text size a Settings row puts its value under its whole label
   expect(label!.height).toBeLessThan(17 * 2 * 1.5)
   expect(value!.y).toBeGreaterThanOrEqual(label!.y + label!.height - 1)
 })
+
+for (const name of [
+  'General',
+  'Editing',
+  'Preview',
+  'Appearance',
+  'Sync',
+  'AI',
+  'Usage',
+  'License',
+]) {
+  test(`the ${name} pane leaves the page no wider than the screen and unable to pan sideways`, async ({
+    page,
+  }) => {
+    await openPane(page, name)
+    const scroller = () =>
+      page.evaluate(() => {
+        const el = document.scrollingElement!
+        return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }
+      })
+    const before = await scroller()
+    expect(before.scrollWidth).toBeLessThanOrEqual(before.clientWidth)
+    await page.mouse.move(195, 400)
+    await page.mouse.wheel(300, 0)
+    await page.evaluate(() => window.scrollTo(120, 0))
+    expect(await page.evaluate(() => window.scrollX)).toBe(0)
+  })
+}

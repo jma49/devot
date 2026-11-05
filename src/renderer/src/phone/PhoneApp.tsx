@@ -369,6 +369,18 @@ export function PhoneApp() {
 
   useLayoutEffect(applyGlassPrefs, [])
 
+  useEffect(() => {
+    const el = root.current
+    if (!el) return
+    const stop = (event: Event) => event.preventDefault()
+    el.addEventListener('gesturestart', stop)
+    el.addEventListener('gesturechange', stop)
+    return () => {
+      el.removeEventListener('gesturestart', stop)
+      el.removeEventListener('gesturechange', stop)
+    }
+  }, [])
+
   return (
     <div ref={root} className="phone-app">
       {PHONE_TABS.map((tab) => (
