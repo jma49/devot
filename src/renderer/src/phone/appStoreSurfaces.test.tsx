@@ -145,6 +145,29 @@ describe('the purchase sheet', () => {
     expect(sheet).toContain('Buy Devot Pro')
   })
 
+  it('does not say the trial has ended while the purchases are unknown', async () => {
+    const value = appStore('ended')
+    vi.mocked(invoke).mockResolvedValueOnce({
+      ...value,
+      appStore: { ...value.appStore, code: 'E_APP_STORE_NO_REPLY' },
+    })
+    const licence = await readCurrentLicence()
+    const sheet = rendered(
+      <PurchaseOffer
+        licence={licence}
+        products={products}
+        busy={null}
+        message={null}
+        onBuy={() => {}}
+        onRestore={() => {}}
+        onEnterKey={() => {}}
+      />,
+    )
+    expect(sheet).not.toContain('Your trial has ended')
+    expect(sheet).toContain('Get Devot Pro')
+    expect(sheet).toContain('Buy Devot Pro')
+  })
+
   it('leaves Enter License Key out of a build that takes no key', async () => {
     expect(await offer('available', {}, false)).not.toContain('Enter License Key')
   })
@@ -195,6 +218,28 @@ describe('Settings in an App Store build', () => {
     )
     expect(pane).not.toContain('License Key')
     expect(pane).toContain('Buy Devot Pro')
+  })
+
+  it('says why Restore Purchases failed in a sentence', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(appStore('ended'))
+    await readCurrentLicence()
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === 'store_restore') throw new Error('E_APP_STORE_NO_REPLY')
+      return undefined
+    })
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    act(() => root.render(<PhoneSettings onOpenPane={() => {}} />))
+    const restore = [...host.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Restore Purchases'),
+    )
+    await act(async () => restore?.click())
+    expect(host.textContent).toContain('The App Store did not reply. (E_APP_STORE_NO_REPLY)')
+    act(() => root.unmount())
+    host.remove()
+    vi.mocked(invoke).mockReset()
+    vi.mocked(invoke).mockResolvedValue(undefined)
   })
 
   it('leaves a build sold elsewhere without Restore Purchases', async () => {

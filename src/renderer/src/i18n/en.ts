@@ -111,10 +111,10 @@ export const en = {
   'phone.settings.restoring': 'Restoring',
   'phone.settings.restored': 'Restored',
   'phone.settings.nothingRestored': 'Nothing to restore',
-  'phone.settings.restoreFailed': 'Failed ({code})',
   'phone.purchase.title': 'Devot Pro',
   'phone.purchase.welcome': 'Try Devot free for {days} days',
   'phone.purchase.ended': 'Your trial has ended',
+  'phone.purchase.unknown': 'Get Devot Pro',
   'phone.purchase.body':
     'Everything works during the trial. When it ends, notes stay readable, searchable and exportable; editing, sync and AI need Devot Pro, bought once.',
   'phone.purchase.endedBody':
@@ -1268,6 +1268,12 @@ title: Daily Report {{date}}
     'Your trial has ended, and sync needs a Devot license. Add one in Settings > License.',
   'licence.locked.aiTrialEnded':
     'Your trial has ended, and AI needs a Devot license. Add one in Settings > License.',
+  'licence.locked.syncPro': 'Sync needs Devot Pro. Get it in Settings > License.',
+  'licence.locked.aiPro': 'AI needs Devot Pro. Get it in Settings > License.',
+  'licence.locked.syncProTrialEnded':
+    'Your trial has ended, and sync needs Devot Pro. Get it in Settings > License.',
+  'licence.locked.aiProTrialEnded':
+    'Your trial has ended, and AI needs Devot Pro. Get it in Settings > License.',
   'trial.ended':
     'Your Devot trial has ended, so notes are read-only: you can read, search, copy and export them. Add a license to edit them again.',
   'trial.reminder.today':

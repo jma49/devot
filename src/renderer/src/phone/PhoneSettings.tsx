@@ -9,6 +9,7 @@ import {
   trialRunning,
   useLicence,
 } from '../licence'
+import { licenceProblem } from '../licenceView'
 import { OnPhone } from '../settings/onPhone'
 import type { IconName } from '../icons/symbols'
 import { PANES, PANE_TABS, type PaneId } from '../settings/panes'
@@ -81,7 +82,7 @@ function restoreValue(state: Restoring | null): string | undefined {
   if (state === 'running') return t('phone.settings.restoring')
   if (state === 'restored') return t('phone.settings.restored')
   if (state === 'nothing') return t('phone.settings.nothingRestored')
-  return format(t('phone.settings.restoreFailed'), { code: state.code })
+  return licenceProblem(state.code)
 }
 
 /** Restore Purchases, in an App Store build: an action, so it has no chevron; its outcome is its value. */

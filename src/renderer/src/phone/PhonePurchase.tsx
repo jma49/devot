@@ -65,7 +65,7 @@ export function PurchaseOffer(props: {
         <h2 className="phone-detail-title">
           {startable
             ? format(t('phone.purchase.welcome'), { days: String(TRIAL_DAYS) })
-            : t('phone.purchase.ended')}
+            : t(licence.appStore?.code ? 'phone.purchase.unknown' : 'phone.purchase.ended')}
         </h2>
       </div>
       <p className="phone-detail-body">

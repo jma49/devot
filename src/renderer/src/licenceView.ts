@@ -3,7 +3,7 @@
 import type { LicenceState } from '../../core/entitlements'
 import { fullDate } from './format'
 import { format, t, type MessageKey } from './i18n'
-import { APP_STORE_UNREAD, trialRunning, type LicenceSnapshot } from './licence'
+import { APP_STORE_UNREAD, soldOnAppStore, trialRunning, type LicenceSnapshot } from './licence'
 
 const REASONS: Readonly<Record<string, MessageKey>> = {
   E_LICENCE_MALFORMED: 'licence.reason.malformed',
@@ -27,6 +27,25 @@ const REASONS: Readonly<Record<string, MessageKey>> = {
 
 export function licenceProblem(code: string): string {
   return format(t('licence.problem'), { reason: t(REASONS[code] ?? 'licence.reason.other'), code })
+}
+
+const LOCKED: Readonly<Record<'sync' | 'ai', readonly [MessageKey, MessageKey]>> = {
+  sync: ['licence.locked.sync', 'licence.locked.syncTrialEnded'],
+  ai: ['licence.locked.ai', 'licence.locked.aiTrialEnded'],
+}
+const LOCKED_PRO: typeof LOCKED = {
+  sync: ['licence.locked.syncPro', 'licence.locked.syncProTrialEnded'],
+  ai: ['licence.locked.aiPro', 'licence.locked.aiProTrialEnded'],
+}
+
+/** Why sync or AI is locked; an App Store build, which may take no key, names Devot Pro. */
+export function lockedSentence(
+  feature: 'sync' | 'ai',
+  licence: LicenceSnapshot,
+  trialEnded: boolean,
+): string {
+  const [locked, ended] = (soldOnAppStore(licence) ? LOCKED_PRO : LOCKED)[feature]
+  return t(trialEnded ? ended : locked)
 }
 
 const STATES: Readonly<Record<LicenceState, MessageKey>> = {

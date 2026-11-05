@@ -9,6 +9,7 @@ import {
 } from './licence'
 import {
   licenceProblem,
+  lockedSentence,
   planLicenceLink,
   reminderDue,
   reminderText,
@@ -98,6 +99,23 @@ describe('what the windows say', () => {
     )
     expect(licenceProblem('E_LICENCE_UNKNOWN_KID')).toMatch(/Update Devot/)
     expect(licenceProblem('E_COMMAND_FAILED')).toBe('Something went wrong. (E_COMMAND_FAILED)')
+  })
+
+  it('names Devot Pro, not a license, for a lock in an App Store build', () => {
+    const store: LicenceSnapshot = {
+      ...none,
+      appStore: { pro: false, code: null, takesKeys: false },
+    }
+    for (const feature of ['sync', 'ai'] as const)
+      for (const ended of [false, true]) {
+        expect(lockedSentence(feature, store, ended)).toMatch(/needs Devot Pro/)
+        expect(lockedSentence(feature, store, ended)).not.toMatch(/Devot license/)
+        expect(lockedSentence(feature, none, ended)).toMatch(/needs a Devot license/)
+      }
+    expect(lockedSentence('sync', store, true)).toMatch(/^Your trial has ended/)
+    expect(lockedSentence('ai', none, false)).toBe(
+      'AI needs a Devot license. Add one in Settings > License.',
+    )
   })
 
   it('says how to get past a refused keychain prompt', () => {

@@ -152,16 +152,17 @@ final class StoreTests: XCTestCase {
     }
 
     // A purchase the bridge never handed to Rust, as after a relaunch between recording it and
-    // finishing it: finish finds it among the unfinished transactions instead.
+    // finishing it: finish finds it among the unfinished transactions instead. The search runs on
+    // its own, so a listener started by another test cannot hand the purchase over first.
     func testFinishFindsATransactionFromBeforeARelaunch() async throws {
         let id = try await session.buyProduct(identifier: Store.pro).id
         var answer = ""
         for _ in 0..<300 where answer != "finished" {
-            answer = await Store.finish(id).status
+            answer = await Store.finishUnfinished(id).status
             if answer != "finished" { try await Task.sleep(nanoseconds: 100_000_000) }
         }
         XCTAssertEqual(answer, "finished")
-        let again = await Store.finish(id)
+        let again = await Store.finishUnfinished(id)
         XCTAssertEqual(again.status, "notFound")
     }
 
