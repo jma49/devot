@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { MERMAID_FRAME_SANDBOX } from '../../src/renderer/src/preview/mermaid'
 
 type Csp = Record<string, string>
 
@@ -13,11 +14,27 @@ const sources = (name: string) => (csp[name] ?? '').split(' ').filter(Boolean)
 // only non-'self' connections the UI may open.
 const TAURI_IPC = ['ipc:', 'http://ipc.localhost']
 const SENTRY_INGEST = 'https://*.ingest.us.sentry.io'
+// Where the packaged app serves its pages on macOS and iOS.
+const APP_ORIGIN = 'tauri://localhost'
 
 describe('production CSP (tauri.conf.json)', () => {
   it('allows scripts and styles from the app only', () => {
-    expect(sources('script-src')).toEqual(["'self'"])
+    expect(sources('script-src')).toEqual(["'self'", APP_ORIGIN])
     expect(sources('style-src')).toEqual(["'self'"])
+  })
+
+  it("lets the sandboxed diagram frame load its scripts without 'self'", () => {
+    // The frame's origin is opaque, and WebKit then matches no tauri: URL to 'self'.
+    expect(MERMAID_FRAME_SANDBOX.split(' ')).not.toContain('allow-same-origin')
+    const html = readFileSync('src/renderer/mermaid.html', 'utf8')
+    const scripts = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map(
+      ([, src]) => new URL(src!, `${APP_ORIGIN}/mermaid.html`).href,
+    )
+    expect(scripts).not.toEqual([])
+    const named = sources('script-src').filter((source) => source !== "'self'")
+    const allowed = (script: string) =>
+      named.some((source) => script.startsWith(source.endsWith('/') ? source : `${source}/`))
+    expect(scripts.filter((script) => !allowed(script))).toEqual([])
   })
 
   it('never allows inline code or eval', () => {
