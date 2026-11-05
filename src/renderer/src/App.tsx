@@ -129,7 +129,6 @@ import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoreNotice } from './CoreNotice'
 import { DeepLinkNotice, type DeepLinkProblem } from './DeepLinkNotice'
-import { actionOfEntry } from './plugins/contributions'
 import { usePlugins } from './plugins/usePlugins'
 import { firstImported, openDestination } from './cliOpen'
 import { noteTarget, useDeepLinks, type DeepLink } from './deepLink'
@@ -152,15 +151,10 @@ import { editingAllowed } from './licence'
 import { invoke } from './ipc'
 import { titleWithKey } from './commands/titles'
 import { ToolTips } from './ToolTips'
-import { withoutChanges, type CommandHandlers } from './commands/registry'
-import { CommandPalette, type PaletteActions } from './palette/CommandPalette'
-import {
-  commandEntries,
-  libraryEntries,
-  outlineEntries,
-  sourceEntries,
-  withTagClause,
-} from './palette/entries'
+import { withoutChanges } from './commands/registry'
+import { CommandPalette } from './palette/CommandPalette'
+import { commandEntries, libraryEntries, outlineEntries, sourceEntries } from './palette/entries'
+import { paletteActions } from './palette/appActions'
 import type { PaletteEntry, PaletteSource } from './palette/results'
 import { bookDeleteDetail, noteCount } from './format'
 import { openAfter, type ListSelection } from './listSelection'
@@ -3397,87 +3391,25 @@ export function App() {
   )
 
   const stableOpenWorkspace = useStable((id: string) => openWorkspace(id))
-  const paletteActions = (entry: PaletteEntry): PaletteActions => {
-    switch (entry.kind) {
-      case 'source':
-        return {
-          primary: { label: t('palette.openSource'), run: () => undefined },
-        }
-      case 'command': {
-        const pluginAction = actionOfEntry(entry.id)
-        if (pluginAction) {
-          return { primary: { label: t('palette.run'), run: () => plugins.act(pluginAction) } }
-        }
-        const handler = commands[entry.id as keyof CommandHandlers]
-        return {
-          primary: { label: t('palette.run'), run: () => handler?.run() },
-        }
-      }
-      case 'book':
-        return {
-          primary: {
-            label: t('palette.openNotebook'),
-            run: () => showLibrary({ kind: 'book', id: entry.id }),
-          },
-          meta: {
-            label: t('palette.openWorkspace'),
-            run: () => stableOpenWorkspace(entry.id),
-          },
-          shift:
-            editing && openNote && openNote.bookId !== entry.id
-              ? {
-                  label: t('palette.moveNoteHere'),
-                  run: () => moveNote(openNote.id, entry.id),
-                }
-              : undefined,
-        }
-      case 'tag':
-        return {
-          primary: {
-            label: t('palette.showTag'),
-            run: () => showFilter({ kind: 'tag', tagId: entry.id }),
-          },
-          meta: {
-            label: t('palette.addToFilter'),
-            run: () => changeQuery(withTagClause(query, { id: entry.id, name: entry.label })),
-          },
-          shift:
-            editing && openNote && !selectedIsTemplate && !openNote.tagIds.includes(entry.id)
-              ? {
-                  label: t('palette.addTagToNote'),
-                  run: () => putTagOnNotes([openNote.id], entry.id),
-                }
-              : undefined,
-        }
-      case 'line':
-        return {
-          primary: {
-            label: t('palette.goToLine'),
-            run: () => editorRef.current?.goToLine(entry.line ?? 1, 'center'),
-          },
-        }
-      case 'outline':
-        return {
-          primary: {
-            label: t('palette.goToLine'),
-            run: () => editorRef.current?.goToLine(entry.line ?? 1),
-          },
-        }
-      case 'note':
-        return {
-          primary: {
-            label: t('palette.open'),
-            run: () => {
-              // Notes listed are live: leave the Trash to show one. The open
-              // note stays as it is.
-              if (inTrash) showLibrary({ kind: 'all' })
-              else if (entry.id === selected) return
-              return select(entry.id)
-            },
-          },
-        }
-    }
-  }
+  const actionsOfEntry = (entry: PaletteEntry) =>
+    paletteActions(entry, {
+      commands,
+      editing,
+      openNote,
+      selectedIsTemplate,
+      selected,
+      inTrash,
+      query,
+      runPlugin: plugins.act,
+      showLibrary: (next) => showLibrary(next),
+      openWorkspace: stableOpenWorkspace,
+      moveNote,
+      showFilter,
+      changeQuery,
+      putTagOnNotes,
+      editor: () => editorRef.current,
+      select: (id) => select(id),
+    })
 
   // Props for the memoized list and sidebar stay the same between renders, so typing in a note renders neither.
   const toggleSidebarNow = useStable(toggleSidebar)
@@ -4475,7 +4407,7 @@ export function App() {
             line: [],
             ...(paletteLibrary ?? NO_LIBRARY),
           }}
-          actions={paletteActions}
+          actions={actionsOfEntry}
           initialScope={paletteScope}
           lineCount={commands['edit.goToLine'] ? paletteLines : 0}
           onClose={closePalette}
