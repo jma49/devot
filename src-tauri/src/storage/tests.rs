@@ -3795,7 +3795,7 @@ fn a_library_that_pushed_but_never_pulled_counts_as_synced() {
 }
 
 #[test]
-fn counts_the_owner_s_notes_without_purged_or_first_launch_ones() {
+fn counts_the_owner_s_notes_without_purged_or_untouched_first_launch_ones() {
     let (_dir, mut store) = temp_store();
     assert_eq!(store.own_note_count().unwrap(), 0);
     for id in [
@@ -3803,9 +3803,17 @@ fn counts_the_owner_s_notes_without_purged_or_first_launch_ones() {
         "00000000-0000-7000-8000-000000000012",
         "00000000-0000-7000-8000-000000000000",
     ] {
-        store.put_note(&note(id, "First launch", 10), &[]).unwrap();
+        store.put_note(&note(id, "First launch", 1), &[]).unwrap();
     }
-    assert_eq!(store.own_note_count().unwrap(), 0);
+    assert_eq!(store.own_note_count().unwrap(), 0, "as seeded");
+    let mut rewritten = note("00000000-0000-7000-8000-000000000011", "Rewritten", 10);
+    rewritten.body_version = 1;
+    store.put_note(&rewritten, &[]).unwrap();
+    assert_eq!(
+        store.own_note_count().unwrap(),
+        1,
+        "a first-launch note changed since it was seeded is the owner's"
+    );
     for id in ["a", "b", "c"] {
         store.put_note(&note(id, "Mine", 10), &[]).unwrap();
     }
@@ -3816,5 +3824,9 @@ fn counts_the_owner_s_notes_without_purged_or_first_launch_ones() {
     store
         .trash_and_purge("c", 20, "0000000000000020-0000-test")
         .unwrap();
-    assert_eq!(store.own_note_count().unwrap(), 3, "a, b and the trashed d");
+    assert_eq!(
+        store.own_note_count().unwrap(),
+        4,
+        "a, b, the trashed d and the rewritten first-launch note"
+    );
 }

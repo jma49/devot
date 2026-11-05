@@ -1374,11 +1374,12 @@ impl Store {
     }
 
     /// The notes the owner wrote or kept, trashed ones included: purged notes and the fixed-ID
-    /// first-launch ones (`00000000-0000-7000-8000-…`, the same on every device) are left out.
+    /// first-launch ones (`00000000-0000-7000-8000-…`, the same on every device) are left out while
+    /// they are as seeded. One changed since, which keeps its ID, counts: it merges like any note.
     pub fn own_note_count(&self) -> Result<u64> {
         let count: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM notes WHERE purged_at IS NULL
-               AND id NOT LIKE '00000000-0000-7000-8000-%'",
+               AND (id NOT LIKE '00000000-0000-7000-8000-%' OR updated_at <> created_at)",
             [],
             |row| row.get(0),
         )?;

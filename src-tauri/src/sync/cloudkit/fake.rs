@@ -14,6 +14,7 @@ pub(crate) enum Op {
     UserRecord,
     Zones,
     SaveZones,
+    DeleteZones,
     Fetch,
     Save,
     Changes,
@@ -51,6 +52,9 @@ struct State {
     subscriptions: Vec<String>,
     /// The asset files a save read, so tests see they were there when it ran.
     assets_read: usize,
+    /// Each zone `delete_zones` removed, in order.
+    deleted: Vec<String>,
+    fail_zone_deletes: HashMap<String, CkError>,
 }
 
 pub(crate) struct Fake {
@@ -75,6 +79,8 @@ impl Fake {
                 saved_sizes: Vec::new(),
                 subscriptions: Vec::new(),
                 assets_read: 0,
+                deleted: Vec::new(),
+                fail_zone_deletes: HashMap::new(),
             }),
         }
     }
@@ -111,6 +117,15 @@ impl Fake {
 
     pub(crate) fn limit(&self, records: usize) {
         self.with(|s| s.limit = Some(records));
+    }
+
+    /// The next delete of `zone` fails with `error` and leaves it.
+    pub(crate) fn fail_zone_delete(&self, zone: &str, error: CkError) {
+        self.with(|s| s.fail_zone_deletes.insert(zone.to_string(), error));
+    }
+
+    pub(crate) fn deleted_zones(&self) -> Vec<String> {
+        self.with(|s| s.deleted.clone())
     }
 
     pub(crate) fn delete_zone(&self, zone: &str) {
@@ -244,6 +259,21 @@ impl CloudKit for Fake {
             }
         });
         Ok(())
+    }
+
+    fn delete_zones(&self, zones: &[String]) -> Result<(), CkError> {
+        self.call(Op::DeleteZones)?;
+        self.with(|s| {
+            for zone in zones {
+                if let Some(error) = s.fail_zone_deletes.remove(zone) {
+                    return Err(error);
+                }
+                if s.zones.remove(zone).is_some() {
+                    s.deleted.push(zone.clone());
+                }
+            }
+            Ok(())
+        })
     }
 
     fn fetch(&self, zone: &str, names: &[String]) -> Result<Vec<Option<CkRecord>>, CkError> {

@@ -1027,6 +1027,10 @@ mod tests {
             kit.save_zones(&["devot".into()]).err().map(|e| e.code),
             Some(MISSING_ENTITLEMENT)
         );
+        assert_eq!(
+            kit.delete_zones(&["devot".into()]).err().map(|e| e.code),
+            Some(MISSING_ENTITLEMENT)
+        );
     }
 
     #[test]

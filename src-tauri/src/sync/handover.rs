@@ -63,6 +63,16 @@ pub(crate) fn write(store: &dyn SecretStore, vault: &Vault) -> Result<(), SyncEr
     store.replace(ACCOUNT, &encode(vault))
 }
 
+/// Removes the item when it names `vault`. One naming another vault, or one this build cannot
+/// read, is not this device's to remove and stays.
+pub(crate) fn remove(store: &dyn SecretStore, vault: &Vault) -> Result<bool, SyncError> {
+    match read(store) {
+        Ok(Some(item)) if item.id() == vault.id() => store.remove(ACCOUNT),
+        Ok(_) | Err(SyncError::HandoverVersion | SyncError::HandoverCorrupt) => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::tests::{MemoryStore, fixed_vault, to_hex};
@@ -115,6 +125,23 @@ mod tests {
         let other = Vault::generate().unwrap();
         write(&store, &other).unwrap();
         assert!(read(&store).unwrap().unwrap().same(&other));
+    }
+
+    #[test]
+    fn removes_only_an_item_that_names_the_vault() {
+        let store = MemoryStore::default();
+        let vault = fixed_vault();
+        assert_eq!(remove(&store, &vault), Ok(false));
+        let other = Vault::generate().unwrap();
+        write(&store, &other).unwrap();
+        assert_eq!(remove(&store, &vault), Ok(false));
+        assert!(read(&store).unwrap().unwrap().same(&other));
+        store.replace(ACCOUNT, &[2, 0]).unwrap();
+        assert_eq!(remove(&store, &vault), Ok(false), "a later build's item");
+        assert!(store.read(ACCOUNT).unwrap().is_some());
+        write(&store, &vault).unwrap();
+        assert_eq!(remove(&store, &vault), Ok(true));
+        assert!(read(&store).unwrap().is_none());
     }
 
     #[test]

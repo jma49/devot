@@ -1,4 +1,4 @@
-import { useEffect, useState, type Ref } from 'react'
+import { useEffect, useId, useRef, useState, type Ref } from 'react'
 import { errorCode } from '../backups'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { fileSize } from '../format'
@@ -7,6 +7,7 @@ import { changeSync, type SyncSnapshot } from '../sync'
 import {
   answerICloudJoin,
   icloudStoredBytes,
+  leaveICloudVault,
   syncThroughICloud,
   uploadToICloudAgain,
   type ICloudAction,
@@ -255,5 +256,93 @@ export function ICloudStorageRows(props: { snapshot: SyncSnapshot }) {
       </Setting>
       {onPhone ? null : <SettingsNote>{t('syncSettings.icloudStorageManaged')}</SettingsNote>}
     </>
+  )
+}
+
+/**
+ * Removes the vault from this Apple ID. Typing its recovery key is the confirmation: Rust refuses
+ * a key of another vault, and the notes stay on every device.
+ */
+export function LeaveICloudRow(props: { onLeft: () => void; failed: Failure }) {
+  const ids = useId()
+  const [asking, setAsking] = useState(false)
+  const [key, setKey] = useState('')
+  const [leaving, setLeaving] = useState(false)
+  const field = useRef<HTMLInputElement>(null)
+  const opener = useRef<HTMLButtonElement>(null)
+  const { onLeft, failed } = props
+  useEffect(() => {
+    if (asking) field.current?.focus()
+  }, [asking])
+  const cancel = () => {
+    setAsking(false)
+    setKey('')
+    requestAnimationFrame(() => opener.current?.focus())
+  }
+  const leave = () => {
+    if (key.trim() === '' || leaving) return
+    setLeaving(true)
+    leaveICloudVault(key)
+      .then(() => {
+        setKey('')
+        setAsking(false)
+        onLeft()
+      }, failed('syncSettings.icloudLeaveFailed'))
+      .finally(() => setLeaving(false))
+  }
+  if (!asking)
+    return (
+      <Setting label="syncSettings.icloudLeave" description={t('syncSettings.icloudLeaveHint')}>
+        <div className="settings-buttons">
+          <button
+            ref={opener}
+            type="button"
+            className="button"
+            data-destructive
+            onClick={() => setAsking(true)}
+          >
+            {`${t('syncSettings.icloudLeave')}…`}
+          </button>
+        </div>
+      </Setting>
+    )
+  return (
+    <Setting
+      label="syncSettings.icloudLeaveKey"
+      description={t('syncSettings.icloudLeaveKeyHint')}
+      htmlFor={`${ids}-key`}
+      descriptionId={`${ids}-hint`}
+    >
+      <input
+        ref={field}
+        id={`${ids}-key`}
+        type="text"
+        className="settings-number settings-text"
+        spellCheck={false}
+        autoComplete="off"
+        autoCapitalize="characters"
+        value={key}
+        aria-describedby={`${ids}-hint`}
+        onChange={(e) => setKey(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') leave()
+          if (e.key === 'Escape') cancel()
+        }}
+      />
+      <div className="settings-buttons">
+        <button type="button" className="button" disabled={leaving} onClick={cancel}>
+          {t('dialog.cancel')}
+        </button>
+        <button
+          type="button"
+          className="button"
+          data-destructive
+          disabled={key.trim() === '' || leaving}
+          onClick={leave}
+        >
+          {t('syncSettings.icloudLeaveButton')}
+        </button>
+      </div>
+    </Setting>
   )
 }

@@ -14,6 +14,7 @@ export const WHY: Readonly<Record<string, MessageKey>> = {
   E_SYNC_RECOVERY_FORMAT: 'syncSettings.why.keyMistyped',
   E_SYNC_RECOVERY_CHECKSUM: 'syncSettings.why.keyMistyped',
   E_SYNC_RECOVERY_VERSION: 'syncSettings.why.keyMistyped',
+  E_SYNC_RECOVERY_OTHER_VAULT: 'syncSettings.why.leaveOtherKey',
   E_SYNC_NO_RELAY: 'syncSettings.why.noRelay',
   E_SYNC_NO_VAULT: 'syncSettings.why.noVault',
   E_SYNC_RELAY_URL_INVALID: 'syncSettings.why.relayInvalid',

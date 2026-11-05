@@ -4,7 +4,10 @@
 //! when another vault won.
 
 use super::error::{self, Failure, classify};
-use super::kit::{Account, CURRENT, CkRecord, CloudKit, SavePolicy, TYPE_VAULT, Value, ZONE_DEVOT};
+use super::kit::{
+    Account, CURRENT, CkRecord, CloudKit, SavePolicy, TYPE_VAULT, Value, ZONE_CLOCK, ZONE_DEVOT,
+    vault_zone,
+};
 use super::transport::ACCOUNT_UNAVAILABLE;
 
 const VAULT: &str = "vault";
@@ -64,6 +67,24 @@ pub(crate) fn claim(kit: &dyn CloudKit, vault: &str) -> Result<Claim, &'static s
     }
     log::info!("I_SYNC_ICLOUD_CURRENT_LOST vault={vault} winner={winner}");
     Ok(Claim::Lost(winner))
+}
+
+/// Removes `vault` from this Apple ID (Leave This Vault): its zone first, so the other devices
+/// find it gone and ask before they upload again, then zones `devot` and `devot-clock` unless
+/// `current` names another vault, whose zones they are. A zone already gone is skipped, so a retry
+/// after a failure part way ends in the same state.
+pub(crate) fn leave(kit: &dyn CloudKit, vault: &str) -> Result<(), &'static str> {
+    let ours = read(kit)?.is_none_or(|current| current == vault);
+    let mut zones = vec![vault_zone(vault)];
+    if ours {
+        zones.extend([ZONE_DEVOT.to_string(), ZONE_CLOCK.to_string()]);
+    }
+    for zone in zones {
+        kit.delete_zones(std::slice::from_ref(&zone))
+            .map_err(code)?;
+    }
+    log::info!("I_SYNC_ICLOUD_ZONES_DELETED vault={vault} all={ours}");
+    Ok(())
 }
 
 pub(crate) fn ensure_zone(kit: &dyn CloudKit) -> Result<(), &'static str> {
@@ -140,6 +161,56 @@ mod tests {
         kit.save(ZONE_DEVOT, &[pairing], SavePolicy::Overwrite)
             .unwrap();
         assert_eq!(read(&kit), Ok(None));
+    }
+
+    fn with_vault(kit: &Fake, vault: &str) {
+        claim(kit, vault).unwrap();
+        kit.save_zones(&[vault_zone(vault), ZONE_CLOCK.to_string()])
+            .unwrap();
+    }
+
+    #[test]
+    fn leaving_deletes_the_vault_s_zone_then_the_apple_id_s_two() {
+        let kit = Fake::new();
+        with_vault(&kit, A);
+        assert_eq!(leave(&kit, A), Ok(()));
+        assert_eq!(
+            kit.deleted_zones(),
+            [vault_zone(A).as_str(), ZONE_DEVOT, ZONE_CLOCK]
+        );
+        assert_eq!(read(&kit), Ok(None));
+    }
+
+    #[test]
+    fn a_leave_that_failed_part_way_ends_the_same_when_retried() {
+        let kit = Fake::new();
+        with_vault(&kit, A);
+        kit.fail_zone_delete(ZONE_DEVOT, CkError::of(code::REQUEST_RATE_LIMITED));
+        assert_eq!(leave(&kit, A), Err(error::BUSY));
+        assert!(!kit.zone_exists(&vault_zone(A)));
+        assert!(kit.zone_exists(ZONE_DEVOT) && kit.zone_exists(ZONE_CLOCK));
+        assert_eq!(leave(&kit, A), Ok(()));
+        for zone in [vault_zone(A).as_str(), ZONE_DEVOT, ZONE_CLOCK] {
+            assert!(!kit.zone_exists(zone), "{zone}");
+        }
+        assert_eq!(leave(&kit, A), Ok(()), "nothing left to delete");
+
+        let offline = Fake::new();
+        with_vault(&offline, A);
+        offline.fail_next(Op::Fetch, CkError::of(code::NETWORK_UNAVAILABLE));
+        assert_eq!(leave(&offline, A), Err(error::OFFLINE));
+        assert!(offline.deleted_zones().is_empty());
+    }
+
+    #[test]
+    fn leaving_a_vault_current_does_not_name_keeps_the_zones_of_the_one_it_names() {
+        let kit = Fake::new();
+        with_vault(&kit, B);
+        kit.save_zones(&[vault_zone(A)]).unwrap();
+        assert_eq!(leave(&kit, A), Ok(()));
+        assert_eq!(kit.deleted_zones(), [vault_zone(A)]);
+        assert_eq!(read(&kit), Ok(Some(B.to_string())));
+        assert!(kit.zone_exists(&vault_zone(B)) && kit.zone_exists(ZONE_CLOCK));
     }
 
     #[test]

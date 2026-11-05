@@ -938,6 +938,55 @@ pub(crate) mod cloudkit {
             })
         }
 
+        fn delete_zones(&self, zones: &[String]) -> Result<(), CkError> {
+            if !self.available {
+                return Err(CkError::of(code::MISSING_ENTITLEMENT));
+            }
+            let failed = Arc::new(Mutex::new(Option::<CkError>::None));
+            let seen = Arc::clone(&failed);
+            let ids: Vec<_> = zones.iter().map(|zone| zone_id(zone)).collect();
+            run("W_SYNC_ICLOUD_ZONES_DELETE", WAIT, move |sender| {
+                // SAFETY: none to save and the app's own zone IDs to delete.
+                let operation = unsafe {
+                    CKModifyRecordZonesOperation::initWithRecordZonesToSave_recordZoneIDsToDelete(
+                        CKModifyRecordZonesOperation::alloc(),
+                        None,
+                        Some(&NSArray::from_retained_slice(&ids)),
+                    )
+                };
+                let per_zone =
+                    RcBlock::new(move |_: NonNull<CKRecordZoneID>, error: *mut NSError| {
+                        match error_of(error) {
+                            Some(error)
+                                if matches!(
+                                    error.code,
+                                    code::ZONE_NOT_FOUND | code::USER_DELETED_ZONE
+                                ) => {}
+                            Some(error) => *lock(&seen) = Some(error),
+                            None => {}
+                        }
+                    });
+                let done = RcBlock::new(
+                    move |_: *mut NSArray<CKRecordZone>,
+                          _: *mut NSArray<CKRecordZoneID>,
+                          error: *mut NSError| {
+                        let whole = error_of(error).filter(|e| e.code != code::PARTIAL_FAILURE);
+                        let _ = sender.send(match whole.or_else(|| lock(&failed).take()) {
+                            Some(error) => Err(error),
+                            None => Ok(()),
+                        });
+                    },
+                );
+                // SAFETY: each block's arguments are as CloudKit documents them for this operation.
+                unsafe {
+                    operation.setPerRecordZoneDeleteBlock(Some(&per_zone));
+                    operation.setModifyRecordZonesCompletionBlock(Some(&done));
+                }
+                add(&operation);
+                Some(Retained::into_super(operation))
+            })
+        }
+
         fn fetch(&self, zone: &str, names: &[String]) -> Result<Vec<Option<CkRecord>>, CkError> {
             if !self.available {
                 return Err(CkError::of(code::MISSING_ENTITLEMENT));

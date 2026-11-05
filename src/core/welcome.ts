@@ -76,11 +76,10 @@ export async function seedWelcome(options: WelcomeOptions): Promise<string | nul
   const notes = createNoteService({ storage, clock, newId: options.newId, compact: false })
   for (const note of content.notes) {
     const { id } = note
-    await notes.seed(id, note.title, WELCOME_BOOK_ID, note.body)
+    await notes.seed(id, note.title, WELCOME_BOOK_ID, note.body, note.pinned)
     for (const file of note.files ?? []) {
       await storage.putFile({ id: file.id, noteId: id, name: file.name }, file.data)
     }
-    if (note.pinned) await notes.setPinned(id, true)
     await notes.release(id)
   }
   return content.notes[0]?.id ?? null

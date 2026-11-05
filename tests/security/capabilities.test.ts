@@ -206,11 +206,12 @@ describe('Tauri command permissions', () => {
       // It offers the recovery key until it is saved, pairs and joins devices, lists and removes them, and shows the relay's storage.
       // It shows iCloud's state and what the vault holds there, starts or restores an iCloud vault,
       // moves one from a relay, uploads it again, looks for the Apple ID's vault and passes on the
-      // owner's answer to joining it.
+      // owner's answer to joining it. It leaves an iCloud vault once its recovery key confirms it.
       'allow-sync-device-remove',
       'allow-sync-devices',
       'allow-sync-get',
       'allow-sync-icloud-join',
+      'allow-sync-icloud-leave',
       'allow-sync-icloud-look',
       'allow-sync-icloud-status',
       'allow-sync-icloud-storage',
