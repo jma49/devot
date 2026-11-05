@@ -12,6 +12,7 @@ import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { isImeKey } from '../ime'
 import { motionMs } from '../motionTiming'
+import { watchDragEnd, type DragEnd } from './dragEnd'
 import { holdModal, isTopModal } from './modal'
 
 const DISMISS_TRAVEL = 120
@@ -38,7 +39,14 @@ export function PhoneSheet(props: {
 }) {
   const [shown, setShown] = useState(false)
   const [drag, setDrag] = useState<number | null>(null)
-  const start = useRef<{ y: number; lastY: number; at: number; speed: number } | null>(null)
+  const start = useRef<{
+    pointer: number
+    y: number
+    lastY: number
+    at: number
+    speed: number
+    stop: () => void
+  } | null>(null)
   const closing = useRef(false)
   const layer = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDivElement>(null)
@@ -78,20 +86,21 @@ export function PhoneSheet(props: {
   }
   const move = (event: PointerEvent) => {
     const s = start.current
-    if (!s) return
+    if (!s || s.pointer !== event.pointerId) return
     const elapsed = event.timeStamp - s.at
     if (elapsed > 0) s.speed = (event.clientY - s.lastY) / elapsed
     s.lastY = event.clientY
     s.at = event.timeStamp
     setDrag(Math.max(0, event.clientY - s.y))
   }
-  const end = (event: PointerEvent) => {
+  const end = (how: DragEnd, event: globalThis.PointerEvent | null) => {
     const s = start.current
     start.current = null
     if (!s) return
-    if (event.type === 'pointerup' && sheetCloses(event.clientY - s.y, s.speed)) close()
+    if (how === 'release' && event && sheetCloses(event.clientY - s.y, s.speed)) close()
     else setDrag(null)
   }
+  useEffect(() => () => start.current?.stop(), [])
   const onKey = (event: KeyboardEvent) => {
     if (event.defaultPrevented || isImeKey(event.nativeEvent)) return
     // A sheet opened from this one is a child in React, so its keys would reach this one too.
@@ -138,18 +147,18 @@ export function PhoneSheet(props: {
           className="phone-sheet-handle"
           onPointerDown={(event) => {
             // A capture would take the click from a button in the handle (Close).
-            if ((event.target as Element).closest('button')) return
+            if ((event.target as Element).closest('button') || start.current) return
             event.currentTarget.setPointerCapture(event.pointerId)
             start.current = {
+              pointer: event.pointerId,
               y: event.clientY,
               lastY: event.clientY,
               at: event.timeStamp,
               speed: 0,
+              stop: watchDragEnd(event.currentTarget, event.pointerId, end),
             }
           }}
           onPointerMove={move}
-          onPointerUp={end}
-          onPointerCancel={end}
         >
           <span aria-hidden="true" className="phone-sheet-grabber" />
           {props.plain ? null : (

@@ -29,6 +29,9 @@ const barScale = (page: Page) => rootScale(page, '--phone-bar-text-scale')
 const cssPx = (locator: Locator, prop: 'fontSize') =>
   locator.evaluate((el, name) => Number.parseFloat(getComputedStyle(el)[name]), prop)
 
+const topLayer = (page: Page) =>
+  page.locator('.phone-stack:not([hidden]) > .phone-layer:not([data-away])').last()
+
 const openTemplates = (page: Page) => page.getByRole('button', { name: 'Templates' }).click()
 
 test.beforeEach(async ({ page }) => {
@@ -361,6 +364,47 @@ test.describe('with motion', () => {
     await page.waitForTimeout(600)
     await dragEdge(page, 200)
     await expect(page.getByTestId('phone-back-zone')).toHaveCount(0)
+  })
+
+  for (const [ending, end] of [
+    ['loses its capture', 'lostpointercapture'],
+    ['is taken by the system', 'blur'],
+  ] as const) {
+    test(`a back swipe that ${ending} springs back and leaves the screen usable`, async ({
+      page,
+    }) => {
+      await openTemplates(page)
+      await page.waitForTimeout(600)
+      const zone = page.getByTestId('phone-back-zone')
+      const box = (await zone.boundingBox())!
+      await page.mouse.move(4, box.y + 100)
+      await page.mouse.down()
+      await page.mouse.move(92, box.y + 100, { steps: 8 })
+      await expect(topLayer(page)).toHaveAttribute('data-dragging', 'true')
+      await zone.evaluate((el, type) => {
+        const target = type === 'blur' ? window : el
+        target.dispatchEvent(new PointerEvent(type, { pointerId: 1, bubbles: true }))
+      }, end)
+      await expect(topLayer(page)).not.toHaveAttribute('data-dragging')
+      await expect.poll(async () => (await topLayer(page).boundingBox())?.x).toBe(0)
+      await page.mouse.up()
+      await expect(page.getByRole('region', { name: 'Templates' })).toBeVisible()
+      await page.getByRole('button', { name: 'Back' }).click()
+      await expect(zone).toHaveCount(0)
+    })
+  }
+
+  test('Back pressed mid-swipe leaves the screen below where it belongs', async ({ page }) => {
+    await openTemplates(page)
+    await page.waitForTimeout(600)
+    const box = (await page.getByTestId('phone-back-zone').boundingBox())!
+    await page.mouse.move(4, box.y + 100)
+    await page.mouse.down()
+    await page.mouse.move(92, box.y + 100, { steps: 8 })
+    await page.getByRole('button', { name: 'Back' }).evaluate((el) => (el as HTMLElement).click())
+    await expect(page.getByTestId('phone-back-zone')).toHaveCount(0)
+    await expect.poll(async () => (await topLayer(page).boundingBox())?.x).toBe(0)
+    await expect(topLayer(page)).not.toHaveAttribute('data-dragging')
   })
 })
 

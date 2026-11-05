@@ -188,6 +188,28 @@ test('a row swiped past 270 completes its note and moves it to Completed', async
   await expect(moved.locator('.phone-note-mark')).toHaveAttribute('aria-label', 'Completed')
 })
 
+test('a row swipe that loses its capture closes, and the list still opens notes', async ({
+  page,
+}) => {
+  await openNotes(page)
+  const row = recent(page).first()
+  const content = row.locator('.phone-note-content')
+  const box = (await row.boundingBox())!
+  const y = box.y + box.height / 2
+  await page.mouse.move(box.x + box.width - 20, y)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width - 160, y, { steps: 14 })
+  await expect(content).toHaveAttribute('data-dragging')
+  await content.evaluate((el) =>
+    el.dispatchEvent(new PointerEvent('lostpointercapture', { pointerId: 1, bubbles: true })),
+  )
+  await expect(content).not.toHaveAttribute('data-dragging')
+  await expect(content).not.toHaveAttribute('data-raised')
+  await page.mouse.up()
+  await row.locator('.phone-note-open').click()
+  await expect(page.getByRole('button', { name: 'Note Info' })).toBeVisible()
+})
+
 test('a vertical drag on a row never swipes', async ({ page }) => {
   await openNotes(page)
   const box = (await recent(page).first().boundingBox())!

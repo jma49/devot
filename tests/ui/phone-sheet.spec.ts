@@ -67,6 +67,26 @@ test('the trial sheet covers the tab bar and is whole, its Done reachable', asyn
   await expect(sheet).toHaveCount(0)
 })
 
+test('a sheet drag that loses its capture settles back open', async ({ page }) => {
+  const sheet = await openTrial(page)
+  await expect(sheet).toBeVisible()
+  const handle = sheet.locator('.phone-sheet-handle')
+  const box = (await handle.boundingBox())!
+  await page.mouse.move(box.x + 30, box.y + 8)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 30, box.y + 80, { steps: 8 })
+  await expect(sheet).toHaveAttribute('data-dragging')
+  await handle.evaluate((el) =>
+    el.dispatchEvent(new PointerEvent('lostpointercapture', { pointerId: 1, bubbles: true })),
+  )
+  await expect(sheet).not.toHaveAttribute('data-dragging')
+  await page.mouse.up()
+  await expect(sheet).toBeVisible()
+  await expect
+    .poll(() => sheet.evaluate((el) => new DOMMatrix(getComputedStyle(el).transform).m42))
+    .toBe(0)
+})
+
 test('a sheet taller than the screen scrolls inside and stays whole', async ({ page }) => {
   const sheet = await openTrial(page)
   await page.setViewportSize({ width: 390, height: 240 })
