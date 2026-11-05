@@ -2,13 +2,18 @@
 //! The native bridge): the two products, a purchase, Restore Purchases, the current entitlements,
 //! StoreKit's transaction updates and finishing a transaction. On iOS it is StoreKit 2 through the
 //! Swift package `src-tauri/apple/DevotStore` (`storekit`); everywhere else it is `FakeAppStore`.
-//! Nothing here decides what unlocks the app: that is the entitlement rules' job.
+//! Nothing here decides what unlocks the app: that is the entitlement rules' job
+//! (`licence::purchases`), and `licence::app_store` is the one caller.
 //! A transaction's JWS never reaches a log, an error or a debug print: logs carry codes only.
 #![cfg_attr(
-    not(test),
-    allow(dead_code, reason = "the entitlements (#609) are its first user")
+    not(any(test, target_os = "ios")),
+    allow(
+        dead_code,
+        reason = "off iOS the store is the fake, which only tests script"
+    )
 )]
 
+#[cfg(any(test, not(target_os = "ios")))]
 pub(crate) mod fake;
 mod payload;
 #[cfg(target_os = "ios")]
@@ -18,6 +23,7 @@ mod tests;
 
 use std::fmt;
 use std::future::Future;
+use std::time::Duration;
 
 use serde::Deserialize;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -171,8 +177,10 @@ impl StoreError {
     /// The bridge's reply was not what the call expects.
     pub(crate) const PAYLOAD: StoreError = StoreError("E_APP_STORE_PAYLOAD");
     pub(crate) const UNAVAILABLE: StoreError = StoreError("E_APP_STORE_UNAVAILABLE");
-    /// The bridge dropped the call without replying.
+    /// The bridge dropped the call, or did not reply within its time limit (`within`).
     pub(crate) const NO_REPLY: StoreError = StoreError("E_APP_STORE_NO_REPLY");
+    /// StoreKit could not verify a purchase: it unlocks nothing.
+    pub(crate) const UNVERIFIED: StoreError = StoreError("E_APP_STORE_UNVERIFIED");
     /// The transaction listener was started already; it runs once per launch.
     pub(crate) const LISTENING: StoreError = StoreError("E_APP_STORE_LISTENING");
     pub(crate) const UNKNOWN: StoreError = StoreError("E_APP_STORE_UNKNOWN");
@@ -193,6 +201,27 @@ impl fmt::Display for StoreError {
     }
 }
 
+/// A bridge call with a time limit. The bridge has none of its own, so a StoreKit call that never
+/// answers (a hung `AppStore.sync()` or products fetch) would hold its caller for ever. Every call
+/// but `purchase`, whose sheet the user is looking at, goes through this.
+pub(crate) async fn within<T>(
+    limit: Duration,
+    call: impl Future<Output = Result<T, StoreError>>,
+) -> Result<T, StoreError> {
+    tokio::time::timeout(limit, call)
+        .await
+        .unwrap_or(Err(StoreError::NO_REPLY))
+}
+
+/// StoreKit as the entitlement rules use it. Two rules hold for every caller:
+///
+/// - **The listener starts once, at launch, before any purchase.** StoreKit replays unfinished
+///   transactions only to a listener attached at launch: one started later misses Ask to Buy
+///   approvals and purchases completed on another device while the app was closed. So `updates`
+///   is called before anything can call `purchase`, and before the first `current_entitlements`.
+/// - **Missing from the current entitlements at launch means revoked.** `current_entitlements`
+///   leaves out refunded and revoked transactions, and a refund made while the app was closed may
+///   never arrive as an update: whatever was held before and is missing now is gone.
 pub(crate) trait AppStore: Send + Sync {
     /// The products the storefront sells, with their display price; a product App Store Connect
     /// does not offer is missing from the list.
@@ -216,11 +245,11 @@ pub(crate) trait AppStore: Send + Sync {
 }
 
 #[cfg(target_os = "ios")]
-pub(crate) fn platform() -> storekit::StoreKit {
-    storekit::StoreKit::default()
-}
+pub(crate) type Platform = storekit::StoreKit;
 
 #[cfg(not(target_os = "ios"))]
-pub(crate) fn platform() -> fake::FakeAppStore {
-    fake::FakeAppStore::default()
+pub(crate) type Platform = fake::FakeAppStore;
+
+pub(crate) fn platform() -> Platform {
+    Platform::default()
 }

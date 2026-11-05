@@ -92,6 +92,8 @@ export const en = {
   'phone.settings.licence.trial': 'Trial',
   'phone.settings.licence.trialDays': 'Trial, {days} days left',
   'phone.settings.licence.attention': 'Needs attention',
+  'phone.settings.licence.checking': 'Checking',
+  'phone.settings.licence.available': 'Trial not started',
   'phone.settings.group.general': 'General',
   'phone.settings.group.sync': 'Sync & storage',
   'phone.settings.group.ai': 'AI & integrations',
@@ -103,6 +105,29 @@ export const en = {
   'phone.settings.trial': 'Trial',
   'phone.settings.trialEnds':
     'Your trial ends on {date}. After that every note stays readable and exportable; editing needs a license. A license is bought once and covers your Mac and this iPhone.',
+  'phone.settings.trialEndsStore':
+    'Your trial ends on {date}. After that every note stays readable and exportable; editing needs Devot Pro.',
+  'phone.settings.restore': 'Restore Purchases',
+  'phone.settings.restoring': 'Restoring',
+  'phone.settings.restored': 'Restored',
+  'phone.settings.nothingRestored': 'Nothing to restore',
+  'phone.purchase.title': 'Devot Pro',
+  'phone.purchase.welcome': 'Try Devot free for {days} days',
+  'phone.purchase.ended': 'Your trial has ended',
+  'phone.purchase.unknown': 'Get Devot Pro',
+  'phone.purchase.body':
+    'Everything works during the trial. When it ends, notes stay readable, searchable and exportable; editing, sync and AI need Devot Pro, bought once.',
+  'phone.purchase.endedBody':
+    'Notes stay readable, searchable and exportable. Editing, sync and AI need Devot Pro, bought once.',
+  'phone.purchase.startTrial': 'Start {days}-day Trial',
+  'phone.purchase.buy': 'Buy Devot Pro',
+  'phone.purchase.restore': 'Restore Purchases',
+  'phone.purchase.enterKey': 'Enter License Key',
+  'phone.purchase.notNow': 'Not Now',
+  'phone.purchase.pending': 'Waiting for approval. Devot unlocks once the purchase is approved.',
+  'phone.purchase.nothingRestored': 'This Apple Account has no Devot purchases to restore.',
+  'phone.purchase.failed': 'The purchase did not go through. {problem}',
+  'phone.purchase.restoreFailed': 'Purchases could not be restored. {problem}',
   'phone.hint.done': 'Done',
   'phone.appearance.transparency': 'Glass Transparency',
   'phone.appearance.solid': 'Solid',
@@ -1172,6 +1197,9 @@ title: Daily Report {{date}}
   'licenceSettings.state.invalid':
     'The license on this device could not be verified ({code}). Add the key from your purchase email again.',
   'licenceSettings.state.unreadable': 'The license could not be read. {problem}',
+  'licenceSettings.state.purchased': 'Devot Pro, bought on the App Store.',
+  'licenceSettings.state.storeReading': 'Checking your App Store purchases.',
+  'licenceSettings.state.storeUnread': 'Your App Store purchases could not be checked: {problem}',
   'licenceSettings.trial': 'Trial',
   'licenceSettings.trial.running':
     'Everything works, sync and AI included, until the trial ends on {date} ({left} left).',
@@ -1179,6 +1207,7 @@ title: Daily Report {{date}}
     'The trial has ended, so notes are read-only and sync and AI are locked until you add a license.',
   'licenceSettings.trial.unreadable':
     'The trial could not be read from the keychain ({code}), so notes are read-only until you add a license.',
+  'licenceSettings.trial.available': 'Not started. Start it free from Buy Devot Pro.',
   'licenceSettings.licensee': 'Licensed To',
   'licenceSettings.id': 'License ID',
   'licenceSettings.devices': 'Devices',
@@ -1213,6 +1242,7 @@ title: Daily Report {{date}}
   'licenceSettings.removeDetail':
     'Once the trial is over, notes on this device are read-only and sync and AI stop until you add a license again. You can add the same key again at any time.',
   'licenceSettings.buy': 'Buy a License',
+  'licenceSettings.buyPro': 'Buy Devot Pro',
   'licenceSettings.added': 'The license was added.',
   'licenceSettings.removed': 'The license was removed.',
   'licenceSettings.addFailed': 'The key could not be added. {problem}',
@@ -1227,12 +1257,23 @@ title: Daily Report {{date}}
   'licence.reason.keychainDenied':
     'macOS did not let Devot read its keychain items. When macOS asks again, enter your login password and click Always Allow.',
   'licence.reason.other': 'Something went wrong.',
+  'licence.reason.keysOff':
+    'This version of Devot unlocks through the App Store, not with a license key.',
+  'licence.reason.storeNoReply': 'The App Store did not reply.',
+  'licence.reason.storeUnavailable': 'The App Store cannot be used on this device.',
+  'licence.reason.storeUnverified': 'The App Store could not verify the purchase.',
   'licence.locked.sync': 'Sync needs a Devot license. Add one in Settings > License.',
   'licence.locked.ai': 'AI needs a Devot license. Add one in Settings > License.',
   'licence.locked.syncTrialEnded':
     'Your trial has ended, and sync needs a Devot license. Add one in Settings > License.',
   'licence.locked.aiTrialEnded':
     'Your trial has ended, and AI needs a Devot license. Add one in Settings > License.',
+  'licence.locked.syncPro': 'Sync needs Devot Pro. Get it in Settings > License.',
+  'licence.locked.aiPro': 'AI needs Devot Pro. Get it in Settings > License.',
+  'licence.locked.syncProTrialEnded':
+    'Your trial has ended, and sync needs Devot Pro. Get it in Settings > License.',
+  'licence.locked.aiProTrialEnded':
+    'Your trial has ended, and AI needs Devot Pro. Get it in Settings > License.',
   'trial.ended':
     'Your Devot trial has ended, so notes are read-only: you can read, search, copy and export them. Add a license to edit them again.',
   'trial.reminder.today':

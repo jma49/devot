@@ -7,6 +7,7 @@ import {
   openDevices,
   openLicenceSettings,
   retryLicence,
+  soldOnAppStore,
   useLicence,
   useTrialOver,
 } from './licence'
@@ -33,10 +34,11 @@ function remember(endsAt: number) {
 }
 
 function TrialButtons() {
+  const store = soldOnAppStore(useLicence())
   return (
     <>
       <button type="button" className="button" onClick={openBuy}>
-        {t('licenceSettings.buy')}
+        {t(store ? 'licenceSettings.buyPro' : 'licenceSettings.buy')}
       </button>
       <button type="button" className="button" onClick={openLicenceSettings}>
         {t('licenceSettings.add')}

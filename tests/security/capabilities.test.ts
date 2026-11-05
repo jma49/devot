@@ -548,6 +548,9 @@ describe('Tauri command permissions', () => {
   })
 })
 
+/** StoreKit's purchases (docs/adr/0014): only an App Store build on an iPhone sells anything. */
+const PHONE_ONLY = ['allow-store-products', 'allow-store-purchase', 'allow-store-restore']
+
 describe('the iPhone capability', () => {
   const phone = allCapabilities().filter(iosOnly)
   const settings = allCapabilities().find((c) => c.identifier === 'settings')!
@@ -558,9 +561,10 @@ describe('the iPhone capability', () => {
     ])
   })
 
-  it('grants only what the Settings window already has', () => {
-    const allowed = new Set(permissionIds(settings))
+  it('grants only what the Settings window already has, and the App Store purchases', () => {
+    const allowed = new Set([...permissionIds(settings), ...PHONE_ONLY])
     expect(permissionIds(phone[0]!).filter((p) => !allowed.has(p))).toEqual([])
+    expect(permissionIds(settings).filter((p) => PHONE_ONLY.includes(p))).toEqual([])
   })
 
   it('leaves out what touches the Mac, plugins or the local HTTP API', () => {

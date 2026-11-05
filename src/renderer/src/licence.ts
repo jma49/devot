@@ -9,9 +9,11 @@ import {
   TRIAL_STATES,
   type Entitlements,
   type LicenceState,
+  type TrialSource,
   type TrialState,
 } from '../../core/entitlements'
 import { invoke } from './ipc'
+import { openPurchase } from './purchaseSheet'
 
 export const LICENCE_CHANGED = 'devot:licence-changed'
 /** What Rust and the core refuse sync and AI with when the licence does not include them. */
@@ -29,7 +31,27 @@ export interface TrialSnapshot {
   /** Milliseconds since the epoch; null when the trial could not be read. */
   endsAt: number | null
   code: string | null
+  source: TrialSource
 }
+
+/**
+ * An App Store build's purchases, as Rust checked them (docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md);
+ * every other build has none, and its windows link nowhere but the App Store's own sheets.
+ */
+export interface AppStoreSnapshot {
+  /** Devot Pro bought by this Apple account. */
+  pro: boolean
+  /** Why the purchases are not known yet: nothing unlocks until they are. */
+  code: string | null
+  /** Whether Enter License Key takes a key in this build. */
+  takesKeys: boolean
+}
+
+/** The trial's length, as Rust runs it (src-tauri/src/licence/trial.rs, `LENGTH_MS`). */
+export const TRIAL_DAYS = 30
+
+/** The code while an App Store build has not read its purchases yet. */
+export const APP_STORE_UNREAD = 'E_APP_STORE_UNREAD'
 
 export type ActivationState = 'active' | 'required' | 'expired'
 
@@ -52,6 +74,7 @@ export interface LicenceSnapshot {
   /** Null while the build gates nothing. */
   trial: TrialSnapshot | null
   activation: ActivationSnapshot | null
+  appStore: AppStoreSnapshot | null
 }
 
 /** Until Rust answers, nothing shows as locked: Rust refuses on its own when it must. */
@@ -64,6 +87,7 @@ export const LICENCE_UNKNOWN: LicenceSnapshot = {
   plan: null,
   trial: null,
   activation: null,
+  appStore: null,
 }
 
 const CODE = /^[EWI]_[A-Z0-9_]+$/
@@ -95,6 +119,9 @@ function readActivation(value: unknown): ActivationSnapshot | null {
   }
 }
 
+const readCode = (value: unknown): string | null =>
+  typeof value === 'string' && CODE.test(value) ? value : null
+
 function readTrial(value: unknown): TrialSnapshot | null {
   if (typeof value !== 'object' || value === null) return null
   const v = value as Record<string, unknown>
@@ -103,9 +130,23 @@ function readTrial(value: unknown): TrialSnapshot | null {
   return {
     state: v['state'],
     endsAt: typeof endsAt === 'number' && Number.isSafeInteger(endsAt) ? endsAt : null,
-    code: typeof v['code'] === 'string' && CODE.test(v['code']) ? v['code'] : null,
+    code: readCode(v['code']),
+    source: v['source'] === 'purchase' ? 'purchase' : 'keychain',
   }
 }
+
+function readAppStore(value: unknown): AppStoreSnapshot | null {
+  if (typeof value !== 'object' || value === null) return null
+  const v = value as Record<string, unknown>
+  return {
+    pro: v['pro'] === true,
+    code: readCode(v['code']),
+    takesKeys: v['takesKeys'] === true,
+  }
+}
+
+/** Whether this build sells Devot on the App Store, so nothing in it links to a purchase elsewhere. */
+export const soldOnAppStore = (licence: LicenceSnapshot): boolean => licence.appStore !== null
 
 /** Whether the trial runs at `now`: Rust says so, and its end has not come yet in this window. */
 export function trialRunning(licence: LicenceSnapshot, now: number): boolean {
@@ -115,7 +156,12 @@ export function trialRunning(licence: LicenceSnapshot, now: number): boolean {
 
 /** Whether the end of the trial is why editing, sync and AI are locked. */
 export function trialOver(licence: LicenceSnapshot, now: number): boolean {
-  return licence.gated && licence.state !== 'valid' && !trialRunning(licence, now)
+  return (
+    licence.gated &&
+    licence.state !== 'valid' &&
+    licence.appStore?.pro !== true &&
+    !trialRunning(licence, now)
+  )
 }
 
 export function readLicence(value: unknown): LicenceSnapshot | undefined {
@@ -125,15 +171,16 @@ export function readLicence(value: unknown): LicenceSnapshot | undefined {
   return {
     gated: v['gated'],
     state: v['state'],
-    code: typeof v['code'] === 'string' && CODE.test(v['code']) ? v['code'] : null,
+    code: readCode(v['code']),
     id: isLicenceId(v['id']) ? v['id'] : null,
     licensee: typeof v['licensee'] === 'string' && v['licensee'] !== '' ? v['licensee'] : null,
     plan: v['plan'] === 'pro' ? 'pro' : null,
     // A build that gates is never without a trial: one Rust did not describe counts as ended.
     trial: v['gated']
-      ? (readTrial(v['trial']) ?? { state: 'ended', endsAt: null, code: null })
+      ? (readTrial(v['trial']) ?? { state: 'ended', endsAt: null, code: null, source: 'keychain' })
       : null,
     activation: readActivation(v['activation']),
+    appStore: readAppStore(v['appStore']),
   }
 }
 
@@ -220,7 +267,9 @@ export const licenceEntitlements: Entitlements = createEntitlements({
       state: snapshot.state,
       plan: snapshot.plan,
       trial: trialRunning(snapshot, Date.now()) ? 'running' : 'ended',
+      trialSource: snapshot.trial?.source ?? null,
       activation: snapshot.activation?.state ?? null,
+      purchase: snapshot.appStore?.pro ? 'pro' : null,
     }),
   },
 })
@@ -263,12 +312,62 @@ export async function refreshLicence(): Promise<LicenceSnapshot> {
 
 /** The page where a buyer frees a seat on a device they no longer have. */
 export const DEVICES_URL = `${LICENCE_SITE}/devices`
-export const openDevices = () => open(DEVICES_URL)
+/** The same page for an App Store build: it manages seats and sells nothing. */
+export const APP_DEVICES_URL = `${DEVICES_URL}?from=app`
+export const openDevices = () => open(soldOnAppStore(snapshot) ? APP_DEVICES_URL : DEVICES_URL)
 
 /** Retry Activation, from the notice: a failure changes nothing and the seat sentence says why. */
 export const retryLicence = () =>
   void refreshLicence().catch(() => console.warn('W_LICENCE_REFRESH_FAILED'))
-export const openBuy = () => open(BUY_URL)
+/** Buy: the App Store's purchase sheet in an App Store build, the licence site elsewhere. */
+export const openBuy = () => (soldOnAppStore(snapshot) ? openPurchase() : open(BUY_URL))
+
+export type StoreProduct = 'pro' | 'trial'
+
+/** A product as StoreKit names and prices it for this storefront. */
+export interface StoreProductView {
+  product: StoreProduct
+  displayName: string
+  displayPrice: string
+}
+
+export type Bought = 'purchased' | 'pending' | 'cancelled'
+
+function readProducts(value: unknown): StoreProductView[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item: unknown) => {
+    if (typeof item !== 'object' || item === null) return []
+    const v = item as Record<string, unknown>
+    const product = v['product']
+    if ((product !== 'pro' && product !== 'trial') || typeof v['displayPrice'] !== 'string')
+      return []
+    return [
+      {
+        product,
+        displayName: typeof v['displayName'] === 'string' ? v['displayName'] : '',
+        displayPrice: v['displayPrice'],
+      },
+    ]
+  })
+}
+
+/** The products with StoreKit's prices; rejects with Rust's code (E_APP_STORE_NO_REPLY, ...). */
+export async function storeProducts(): Promise<StoreProductView[]> {
+  return readProducts(await invoke<unknown>('store_products'))
+}
+
+/** Opens StoreKit's own sheet; the licence follows from the transaction, by `licence-changed`. */
+export async function purchase(product: StoreProduct): Promise<Bought> {
+  const bought = await invoke<unknown>('store_purchase', { product })
+  return bought === 'purchased' || bought === 'pending' ? bought : 'cancelled'
+}
+
+/** Restore Purchases: the App Store's sync, then the purchases read again. */
+export async function restorePurchases(): Promise<LicenceSnapshot> {
+  const next = readLicence(await invoke<unknown>('store_restore'))
+  publish(next)
+  return next ?? snapshot
+}
 
 /** Add Licence: Settings, at the Licence pane. */
 export const openLicenceSettings = () =>

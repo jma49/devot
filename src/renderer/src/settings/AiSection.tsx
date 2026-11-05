@@ -9,6 +9,7 @@ import { errorCode } from '../backups'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { licenceEntitlements, startLicence, useLicence, useTrialOver } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
+import { lockedSentence } from '../licenceView'
 import { loadAiSettings, removeAiKey, saveAiKey, saveAiSettings } from './aiProviders'
 import { SUGGEST_AFTER_CHARS, SUGGEST_BEFORE_CHARS } from '../../../core/aiSuggest'
 import { PhoneGroup, PhoneSegmented } from '../phone/PhoneControls'
@@ -46,8 +47,7 @@ export function AiSection() {
   // The provider whose key change was refused, so the error sits beside that key field.
   const [keyError, setKeyError] = useState<{ provider: AiProviderId; code: string }>()
   const [announcement, setAnnouncement] = useState('')
-  // Re-renders when the licence changes, which licenceEntitlements reads.
-  useLicence()
+  const licence = useLicence()
   const trialEnded = useTrialOver()
 
   useEffect(() => startLicence(), [])
@@ -292,7 +292,7 @@ export function AiSection() {
           <PhoneGroup>
             <Setting
               label="licenceSettings.title"
-              description={t(trialEnded ? 'licence.locked.aiTrialEnded' : 'licence.locked.ai')}
+              description={lockedSentence('ai', licence, trialEnded)}
             >
               <div className="settings-buttons">
                 <LicenceButton />
@@ -345,7 +345,7 @@ export function AiSection() {
         <SettingsSection title="licenceSettings.title">
           <Setting
             label="licenceSettings.title"
-            description={t(trialEnded ? 'licence.locked.aiTrialEnded' : 'licence.locked.ai')}
+            description={lockedSentence('ai', licence, trialEnded)}
           >
             <div className="settings-buttons">
               <LicenceButton />

@@ -4,6 +4,7 @@ import { countOf, untilTime, uploadCounts } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { licenceEntitlements, startLicence, useLicence, useTrialOver } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
+import { lockedSentence } from '../licenceView'
 import {
   changeSync,
   createSyncVault,
@@ -126,8 +127,7 @@ export function SyncSection() {
 
   useEffect(() => startSyncStatus(), [])
   useEffect(() => startLicence(), [])
-  // Re-renders when the licence changes, which licenceEntitlements reads.
-  useLicence()
+  const licence = useLicence()
   const trialEnded = useTrialOver()
   const locked = !licenceEntitlements.has('sync')
 
@@ -272,7 +272,7 @@ export function SyncSection() {
       {locked ? (
         <Setting
           label="licenceSettings.title"
-          description={t(trialEnded ? 'licence.locked.syncTrialEnded' : 'licence.locked.sync')}
+          description={lockedSentence('sync', licence, trialEnded)}
         >
           <div className="settings-buttons">
             <LicenceButton />

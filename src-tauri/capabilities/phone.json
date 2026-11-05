@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "phone",
-  "description": "Permissions for the iPhone's one window, whose Settings tab shows the Settings panes in place: the editor settings, fonts, the keyboard shortcuts, the local usage events, the AI providers (the key only goes in), Sync (pairing, joining, devices and status, the recovery key until it is saved), the licence and its Buy page, and copying to the clipboard. iOS only: the Mac keeps these in its Settings window. Add a command here only when a phone settings pane needs it.",
+  "description": "Permissions for the iPhone's one window, whose Settings tab shows the Settings panes in place: the editor settings, fonts, the keyboard shortcuts, the local usage events, the AI providers (the key only goes in), Sync (pairing, joining, devices and status, the recovery key until it is saved), the licence and its Buy page, the App Store's products, a purchase and Restore Purchases (which answer only in an App Store build), and copying to the clipboard. iOS only: the Mac keeps these in its Settings window. Add a command here only when a phone settings pane needs it.",
   "platforms": ["iOS"],
   "windows": ["main"],
   "permissions": [
@@ -42,6 +42,9 @@
     "allow-licence-set",
     "allow-licence-remove",
     "allow-licence-refresh",
+    "allow-store-products",
+    "allow-store-purchase",
+    "allow-store-restore",
     "allow-open-external",
     "allow-clipboard-write-text",
     "allow-clipboard-write-secret"

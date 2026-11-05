@@ -2762,6 +2762,57 @@ button.phone-grouped-open:active:not(:disabled) {
   font-weight: 600;
 }
 
+/* The purchase sheet: one filled action, then glass, then text actions, each at least a target tall. */
+.phone-purchase-dove {
+  width: 18px;
+  height: 16px;
+}
+
+.phone-purchase-message {
+  color: var(--color-phone-text);
+}
+
+.phone-purchase-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.phone-purchase-actions > .phone-detail-done,
+.phone-purchase-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.phone-purchase-primary {
+  min-height: var(--size-phone-sheet-done);
+  border-radius: calc(var(--size-phone-sheet-done) / 2);
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+  font-size: calc(17px * var(--phone-text-scale, 1));
+  font-weight: 600;
+}
+
+.phone-purchase-price {
+  font-weight: 400;
+}
+
+.phone-purchase-link {
+  min-height: var(--size-phone-target);
+  color: var(--color-accent-text);
+  font-size: calc(17px * var(--phone-text-scale, 1));
+}
+
+:is(.phone-purchase-primary, .phone-detail-done, .phone-purchase-link)[aria-disabled='true'] {
+  opacity: var(--opacity-disabled);
+}
+
+.phone-settings-action .phone-grouped-label {
+  color: var(--color-accent-text);
+}
+
 /* A short control sits on its label's row at its natural width. A control that cannot fit wraps under its text, on the right. */
 .phone-settings-pane .setting-control {
   min-width: 0;

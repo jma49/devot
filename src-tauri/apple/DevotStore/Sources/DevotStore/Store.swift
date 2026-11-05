@@ -79,6 +79,11 @@ enum Store {
             await transaction.finish()
             return Reply(status: "finished")
         }
+        return await finishUnfinished(transactionID)
+    }
+
+    /// Finish's search of `Transaction.unfinished`, for a transaction this bridge never handed over.
+    static func finishUnfinished(_ transactionID: UInt64) async -> Reply {
         for await result in Transaction.unfinished {
             if case .verified(let transaction, _) = Checked(result), transaction.id == transactionID {
                 await transaction.finish()

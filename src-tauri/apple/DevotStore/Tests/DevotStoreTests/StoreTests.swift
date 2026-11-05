@@ -151,6 +151,21 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(again.status, "notFound")
     }
 
+    // A purchase the bridge never handed to Rust, as after a relaunch between recording it and
+    // finishing it: finish finds it among the unfinished transactions instead. The search runs on
+    // its own, so a listener started by another test cannot hand the purchase over first.
+    func testFinishFindsATransactionFromBeforeARelaunch() async throws {
+        let id = try await session.buyProduct(identifier: Store.pro).id
+        var answer = ""
+        for _ in 0..<300 where answer != "finished" {
+            answer = await Store.finishUnfinished(id).status
+            if answer != "finished" { try await Task.sleep(nanoseconds: 100_000_000) }
+        }
+        XCTAssertEqual(answer, "finished")
+        let again = await Store.finishUnfinished(id)
+        XCTAssertEqual(again.status, "notFound")
+    }
+
     func testOnlyTheTwoProductsCanBeBought() async {
         let reply = await Store.purchase("io.github.jma49.devot.other")
         XCTAssertEqual(reply, .error("E_APP_STORE_UNKNOWN_PRODUCT"))
@@ -170,6 +185,51 @@ final class StoreTests: XCTestCase {
         let bought = try await recorded(43)
         XCTAssertEqual(bought["status"] as? String, "purchased")
         XCTAssertEqual(replies.count(43), 1)
+    }
+
+    // The process's one listener: no other test starts it through the C function.
+    func testTheCListenerStartsOnceAndTheOtherCFunctionsReply() async throws {
+        XCTAssertTrue(devotStoreListen(recordUpdate))
+        XCTAssertFalse(devotStoreListen(recordUpdate))
+        session.askToBuyEnabled = true
+        let pending = await Store.purchase(Store.pro)
+        XCTAssertEqual(pending.status, "pending")
+        try session.approveAskToBuyTransaction(identifier: storeTransaction(Store.pro).identifier)
+        let update = try await recordedUpdate { ($0["transaction"] as? [String: Any])?["productId"] as? String == Store.pro }
+        XCTAssertEqual(update["status"] as? String, "transaction")
+        let fields = try XCTUnwrap(update["transaction"] as? [String: Any])
+        let id = try XCTUnwrap((fields["transactionId"] as? NSNumber)?.uint64Value)
+
+        devotStoreEntitlements(51, recordReply)
+        let held = try await recorded(51)
+        XCTAssertEqual(held["status"] as? String, "entitlements")
+        let transactions = try XCTUnwrap(held["transactions"] as? [[String: Any]])
+        XCTAssertEqual(transactions.compactMap { ($0["transactionId"] as? NSNumber)?.uint64Value }, [id])
+
+        devotStoreRestore(52, recordReply)
+        let restored = try await recorded(52)
+        XCTAssertEqual(restored["status"] as? String, "synced")
+
+        devotStoreFinish(53, id, recordReply)
+        let finished = try await recorded(53)
+        XCTAssertEqual(finished["status"] as? String, "finished")
+        devotStoreFinish(54, id, recordReply)
+        let again = try await recorded(54)
+        XCTAssertEqual(again["status"] as? String, "notFound")
+        for request: UInt64 in 51...54 { XCTAssertEqual(replies.count(request), 1) }
+    }
+
+    private func recordedUpdate(where match: ([String: Any]) -> Bool) async throws -> [String: Any] {
+        for _ in 0..<300 {
+            for json in listened.all() {
+                if let object = try JSONSerialization.jsonObject(with: json) as? [String: Any], match(object) {
+                    return object
+                }
+            }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        XCTFail("no matching update within 30 s")
+        throw CancellationError()
     }
 
     private func next(
@@ -229,6 +289,12 @@ final class Replies: @unchecked Sendable {
         return received.first { $0.0 == request }?.1
     }
 
+    func all() -> [Data] {
+        lock.lock()
+        defer { lock.unlock() }
+        return received.map(\.1)
+    }
+
     func count(_ request: UInt64) -> Int {
         lock.lock()
         defer { lock.unlock() }
@@ -237,6 +303,12 @@ final class Replies: @unchecked Sendable {
 }
 
 let replies = Replies()
+
+let listened = Replies()
+
+let recordUpdate: DevotStoreUpdate = { json, length in
+    listened.add(0, json.map { Data(bytes: $0, count: Int(length)) } ?? Data())
+}
 
 let recordReply: DevotStoreReply = { request, json, length in
     let data = json.map { Data(bytes: $0, count: Int(length)) } ?? Data()

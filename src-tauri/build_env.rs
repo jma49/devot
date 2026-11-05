@@ -44,9 +44,42 @@ pub fn missing_release_marker(profile: &str, ref_type: Option<&str>, marker: Opt
     profile == "release" && ref_type == Some("tag") && marker != Some("1")
 }
 
+/// The value of `DEVOT_DISTRIBUTION` that makes an iPhone release build an App Store build
+/// (`src/distribution.rs`).
+pub const APP_STORE: &str = "app-store";
+
+/// Why `DEVOT_DISTRIBUTION` cannot build: a value other than the App Store's, which a typo would
+/// otherwise turn into a build that shows the website's prices, or one set for a Mac.
+pub fn distribution_marker_error(marker: Option<&str>, target_os: &str) -> Option<&'static str> {
+    match marker {
+        None | Some("") => None,
+        Some(APP_STORE) if target_os == "ios" => None,
+        Some(APP_STORE) => Some("E_DISTRIBUTION_NOT_IOS"),
+        Some(_) => Some("E_DISTRIBUTION_UNKNOWN"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{missing_release_marker, sentry_dsn, watch_lines};
+    use super::{distribution_marker_error, missing_release_marker, sentry_dsn, watch_lines};
+
+    #[test]
+    fn the_distribution_marker_is_the_app_store_on_an_iphone_or_nothing() {
+        assert_eq!(distribution_marker_error(None, "macos"), None);
+        assert_eq!(distribution_marker_error(Some(""), "ios"), None);
+        assert_eq!(distribution_marker_error(Some("app-store"), "ios"), None);
+        assert_eq!(
+            distribution_marker_error(Some("app-store"), "macos"),
+            Some("E_DISTRIBUTION_NOT_IOS")
+        );
+        for typo in ["appstore", "App-Store", "app-store ", "1"] {
+            assert_eq!(
+                distribution_marker_error(Some(typo), "ios"),
+                Some("E_DISTRIBUTION_UNKNOWN"),
+                "{typo}"
+            );
+        }
+    }
 
     #[test]
     fn a_tag_built_for_release_needs_the_release_marker() {
