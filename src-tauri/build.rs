@@ -117,6 +117,7 @@ fn main() {
             "sync_icloud_look",
             "sync_icloud_join",
             "sync_icloud_upload_again",
+            "sync_icloud_storage",
             "sync_disconnect",
             "sync_status_report",
             "sync_pending",

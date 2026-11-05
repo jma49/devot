@@ -35,6 +35,16 @@ const SYNC_FILE_PUT_SQL: &str =
      WHERE excluded.note_hlc > files.note_hlc
        OR (excluded.note_hlc = files.note_hlc AND excluded.note_id > files.note_id)";
 const SYNC_FILE_DELETE_SQL: &str = "DELETE FROM files WHERE id = @id";
+/// Each record's sealed bytes on the transport, from its copy here: the note's text or the file's
+/// bytes, and `@overhead` for its fields, the sealing and the transport's own record.
+const SYNC_STORED_BYTES_SQL: &str = "SELECT COALESCE(SUM(@overhead + CASE r.kind
+       WHEN 'note' THEN COALESCE((SELECT length(CAST(n.title AS BLOB)) + length(CAST(n.body_md AS BLOB))
+         FROM notes n WHERE n.id = r.id), 0)
+       WHEN 'file' THEN COALESCE((SELECT f.size FROM files f WHERE f.id = r.id), 0)
+       ELSE 0 END), 0)
+     FROM sync_records r WHERE r.version > 0";
+/// About what a record's fields, its sealing and the transport's record add to its text.
+const RECORD_OVERHEAD: i64 = 512;
 const SYNC_NOTE_TAGS_SQL: &str =
     "SELECT note_id AS noteId, tag_id AS tagId, present, hlc FROM note_tags
      WHERE note_id = @id ORDER BY tag_id";
@@ -379,6 +389,16 @@ impl Store {
             .prepare_cached(SYNC_SET_STATE_SQL)?
             .execute(named_params! { "@key": key, "@value": value })?;
         Ok(())
+    }
+
+    /// About how many bytes the vault holds on its transport, from the records here that are on it.
+    pub fn sync_stored_bytes(&self) -> Result<u64> {
+        let mut statement = self.conn.prepare_cached(SYNC_STORED_BYTES_SQL)?;
+        let bytes: i64 = statement
+            .query_row(named_params! { "@overhead": RECORD_OVERHEAD }, |row| {
+                row.get(0)
+            })?;
+        Ok(u64::try_from(bytes).unwrap_or(0))
     }
 
     pub fn sync_reset(&mut self) -> Result<()> {
@@ -773,5 +793,50 @@ mod tests {
         assert_eq!(file.entry.unwrap().kind, "file");
         assert_eq!(file.file.unwrap().note_hlc, "");
         assert!(pending(&store, "", 10).contains(&FILE.to_string()));
+    }
+
+    #[test]
+    fn counts_only_the_records_on_the_transport_with_their_overhead() {
+        let (_dir, mut store) = store();
+        assert_eq!(store.sync_stored_bytes().unwrap(), 0);
+        store.put_note(&note(), &[]).unwrap();
+        assert_eq!(store.sync_stored_bytes().unwrap(), 0, "not pushed yet");
+        let pushed = |store: &mut Store, id: &str, kind: &str| {
+            store
+                .sync_put(&SyncEntry {
+                    id: id.into(),
+                    kind: kind.into(),
+                    version: 1,
+                    tag: String::new(),
+                    fingerprint: "f".into(),
+                    body_hlc: String::new(),
+                    body_fp: String::new(),
+                    edits: 0,
+                    synced: 1,
+                })
+                .unwrap();
+        };
+        pushed(&mut store, NOTE, "note");
+        let text = ("Plan".len() + "Hi\n".len()) as u64;
+        assert_eq!(store.sync_stored_bytes().unwrap(), text + 512);
+        store
+            .sync_file_put(&SyncFileWrite {
+                file: SyncFile {
+                    id: FILE.into(),
+                    note_id: NOTE.into(),
+                    note_hlc: String::new(),
+                    name: "shot.png".into(),
+                    mime: "image/png".into(),
+                    size: PNG.len() as i64,
+                    created_at: 7,
+                },
+                data: PNG.to_vec(),
+            })
+            .unwrap();
+        pushed(&mut store, FILE, "file");
+        assert_eq!(
+            store.sync_stored_bytes().unwrap(),
+            text + PNG.len() as u64 + 1024
+        );
     }
 }

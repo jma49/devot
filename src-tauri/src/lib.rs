@@ -176,6 +176,7 @@ pub fn run() {
             sync::commands::sync_icloud_look,
             sync::commands::sync_icloud_join,
             sync::commands::sync_icloud_upload_again,
+            sync::commands::sync_icloud_storage,
             sync::commands::sync_disconnect,
             sync::commands::sync_status_report,
             commands::sync::sync_pending,

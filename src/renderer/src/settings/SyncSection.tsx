@@ -17,11 +17,20 @@ import {
   type SyncSnapshot,
   type SyncStateName,
 } from '../sync'
+import { icloudAttention, icloudLine, useICloudStatus } from '../syncICloud'
 import { PhoneGroup } from '../phone/PhoneControls'
 import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
 import { useOnPhone } from './onPhone'
 import { DevicesRow, JoinRows, PairingRow, RecoveryKeyPanel } from './SyncDevices'
+import {
+  ICloudActions,
+  ICloudStorageRows,
+  MoveToICloudRow,
+  TransportQuestion,
+  TransportRow,
+} from './SyncICloud'
 import { UsageRows } from './SyncUsage'
+import { WHY } from './syncWhy'
 
 const SAY_AFTER_MS = 50
 
@@ -66,38 +75,15 @@ function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string):
   return parts.join(' ')
 }
 
-// Why a join, a pairing or a vault's creation failed, for the codes a person can act on.
-const WHY: Readonly<Record<string, MessageKey>> = {
-  E_SYNC_RELAY_OUTDATED: 'syncSettings.why.outdated',
-  E_SYNC_VAULT_EXISTS: 'syncSettings.why.otherVault',
-  E_SYNC_PAIRING_GONE: 'syncSettings.why.codeGone',
-  E_SYNC_PAIRING_EXPIRED: 'syncSettings.why.codeGone',
-  E_SYNC_PAIRING_CODE: 'syncSettings.why.codeMistyped',
-  E_SYNC_PAIRING_CHECKSUM: 'syncSettings.why.codeMistyped',
-  E_SYNC_PAIRING_VERSION: 'syncSettings.why.codeMistyped',
-  E_SYNC_PAIRING_AUTH: 'syncSettings.why.codeRefused',
-  E_SYNC_PAIRING_RELAY: 'syncSettings.why.otherRelay',
-  E_SYNC_RECOVERY_FORMAT: 'syncSettings.why.keyMistyped',
-  E_SYNC_RECOVERY_CHECKSUM: 'syncSettings.why.keyMistyped',
-  E_SYNC_RECOVERY_VERSION: 'syncSettings.why.keyMistyped',
-  E_SYNC_NO_RELAY: 'syncSettings.why.noRelay',
-  E_SYNC_NO_VAULT: 'syncSettings.why.noVault',
-  E_SYNC_RELAY_URL_INVALID: 'syncSettings.why.relayInvalid',
-  E_SYNC_RELAY_SECRET: 'syncSettings.why.relaySecret',
-  E_SYNC_RELAY_SECRET_INVALID: 'syncSettings.why.relaySecretInvalid',
-  E_SYNC_OFFLINE: 'syncSettings.why.unreachable',
-  E_SYNC_RELAY_FAILED: 'syncSettings.why.unreachable',
-  E_SYNC_KEYCHAIN: 'syncSettings.why.keychain',
-  E_SYNC_KEYCHAIN_UNAVAILABLE: 'syncSettings.why.keychain',
-  E_SYNC_TOO_MANY_DEVICES: 'syncSettings.why.tooManyDevices',
-  E_SYNC_ENROLL_DENIED: 'syncSettings.why.enrollDenied',
-}
+/** iCloud states shown in the setup rows or a note rather than the status row. */
+const OUTSIDE_STATUS = new Set(['ask', 'fallback', 'joined'])
 
 /**
- * Settings > Sync: the relay's URL, joining with a pairing code or the recovery key, or on the
- * first device only creating the vault with the relay's secret (asked once and never kept), the
- * recovery key until it is saved, showing a pairing code, the vault's devices, sync on or off and
- * its status.
+ * Settings > Sync: iCloud or a relay first (a build without the container offers only the relay).
+ * For a vault on iCloud: its state and what to do about it, storage and devices. For a relay: the
+ * relay's URL, joining with a pairing code or the recovery key, or on the first device only
+ * creating the vault with the relay's secret (asked once and never kept), the recovery key until
+ * it is saved, showing a pairing code, the vault's devices, sync on or off and its status.
  */
 export function SyncSection() {
   const ids = useId()
@@ -113,6 +99,7 @@ export function SyncSection() {
   const [recoveryKey, setRecoveryKey] = useState<string>()
   const [keyFocus, setKeyFocus] = useState(false)
   const [path, setPath] = useState<'first' | 'another'>()
+  const [relayChosen, setRelayChosen] = useState<boolean>()
   const [chosen, setChosen] = useState(0)
   const [backedOut, setBackedOut] = useState(0)
   const [focusPairing, setFocusPairing] = useState(0)
@@ -130,6 +117,16 @@ export function SyncSection() {
   useLicence()
   const trialEnded = useTrialOver()
   const locked = !licenceEntitlements.has('sync')
+
+  const icloud = useICloudStatus(snapshot)
+  const onICloud = snapshot.vault && snapshot.transport === 'icloud'
+  const inVault = snapshot.enrolled || onICloud
+  const attention = icloudAttention(snapshot)
+  const line = attention ? icloudLine(attention, snapshot, icloud, pauseOver) : undefined
+  const statusLine = attention && line && !OUTSIDE_STATUS.has(attention.kind) ? line : undefined
+  // A device partway through a relay's setup has the relay's address already.
+  const onRelayPath = relayChosen ?? snapshot.relayUrl !== ''
+  const asksTransport = icloud.available && !snapshot.vault && !onRelayPath
 
   const shownUrl = url ?? snapshot.relayUrl
   // A live region speaks only when its text changes, so it is emptied first to say the same
@@ -168,7 +165,7 @@ export function SyncSection() {
 
   // Rust keeps the key on offer until Saved, so a pane switch or a closed window does not lose it.
   useEffect(() => {
-    if (!snapshot.enrolled) return
+    if (!inVault) return
     let current = true
     pendingRecoveryKey().then(
       (key) => {
@@ -179,7 +176,7 @@ export function SyncSection() {
     return () => {
       current = false
     }
-  }, [snapshot.enrolled])
+  }, [inVault])
 
   // The choice replaces the question, so focus goes to the path's first field.
   useEffect(() => {
@@ -242,7 +239,7 @@ export function SyncSection() {
 
   const needsVault = snapshot.relayUrl !== '' && !snapshot.enrolled
   // A device that holds a vault the relay does not know reconnects to it; it never starts another.
-  const held = !snapshot.enrolled && snapshot.vault
+  const held = !snapshot.enrolled && snapshot.vault && !onICloud
   const asksSecret = needsVault && (held || path === 'first')
   const why = error ? WHY[error.code] : undefined
   const secretHint: MessageKey = !snapshot.vault
@@ -286,6 +283,7 @@ export function SyncSection() {
       {recoveryKey ? (
         <RecoveryKeyPanel
           recoveryKey={recoveryKey}
+          icloud={onICloud}
           focus={keyFocus}
           onDone={saved}
           onAnnounce={announce}
@@ -369,7 +367,41 @@ export function SyncSection() {
       </div>
     </Setting>
   )
-  const setupRows = snapshot.enrolled ? null : held ? (
+  const chooseRelay = () => setRelayChosen(true)
+  const relayButton = (
+    <button type="button" className="button" disabled={locked} onClick={chooseRelay}>
+      {t('syncSettings.transportRelayAdvanced')}
+    </button>
+  )
+  const icloudSetup =
+    attention?.kind === 'ask' && line ? (
+      <Setting label="syncSettings.setup" description={line.text}>
+        <ICloudActions actions={line.actions} locked={locked} failed={failed} />
+      </Setting>
+    ) : attention?.kind === 'fallback' && line ? (
+      <>
+        <Setting label="syncSettings.setup" description={line.text}>
+          <div className="settings-buttons">{relayButton}</div>
+        </Setting>
+        <JoinRows
+          locked={locked}
+          relayUrl={snapshot.relayUrl}
+          via="icloud"
+          onJoined={joined}
+          failed={failed}
+        />
+      </>
+    ) : (
+      <TransportQuestion
+        icloud={icloud}
+        locked={locked}
+        declined={snapshot.icloudJoin?.state === 'declined'}
+        ref={firstButton}
+        onRelay={chooseRelay}
+        failed={failed}
+      />
+    )
+  const relaySetupRows = snapshot.enrolled ? null : held ? (
     <>
       {joinRows}
       {asksSecret ? secretRow : null}
@@ -409,6 +441,26 @@ export function SyncSection() {
       </div>
     </Setting>
   )
+  const setupRows = inVault ? null : asksTransport ? (
+    icloudSetup
+  ) : icloud.available && !snapshot.vault ? (
+    <>
+      <TransportRow snapshot={snapshot} onICloud={() => setRelayChosen(false)} />
+      {relaySetupRows}
+    </>
+  ) : (
+    relaySetupRows
+  )
+  const statusDescription = statusLine?.text ?? statusText(snapshot, pauseOver, locale)
+  const statusActions = statusLine ? (
+    <ICloudActions actions={statusLine.actions} locked={locked} failed={failed} />
+  ) : null
+  const showsTransport = onICloud || (snapshot.enrolled && icloud.available)
+  const offersICloud =
+    snapshot.enrolled && !onICloud && icloud.account === 'available' && attention?.kind !== 'moved'
+  const joinedNote =
+    attention?.kind === 'joined' && line ? <SettingsNote>{line.text}</SettingsNote> : null
+  const toggleOff = !onICloud && snapshot.relayUrl === ''
   const stateNotes = (
     <>
       {snapshot.enabled && snapshot.status.relayOutdated ? (
@@ -470,16 +522,27 @@ export function SyncSection() {
               snapshot.status.lastSync,
             ),
           })
+    const pairingRow = (
+      <PairingRow
+        icloud={onICloud}
+        locked={locked}
+        focusRequest={focusPairing}
+        onDevicesChanged={devicesChanged}
+        onAnnounce={announce}
+        failed={failed}
+      />
+    )
     return (
       <section ref={root} className="settings-section" aria-labelledby="sync-title">
         {header}
         <PhoneGroup footnote={footnote}>
           {lockedRow}
+          {joinedNote}
           <SettingToggle
             label="syncSettings.enabled"
             description="phone.sync.hint"
             checked={snapshot.enabled}
-            disabled={snapshot.relayUrl === ''}
+            disabled={toggleOff}
             onChange={(on) =>
               void changeSync({ enabled: on }).then(
                 () => setError(undefined),
@@ -487,40 +550,42 @@ export function SyncSection() {
               )
             }
           />
-          {snapshot.enrolled || held ? relayRow(t('phone.sync.relayHint')) : null}
-          {shown === 'idle' || shown === 'off' ? null : (
-            <Setting
-              label="syncSettings.status"
-              description={statusText(snapshot, pauseOver, locale)}
-            >
-              {null}
+          {showsTransport ? <TransportRow snapshot={snapshot} /> : null}
+          {(snapshot.enrolled || held) && !onICloud ? relayRow(t('phone.sync.relayHint')) : null}
+          {statusLine || !(shown === 'idle' || shown === 'off') ? (
+            <Setting label="syncSettings.status" description={statusDescription}>
+              {statusActions}
             </Setting>
-          )}
+          ) : null}
           {stateNotes}
         </PhoneGroup>
-        {snapshot.enrolled ? (
+        {onICloud ? (
+          <PhoneGroup footnote={t('syncSettings.icloudStorageManaged')}>
+            <ICloudStorageRows snapshot={snapshot} />
+          </PhoneGroup>
+        ) : snapshot.enrolled ? (
           <PhoneGroup>
             <UsageRows snapshot={snapshot} />
           </PhoneGroup>
         ) : null}
-        {recoveryKey ? <PhoneGroup>{recoveryPanel}</PhoneGroup> : null}
-        {snapshot.enrolled ? null : <PhoneGroup>{setupRows}</PhoneGroup>}
-        {snapshot.enrolled ? (
+        {offersICloud ? (
           <PhoneGroup>
-            <DevicesRow refresh={devicesVersion} onAnnounce={announce} failed={failed} />
+            <MoveToICloudRow locked={locked} failed={failed} />
           </PhoneGroup>
         ) : null}
-        {snapshot.enrolled ? (
+        {recoveryKey ? <PhoneGroup>{recoveryPanel}</PhoneGroup> : null}
+        {inVault ? null : <PhoneGroup>{setupRows}</PhoneGroup>}
+        {inVault ? (
           <PhoneGroup>
-            <PairingRow
-              locked={locked}
-              focusRequest={focusPairing}
-              onDevicesChanged={devicesChanged}
+            <DevicesRow
+              icloud={onICloud}
+              refresh={devicesVersion}
               onAnnounce={announce}
               failed={failed}
             />
           </PhoneGroup>
         ) : null}
+        {inVault ? <PhoneGroup>{pairingRow}</PhoneGroup> : null}
       </section>
     )
   }
@@ -529,16 +594,20 @@ export function SyncSection() {
     <section ref={root} className="settings-section" aria-labelledby="sync-title">
       {header}
       <SettingsSection title="syncSettings.title">
-        <SettingsNote>{t('syncSettings.detail')}</SettingsNote>
+        <SettingsNote>
+          {t(onICloud ? 'syncSettings.icloudDetail' : 'syncSettings.detail')}
+        </SettingsNote>
         {lockedRow}
-        {snapshot.enrolled || held ? relayRow(t('syncSettings.relayHint')) : null}
+        {joinedNote}
+        {showsTransport ? <TransportRow snapshot={snapshot} /> : null}
+        {(snapshot.enrolled || held) && !onICloud ? relayRow(t('syncSettings.relayHint')) : null}
         {recoveryPanel}
         {setupRows}
         <SettingToggle
           label="syncSettings.enabled"
-          description="syncSettings.enabledHint"
+          description={onICloud ? 'syncSettings.enabledHintIcloud' : 'syncSettings.enabledHint'}
           checked={snapshot.enabled}
-          disabled={snapshot.relayUrl === ''}
+          disabled={toggleOff}
           onChange={(on) =>
             void changeSync({ enabled: on }).then(
               () => setError(undefined),
@@ -546,21 +615,28 @@ export function SyncSection() {
             )
           }
         />
-        <Setting label="syncSettings.status" description={statusText(snapshot, pauseOver, locale)}>
-          {null}
+        <Setting label="syncSettings.status" description={statusDescription}>
+          {statusActions}
         </Setting>
         {stateNotes}
-        <UsageRows snapshot={snapshot} />
-        {snapshot.enrolled ? (
+        {onICloud ? <ICloudStorageRows snapshot={snapshot} /> : <UsageRows snapshot={snapshot} />}
+        {offersICloud ? <MoveToICloudRow locked={locked} failed={failed} /> : null}
+        {inVault ? (
           <>
             <PairingRow
+              icloud={onICloud}
               locked={locked}
               focusRequest={focusPairing}
               onDevicesChanged={devicesChanged}
               onAnnounce={announce}
               failed={failed}
             />
-            <DevicesRow refresh={devicesVersion} onAnnounce={announce} failed={failed} />
+            <DevicesRow
+              icloud={onICloud}
+              refresh={devicesVersion}
+              onAnnounce={announce}
+              failed={failed}
+            />
           </>
         ) : null}
       </SettingsSection>

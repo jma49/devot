@@ -17,6 +17,7 @@ import {
   type ShownPairing,
   type SyncDevice,
 } from '../sync'
+import { syncThroughICloud } from '../syncICloud'
 import { Icon } from '../icons/Icon'
 import { WithFigures } from '../phone/PhoneControls'
 import { Setting } from './controls'
@@ -28,6 +29,9 @@ import { useOnPhone } from './onPhone'
 export type Failure = (message: MessageKey) => (e: unknown) => void
 
 const POLL_MS = 2_000
+// Zone `devot`'s push says when the other device answers; polling iCloud is only the fallback.
+const ICLOUD_POLL_MS = 10_000
+const PAIRING_EVENT = 'devot://sync-pairing'
 const QUIET_MODULES = 4
 
 const day = (at: number, locale: string) =>
@@ -65,6 +69,8 @@ export function QrCode({ qr }: { qr: ShownPairing['qr'] }) {
 /** The recovery key, on offer until this device says it was saved. */
 export function RecoveryKeyPanel(props: {
   recoveryKey: string
+  /** The vault syncs through iCloud, so the key alone restores it. */
+  icloud?: boolean
   focus: boolean
   onDone: () => void
   onAnnounce: (text: string) => void
@@ -81,7 +87,13 @@ export function RecoveryKeyPanel(props: {
       props.failed('syncSettings.copyFailed'),
     )
   return (
-    <Setting label="syncSettings.recovery" description={t('syncSettings.recoveryHint')} stacked>
+    <Setting
+      label="syncSettings.recovery"
+      description={t(
+        props.icloud ? 'syncSettings.recoveryHintIcloud' : 'syncSettings.recoveryHint',
+      )}
+      stacked
+    >
       <div role="group" aria-label={t('syncSettings.recovery')} className="recovery-key">
         <pre ref={key} tabIndex={-1} className="integration-config">
           <code>{props.recoveryKey}</code>
@@ -107,6 +119,8 @@ const TRANSIENT = new Set(['E_SYNC_OFFLINE', 'E_SYNC_RELAY_FAILED'])
 /** Add a Device: a pairing code with its QR code and countdown, until a device joins or it ends. */
 export function PairingRow(props: {
   locked: boolean
+  /** The code goes through iCloud: the fallback for a device the iCloud Keychain did not reach. */
+  icloud?: boolean
   /** Moves focus to Show Pairing Code each time it grows. */
   focusRequest: number
   /** A device joined, or may have enrolled without finishing. */
@@ -126,6 +140,8 @@ export function PairingRow(props: {
   const showButton = useRef<HTMLButtonElement>(null)
   const code = useRef<HTMLParagraphElement>(null)
   const { onDevicesChanged, onAnnounce, failed, focusRequest } = props
+  const icloud = props.icloud === true
+  const pollMs = icloud ? ICLOUD_POLL_MS : POLL_MS
   const onPhone = useOnPhone()
 
   useEffect(() => {
@@ -169,14 +185,14 @@ export function PairingRow(props: {
             onDevicesChanged()
           } else {
             setProgress(state.state)
-            timer = setTimeout(check, POLL_MS)
+            timer = setTimeout(check, pollMs)
           }
         },
         (e: unknown) => {
           if (stopped) return
           if (TRANSIENT.has(errorCode(e))) {
             setUnreachable(true)
-            timer = setTimeout(check, POLL_MS)
+            timer = setTimeout(check, pollMs)
             return
           }
           end()
@@ -187,14 +203,33 @@ export function PairingRow(props: {
         },
       )
     }
-    timer = setTimeout(check, POLL_MS)
+    timer = setTimeout(check, pollMs)
     const tick = setInterval(() => setNow(Date.now()), 1000)
+    let unlisten: (() => void) | undefined
+    if (icloud && !DEVOT_UI_TEST) {
+      void import('@tauri-apps/api/event')
+        .then(({ listen }) =>
+          listen(PAIRING_EVENT, () => {
+            if (stopped) return
+            clearTimeout(timer)
+            check()
+          }),
+        )
+        .then(
+          (stop) => {
+            if (stopped) stop()
+            else unlisten = stop
+          },
+          () => console.warn('W_SYNC_LISTEN_FAILED'),
+        )
+    }
     return () => {
       stopped = true
       clearTimeout(timer)
       clearInterval(tick)
+      unlisten?.()
     }
-  }, [shown, onDevicesChanged, onAnnounce, failed])
+  }, [shown, onDevicesChanged, onAnnounce, failed, icloud, pollMs])
 
   // Closing the window ends the code in Rust too (sync::on_window_event); this covers a pane switch.
   useEffect(
@@ -242,7 +277,12 @@ export function PairingRow(props: {
       : 'syncSettings.pairWaiting'
 
   return (
-    <Setting label="syncSettings.pair" description={ended ? t(ended) : t('syncSettings.pairHint')}>
+    <Setting
+      label="syncSettings.pair"
+      description={
+        ended ? t(ended) : t(icloud ? 'syncSettings.pairHintIcloud' : 'syncSettings.pairHint')
+      }
+    >
       {shown ? (
         <div
           ref={block}
@@ -301,6 +341,8 @@ export function PairingRow(props: {
 export function JoinRows(props: {
   locked: boolean
   relayUrl: string
+  /** Into the Apple ID's vault: a bare code goes through iCloud, the key restores from it. */
+  via?: 'icloud'
   onJoined: () => void
   failed: Failure
 }) {
@@ -325,6 +367,10 @@ export function JoinRows(props: {
   const join = (how: 'code' | 'recovery') => {
     const text = how === 'code' ? code : recovery
     if (text.trim() === '' || joining || props.locked) return
+    if (props.via === 'icloud')
+      return send(() =>
+        how === 'recovery' ? syncThroughICloud(text) : joinWithCode(text, 'icloud'),
+      )
     if (how === 'recovery') return send(() => joinWithRecoveryKey(text))
     const named = props.relayUrl === '' ? linkRelay(text) : undefined
     if (named && !relayAllowed(named))
@@ -381,11 +427,17 @@ export function JoinRows(props: {
 
   return (
     <>
-      {row('code', 'syncSettings.joinCode', 'syncSettings.joinCodeHint', code, setCode)}
+      {row(
+        'code',
+        'syncSettings.joinCode',
+        props.via ? 'syncSettings.joinCodeIcloudHint' : 'syncSettings.joinCodeHint',
+        code,
+        setCode,
+      )}
       {row(
         'recovery',
         'syncSettings.joinRecovery',
-        'syncSettings.joinRecoveryHint',
+        props.via ? 'syncSettings.joinRecoveryIcloudHint' : 'syncSettings.joinRecoveryHint',
         recovery,
         setRecovery,
       )}
@@ -402,8 +454,12 @@ export function JoinRows(props: {
   )
 }
 
-/** The vault's devices, this one marked; any other can be removed after a confirmation. */
+/**
+ * The vault's devices, this one marked; on a relay any other can be removed after a confirmation.
+ * On iCloud a device leaves with its Apple ID, so the list only shows the day each was last seen.
+ */
 export function DevicesRow(props: {
+  icloud?: boolean
   /** Reads the list again when it grows, without dropping a dialog or a removal in flight. */
   refresh: number
   onAnnounce: (text: string) => void
@@ -423,6 +479,8 @@ export function DevicesRow(props: {
   const removeButtons = useRef(new Map<string, HTMLButtonElement>())
   const locale = currentLocale()
   const { onAnnounce, failed, refresh } = props
+  const icloud = props.icloud === true
+  const dated: MessageKey = icloud ? 'syncSettings.deviceSeen' : 'syncSettings.deviceAdded'
   const onPhone = useOnPhone()
 
   useEffect(() => {
@@ -493,7 +551,16 @@ export function DevicesRow(props: {
     <>
       <Setting
         label="syncSettings.devices"
-        description={problem ?? t(onPhone ? 'phone.sync.devicesHint' : 'syncSettings.devicesHint')}
+        description={
+          problem ??
+          t(
+            icloud
+              ? 'syncSettings.icloudDevicesHint'
+              : onPhone
+                ? 'phone.sync.devicesHint'
+                : 'syncSettings.devicesHint',
+          )
+        }
       >
         {problem ? (
           <div className="settings-buttons">
@@ -518,7 +585,7 @@ export function DevicesRow(props: {
           aria-label={t('syncSettings.devicesList')}
         >
           {devices.map((device) => {
-            const added = format(t('syncSettings.deviceAdded'), {
+            const added = format(t(dated), {
               date: day(device.created, locale),
             })
             return (
@@ -528,7 +595,7 @@ export function DevicesRow(props: {
                   <span className="setting-description">
                     {onPhone ? (
                       <WithFigures
-                        template={t('syncSettings.deviceAdded')}
+                        template={t(dated)}
                         values={{ date: day(device.created, locale) }}
                       />
                     ) : device.current ? (
@@ -541,7 +608,7 @@ export function DevicesRow(props: {
                 {onPhone && device.current ? (
                   <span className="phone-device-badge">{t('phone.sync.you')}</span>
                 ) : null}
-                {device.current ? null : (
+                {device.current || icloud ? null : (
                   <button
                     ref={(button) => {
                       if (button) removeButtons.current.set(device.id, button)

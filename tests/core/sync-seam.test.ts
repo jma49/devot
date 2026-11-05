@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createClock, createIdGenerator, createNoteService } from '../../src/core'
 import { createSyncEngine, type SyncEngineOptions } from '../../src/core/sync/engine'
-import { encodeMoved, leaveMovedMarker, MOVED_ID } from '../../src/core/sync/moved'
+import { encodeMoved, leaveMovedMarker, MOVED_ID, readMoved } from '../../src/core/sync/moved'
 import { decodeRecord } from '../../src/core/sync/records'
 import {
   ICLOUD_FULL,
@@ -391,6 +391,14 @@ describe('the moved marker', () => {
     expect(vault.records.has(id)).toBe(true)
     expect(await a.storage.syncPendingCount()).toBe(0)
     expect(a.engine.status()).toMatchObject({ state: 'idle', code: null })
+  })
+
+  // The same bytes as moved.rs's frames_the_marker_as_the_core_reads_it: Rust leaves the marker.
+  it('reads the marker Rust leaves on the relay', () => {
+    const head = `{"id":"${MOVED_ID}","kind":"moved","to":"icloud"}`
+    const bytes = new Uint8Array([1, 0, 0, 0, head.length, ...new TextEncoder().encode(head)])
+    expect(readMoved(bytes)).toBe('icloud')
+    expect(encodeMoved('icloud')).toEqual(bytes)
   })
 
   it('is a body today’s decoder refuses, so older builds skip it', () => {

@@ -242,7 +242,7 @@ fn pushes_a_batch_and_answers_each_item_in_order() {
 }
 
 #[test]
-fn refuses_a_batch_too_large_or_with_a_bad_tag_before_any_upload() {
+fn refuses_a_batch_too_large_before_any_upload() {
     let kit = Arc::new(Fake::new());
     let mac = device(&kit);
     mac.service.use_icloud(None, 0).unwrap();
@@ -253,13 +253,138 @@ fn refuses_a_batch_too_large_or_with_a_bad_tag_before_any_upload() {
         mac.service.push_many(&many).err(),
         Some("E_SYNC_BATCH_TOO_LARGE")
     );
-    assert_eq!(
-        mac.service
-            .push_many(&[item(NOTE, 0, b"x", "not base64!")])
-            .err(),
-        Some("E_SYNC_TAG_INVALID")
-    );
     assert_eq!(kit.calls(Op::Save), saves);
+}
+
+#[test]
+fn a_tag_that_is_not_one_fails_its_item_alone() {
+    let kit = Arc::new(Fake::new());
+    let mac = device(&kit);
+    mac.service.use_icloud(None, 0).unwrap();
+    mac.service.connect(false).unwrap();
+    let answers = mac
+        .service
+        .push_many(&[item(NOTE, 0, b"x", "not base64!"), item(OTHER, 0, b"y", "")])
+        .unwrap();
+    assert_eq!(
+        answers[0],
+        PushDto::Failed {
+            code: error::TAG_INVALID
+        }
+    );
+    assert!(matches!(answers[1], PushDto::Pushed { version: 1, .. }));
+    assert!(
+        kit.record(&vault_zone(&held(&mac).unwrap().id().to_string()), NOTE)
+            .is_none()
+    );
+}
+
+/// The same Mac signed in to the Apple ID `kit` stands for: its settings and its own keychain.
+fn signed_in_to(kit: &Arc<Fake>, mac: &Device) -> SyncService {
+    SyncService::new(
+        SettingsStore::new(&mac._dir.path().join(FILE)),
+        Arc::clone(&mac.secrets),
+        Arc::new(|_, _| ()),
+        Gate::open(),
+    )
+    .with_icloud(Arc::clone(kit) as _)
+    .with_handover(Arc::new(Secrets::default()))
+}
+
+fn epoch(connected: Connected) -> String {
+    match connected {
+        Connected::ICloud(welcome) => welcome.epoch,
+        Connected::Relay(_) => panic!("connected through a relay"),
+    }
+}
+
+#[test]
+fn moves_the_vault_into_the_apple_id_now_signed_in_under_a_new_epoch() {
+    let first = Arc::new(Fake::new());
+    let mac = device(&first);
+    mac.service.use_icloud(None, 0).unwrap();
+    let before = epoch(mac.service.connect(true).unwrap());
+    mac.service.disconnect();
+    let vault = held(&mac).unwrap().id().to_string();
+
+    let second = Arc::new(Fake::new());
+    second.switch_user("_user-two");
+    let after_switch = signed_in_to(&second, &mac);
+    assert_eq!(
+        after_switch.connect(true).err(),
+        Some(error::ACCOUNT_CHANGED)
+    );
+    assert!(
+        !second.zone_exists(&vault_zone(&vault)),
+        "nothing goes there unasked"
+    );
+
+    after_switch.icloud_upload_again().unwrap();
+    let after = epoch(after_switch.connect(true).unwrap());
+    assert_ne!(after, before, "a new epoch, so everything is uploaded");
+    assert!(second.zone_exists(&vault_zone(&vault)));
+    assert_eq!(
+        super::cloudkit::current::read(second.as_ref()).unwrap(),
+        Some(vault)
+    );
+}
+
+#[test]
+fn never_moves_the_vault_into_an_apple_id_that_syncs_another() {
+    let first = Arc::new(Fake::new());
+    let mac = device(&first);
+    mac.service.use_icloud(None, 0).unwrap();
+    mac.service.connect(true).unwrap();
+    mac.service.disconnect();
+
+    let second = Arc::new(Fake::new());
+    second.switch_user("_user-two");
+    device(&second).service.use_icloud(None, 0).unwrap();
+    let after_switch = signed_in_to(&second, &mac);
+    assert_eq!(
+        after_switch.icloud_upload_again().err(),
+        Some("E_SYNC_ICLOUD_OTHER_VAULT")
+    );
+    assert_eq!(
+        after_switch.connect(true).err(),
+        Some(error::ACCOUNT_CHANGED),
+        "it still uploads nothing"
+    );
+}
+
+#[test]
+fn lists_the_vault_s_devices_on_icloud_by_their_rows() {
+    let kit = Arc::new(Fake::new());
+    let mac = device(&kit);
+    mac.service.use_icloud(None, 0).unwrap();
+    mac.service.connect(false).unwrap();
+    let shown = mac.service.pairing_open().unwrap();
+    let phone = device(&kit);
+    phone
+        .service
+        .join_with_code_via(&shown.link, false)
+        .unwrap();
+    phone.service.connect(false).unwrap();
+
+    let listed = mac.service.devices().unwrap();
+    assert_eq!(listed.len(), 2, "{listed:?}");
+    assert!(listed.iter().all(|d| d.label == "Devot for macOS"));
+    assert_eq!(listed.iter().filter(|d| d.current).count(), 1);
+    let today = kit.record(
+        ZONE_DEVOT,
+        &format!("device-{}-{}", held(&mac).unwrap().id(), listed[0].id),
+    );
+    assert!(today.is_some());
+    assert!(
+        listed
+            .iter()
+            .all(|d| d.created > 0 && d.created % 86_400_000 == 0)
+    );
+    let theirs = phone.service.devices().unwrap();
+    assert_ne!(
+        listed.iter().find(|d| d.current).unwrap().id,
+        theirs.iter().find(|d| d.current).unwrap().id
+    );
 }
 
 #[test]
@@ -965,4 +1090,111 @@ fn a_recovery_key_claims_current_for_a_vault_whose_zone_came_before_it() {
     assert!(snapshot.enabled && snapshot.vault);
     assert!(held(&phone).unwrap().same(&vault));
     assert_eq!(current_vault(&kit), Some(id));
+}
+
+mod moving_from_a_relay {
+    use super::super::moved::{self, MOVED_ID};
+    use super::super::relay_tests::{NodeRelay, SECRET, service_on};
+    use super::super::service::StatusView;
+    use super::*;
+
+    struct OnRelay {
+        service: SyncService,
+        secrets: Arc<Secrets>,
+        _dir: tempfile::TempDir,
+    }
+
+    fn on_relay(relay: &NodeRelay, kit: &Arc<Fake>) -> OnRelay {
+        let dir = tempfile::tempdir().unwrap();
+        let secrets: Arc<Secrets> = Arc::default();
+        let service = service_on(relay, dir.path(), Arc::clone(&secrets))
+            .with_icloud(Arc::clone(kit) as _)
+            .with_handover(Arc::new(Secrets::default()));
+        OnRelay {
+            service,
+            secrets,
+            _dir: dir,
+        }
+    }
+
+    /// The first device's vault on the relay, and a second device joined to it there.
+    fn two_on_relay(relay: &NodeRelay, kit: &Arc<Fake>) -> (OnRelay, OnRelay) {
+        let mac = on_relay(relay, kit);
+        let key = mac
+            .service
+            .create_vault(SECRET)
+            .unwrap()
+            .recovery_key
+            .unwrap();
+        let phone = on_relay(relay, kit);
+        phone.service.join_with_recovery(&key).unwrap();
+        (mac, phone)
+    }
+
+    fn marker_on_relay(device: &OnRelay) -> Option<String> {
+        device.service.connect(false).unwrap();
+        let page = device.service.pull("").unwrap();
+        device.service.disconnect();
+        page.records
+            .into_iter()
+            .find(|r| r.id == MOVED_ID)
+            .and_then(|r| r.data)
+    }
+
+    #[test]
+    fn a_relay_vault_moved_to_icloud_leaves_the_marker_on_the_relay_first() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let (mac, phone) = two_on_relay(&relay, &kit);
+        let moved_to = mac.service.use_icloud(None, 3).unwrap();
+        assert_eq!(moved_to.transport, "icloud");
+        assert_eq!(marker_on_relay(&phone), Some(b64(&moved::body("icloud"))));
+        assert_eq!(
+            super::super::cloudkit::current::read(kit.as_ref()).unwrap(),
+            Some(
+                Vault::load(mac.secrets.as_ref())
+                    .unwrap()
+                    .unwrap()
+                    .id()
+                    .to_string()
+            )
+        );
+        // Moving again (a retry after a lost answer) writes over the marker.
+        mac.service.use_icloud(None, 3).unwrap();
+    }
+
+    #[test]
+    fn a_relay_vault_stays_on_the_relay_when_the_marker_cannot_be_left() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let (mac, _phone) = two_on_relay(&relay, &kit);
+        drop(relay);
+        assert!(mac.service.use_icloud(None, 3).is_err());
+        assert_eq!(mac.service.snapshot().transport, "relay");
+    }
+
+    #[test]
+    fn a_device_that_follows_the_marker_moves_without_the_relay() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let (mac, phone) = two_on_relay(&relay, &kit);
+        mac.service.use_icloud(None, 3).unwrap();
+        drop(relay);
+        phone
+            .service
+            .report(StatusView {
+                state: "stopped".into(),
+                code: Some("E_SYNC_VAULT_MOVED".into()),
+                ..StatusView::default()
+            })
+            .unwrap();
+        let followed = phone.service.use_icloud(None, 3).unwrap();
+        assert_eq!(followed.transport, "icloud");
+        assert!(
+            Vault::load(phone.secrets.as_ref())
+                .unwrap()
+                .unwrap()
+                .same(&Vault::load(mac.secrets.as_ref()).unwrap().unwrap())
+        );
+    }
 }

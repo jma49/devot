@@ -62,6 +62,29 @@ export interface SyncSnapshot {
     /** Records this run could not read or apply: a newer Devot may. */
     skipped: number
   }
+  /** What the last look for the Apple ID's vault found, while the app runs. */
+  icloudJoin: ICloudJoin | null
+}
+
+export const ICLOUD_JOIN_STATES = [
+  'unavailable',
+  'none',
+  'joined',
+  'ask',
+  'declined',
+  'fallback',
+] as const
+export const ICLOUD_FALLBACK_REASONS = ['missing', 'otherVault', 'unreadable'] as const
+
+/**
+ * Rust's ICloudJoinView: `ask` with the library's `notes`, `fallback` (a pairing code or the
+ * recovery key) with its `reason`, `unavailable` with its `code`.
+ */
+export interface ICloudJoin {
+  state: (typeof ICLOUD_JOIN_STATES)[number]
+  notes: number | null
+  reason: (typeof ICLOUD_FALLBACK_REASONS)[number] | null
+  code: string | null
 }
 
 /** The relay's share for attachments is used up, or the relay cannot hold attachments at all. */
@@ -85,6 +108,7 @@ export const SYNC_OFF: SyncSnapshot = {
     unsyncedFiles: null,
     skipped: 0,
   },
+  icloudJoin: null,
 }
 
 const CODE = /^[EWI]_[A-Z0-9_]+$/
@@ -122,6 +146,19 @@ function readUnsyncedFiles(value: unknown): SyncSnapshot['status']['unsyncedFile
   return count !== null && count > 0 && code ? { count, code } : null
 }
 
+function readICloudJoin(value: unknown): ICloudJoin | null {
+  if (typeof value !== 'object' || value === null) return null
+  const v = value as Record<string, unknown>
+  const state = ICLOUD_JOIN_STATES.find((name) => name === v['state'])
+  if (!state) return null
+  return {
+    state,
+    notes: readCount(v['notes']),
+    reason: ICLOUD_FALLBACK_REASONS.find((reason) => reason === v['reason']) ?? null,
+    code: typeof v['code'] === 'string' && CODE.test(v['code']) ? v['code'] : null,
+  }
+}
+
 export function readSnapshot(value: unknown): SyncSnapshot | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const v = value as Record<string, unknown>
@@ -149,6 +186,7 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
       unsyncedFiles: readUnsyncedFiles(s['unsyncedFiles']),
       skipped,
     },
+    icloudJoin: readICloudJoin(v['icloudJoin']),
   }
 }
 
@@ -158,6 +196,13 @@ const publish = (next: SyncSnapshot | undefined) => {
   if (!next) return
   snapshot = next
   for (const listener of listeners) listener()
+}
+
+/** Reads and shows a snapshot a command answered with. */
+export function adoptSnapshot(value: unknown): SyncSnapshot | undefined {
+  const next = readSnapshot(value)
+  publish(next)
+  return next
 }
 
 let started = false
@@ -356,9 +401,12 @@ export function relayAllowed(relay: string): boolean {
   }
 }
 
-/** Joins the vault a pairing code (or the link its QR code holds) hands over. */
-export async function joinWithCode(code: string) {
-  const next = readSnapshot(await invoke<unknown>('sync_join_code', { code }))
+/**
+ * Joins the vault a pairing code (or the link its QR code holds) hands over; a bare code goes
+ * `via` iCloud when the device joins the Apple ID's vault.
+ */
+export async function joinWithCode(code: string, via?: 'icloud') {
+  const next = readSnapshot(await invoke<unknown>('sync_join_code', via ? { code, via } : { code }))
   publish(next)
   return next
 }

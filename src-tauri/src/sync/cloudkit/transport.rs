@@ -24,6 +24,7 @@ use super::kit::{
 };
 use super::staging::Staging;
 use crate::sync::Vault;
+use crate::sync::client::DeviceInfo;
 
 /// Records per page of the change feed. Each may carry up to 16 assets of 1.9 MB, all held until
 /// the page is handed on.
@@ -578,6 +579,57 @@ fn account_hash(user_record_name: &str) -> String {
     hash(ACCOUNT_LABEL, user_record_name)
 }
 
+/// The hash of the Apple ID signed in now, as `ICloudState::account` keeps it.
+pub(crate) fn account_of(kit: &dyn CloudKit) -> Result<String, &'static str> {
+    Ok(account_hash(&kit.user_record_name().map_err(failure)?))
+}
+
+/// Pages of zone `devot` read for its device rows at most: it holds only the vault's own records.
+const DEVICE_PAGES: usize = 20;
+const DEVICE_PAGE: usize = 200;
+
+/// The vault's `DevotDevice` rows, oldest day seen first, with `created` the day each was last
+/// seen; `own` is this device's ID. A row whose name does not open is left out.
+pub(crate) fn devices(
+    kit: &dyn CloudKit,
+    vault: &Vault,
+    own: &str,
+) -> Result<Vec<DeviceInfo>, &'static str> {
+    let prefix = format!("device-{}-", vault.id());
+    let mut found = Vec::new();
+    let mut token: Option<Vec<u8>> = None;
+    for _ in 0..DEVICE_PAGES {
+        let page = match kit.changes(ZONE_DEVOT, token.as_deref(), DEVICE_PAGE) {
+            Ok(page) => page,
+            Err(e) if classify(&e) == Failure::ZoneGone => break,
+            Err(e) => return Err(failure(e)),
+        };
+        for record in &page.records {
+            if record.kind != TYPE_DEVICE || !record.name.starts_with(&prefix) {
+                continue;
+            }
+            let (Some(device), Some(sealed)) = (record.text("device"), record.bytes("name")) else {
+                continue;
+            };
+            match open_device_name(vault, device, sealed) {
+                Ok(label) => found.push(DeviceInfo {
+                    id: device.to_string(),
+                    label,
+                    created: record.int("day").unwrap_or(0).saturating_mul(DAY_MS),
+                    current: device == own,
+                }),
+                Err(code) => log::warn!("W_SYNC_ICLOUD_DEVICE_NAME {code} device={device}"),
+            }
+        }
+        if !page.more {
+            break;
+        }
+        token = Some(page.token);
+    }
+    found.sort_by(|a, b| (a.created, &a.id).cmp(&(b.created, &b.id)));
+    Ok(found)
+}
+
 fn name_hash(name: &str) -> String {
     hash(NAME_LABEL, name)
 }
@@ -595,10 +647,6 @@ pub(crate) fn seal_device_name(
         .ok_or(error::FAILED)
 }
 
-#[allow(
-    dead_code,
-    reason = "Settings lists the devices on iCloud with it (#606)"
-)]
 pub(crate) fn open_device_name(
     vault: &Vault,
     device: &str,
