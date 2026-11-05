@@ -4,8 +4,27 @@ use std::process::Command;
 use tauri::webview::{NewWindowFeatures, NewWindowResponse};
 use tauri::{Runtime, Url};
 
+use crate::distribution::Distribution;
+
 fn validate(url: &str) -> Result<Url, &'static str> {
-    crate::net::https_url(url)
+    sold_where(crate::net::https_url(url)?, Distribution::this())
+}
+
+/// An App Store build opens none of Devot's own sites but the devices page made for the app: the
+/// others sell the licence and show its price (docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md,
+/// What the iPhone shows).
+fn sold_where(url: Url, distribution: Distribution) -> Result<Url, &'static str> {
+    let devots = url
+        .host_str()
+        .is_some_and(|host| host == "devot.online" || host.ends_with(".devot.online"));
+    let app_page = url.host_str() == Some("licence.devot.online")
+        && url.path() == "/devices"
+        && url.query() == Some("from=app")
+        && url.fragment().is_none();
+    if distribution == Distribution::AppStore && devots && !app_page {
+        return Err("E_URL_OUTSIDE_PURCHASE");
+    }
+    Ok(url)
 }
 
 /// Reaps the child on its own thread: an unwaited child stays a zombie (`open` listed as defunct) until the app quits.
@@ -35,7 +54,15 @@ fn open_in_browser(url: &Url) -> Result<(), &'static str> {
             .map(drop)
             .map_err(|_| "E_OPEN_FAILED")
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "ios")]
+    {
+        if crate::native::ios::open_url(url.as_str()) {
+            Ok(())
+        } else {
+            Err("E_OPEN_FAILED")
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "ios")))]
     {
         let _ = url;
         Err("E_OPEN_UNSUPPORTED")
@@ -68,6 +95,36 @@ mod tests {
     fn accepts_plain_https_urls() {
         for url in ["https://example.com", "https://example.com/a?b=c#d"] {
             assert!(validate(url).is_ok(), "{url}");
+        }
+    }
+
+    #[test]
+    fn an_app_store_build_opens_only_the_devices_page_made_for_the_app() {
+        let sold = |url: &str, distribution| {
+            sold_where(crate::net::https_url(url).unwrap(), distribution).map(|_| ())
+        };
+        let refused = [
+            "https://licence.devot.online/buy",
+            "https://licence.devot.online/devices",
+            "https://licence.devot.online/devices?from=app&next=/buy",
+            "https://licence.devot.online/devices?from=app#buy",
+            "https://devot.online/",
+            "https://www.devot.online/pricing",
+        ];
+        for url in refused {
+            assert_eq!(
+                sold(url, Distribution::AppStore),
+                Err("E_URL_OUTSIDE_PURCHASE"),
+                "{url}"
+            );
+            assert_eq!(sold(url, Distribution::Direct), Ok(()), "{url}");
+        }
+        for url in [
+            "https://licence.devot.online/devices?from=app",
+            "https://github.com/jma49/devot",
+            "https://devot.online.example.com/",
+        ] {
+            assert_eq!(sold(url, Distribution::AppStore), Ok(()), "{url}");
         }
     }
 

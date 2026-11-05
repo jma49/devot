@@ -61,6 +61,31 @@ pub fn haptic(kind: HapticKind) {
     });
 }
 
+/// Hands an https URL to Safari (`external::open_external` has checked it). Main thread only;
+/// `false` when it was not handed over.
+#[cfg(target_os = "ios")]
+pub fn open_url(url: &str) -> bool {
+    use objc2::MainThreadMarker;
+    use objc2::runtime::AnyObject;
+    use objc2_foundation::{NSDictionary, NSURL};
+    use objc2_ui_kit::UIApplication;
+    let Some(mtm) = MainThreadMarker::new() else {
+        return false;
+    };
+    guarded("W_NATIVE_OPEN_URL_FAILED", || {
+        let url = NSURL::URLWithString(&NSString::from_str(url))?;
+        let options = NSDictionary::<NSString, AnyObject>::new();
+        // SAFETY: the options are the empty dictionary of option keys to objects the method takes,
+        // and no completion handler is given.
+        unsafe {
+            UIApplication::sharedApplication(mtm)
+                .openURL_options_completionHandler(&url, &options, None);
+        }
+        Some(())
+    })
+    .is_some()
+}
+
 /// Gives every window of every connected scene the interface style (`native::interface_style`), so
 /// UIKit's chrome and the web view's `prefers-color-scheme` follow it. Main thread only.
 #[cfg(target_os = "ios")]

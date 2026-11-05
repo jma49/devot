@@ -30,14 +30,15 @@ const held = (over: Partial<LicenceSnapshot> = {}): LicenceSnapshot => ({
   id: ID,
   licensee: 'buyer@example.com',
   plan: 'pro',
-  trial: { state: 'ended', endsAt: END, code: null },
+  trial: { state: 'ended', endsAt: END, code: null, source: 'keychain' },
   activation: null,
+  appStore: null,
   ...over,
 })
 const none: LicenceSnapshot = {
   ...LICENCE_UNKNOWN,
   gated: true,
-  trial: { state: 'ended', endsAt: END, code: null },
+  trial: { state: 'ended', endsAt: END, code: null, source: 'keychain' },
 }
 const offer = { id: ID, licensee: 'buyer@example.com', state: 'valid' } as const
 
@@ -147,18 +148,23 @@ describe('a devot://license link', () => {
 describe('the trial', () => {
   const running = (endsAt: number | null = END): LicenceSnapshot => ({
     ...none,
-    trial: { state: 'running', endsAt, code: null },
+    trial: { state: 'running', endsAt, code: null, source: 'keychain' },
   })
 
   it('is read from what Rust sends, and counts as ended when a gating build says nothing of it', () => {
     expect(readLicence(running())).toEqual(running())
     const { trial: _, ...withoutTrial } = running()
-    expect(readLicence(withoutTrial)?.trial).toEqual({ state: 'ended', endsAt: null, code: null })
+    expect(readLicence(withoutTrial)?.trial).toEqual({
+      state: 'ended',
+      endsAt: null,
+      code: null,
+      source: 'keychain',
+    })
     expect(readLicence({ ...running(), trial: { state: 'forever' } })?.trial?.state).toBe('ended')
     expect(readLicence({ ...LICENCE_UNKNOWN, trial: { state: 'running' } })?.trial).toBeNull()
     expect(
       readLicence({ ...none, trial: { state: 'ended', endsAt: 'soon', code: 'a title' } })?.trial,
-    ).toEqual({ state: 'ended', endsAt: null, code: null })
+    ).toEqual({ state: 'ended', endsAt: null, code: null, source: 'keychain' })
   })
 
   it('runs until its end, as this window sees the time', () => {
@@ -185,7 +191,10 @@ describe('the trial', () => {
     expect(trialSentence(none, END, 'en')).toMatch(/^The trial has ended, so notes are read-only/)
     expect(
       trialSentence(
-        { ...none, trial: { state: 'ended', endsAt: null, code: 'E_LICENCE_KEYCHAIN' } },
+        {
+          ...none,
+          trial: { state: 'ended', endsAt: null, code: 'E_LICENCE_KEYCHAIN', source: 'keychain' },
+        },
         END,
         'en',
       ),
@@ -209,5 +218,42 @@ describe('the trial', () => {
       /^Your Devot trial ends tomorrow at 2:00\sPM\. After that, notes are read-only/,
     )
     expect(reminderText(END, END - 2 * HOUR, 'en')).toMatch(/ends today at 2:00\sPM/)
+  })
+})
+
+describe('an App Store build', () => {
+  const store = (
+    appStore: Partial<NonNullable<LicenceSnapshot['appStore']>> = {},
+    trial: Partial<NonNullable<LicenceSnapshot['trial']>> = {},
+  ): LicenceSnapshot => ({
+    ...none,
+    trial: { state: 'available', endsAt: null, code: null, source: 'purchase', ...trial },
+    appStore: { pro: false, code: null, takesKeys: true, ...appStore },
+  })
+
+  it('says Devot Pro was bought, and nothing of the trial then', () => {
+    expect(stateSentence(store({ pro: true }))).toBe('Devot Pro, bought on the App Store.')
+    expect(trialSentence(store({ pro: true }), END, 'en')).toBeNull()
+  })
+
+  it('says it is still reading the purchases, or why it could not', () => {
+    expect(stateSentence(store({ code: 'E_APP_STORE_UNREAD' }))).toBe(
+      'Checking your App Store purchases.',
+    )
+    expect(stateSentence(store({ code: 'E_APP_STORE_NO_REPLY' }))).toBe(
+      'Your App Store purchases could not be checked: The App Store did not reply. (E_APP_STORE_NO_REPLY)',
+    )
+    expect(trialSentence(store({ code: 'E_APP_STORE_UNREAD' }), END, 'en')).toBeNull()
+  })
+
+  it('says a trial not started yet can be started', () => {
+    expect(trialSentence(store(), END, 'en')).toBe('Not started. Start it free from Buy Devot Pro.')
+    expect(stateSentence(store())).toBe('No license is added.')
+  })
+
+  it('explains a key refused because the build takes none', () => {
+    expect(licenceProblem('E_LICENCE_KEYS_OFF')).toBe(
+      'This version of Devot unlocks through the App Store, not with a license key. (E_LICENCE_KEYS_OFF)',
+    )
   })
 })

@@ -31,9 +31,20 @@ fn release_marker() {
     }
 }
 
+/// Read by `distribution::Distribution::this`; a value it would not read stops the build here.
+fn distribution_marker() {
+    println!("cargo:rerun-if-env-changed=DEVOT_DISTRIBUTION");
+    let marker = std::env::var("DEVOT_DISTRIBUTION").ok();
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    if let Some(code) = build_env::distribution_marker_error(marker.as_deref(), &target_os) {
+        panic!("{code}: DEVOT_DISTRIBUTION is unset, or app-store for an iPhone build");
+    }
+}
+
 fn main() {
     sentry_dsn();
     release_marker();
+    distribution_marker();
     // Declaring the app's commands makes each one need an explicit
     // permission in a capability file, so no window gets a command by default.
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
@@ -95,6 +106,9 @@ fn main() {
             "licence_set",
             "licence_remove",
             "licence_refresh",
+            "store_products",
+            "store_purchase",
+            "store_restore",
             "sync_get",
             "sync_set",
             "sync_vault_create",

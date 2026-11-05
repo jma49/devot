@@ -3,7 +3,7 @@
 import type { LicenceState } from '../../core/entitlements'
 import { fullDate } from './format'
 import { format, t, type MessageKey } from './i18n'
-import { trialRunning, type LicenceSnapshot } from './licence'
+import { APP_STORE_UNREAD, trialRunning, type LicenceSnapshot } from './licence'
 
 const REASONS: Readonly<Record<string, MessageKey>> = {
   E_LICENCE_MALFORMED: 'licence.reason.malformed',
@@ -19,6 +19,10 @@ const REASONS: Readonly<Record<string, MessageKey>> = {
   E_LICENCE_ACTIVATION_REFUSED: 'licence.reason.activationFailed',
   E_LICENCE_RATE_LIMITED: 'licence.reason.rateLimited',
   E_LICENCE_ACTIVATION_UNREADABLE: 'licence.reason.activationUnreadable',
+  E_LICENCE_KEYS_OFF: 'licence.reason.keysOff',
+  E_APP_STORE_NO_REPLY: 'licence.reason.storeNoReply',
+  E_APP_STORE_UNAVAILABLE: 'licence.reason.storeUnavailable',
+  E_APP_STORE_UNVERIFIED: 'licence.reason.storeUnverified',
 }
 
 export function licenceProblem(code: string): string {
@@ -33,6 +37,11 @@ const STATES: Readonly<Record<LicenceState, MessageKey>> = {
 }
 
 export function stateSentence(licence: LicenceSnapshot): string {
+  const store = licence.appStore
+  if (store?.pro) return t('licenceSettings.state.purchased')
+  if (store?.code === APP_STORE_UNREAD) return t('licenceSettings.state.storeReading')
+  if (store?.code)
+    return format(t('licenceSettings.state.storeUnread'), { problem: licenceProblem(store.code) })
   if (licence.state === 'none' && !licence.gated) return t('licenceSettings.ungated')
   if (licence.state === 'none' && licence.code)
     return format(t('licenceSettings.state.unreadable'), { problem: licenceProblem(licence.code) })
@@ -100,6 +109,8 @@ export function trialSentence(
 ): string | null {
   const trial = licence.trial
   if (!licence.gated || licence.state === 'valid' || !trial) return null
+  if (licence.appStore?.pro || licence.appStore?.code) return null
+  if (trial.state === 'available') return t('licenceSettings.trial.available')
   if (trial.code) return format(t('licenceSettings.trial.unreadable'), { code: trial.code })
   if (trialRunning(licence, now) && trial.endsAt !== null)
     return format(t('licenceSettings.trial.running'), {

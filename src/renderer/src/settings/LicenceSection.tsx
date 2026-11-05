@@ -49,6 +49,8 @@ export function LicenceSection() {
   useEffect(() => startLicence(), [])
 
   const held = licence.state !== 'none'
+  const takesKeys = licence.appStore?.takesKeys ?? true
+  const unlocked = licence.state === 'valid' || licence.appStore?.pro === true
   const add = () => {
     if (key.trim() === '' || adding) return
     setAdding(true)
@@ -126,7 +128,7 @@ export function LicenceSection() {
           <SettingsNote>{t('licenceSettings.ungated')}</SettingsNote>
         )}
         <Setting label="licenceSettings.status" description={stateSentence(licence)}>
-          {licence.state === 'valid' ? null : (
+          {unlocked ? null : (
             <div className="settings-buttons">
               <LicenceButton />
             </div>
@@ -164,49 +166,51 @@ export function LicenceSection() {
             {null}
           </Setting>
         ) : null}
-        <Setting
-          label="licenceSettings.key"
-          description={t(held ? 'licenceSettings.replaceHint' : 'licenceSettings.keyHint')}
-          htmlFor={id('key')}
-          descriptionId={id('key-hint')}
-        >
-          <input
-            id={id('key')}
-            type="text"
-            className="settings-number settings-text"
-            spellCheck={false}
-            autoComplete="off"
-            autoCapitalize="off"
-            value={key}
-            aria-describedby={id('key-hint')}
-            onChange={(e) => setKey(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') add()
-            }}
-          />
-          <div className="settings-buttons">
-            {/* aria-disabled, not disabled: a disabled button would drop the keyboard when the key clears. */}
-            <button
-              type="button"
-              className="button"
-              aria-disabled={key.trim() === '' || adding}
-              onClick={add}
-            >
-              {t(held ? 'licenceSettings.replace' : 'licenceSettings.add')}
-            </button>
-            <button
-              type="button"
-              className="button"
-              data-destructive
-              aria-disabled={!held}
-              onClick={() => {
-                if (held) setConfirming(true)
+        {takesKeys ? (
+          <Setting
+            label="licenceSettings.key"
+            description={t(held ? 'licenceSettings.replaceHint' : 'licenceSettings.keyHint')}
+            htmlFor={id('key')}
+            descriptionId={id('key-hint')}
+          >
+            <input
+              id={id('key')}
+              type="text"
+              className="settings-number settings-text"
+              spellCheck={false}
+              autoComplete="off"
+              autoCapitalize="off"
+              value={key}
+              aria-describedby={id('key-hint')}
+              onChange={(e) => setKey(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') add()
               }}
-            >
-              {t('licenceSettings.removeAsk')}
-            </button>
-          </div>
-        </Setting>
+            />
+            <div className="settings-buttons">
+              {/* aria-disabled, not disabled: a disabled button would drop the keyboard when the key clears. */}
+              <button
+                type="button"
+                className="button"
+                aria-disabled={key.trim() === '' || adding}
+                onClick={add}
+              >
+                {t(held ? 'licenceSettings.replace' : 'licenceSettings.add')}
+              </button>
+              <button
+                type="button"
+                className="button"
+                data-destructive
+                aria-disabled={!held}
+                onClick={() => {
+                  if (held) setConfirming(true)
+                }}
+              >
+                {t('licenceSettings.removeAsk')}
+              </button>
+            </div>
+          </Setting>
+        ) : null}
       </SettingsSection>
       {confirming ? (
         <ConfirmDialog
