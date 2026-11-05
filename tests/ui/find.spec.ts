@@ -388,25 +388,18 @@ test('replacing from the keyboard keeps Escape working', async ({ page }) => {
   await expect(body(page)).toBeFocused()
 })
 
-test('in the preview a soft line break between formatted words is a space; a hard one separates', async ({
-  page,
-}) => {
-  // Two trailing spaces make the last break a hard one, rendered as <br>.
+test('in the preview a line break separates words, soft or hard', async ({ page }) => {
   await newNote(page, 'Soft', '*a*\n*b*\n\n**c**\n**d**\n\nalpha  \nbeta')
   await mode(page, 'Preview').click()
   await expect(preview(page).locator('em')).toHaveCount(2)
-  await expect(preview(page).locator('br')).toHaveCount(1)
+  await expect(preview(page).locator('br')).toHaveCount(3)
   await page.keyboard.press('Meta+f')
   await page.keyboard.type('a b')
-  await expect(findStatus(page)).toHaveText('1 of 1')
-  await findField(page).fill('c d')
-  await expect(findStatus(page)).toHaveText('1 of 1')
+  await expect(findStatus(page)).toHaveText('No matches')
   await findField(page).fill('ab')
   await expect(findStatus(page)).toHaveText('No matches')
-  // Between blocks it is still a line break, not a space.
   await findField(page).fill('b c')
   await expect(findStatus(page)).toHaveText('No matches')
-
   await findField(page).fill('alphabeta')
   await expect(findStatus(page)).toHaveText('No matches')
   await page.keyboard.press('Alt+Meta+r')

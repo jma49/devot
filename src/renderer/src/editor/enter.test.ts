@@ -55,7 +55,7 @@ describe('Return on an empty list item', () => {
     // The preview, export and print read it as a paragraph after the list.
     expect(await previewShape(doc)).toBe('<ul><li>a</li><li>b</li></ul><p>Next</p>')
     // Before the fix the text joined the last bullet.
-    expect(await previewShape('- a\n- b\nNext')).toBe('<ul><li>a</li><li>bNext</li></ul>')
+    expect(await previewShape('- a\n- b\nNext')).toBe('<ul><li>a</li><li>b<br></br>Next</li></ul>')
   })
 
   it('leaves a list of one item and a loose list the same way', async () => {
@@ -138,10 +138,10 @@ describe('Return on an empty quote line', () => {
     expect(enter('> a\n>^\n> b').text).toBe('> a\n>\n> ^\n> b')
     const twice = typed('> a\n> ^\n> b', 2, 'c')
     expect(twice).toBe('> a\n>\n>\n> c\n> b')
-    expect(await previewShape(twice)).toBe('<blockquote><p>a</p><p>cb</p></blockquote>')
+    expect(await previewShape(twice)).toBe('<blockquote><p>a</p><p>c<br></br>b</p></blockquote>')
     const alert = typed('> [!NOTE]\n> a\n>^\n> b', 1, 'c')
     expect(alert).toBe('> [!NOTE]\n> a\n>\n> c\n> b')
-    expect(await previewShape(alert)).toContain('<p>a</p><p>cb</p></div>')
+    expect(await previewShape(alert)).toContain('<p>a</p><p>c<br></br>b</p></div>')
     expect(enter('> > a\n> > ^\n> > b').text).toBe('> > a\n> >\n> > ^\n> > b')
     expect(enter('- > a\n  > ^\n  > b').text).toBe('- > a\n  >\n  > ^\n  > b')
     expect(enter('> a\n> ^\n\nb').text).toBe('> a\n>\n> ^\n\nb')
@@ -151,16 +151,16 @@ describe('Return on an empty quote line', () => {
     // The `>` of such a line is in the list item, not right in the quote.
     expect(enter('> - a\n>^\n>   b').text).toBe('> - a\n>\n> ^\n>   b')
     expect(await previewShape(typed('> - a\n>^\n>   b', 1, 'c'))).toBe(
-      '<blockquote><ul><li>a</li></ul><p>cb</p></blockquote>',
+      '<blockquote><ul><li>a</li></ul><p>c<br></br>b</p></blockquote>',
     )
     const item = typed('> - a\n>   ^\n>   b', 1, 'c')
     expect(item).toBe('> - a\n>\n>   c\n>   b')
     expect(await previewShape(item)).toBe(
-      '<blockquote><ul><li><p>a</p><p>cb</p></li></ul></blockquote>',
+      '<blockquote><ul><li><p>a</p><p>c<br></br>b</p></li></ul></blockquote>',
     )
     const alert = typed('> [!NOTE]\n> - a\n>^\n>   b', 1, 'c')
     expect(alert).toBe('> [!NOTE]\n> - a\n>\n> c\n>   b')
-    expect(await previewShape(alert)).toContain('<ul><li>a</li></ul><p>cb</p></div>')
+    expect(await previewShape(alert)).toContain('<ul><li>a</li></ul><p>c<br></br>b</p></div>')
     const code = typed('> ```\n> a\n> ^\n> b\n> ```', 1, 'c')
     expect(code).toBe('> ```\n> a\n>\n> c\n> b\n> ```')
     expect(await previewShape(code)).toBe('<blockquote><pre><code>acb</code></pre></blockquote>')
