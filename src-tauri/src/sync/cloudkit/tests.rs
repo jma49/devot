@@ -100,6 +100,25 @@ fn ck(code: i64) -> CkError {
     CkError::of(code)
 }
 
+#[test]
+fn a_failed_call_is_logged_with_its_cloudkit_code_and_site_only() {
+    assert_eq!(
+        error::failed_line(12, "current"),
+        "W_SYNC_ICLOUD_FAILED code=12 at=current"
+    );
+    assert_eq!(
+        error::failed_line(0, "push-answer"),
+        "W_SYNC_ICLOUD_FAILED empty at=push-answer"
+    );
+    assert_eq!(error::code_of(&ck(12), "current"), error::FAILED);
+    assert_eq!(error::code_of(&ck(code::QUOTA_EXCEEDED), "x"), error::FULL);
+    assert_eq!(error::empty("x"), error::FAILED);
+    assert_eq!(
+        error::refused(&ck(code::SERVER_RECORD_CHANGED), 0),
+        Refused::Failed(error::FAILED)
+    );
+}
+
 // The error table of ADR 0015, one code at a time.
 
 #[test]

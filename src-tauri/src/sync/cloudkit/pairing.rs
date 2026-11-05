@@ -67,7 +67,7 @@ impl ICloudPairing {
             .map_err(|e| code(&e))?
             .into_iter()
             .next()
-            .ok_or(error::FAILED)?;
+            .ok_or_else(|| error::empty("pairing-save"))?;
         match saved {
             Ok(_) => Ok(()),
             Err(e) if classify(&e) == Failure::Changed => Err(GONE),
@@ -114,11 +114,7 @@ fn closed(record: CkRecord) -> CkRecord {
 }
 
 fn code(e: &CkError) -> &'static str {
-    let failure = classify(e);
-    if let Failure::Other(code) = failure {
-        log::warn!("W_SYNC_ICLOUD_FAILED code={code}");
-    }
-    failure.code()
+    error::code_of(&e, "pairing")
 }
 
 impl PairingChannel for ICloudPairing {

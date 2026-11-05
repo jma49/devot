@@ -286,7 +286,7 @@ impl ICloud {
             .map_err(failure)?
             .into_iter()
             .next()
-            .ok_or(error::FAILED)?;
+            .ok_or_else(|| error::empty("epoch-save"))?;
         match saved {
             Ok(_) => {
                 log::info!("I_SYNC_ICLOUD_EPOCH vault={vault}");
@@ -296,8 +296,8 @@ impl ICloud {
                 (Failure::Changed, Some(server)) => server
                     .text("epoch")
                     .map(str::to_string)
-                    .ok_or(error::FAILED),
-                (other, _) => Err(other.code()),
+                    .ok_or_else(|| error::empty("epoch-record")),
+                _ => Err(error::code_of(&e, "epoch")),
             },
         }
     }
@@ -311,9 +311,9 @@ impl ICloud {
             .map_err(failure)?
             .into_iter()
             .next()
-            .ok_or(error::FAILED)?
+            .ok_or_else(|| error::empty("clock-save"))?
             .map_err(failure)?;
-        saved.modified.ok_or(error::FAILED)
+        saved.modified.ok_or_else(|| error::empty("clock-time"))
     }
 
     /// The device row (sealed name, last day seen), saved only when the name changed or the last
@@ -521,7 +521,7 @@ impl ICloud {
                                 }
                                 other => answer_of(other),
                             },
-                            None => PushAnswer::Failed(error::FAILED),
+                            None => PushAnswer::Failed(error::empty("push-answer")),
                         };
                         if matches!(
                             &answer,
@@ -540,7 +540,7 @@ impl ICloud {
         self.staging.remove(&staged);
         results
             .into_iter()
-            .map(|r| r.unwrap_or(PushAnswer::Failed(error::FAILED)))
+            .map(|r| r.unwrap_or_else(|| PushAnswer::Failed(error::empty("push-result"))))
             .collect()
     }
 
@@ -604,11 +604,7 @@ fn tag_of(record: &CkRecord) -> String {
 }
 
 fn failure(e: CkError) -> &'static str {
-    let failure = classify(&e);
-    if let Failure::Other(code) = failure {
-        log::warn!("W_SYNC_ICLOUD_FAILED code={code}");
-    }
-    failure.code()
+    error::code_of(&e, "transport")
 }
 
 fn hash(label: &[u8], text: &str) -> String {

@@ -111,6 +111,30 @@ pub(crate) fn classify(error: &CkError) -> Failure {
     }
 }
 
+/// The code `error` rejects with; one that ends as `FAILED` is logged with its CloudKit code and
+/// the call site `at`, which the user never sees.
+pub(crate) fn code_of(error: &CkError, at: &str) -> &'static str {
+    let code = classify(error).code();
+    if code == FAILED {
+        log::warn!("{}", failed_line(error.code, at));
+    }
+    code
+}
+
+/// `FAILED` for a call CloudKit answered with nothing to use, logged with the call site `at`.
+pub(crate) fn empty(at: &str) -> &'static str {
+    log::warn!("{}", failed_line(0, at));
+    FAILED
+}
+
+pub(crate) fn failed_line(code: i64, at: &str) -> String {
+    if code == 0 {
+        format!("W_SYNC_ICLOUD_FAILED empty at={at}")
+    } else {
+        format!("W_SYNC_ICLOUD_FAILED code={code} at={at}")
+    }
+}
+
 impl Failure {
     /// The code a call that fails this way rejects with.
     pub(crate) fn code(self) -> &'static str {
@@ -152,7 +176,7 @@ pub(crate) fn refused(error: &CkError, now: i64) -> Refused {
             Some(server) => Refused::Rejected {
                 server: server.clone(),
             },
-            None => Refused::Failed(FAILED),
+            None => Refused::Failed(code_of(error, "push")),
         },
         Failure::Busy { retry_after_ms } => Refused::Paused {
             until: Some(now.saturating_add(i64::try_from(retry_after_ms).unwrap_or(i64::MAX))),
@@ -163,6 +187,6 @@ pub(crate) fn refused(error: &CkError, now: i64) -> Refused {
             code: FULL,
         },
         Failure::TooMany | Failure::Again => Refused::Again,
-        other => Refused::Failed(other.code()),
+        _ => Refused::Failed(code_of(error, "push")),
     }
 }

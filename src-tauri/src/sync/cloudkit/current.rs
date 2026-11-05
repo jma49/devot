@@ -51,15 +51,17 @@ pub(crate) fn claim(kit: &dyn CloudKit, vault: &str) -> Result<Claim, &'static s
         .map_err(code)?
         .into_iter()
         .next()
-        .ok_or(error::FAILED)?;
+        .ok_or_else(|| error::empty("current-save"))?;
     let winner = match saved {
         Ok(_) => {
             log::info!("I_SYNC_ICLOUD_CURRENT vault={vault}");
             return Ok(Claim::Won);
         }
-        Err(e) => match (classify(&e), e.server_record) {
-            (Failure::Changed, Some(server)) => vault_of(*server).ok_or(error::FAILED)?,
-            (failure, _) => return Err(failure.code()),
+        Err(e) => match (classify(&e), &e.server_record) {
+            (Failure::Changed, Some(server)) => {
+                vault_of((**server).clone()).ok_or_else(|| error::empty("current-vault"))?
+            }
+            _ => return Err(error::code_of(&e, "current")),
         },
     };
     if winner == vault {
@@ -120,11 +122,7 @@ fn vault_of(record: CkRecord) -> Option<String> {
 }
 
 fn code(e: super::kit::CkError) -> &'static str {
-    let failure = classify(&e);
-    if let Failure::Other(code) = failure {
-        log::warn!("W_SYNC_ICLOUD_FAILED code={code}");
-    }
-    failure.code()
+    error::code_of(&e, "current")
 }
 
 #[cfg(test)]
@@ -156,6 +154,13 @@ mod tests {
         kit.save(ZONE_DEVOT, &[damaged], SavePolicy::Overwrite)
             .unwrap();
         assert_eq!(read(&kit), Ok(None));
+        assert_eq!(claim(&kit, A), Err(error::FAILED));
+    }
+
+    #[test]
+    fn a_save_refused_for_a_missing_record_type_still_fails_the_claim() {
+        let kit = Fake::new();
+        kit.fail_record(CURRENT, CkError::of(code::SERVER_REJECTED_REQUEST));
         assert_eq!(claim(&kit, A), Err(error::FAILED));
     }
 
