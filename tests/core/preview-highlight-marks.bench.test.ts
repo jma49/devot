@@ -36,7 +36,7 @@ describe('highlight marks in a long paragraph', () => {
   it(
     'takes time linear in the number of marks',
     (context) => {
-      const growth = fourfoldGrowth(marking('==mark== word '), 1_000, 9)
+      const growth = fourfoldGrowth(marking('==mark== word '), 1_000, 15)
       expectLinearGrowth(context, growth)
     },
     GROWTH_TIMEOUT,
@@ -45,7 +45,7 @@ describe('highlight marks in a long paragraph', () => {
   it(
     'takes time linear in marks that sit between other inline nodes',
     (context) => {
-      const growth = fourfoldGrowth(marking('==a *b*== c '), 1_000, 9)
+      const growth = fourfoldGrowth(marking('==a *b*== c '), 1_000, 15)
       expectLinearGrowth(context, growth)
     },
     GROWTH_TIMEOUT,
