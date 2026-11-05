@@ -87,13 +87,33 @@ fn matches(pattern: &str, host: &str, ip: Option<IpAddr>) -> bool {
     if let Some((network, bits)) = cidr(&pattern) {
         return ip.is_some_and(|ip| in_network(ip, network, bits));
     }
-    if let Some(suffix) = pattern.strip_prefix('*') {
-        return host.ends_with(suffix);
+    if pattern.contains('*') {
+        return glob(&pattern, host);
     }
     if pattern.starts_with('.') {
         return host.ends_with(&pattern);
     }
     host == pattern
+}
+
+/// `*` stands for any run of characters, as in the system's own bypass matching.
+fn glob(pattern: &str, host: &str) -> bool {
+    let mut parts = pattern.split('*');
+    let first = parts.next().unwrap_or_default();
+    let Some(mut rest) = host.strip_prefix(first) else {
+        return false;
+    };
+    let parts: Vec<&str> = parts.collect();
+    let Some((last, middle)) = parts.split_last() else {
+        return rest.is_empty();
+    };
+    for part in middle {
+        match rest.find(part) {
+            Some(at) => rest = &rest[at + part.len()..],
+            None => return false,
+        }
+    }
+    rest.len() >= last.len() && rest.ends_with(last)
 }
 
 /// `10.0.0.0/8`, `fe80::/10`, or an IPv4 network with its trailing zeros left out (`169.254/16`).
@@ -294,6 +314,25 @@ mod tests {
             "169.255.0.1",
             "[2001:db8::1]",
         ] {
+            assert!(https_proxy(&proxied, through).is_some(), "{through}");
+        }
+    }
+
+    #[test]
+    fn matches_a_wildcard_anywhere_in_a_bypass_entry() {
+        let proxied = enabled(&[(
+            "ExceptionsList",
+            list(&["licence.*", "*.devot.*", "a*c.test"]),
+        )]);
+        for direct in [
+            "licence.devot.online",
+            "api.devot.online",
+            "abc.test",
+            "ac.test",
+        ] {
+            assert_eq!(https_proxy(&proxied, direct), None, "{direct}");
+        }
+        for through in ["devot.online", "mylicence.example", "ab.test", "abcd.test"] {
             assert!(https_proxy(&proxied, through).is_some(), "{through}");
         }
     }
