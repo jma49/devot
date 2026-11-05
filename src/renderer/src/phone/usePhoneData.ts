@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { TakenIn } from '../../../core'
 import type {
   BookRecord,
   NoteSummary,
@@ -9,6 +10,7 @@ import type {
 import { listBackups } from '../backups'
 import { startCore, stopCore, type Core } from '../core-client'
 import { errorCode } from '../../../core/errors'
+import { useExternalChanges } from '../externalChanges'
 import { welcomeContent } from '../welcome/content'
 
 export interface PhoneData {
@@ -51,12 +53,24 @@ async function newestBackup(): Promise<number | null | undefined> {
   }
 }
 
-export type PhoneStore = PhoneData & { readonly refresh: () => void }
+export type PhoneStore = PhoneData & {
+  readonly refresh: () => void
+  /** Hears each change a note in memory took in that the phone did not make (sync's, merged in); returns the stop. */
+  readonly onTakenIn: (listener: (change: TakenIn) => void) => () => void
+}
 
 /** The phone's one core: started once, every list reloaded after each write. */
 export function usePhoneData(): PhoneStore {
   const [data, setData] = useState<PhoneData>(EMPTY)
   const coreRef = useRef<Core | null>(null)
+  const [takenIn] = useState(() => new Set<(change: TakenIn) => void>())
+  const onTakenIn = useCallback(
+    (listener: (change: TakenIn) => void) => {
+      takenIn.add(listener)
+      return () => void takenIn.delete(listener)
+    },
+    [takenIn],
+  )
 
   const load = useCallback(async (core: Core) => {
     const [listed, books, tags, savedSearches, trash, lastBackup] = await Promise.all([
@@ -93,6 +107,7 @@ export function usePhoneData(): PhoneStore {
       () => {},
       () => refresh(),
       (code) => console.warn('W_PHONE_CORE_FAILED', code),
+      { onTakenIn: (change) => takenIn.forEach((listener) => listener(change)) },
     )
       .then(async (core) => {
         started = core
@@ -111,7 +126,18 @@ export function usePhoneData(): PhoneStore {
       coreRef.current = null
       if (started) stopCore(started)
     }
-  }, [load, refresh])
+  }, [load, refresh, takenIn])
 
-  return { ...data, refresh }
+  // Sync wrote what other devices changed: the notes in memory take it in before the next save, then the lists reload.
+  const { core } = data
+  useExternalChanges(
+    core
+      ? async () => {
+          await core.mergeStored()
+          await load(core)
+        }
+      : undefined,
+  )
+
+  return { ...data, refresh, onTakenIn }
 }

@@ -522,10 +522,19 @@ const reported = (status: SyncStatus) => ({
  */
 export const runsSync = (label: string) => label === 'main'
 
+/** `runSync` in the window that runs the engine, once its core is up; never in the UI tests' build, which has no Rust storage or socket. */
+export function useSyncEngine(core: Core | null | undefined, label: string): void {
+  useEffect(
+    () => (core && runsSync(label) && !DEVOT_UI_TEST ? runSync(core) : undefined),
+    [core, label],
+  )
+}
+
 /**
- * The main window: runs the engine in the core worker while sync is on (Settings > Sync), again
- * from the start when the relay or the enrollment changes; tells it of the relay's events and of
- * writes other processes made, and reports its status to Rust. Returns the stop.
+ * The main window (the Mac's, or the iPhone app's one window): runs the engine in the core worker
+ * while sync is on (Settings > Sync), again from the start when the transport, the relay or the
+ * enrollment changes; tells it of the relay's events, of writes other processes made and of the
+ * app coming to the front, and reports its status to Rust. Returns the stop.
  */
 export function runSync(core: Core): () => void {
   let running = ''
@@ -571,6 +580,11 @@ export function runSync(core: Core): () => void {
   window.addEventListener(DB_CHANGED, touched)
   const focused = () => void core.syncFocused().catch(() => undefined)
   window.addEventListener('focus', focused)
+  // The iPhone's web view gets no focus event when the app comes back from the background.
+  const shown = () => {
+    if (document.visibilityState === 'visible') focused()
+  }
+  document.addEventListener('visibilitychange', shown)
   let unlisten: (() => void) | undefined
   void import('@tauri-apps/api/event')
     .then(async ({ listen }) => {
@@ -587,6 +601,7 @@ export function runSync(core: Core): () => void {
     unsubscribeLicence()
     window.removeEventListener(DB_CHANGED, touched)
     window.removeEventListener('focus', focused)
+    document.removeEventListener('visibilitychange', shown)
     unlisten?.()
     follow(snapshot)
   }

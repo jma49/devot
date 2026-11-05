@@ -235,7 +235,7 @@ export interface SyncEngine {
    * another device purged stays purged either way.
    */
   afterRestore(choice: 'merge' | 'keep'): Promise<void>
-  /** A window came to the front: a pause with no end (a full iCloud) is looked at again, and a vault on iCloud is fetched. */
+  /** A window came to the front: an offline device or a pause with no end (a full iCloud) connects now, and a vault on iCloud is fetched. */
   focused(): void
   /** Internal, for tests: how many records the push breaker still holds times for. */
   pushesRemembered(): number
@@ -1422,6 +1422,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     focused() {
       if (!running) return
       if (status.state === 'paused' && status.pausedUntil === null) return queueConnect(false)
+      // Someone is back at the app (an iPhone out of the background, say): no waiting out the backoff.
+      if (status.state === 'offline') return queueConnect(false)
       if (via === 'icloud') queuePass()
     },
     pushesRemembered: () => pushTimes.size,

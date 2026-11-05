@@ -228,6 +228,18 @@ export function PhoneNote(props: {
     })
   }, [store.core])
 
+  const { onTakenIn } = store
+  useEffect(
+    () =>
+      onTakenIn((change) => {
+        const shown = editor.current
+        if (change.kind === 'update' && shown?.noteId === change.noteId) {
+          shown.takeState(change.update)
+        }
+      }),
+    [onTakenIn],
+  )
+
   const openNote = (id: string) =>
     setHistory((h) => ({ ids: [...h.ids.slice(0, h.at + 1), id], at: h.at + 1 }))
   const links: LinkSources = {

@@ -637,6 +637,34 @@ describe('focus', () => {
     expect(fa.pulls - before.pulls).toBe(1)
     expect(a.engine.status().state).toBe('idle')
   })
+
+  it('connects at once, through the backoff, when a window comes to the front offline', async () => {
+    const { a, fa } = fakePair()
+    const calls = counting(fa)
+    let unreachable = true
+    const connect = fa.connect.bind(fa)
+    fa.connect = async () => {
+      if (unreachable) throw new Error('E_SYNC_OFFLINE')
+      return connect()
+    }
+    await a.engine.stop()
+    a.engine = createSyncEngine({
+      storage: a.storage,
+      sync: a.storage,
+      transport: fa,
+      clock: createClock('mac'),
+      newId: createIdGenerator(),
+    })
+    a.engine.start()
+    cleanups.push(() => a.engine.stop())
+    await vi.waitFor(() => expect(a.engine.status().state).toBe('offline'))
+    const before = calls.connects
+    unreachable = false
+    for (let i = 0; i < 3; i += 1) a.engine.focused()
+    await a.engine.idle()
+    expect(calls.connects - before).toBe(1)
+    expect(a.engine.status().state).toBe('idle')
+  })
 })
 
 describe('a vault on iCloud', () => {
