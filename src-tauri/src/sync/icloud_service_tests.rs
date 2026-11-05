@@ -1470,19 +1470,83 @@ mod moving_from_a_relay {
     struct OnRelay {
         service: SyncService,
         secrets: Arc<Secrets>,
-        _dir: tempfile::TempDir,
+        dir: tempfile::TempDir,
     }
 
     fn on_relay(relay: &NodeRelay, kit: &Arc<Fake>) -> OnRelay {
         let dir = tempfile::tempdir().unwrap();
         let secrets: Arc<Secrets> = Arc::default();
-        let service = service_on(relay, dir.path(), Arc::clone(&secrets))
-            .with_icloud(Arc::clone(kit) as _)
-            .with_handover(Arc::new(Secrets::default()));
+        let service = launch(relay, kit, &dir, &secrets);
         OnRelay {
             service,
             secrets,
-            _dir: dir,
+            dir,
+        }
+    }
+
+    fn launch(
+        relay: &NodeRelay,
+        kit: &Arc<Fake>,
+        dir: &tempfile::TempDir,
+        secrets: &Arc<Secrets>,
+    ) -> SyncService {
+        service_on(relay, dir.path(), Arc::clone(secrets))
+            .with_icloud(Arc::clone(kit) as _)
+            .with_handover(Arc::new(Secrets::default()))
+    }
+
+    /// The app quits and opens again: a new service on the same settings and keychain.
+    fn relaunch(device: OnRelay, relay: &NodeRelay, kit: &Arc<Fake>) -> OnRelay {
+        let OnRelay {
+            service,
+            secrets,
+            dir,
+        } = device;
+        drop(service);
+        let service = launch(relay, kit, &dir, &secrets);
+        OnRelay {
+            service,
+            secrets,
+            dir,
+        }
+    }
+
+    fn vault_id(device: &OnRelay) -> String {
+        Vault::load(device.secrets.as_ref())
+            .unwrap()
+            .unwrap()
+            .id()
+            .to_string()
+    }
+
+    fn moving(device: &OnRelay) -> String {
+        SettingsStore::new(&device.dir.path().join(FILE))
+            .get()
+            .moving
+    }
+
+    /// As `use_icloud` leaves `device` when the app quits between the marker and the switch:
+    /// `current` claimed, the move recorded, and the marker on the relay.
+    fn quit_after_the_marker(device: &OnRelay, kit: &Arc<Fake>) {
+        let id = vault_id(device);
+        super::super::cloudkit::current::claim(kit.as_ref(), &id).unwrap();
+        let store = SettingsStore::new(&device.dir.path().join(FILE));
+        let mut settings = store.get();
+        settings.moving = id;
+        store.set(&settings).unwrap();
+        device.service.connect(false).unwrap();
+        device
+            .service
+            .push(MOVED_ID, 0, &b64(&moved::body("icloud")), "record", "")
+            .unwrap();
+        device.service.disconnect();
+    }
+
+    fn stopped_on_the_marker() -> StatusView {
+        StatusView {
+            state: "stopped".into(),
+            code: Some("E_SYNC_VAULT_MOVED".into()),
+            ..StatusView::default()
         }
     }
 
@@ -1517,6 +1581,8 @@ mod moving_from_a_relay {
         let (mac, phone) = two_on_relay(&relay, &kit);
         let moved_to = mac.service.use_icloud(None, 3).unwrap();
         assert_eq!(moved_to.transport, "icloud");
+        assert!(!moved_to.move_started);
+        assert_eq!(moving(&mac), "");
         assert_eq!(marker_on_relay(&phone), Some(b64(&moved::body("icloud"))));
         assert_eq!(
             super::super::cloudkit::current::read(kit.as_ref()).unwrap(),
@@ -1539,43 +1605,63 @@ mod moving_from_a_relay {
         let (mac, _phone) = two_on_relay(&relay, &kit);
         drop(relay);
         assert!(mac.service.use_icloud(None, 3).is_err());
-        assert_eq!(mac.service.snapshot().transport, "relay");
+        let snapshot = mac.service.snapshot();
+        assert_eq!(snapshot.transport, "relay");
+        assert!(!snapshot.move_started);
+        assert_eq!(moving(&mac), "");
     }
 
     #[test]
-    fn a_device_that_quit_after_leaving_the_marker_follows_its_own_marker() {
+    fn a_device_that_quit_after_leaving_the_marker_finishes_the_move_at_its_next_launch() {
         let relay = NodeRelay::start();
         let kit = Arc::new(Fake::new());
         let (mac, _phone) = two_on_relay(&relay, &kit);
-        let id = Vault::load(mac.secrets.as_ref())
-            .unwrap()
-            .unwrap()
-            .id()
-            .to_string();
-        // As `use_icloud` leaves it when the app quits between the marker and the switch.
-        super::super::cloudkit::current::claim(kit.as_ref(), &id).unwrap();
-        mac.service.connect(false).unwrap();
-        mac.service
-            .push(MOVED_ID, 0, &b64(&moved::body("icloud")), "record", "")
-            .unwrap();
-        mac.service.disconnect();
-        assert_eq!(mac.service.snapshot().transport, "relay");
+        let id = vault_id(&mac);
+        quit_after_the_marker(&mac, &kit);
+        let mac = relaunch(mac, &relay, &kit);
+        let launched = mac.service.snapshot();
+        assert_eq!(launched.transport, "relay");
+        assert!(launched.move_started);
+        // Its engine pulls its own marker and stops on it, which finishes the move here.
         assert_eq!(marker_on_relay(&mac), Some(b64(&moved::body("icloud"))));
-        // Its engine pulls the marker and stops, as every device left on the relay does.
-        mac.service
-            .report(StatusView {
-                state: "stopped".into(),
-                code: Some("E_SYNC_VAULT_MOVED".into()),
-                ..StatusView::default()
-            })
-            .unwrap();
-        drop(relay);
-        let followed = mac.service.use_icloud(None, 3).unwrap();
-        assert_eq!(followed.transport, "icloud");
+        mac.service.report(stopped_on_the_marker()).unwrap();
+        let finished = mac.service.snapshot();
+        assert_eq!(finished.transport, "icloud");
+        assert!(finished.enabled && !finished.move_started);
+        assert_eq!(finished.status.state, "connecting");
+        assert_eq!(finished.status.code, None);
+        assert_eq!(moving(&mac), "");
         assert_eq!(
             super::super::cloudkit::current::read(kit.as_ref()).unwrap(),
             Some(id)
         );
+        assert!(matches!(
+            mac.service.connect(false).unwrap(),
+            Connected::ICloud(_)
+        ));
+    }
+
+    #[test]
+    fn a_started_move_that_cannot_finish_yet_stops_and_says_it_started_here() {
+        use super::super::cloudkit::kit::Account;
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let (mac, _phone) = two_on_relay(&relay, &kit);
+        quit_after_the_marker(&mac, &kit);
+        let mac = relaunch(mac, &relay, &kit);
+        kit.set_account(Account::Missing);
+        mac.service.report(stopped_on_the_marker()).unwrap();
+        let stopped = mac.service.snapshot();
+        assert_eq!(stopped.transport, "relay");
+        assert_eq!(stopped.status, stopped_on_the_marker());
+        assert!(stopped.move_started);
+        // Signed in again, the owner finishes it from Settings without leaving the marker twice.
+        kit.set_account(Account::Available);
+        drop(relay);
+        let followed = mac.service.use_icloud(None, 3).unwrap();
+        assert_eq!(followed.transport, "icloud");
+        assert!(!followed.move_started);
+        assert_eq!(moving(&mac), "");
     }
 
     #[test]
@@ -1585,14 +1671,11 @@ mod moving_from_a_relay {
         let (mac, phone) = two_on_relay(&relay, &kit);
         mac.service.use_icloud(None, 3).unwrap();
         drop(relay);
-        phone
-            .service
-            .report(StatusView {
-                state: "stopped".into(),
-                code: Some("E_SYNC_VAULT_MOVED".into()),
-                ..StatusView::default()
-            })
-            .unwrap();
+        phone.service.report(stopped_on_the_marker()).unwrap();
+        // A move another device started is followed only when the owner asks.
+        let stopped = phone.service.snapshot();
+        assert_eq!(stopped.transport, "relay");
+        assert!(!stopped.move_started);
         let followed = phone.service.use_icloud(None, 3).unwrap();
         assert_eq!(followed.transport, "icloud");
         assert!(

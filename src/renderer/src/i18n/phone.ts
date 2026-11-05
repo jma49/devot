@@ -99,6 +99,8 @@ export const enPhone: Partial<Messages> = {
   'syncSettings.vaultMoved': 'Vault moved to iCloud',
   'syncSettings.vaultMovedHint': '',
   'syncSettings.vaultMovedElsewhere': '',
+  'syncSettings.vaultMovedHere': 'Move to iCloud not finished',
+  'syncSettings.vaultMovedHereHint': '',
   'syncSettings.switchTransportHint': 'Sync through iCloud instead',
   'syncSettings.pairHintIcloud': 'If the key did not arrive by itself',
   'syncSettings.joinCodeIcloudHint': 'From a device on this Apple ID',

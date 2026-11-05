@@ -67,6 +67,7 @@ function snapshot(over: {
   enrolled?: boolean
   status?: Record<string, unknown>
   icloudJoin?: Record<string, unknown> | null
+  moveStarted?: boolean
 }) {
   const relay = over.transport === 'relay'
   return {
@@ -83,6 +84,7 @@ function snapshot(over: {
       ...over.status,
     },
     icloudJoin: over.icloudJoin ?? null,
+    moveStarted: over.moveStarted ?? false,
   }
 }
 
@@ -349,6 +351,26 @@ describe.each([
     )
     expect(el.textContent).toMatch(/moved to iCloud/)
     await act(async () => button(el, 'Follow to iCloud')?.click())
+    await settle()
+    expect(calls.find((c) => c.cmd === 'sync_icloud_use')?.args).toEqual({})
+  })
+
+  it('offers to finish a move to iCloud this device started', async () => {
+    const el = await show(
+      snapshot({
+        transport: 'relay',
+        enrolled: true,
+        moveStarted: true,
+        status: { state: 'stopped', code: 'E_SYNC_VAULT_MOVED' },
+      }),
+      ICLOUD,
+      phone,
+    )
+    expect(el.textContent).toMatch(phone ? /Move to iCloud not finished/ : /started on this device/)
+    expect(el.textContent).not.toMatch(/another of your devices/)
+    expect(button(el, 'Follow to iCloud')).toBeUndefined()
+    expect(button(el, 'Move to iCloud…')).toBeUndefined()
+    await act(async () => button(el, 'Finish Moving to iCloud')?.click())
     await settle()
     expect(calls.find((c) => c.cmd === 'sync_icloud_use')?.args).toEqual({})
   })

@@ -64,6 +64,8 @@ export interface SyncSnapshot {
   }
   /** What the last look for the Apple ID's vault found, while the app runs. */
   icloudJoin: ICloudJoin | null
+  /** This device started moving its relay vault to iCloud and has not switched yet. */
+  moveStarted: boolean
 }
 
 export const ICLOUD_JOIN_STATES = [
@@ -109,6 +111,7 @@ export const SYNC_OFF: SyncSnapshot = {
     skipped: 0,
   },
   icloudJoin: null,
+  moveStarted: false,
 }
 
 const CODE = /^[EWI]_[A-Z0-9_]+$/
@@ -187,6 +190,7 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
       skipped,
     },
     icloudJoin: readICloudJoin(v['icloudJoin']),
+    moveStarted: v['moveStarted'] === true,
   }
 }
 
