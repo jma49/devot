@@ -58,6 +58,10 @@ pub(crate) struct ICloudState {
     pub device_day: i64,
     #[serde(default)]
     pub device_name: String,
+    /// This device's ID on the relay it moved from, kept in its device row so the device that
+    /// moved the vault sees it arrive; '' for none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub relay_device: String,
 }
 
 impl ICloudState {
@@ -322,13 +326,16 @@ impl ICloud {
             log::warn!("W_SYNC_ICLOUD_DEVICE_SEAL");
             return;
         };
-        let record = CkRecord::new(
+        let mut record = CkRecord::new(
             TYPE_DEVICE,
             &format!("device-{}-{}", state.vault, state.device),
         )
         .with("device", Value::Text(state.device.clone()))
         .with("name", Value::Bytes(sealed))
         .with("day", Value::Int(day));
+        if !state.relay_device.is_empty() {
+            record = record.with("relay", Value::Text(state.relay_device.clone()));
+        }
         let saved = self
             .kit
             .save(ZONE_DEVOT, &[record], SavePolicy::Overwrite)
@@ -601,13 +608,19 @@ pub(crate) fn account_of(kit: &dyn CloudKit) -> Result<String, &'static str> {
 const DEVICE_PAGES: usize = 20;
 const DEVICE_PAGE: usize = 200;
 
+pub(crate) struct DeviceRow {
+    pub info: DeviceInfo,
+    /// The device's ID on the relay it moved from; '' for none.
+    pub relay: String,
+}
+
 /// The vault's `DevotDevice` rows, oldest day seen first, with `created` the day each was last
 /// seen; `own` is this device's ID. A row whose name does not open is left out.
 pub(crate) fn devices(
     kit: &dyn CloudKit,
     vault: &Vault,
     own: &str,
-) -> Result<Vec<DeviceInfo>, &'static str> {
+) -> Result<Vec<DeviceRow>, &'static str> {
     let prefix = format!("device-{}-", vault.id());
     let mut found = Vec::new();
     let mut token: Option<Vec<u8>> = None;
@@ -625,11 +638,15 @@ pub(crate) fn devices(
                 continue;
             };
             match open_device_name(vault, device, sealed) {
-                Ok(label) => found.push(DeviceInfo {
-                    id: device.to_string(),
-                    label,
-                    created: record.int("day").unwrap_or(0).saturating_mul(DAY_MS),
-                    current: device == own,
+                Ok(label) => found.push(DeviceRow {
+                    info: DeviceInfo {
+                        id: device.to_string(),
+                        label,
+                        created: record.int("day").unwrap_or(0).saturating_mul(DAY_MS),
+                        current: device == own,
+                        unseen: false,
+                    },
+                    relay: record.text("relay").unwrap_or_default().to_string(),
                 }),
                 Err(code) => log::warn!("W_SYNC_ICLOUD_DEVICE_NAME {code} device={device}"),
             }
@@ -639,7 +656,7 @@ pub(crate) fn devices(
         }
         token = Some(page.token);
     }
-    found.sort_by(|a, b| (a.created, &a.id).cmp(&(b.created, &b.id)));
+    found.sort_by(|a, b| (a.info.created, &a.info.id).cmp(&(b.info.created, &b.info.id)));
     Ok(found)
 }
 

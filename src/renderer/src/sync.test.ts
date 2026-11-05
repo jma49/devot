@@ -44,13 +44,15 @@ describe('readDevices', () => {
       readDevices([
         { id: 'abc_D-1', label: 'Devot for macOS', created: 5, current: true },
         { id: 'phone', label: 'Devot for iOS', created: 6 },
+        { id: 'pad', label: 'Devot for iOS', created: 7, current: false, unseen: true },
         { id: 'bad id', label: 'x', created: 1 },
         { id: 'n', label: 3, created: 1 },
         null,
       ]),
     ).toEqual([
-      { id: 'abc_D-1', label: 'Devot for macOS', created: 5, current: true },
-      { id: 'phone', label: 'Devot for iOS', created: 6, current: false },
+      { id: 'abc_D-1', label: 'Devot for macOS', created: 5, current: true, unseen: false },
+      { id: 'phone', label: 'Devot for iOS', created: 6, current: false, unseen: false },
+      { id: 'pad', label: 'Devot for iOS', created: 7, current: false, unseen: true },
     ])
     expect(readDevices({})).toEqual([])
   })

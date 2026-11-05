@@ -38,6 +38,26 @@ pub(crate) struct SyncSettings {
     /// move when its engine finds that marker.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub moving: String,
+    /// The relay's other devices when this device moved its vault to iCloud, until each is seen
+    /// there: Settings names them, so the owner knows which still have to follow.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unseen: Option<Unseen>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Unseen {
+    pub vault: String,
+    pub devices: Vec<RelayDevice>,
+}
+
+/// A device as the relay listed it: its relay device ID, its name and the time it was added.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RelayDevice {
+    pub id: String,
+    pub label: String,
+    pub created: i64,
 }
 
 impl SyncSettings {

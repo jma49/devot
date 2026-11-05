@@ -428,6 +428,8 @@ export interface SyncDevice {
   created: number
   /** This device. */
   current: boolean
+  /** On iCloud: a relay device not seen there since this device moved the vault; `created` is the day it was added to the relay. */
+  unseen: boolean
 }
 
 export function readDevices(value: unknown): SyncDevice[] {
@@ -444,6 +446,7 @@ export function readDevices(value: unknown): SyncDevice[] {
         label: label.slice(0, 256),
         created: created as number,
         current: d['current'] === true,
+        unseen: d['unseen'] === true,
       },
     ]
   })

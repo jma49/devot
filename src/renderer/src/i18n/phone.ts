@@ -96,6 +96,7 @@ export const enPhone: Partial<Messages> = {
   'syncSettings.icloudLeaveKeyHint': 'Removed from iCloud for every device',
   'syncSettings.icloudLeft': 'Vault removed from iCloud. Notes stay here.',
   'syncSettings.icloudDevicesHint': 'With the day each was last seen',
+  'syncSettings.icloudDevicesUnseenHint': 'Some still have to follow the move',
   'syncSettings.vaultMoved': 'Vault moved to iCloud',
   'syncSettings.vaultMovedHint': '',
   'syncSettings.vaultMovedElsewhere': '',

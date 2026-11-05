@@ -456,7 +456,8 @@ export function JoinRows(props: {
 
 /**
  * The vault's devices, this one marked; on a relay any other can be removed after a confirmation.
- * On iCloud a device leaves with its Apple ID, so the list only shows the day each was last seen.
+ * On iCloud a device leaves with its Apple ID, so the list only shows the day each was last seen,
+ * then the relay devices not seen there since this device moved the vault.
  */
 export function DevicesRow(props: {
   icloud?: boolean
@@ -480,7 +481,12 @@ export function DevicesRow(props: {
   const locale = currentLocale()
   const { onAnnounce, failed, refresh } = props
   const icloud = props.icloud === true
-  const dated: MessageKey = icloud ? 'syncSettings.deviceSeen' : 'syncSettings.deviceAdded'
+  const datedAs = (device: SyncDevice): MessageKey =>
+    device.unseen
+      ? 'syncSettings.deviceUnseen'
+      : icloud
+        ? 'syncSettings.deviceSeen'
+        : 'syncSettings.deviceAdded'
   const onPhone = useOnPhone()
 
   useEffect(() => {
@@ -555,7 +561,9 @@ export function DevicesRow(props: {
           problem ??
           t(
             icloud
-              ? 'syncSettings.icloudDevicesHint'
+              ? devices?.some((d) => d.unseen)
+                ? 'syncSettings.icloudDevicesUnseenHint'
+                : 'syncSettings.icloudDevicesHint'
               : onPhone
                 ? 'phone.sync.devicesHint'
                 : 'syncSettings.devicesHint',
@@ -585,6 +593,7 @@ export function DevicesRow(props: {
           aria-label={t('syncSettings.devicesList')}
         >
           {devices.map((device) => {
+            const dated = datedAs(device)
             const added = format(t(dated), {
               date: day(device.created, locale),
             })

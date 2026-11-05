@@ -17,9 +17,15 @@ vi.hoisted(() => vi.stubGlobal('DEVOT_UI_TEST', true))
 interface Answers {
   snapshot: Record<string, unknown>
   icloud: ICloudStatus | Error
+  devices: Record<string, unknown>[]
 }
 
-const answers: Answers = { snapshot: {}, icloud: new Error('E_COMMAND_FAILED') }
+const DEVICES = [
+  { id: 'mac', label: 'Studio', created: Date.UTC(2026, 10, 4), current: true },
+  { id: 'phone', label: 'Pocket', created: Date.UTC(2026, 10, 3), current: false },
+]
+
+const answers: Answers = { snapshot: {}, icloud: new Error('E_COMMAND_FAILED'), devices: DEVICES }
 const calls: { cmd: string; args: unknown }[] = []
 
 vi.mock('../ipc', () => ({
@@ -44,10 +50,7 @@ vi.mock('../ipc', () => ({
       case 'sync_recovery_key':
         return null
       case 'sync_devices':
-        return [
-          { id: 'mac', label: 'Studio', created: Date.UTC(2026, 10, 4), current: true },
-          { id: 'phone', label: 'Pocket', created: Date.UTC(2026, 10, 3), current: false },
-        ]
+        return answers.devices
       case 'sync_icloud_storage':
         return 2_500_000
       default:
@@ -97,6 +100,7 @@ afterEach(() => {
   root = undefined
   setIPhoneWording(false)
   calls.length = 0
+  answers.devices = DEVICES
 })
 
 async function show(
@@ -250,6 +254,34 @@ describe.each([
     expect(button(el, 'Show Pairing Code')).toBeDefined()
     expect(el.querySelector('input[type=url]')).toBeNull()
     expect(calls.some((c) => c.cmd === 'sync_usage')).toBe(false)
+  })
+
+  it('names the relay devices not seen on iCloud since the move, with the day each was added', async () => {
+    answers.devices = [
+      ...DEVICES,
+      {
+        id: 'pad',
+        label: 'Slate',
+        created: Date.UTC(2026, 8, 1, 12),
+        current: false,
+        unseen: true,
+      },
+    ]
+    const el = await show(snapshot({}), ICLOUD, phone)
+    const rows = [...el.querySelectorAll('.sync-device')].map((row) => row.textContent ?? '')
+    expect(rows).toHaveLength(3)
+    const pad = rows.find((row) => row.includes('Slate'))
+    expect(pad).toMatch(/Added Sep 1, 2026/)
+    expect(pad).toMatch(/Not on iCloud yet/)
+    expect(pad).not.toMatch(/Seen /)
+    expect(rows.find((row) => row.includes('Pocket'))).not.toMatch(/Not on iCloud yet/)
+    expect(el.textContent).toMatch(/follow the move/)
+    expect(buttons(el).some((b) => b.text.startsWith('Remove'))).toBe(false)
+  })
+
+  it('says nothing of the move once every device is on iCloud', async () => {
+    const el = await show(snapshot({}), ICLOUD, phone)
+    expect(el.textContent).not.toMatch(/Not on iCloud yet|follow the move/)
   })
 
   it.each([
