@@ -22,6 +22,7 @@ import { Icon } from '../icons/Icon'
 import { WithFigures } from '../phone/PhoneControls'
 import { Setting } from './controls'
 import { useOnPhone } from './onPhone'
+import { failureText, logFailure } from './syncWhy'
 
 // Settings > Sync's pairing, joining and devices (docs/adr/0008-sync-device-pairing.md). Rust holds
 // every key; the page shows a pairing code while it is on show and the recovery key until saved.
@@ -503,7 +504,7 @@ export function DevicesRow(props: {
       },
       (e: unknown) => {
         if (!current) return
-        const text = format(t('syncSettings.devicesFailed'), { code: errorCode(e) })
+        const text = failureText('syncSettings.devicesFailed', logFailure(errorCode(e)))
         setProblem(text)
         if (retryFocused.current) onAnnounce(text)
         retryFocused.current = false

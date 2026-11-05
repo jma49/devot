@@ -121,6 +121,17 @@ const BY_CODE: Readonly<Record<string, CodeKind>> = {
   [VAULT_MOVED]: 'moved',
 }
 
+/** The kind of an iCloud code the vault's own state holds: paused, stopped or offline with it. */
+function heldKind({ enabled, status }: SyncSnapshot): CodeKind | undefined {
+  const { state, code } = status
+  return enabled && code && (state === 'paused' || state === 'stopped' || state === 'offline')
+    ? BY_CODE[code]
+    : undefined
+}
+
+/** True when the status line shows words for the status code (see icloudAttention), so it needs no code beside it. */
+export const icloudWordsCode = (snapshot: SyncSnapshot) => heldKind(snapshot) !== undefined
+
 /** Before a vault: why the look for the Apple ID's vault could not run. */
 const LOOK_BLOCKED = new Set<CodeKind>(['signedOut', 'restricted', 'unavailable'])
 
@@ -134,17 +145,12 @@ const runsWell = ({ status }: SyncSnapshot) =>
 
 /** What iCloud asks of the owner now, if anything. */
 export function icloudAttention(snapshot: SyncSnapshot): ICloudAttention | undefined {
-  const { state, code, pausedUntil } = snapshot.status
-  const held = code ? BY_CODE[code] : undefined
-  if (
-    snapshot.enabled &&
-    held &&
-    (state === 'paused' || state === 'stopped' || state === 'offline')
-  )
+  const held = heldKind(snapshot)
+  if (held)
     // Rust finishes a move this device started at once; this is the one it could not finish yet.
     return held === 'moved' && snapshot.moveStarted
       ? { kind: 'movedHere' }
-      : ofCode(held, pausedUntil)
+      : ofCode(held, snapshot.status.pausedUntil)
   const join = snapshot.icloudJoin
   if (!join) return undefined
   if (join.state === 'joined' && snapshot.transport === 'icloud')

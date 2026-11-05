@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { errorCode } from '../backups'
+import { QUOTA } from '../../../core/sync/transport'
 import { countOf, untilTime, uploadCounts } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { licenceEntitlements, startLicence, useLicence, useTrialOver } from '../licence'
@@ -18,7 +19,7 @@ import {
   type SyncSnapshot,
   type SyncStateName,
 } from '../sync'
-import { icloudAttention, icloudLine, useICloudStatus } from '../syncICloud'
+import { icloudAttention, icloudLine, icloudWordsCode, useICloudStatus } from '../syncICloud'
 import { PhoneGroup } from '../phone/PhoneControls'
 import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
 import { useOnPhone } from './onPhone'
@@ -33,7 +34,7 @@ import {
   TransportRow,
 } from './SyncICloud'
 import { UsageRows } from './SyncUsage'
-import { WHY } from './syncWhy'
+import { failureText, logFailure } from './syncWhy'
 
 const SAY_AFTER_MS = 50
 
@@ -65,8 +66,32 @@ function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string):
       ? pauseText(pausedUntil, pauseOver, locale, code)
       : t(STATES[shown]),
   ]
-  if (shown === 'stopped' && code && STOP_ADVICE[code]) parts.push(t(STOP_ADVICE[code]))
+  const words = shown === 'stopped' && code ? (STOP_ADVICE[code] ?? REVOKED_WORDS[code]) : undefined
+  if (words) parts.push(t(words))
   return [...parts, ...statusDetails(snapshot, locale)].join(' ')
+}
+
+const REVOKED_WORDS: Readonly<Record<string, MessageKey>> = {
+  E_SYNC_REVOKED: 'syncSettings.stoppedRevoked',
+  E_SYNC_UNAUTHORIZED: 'syncSettings.stoppedRevoked',
+}
+const UNREACHABLE = new Set(['E_SYNC_OFFLINE', 'E_SYNC_RELAY_FAILED'])
+
+/** True when the status row shows words for the code in this state, so no code goes beside them. */
+function wordedCode(snapshot: SyncSnapshot): boolean {
+  const { state, code, pausedUntil } = snapshot.status
+  if (!code) return false
+  if (icloudWordsCode(snapshot)) return true
+  switch (state) {
+    case 'stopped':
+      return code in STOP_ADVICE || code in REVOKED_WORDS
+    case 'paused':
+      return pausedUntil !== null && (code === STORAGE_FULL || code === QUOTA)
+    case 'offline':
+      return UNREACHABLE.has(code)
+    default:
+      return false
+  }
 }
 
 function statusDetails(snapshot: SyncSnapshot, locale: string): string[] {
@@ -74,7 +99,7 @@ function statusDetails(snapshot: SyncSnapshot, locale: string): string[] {
   const parts: string[] = []
   if (upload && snapshot.enabled)
     parts.push(format(t('syncSettings.upload'), uploadCounts(upload, locale)))
-  if (code && snapshot.enabled && state !== 'idle')
+  if (code && snapshot.enabled && state !== 'idle' && !wordedCode(snapshot))
     parts.push(format(t('syncSettings.code'), { code }))
   parts.push(
     lastSync === null
@@ -152,7 +177,7 @@ export function SyncSection() {
     (message: MessageKey) => (e: unknown) => {
       say('')
       failures.current += 1
-      setError({ message, code: errorCode(e), n: failures.current })
+      setError({ message, code: logFailure(errorCode(e)), n: failures.current })
     },
     [say],
   )
@@ -252,7 +277,6 @@ export function SyncSection() {
   // A device that holds a vault the relay does not know reconnects to it; it never starts another.
   const held = !snapshot.enrolled && snapshot.vault && !onICloud
   const asksSecret = needsVault && (held || path === 'first')
-  const why = error ? WHY[error.code] : undefined
   const secretHint: MessageKey = !snapshot.vault
     ? 'syncSettings.secretHint'
     : snapshot.status.code === 'E_SYNC_REVOKED'
@@ -266,8 +290,7 @@ export function SyncSection() {
       </h2>
       {error ? (
         <p key={error.n} ref={alert} role="alert" className="settings-error">
-          {format(t(error.message), { code: error.code })}
-          {why ? ` ${t(why)}` : null}
+          {failureText(error.message, error.code)}
         </p>
       ) : null}
       <p className="visually-hidden" role="status" aria-live="polite">

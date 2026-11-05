@@ -301,7 +301,7 @@ test('says why the relay address or the vault was refused', async ({ page }) => 
   await relay.fill('http://relay.example.test')
   await relay.blur()
   await expect(panel.getByRole('alert')).toHaveText(
-    'The relay address could not be saved (E_SYNC_RELAY_URL_INVALID). A relay’s address starts with https:// (http:// only for a relay on this computer).',
+    'The relay address could not be saved. A relay’s address starts with https:// (http:// only for a relay on this computer).',
   )
   await relay.fill(RELAY)
   await relay.blur()
@@ -309,7 +309,7 @@ test('says why the relay address or the vault was refused', async ({ page }) => 
   await panel.getByLabel('Relay Secret').fill('wrong')
   await panel.getByRole('button', { name: 'Create Vault' }).click()
   await expect(panel.getByRole('alert')).toHaveText(
-    'The vault could not be created (E_SYNC_RELAY_SECRET). The relay did not accept that secret. Check RELAY_SECRET on the relay.',
+    'The vault could not be created. The relay did not accept that secret. Check RELAY_SECRET on the relay.',
   )
   await expect(panel.getByLabel('Relay Secret')).toHaveValue('wrong')
 })
@@ -332,7 +332,10 @@ for (const [code, advice] of Object.entries(REFUSALS)) {
     await panel.getByRole('button', { name: 'This Is My First Device' }).click()
     await panel.getByLabel('Relay Secret').fill('secret')
     await panel.getByRole('button', { name: 'Create Vault' }).click()
-    await expect(panel.getByRole('alert')).toContainText(`(${code}). ${advice}`)
+    await expect(panel.getByRole('alert')).toContainText(
+      `The vault could not be created. ${advice}`,
+    )
+    await expect(panel.getByRole('alert')).not.toContainText(code)
   })
 }
 
@@ -359,7 +362,9 @@ test('turns sync off and on, and shows the status Rust reports', async ({ page }
     enrolled: true,
     status: { state: 'stopped', lastSync: null, code: 'E_SYNC_REVOKED', tooLarge: 2 },
   })
-  await expect(panel).toContainText('Stopped. Code E_SYNC_REVOKED. Not synced yet.')
+  await expect(panel).toContainText(
+    'Stopped. This device was removed from sync. Your notes stay on this device. Not synced yet.',
+  )
   await expect(panel).toContainText('2 notes are too large for the relay and stay on this device.')
 })
 
@@ -464,8 +469,9 @@ test('says what to do when sync stopped for the protocol or the loop breaker', a
   await openApp(page)
   const notice = page.getByRole('alert').filter({ hasText: 'Sync has stopped' })
   await expect(notice).toHaveText(
-    /Sync has stopped \(E_SYNC_PROTOCOL\)\. Update Devot and your relay to the same release\./,
+    /^Sync has stopped\. Update Devot and your relay to the same release\./,
   )
+  await expect(notice).not.toContainText('E_SYNC_PROTOCOL')
   await sendSnapshot(page, { ...snapshot, status: { ...stopped, code: 'E_SYNC_CIRCUIT_OPEN' } })
   await expect(notice).toContainText('Turn Sync This Device off and on in Settings > Sync')
   await sendSnapshot(page, { ...snapshot, status: { ...stopped, code: 'E_SYNC_NO_VAULT_KEY' } })
@@ -481,7 +487,7 @@ test('Settings > Sync says what to do when sync stopped for the protocol', async
   })
   await openSettings(page, 'Sync')
   await expect(page.getByRole('tabpanel')).toContainText(
-    'Stopped. Update Devot and your relay to the same release. Code E_SYNC_PROTOCOL.',
+    'Stopped. Update Devot and your relay to the same release. Not synced yet.',
   )
 })
 
@@ -555,7 +561,7 @@ test('refuses a pasted link to a relay Devot cannot use, without asking first', 
   await panel.getByRole('textbox', { name: 'Join With a Code' }).fill(link)
   await panel.getByRole('button', { name: 'Join With a Code' }).click()
   await expect(panel.getByRole('alert')).toHaveText(
-    'This device could not join the vault (E_SYNC_RELAY_URL_INVALID). A relay’s address starts with https:// (http:// only for a relay on this computer).',
+    'This device could not join the vault. A relay’s address starts with https:// (http:// only for a relay on this computer).',
   )
   await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(await calls(page, 'sync_set')).toEqual([])
@@ -585,7 +591,7 @@ test('says why joining failed, and that an older relay needs an update', async (
   await panel.getByRole('textbox', { name: 'Join With a Code' }).fill(CODE)
   await panel.getByRole('button', { name: 'Join With a Code' }).click()
   await expect(panel.getByRole('alert')).toHaveText(
-    'This device could not join the vault (E_SYNC_RELAY_OUTDATED). Your relay is from before pairing: update it (docs/sync-relay.md, Update the relay). The recovery key works with it meanwhile.',
+    'This device could not join the vault. Your relay is from before pairing: update it (docs/sync-relay.md, Update the relay). The recovery key works with it meanwhile.',
   )
   await expect(panel.getByRole('textbox', { name: 'Join With a Code' })).toHaveValue(CODE)
 })
@@ -701,9 +707,7 @@ test('keeps polling while the relay is out of reach, and closes the code when th
     ;(globalThis as unknown as { devotStrangerEnrolled: boolean }).devotStrangerEnrolled = true
   })
   await fail('E_SYNC_PAIRING_AUTH')
-  await expect(panel.getByRole('alert')).toHaveText(
-    /^The pairing stopped \(E_SYNC_PAIRING_AUTH\)\./,
-  )
+  await expect(panel.getByRole('alert')).toHaveText(/^The pairing stopped\./)
   await expect(pairingCode(panel)).toHaveCount(0)
   expect(await calls(page, 'sync_pairing_cancel')).toHaveLength(1)
   await expect(items).toHaveCount(3)
@@ -769,7 +773,7 @@ test('brings a failure from a row far down the section into view', async ({ page
   await panel.getByRole('button', { name: /^Remove Devot for iOS/ }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Remove', exact: true }).click()
   await expect(panel.getByRole('alert')).toHaveText(
-    /^The device could not be removed \(E_SYNC_OFFLINE\)\. The relay could not be reached/,
+    /^The device could not be removed\. The relay could not be reached/,
   )
   await expect(panel.getByRole('alert')).toBeInViewport()
 })
@@ -893,7 +897,10 @@ test('lists the devices again with Try Again when the relay was out of reach', a
   await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true })
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
-  await expect(panel).toContainText('The devices could not be listed (E_SYNC_OFFLINE).')
+  await expect(panel).toContainText(
+    'The devices could not be listed. The relay could not be reached, or it answered with an error.',
+  )
+  await expect(panel).not.toContainText('E_SYNC_OFFLINE')
   await expect(panel.getByRole('listitem')).toHaveCount(0)
   await page.evaluate(() => {
     delete (globalThis as unknown as { devotDevicesFails?: string }).devotDevicesFails
@@ -918,7 +925,7 @@ test('Try Again says when the listing fails again, and hands focus to the list w
   await retry.focus()
   await page.keyboard.press('Enter')
   await expect(panel.getByRole('status').first()).toHaveText(
-    'The devices could not be listed (E_SYNC_OFFLINE).',
+    /^The devices could not be listed\. The relay could not be reached, or it answered with an error\./,
   )
   await page.evaluate(() => {
     delete (globalThis as unknown as { devotDevicesFails?: string }).devotDevicesFails
@@ -1158,8 +1165,9 @@ test.describe('the relay’s quota cap', () => {
     await openSettings(page, 'Sync')
     const panel = page.getByRole('tabpanel')
     await expect(panel).toContainText(
-      /Sync paused until 9:00\sAM: the relay has reached its quota for today\. 20,000 of 45,000 items uploaded\. Code E_SYNC_QUOTA\./,
+      /Sync paused until 9:00\sAM: the relay has reached its quota for today\. 20,000 of 45,000 items uploaded\. Last synced/,
     )
+    await expect(panel).not.toContainText('E_SYNC_QUOTA')
     await expect(panel).toContainText('Your relay comes from an earlier release')
   })
 

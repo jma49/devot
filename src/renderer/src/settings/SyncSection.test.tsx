@@ -18,6 +18,7 @@ interface Answers {
   snapshot: Record<string, unknown>
   icloud: ICloudStatus | Error
   devices: Record<string, unknown>[]
+  useFails?: string | undefined
 }
 
 const DEVICES = [
@@ -34,8 +35,10 @@ vi.mock('../ipc', () => ({
     switch (cmd) {
       case 'licence_get':
         return { gated: false, state: 'none', code: null, id: null, licensee: null, plan: null }
-      case 'sync_get':
       case 'sync_icloud_use':
+        if (answers.useFails) throw new Error(answers.useFails)
+        return answers.snapshot
+      case 'sync_get':
       case 'sync_icloud_join':
       case 'sync_icloud_upload_again':
       case 'sync_set':
@@ -107,6 +110,8 @@ afterEach(() => {
   setIPhoneWording(false)
   calls.length = 0
   answers.devices = DEVICES
+  answers.useFails = undefined
+  vi.restoreAllMocks()
 })
 
 async function show(
@@ -333,7 +338,97 @@ describe.each([
     )
   })
 
-  it('keeps the upload, the code and the last sync on an iCloud state', async () => {
+  it('words a failure the app can explain without its code, and logs the code', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const el = await show(
+      snapshot({ enabled: false, vault: false, transport: 'relay' }),
+      ICLOUD,
+      phone,
+    )
+    answers.useFails = 'E_SYNC_CLOUDKIT_UNAVAILABLE'
+    await act(async () => button(el, 'Sync Through iCloud')?.click())
+    await settle()
+    const alert = el.querySelector('[role=alert]')?.textContent ?? ''
+    expect(alert).toMatch(/^Sync through iCloud could not be changed\. .*iCloud/)
+    expect(el.textContent).not.toContain('E_SYNC_CLOUDKIT_UNAVAILABLE')
+    expect(warn).toHaveBeenCalledWith('W_SYNC_SETTINGS_FAILED E_SYNC_CLOUDKIT_UNAVAILABLE')
+  })
+
+  it('keeps the code in a failure the app cannot explain', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const el = await show(
+      snapshot({ enabled: false, vault: false, transport: 'relay' }),
+      ICLOUD,
+      phone,
+    )
+    answers.useFails = 'E_SYNC_UNEXPLAINED'
+    await act(async () => button(el, 'Sync Through iCloud')?.click())
+    await settle()
+    expect(el.querySelector('[role=alert]')?.textContent).toContain('(E_SYNC_UNEXPLAINED)')
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('shows the code on a state no words cover, and not on one they do', async () => {
+    const plain = await show(
+      snapshot({ transport: 'relay', status: { state: 'stopped', code: 'E_SYNC_UNEXPLAINED' } }),
+      ICLOUD,
+      phone,
+    )
+    expect(plain.textContent).toContain('Code E_SYNC_UNEXPLAINED.')
+  })
+
+  it('shows no code beside the words for a build without the container', async () => {
+    const el = await show(
+      snapshot({ status: { state: 'stopped', code: 'E_SYNC_CLOUDKIT_UNAVAILABLE' } }),
+      ICLOUD,
+      phone,
+    )
+    expect(el.textContent).not.toContain('E_SYNC_CLOUDKIT_UNAVAILABLE')
+    expect(el.textContent).toMatch(/cannot (use|sync through) iCloud/)
+  })
+
+  it.each([
+    ['stopped', 'E_SYNC_REVOKED', /removed from sync/],
+    ['stopped', 'E_SYNC_PROTOCOL', /same release/],
+    ['paused', 'E_SYNC_QUOTA', /quota for today/],
+    ['paused', 'E_SYNC_STORAGE_FULL', /storage is full|relay is full/],
+    ['offline', 'E_SYNC_OFFLINE', /Offline; trying again/],
+  ])('shows no code on a %s relay whose words explain %s', async (state, code, words) => {
+    const pausedUntil = state === 'paused' ? Date.now() + 3_600_000 : null
+    const el = await show(
+      snapshot({ transport: 'relay', status: { state, code, pausedUntil } }),
+      ICLOUD,
+      phone,
+    )
+    expect(el.textContent).toMatch(words)
+    expect(el.textContent).not.toContain(code)
+  })
+
+  it.each([
+    ['paused', 'E_SYNC_PROTOCOL'],
+    ['offline', 'E_SYNC_QUOTA'],
+    ['stopped', 'E_SYNC_QUOTA'],
+    ['stopped', 'E_SYNC_OFFLINE'],
+    ['stopped', 'E_SYNC_ICLOUD_FULL_LATER'],
+  ])('keeps the code on a %s relay whose words do not cover %s', async (state, code) => {
+    const el = await show(
+      snapshot({ transport: 'relay', status: { state, code, pausedUntil: null } }),
+      ICLOUD,
+      phone,
+    )
+    expect(el.textContent).toContain(`Code ${code}.`)
+  })
+
+  it('keeps the code on a pause without a time, whose words are only the state', async () => {
+    const el = await show(
+      snapshot({ transport: 'relay', status: { state: 'paused', code: 'E_SYNC_QUOTA' } }),
+      ICLOUD,
+      phone,
+    )
+    expect(el.textContent).toContain('Code E_SYNC_QUOTA.')
+  })
+
+  it('keeps the upload and the last sync on an iCloud state', async () => {
     const el = await show(
       snapshot({
         status: { state: 'paused', code: 'E_SYNC_ICLOUD_FULL', upload: { sent: 3, total: 10 } },
@@ -343,7 +438,7 @@ describe.each([
     )
     expect(el.textContent).toMatch(/iCloud (storage )?is full/)
     expect(el.textContent).toContain('3 of 10 items uploaded.')
-    expect(el.textContent).toContain('Code E_SYNC_ICLOUD_FULL.')
+    expect(el.textContent).not.toContain('E_SYNC_ICLOUD_FULL')
     expect(el.textContent).toMatch(/Last synced /)
   })
 
@@ -513,7 +608,7 @@ describe('Change Vault Key', () => {
     type(field, 'wrong')
     await act(async () => button(el, 'Change Key')?.click())
     await settle()
-    expect(el.textContent).toMatch(/could not be changed \(E_SYNC_RELAY_SECRET\)/)
+    expect(el.textContent).toMatch(/could not be changed\. The relay did not accept that secret/)
     type(field, 'relay-secret')
     await act(async () => button(el, 'Change Key')?.click())
     await settle()
