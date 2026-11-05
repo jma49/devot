@@ -691,6 +691,23 @@ fn a_vault_zone_gone_is_made_again_only_while_current_names_the_vault() {
 }
 
 #[test]
+fn a_leave_that_stopped_after_current_s_zone_stops_every_device() {
+    let (kit, vault) = setup();
+    let zone = vault_zone(&vault.id().to_string());
+    let mut phone = device(&kit, &vault);
+    phone.connect(false).unwrap();
+    kit.delete_zone(ZONE_DEVOT);
+    let (saves, zones) = (kit.calls(Op::Save), kit.calls(Op::SaveZones));
+    assert_eq!(phone.connect(false), Err("E_SYNC_ICLOUD_DELETED"));
+    let mut joiner = device(&kit, &vault);
+    assert_eq!(joiner.connect(false), Err("E_SYNC_ICLOUD_DELETED"));
+    assert_eq!(kit.calls(Op::Save), saves, "nothing uploaded");
+    assert_eq!(kit.calls(Op::SaveZones), zones, "no zone made again");
+    assert!(!kit.zone_exists(ZONE_DEVOT));
+    assert!(kit.zone_exists(&zone));
+}
+
+#[test]
 fn the_account_is_kept_as_a_short_hash_of_the_user_record() {
     use sha2::{Digest, Sha256};
     let (kit, vault) = setup();
