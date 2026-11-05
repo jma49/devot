@@ -26,4 +26,4 @@ Terms the code and the docs use with one meaning each.
 - **App Store build:** the release build of the iPhone app that is uploaded to the App Store; only it reads StoreKit and hides every way to pay outside the App Store (docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md).
 - **App Store purchase:** the Devot Pro in-app purchase, which unlocks the iPhone app without taking a seat.
 - **Trial purchase:** the free 30-day Trial in-app purchase; the trial ends 30 days after its purchase date.
-- **Licence exchange:** the Worker's check of an App Store purchase with Apple, answered with that purchase's one licence key, the same key every time.
+- **Licence exchange:** the Worker's check of an App Store purchase with Apple, answered with that purchase's one licence, signed again from its row: the same key every time while the signing kid is unchanged.
