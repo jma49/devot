@@ -13,16 +13,23 @@ import {
   type RecordHead,
   type RecordKind,
 } from '../../src/core/sync/protocol'
-import type {
-  PulledRecord,
-  PullPage,
-  PushResult,
-  SyncEvent,
-  SyncTransport,
-  Welcome,
+import {
+  pushOneByOne,
+  type Cursor,
+  type PulledRecord,
+  type PullPage,
+  type PushItem,
+  type PushResult,
+  type SyncEvent,
+  type SyncTransport,
+  type Welcome,
 } from '../../src/core/sync/transport'
 
 const TIMEOUT_MS = 10_000
+
+/** The relay's `seq` as a cursor and back, as Rust maps it (`sync::service`). */
+const cursorOf = (seq: number): Cursor => (seq === 0 ? '' : String(seq))
+const seqOf = (cursor: Cursor): number => (cursor === '' ? 0 : Number(cursor))
 
 const CLOSE_CODES = new Map<number, string>([
   [CLOSE.unauthorized, 'E_SYNC_UNAUTHORIZED'],
@@ -78,7 +85,8 @@ export class RelayTransport implements SyncTransport {
         const { message, payload } = decodeFrame(event.data as string | ArrayBuffer)
         if (message['type'] === 'welcome') {
           welcomed = true
-          const welcome = message as unknown as Welcome
+          const { seq, ...rest } = message as Record<string, unknown>
+          const welcome = { ...rest, cursor: cursorOf(seq as number) } as unknown as Welcome
           resolve(this.options.welcome ? this.options.welcome(welcome) : welcome)
           return
         }
@@ -88,7 +96,7 @@ export class RelayTransport implements SyncTransport {
           this.waiting.delete(rid as number)
           waiter({ message, payload })
         } else if (message['type'] === 'changed') {
-          this.onEvent({ type: 'changed', seq: message['seq'] as number })
+          this.onEvent({ type: 'changed', cursor: cursorOf(message['seq'] as number) })
         }
       })
       ws.addEventListener('close', (event) => {
@@ -132,9 +140,9 @@ export class RelayTransport implements SyncTransport {
     }
   }
 
-  async pull(since: number): Promise<PullPage> {
+  async pull(since: Cursor): Promise<PullPage> {
     this.pulls += 1
-    const { message, payload } = await this.request({ type: 'pull', since })
+    const { message, payload } = await this.request({ type: 'pull', since: seqOf(since) })
     const heads = message['records'] as RecordHead[]
     const chunks = splitChunks(
       payload,
@@ -155,12 +163,13 @@ export class RelayTransport implements SyncTransport {
           id: head.id,
           version: head.version,
           seq: head.seq,
+          tag: '',
           kind: head.kind,
           plaintext,
         }
         return this.options.tamper ? this.options.tamper(record) : record
       }),
-      next: message['next'] as number,
+      next: cursorOf(message['next'] as number),
       more: message['more'] as boolean,
     }
   }
@@ -185,6 +194,7 @@ export class RelayTransport implements SyncTransport {
       await this.close()
       throw new Error('E_SYNC_OFFLINE')
     }
+    if (this.ws?.readyState !== WebSocket.OPEN) throw new Error('E_SYNC_OFFLINE')
     this.pushes += 1
     this.pushed.push(id)
     const { message: answer } = await this.request(message, chunks)
@@ -202,9 +212,14 @@ export class RelayTransport implements SyncTransport {
         type: 'pushed',
         version: answer['version'] as number,
         seq: answer['seq'] as number,
+        tag: '',
       }
     }
-    return { type: 'rejected', version: answer['version'] as number }
+    return { type: 'rejected', version: answer['version'] as number, tag: '' }
+  }
+
+  pushMany(items: readonly PushItem[]): Promise<PushResult[]> {
+    return pushOneByOne(this.push.bind(this), items)
   }
 
   /** A message this transport does not send itself (`revoke`, `devices`). */

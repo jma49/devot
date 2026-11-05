@@ -483,6 +483,7 @@ export const coreApi = {
   },
   syncReceived: (event: SyncEvent) => sync?.received(event),
   syncTouch: () => sync?.touch(),
+  syncFocused: () => sync?.focused(),
   syncAfterRestore: (choice: 'merge' | 'keep') => sync?.afterRestore(choice),
 }
 

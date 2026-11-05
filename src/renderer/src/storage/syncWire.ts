@@ -2,7 +2,14 @@
 // page, which alone reaches Tauri commands. A note's Yjs state and a record's plaintext cross as
 // base64, coded here in the worker (as in wire.ts), so the page hands them on without reading them.
 import type { SyncFileMeta, SyncLocal, SyncStore } from '../../../core/sync/store'
-import type { PullPage, PushResult, SyncTransport, Welcome } from '../../../core/sync/transport'
+import {
+  pushOneByOne,
+  type Cursor,
+  type PullPage,
+  type PushResult,
+  type SyncTransport,
+  type Welcome,
+} from '../../../core/sync/transport'
 import type { RecordKind } from '../../../core/sync/protocol'
 import { fromBase64, toBase64, type WireNote } from './wire'
 
@@ -20,7 +27,8 @@ export interface WireSync extends Omit<SyncStore, 'syncRead' | 'syncFileData' | 
 export interface WirePulled {
   id: string
   version: number
-  seq: number
+  seq?: number
+  tag: string
   kind: RecordKind
   data: string | null
   error: string | null
@@ -28,8 +36,8 @@ export interface WirePulled {
 
 export interface WireTransport {
   connect(): Promise<Welcome>
-  pull(since: number): Promise<{ records: WirePulled[]; next: number; more: boolean }>
-  push(id: string, base: number, data: string, kind: RecordKind): Promise<PushResult>
+  pull(since: Cursor): Promise<{ records: WirePulled[]; next: Cursor; more: boolean }>
+  push(id: string, base: number, data: string, kind: RecordKind, tag: string): Promise<PushResult>
   close(): Promise<void>
 }
 
@@ -61,7 +69,10 @@ export function fromWireSync(wire: WireSync): SyncStore {
   }
 }
 
+/** Rust's transport is the relay's today, which takes one push at a time (`pushOneByOne`). */
 export function fromWireTransport(wire: WireTransport): SyncTransport {
+  const push: SyncTransport['push'] = (id, base, plaintext, kind = 'record', tag = '') =>
+    wire.push(id, base, toBase64(plaintext), kind, tag)
   return {
     connect: () => wire.connect(),
     async pull(since): Promise<PullPage> {
@@ -71,14 +82,16 @@ export function fromWireTransport(wire: WireTransport): SyncTransport {
         records: page.records.map((r) => ({
           id: r.id,
           version: r.version,
-          seq: r.seq,
+          ...(r.seq === undefined ? {} : { seq: r.seq }),
+          tag: r.tag,
           kind: r.kind,
           ...(r.data === null ? {} : { plaintext: fromBase64(r.data) }),
           ...(r.error === null ? {} : { error: r.error }),
         })),
       }
     },
-    push: (id, base, plaintext, kind = 'record') => wire.push(id, base, toBase64(plaintext), kind),
+    push,
+    pushMany: (items) => pushOneByOne(push, items),
     close: () => wire.close(),
   }
 }

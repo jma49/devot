@@ -204,7 +204,7 @@ describe('an image added on one device', () => {
     await a.noteWith('Big', { id: FILE_1, data })
     await a.sync()
     expect((await usage(a)).files).toBeGreaterThan(data.length)
-    const pulled = await b.transport.pull(0)
+    const pulled = await b.transport.pull('')
     const head = pulled.records.find((r) => r.id === FILE_1)
     expect(head?.kind).toBe('file')
     await b.sync()
@@ -313,7 +313,7 @@ describe('purging an image', () => {
     // The tombstone stays: a device that comes back later learns of the purge, and nothing resurrects it.
     await settle(b, a)
     expect(await a.bytes(FILE_1)).toBeNull()
-    const pulled = await a.transport.pull(0)
+    const pulled = await a.transport.pull('')
     const record = pulled.records.find((r) => r.id === FILE_1)
     expect(decodeRecord(FILE_1, record!.plaintext!)).toEqual(tombstoneFile(FILE_1))
   })

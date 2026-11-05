@@ -11,7 +11,7 @@ import {
   createNoteService,
   createTagService,
 } from '../../src/core'
-import { createSyncEngine } from '../../src/core/sync/engine'
+import { createSyncEngine, HAS_SYNCED } from '../../src/core/sync/engine'
 import { RESTORE_CHOICE, RESTORED_AT } from '../../src/core/sync/restore'
 import { startNodeRelay } from '../../relay/src/node/server'
 import { createVault, enrolled, type RelayHost, type TestVault } from '../relay/client'
@@ -168,7 +168,8 @@ describe('turning sync on after a backup was restored', () => {
 
   it('asks nothing when the restored library had never synced', async () => {
     const { a } = await pair()
-    await a.live.storage.syncSetState('since', '0')
+    await a.live.storage.syncSetState('since', '')
+    await a.live.storage.syncSetState(HAS_SYNCED, '')
     const backup = join(tempDir('devot-restore-backup-'), 'backup.sqlite')
     await a.live.storage.db.backup(backup)
     await a.restore(backup)

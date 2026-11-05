@@ -11,19 +11,19 @@ use super::{BookRecord, NoteRecord, NoteTagRecord, Result, SavedSearchRecord, St
 const SYNC_PENDING_SQL: &str = "SELECT id, edits FROM sync_records WHERE edits <> synced AND id > @after ORDER BY id LIMIT @limit";
 const SYNC_PENDING_COUNT_SQL: &str = "SELECT COUNT(*) AS n FROM sync_records WHERE edits <> synced";
 const SYNC_ENTRY_SQL: &str =
-    "SELECT id, kind, version, fingerprint, body_hlc AS bodyHlc, body_fp AS bodyFp, edits, synced
+    "SELECT id, kind, version, tag, fingerprint, body_hlc AS bodyHlc, body_fp AS bodyFp, edits, synced
      FROM sync_records WHERE id = @id";
 const SYNC_PUT_SQL: &str =
-    "INSERT INTO sync_records (id, kind, version, fingerprint, body_hlc, body_fp, synced)
-     VALUES (@id, @kind, @version, @fingerprint, @bodyHlc, @bodyFp, @synced)
+    "INSERT INTO sync_records (id, kind, version, tag, fingerprint, body_hlc, body_fp, synced)
+     VALUES (@id, @kind, @version, @tag, @fingerprint, @bodyHlc, @bodyFp, @synced)
      ON CONFLICT (id) DO UPDATE SET kind = excluded.kind, version = excluded.version,
-       fingerprint = excluded.fingerprint, body_hlc = excluded.body_hlc,
+       tag = excluded.tag, fingerprint = excluded.fingerprint, body_hlc = excluded.body_hlc,
        body_fp = excluded.body_fp, synced = excluded.synced";
 const SYNC_STATE_SQL: &str = "SELECT key, value FROM sync_state";
 const SYNC_SET_STATE_SQL: &str = "INSERT INTO sync_state (key, value) VALUES (@key, @value)
      ON CONFLICT (key) DO UPDATE SET value = excluded.value";
 const SYNC_RESET_SQL: &str =
-    "UPDATE sync_records SET version = 0, fingerprint = '', synced = edits - 1";
+    "UPDATE sync_records SET version = 0, tag = '', fingerprint = '', synced = edits - 1";
 const SYNC_FILE_SQL: &str =
     "SELECT id, note_id AS noteId, note_hlc AS noteHlc, name, mime, size, created_at AS createdAt
      FROM files WHERE id = @id";
@@ -54,6 +54,9 @@ pub struct SyncEntry {
     pub id: String,
     pub kind: String,
     pub version: i64,
+    /// The transport's change tag for `version`, opaque; empty on a relay.
+    #[serde(default)]
+    pub tag: String,
     pub fingerprint: String,
     pub body_hlc: String,
     pub body_fp: String,
@@ -137,11 +140,12 @@ impl Store {
                     id: row.get(0)?,
                     kind: row.get(1)?,
                     version: row.get(2)?,
-                    fingerprint: row.get(3)?,
-                    body_hlc: row.get(4)?,
-                    body_fp: row.get(5)?,
-                    edits: row.get(6)?,
-                    synced: row.get(7)?,
+                    tag: row.get(3)?,
+                    fingerprint: row.get(4)?,
+                    body_hlc: row.get(5)?,
+                    body_fp: row.get(6)?,
+                    edits: row.get(7)?,
+                    synced: row.get(8)?,
                 })
             })
             .optional()?;
@@ -355,6 +359,7 @@ impl Store {
                 "@id": entry.id,
                 "@kind": entry.kind,
                 "@version": entry.version,
+                "@tag": entry.tag,
                 "@fingerprint": entry.fingerprint,
                 "@bodyHlc": entry.body_hlc,
                 "@bodyFp": entry.body_fp,

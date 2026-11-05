@@ -137,7 +137,9 @@ export interface MergedNote extends Merged<NoteState> {
   bothEdited: boolean
 }
 
-const FORMAT = 1
+/** The first byte of every sealed record's plaintext. */
+export const RECORD_FORMAT = 1
+const FORMAT = RECORD_FORMAT
 const encoder = new TextEncoder()
 const decoder = new TextDecoder('utf-8', { fatal: true })
 

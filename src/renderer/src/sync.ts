@@ -416,8 +416,9 @@ export const tauriSync: WireSync = {
 export const tauriTransport: WireTransport = {
   connect: () => invoke<Welcome>('sync_connect'),
   pull: (since) =>
-    invoke<{ records: WirePulled[]; next: number; more: boolean }>('sync_pull', { since }),
-  push: (id, base, data, kind) => invoke<PushResult>('sync_push', { id, base, data, kind }),
+    invoke<{ records: WirePulled[]; next: string; more: boolean }>('sync_pull', { since }),
+  push: (id, base, data, kind, tag) =>
+    invoke<PushResult>('sync_push', { id, base, data, kind, tag }),
   close: () => invoke('sync_disconnect'),
 }
 
@@ -483,6 +484,8 @@ export function runSync(core: Core): () => void {
   follow(snapshot)
   const touched = () => void core.syncTouch().catch(() => undefined)
   window.addEventListener(DB_CHANGED, touched)
+  const focused = () => void core.syncFocused().catch(() => undefined)
+  window.addEventListener('focus', focused)
   let unlisten: (() => void) | undefined
   void import('@tauri-apps/api/event')
     .then(async ({ listen }) => {
@@ -498,6 +501,7 @@ export function runSync(core: Core): () => void {
     listeners.delete(listener)
     unsubscribeLicence()
     window.removeEventListener(DB_CHANGED, touched)
+    window.removeEventListener('focus', focused)
     unlisten?.()
     follow(snapshot)
   }

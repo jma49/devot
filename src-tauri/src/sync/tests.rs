@@ -108,6 +108,19 @@ fn records_round_trip_in_chunks_that_fit_a_row() {
 }
 
 #[test]
+fn the_moved_marker_s_reserved_id_is_pushed_and_sealed_as_any_note_s() {
+    // src/core/sync/moved.ts: MOVED_ID
+    const MOVED_ID: &str = "00000000-0000-7000-8000-000000000000";
+    assert!(crate::commands::notes::valid_note_id(MOVED_ID));
+    let vault = Vault::generate().unwrap();
+    let chunks = vault.encrypt_record(MOVED_ID, 1, b"marker").unwrap();
+    assert_eq!(
+        vault.decrypt_record(MOVED_ID, 1, &chunks).unwrap().to_vec(),
+        b"marker"
+    );
+}
+
+#[test]
 fn every_chunk_has_a_fresh_nonce() {
     let vault = Vault::generate().unwrap();
     let plaintext = sample(2 * SMALL + 1);
