@@ -319,7 +319,7 @@ static ICLOUD_NOTICE: std::sync::OnceLock<Box<dyn Fn() + Send + Sync>> = std::sy
 #[cfg(target_os = "ios")]
 pub(crate) fn receive_icloud_notices(on_notice: Box<dyn Fn() + Send + Sync>) {
     use objc2::MainThreadMarker;
-    use objc2::runtime::AnyObject;
+    use objc2::runtime::{AnyObject, NSObjectProtocol};
     use objc2_ui_kit::UIApplication;
     let Some(mtm) = MainThreadMarker::new() else {
         log::warn!("W_SYNC_ICLOUD_PUSH_OFF_MAIN");
@@ -330,7 +330,9 @@ pub(crate) fn receive_icloud_notices(on_notice: Box<dyn Fn() + Send + Sync>) {
     }
     let done = guarded("W_SYNC_ICLOUD_PUSH_REGISTER", || {
         let app = UIApplication::sharedApplication(mtm);
-        let delegate = app.delegate()?;
+        // SAFETY: the app delegate is Tauri's, which lives as long as the application; the
+        // returned reference is retained for the rest of this closure.
+        let delegate = unsafe { app.delegate() }?;
         let selector =
             objc2::sel!(application:didReceiveRemoteNotification:fetchCompletionHandler:);
         if delegate.respondsToSelector(selector) {
