@@ -345,11 +345,24 @@ fn the_trial_purchase_keeps_its_latest_time_seen_across_a_relaunch() {
 }
 
 #[test]
-fn a_clock_behind_the_trials_purchase_date_does_not_run_it() {
-    let setup = app_store();
-    setup.at(START - 2 * HOUR);
-    entitled(&setup, vec![transaction(Product::Trial, 2, START)]);
-    assert_eq!(setup.licence.require(), Err(REQUIRED));
+fn a_clock_behind_the_trials_purchase_date_runs_it_once_the_clock_is_right() {
+    let seen = Arc::new(MemoryKey::default());
+    let slow = build(false, true, Arc::clone(&seen));
+    slow.at(START - 2 * HOUR);
+    entitled(&slow, vec![transaction(Product::Trial, 2, START)]);
+    assert_eq!(slow.licence.require(), Err(REQUIRED), "not running yet");
+    slow.licence.tick();
+    slow.at(START + HOUR);
+    assert_eq!(slow.licence.require(), Ok(()));
+
+    let relaunched = build(false, true, Arc::clone(&seen));
+    relaunched.at(START - 2 * HOUR);
+    entitled(&relaunched, vec![transaction(Product::Trial, 2, START)]);
+    assert_eq!(relaunched.licence.require(), Err(REQUIRED));
+    let corrected = build(false, true, Arc::clone(&seen));
+    corrected.at(START + 2 * HOUR);
+    entitled(&corrected, vec![transaction(Product::Trial, 2, START)]);
+    assert_eq!(corrected.licence.require(), Ok(()), "also after a relaunch");
 }
 
 #[test]
@@ -565,13 +578,25 @@ fn restore_purchases_reads_the_entitlements_again() {
     setup
         .store()
         .set_entitlements(vec![transaction(Product::Pro, 1, START)]);
-    assert_eq!(block_on(setup.shop.restore()), Ok(Restore::Synced));
+    assert_eq!(block_on(setup.shop.restore()), Ok(()));
     assert_eq!(setup.licence.require(), Ok(()));
 
     setup.store().set_restore(Ok(Restore::Cancelled));
     setup.store().set_entitlements(Vec::new());
-    assert_eq!(block_on(setup.shop.restore()), Ok(Restore::Cancelled));
+    assert_eq!(block_on(setup.shop.restore()), Ok(()));
     assert_eq!(setup.licence.require(), Err(REQUIRED));
+}
+
+#[test]
+fn a_failed_sync_still_restores_what_the_entitlements_read_found() {
+    let setup = app_store();
+    entitled(&setup, Vec::new());
+    setup.store().set_restore(Err(StoreError::UNKNOWN));
+    setup
+        .store()
+        .set_entitlements(vec![transaction(Product::Pro, 1, START)]);
+    assert_eq!(block_on(setup.shop.restore()), Ok(()));
+    assert_eq!(setup.licence.require(), Ok(()));
 }
 
 #[test]

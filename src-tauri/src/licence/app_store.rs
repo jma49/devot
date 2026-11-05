@@ -170,11 +170,13 @@ impl<S: AppStore + 'static> Storefront<S> {
     }
 
     /// `AppStore.sync()`, then the current entitlements again, which decide; read even when the
-    /// sign-in was cancelled, since they may still have changed.
-    pub(crate) async fn restore(&self) -> Result<Restore, StoreError> {
-        let restored = within(self.limits.restore, self.store.restore()).await;
-        self.read_entitlements().await?;
-        restored
+    /// sign-in was cancelled or the sync failed, since they may still have changed.
+    pub(crate) async fn restore(&self) -> Result<(), StoreError> {
+        match within(self.limits.restore, self.store.restore()).await {
+            Ok(Restore::Synced | Restore::Cancelled) => {}
+            Err(error) => log::warn!("W_APP_STORE_RESTORE {}", error.code()),
+        }
+        self.read_entitlements().await
     }
 }
 
@@ -210,10 +212,10 @@ pub async fn store_restore(
     shop: Tauri<'_, Shop>,
     licence: Tauri<'_, Arc<Licence>>,
 ) -> Result<Snapshot, String> {
-    match storefront(&shop)?.restore().await {
-        Ok(Restore::Synced | Restore::Cancelled) => {}
-        Err(error) => return Err(error.code().to_owned()),
-    }
+    storefront(&shop)?
+        .restore()
+        .await
+        .map_err(|error| error.code().to_owned())?;
     task::blocking_with(&licence, "E_LICENCE_INTERNAL", |licence| {
         Ok(licence.snapshot())
     })

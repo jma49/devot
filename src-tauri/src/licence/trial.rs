@@ -39,7 +39,7 @@ impl Record {
 
     /// The record of a Trial purchase that began at `start`. One kept for another start (another
     /// Apple account's Trial) passes on its latest time seen, so a clock set back still ends the
-    /// new trial; Apple's purchase date is a time seen too.
+    /// new trial.
     pub(crate) fn for_purchase(start: i64, kept: Option<Self>) -> Self {
         match kept {
             Some(record) if record.start == start => record,
@@ -73,9 +73,12 @@ impl Record {
     }
 
     /// The record once `now` is seen: a later time moves `seen` on, a clock set back past the
-    /// allowance ends the trial.
+    /// allowance ends the trial. A time before the start changes nothing: a clock behind Apple's
+    /// purchase date waits for the trial rather than ending it.
     pub(crate) fn seen_at(self, now: i64) -> Self {
-        if now < self.seen.saturating_sub(SET_BACK_MS) {
+        if now < self.start {
+            self
+        } else if now < self.seen.saturating_sub(SET_BACK_MS) {
             Self {
                 ended: true,
                 ..self
@@ -304,9 +307,14 @@ mod tests {
     }
 
     #[test]
-    fn a_clock_behind_the_purchase_date_by_more_than_an_hour_ends_the_trial_purchase() {
+    fn a_clock_behind_the_purchase_date_waits_for_the_trial_instead_of_ending_it() {
         let record = Record::for_purchase(START, None);
-        assert!(!record.seen_at(START - 30 * MINUTE_MS).ended);
-        assert!(record.seen_at(START - HOUR_MS - 1).ended);
+        let slow = record.seen_at(START - 2 * HOUR_MS);
+        assert_eq!(slow, record);
+        assert!(!slow.running(START - 2 * HOUR_MS));
+        let right = Record::read(&slow.text())
+            .expect("record")
+            .seen_at(START + HOUR_MS);
+        assert!(right.running(START + HOUR_MS));
     }
 }
