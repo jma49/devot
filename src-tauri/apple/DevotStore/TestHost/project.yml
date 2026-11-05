@@ -18,6 +18,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.jma49.devot.storetests
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        CODE_SIGN_ENTITLEMENTS: Host/Host.entitlements
         CODE_SIGN_IDENTITY: '-'
         CODE_SIGN_STYLE: Manual
   DevotStoreTests:
@@ -42,7 +43,5 @@ schemes:
       targets:
         DevotStoreHost: all
         DevotStoreTests: [test]
-    run:
-      storeKitConfiguration: ../DevotStore.storekit
     test:
       targets: [DevotStoreTests]
