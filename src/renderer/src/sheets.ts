@@ -15,7 +15,7 @@ import {
 import { saveEdits } from './saveGuards'
 import type { Selection } from './Sidebar'
 import { track } from './usage'
-import { listenHere } from './windowEvents'
+import { listenHere, unlistenLater } from './windowEvents'
 
 /**
  * The main window's sheets: imports, each waiting its turn, and Backups. One shows at a time: no
@@ -138,23 +138,24 @@ export function useSheets({
       (status) => status.lastError && setBackupNotice(status.lastError),
       () => {},
     )
-    let unlisten: (() => void)[] = []
-    if (!DEVOT_UI_TEST) {
-      void Promise.all([
-        listenHere('devot://show-backups', () =>
-          window.dispatchEvent(new CustomEvent(SHOW_BACKUPS)),
-        ),
-        listenHere<string>('devot://backup-failed', (e) =>
-          window.dispatchEvent(new CustomEvent(BACKUP_FAILED, { detail: e.payload })),
-        ),
-      ]).then((stops) => {
-        unlisten = stops
-      })
-    }
+    const unlisten = DEVOT_UI_TEST
+      ? undefined
+      : unlistenLater(
+          Promise.all([
+            listenHere('devot://show-backups', () =>
+              window.dispatchEvent(new CustomEvent(SHOW_BACKUPS)),
+            ),
+            listenHere<string>('devot://backup-failed', (e) =>
+              window.dispatchEvent(new CustomEvent(BACKUP_FAILED, { detail: e.payload })),
+            ),
+          ]).then((stops) => () => {
+            for (const stop of stops) stop()
+          }),
+        )
     return () => {
       window.removeEventListener(SHOW_BACKUPS, show)
       window.removeEventListener(BACKUP_FAILED, failed)
-      for (const stop of unlisten) stop()
+      unlisten?.()
     }
   }, [showBackups])
 

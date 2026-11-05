@@ -103,6 +103,7 @@
     "better-sqlite3": "13.0.3",
     "esbuild": "0.28.2",
     "fast-check": "4.10.2",
+    "happy-dom": "21.0.4",
     "lefthook": "2.2.1",
     "miniflare": "4.20260730.0",
     "oxfmt": "0.72.0",
