@@ -1,0 +1,50 @@
+# The Swift package's tests (scripts/ci/devot-store-tests.sh): StoreKit Test needs an app to run
+# in, which a package's own test target lacks. Generated with XcodeGen in CI, never committed.
+name: DevotStoreTests
+options:
+  bundleIdPrefix: io.github.jma49.devot
+  deploymentTarget:
+    iOS: '17.0'
+packages:
+  DevotStore:
+    path: ..
+targets:
+  DevotStoreHost:
+    type: application
+    platform: iOS
+    sources: [Host]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.jma49.devot.storetests
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        # get-task-allow marks a development build: storekitd refuses SKTestSession's
+        # configuration from an ad-hoc-signed app without it ("not entitled for
+        # OctaneSaveConfigurationRequest") and sends its purchases to the sandbox.
+        CODE_SIGN_ENTITLEMENTS: Host/Host.entitlements
+        CODE_SIGN_IDENTITY: '-'
+        CODE_SIGN_STYLE: Manual
+  DevotStoreTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ../Tests/DevotStoreTests
+      - path: ../DevotStore.storekit
+        buildPhase: resources
+    dependencies:
+      - target: DevotStoreHost
+      - package: DevotStore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: '-'
+        CODE_SIGN_STYLE: Manual
+        SWIFT_VERSION: '5.0'
+schemes:
+  DevotStoreTests:
+    build:
+      targets:
+        DevotStoreHost: all
+        DevotStoreTests: [test]
+    test:
+      targets: [DevotStoreTests]
