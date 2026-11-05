@@ -1223,7 +1223,7 @@ title: Daily Report {{date}}
   'syncSettings.icloudLeaveKeyHint':
     'Type this vault’s recovery key to leave it. Nothing is removed from iCloud until you do.',
   'syncSettings.icloudLeaveButton': 'Leave This Vault',
-  'syncSettings.icloudLeft': 'This device left the vault. Your notes stay here.',
+  'syncSettings.icloudLeft': 'The vault was removed from iCloud. Your notes stay here.',
   'syncSettings.icloudLeaveFailed': 'The vault could not be left ({code}).',
   'syncSettings.pairHintIcloud':
     'Only for a device that did not join by itself through the iCloud Keychain. Show a code here and scan it on the new device. It works once, for 10 minutes.',

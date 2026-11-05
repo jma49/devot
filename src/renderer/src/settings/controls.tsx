@@ -117,7 +117,7 @@ export function Setting({
   label: MessageKey
   description: string
   htmlFor?: string
-  descriptionId?: string
+  descriptionId?: string | undefined
   /** The control goes under the text, full width, for content too wide to sit beside it. */
   stacked?: boolean
   children: ReactNode

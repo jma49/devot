@@ -5,6 +5,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { setIPhoneWording } from '../i18n'
+import { enPhone } from '../i18n/phone'
 import { OnPhone } from './onPhone'
 import { SyncSection } from './SyncSection'
 import { SYNC_CHANGED } from '../sync'
@@ -371,6 +372,10 @@ describe.each([
     await act(async () => button(el, 'Leave This Vault…')?.click())
     const key = el.querySelector<HTMLInputElement>('input[type=text]')
     expect(key).not.toBeNull()
+    const hint = key?.getAttribute('aria-describedby')
+    expect(hint && document.getElementById(hint)?.textContent).toMatch(
+      phone ? /^Removed from iCloud for every device$/ : /recovery key/,
+    )
     expect(button(el, 'Leave This Vault')?.disabled).toBe(true)
     expect(calls.some((c) => c.cmd === 'sync_icloud_leave')).toBe(false)
     if (!key) return
@@ -386,7 +391,7 @@ describe.each([
       { recoveryKey: 'THIS-VAULT' },
     ])
     await act(() => new Promise((resolve) => setTimeout(resolve, 60)))
-    expect(el.textContent).toMatch(/left the vault/i)
+    expect(el.textContent).toMatch(/removed from iCloud\. (Your )?notes stay here/i)
   })
 
   it('cancels leaving without a word to Rust, and offers it to no relay vault', async () => {
@@ -401,4 +406,18 @@ describe.each([
     const relay = await show(snapshot({ transport: 'relay', enrolled: true }), ICLOUD, phone)
     expect(button(relay, 'Leave This Vault…')).toBeUndefined()
   })
+})
+
+it('points the key field at its hint only when there is one', async () => {
+  const shown = enPhone['syncSettings.icloudLeaveKeyHint']
+  enPhone['syncSettings.icloudLeaveKeyHint'] = ''
+  try {
+    const el = await show(snapshot({}), ICLOUD, true)
+    await act(async () => button(el, 'Leave This Vault…')?.click())
+    const key = el.querySelector<HTMLInputElement>('input[type=text]')
+    expect(key).not.toBeNull()
+    expect(key?.hasAttribute('aria-describedby')).toBe(false)
+  } finally {
+    Object.assign(enPhone, { 'syncSettings.icloudLeaveKeyHint': shown })
+  }
 })

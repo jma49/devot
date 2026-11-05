@@ -306,12 +306,14 @@ export function LeaveICloudRow(props: { onLeft: () => void; failed: Failure }) {
         </div>
       </Setting>
     )
+  const hint = t('syncSettings.icloudLeaveKeyHint')
+  const hintId = hint === '' ? undefined : `${ids}-hint`
   return (
     <Setting
       label="syncSettings.icloudLeaveKey"
-      description={t('syncSettings.icloudLeaveKeyHint')}
+      description={hint}
       htmlFor={`${ids}-key`}
-      descriptionId={`${ids}-hint`}
+      descriptionId={hintId}
     >
       <input
         ref={field}
@@ -322,7 +324,7 @@ export function LeaveICloudRow(props: { onLeft: () => void; failed: Failure }) {
         autoComplete="off"
         autoCapitalize="characters"
         value={key}
-        aria-describedby={`${ids}-hint`}
+        aria-describedby={hintId}
         onChange={(e) => setKey(e.currentTarget.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') leave()
