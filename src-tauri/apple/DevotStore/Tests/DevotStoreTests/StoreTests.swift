@@ -105,9 +105,8 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(after.transactions?.map(\.productId), [])
     }
 
-    // StoreKit Test does not always deliver the approval to Transaction.updates (it failed on CI
-    // runs of unrelated changes), so the test waits for the entitlement, which the app also reads
-    // at launch.
+    // An approval may not reach a second Transaction.updates iterator, so this waits for the
+    // entitlement; the C listener test checks that an approval arrives as an update.
     func testAskToBuyIsPendingUntilApprovedThenHeld() async throws {
         session.askToBuyEnabled = true
         let reply = await Store.purchase(Store.pro)
@@ -249,8 +248,7 @@ final class StoreTests: XCTestCase {
         throw CancellationError()
     }
 
-    // A purchase made with session.buyProduct reaches the entitlements after the call returns,
-    // and never as an update.
+    // A purchase made with session.buyProduct reaches the entitlements after the call returns.
     private func entitlement(_ productID: String) async throws -> TransactionReply {
         for _ in 0..<300 {
             if let held = await Store.entitlements().transactions?.first(where: { $0.productId == productID }) {
