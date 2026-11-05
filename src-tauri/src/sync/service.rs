@@ -32,6 +32,7 @@ use super::file_record;
 use super::handover;
 use super::keychain::SyncedKeychain;
 use super::moved;
+use super::names;
 use super::pairing::{self, Pairing, PairingChannel, Qr, RelayPairing};
 use super::settings::{DeviceCredentials, SettingsStore};
 use super::{MAX_RECORD_BYTES, SecretStore, Vault};
@@ -225,6 +226,7 @@ pub(crate) struct SettingsPatch {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PulledDto {
     pub id: String,
+    pub name: String,
     pub version: u64,
     /// The relay's; iCloud has none.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -458,6 +460,7 @@ fn checked_item(
 /// A pulled record for the engine. An attachment is checked as a paste is, before the web view sees it.
 fn pulled(
     id: String,
+    name: String,
     version: u64,
     seq: Option<u64>,
     tag: String,
@@ -483,6 +486,7 @@ fn pulled(
     };
     PulledDto {
         id,
+        name,
         version,
         seq,
         tag,
@@ -1159,7 +1163,12 @@ impl SyncService {
         if let Some(state) = settings.icloud_for(&vault_id) {
             return self
                 .connect_icloud(vault, state, has_synced)
-                .map(Connected::ICloud);
+                .map(|welcome| {
+                    Connected::ICloud(cloudkit::Welcome {
+                        epoch: names::epoch(&welcome.epoch),
+                        ..welcome
+                    })
+                });
         }
         let relay = self.relay()?;
         // A removed device stays out under any address of the relay: only a join lets it back in.
@@ -1190,7 +1199,10 @@ impl SyncService {
             connection: Arc::new(connection),
             vault: Arc::new(vault),
         });
-        Ok(Connected::Relay(welcome))
+        Ok(Connected::Relay(Welcome {
+            epoch: names::epoch(&welcome.epoch),
+            ..welcome
+        }))
     }
 
     fn connect_icloud(
@@ -1765,6 +1777,7 @@ impl SyncService {
                         .map(|r| {
                             pulled(
                                 r.id,
+                                r.name,
                                 r.version,
                                 Some(r.seq),
                                 String::new(),
@@ -1783,7 +1796,7 @@ impl SyncService {
                     records: page
                         .records
                         .into_iter()
-                        .map(|r| pulled(r.id, r.version, None, r.tag, r.kind, r.plaintext))
+                        .map(|r| pulled(r.id, r.name, r.version, None, r.tag, r.kind, r.plaintext))
                         .collect(),
                     next: page.next,
                     more: page.more,

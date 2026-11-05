@@ -819,6 +819,32 @@ describe('what the relay announces and what this build cannot read', () => {
     expect(a.engine.status().skipped).toBe(0)
   })
 
+  it('clears a skipped record once it opens, when the store files it under a name', async () => {
+    const { a, b } = await pair()
+    const id = await b.notes.create('From the future')
+    await b.sync()
+    const pull = a.transport.pull.bind(a.transport)
+    const nameOf = (recordId: string) => `r${recordId.replaceAll('-', '')}`
+    let unreadable = true
+    a.transport.pull = async (since) => {
+      const page = await pull(since)
+      const records = page.records.map(({ plaintext, ...rest }) =>
+        unreadable
+          ? { ...rest, id: nameOf(rest.id), name: nameOf(rest.id), error: 'E_SYNC_RECORD_INVALID' }
+          : { ...rest, ...(plaintext ? { plaintext } : {}), name: nameOf(rest.id) },
+      )
+      return { ...page, records }
+    }
+    await a.sync()
+    expect(a.engine.status().skipped).toBe(1)
+    unreadable = false
+    await b.notes.setTitle(id, 'Readable again')
+    await b.sync()
+    await a.sync()
+    expect((await a.note(id))?.title).toBe('Readable again')
+    expect(a.engine.status().skipped).toBe(0)
+  })
+
   it('does not pull everything again after an update when nothing was skipped', async () => {
     const cfg = { build: '1.0.0' }
     const { a, b } = await pair({ a: { engine: cfg } })

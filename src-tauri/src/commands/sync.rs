@@ -367,6 +367,10 @@ mod tests {
     fn keeps_only_the_engine_s_own_state_keys() {
         assert_eq!(validate_state("since", "12"), Ok(()));
         assert_eq!(validate_state("epoch", "AbC-123_x"), Ok(()));
+        assert_eq!(
+            validate_state("epoch", "AbC-123_xYz0AbC-123_xY+names"),
+            Ok(())
+        );
         assert_eq!(validate_state("uploadTotal", "45000"), Ok(()));
         assert_eq!(validate_state("skippedBy", "0.4.1"), Ok(()));
         assert_eq!(validate_state("skippedBy", ""), Ok(()));

@@ -15,6 +15,7 @@ pub(crate) mod file_record;
 pub(crate) mod handover;
 mod keychain;
 pub(crate) mod moved;
+pub(crate) mod names;
 mod pairing;
 mod record;
 mod recovery;

@@ -52,6 +52,8 @@ export interface Welcome {
 
 export interface PulledRecord {
   id: string
+  /** The name the store files the record under, when that is not its ID; `id` is this name when the record does not open. */
+  name?: string
   version: number
   /** The relay's sequence number; other transports have none. */
   seq?: number
