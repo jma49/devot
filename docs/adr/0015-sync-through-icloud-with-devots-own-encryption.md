@@ -62,7 +62,7 @@ The engine's compare-and-swap loop, merges, tombstones, replay check, epoch rese
 
 This changes ADR 0004 and ADR 0008 for iCloud vaults: the Apple ID, not pairing, says which devices may join, and the iCloud Keychain carries the vault key. Devot still has no account of its own, and nothing about a vault on a relay changes.
 
-**To check first (B4):** whether a Developer ID signed Mac app can use the data-protection keychain with a synchronizable item. It needs `keychain-access-groups` and `com.apple.application-identifier`, which need the embedded Developer ID provisioning profile (B5). If it cannot, a Mac never reads or writes the handover item and joins with the pairing code or the recovery key; the iPhone, signed by the App Store, still writes it.
+**To check first (#604):** whether a Developer ID signed Mac app can use the data-protection keychain with a synchronizable item. It needs `keychain-access-groups` and `com.apple.application-identifier`, which need the embedded Developer ID provisioning profile (#605). If it cannot, a Mac never reads or writes the handover item and joins with the pairing code or the recovery key; the iPhone, signed by the App Store, still writes it.
 
 ## Builds without Devot's container
 
@@ -77,7 +77,7 @@ CloudKit is called through `objc2-cloud-kit` with `block2` completions, inside `
 - The Mac build has no Swift today. A shared package would bring a Swift toolchain step (swift-rs) into every Mac `cargo` build and into CI, for one framework.
 - Devot's other native code already goes through `objc2`, with the same exception handling and tests.
 
-If B3's first step finds a method or block type the bindings lack, that piece goes into a small Swift C-ABI function in the App Store's package, and this section is amended. The primitives repeat in both native files, since `unsafe` is allowed only there; whether a shared file for code compiled on both platforms is allowed is left to the owner.
+If the first step of #603 finds a method or block type the bindings lack, that piece goes into a small Swift C-ABI function in the App Store's package, and this section is amended. The primitives repeat in both native files, since `unsafe` is allowed only there; whether a shared file for code compiled on both platforms is allowed is left to the owner.
 
 ## Signing and release
 
@@ -111,4 +111,4 @@ If B3's first step finds a method or block type the bindings lack, that piece go
 - Settings > Sync's first question on a device with no vault becomes iCloud or a relay; the relay is under an advanced choice. A device that finds an iCloud vault joins and skips the question. The relay paths, pairing and recovery stay as ADR 0008 has them.
 - ADR 0004 and ADR 0008 hold for vaults on a relay. For vaults on iCloud the Apple ID decides who joins, and the pairing code is the fallback. ADR 0011's "no other sync backend (CloudKit included)" no longer holds; the rest of ADR 0011 stands: iCloud is the owner's own storage, Devot runs nothing and bills nothing for it.
 - ADR 0003's 3 GB share applies to relays only.
-- Follow-up work, one pull request each, linked here: core seam changes (B2), the native CloudKit transport on macOS and iOS (B3), joining through the iCloud Keychain with its fallback (B4), signing, profiles and schema deployment (B5), Settings > Sync on the Mac and the iPhone (B6), and the bulk test plan on a throwaway Apple ID.
+- Follow-up work, one pull request each: core seam changes (#602), the native CloudKit transport on macOS and iOS (#603), joining through the iCloud Keychain with its fallback (#604), signing, profiles and schema deployment (#605), Settings > Sync on the Mac and the iPhone (#606), and the bulk test plan on a throwaway Apple ID (#607).
