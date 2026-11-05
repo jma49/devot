@@ -1,0 +1,53 @@
+{
+  "identifier" : "4E1F7C2A",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "29.99",
+      "familyShareable" : false,
+      "internalID" : "6740000001",
+      "localizations" : [
+        {
+          "description" : "Unlocks editing, sync and AI on this iPhone.",
+          "displayName" : "Devot Pro",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "io.github.jma49.devot.pro",
+      "referenceName" : "Devot Pro",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "0.0",
+      "familyShareable" : false,
+      "internalID" : "6740000002",
+      "localizations" : [
+        {
+          "description" : "Unlocks editing, sync and AI for 30 days.",
+          "displayName" : "30-day Trial",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "io.github.jma49.devot.trial",
+      "referenceName" : "30-day Trial",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

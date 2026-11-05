@@ -351,6 +351,35 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings
 
+  # The StoreKit bridge (src-tauri/apple/DevotStore): its tests in a host app on an iPhone
+  # simulator, as StoreKit Test needs, then the iPhone app built for the simulator, which is the
+  # only build that links the Swift package and Rust's calls into it.
+  ios-app:
+    name: iPhone app and StoreKit tests
+    needs: changes
+    if: needs.changes.outputs.rust != 'false' && needs.changes.outputs.docs_only != 'true'
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - run: brew install xcodegen
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: sh scripts/ci/devot-store-tests.sh
+      # A placeholder for the UI, as in rust-check.
+      - run: mkdir -p dist && echo '<!doctype html><title>Devot</title>' > dist/index.html
+      - run: rustup toolchain install
+        working-directory: src-tauri
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: pnpm tauri ios build --debug --target aarch64-sim --config '{"build":{"beforeBuildCommand":""}}'
+
   # Cargo-deny reads the manifest and lockfile, not the built app. It runs in
   # parallel with the compile-heavy job and does not pull the UI or apt stack.
   deny:
@@ -368,7 +397,7 @@ jobs:
   # Required check for Rust. It runs even when a Rust job was skipped and
   # fails when the change detection, compilation, tests or deny check failed.
   rust:
-    needs: [changes, rust-check, ios-check, deny]
+    needs: [changes, rust-check, ios-check, ios-app, deny]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -377,14 +406,15 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           RUST: ${{ needs.rust-check.result }}
           IOS: ${{ needs.ios-check.result }}
+          IOS_APP: ${{ needs.ios-app.result }}
           DENY: ${{ needs.deny.result }}
         run: |
-          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS deny=$DENY"
+          echo "changes=$CHANGES rust-check=$RUST ios-check=$IOS ios-app=$IOS_APP deny=$DENY"
           {
             printf '### Rust merge gate\n\n| Check | Result |\n| --- | --- |\n'
-            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'Cargo deny' "$DENY"
+            printf '| %s | %s |\n' 'Change detection' "$CHANGES" 'Rust build and tests' "$RUST" 'macOS and iOS compile' "$IOS" 'iPhone app and StoreKit tests' "$IOS_APP" 'Cargo deny' "$DENY"
           } >> "$GITHUB_STEP_SUMMARY"
-          for result in "$CHANGES" "$RUST" "$IOS" "$DENY"; do
+          for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$DENY"; do
             case "$result" in
               failure|cancelled) exit 1 ;;
             esac

@@ -66,9 +66,34 @@ it('CI compiles the app for macOS and iOS and the Rust gate waits for it', () =>
     'cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings',
   )
   const gate = job('rust')
-  expect(gate).toContain('needs: [changes, rust-check, ios-check, deny]')
+  expect(gate).toContain('needs: [changes, rust-check, ios-check, ios-app, deny]')
   expect(gate).toContain('IOS: ${{ needs.ios-check.result }}')
-  expect(gate).toContain('for result in "$CHANGES" "$RUST" "$IOS" "$DENY"')
+  expect(gate).toContain('IOS_APP: ${{ needs.ios-app.result }}')
+  expect(gate).toContain('for result in "$CHANGES" "$RUST" "$IOS" "$IOS_APP" "$DENY"')
+})
+
+it('CI tests the StoreKit bridge and builds the iPhone app with it, and the Rust gate waits for both', () => {
+  // StoreKit Test runs only inside an app, on Apple's SDK; only the full iPhone build links the
+  // Swift package into the app.
+  const app = job('ios-app')
+  expect(app).toContain('runs-on: macos-')
+  expect(app).toContain("needs.changes.outputs.rust != 'false'")
+  expect(app).toContain("needs.changes.outputs.docs_only != 'true'")
+  const steps = commands(app)
+  expect(steps).toContain('brew install xcodegen')
+  expect(steps).toContain('sh scripts/ci/devot-store-tests.sh')
+  expect(steps).toContain('rustup toolchain install')
+  const build = steps.find((step) => step.startsWith('pnpm tauri ios build '))
+  expect(build).toContain('--debug --target aarch64-sim')
+  // The app embeds a placeholder page, as in the other Rust jobs: no UI build.
+  expect(build).toContain('"beforeBuildCommand":""')
+  expect(app).toContain('dist/index.html')
+  expect(app).not.toMatch(/ui:build|ui:release|vite build/)
+  const script = read('scripts/ci/devot-store-tests.sh')
+  expect(script).toContain('src-tauri/apple/DevotStore/TestHost')
+  expect(script).toContain('xcodegen generate')
+  expect(script).toContain('xcodebuild test')
+  expect(script).toContain('-scheme DevotStoreTests')
 })
 
 it('the updater plugin is not a phone dependency', () => {

@@ -2,6 +2,7 @@
 #![cfg_attr(mobile, allow(dead_code))]
 
 mod ai;
+mod app_store;
 mod atomic_file;
 #[cfg(desktop)]
 mod background;
