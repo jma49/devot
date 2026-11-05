@@ -35,6 +35,8 @@ pub(crate) mod code {
     pub(crate) const ACCOUNT_TEMPORARILY_UNAVAILABLE: i64 = 36;
     /// Devot's: the native call threw an Objective-C exception, panicked or returned nothing.
     pub(crate) const NATIVE: i64 = -1;
+    /// Devot's: a record's tag is not the archive of that record's system fields.
+    pub(crate) const BAD_TAG: i64 = -2;
 }
 
 pub(crate) const UNAVAILABLE: &str = "E_SYNC_CLOUDKIT_UNAVAILABLE";
@@ -50,6 +52,7 @@ pub(crate) const ZONE_MISSING: &str = "E_SYNC_ICLOUD_ZONE_MISSING";
 pub(crate) const FAILED: &str = "E_SYNC_ICLOUD_FAILED";
 pub(crate) const OFFLINE: &str = "E_SYNC_OFFLINE";
 pub(crate) const TOO_LARGE: &str = "E_SYNC_TOO_LARGE";
+pub(crate) const TAG_INVALID: &str = "E_SYNC_TAG_INVALID";
 
 /// The wait when a busy CloudKit names none.
 pub(crate) const DEFAULT_RETRY_MS: u64 = 30_000;
@@ -70,6 +73,8 @@ pub(crate) enum Failure {
     ZoneGone,
     /// The request was too large: halve the batch.
     TooMany,
+    /// The item's tag is not a record's archive: that item fails.
+    BadTag,
     /// Not this item's fault (a batch it was in failed): send it again.
     Again,
     Offline,
@@ -101,6 +106,7 @@ pub(crate) fn classify(error: &CkError) -> Failure {
         NOT_AUTHENTICATED => Failure::SignedOut,
         MANAGED_ACCOUNT_RESTRICTED => Failure::Restricted,
         MISSING_ENTITLEMENT | BAD_CONTAINER => Failure::Unavailable,
+        BAD_TAG => Failure::BadTag,
         other => Failure::Other(other),
     }
 }
@@ -113,6 +119,7 @@ impl Failure {
             Self::Full => FULL,
             Self::ZoneGone => ZONE_MISSING,
             Self::TooMany => TOO_LARGE,
+            Self::BadTag => TAG_INVALID,
             Self::Offline | Self::Again => OFFLINE,
             Self::SignedOut => SIGNED_OUT,
             Self::Restricted => RESTRICTED,

@@ -146,6 +146,8 @@ fn maps_every_cloudkit_code_the_adr_names() {
         Failure::Unavailable
     );
     assert_eq!(classify(&ck(code::BAD_CONTAINER)), Failure::Unavailable);
+    assert_eq!(classify(&ck(code::BAD_TAG)), Failure::BadTag);
+    assert_eq!(Failure::BadTag.code(), "E_SYNC_TAG_INVALID");
     for c in [
         code::NETWORK_UNAVAILABLE,
         code::NETWORK_FAILURE,
@@ -608,9 +610,28 @@ fn a_deleted_zone_stops_a_vault_that_synced_and_is_made_again_for_one_that_never
     a.push(&id(1), 0, "", b"one");
     kit.delete_zone(&zone);
     assert_eq!(a.icloud.pull("").err(), Some("E_SYNC_ICLOUD_ZONE_MISSING"));
+    let ids: Vec<String> = (2..252).map(id).collect();
+    let items: Vec<Item<'_>> = ids
+        .iter()
+        .map(|id| Item {
+            id,
+            base: 0,
+            tag: "",
+            plaintext: b"two",
+            kind: "record",
+        })
+        .collect();
+    let saves = kit.calls(Op::Save);
+    let results = a.icloud.push_many(&items, NOW);
+    assert!(
+        results
+            .iter()
+            .all(|r| *r == PushAnswer::Failed("E_SYNC_ICLOUD_ZONE_MISSING"))
+    );
     assert_eq!(
-        a.push(&id(2), 0, "", b"two"),
-        PushAnswer::Failed("E_SYNC_ICLOUD_ZONE_MISSING")
+        kit.calls(Op::Save),
+        saves + 1,
+        "the second batch is not sent"
     );
     let saves = kit.calls(Op::Save);
     assert_eq!(a.connect(true), Err("E_SYNC_ICLOUD_DELETED"));
@@ -628,6 +649,85 @@ fn a_deleted_zone_stops_a_vault_that_synced_and_is_made_again_for_one_that_never
     a.state.zone_seen = false;
     let third = a.connect(true).unwrap();
     assert_ne!(third.epoch, again.epoch);
+}
+
+#[test]
+fn a_first_connect_takes_the_epoch_another_device_just_saved() {
+    let (kit, vault) = setup();
+    let zone = vault_zone(&vault.id().to_string());
+    let mut a = device(&kit, &vault);
+    let epoch = a.connect(false).unwrap().epoch;
+    // b found the zone missing before a made it, and reads the epoch a saved since.
+    kit.delete_zone(&zone);
+    let mut b = device(&kit, &vault);
+    assert_eq!(b.connect(false).unwrap().epoch, epoch);
+}
+
+#[test]
+fn the_account_is_kept_as_a_short_hash_of_the_user_record() {
+    use sha2::{Digest, Sha256};
+    let (kit, vault) = setup();
+    let mut a = device(&kit, &vault);
+    a.connect(false).unwrap();
+    let digest = Sha256::new()
+        .chain_update(b"devot/icloud/account/v1")
+        .chain_update(b"_user-one")
+        .finalize();
+    let expected: String = digest[..16].iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(a.state.account, expected);
+    assert!(!a.state.account.contains("user"));
+}
+
+#[test]
+fn a_pause_is_reported_on_the_server_clock() {
+    let (kit, vault) = setup();
+    let mut a = device(&kit, &vault);
+    kit.advance(90_000);
+    let welcome = a.connect(false).unwrap();
+    kit.fail_next(
+        Op::Save,
+        CkError {
+            code: code::REQUEST_RATE_LIMITED,
+            retry_after_ms: Some(12_000),
+            server_record: None,
+        },
+    );
+    assert_eq!(
+        a.push(&id(1), 0, "", b"x"),
+        PushAnswer::Paused {
+            until: Some(welcome.time + 12_000),
+            code: "E_SYNC_ICLOUD_BUSY"
+        }
+    );
+}
+
+#[test]
+fn a_tag_that_is_not_a_record_archive_fails_alone() {
+    let (kit, vault) = setup();
+    let mut a = device(&kit, &vault);
+    a.connect(false).unwrap();
+    let garbage = STANDARD.encode(b"not an archive");
+    let results = a.icloud.push_many(
+        &[
+            Item {
+                id: &id(1),
+                base: 1,
+                tag: &garbage,
+                plaintext: b"x",
+                kind: "record",
+            },
+            Item {
+                id: &id(2),
+                base: 0,
+                tag: "",
+                plaintext: b"fine",
+                kind: "record",
+            },
+        ],
+        NOW,
+    );
+    assert_eq!(results[0], PushAnswer::Failed("E_SYNC_TAG_INVALID"));
+    assert!(matches!(results[1], PushAnswer::Pushed { .. }));
 }
 
 #[test]
@@ -718,7 +818,7 @@ fn a_full_icloud_pauses_without_an_end_and_the_rest_still_goes() {
 fn rate_limits_pause_for_the_wait_cloudkit_asks_and_end_the_pass() {
     let (kit, vault) = setup();
     let mut a = device(&kit, &vault);
-    a.connect(false).unwrap();
+    let server = a.connect(false).unwrap().time;
     kit.fail_next(
         Op::Save,
         CkError {
@@ -741,7 +841,7 @@ fn rate_limits_pause_for_the_wait_cloudkit_asks_and_end_the_pass() {
     let saves = kit.calls(Op::Save);
     let results = a.icloud.push_many(&items, NOW);
     let paused = PushAnswer::Paused {
-        until: Some(NOW + 12_000),
+        until: Some(server + 12_000),
         code: "E_SYNC_ICLOUD_BUSY",
     };
     assert!(results.iter().all(|r| *r == paused));
@@ -763,7 +863,7 @@ fn rate_limits_pause_for_the_wait_cloudkit_asks_and_end_the_pass() {
     assert_eq!(
         results[0],
         PushAnswer::Paused {
-            until: Some(NOW + error::DEFAULT_RETRY_MS as i64),
+            until: Some(server + error::DEFAULT_RETRY_MS as i64),
             code: "E_SYNC_ICLOUD_BUSY"
         }
     );

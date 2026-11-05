@@ -7,6 +7,7 @@ use std::collections::VecDeque;
 use std::ops::Range;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -32,7 +33,6 @@ const ACCOUNT_LABEL: &[u8] = b"devot/icloud/account/v1";
 const NAME_LABEL: &[u8] = b"devot/icloud/device-name/v1";
 pub(crate) const ACCOUNT_UNAVAILABLE: &str = "E_SYNC_ICLOUD_ACCOUNT_UNAVAILABLE";
 const CURSOR_INVALID: &str = "E_SYNC_CURSOR_INVALID";
-const TAG_INVALID: &str = "E_SYNC_TAG_INVALID";
 
 /// What this device keeps of the vault it syncs through iCloud, in `sync-settings.json`. No
 /// secret: IDs, a hash of the Apple ID's user record and dates.
@@ -144,6 +144,8 @@ pub(crate) struct ICloud {
     vault: Arc<Vault>,
     zone: String,
     staging: Arc<Staging>,
+    /// The server's clock less this device's, from the last connect: pauses end on the server's.
+    offset: AtomicI64,
 }
 
 impl ICloud {
@@ -154,6 +156,7 @@ impl ICloud {
             vault,
             zone,
             staging,
+            offset: AtomicI64::new(0),
         }
     }
 
@@ -173,6 +176,7 @@ impl ICloud {
             return Err(error::UNAVAILABLE);
         }
         let mut state = state.clone();
+        let connected_before = !state.account.is_empty();
         match kit.account().map_err(failure)? {
             Account::Available => {}
             Account::Missing => return Err(error::SIGNED_OUT),
@@ -216,8 +220,11 @@ impl ICloud {
         }
         state.zone_seen = true;
 
-        let epoch = self.epoch(&state.vault, vault_zone_gone)?;
+        // A zone made for the first time keeps an epoch another device saved meanwhile. A device
+        // that connected before checks `zone_seen` above; "upload again" clears it to get here.
+        let epoch = self.epoch(&state.vault, vault_zone_gone && connected_before)?;
         let time = self.clock(&state.device, now)?;
+        self.offset.store(time - now, Ordering::Relaxed);
         self.device_row(&mut state, name, time);
         self.subscribe(&mut state);
         Ok((
@@ -393,8 +400,10 @@ impl ICloud {
 
     /// Seals and saves each item as version `base + 1`, in batches within the three caps; one
     /// answer per item, in order. After an answer that ends the pass the rest are not sent and get
-    /// it too. The staged asset files are gone when this returns.
+    /// it too. The staged asset files are gone when this returns. `now` is this device's clock; a
+    /// pause's end is on the server's, as the engine reads it.
     pub(crate) fn push_many(&self, items: &[Item<'_>], now: i64) -> Vec<PushAnswer> {
+        let now = now.saturating_add(self.offset.load(Ordering::Relaxed));
         let mut results: Vec<Option<PushAnswer>> = vec![None; items.len()];
         let mut staged = Vec::new();
         let mut prepared = Vec::new();
@@ -469,9 +478,13 @@ impl ICloud {
                             },
                             None => PushAnswer::Failed(error::FAILED),
                         };
-                        if let PushAnswer::Paused { code, .. } = &answer
-                            && *code == error::BUSY
-                        {
+                        if matches!(
+                            &answer,
+                            PushAnswer::Paused {
+                                code: error::BUSY,
+                                ..
+                            } | PushAnswer::Failed(error::ZONE_MISSING)
+                        ) {
                             ended = Some(answer.clone());
                         }
                         results[p.index] = Some(answer);
@@ -496,7 +509,7 @@ impl ICloud {
         let system = if item.tag.is_empty() {
             None
         } else {
-            Some(STANDARD.decode(item.tag).map_err(|_| TAG_INVALID)?)
+            Some(STANDARD.decode(item.tag).map_err(|_| error::TAG_INVALID)?)
         };
         let chunks = self
             .vault

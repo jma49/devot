@@ -177,6 +177,17 @@ fn system_of(zone: &str, name: &str, tag: u64) -> Vec<u8> {
     format!("{zone}\n{name}\n{tag}").into_bytes()
 }
 
+/// Whether `system` is the archive of this record, as the native code checks after unarchiving.
+fn archive_of(system: &[u8], zone: &str, name: &str) -> bool {
+    std::str::from_utf8(system).is_ok_and(|text| {
+        let mut lines = text.split('\n');
+        lines.next() == Some(zone)
+            && lines.next() == Some(name)
+            && lines.next().is_some_and(|tag| tag.parse::<u64>().is_ok())
+            && lines.next().is_none()
+    })
+}
+
 fn tag_in(system: &[u8]) -> Option<u64> {
     std::str::from_utf8(system)
         .ok()?
@@ -261,11 +272,21 @@ impl CloudKit for Fake {
                 return Err(CkError::of(code::LIMIT_EXCEEDED));
             }
             s.saved_sizes.push(records.len());
+            // A non-atomic save answers a missing zone per record, under `partialFailure`.
             if !s.zones.contains_key(zone) {
-                return Err(CkError::of(code::ZONE_NOT_FOUND));
+                return Ok(records
+                    .iter()
+                    .map(|_| Err(CkError::of(code::ZONE_NOT_FOUND)))
+                    .collect());
             }
             let mut results = Vec::new();
             for record in records {
+                if let Some(system) = &record.system
+                    && !archive_of(system, zone, &record.name)
+                {
+                    results.push(Err(CkError::of(code::BAD_TAG)));
+                    continue;
+                }
                 if let Some(error) = s
                     .fail_records
                     .get_mut(&record.name)

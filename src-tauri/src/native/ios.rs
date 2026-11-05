@@ -2,6 +2,7 @@
 //! CloudKit (`cloudkit`), which macOS compiles from here too, so that it is written once. Every
 //! call runs inside `guarded`, which catches an Objective-C exception as well as a Rust panic, and
 //! every object the system may withhold is checked for nil; a failure gives the caller's fallback.
+//! The exception is building zone and record IDs, from names the transport has already checked.
 
 #[cfg(target_os = "ios")]
 use block2::RcBlock;
@@ -678,10 +679,17 @@ pub(crate) mod cloudkit {
         None
     }
 
-    fn to_ck(zone: &CKRecordZoneID, record: &CkRecord) -> Option<Retained<CKRecord>> {
+    /// `None` when a call threw or returned nothing; `BAD_TAG` when the tag is not this record's
+    /// archive.
+    fn to_ck(
+        zone: &CKRecordZoneID,
+        record: &CkRecord,
+    ) -> Option<Result<Retained<CKRecord>, CkError>> {
         let ck = match &record.system {
             Some(system) => {
-                let ck = unarchive_record(system)?;
+                let Some(ck) = unarchive_record(system) else {
+                    return Some(Err(CkError::of(code::BAD_TAG)));
+                };
                 // SAFETY: plain accessors of a record made just now.
                 let (name, zone_name) = unsafe {
                     let id = ck.recordID();
@@ -693,7 +701,7 @@ pub(crate) mod cloudkit {
                 // SAFETY: as above.
                 let zone_wanted = unsafe { zone.zoneName() }.to_string();
                 if name != record.name || zone_name != zone_wanted {
-                    return None;
+                    return Some(Err(CkError::of(code::BAD_TAG)));
                 }
                 ck
             }
@@ -709,7 +717,7 @@ pub(crate) mod cloudkit {
         for (key, value) in &record.fields {
             set_value(&ck, key, value)?;
         }
-        Some(ck)
+        Some(Ok(ck))
     }
 
     fn from_ck(record: &CKRecord, with_assets: bool) -> Option<CkRecord> {
@@ -980,11 +988,18 @@ pub(crate) mod cloudkit {
                 return Err(CkError::of(code::MISSING_ENTITLEMENT));
             }
             let zone = zone_id(zone);
-            let built: Vec<Option<Retained<CKRecord>>> = records
+            let built: Vec<Result<Retained<CKRecord>, CkError>> = records
                 .iter()
-                .map(|record| guarded("W_SYNC_ICLOUD_RECORD_BUILD", || to_ck(&zone, record)))
+                .map(|record| {
+                    guarded("W_SYNC_ICLOUD_RECORD_BUILD", || to_ck(&zone, record))
+                        .unwrap_or_else(|| Err(native_error()))
+                })
                 .collect();
-            let sending: Vec<Retained<CKRecord>> = built.iter().flatten().cloned().collect();
+            let sending: Vec<Retained<CKRecord>> = built
+                .iter()
+                .filter_map(|b| b.as_ref().ok())
+                .cloned()
+                .collect();
             let got = Arc::new(Mutex::new(Vec::<(String, Result<CkRecord, CkError>)>::new()));
             if !sending.is_empty() {
                 let into = Arc::clone(&got);
@@ -1038,8 +1053,8 @@ pub(crate) mod cloudkit {
                 .iter()
                 .zip(&built)
                 .map(|(record, built)| {
-                    if built.is_none() {
-                        return Err(native_error());
+                    if let Err(e) = built {
+                        return Err(e.clone());
                     }
                     got.iter()
                         .position(|(n, _)| *n == record.name)
@@ -1188,8 +1203,12 @@ pub(crate) mod cloudkit {
     /// Calls `on_change` on each `CKAccountChanged`, for the life of the process.
     pub(crate) fn observe_account(on_change: Box<dyn Fn() + Send + Sync>) {
         let _ = guarded("W_SYNC_ICLOUD_ACCOUNT_OBSERVE", || {
-            let block =
-                RcBlock::new(move |_: NonNull<objc2_foundation::NSNotification>| on_change());
+            let block = RcBlock::new(move |_: NonNull<objc2_foundation::NSNotification>| {
+                use std::panic::{AssertUnwindSafe, catch_unwind};
+                if catch_unwind(AssertUnwindSafe(&on_change)).is_err() {
+                    log::warn!("W_SYNC_ICLOUD_ACCOUNT_PANIC");
+                }
+            });
             // SAFETY: the notice's name is CloudKit's constant; with no queue the block runs on the
             // posting thread, and it only calls the service, which is thread-safe.
             let observer = unsafe {

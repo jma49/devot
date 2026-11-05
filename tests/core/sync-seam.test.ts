@@ -341,6 +341,20 @@ describe('a full iCloud', () => {
     paused = false
     await vi.waitFor(() => expect(vault.records.has(id)).toBe(true), { timeout: 5_000 })
   })
+
+  it('reads a timed pause’s end on the transport’s clock, ahead of this device’s', async () => {
+    const { vault, a } = fakePair()
+    vault.skewMs = 4 * 60_000
+    let paused = true
+    const until = Date.now() + vault.skewMs + 40
+    vault.refuse = () =>
+      paused ? { type: 'paused', until, code: 'E_SYNC_ICLOUD_BUSY' } : undefined
+    const id = await a.notes.create('Later')
+    await a.sync()
+    expect(a.engine.status()).toMatchObject({ state: 'paused', pausedUntil: until })
+    paused = false
+    await vi.waitFor(() => expect(vault.records.has(id)).toBe(true), { timeout: 5_000 })
+  })
 })
 
 describe('the moved marker', () => {

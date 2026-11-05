@@ -1205,12 +1205,6 @@ impl SyncService {
                     kind,
                 };
                 return match icloud.push_many(&[item], self.now()).pop() {
-                    Some(cloudkit::PushAnswer::Failed(code))
-                    | Some(cloudkit::PushAnswer::Paused { code, .. })
-                        if code == cloudkit::error::TOO_LARGE =>
-                    {
-                        Err(code)
-                    }
                     Some(cloudkit::PushAnswer::Failed(code)) => Err(code),
                     Some(answer) => Ok(push_dto(answer)),
                     None => Err("E_SYNC_INTERNAL"),
@@ -1326,6 +1320,7 @@ impl SyncService {
             .is_some_and(|vault| settings.icloud_for(&vault.id().to_string()).is_some());
         if settings.enabled && on_icloud {
             log::info!("I_SYNC_ICLOUD_ACCOUNT_CHANGED");
+            self.disconnect();
             (self.emit)(SOCKET_EVENT, json!({ "type": "account" }));
         }
     }

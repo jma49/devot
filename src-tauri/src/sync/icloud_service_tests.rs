@@ -325,3 +325,18 @@ fn hands_change_notices_to_the_engine_only_while_on_icloud() {
     );
     assert!(kit.zone_exists(ZONE_DEVOT));
 }
+
+#[test]
+fn an_account_change_drops_the_connection_until_it_connects_again() {
+    let kit = Arc::new(Fake::new());
+    let mac = device(&kit);
+    mac.service.use_icloud(None).unwrap();
+    mac.service.connect(false).unwrap();
+    assert!(mac.service.pull("").is_ok());
+
+    mac.service.icloud_account_changed();
+    assert_eq!(mac.service.pull("").err(), Some("E_SYNC_OFFLINE"));
+
+    mac.service.connect(true).unwrap();
+    assert!(mac.service.pull("").is_ok());
+}
