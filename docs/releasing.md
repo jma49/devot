@@ -66,6 +66,22 @@ gh release delete <tag> --yes --cleanup-tag
 
 Only the newest stable release is kept, plus a beta newer than it if one is out. Never delete the `updater` release (see Update feed).
 
+## The iPhone app
+
+The iPhone app is not on the App Store or TestFlight yet, so a release reaches an iPhone as a development build signed by the owner's team, built on a Mac from the tagged commit and installed on a registered device. It is never attached to the GitHub release: its provisioning profile lists the registered devices.
+
+```sh
+git switch --detach <tag>
+node scripts/release/release.ts set-version <tag>   # a local change; do not commit it
+pnpm tauri ios build                               # src-tauri/gen/apple/build/arm64/Devot.ipa
+xcrun devicectl list devices
+unzip -q src-tauri/gen/apple/build/arm64/Devot.ipa -d <scratch folder>
+xcrun devicectl device install app --device <device ID> <scratch folder>/Payload/Devot.app
+git restore package.json src-tauri/Cargo.toml
+```
+
+A development build needs a signing team (docs/development.md, iOS). Remove `src-tauri/gen/apple/build` afterwards.
+
 ## Update feed
 
 The app reads `https://github.com/jma49/devot/releases/download/updater/beta.json` (a prerelease build) or `.../stable.json` (a stable build): a release named `updater` that holds one file per channel. It is a prerelease so that it never shows as the latest release. Do not delete it: installed copies would stop finding updates.
