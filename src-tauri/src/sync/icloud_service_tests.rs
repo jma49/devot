@@ -92,7 +92,7 @@ fn a_vault_moved_to_a_build_without_the_container_reports_unavailable() {
     let state = std::fs::read(mac._dir.path().join(FILE)).unwrap();
     let unsigned = Arc::new(Fake::new().without_entitlement());
     let again = device(&unsigned);
-    std::fs::write(again._dir.path().join(FILE), state).unwrap();
+    crate::atomic_file::write_replacing(&again._dir.path().join(FILE), &state).unwrap();
     let vault = Vault::load(mac.secrets.as_ref()).unwrap().unwrap();
     Vault::join(again.secrets.as_ref(), vault).unwrap();
     assert_eq!(again.service.connect(false).err(), Some(error::UNAVAILABLE));

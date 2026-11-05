@@ -10,7 +10,9 @@ import type { SyncStatus } from '../../core/sync/engine'
 import type { SyncPending } from '../../core/sync/store'
 import {
   STORAGE_FULL,
+  VAULT_MOVED,
   type SyncEvent,
+  type TransportName,
   type Welcome,
   type PushResult,
 } from '../../core/sync/transport'
@@ -43,6 +45,8 @@ export interface SyncSnapshot {
   vault: boolean
   /** This device has a token for the relay and the vault. */
   enrolled: boolean
+  /** What the vault syncs through. */
+  transport: TransportName
   status: {
     state: SyncStateName
     lastSync: number | null
@@ -69,6 +73,7 @@ export const SYNC_OFF: SyncSnapshot = {
   enabled: false,
   vault: false,
   enrolled: false,
+  transport: 'relay',
   status: {
     state: 'off',
     lastSync: null,
@@ -91,6 +96,7 @@ export const STOP_ADVICE: Readonly<Record<string, MessageKey>> = {
   E_SYNC_PROTOCOL: 'sync.advice.protocol',
   E_SYNC_CIRCUIT_OPEN: 'sync.advice.circuit',
   [RESTORE_CHOICE]: 'sync.advice.restoreChoice',
+  [VAULT_MOVED]: 'sync.advice.moved',
 }
 
 const readCount = (value: unknown): number | null =>
@@ -131,6 +137,7 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
     enabled: v['enabled'] === true,
     vault: v['vault'] === true,
     enrolled: v['enrolled'] === true,
+    transport: v['transport'] === 'icloud' ? 'icloud' : 'relay',
     status: {
       state,
       lastSync: readTime(s['lastSync']),
@@ -419,6 +426,7 @@ export const tauriTransport: WireTransport = {
     invoke<{ records: WirePulled[]; next: string; more: boolean }>('sync_pull', { since }),
   push: (id, base, data, kind, tag) =>
     invoke<PushResult>('sync_push', { id, base, data, kind, tag }),
+  pushMany: (items) => invoke<PushResult[]>('sync_push_many', { items }),
   close: () => invoke('sync_disconnect'),
 }
 
@@ -457,7 +465,9 @@ export function runSync(core: Core): () => void {
     // A licence added or removed starts the engine again: it connects, or stops as Rust refuses.
     const licensed = licenceEntitlements.has('sync')
     const wanted =
-      !stopped && next.enabled ? `${next.relayUrl}|${next.enrolled}|${String(licensed)}` : ''
+      !stopped && next.enabled
+        ? `${next.transport}|${next.relayUrl}|${next.enrolled}|${String(licensed)}`
+        : ''
     if (wanted === running) return
     const was = running
     running = wanted
@@ -472,6 +482,7 @@ export function runSync(core: Core): () => void {
           // Another device changed notes here: merged and reloaded as another process's writes.
           Comlink.proxy(() => window.dispatchEvent(new CustomEvent(DB_CHANGED))),
           await appBuild(),
+          next.transport,
         )
       })
       .catch(() => console.warn('W_SYNC_START_FAILED'))

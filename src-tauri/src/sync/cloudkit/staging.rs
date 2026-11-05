@@ -24,7 +24,8 @@ impl Staging {
         let path = self
             .dir
             .join(format!("{}.chunk", uuid::Uuid::new_v4().simple()));
-        std::fs::write(&path, bytes).map_err(|_| FAILED)?;
+        crate::atomic_file::write(&path, bytes, crate::atomic_file::Place::New)
+            .map_err(|_| FAILED)?;
         Ok(path)
     }
 
