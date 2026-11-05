@@ -248,7 +248,7 @@ fn a_joining_device_s_channel_only_takes_and_confirms() {
     // Port 9 is discard: a request that went out would fail with a network code, not this one.
     let channel = RelayPairing::join(super::client::RelayUrl::parse("http://127.0.0.1:9").unwrap());
     let id = fixed_pairing().id().to_string();
-    assert_eq!(channel.open(&id, b"offer"), Err("E_SYNC_PAIRING_NONE"));
-    assert_eq!(channel.poll(&id).err(), Some("E_SYNC_PAIRING_NONE"));
-    assert_eq!(channel.close(&id), Err("E_SYNC_PAIRING_NONE"));
+    assert_eq!(channel.open(&id, b"offer"), Err("E_SYNC_PAIRING_ROLE"));
+    assert_eq!(channel.poll(&id).err(), Some("E_SYNC_PAIRING_ROLE"));
+    assert_eq!(channel.close(&id), Err("E_SYNC_PAIRING_ROLE"));
 }

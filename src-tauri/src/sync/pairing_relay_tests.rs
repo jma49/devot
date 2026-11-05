@@ -879,7 +879,7 @@ fn a_pairing_crosses_the_relay_through_its_channel() {
     let pairing = Pairing::generate().unwrap();
     let id = pairing.id();
 
-    assert!(host.open(id, &[7; 48]).unwrap() > now());
+    assert!(host.open(id, &[7; 48]).is_ok());
     assert_eq!(host.poll(id), Ok(PairingState::Open));
     assert_eq!(guest.take(id), Ok(vec![7; 48]));
     assert_eq!(host.poll(id), Ok(PairingState::Taken));

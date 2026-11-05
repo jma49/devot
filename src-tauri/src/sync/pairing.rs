@@ -290,8 +290,8 @@ fn checksum(payload: &[u8]) -> [u8; CHECKSUM_BYTES] {
 /// is the one today; docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md adds one for
 /// a vault in iCloud.
 pub(crate) trait PairingChannel: Send + Sync {
-    /// Leaves the offer; returns when it expires, in the channel's time.
-    fn open(&self, id: &str, offer: &[u8]) -> Result<i64, &'static str>;
+    /// Leaves the offer. Its expiry is the one sealed inside it, not the channel's.
+    fn open(&self, id: &str, offer: &[u8]) -> Result<(), &'static str>;
     /// Takes the offer, which is handed out once.
     fn take(&self, id: &str) -> Result<Vec<u8>, &'static str>;
     fn confirm(&self, id: &str, proof: &[u8]) -> Result<(), &'static str>;
@@ -322,14 +322,14 @@ impl RelayPairing {
         self.host
             .as_ref()
             .map(|(vault, token)| (vault.as_str(), token.as_str()))
-            .ok_or("E_SYNC_PAIRING_NONE")
+            .ok_or("E_SYNC_PAIRING_ROLE")
     }
 }
 
 impl PairingChannel for RelayPairing {
-    fn open(&self, id: &str, offer: &[u8]) -> Result<i64, &'static str> {
+    fn open(&self, id: &str, offer: &[u8]) -> Result<(), &'static str> {
         let (vault, token) = self.hosting()?;
-        client::pairing_open(&self.relay, vault, token, id, offer)
+        client::pairing_open(&self.relay, vault, token, id, offer).map(|_| ())
     }
 
     fn take(&self, id: &str) -> Result<Vec<u8>, &'static str> {
