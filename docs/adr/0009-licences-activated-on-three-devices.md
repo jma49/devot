@@ -54,7 +54,7 @@ also has to keep working for a laptop that is offline for weeks.
   the key again, removing the licence or choosing Retry Activation, so the device is not locked out
   for good.
 - **The licence itself does not change.** Same format, same offline signature, same revocation list,
-  same three-day trial; a licence still unlocks every version and never expires.
+  same 30-day trial (ADR 0006); a licence still unlocks every version and never expires.
 
 ## Consequences
 
