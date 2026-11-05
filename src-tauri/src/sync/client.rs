@@ -908,6 +908,8 @@ fn fail_all(waiters: &Waiters, code: &'static str) {
 #[derive(Debug)]
 pub(crate) struct Pulled {
     pub id: String,
+    /// The name it is filed under; `id` too when it does not open.
+    pub name: String,
     pub version: u64,
     pub seq: u64,
     pub kind: String,
@@ -1035,18 +1037,20 @@ pub(crate) fn pull(
             continue;
         }
         let known = kind == "record" || kind == "file";
+        let shown = names::shown_id(name).to_string();
         let (id, plaintext) = if !names::is_readable(name) {
             (names::UNREADABLE_ID.to_string(), Err("E_SYNC_RECORD_ID"))
         } else if known {
             match vault.open_stored(name, version, &chunks) {
                 Ok((id, plaintext)) => (id, Ok(plaintext)),
-                Err(error) => (name.to_string(), Err(error.code())),
+                Err(error) => (shown.clone(), Err(error.code())),
             }
         } else {
-            (name.to_string(), Err("E_SYNC_KIND_UNSUPPORTED"))
+            (shown.clone(), Err("E_SYNC_KIND_UNSUPPORTED"))
         };
         records.push(Pulled {
             id,
+            name: shown,
             version,
             seq,
             kind: if known { kind } else { "unknown" }.to_string(),
@@ -1580,6 +1584,7 @@ mod tests {
             panic!("two records expected");
         };
         assert_eq!(bad_id.id, names::UNREADABLE_ID);
+        assert_eq!(bad_id.name, names::UNREADABLE_ID);
         assert_eq!(bad_id.plaintext.as_ref().err(), Some(&"E_SYNC_RECORD_ID"));
         assert_eq!(bad_kind.kind, "unknown");
         assert_eq!(

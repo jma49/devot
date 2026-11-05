@@ -1064,6 +1064,7 @@ fn a_record_that_does_not_open_comes_down_with_its_code() {
         (page.records[0].id.as_str(), page.records[0].version),
         (name.as_str(), 1)
     );
+    assert_eq!(page.records[0].name, name);
 }
 
 #[test]

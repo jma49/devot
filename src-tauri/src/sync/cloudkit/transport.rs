@@ -86,6 +86,8 @@ pub(crate) struct Welcome {
 
 pub(crate) struct Pulled {
     pub id: String,
+    /// The name it is filed under; `id` too when it does not open.
+    pub name: String,
     pub version: u64,
     pub tag: String,
     pub kind: String,
@@ -409,10 +411,11 @@ impl ICloud {
                         .open_stored(&record.name, decoded.version, &decoded.chunks)
                     {
                         Ok((id, plaintext)) => (id, Ok(plaintext)),
-                        Err(e) => (shown, Err(e.code())),
+                        Err(e) => (shown.clone(), Err(e.code())),
                     };
                 Pulled {
                     id,
+                    name: shown,
                     version: decoded.version,
                     tag,
                     kind: decoded.kind,
@@ -420,7 +423,8 @@ impl ICloud {
                 }
             }
             Err(code) => Pulled {
-                id: shown,
+                id: shown.clone(),
+                name: shown,
                 version: encoding::version_of(record).unwrap_or(0),
                 tag,
                 kind: record.text(encoding::KIND).unwrap_or("record").to_string(),

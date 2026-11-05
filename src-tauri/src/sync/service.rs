@@ -226,6 +226,7 @@ pub(crate) struct SettingsPatch {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PulledDto {
     pub id: String,
+    pub name: String,
     pub version: u64,
     /// The relay's; iCloud has none.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -459,6 +460,7 @@ fn checked_item(
 /// A pulled record for the engine. An attachment is checked as a paste is, before the web view sees it.
 fn pulled(
     id: String,
+    name: String,
     version: u64,
     seq: Option<u64>,
     tag: String,
@@ -484,6 +486,7 @@ fn pulled(
     };
     PulledDto {
         id,
+        name,
         version,
         seq,
         tag,
@@ -1774,6 +1777,7 @@ impl SyncService {
                         .map(|r| {
                             pulled(
                                 r.id,
+                                r.name,
                                 r.version,
                                 Some(r.seq),
                                 String::new(),
@@ -1792,7 +1796,7 @@ impl SyncService {
                     records: page
                         .records
                         .into_iter()
-                        .map(|r| pulled(r.id, r.version, None, r.tag, r.kind, r.plaintext))
+                        .map(|r| pulled(r.id, r.name, r.version, None, r.tag, r.kind, r.plaintext))
                         .collect(),
                     next: page.next,
                     more: page.more,

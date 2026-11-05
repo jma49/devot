@@ -168,6 +168,7 @@ fn a_second_device_restores_the_vault_from_its_recovery_key_and_syncs() {
     let page = phone.service.pull("").unwrap();
     assert_eq!(page.records.len(), 1);
     assert_eq!(page.records[0].id, NOTE);
+    assert_eq!(page.records[0].name, held(&mac).unwrap().store_name(NOTE));
     assert_eq!(
         page.records[0].data.as_deref(),
         Some(b64(b"first").as_str())

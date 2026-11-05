@@ -443,7 +443,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   const tooLarge = new Map<string, string>()
   /** Past the retry cap: left until the next `changed`. */
   const parked = new Set<string>()
-  /** Records this run skipped, by ID: a later pull that reads one takes it off the count. */
+  /** Records this run skipped, by store name: a later pull that reads one takes it off the count. */
   const skippedIds = new Set<string>()
   /** A `changed` event waits for a pass that has not started; it covers any that come before it does. */
   let passQueued = false
@@ -794,11 +794,12 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   }
 
   async function applyPulled(pulled: PulledRecord): Promise<boolean> {
+    const stored = pulled.name ?? pulled.id
     const skip = (code: string) => {
       console.warn('W_SYNC_RECORD_SKIPPED', pulled.id, code)
       unreadable = true
-      if (!skippedIds.has(pulled.id)) {
-        skippedIds.add(pulled.id)
+      if (!skippedIds.has(stored)) {
+        skippedIds.add(stored)
         set({ skipped: skippedIds.size })
       }
       return false
@@ -831,7 +832,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       if (local?.entry && pulled.version <= local.entry.version) return false
       try {
         const applied = await applyRemote(local, remote, pulled.version, pulled.tag)
-        if (skippedIds.delete(pulled.id)) set({ skipped: skippedIds.size })
+        if (skippedIds.delete(stored)) set({ skipped: skippedIds.size })
         return applied
       } catch (error) {
         const code = errorCode(error)

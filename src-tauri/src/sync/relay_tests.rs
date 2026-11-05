@@ -199,6 +199,7 @@ fn creates_enrolls_pushes_and_pulls_sealed_records() {
         (pulled.id.as_str(), pulled.version, pulled.kind.as_str()),
         (RECORD, 1, "record")
     );
+    assert_eq!(pulled.name, vault.store_name(RECORD));
     assert_eq!(
         pulled.plaintext.as_deref().map(|p| p.as_slice()),
         Ok(&first[..])
@@ -210,6 +211,8 @@ fn creates_enrolls_pushes_and_pulls_sealed_records() {
         page.records[0].plaintext.as_ref().err(),
         Some(&"E_SYNC_CHUNK_AUTH")
     );
+    // Under the same name as when it opens, so the engine can take it off the skipped count.
+    assert_eq!(page.records[0].name, vault.store_name(RECORD));
     mac_socket.close();
     phone_socket.close();
 }
