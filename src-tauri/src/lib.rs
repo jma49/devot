@@ -22,6 +22,7 @@ mod crash_scrub;
 mod data_folder;
 mod deep_link;
 mod diagnostics;
+mod distribution;
 mod editor_settings;
 mod exit;
 mod export;
@@ -196,6 +197,9 @@ pub fn run() {
             licence::licence_set,
             licence::licence_remove,
             licence::licence_refresh,
+            licence::app_store::store_products,
+            licence::app_store::store_purchase,
+            licence::app_store::store_restore,
             link_info::link_title,
             link_info::github_snippet,
             #[cfg(desktop)]
@@ -444,26 +448,47 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     let editor_settings = std::sync::Arc::new(editor_settings);
     app.manage(std::sync::Arc::clone(&editor_settings));
     let identifier = &app.config().identifier;
-    let licence = std::sync::Arc::new(
-        licence::Licence::new(
-            licence::PublicKeys::built_in(),
-            std::sync::Arc::new(licence::Keychain::new(identifier, licence::LICENCE_ACCOUNT)),
-            std::sync::Arc::new(licence::Keychain::new(identifier, licence::TRIAL_ACCOUNT)),
-            data_dir,
-            licence_emitter(app.handle().clone()),
-        )
-        .with_activation(
-            std::sync::Arc::new(licence::Keychain::new(identifier, licence::DEVICE_ACCOUNT)),
+    let distribution = distribution::Distribution::this();
+    let licence = licence::Licence::new(
+        licence::PublicKeys::built_in(),
+        std::sync::Arc::new(licence::Keychain::new(identifier, licence::LICENCE_ACCOUNT)),
+        std::sync::Arc::new(licence::Keychain::new(identifier, licence::TRIAL_ACCOUNT)),
+        data_dir,
+        licence_emitter(app.handle().clone()),
+    )
+    .with_activation(
+        std::sync::Arc::new(licence::Keychain::new(identifier, licence::DEVICE_ACCOUNT)),
+        std::sync::Arc::new(licence::Keychain::new(
+            identifier,
+            licence::ACTIVATION_ACCOUNT,
+        )),
+        std::sync::Arc::new(|key, device, label| {
+            licence::client::activate_from_site(key, device, label)
+        }),
+    );
+    let licence = std::sync::Arc::new(match distribution {
+        distribution::Distribution::Direct => licence,
+        distribution::Distribution::AppStore => licence.with_app_store(
             std::sync::Arc::new(licence::Keychain::new(
                 identifier,
-                licence::ACTIVATION_ACCOUNT,
+                licence::APP_STORE_TRIAL_ACCOUNT,
             )),
-            std::sync::Arc::new(|key, device, label| {
-                licence::client::activate_from_site(key, device, label)
-            }),
+            distribution.takes_licence_keys(),
         ),
-    );
+    });
     app.manage(std::sync::Arc::clone(&licence));
+    // StoreKit's listener starts here, before any window can buy (app_store::AppStore).
+    let storefront = licence.sold_on_app_store().then(|| {
+        std::sync::Arc::new(licence::app_store::Storefront::new(
+            app_store::platform(),
+            std::sync::Arc::clone(&licence),
+            licence::app_store::Limits::DEFAULT,
+        ))
+    });
+    if let Some(storefront) = &storefront {
+        tauri::async_runtime::spawn(std::sync::Arc::clone(storefront).run());
+    }
+    app.manage(licence::app_store::Shop(storefront));
     // Every write of user content asks the licence first (docs/licensing.md, The app).
     let gate = licence::Gate::of(&licence);
     app.state::<storage::Db>()

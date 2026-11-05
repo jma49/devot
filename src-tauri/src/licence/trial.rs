@@ -14,6 +14,8 @@ pub(crate) const SET_BACK_MS: i64 = HOUR_MS;
 pub(crate) const GRACE_MS: i64 = 5 * MINUTE_MS;
 /// How often the latest time seen goes to the keychain while Devot runs.
 pub(crate) const SEEN_EVERY_MS: i64 = 10 * MINUTE_MS;
+/// An App Store build whose Apple account has not bought the Trial.
+pub(crate) const NOT_STARTED: &str = "E_TRIAL_NOT_STARTED";
 
 /// The keychain item, as JSON.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -35,6 +37,25 @@ impl Record {
         }
     }
 
+    /// The record of a Trial purchase that began at `start`. One kept for another start (another
+    /// Apple account's Trial) passes on its latest time seen, so a clock set back still ends the
+    /// new trial.
+    pub(crate) fn for_purchase(start: i64, kept: Option<Self>) -> Self {
+        match kept {
+            Some(record) if record.start == start => record,
+            Some(record) => Self {
+                start,
+                seen: record.seen.max(start),
+                ended: false,
+            },
+            None => Self {
+                start,
+                seen: start,
+                ended: false,
+            },
+        }
+    }
+
     pub(crate) fn read(text: &str) -> Result<Self, &'static str> {
         let record: Self = serde_json::from_str(text).map_err(|_| "E_TRIAL_UNREADABLE")?;
         if record.start < 0 || record.seen < record.start {
@@ -52,9 +73,12 @@ impl Record {
     }
 
     /// The record once `now` is seen: a later time moves `seen` on, a clock set back past the
-    /// allowance ends the trial.
+    /// allowance ends the trial. A time before the start changes nothing: a clock behind Apple's
+    /// purchase date waits for the trial rather than ending it.
     pub(crate) fn seen_at(self, now: i64) -> Self {
-        if now < self.seen.saturating_sub(SET_BACK_MS) {
+        if now < self.start {
+            self
+        } else if now < self.seen.saturating_sub(SET_BACK_MS) {
             Self {
                 ended: true,
                 ..self
@@ -85,6 +109,15 @@ impl Record {
 pub(crate) enum TrialState {
     Running,
     Ended,
+    /// An App Store build whose Apple account can still start the Trial.
+    Available,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum TrialSource {
+    Keychain,
+    Purchase,
 }
 
 /// What the windows see of the trial.
@@ -96,10 +129,11 @@ pub(crate) struct TrialView {
     pub ends_at: Option<i64>,
     /// Why the trial could not be read; it counts as ended then.
     pub code: Option<&'static str>,
+    pub source: TrialSource,
 }
 
 impl TrialView {
-    pub(crate) fn of(trial: Result<&Record, &'static str>, now: i64) -> Self {
+    pub(crate) fn of(trial: Result<&Record, &'static str>, now: i64, source: TrialSource) -> Self {
         match trial {
             Ok(record) => Self {
                 state: if record.running(now) {
@@ -109,11 +143,19 @@ impl TrialView {
                 },
                 ends_at: Some(record.ends_at()),
                 code: None,
+                source,
+            },
+            Err(NOT_STARTED) => Self {
+                state: TrialState::Available,
+                ends_at: None,
+                code: None,
+                source,
             },
             Err(code) => Self {
                 state: TrialState::Ended,
                 ends_at: None,
                 code: Some(code),
+                source,
             },
         }
     }
@@ -198,21 +240,81 @@ mod tests {
     #[test]
     fn the_view_says_whether_it_runs_and_when_it_ends() {
         let record = Record::first(START);
+        let keychain = TrialSource::Keychain;
         assert_eq!(
-            serde_json::to_value(TrialView::of(Ok(&record), START)).unwrap(),
-            serde_json::json!({ "state": "running", "endsAt": START + LENGTH_MS, "code": null })
+            serde_json::to_value(TrialView::of(Ok(&record), START, keychain)).unwrap(),
+            serde_json::json!({
+                "state": "running",
+                "endsAt": START + LENGTH_MS,
+                "code": null,
+                "source": "keychain",
+            })
         );
         assert_eq!(
-            TrialView::of(Ok(&record), START + LENGTH_MS).state,
+            TrialView::of(Ok(&record), START + LENGTH_MS, keychain).state,
             TrialState::Ended
         );
         assert_eq!(
-            TrialView::of(Err("E_LICENCE_KEYCHAIN"), START),
+            TrialView::of(Err("E_LICENCE_KEYCHAIN"), START, keychain),
             TrialView {
                 state: TrialState::Ended,
                 ends_at: None,
                 code: Some("E_LICENCE_KEYCHAIN"),
+                source: keychain,
             }
         );
+    }
+
+    #[test]
+    fn a_trial_not_bought_yet_is_available() {
+        assert_eq!(
+            serde_json::to_value(TrialView::of(
+                Err(NOT_STARTED),
+                START,
+                TrialSource::Purchase
+            ))
+            .unwrap(),
+            serde_json::json!({
+                "state": "available",
+                "endsAt": null,
+                "code": null,
+                "source": "purchase",
+            })
+        );
+    }
+
+    #[test]
+    fn a_trial_purchase_starts_at_apples_date_and_keeps_the_latest_time_seen() {
+        let fresh = Record::for_purchase(START, None);
+        assert_eq!(
+            fresh,
+            Record {
+                start: START,
+                seen: START,
+                ended: false
+            }
+        );
+        let kept = fresh.seen_at(START + 10 * HOUR_MS);
+        assert_eq!(Record::for_purchase(START, Some(kept)), kept);
+        // Another Apple account's Trial: a new start, the same latest time seen.
+        let other = Record::for_purchase(START + HOUR_MS, Some(kept));
+        assert_eq!(other.start, START + HOUR_MS);
+        assert_eq!(other.seen, START + 10 * HOUR_MS);
+        assert!(!other.ended);
+        assert!(other.seen_at(START + 8 * HOUR_MS).ended);
+        let later = Record::for_purchase(START + 20 * HOUR_MS, Some(kept));
+        assert_eq!(later.seen, START + 20 * HOUR_MS);
+    }
+
+    #[test]
+    fn a_clock_behind_the_purchase_date_waits_for_the_trial_instead_of_ending_it() {
+        let record = Record::for_purchase(START, None);
+        let slow = record.seen_at(START - 2 * HOUR_MS);
+        assert_eq!(slow, record);
+        assert!(!slow.running(START - 2 * HOUR_MS));
+        let right = Record::read(&slow.text())
+            .expect("record")
+            .seen_at(START + HOUR_MS);
+        assert!(right.running(START + HOUR_MS));
     }
 }

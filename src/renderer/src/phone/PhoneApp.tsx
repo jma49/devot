@@ -28,7 +28,9 @@ import { PhoneLibrary } from './PhoneLibrary'
 import { usePhoneData, type PhoneData } from './usePhoneData'
 import { haptic } from './haptics'
 import { startLicence, useLicence } from '../licence'
-import { licenceRow } from './settingsRows'
+import { licenceRow, welcomeDue } from './settingsRows'
+import { openPurchase, usePurchaseOpen } from '../purchaseSheet'
+import { PhonePurchaseSheet } from './PhonePurchase'
 import { PhoneCapture } from './PhoneCapture'
 import { applyGlassPrefs } from './glassPrefs'
 import { PhoneNote } from './PhoneNote'
@@ -224,11 +226,18 @@ export function PhoneApp() {
   const [searching, setSearching] = useState(false)
   const [searchQuery, setSearchQuery] = useState<string>()
   const licence = useLicence()
+  const purchasing = usePurchaseOpen()
+  const welcomed = useRef(false)
   const undoable = useUndoToast(store)
   const [now] = useState(() => Date.now())
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => (root.current ? startPhoneRoot(root.current) : undefined), [])
   useEffect(() => startLicence(), [])
+  useEffect(() => {
+    if (welcomed.current || !welcomeDue(licence, Date.now())) return
+    welcomed.current = true
+    openPurchase()
+  }, [licence])
   useEffect(() => {
     if (arrivedId === null) return
     const timer = setTimeout(() => setArrivedId(null), ARRIVAL_MS)
@@ -358,6 +367,16 @@ export function PhoneApp() {
         }}
       />
       <PhoneToast toast={undoable.toast} />
+      {purchasing && (
+        <PhonePurchaseSheet
+          licence={licence}
+          onEnterKey={() => {
+            setSearching(false)
+            dispatch({ type: 'selectTab', tab: 'settings' })
+            dispatch({ type: 'push', screen: 'pane', pane: 'licence' })
+          }}
+        />
+      )}
       <PhoneSearch
         store={store}
         open={searching}

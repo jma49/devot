@@ -29,6 +29,8 @@ struct State {
     queued: VecDeque<Update>,
     listener: Option<UnboundedSender<Update>>,
     listening: bool,
+    /// Every call but a purchase waits for ever, as a bridge whose StoreKit call hangs.
+    silent: bool,
 }
 
 impl Default for State {
@@ -44,6 +46,7 @@ impl Default for State {
             queued: VecDeque::new(),
             listener: None,
             listening: false,
+            silent: false,
         }
     }
 }
@@ -122,6 +125,17 @@ impl FakeAppStore {
         }));
     }
 
+    pub(crate) fn set_silent(&self, silent: bool) {
+        self.state().silent = silent;
+    }
+
+    async fn reply_or_hang(&self) {
+        let silent = self.state().silent;
+        if silent {
+            std::future::pending::<()>().await;
+        }
+    }
+
     pub(crate) fn purchased(&self) -> Vec<Product> {
         self.state().purchased.clone()
     }
@@ -133,6 +147,7 @@ impl FakeAppStore {
 
 impl AppStore for FakeAppStore {
     async fn products(&self) -> Result<Vec<StoreProduct>, StoreError> {
+        self.reply_or_hang().await;
         self.state().products.clone()
     }
 
@@ -151,10 +166,12 @@ impl AppStore for FakeAppStore {
     }
 
     async fn restore(&self) -> Result<Restore, StoreError> {
+        self.reply_or_hang().await;
         self.state().restore
     }
 
     async fn current_entitlements(&self) -> Result<Entitlements, StoreError> {
+        self.reply_or_hang().await;
         Ok(Entitlements {
             transactions: self.state().entitlements.clone(),
             unverified: Vec::new(),
@@ -176,6 +193,7 @@ impl AppStore for FakeAppStore {
     }
 
     async fn finish(&self, transaction_id: u64) -> Result<Finish, StoreError> {
+        self.reply_or_hang().await;
         let mut state = self.state();
         let Some(index) = state.unfinished.iter().position(|id| *id == transaction_id) else {
             return Ok(Finish::NotFound);

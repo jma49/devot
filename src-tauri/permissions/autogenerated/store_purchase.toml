@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-store-purchase"
+description = "Enables the store_purchase command without any pre-configured scope."
+commands.allow = ["store_purchase"]
+
+[[permission]]
+identifier = "deny-store-purchase"
+description = "Denies the store_purchase command without any pre-configured scope."
+commands.deny = ["store_purchase"]

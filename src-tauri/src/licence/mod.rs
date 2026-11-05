@@ -7,14 +7,18 @@
 //! asks).
 //! While the build holds no production key nothing is gated and the trial never starts, so a
 //! release made before the owner's keys exist changes nothing.
+//! An App Store build (`crate::distribution`) is also unlocked by a Devot Pro purchase
+//! (`purchases`), and its trial is the Trial purchase; `app_store` keeps both current.
 //! The key and the licensee's address never reach a log, an error or a crash report: logs carry
 //! codes and the licence ID.
 
 mod activation;
+pub(crate) mod app_store;
 pub(crate) mod client;
 mod device;
 mod format;
 mod keys;
+mod purchases;
 mod revoked;
 pub(crate) mod schedule;
 mod store;
@@ -39,9 +43,14 @@ use format::{
     Payload, Revocations, VerifyError, verify_activation, verify_licence, verify_revocations,
 };
 pub(crate) use keys::PublicKeys;
-pub(crate) use store::{KeyStore, Keychain, LICENCE_ACCOUNT, REVOCATIONS_FILE, TRIAL_ACCOUNT};
-use trial::Record;
+use purchases::Purchases;
+pub(crate) use store::{
+    APP_STORE_TRIAL_ACCOUNT, KeyStore, Keychain, LICENCE_ACCOUNT, REVOCATIONS_FILE, TRIAL_ACCOUNT,
+};
 pub(crate) use trial::TrialView;
+use trial::{Record, TrialSource};
+
+use crate::app_store::{Entitlements, StoreError, StoreTransaction};
 
 use crate::storage::Write;
 use crate::task;
@@ -60,6 +69,10 @@ const TICK: std::time::Duration = std::time::Duration::from_secs(60);
 const SEAT_GRACE_MS: i64 = 5 * 60_000;
 /// How many licences a device remembers having tried; past this the oldest is forgotten.
 const MAX_ATTEMPTED: usize = 32;
+/// A note's text and history are still written this long after a refund takes Devot Pro away.
+const PURCHASE_GRACE_MS: i64 = 5 * 60_000;
+/// Why a key is refused in an App Store build that takes none (`crate::distribution`).
+pub(crate) const KEYS_OFF: &str = "E_LICENCE_KEYS_OFF";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -86,6 +99,19 @@ pub(crate) struct Snapshot {
     pub trial: Option<TrialView>,
     /// This device's seat, in a build that manages them; None otherwise.
     pub activation: Option<ActivationView>,
+    /// The App Store's purchases, in an App Store build; None otherwise.
+    pub app_store: Option<AppStoreView>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AppStoreView {
+    /// A Devot Pro purchase this Apple account holds.
+    pub pro: bool,
+    /// Why the purchases are not known yet; the build is locked until they are.
+    pub code: Option<&'static str>,
+    /// Whether a licence key can be added (Enter Licence Key).
+    pub takes_keys: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize)]
@@ -106,6 +132,7 @@ impl fmt::Debug for Snapshot {
             .field("code", &self.code)
             .field("id", &self.id)
             .field("trial", &self.trial)
+            .field("app_store", &self.app_store)
             .finish_non_exhaustive()
     }
 }
@@ -193,6 +220,10 @@ pub(crate) struct Licence {
     /// Why the seat item could not be read: a managed device with no readable seat is locked,
     /// and the read is tried again at the next tick rather than at every write.
     seat_unread: Mutex<Option<&'static str>>,
+    /// An App Store build's purchases; then `trial_store` holds the Trial purchase's latest time
+    /// seen, not the keychain trial.
+    purchases: Option<Mutex<Purchases>>,
+    takes_keys: bool,
 }
 
 /// Keeps every character a key can hold; spaces and line breaks a mail client wrapped it with go.
@@ -228,9 +259,84 @@ impl Licence {
             activator: Arc::new(client::activate_from_site),
             seat_error: Mutex::new(None),
             seat_unread: Mutex::new(None),
+            purchases: None,
+            takes_keys: true,
             clock: Arc::new(system_now),
             emit,
         }
+    }
+
+    /// An App Store build: purchases unlock it too, and its trial is the Trial purchase, whose
+    /// latest time seen `trial_seen` keeps. The keychain trial's store is never used then.
+    pub(crate) fn with_app_store(self, trial_seen: Arc<dyn KeyStore>, takes_keys: bool) -> Self {
+        Self {
+            trial_store: trial_seen,
+            purchases: Some(Mutex::new(Purchases::default())),
+            takes_keys,
+            ..self
+        }
+    }
+
+    pub(crate) fn sold_on_app_store(&self) -> bool {
+        self.purchases.is_some()
+    }
+
+    fn with_purchases<T>(&self, f: impl FnOnce(&mut Purchases) -> T) -> Option<T> {
+        let purchases = self.purchases.as_ref()?;
+        let mut purchases = purchases.lock().unwrap_or_else(|e| e.into_inner());
+        Some(f(&mut purchases))
+    }
+
+    /// After the purchases change, the trial is read again: a Trial bought, gone or read at last.
+    fn purchases_changed(&self) {
+        // Under the keychain's lock, so a trial being read from the old purchases is not kept.
+        if let Ok(_keychain) = self.keychain()
+            && let Ok(mut trial) = self.trial_lock()
+        {
+            *trial = None;
+        }
+        self.changed();
+    }
+
+    /// The current entitlements, read at launch and on Restore Purchases, or why they could not be.
+    pub(crate) fn take_entitlements(&self, read: Result<&Entitlements, StoreError>) {
+        let now = (self.clock)();
+        let taken = self.with_purchases(|purchases| match read {
+            Ok(entitlements) => {
+                for code in &entitlements.unverified {
+                    log::warn!("W_APP_STORE_UNVERIFIED {code}");
+                }
+                purchases.replace(entitlements, now);
+                log::info!("I_APP_STORE_ENTITLEMENTS pro={}", purchases.pro());
+            }
+            Err(error) => {
+                log::warn!("W_APP_STORE_ENTITLEMENTS {error}");
+                purchases.failed(error.code());
+            }
+        });
+        if taken.is_some() {
+            self.purchases_changed();
+        }
+    }
+
+    /// A verified transaction from a purchase or from StoreKit's updates.
+    pub(crate) fn take_transaction(&self, transaction: StoreTransaction) {
+        let now = (self.clock)();
+        let taken = self.with_purchases(|purchases| {
+            purchases.apply(transaction, now);
+            log::info!("I_APP_STORE_TRANSACTION pro={}", purchases.pro());
+        });
+        if taken.is_some() {
+            self.purchases_changed();
+        }
+    }
+
+    fn app_store_view(&self) -> Option<AppStoreView> {
+        self.with_purchases(|purchases| AppStoreView {
+            pro: purchases.pro(),
+            code: purchases.code(),
+            takes_keys: self.takes_keys,
+        })
     }
 
     /// Manages this device's seats (docs/licensing.md, Activation). Without it the licence is the
@@ -356,6 +462,7 @@ impl Licence {
             plan: None,
             trial: None,
             activation: None,
+            app_store: None,
         };
         match &held.key {
             None => empty,
@@ -389,6 +496,7 @@ impl Licence {
                 plan: None,
                 trial: None,
                 activation: None,
+                app_store: None,
             });
         if snapshot.state == LicenceState::Valid
             && let Some(id) = snapshot.id.as_deref()
@@ -727,11 +835,24 @@ impl Licence {
 
     pub(crate) fn snapshot(&self) -> Snapshot {
         let snapshot = self.key_snapshot();
+        let source = if self.sold_on_app_store() {
+            TrialSource::Purchase
+        } else {
+            TrialSource::Keychain
+        };
         let trial = self.keys.gated().then(|| {
             let now = (self.clock)();
-            TrialView::of(self.trial_at(now).as_ref().map_err(|code| *code), now)
+            TrialView::of(
+                self.trial_at(now).as_ref().map_err(|code| *code),
+                now,
+                source,
+            )
         });
-        Snapshot { trial, ..snapshot }
+        Snapshot {
+            trial,
+            app_store: self.app_store_view(),
+            ..snapshot
+        }
     }
 
     fn trial_lock(&self) -> Result<MutexGuard<'_, Option<Trial>>, &'static str> {
@@ -766,7 +887,59 @@ impl Licence {
         if let Some(trial) = self.trial_lock()?.as_ref() {
             return trial.record;
         }
-        let record = match self.trial_store.get() {
+        let record = if self.sold_on_app_store() {
+            self.load_purchase_trial(now)
+        } else {
+            self.load_keychain_trial(now)
+        };
+        if let Err(code) = record
+            && code != trial::NOT_STARTED
+        {
+            log::warn!("W_TRIAL_UNREADABLE {code}");
+        }
+        *self.trial_lock()? = Some(Trial {
+            record,
+            written: now,
+        });
+        record
+    }
+
+    /// The Trial purchase's record: Apple's date starts it, and its item holds only the latest time
+    /// seen. Nothing is written before the Trial is bought. A damaged item counts as none: removing
+    /// it gives the same.
+    fn load_purchase_trial(&self, now: i64) -> Result<Record, &'static str> {
+        let start = self
+            .with_purchases(|purchases| {
+                if purchases.read() {
+                    purchases.trial_start().ok_or(trial::NOT_STARTED)
+                } else {
+                    Err(purchases.code().unwrap_or(purchases::UNREAD))
+                }
+            })
+            .ok_or("E_LICENCE_INTERNAL")??;
+        let kept = self.trial_store.get()?.and_then(|text| {
+            Record::read(&text)
+                .inspect_err(|code| log::warn!("W_TRIAL_UNREADABLE {code}"))
+                .ok()
+        });
+        let record = Record::for_purchase(start, kept);
+        let seen = record.seen_at(now);
+        if seen.ended && !record.ended {
+            log::warn!("W_TRIAL_CLOCK_SET_BACK");
+        }
+        if Some(seen) != kept {
+            if kept.is_none() {
+                log::info!("I_TRIAL_STARTED");
+            }
+            if self.trial_store.set(&seen.text()).is_err() {
+                log::warn!("W_TRIAL_SEEN_WRITE_FAILED");
+            }
+        }
+        Ok(seen)
+    }
+
+    fn load_keychain_trial(&self, now: i64) -> Result<Record, &'static str> {
+        match self.trial_store.get() {
             Ok(Some(text)) => Record::read(&text).map(|record| {
                 let seen = record.seen_at(now);
                 if seen.ended && !record.ended {
@@ -785,15 +958,7 @@ impl Licence {
                 })
             }
             Err(code) => Err(code),
-        };
-        if let Err(code) = record {
-            log::warn!("W_TRIAL_UNREADABLE {code}");
         }
-        *self.trial_lock()? = Some(Trial {
-            record,
-            written: now,
-        });
-        record
     }
 
     fn write_trial(&self, record: &Record) {
@@ -811,13 +976,23 @@ impl Licence {
     }
 
     /// Whether `what` may be written, sync connect or AI send now: always in a build that gates
-    /// nothing, else with a valid licence or while the trial runs. A note's text and history are
-    /// still written for a short grace after the trial ran out, so a save in flight lands.
+    /// nothing, else with a valid licence, a Devot Pro purchase in an App Store build, or while the
+    /// trial runs. A note's text and history are still written for a short grace after the trial
+    /// ran out or a refund took the purchase, so a save in flight lands.
     fn unlocked(&self, what: Write) -> bool {
         if !self.keys.gated() {
             return true;
         }
         let now = (self.clock)();
+        if self
+            .with_purchases(|purchases| {
+                purchases.pro()
+                    || (what == Write::Body && purchases.in_pro_grace(now, PURCHASE_GRACE_MS))
+            })
+            .unwrap_or(false)
+        {
+            return true;
+        }
         let snapshot = self.key_snapshot();
         let licensed = snapshot.state == LicenceState::Valid
             && if self.managed() {
@@ -924,6 +1099,9 @@ impl Licence {
     /// Checks a key without keeping it: what adding it would show. It reads no keychain, since a
     /// link arrives on the main thread.
     pub(crate) fn offer(&self, input: &str) -> Result<Offer, &'static str> {
+        if !self.takes_keys {
+            return Err(KEYS_OFF);
+        }
         let key = cleaned(input)?;
         let payload = verify_licence(&key, &self.keys).map_err(VerifyError::code)?;
         let loaded = self.held()?.as_ref().map(|held| held.revocations.clone());
@@ -939,6 +1117,9 @@ impl Licence {
     /// Replaces the licence with a key that verifies; a key that does not is refused with its code
     /// and nothing changes.
     pub(crate) fn set(&self, input: &str) -> Result<Snapshot, &'static str> {
+        if !self.takes_keys {
+            return Err(KEYS_OFF);
+        }
         let key = cleaned(input)?;
         let payload = verify_licence(&key, &self.keys).map_err(|e| {
             log::warn!("W_LICENCE_REFUSED {}", e.code());

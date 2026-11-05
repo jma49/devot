@@ -91,8 +91,43 @@ describe('the trial', () => {
     for (const f of FEATURES) expect(licensed.has(f)).toBe(true)
   })
 
-  it('has two states', () => {
-    expect(TRIAL_STATES).toEqual(['running', 'ended'])
+  it('has three states, and one not yet started unlocks nothing', () => {
+    expect(TRIAL_STATES).toEqual(['running', 'ended', 'available'])
+    const e = unlicensed('available')
+    for (const f of PLAN_GATED_FEATURES) expect(e.has(f)).toBe(false)
+  })
+})
+
+describe('an App Store purchase', () => {
+  const store = (patch: Partial<LicenceEntitlements>): LicenceEntitlements => ({
+    enforced: true,
+    state: 'none',
+    plan: null,
+    trial: 'available',
+    trialSource: 'purchase',
+    ...patch,
+  })
+
+  it('of Devot Pro grants every gated feature without a licence or the trial', () => {
+    const e = withLicence(store({ purchase: 'pro' }))
+    for (const f of FEATURES) expect(e.has(f)).toBe(true)
+  })
+
+  it('of Devot Pro unlocks even where a licence key has no live seat', () => {
+    const e = withLicence(
+      store({ purchase: 'pro', state: 'valid', plan: 'pro', activation: 'required' }),
+    )
+    expect(e.has('editing')).toBe(true)
+  })
+
+  it('missing leaves the free features alone, and the Trial purchase is only a trial', () => {
+    for (const purchase of [null, undefined] as const) {
+      const e = withLicence(store(purchase === undefined ? {} : { purchase }))
+      expect(e.has('localNotes')).toBe(true)
+      for (const f of PLAN_GATED_FEATURES) expect(e.has(f)).toBe(false)
+    }
+    expect(withLicence(store({ trial: 'running' })).has('editing')).toBe(true)
+    expect(withLicence(store({ trial: 'ended' })).has('editing')).toBe(false)
   })
 })
 

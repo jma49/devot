@@ -1,6 +1,7 @@
 //! Where the licence lives: the key in the keychain beside the AI keys (a generic password under the
 //! app's identifier, account `licence`), never in a file, the web view or a log; the trial's start
-//! and latest time seen beside it (account `trial`); the last verified revocation list in
+//! and latest time seen beside it (account `trial`), or in an App Store build the Trial purchase's
+//! latest time seen (account `app-store-trial`); the last verified revocation list in
 //! `<app data>/licence-revocations.txt`, since it is public.
 
 pub(crate) const REVOCATIONS_FILE: &str = "licence-revocations.txt";
@@ -14,6 +15,7 @@ pub(crate) trait KeyStore: Send + Sync {
 
 pub(crate) const LICENCE_ACCOUNT: &str = "licence";
 pub(crate) const TRIAL_ACCOUNT: &str = "trial";
+pub(crate) const APP_STORE_TRIAL_ACCOUNT: &str = "app-store-trial";
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;

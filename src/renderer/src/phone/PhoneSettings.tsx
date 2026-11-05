@@ -1,7 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { errorCode } from '../../../core/errors'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
-import { trialRunning, useLicence } from '../licence'
+import {
+  editingAllowed,
+  restorePurchases,
+  soldOnAppStore,
+  trialRunning,
+  useLicence,
+} from '../licence'
+import { licenceProblem } from '../licenceView'
 import { OnPhone } from '../settings/onPhone'
 import type { IconName } from '../icons/symbols'
 import { PANES, PANE_TABS, type PaneId } from '../settings/panes'
@@ -62,6 +70,47 @@ function SettingsRow(props: { row: Row; onOpen: (pane: PaneId) => void }) {
         )}
         <span className="phone-chevron">
           <Icon name="phone.disclosure" size="xs" weight="medium" />
+        </span>
+      </button>
+    </li>
+  )
+}
+
+type Restoring = 'running' | 'restored' | 'nothing' | { readonly code: string }
+
+function restoreValue(state: Restoring | null): string | undefined {
+  if (state === null) return undefined
+  if (state === 'running') return t('phone.settings.restoring')
+  if (state === 'restored') return t('phone.settings.restored')
+  if (state === 'nothing') return t('phone.settings.nothingRestored')
+  return licenceProblem(state.code)
+}
+
+/** Restore Purchases, in an App Store build: an action, so it has no chevron; its outcome is its value. */
+function RestoreRow() {
+  const [state, setState] = useState<Restoring | null>(null)
+  const value = restoreValue(state)
+  const restore = () => {
+    if (state === 'running') return
+    setState('running')
+    restorePurchases().then(
+      () => setState(editingAllowed() ? 'restored' : 'nothing'),
+      (error: unknown) => setState({ code: errorCode(error) }),
+    )
+  }
+  return (
+    <li className="phone-grouped-row">
+      <button
+        type="button"
+        className="phone-grouped-open phone-settings-action"
+        aria-disabled={state === 'running'}
+        onClick={restore}
+      >
+        <span className="phone-grouped-text">
+          <span className="phone-grouped-label">{t('phone.settings.restore')}</span>
+          <span className="phone-grouped-count" role="status">
+            {value}
+          </span>
         </span>
       </button>
     </li>
@@ -138,7 +187,8 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
   useEffect(() => startSyncStatus(), [])
   const state = licenceRow(licence, now)
   const trialEnds = licence.trial?.endsAt ?? null
-  const groups: readonly { title?: MessageKey; rows: readonly Row[] }[] = [
+  const store = soldOnAppStore(licence)
+  const groups: readonly { title?: MessageKey; rows: readonly Row[]; after?: ReactNode }[] = [
     {
       title: 'phone.settings.group.general',
       rows: [paneRow('general'), paneRow('appearance'), paneRow('editing'), paneRow('preview')],
@@ -157,7 +207,10 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
       title: 'phone.settings.group.ai',
       rows: [paneRow('ai')],
     },
-    { rows: [paneRow('usage'), paneRow('licence', state.label, state.needsAttention)] },
+    {
+      rows: [paneRow('usage'), paneRow('licence', state.label, state.needsAttention)],
+      ...(store ? { after: <RestoreRow /> } : {}),
+    },
   ]
   const summary = version ? `${version} · ${state.label}` : state.label
   return (
@@ -203,6 +256,7 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
               {group.rows.map((row) => (
                 <SettingsRow key={row.label} row={row} onOpen={props.onOpenPane} />
               ))}
+              {group.after}
             </ul>
           </div>
         ))}
@@ -246,7 +300,7 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
       {trialOpen && trialEnds !== null && (
         <PhoneDetailSheet
           title={t('phone.settings.trial')}
-          body={format(t('phone.settings.trialEnds'), {
+          body={format(t(store ? 'phone.settings.trialEndsStore' : 'phone.settings.trialEnds'), {
             date: new Intl.DateTimeFormat(currentLocale(), { dateStyle: 'medium' }).format(
               trialEnds,
             ),

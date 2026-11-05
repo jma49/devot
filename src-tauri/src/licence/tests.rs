@@ -349,6 +349,7 @@ fn a_licence_unlocks_every_version_whatever_dates_it_carries() {
         Some(
             [
                 "activation",
+                "appStore",
                 "code",
                 "gated",
                 "id",
@@ -700,6 +701,7 @@ fn the_first_launch_of_a_gated_build_begins_a_thirty_day_trial_kept_in_the_keych
             state: trial::TrialState::Running,
             ends_at: Some(START + 30 * 24 * HOUR),
             code: None,
+            source: trial::TrialSource::Keychain,
         }
     );
     assert_eq!(s.kept_trial(), Some(trial::Record::first(START)));
@@ -710,7 +712,12 @@ fn the_first_launch_of_a_gated_build_begins_a_thirty_day_trial_kept_in_the_keych
     let sent = serde_json::to_value(s.licence.snapshot()).expect("json");
     assert_eq!(
         sent["trial"],
-        json!({ "state": "running", "endsAt": START + 30 * 24 * HOUR, "code": null })
+        json!({
+            "state": "running",
+            "endsAt": START + 30 * 24 * HOUR,
+            "code": null,
+            "source": "keychain",
+        })
     );
 }
 
@@ -877,6 +884,7 @@ fn a_trial_the_keychain_cannot_give_counts_as_ended_and_is_read_again_at_the_nex
             state: trial::TrialState::Ended,
             ends_at: None,
             code: Some("E_LICENCE_KEYCHAIN"),
+            source: trial::TrialSource::Keychain,
         }
     );
     assert_eq!(s.licence.require_write(Write::Content), Err(UNREADABLE));
