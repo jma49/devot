@@ -28,7 +28,11 @@ pub(crate) fn ready(kit: &dyn CloudKit) -> Result<(), &'static str> {
 /// The vault `current` names; `None` when this Apple ID has none (or no zone `devot` yet).
 pub(crate) fn read(kit: &dyn CloudKit) -> Result<Option<String>, &'static str> {
     match kit.fetch(ZONE_DEVOT, &[CURRENT.to_string()]) {
-        Ok(records) => Ok(records.into_iter().next().flatten().and_then(vault_of)),
+        Ok(records) => Ok(records
+            .into_iter()
+            .next()
+            .flatten()
+            .and_then(|record| vault_of(&record))),
         Err(e) if classify(&e) == Failure::ZoneGone => Ok(None),
         Err(e) => Err(code(e)),
     }
@@ -51,15 +55,17 @@ pub(crate) fn claim(kit: &dyn CloudKit, vault: &str) -> Result<Claim, &'static s
         .map_err(code)?
         .into_iter()
         .next()
-        .ok_or(error::FAILED)?;
+        .ok_or_else(|| error::empty("current-save"))?;
     let winner = match saved {
         Ok(_) => {
             log::info!("I_SYNC_ICLOUD_CURRENT vault={vault}");
             return Ok(Claim::Won);
         }
-        Err(e) => match (classify(&e), e.server_record) {
-            (Failure::Changed, Some(server)) => vault_of(*server).ok_or(error::FAILED)?,
-            (failure, _) => return Err(failure.code()),
+        Err(e) => match (classify(&e), &e.server_record) {
+            (Failure::Changed, Some(server)) => {
+                vault_of(server).ok_or_else(|| error::unusable("current-vault"))?
+            }
+            _ => return Err(error::code_of(&e, "current")),
         },
     };
     if winner == vault {
@@ -109,7 +115,7 @@ pub(crate) fn zone_exists(kit: &dyn CloudKit, zone: &str) -> Result<bool, &'stat
     Ok(exists.first().copied().unwrap_or(false))
 }
 
-fn vault_of(record: CkRecord) -> Option<String> {
+fn vault_of(record: &CkRecord) -> Option<String> {
     if record.kind != TYPE_VAULT {
         return None;
     }
@@ -120,11 +126,7 @@ fn vault_of(record: CkRecord) -> Option<String> {
 }
 
 fn code(e: super::kit::CkError) -> &'static str {
-    let failure = classify(&e);
-    if let Failure::Other(code) = failure {
-        log::warn!("W_SYNC_ICLOUD_FAILED code={code}");
-    }
-    failure.code()
+    error::code_of(&e, "current")
 }
 
 #[cfg(test)]
@@ -156,6 +158,13 @@ mod tests {
         kit.save(ZONE_DEVOT, &[damaged], SavePolicy::Overwrite)
             .unwrap();
         assert_eq!(read(&kit), Ok(None));
+        assert_eq!(claim(&kit, A), Err(error::FAILED));
+    }
+
+    #[test]
+    fn a_server_rejected_save_fails_the_claim_with_failed() {
+        let kit = Fake::new();
+        kit.fail_record(CURRENT, CkError::of(code::SERVER_REJECTED_REQUEST));
         assert_eq!(claim(&kit, A), Err(error::FAILED));
     }
 

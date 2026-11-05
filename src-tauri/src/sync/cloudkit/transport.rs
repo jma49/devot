@@ -286,7 +286,7 @@ impl ICloud {
             .map_err(failure)?
             .into_iter()
             .next()
-            .ok_or(error::FAILED)?;
+            .ok_or_else(|| error::empty("epoch-save"))?;
         match saved {
             Ok(_) => {
                 log::info!("I_SYNC_ICLOUD_EPOCH vault={vault}");
@@ -296,8 +296,8 @@ impl ICloud {
                 (Failure::Changed, Some(server)) => server
                     .text("epoch")
                     .map(str::to_string)
-                    .ok_or(error::FAILED),
-                (other, _) => Err(other.code()),
+                    .ok_or_else(|| error::unusable("epoch-record")),
+                _ => Err(error::code_of(&e, "epoch")),
             },
         }
     }
@@ -311,9 +311,9 @@ impl ICloud {
             .map_err(failure)?
             .into_iter()
             .next()
-            .ok_or(error::FAILED)?
+            .ok_or_else(|| error::empty("clock-save"))?
             .map_err(failure)?;
-        saved.modified.ok_or(error::FAILED)
+        saved.modified.ok_or_else(|| error::empty("clock-time"))
     }
 
     /// The device row (sealed name, last day seen), saved only when the name changed or the last
@@ -462,6 +462,7 @@ impl ICloud {
         let mut runs: VecDeque<Range<usize>> = batch::plan(&sizes).into();
         let mut retried = vec![false; prepared.len()];
         let mut ended: Option<PushAnswer> = None;
+        let mut failed = error::FailedTally::default();
         while let Some(run) = runs.pop_front() {
             if let Some(end) = &ended {
                 for p in &prepared[run] {
@@ -492,7 +493,9 @@ impl ICloud {
                         }
                         Refused::Failed(code) => PushAnswer::Failed(code),
                     };
-                    log::warn!("W_SYNC_ICLOUD_SAVE code={}", e.code);
+                    if answer == PushAnswer::Failed(error::FAILED) {
+                        failed.note(Some(e.code));
+                    }
                     for p in &prepared[run] {
                         results[p.index] = Some(answer.clone());
                     }
@@ -508,6 +511,10 @@ impl ICloud {
                             .chain(std::iter::repeat_with(|| None)),
                     ) {
                         let p = &prepared[at];
+                        let outcome_code = outcome
+                            .as_ref()
+                            .and_then(|o| o.as_ref().err())
+                            .map(|e| e.code);
                         let answer = match outcome {
                             Some(Ok(record)) => PushAnswer::Pushed {
                                 version: p.version,
@@ -523,6 +530,9 @@ impl ICloud {
                             },
                             None => PushAnswer::Failed(error::FAILED),
                         };
+                        if answer == PushAnswer::Failed(error::FAILED) {
+                            failed.note(outcome_code);
+                        }
                         if matches!(
                             &answer,
                             PushAnswer::Paused {
@@ -538,10 +548,17 @@ impl ICloud {
             }
         }
         self.staging.remove(&staged);
-        results
+        let answers = results
             .into_iter()
-            .map(|r| r.unwrap_or(PushAnswer::Failed(error::FAILED)))
-            .collect()
+            .map(|r| {
+                r.unwrap_or_else(|| {
+                    failed.note(None);
+                    PushAnswer::Failed(error::FAILED)
+                })
+            })
+            .collect();
+        failed.log("push");
+        answers
     }
 
     fn prepare(
@@ -604,11 +621,7 @@ fn tag_of(record: &CkRecord) -> String {
 }
 
 fn failure(e: CkError) -> &'static str {
-    let failure = classify(&e);
-    if let Failure::Other(code) = failure {
-        log::warn!("W_SYNC_ICLOUD_FAILED code={code}");
-    }
-    failure.code()
+    error::code_of(&e, "transport")
 }
 
 fn hash(label: &[u8], text: &str) -> String {
