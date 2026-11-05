@@ -10,10 +10,12 @@ use std::time::{Duration, Instant};
 use base64::Engine as _;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use serde_json::{Value, json};
+use zeroize::Zeroizing;
 
 use super::Vault;
+use super::client::PairingState;
 use super::client::{self, Connection};
-use super::pairing::{Pairing, TTL_MS};
+use super::pairing::{Pairing, PairingChannel, RelayPairing, TTL_MS};
 use super::relay_tests::{NodeRelay, RECORD, SECRET, Secrets};
 use super::service::{PushDto, SettingsPatch, SyncService};
 use super::settings::{DeviceCredentials, FILE, SettingsStore};
@@ -858,4 +860,31 @@ fn the_recovery_key_stays_on_offer_until_this_device_says_it_was_saved() {
     let phone = Device::at(relay.url.as_str());
     phone.service.join_with_recovery(&key).unwrap();
     assert!(phone.service.recovery_key().unwrap().is_none());
+}
+
+#[test]
+fn a_pairing_crosses_the_relay_through_its_channel() {
+    let relay = NodeRelay::start();
+    let mac = Device::first(relay.url.as_str());
+    let token = DeviceCredentials::load(mac.secrets.as_ref())
+        .unwrap()
+        .unwrap()
+        .token;
+    let host: Box<dyn PairingChannel> = Box::new(RelayPairing::host(
+        relay.url.clone(),
+        mac.vault().id().to_string(),
+        Zeroizing::new(token),
+    ));
+    let guest: Box<dyn PairingChannel> = Box::new(RelayPairing::join(relay.url.clone()));
+    let pairing = Pairing::generate().unwrap();
+    let id = pairing.id();
+
+    assert!(host.open(id, &[7; 48]).unwrap() > now());
+    assert_eq!(host.poll(id), Ok(PairingState::Open));
+    assert_eq!(guest.take(id), Ok(vec![7; 48]));
+    assert_eq!(host.poll(id), Ok(PairingState::Taken));
+    guest.confirm(id, &[9; 40]).unwrap();
+    assert_eq!(host.poll(id), Ok(PairingState::Confirmed(vec![9; 40])));
+    host.close(id).unwrap();
+    assert_eq!(host.poll(id), Err("E_SYNC_PAIRING_GONE"));
 }
