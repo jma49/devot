@@ -17,8 +17,11 @@ device=${DEVOT_STORE_SIMULATOR:-$(xcrun simctl list devices available --json | n
   const runtimes = Object.keys(devices).filter((r) => r.includes(".iOS-") && phones(r).length).sort(newer)
   console.error(`iPhone runtimes: ${runtimes.map((r) => version(r).join(".")).join(", ")}`)
   const broken = (r) => ["26.4", "26.5"].includes(version(r).join("."))
-  const runtime = runtimes.find((r) => !broken(r)) ?? runtimes[0]
-  if (!runtime) process.exit(1)
+  const runtime = runtimes.find((r) => !broken(r))
+  if (!runtime) {
+    console.error("no iPhone runtime whose StoreKit Test works under xcodebuild; install one (iOS 26.2 is known good)")
+    process.exit(1)
+  }
   const phone = phones(runtime)[0]
   console.error(`StoreKit tests on ${phone.name}, iOS ${version(runtime).join(".")}`)
   console.log(phone.udid)
