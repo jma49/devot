@@ -27,7 +27,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 #[cfg(desktop)]
 use tauri_plugin_dialog::DialogExt;
@@ -148,6 +148,9 @@ struct Inner {
     /// taken for its own: going on from that manifest would delete the files it lists.
     library: Option<String>,
     generation: u64,
+    /// Changes whenever the manifest is let go (the folder chosen or turned off, a manifest read
+    /// anew): a batch begun before records nothing.
+    epoch: u64,
     revision: u64,
     paused: Option<&'static str>,
     manifest: Option<Manifest>,
@@ -168,6 +171,23 @@ pub struct Mirror {
     settings: PathBuf,
     home: Option<PathBuf>,
     inner: Mutex<Inner>,
+    /// A batch, a resume or a confirmation writing the folder: one at a time. `inner` is never
+    /// held while waiting for it.
+    writing: Mutex<bool>,
+    idle: Condvar,
+}
+
+struct Turn<'a>(&'a Mirror);
+
+impl Drop for Turn<'_> {
+    fn drop(&mut self) {
+        *self
+            .0
+            .writing
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = false;
+        self.0.idle.notify_one();
+    }
 }
 
 fn display(path: &Path, home: Option<&Path>) -> String {
@@ -193,6 +213,8 @@ impl Mirror {
             settings: settings.to_owned(),
             home,
             inner: Mutex::new(Inner::default()),
+            writing: Mutex::new(false),
+            idle: Condvar::new(),
         }
     }
 
@@ -215,6 +237,19 @@ impl Mirror {
                 None
             }
         }
+    }
+
+    fn write_turn(&self) -> Turn<'_> {
+        // Nothing can panic while the flag is held, so a poisoned lock still holds a sound value.
+        let mut writing = self.writing.lock().unwrap_or_else(PoisonError::into_inner);
+        while *writing {
+            writing = self
+                .idle
+                .wait(writing)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+        *writing = true;
+        Turn(self)
     }
 
     /// Reads the setting at first use, and again on every use while it cannot be read.
@@ -335,6 +370,7 @@ impl Mirror {
             if folder != inner.folder {
                 log::info!("I_MIRROR_OFF");
                 inner.manifest = None;
+                inner.epoch += 1;
                 inner.dirty = false;
                 inner.paused = None;
                 inner.kept.clear();
@@ -366,6 +402,7 @@ impl Mirror {
         log::info!("I_MIRROR_FOLDER_CHOSEN");
         inner.folder = Some(root);
         inner.manifest = None;
+        inner.epoch += 1;
         inner.dirty = false;
         inner.paused = None;
         inner.kept.clear();
@@ -408,6 +445,7 @@ impl Mirror {
     }
 
     pub fn confirm(&self, token: u64, notify: Notify) -> Result<Status, &'static str> {
+        let _turn = self.write_turn();
         let mut inner = self.lock(notify)?;
         let path = inner
             .choices
@@ -423,6 +461,7 @@ impl Mirror {
     }
 
     pub fn open(&self, known: Option<u64>, notify: Notify) -> Result<Opened, &'static str> {
+        let _turn = self.write_turn();
         let mut inner = self.lock(notify)?;
         let path = inner.folder.clone().ok_or("E_MIRROR_OFF")?;
         let root = match Root::open(&path) {
@@ -444,6 +483,7 @@ impl Mirror {
                 // The folder may have been put back from elsewhere: its own
                 // manifest is the one to go on from.
                 inner.manifest = None;
+                inner.epoch += 1;
             }
         }
         if inner.manifest.is_none() {
@@ -573,8 +613,11 @@ impl Mirror {
         })
     }
 
-    /// A failure that pauses the mirror stops the run (it is the last result). The manifest is
-    /// written back once the operations have run.
+    /// One batch runs at a time, holding the state only to read the manifest and to record what it
+    /// did, never across file writes. A failure that pauses the mirror stops the run (it is the last
+    /// result). The manifest is written back once the operations have run. When the folder is
+    /// turned off or chosen anew meanwhile, the batch stops before its next operation, writes back
+    /// its own folder's manifest and records nothing (`E_MIRROR_STALE`).
     pub fn apply(
         &self,
         generation: u64,
@@ -585,14 +628,23 @@ impl Mirror {
         if ops.len() > MAX_OPS {
             return Err("E_MIRROR_OPS_INVALID");
         }
-        let mut inner = self.lock(notify)?;
-        let root = self.current(&mut inner, generation, notify)?;
-        let mut manifest = inner.manifest.take().ok_or("E_MIRROR_STALE")?;
-        let kept_count = inner.kept_count;
-        let mut changed = inner.dirty;
+        let _turn = self.write_turn();
+        let (root, mut manifest, epoch, mut changed) = {
+            let mut inner = self.lock(notify)?;
+            let root = self.current(&mut inner, generation, notify)?;
+            let manifest = inner.manifest.clone().ok_or("E_MIRROR_STALE")?;
+            (root, manifest, inner.epoch, inner.dirty)
+        };
+        let still_current = || self.inner.lock().is_ok_and(|inner| inner.epoch == epoch);
         let mut results = Vec::with_capacity(ops.len());
+        let mut kept = Vec::new();
         let mut paused = None;
+        let mut superseded = false;
         for value in ops {
+            if !still_current() {
+                superseded = true;
+                break;
+            }
             let result = match serde_json::from_value::<Op>(value.clone()) {
                 Ok(op) => folder::run(&root, &mut manifest, &op, load),
                 Err(_) => OpResult {
@@ -601,12 +653,7 @@ impl Mirror {
                 },
             };
             changed |= result.code.is_none() || result.moved;
-            if let Some(kept) = &result.kept {
-                inner.kept_count += 1;
-                if inner.kept.len() < KEPT_NAMED {
-                    inner.kept.push(kept.clone());
-                }
-            }
+            kept.extend(result.kept.clone());
             let stop = result.pauses();
             if stop {
                 paused = result.code;
@@ -616,18 +663,24 @@ impl Mirror {
                 break;
             }
         }
-        if changed {
-            let written = save_manifest(&root, &manifest);
-            inner.dirty = written.is_err();
-            if written.is_err() {
-                paused.get_or_insert(if root.is_missing() {
-                    "E_MIRROR_FOLDER_MISSING"
-                } else {
-                    "E_MIRROR_FOLDER_READ_ONLY"
-                });
-            }
+        let unsaved = changed && save_manifest(&root, &manifest).is_err();
+        if unsaved {
+            paused.get_or_insert(if root.is_missing() {
+                "E_MIRROR_FOLDER_MISSING"
+            } else {
+                "E_MIRROR_FOLDER_READ_ONLY"
+            });
+        }
+        let mut inner = self.lock(notify)?;
+        if superseded || inner.epoch != epoch {
+            return Err("E_MIRROR_STALE");
         }
         inner.manifest = Some(manifest);
+        inner.dirty = unsaved;
+        let kept_count = inner.kept_count;
+        inner.kept_count += kept.len() as u64;
+        let room = KEPT_NAMED.saturating_sub(inner.kept.len());
+        inner.kept.extend(kept.into_iter().take(room));
         if let Some(code) = paused {
             self.pause(&mut inner, code, notify);
         } else if Self::size_changed(&inner) || inner.kept_count != kept_count {

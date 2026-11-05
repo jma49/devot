@@ -868,3 +868,225 @@ fn removes_what_a_cut_short_write_left_and_the_folders_it_alone_kept() {
     assert!(folder.join("Work/Plan.md").is_file());
     assert!(user_folder.is_dir());
 }
+
+const FILE: &str = "0192a6f0-0000-7000-8000-0000000000f1";
+const WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+fn file_op(name: &str) -> Value {
+    json!({ "kind": "file", "id": FILE, "path": format!("attachments/{name}"), "copy": true })
+}
+
+/// Starts a batch on another thread and returns once it is inside its first attachment read, where
+/// it stays until the sender is dropped.
+fn hold<'scope>(
+    scope: &'scope std::thread::Scope<'scope, '_>,
+    mirror: &'scope Mirror,
+    generation: u64,
+    ops: &'scope [Value],
+) -> (
+    std::thread::ScopedJoinHandle<'scope, Result<Vec<OpResult>, &'static str>>,
+    std::sync::mpsc::Sender<()>,
+) {
+    let (started, reading) = std::sync::mpsc::channel();
+    let (release, released) = std::sync::mpsc::channel::<()>();
+    let batch = scope.spawn(move || {
+        let mut load = |_: &str| {
+            let _ = started.send(());
+            let _ = released.recv();
+            Some(b"bytes".to_vec())
+        };
+        mirror.apply(generation, ops, &mut load, &|_| {})
+    });
+    reading
+        .recv_timeout(WAIT)
+        .expect("the batch reads its attachment");
+    (batch, release)
+}
+
+/// What `call` returns, unless it is still waiting after `WAIT`.
+fn soon<'scope, T: Send + 'scope>(
+    scope: &'scope std::thread::Scope<'scope, '_>,
+    call: impl FnOnce() -> T + Send + 'scope,
+) -> Option<T> {
+    let (sent, got) = std::sync::mpsc::channel();
+    scope.spawn(move || {
+        let _ = sent.send(call());
+    });
+    got.recv_timeout(WAIT).ok()
+}
+
+#[test]
+fn answers_status_and_setting_calls_while_a_batch_reads_an_attachment() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    let mirror = &f.mirror;
+    let ops = [file_op("a.png")];
+    std::thread::scope(|scope| {
+        let (batch, release) = hold(scope, mirror, generation, &ops);
+        let status = soon(scope, || mirror.get(&|_| {}));
+        let set = soon(scope, || {
+            mirror.set(&patch(json!({ "dismissKept": true })), &|_| {})
+        });
+        drop(release);
+        assert!(status.is_some_and(|s| s.is_ok()), "the status waited");
+        assert!(set.is_some_and(|s| s.is_ok()), "the setting waited");
+        assert_eq!(batch.join().unwrap().unwrap()[0].code, None);
+    });
+    assert!(folder.join("attachments/a.png").is_file());
+    assert!(f.open().unwrap().manifest.unwrap().files.contains_key(FILE));
+}
+
+#[test]
+fn runs_one_batch_at_a_time() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    let mirror = &f.mirror;
+    let first_ops = [file_op("a.png")];
+    let second_ops = [note_op("Plan.md", "one")];
+    std::thread::scope(|scope| {
+        let (first, release) = hold(scope, mirror, generation, &first_ops);
+        let (finished, done) = std::sync::mpsc::channel();
+        let second = scope.spawn(move || {
+            let results = mirror.apply(generation, &second_ops, &mut |_| None, &|_| {});
+            let _ = finished.send(());
+            results
+        });
+        let waited = done
+            .recv_timeout(std::time::Duration::from_millis(300))
+            .is_err();
+        assert!(!folder.join("Plan.md").exists());
+        drop(release);
+        assert!(waited, "the second batch ran beside the first");
+        assert_eq!(first.join().unwrap().unwrap()[0].code, None);
+        assert_eq!(second.join().unwrap().unwrap()[0].code, None);
+    });
+    // The second batch went on from the manifest the first left.
+    let manifest = f.open().unwrap().manifest.unwrap();
+    assert!(manifest.files.contains_key(FILE));
+    assert!(manifest.notes.contains_key(NOTE));
+    let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
+    assert_eq!(stored, manifest);
+}
+
+#[test]
+fn a_batch_the_mirror_is_turned_off_under_stops_and_records_nothing() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    let mirror = &f.mirror;
+    let ops = [file_op("a.png"), note_op("Plan.md", "one")];
+    let result = std::thread::scope(|scope| {
+        let (batch, release) = hold(scope, mirror, generation, &ops);
+        let off = soon(scope, || {
+            mirror.set(&patch(json!({ "turnOff": true })), &|_| {})
+        });
+        drop(release);
+        assert_eq!(off.expect("turning off waited").unwrap().folder, None);
+        batch.join().unwrap()
+    });
+    assert_eq!(result, Err("E_MIRROR_STALE"));
+    let status = f.get();
+    assert_eq!(status.folder, None);
+    assert_eq!(status.size, None);
+    assert_eq!(status.paused, None);
+    // The operation under way finished, the next never ran, and the folder's
+    // own manifest lists what was written there.
+    assert!(folder.join("attachments/a.png").is_file());
+    assert!(!folder.join("Plan.md").exists());
+    let stored = folder::parse_manifest(&fs::read(folder.join(MANIFEST)).unwrap()).unwrap();
+    assert!(stored.files.contains_key(FILE));
+    assert!(matches!(f.choose(&folder), Choice::Chosen { .. }));
+    assert!(f.open().unwrap().manifest.unwrap().files.contains_key(FILE));
+}
+
+#[test]
+fn a_batch_under_a_folder_chosen_since_leaves_the_new_folder_alone() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    let other = f.folder("Other");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    f.apply(generation, &[note_op("Plan.md", "one")]);
+    fs::write(folder.join("Plan.md"), "edited").unwrap();
+    let mirror = &f.mirror;
+    let ops = [
+        json!({ "kind": "keep", "entry": "note", "id": NOTE, "path": "Plan.md" }),
+        file_op("a.png"),
+    ];
+    let result = std::thread::scope(|scope| {
+        let (batch, release) = hold(scope, mirror, generation, &ops);
+        let chosen = soon(scope, || mirror.choose(&other, &|_| {}));
+        drop(release);
+        assert!(matches!(
+            chosen.expect("choosing waited"),
+            Ok(Choice::Chosen { .. })
+        ));
+        batch.join().unwrap()
+    });
+    assert_eq!(result, Err("E_MIRROR_STALE"));
+    let status = f.get();
+    assert_eq!(status.folder.as_deref(), Some("~/Other"));
+    assert_eq!(status.size, None);
+    assert_eq!(status.kept_count, 0);
+    assert!(status.kept.is_empty());
+    assert_eq!(status.paused, None);
+    let manifest = f.open().unwrap().manifest.unwrap();
+    assert!(manifest.notes.is_empty() && manifest.files.is_empty());
+    let names: Vec<_> = fs::read_dir(&other)
+        .unwrap()
+        .map(|e| e.unwrap().file_name())
+        .collect();
+    assert_eq!(names, [MANIFEST]);
+    assert!(folder.join("Plan (edited outside Devot).md").is_file());
+}
+
+#[test]
+fn a_batch_keeps_its_results_when_include_attachments_changes_under_it() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    let mirror = &f.mirror;
+    let ops = [file_op("a.png")];
+    let result = std::thread::scope(|scope| {
+        let (batch, release) = hold(scope, mirror, generation, &ops);
+        let set = soon(scope, || {
+            mirror.set(&patch(json!({ "includeAttachments": false })), &|_| {})
+        });
+        drop(release);
+        assert!(set.is_some_and(|s| s.is_ok()), "the setting waited");
+        batch.join().unwrap()
+    });
+    assert_eq!(result.unwrap()[0].code, None);
+    let opened = f.open().unwrap();
+    assert_ne!(opened.generation, generation);
+    assert!(opened.manifest.unwrap().files.contains_key(FILE));
+}
+
+#[test]
+fn a_batch_that_panics_leaves_the_mirror_working() {
+    let f = Fixture::new();
+    let folder = f.folder("Notes");
+    f.choose(&folder);
+    let generation = f.open().unwrap().generation;
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        f.mirror.apply(
+            generation,
+            &[file_op("a.png")],
+            &mut |_| panic!("read"),
+            &|_| {},
+        )
+    }));
+    assert!(caught.is_err());
+    assert_eq!(f.get().paused, None);
+    assert_eq!(
+        f.apply(generation, &[note_op("Plan.md", "one")])[0].code,
+        None
+    );
+    assert!(folder.join("Plan.md").is_file());
+}
