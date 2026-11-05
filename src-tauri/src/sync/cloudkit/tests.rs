@@ -464,7 +464,7 @@ fn the_device_row_is_saved_on_a_new_day_or_name_only() {
     let sealed = first.bytes("name").unwrap();
     assert_eq!(
         open_device_name(&vault, &a.state.device, sealed).unwrap(),
-        NAME
+        (NAME.to_string(), String::new())
     );
     assert!(!sealed.windows(NAME.len()).any(|w| w == NAME.as_bytes()));
     let saves = kit.calls(Op::Save);
@@ -475,6 +475,37 @@ fn the_device_row_is_saved_on_a_new_day_or_name_only() {
     assert_eq!(kit.calls(Op::Save), saves + 3, "the clock and the row");
     let renamed = a.icloud.connect(&a.state, true, "Desk Mac", NOW).unwrap().1;
     assert_ne!(renamed.device_name, a.state.device_name);
+}
+
+#[test]
+fn the_relay_device_id_is_sealed_in_the_name_and_adds_no_field() {
+    let (kit, vault) = setup();
+    let mut a = device(&kit, &vault);
+    a.connect(false).unwrap();
+    let before = a.state.device_name.clone();
+    a.state.relay_device = "relay-device-7".into();
+    let saves = kit.calls(Op::Save);
+    a.connect(true).unwrap();
+    assert_eq!(kit.calls(Op::Save), saves + 2, "the clock and the row");
+    assert_ne!(a.state.device_name, before);
+
+    let row = kit
+        .record(
+            ZONE_DEVOT,
+            &format!("device-{}-{}", vault.id(), a.state.device),
+        )
+        .unwrap();
+    let mut fields: Vec<_> = row.fields.iter().map(|(key, _)| key.as_str()).collect();
+    fields.sort_unstable();
+    assert_eq!(fields, ["day", "device", "name"]);
+    let sealed = row.bytes("name").unwrap();
+    assert_eq!(
+        open_device_name(&vault, &a.state.device, sealed).unwrap(),
+        (NAME.to_string(), "relay-device-7".to_string())
+    );
+    assert!(!sealed.windows(14).any(|w| w == b"relay-device-7"));
+    // A build that knows only the name alone cannot open it, so it leaves the row out.
+    assert!(vault.decrypt_record(&a.state.device, 1, &[sealed]).is_err());
 }
 
 #[test]

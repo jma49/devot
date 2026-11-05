@@ -58,6 +58,10 @@ pub(crate) struct ICloudState {
     pub device_day: i64,
     #[serde(default)]
     pub device_name: String,
+    /// This device's ID on the relay it moved from, sealed with the name in its device row so the
+    /// device that moved the vault sees it arrive; '' for none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub relay_device: String,
 }
 
 impl ICloudState {
@@ -316,11 +320,17 @@ impl ICloud {
     /// save is a day old, so connects do not wake the other devices. A failure waits for the next.
     fn device_row(&self, state: &mut ICloudState, name: &str, time: i64) {
         let day = time.div_euclid(DAY_MS);
-        let print = name_hash(name);
+        let (version, plain) = device_name_plain(name, &state.relay_device);
+        let print = name_hash(&plain);
         if state.device_day == day && state.device_name == print {
             return;
         }
-        let Ok(sealed) = seal_device_name(&self.vault, &state.device, name) else {
+        let sealed = self
+            .vault
+            .encrypt_record(&state.device, version, plain.as_bytes())
+            .ok()
+            .and_then(|mut chunks| chunks.pop());
+        let Some(sealed) = sealed else {
             log::warn!("W_SYNC_ICLOUD_DEVICE_SEAL");
             return;
         };
@@ -622,13 +632,19 @@ pub(crate) fn account_of(kit: &dyn CloudKit) -> Result<String, &'static str> {
 const DEVICE_PAGES: usize = 20;
 const DEVICE_PAGE: usize = 200;
 
+pub(crate) struct DeviceRow {
+    pub info: DeviceInfo,
+    /// The device's ID on the relay it moved from; '' for none.
+    pub relay: String,
+}
+
 /// The vault's `DevotDevice` rows, oldest day seen first, with `created` the day each was last
 /// seen; `own` is this device's ID. A row whose name does not open is left out.
 pub(crate) fn devices(
     kit: &dyn CloudKit,
     vault: &Vault,
     own: &str,
-) -> Result<Vec<DeviceInfo>, &'static str> {
+) -> Result<Vec<DeviceRow>, &'static str> {
     let prefix = format!("device-{}-", vault.id());
     let mut found = Vec::new();
     let mut token: Option<Vec<u8>> = None;
@@ -646,11 +662,15 @@ pub(crate) fn devices(
                 continue;
             };
             match open_device_name(vault, device, sealed) {
-                Ok(label) => found.push(DeviceInfo {
-                    id: device.to_string(),
-                    label,
-                    created: record.int("day").unwrap_or(0).saturating_mul(DAY_MS),
-                    current: device == own,
+                Ok((label, relay)) => found.push(DeviceRow {
+                    info: DeviceInfo {
+                        id: device.to_string(),
+                        label,
+                        created: record.int("day").unwrap_or(0).saturating_mul(DAY_MS),
+                        current: device == own,
+                        unseen: false,
+                    },
+                    relay,
                 }),
                 Err(code) => log::warn!("W_SYNC_ICLOUD_DEVICE_NAME {code} device={device}"),
             }
@@ -660,7 +680,7 @@ pub(crate) fn devices(
         }
         token = Some(page.token);
     }
-    found.sort_by(|a, b| (a.created, &a.id).cmp(&(b.created, &b.id)));
+    found.sort_by(|a, b| (a.info.created, &a.info.id).cmp(&(b.info.created, &b.info.id)));
     Ok(found)
 }
 
@@ -668,26 +688,45 @@ fn name_hash(name: &str) -> String {
     hash(NAME_LABEL, name)
 }
 
-/// A device's name in its `DevotDevice` row, sealed as version 1 of a record named by the device ID.
-pub(crate) fn seal_device_name(
-    vault: &Vault,
-    device: &str,
-    name: &str,
-) -> Result<Vec<u8>, &'static str> {
-    vault
-        .encrypt_record(device, 1, name.as_bytes())
-        .map_err(|e| e.code())?
-        .pop()
-        .ok_or(error::FAILED)
+/// The sealed name of a `DevotDevice` row is a record named by the device ID. Version 1 holds the
+/// name alone; version 2 also holds the device's ID on the relay it moved from, inside the seal so
+/// CloudKit's schema gains no field. Builds before version 2 cannot open it and leave the row out.
+const NAME_ALONE: u64 = 1;
+const NAME_AND_RELAY: u64 = 2;
+
+#[derive(Serialize, Deserialize)]
+struct NameAndRelay {
+    name: String,
+    relay: String,
 }
 
+fn device_name_plain(name: &str, relay: &str) -> (u64, String) {
+    if relay.is_empty() {
+        return (NAME_ALONE, name.to_string());
+    }
+    let both = NameAndRelay {
+        name: name.to_string(),
+        relay: relay.to_string(),
+    };
+    match serde_json::to_string(&both) {
+        Ok(json) => (NAME_AND_RELAY, json),
+        Err(_) => (NAME_ALONE, name.to_string()),
+    }
+}
+
+/// A device row's name and its relay device ID ('' for none).
 pub(crate) fn open_device_name(
     vault: &Vault,
     device: &str,
     sealed: &[u8],
-) -> Result<String, &'static str> {
+) -> Result<(String, String), &'static str> {
+    if let Ok(bytes) = vault.decrypt_record(device, NAME_ALONE, &[sealed]) {
+        let name = String::from_utf8(bytes.to_vec()).map_err(|_| encoding::INVALID)?;
+        return Ok((name, String::new()));
+    }
     let bytes = vault
-        .decrypt_record(device, 1, &[sealed])
+        .decrypt_record(device, NAME_AND_RELAY, &[sealed])
         .map_err(|e| e.code())?;
-    String::from_utf8(bytes.to_vec()).map_err(|_| encoding::INVALID)
+    let both: NameAndRelay = serde_json::from_slice(&bytes).map_err(|_| encoding::INVALID)?;
+    Ok((both.name, both.relay))
 }

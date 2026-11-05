@@ -1123,6 +1123,10 @@ pub(crate) struct DeviceInfo {
     pub label: String,
     pub created: i64,
     pub current: bool,
+    /// On iCloud: a device of the relay this device moved the vault from, not seen on iCloud yet;
+    /// `created` is the day it was added to the relay, which keeps no last-seen day.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub unseen: bool,
 }
 
 pub(crate) fn devices(connection: &Connection) -> Result<Vec<DeviceInfo>, &'static str> {
@@ -1157,6 +1161,7 @@ pub(crate) fn devices(connection: &Connection) -> Result<Vec<DeviceInfo>, &'stat
                     .and_then(Value::as_i64)
                     .ok_or("E_SYNC_PROTOCOL")?,
                 current: device.get("current").and_then(Value::as_bool) == Some(true),
+                unseen: false,
             })
         })
         .collect()

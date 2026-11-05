@@ -34,7 +34,7 @@ use super::keychain::SyncedKeychain;
 use super::moved;
 use super::names;
 use super::pairing::{self, Pairing, PairingChannel, Qr, RelayPairing};
-use super::settings::{DeviceCredentials, SettingsStore};
+use super::settings::{DeviceCredentials, RelayDevice, SettingsStore, SyncSettings, Unseen};
 use super::{MAX_RECORD_BYTES, SecretStore, Vault};
 use crate::licence::Gate;
 
@@ -413,6 +413,12 @@ pub(crate) struct SyncService {
     /// Fails the next switch to iCloud as if the app quit just before it.
     #[cfg(test)]
     quits_before_switch: std::sync::atomic::AtomicBool,
+    /// Fails the relay's next device list taken at a move to iCloud.
+    #[cfg(test)]
+    fails_device_list: std::sync::atomic::AtomicBool,
+    /// Fails the next moved marker as if the relay refused it.
+    #[cfg(test)]
+    fails_marker: std::sync::atomic::AtomicBool,
 }
 
 const MAX_SAFE: u64 = 9_007_199_254_740_991;
@@ -540,6 +546,10 @@ impl SyncService {
             shifted: AtomicI64::new(0),
             #[cfg(test)]
             quits_before_switch: std::sync::atomic::AtomicBool::new(false),
+            #[cfg(test)]
+            fails_device_list: std::sync::atomic::AtomicBool::new(false),
+            #[cfg(test)]
+            fails_marker: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -570,6 +580,16 @@ impl SyncService {
     #[cfg(test)]
     pub(crate) fn quit_before_next_switch(&self) {
         self.quits_before_switch.store(true, Ordering::Relaxed);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_next_device_list(&self) {
+        self.fails_device_list.store(true, Ordering::Relaxed);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_next_marker(&self) {
+        self.fails_marker.store(true, Ordering::Relaxed);
     }
 
     /// From the settings alone, without the keychain `snapshot` reads.
@@ -628,14 +648,14 @@ impl SyncService {
             };
             if url != settings.relay_url {
                 self.disconnect();
-                settings.moving.clear();
+                settings.call_off_move();
             }
             settings.relay_url = url;
         }
         if let Some(enabled) = patch.enabled {
             if !enabled {
                 self.disconnect();
-                settings.moving.clear();
+                settings.call_off_move();
             }
             settings.enabled = enabled;
         }
@@ -1062,14 +1082,89 @@ impl SyncService {
     }
 
     /// The vault's devices. Not gated by the licence: seeing and removing access never is. On
-    /// iCloud they are its device rows, each with the day it was last seen in `created`.
+    /// iCloud they are its device rows, each with the day it was last seen in `created`, then the
+    /// relay's devices not seen there since this device moved the vault, which leave once seen.
     pub(crate) fn devices(&self) -> Result<Vec<DeviceInfo>, &'static str> {
         let vault = self.held_vault()?;
-        if let Some(state) = self.settings.get().icloud_for(&vault.id().to_string()) {
-            current::ready(self.kit.as_ref())?;
-            return cloudkit::devices(self.kit.as_ref(), &vault, &state.device);
+        let id = vault.id().to_string();
+        let settings = self.settings.get();
+        let Some(state) = settings.icloud_for(&id) else {
+            return self.with_connection(client::devices);
+        };
+        current::ready(self.kit.as_ref())?;
+        let rows = cloudkit::devices(self.kit.as_ref(), &vault, &state.device)?;
+        let unseen = self.still_unseen(&id, &rows);
+        let mut devices: Vec<DeviceInfo> = rows.into_iter().map(|row| row.info).collect();
+        devices.extend(unseen.into_iter().map(|device| DeviceInfo {
+            id: device.id,
+            label: device.label,
+            created: device.created,
+            current: false,
+            unseen: true,
+        }));
+        Ok(devices)
+    }
+
+    /// The relay devices kept for `vault` that no row of `rows` names, kept again without the rest.
+    fn still_unseen(&self, vault: &str, rows: &[cloudkit::DeviceRow]) -> Vec<RelayDevice> {
+        let not_seen = |device: &RelayDevice| !rows.iter().any(|row| row.relay == device.id);
+        let kept = self.settings.get().unseen.filter(|u| u.vault == vault);
+        let Some(kept) = kept else {
+            return Vec::new();
+        };
+        let count = kept.devices.len();
+        let left: Vec<RelayDevice> = kept.devices.into_iter().filter(not_seen).collect();
+        if left.len() != count {
+            let saved = self.settings.update(|settings| {
+                if let Some(unseen) = settings.unseen.as_mut().filter(|u| u.vault == vault) {
+                    unseen.devices.retain(not_seen);
+                    if unseen.devices.is_empty() {
+                        settings.unseen = None;
+                    }
+                }
+            });
+            if let Err(code) = saved {
+                log::warn!("W_SYNC_UNSEEN_SAVE {code} vault={vault}");
+            }
         }
-        self.with_connection(client::devices)
+        left
+    }
+
+    /// Keeps the relay's other devices as `connection` lists them, before the moved marker stops
+    /// them, so Settings can name those not seen on iCloud yet. A list the relay does not give
+    /// keeps none and does not stop the move.
+    fn keep_unseen(&self, connection: &Connection, vault: &str) {
+        let listed = client::devices(connection);
+        #[cfg(test)]
+        let listed = if self.fails_device_list.swap(false, Ordering::Relaxed) {
+            Err("E_TEST_DEVICES")
+        } else {
+            listed
+        };
+        let devices = match listed {
+            Ok(devices) => devices
+                .into_iter()
+                .filter(|device| !device.current)
+                .map(|device| RelayDevice {
+                    id: device.id,
+                    label: device.label,
+                    created: device.created,
+                })
+                .collect::<Vec<_>>(),
+            Err(code) => {
+                log::warn!("W_SYNC_MOVE_DEVICES {code} vault={vault}");
+                Vec::new()
+            }
+        };
+        let saved = self.settings.update(|settings| {
+            settings.unseen = (!devices.is_empty()).then(|| Unseen {
+                vault: vault.to_string(),
+                devices,
+            });
+        });
+        if let Err(code) = saved {
+            log::warn!("W_SYNC_UNSEEN_SAVE {code} vault={vault}");
+        }
     }
 
     /// What the relay holds and may hold. Read-only and not gated by the licence, like the devices.
@@ -1227,15 +1322,15 @@ impl SyncService {
                 }
             })?;
         if kept != *state {
-            let mut settings = self.settings.get();
-            if settings
-                .icloud
-                .as_ref()
-                .is_some_and(|s| s.vault == kept.vault)
-            {
-                settings.icloud = Some(kept);
-                self.settings.set(&settings)?;
-            }
+            self.settings.update(|settings| {
+                if settings
+                    .icloud
+                    .as_ref()
+                    .is_some_and(|s| s.vault == kept.vault)
+                {
+                    settings.icloud = Some(kept);
+                }
+            })?;
         }
         log::info!(
             "I_SYNC_ICLOUD_CONNECTED vault={} device={}",
@@ -1342,14 +1437,22 @@ impl SyncService {
             Err("E_SYNC_NOT_ENROLLED") => return Ok(()),
             other => other?,
         };
-        self.record_move(&vault.id().to_string())?;
-        self.with_connection(|connection| moved::leave_relay(connection, vault))
-            .inspect_err(|code| {
-                log::warn!("W_SYNC_MOVED_MARKER {code} vault={}", vault.id());
-                if self.record_move("").is_err() {
-                    log::warn!("W_SYNC_MOVE_RECORD vault={}", vault.id());
-                }
-            })?;
+        let id = vault.id().to_string();
+        self.record_move(&id)?;
+        self.with_connection(|connection| {
+            self.keep_unseen(connection, &id);
+            #[cfg(test)]
+            if self.fails_marker.swap(false, Ordering::Relaxed) {
+                return Err("E_TEST_MARKER");
+            }
+            moved::leave_relay(connection, vault)
+        })
+        .inspect_err(|code| {
+            log::warn!("W_SYNC_MOVED_MARKER {code} vault={}", vault.id());
+            if self.settings.update(SyncSettings::call_off_move).is_err() {
+                log::warn!("W_SYNC_MOVE_RECORD vault={}", vault.id());
+            }
+        })?;
         log::info!("I_SYNC_MOVED_MARKER vault={} to=icloud", vault.id());
         Ok(())
     }
@@ -1466,7 +1569,14 @@ impl SyncService {
         self.disconnect();
         let mut settings = self.settings.get();
         if settings.icloud_for(&vault_id).is_none() {
-            settings.icloud = Some(ICloudState::new(&vault_id));
+            let mut state = ICloudState::new(&vault_id);
+            state.relay_device = DeviceCredentials::load(self.secrets.as_ref())
+                .ok()
+                .flatten()
+                .filter(|c| c.vault == vault_id)
+                .map(|c| c.device)
+                .unwrap_or_default();
+            settings.icloud = Some(state);
         }
         settings.enabled = true;
         settings.icloud_declined.clear();
@@ -1715,6 +1825,7 @@ impl SyncService {
         let mut settings = self.settings.get();
         settings.icloud = None;
         settings.icloud_declined.clear();
+        settings.unseen = None;
         self.settings.set(&settings)?;
         if let Ok(mut look) = self.look.lock() {
             *look = None;

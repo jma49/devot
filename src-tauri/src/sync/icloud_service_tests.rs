@@ -1566,6 +1566,12 @@ mod moving_from_a_relay {
             .to_string()
     }
 
+    fn kept_unseen(device: &OnRelay) -> Option<super::super::settings::Unseen> {
+        SettingsStore::new(&device.dir.path().join(FILE))
+            .get()
+            .unseen
+    }
+
     fn moving(device: &OnRelay) -> String {
         SettingsStore::new(&device.dir.path().join(FILE))
             .get()
@@ -1776,6 +1782,7 @@ mod moving_from_a_relay {
             .unwrap();
         assert!(!off.move_started);
         assert_eq!(moving(&mac), "");
+        assert_eq!(kept_unseen(&mac), None);
     }
 
     #[test]
@@ -1792,6 +1799,7 @@ mod moving_from_a_relay {
             })
             .unwrap();
         assert!(same.move_started);
+        assert!(kept_unseen(&mac).is_some());
         let elsewhere = mac
             .service
             .set(super::super::service::SettingsPatch {
@@ -1801,6 +1809,7 @@ mod moving_from_a_relay {
             .unwrap();
         assert!(!elsewhere.move_started);
         assert_eq!(moving(&mac), "");
+        assert_eq!(kept_unseen(&mac), None);
     }
 
     #[test]
@@ -1820,6 +1829,142 @@ mod moving_from_a_relay {
         assert_eq!(finished.transport, "icloud");
         assert!(!finished.move_started);
         assert_eq!(moving(&mac), "");
+    }
+
+    fn relay_device(device: &OnRelay) -> String {
+        super::super::settings::DeviceCredentials::load(device.secrets.as_ref())
+            .unwrap()
+            .unwrap()
+            .device
+    }
+
+    fn unseen(device: &OnRelay) -> Vec<super::super::client::DeviceInfo> {
+        let listed = device.service.devices().unwrap();
+        listed.into_iter().filter(|d| d.unseen).collect()
+    }
+
+    #[test]
+    fn the_moving_device_lists_the_relay_s_devices_not_seen_on_icloud_until_each_follows() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let mac = on_relay(&relay, &kit);
+        let key = mac
+            .service
+            .create_vault(SECRET)
+            .unwrap()
+            .recovery_key
+            .unwrap();
+        let phone = on_relay(&relay, &kit);
+        phone.service.join_with_recovery(&key).unwrap();
+        let pad = on_relay(&relay, &kit);
+        pad.service.join_with_recovery(&key).unwrap();
+        mac.service.use_icloud(None, 3).unwrap();
+        mac.service.connect(false).unwrap();
+
+        let waiting = unseen(&mac);
+        let mut ids: Vec<_> = waiting.iter().map(|d| d.id.clone()).collect();
+        ids.sort();
+        let mut expected = vec![relay_device(&phone), relay_device(&pad)];
+        expected.sort();
+        assert_eq!(ids, expected);
+        assert!(waiting.iter().all(|d| !d.current && d.created > 0));
+        assert!(waiting.iter().all(|d| d.label == "Devot for macOS"));
+        assert_eq!(mac.service.devices().unwrap().len(), 3);
+
+        phone.service.report(stopped_on_the_marker()).unwrap();
+        phone.service.use_icloud(None, 3).unwrap();
+        phone.service.connect(false).unwrap();
+        let waiting = unseen(&mac);
+        assert_eq!(waiting.len(), 1);
+        assert_eq!(waiting[0].id, relay_device(&pad));
+        let listed = mac.service.devices().unwrap();
+        assert_eq!(listed.len(), 3);
+        assert_eq!(listed.iter().filter(|d| !d.unseen).count(), 2);
+
+        // The device that followed names nobody: only the device that moved the vault does.
+        assert!(unseen(&phone).is_empty());
+
+        drop(relay);
+        pad.service.report(stopped_on_the_marker()).unwrap();
+        pad.service.use_icloud(None, 3).unwrap();
+        pad.service.connect(false).unwrap();
+        assert!(unseen(&mac).is_empty());
+        assert_eq!(mac.service.devices().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn a_device_off_the_list_stays_off_it() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let (mac, phone) = two_on_relay(&relay, &kit);
+        mac.service.use_icloud(None, 3).unwrap();
+        mac.service.connect(false).unwrap();
+        phone.service.report(stopped_on_the_marker()).unwrap();
+        phone.service.use_icloud(None, 3).unwrap();
+        phone.service.connect(false).unwrap();
+        assert!(unseen(&mac).is_empty());
+        let settings = SettingsStore::new(&mac.dir.path().join(FILE)).get();
+        assert_eq!(settings.unseen, None);
+    }
+
+    #[test]
+    fn leaving_icloud_forgets_the_devices_not_seen() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let mac = on_relay(&relay, &kit);
+        let key = mac
+            .service
+            .create_vault(SECRET)
+            .unwrap()
+            .recovery_key
+            .unwrap();
+        let phone = on_relay(&relay, &kit);
+        phone.service.join_with_recovery(&key).unwrap();
+        mac.service.use_icloud(None, 3).unwrap();
+        mac.service.connect(false).unwrap();
+        assert_eq!(unseen(&mac).len(), 1);
+        mac.service.icloud_leave(&key).unwrap();
+        let settings = SettingsStore::new(&mac.dir.path().join(FILE)).get();
+        assert_eq!(settings.unseen, None);
+    }
+
+    #[test]
+    fn a_move_finished_at_the_next_launch_still_lists_the_devices_not_seen() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let (mac, phone) = two_on_relay(&relay, &kit);
+        quit_after_the_marker(&mac, &kit);
+        let mac = relaunch(mac, &relay, &kit);
+        assert_eq!(marker_on_relay(&mac), Some(b64(&moved::body("icloud"))));
+        mac.service.report(stopped_on_the_marker()).unwrap();
+        mac.service.connect(false).unwrap();
+        let waiting = unseen(&mac);
+        assert_eq!(waiting.len(), 1);
+        assert_eq!(waiting[0].id, relay_device(&phone));
+    }
+
+    #[test]
+    fn a_marker_the_relay_refuses_forgets_the_devices_kept_for_the_move() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let (mac, _phone) = two_on_relay(&relay, &kit);
+        mac.service.fail_next_marker();
+        assert_eq!(mac.service.use_icloud(None, 3).err(), Some("E_TEST_MARKER"));
+        assert_eq!(moving(&mac), "");
+        assert_eq!(kept_unseen(&mac), None);
+    }
+
+    #[test]
+    fn a_device_list_the_relay_could_not_give_still_moves_the_vault() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let (mac, _phone) = two_on_relay(&relay, &kit);
+        mac.service.fail_next_device_list();
+        let moved_to = mac.service.use_icloud(None, 3).unwrap();
+        assert_eq!(moved_to.transport, "icloud");
+        mac.service.connect(false).unwrap();
+        assert!(unseen(&mac).is_empty());
+        assert_eq!(mac.service.devices().unwrap().len(), 1);
     }
 
     #[test]

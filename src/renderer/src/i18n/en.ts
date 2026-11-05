@@ -1215,6 +1215,9 @@ title: Daily Report {{date}}
   'syncSettings.icloudDevicesHint':
     'The devices syncing this vault through your Apple ID, with the day each was last seen. A device that signed out stays listed.',
   'syncSettings.deviceSeen': 'Seen {date}',
+  'syncSettings.icloudDevicesUnseenHint':
+    'The devices syncing this vault through your Apple ID, with the day each was last seen. A device not on iCloud yet still has to follow the move: open Settings > Sync on it.',
+  'syncSettings.deviceUnseen': 'Added {date} · Not on iCloud yet',
   'syncSettings.vaultMoved': 'This vault moved to iCloud on another of your devices.',
   'syncSettings.vaultMovedHint': 'Follow it to keep syncing here.',
   'syncSettings.vaultMovedElsewhere': 'Set up sync again to follow it.',

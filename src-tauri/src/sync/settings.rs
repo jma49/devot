@@ -38,9 +38,37 @@ pub(crate) struct SyncSettings {
     /// move when its engine finds that marker.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub moving: String,
+    /// The relay's other devices when this device moved its vault to iCloud, until each is seen
+    /// there: Settings names them, so the owner knows which still have to follow.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unseen: Option<Unseen>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Unseen {
+    pub vault: String,
+    pub devices: Vec<RelayDevice>,
+}
+
+/// A device as the relay listed it: its relay device ID, its name and the time it was added.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RelayDevice {
+    pub id: String,
+    pub label: String,
+    pub created: i64,
 }
 
 impl SyncSettings {
+    /// Forgets a move to iCloud this device started and the relay devices kept for it.
+    pub(crate) fn call_off_move(&mut self) {
+        if !self.moving.is_empty() {
+            self.moving.clear();
+            self.unseen = None;
+        }
+    }
+
     /// What this device keeps of `vault` on iCloud, when that vault is on iCloud.
     pub(crate) fn icloud_for(&self, vault: &str) -> Option<&ICloudState> {
         self.icloud.as_ref().filter(|state| state.vault == vault)
@@ -98,6 +126,25 @@ impl SettingsStore {
             .write
             .lock()
             .map_err(|_| "E_SYNC_SETTINGS_WRITE_FAILED")?;
+        self.write(settings)
+    }
+
+    /// Reads, changes and writes the settings under the write lock, so a change made from another
+    /// thread between the read and the write is not lost to another `update`.
+    pub(crate) fn update(
+        &self,
+        change: impl FnOnce(&mut SyncSettings),
+    ) -> Result<(), &'static str> {
+        let _writing = self
+            .write
+            .lock()
+            .map_err(|_| "E_SYNC_SETTINGS_WRITE_FAILED")?;
+        let mut settings = self.get();
+        change(&mut settings);
+        self.write(&settings)
+    }
+
+    fn write(&self, settings: &SyncSettings) -> Result<(), &'static str> {
         let json =
             serde_json::to_vec_pretty(settings).map_err(|_| "E_SYNC_SETTINGS_WRITE_FAILED")?;
         crate::atomic_file::write_replacing(&self.path, &json)
