@@ -1174,6 +1174,42 @@ mod moving_from_a_relay {
     }
 
     #[test]
+    fn a_device_that_quit_after_leaving_the_marker_follows_its_own_marker() {
+        let relay = NodeRelay::start();
+        let kit = Arc::new(Fake::new());
+        let (mac, _phone) = two_on_relay(&relay, &kit);
+        let id = Vault::load(mac.secrets.as_ref())
+            .unwrap()
+            .unwrap()
+            .id()
+            .to_string();
+        // As `use_icloud` leaves it when the app quits between the marker and the switch.
+        super::super::cloudkit::current::claim(kit.as_ref(), &id).unwrap();
+        mac.service.connect(false).unwrap();
+        mac.service
+            .push(MOVED_ID, 0, &b64(&moved::body("icloud")), "record", "")
+            .unwrap();
+        mac.service.disconnect();
+        assert_eq!(mac.service.snapshot().transport, "relay");
+        assert_eq!(marker_on_relay(&mac), Some(b64(&moved::body("icloud"))));
+        // Its engine pulls the marker and stops, as every device left on the relay does.
+        mac.service
+            .report(StatusView {
+                state: "stopped".into(),
+                code: Some("E_SYNC_VAULT_MOVED".into()),
+                ..StatusView::default()
+            })
+            .unwrap();
+        drop(relay);
+        let followed = mac.service.use_icloud(None, 3).unwrap();
+        assert_eq!(followed.transport, "icloud");
+        assert_eq!(
+            super::super::cloudkit::current::read(kit.as_ref()).unwrap(),
+            Some(id)
+        );
+    }
+
+    #[test]
     fn a_device_that_follows_the_marker_moves_without_the_relay() {
         let relay = NodeRelay::start();
         let kit = Arc::new(Fake::new());

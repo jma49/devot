@@ -1235,8 +1235,10 @@ impl SyncService {
     /// key for another vault than the one held is refused. A new vault is kept before its `current`
     /// is saved; one that lost to another device's is removed again, and this device looks for the
     /// winner as at launch, with `notes` in its library. A vault this device syncs through a relay
-    /// leaves the moved marker there first, unless it is following one, so the relay's other
-    /// devices stop rather than drift apart; iCloud's own epoch makes the first connect upload all.
+    /// claims `current`, then leaves the moved marker there unless it is following one, so the
+    /// relay's other devices stop rather than drift apart. A refused marker keeps this device on the
+    /// relay with `current` still claimed, which a retry reuses; iCloud's own epoch makes the first
+    /// connect upload all.
     pub(crate) fn use_icloud(
         &self,
         recovery_key: Option<&str>,
