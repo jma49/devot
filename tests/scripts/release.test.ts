@@ -18,7 +18,6 @@ import {
   verifySignature,
   versionFromTag,
   withCargoVersion,
-  withIosVersion,
   withPackageVersion,
 } from '../../scripts/release/release'
 import { tempDir } from '../support/temp-dirs'
@@ -26,6 +25,11 @@ import { tempDir } from '../support/temp-dirs'
 const root = join(import.meta.dirname, '../..')
 
 describe('release versions', () => {
+  it('gives the app the version in package.json, which the iPhone build reads only from the Tauri config', () => {
+    const config = JSON.parse(readFileSync(join(root, 'src-tauri/tauri.conf.json'), 'utf8'))
+    expect(config.version).toBe('../package.json')
+  })
+
   it('takes the version from a release tag', () => {
     expect(versionFromTag('v0.9.1-beta1')).toBe('0.9.1-beta1')
     expect(versionFromTag('v0.10.12-beta9')).toBe('0.10.12-beta9')
@@ -79,27 +83,6 @@ describe('release versions', () => {
     )
     const real = readFileSync(join(root, 'src-tauri/Cargo.toml'), 'utf8')
     expect(withCargoVersion(real, '0.3.0-beta.1')).toContain('\nversion = "0.3.0-beta.1"\n')
-  })
-
-  it('writes the version without its prerelease into the iPhone app', () => {
-    const plist = [
-      '\t<key>CFBundleShortVersionString</key>',
-      '\t<string>1.0.0</string>',
-      '\t<key>CFBundleVersion</key>',
-      '\t<string>1.0.0</string>',
-    ].join('\n')
-    expect(withIosVersion(plist, '1.0.2-beta1')).toBe(plist.replaceAll('1.0.0', '1.0.2'))
-    const yml = '        CFBundleShortVersionString: 1.0.0\n        CFBundleVersion: "1.0.0"\n'
-    expect(withIosVersion(yml, '1.1.2')).toBe(
-      '        CFBundleShortVersionString: 1.1.2\n        CFBundleVersion: "1.1.2"\n',
-    )
-    expect(() => withIosVersion('<key>CFBundleName</key>', '1.1.2')).toThrow(
-      'E_RELEASE_IOS_VERSION_MISSING',
-    )
-    for (const file of ['devot_iOS/Info.plist', 'project.yml']) {
-      const real = readFileSync(join(root, 'src-tauri/gen/apple', file), 'utf8')
-      expect(withIosVersion(real, '9.8.7').match(/9\.8\.7/g)).toHaveLength(2)
-    }
   })
 
   it('writes the version into package.json', () => {

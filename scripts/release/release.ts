@@ -3,8 +3,7 @@
 //   node scripts/release/release.ts set-version <tag>
 //     Checks the tag (vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-betaN) and
 //     writes its version to package.json and src-tauri/Cargo.toml; Tauri
-//     takes the app's version from Cargo. The iPhone app's Info.plist and
-//     project.yml get it without the prerelease, the only form iOS accepts. Prints the version and channel as
+//     takes the app's version from Cargo. Prints the version and channel as
 //     `version=…` and `channel=…` lines (for $GITHUB_OUTPUT).
 //
 //   node scripts/release/release.ts replaces-feed <tag> <current feed file> [<signature file>]
@@ -132,19 +131,6 @@ export function withCargoVersion(toml: string, version: string): string {
     }
   }
   throw new Error('E_RELEASE_CARGO_VERSION_MISSING')
-}
-
-const IOS_VERSION = /(CFBundle(?:ShortVersionString|Version)(?:<\/key>\s*<string>|:\s*"?))[^<"\n]+/g
-
-export function withIosVersion(text: string, version: string): string {
-  const numeric = version.split('-')[0]!
-  let found = 0
-  const out = text.replace(IOS_VERSION, (_, key: string) => {
-    found++
-    return key + numeric
-  })
-  if (found !== 2) throw new Error('E_RELEASE_IOS_VERSION_MISSING')
-  return out
 }
 
 export function withPackageVersion(json: string, version: string): string {
@@ -324,10 +310,6 @@ function main(args: string[]) {
     const pkg = join(root, 'package.json')
     writeFileSync(cargo, withCargoVersion(readFileSync(cargo, 'utf8'), version))
     writeFileSync(pkg, withPackageVersion(readFileSync(pkg, 'utf8'), version))
-    for (const file of ['devot_iOS/Info.plist', 'project.yml']) {
-      const path = join(root, 'src-tauri/gen/apple', file)
-      writeFileSync(path, withIosVersion(readFileSync(path, 'utf8'), version))
-    }
     console.log(`version=${version}\nchannel=${channelOf(version)}`)
     return
   }
