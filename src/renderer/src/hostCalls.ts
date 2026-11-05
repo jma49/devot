@@ -36,7 +36,6 @@ export function useQuickCapture(core: Core | undefined, refresh: (c: Core) => Pr
   }, [core, refresh])
 }
 
-/** The local HTTP API: this window's core answers each call Rust checked. */
 export function useHttpApi(core: Core | undefined) {
   useEffect(() => {
     if (!core) return

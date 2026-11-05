@@ -1,4 +1,3 @@
-// oxlint-disable react/refs, react/purity, react/immutability, react/preserve-manual-memoization -- App predates these React Compiler checks, which skipped it while it held startImport; it is not compiled (#534).
 import { isScrolled, scrolledBy } from './scrollEdge'
 import { hasDesktopShell } from './platform'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -434,6 +433,7 @@ export function App() {
   const [mode, setMode] = useState<Mode>(() => lastState?.mode ?? currentDefaultMode())
   // Leaving Preview or Split goes back to the editor mode used last.
   const editorMode = useRef(editorOnly(mode) ? mode : currentDefaultMode())
+  // oxlint-disable-next-line react/refs -- The editor mode to go back to follows each render's mode, before any effect reads it.
   if (editorOnly(mode)) editorMode.current = mode
   // The library views shown as a board (lastState.ts).
   const [layouts, setLayouts] = useState<ViewLayouts>(() => ({
@@ -461,6 +461,7 @@ export function App() {
   const [panesSeen, setPanesSeen] = useState({ focus, sidebarOff })
   const panesBefore = useRef<PaneBoxes | null>(null)
   if (panesSeen.focus !== focus || panesSeen.sidebarOff !== sidebarOff) {
+    // oxlint-disable-next-line react/refs -- The panes are measured before the change commits, while their old layout is still on screen (paneMotion.ts).
     panesBefore.current = measurePanes(shownPanes(panesSeen))
     setPanesSeen({ focus, sidebarOff })
   }
@@ -536,6 +537,7 @@ export function App() {
   const [, setFocusAsked] = useState(0)
   const requestFocus = (request: FocusRequest) => {
     focusAfter.current = request
+    // oxlint-disable-next-line react/purity -- requestFocus runs from events and timers, never during a render.
     focusAskedAt.current = performance.now()
     setFocusAsked((n) => n + 1)
   }
@@ -592,6 +594,7 @@ export function App() {
     return { link, wrote: coalesced(() => link.send(), LISTS_WROTE_MS) }
   })
   const shownNote = useRef<string | undefined>(undefined)
+  // oxlint-disable-next-line react/refs -- Callbacks made in this render read the note it shows.
   shownNote.current = selected
   const sidebarMenus = useRef<SidebarMenus | null>(null)
   // Split mode keeps editor and preview at the same line unless synced scrolling is off (an editor setting).
@@ -777,6 +780,7 @@ export function App() {
   const inTrash = library.kind === 'trash'
   const inTemplates = library.kind === 'templates'
   const keptTrashRows = useRef<NoteSummary[]>([])
+  // oxlint-disable react/refs -- Trash rows that did not change keep their objects across renders (keepUnchanged).
   const trashRows = useMemo(
     () =>
       (keptTrashRows.current = keepUnchanged(
@@ -795,6 +799,7 @@ export function App() {
       )),
     [trash],
   )
+  // oxlint-enable react/refs
   const agentWrites = useAgentWrites(core, authorship)
   // In a workspace the Agents section counts only its notes, and choosing an agent lists only those.
   const workspaceNoteIds = useMemo(
@@ -1022,6 +1027,7 @@ export function App() {
     ) {
       setWorkspace(null)
     }
+    // oxlint-disable-next-line react/immutability -- clearSearch is a hoisted function declaration; showLibrary runs only from events.
     clearSearch()
     if ((next.kind === 'trash') !== inTrash) setSelected(undefined)
     if (clearFilter) setFilter(null)
@@ -1119,6 +1125,7 @@ export function App() {
     [notes, templates, trashRows],
   )
   const knownNotes = useRef(noteById)
+  // oxlint-disable-next-line react/refs -- Callbacks made in this render look notes up in its lists.
   knownNotes.current = noteById
   const selectedNotes = useMemo(
     () => multiIds?.flatMap((id) => noteById.get(id) ?? []) ?? [],
@@ -1269,6 +1276,7 @@ export function App() {
   )
 
   useSaveOnHide(core)
+  // oxlint-disable-next-line react/immutability -- saveNow comes from useLastState below; the trial-end effect calls it after the render.
   useSaveAtTrialEnd(editing, core, () => saveNow())
 
   // The other main windows wrote to the library: this one loads its lists and the notes it holds again, as for a change from another process.
@@ -1548,6 +1556,7 @@ export function App() {
     await saveEdits(core)
     let opened: { id: string; created: boolean; bookId: string | null }
     try {
+      // oxlint-disable-next-line react/purity -- openToday runs from a command, never during a render.
       opened = await core.openTodaysNote(dailySettings(), Date.now(), editing)
     } catch (e) {
       setChangeNotice(errorCode(e))
@@ -2352,6 +2361,7 @@ export function App() {
     setAskedIn(narrow)
   }
   useMenuEvent('devot://toggle-sidebar', TOGGLE_SIDEBAR, () => {
+    // oxlint-disable-next-line react/purity -- A menu event handler, run outside a render.
     const echo = performance.now() < sidebarKeyEcho.current
     sidebarKeyEcho.current = -Infinity
     if (!echo) toggleSidebar()
@@ -2462,6 +2472,7 @@ export function App() {
   const [modeSeen, setModeSeen] = useState(mode)
   const modeChange = useRef<{ from: Mode; before: ModeBoxes } | null>(null)
   if (modeSeen !== mode) {
+    // oxlint-disable-next-line react/refs -- The panes are measured before the mode change commits, while their old layout is on screen (paneMotion.ts).
     modeChange.current = { from: modeSeen, before: measureModePanes() }
     setModeSeen(mode)
   }
@@ -2625,12 +2636,14 @@ export function App() {
       },
       findCommands: find.commands,
     },
+    // oxlint-disable-next-line react/refs -- appHandlers only builds the table; these actions read refs when a command runs.
     {
       openPalette,
       startSearch,
       saveSearch,
       toggleFocus,
       toggleSidebar: () => {
+        // oxlint-disable-next-line react/purity -- Runs when the command does, not during a render.
         sidebarKeyEcho.current = performance.now() + MENU_ECHO_MS
         toggleSidebar()
       },
@@ -2667,6 +2680,7 @@ export function App() {
       setStatus,
       setMode,
       togglePreview: () => {
+        // oxlint-disable-next-line react/purity -- Runs when the command does, not during a render.
         previewKeyEcho.current = performance.now() + MENU_ECHO_MS
         togglePreview()
       },
@@ -3571,6 +3585,7 @@ export function App() {
                   caret={caretLine}
                   mode={mode}
                   previewPane={previewPane}
+                  // oxlint-disable-next-line react/refs -- Outline folds live in a ref so folding one note does not render App again; this read takes the open note's folds.
                   folded={outlineFolds.current.get(selected) ?? NO_FOLDS}
                   onToggle={toggleOutlineFold}
                   onJump={jumpToHeading}

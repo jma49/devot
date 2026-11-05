@@ -20,7 +20,6 @@ export interface SearchResults {
 
 const SEARCH_SETTLED_MS = 1000
 
-/** The search field's query and the results that answer it, run on the core once it has started. */
 export function useSearch(core: Core | undefined) {
   const [query, setQuery] = useState('')
   const [searchIn, setSearchIn] = useState<'all' | 'view'>('view')
@@ -29,7 +28,6 @@ export function useSearch(core: Core | undefined) {
   const runSearch = useRef<(search: Search) => void>(undefined)
   const latestSearch = useRef<Search>({ query: '', scope: undefined })
   const [searchRequest, setSearchRequest] = useState(0)
-  /** Focuses the field and selects what it holds, once the render asking for it lands. */
   const askSearchField = useCallback(() => setSearchRequest((n) => n + 1), [])
   useEffect(() => {
     if (!core) return
@@ -69,7 +67,6 @@ export function useSearch(core: Core | undefined) {
   const rerunSearch = useCallback(() => {
     if (latestSearch.current.query.trim()) runSearch.current?.(latestSearch.current)
   }, [])
-  /** The query typed, run once typing pauses. */
   const typed = useCallback((search: Search) => {
     latestSearch.current = search
     if (!search.query.trim()) return

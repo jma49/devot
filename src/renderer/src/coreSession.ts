@@ -11,7 +11,6 @@ import type { QuitGuard } from './saving'
 import { answerAsked, listenCloseAsked, saveEdits } from './saveGuards'
 import { welcomeContent } from './welcome/content'
 
-/** The main window's core: none until it has started, and why it could not start or later failed. */
 export function useCoreSession() {
   const [core, setCore] = useState<Core>()
   const coreRef = useRef<Core>(undefined)
@@ -153,7 +152,6 @@ export function useQuitAndClose({
   primary: boolean
   quitGuard: QuitGuard
   closeGuard: QuitGuard
-  /** Saves the window's last state. */
   saveNow: () => void
   markShownSeen: (options?: { reload?: boolean }) => Promise<void>
   setSaveNoticeDismissed: (dismissed: boolean) => void

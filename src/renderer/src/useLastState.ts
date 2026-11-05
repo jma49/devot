@@ -52,7 +52,6 @@ export function useLastState({
   select,
 }: {
   store: ReturnType<typeof currentLastStateStore>
-  /** The state saved when the window last closed. */
   saved: LastState | undefined
   core: Core | undefined
   listsLoaded: boolean
