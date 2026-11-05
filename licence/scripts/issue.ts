@@ -1,9 +1,18 @@
 import { fileURLToPath } from 'node:url'
-import { fromBase64Url, instant, newLicenceId, signerFromSeed, signLicence } from '../src/format.ts'
+import { parseArgs } from 'node:util'
+import {
+  fromBase64Url,
+  instant,
+  LICENCE_ID,
+  newLicenceId,
+  signerFromSeed,
+  signLicence,
+} from '../src/format.ts'
 
 // Signs a complimentary licence on the owner's machine (docs/licensing.md, Complimentary
-// licences): the seed and its kid come from the environment, the licensee from the argument. It
-// prints the key and writes nothing; D1 never hears of it, so only `issue` itself made it.
+// licences): the seed and its kid come from the environment, the licensee from the argument, and
+// `--id` renews a licence under the ID it already has. It prints the key and writes nothing; D1
+// never hears of it, so only `issue` itself made it.
 
 export interface Issued {
   id: string
@@ -15,11 +24,12 @@ export async function issue(options: {
   kid: string
   licensee: string
   now: Date
+  id?: string
 }): Promise<Issued> {
   const seed = fromBase64Url(options.seed)
   if (seed?.length !== 32) throw new Error('E_LICENCE_CONFIG')
   const signer = await signerFromSeed(options.kid, seed)
-  const id = newLicenceId()
+  const id = options.id ?? newLicenceId()
   const key = await signLicence(signer, {
     id,
     licensee: options.licensee,
@@ -29,7 +39,7 @@ export async function issue(options: {
 }
 
 const USAGE =
-  'Usage: LICENCE_SIGNING_KEY=… LICENCE_KID=… pnpm --filter @devot/licence issue <email>'
+  'Usage: LICENCE_SIGNING_KEY=… LICENCE_KID=… pnpm --filter @devot/licence issue [--id <licence ID>] <email>'
 
 /** The command: its exit status; the key goes to `out`, problems (codes only) to `err`. */
 export async function main(
@@ -39,10 +49,12 @@ export async function main(
   err: (text: string) => void,
   now = new Date(),
 ): Promise<number> {
-  const licensee = args[0]?.trim() ?? ''
+  const parsed = parsedArgs(args)
+  const licensee = parsed?.licensee ?? ''
+  const id = parsed?.id
   const seed = env['LICENCE_SIGNING_KEY'] ?? ''
   const kid = env['LICENCE_KID'] ?? ''
-  if (args.length !== 1 || licensee === '' || !licensee.includes('@')) {
+  if (licensee === '' || !licensee.includes('@') || (id !== undefined && !LICENCE_ID.test(id))) {
     err(`E_LICENCE_BAD_REQUEST\n${USAGE}\n`)
     return 2
   }
@@ -51,7 +63,7 @@ export async function main(
     return 2
   }
   try {
-    const issued = await issue({ seed, kid, licensee, now })
+    const issued = await issue({ seed, kid, licensee, now, ...(id === undefined ? {} : { id }) })
     out(
       [
         `Licence ID: ${issued.id}`,
@@ -64,6 +76,22 @@ export async function main(
   } catch {
     err(`E_LICENCE_CONFIG\n${USAGE}\n`)
     return 2
+  }
+}
+
+function parsedArgs(args: readonly string[]): { licensee: string; id?: string } | undefined {
+  try {
+    const { values, positionals } = parseArgs({
+      args: [...args],
+      options: { id: { type: 'string' } },
+      allowPositionals: true,
+      strict: true,
+    })
+    if (positionals.length !== 1) return undefined
+    const licensee = positionals[0]!.trim()
+    return values.id === undefined ? { licensee } : { licensee, id: values.id }
+  } catch {
+    return undefined
   }
 }
 

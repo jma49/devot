@@ -72,7 +72,7 @@ A license has `MAX_DEVICES` seats (3 by default). `POST /activate {key, device, 
 - The private key is the 32-byte Ed25519 seed, base64url without padding, in the Wrangler secret `LICENCE_SIGNING_KEY`. Its ID is the variable `LICENCE_KID`.
 - The public key is the raw 32-byte Ed25519 public key, base64url without padding. The app holds one per `kid`, so a new key ships in a release before the Worker signs anything with it.
 - `pnpm --filter @devot/license keygen` prints a new pair and writes nothing to disk.
-- `pnpm --filter @devot/license issue <email>` signs a complimentary license with the seed in `LICENCE_SIGNING_KEY` and the kid in `LICENCE_KID`, prints it and writes nothing (Complimentary licences).
+- `pnpm --filter @devot/license issue [--id <license ID>] <email>` signs a complimentary license with the seed in `LICENCE_SIGNING_KEY` and the kid in `LICENCE_KID`, under a new ID or the one `--id` gives, prints it and writes nothing (Complimentary licences).
 
 ### Test vectors
 
@@ -166,6 +166,8 @@ unset LICENCE_SIGNING_KEY
 ```
 
 It prints the license ID, the key and its `devot://license` link. It writes nothing to disk and records nothing in D1, so the Worker never knows it: `/resend` does not find it, and only you hold a copy. Keep the license ID if you may need to revoke it. A wrong or missing seed or kid answers `E_LICENCE_CONFIG`, a missing address `E_LICENCE_BAD_REQUEST`; neither prints the seed.
+
+To renew a complimentary license, for example to correct its address or to sign it with a new kid, add `--id <license ID>` with the ID it already has: the new key carries the same ID, so revoking that ID still revokes both keys. An ID that is not 22 base64url characters answers `E_LICENCE_BAD_REQUEST`.
 
 To revoke a complimentary license, add a revoked row for its ID, so `/revoked` lists it:
 

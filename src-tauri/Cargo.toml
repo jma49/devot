@@ -96,6 +96,9 @@ security-framework-sys = "2"
 core-foundation = "0.10"
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# The system HTTPS proxy for `net` (`net::proxy`), through SCDynamicStoreCopyProxies; already
+# in the tree through reqwest.
+system-configuration = "0.7"
 # Native crash reports (DSN builds only): the exception handler in the app,
 # the Mach IPC that hands a crash to the reporter process, the minidump
 # writer it runs, and the parser that turns the minidump into a stack trace.
