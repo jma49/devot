@@ -342,12 +342,14 @@ describe('Tauri command permissions', () => {
   })
 
   it('grants the main windows every command the secondary-window close handler invokes', () => {
-    const app = readFileSync('src/renderer/src/App.tsx', 'utf8')
-    const start = app.indexOf('if (primary) return\n    const closed')
+    const session = readFileSync('src/renderer/src/coreSession.ts', 'utf8')
+    const start = session.indexOf('if (primary) return\n    const closed')
     expect(start).toBeGreaterThan(-1)
-    const handler = app.slice(start, app.indexOf('CLOSE_EVENT, closed)', start))
+    const end = session.indexOf('listenCloseAsked(closed)', start)
+    expect(end).toBeGreaterThan(start)
+    const handler = session.slice(start, end)
     const commands = [...handler.matchAll(/invoke\('([a-z_]+)'/g)].map((m) => m[1] ?? '')
-    if (handler.includes("answerAsked(\n        'close'")) {
+    if (/answerAsked\(\s*'close'/.test(handler)) {
       const guards = readFileSync('src/renderer/src/saveGuards.ts', 'utf8')
       commands.push(...[...guards.matchAll(/^ {2}close: '([a-z_]+)'/gm)].map((m) => m[1] ?? ''))
     }

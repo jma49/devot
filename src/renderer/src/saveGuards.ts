@@ -5,6 +5,7 @@ import type { SaveProblem } from '../../core'
 import type { Core } from './core-client'
 import { invoke } from './ipc'
 import { createQuitGuard, newProblems, type QuitGuard } from './saving'
+import { unlistenLater } from './windowEvents'
 
 /** Flushes pending edits; a failed save stays in the core (which retries and reports it), so the caller goes on. */
 export const saveEdits = (core: Core) => core.flush().catch(() => {})
@@ -109,4 +110,25 @@ export function useSaveAtTrialEnd(editing: boolean, core: Core | undefined, firs
     }
     wasEditing.current = editing
   }, [editing, core])
+}
+
+/** Rust asks one window to close (a note window, or a main window File > New Window opened); UI tests ask with this page event. */
+export const CLOSE_EVENT = 'devot:note-window-close'
+/** Rust asks every window to save before the app quits; UI tests ask note windows with this page event. */
+export const FLUSH_EVENT = 'devot:flush-before-exit'
+
+/** Hears Rust ask this window, and no other, to close. */
+export function listenCloseAsked(onClose: () => void): () => void {
+  window.addEventListener(CLOSE_EVENT, onClose)
+  const unlisten = DEVOT_UI_TEST
+    ? undefined
+    : unlistenLater(
+        import('@tauri-apps/api/webviewWindow').then(({ getCurrentWebviewWindow }) =>
+          getCurrentWebviewWindow().listen('devot://note-window-close', onClose),
+        ),
+      )
+  return () => {
+    window.removeEventListener(CLOSE_EVENT, onClose)
+    unlisten?.()
+  }
 }

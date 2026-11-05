@@ -14,6 +14,7 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::licence::Gate;
+use crate::task;
 use keychain::KeyStore;
 use provider::{GenerateRequest, Generated, ProviderId, check_request, provider, status_error};
 use settings::{AiSettings, SettingsStore};
@@ -167,29 +168,18 @@ impl Ai {
     }
 }
 
-async fn blocking<T: Send + 'static>(
-    ai: &Arc<Ai>,
-    work: impl FnOnce(&Ai) -> Result<T, &'static str> + Send + 'static,
-) -> Result<T, String> {
-    let ai = Arc::clone(ai);
-    tauri::async_runtime::spawn_blocking(move || work(&ai))
-        .await
-        .map_err(|_| "E_AI_FAILED".to_string())?
-        .map_err(String::from)
-}
-
 /// The main window runs this when the user starts an AI action.
 #[tauri::command]
 pub async fn ai_generate(
     ai: State<'_, Arc<Ai>>,
     request: GenerateRequest,
 ) -> Result<Generated, String> {
-    blocking(&ai, move |ai| ai.generate(&request)).await
+    task::blocking_with(&ai, "E_AI_FAILED", move |ai| ai.generate(&request)).await
 }
 
 #[tauri::command]
 pub async fn ai_settings_get(ai: State<'_, Arc<Ai>>) -> Result<Snapshot, String> {
-    blocking(&ai, |ai| Ok(ai.snapshot())).await
+    task::blocking_with(&ai, "E_AI_FAILED", |ai| Ok(ai.snapshot())).await
 }
 
 #[tauri::command]
@@ -197,7 +187,7 @@ pub async fn ai_settings_set(
     ai: State<'_, Arc<Ai>>,
     settings: AiSettings,
 ) -> Result<Snapshot, String> {
-    blocking(&ai, move |ai| ai.set_settings(settings)).await
+    task::blocking_with(&ai, "E_AI_FAILED", move |ai| ai.set_settings(settings)).await
 }
 
 #[tauri::command]
@@ -206,7 +196,7 @@ pub async fn ai_key_set(
     provider: ProviderId,
     key: String,
 ) -> Result<Snapshot, String> {
-    blocking(&ai, move |ai| ai.set_key(provider, &key)).await
+    task::blocking_with(&ai, "E_AI_FAILED", move |ai| ai.set_key(provider, &key)).await
 }
 
 #[tauri::command]
@@ -214,7 +204,7 @@ pub async fn ai_key_clear(
     ai: State<'_, Arc<Ai>>,
     provider: ProviderId,
 ) -> Result<Snapshot, String> {
-    blocking(&ai, move |ai| ai.clear_key(provider)).await
+    task::blocking_with(&ai, "E_AI_FAILED", move |ai| ai.clear_key(provider)).await
 }
 
 #[cfg(test)]

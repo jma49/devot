@@ -6,7 +6,6 @@ import type {
   DailyNotesSettings,
   BookRecord,
   ExportReport,
-  ImportScan,
   NoteStatus,
   NoteSummary,
   SavedSearchRecord,
@@ -44,7 +43,6 @@ import {
   type Trail,
 } from '../../core/navigation'
 import { highlightTerms, parseSearch, searchPattern, type SearchScope } from '../../core/search'
-import { countBucket } from '../../core/usage'
 import { filterNotes, noteGroups, statusCounts, tagCounts, type NoteFilter } from '../../core/tags'
 import {
   findBookNode,
@@ -52,14 +50,7 @@ import {
   workspaceParents,
   workspaceTree,
 } from '../../core/workspace'
-import {
-  BACKUP_FAILED,
-  SHOW_BACKUPS,
-  errorCode,
-  listBackups,
-  onRestoreElsewhere,
-  restoreBackup,
-} from './backups'
+import { errorCode } from './backups'
 import { BackupNotice } from './BackupNotice'
 import { SyncNotice } from './SyncNotice'
 import { ActivationBar, TrialEndedBar, TrialReminder } from './TrialNotices'
@@ -88,15 +79,10 @@ import {
 import { ExportNotice, failureOf, type ExportFailure } from './ExportNotice'
 import { SaveNotice } from './SaveNotice'
 import { isImeKey } from './ime'
-import {
-  answerAsked,
-  saveEdits,
-  useSaveAtTrialEnd,
-  useSaveOnHide,
-  useSaveProblems,
-} from './saveGuards'
+import { saveEdits, useSaveAtTrialEnd, useSaveOnHide, useSaveProblems } from './saveGuards'
 import { BackupsDialog } from './BackupsDialog'
-import { BookPicker, bookOptions, currentBookOption, NO_BOOK } from './BookPicker'
+import { useSheets } from './sheets'
+import { BookPicker } from './BookPicker'
 import { useContextMenu, type MenuPoint } from './contextMenu'
 import {
   CHIP_MENU,
@@ -110,17 +96,8 @@ import { TagSettingsDialog } from './TagSettingsDialog'
 import { SavedSearchDialog } from './SavedSearchDialog'
 import { SEARCH_FIELD_MENU } from './savedSearchMenu'
 import { PageSetupDialog, type PageSetup } from './PageSetupDialog'
-import { ImportDialog, type ImportChoices, type ImportJob } from './ImportDialog'
-import { forgetScanFound, setScanFound } from './importProgress'
-import {
-  IMPORT_FAILED,
-  IMPORT_PROGRESS,
-  IMPORT_READY,
-  IMPORT_SCANNING,
-  finishImport,
-  pickImport,
-  runImport,
-} from './importer'
+import { ImportDialog } from './ImportDialog'
+import { IMPORT_FAILED, finishImport, pickImport } from './importer'
 import { IMPORT_PICKS, type ImportAction } from './bookMenu'
 import { AiAccessDialog } from './AiAccessDialog'
 import { AiAccessNotice } from './AiAccessNotice'
@@ -129,55 +106,34 @@ import { BatchNotice } from './BatchNotice'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CoreNotice } from './CoreNotice'
 import { DeepLinkNotice, type DeepLinkProblem } from './DeepLinkNotice'
-import { actionOfEntry } from './plugins/contributions'
 import { usePlugins } from './plugins/usePlugins'
 import { firstImported, openDestination } from './cliOpen'
 import { noteTarget, useDeepLinks, type DeepLink } from './deepLink'
 import { StartFailure } from './StartFailure'
-import {
-  IMAGE_COMMANDS,
-  imageActionApplies,
-  runImageAction,
-  useImageMenu,
-  type ImageAction,
-  type ImageMenuTarget,
-  type SetImageSize,
-} from './imageMenu'
+import { useImageMenu, type ImageMenuTarget, type SetImageSize } from './imageMenu'
 import { ImageViewer, type ViewedImage } from './ImageViewer'
 import { DB_CHANGED, NOTES_LOADED, useExternalChanges } from './externalChanges'
 import { useMarkdownMirror } from './MarkdownMirror'
-import { latestOnly } from './preview/latest'
 import { SearchField } from './SearchField'
+import { useSearch, useSearchRuns } from './useSearch'
 import { areaOf, areaTargets, nextArea, usePaneTab, visible, type Area } from './areas'
 import { inEditor, sheetOpen, useMenuEvent, useWindowCommands } from './commands/dispatch'
+import { appHandlers } from './commands/appHandlers'
 import { useCommandMenu } from './commands/commandMenu'
 import { useFormatMenu } from './commands/formatMenu'
 import { shortcutLabel } from './commands/keys'
 import { commandKeys } from './commands/registry'
 import { useKeymap } from './commands/shortcutSettings'
-import { editingAllowed } from './licence'
 import { invoke } from './ipc'
 import { titleWithKey } from './commands/titles'
 import { ToolTips } from './ToolTips'
-import {
-  COMMANDS,
-  formatOf,
-  insertOf,
-  tableOf,
-  withoutChanges,
-  type CommandHandlers,
-} from './commands/registry'
-import { CommandPalette, type PaletteActions } from './palette/CommandPalette'
-import {
-  commandEntries,
-  libraryEntries,
-  outlineEntries,
-  sourceEntries,
-  withTagClause,
-} from './palette/entries'
+import { withoutChanges } from './commands/registry'
+import { CommandPalette } from './palette/CommandPalette'
+import { commandEntries, libraryEntries, outlineEntries, sourceEntries } from './palette/entries'
+import { paletteActions } from './palette/appActions'
 import type { PaletteEntry, PaletteSource } from './palette/results'
 import { bookDeleteDetail, noteCount } from './format'
-import { openAfter, selectAll, type ListSelection } from './listSelection'
+import { openAfter, type ListSelection } from './listSelection'
 import { SelectionSummary } from './SelectionSummary'
 import { TrashView } from './TrashView'
 import { Icon, ToolIcon } from './icons/Icon'
@@ -189,35 +145,29 @@ import { BuiltInTemplate, BuiltInTemplates } from './BuiltInTemplates'
 import { markWrite } from './lastWrite'
 import { TemplatePicker } from './TemplatePicker'
 import { currentRecentTemplates } from './templates'
-import { startCore, stopCore, type Core } from './core-client'
+import type { Core } from './core-client'
+import { useCoreSession, useCoreStart, useQuitAndClose } from './coreSession'
 import { warmUp } from './warmUp'
 import { startEarlyKeys } from './editor/earlyKeys'
-import { welcomeContent } from './welcome/content'
 import {
   currentFocusStore,
   currentSidebarStore,
   currentWindowLabel,
   isSecondaryLabel,
-  keyboardIsFree,
 } from './focus'
-import { coalesced, listsLink, openMainWindow } from './mainWindows'
+import { coalesced, listsLink } from './mainWindows'
 import { listenHere, unlistenLater } from './windowEvents'
-import { listenExitCancelled } from './exitCancelled'
-import { resumeMirrorAfterCancelledQuit } from './mirror'
 import { useFocusRescue } from './focusRescue'
+import { useLastState } from './useLastState'
 import {
   currentDefaultMode,
   currentLastStateStore,
   isBoardView,
   isGalleryView,
-  lastStateOf,
   layoutOf,
-  restorePlan,
   withLayout,
-  type LastState,
   type ListLayout,
   type ViewLayouts,
-  type NoteState,
 } from './lastState'
 import type { FindTarget } from './find/target'
 import { useFind } from './find/useFind'
@@ -226,16 +176,10 @@ import { refuseTextDrops } from './dragData'
 import { displayTitle, displayTitles, newestUntitled, useHeadlines } from './headlines'
 import { currentLocale, format, t } from './i18n'
 import { useAlertMenu } from './editor/alertMenu'
-import { LINE_COMMANDS } from './editor/lineCommands'
 import type { EditorHandle } from './editor/handle'
-import { NoteEditor, type ApplyRestore, type EditorPlace } from './NoteEditor'
+import { NoteEditor, type ApplyRestore } from './NoteEditor'
 import { BODY_PLACEHOLDER_MS, useLateAttribute } from './late'
-import {
-  changeEditorSettings,
-  editorSettings,
-  stepEditorFontSize,
-  useEditorSetting,
-} from './editorSettings'
+import { changeEditorSettings, editorSettings, useEditorSetting } from './editorSettings'
 import { ModeControl, editorOnly, type Mode } from './ModeControl'
 import { relayGate, relayLink } from './noteRelay'
 import { NoteList } from './NoteList'
@@ -268,16 +212,7 @@ import {
 } from './listUpdates'
 import { useNoteActions } from './noteActions'
 import { useTrashMenu } from './trashMenu'
-import {
-  NOTE_COMMANDS,
-  SELECTION_ONLY,
-  TRASH_COMMANDS,
-  type ExportAction,
-  type NoteAction,
-  type NoteMenuAction,
-  type TrashAction,
-  copyText,
-} from './noteMenu'
+import { type ExportAction, type NoteAction, type TrashAction, copyText } from './noteMenu'
 import { applyOrder, orderChip, orderLabel, sortLocales, sortView, useListOrder } from './noteSort'
 import { LivePreview } from './preview/Preview'
 import { tagChanges, type FrontMatterChange } from './preview/frontMatterApply'
@@ -308,29 +243,17 @@ import {
   agentFilter,
   Sidebar,
   STATUSES,
-  stepSidebarRow,
   type Selection,
   type SidebarMenus,
   type SidebarWorkspace,
 } from './Sidebar'
 import { useKept, useStable } from './stable'
-import { STATUS_COMMANDS } from './statusKeys'
 import { textStore } from './textStore'
-import { restartNow, useUpdates } from './UpdateNotice'
-import { checkForUpdates } from './updates'
+import { useUpdates } from './UpdateNotice'
 import { track } from './usage'
-import { HTTP_API_DONE_TEST, HTTP_API_EVENT, httpApiHost } from './httpApiHost'
-import { CLI_APPEND_EVENT, cliAppendHost, resolveAppendTarget } from './cliAppend'
-import { QUICK_CAPTURE_EVENT, answerCapture, readCaptureRequest } from './quickCaptureHost'
+import { useCliAppend, useHttpApi, useQuickCapture } from './hostCalls'
 
 const EXPORT_ALL = 'devot:export-all'
-
-interface Search {
-  query: string
-  scope: SearchScope | undefined
-}
-
-const SEARCH_SETTLED_MS = 1000
 
 export const SHOW_PALETTE = 'devot:show-palette'
 export const OPEN_TODAY = 'devot:open-today'
@@ -365,11 +288,9 @@ export const TOGGLE_SIDEBAR = 'devot:toggle-sidebar'
 /** A menu toggle this soon after the key did the same is that key press echoing through the menu; it is dropped. */
 const MENU_ECHO_MS = 500
 
-const LAST_STATE_SAVE_MS = 400
 // Other main windows hear of this window's writes this long after the first of a burst, and load their lists this long after hearing (mainWindows.ts).
 const LISTS_WROTE_MS = 250
 const LISTS_RELOAD_MS = 400
-const CLOSE_EVENT = 'devot:note-window-close'
 
 function SidebarToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) {
   // Re-render on keymap changes: the tooltip names the key in effect.
@@ -412,7 +333,8 @@ export function App() {
   const [lastState] = useState(() => lastStateStore.load())
   // Tooltips name the keys in effect; they follow the user's changes.
   useKeymap()
-  const [core, setCore] = useState<Core>()
+  const session = useCoreSession()
+  const { core, coreRef, startFailure, coreFailure, setCoreFailure, retryStart } = session
   // Every AI request goes through the access rule, with the notebooks as the core has them.
   const aiGenerator = useMemo(
     () =>
@@ -439,9 +361,6 @@ export function App() {
     [core, aiGenerator],
   )
   const [suggestNotice, setSuggestNotice] = useState<string>()
-  const [startFailure, setStartFailure] = useState<string>()
-  const [startAttempt, setStartAttempt] = useState(0)
-  const [coreFailure, setCoreFailure] = useState<string>()
   const loadHeadlines = useMemo(
     () => (core ? (ids: string[]) => core.headlines(ids) : undefined),
     [core],
@@ -482,16 +401,9 @@ export function App() {
   // Template picker: recent ones are read on open; with `into`, the pick fills that empty note instead of making a new one.
   const [picking, setPicking] = useState<{ recent: string[]; into?: string }>()
   const recentTemplates = useMemo(() => currentRecentTemplates(), [])
-  const [query, setQuery] = useState('')
-  const [searchIn, setSearchIn] = useState<'all' | 'view'>('view')
-  const [results, setResults] = useState<{
-    found: NoteSummary[]
-    capped: boolean
-    search: Search
-  }>()
-  const searchField = useRef<HTMLInputElement>(null)
-  const runSearch = useRef<(search: Search) => void>(undefined)
-  const latestSearch = useRef<Search>({ query: '', scope: undefined })
+  const searchState = useSearch(core)
+  const { query, setQuery, searchIn, setSearchIn, results, setResults, searchField } = searchState
+  const { rerunSearch, askSearchField } = searchState
   const searching = query.trim() !== '' && results !== undefined
   const [confirm, setConfirm] = useState<
     | { kind: 'empty' }
@@ -521,6 +433,7 @@ export function App() {
   const [mode, setMode] = useState<Mode>(() => lastState?.mode ?? currentDefaultMode())
   // Leaving Preview or Split goes back to the editor mode used last.
   const editorMode = useRef(editorOnly(mode) ? mode : currentDefaultMode())
+  // oxlint-disable-next-line react/refs -- The editor mode to go back to follows each render's mode, before any effect reads it.
   if (editorOnly(mode)) editorMode.current = mode
   // The library views shown as a board (lastState.ts).
   const [layouts, setLayouts] = useState<ViewLayouts>(() => ({
@@ -548,6 +461,7 @@ export function App() {
   const [panesSeen, setPanesSeen] = useState({ focus, sidebarOff })
   const panesBefore = useRef<PaneBoxes | null>(null)
   if (panesSeen.focus !== focus || panesSeen.sidebarOff !== sidebarOff) {
+    // oxlint-disable-next-line react/refs -- The panes are measured before the change commits, while their old layout is still on screen (paneMotion.ts).
     panesBefore.current = measurePanes(shownPanes(panesSeen))
     setPanesSeen({ focus, sidebarOff })
   }
@@ -623,14 +537,13 @@ export function App() {
   const [, setFocusAsked] = useState(0)
   const requestFocus = (request: FocusRequest) => {
     focusAfter.current = request
+    // oxlint-disable-next-line react/purity -- requestFocus runs from events and timers, never during a render.
     focusAskedAt.current = performance.now()
     setFocusAsked((n) => n + 1)
   }
   const titleRef = useRef<HTMLInputElement>(null)
   const tagInputRef = useRef<HTMLInputElement>(null)
   const [quickTagNote, setQuickTagNote] = useState<string>()
-  const [backupsOpen, setBackupsOpen] = useState(false)
-  const [backupNotice, setBackupNotice] = useState<string>()
   const syncSnapshot = useSyncSnapshot()
   useEffect(() => startSyncStatus(), [])
   // Re-renders when the licence changes, so what is locked follows it.
@@ -656,17 +569,6 @@ export function App() {
   // The first quit or close after a save failure is held (saving.ts, useSaveProblems).
   const [quitHeld, setQuitHeld] = useState(false)
   const [closeHeld, setCloseHeld] = useState(false)
-  const importJobs = useRef<ImportJob[]>([])
-  const [importJob, setImportJob] = useState<ImportJob>()
-  const [importKey, setImportKey] = useState(0)
-  // One sheet at a time: no import while Backups is open (a restore replaces the database under it), and Backups waits for an import.
-  const importShown = useRef(false)
-  const backupsShown = useRef(false)
-  const backupsWanted = useRef(false)
-  // Sessions taken (their scan arrived) or closed: later events for them are ignored.
-  const seenImports = useRef(new Set<number>())
-  const shownImport = useRef<number | null>(null)
-  const coreRef = useRef<Core>(undefined)
   // The open note's Markdown mirrored for the preview; not App state, so typing renders only the preview.
   const [openText] = useState(() => textStore())
   const [historyFor, setHistoryFor] = useState<string>()
@@ -692,6 +594,7 @@ export function App() {
     return { link, wrote: coalesced(() => link.send(), LISTS_WROTE_MS) }
   })
   const shownNote = useRef<string | undefined>(undefined)
+  // oxlint-disable-next-line react/refs -- Callbacks made in this render read the note it shows.
   shownNote.current = selected
   const sidebarMenus = useRef<SidebarMenus | null>(null)
   // Split mode keeps editor and preview at the same line unless synced scrolling is off (an editor setting).
@@ -785,26 +688,29 @@ export function App() {
       setTags(nextTags.sort((a, b) => compareNames(a.name, b.name, navigator.languages)))
       setSavedSearches(nextSearches)
       // Results follow edits, renames, trash and restore.
-      if (latestSearch.current.query.trim()) runSearch.current?.(latestSearch.current)
+      rerunSearch()
       window.dispatchEvent(new CustomEvent(NOTES_LOADED))
       return { notes: nextNotes, templates: listed.templates, books: nextBooks }
     },
-    [authorshipChanged],
+    [authorshipChanged, rerunSearch],
   )
 
   // Every note write dates the note in the lists at once, so an edited note moves without a reload.
   // Not for a change that reloads the lists when done (`changeBooks`): a re-dated note could move before the reload removes it, sending the keyboard to the wrong row.
   const reloadsPending = useRef(0)
-  const showWrites = useCallback((writes: ReadonlyMap<string, number>) => {
-    for (const at of writes.values()) markWrite(at)
-    if (reloadsPending.current > 0) return
-    setNotes((list) => withWrites(list, writes))
-    setTemplates((list) => withWrites(list, writes))
-    setResults((shown) => {
-      const found = shown && withWrites(shown.found, writes)
-      return shown && found !== shown.found ? { ...shown, found: found! } : shown
-    })
-  }, [])
+  const showWrites = useCallback(
+    (writes: ReadonlyMap<string, number>) => {
+      for (const at of writes.values()) markWrite(at)
+      if (reloadsPending.current > 0) return
+      setNotes((list) => withWrites(list, writes))
+      setTemplates((list) => withWrites(list, writes))
+      setResults((shown) => {
+        const found = shown && withWrites(shown.found, writes)
+        return shown && found !== shown.found ? { ...shown, found: found! } : shown
+      })
+    },
+    [setResults],
+  )
 
   // Notes the core could not save yet: once a note saves, the lists show what is stored.
   const {
@@ -826,7 +732,7 @@ export function App() {
           void refresh(c).catch(() => {})
         }
       },
-      [refresh],
+      [coreRef, refresh],
     ),
   )
 
@@ -834,82 +740,19 @@ export function App() {
   const showLibraryRef =
     useRef<(next: Selection, options?: { clearFilter?: boolean }) => void>(undefined)
 
-  /** Shows the next sheet unless one is up: an import job first (its result stays until closed; an import ends by showing its notebook), then Backups if asked meanwhile. */
-  const nextSheet = useCallback(() => {
-    if (importShown.current || backupsShown.current) return
-    const c = coreRef.current
-    const job = c ? importJobs.current.shift() : undefined
-    if (!c || !job) {
-      if (backupsWanted.current) {
-        backupsWanted.current = false
-        backupsShown.current = true
-        setBackupsOpen(true)
-      }
-      return
-    }
-    importShown.current = true
-    shownImport.current = job.id
-    setImportKey((k) => k + 1)
-    setImportJob(job)
-  }, [])
-
-  const startImport = useCallback(
-    async (
-      scan: ImportScan,
-      destination: string | null,
-      progress: (done: number, total: number) => void,
-      options: ImportChoices,
-    ) => {
-      const c = coreRef.current
-      if (!c) throw new Error('E_CORE_NOT_READY')
-      try {
-        await saveEdits(c)
-        const started = performance.now()
-        const report = await runImport(c, scan, destination, progress, options.wikiLinks)
-        track('import.finished', {
-          notes: report?.notes ?? 0,
-          notebooks: report?.books ?? 0,
-          images: report?.attachments ?? 0,
-          problems: report?.problems.length ?? scan.skipped.length,
-          durationMs: Math.round(performance.now() - started),
-        })
-        await refresh(c)
-        if (report?.bookId) {
-          showLibraryRef.current?.({ kind: 'book', id: report.bookId }, { clearFilter: true })
-        }
-        return report
-      } catch (e) {
-        console.warn('W_IMPORT_FAILED', errorCode(e))
-        await refresh(c).catch(() => {})
-        throw new Error(errorCode(e), { cause: e })
-      }
-    },
-    [refresh],
-  )
-
-  const closeImport = (cancelled: boolean) => {
-    const id = importJob?.id ?? null
-    if (id !== null) forgetScanFound(id)
-    if (cancelled && id !== null) {
-      seenImports.current.add(id)
-      void finishImport(id)
-    }
-    setImportJob(undefined)
-    importShown.current = false
-    shownImport.current = null
-    nextSheet()
-  }
-
-  const showBackups = useCallback(() => {
-    backupsWanted.current = true
-    nextSheet()
-  }, [nextSheet])
-
-  const closeBackups = () => {
-    setBackupsOpen(false)
-    backupsShown.current = false
-    nextSheet()
-  }
+  const {
+    importJob,
+    importKey,
+    backupsOpen,
+    backupNotice,
+    setBackupNotice,
+    nextSheet,
+    startImport,
+    closeImport,
+    showBackups,
+    closeBackups,
+    restore,
+  } = useSheets({ core, coreRef, refresh, showLibraryRef })
 
   const tree = useMemo(() => buildBookTree(books), [books])
   useEffect(() => publishNotebooks(choicesFromTree(tree)), [tree])
@@ -937,6 +780,7 @@ export function App() {
   const inTrash = library.kind === 'trash'
   const inTemplates = library.kind === 'templates'
   const keptTrashRows = useRef<NoteSummary[]>([])
+  // oxlint-disable react/refs -- Trash rows that did not change keep their objects across renders (keepUnchanged).
   const trashRows = useMemo(
     () =>
       (keptTrashRows.current = keepUnchanged(
@@ -955,6 +799,7 @@ export function App() {
       )),
     [trash],
   )
+  // oxlint-enable react/refs
   const agentWrites = useAgentWrites(core, authorship)
   // In a workspace the Agents section counts only its notes, and choosing an agent lists only those.
   const workspaceNoteIds = useMemo(
@@ -1182,6 +1027,7 @@ export function App() {
     ) {
       setWorkspace(null)
     }
+    // oxlint-disable-next-line react/immutability -- clearSearch is a hoisted function declaration; showLibrary runs only from events.
     clearSearch()
     if ((next.kind === 'trash') !== inTrash) setSelected(undefined)
     if (clearFilter) setFilter(null)
@@ -1279,16 +1125,13 @@ export function App() {
     [notes, templates, trashRows],
   )
   const knownNotes = useRef(noteById)
+  // oxlint-disable-next-line react/refs -- Callbacks made in this render look notes up in its lists.
   knownNotes.current = noteById
   const selectedNotes = useMemo(
     () => multiIds?.flatMap((id) => noteById.get(id) ?? []) ?? [],
     [multiIds, noteById],
   )
 
-  const onCoreFailure = useCallback((code: string) => {
-    console.error(code)
-    setCoreFailure(code)
-  }, [])
   // Another window's change, or one the core merged in on saving: the editor and title field take it.
   const takeIn = useCallback((change: TakenIn) => {
     if (change.kind === 'title') {
@@ -1299,131 +1142,20 @@ export function App() {
     const editor = editorRef.current
     if (editor?.noteId === change.noteId) editor.takeState(change.update)
   }, [])
-  useEffect(() => {
-    let alive = true
-    let started: Core | undefined
-    void startCore(onSaveProblems, showWrites, onCoreFailure, {
-      lean: !primary,
-      onWrote: lists.wrote,
-      onAuthored: authorshipChanged,
-      onRelay: (message) => {
-        if (relay.gate.allows(message)) relay.link.send(message)
-      },
-      onTakenIn: takeIn,
-    })
-      .then(async (c) => {
-        started = c
-        if (!alive) return stopCore(c)
-        setCore(() => c)
-        coreRef.current = c
-        // A library that has never held anything starts with a few notes. The
-        // UI tests' libraries start empty, unless a test asks for the notes.
-        if (
-          primary &&
-          (!DEVOT_UI_TEST || (globalThis as { devotSeedWelcome?: boolean }).devotSeedWelcome)
-        ) {
-          await c.seedWelcome(welcomeContent()).catch((e: unknown) => {
-            console.warn('W_WELCOME_FAILED', errorCode(e))
-          })
-        }
-        await refresh(c)
-        setListsLoaded(true)
-        nextSheet()
-      })
-      .catch((e: unknown) => {
-        if (!alive) return
-        // Not an empty library: the window says why it has none.
-        if (started) stopCore(started)
-        coreRef.current = undefined
-        setCore(undefined)
-        const code = errorCode(e)
-        console.warn('W_CORE_START_FAILED', code)
-        setStartFailure(code)
-      })
-    return () => {
-      alive = false
-    }
-  }, [
+  useCoreStart(session, {
+    primary,
+    lists,
+    relay,
     refresh,
     nextSheet,
     onSaveProblems,
     showWrites,
     authorshipChanged,
-    onCoreFailure,
     takeIn,
-    relay,
-    lists,
-    primary,
-    startAttempt,
-  ])
-  const retryStart = () => {
-    setStartFailure(undefined)
-    setStartAttempt((n) => n + 1)
-  }
+    setListsLoaded,
+  })
 
-  useEffect(() => {
-    if (!core) return
-    let alive = true
-    const arm = () => {
-      if (!alive) return
-      runSearch.current = latestOnly(
-        async (search: Search) => {
-          const { found, capped } = await core.search(search.query, search.scope)
-          return { found, capped, search }
-        },
-        // Results that did not change keep their objects (and their rows their render).
-        (next) => {
-          // An answer that lands after the field was cleared is not kept: the
-          // next query would first show it.
-          if (!latestSearch.current.query.trim()) return
-          setResults((shown) =>
-            shown ? { ...next, found: keepUnchanged(shown.found, next.found) } : next,
-          )
-        },
-        () => console.warn('W_SEARCH_FAILED'),
-      )
-      // A query typed before the core started had no search to run, and the
-      // lists may have loaded before this effect.
-      if (latestSearch.current.query.trim()) runSearch.current(latestSearch.current)
-    }
-    // A UI test holds this back to type a search after the lists load but before it runs.
-    const held = DEVOT_UI_TEST
-      ? (globalThis as { devotHoldSearch?: Promise<void> }).devotHoldSearch
-      : undefined
-    if (held) void held.then(arm)
-    else arm()
-    return () => {
-      alive = false
-    }
-  }, [core])
-  useEffect(() => {
-    const search = { query, scope: searchScope }
-    latestSearch.current = search
-    if (!query.trim()) return
-    const timer = setTimeout(() => runSearch.current?.(search), 120)
-    return () => clearTimeout(timer)
-  }, [query, searchScope])
-  // A usage event once typing pauses and the results answer the query; results following a change, or the same query in the same place, are not a new search.
-  const countedSearch = useRef('')
-  useEffect(() => {
-    if (!query.trim()) {
-      countedSearch.current = ''
-      return
-    }
-    if (results?.search.query !== query || !!results.search.scope !== inView) return
-    const key = `${inView ? 'view' : 'all'}\n${query}`
-    if (countedSearch.current === key) return
-    const { found } = results
-    const timer = setTimeout(() => {
-      countedSearch.current = key
-      track('search.run', {
-        scope: inView ? 'view' : 'all',
-        clauses: parseSearch(query).length,
-        results: countBucket(found.length),
-      })
-    }, SEARCH_SETTLED_MS)
-    return () => clearTimeout(timer)
-  }, [query, results, inView])
+  useSearchRuns(searchState, { scope: searchScope, inView })
   // Typing a search in the Trash or Templates leaves it: neither is searched.
   const changeQuery = (next: string) => {
     if ((inTrash || inTemplates) && next.trim()) {
@@ -1443,21 +1175,15 @@ export function App() {
     setSearchIn('view')
   }
   // Search shortcuts focus the field from anywhere (Shift+Cmd+F: current view, Shift+Opt+Cmd+F: every note); results need the list, so they leave focus mode first.
-  const [searchRequest, setSearchRequest] = useState(0)
   const startSearch = useCallback(
     (where: 'all' | 'view') => {
       focusStore.save(false)
       setFocus(false)
       setSearchIn(where)
-      setSearchRequest((n) => n + 1)
+      askSearchField()
     },
-    [focusStore],
+    [focusStore, setSearchIn, askSearchField],
   )
-  useEffect(() => {
-    if (searchRequest === 0) return
-    searchField.current?.focus()
-    searchField.current?.select()
-  }, [searchRequest])
 
   // Help > Rebuild Search Index and the palette command. The notes stay usable
   // meanwhile; their reads and saves wait for the one statement. Rust refuses
@@ -1496,133 +1222,6 @@ export function App() {
     return () => clearTimeout(timer)
   }, [indexState])
 
-  useEffect(() => {
-    // Rust sends the menu event to this window even while Settings or a
-    // native panel has the keyboard; then it must open nothing behind it.
-    const show = () => {
-      if (document.hasFocus()) showBackups()
-    }
-    const failed = (e: Event) => setBackupNotice(errorCode((e as CustomEvent).detail))
-    window.addEventListener(SHOW_BACKUPS, show)
-    window.addEventListener(BACKUP_FAILED, failed)
-    listBackups().then(
-      (status) => status.lastError && setBackupNotice(status.lastError),
-      () => {},
-    )
-    let unlisten: (() => void)[] = []
-    if (!DEVOT_UI_TEST) {
-      void Promise.all([
-        listenHere('devot://show-backups', () =>
-          window.dispatchEvent(new CustomEvent(SHOW_BACKUPS)),
-        ),
-        listenHere<string>('devot://backup-failed', (e) =>
-          window.dispatchEvent(new CustomEvent(BACKUP_FAILED, { detail: e.payload })),
-        ),
-      ]).then((stops) => {
-        unlisten = stops
-      })
-    }
-    return () => {
-      window.removeEventListener(SHOW_BACKUPS, show)
-      window.removeEventListener(BACKUP_FAILED, failed)
-      for (const stop of unlisten) stop()
-    }
-  }, [showBackups])
-
-  // Import: Rust reports a scan started and its progress, then what it found (picked files at once) or why it failed. Each import waits its turn; a scan is taken once even if sent twice.
-  useEffect(() => {
-    const update = (id: number, change: (job: ImportJob) => ImportJob) => {
-      if (shownImport.current === id) {
-        setImportJob((job) => (job && job.id === id ? change(job) : job))
-        return true
-      }
-      const at = importJobs.current.findIndex((job) => job.id === id)
-      if (at === -1) return false
-      importJobs.current[at] = change(importJobs.current[at]!)
-      return true
-    }
-    const add = (job: ImportJob) => {
-      importJobs.current.push(job)
-      nextSheet()
-    }
-    const scanning = (e: Event) => {
-      const { id, name, kind } = (
-        e as CustomEvent<Pick<ImportJob, 'name' | 'kind'> & { id: number }>
-      ).detail
-      if (seenImports.current.has(id) || update(id, (job) => job)) return
-      add({ id, name, kind, scan: null, failed: null })
-    }
-    const progress = (e: Event) => {
-      const { id, files, images } = (
-        e as CustomEvent<{ id: number; files: number; images: number }>
-      ).detail
-      if (seenImports.current.has(id)) return
-      // Kept out of App state: only the sheet showing it renders again.
-      const known = shownImport.current === id || importJobs.current.some((job) => job.id === id)
-      if (known) setScanFound(id, { files, images })
-    }
-    const ready = (e: Event) => {
-      const scan = (e as CustomEvent<ImportScan>).detail
-      if (seenImports.current.has(scan.id)) return
-      seenImports.current.add(scan.id)
-      if (update(scan.id, (job) => ({ ...job, scan }))) return
-      add({
-        id: scan.id,
-        name: scan.name,
-        kind: scan.kind,
-        scan,
-        failed: null,
-      })
-    }
-    const failed = (e: Event) => {
-      const detail = (e as CustomEvent<{ id: number | null; code: unknown } | string>).detail
-      const id = typeof detail === 'object' && detail !== null ? detail.id : null
-      const code = errorCode(typeof detail === 'object' && detail !== null ? detail.code : detail)
-      if (id !== null) {
-        if (seenImports.current.has(id)) return
-        seenImports.current.add(id)
-        if (update(id, (job) => ({ ...job, failed: code }))) return
-      }
-      add({
-        id,
-        name: '',
-        kind: 'folder',
-        scan: null,
-        failed: code,
-      })
-    }
-    window.addEventListener(IMPORT_SCANNING, scanning)
-    window.addEventListener(IMPORT_PROGRESS, progress)
-    window.addEventListener(IMPORT_READY, ready)
-    window.addEventListener(IMPORT_FAILED, failed)
-    let stopped = false
-    const unlisten: (() => void)[] = []
-    if (!DEVOT_UI_TEST) {
-      const resend = (from: string, to: string) =>
-        listenHere<unknown>(from, (e) =>
-          window.dispatchEvent(new CustomEvent(to, { detail: e.payload })),
-        )
-      void Promise.all([
-        resend('devot://import-scanning', IMPORT_SCANNING),
-        resend('devot://import-progress', IMPORT_PROGRESS),
-        resend('devot://import-ready', IMPORT_READY),
-        resend('devot://import-failed', IMPORT_FAILED),
-      ]).then((stops) => {
-        // Cleaned up before the listeners were ready: stop them now.
-        if (stopped) for (const stop of stops) stop()
-        else unlisten.push(...stops)
-      })
-    }
-    return () => {
-      stopped = true
-      window.removeEventListener(IMPORT_SCANNING, scanning)
-      window.removeEventListener(IMPORT_PROGRESS, progress)
-      window.removeEventListener(IMPORT_READY, ready)
-      window.removeEventListener(IMPORT_FAILED, failed)
-      for (const stop of unlisten) stop()
-    }
-  }, [nextSheet])
-
   // Another process changed the database: notes in memory take in its writes before saving anything (so no save overwrites them), then pending edits save and the lists reload.
   useExternalChanges(
     core
@@ -1656,110 +1255,8 @@ export function App() {
       : undefined,
   )
 
-  const restore = async (id: string) => {
-    // No import runs while Backups is open; stopping one is a safeguard.
-    await core?.stopImport()
-    if (core) await saveEdits(core)
-    await restoreBackup(
-      id,
-      core
-        ? {
-            hold: () => core.holdCompaction(),
-            resume: () => core.resumeCompaction(),
-          }
-        : undefined,
-    )
-    // Folders picked meanwhile were never imported: close their sessions.
-    for (const job of importJobs.current.splice(0)) {
-      if (job.id !== null) {
-        forgetScanFound(job.id)
-        await finishImport(job.id)
-      }
-    }
-    window.location.reload()
-  }
-
-  useEffect(
-    () =>
-      onRestoreElsewhere(async () => {
-        if (!core) return
-        try {
-          await core.stopImport()
-          await saveEdits(core)
-          // In `main`: no sweep deletes from the restored notes what it chose from these.
-          await core.holdCompaction()
-        } finally {
-          stopCore(core)
-        }
-      }),
-    [core],
-  )
-
-  // Quick capture (menu bar mode): this window's core makes the note the
-  // capture window sent, and the list shows it.
-  useEffect(() => {
-    if (!core || DEVOT_UI_TEST) return
-    return unlistenLater(
-      listenHere<unknown>(QUICK_CAPTURE_EVENT, (e) => {
-        const request = readCaptureRequest(e.payload)
-        if (!request) return
-        void answerCapture(
-          request,
-          (id) => invoke('quick_capture_claim', { id }),
-          async (r) => {
-            await core.capture(r.title, r.body, r.bookId)
-          },
-          (id, error) => invoke('quick_capture_done', { id, error }),
-        ).then((saved) => {
-          if (!saved) return
-          track('note.created', { from: 'quick_capture' })
-          void refresh(core)
-        })
-      }),
-    )
-  }, [core, refresh])
-
-  // The local HTTP API: this window's core answers each call Rust checked.
-  useEffect(() => {
-    if (!core) return
-    if (DEVOT_UI_TEST) {
-      // No Rust in the UI tests' build: a test hands a call in as a page event and hears the answer as another.
-      const take = httpApiHost({
-        run: (call) => core.httpApi(call),
-        reply: async (id, result, error) => {
-          window.dispatchEvent(
-            new CustomEvent(HTTP_API_DONE_TEST, { detail: { id, result, error } }),
-          )
-        },
-        wrote: () => window.dispatchEvent(new CustomEvent(DB_CHANGED)),
-      })
-      const onCall = (e: Event) => void take((e as CustomEvent<unknown>).detail)
-      window.addEventListener(HTTP_API_EVENT, onCall)
-      return () => window.removeEventListener(HTTP_API_EVENT, onCall)
-    }
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    const take = httpApiHost({
-      run: (call) => core.httpApi(call),
-      reply: (id, result, error) => invoke('http_api_done', { id, result, error }),
-      wrote: () => window.dispatchEvent(new CustomEvent(DB_CHANGED)),
-    })
-    void listenHere<unknown>(HTTP_API_EVENT, (e) => void take(e.payload)).then((stop) => {
-      if (stopped) {
-        stop()
-        return
-      }
-      unlisten = stop
-      // Only now does the MCP bridge's socket open, so no call waits on a window still loading.
-      invoke('http_api_listening').catch((e: unknown) =>
-        console.warn('W_HTTP_API_LISTENING_FAILED', errorCode(e)),
-      )
-    })
-    return () => {
-      stopped = true
-      unlisten?.()
-    }
-  }, [core])
+  useQuickCapture(core, refresh)
+  useHttpApi(core)
 
   const shownWrites = useRef<{ noteId: string; ids: Set<string> } | undefined>(undefined)
   // Marking runs in call order: a later note's reload must not overtake an
@@ -1779,102 +1276,8 @@ export function App() {
   )
 
   useSaveOnHide(core)
-  useEffect(() => {
-    if (!core) return
-    // Quitting: Rust holds the exit, asks us to save, and exits on our reply.
-    // When a note could not be saved, the first such quit is called off
-    // instead: the window stays with the changes and the notice says so
-    // (saving.ts); quitting again goes on without them.
-    let unlisten: (() => void) | undefined
-    let unlistenCancel: (() => void) | undefined
-    let unlistenIdle: (() => void) | undefined
-    let stopped = false
-    if (!DEVOT_UI_TEST) {
-      void import('@tauri-apps/api/event').then(async ({ listen }) => {
-        const stop = await listen('devot://flush-before-exit', async () => {
-          saveNow.current?.()
-          // A running import stops after the file it is on, so no note
-          // is left half made (unless that file outlasts the quit timeout).
-          await core.stopImport()
-          await answerAsked(
-            'quit',
-            quitGuard,
-            core.flush({ versions: true }),
-            () => {
-              setQuitHeld(true)
-              setSaveNoticeDismissed(false)
-            },
-            async () => {
-              // The notice's writes are seen before the app goes, so they do not come back on the next launch.
-              await markShownSeen({ reload: false })
-              // A mirror pass ends after the batch it is in, so its manifest
-              // lists every file it wrote; the next launch catches up.
-              await core.mirrorStop()
-            },
-          )
-        })
-        if (stopped) stop()
-        else unlisten = stop
-        // A Devot an AI tool started asks before it quits by itself (background.rs): a save that
-        // fails here keeps it running, without the notice a quit's own failure would bring up.
-        const stopIdle = await listen('devot://background-idle-check', async () => {
-          saveNow.current?.()
-          const saved = await core.flush({ versions: true }).then(
-            () => true,
-            () => false,
-          )
-          await invoke('background_idle_answer', { saved })
-        })
-        if (stopped) stopIdle()
-        else unlistenIdle = stopIdle
-      })
-      // Another window called the quit off after this one had stopped its mirror: start it again.
-      void listenExitCancelled(() => resumeMirrorAfterCancelledQuit(core)).then((stop) => {
-        if (stopped) stop()
-        else unlistenCancel = stop
-      })
-    }
-    return () => {
-      stopped = true
-      unlisten?.()
-      unlistenCancel?.()
-      unlistenIdle?.()
-    }
-  }, [core, quitGuard, markShownSeen, setSaveNoticeDismissed])
-
-  useSaveAtTrialEnd(editing, core, () => saveNow.current?.())
-
-  // A window File > New Window opened closes after saving, as a note window does (main_windows.rs): Rust holds the close and asks. As for a quit, the first close whose save fails is called off, and the notice says so.
-  useEffect(() => {
-    if (primary) return
-    const closed = () => {
-      const ready = coreRef.current
-      saveNow.current?.()
-      void answerAsked(
-        'close',
-        closeGuard,
-        ready?.stopImport().then(() => ready.flush({ versions: true })),
-        () => {
-          setCloseHeld(true)
-          setSaveNoticeDismissed(false)
-        },
-        // Seen before the window goes, as for a quit.
-        () => markShownSeen({ reload: false }),
-      )
-    }
-    window.addEventListener(CLOSE_EVENT, closed)
-    const unlisten = DEVOT_UI_TEST
-      ? undefined
-      : unlistenLater(
-          import('@tauri-apps/api/webviewWindow').then(({ getCurrentWebviewWindow }) =>
-            getCurrentWebviewWindow().listen('devot://note-window-close', closed),
-          ),
-        )
-    return () => {
-      window.removeEventListener(CLOSE_EVENT, closed)
-      unlisten?.()
-    }
-  }, [primary, closeGuard, markShownSeen, setSaveNoticeDismissed])
+  // oxlint-disable-next-line react/immutability -- saveNow comes from useLastState below; the trial-end effect calls it after the render.
+  useSaveAtTrialEnd(editing, core, () => saveNow())
 
   // The other main windows wrote to the library: this one loads its lists and the notes it holds again, as for a change from another process.
   useEffect(() => {
@@ -1981,142 +1384,52 @@ export function App() {
     warmUp(core)
   }, [core, restored])
   const mirror = useMarkdownMirror(core, restored && primary)
-  const noteState = useRef<NoteState>(undefined)
-  // The state outside the Trash, which is kept while the Trash shows.
-  const libraryState = useRef<LastState>(undefined)
-  // Restored note's place in editor and preview, applied once when it has loaded.
-  const restoreEditor = useRef<{ id: string; place: Partial<EditorPlace> }>(undefined)
-  const restorePreview = useRef<{ id: string; top: number }>(undefined)
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const currentState = (): LastState | undefined => {
-    const state = lastStateOf({
+  const {
+    saveNow,
+    editorPlaced,
+    previewScrolled,
+    restoreKeyboard,
+    takeEditorPlace,
+    takePreviewScroll,
+  } = useLastState({
+    store: lastStateStore,
+    saved: lastState,
+    core,
+    listsLoaded,
+    restored,
+    setRestored,
+    view: {
+      library,
+      filter,
+      workspace,
       inTrash,
       inTemplates,
       bookId: libraryBook?.id,
-      filter: activeFilter,
+      activeFilter,
       mode,
       selected,
-      workspace: workspaceNode?.id,
-      boards: layouts.boards,
-      galleries: layouts.galleries,
-      note: noteState.current,
-      beforeTrash: libraryState.current,
-      keyboard: () => inEditor(document.activeElement),
-    })
-    if (!inTrash) libraryState.current = state
-    return state
-  }
-  const saveNow = useRef<() => void>(undefined)
-  saveNow.current = () => {
-    clearTimeout(saveTimer.current)
-    if (!restored) return
-    const state = currentState()
-    if (state) lastStateStore.save(state)
-  }
-  const saveSoon = useCallback(() => {
-    clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => saveNow.current?.(), LAST_STATE_SAVE_MS)
-  }, [])
-  useEffect(
-    () => saveNow.current?.(),
-    [restored, library, filter, selected, mode, workspace, layouts],
-  )
-  // So is the state when the page goes away or out of sight, and the
-  // keyboard moving in or out of the editor soon after.
-  useEffect(() => {
-    const save = () => saveNow.current?.()
-    window.addEventListener('pagehide', save)
-    document.addEventListener('visibilitychange', save)
-    document.addEventListener('focusin', saveSoon)
-    return () => {
-      window.removeEventListener('pagehide', save)
-      document.removeEventListener('visibilitychange', save)
-      document.removeEventListener('focusin', saveSoon)
-      clearTimeout(saveTimer.current)
-    }
-  }, [saveSoon])
-  const editorPlaced = (id: string, place: EditorPlace) => {
-    const known = noteState.current?.id === id ? noteState.current : { id, keyboard: false }
-    noteState.current = {
-      ...known,
-      selection: place.selection,
-      ...(place.top ? { editorTop: place.top } : {}),
-    }
-    saveSoon()
-  }
-  const previewScrolled = (top: number) => {
-    if (selected === undefined) return
-    const known = noteState.current?.id === selected ? noteState.current : undefined
-    noteState.current = {
-      ...(known ?? { id: selected, keyboard: false }),
-      previewTop: top,
-    }
-    saveSoon()
-  }
-  // The view and filter the window started with: a view picked while it
-  // loads is the user's, and the restore leaves it alone.
-  const startView = useRef({ library, filter })
-  // Restores the last state once the lists have loaded; a gone notebook, tag or note falls back to none. The restored note is the first Back/Forward entry.
-  const restoreStarted = useRef(false)
-  const restoreKeyboard = useRef<string>(undefined)
-  useEffect(() => {
-    if (restoreKeyboard.current !== selected) restoreKeyboard.current = undefined
-  }, [selected])
-  const restoreLast = async () => {
-    try {
-      const untouched =
-        JSON.stringify({ library, filter }) === JSON.stringify(startView.current) &&
-        selected === undefined
-      const plan =
-        lastState && untouched
-          ? restorePlan(lastState, {
-              books: new Set(books.map((b) => b.id)),
-              tags: new Set(tags.map((tag) => tag.id)),
-              notes: new Set([...notes, ...templates].map((n) => n.id)),
-            })
-          : undefined
-      if (!plan) return
-      setLibrary(plan.view)
-      setFilter(plan.filter)
-      setWorkspace(plan.workspace ?? null)
-      const note = plan.note
-      if (!note) return
-      noteState.current = note
-      const place: Partial<EditorPlace> = {}
-      if (note.selection) place.selection = note.selection
-      if (note.editorTop) place.top = note.editorTop
-      restoreEditor.current = { id: note.id, place }
-      const preview = mode === 'preview'
-      if (preview && note.previewTop !== undefined) {
-        restorePreview.current = { id: note.id, top: note.previewTop }
-      }
-      // The keyboard goes to the editor only while it is nobody's: a search
-      // typed or focus put anywhere since launch is the user's, here and
-      // once the editor has loaded (`restoreKeyboard`).
-      const keyboard = note.keyboard && !preview && query === '' && keyboardIsFree()
-      if (keyboard) restoreKeyboard.current = note.id
-      await select(note.id, { keyboard })
-    } catch {
-      console.warn('W_LAST_STATE_RESTORE_FAILED')
-    } finally {
-      setRestored(true)
-    }
-  }
-  useEffect(() => {
-    if (!core || !listsLoaded || restoreStarted.current) return
-    restoreStarted.current = true
-    void restoreLast()
+      workspaceId: workspaceNode?.id,
+      layouts,
+    },
+    lists: { books, tags, notes, templates },
+    query,
+    setLibrary,
+    setFilter,
+    setWorkspace,
+    select,
   })
-  const takeEditorPlace = (id: string) => () => {
-    const pending = restoreEditor.current
-    restoreEditor.current = undefined
-    return pending?.id === id ? pending.place : undefined
-  }
-  const takePreviewScroll = () => {
-    const pending = restorePreview.current
-    restorePreview.current = undefined
-    return pending && pending.id === selected ? pending.top : undefined
-  }
+  useQuitAndClose({
+    core,
+    coreRef,
+    primary,
+    quitGuard,
+    closeGuard,
+    saveNow,
+    markShownSeen,
+    setSaveNoticeDismissed,
+    setQuitHeld,
+    setCloseHeld,
+  })
 
   const restoreTrashed = async (id: string) => {
     await changeBooks((c) => c.restore(id))
@@ -2167,10 +1480,10 @@ export function App() {
   ) => {
     const made = listed.notes.find((n) => n.id === id) ?? listed.templates.find((n) => n.id === id)
     if (!made) return
-    const search = latestSearch.current
-    if (search.query.trim()) {
+    const latest = searchState.latestSearch.current
+    if (latest.query.trim()) {
       const { found } = await c
-        .search(search.query, search.scope)
+        .search(latest.query, latest.scope)
         .catch(() => ({ found: [], capped: false }))
       if (found.some((n) => n.id === id)) return
     } else {
@@ -2243,6 +1556,7 @@ export function App() {
     await saveEdits(core)
     let opened: { id: string; created: boolean; bookId: string | null }
     try {
+      // oxlint-disable-next-line react/purity -- openToday runs from a command, never during a render.
       opened = await core.openTodaysNote(dailySettings(), Date.now(), editing)
     } catch (e) {
       setChangeNotice(errorCode(e))
@@ -2438,14 +1752,17 @@ export function App() {
 
   const typedTitle = useRef<{ id: string; title: string }>(undefined)
   const typedTitleTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const retitleListed = useCallback((id: string, named: string) => {
-    setNotes((list) => retitled(list, id, named))
-    setTemplates((list) => retitled(list, id, named))
-    setResults((shown) => {
-      const found = shown && retitled(shown.found, id, named)
-      return shown && found !== shown.found ? { ...shown, found: found! } : shown
-    })
-  }, [])
+  const retitleListed = useCallback(
+    (id: string, named: string) => {
+      setNotes((list) => retitled(list, id, named))
+      setTemplates((list) => retitled(list, id, named))
+      setResults((shown) => {
+        const found = shown && retitled(shown.found, id, named)
+        return shown && found !== shown.found ? { ...shown, found: found! } : shown
+      })
+    },
+    [setResults],
+  )
   const listTypedTitle = useCallback(() => {
     clearTimeout(typedTitleTimer.current)
     const typed = typedTitle.current
@@ -2786,48 +2103,7 @@ export function App() {
   const applyToOpenNote = useStable((noteId: string, update: Uint8Array) => {
     if (editorRef.current?.noteId === noteId) restoreRef.current?.(update)
   })
-  // `devot append` (cliAppend.ts): answered only once the note is saved, so the command's success means the text is on disk.
-  useEffect(() => {
-    if (!core || DEVOT_UI_TEST) return
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    const take = cliAppendHost({
-      run: async (request) => {
-        if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
-        const id = await resolveAppendTarget(
-          request.target,
-          () => core.list(),
-          async () => (await core.openTodaysNote(dailySettings(), Date.now(), true)).id,
-        )
-        const update = await core.appendToNote(id, request.text, {
-          position: request.position,
-          ...(request.heading === null ? {} : { heading: request.heading }),
-        })
-        applyToOpenNote(id, update)
-        await core.flush()
-        await refresh(core)
-      },
-      claim: (id) => invoke('cli_append_claim', { id }),
-      reply: (id, error) => invoke('cli_append_done', { id, error }),
-    })
-    // Listening first, then asking for what waits: no request is lost between.
-    void listenHere<unknown>(CLI_APPEND_EVENT, (e) => void take(e.payload))
-      .then((stop) => {
-        if (stopped) stop()
-        else unlisten = stop
-        return stopped ? [] : invoke<unknown>('cli_append_take')
-      })
-      .then(
-        (held) => {
-          if (!stopped && Array.isArray(held)) held.forEach((request) => void take(request))
-        },
-        (e: unknown) => console.warn('W_CLI_APPEND_TAKE_FAILED', errorCode(e)),
-      )
-    return () => {
-      stopped = true
-      unlisten?.()
-    }
-  }, [core, refresh, applyToOpenNote])
+  useCliAppend(core, refresh, applyToOpenNote, dailySettings)
   const historyBar = useHistoryBar({
     core,
     noteId: selected,
@@ -3085,6 +2361,7 @@ export function App() {
     setAskedIn(narrow)
   }
   useMenuEvent('devot://toggle-sidebar', TOGGLE_SIDEBAR, () => {
+    // oxlint-disable-next-line react/purity -- A menu event handler, run outside a render.
     const echo = performance.now() < sidebarKeyEcho.current
     sidebarKeyEcho.current = -Infinity
     if (!echo) toggleSidebar()
@@ -3195,6 +2472,7 @@ export function App() {
   const [modeSeen, setModeSeen] = useState(mode)
   const modeChange = useRef<{ from: Mode; before: ModeBoxes } | null>(null)
   if (modeSeen !== mode) {
+    // oxlint-disable-next-line react/refs -- The panes are measured before the mode change commits, while their old layout is on screen (paneMotion.ts).
     modeChange.current = { from: modeSeen, before: measureModePanes() }
     setModeSeen(mode)
   }
@@ -3313,264 +2591,105 @@ export function App() {
   const openSearchFieldMenu = useStable((at: MenuPoint) => {
     if (editing) void showSearchFieldMenu({ query }, at)
   })
-  const handlers: CommandHandlers = {
-    'palette.open': { run: () => openPalette() },
-    'search.view': { run: () => startSearch('view') },
-    'search.all': { run: () => startSearch('all') },
-    ...(core && query.trim() ? { 'search.save': { run: saveSearch } } : {}),
-    'view.focus': { run: toggleFocus },
-    'view.sidebar': {
-      run: () => {
+  const handlers = appHandlers(
+    {
+      coreReady: core !== undefined,
+      query,
+      sidebarShown,
+      syncScroll,
+      historyBarShown,
+      outlineShown,
+      authorshipShown,
+      listDates,
+      mirrorOn: mirror.status.folder !== null,
+      inWorkspace: workspaceNode !== undefined,
+      updateReady: updates.status.state === 'ready',
+      focus,
+      inTrash,
+      inTemplates,
+      trash,
+      selected,
+      multiIds,
+      selectedNotes,
+      listedIds,
+      listedSet,
+      shownSelection,
+      canBoard,
+      boardShown,
+      canGallery,
+      galleryShown,
+      canGoBack: backAt !== undefined,
+      canGoForward: forwardAt !== undefined,
+      hasNext: nextId !== undefined,
+      hasPrevious: previousId !== undefined,
+      builtIn,
+      openNote,
+      selectedIsTemplate,
+      tree,
+      mode,
+      palette: {
+        open: paletteOpen,
+        inTable: paletteInTable,
+        selection: paletteSelection,
+        link: paletteLink,
+        image: paletteImage,
+      },
+      findCommands: find.commands,
+    },
+    // oxlint-disable-next-line react/refs -- appHandlers only builds the table; these actions read refs when a command runs.
+    {
+      openPalette,
+      startSearch,
+      saveSearch,
+      toggleFocus,
+      toggleSidebar: () => {
+        // oxlint-disable-next-line react/purity -- Runs when the command does, not during a render.
         sidebarKeyEcho.current = performance.now() + MENU_ECHO_MS
         toggleSidebar()
       },
-      label: sidebarShown ? 'command.hideSidebar' : 'command.showSidebar',
-    },
-    'view.focusNoteList': {
-      run: () => requestFocus({ kind: 'area', area: 'list' }),
-    },
-    'view.nextSidebarRow': { run: () => stepSidebarRow(1) },
-    'view.previousSidebarRow': { run: () => stepSidebarRow(-1) },
-    'view.nextArea': { run: () => moveArea(1) },
-    'view.previousArea': { run: () => moveArea(-1) },
-    'view.fontBigger': { run: () => stepEditorFontSize(1) },
-    'view.fontSmaller': { run: () => stepEditorFontSize(-1) },
-    'view.fontReset': { run: () => stepEditorFontSize(0) },
-    'view.syncScroll': {
-      run: () =>
-        changeEditorSettings({
-          syncScroll: !editorSettings().syncScroll,
-        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
-      label: syncScroll ? 'command.syncScrollOff' : 'command.syncScrollOn',
-    },
-    'view.historyBar': {
-      run: () =>
-        changeEditorSettings({
-          historyBar: !editorSettings().historyBar,
-        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
-      label: historyBarShown ? 'command.hideHistoryBar' : 'command.showHistoryBar',
-    },
-    'view.outline': {
-      run: () =>
-        changeEditorSettings({
-          outline: !editorSettings().outline,
-        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
-      label: outlineShown ? 'command.hideOutline' : 'command.showOutline',
-    },
-    'view.authorship': {
-      run: () =>
-        changeEditorSettings({
-          authorship: !editorSettings().authorship,
-        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
-      label: authorshipShown ? 'command.hideAuthorship' : 'command.showAuthorship',
-    },
-    'view.toggleListDates': {
-      run: () =>
-        changeEditorSettings({
-          listDates: editorSettings().listDates === 'absolute' ? 'relative' : 'absolute',
-        }).catch(() => console.warn('W_EDITOR_SETTINGS_SAVE_FAILED')),
-      label: listDates === 'absolute' ? 'command.showRelativeDates' : 'command.showAbsoluteDates',
-    },
-    'view.allNotes': { run: () => showLibrary({ kind: 'all' }) },
-    'view.templates': { run: () => showLibrary({ kind: 'templates' }) },
-    'view.trash': { run: () => showLibrary({ kind: 'trash' }) },
-    'app.backups': { run: showBackups },
-    'app.newWindow': { run: () => void openMainWindow() },
-    'app.checkForUpdates': { run: checkForUpdates },
-    'app.exportAllMarkdown': { run: () => exportAll('exportMarkdown') },
-    'app.exportAllHtml': { run: () => exportAll('exportHtml') },
-    'app.rebuildSearchIndex': { run: rebuildIndex },
-    'mirror.chooseFolder': { run: mirror.choose },
-    'notebook.aiAccessMany': { run: () => setAiAccessPicker(true) },
-  }
-  if (mirror.status.folder !== null) handlers['mirror.turnOff'] = { run: mirror.turnOff }
-  if (workspaceNode) handlers['view.leaveWorkspace'] = { run: leaveWorkspace }
-  if (updates.status.state === 'ready') handlers['app.restartToUpdate'] = { run: restartNow }
-  if (!focus && !inTrash) {
-    handlers['view.sort'] = {
-      run: () => {
-        const anchor = sortButtonRef.current
-        if (visible(anchor)) return listOrder.show(anchor)
-      },
-    }
-  }
-  if (trash.length > 0) handlers['trash.empty'] = { run: () => setConfirm({ kind: 'empty' }) }
-  if (inTrash && selected !== undefined && trash.some((n) => n.id === selected) && !multiIds) {
-    const id = selected
-    for (const [action, commandId] of Object.entries(TRASH_COMMANDS)) {
-      handlers[commandId] = {
-        run: () => trashAction(action as TrashAction, id),
-      }
-    }
-  }
-  if (multiIds && inTrash) {
-    const ids = multiIds
-    handlers['trash.restore'] = {
-      run: () => restoreNotes(ids),
-      label: 'batch.restore',
-    }
-    handlers['trash.deleteForever'] = {
-      run: () => confirmDeleteMany(ids),
-      label: 'batch.deleteForever',
-    }
-  } else if (multiIds) {
-    const ids = multiIds
-    const run = (action: NoteMenuAction) => () => noteActions.runOn(action, ids)
-    handlers['note.move'] = { run: run('move'), label: 'batch.move' }
-    handlers['note.pin'] = {
-      run: run('pin'),
-      label: selectedNotes.every((n) => n.pinned) ? 'batch.unpin' : 'batch.pin',
-    }
-    handlers['note.copyLink'] = {
-      run: run('copyLink'),
-      label: 'batch.copyLinks',
-    }
-    handlers['note.trash'] = { run: run('trash'), label: 'batch.trash' }
-    if (!inTemplates) {
-      for (const [status, commandId] of Object.entries(STATUS_COMMANDS)) {
-        handlers[commandId] = {
-          run: () => setNotesStatus(ids, status as NoteStatus),
-        }
-      }
-      handlers['note.addTag'] = { run: run('addTag') }
-      if (selectedNotes.some((n) => n.tagIds.length > 0)) {
-        handlers['note.removeTag'] = { run: run('removeTag') }
-      }
-    }
-  }
-  if (!focus && listedIds.length > 1) {
-    handlers['list.selectAll'] = {
-      run: () => changeSelection(selectAll(shownSelection, selected, listedIds)),
-    }
-  }
-  if (canBoard) {
-    handlers['view.toggleBoard'] = {
-      run: () => changeLayout(boardShown ? 'list' : 'board'),
-      label: boardShown ? 'command.showList' : 'command.showBoard',
-    }
-  }
-  if (canGallery) {
-    handlers['view.toggleGallery'] = {
-      run: () => changeLayout(galleryShown ? 'list' : 'gallery'),
-      label: galleryShown ? 'command.showList' : 'command.showGallery',
-    }
-  }
-  const boardTargets =
-    multiIds ?? (selected !== undefined && listedSet.has(selected) ? [selected] : undefined)
-  if (boardShown && boardTargets) {
-    handlers['status.next'] = { run: () => stepCards(boardTargets, 1) }
-    handlers['status.previous'] = { run: () => stepCards(boardTargets, -1) }
-  }
-  if (core) {
-    handlers['note.new'] = {
-      run: () => {
-        if (inTrash) showLibrary({ kind: 'all' })
-        return create()
-      },
-    }
-    handlers['notebook.new'] = { run: () => createBook(null) }
-    if (selected !== undefined || multiIds || builtIn !== undefined)
-      handlers['note.close'] = { run: closeNote }
-    if (backAt !== undefined) handlers['note.back'] = { run: () => step(-1) }
-    if (forwardAt !== undefined) handlers['note.forward'] = { run: () => step(1) }
-    if (nextId !== undefined) handlers['note.next'] = { run: () => openListed(1) }
-    if (previousId !== undefined) handlers['note.previous'] = { run: () => openListed(-1) }
-    handlers['note.newFromTemplate'] = {
-      run: () => setPicking({ recent: recentTemplates.load() }),
-    }
-    handlers['note.today'] = { run: openToday }
-  }
-  if (openNote && !selectedIsTemplate && editingAllowed()) {
-    handlers['note.quickTag'] = { run: () => setQuickTagNote(openNote.id) }
-  }
-  if (openNote) {
-    const id = openNote.id
-    for (const [action, commandId] of Object.entries(NOTE_COMMANDS)) {
-      if (SELECTION_ONLY.has(action as NoteAction)) continue
-      if (action === 'openWindow' && selectedIsTemplate) continue
-      handlers[commandId] = {
-        run: () => noteActions.run(action as NoteAction, id),
-      }
-    }
-    handlers['note.pin'] = {
-      run: () => noteActions.run('pin', id),
-      label: openNote.pinned ? 'note.unpin' : 'note.pin',
-    }
-    // Control+Command+1 to 5 set the open note's status. A template's own
-    // status is not shown and not used (its front matter sets one).
-    if (!selectedIsTemplate) {
-      for (const [status, commandId] of Object.entries(STATUS_COMMANDS)) {
-        handlers[commandId] = {
-          run: () => setStatus(id, status as NoteStatus),
-        }
-      }
-    }
-    const bookId = currentBookOption(bookOptions(tree), openNote.bookId)
-    if (bookId !== NO_BOOK && !selectedIsTemplate) {
-      handlers['note.showNotebook'] = {
-        run: () => showLibrary({ kind: 'book', id: bookId }),
-      }
-    }
-    handlers['view.write'] = { run: () => setMode('write') }
-    handlers['view.edit'] = { run: () => setMode('edit') }
-    handlers['view.togglePreview'] = {
-      run: () => {
+      focusArea: (area) => requestFocus({ kind: 'area', area }),
+      moveArea: (by) => moveArea(by),
+      showLibrary: (next) => showLibrary(next),
+      showBackups,
+      exportAll,
+      rebuildIndex,
+      chooseMirror: mirror.choose,
+      turnOffMirror: mirror.turnOff,
+      pickAiAccess: () => setAiAccessPicker(true),
+      leaveWorkspace,
+      sortAnchor: () => sortButtonRef.current,
+      showOrder: listOrder.show,
+      askEmptyTrash: () => setConfirm({ kind: 'empty' }),
+      trashAction,
+      restoreNotes,
+      confirmDeleteMany,
+      runOn: noteActions.runOn,
+      runNoteAction: noteActions.run,
+      setNotesStatus,
+      changeSelection,
+      changeLayout,
+      stepCards,
+      create,
+      createBook,
+      closeNote,
+      step,
+      openListed,
+      pickTemplate: () => setPicking({ recent: recentTemplates.load() }),
+      openToday,
+      quickTag: setQuickTagNote,
+      setStatus,
+      setMode,
+      togglePreview: () => {
+        // oxlint-disable-next-line react/purity -- Runs when the command does, not during a render.
         previewKeyEcho.current = performance.now() + MENU_ECHO_MS
         togglePreview()
       },
-    }
-    handlers['view.split'] = { run: () => setMode('split') }
-    handlers['view.preview'] = { run: () => setMode('preview') }
-    if (mode !== 'preview') {
-      for (const c of COMMANDS) {
-        const formatId = formatOf(c.id)
-        if (formatId) handlers[c.id] = { run: () => editorRef.current?.format(formatId) }
-        const insertId = insertOf(c.id)
-        if (insertId) handlers[c.id] = { run: () => editorRef.current?.insert(insertId) }
-        const tableId = paletteOpen && paletteInTable ? tableOf(c.id) : undefined
-        if (tableId) handlers[c.id] = { run: () => editorRef.current?.table(tableId) }
-      }
-      handlers['edit.pastePlain'] = {
-        run: () => editorRef.current?.pastePlain(),
-      }
-      for (const commandId of LINE_COMMANDS) {
-        handlers[commandId] = {
-          run: () => editorRef.current?.runLine(commandId),
-        }
-      }
-      handlers['edit.goToLine'] = { run: () => openPalette('line') }
-      if (!inTrash) handlers['ai.suggest'] = { run: () => editorRef.current?.suggest() }
-      handlers['edit.pasteUrlAs'] = {
-        run: () => editorRef.current?.pasteUrlAs(),
-      }
-      if (paletteOpen && paletteSelection) {
-        handlers['note.newFromSelection'] = {
-          run: () => noteFromSelection(id),
-        }
-      }
-      if (paletteOpen && paletteLink) {
-        handlers['note.newFromLink'] = {
-          run: () => noteFromLink(id),
-        }
-      }
-      const image = paletteOpen ? paletteImage : null
-      if (image?.fileId)
-        handlers['image.view'] = {
-          run: () => void editorRef.current?.viewImage(),
-        }
-      if (image) {
-        for (const [action, commandId] of Object.entries(IMAGE_COMMANDS)) {
-          if (!imageActionApplies(action as ImageAction, image)) continue
-          handlers[commandId] = {
-            run: () => runImageAction(action as ImageAction, image, setImageSize),
-          }
-        }
-      }
-    }
-  }
-  // Find works while a note is open; its keys run ahead of the editor's (useFind).
-  Object.assign(handlers, find.commands)
-  if (handlers['note.move']) handlers['note.moveAnywhere'] = handlers['note.move']
+      editor: () => editorRef.current,
+      noteFromSelection,
+      noteFromLink,
+      setImageSize,
+    },
+  )
   const commands = editing ? handlers : withoutChanges(handlers)
   useWindowCommands(commands)
   useFormatMenu(commands)
@@ -3591,87 +2710,25 @@ export function App() {
   )
 
   const stableOpenWorkspace = useStable((id: string) => openWorkspace(id))
-  const paletteActions = (entry: PaletteEntry): PaletteActions => {
-    switch (entry.kind) {
-      case 'source':
-        return {
-          primary: { label: t('palette.openSource'), run: () => undefined },
-        }
-      case 'command': {
-        const pluginAction = actionOfEntry(entry.id)
-        if (pluginAction) {
-          return { primary: { label: t('palette.run'), run: () => plugins.act(pluginAction) } }
-        }
-        const handler = commands[entry.id as keyof CommandHandlers]
-        return {
-          primary: { label: t('palette.run'), run: () => handler?.run() },
-        }
-      }
-      case 'book':
-        return {
-          primary: {
-            label: t('palette.openNotebook'),
-            run: () => showLibrary({ kind: 'book', id: entry.id }),
-          },
-          meta: {
-            label: t('palette.openWorkspace'),
-            run: () => stableOpenWorkspace(entry.id),
-          },
-          shift:
-            editing && openNote && openNote.bookId !== entry.id
-              ? {
-                  label: t('palette.moveNoteHere'),
-                  run: () => moveNote(openNote.id, entry.id),
-                }
-              : undefined,
-        }
-      case 'tag':
-        return {
-          primary: {
-            label: t('palette.showTag'),
-            run: () => showFilter({ kind: 'tag', tagId: entry.id }),
-          },
-          meta: {
-            label: t('palette.addToFilter'),
-            run: () => changeQuery(withTagClause(query, { id: entry.id, name: entry.label })),
-          },
-          shift:
-            editing && openNote && !selectedIsTemplate && !openNote.tagIds.includes(entry.id)
-              ? {
-                  label: t('palette.addTagToNote'),
-                  run: () => putTagOnNotes([openNote.id], entry.id),
-                }
-              : undefined,
-        }
-      case 'line':
-        return {
-          primary: {
-            label: t('palette.goToLine'),
-            run: () => editorRef.current?.goToLine(entry.line ?? 1, 'center'),
-          },
-        }
-      case 'outline':
-        return {
-          primary: {
-            label: t('palette.goToLine'),
-            run: () => editorRef.current?.goToLine(entry.line ?? 1),
-          },
-        }
-      case 'note':
-        return {
-          primary: {
-            label: t('palette.open'),
-            run: () => {
-              // Notes listed are live: leave the Trash to show one. The open
-              // note stays as it is.
-              if (inTrash) showLibrary({ kind: 'all' })
-              else if (entry.id === selected) return
-              return select(entry.id)
-            },
-          },
-        }
-    }
-  }
+  const actionsOfEntry = (entry: PaletteEntry) =>
+    paletteActions(entry, {
+      commands,
+      editing,
+      openNote,
+      selectedIsTemplate,
+      selected,
+      inTrash,
+      query,
+      runPlugin: plugins.act,
+      showLibrary: (next) => showLibrary(next),
+      openWorkspace: stableOpenWorkspace,
+      moveNote,
+      showFilter,
+      changeQuery,
+      putTagOnNotes,
+      editor: () => editorRef.current,
+      select: (id) => select(id),
+    })
 
   // Props for the memoized list and sidebar stay the same between renders, so typing in a note renders neither.
   const toggleSidebarNow = useStable(toggleSidebar)
@@ -3692,7 +2749,15 @@ export function App() {
         placeholder={inView ? t('search.placeholder') : t('search.placeholderAll')}
       />
     ),
-    [query, inView, editing, changeQueryStable, clearSearchStable, openSearchFieldMenu],
+    [
+      searchField,
+      query,
+      inView,
+      editing,
+      changeQueryStable,
+      clearSearchStable,
+      openSearchFieldMenu,
+    ],
   )
   const layoutControl = useMemo(
     () =>
@@ -4520,6 +3585,7 @@ export function App() {
                   caret={caretLine}
                   mode={mode}
                   previewPane={previewPane}
+                  // oxlint-disable-next-line react/refs -- Outline folds live in a ref so folding one note does not render App again; this read takes the open note's folds.
                   folded={outlineFolds.current.get(selected) ?? NO_FOLDS}
                   onToggle={toggleOutlineFold}
                   onJump={jumpToHeading}
@@ -4669,7 +3735,7 @@ export function App() {
             line: [],
             ...(paletteLibrary ?? NO_LIBRARY),
           }}
-          actions={paletteActions}
+          actions={actionsOfEntry}
           initialScope={paletteScope}
           lineCount={commands['edit.goToLine'] ? paletteLines : 0}
           onClose={closePalette}

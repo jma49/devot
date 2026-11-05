@@ -147,7 +147,7 @@ test('a status view and a search in the view show as a gallery too, never as a b
     .click()
   await expect(layout(page, 'Board')).toHaveCount(0)
   await layout(page, 'Gallery').click()
-  expect(await cardTitles(page)).toEqual(['Alpha', 'Charlie'])
+  await expect.poll(() => cardTitles(page)).toEqual(['Alpha', 'Charlie'])
 
   const search = page.getByRole('searchbox', { name: 'Search notes' })
   await search.fill('math')

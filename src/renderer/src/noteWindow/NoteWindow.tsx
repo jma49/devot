@@ -26,6 +26,8 @@ import { Notices } from '../Notices'
 import { LivePreview } from '../preview/Preview'
 import { SaveNotice } from '../SaveNotice'
 import {
+  CLOSE_EVENT,
+  FLUSH_EVENT,
   answerAsked,
   saveEdits,
   useSaveAtTrialEnd,
@@ -39,9 +41,6 @@ import { scrollPreviewTo } from '../outline/room'
 import { useOutlineRoom } from '../outline/useOutlineRoom'
 import type { ScrollPane } from '../preview/scrollSync'
 import { ActivationBar, TrialEndedBar } from '../TrialNotices'
-
-export const CLOSE_EVENT = 'devot:note-window-close'
-export const FLUSH_EVENT = 'devot:flush-before-exit'
 
 /** Hears what Rust asks of this window: the global quit, and the close of this window alone. */
 function listenAsked(onClose: () => void, onQuit: () => void): () => void {
