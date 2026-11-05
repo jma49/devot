@@ -9,7 +9,7 @@
     allow(dead_code, reason = "the entitlements (#609) are its first user")
 )]
 
-mod fake;
+pub(crate) mod fake;
 mod payload;
 #[cfg(target_os = "ios")]
 mod storekit;
@@ -21,8 +21,6 @@ use std::future::Future;
 
 use serde::Deserialize;
 use tokio::sync::mpsc::UnboundedReceiver;
-
-pub(crate) use fake::FakeAppStore;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Product {
@@ -223,6 +221,6 @@ pub(crate) fn platform() -> storekit::StoreKit {
 }
 
 #[cfg(not(target_os = "ios"))]
-pub(crate) fn platform() -> FakeAppStore {
-    FakeAppStore::default()
+pub(crate) fn platform() -> fake::FakeAppStore {
+    fake::FakeAppStore::default()
 }
