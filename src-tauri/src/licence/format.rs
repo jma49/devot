@@ -13,6 +13,8 @@ pub(crate) const LICENCE_PREFIX: &str = "devot1";
 pub(crate) const ACTIVATION_PREFIX: &str = "devot1dev";
 pub(crate) const REVOCATIONS_PREFIX: &str = "devot1rev";
 pub(crate) const PLAN: &str = "pro";
+/// The licensee of a key exchanged for an App Store purchase: Apple shares no buyer's name.
+pub(crate) const APP_STORE_LICENSEE: &str = "App Store purchase";
 pub(crate) const MAX_LENGTH: usize = 1024;
 pub(crate) const MAX_REVOCATIONS_LENGTH: usize = 16 * 1024 * 1024;
 
@@ -114,6 +116,21 @@ pub(crate) fn verify_revocations(
 /// Reads a payload's fields, and its `kid`, from the JSON object.
 type Reader<T> = fn(&Map<String, Value>) -> Option<(T, String)>;
 
+/// A licence key's payload, its signature not checked: the iPhone only hands a key on to a Mac,
+/// which verifies it when it is added.
+pub(crate) fn read_licence(key: &str) -> Option<Payload> {
+    open_envelope(key, LICENCE_PREFIX, MAX_LENGTH, licence_payload)
+        .ok()
+        .map(|envelope| envelope.payload)
+}
+
+struct Envelope<'a, T> {
+    payload: T,
+    kid: String,
+    signed: &'a str,
+    signature: [u8; 64],
+}
+
 fn verify_envelope<T>(
     text: &str,
     prefix: &str,
@@ -121,6 +138,25 @@ fn verify_envelope<T>(
     keys: &dyn KeyRing,
     read: Reader<T>,
 ) -> Result<T, VerifyError> {
+    let Envelope {
+        payload,
+        kid,
+        signed,
+        signature,
+    } = open_envelope(text, prefix, max_length, read)?;
+    let public = keys.key(&kid).ok_or(VerifyError::UnknownKid)?;
+    public
+        .verify_strict(signed.as_bytes(), &Signature::from_bytes(&signature))
+        .map(|()| payload)
+        .map_err(|_| VerifyError::Signature)
+}
+
+fn open_envelope<'a, T>(
+    text: &'a str,
+    prefix: &str,
+    max_length: usize,
+    read: Reader<T>,
+) -> Result<Envelope<'a, T>, VerifyError> {
     use VerifyError::Malformed;
     // Bytes, not characters: past the cap only a non-ASCII text could still fit, and that is
     // malformed either way.
@@ -145,12 +181,12 @@ fn verify_envelope<T>(
         return Err(Malformed);
     };
     let (payload, kid) = read(&object).ok_or(Malformed)?;
-    let public = keys.key(&kid).ok_or(VerifyError::UnknownKid)?;
-    let signed = &text[..head.len() + 1 + body.len()];
-    public
-        .verify_strict(signed.as_bytes(), &Signature::from_bytes(&signature))
-        .map(|()| payload)
-        .map_err(|_| VerifyError::Signature)
+    Ok(Envelope {
+        payload,
+        kid,
+        signed: &text[..head.len() + 1 + body.len()],
+        signature,
+    })
 }
 
 /// Canonical base64url without padding: no other alphabet, no padding, no stray trailing bits.

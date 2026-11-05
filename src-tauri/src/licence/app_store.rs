@@ -2,7 +2,8 @@
 //! What unlocks the iPhone): `run` starts StoreKit's listener at launch, reads the current
 //! entitlements and follows the updates for the life of the app; the commands sell the two products
 //! and Restore Purchases. What each transaction unlocks is the licence's decision (`purchases`).
-//! A transaction is finished only once the licence holds it.
+//! A transaction is finished only once the licence holds it. Get a Mac Licence Key exchanges the
+//! Devot Pro purchase for its key at the licence Worker.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -10,6 +11,7 @@ use std::time::Duration;
 use serde::Serialize;
 use tauri::State as Tauri;
 
+use super::client::{self, MacKey};
 use super::{Licence, Snapshot};
 use crate::app_store::{
     self, AppStore, Product, Purchase, Restore, StoreError, StoreTransaction, Update, within,
@@ -218,6 +220,31 @@ pub async fn store_restore(
         .map_err(|error| error.code().to_owned())?;
     task::blocking_with(&licence, "E_LICENCE_INTERNAL", |licence| {
         Ok(licence.snapshot())
+    })
+    .await
+}
+
+/// The Devot Pro purchase's one Mac licence key, for the window to show; never added to this
+/// device. The signed transaction is the one the licence holds, never one a window passes.
+pub(crate) fn mac_key(
+    licence: &Licence,
+    exchange: impl Fn(&str) -> Result<MacKey, &'static str>,
+) -> Result<MacKey, &'static str> {
+    if !licence.sold_on_app_store() {
+        return Err(StoreError::UNAVAILABLE.code());
+    }
+    let transaction = licence.pro_transaction().ok_or("E_APP_STORE_NO_PRO")?;
+    let key =
+        exchange(&transaction).inspect_err(|code| log::warn!("W_APP_STORE_MAC_KEY {code}"))?;
+    log::info!("I_APP_STORE_MAC_KEY {}", key.id);
+    Ok(key)
+}
+
+/// Get a Mac Licence Key.
+#[tauri::command]
+pub async fn store_mac_key(licence: Tauri<'_, Arc<Licence>>) -> Result<MacKey, String> {
+    task::blocking_with(&licence, "E_LICENCE_INTERNAL", |licence| {
+        mac_key(licence, client::exchange_from_site)
     })
     .await
 }

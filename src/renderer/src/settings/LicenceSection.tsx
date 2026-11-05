@@ -11,7 +11,13 @@ import {
   useLicence,
 } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
-import { licenceProblem, seatSentence, stateSentence, trialSentence } from '../licenceView'
+import {
+  licenceProblem,
+  licenseeName,
+  seatSentence,
+  stateSentence,
+  trialSentence,
+} from '../licenceView'
 import { Setting, SettingsNote, SettingsSection } from './controls'
 import { useOnPhone } from './onPhone'
 
@@ -157,7 +163,7 @@ export function LicenceSection() {
           </Setting>
         ) : null}
         {licence.licensee ? (
-          <Setting label="licenceSettings.licensee" description={licence.licensee}>
+          <Setting label="licenceSettings.licensee" description={licenseeName(licence.licensee)}>
             {null}
           </Setting>
         ) : null}

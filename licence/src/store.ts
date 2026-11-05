@@ -1,4 +1,6 @@
+import type { AppStoreEnvironment } from './app-store.ts'
 import { LicenceError } from './errors.ts'
+import { newLicenceId } from './format.ts'
 
 /** The D1 calls the store makes, so tests and the Worker hand it the same database type. */
 export interface SqlStatement {
@@ -67,8 +69,72 @@ export interface ActivationResult {
   used: number
 }
 
+/** A licence by ID from either table: what /activate, /deactivate and /devices decide on. */
+export interface LicenceRecord {
+  id: string
+  revokedAt: string | null
+  /** Set for a licence the App Store exchange issued. */
+  appStore: { environment: AppStoreEnvironment } | null
+}
+
+export interface AppStoreLicence {
+  environment: AppStoreEnvironment
+  originalTransactionId: string
+  licenceId: string
+  transactionId: string | null
+  purchasedAt: string | null
+  issuedAt: string | null
+  checkedAt: string | null
+  revokedAt: string | null
+}
+
+export interface Exchange {
+  environment: AppStoreEnvironment
+  originalTransactionId: string
+  transactionId: string
+  purchasedAt: string
+  /** Used only when the purchase has no row yet. */
+  licenceId: string
+  at: string
+}
+
+/** What a renewal's App Store check asks Apple about. */
+export interface AppStoreCheck {
+  environment: AppStoreEnvironment
+  originalTransactionId: string
+  transactionId: string
+}
+
 export interface Store {
   licence(id: string): Promise<Licence | null>
+  /** Reads both tables, so an App Store licence is activated, freed and revoked like a Stripe one. */
+  licenceRecord(id: string): Promise<LicenceRecord | null>
+  appStoreLicence(
+    environment: AppStoreEnvironment,
+    originalTransactionId: string,
+  ): Promise<AppStoreLicence | null>
+  /**
+   * The one licence of an App Store purchase: made on the first call, read on every other, in one
+   * statement, so two exchanges at once still make one row. A revoked row is returned unchanged.
+   */
+  exchange(exchange: Exchange): Promise<AppStoreLicence>
+  /**
+   * Revokes the licence of an App Store purchase, recording the revocation even before any
+   * exchange. With a notification UUID it acts once: null when that notification was seen before.
+   */
+  revokeAppStore(
+    environment: AppStoreEnvironment,
+    originalTransactionId: string,
+    at: string,
+    notificationUuid?: string,
+  ): Promise<{ licenceId: string; issued: boolean } | null>
+  /** Marks a notification seen without acting on it. */
+  noteNotification(notificationUuid: string, at: string): Promise<void>
+  /**
+   * Claims a licence's daily App Store check: sets checked_at whatever Apple answers. Null when it
+   * was checked after `before`, or is not a live App Store licence.
+   */
+  claimAppStoreCheck(licenceId: string, at: string, before: string): Promise<AppStoreCheck | null>
   purchase(sessionId: string): Promise<PurchaseRecord | null>
   /** Issues a new licence for a session, once; a second call returns the first. */
   issue(fulfilment: Fulfilment): Promise<Fulfilled>
@@ -153,6 +219,28 @@ const toPurchase = (row: PurchaseRow): PurchaseRecord => ({
   emailHash: row.email_hash,
 })
 
+interface AppStoreRow {
+  environment: AppStoreEnvironment
+  original_transaction_id: string
+  licence_id: string
+  transaction_id: string | null
+  purchased_at: string | null
+  issued_at: string | null
+  checked_at: string | null
+  revoked_at: string | null
+}
+
+const toAppStore = (row: AppStoreRow): AppStoreLicence => ({
+  environment: row.environment,
+  originalTransactionId: row.original_transaction_id,
+  licenceId: row.licence_id,
+  transactionId: row.transaction_id,
+  purchasedAt: row.purchased_at,
+  issuedAt: row.issued_at,
+  checkedAt: row.checked_at,
+  revokedAt: row.revoked_at,
+})
+
 const toActivation = (row: ActivationRow): Activation => ({
   device: row.device,
   label: row.label,
@@ -168,6 +256,126 @@ export function d1Store(db: SqlDatabase): Store {
         .bind(id)
         .first<LicenceRow>()
       return row ? toLicence(row) : null
+    },
+
+    async licenceRecord(id) {
+      const row = await db
+        .prepare(
+          `SELECT id, revoked_at, NULL AS environment FROM licences WHERE id = ?1
+           UNION ALL
+           SELECT licence_id, revoked_at, environment FROM app_store_licences
+           WHERE licence_id = ?1 AND issued_at IS NOT NULL
+           LIMIT 1`,
+        )
+        .bind(id)
+        .first<{ id: string; revoked_at: string | null; environment: AppStoreEnvironment | null }>()
+      if (!row) return null
+      return {
+        id: row.id,
+        revokedAt: row.revoked_at,
+        appStore: row.environment ? { environment: row.environment } : null,
+      }
+    },
+
+    async exchange(e) {
+      // A revoked row keeps everything it had: the WHERE leaves it out of the update.
+      await db
+        .prepare(
+          `INSERT INTO app_store_licences
+             (environment, original_transaction_id, licence_id, transaction_id, purchased_at,
+              issued_at, checked_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
+           ON CONFLICT (environment, original_transaction_id) DO UPDATE SET
+             transaction_id = excluded.transaction_id,
+             purchased_at = COALESCE(purchased_at, excluded.purchased_at),
+             issued_at = COALESCE(issued_at, excluded.issued_at),
+             checked_at = excluded.checked_at
+           WHERE revoked_at IS NULL`,
+        )
+        .bind(
+          e.environment,
+          e.originalTransactionId,
+          e.licenceId,
+          e.transactionId,
+          e.purchasedAt,
+          e.at,
+        )
+        .run()
+      const row = await store.appStoreLicence(e.environment, e.originalTransactionId)
+      if (!row) throw new LicenceError('E_LICENCE_INTERNAL', 'exchange')
+      return row
+    },
+
+    async appStoreLicence(environment, originalTransactionId) {
+      const row = await db
+        .prepare(
+          'SELECT * FROM app_store_licences WHERE environment = ?1 AND original_transaction_id = ?2',
+        )
+        .bind(environment, originalTransactionId)
+        .first<AppStoreRow>()
+      return row ? toAppStore(row) : null
+    },
+
+    async revokeAppStore(environment, originalTransactionId, at, notificationUuid) {
+      const statements = [
+        db
+          .prepare(
+            `INSERT INTO app_store_licences (environment, original_transaction_id, licence_id, revoked_at)
+             SELECT ?1, ?2, ?3, ?4
+             WHERE NOT EXISTS (SELECT 1 FROM app_store_notifications WHERE notification_uuid = ?5)
+             ON CONFLICT (environment, original_transaction_id) DO UPDATE SET
+               revoked_at = COALESCE(revoked_at, excluded.revoked_at)
+             RETURNING licence_id, issued_at`,
+          )
+          .bind(environment, originalTransactionId, newLicenceId(), at, notificationUuid ?? null),
+      ]
+      if (notificationUuid) {
+        statements.push(
+          db
+            .prepare(
+              `INSERT INTO app_store_notifications (notification_uuid, received_at) VALUES (?1, ?2)
+               ON CONFLICT (notification_uuid) DO NOTHING`,
+            )
+            .bind(notificationUuid, at),
+        )
+      }
+      const [revoked] = await db.batch(statements)
+      const row = (revoked as { results?: { licence_id: string; issued_at: string | null }[] })
+        ?.results?.[0]
+      return row ? { licenceId: row.licence_id, issued: row.issued_at !== null } : null
+    },
+
+    async noteNotification(notificationUuid, at) {
+      await db
+        .prepare(
+          `INSERT INTO app_store_notifications (notification_uuid, received_at) VALUES (?1, ?2)
+           ON CONFLICT (notification_uuid) DO NOTHING`,
+        )
+        .bind(notificationUuid, at)
+        .run()
+    },
+
+    async claimAppStoreCheck(licenceId, at, before) {
+      const row = await db
+        .prepare(
+          `UPDATE app_store_licences SET checked_at = ?2
+           WHERE licence_id = ?1 AND revoked_at IS NULL AND issued_at IS NOT NULL
+             AND transaction_id IS NOT NULL AND (checked_at IS NULL OR checked_at <= ?3)
+           RETURNING environment, original_transaction_id, transaction_id`,
+        )
+        .bind(licenceId, at, before)
+        .first<{
+          environment: AppStoreEnvironment
+          original_transaction_id: string
+          transaction_id: string
+        }>()
+      return row
+        ? {
+            environment: row.environment,
+            originalTransactionId: row.original_transaction_id,
+            transactionId: row.transaction_id,
+          }
+        : null
     },
 
     async purchase(sessionId) {
@@ -282,7 +490,14 @@ export function d1Store(db: SqlDatabase): Store {
 
     async revokedIds() {
       const { results } = await db
-        .prepare('SELECT id FROM licences WHERE revoked_at IS NOT NULL ORDER BY id')
+        .prepare(
+          // Sandbox licences are signed under the test seed, which no release trusts: never listed.
+          `SELECT id FROM licences WHERE revoked_at IS NOT NULL
+           UNION
+           SELECT licence_id FROM app_store_licences
+           WHERE revoked_at IS NOT NULL AND issued_at IS NOT NULL AND environment = 'Production'
+           ORDER BY id`,
+        )
         .all<{ id: string }>()
       return results.map((row) => row.id)
     },

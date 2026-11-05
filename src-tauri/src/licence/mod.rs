@@ -331,6 +331,12 @@ impl Licence {
         }
     }
 
+    /// The held Devot Pro purchase's signed transaction, in an App Store build.
+    pub(crate) fn pro_transaction(&self) -> Option<String> {
+        self.with_purchases(|purchases| purchases.pro_transaction().map(str::to_owned))
+            .flatten()
+    }
+
     fn app_store_view(&self) -> Option<AppStoreView> {
         self.with_purchases(|purchases| AppStoreView {
             pro: purchases.pro(),

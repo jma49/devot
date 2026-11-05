@@ -1,5 +1,6 @@
 # Devot's licence Worker on the owner's Cloudflare account (docs/licensing.md).
-# Secrets (wrangler secret put): LICENCE_SIGNING_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY.
+# Secrets (wrangler secret put): LICENCE_SIGNING_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY,
+# and for the App Store routes APP_STORE_KEY, APP_STORE_KEY_ID, APP_STORE_ISSUER_ID.
 name = "devot-licence"
 main = "src/worker.ts"
 compatibility_date = "2026-07-30"
@@ -19,3 +20,5 @@ REPLY_TO = ""
 MAX_DEVICES = "3"
 LICENCE_KEYS = "{}"
 CANCEL_URL = ""
+APP_STORE_BUNDLE_ID = "io.github.jma49.devot"
+APP_STORE_PRODUCT_PRO = "io.github.jma49.devot.pro"

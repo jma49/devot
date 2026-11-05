@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  APP_STORE_LICENSEE,
   BUY_URL,
   LICENCE_UNKNOWN,
   readLicence,
@@ -9,6 +10,7 @@ import {
 } from './licence'
 import {
   licenceProblem,
+  licenseeName,
   lockedSentence,
   planLicenceLink,
   reminderDue,
@@ -160,6 +162,31 @@ describe('a devot://license link', () => {
       kind: 'ask',
       message: 'Replace the license on this device?',
     })
+  })
+})
+
+describe('a key exchanged for an App Store purchase', () => {
+  it('is named as a purchase, not by its licensee text, and every other licensee as written', () => {
+    expect(APP_STORE_LICENSEE).toBe('App Store purchase')
+    expect(licenseeName(APP_STORE_LICENSEE)).toBe('Bought on the App Store')
+    expect(licenseeName(APP_STORE_LICENSEE, true)).toBe('an App Store purchase')
+    expect(licenseeName('buyer@example.com', true)).toBe('buyer@example.com')
+    const bought = { ...offer, id: OTHER_ID, licensee: APP_STORE_LICENSEE }
+    expect(planLicenceLink(held(), bought)).toMatchObject({
+      detail: `This device holds the license for buyer@example.com (${ID}). The key in the link is for an App Store purchase (${OTHER_ID}).`,
+    })
+  })
+
+  it("says why the Worker gave no key, by Rust's code", () => {
+    expect(licenceProblem('E_APP_STORE_FAMILY_SHARED')).toBe(
+      'A purchase shared through Family Sharing comes with no license key. (E_APP_STORE_FAMILY_SHARED)',
+    )
+    expect(licenceProblem('E_APP_STORE_NO_PRO')).toBe(
+      'This Apple Account holds no Devot Pro purchase. (E_APP_STORE_NO_PRO)',
+    )
+    expect(licenceProblem('E_LICENCE_REVOKED')).toBe(
+      'This license has been revoked. (E_LICENCE_REVOKED)',
+    )
   })
 })
 
