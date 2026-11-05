@@ -43,6 +43,7 @@ pub(crate) const SOCKET_EVENT: &str = "devot://sync-event";
 pub(crate) const PAIRING_EVENT: &str = "devot://sync-pairing";
 const OTHER_VAULT: &str = "E_SYNC_ICLOUD_OTHER_VAULT";
 const OTHER_ACCOUNT: &str = "E_SYNC_ICLOUD_OTHER_ACCOUNT";
+const NO_VAULT: &str = "E_SYNC_ICLOUD_NO_VAULT";
 const MAX_RELAY_SECRET: usize = 1024;
 const MAX_RECOVERY_KEY: usize = 512;
 const STATES: [&str; 7] = [
@@ -1167,9 +1168,10 @@ impl SyncService {
         has_synced: bool,
     ) -> Result<cloudkit::Welcome, &'static str> {
         self.disconnect();
+        let vault = Arc::new(vault);
         let icloud = ICloud::new(
             Arc::clone(&self.kit),
-            Arc::new(vault),
+            Arc::clone(&vault),
             Arc::clone(&self.staging),
         );
         let (welcome, kept) = icloud
@@ -1191,6 +1193,7 @@ impl SyncService {
             state.vault,
             welcome.device
         );
+        self.hand_over_if_missing(&vault);
         *self.live.lock().map_err(|_| "E_SYNC_INTERNAL")? = Some(Live::ICloud(Arc::new(icloud)));
         Ok(welcome)
     }
@@ -1221,9 +1224,9 @@ impl SyncService {
 
     /// Syncs this device's vault through iCloud from its next connect, and turns sync on, once
     /// `current` names it. With no vault here it makes one, or restores it from `recovery_key`; a
-    /// key for another vault than the one held is refused. A new vault is kept only after its
-    /// `current` was saved; one that lost to another device's is dropped, and this device looks
-    /// for the winner as at launch, with `notes` in its library. Moving a vault that other devices
+    /// key for another vault than the one held is refused. A new vault is kept before its `current`
+    /// is saved; one that lost to another device's is removed again, and this device looks for the
+    /// winner as at launch, with `notes` in its library. Moving a vault that other devices
     /// sync through a relay (the moved marker, a new epoch) is Settings' (#606).
     pub(crate) fn use_icloud(
         &self,
@@ -1257,14 +1260,10 @@ impl SyncService {
                 self.belongs(&named)?;
                 named
             }
-            (None, None) => {
-                let vault = Vault::generate().map_err(|e| e.code())?;
-                if let Claim::Lost(_) = current::claim(self.kit.as_ref(), &vault.id().to_string())?
-                {
-                    return self.icloud_look(notes);
-                }
-                vault
-            }
+            (None, None) => match self.claim_new(Vault::generate().map_err(|e| e.code())?)? {
+                Some(vault) => vault,
+                None => return self.icloud_look(notes),
+            },
         };
         let vault = self.keep_icloud(vault, recovery_key.is_some())?;
         log::info!("I_SYNC_ICLOUD_USED vault={}", vault.id());
@@ -1279,9 +1278,33 @@ impl SyncService {
         }
     }
 
+    /// Keeps a new `vault` in this device's own item, then saves `current` naming it, so `current`
+    /// never names a vault no device holds. `None` when another vault won; the key is removed again.
+    fn claim_new(&self, vault: Vault) -> Result<Option<Vault>, &'static str> {
+        let kit = self.kit.as_ref();
+        let vault = Vault::join(self.secrets.as_ref(), vault).map_err(|e| e.code())?;
+        let id = vault.id().to_string();
+        let failed = match current::claim(kit, &id) {
+            Ok(Claim::Won) => return Ok(Some(vault)),
+            Ok(Claim::Lost(_)) => None,
+            // A save reported as failed may have been applied: the key goes only once `current`
+            // is known to name another vault or none.
+            Err(code) => match current::read(kit) {
+                Ok(Some(current)) if current == id => return Ok(Some(vault)),
+                Ok(_) => Some(code),
+                Err(_) => return Err(code),
+            },
+        };
+        Vault::delete(self.secrets.as_ref()).map_err(|e| {
+            log::warn!("W_SYNC_VAULT_REMOVE {e} vault={id}");
+            e.code()
+        })?;
+        failed.map_or(Ok(None), Err)
+    }
+
     /// Whether this Apple ID syncs `vault`: `current` names it, or its zone is there from before
     /// `current` and it claims it now. Any other vault would start a second copy that never meets
-    /// the first.
+    /// the first; with no `current` and no zone it is not on this Apple ID's iCloud.
     fn belongs(&self, vault: &Vault) -> Result<(), &'static str> {
         let kit = self.kit.as_ref();
         let id = vault.id().to_string();
@@ -1289,7 +1312,7 @@ impl SyncService {
             Some(current) if current == id => Ok(()),
             Some(_) => Err(OTHER_VAULT),
             None if current::zone_exists(kit, &vault_zone(&id))? => self.claim(vault),
-            None => Err(OTHER_ACCOUNT),
+            None => Err(NO_VAULT),
         }
     }
 
@@ -1317,13 +1340,26 @@ impl SyncService {
     /// Leaves `vault`, which `current` names, in the handover item for this Apple ID's other
     /// devices. The device-only item is this device's copy, so a failure here is only logged.
     fn hand_over(&self, vault: &Vault) {
-        let store = self.handover.as_ref();
-        let there = handover::read(store)
+        let there = handover::read(self.handover.as_ref())
             .ok()
             .flatten()
             .is_some_and(|item| item.same(vault));
-        if !there && let Err(e) = handover::write(store, vault) {
-            log::warn!("W_SYNC_HANDOVER_WRITE {} vault={}", e.code(), vault.id());
+        if !there {
+            self.write_handover(vault);
+        }
+    }
+
+    /// At each connect, writes the item a first write left missing. One naming another vault is
+    /// left as it is (#613).
+    fn hand_over_if_missing(&self, vault: &Vault) {
+        if let Ok(None) = handover::read(self.handover.as_ref()) {
+            self.write_handover(vault);
+        }
+    }
+
+    fn write_handover(&self, vault: &Vault) {
+        if let Err(e) = handover::write(self.handover.as_ref(), vault) {
+            log::warn!("W_SYNC_HANDOVER_WRITE {e} vault={}", vault.id());
         }
     }
 
@@ -1381,13 +1417,13 @@ impl SyncService {
     }
 
     fn find(&self) -> Found {
-        if let Err(code) = self.licence.require() {
-            return Found::View(ICloudJoinView::unavailable(code));
-        }
         match Vault::load(self.secrets.as_ref()) {
             Ok(Some(_)) => return Found::Held,
             Ok(None) => {}
             Err(e) => return Found::View(ICloudJoinView::unavailable(e.code())),
+        }
+        if let Err(code) = self.licence.require() {
+            return Found::View(ICloudJoinView::unavailable(code));
         }
         let kit = self.kit.as_ref();
         let current = match current::ready(kit).and_then(|()| current::read(kit)) {
@@ -1408,7 +1444,7 @@ impl SyncService {
             }
             Ok(None) => ICloudJoinView::fallback("missing", None),
             Err(e) => {
-                log::warn!("W_SYNC_HANDOVER_UNREADABLE {}", e.code());
+                log::warn!("W_SYNC_HANDOVER_UNREADABLE {e}");
                 ICloudJoinView::fallback("unreadable", Some(e.code()))
             }
         })

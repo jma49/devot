@@ -1,6 +1,7 @@
 //! The Apple ID's one vault (docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md):
 //! `current` in zone `devot` names it. It is saved only if absent, so of two first devices at once
-//! one vault wins, and a device keeps a new vault key only after its `current` was saved.
+//! one vault wins; a device keeps a new vault key before it saves `current`, and removes it again
+//! when another vault won.
 
 use super::error::{self, Failure, classify};
 use super::kit::{Account, CURRENT, CkRecord, CloudKit, SavePolicy, TYPE_VAULT, Value, ZONE_DEVOT};
@@ -81,6 +82,9 @@ pub(crate) fn zone_exists(kit: &dyn CloudKit, zone: &str) -> Result<bool, &'stat
 }
 
 fn vault_of(record: CkRecord) -> Option<String> {
+    if record.kind != TYPE_VAULT {
+        return None;
+    }
     let vault = record.text(VAULT)?;
     uuid::Uuid::parse_str(vault)
         .is_ok()
@@ -125,6 +129,17 @@ mod tests {
             .unwrap();
         assert_eq!(read(&kit), Ok(None));
         assert_eq!(claim(&kit, A), Err(error::FAILED));
+    }
+
+    #[test]
+    fn a_current_of_another_type_names_no_vault() {
+        let kit = Fake::new();
+        ensure_zone(&kit).unwrap();
+        let pairing = CkRecord::new(super::super::kit::TYPE_PAIRING, CURRENT)
+            .with(VAULT, Value::Text(A.into()));
+        kit.save(ZONE_DEVOT, &[pairing], SavePolicy::Overwrite)
+            .unwrap();
+        assert_eq!(read(&kit), Ok(None));
     }
 
     #[test]

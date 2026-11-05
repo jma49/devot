@@ -38,7 +38,7 @@ impl SecretStore for MemoryStore {
     }
 }
 
-struct FailingStore;
+pub(super) struct FailingStore;
 
 impl SecretStore for FailingStore {
     fn read(&self, _: &str) -> Result<Option<Zeroizing<Vec<u8>>>, SyncError> {

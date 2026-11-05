@@ -78,6 +78,14 @@ pub async fn sync_pairing_cancel(sync: State<'_, Arc<SyncService>>) -> Result<()
     .await
 }
 
+fn join_via(via: Option<&str>) -> Result<bool, &'static str> {
+    match via {
+        None | Some("relay") => Ok(false),
+        Some("icloud") => Ok(true),
+        Some(_) => Err("E_SYNC_PAIRING_VIA"),
+    }
+}
+
 /// A pairing code as typed or pasted, or the link its QR code holds. `via` is the way a code alone
 /// goes: `relay` (the default) or `icloud`.
 #[tauri::command]
@@ -86,11 +94,7 @@ pub async fn sync_join_code(
     code: String,
     via: Option<String>,
 ) -> Result<Snapshot, String> {
-    let icloud = match via.as_deref() {
-        None | Some("relay") => false,
-        Some("icloud") => true,
-        Some(_) => return Err("E_SYNC_PAIRING_VIA".into()),
-    };
+    let icloud = join_via(via.as_deref())?;
     let code = zeroize::Zeroizing::new(code);
     task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| {
         sync.join_with_code_via(&code, icloud)
@@ -266,6 +270,7 @@ pub(crate) async fn look_for_icloud_vault(app: tauri::AppHandle) {
     else {
         return;
     };
+    // A note made after this count goes into the vault unasked, as one made after the join would.
     let looked = match own_notes(&db).await {
         Ok(notes) => {
             task::blocking_with(sync.inner(), "E_SYNC_INTERNAL", move |sync| {
@@ -302,4 +307,19 @@ pub async fn sync_status_report(
     status: StatusView,
 ) -> Result<(), String> {
     task::blocking_with(&sync, "E_SYNC_INTERNAL", move |sync| sync.report(status)).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_code_goes_through_the_relay_unless_it_names_icloud() {
+        assert_eq!(join_via(None), Ok(false));
+        assert_eq!(join_via(Some("relay")), Ok(false));
+        assert_eq!(join_via(Some("icloud")), Ok(true));
+        for via in ["", "iCloud", "icloud ", "cloudkit"] {
+            assert_eq!(join_via(Some(via)), Err("E_SYNC_PAIRING_VIA"), "{via:?}");
+        }
+    }
 }
