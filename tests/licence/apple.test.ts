@@ -96,7 +96,8 @@ describe('a JWS the App Store signed', () => {
     expect(await verify(forged)).toBeNull()
     const other = (await signJws(transaction({ productId: 'x' }), good)).split('.')[1]
     expect(await verify(`${header}.${other}.${signature}`)).toBeNull()
-    const flipped = `${signature?.slice(0, -2)}${signature?.endsWith('A') ? 'B' : 'A'}${signature?.slice(-1)}`
+    const replaced = signature?.at(-2)
+    const flipped = `${signature?.slice(0, -2)}${replaced === 'A' ? 'B' : 'A'}${signature?.slice(-1)}`
     expect(await verify(`${header}.${payload}.${flipped}`)).toBeNull()
   })
 
