@@ -105,19 +105,19 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(after.transactions?.map(\.productId), [])
     }
 
-    func testAskToBuyIsPendingUntilApprovedThenArrivesAsAnUpdate() async throws {
+    // An approval may not reach a second Transaction.updates iterator, so this waits for the
+    // entitlement; the C listener test checks that an approval arrives as an update.
+    func testAskToBuyIsPendingUntilApprovedThenHeld() async throws {
         session.askToBuyEnabled = true
-        let (updates, continuation) = AsyncStream<Reply>.makeStream()
-        let listening = Store.listen { continuation.yield($0) }
-        defer { listening.cancel() }
         let reply = await Store.purchase(Store.pro)
         XCTAssertEqual(reply.status, "pending")
         XCTAssertNil(reply.transaction)
+        let before = await Store.entitlements()
+        XCTAssertEqual(before.transactions, [])
 
         try session.approveAskToBuyTransaction(identifier: storeTransaction(Store.pro).identifier)
-        let approved = try await next(updates, continuation) { $0.transaction?.productId == Store.pro }
-        XCTAssertEqual(approved.status, "transaction")
-        XCTAssertNil(approved.transaction?.revocationDate)
+        let approved = try await entitlement(Store.pro)
+        XCTAssertNil(approved.revocationDate)
     }
 
     func testACancelledPurchaseIsCancelledNotAnError() async throws {
@@ -248,8 +248,7 @@ final class StoreTests: XCTestCase {
         throw CancellationError()
     }
 
-    // A purchase made with session.buyProduct reaches the entitlements after the call returns,
-    // and never as an update.
+    // A purchase made with session.buyProduct reaches the entitlements after the call returns.
     private func entitlement(_ productID: String) async throws -> TransactionReply {
         for _ in 0..<300 {
             if let held = await Store.entitlements().transactions?.first(where: { $0.productId == productID }) {
