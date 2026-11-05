@@ -79,13 +79,50 @@ describe('the tab bar lens at rest', () => {
     expect(rect.x + rect.width).toBeCloseTo(bar.width - bar.inset)
   })
 
-  it('still fits inside the bar when lifted under a finger', () => {
+  it('grows when lifted under a finger and stays inside the bar at every tab, on every bar', () => {
     const lift = Number(sizes['motion.scale.phone-lens-lift'])
     expect(lift).toBeGreaterThan(1)
-    for (const of of bars) {
-      const rect = lensRect(of, restingSpan(of.count - 1))
-      expect(rect.height * lift).toBeLessThanOrEqual(of.height)
-      expect((rect.width * (lift - 1)) / 2).toBeLessThanOrEqual(of.inset)
+    // Portrait bars and the bar on a landscape screen.
+    for (const of of [...bars, { width: 740, height, inset, count: 4 }]) {
+      const margin = of.inset - ((of.height - of.inset * 2) * (lift - 1)) / 2
+      const spans = [
+        ...Array.from({ length: of.count }, (_, index) => restingSpan(index)),
+        { left: 0, right: of.count },
+        { left: 0.4, right: 1.4 },
+        { left: 2.6, right: 3.6 },
+      ]
+      for (const span of spans) {
+        const rest = lensRect(of, span)
+        const lifted = lensRect(of, span, lift)
+        expect(lifted.x).toBeGreaterThanOrEqual(margin - 1e-9)
+        expect(lifted.x + lifted.width).toBeLessThanOrEqual(of.width - margin + 1e-9)
+        expect(lifted.y).toBeCloseTo(margin)
+        expect(lifted.height).toBeCloseTo(of.height - margin * 2)
+        expect(lifted.radius).toBeCloseTo(lifted.height / 2)
+        expect(lifted.width).toBeGreaterThan(rest.width)
+      }
+      const first = lensRect(of, restingSpan(0), lift)
+      expect(first.x).toBeCloseTo(margin)
+      const last = lensRect(of, restingSpan(of.count - 1), lift)
+      expect(of.width - last.x - last.width).toBeCloseTo(margin)
+    }
+  })
+
+  it('lifted, grows evenly about its middle where the bar leaves room', () => {
+    const lift = Number(sizes['motion.scale.phone-lens-lift'])
+    const rest = lensRect(bar, restingSpan(1))
+    const lifted = lensRect(bar, restingSpan(1), lift)
+    expect(lifted.width).toBeCloseTo(rest.width * lift)
+    expect(lifted.x + lifted.width / 2).toBeCloseTo(rest.x + rest.width / 2)
+  })
+
+  it('never grows past the bar, whatever the lift', () => {
+    for (const lift of [1.5, 3]) {
+      const rect = lensRect(bar, restingSpan(3), lift)
+      expect(rect.x).toBeGreaterThanOrEqual(0)
+      expect(rect.y).toBeGreaterThanOrEqual(0)
+      expect(rect.x + rect.width).toBeLessThanOrEqual(bar.width)
+      expect(rect.y + rect.height).toBeLessThanOrEqual(bar.height)
     }
   })
 })

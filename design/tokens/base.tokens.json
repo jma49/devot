@@ -2822,7 +2822,7 @@
       },
       "phone-lens-lift": {
         "$value": 1.08,
-        "$description": "The tab bar lens under a finger. A lifted tab grows about 16% on the platform; 8% keeps the lens inside the bar's 4 pt inset up to a 440 pt screen."
+        "$description": "The tab bar lens under a finger, grown about its middle. A lifted tab grows about 16% on the platform; 8% fits the bar's 4 pt inset at top and bottom, and phone/tabLens.ts keeps the ends that far from the bar's at any width."
       },
       "phone-peek-enter": {
         "$value": 0.86,
@@ -2981,7 +2981,13 @@
         "unit": "px"
       },
       "$description": "The soft single shadow under a floating bar (the selection toolbar, the image size bar); its colour is color.shadow.float-bar."
-    }
+    },
+    "phone-glass-rim-offset": {
+      "$value": { "value": 1.5, "unit": "px" },
+      "$description": "The light rim along a phone glass surface's top left edge and the dark one along its bottom right (color.phone-glass-highlight and -lowlight), on the bars and the lifted tab bar lens."
+    },
+    "phone-glass-rim-blur": { "$value": { "value": 1, "unit": "px" } },
+    "phone-glass-rim-spread": { "$value": { "value": -1, "unit": "px" } }
   },
   "tooltip": {
     "$type": "dimension",

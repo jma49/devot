@@ -52,17 +52,23 @@ const clamp = (value: number, low: number, high: number) => Math.min(high, Math.
 
 export const restingSpan = (index: number): Span => ({ left: index, right: index + 1 })
 
-export function lensRect(bar: Bar, span: Span): LensRect {
+/**
+ * The lens drawn for `span`, grown by `lift` about its middle. Lifted, it keeps the margin it has
+ * at top and bottom from the bar's ends too, so it stays concentric with the bar at the first and
+ * last tab and never leaves it.
+ */
+export function lensRect(bar: Bar, span: Span, lift = 1): LensRect {
   const tab = (bar.width - bar.inset * 2) / bar.count
   const left = clamp(span.left, 0, bar.count)
   const right = clamp(span.right, left, bar.count)
-  return {
-    x: bar.inset + left * tab,
-    y: bar.inset,
-    width: (right - left) * tab,
-    height: bar.height - bar.inset * 2,
-    radius: bar.height / 2 - bar.inset,
-  }
+  const restHeight = bar.height - bar.inset * 2
+  const margin = Math.max(0, bar.inset - (restHeight * (Math.max(lift, 1) - 1)) / 2)
+  const middle = bar.inset + ((left + right) / 2) * tab
+  const half = ((right - left) * tab * Math.max(lift, 1)) / 2
+  const x = Math.max(margin, middle - half)
+  const end = Math.min(bar.width - margin, middle + half)
+  const height = bar.height - margin * 2
+  return { x, y: margin, width: end - x, height, radius: height / 2 }
 }
 
 /** One tab centred under a finger `x` points from the bar's left edge, held inside the bar. */

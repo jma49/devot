@@ -129,6 +129,21 @@ describe('the phone motion tokens', () => {
     expect(Number(sizes['motion.scale.phone-arrive'])).toBe(0.92)
   })
 
+  it('draws the glass rim from tokens, on the bars and the lifted lens', () => {
+    expect(px('shadow.phone-glass-rim-offset')).toBe(1.5)
+    expect(px('shadow.phone-glass-rim-blur')).toBe(1)
+    expect(px('shadow.phone-glass-rim-spread')).toBe(-1)
+    const css = readFileSync('src/renderer/src/phone/phone.css', 'utf8')
+    const shadows = [...css.matchAll(/box-shadow:([^;]*);/g)].map((match) => match[1]!)
+    const rims = shadows.filter((shadow) => shadow.includes('--color-phone-glass-highlight'))
+    expect(rims.length).toBeGreaterThanOrEqual(2)
+    for (const rim of rims) {
+      const highlight = rim.split(',').find((layer) => layer.includes('glass-highlight'))!
+      expect(highlight).not.toMatch(/\d(px|pt)\b/)
+      expect(highlight).toContain('var(--shadow-phone-glass-rim-offset)')
+    }
+  })
+
   it('keeps the toast 4 s and rising 100 above the bottom', () => {
     expect(sizes['motion.duration.phone-toast']).toBe('4000ms')
     expect(Number(sizes['motion.scale.phone-toast'])).toBe(0.9)

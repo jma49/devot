@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
@@ -46,21 +46,12 @@ export function PhoneTabBar(props: {
   const barRef = useRef<HTMLElement>(null)
   const lensRef = useRef<HTMLSpanElement>(null)
   const press = useRef<Press | null>(null)
-  const dragged = useRef(false)
+  const endPress = useRef<(() => void) | null>(null)
+  const swallowClick = useRef(false)
   const index = PHONE_TABS.indexOf(props.tab)
   const lens = useRef<TabLens | null>(null)
   const [firstIndex] = useState(index)
   const aim = (span: Span) => lens.current?.aim(span)
-
-  useLayoutEffect(() => {
-    const started = startTabLens(barRef.current!, lensRef.current!, firstIndex)
-    lens.current = started
-    return started.stop
-  }, [firstIndex])
-
-  useLayoutEffect(() => {
-    if (!press.current) lens.current?.aim(restingSpan(index))
-  }, [index])
 
   const select = (tab: PhoneTab) => {
     if (tab !== props.tab) setMoves((n) => n + 1)
@@ -73,20 +64,55 @@ export function PhoneTabBar(props: {
       clientX - at.left,
     )
 
-  const release = (event: PointerEvent<HTMLElement>, cancelled: boolean) => {
+  // A gesture's own click, if any, comes in the task of its pointerup: swallow only that one.
+  const swallowGestureClick = (released: boolean) => {
+    swallowClick.current = true
+    const forget = () =>
+      setTimeout(() => {
+        swallowClick.current = false
+      })
+    if (released) forget()
+    else window.addEventListener('pointerup', forget, { capture: true, once: true })
+  }
+
+  // `clientX` is null for a cancelled press; `released` says whether the finger is already up.
+  const finish = (pointer: number, clientX: number | null, released: boolean) => {
     const at = press.current
-    if (!at || at.pointer !== event.pointerId) return
+    if (!at || at.pointer !== pointer) return
     press.current = null
+    endPress.current?.()
+    endPress.current = null
     setLifted(false)
-    if (at.dragging && !cancelled) {
-      dragged.current = true
-      const tab = PHONE_TABS[nearestTab(spanAt(at, event.clientX), PHONE_TABS.length)]!
+    lens.current?.lift(false)
+    if (at.dragging || clientX === null) swallowGestureClick(released)
+    const bar = barRef.current
+    if (bar?.hasPointerCapture(pointer)) bar.releasePointerCapture(pointer)
+    if (at.dragging && clientX !== null) {
+      const tab = PHONE_TABS[nearestTab(spanAt(at, clientX), PHONE_TABS.length)]!
       aim(restingSpan(PHONE_TABS.indexOf(tab)))
       if (tab !== props.tab) select(tab)
       return
     }
     aim(restingSpan(index))
   }
+  const latestFinish = useRef(finish)
+  useLayoutEffect(() => {
+    latestFinish.current = finish
+  })
+
+  useLayoutEffect(() => {
+    const started = startTabLens(barRef.current!, lensRef.current!, firstIndex, () => {
+      if (press.current) latestFinish.current(press.current.pointer, null, false)
+    })
+    lens.current = started
+    return started.stop
+  }, [firstIndex])
+
+  useLayoutEffect(() => {
+    if (!press.current) lens.current?.aim(restingSpan(index))
+  }, [index])
+
+  useEffect(() => () => endPress.current?.(), [])
 
   return (
     <nav
@@ -96,6 +122,13 @@ export function PhoneTabBar(props: {
       data-dragging={props.dragging || undefined}
       inert={props.covered}
       style={{ transform: `translateX(${props.x})` }}
+      onClickCapture={(event) => {
+        if (!swallowClick.current) return
+        swallowClick.current = false
+        if (event.detail === 0) return
+        event.stopPropagation()
+        event.preventDefault()
+      }}
       onPointerDown={(event) => {
         if (!event.isPrimary || event.button !== 0 || press.current) return
         const box = event.currentTarget.getBoundingClientRect()
@@ -109,8 +142,18 @@ export function PhoneTabBar(props: {
           dragging: false,
         }
         press.current = at
-        dragged.current = false
+        swallowClick.current = false
+        const up = (e: globalThis.PointerEvent) =>
+          latestFinish.current(e.pointerId, e.clientX, true)
+        const cancel = (e: globalThis.PointerEvent) => latestFinish.current(e.pointerId, null, true)
+        window.addEventListener('pointerup', up, true)
+        window.addEventListener('pointercancel', cancel, true)
+        endPress.current = () => {
+          window.removeEventListener('pointerup', up, true)
+          window.removeEventListener('pointercancel', cancel, true)
+        }
         setLifted(true)
+        lens.current?.lift(true)
         aim(restingSpan(nearestTab(spanAt(at, event.clientX), PHONE_TABS.length)))
       }}
       onPointerMove={(event) => {
@@ -123,8 +166,7 @@ export function PhoneTabBar(props: {
         }
         aim(spanAt(at, event.clientX))
       }}
-      onPointerUp={(event) => release(event, false)}
-      onPointerCancel={(event) => release(event, true)}
+      onLostPointerCapture={(event) => finish(event.pointerId, null, false)}
     >
       <span
         ref={lensRef}
@@ -142,13 +184,7 @@ export function PhoneTabBar(props: {
             className="phone-tab"
             aria-label={t(TAB_LABEL[tab])}
             aria-current={selected ? 'page' : undefined}
-            onClick={() => {
-              if (dragged.current) {
-                dragged.current = false
-                return
-              }
-              select(tab)
-            }}
+            onClick={() => select(tab)}
           >
             <span
               className="phone-tab-icon"
