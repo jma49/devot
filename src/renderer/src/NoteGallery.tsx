@@ -14,20 +14,24 @@ import {
   type Ref,
 } from 'react'
 import type { NoteSummary } from '../../core'
+import type { ListDatesStyle } from '../../core/editorSettings'
 import { dropSelectionLeftBehind } from './focus'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import type { MenuPoint } from './contextMenu'
 import { setNoteDragData } from './dragData'
+import { useEditorSetting } from './editorSettings'
+import { fullDate, rowDate } from './format'
 import {
   galleryColumns,
   galleryGridTop,
   galleryPlace,
   galleryReveal,
+  galleryScale,
   galleryStep,
   galleryWindow,
 } from './gallery'
 import { useCardPreviews, type CardPreview, type CardPreviewLoader } from './galleryPreviews'
-import { useHeadlines, type HeadlineLoader } from './headlines'
+import { displayTitle, useHeadlines, type HeadlineLoader } from './headlines'
 import { currentLocale, t } from './i18n'
 import { Icon } from './icons/Icon'
 import { dragCardLines, setDragCard } from './listDrag'
@@ -42,6 +46,7 @@ import {
   type ListSelection,
 } from './listSelection'
 import { jumpIndex } from './listWindow'
+import { useNow } from './NoteList'
 import { noteShortcut, type NoteAction } from './noteMenu'
 import { usePaneResize } from './paneResize'
 import { BOARD_PANE } from './paneWidth'
@@ -87,9 +92,9 @@ const px = (value: string) => Number.parseFloat(value)
 const CARD_HEIGHT = px(sizes['size.gallery-card-height'])
 const CARD_MIN_WIDTH = px(sizes['size.gallery-card-min-width'])
 const PAGE_WIDTH = px(sizes['size.gallery-page-width'])
-/** `.gallery-grid` gap and a card's side padding in app.css. */
+/** `.gallery-grid` gap, and the cell's and the sheet's side padding, in app.css. */
 const GAP = px(sizes['space.5'])
-const CARD_PAD = px(sizes['space.5'])
+const PAGE_INSET = 2 * px(sizes['space.2']) + 2 * px(sizes['space.4'])
 const OVERSCAN_PX = 600
 
 interface Grid {
@@ -109,8 +114,8 @@ const gridTop = (outer: HTMLElement, inner: HTMLElement) =>
   )
 
 /**
- * The note list as a gallery: one listbox of cards in rows, each with the
- * note's title and a thumbnail of the start of its body. The selection, the
+ * The note list as a gallery: one listbox of cards in rows, each a thumbnail
+ * of the note's first page (its title, then the start of its body). The selection, the
  * drag and the note keys are the list's; the arrow keys move across the grid.
  * Only the rows near the part that shows render (`galleryWindow`), and only
  * their thumbnails are read.
@@ -147,6 +152,8 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
   const headlines = useHeadlines(props.headlines, rendered)
   const previews = useCardPreviews(props.previews, rendered)
   const locale = currentLocale()
+  const now = useNow()
+  const dates = useEditorSetting('listDates')
   const { width, edge } = usePaneResize(BOARD_PANE)
   const emptyText =
     props.empty && notes.length === 0 ? listEmpty(props.empty, props.editing) : undefined
@@ -444,7 +451,7 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
     [setCard, click, dragStart, cardKey, contextMenu],
   )
 
-  const scale = cardWidth > 0 ? (cardWidth - 2 * CARD_PAD) / PAGE_WIDTH : 0
+  const scale = galleryScale(cardWidth, PAGE_INSET, PAGE_WIDTH)
 
   return (
     <section
@@ -509,13 +516,15 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
                       selected={
                         chosen ? chosen.has(note.id) : note.id === (props.opening ?? selected)
                       }
-                      open={note.id === selected}
                       tabbable={note.id === tabStop}
                       headline={headlines.get(note.id)}
                       preview={previews.get(note.id)}
                       draggable={props.draggable}
                       dragging={dragged?.has(note.id) ?? false}
                       menu={props.onMenu !== undefined}
+                      now={now}
+                      locale={locale}
+                      dates={dates}
                       events={events}
                     />
                   )
@@ -544,17 +553,18 @@ interface CardProps {
   position: number
   setSize: number
   selected: boolean
-  open: boolean
   tabbable: boolean
   headline: string | undefined
   preview: CardPreview | undefined
   draggable: boolean
   dragging: boolean
   menu: boolean
+  now: number
+  locale: string
+  dates: ListDatesStyle
   events: CardEvents
 }
 
-/** One note in the gallery: its title (an untitled note's first line) over a thumbnail of the start of its body. */
 const GalleryCard = memo(function GalleryCard(props: CardProps) {
   const { note: n, events } = props
   const id = n.id
@@ -569,10 +579,10 @@ const GalleryCard = memo(function GalleryCard(props: CardProps) {
       className="gallery-card"
       data-note-id={id}
       role="option"
+      aria-label={displayTitle(n.title, props.headline)}
       aria-selected={props.selected}
       aria-posinset={props.position}
       aria-setsize={props.setSize}
-      data-open={props.open || undefined}
       tabIndex={props.tabbable ? 0 : -1}
       style={{ insetInlineStart: props.start, top: props.top }}
       onMouseDown={(e) => {
@@ -585,15 +595,27 @@ const GalleryCard = memo(function GalleryCard(props: CardProps) {
       onKeyDown={(e) => events.keyDown(id, e)}
       onContextMenu={props.menu ? (e) => events.contextMenu(id, e) : undefined}
     >
-      <span className="gallery-card-title" dir="auto">
-        {n.pinned ? <Icon name="notes.pinned" size="sm" /> : null}
-        <span className={n.title ? undefined : 'card-headline'}>
-          {n.title || props.headline || t('note.untitled')}
-        </span>
-      </span>
-      <div className="gallery-thumb" aria-hidden inert>
-        <div ref={page} className="preview gallery-page" />
+      <div className="gallery-sheet" aria-hidden inert>
+        <div className="gallery-thumb">
+          {n.title || props.preview?.length === 0 ? (
+            <div className="preview gallery-page">
+              <h1 className={n.title ? 'note-title' : 'note-title is-untitled'} dir="auto">
+                {n.title || t('note.untitled')}
+              </h1>
+            </div>
+          ) : null}
+          <div ref={page} className="preview gallery-page" />
+        </div>
       </div>
+      <span className="gallery-card-caption">
+        {n.pinned ? <Icon name="notes.pinned" size="sm" /> : null}
+        <time
+          dateTime={new Date(n.updatedAt).toISOString()}
+          title={fullDate(n.updatedAt, props.locale)}
+        >
+          {rowDate(n.updatedAt, props.now, props.locale, props.dates)}
+        </time>
+      </span>
     </li>
   )
 })

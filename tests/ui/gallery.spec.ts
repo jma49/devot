@@ -11,6 +11,7 @@ const SEEDED: { title: string; status: string; body: string; pinned?: boolean }[
   { title: 'Charlie', status: 'active', body: 'Inline $x^2$ math.' },
   { title: 'Delta', status: 'completed', body: 'Pinned body.', pinned: true },
   { title: 'Echo', status: 'none', body: '' },
+  { title: '', status: 'none', body: 'Foxtrot opens the page.\n\nMore below.' },
 ]
 
 async function seed(page: Page) {
@@ -46,7 +47,7 @@ const layout = (page: Page, name: 'List' | 'Board' | 'Gallery') =>
 const gallery = (page: Page) => page.locator('.gallery')
 const card = (page: Page, title: string) =>
   gallery(page).getByRole('option').filter({ hasText: title })
-const cardTitles = (page: Page) => gallery(page).locator('.gallery-card-title').allTextContents()
+const cardTitles = (page: Page) => gallery(page).locator('.note-title').allTextContents()
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 
 test.beforeEach(async ({ page }) => {
@@ -58,12 +59,16 @@ test('a view switches to a gallery of page previews, and a card opens its note',
 }) => {
   await layout(page, 'Gallery').click()
   await expect(layout(page, 'Gallery')).toHaveAttribute('aria-pressed', 'true')
-  await expect(gallery(page).getByRole('option')).toHaveCount(5)
-  // The view's order, pinned first.
+  await expect(gallery(page).getByRole('option')).toHaveCount(6)
+  // The view's order, pinned first; the untitled note's page starts with its first line.
   expect(await cardTitles(page)).toEqual(['Delta', 'Alpha', 'Bravo', 'Charlie', 'Echo'])
+  const foxtrot = card(page, 'Foxtrot')
+  await expect(foxtrot).toHaveAccessibleName('Foxtrot opens the page.')
+  await expect(foxtrot.locator('.note-title')).toHaveCount(0)
+  await expect(foxtrot.locator('.gallery-page p').first()).toHaveText('Foxtrot opens the page.')
 
   const alpha = card(page, 'Alpha')
-  await expect(alpha.locator('.gallery-page h1')).toHaveText('Plan')
+  await expect(alpha.locator('.gallery-page h1:not(.note-title)')).toHaveText('Plan')
   await expect(alpha.locator('.gallery-page input[type=checkbox]')).toHaveCount(2)
   await expect(alpha.locator('.gallery-page table')).toHaveCount(1)
   // Diagrams and math never run in a card.
@@ -83,14 +88,54 @@ test('a view switches to a gallery of page previews, and a card opens its note',
   await page.keyboard.press('ArrowLeft')
   await expect(titleField(page)).toHaveValue('Alpha')
   await page.keyboard.press('End')
-  await expect(titleField(page)).toHaveValue('Echo')
+  await expect(titleField(page)).toHaveValue('')
+  await expect(foxtrot).toBeFocused()
 
   // Remembered per view.
   await reloadApp(page)
   await expect(gallery(page)).toBeVisible()
   await layout(page, 'List').click()
   await expect(gallery(page)).toHaveCount(0)
-  await expect(page.getByRole('listbox', { name: 'Notes' }).getByRole('option')).toHaveCount(5)
+  await expect(page.getByRole('listbox', { name: 'Notes' }).getByRole('option')).toHaveCount(6)
+})
+
+test("a card is the note's first page on a sheet, with the pin and the time under it, selected as a row is", async ({
+  page,
+}) => {
+  await layout(page, 'Gallery').click()
+  const cards = gallery(page).getByRole('option')
+  await expect(cards).toHaveCount(6)
+  for (const c of await cards.all()) {
+    await expect(c.locator('.gallery-sheet .gallery-page').first()).toBeVisible()
+    await expect(c.locator('.gallery-card-caption time')).toHaveCount(1)
+  }
+  await expect(card(page, 'Delta').locator('.gallery-card-caption .icon')).toHaveCount(1)
+  await expect(card(page, 'Alpha').locator('.gallery-card-caption .icon')).toHaveCount(0)
+
+  const titles = gallery(page).locator('.gallery-sheet .note-title')
+  await expect(titles).toHaveCount(5)
+  const weights = await titles.evaluateAll((els) =>
+    els.map((el) => getComputedStyle(el).fontWeight),
+  )
+  expect(new Set(weights).size).toBe(1)
+  expect(Number(weights[0])).toBeGreaterThanOrEqual(700)
+
+  const alpha = card(page, 'Alpha')
+  await alpha.click()
+  await expect(alpha).toHaveAttribute('aria-selected', 'true')
+  await alpha.focus()
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('ArrowRight')
+  await expect(alpha).toBeFocused()
+  const look = await alpha.evaluate((el) => {
+    const style = getComputedStyle(el)
+    return { shadow: style.boxShadow, background: style.backgroundColor }
+  })
+  // The list's selection wash, and no bar down the side.
+  expect(look.shadow).toBe('none')
+  expect(look.background).not.toBe('rgba(0, 0, 0, 0)')
+  const rest = await card(page, 'Charlie').evaluate((el) => getComputedStyle(el).backgroundColor)
+  expect(rest).toBe('rgba(0, 0, 0, 0)')
 })
 
 test('a status view and a search in the view show as a gallery too, never as a board', async ({
@@ -109,4 +154,13 @@ test('a status view and a search in the view show as a gallery too, never as a b
   await expect.poll(() => cardTitles(page)).toEqual(['Charlie'])
   await search.fill('')
   await expect.poll(() => cardTitles(page)).toEqual(['Alpha', 'Charlie'])
+})
+
+test('an untitled note with an empty body shows Untitled on its page', async ({ page }) => {
+  await layout(page, 'Gallery').click()
+  const echo = card(page, 'Echo')
+  await echo.click()
+  await titleField(page).fill('')
+  const empty = gallery(page).locator('.gallery-page .note-title.is-untitled')
+  await expect(empty).toHaveText('Untitled')
 })

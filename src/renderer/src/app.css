@@ -2109,72 +2109,112 @@ button {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
   width: var(--gallery-card-width);
   height: var(--size-gallery-card-height);
-  padding: var(--space-5) var(--space-5) 0;
-  overflow: hidden;
-  border-radius: var(--radius-card);
-  background: var(--color-fill-card);
-  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+  border-radius: var(--radius-list-row);
   outline: none;
 }
 
 .gallery-card:not([aria-selected='true']):hover {
-  background: color-mix(in srgb, var(--color-fill-row-selected-inactive), var(--color-fill-card));
+  background: var(--color-fill-row-selected-inactive);
   transition: background-color var(--motion-duration-hover) var(--motion-easing-out);
 }
 
 .gallery-card[aria-selected='true'] {
   background: color-mix(
     in srgb,
-    var(--color-accent-fill) calc(var(--opacity-card-selected) * 100%),
-    var(--color-fill-card)
+    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
+    transparent
   );
 }
 
-.gallery:focus-within .gallery-card[data-open],
 .gallery-card:focus-visible {
-  box-shadow:
-    inset var(--size-list-focus-bar) 0 0 var(--color-accent-fill),
-    0 0 0 0.5px var(--color-line-hairline);
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
-.gallery-card-title {
-  display: -webkit-box;
-  flex: none;
+/* The sheet's radius is the cell's less the cell's padding, so the two corners stay concentric. */
+.gallery-sheet {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--space-4) var(--space-4) 0;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow-wrap: anywhere;
-  font-size: var(--font-size-row);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-editor);
+  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
 }
 
-.gallery-card-title .icon {
-  margin-inline-end: var(--space-2);
-  vertical-align: -2px;
+.gallery-card-caption {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: var(--space-3) var(--space-4) 0;
+  font-size: var(--font-size-caption);
+  line-height: 14px;
   color: var(--color-text-tertiary);
 }
 
-/* The page is laid out at one reading width and scaled down to the card, clipped at the card's bottom. */
+.gallery-card-caption .icon {
+  align-self: center;
+}
+
+/* The page is laid out at one reading width and scaled down to the sheet; it fades out at the sheet's bottom instead of being cut. */
 .gallery-thumb {
   flex: 1;
   min-height: 0;
   overflow: hidden;
   pointer-events: none;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    var(--color-ink-text) calc(100% - var(--space-10) - var(--space-2)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    var(--color-ink-text) calc(100% - var(--space-10) - var(--space-2)),
+    transparent
+  );
 }
 
-.preview.gallery-page {
+/* Specific enough to win over the reader's preview padding and scrolling under Glass. */
+.gallery .gallery-thumb > .preview.gallery-page {
   width: var(--size-gallery-page-width);
+  min-height: auto;
   padding: 0;
   overflow: visible;
   zoom: var(--gallery-scale, 0);
   -webkit-user-select: none;
   user-select: none;
   color: var(--color-text-secondary);
+}
+
+.preview.gallery-page :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--color-text-primary);
+}
+
+.preview.gallery-page > :first-child {
+  margin-top: 0;
+}
+
+/* The note's own title style, at the reader's size like the body under it. */
+.preview.gallery-page > .note-title {
+  margin: 0 0 calc(var(--note-space-title-below) * var(--note-pt, 1px));
+  padding: 0;
+  border: 0;
+  font-size: calc(var(--note-heading-glass-title-size) * var(--note-pt, 1px));
+  line-height: calc(var(--note-heading-glass-title-line) * var(--note-pt, 1px));
+  letter-spacing: calc(var(--note-heading-glass-title-tracking) * var(--note-pt, 1px));
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.preview.gallery-page > .note-title.is-untitled {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
 }
 
 .card-placeholder {

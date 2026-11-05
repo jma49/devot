@@ -4,6 +4,7 @@ import {
   galleryGridTop,
   galleryPlace,
   galleryReveal,
+  galleryScale,
   galleryStep,
   galleryWindow,
 } from './gallery'
@@ -11,6 +12,18 @@ import { sizes } from './theme/tokens'
 import { expectWithinBudget } from '../../../tests/support/budget'
 
 const px = (name: keyof typeof sizes) => Number.parseFloat(sizes[name])
+
+describe('galleryScale', () => {
+  it('fits the page inside the cell and the sheet padding', () => {
+    const inset = 2 * px('space.2') + 2 * px('space.4')
+    expect(galleryScale(206, inset, px('size.gallery-page-width'))).toBeCloseTo(182 / 400)
+  })
+
+  it('is nothing for a card not measured yet or too narrow for its padding', () => {
+    expect(galleryScale(0, 24, 400)).toBe(0)
+    expect(galleryScale(20, 24, 400)).toBe(0)
+  })
+})
 
 describe('galleryColumns', () => {
   it('fits as many cards as their least width allows, at least one', () => {

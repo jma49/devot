@@ -1784,7 +1784,7 @@
         "value": 240,
         "unit": "px"
       },
-      "$description": "Every gallery card's height: its title, and the page thumbnail clipped at its bottom."
+      "$description": "Every gallery card's height: the sheet with the note's first page, and the caption line under it."
     },
     "gallery-page-width": {
       "$type": "dimension",

@@ -44,9 +44,10 @@ A note under a card belongs to it: 8 below the card, about 24 above the next sec
 ## Gallery cards
 
 - A grid 12 from the pane's sides (`space.6`), cards 10 apart (`space.5`) and as many across as keep each at least `size.gallery-card-min-width` (180); every card is `size.gallery-card-height` (240) tall.
-- **Card:** `radius.card`, `color.fill.card` with a 0.5 hairline edge (`color.line.hairline`), padding 10 at the top and sides and none at the bottom, where the page is clipped. Selection takes the list's tint and focus bar.
-- **Title:** the row size (14) in bold, at most two lines, then the page 6 below it.
-- **Page:** the note's preview laid out at `size.gallery-page-width` (400) and scaled down to the card's width, in secondary text. A diagram, math, a frame or an image from the web shows as a placeholder in a `color.fill.track` box with tertiary text.
+- **Cell:** the card is the list row's highlight: transparent, `radius.list-row` (12), padding 4 (`space.2`) at the top and sides and 6 (`space.3`) at the bottom. Under the pointer it takes `color.fill.row-selected-inactive`, selected the accent wash at `opacity.list-selected`, and with the keyboard the inset `color.focus.ring` ring, as a row does. No bar.
+- **Sheet:** `color.surface.editor` with a 0.5 hairline edge (`color.line.hairline`) and `radius.card` (8): 4 inside the cell, so the radii are concentric. Padding 8 at the top and sides puts the page on the inner keyline; the bottom fades out over 36 instead of being cut.
+- **Page:** the note's first page laid out at `size.gallery-page-width` (400) and scaled to the sheet: the title in the note's title style (28/34 bold, scaled with the body), then the body on the note type scale, headings primary and text secondary. An untitled note starts with its first line, or "Untitled" in tertiary when it has none. A diagram, math, a frame or an image from the web shows as a placeholder in a `color.fill.track` box with tertiary text.
+- **Caption:** one line 6 under the sheet on the inner keyline, 11 (`font-size.caption`) in tertiary: the pin, then the time.
 
 ## One stroke rule
 
