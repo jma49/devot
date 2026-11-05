@@ -41,6 +41,13 @@ A note under a card belongs to it: 8 below the card, about 24 above the next sec
 - **Optional meta line:** 11 pt, items 6 apart. A meta line holding only the time leaves the grid.
 - **Excerpt:** 12, line height 1.45, two lines, secondary.
 
+## Gallery cards
+
+- A grid 12 from the pane's sides (`space.6`), cards 10 apart (`space.5`) and as many across as keep each at least `size.gallery-card-min-width` (180); every card is `size.gallery-card-height` (240) tall.
+- **Card:** `radius.card`, `color.fill.card` with a 0.5 hairline edge (`color.line.hairline`), padding 10 at the top and sides and none at the bottom, where the page is clipped. Selection takes the list's tint and focus bar.
+- **Title:** the row size (14) in bold, at most two lines, then the page 6 below it.
+- **Page:** the note's preview laid out at `size.gallery-page-width` (400) and scaled down to the card's width, in secondary text. A diagram, math, a frame or an image from the web shows as a placeholder in a `color.fill.track` box with tertiary text.
+
 ## One stroke rule
 
 A control or block in a note is filled or outlined, never both, and a dashed border is not used at rest. A rendered table (hairline edge) and a callout (tinted edge) are the only bordered blocks; the table box behind Edit mode's source is fill only, like code.

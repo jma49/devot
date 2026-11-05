@@ -207,6 +207,7 @@
     "terminal": "terminal",
     "outline": "list.bullet.indent",
     "layout.list": "list.bullet",
-    "layout.board": "rectangle.split.3x1"
+    "layout.board": "rectangle.split.3x1",
+    "layout.gallery": "square.grid.2x2"
   }
 }

@@ -1,5 +1,6 @@
 // Runs the core library off the UI thread; the page passes in a storage adapter (Tauri commands are only reachable from the page).
 import * as Comlink from 'comlink'
+import type { RootContent } from 'hast'
 import {
   type AppendOptions,
   applyBatch,
@@ -58,6 +59,7 @@ import {
 import { errorCode } from '../../core/errors'
 import { noteCounts } from '../../core/noteCounts'
 import { createLivePreviewRenderer } from '../../core/preview/live'
+import { renderCardPreview, type CardLabels } from '../../core/preview/card'
 import { createSyncEngine, type SyncEngine, type SyncStatus } from '../../core/sync/engine'
 import type { SyncEvent } from '../../core/sync/transport'
 import { preparerOffThread } from './importWorker'
@@ -246,6 +248,14 @@ export const coreApi = {
   headlines: (ids: string[]) => required().headlines(ids),
   excerpts: (ids: string[]) => required().excerpts(ids),
   rowDetails: (ids: string[]) => required().rowDetails(ids),
+  /** Gallery cards' thumbnails: the start of each body as a sanitized tree, by note ID. */
+  cardPreviews: async (ids: string[], labels: CardLabels) => {
+    const found: Record<string, RootContent[]> = {}
+    for (const [id, markdown] of Object.entries(await required().cardExcerpts(ids))) {
+      found[id] = (await renderCardPreview(markdown, labels)).children
+    }
+    return found
+  },
   extract: (sourceId: string, markdown: string, title?: string) =>
     required().extract(sourceId, markdown, title),
   applyUpdate: (id: string, update: Uint8Array) => required().applyUpdate(id, update),

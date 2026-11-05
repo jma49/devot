@@ -44,6 +44,7 @@ import {
 } from './diff'
 import { errorCode } from './errors'
 import { headline, listExcerpt, taskProgress } from './extract'
+import { cardExcerpt } from './preview/cardExcerpt'
 import { formatHlc, parseHlc, receiveStored, type Clock } from './hlc'
 import { sha256Hex } from './sha256'
 import {
@@ -181,6 +182,8 @@ export interface NoteService {
   excerpts(ids: readonly string[]): Promise<Record<string, string>>
   /** What a list row shows under its title: the excerpt and "done/total" of its tasks ('' with none), from one read. Missing notes are left out. */
   rowDetails(ids: readonly string[]): Promise<Record<string, RowDetail>>
+  /** The Markdown each gallery card shows (see `cardExcerpt`), pending edits included. Missing notes are left out. */
+  cardExcerpts(ids: readonly string[]): Promise<Record<string, string>>
   /** Never pinned; a deleted notebook counts as none. `suffix` is kept by cutting the title to fit. Images become the copy's own (see extract); tags are the caller's (see duplicateNote). */
   duplicate(id: string, options?: { suffix?: string }): Promise<string>
   /** Images become the note's own copies so purging the source keeps them; if they cannot be copied no note is left and the copy's error is thrown. A given `title` (New Note from Link) names the note instead. */
@@ -1417,6 +1420,12 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
           progress: total > 0 ? `${done}/${total}` : '',
         }
       }
+      return found
+    },
+
+    async cardExcerpts(ids) {
+      const found: Record<string, string> = {}
+      for (const note of await bodies(ids)) found[note.id] = cardExcerpt(note.bodyMd, note.title)
       return found
     },
 

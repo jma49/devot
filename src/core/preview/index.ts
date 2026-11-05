@@ -202,6 +202,22 @@ export async function renderPreview(
   return tree
 }
 
+function stripPositions(node: HastRoot | RootContent): void {
+  delete node.position
+  if ('children' in node) node.children.forEach(stripPositions)
+}
+
+/** `markdown` as a note's body (front matter is not read), sanitized, through `renderers` alone. */
+export async function renderBody(
+  markdown: string,
+  options: PreviewOptions,
+  renderers: readonly PreviewRenderer[],
+): Promise<HastRoot> {
+  const tree = await transformed(bodyProcessor, markdown, options, renderers)
+  stripPositions(tree)
+  return tree
+}
+
 async function transformed(
   parser: typeof processor,
   markdown: string,

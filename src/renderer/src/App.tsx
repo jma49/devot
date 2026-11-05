@@ -209,12 +209,14 @@ import {
   currentDefaultMode,
   currentLastStateStore,
   isBoardView,
+  isGalleryView,
   lastStateOf,
   layoutOf,
   restorePlan,
   withLayout,
   type LastState,
   type ListLayout,
+  type ViewLayouts,
   type NoteState,
 } from './lastState'
 import type { FindTarget } from './find/target'
@@ -238,6 +240,8 @@ import { ModeControl, editorOnly, type Mode } from './ModeControl'
 import { relayGate, relayLink } from './noteRelay'
 import { NoteList } from './NoteList'
 import { NoteBoard } from './NoteBoard'
+import { NoteGallery } from './NoteGallery'
+import { cardLabels } from './galleryPreviews'
 import { LayoutControl } from './LayoutControl'
 import {
   appliedChanges,
@@ -345,6 +349,8 @@ const NO_LIBRARY = { book: [], tag: [], note: [] }
 
 // Stable identity so the memoized list and sidebar skip equal props.
 const NO_NOTES: NoteSummary[] = []
+const LAYOUTS_WITH_BOARD: readonly ListLayout[] = ['list', 'board', 'gallery']
+const LAYOUTS_WITHOUT_BOARD: readonly ListLayout[] = ['list', 'gallery']
 const NO_TAGS: ReadonlyMap<string, TagRecord> = new Map()
 const NO_FOLDS: ReadonlySet<string> = new Set()
 const ALL_NOTES: Selection = { kind: 'all' }
@@ -444,6 +450,10 @@ export function App() {
     () => (core ? (ids: string[]) => core.rowDetails(ids) : undefined),
     [core],
   )
+  const loadCardPreviews = useMemo(
+    () => (core ? (ids: string[]) => core.cardPreviews(ids, cardLabels()) : undefined),
+    [core],
+  )
   const activityStrip = useEditorSetting('activityStrip')
   const loadStrips = useMemo(
     () =>
@@ -513,7 +523,10 @@ export function App() {
   const editorMode = useRef(editorOnly(mode) ? mode : currentDefaultMode())
   if (editorOnly(mode)) editorMode.current = mode
   // The library views shown as a board (lastState.ts).
-  const [boards, setBoards] = useState<readonly string[]>(() => lastState?.boards ?? [])
+  const [layouts, setLayouts] = useState<ViewLayouts>(() => ({
+    boards: lastState?.boards ?? [],
+    galleries: lastState?.galleries ?? [],
+  }))
   const focusStore = useMemo(() => currentFocusStore(), [])
   const [focus, setFocus] = useState(() => focusStore.load())
   const toggleFocus = useCallback(() => {
@@ -983,15 +996,25 @@ export function App() {
     }),
   )
   const order = listOrder.order
+  const libraryView = `${sortView({ search: false, bookId: null, filter: activeFilter })}|${libraryBook?.id ?? ''}`
   const listView = searching
     ? `search|${JSON.stringify(results.search)}`
     : inTrash
       ? 'trash'
       : inTemplates
         ? 'templates'
-        : `${sortView({ search: false, bookId: null, filter: activeFilter })}|${libraryBook?.id ?? ''}`
+        : libraryView
   const canBoard = !searching && !inTrash && !inTemplates && isBoardView(listView)
-  const boardShown = canBoard && layoutOf(boards, listView) === 'board'
+  const libraryLayout = layoutOf(layouts, libraryView)
+  const boardShown = canBoard && libraryLayout === 'board'
+  // A search within a view shown as a gallery shows its results as one.
+  const canGallery =
+    !inTrash &&
+    !inTemplates &&
+    isGalleryView(libraryView) &&
+    (!searching || (searchIn === 'view' && libraryLayout !== 'board'))
+  const galleryShown = canGallery && libraryLayout === 'gallery'
+  const shownLayout: ListLayout = boardShown ? 'board' : galleryShown ? 'gallery' : 'list'
   const boardDropped = useEditorSetting('boardDropped')
   const boardStatusList = useMemo(() => boardStatuses(boardDropped), [boardDropped])
   const showAlertMenu = useAlertMenu()
@@ -1050,6 +1073,15 @@ export function App() {
       locales,
     )
   }, [results, order, locales, activeFilter])
+  const galleryNotes = useMemo(
+    () =>
+      searching
+        ? shownResults
+        : activeFilter?.kind === 'pinned'
+          ? groups.pinned
+          : [...groups.pinned, ...groups.others],
+    [searching, shownResults, activeFilter, groups],
+  )
   const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags])
   const sidebarNotes = useMemo(
     () =>
@@ -1965,7 +1997,8 @@ export function App() {
       mode,
       selected,
       workspace: workspaceNode?.id,
-      boards,
+      boards: layouts.boards,
+      galleries: layouts.galleries,
       note: noteState.current,
       beforeTrash: libraryState.current,
       keyboard: () => inEditor(document.activeElement),
@@ -1986,7 +2019,7 @@ export function App() {
   }, [])
   useEffect(
     () => saveNow.current?.(),
-    [restored, library, filter, selected, mode, workspace, boards],
+    [restored, library, filter, selected, mode, workspace, layouts],
   )
   // So is the state when the page goes away or out of sight, and the
   // keyboard moving in or out of the editor soon after.
@@ -2686,11 +2719,11 @@ export function App() {
     if (changes) void applyMove(changes)
   })
   const changeLayout = useStable((layout: ListLayout) =>
-    setBoards((shown) => withLayout(shown, listView, layout)),
+    setLayouts((shown) => withLayout(shown, libraryView, layout)),
   )
   const layoutKeyboard = useRef(false)
   const changeLayoutFromControl = useStable((layout: ListLayout, keyboard: boolean) => {
-    layoutKeyboard.current = keyboard && layout !== (boardShown ? 'board' : 'list')
+    layoutKeyboard.current = keyboard && layout !== shownLayout
     changeLayout(layout)
   })
   const layoutTakesKeyboard = useCallback(() => {
@@ -3170,12 +3203,12 @@ export function App() {
     modeChange.current = null
     if (change) playModeChange(change.from, modeSeen, change.before)
   }, [modeSeen])
-  const layoutSeen = useRef({ view: listView, board: boardShown })
+  const layoutSeen = useRef({ view: listView, layout: shownLayout })
   useLayoutEffect(() => {
     const was = layoutSeen.current
-    layoutSeen.current = { view: listView, board: boardShown }
-    if (was.view === listView && was.board !== boardShown) fadeInListBody()
-  }, [listView, boardShown])
+    layoutSeen.current = { view: listView, layout: shownLayout }
+    if (was.view === listView && was.layout !== shownLayout) fadeInListBody()
+  }, [listView, shownLayout])
   const togglePreview = () => {
     const from = document.activeElement
     const next =
@@ -3414,6 +3447,12 @@ export function App() {
     handlers['view.toggleBoard'] = {
       run: () => changeLayout(boardShown ? 'list' : 'board'),
       label: boardShown ? 'command.showList' : 'command.showBoard',
+    }
+  }
+  if (canGallery) {
+    handlers['view.toggleGallery'] = {
+      run: () => changeLayout(galleryShown ? 'list' : 'gallery'),
+      label: galleryShown ? 'command.showList' : 'command.showGallery',
     }
   }
   const boardTargets =
@@ -3657,15 +3696,16 @@ export function App() {
   )
   const layoutControl = useMemo(
     () =>
-      canBoard ? (
+      canBoard || canGallery ? (
         <LayoutControl
-          layout={boardShown ? 'board' : 'list'}
+          layout={shownLayout}
+          layouts={canBoard ? LAYOUTS_WITH_BOARD : LAYOUTS_WITHOUT_BOARD}
           view={listView}
           onChange={changeLayoutFromControl}
           takesKeyboard={layoutTakesKeyboard}
         />
       ) : undefined,
-    [canBoard, boardShown, listView, changeLayoutFromControl, layoutTakesKeyboard],
+    [canBoard, canGallery, shownLayout, listView, changeLayoutFromControl, layoutTakesKeyboard],
   )
   const openFromList = useStable((id: string) => void select(id))
   const createFromList = useStable(() => void create())
@@ -3975,6 +4015,7 @@ export function App() {
       data-sidebar-hidden={sidebarOff || undefined}
       data-narrow={narrow || undefined}
       data-board={boardShown || undefined}
+      data-gallery={galleryShown || undefined}
     >
       <ToolTips />
       <Sidebar
@@ -4030,7 +4071,47 @@ export function App() {
         onDeleteSavedSearch={sidebarDeleteSavedSearch}
         onPlaceSavedSearch={sidebarPlaceSavedSearch}
       />
-      {searching ? (
+      {galleryShown ? (
+        <NoteGallery
+          editing={editing}
+          view={listView}
+          title={
+            searching
+              ? (savedSearches.find((s) => s.id === activeSearch)?.name ?? t('search.results'))
+              : (filterLabel ?? libraryBook?.name ?? t('sidebar.allNotes'))
+          }
+          icon={searching ? undefined : listIcon}
+          onTitleMenu={searching ? undefined : listTitleMenu}
+          empty={searching ? 'search' : activeFilter ? 'filter' : libraryBook ? 'notebook' : 'all'}
+          filter={filterField}
+          scope={
+            searching
+              ? format(t('search.in'), { view: viewName })
+              : filterLabel !== undefined
+                ? libraryBook?.name
+                : undefined
+          }
+          notes={galleryNotes}
+          capped={searching && (results?.capped ?? false)}
+          selected={selected}
+          opening={switching ? openingId : undefined}
+          onSelect={openFromList}
+          onCreate={core && editing ? createFromList : undefined}
+          onAction={runNoteAction}
+          onMenu={showNoteMenu}
+          sort={sortButton}
+          sortButtonRef={sortButtonRef}
+          layout={layoutControl}
+          onFind={searching ? findAgain : findInView}
+          onEdit={editFromList}
+          leading={sidebarToggle}
+          selection={shownSelection}
+          onSelection={changeListSelection}
+          headlines={loadHeadlines}
+          previews={loadCardPreviews}
+          draggable={editing}
+        />
+      ) : searching ? (
         <NoteList
           editing={editing}
           view={listView}
