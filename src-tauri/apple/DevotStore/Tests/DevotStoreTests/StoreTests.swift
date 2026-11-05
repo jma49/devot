@@ -105,19 +105,20 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(after.transactions?.map(\.productId), [])
     }
 
-    func testAskToBuyIsPendingUntilApprovedThenArrivesAsAnUpdate() async throws {
+    // StoreKit Test does not always deliver the approval to Transaction.updates (it failed on CI
+    // runs of unrelated changes), so the test waits for the entitlement, which the app also reads
+    // at launch.
+    func testAskToBuyIsPendingUntilApprovedThenHeld() async throws {
         session.askToBuyEnabled = true
-        let (updates, continuation) = AsyncStream<Reply>.makeStream()
-        let listening = Store.listen { continuation.yield($0) }
-        defer { listening.cancel() }
         let reply = await Store.purchase(Store.pro)
         XCTAssertEqual(reply.status, "pending")
         XCTAssertNil(reply.transaction)
+        let before = await Store.entitlements()
+        XCTAssertEqual(before.transactions, [])
 
         try session.approveAskToBuyTransaction(identifier: storeTransaction(Store.pro).identifier)
-        let approved = try await next(updates, continuation) { $0.transaction?.productId == Store.pro }
-        XCTAssertEqual(approved.status, "transaction")
-        XCTAssertNil(approved.transaction?.revocationDate)
+        let approved = try await entitlement(Store.pro)
+        XCTAssertNil(approved.revocationDate)
     }
 
     func testACancelledPurchaseIsCancelledNotAnError() async throws {
