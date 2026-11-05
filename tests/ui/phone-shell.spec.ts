@@ -185,10 +185,9 @@ test('a drag survives the pressed tab losing its touch capture to the bar', asyn
   const notes = (await tab(page, 'Notes').boundingBox())!
   const activity = (await tab(page, 'Activity').boundingBox())!
   const y = notes.y + notes.height / 2
-  await tabs(page).evaluate((nav) => {
-    nav.addEventListener('pointerdown', (e) => (nav.dataset['pointer'] = String(e.pointerId)), {
-      capture: true,
-    })
+  await tabs(page).evaluate((nav: HTMLElement) => {
+    const remember = (e: PointerEvent) => (nav.dataset['pointer'] = String(e.pointerId))
+    nav.addEventListener('pointerdown', remember, { capture: true })
   })
   await page.mouse.move(notes.x + notes.width / 2, y)
   await page.mouse.down()
