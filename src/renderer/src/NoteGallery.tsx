@@ -565,11 +565,6 @@ interface CardProps {
   events: CardEvents
 }
 
-/**
- * One note in the gallery: its first page on a sheet, the title set as the
- * note sets it, and the pin and the time under it. An untitled note's page
- * starts with its first line, or "Untitled" when it has none.
- */
 const GalleryCard = memo(function GalleryCard(props: CardProps) {
   const { note: n, events } = props
   const id = n.id
@@ -602,7 +597,7 @@ const GalleryCard = memo(function GalleryCard(props: CardProps) {
     >
       <div className="gallery-sheet" aria-hidden inert>
         <div className="gallery-thumb">
-          {n.title || props.headline === '' ? (
+          {n.title || props.preview?.length === 0 ? (
             <div className="preview gallery-page">
               <h1 className={n.title ? 'note-title' : 'note-title is-untitled'} dir="auto">
                 {n.title || t('note.untitled')}

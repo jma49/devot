@@ -155,3 +155,12 @@ test('a status view and a search in the view show as a gallery too, never as a b
   await search.fill('')
   await expect.poll(() => cardTitles(page)).toEqual(['Alpha', 'Charlie'])
 })
+
+test('an untitled note with an empty body shows Untitled on its page', async ({ page }) => {
+  await layout(page, 'Gallery').click()
+  const echo = card(page, 'Echo')
+  await echo.click()
+  await titleField(page).fill('')
+  const empty = gallery(page).locator('.gallery-page .note-title.is-untitled')
+  await expect(empty).toHaveText('Untitled')
+})
