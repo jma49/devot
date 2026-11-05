@@ -32,6 +32,7 @@ use super::file_record;
 use super::handover;
 use super::keychain::SyncedKeychain;
 use super::moved;
+use super::names;
 use super::pairing::{self, Pairing, PairingChannel, Qr, RelayPairing};
 use super::settings::{DeviceCredentials, SettingsStore};
 use super::{MAX_RECORD_BYTES, SecretStore, Vault};
@@ -1159,7 +1160,12 @@ impl SyncService {
         if let Some(state) = settings.icloud_for(&vault_id) {
             return self
                 .connect_icloud(vault, state, has_synced)
-                .map(Connected::ICloud);
+                .map(|welcome| {
+                    Connected::ICloud(cloudkit::Welcome {
+                        epoch: names::epoch(&welcome.epoch),
+                        ..welcome
+                    })
+                });
         }
         let relay = self.relay()?;
         // A removed device stays out under any address of the relay: only a join lets it back in.
@@ -1190,7 +1196,10 @@ impl SyncService {
             connection: Arc::new(connection),
             vault: Arc::new(vault),
         });
-        Ok(Connected::Relay(welcome))
+        Ok(Connected::Relay(Welcome {
+            epoch: names::epoch(&welcome.epoch),
+            ..welcome
+        }))
     }
 
     fn connect_icloud(

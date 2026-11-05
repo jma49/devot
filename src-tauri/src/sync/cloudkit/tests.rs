@@ -584,9 +584,14 @@ fn a_record_that_shrank_keeps_no_old_chunk() {
     a.connect(false).unwrap();
     let tag = pushed_tag(&a.push(&id(1), 0, "", &vec![1; 2_000_000]));
     let zone = vault_zone(&vault.id().to_string());
-    assert!(kit.record(&zone, &id(1)).unwrap().get("chunk1").is_some());
+    assert!(
+        kit.record(&zone, &vault.store_name(&id(1)))
+            .unwrap()
+            .get("chunk1")
+            .is_some()
+    );
     a.push(&id(1), 1, &tag, b"small now");
-    let stored = kit.record(&zone, &id(1)).unwrap();
+    let stored = kit.record(&zone, &vault.store_name(&id(1))).unwrap();
     assert!(stored.get("chunk0").is_none() && stored.get("chunk1").is_none());
     assert_eq!(a.pull_all("").0[0].3, b"small now");
 }
@@ -828,7 +833,7 @@ fn a_full_icloud_pauses_without_an_end_and_the_rest_still_goes() {
     let (kit, vault) = setup();
     let mut a = device(&kit, &vault);
     a.connect(false).unwrap();
-    kit.fail_record(&id(1), ck(code::QUOTA_EXCEEDED));
+    kit.fail_record(&vault.store_name(&id(1)), ck(code::QUOTA_EXCEEDED));
     let results = a.icloud.push_many(
         &[
             Item {
@@ -896,7 +901,7 @@ fn rate_limits_pause_for_the_wait_cloudkit_asks_and_end_the_pass() {
     );
 
     kit.fail_record(
-        &id(0),
+        &vault.store_name(&id(0)),
         CkError {
             code: code::ZONE_BUSY,
             retry_after_ms: None,
@@ -950,13 +955,13 @@ fn an_item_its_batch_failed_for_is_sent_again_once() {
     let (kit, vault) = setup();
     let mut a = device(&kit, &vault);
     a.connect(false).unwrap();
-    kit.fail_record(&id(1), ck(code::BATCH_REQUEST_FAILED));
+    kit.fail_record(&vault.store_name(&id(1)), ck(code::BATCH_REQUEST_FAILED));
     assert!(matches!(
         a.push(&id(1), 0, "", b"x"),
         PushAnswer::Pushed { .. }
     ));
-    kit.fail_record(&id(2), ck(code::BATCH_REQUEST_FAILED));
-    kit.fail_record(&id(2), ck(code::BATCH_REQUEST_FAILED));
+    kit.fail_record(&vault.store_name(&id(2)), ck(code::BATCH_REQUEST_FAILED));
+    kit.fail_record(&vault.store_name(&id(2)), ck(code::BATCH_REQUEST_FAILED));
     assert_eq!(
         a.push(&id(2), 0, "", b"x"),
         PushAnswer::Failed("E_SYNC_OFFLINE")
@@ -1040,9 +1045,9 @@ fn a_record_that_does_not_open_comes_down_with_its_code() {
     a.connect(false).unwrap();
     let other = Arc::new(Vault::generate().unwrap());
     // Another vault's key sealed it: the chunks do not open here.
-    let chunks = other.encrypt_record(&id(1), 1, b"x").unwrap();
+    let (name, chunks) = other.seal_stored(&id(1), 1, b"x").unwrap();
     let (record, _) =
-        encoding::encode(&id(1), None, 1, "record", &chunks, &mut |_| unreachable!()).unwrap();
+        encoding::encode(&name, None, 1, "record", &chunks, &mut |_| unreachable!()).unwrap();
     use super::CloudKit as _;
     kit.save(
         &vault_zone(&vault.id().to_string()),
@@ -1055,5 +1060,34 @@ fn a_record_that_does_not_open_comes_down_with_its_code() {
         page.records[0].plaintext.as_ref().err(),
         Some(&"E_SYNC_CHUNK_AUTH")
     );
-    assert_eq!(page.records[0].version, 1);
+    assert_eq!(
+        (page.records[0].id.as_str(), page.records[0].version),
+        (name.as_str(), 1)
+    );
+}
+
+#[test]
+fn records_go_up_under_store_names_and_ones_filed_under_their_ids_are_left() {
+    let (kit, vault) = setup();
+    let mut a = device(&kit, &vault);
+    a.connect(false).unwrap();
+    a.push(&id(1), 0, "", b"a note");
+    let zone = vault_zone(&vault.id().to_string());
+    assert!(kit.record(&zone, &id(1)).is_none());
+    let stored = kit.record(&zone, &vault.store_name(&id(1))).unwrap();
+    assert!(!format!("{stored:?}").contains(&id(1)));
+
+    // A build before store names filed this one under its ID.
+    let chunks = vault.encrypt_record(&id(2), 1, b"older").unwrap();
+    let (record, _) =
+        encoding::encode(&id(2), None, 1, "record", &chunks, &mut |_| unreachable!()).unwrap();
+    use super::CloudKit as _;
+    kit.save(&zone, &[record], super::kit::SavePolicy::IfUnchanged)
+        .unwrap();
+    let (pulled, _) = a.pull_all("");
+    let seen: Vec<(&str, &[u8])> = pulled
+        .iter()
+        .map(|(id, _, _, plaintext)| (id.as_str(), plaintext.as_slice()))
+        .collect();
+    assert_eq!(seen, [(id(1).as_str(), &b"a note"[..])]);
 }

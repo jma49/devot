@@ -4,7 +4,7 @@ Phase 2 sync is for one person with several devices. The relay holds one encrypt
 
 ## Records
 
-- A record is one note, notebook, tag or saved search, under a random ID. Nothing in the ID derives from the content.
+- A record is one note, notebook, tag or saved search, under a random ID. Nothing in the ID derives from the content. The relay files it under a name derived from the ID with a key from the vault key, so it never sees the ID (docs/adr/0016-store-names-hide-record-ids.md).
 - A note record holds:
   - its body's full Yjs state (`Y.encodeStateAsUpdate`);
   - its metadata fields (title, notebook, status, pinned, tags), each with the HLC of its last change;
@@ -12,7 +12,7 @@ Phase 2 sync is for one person with several devices. The relay holds one encrypt
 - Notebook, tag and saved search records hold metadata fields with HLCs only.
 - The client encrypts the whole record with AES-256-GCM in Rust. The ciphertext is cut into chunks of at most 1.9 MB, so each chunk fits in one Durable Object SQLite row.
   - Every chunk has its own nonce.
-  - The additional data is a label, the vault ID, record ID, record version, chunk index and chunk count (see Records under Sync and encryption in `docs/architecture.md`). A relay that swaps, replays, reorders, truncates or extends chunks makes decryption fail.
+  - The additional data is a label, the vault ID, record ID, record version, chunk index and chunk count (see Records under Sync and encryption in `docs/architecture.md`). A relay that swaps, replays, reorders, truncates or extends chunks makes decryption fail. Since ADR 0016 the store name takes the record ID's place there, and the record ID is sealed at the start of the payload.
 
 ## Relay
 
@@ -79,7 +79,7 @@ Assumption: the relay runs on a dedicated Cloudflare account on the Workers Free
 7. **Clock skew.** HLCs bound the skew, but a device with a far-wrong clock can win metadata fields. The client refuses to sync when its clock is more than 5 minutes off the relay's time.
 8. **Relay data loss or a move to another host.** Every device holds all records, so the clients upload again. Versions restart, and the clients detect this from a new vault epoch the relay announces.
 9. **Key loss.** Without the key, the relay's copy cannot be read. Devices that still hold the key are unaffected. The printed recovery key is the only way back.
-10. **What the relay can see.** The relay sees how many records there are, their sizes, when they are written, and which device wrote them. It never sees titles, bodies or notebook names.
+10. **What the relay can see.** The relay sees how many records there are, their sizes, when they are written, and which device wrote them. It never sees titles, bodies or notebook names, nor, since ADR 0016, the record IDs and the creation times they carry.
 11. **Cloudflare changes the free plan.** The self-imposed cap is the line of defence. Read the limits again before each phase 2 release.
 12. **Attachments.** They sync as records within a 3 GB share of the relay's storage (docs/adr/0003-sync-attachments-as-records.md).
 

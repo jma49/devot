@@ -318,6 +318,18 @@ fn the_service_creates_the_vault_once_and_connects_with_the_kept_token() {
         "{stored}"
     );
     let welcome = service.connect(false).unwrap().relay();
+    let token = DeviceCredentials::load(secrets.as_ref())
+        .unwrap()
+        .unwrap()
+        .token;
+    let vault_id = Vault::load(secrets.as_ref())
+        .unwrap()
+        .unwrap()
+        .id()
+        .to_string();
+    let (raw, relays) = Connection::open(&relay.url, &vault_id, &token, Box::new(|_| ())).unwrap();
+    raw.close();
+    assert_eq!(welcome.epoch, super::names::epoch(&relays.epoch));
     let data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"record");
     assert!(matches!(
         service.push(RECORD, 0, &data, "record", ""),

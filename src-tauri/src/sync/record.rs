@@ -18,7 +18,7 @@ const OVERHEAD: usize = HEADER_BYTES + TAG_BYTES;
 
 /// A chunk's whole size, nonce and tag included, so it fits one Durable Object SQLite row (2 MB).
 pub(crate) const MAX_CHUNK_BYTES: usize = 1_900_000;
-const MAX_CHUNK_PLAINTEXT: usize = MAX_CHUNK_BYTES - OVERHEAD;
+pub(super) const MAX_CHUNK_PLAINTEXT: usize = MAX_CHUNK_BYTES - OVERHEAD;
 
 /// The largest plaintext record: a note's Yjs state may take 64 MiB (`note_put`), plus its fields.
 pub(crate) const MAX_RECORD_BYTES: usize = 80 * 1024 * 1024;
@@ -30,7 +30,7 @@ const MAX_RECORD_ID_BYTES: usize = 64;
 pub(crate) fn chunk_count(len: usize) -> usize {
     len.div_ceil(MAX_CHUNK_PLAINTEXT).max(1)
 }
-const AD_LABEL: &[u8] = b"devot/sync/record/v1";
+pub(super) const AD_LABEL: &[u8] = b"devot/sync/record/v1";
 
 impl Vault {
     /// Seals `plaintext` as `version` of record `record_id` (the version the relay will store it
@@ -47,6 +47,19 @@ impl Vault {
     /// Opening takes chunks of any size up to [`MAX_CHUNK_BYTES`], so tests can seal small ones.
     pub(super) fn encrypt_in_pieces(
         &self,
+        record_id: &str,
+        version: u64,
+        plaintext: &[u8],
+        piece_bytes: usize,
+    ) -> Result<Vec<Vec<u8>>, SyncError> {
+        self.seal_pieces(AD_LABEL, record_id, version, plaintext, piece_bytes)
+    }
+
+    /// `label` and `record_id` go into each chunk's associated data: a record ID, or the name a
+    /// store files the record under (`names.rs`).
+    pub(super) fn seal_pieces(
+        &self,
+        label: &'static [u8],
         record_id: &str,
         version: u64,
         plaintext: &[u8],
@@ -71,6 +84,7 @@ impl Vault {
                 let mut nonce = [0; NONCE_BYTES];
                 random(&mut nonce)?;
                 let at = ChunkAt {
+                    label,
                     record_id,
                     version,
                     index: index as u32,
@@ -85,6 +99,16 @@ impl Vault {
     /// that does not belong at its place in that exact set fails with `E_SYNC_CHUNK_AUTH`.
     pub(crate) fn decrypt_record<C: AsRef<[u8]>>(
         &self,
+        record_id: &str,
+        version: u64,
+        chunks: &[C],
+    ) -> Result<Zeroizing<Vec<u8>>, SyncError> {
+        self.open_pieces(AD_LABEL, record_id, version, chunks)
+    }
+
+    pub(super) fn open_pieces<C: AsRef<[u8]>>(
+        &self,
+        label: &'static [u8],
         record_id: &str,
         version: u64,
         chunks: &[C],
@@ -116,6 +140,7 @@ impl Vault {
                 header[1..].try_into().map_err(|_| SyncError::ChunkSize)?;
             let tag: [u8; TAG_BYTES] = tag.try_into().map_err(|_| SyncError::ChunkSize)?;
             let at = ChunkAt {
+                label,
                 record_id,
                 version,
                 index: index as u32,
@@ -159,6 +184,7 @@ impl Vault {
 }
 
 pub(super) struct ChunkAt<'a> {
+    pub(super) label: &'static [u8],
     pub(super) record_id: &'a str,
     pub(super) version: u64,
     pub(super) index: u32,
@@ -170,8 +196,8 @@ impl ChunkAt<'_> {
     /// (u32) || count (u32)`, integers big-endian.
     fn associated_data(&self, vault: &Vault) -> Vec<u8> {
         let id = self.record_id.as_bytes();
-        let mut ad = Vec::with_capacity(AD_LABEL.len() + 16 + 2 + id.len() + 8 + 4 + 4);
-        ad.extend_from_slice(AD_LABEL);
+        let mut ad = Vec::with_capacity(self.label.len() + 16 + 2 + id.len() + 8 + 4 + 4);
+        ad.extend_from_slice(self.label);
         ad.extend_from_slice(vault.id().as_bytes());
         ad.extend_from_slice(&(id.len() as u16).to_be_bytes());
         ad.extend_from_slice(id);
@@ -182,10 +208,13 @@ impl ChunkAt<'_> {
     }
 }
 
-/// Record IDs are random (UUIDs today): 1 to 64 bytes of ASCII letters, digits and hyphens.
-fn check_record_id(id: &str) -> Result<(), SyncError> {
+/// Record IDs are random (UUIDs today) and store names base64url: 1 to 64 bytes of ASCII letters,
+/// digits, hyphens and underscores.
+pub(super) fn check_record_id(id: &str) -> Result<(), SyncError> {
     let fits = (1..=MAX_RECORD_ID_BYTES).contains(&id.len())
-        && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
     if fits {
         Ok(())
     } else {

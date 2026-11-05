@@ -10,6 +10,7 @@ Terms the code and the docs use with one meaning each.
 - **Transport:** how a vault's devices reach its records: a relay, or the owner's iCloud (docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md). A vault uses one; switching starts a new epoch and uploads everything again.
 - **Handover item:** on a vault that syncs through iCloud, a synchronizable keychain item holding the vault ID and key, which the iCloud Keychain brings to the owner's other devices so they join without a code. Each device still keeps its own device-only copy.
 - **Record:** one note, notebook, tag, saved search or attachment, sealed under a key derived from the vault key (docs/adr/0002-sync-latest-state-per-record.md).
+- **Store name:** the name a relay or iCloud files a record under, derived from its ID with a key from the vault key, so the store never sees the ID or the creation time it carries (docs/adr/0016-store-names-hide-record-ids.md).
 - **Saved search:** a named query in the search field's syntax, kept and synced as a record of its own; the sidebar and the iPhone's Library list them with live counts.
 - **Enrollment secret:** derived from the vault key; a device presents it to the relay to become one of the vault's devices. The relay keeps only its verifier. It reveals nothing about the vault key.
 - **Device token:** what the relay gives a device when it enrolls, kept in that device's keychain. The relay keeps its hash. Removing a device revokes its token.
