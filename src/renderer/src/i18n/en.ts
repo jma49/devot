@@ -1152,6 +1152,8 @@ title: Daily Report {{date}}
     'Sync paused until {time}: the relay has reached its quota for today. Your notes keep working on this device and sync after that.',
   'sync.notice.pausedUpload':
     'Sync paused until {time}: the relay has reached its quota for today, with {sent} of {total} items uploaded. The upload goes on after that; your notes keep working on this device.',
+  'sync.notice.pausedICloud':
+    'Sync is paused: iCloud is not taking changes from this device right now ({code}). Your notes keep working on this device.',
   'sync.notice.resuming':
     'The relay’s quota for today has reset; sync resumes in a moment. Your notes keep working on this device.',
   'sync.notice.resumingUpload':
