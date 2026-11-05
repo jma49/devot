@@ -484,7 +484,7 @@ test('Settings > Sync says what to do when sync stopped for the protocol', async
   })
   await openSettings(page, 'Sync')
   await expect(page.getByRole('tabpanel')).toContainText(
-    'Stopped. Update Devot and your relay to the same release. Code E_SYNC_PROTOCOL.',
+    'Stopped. Update Devot and your relay to the same release. Not synced yet.',
   )
 })
 
