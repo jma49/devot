@@ -566,7 +566,7 @@ describe('Change Vault Key', () => {
     type(field, 'wrong')
     await act(async () => button(el, 'Change Key')?.click())
     await settle()
-    expect(el.textContent).toMatch(/could not be changed \(E_SYNC_RELAY_SECRET\)/)
+    expect(el.textContent).toMatch(/could not be changed\. The relay did not accept that secret/)
     type(field, 'relay-secret')
     await act(async () => button(el, 'Change Key')?.click())
     await settle()
