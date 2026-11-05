@@ -197,6 +197,7 @@ The core is plain TypeScript, so the UI worker and the iOS app share it.
 ## Markdown dialect
 
 - CommonMark and GFM: tables, task lists, strikethrough, autolinks, footnotes.
+- **Line breaks:** a single newline inside a paragraph shows as a line break in the preview (`src/core/preview/softBreaks.ts`), so the lines read as typed; the HTML, PDF and print pages are the preview's tree and follow it. The Markdown source and `.md` exports are unchanged.
 - YAML front matter: lines between `---` fences at the very start of a note, closed by the first later line that is `---` (spaces or tabs may follow a fence). The preview, import and the editor read it alike (the editor through a Lezer Markdown extension, `src/renderer/src/editor/markdown.ts`): nothing inside it is Markdown (the editor's Markdown helpers, such as pasting a URL as a link or HTML tag completion, are off there), the editor shows it in the secondary and tertiary text colours, and formats leave its lines alone. A note that starts with `---` and has no closing fence starts with a thematic break.
 - Alerts: `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`.
 - Math: `$…$` and `$$…$$`. Mermaid in fenced code blocks. Emoji shortcodes (`:tada:`).

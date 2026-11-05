@@ -91,7 +91,7 @@ Text meets WCAG AA in both appearances: 4.5:1 for text, 3:1 for graphics such as
 | `color.status.hold-mark`          | `#c77905` | `#f5a524` |
 | `color.status.done-mark`          | `#259f58` | `#34c06a` |
 | `color.status.dropped-mark`       | `#ea5a53` | `#ff6b63` |
-| `color.syntax.heading`            | `#ab205e` | `#f471b5` |
+| `color.syntax.heading`            | `#09665f` | `#14b8a5` |
 | `color.syntax.link`               | `#09665f` | `#14b8a5` |
 | `color.syntax.comment`            | `#535b67` | `#9ca3b0` |
 | `color.syntax.list`               | `#4c4eb8` | `#8f92f6` |

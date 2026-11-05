@@ -1479,12 +1479,8 @@
       },
       "heading": {
         "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [0.9608, 0.5412, 0.7529],
-          "hex": "#f58ac0"
-        },
-        "$description": "Heading lines, and class names in code."
+        "$value": "{color.syntax.link}",
+        "$description": "Heading lines, and class names in code: the link teal, which already keeps 4.5:1 on the editor, the active line and the selection."
       },
       "markup": {
         "$type": "color",
