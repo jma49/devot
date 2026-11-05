@@ -69,16 +69,23 @@ pub(crate) fn claim(kit: &dyn CloudKit, vault: &str) -> Result<Claim, &'static s
     Ok(Claim::Lost(winner))
 }
 
-/// Removes `vault` from this Apple ID (Leave This Vault): its zone first, so the other devices
-/// find it gone and ask before they upload again, then zones `devot` and `devot-clock` unless
-/// `current` names another vault, whose zones they are. A zone already gone is skipped, so a retry
-/// after a failure part way ends in the same state.
+/// Removes `vault` from this Apple ID (Leave This Vault). Zone `devot`, which holds `current`,
+/// goes first, so a device that connects before the vault's zone is gone stops instead of making
+/// it again; then the vault's zone, so the other devices find it gone and ask before they upload
+/// again; then `devot-clock`. When `current` names another vault, `devot` and `devot-clock` are its
+/// own and stay. A zone already gone is skipped, so a retry after a failure part way ends in the
+/// same state.
 pub(crate) fn leave(kit: &dyn CloudKit, vault: &str) -> Result<(), &'static str> {
     let ours = read(kit)?.is_none_or(|current| current == vault);
-    let mut zones = vec![vault_zone(vault)];
-    if ours {
-        zones.extend([ZONE_DEVOT.to_string(), ZONE_CLOCK.to_string()]);
-    }
+    let zones = if ours {
+        vec![
+            ZONE_DEVOT.to_string(),
+            vault_zone(vault),
+            ZONE_CLOCK.to_string(),
+        ]
+    } else {
+        vec![vault_zone(vault)]
+    };
     for zone in zones {
         kit.delete_zones(std::slice::from_ref(&zone))
             .map_err(code)?;
@@ -170,36 +177,55 @@ mod tests {
     }
 
     #[test]
-    fn leaving_deletes_the_vault_s_zone_then_the_apple_id_s_two() {
+    fn leaving_deletes_current_s_zone_before_the_vault_s() {
         let kit = Fake::new();
         with_vault(&kit, A);
         assert_eq!(leave(&kit, A), Ok(()));
         assert_eq!(
             kit.deleted_zones(),
-            [vault_zone(A).as_str(), ZONE_DEVOT, ZONE_CLOCK]
+            [ZONE_DEVOT, vault_zone(A).as_str(), ZONE_CLOCK]
         );
         assert_eq!(read(&kit), Ok(None));
     }
 
     #[test]
-    fn a_leave_that_failed_part_way_ends_the_same_when_retried() {
-        let kit = Fake::new();
-        with_vault(&kit, A);
-        kit.fail_zone_delete(ZONE_DEVOT, CkError::of(code::REQUEST_RATE_LIMITED));
-        assert_eq!(leave(&kit, A), Err(error::BUSY));
-        assert!(!kit.zone_exists(&vault_zone(A)));
-        assert!(kit.zone_exists(ZONE_DEVOT) && kit.zone_exists(ZONE_CLOCK));
-        assert_eq!(leave(&kit, A), Ok(()));
-        for zone in [vault_zone(A).as_str(), ZONE_DEVOT, ZONE_CLOCK] {
-            assert!(!kit.zone_exists(zone), "{zone}");
+    fn a_leave_that_failed_at_any_step_ends_the_same_when_retried() {
+        for (step, failing) in [ZONE_DEVOT, vault_zone(A).as_str(), ZONE_CLOCK]
+            .into_iter()
+            .enumerate()
+        {
+            let kit = Fake::new();
+            with_vault(&kit, A);
+            kit.fail_zone_delete(failing, CkError::of(code::REQUEST_RATE_LIMITED));
+            assert_eq!(leave(&kit, A), Err(error::BUSY), "{failing}");
+            assert_eq!(kit.deleted_zones().len(), step, "{failing}");
+            let left = (step == 0).then(|| A.to_string());
+            assert_eq!(read(&kit), Ok(left), "current goes first: {failing}");
+            assert_eq!(leave(&kit, A), Ok(()), "{failing}");
+            for zone in [ZONE_DEVOT, vault_zone(A).as_str(), ZONE_CLOCK] {
+                assert!(!kit.zone_exists(zone), "{failing}: {zone}");
+            }
+            assert_eq!(leave(&kit, A), Ok(()), "nothing left to delete");
         }
-        assert_eq!(leave(&kit, A), Ok(()), "nothing left to delete");
 
         let offline = Fake::new();
         with_vault(&offline, A);
         offline.fail_next(Op::Fetch, CkError::of(code::NETWORK_UNAVAILABLE));
         assert_eq!(leave(&offline, A), Err(error::OFFLINE));
         assert!(offline.deleted_zones().is_empty());
+    }
+
+    #[test]
+    fn a_retry_after_another_vault_claimed_current_keeps_its_zones() {
+        let kit = Fake::new();
+        with_vault(&kit, A);
+        kit.fail_zone_delete(&vault_zone(A), CkError::of(code::NETWORK_UNAVAILABLE));
+        assert_eq!(leave(&kit, A), Err(error::OFFLINE));
+        assert_eq!(claim(&kit, B), Ok(Claim::Won));
+        assert_eq!(leave(&kit, A), Ok(()));
+        assert!(!kit.zone_exists(&vault_zone(A)));
+        assert_eq!(read(&kit), Ok(Some(B.to_string())));
+        assert!(kit.zone_exists(ZONE_CLOCK));
     }
 
     #[test]
