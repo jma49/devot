@@ -1,4 +1,4 @@
-//! The `devot` command (docs/architecture.md, Command line). The script in
+//! The `devot` command (docs/specs/command-line.md). The script in
 //! the bundle (`cli/devot`) runs this binary with [`FLAG`]. Exit status: 0
 //! done, 1 failed, 2 not understood.
 
