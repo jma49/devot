@@ -1498,7 +1498,7 @@
       "heading": {
         "$type": "color",
         "$value": "{color.syntax.link}",
-        "$description": "Heading lines, and class names in code: the link teal, which already keeps 4.5:1 on the editor, the active line and the selection."
+        "$description": "Heading lines: the link teal, which already keeps 4.5:1 on the editor, the active line and the selection."
       },
       "markup": {
         "$type": "color",
