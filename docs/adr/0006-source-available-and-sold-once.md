@@ -1,5 +1,7 @@
 # Devot is source-available under FSL and sold once, with a license checked offline
 
+Status: accepted. Amended by ADR 0009 and ADR 0014.
+
 The repository stays public under the Functional Source License 1.1 with MIT as the future license (FSL-1.1-MIT). Devot works fully for a 30-day trial; after it, notes are read-only until a license is added. A license bought once through Stripe unlocks everything on all of the buyer's devices, in every version of Devot, forever. There is no renewal. The license is a signed key that the app checks offline, so there is still no account (ADR 0004). This amends ADR 0004: Devot runs one small hosted service, the license Worker, which never sees notes.
 
 ## Source license
@@ -72,7 +74,7 @@ The repository stays public under the Functional Source License 1.1 with MIT as 
 
 1. **Builds without the check.** FSL lets anyone build Devot from source without the license check and publish such builds free of charge, as long as they are not sold and do not use Devot's name. What is sold is the signed and notarised app, its updates and the time it saves. Nothing is obfuscated.
 2. **Every release turns MIT after two years,** including its sync and AI code. A license pays for every version to come, so income comes from new buyers only.
-3. **iOS.** Outside the US storefront, App Store rules may require the license to be sold as an in-app purchase as well. This is decided in its own ADR when iOS ships.
+3. **iOS.** Outside the US storefront, App Store rules may require the license to be sold as an in-app purchase as well. ADR 0014 settles it: the iPhone app is sold on the App Store with an in-app purchase, and the license still unlocks it.
 4. **The Worker is a service.** While it is down nobody can buy, resend or fetch revocations. Installed apps keep working, because the check is offline.
 5. **The signing key.**
    - If it is lost, no license can be issued until a new `kid` ships in a release.
@@ -111,3 +113,5 @@ ADR 0009 amends "all of the buyer's devices" and "a licence works offline foreve
 The trial is now 30 days instead of three, to let people try Devot long enough to move their notes in. Its length is applied to the start already kept in the keychain, so a device whose three days had run out gets the rest of the 30 when it updates.
 
 Only the release workflow's build checks licences. A build made from source gates nothing, so anyone unwilling to pay can build Devot themselves, within the source license. The sale is the signed and notarised app, its updates and support for the work, as Risks 1 already says.
+
+ADR 0014 sells the iPhone app on the App Store: a free download unlocked by the Devot Pro in-app purchase, with a free 30-day Trial purchase in place of the keychain trial in App Store builds. A license still unlocks the iPhone by taking a seat, and a Devot Pro purchase can be exchanged at the Worker for a license key whose `licensee` is `App Store purchase` rather than an email address. The Mac, its trial and its Stripe sale do not change.

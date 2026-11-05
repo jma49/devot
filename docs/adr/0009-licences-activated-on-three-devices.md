@@ -1,5 +1,7 @@
 # Licences are activated on up to three devices, with a 30-day lease
 
+Status: accepted. Amended by ADR 0014: an iPhone unlocked by its own App Store purchase takes no seat.
+
 This amends ADR 0006: a licence still unlocks every version, but it is no longer usable on an
 unlimited number of devices. A key buys three seats, and a seat is a device the licence Worker has
 seen activate it.
