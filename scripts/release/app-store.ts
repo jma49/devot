@@ -6,6 +6,16 @@
 //     its beta) and `build=<run number>.<run attempt>` (CFBundleVersion, which App Store Connect
 //     needs to grow with every upload) for $GITHUB_OUTPUT.
 //
+//   node scripts/release/app-store.ts project-settings <project.pbxproj>
+//     Writes the App Store build's switches into the iPhone app's build settings, and
+//     DEVOT_SENTRY_DSN when the environment has one. The Tauri CLI starts xcodebuild with only its
+//     own variables, so these reach Xcode, and the Rust build through Xcode's Run Script phase,
+//     only as build settings.
+//
+//   node scripts/release/app-store.ts marker-check <target>/aarch64-apple-ios/release/deps
+//     Checks from rustc's dep-info that the Rust build read DEVOT_RELEASE_BUILD=1 and
+//     DEVOT_DISTRIBUTION=app-store.
+//
 //   node scripts/release/app-store.ts check-bundle <Info.plist as JSON> <short> <build>
 //     Checks the archived app is the iPhone-only App Store build with iCloud and that version.
 //
@@ -14,8 +24,8 @@
 //     calls one its privacy manifest gives no reason for) and checks the manifest gives each a reason.
 //
 // Errors are GitHub annotations with a code and end the run with status 1.
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const config = new URL('../../src-tauri/tauri.conf.json', import.meta.url)
@@ -68,6 +78,65 @@ export function bundleProblems(
     problems.push(
       `E_APP_STORE_BUILD_NUMBER: CFBundleVersion is ${shown(info['CFBundleVersion'])}, not ${expected.build}`,
     )
+  }
+  return problems
+}
+
+export const APP_STORE_SETTINGS = {
+  DEVOT_RELEASE_BUILD: '1',
+  DEVOT_DISTRIBUTION: 'app-store',
+  DEVOT_ICLOUD: 'YES',
+} as const
+
+const SETTINGS_ANCHOR = /^(\t+)DEVOT_ENTITLEMENTS_YES = devot_iOS\/devot_iOS\.entitlements;\n/gm
+
+/** The project with `settings` added to each of the iPhone app's two build configurations. */
+export function withAppStoreSettings(project: string, extra: Record<string, string> = {}): string {
+  const settings: Record<string, string> = { ...APP_STORE_SETTINGS, ...extra }
+  const set = Object.keys(settings).filter((name) =>
+    new RegExp(`^\\s*${name} = `, 'm').test(project),
+  )
+  if (set.length > 0) {
+    throw new Error(`E_APP_STORE_PROJECT: the project sets ${set.join(', ')} already`)
+  }
+  const anchors = project.match(SETTINGS_ANCHOR)?.length ?? 0
+  if (anchors !== 2) {
+    throw new Error(
+      `E_APP_STORE_PROJECT: the project has ${anchors} iPhone app configurations with DEVOT_ENTITLEMENTS_YES, not 2`,
+    )
+  }
+  const quoted = (value: string) => `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`
+  return project.replace(SETTINGS_ANCHOR, (line, indent: string) =>
+    [
+      line,
+      ...Object.entries(settings)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([name, value]) => `${indent}${name} = ${quoted(value)};\n`),
+    ].join(''),
+  )
+}
+
+const MARKERS = {
+  DEVOT_RELEASE_BUILD: APP_STORE_SETTINGS.DEVOT_RELEASE_BUILD,
+  DEVOT_DISTRIBUTION: APP_STORE_SETTINGS.DEVOT_DISTRIBUTION,
+}
+
+/** What is wrong with the markers the crates of a build read, from their dep-info files. */
+export function markerProblems(depInfos: string[]): string[] {
+  const problems: string[] = []
+  for (const [name, wanted] of Object.entries(MARKERS)) {
+    const seen = depInfos.flatMap((info) =>
+      [...info.matchAll(new RegExp(`^# env-dep:${name}(?:=(.*))?$`, 'gm'))].map((m) => m[1]),
+    )
+    if (seen.length === 0) {
+      problems.push(`E_APP_STORE_MARKER: no crate of the Rust build read ${name}`)
+      continue
+    }
+    for (const value of new Set(seen.filter((v) => v !== wanted))) {
+      problems.push(
+        `E_APP_STORE_MARKER: the Rust build read ${name} ${value === undefined ? 'unset' : `as ${JSON.stringify(value)}`}, not ${wanted}`,
+      )
+    }
   }
   return problems
 }
@@ -161,6 +230,25 @@ function main(args: string[]) {
     console.log(`short=${short}\nbuild=${build}`)
     return
   }
+  if (command === 'project-settings' && rest.length === 1) {
+    const dsn = process.env['DEVOT_SENTRY_DSN']
+    const extra = dsn ? { DEVOT_SENTRY_DSN: dsn } : {}
+    writeFileSync(rest[0]!, withAppStoreSettings(readFileSync(rest[0]!, 'utf8'), extra))
+    console.log(
+      `Set ${[...Object.keys(APP_STORE_SETTINGS), ...Object.keys(extra)].join(', ')} for the iPhone app.`,
+    )
+    return
+  }
+  if (command === 'marker-check' && rest.length === 1) {
+    const deps = rest[0]!
+    const infos = readdirSync(deps)
+      .filter((file) => file.endsWith('.d'))
+      .map((file) => readFileSync(join(deps, file), 'utf8'))
+    const problems = markerProblems(infos)
+    if (problems.length > 0) throw new Error(problems.map((p) => `::error::${p}`).join('\n'))
+    console.log('The Rust build read DEVOT_RELEASE_BUILD=1 and DEVOT_DISTRIBUTION=app-store.')
+    return
+  }
   if (command === 'check-bundle' && rest.length === 3) {
     const problems = bundleProblems(readJson(rest[0]!), { short: rest[1]!, build: rest[2]! })
     if (problems.length > 0) throw new Error(problems.map((p) => `::error::${p}`).join('\n'))
@@ -178,7 +266,7 @@ function main(args: string[]) {
     return
   }
   throw new Error(
-    '::error::E_APP_STORE_USAGE: version <version> <run number> <run attempt> | check-bundle <info.json> <short> <build> | privacy-check <privacy.json> <symbols> <strings>',
+    '::error::E_APP_STORE_USAGE: version <version> <run number> <run attempt> | project-settings <project.pbxproj> | marker-check <deps dir> | check-bundle <info.json> <short> <build> | privacy-check <privacy.json> <symbols> <strings>',
   )
 }
 

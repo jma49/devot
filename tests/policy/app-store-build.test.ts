@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { APP_STORE_SETTINGS } from '../../scripts/release/app-store'
 
 // The App Store build of the iPhone app (docs/releasing.md, The App Store build; ADR 0014):
 // iPhone only, with the App Store marker, the iCloud container and the privacy manifest, and the
@@ -133,11 +134,18 @@ describe('the iPhone app', () => {
 
 describe('the App Store workflow', () => {
   it('builds the release build with the App Store marker and iCloud, unsigned', () => {
-    const archive = step('Archive the App Store build')
-    expect(archive).toMatch(/^ {10}DEVOT_RELEASE_BUILD: '1'$/m)
-    expect(archive).toMatch(/^ {10}DEVOT_DISTRIBUTION: app-store$/m)
-    expect(archive).toMatch(/^ {10}DEVOT_ICLOUD: 'YES'$/m)
+    const settings = step('Set the App Store build settings')
+    expect(settings).toContain(
+      'node scripts/release/app-store.ts project-settings src-tauri/gen/apple/devot.xcodeproj/project.pbxproj',
+    )
+    expect(APP_STORE_SETTINGS).toEqual({
+      DEVOT_RELEASE_BUILD: '1',
+      DEVOT_DISTRIBUTION: 'app-store',
+      DEVOT_ICLOUD: 'YES',
+    })
     expect(read('src-tauri/build_env.rs')).toContain('pub const APP_STORE: &str = "app-store";')
+    const archive = step('Archive the App Store build')
+    expect(workflow.indexOf(settings)).toBeLessThan(workflow.indexOf(archive))
     expect(archive).toContain('pnpm tauri ios build --archive-only --no-sign --config "$config"')
     expect(archive).toContain('bundleVersion: $build')
     expect(archive).not.toMatch(/--debug|--target/)
@@ -145,6 +153,7 @@ describe('the App Store workflow', () => {
 
   it('checks the archive is iPhone only, with iCloud, its version and a privacy manifest for what it calls', () => {
     const check = step('Check and hand over the archive')
+    expect(check).toContain('node scripts/release/app-store.ts marker-check "$deps"')
     expect(check).toContain(
       'node scripts/release/app-store.ts check-bundle "$checks/info.json" "$SHORT" "$BUILD"',
     )

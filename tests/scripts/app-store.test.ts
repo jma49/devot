@@ -1,13 +1,15 @@
 import { spawnSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   appStoreVersion,
   bundleProblems,
+  markerProblems,
   otoolStrings,
   undeclaredReasons,
   usedReasonApis,
+  withAppStoreSettings,
 } from '../../scripts/release/app-store'
 import { tempDir } from '../support/temp-dirs'
 
@@ -212,6 +214,100 @@ describe('the required-reason API scan', () => {
     expect(refused.status).toBe(1)
     expect(refused.stderr).toContain(
       '::error::E_APP_STORE_PRIVACY_UNDECLARED: NSPrivacyAccessedAPICategoryFileTimestamp (_fstat)',
+    )
+  })
+})
+
+const PROJECT = 'src-tauri/gen/apple/devot.xcodeproj/project.pbxproj'
+
+// The Tauri CLI starts xcodebuild with only its own variables (TAURI_*, CARGO_*, RUST_*), so the
+// App Store switches reach Xcode, and through its Run Script phase cargo, as build settings.
+describe('the App Store build settings', () => {
+  it("sets the markers and the iCloud switch in both of the iPhone app's configurations", () => {
+    const project = withAppStoreSettings(readFileSync(PROJECT, 'utf8'))
+    for (const setting of [
+      'DEVOT_DISTRIBUTION = "app-store";',
+      'DEVOT_ICLOUD = "YES";',
+      'DEVOT_RELEASE_BUILD = "1";',
+    ])
+      expect({ setting, count: project.split(`\t\t\t\t${setting}\n`).length - 1 }).toEqual({
+        setting,
+        count: 2,
+      })
+    expect(project).not.toContain('DEVOT_SENTRY_DSN')
+  })
+
+  it("passes the crash reporter's DSN when there is one, quoted", () => {
+    const project = withAppStoreSettings(readFileSync(PROJECT, 'utf8'), {
+      DEVOT_SENTRY_DSN: 'https://key@o1.ingest.example/2',
+    })
+    expect(
+      project.split('\t\t\t\tDEVOT_SENTRY_DSN = "https://key@o1.ingest.example/2";\n'),
+    ).toHaveLength(3)
+  })
+
+  it('refuses a project it cannot place them in, or that sets them already', () => {
+    expect(() => withAppStoreSettings('// !$*UTF8*$!\n{}')).toThrow(/^E_APP_STORE_PROJECT/)
+    const once = withAppStoreSettings(readFileSync(PROJECT, 'utf8'))
+    expect(() => withAppStoreSettings(once)).toThrow(/^E_APP_STORE_PROJECT: .*DEVOT_DISTRIBUTION/)
+  })
+
+  it('writes them into the project file it is given', () => {
+    const dir = tempDir('devot-app-store-project-')
+    const copy = join(dir, 'project.pbxproj')
+    writeFileSync(copy, readFileSync(PROJECT, 'utf8'))
+    const result = spawnSync(process.execPath, [script, 'project-settings', copy], {
+      encoding: 'utf8',
+      env: { PATH: process.env['PATH'] ?? '', DEVOT_SENTRY_DSN: '' },
+    })
+    expect(result.status).toBe(0)
+    expect(readFileSync(copy, 'utf8')).toContain('DEVOT_DISTRIBUTION = "app-store";')
+    expect(readFileSync(copy, 'utf8')).not.toContain('DEVOT_SENTRY_DSN')
+  })
+})
+
+// rustc lists each environment variable a crate read at compile time in its dep-info, with the value.
+describe('the markers the Rust build saw', () => {
+  const depInfo = (...lines: string[]) =>
+    ['/w/target/release/deps/app-1.d: src/lib.rs', '', ...lines.map((l) => `# env-dep:${l}`)].join(
+      '\n',
+    )
+
+  it('passes when the crate read the release marker and the App Store marker', () => {
+    expect(
+      markerProblems([depInfo('DEVOT_RELEASE_BUILD=1', 'DEVOT_DISTRIBUTION=app-store'), depInfo()]),
+    ).toEqual([])
+  })
+
+  it('names a marker the build did not see, or saw with another value', () => {
+    expect(
+      markerProblems([depInfo('DEVOT_RELEASE_BUILD', 'DEVOT_DISTRIBUTION=app-store')]),
+    ).toEqual(['E_APP_STORE_MARKER: the Rust build read DEVOT_RELEASE_BUILD unset, not 1'])
+    expect(markerProblems([depInfo('DEVOT_RELEASE_BUILD=1')])).toEqual([
+      'E_APP_STORE_MARKER: no crate of the Rust build read DEVOT_DISTRIBUTION',
+    ])
+    expect(
+      markerProblems([
+        depInfo('DEVOT_RELEASE_BUILD=1', 'DEVOT_DISTRIBUTION=app-store'),
+        depInfo('DEVOT_DISTRIBUTION'),
+      ]),
+    ).toEqual(['E_APP_STORE_MARKER: the Rust build read DEVOT_DISTRIBUTION unset, not app-store'])
+  })
+
+  it('checks the dep-info files of a build folder', () => {
+    const deps = join(tempDir('devot-app-store-deps-'), 'deps')
+    mkdirSync(deps)
+    writeFileSync(
+      join(deps, 'app-1.d'),
+      depInfo('DEVOT_RELEASE_BUILD=1', 'DEVOT_DISTRIBUTION=app-store'),
+    )
+    writeFileSync(join(deps, 'app-1.rlib'), 'DEVOT_DISTRIBUTION')
+    expect(run('marker-check', deps).status).toBe(0)
+    writeFileSync(join(deps, 'other-2.d'), depInfo('DEVOT_DISTRIBUTION'))
+    const failed = run('marker-check', deps)
+    expect(failed.status).toBe(1)
+    expect(failed.stderr).toContain(
+      '::error::E_APP_STORE_MARKER: the Rust build read DEVOT_DISTRIBUTION unset',
     )
   })
 })

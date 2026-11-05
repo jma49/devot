@@ -144,14 +144,16 @@ jobs:
           workspaces: src-tauri
           # Only tags and pull requests run here, whose caches serve no later run and crowd out main's.
           save-if: false
+      # The release marker, the App Store marker (src-tauri/src/distribution.rs) and the iCloud
+      # switch (docs/releasing.md, iCloud entitlements). The Tauri CLI starts xcodebuild with only
+      # its own variables, so they go into this checkout's project as build settings, which Xcode
+      # hands to the Rust build.
+      - name: Set the App Store build settings
+        env:
+          DEVOT_SENTRY_DSN: ${{ secrets.DEVOT_SENTRY_DSN }}
+        run: node scripts/release/app-store.ts project-settings src-tauri/gen/apple/devot.xcodeproj/project.pbxproj
       - name: Archive the App Store build
         env:
-          # The App Store build (src-tauri/src/distribution.rs): StoreKit, the Trial purchase, no outside purchase link.
-          DEVOT_RELEASE_BUILD: '1'
-          DEVOT_DISTRIBUTION: app-store
-          # The iCloud container in Info.plist (docs/releasing.md, iCloud entitlements).
-          DEVOT_ICLOUD: 'YES'
-          DEVOT_SENTRY_DSN: ${{ secrets.DEVOT_SENTRY_DSN }}
           BUILD: ${{ steps.version.outputs.build }}
         run: |
           config=$(jq -nc --arg build "$BUILD" '{ bundle: { iOS: { bundleVersion: $build } } }')
@@ -166,6 +168,12 @@ jobs:
             echo "::error::E_APP_STORE_ARCHIVE: the build made no single .xcarchive."
             exit 1
           fi
+          deps=$(find src-tauri/target -type d -path '*/aarch64-apple-ios/release/deps')
+          if [ -z "$deps" ] || [ "$(wc -l <<< "$deps")" -ne 1 ]; then
+            echo "::error::E_APP_STORE_MARKER: the build left no single iPhone release build folder."
+            exit 1
+          fi
+          node scripts/release/app-store.ts marker-check "$deps"
           app=$(find "$archive/Products/Applications" -maxdepth 1 -name '*.app' -type d)
           checks=$RUNNER_TEMP/checks
           mkdir "$checks"
