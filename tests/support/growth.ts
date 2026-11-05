@@ -1,3 +1,5 @@
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
 import { expect, type TestContext } from 'vitest'
 import { skipIfOverloaded } from './budget'
 
@@ -5,16 +7,23 @@ import { skipIfOverloaded } from './budget'
 // so no budget depends on how fast the machine is: four times the input takes about 4 times as
 // long in linear time and up to 16 times in quadratic time. Time is the process's CPU time, which a
 // busy machine inflates far less than the clock on the wall. An untimed warm-up of both sizes comes
-// first, so compilation of the code under test does not weigh on the small size alone. Each round
-// then runs both sizes, so load that drifts meanwhile weighs on both, and the median of the rounds
-// counts (the fastest of a few was often a lucky small run that X
+// first, so compilation of the code under test does not weigh on the small size alone, and each
+// timing starts after a collection, so the garbage of building the input is not paid for in it.
+// Each round then runs both sizes, so load that drifts meanwhile weighs on both, and the median of
+// the rounds counts (the fastest of a few was often a lucky small run that inflated the ratio). A
+// busy hosted runner has measured linear work at 6.5, so a check must have quadratic work at 9 or
+// more.
 
 const LIMIT = 7
 
 /** For a growth test that builds large inputs: Vitest's 5 s default is too short for the warm-up and rounds. */
 export const GROWTH_TIMEOUT = 30_000
 
+setFlagsFromString('--expose-gc')
+const collect = runInNewContext('gc') as () => void
+
 const timed = (work: () => void) => {
+  collect()
   const start = process.cpuUsage()
   work()
   const { user, system } = process.cpuUsage(start)
