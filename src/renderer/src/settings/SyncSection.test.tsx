@@ -18,7 +18,7 @@ interface Answers {
   snapshot: Record<string, unknown>
   icloud: ICloudStatus | Error
   devices: Record<string, unknown>[]
-  useFails?: string
+  useFails?: string | undefined
 }
 
 const DEVICES = [
