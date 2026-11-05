@@ -119,6 +119,11 @@ const LOOK_BLOCKED = new Set<CodeKind>(['signedOut', 'restricted', 'unavailable'
 const ofCode = (kind: CodeKind, pausedUntil: number | null): ICloudAttention =>
   kind === 'busy' ? { kind, until: pausedUntil } : { kind }
 
+// Rust keeps the look until the app quits: a later stop, pause or outage words itself instead.
+const runsWell = ({ status }: SyncSnapshot) =>
+  status.code === null &&
+  (status.state === 'idle' || status.state === 'syncing' || status.state === 'connecting')
+
 /** What iCloud asks of the owner now, if anything. */
 export function icloudAttention(snapshot: SyncSnapshot): ICloudAttention | undefined {
   const { state, code, pausedUntil } = snapshot.status
@@ -131,7 +136,8 @@ export function icloudAttention(snapshot: SyncSnapshot): ICloudAttention | undef
     return ofCode(held, pausedUntil)
   const join = snapshot.icloudJoin
   if (!join) return undefined
-  if (join.state === 'joined' && snapshot.transport === 'icloud') return { kind: 'joined' }
+  if (join.state === 'joined' && snapshot.transport === 'icloud')
+    return runsWell(snapshot) ? { kind: 'joined' } : undefined
   if (snapshot.vault) return undefined
   if (join.state === 'ask') return { kind: 'ask', notes: join.notes ?? 0 }
   if (join.state === 'fallback') return { kind: 'fallback', reason: join.reason ?? 'missing' }
@@ -210,6 +216,9 @@ function filled(key: MessageKey, attention: ICloudAttention, pauseOver: boolean)
 export const icloudNotice = (attention: ICloudAttention, pauseOver: boolean): string =>
   filled(NOTICES[attention.kind], attention, pauseOver)
 
+// The phone's catalog leaves some hints empty.
+const withHint = (text: string, hint: MessageKey) => (t(hint) ? `${text} ${t(hint)}` : text)
+
 /** The words Settings > Sync shows for `attention`, and what the owner can do there. */
 export function icloudLine(
   attention: ICloudAttention,
@@ -227,8 +236,8 @@ export function icloudLine(
       return { text, actions: ['turnOff'] }
     case 'moved':
       return snapshot.transport === 'relay' && icloud.available
-        ? { text: `${text} ${t('syncSettings.vaultMovedHint')}`, actions: ['follow'] }
-        : { text: `${text} ${t('syncSettings.vaultMovedElsewhere')}`, actions: [] }
+        ? { text: withHint(text, 'syncSettings.vaultMovedHint'), actions: ['follow'] }
+        : { text: withHint(text, 'syncSettings.vaultMovedElsewhere'), actions: [] }
     case 'ask':
       return { text, actions: ['join', 'decline'] }
     default:

@@ -18,7 +18,7 @@ const STOPPED: Readonly<Record<string, MessageKey>> = {
 function stateMessage(snapshot: SyncSnapshot, pauseOver: boolean): string | undefined {
   const { state, code, pausedUntil, upload } = snapshot.status
   const icloud = icloudAttention(snapshot)
-  if (icloud) return icloudNotice(icloud, pauseOver)
+  if (icloud && icloud.kind !== 'joined') return icloudNotice(icloud, pauseOver)
   if (state === 'paused' && pausedUntil !== null) {
     const locale = currentLocale()
     if (pauseOver) {
@@ -40,7 +40,7 @@ function stateMessage(snapshot: SyncSnapshot, pauseOver: boolean): string | unde
     if (advice) return format(t('sync.notice.stoppedAdvice'), { code, advice: t(advice) })
     return format(t(STOPPED[code] ?? 'sync.notice.stopped'), { code })
   }
-  return undefined
+  return icloud ? icloudNotice(icloud, pauseOver) : undefined
 }
 
 function usageMessage(snapshot: SyncSnapshot, usage: UsageNotice | null): string | undefined {

@@ -88,7 +88,7 @@ export const enPhone: Partial<Messages> = {
   'syncSettings.icloudStorageValue': 'About {size}',
   'syncSettings.icloudStorageReading': '',
   'syncSettings.icloudStorageManaged': 'Manage iCloud storage in Settings.',
-  'syncSettings.icloudDevicesHint': 'Leave by signing out of the Apple ID',
+  'syncSettings.icloudDevicesHint': 'With the day each was last seen',
   'syncSettings.vaultMoved': 'Vault moved to iCloud',
   'syncSettings.vaultMovedHint': '',
   'syncSettings.vaultMovedElsewhere': '',

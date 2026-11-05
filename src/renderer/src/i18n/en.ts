@@ -1146,7 +1146,7 @@ title: Daily Report {{date}}
   'syncSettings.icloudMoveToThisAccount': 'Move to This Apple ID',
   'syncSettings.icloudMoveConfirm': 'Move this vault into the Apple ID signed in now?',
   'syncSettings.icloudMoveDetail':
-    'This device uploads all its notes there. Devices on the other Apple ID stop syncing with this one until they move too.',
+    'This device uploads all its notes there. Devices on the other Apple ID stop syncing with this one until they follow, by signing in to this Apple ID and moving there too.',
   'syncSettings.icloudMoveButton': 'Move',
   'syncSettings.icloudDeleted':
     'This vault’s data was removed from iCloud, perhaps under iCloud storage. Upload it again from this device, or turn sync off.',
@@ -1178,7 +1178,7 @@ title: Daily Report {{date}}
   'syncSettings.icloudStorageManaged':
     'Your iCloud storage, and how much of it is left, is managed in System Settings > Apple Account > iCloud.',
   'syncSettings.icloudDevicesHint':
-    'The devices syncing this vault through your Apple ID, with the day each was last seen. A device leaves by signing out of this Apple ID, or by turning sync off on it.',
+    'The devices syncing this vault through your Apple ID, with the day each was last seen. A device that signed out stays listed.',
   'syncSettings.deviceSeen': 'Seen {date}',
   'syncSettings.vaultMoved': 'This vault moved to iCloud on another of your devices.',
   'syncSettings.vaultMovedHint': 'Follow it to keep syncing here.',

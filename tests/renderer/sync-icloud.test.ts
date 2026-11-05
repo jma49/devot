@@ -2,6 +2,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { setIPhoneWording } from '../../src/renderer/src/i18n'
 import { WHY } from '../../src/renderer/src/settings/syncWhy'
 import { readSnapshot, type SyncSnapshot } from '../../src/renderer/src/sync'
 import {
@@ -155,6 +156,35 @@ describe('the iCloud states', () => {
     expect(line(rust({ icloudJoin: { state: 'joined' } }))).toMatch(/iCloud Keychain and joined/)
   })
 
+  it('says the device joined only while sync runs well, never over a later state', () => {
+    const joined = (status: Record<string, unknown>) =>
+      rust({ icloudJoin: { state: 'joined' }, status })
+    for (const state of ['idle', 'syncing', 'connecting'])
+      expect(icloudAttention(joined({ state }))).toEqual({ kind: 'joined' })
+    expect(icloudAttention(joined({ state: 'offline' }))).toBeUndefined()
+    expect(
+      icloudAttention(joined({ state: 'stopped', code: 'E_LICENCE_REQUIRED' })),
+    ).toBeUndefined()
+    expect(icloudAttention(joined({ state: 'syncing', code: 'E_SYNC_OFFLINE' }))).toBeUndefined()
+  })
+
+  it('leaves the empty phone hint off a moved vault’s line', () => {
+    setIPhoneWording(true)
+    try {
+      const moved = rust({
+        transport: 'relay',
+        enrolled: true,
+        status: { state: 'stopped', code: 'E_SYNC_VAULT_MOVED' },
+      })
+      for (const icloud of [ICLOUD, { available: false, account: null }] as const)
+        expect(icloudLine({ kind: 'moved' }, moved, icloud, false).text).toBe(
+          'Vault moved to iCloud',
+        )
+    } finally {
+      setIPhoneWording(false)
+    }
+  })
+
   it('marks Sync in the phone’s Settings only when the owner has something to do', () => {
     expect(syncNeedsOwner(stopped('E_SYNC_ICLOUD_DELETED'))).toBe(true)
     expect(syncNeedsOwner(paused('E_SYNC_ICLOUD_SIGNED_OUT'))).toBe(true)
@@ -194,6 +224,18 @@ describe('the main window’s notice', () => {
     ]) {
       expect(syncNoticeMessages(snapshot, false, null)[0]).toContain('Settings > Sync')
     }
+  })
+
+  it('words a later stop of a joined device, not the join', () => {
+    const joined = (status: Record<string, unknown>) =>
+      rust({ icloudJoin: { state: 'joined' }, status })
+    expect(
+      syncNoticeMessages(joined({ state: 'stopped', code: 'E_LICENCE_REQUIRED' }), false, null),
+    ).toEqual([expect.stringMatching(/needs a Devot license/)])
+    expect(
+      syncNoticeMessages(joined({ state: 'stopped', code: 'E_SYNC_CLOCK_SKEW' }), false, null),
+    ).toEqual([expect.stringMatching(/clock/)])
+    expect(syncNoticeMessages(joined({ state: 'offline' }), false, null)).toEqual([])
   })
 
   it('asks about the Apple ID’s vault while sync is still off here', () => {

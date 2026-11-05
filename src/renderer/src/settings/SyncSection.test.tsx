@@ -230,7 +230,8 @@ describe.each([
     expect(el.textContent).toMatch(
       phone ? /Manage iCloud storage in Settings/ : /System Settings > Apple Account > iCloud/,
     )
-    expect(el.textContent).toMatch(/signing out of (this|the) Apple ID/)
+    expect(el.textContent).toMatch(/day each was last seen/i)
+    expect(el.textContent).not.toMatch(/leaves? by signing out/i)
     expect(el.textContent).toContain('Pocket')
     expect(el.textContent).toMatch(/Seen /)
     expect(buttons(el).some((b) => b.text.startsWith('Remove'))).toBe(false)
@@ -279,6 +280,32 @@ describe.each([
     for (const action of actions) expect(button(el, action)?.disabled).toBe(false)
     expect(button(el, 'Turn Sync Off') !== undefined).toBe(
       (actions as readonly string[]).includes('Turn Sync Off'),
+    )
+  })
+
+  it('keeps the upload, the code and the last sync on an iCloud state', async () => {
+    const el = await show(
+      snapshot({
+        status: { state: 'paused', code: 'E_SYNC_ICLOUD_FULL', upload: { sent: 3, total: 10 } },
+      }),
+      ICLOUD,
+      phone,
+    )
+    expect(el.textContent).toMatch(/iCloud (storage )?is full/)
+    expect(el.textContent).toContain('3 of 10 items uploaded.')
+    expect(el.textContent).toContain('Code E_SYNC_ICLOUD_FULL.')
+    expect(el.textContent).toMatch(/Last synced /)
+  })
+
+  it('tells, before moving to this Apple ID, how the other devices follow', async () => {
+    const el = await show(
+      snapshot({ status: { state: 'stopped', code: 'E_SYNC_ICLOUD_ACCOUNT_CHANGED' } }),
+      ICLOUD,
+      phone,
+    )
+    await act(async () => button(el, 'Move to This Apple ID…')?.click())
+    expect(document.body.textContent).toContain(
+      'by signing in to this Apple ID and moving there too',
     )
   })
 

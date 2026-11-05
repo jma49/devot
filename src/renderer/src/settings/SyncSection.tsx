@@ -55,7 +55,7 @@ function pauseText(pausedUntil: number, pauseOver: boolean, locale: string, code
 }
 
 function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string): string {
-  const { state, lastSync, code, pausedUntil, upload } = snapshot.status
+  const { state, code, pausedUntil } = snapshot.status
   const shown = snapshot.enabled ? state : 'off'
   const parts = [
     shown === 'paused' && pausedUntil !== null
@@ -63,6 +63,12 @@ function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string):
       : t(STATES[shown]),
   ]
   if (shown === 'stopped' && code && STOP_ADVICE[code]) parts.push(t(STOP_ADVICE[code]))
+  return [...parts, ...statusDetails(snapshot, locale)].join(' ')
+}
+
+function statusDetails(snapshot: SyncSnapshot, locale: string): string[] {
+  const { state, lastSync, code, upload } = snapshot.status
+  const parts: string[] = []
   if (upload && snapshot.enabled)
     parts.push(format(t('syncSettings.upload'), uploadCounts(upload, locale)))
   if (code && snapshot.enabled && state !== 'idle')
@@ -72,7 +78,7 @@ function statusText(snapshot: SyncSnapshot, pauseOver: boolean, locale: string):
       ? t('syncSettings.neverSynced')
       : format(t('syncSettings.lastSync'), { time: when(lastSync, locale) }),
   )
-  return parts.join(' ')
+  return parts
 }
 
 /** iCloud states shown in the setup rows or a note rather than the status row. */
@@ -451,7 +457,11 @@ export function SyncSection() {
   ) : (
     relaySetupRows
   )
-  const statusDescription = statusLine?.text ?? statusText(snapshot, pauseOver, locale)
+  const statusDescription = !statusLine
+    ? statusText(snapshot, pauseOver, locale)
+    : snapshot.enabled
+      ? [statusLine.text, ...statusDetails(snapshot, locale)].join(' ')
+      : statusLine.text
   const statusActions = statusLine ? (
     <ICloudActions actions={statusLine.actions} locked={locked} failed={failed} />
   ) : null
