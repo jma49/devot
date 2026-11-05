@@ -1,7 +1,7 @@
 //! Platform-native capabilities. `native::macos` and `native::ios` are the
 //! only places in the crate allowed to use `unsafe`.
 
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 #[allow(unsafe_code)]
 #[doc(hidden)]
 pub mod ios;
@@ -969,8 +969,65 @@ pub async fn editor_menu_popup(
     }
 }
 
+/// Whether this build holds Devot's iCloud container, asked once.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+fn holds_icloud_container() -> bool {
+    static HELD: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *HELD.get_or_init(|| {
+        #[cfg(target_os = "macos")]
+        let held = macos::holds_icloud_container();
+        #[cfg(target_os = "ios")]
+        let held = ios::cloudkit::from_info_plist();
+        if !held {
+            log::info!("I_SYNC_CLOUDKIT_UNAVAILABLE");
+        }
+        held
+    })
+}
+
+/// The CloudKit primitives of this platform (`sync::cloudkit`); without the container, none of
+/// them touches `CKContainer`.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) fn cloudkit() -> std::sync::Arc<dyn crate::sync::cloudkit::CloudKit> {
+    std::sync::Arc::new(ios::cloudkit::Native::new(holds_icloud_container()))
+}
+
+/// Calls `changed` on a silent push for a watched zone and `account` on a change of iCloud
+/// account, on a build that holds the container. Main thread only.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) fn watch_icloud(
+    changed: Box<dyn Fn() + Send + Sync>,
+    account: Box<dyn Fn() + Send + Sync>,
+) {
+    if !holds_icloud_container() {
+        return;
+    }
+    ios::cloudkit::observe_account(account);
+    #[cfg(target_os = "macos")]
+    macos::receive_icloud_notices(changed);
+    #[cfg(target_os = "ios")]
+    ios::receive_icloud_notices(changed);
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_build_without_the_icloud_entitlement_never_reaches_cloudkit() {
+        use crate::sync::cloudkit::error::code::MISSING_ENTITLEMENT;
+        assert!(!super::macos::holds_icloud_container());
+        let kit = super::cloudkit();
+        assert!(!kit.available());
+        assert_eq!(
+            kit.account().err().map(|e| e.code),
+            Some(MISSING_ENTITLEMENT)
+        );
+        assert_eq!(
+            kit.save_zones(&["devot".into()]).err().map(|e| e.code),
+            Some(MISSING_ENTITLEMENT)
+        );
+    }
 
     #[test]
     fn an_appearance_is_uikits_interface_style() {

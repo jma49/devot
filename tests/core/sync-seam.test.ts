@@ -10,6 +10,7 @@ import { encodeMoved, leaveMovedMarker, MOVED_ID } from '../../src/core/sync/mov
 import { decodeRecord } from '../../src/core/sync/records'
 import {
   ICLOUD_FULL,
+  ICLOUD_SIGNED_OUT,
   pushOneByOne,
   VAULT_MOVED,
   type SyncEvent,
@@ -340,6 +341,20 @@ describe('a full iCloud', () => {
     paused = false
     await vi.waitFor(() => expect(vault.records.has(id)).toBe(true), { timeout: 5_000 })
   })
+
+  it('reads a timed pause’s end on the transport’s clock, ahead of this device’s', async () => {
+    const { vault, a } = fakePair()
+    vault.skewMs = 4 * 60_000
+    let paused = true
+    const until = Date.now() + vault.skewMs + 40
+    vault.refuse = () =>
+      paused ? { type: 'paused', until, code: 'E_SYNC_ICLOUD_BUSY' } : undefined
+    const id = await a.notes.create('Later')
+    await a.sync()
+    expect(a.engine.status()).toMatchObject({ state: 'paused', pausedUntil: until })
+    paused = false
+    await vi.waitFor(() => expect(vault.records.has(id)).toBe(true), { timeout: 5_000 })
+  })
 })
 
 describe('the moved marker', () => {
@@ -467,5 +482,175 @@ describe('the relay behind the new seam', () => {
       { type: 'rejected', version: 1, tag: '' },
       { type: 'failed', code: 'E_SYNC_TOO_LARGE' },
     ])
+  })
+})
+
+function counting(transport: FakeTransport) {
+  const calls = { connects: 0, closes: 0 }
+  const connect = transport.connect.bind(transport)
+  const close = transport.close.bind(transport)
+  transport.connect = () => ((calls.connects += 1), connect())
+  transport.close = () => ((calls.closes += 1), close())
+  return calls
+}
+
+describe('a stored cursor the transport no longer reads', () => {
+  it('pulls again from the start once, and syncs', async () => {
+    const { a, b } = fakePair()
+    const id = await a.notes.create('Before the token expired')
+    await settle(a, b)
+    await b.storage.syncSetState('since', 'tok_expired')
+    await b.sync()
+    expect(b.transport.cursors).toContain('')
+    expect(b.engine.status()).toMatchObject({ state: 'idle', code: null })
+    expect((await b.storage.syncState())['since']).toMatch(/^tok_/)
+    expect((await b.note(id))?.title).toBe('Before the token expired')
+  })
+
+  it('stops retrying when the start is refused too', async () => {
+    const { b, fb } = fakePair()
+    const pull = fb.pull.bind(fb)
+    let refused = 0
+    fb.pull = async (since) => {
+      if (since === '' && refused++ > 0) throw new Error('E_SYNC_CURSOR_INVALID')
+      return pull(since)
+    }
+    await b.sync()
+    await b.storage.syncSetState('since', 'tok_expired')
+    fb.pull = async () => {
+      refused += 1
+      throw new Error('E_SYNC_CURSOR_INVALID')
+    }
+    refused = 0
+    await b.engine.syncNow()
+    expect(refused).toBe(2)
+  })
+})
+
+describe('a library that only pushed', () => {
+  it('counts as synced after its first push', async () => {
+    const { a } = fakePair()
+    expect((await a.storage.syncState())['hasSynced']).toBeUndefined()
+    a.transport.pull = async () => ({ records: [], next: '', more: false })
+    await a.notes.create('Only pushed')
+    await a.sync()
+    expect(a.transport.pushes).toBeGreaterThan(0)
+    expect((await a.storage.syncState())['hasSynced']).toBe('1')
+  })
+})
+
+describe('the batch byte cap', () => {
+  it('starts a new batch before a record that would take it past the cap', async () => {
+    const { vault, a, fa } = fakePair({ uploadShownFrom: 3, batchBytes: 3_000 })
+    await a.engine.stop()
+    for (const title of ['One', 'Two', 'Three']) {
+      const id = await a.notes.create(title)
+      await a.notes.setBody(id, `${'z'.repeat(1_200)}\n`)
+    }
+    await a.notes.flush()
+    await a.restart()
+    await a.sync()
+    expect(vault.records.size).toBe(3)
+    expect(fa.batches.length).toBeGreaterThan(1)
+    for (const batch of fa.batches) {
+      const bytes = batch.reduce(
+        (sum, id) => sum + (vault.records.get(id)?.plaintext.length ?? 0),
+        0,
+      )
+      expect(bytes).toBeLessThanOrEqual(3_000)
+    }
+  })
+})
+
+describe('focus', () => {
+  it('connects once for any number of focus events while a connect waits', async () => {
+    const { a, fa } = fakePair({ recheckMs: 60_000 })
+    const calls = counting(fa)
+    let signedOut = true
+    const connect = fa.connect.bind(fa)
+    fa.connect = async () => {
+      if (signedOut) throw new Error(ICLOUD_SIGNED_OUT)
+      return connect()
+    }
+    await a.engine.stop()
+    a.engine = createSyncEngine({
+      storage: a.storage,
+      sync: a.storage,
+      transport: fa,
+      clock: createClock('mac'),
+      newId: createIdGenerator(),
+      retryBaseMs: 1,
+      recheckMs: 60_000,
+    })
+    a.engine.start()
+    cleanups.push(() => a.engine.stop())
+    await vi.waitFor(() =>
+      expect(a.engine.status()).toMatchObject({
+        state: 'paused',
+        code: ICLOUD_SIGNED_OUT,
+        pausedUntil: null,
+      }),
+    )
+    const before = { ...calls, pulls: fa.pulls }
+    signedOut = false
+    for (let i = 0; i < 5; i += 1) a.engine.focused()
+    await a.engine.idle()
+    expect(calls.connects - before.connects).toBe(1)
+    expect(fa.pulls - before.pulls).toBe(1)
+    expect(a.engine.status().state).toBe('idle')
+  })
+})
+
+describe('a vault on iCloud', () => {
+  it('fetches on a timer, since a silent push may never come', async () => {
+    const { a, b } = fakePair({ via: 'icloud', pollMs: 30 })
+    await settle(a, b)
+    a.transport.onEvent = () => {}
+    const id = await b.notes.create('No notice came')
+    await b.sync()
+    await vi.waitFor(async () => {
+      await a.notes.mergeStored()
+      expect((await a.note(id))?.title).toBe('No notice came')
+    })
+  })
+
+  it('fetches when a window comes to the front', async () => {
+    const { a, b, fa } = fakePair({ via: 'icloud', pollMs: 60_000 })
+    await settle(a, b)
+    a.transport.onEvent = () => {}
+    const id = await b.notes.create('Seen on focus')
+    await b.sync()
+    const pulls = fa.pulls
+    for (let i = 0; i < 3; i += 1) a.engine.focused()
+    await a.engine.idle()
+    await a.notes.mergeStored()
+    expect((await a.note(id))?.title).toBe('Seen on focus')
+    expect(fa.pulls - pulls).toBeLessThanOrEqual(2)
+  })
+
+  it('connects afresh when the iCloud account changes', async () => {
+    const { a, fa } = fakePair({ via: 'icloud' })
+    await a.sync()
+    const calls = counting(fa)
+    a.engine.received({ type: 'account' })
+    a.engine.received({ type: 'account' })
+    await a.engine.idle()
+    expect(calls).toEqual({ connects: 1, closes: 1 })
+    expect(a.engine.status().state).toBe('idle')
+  })
+
+  it('stops when iCloud says the vault was deleted or the build has no container', async () => {
+    for (const code of [
+      'E_SYNC_ICLOUD_DELETED',
+      'E_SYNC_CLOUDKIT_UNAVAILABLE',
+      'E_SYNC_ICLOUD_ACCOUNT_CHANGED',
+    ]) {
+      const { a, fa } = fakePair({ via: 'icloud' })
+      fa.connect = async () => {
+        throw new Error(code)
+      }
+      await a.engine.syncNow().catch(() => undefined)
+      await vi.waitFor(() => expect(a.engine.status()).toMatchObject({ state: 'stopped', code }))
+    }
   })
 })

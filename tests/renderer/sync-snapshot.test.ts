@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { untilTime, uploadCounts } from '../../src/renderer/src/format'
-import { readSnapshot } from '../../src/renderer/src/sync'
+import { readSnapshot, STOP_ADVICE } from '../../src/renderer/src/sync'
 
 const snapshot = (status: Record<string, unknown>) =>
   readSnapshot({ relayUrl: 'https://relay.example.test', enabled: true, status })?.status
@@ -75,4 +75,15 @@ it('drops a last sync or pause time that no date can hold', () => {
     lastSync: null,
     pausedUntil: null,
   })
+})
+
+it('gives a vault that moved its own advice', () => {
+  expect(STOP_ADVICE['E_SYNC_VAULT_MOVED']).toBe('sync.advice.moved')
+})
+
+it('reads what the vault syncs through, the relay unless Rust says iCloud', () => {
+  const read = (transport: unknown) =>
+    readSnapshot({ enabled: true, transport, status: {} })?.transport
+  expect(read('icloud')).toBe('icloud')
+  for (const other of ['relay', undefined, 'ICLOUD', 3]) expect(read(other)).toBe('relay')
 })

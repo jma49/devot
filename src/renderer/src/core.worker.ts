@@ -61,7 +61,7 @@ import { noteCounts } from '../../core/noteCounts'
 import { createLivePreviewRenderer } from '../../core/preview/live'
 import { renderCardPreview, type CardLabels } from '../../core/preview/card'
 import { createSyncEngine, type SyncEngine, type SyncStatus } from '../../core/sync/engine'
-import type { SyncEvent } from '../../core/sync/transport'
+import type { SyncEvent, TransportName } from '../../core/sync/transport'
 import { preparerOffThread } from './importWorker'
 import { fromWireRelay, toWireRelay, type RelayOut, type WireRelay } from './noteRelayWire'
 import type { SaveProblemsMessage } from './saving'
@@ -463,13 +463,15 @@ export const coreApi = {
     onStatus: (status: SyncStatus) => void,
     onApplied: () => void,
     build?: string,
+    via: TransportName = 'relay',
   ) {
     if (sync || !syncParts) return
     sync = createSyncEngine({
       ...syncParts,
       ...(build ? { build } : {}),
+      via,
       sync: fromWireSync(store),
-      transport: fromWireTransport(transport),
+      transport: fromWireTransport(transport, via),
       onStatus: (status) => void Promise.resolve(onStatus(status)).catch(() => undefined),
       // The page merges the changes into the notes in memory and reloads, as for another process's writes.
       onApplied: () => void Promise.resolve(onApplied()).catch(() => undefined),

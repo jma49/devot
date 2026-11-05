@@ -8,6 +8,7 @@ import {
   type PullPage,
   type PushResult,
   type SyncTransport,
+  type TransportName,
   type Welcome,
 } from '../../../core/sync/transport'
 import type { RecordKind } from '../../../core/sync/protocol'
@@ -34,10 +35,21 @@ export interface WirePulled {
   error: string | null
 }
 
+export interface WirePushItem {
+  id: string
+  base: number
+  /** The plaintext, base64. */
+  data: string
+  kind: RecordKind
+  tag: string
+}
+
 export interface WireTransport {
   connect(): Promise<Welcome>
   pull(since: Cursor): Promise<{ records: WirePulled[]; next: Cursor; more: boolean }>
   push(id: string, base: number, data: string, kind: RecordKind, tag: string): Promise<PushResult>
+  /** One upload for the batch; only iCloud takes it. */
+  pushMany(items: WirePushItem[]): Promise<PushResult[]>
   close(): Promise<void>
 }
 
@@ -69,8 +81,11 @@ export function fromWireSync(wire: WireSync): SyncStore {
   }
 }
 
-/** Rust's transport is the relay's today, which takes one push at a time (`pushOneByOne`). */
-export function fromWireTransport(wire: WireTransport): SyncTransport {
+/** The relay takes one push at a time (`pushOneByOne`); iCloud takes a batch in one upload. */
+export function fromWireTransport(
+  wire: WireTransport,
+  via: TransportName = 'relay',
+): SyncTransport {
   const push: SyncTransport['push'] = (id, base, plaintext, kind = 'record', tag = '') =>
     wire.push(id, base, toBase64(plaintext), kind, tag)
   return {
@@ -91,7 +106,18 @@ export function fromWireTransport(wire: WireTransport): SyncTransport {
       }
     },
     push,
-    pushMany: (items) => pushOneByOne(push, items),
+    pushMany: (items) =>
+      via === 'icloud'
+        ? wire.pushMany(
+            items.map((item) => ({
+              id: item.id,
+              base: item.base,
+              data: toBase64(item.plaintext),
+              kind: item.kind,
+              tag: item.tag,
+            })),
+          )
+        : pushOneByOne(push, items),
     close: () => wire.close(),
   }
 }

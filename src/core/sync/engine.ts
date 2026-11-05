@@ -63,7 +63,10 @@ import {
 import { MOVED_ID, readMoved } from './moved'
 import { RESTORE_CHOICE, RESTORED_AT } from './restore'
 import {
+  CURSOR_INVALID,
   ICLOUD_FULL,
+  ICLOUD_RESTRICTED,
+  ICLOUD_SIGNED_OUT,
   pauseGoesOn,
   QUOTA,
   recordFailure,
@@ -93,6 +96,8 @@ const QUOTA_JITTER_MS = 60_000
 const QUOTA_RECHECK_MS = 60 * 60_000
 /** A pause with no end (a full iCloud) is looked at again this often, besides on launch and on focus. */
 const PAUSE_RECHECK_MS = 60 * 60_000
+/** iCloud's silent pushes can be dropped, so a vault on iCloud is also fetched this often. */
+export const ICLOUD_POLL_MS = 5 * 60_000
 /** Spreads the end of another transport's timed pause, which is short (its own retry-after). */
 const PAUSE_JITTER_MS = 1_000
 /** The most records, and about the most plaintext bytes, one `pushMany` carries. */
@@ -154,6 +159,9 @@ class Paused extends Error {
   }
 }
 
+/** Pauses of iCloud that have no end: looked at again on launch, on focus, hourly and on an account change. */
+const ENDLESS_PAUSES = new Set([ICLOUD_FULL, ICLOUD_SIGNED_OUT, ICLOUD_RESTRICTED])
+
 const pausedBy = (result: Extract<PushResult, { type: 'paused' }>) =>
   new Paused(result.code ?? QUOTA, result.until, result.limit === 'storedBytes')
 
@@ -168,6 +176,11 @@ const STOPPING = new Set([
   'E_SYNC_CLOCK_SKEW',
   'E_SYNC_CIRCUIT_OPEN',
   VAULT_MOVED,
+  // iCloud: a build without the container, a vault whose data the owner deleted (Settings asks
+  // whether to upload again), and another account signed in.
+  'E_SYNC_CLOUDKIT_UNAVAILABLE',
+  'E_SYNC_ICLOUD_DELETED',
+  'E_SYNC_ICLOUD_ACCOUNT_CHANGED',
   // The build gates sync and no valid licence is on this device (src-tauri/src/licence).
   'E_LICENCE_REQUIRED',
   'E_LICENCE_UNREADABLE',
@@ -192,6 +205,10 @@ export interface SyncEngineOptions {
   via?: TransportName
   /** How often a pause with no end is looked at again. */
   recheckMs?: number
+  /** On iCloud, how often the vault is fetched besides on a silent push and on focus. */
+  pollMs?: number
+  /** The most plaintext bytes in one batch. */
+  batchBytes?: number
   onStatus?: (status: SyncStatus) => void
   /** Records another device changed here, after each page they came in. */
   onApplied?: (ids: string[]) => void
@@ -215,7 +232,7 @@ export interface SyncEngine {
    * another device purged stays purged either way.
    */
   afterRestore(choice: 'merge' | 'keep'): Promise<void>
-  /** A window came to the front: a pause with no end (a full iCloud) is looked at again. */
+  /** A window came to the front: a pause with no end (a full iCloud) is looked at again, and a vault on iCloud is fetched. */
   focused(): void
   /** Internal, for tests: how many records the push breaker still holds times for. */
   pushesRemembered(): number
@@ -398,6 +415,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   const uploadShownFrom = options.uploadShownFrom ?? UPLOAD_SHOWN_FROM
   const via = options.via ?? 'relay'
   const recheckMs = options.recheckMs ?? PAUSE_RECHECK_MS
+  const pollMs = options.pollMs ?? ICLOUD_POLL_MS
+  const batchBytes = options.batchBytes ?? BATCH_BYTES
 
   let running = false
   let connected = false
@@ -444,6 +463,11 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   let shownRefused: Paused | undefined
   /** What a rejected push said the transport holds; the push after the merge of that version goes against its tag. */
   const serverTags = new Map<string, { version: number; tag: string }>()
+  /** A connect (a focus, an account change) waits for a pass that has not started; it covers any that come before it does. */
+  let connectQueued = false
+  /** `HAS_SYNCED` is known to be set. */
+  let hasSynced = false
+  let pollTimer: ReturnType<typeof setInterval> | undefined
 
   const reportUnsynced = () => {
     const codes = new Set([...unsynced.values()].map((u) => u.code))
@@ -469,6 +493,33 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const run = queue.then(() => (running ? task() : undefined))
     queue = run.catch(failed)
     return run
+  }
+
+  /** A pass on the connection there is, unless one is queued already. */
+  const queuePass = () => {
+    if (!running || !connected || passQueued) return
+    passQueued = true
+    void enqueue(async () => {
+      passQueued = false
+      // A failure before this pass (a stop, a drop) closed the connection it was queued on.
+      if (connected) await syncAll()
+    }).catch(() => undefined)
+  }
+
+  /** Connects now, through any wait; `fresh` closes the connection there is first, so the transport looks again (an account change). */
+  const queueConnect = (fresh: boolean) => {
+    if (!running || connectQueued) return
+    connectQueued = true
+    clearTimeout(reconnectTimer)
+    reconnectTimer = undefined
+    void enqueue(async () => {
+      connectQueued = false
+      if (fresh && connected) {
+        connected = false
+        await transport.close().catch(() => undefined)
+      }
+      await connect(true)
+    }).catch(() => undefined)
   }
 
   const reconnect = (delay?: number) => {
@@ -505,7 +556,11 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const stoppedFor = status.state === 'stopped' ? status.code : null
     if (stoppedFor && stoppedFor !== 'E_SYNC_CLOCK_SKEW' && !STOPPING.has(code)) return
     const paused =
-      error instanceof Paused ? error : code === ICLOUD_FULL ? new Paused(code, null) : undefined
+      error instanceof Paused
+        ? error
+        : ENDLESS_PAUSES.has(code)
+          ? new Paused(code, null)
+          : undefined
     if (STOPPING.has(code)) {
       set({ state: 'stopped', code })
       if (code === 'E_SYNC_CLOCK_SKEW') reconnect(SKEW_RECHECK_MS)
@@ -679,9 +734,20 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       await sync.syncSetState(SINCE, START)
       await sync.syncSetState(SKIPPED_BY, '')
     }
+    let restarted = false
     for (;;) {
       unreadable = false
-      const page = await transport.pull(since)
+      let page: Awaited<ReturnType<SyncTransport['pull']>>
+      try {
+        page = await transport.pull(since)
+      } catch (error) {
+        if (errorCode(error) !== CURSOR_INVALID || since === START || restarted) throw error
+        console.warn('W_SYNC_CURSOR_RESTARTED')
+        restarted = true
+        since = START
+        await sync.syncSetState(SINCE, START)
+        continue
+      }
       const applied: string[] = []
       try {
         for (const record of page.records) {
@@ -699,11 +765,20 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       await sync.syncSetState(SINCE, since)
       if (!page.more || !advanced) break
     }
-    if (since !== START && state[HAS_SYNCED] !== '1') await sync.syncSetState(HAS_SYNCED, '1')
+    if (since !== START) await markSynced(state)
     if (keepBefore !== '') {
       keepBefore = ''
       await sync.syncSetState(KEEP_BEFORE, '')
     }
+  }
+
+  /** A library that pushed a record, or pulled past the start, has synced (the restore choice, a vault on iCloud found gone). */
+  async function markSynced(state?: Record<string, string>) {
+    if (hasSynced) return
+    if ((state ?? (await sync.syncState()))[HAS_SYNCED] !== '1') {
+      await sync.syncSetState(HAS_SYNCED, '1')
+    }
+    hasSynced = true
   }
 
   /** The body's HLC to send: a body changed here since it was last taken gets a new one, unless the note is in the Trash (it changed before it went there). */
@@ -1033,10 +1108,12 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         if (!kept(id)) upload.step()
         return
       }
+      // A record that would take the batch past its bytes goes in the next one.
+      if (batch.length > 0 && bytes + ready.item.plaintext.length > batchBytes) await flush()
       batch.push(ready)
       inBatch.add(id)
       bytes += ready.item.plaintext.length
-      if (batch.length >= BATCH_RECORDS || bytes >= BATCH_BYTES) await flush()
+      if (batch.length >= BATCH_RECORDS) await flush()
     })
     await flush()
   }
@@ -1215,6 +1292,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       ...stamped,
       synced: entry.edits,
     })
+    await markSynced()
     if (state.kind === 'file' && state.purged) makeRoom()
     return undefined
   }
@@ -1256,12 +1334,16 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         })
         .catch(() => undefined)
       void enqueue(() => connect(true)).catch(() => undefined)
+      if (via === 'icloud') pollTimer = setInterval(queuePass, pollMs)
     },
     async stop() {
       running = false
       connected = false
       clearTimeout(reconnectTimer)
       clearTimeout(pushTimer)
+      clearInterval(pollTimer)
+      pollTimer = undefined
+      connectQueued = false
       reconnectTimer = undefined
       pushTimer = undefined
       firstTouch = undefined
@@ -1285,6 +1367,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
           if (!connected) return stampAll()
           set({ state: 'syncing' })
           await pushAll()
+          // iCloud has no socket to say what changed meanwhile, and a silent push may not come.
+          if (via === 'icloud') await pullAll()
           await finishPass()
         }).catch(() => undefined)
       }, wait)
@@ -1294,13 +1378,11 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       if (event.type === 'changed') {
         if (!connected) return
         parked.clear()
-        if (passQueued) return
-        passQueued = true
-        void enqueue(async () => {
-          passQueued = false
-          // A failure before this pass (a stop, a drop) closed the connection it was queued on.
-          if (connected) await syncAll()
-        }).catch(() => undefined)
+        queuePass()
+        return
+      }
+      if (event.type === 'account') {
+        queueConnect(true)
         return
       }
       if (!connected) return
@@ -1316,10 +1398,9 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
         await connect(true)
       }).catch(() => undefined),
     focused() {
-      if (!running || status.state !== 'paused' || status.pausedUntil !== null) return
-      clearTimeout(reconnectTimer)
-      reconnectTimer = undefined
-      void enqueue(() => connect(true)).catch(() => undefined)
+      if (!running) return
+      if (status.state === 'paused' && status.pausedUntil === null) return queueConnect(false)
+      if (via === 'icloud') queuePass()
     },
     pushesRemembered: () => pushTimes.size,
     syncNow: () => enqueue(() => connect()).catch(() => undefined),

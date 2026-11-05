@@ -34,6 +34,8 @@ export class FakeVault {
   maxBytes: number = LIMITS.maxChunkBytes
   /** Answers a push in place of the vault: a test can play a full iCloud. */
   refuse?: (item: PushItem) => PushResult | undefined
+  /** The vault's clock less the device's, as a connect reports it. */
+  skewMs = 0
 
   /** A token for a place in the feed, never the number itself. */
   cursor(at: number): Cursor {
@@ -108,7 +110,7 @@ export class FakeTransport implements SyncTransport {
   async connect(): Promise<Welcome> {
     this.open = true
     return {
-      time: Date.now(),
+      time: Date.now() + this.vault.skewMs,
       epoch: this.vault.epoch,
       cursor: this.vault.cursor(0),
       device: 'fake',

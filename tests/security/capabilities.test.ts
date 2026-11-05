@@ -204,9 +204,13 @@ describe('Tauri command permissions', () => {
       'allow-symbol-png',
       // Settings > Sync sets the relay and turns sync on or off; the relay's secret goes in, once.
       // It offers the recovery key until it is saved, pairs and joins devices, lists and removes them, and shows the relay's storage.
+      // It shows iCloud's state, starts or restores an iCloud vault and uploads it again.
       'allow-sync-device-remove',
       'allow-sync-devices',
       'allow-sync-get',
+      'allow-sync-icloud-status',
+      'allow-sync-icloud-upload-again',
+      'allow-sync-icloud-use',
       'allow-sync-join-code',
       'allow-sync-join-recovery',
       'allow-sync-pairing-cancel',

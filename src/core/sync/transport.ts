@@ -15,6 +15,11 @@ export const QUOTA = 'E_SYNC_QUOTA'
 export const ICLOUD_FULL = 'E_SYNC_ICLOUD_FULL'
 /** The vault moved to another transport (the moved marker, `moved.ts`): sync stops until the owner follows. */
 export const VAULT_MOVED = 'E_SYNC_VAULT_MOVED'
+/** No iCloud account is signed in, or it may not use iCloud: a pause with no end, looked at again as a full iCloud is, and on an account change. */
+export const ICLOUD_SIGNED_OUT = 'E_SYNC_ICLOUD_SIGNED_OUT'
+export const ICLOUD_RESTRICTED = 'E_SYNC_ICLOUD_RESTRICTED'
+/** A stored cursor the transport no longer reads: the pull starts again from `START`, once. */
+export const CURSOR_INVALID = 'E_SYNC_CURSOR_INVALID'
 
 /** Where the vault's records live; the moved marker names one. */
 export type TransportName = 'relay' | 'icloud'
@@ -90,6 +95,8 @@ export interface PushItem {
 
 export type SyncEvent =
   | { type: 'changed'; cursor: Cursor }
+  /** The iCloud account changed (signed in, out, or another): the engine connects again, which checks it. */
+  | { type: 'account' }
   /** The socket closed: `code` says why (E_SYNC_REVOKED, E_SYNC_UNAUTHORIZED, E_SYNC_NO_VAULT, E_SYNC_OFFLINE). */
   | { type: 'closed'; code: string }
 

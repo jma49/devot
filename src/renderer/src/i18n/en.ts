@@ -1126,6 +1126,8 @@ title: Daily Report {{date}}
   'sync.advice.protocol': 'Update Devot and your relay to the same release.',
   'sync.advice.restoreChoice':
     'A backup was restored here: choose in the main window whether to merge or keep this Mac\u2019s copy.',
+  'sync.advice.moved':
+    'This vault now syncs another way. Set up sync again in Settings > Sync to follow it.',
   'sync.advice.circuit':
     'A note kept changing back and forth between devices. Turn Sync This Device off and on in Settings > Sync to try again.',
   'sync.notice.storageFull':
@@ -1150,6 +1152,8 @@ title: Daily Report {{date}}
     'Sync paused until {time}: the relay has reached its quota for today. Your notes keep working on this device and sync after that.',
   'sync.notice.pausedUpload':
     'Sync paused until {time}: the relay has reached its quota for today, with {sent} of {total} items uploaded. The upload goes on after that; your notes keep working on this device.',
+  'sync.notice.pausedICloud':
+    'Sync is paused: iCloud is not taking changes from this device right now ({code}). Your notes keep working on this device.',
   'sync.notice.resuming':
     'The relay’s quota for today has reset; sync resumes in a moment. Your notes keep working on this device.',
   'sync.notice.resumingUpload':

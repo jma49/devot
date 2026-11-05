@@ -1,5 +1,6 @@
-//! Sync's settings, kept on this device only (`<app data>/sync-settings.json`): the relay's URL and
-//! whether sync is on. The device token is in the keychain (`DeviceCredentials`), never here.
+//! Sync's settings, kept on this device only (`<app data>/sync-settings.json`): the relay's URL,
+//! whether sync is on, and for a vault on iCloud what this device keeps of it. The device token is
+//! in the keychain (`DeviceCredentials`), never here.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -8,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
 use super::client::RelayUrl;
+use super::cloudkit::ICloudState;
 use super::{SecretStore, SyncError};
 
 pub(crate) const FILE: &str = "sync-settings.json";
@@ -25,6 +27,16 @@ pub(crate) struct SyncSettings {
     /// the key is shown once. A vault ID, which is no secret.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub recovery_shown: String,
+    /// The vault this names syncs through iCloud; any other vault, through the relay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icloud: Option<ICloudState>,
+}
+
+impl SyncSettings {
+    /// What this device keeps of `vault` on iCloud, when that vault is on iCloud.
+    pub(crate) fn icloud_for(&self, vault: &str) -> Option<&ICloudState> {
+        self.icloud.as_ref().filter(|state| state.vault == vault)
+    }
 }
 
 pub(crate) struct SettingsStore {
@@ -38,6 +50,13 @@ impl SettingsStore {
             path: path.to_owned(),
             write: Mutex::new(()),
         }
+    }
+
+    /// The folder the settings file is in: the app's data folder.
+    pub(crate) fn dir(&self) -> PathBuf {
+        self.path
+            .parent()
+            .map_or_else(PathBuf::new, Path::to_path_buf)
     }
 
     pub(crate) fn get(&self) -> SyncSettings {

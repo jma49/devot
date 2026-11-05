@@ -45,6 +45,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0024_revision_words.sql"),
     include_str!("../../migrations/0025_saved_searches.sql"),
     include_str!("../../migrations/0026_sync_change_tags.sql"),
+    include_str!("../../migrations/0027_sync_pushed_counts_as_synced.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;

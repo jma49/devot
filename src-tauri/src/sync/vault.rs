@@ -109,7 +109,6 @@ impl Vault {
     }
 
     /// Keeps the vault a recovery key holds in `store`, which must hold none yet.
-    #[cfg(test)]
     pub(crate) fn restore(store: &dyn SecretStore, recovery_key: &str) -> Result<Self, SyncError> {
         Self::keep_new(store, Self::from_recovery_key(recovery_key)?)
     }

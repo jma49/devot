@@ -296,7 +296,7 @@ fn the_service_creates_the_vault_once_and_connects_with_the_kept_token() {
         Arc::new(move |event, _| sent.lock().unwrap().push(event)),
         Gate::open(),
     );
-    assert_eq!(service.connect().err(), Some("E_SYNC_OFF"));
+    assert_eq!(service.connect(false).err(), Some("E_SYNC_OFF"));
     service
         .set(SettingsPatch {
             relay_url: Some(format!("{}/", relay.url.as_str())),
@@ -317,18 +317,18 @@ fn the_service_creates_the_vault_once_and_connects_with_the_kept_token() {
         !stored.contains(SECRET) && !stored.contains("token"),
         "{stored}"
     );
-    let welcome = service.connect().unwrap();
+    let welcome = service.connect(false).unwrap().relay();
     let data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"record");
     assert!(matches!(
-        service.push(RECORD, 0, &data, "record"),
+        service.push(RECORD, 0, &data, "record", ""),
         Ok(super::service::PushDto::Pushed { version: 1, .. })
     ));
-    let page = service.pull(welcome.seq).unwrap();
+    let page = service.pull(&client::cursor_of(welcome.seq)).unwrap();
     assert_eq!(page.records[0].data.as_deref(), Some(data.as_str()));
     // A device that lost its token but holds the key enrolls again on its own.
     secrets.remove("device").unwrap();
     service.disconnect();
-    assert!(service.connect().is_ok());
+    assert!(service.connect(false).is_ok());
     // A new relay secret's tokens: creating again with the same key enrolls on the vault there.
     let again = service.create_vault(SECRET).unwrap();
     assert!(again.snapshot.enrolled && again.recovery_key.is_none());
@@ -381,10 +381,10 @@ fn a_gated_build_creates_no_vault_and_connects_no_device_without_a_licence() {
     assert!(secrets.0.lock().unwrap().is_empty());
     licence.set(&testing::key(testing::ID)).unwrap();
     assert!(service.create_vault(SECRET).unwrap().snapshot.enrolled);
-    assert!(service.connect().is_ok());
+    assert!(service.connect(false).is_ok());
     // A device that already syncs stops at its next connect.
     licence.remove().unwrap();
-    assert_eq!(service.connect().err(), Some("E_LICENCE_REQUIRED"));
+    assert_eq!(service.connect(false).err(), Some("E_LICENCE_REQUIRED"));
     service.disconnect();
 }
 
@@ -437,9 +437,9 @@ fn the_service_reads_usage_on_its_own_connection_when_sync_is_not_connected() {
     assert!(service.usage().is_err(), "no vault yet");
     service.create_vault(SECRET).unwrap();
     service.recovery_saved().unwrap();
-    service.connect().unwrap();
+    service.connect(false).unwrap();
     let data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b"record");
-    service.push(RECORD, 0, &data, "record").unwrap();
+    service.push(RECORD, 0, &data, "record", "").unwrap();
     service.disconnect();
     let usage = service.usage().unwrap();
     assert!(usage.stored_bytes > 0 && usage.file_bytes == 0);
@@ -458,7 +458,7 @@ fn a_revoked_device_stays_out_until_the_user_joins_again() {
     let secrets: Arc<Secrets> = Arc::default();
     let service = service_on(&relay, dir.path(), secrets.clone());
     service.create_vault(SECRET).unwrap();
-    let welcome = service.connect().unwrap();
+    let welcome = service.connect(false).unwrap().relay();
     let vault = Vault::load(secrets.as_ref()).unwrap().unwrap();
     let id = vault.id().to_string();
     let phone = client::enroll(&relay.url, &vault, "phone").unwrap();
@@ -482,8 +482,8 @@ fn a_revoked_device_stays_out_until_the_user_joins_again() {
     let snapshot = service.snapshot();
     assert!(snapshot.vault && !snapshot.enrolled);
     let devices = device_count(&phone_socket);
-    assert_eq!(service.connect().err(), Some("E_SYNC_REVOKED"));
-    assert_eq!(service.connect().err(), Some("E_SYNC_REVOKED"));
+    assert_eq!(service.connect(false).err(), Some("E_SYNC_REVOKED"));
+    assert_eq!(service.connect(false).err(), Some("E_SYNC_REVOKED"));
     assert_eq!(
         device_count(&phone_socket),
         devices,
@@ -491,7 +491,7 @@ fn a_revoked_device_stays_out_until_the_user_joins_again() {
     );
 
     assert!(service.create_vault(SECRET).unwrap().snapshot.enrolled);
-    assert!(service.connect().is_ok());
+    assert!(service.connect(false).is_ok());
     assert_eq!(device_count(&phone_socket), devices + 1);
     service.disconnect();
 }
@@ -513,7 +513,7 @@ fn a_refused_token_enrolls_once_and_connects() {
     let mut kept = DeviceCredentials::load(secrets.as_ref()).unwrap().unwrap();
     kept.token = "forged.token.value".into();
     kept.save(secrets.as_ref()).unwrap();
-    assert!(service.connect().is_ok());
+    assert!(service.connect(false).is_ok());
     let token = DeviceCredentials::load(secrets.as_ref())
         .unwrap()
         .unwrap()
@@ -521,7 +521,7 @@ fn a_refused_token_enrolls_once_and_connects() {
     assert_ne!(token, "forged.token.value");
     assert_eq!(device_count(&phone_socket), devices + 1);
     service.disconnect();
-    assert!(service.connect().is_ok());
+    assert!(service.connect(false).is_ok());
     assert_eq!(
         device_count(&phone_socket),
         devices + 1,
@@ -537,21 +537,21 @@ fn a_relay_that_lost_the_vault_asks_for_its_secret_and_gets_a_new_epoch() {
     let secrets: Arc<Secrets> = Arc::default();
     let service = service_on(&relay, dir.path(), secrets.clone());
     service.create_vault(SECRET).unwrap();
-    let before = service.connect().unwrap();
+    let before = service.connect(false).unwrap().relay();
     service.disconnect();
 
     let relay = relay.restart_empty();
     assert_eq!(service.snapshot().relay_url, relay.url.as_str());
-    assert_eq!(service.connect().err(), Some("E_SYNC_NO_VAULT"));
+    assert_eq!(service.connect(false).err(), Some("E_SYNC_NO_VAULT"));
     let snapshot = service.snapshot();
     assert!(
         snapshot.vault && !snapshot.enrolled,
         "Settings asks for the secret"
     );
-    assert_eq!(service.connect().err(), Some("E_SYNC_NO_VAULT"));
+    assert_eq!(service.connect(false).err(), Some("E_SYNC_NO_VAULT"));
 
     assert!(service.create_vault(SECRET).unwrap().snapshot.enrolled);
-    let after = service.connect().unwrap();
+    let after = service.connect(false).unwrap().relay();
     assert_ne!(after.epoch, before.epoch);
     service.disconnect();
 }
