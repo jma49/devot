@@ -48,6 +48,7 @@ export function PhoneTabBar(props: {
   const press = useRef<Press | null>(null)
   const endPress = useRef<(() => void) | null>(null)
   const swallowClick = useRef(false)
+  const stopSwallowing = useRef<(() => void) | null>(null)
   const index = PHONE_TABS.indexOf(props.tab)
   const lens = useRef<TabLens | null>(null)
   const [firstIndex] = useState(index)
@@ -66,13 +67,28 @@ export function PhoneTabBar(props: {
 
   // A gesture's own click, if any, comes in the task of its pointerup: swallow only that one.
   const swallowGestureClick = (released: boolean) => {
+    stopSwallowing.current?.()
     swallowClick.current = true
-    const forget = () =>
-      setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const forget = () => {
+      window.removeEventListener('pointerup', forget, true)
+      window.removeEventListener('pointercancel', forget, true)
+      timer = setTimeout(() => {
         swallowClick.current = false
+        stopSwallowing.current = null
       })
+    }
+    stopSwallowing.current = () => {
+      window.removeEventListener('pointerup', forget, true)
+      window.removeEventListener('pointercancel', forget, true)
+      clearTimeout(timer)
+      stopSwallowing.current = null
+    }
     if (released) forget()
-    else window.addEventListener('pointerup', forget, { capture: true, once: true })
+    else {
+      window.addEventListener('pointerup', forget, true)
+      window.addEventListener('pointercancel', forget, true)
+    }
   }
 
   // `clientX` is null for a cancelled press; `released` says whether the finger is already up.
@@ -112,7 +128,13 @@ export function PhoneTabBar(props: {
     if (!press.current) lens.current?.aim(restingSpan(index))
   }, [index])
 
-  useEffect(() => () => endPress.current?.(), [])
+  useEffect(
+    () => () => {
+      endPress.current?.()
+      stopSwallowing.current?.()
+    },
+    [],
+  )
 
   return (
     <nav
@@ -166,7 +188,10 @@ export function PhoneTabBar(props: {
         }
         aim(spanAt(at, event.clientX))
       }}
-      onLostPointerCapture={(event) => finish(event.pointerId, null, false)}
+      onLostPointerCapture={(event) => {
+        // Touch captures the pressed button implicitly, and the bar taking capture fires this there.
+        if (event.target === event.currentTarget) finish(event.pointerId, null, false)
+      }}
     >
       <span
         ref={lensRef}

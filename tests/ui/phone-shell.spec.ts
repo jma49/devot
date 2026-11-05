@@ -180,6 +180,28 @@ test('dragging the lens along the bar follows the finger and opens the nearest t
     .toBeLessThanOrEqual(0.5)
 })
 
+test('a drag survives the pressed tab losing its touch capture to the bar', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const notes = (await tab(page, 'Notes').boundingBox())!
+  const activity = (await tab(page, 'Activity').boundingBox())!
+  const y = notes.y + notes.height / 2
+  await tabs(page).evaluate((nav) => {
+    nav.addEventListener('pointerdown', (e) => (nav.dataset['pointer'] = String(e.pointerId)), {
+      capture: true,
+    })
+  })
+  await page.mouse.move(notes.x + notes.width / 2, y)
+  await page.mouse.down()
+  await page.mouse.move(activity.x + activity.width / 2, y, { steps: 12 })
+  // Touch captures the pressed button implicitly; taking capture for the bar fires this on it.
+  await tab(page, 'Notes').evaluate((button) => {
+    const pointerId = Number(button.parentElement!.dataset['pointer'])
+    button.dispatchEvent(new PointerEvent('lostpointercapture', { bubbles: true, pointerId }))
+  })
+  await page.mouse.up()
+  await expect(tab(page, 'Activity')).toHaveAttribute('aria-current', 'page')
+})
+
 // Lifted 8%, the 54 pt lens keeps this much of the bar around it on every side.
 const LIFTED_MARGIN = INSET - (54 * 0.08) / 2
 
