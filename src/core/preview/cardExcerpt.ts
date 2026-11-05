@@ -39,7 +39,7 @@ function cutBlock(text: string, chars: number, lines: number): string {
   return closeFences(out).join('\n')
 }
 
-/** Where `body` starts after an opening line the card already shows as its title (with a setext underline and blank lines after it). */
+/** Where `body` starts after an opening line the card's page already shows as the note's title (with a setext underline and blank lines after it). */
 function titleLineEnd(body: string, title: string): number {
   const lines = body.slice(0, READ_CHARS).split('\n')
   let at = 0
@@ -55,14 +55,14 @@ function titleLineEnd(body: string, title: string): number {
 
 /**
  * The Markdown a gallery card shows: the body after its front matter and an
- * opening line that repeats `title` (as `listExcerpt` leaves it out), as many
- * whole top-level blocks as fit `CARD_EXCERPT_CHARS`, `CARD_EXCERPT_BLOCKS`
- * and `CARD_EXCERPT_LINES`. A first block too long for them is cut at a line,
+ * opening line that repeats its title (an untitled note's page starts with
+ * that line), as many whole top-level blocks as fit `CARD_EXCERPT_CHARS`,
+ * `CARD_EXCERPT_BLOCKS` and `CARD_EXCERPT_LINES`. A first block too long for them is cut at a line,
  * and a code fence it cuts is closed. Only the first `READ_CHARS` are read.
  */
 export function cardExcerpt(markdown: string, title: string): string {
   const content = markdown.startsWith('---') ? markdown.replace(FRONT_MATTER, '') : markdown
-  const body = content.slice(titleLineEnd(content, title))
+  const body = title === '' ? content : content.slice(titleLineEnd(content, title))
   const head = body.slice(0, READ_CHARS)
   const lineCount = (text: string) => text.split('\n').length
   if (head.length === body.length && body.length <= CARD_EXCERPT_CHARS) {

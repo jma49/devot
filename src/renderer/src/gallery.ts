@@ -11,6 +11,11 @@ export function galleryColumns(width: number, minWidth: number, gap: number): nu
   return Math.max(1, Math.floor((width + gap) / (minWidth + gap)))
 }
 
+/** The zoom that fits a page laid out at `pageWidth` into a card `width` wide less its `inset` (cell and sheet padding). */
+export function galleryScale(width: number, inset: number, pageWidth: number): number {
+  return Math.max(0, width - inset) / pageWidth
+}
+
 export function galleryPlace(index: number, columns: number): { row: number; column: number } {
   return { row: Math.floor(index / columns), column: index % columns }
 }

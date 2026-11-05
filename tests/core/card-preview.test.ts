@@ -51,8 +51,8 @@ describe('cardExcerpt', () => {
     expect(cardExcerpt('Weekly plan\n===\n\nBody', 'Weekly plan')).toBe('Body')
   })
 
-  it('leaves out the opening line of an untitled note, which the card shows as its title', () => {
-    expect(cardExcerpt('# Ideas\n\nFirst idea', '')).toBe('First idea')
+  it('keeps the opening line of an untitled note, which starts its page', () => {
+    expect(cardExcerpt('# Ideas\n\nFirst idea', '')).toBe('# Ideas\n\nFirst idea')
   })
 
   it('keeps an opening line that says more than the title', () => {
