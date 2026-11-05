@@ -106,7 +106,7 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 
 ## iPhone
 
-The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by `phoneSpring` (`phone/spring.ts`) and set on the phone root. Positions follow the finger and can be interrupted; only selecting and dropping may overshoot; colour and opacity never bounce. Reduce Motion turns every movement into a `motion.duration.phone-crossfade` crossfade and every scale to 1.
+The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by `phoneSpring` (`phone/spring.ts`) and set on the phone root. Positions follow the finger and can be interrupted; only selecting and dropping may overshoot; colour and opacity never bounce. A drag follows one finger; if its touch is cancelled, its capture is lost, the app leaves the screen or its screen goes away before the finger lifts, it settles back as a short release does, and the next tap is not swallowed (`phone/dragEnd.ts`). Reduce Motion turns every movement into a `motion.duration.phone-crossfade` crossfade and every scale to 1.
 
 - **Push and pop:** rule 3. The new screen slides in from the right over `motion.duration.phone-push` on `motion.easing.phone-push`; the one below moves 30% left and dims `opacity.phone-dim-push`.
 - **Back swipe:** rule 1, then rule 3. The screen tracks the finger; past `size.phone-back-threshold` or on a flick it pops, otherwise it returns.

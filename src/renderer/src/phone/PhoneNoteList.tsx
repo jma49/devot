@@ -7,6 +7,7 @@ import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import type { IconName } from '../icons/symbols'
+import { watchDragEnd, type DragEnd } from './dragEnd'
 import { haptic } from './haptics'
 import type { PhoneStatusFilter, PhoneView } from './library'
 import {
@@ -126,6 +127,8 @@ export function NoteRow(props: RowProps) {
   const [drag, setDrag] = useState<number | null>(null)
   const [pressed, setPressed] = useState(false)
   const press = useRef<{
+    pointer: number
+    stop: () => void
     x: number
     y: number
     at: number
@@ -140,10 +143,19 @@ export function NoteRow(props: RowProps) {
   const base = props.open ? -SWIPE_OPEN : 0
   const offset = drag ?? base
 
+  const latestEnd = useRef<(how: DragEnd, event: globalThis.PointerEvent | null) => void>(
+    () => undefined,
+  )
+  useEffect(() => () => press.current?.stop(), [])
+
   const down = (event: PointerEvent<HTMLDivElement>) => {
-    if (!props.swipes) return
+    if (!props.swipes || press.current) return
+    const pointer = event.pointerId
+    const stop = watchDragEnd(event.currentTarget, pointer, (how, e) => latestEnd.current(how, e))
     if (props.closeOthers()) {
       press.current = {
+        pointer,
+        stop,
         x: 0,
         y: 0,
         at: 0,
@@ -169,6 +181,8 @@ export function NoteRow(props: RowProps) {
           props.onPeek()
         }, PEEK_MS)
     press.current = {
+      pointer,
+      stop,
       x: event.clientX,
       y: event.clientY,
       at,
@@ -183,7 +197,8 @@ export function NoteRow(props: RowProps) {
 
   const move = (event: PointerEvent<HTMLDivElement>) => {
     const p = press.current
-    if (!p || p.mode === 'swallowed' || p.mode === 'peek' || p.mode === 'scroll') return
+    if (!p || p.pointer !== event.pointerId) return
+    if (p.mode === 'swallowed' || p.mode === 'peek' || p.mode === 'scroll') return
     const dx = event.clientX - p.x
     const dy = event.clientY - p.y
     if (p.mode === 'pending') {
@@ -213,24 +228,30 @@ export function NoteRow(props: RowProps) {
     setDrag(next)
   }
 
-  const end = (event: PointerEvent<HTMLDivElement>) => {
+  const end = (how: DragEnd, event: globalThis.PointerEvent | null) => {
     const p = press.current
     press.current = null
     setPressed(false)
     if (!p) return
     clearTimeout(p.timer)
+    // Only a release is followed by a click to swallow.
+    suppressClick.current = how === 'release' && p.mode !== 'pending' && p.mode !== 'scroll'
     if (p.mode !== 'swipe') return
-    suppressClick.current = true
     wasArmed.current = false
     const at = drag ?? base
     setDrag(null)
-    const rested = event.timeStamp - p.lastAt > 100
-    const outcome = event.type === 'pointerup' ? release(at, rested ? 0 : p.speed) : 'closed'
+    const outcome =
+      how === 'release' && event
+        ? release(at, event.timeStamp - p.lastAt > 100 ? 0 : p.speed)
+        : 'closed'
     if (outcome === 'complete') {
       props.onOpenChange(false)
       props.onAction('done')
     } else props.onOpenChange(outcome === 'open')
   }
+  useLayoutEffect(() => {
+    latestEnd.current = end
+  })
 
   return (
     <li className="phone-note-row" data-arrived={props.arrived || undefined}>
@@ -273,8 +294,6 @@ export function NoteRow(props: RowProps) {
         style={{ transform: `translateX(${offset}px)` }}
         onPointerDown={down}
         onPointerMove={move}
-        onPointerUp={end}
-        onPointerCancel={end}
         onContextMenu={(event) => event.preventDefault()}
       >
         <button

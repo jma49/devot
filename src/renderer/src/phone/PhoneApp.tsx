@@ -21,6 +21,7 @@ import {
   type PhoneTab,
 } from './navigation'
 import { startPhoneRoot } from './spring'
+import { watchDragEnd, type DragEnd } from './dragEnd'
 import type { PhoneView } from './library'
 import { PhoneActivity } from './PhoneActivity'
 import { PhoneLibrary } from './PhoneLibrary'
@@ -137,22 +138,36 @@ function BackSwipeZone(props: {
   onMove: (drag: number) => void
   onRelease: (pops: boolean) => void
 }) {
-  const start = useRef<{ x: number; lastX: number; lastTime: number; speed: number } | null>(null)
+  const start = useRef<{
+    pointer: number
+    x: number
+    lastX: number
+    lastTime: number
+    speed: number
+    stop: () => void
+  } | null>(null)
+  const latest = useRef(props)
+  useLayoutEffect(() => {
+    latest.current = props
+  })
+  // Leaving mid-swipe (search opened, the screen popped) must not leave the screens offset.
+  useEffect(() => () => start.current?.stop(), [])
   const move = (event: PointerEvent) => {
     const swipe = start.current
-    if (!swipe) return
+    if (!swipe || swipe.pointer !== event.pointerId) return
     const elapsed = event.timeStamp - swipe.lastTime
     if (elapsed > 0) swipe.speed = (event.clientX - swipe.lastX) / elapsed
     swipe.lastX = event.clientX
     swipe.lastTime = event.timeStamp
     props.onMove(Math.max(0, event.clientX - swipe.x))
   }
-  const end = (event: PointerEvent) => {
+  const end = (how: DragEnd, event: globalThis.PointerEvent | null) => {
     const swipe = start.current
     if (!swipe) return
     start.current = null
-    props.onRelease(
-      event.type === 'pointerup' &&
+    latest.current.onRelease(
+      how === 'release' &&
+        event !== null &&
         releasePops(
           event.clientX - swipe.x,
           releaseSpeed(swipe.speed, event.timeStamp - swipe.lastTime),
@@ -165,17 +180,18 @@ function BackSwipeZone(props: {
       className="phone-back-zone"
       data-testid="phone-back-zone"
       onPointerDown={(event) => {
+        if (start.current) return
         event.currentTarget.setPointerCapture(event.pointerId)
         start.current = {
+          pointer: event.pointerId,
           x: event.clientX,
           lastX: event.clientX,
           lastTime: event.timeStamp,
           speed: 0,
+          stop: watchDragEnd(event.currentTarget, event.pointerId, end),
         }
       }}
       onPointerMove={move}
-      onPointerUp={end}
-      onPointerCancel={end}
     />
   )
 }
