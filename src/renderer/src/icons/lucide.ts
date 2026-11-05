@@ -336,6 +336,7 @@ export const LUCIDE_ICONS = {
   outline: ListTreeIcon,
   'layout.list': ListIcon,
   'layout.board': Columns3Icon,
+  'layout.gallery': LayoutGridIcon,
 } as const satisfies Record<IconName, LucideIcon>
 
 /**

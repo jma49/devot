@@ -109,3 +109,17 @@ describe('row details', () => {
     expect((await notes.rowDetails([id]))[id]).toEqual({ excerpt: 'one two', progress: '1/2' })
   })
 })
+
+describe('card excerpts', () => {
+  it('gives the start of each body for a gallery card, pending edits included', async () => {
+    const { notes } = setup()
+    const a = await notes.create('Plan')
+    const b = await notes.create('')
+    await notes.setBody(a, '---\ntags: x\n---\n# Plan\n\n- [ ] one')
+    await notes.setBody(b, 'x'.repeat(10_000))
+    const found = await notes.cardExcerpts([a, b, '0192a6f0-0000-7000-8000-00000000000a'])
+    expect(Object.keys(found).sort()).toEqual([a, b].sort())
+    expect(found[a]).toBe('# Plan\n\n- [ ] one')
+    expect(found[b]!.length).toBeLessThan(10_000)
+  })
+})

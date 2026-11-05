@@ -1,6 +1,6 @@
 // Where the window was when it closed: the library view and its filter, the
 // workspace, the open note with its selection and scroll positions, the view
-// mode and the library views shown as a board, so a restart opens where the user left off. Like focus mode and
+// mode and the library views shown as a board or a gallery, so a restart opens where the user left off. Like focus mode and
 // the hidden sidebar it is a view preference of one window: it lives in the
 // webview's local storage under the window's label, never in the note
 // database, and never syncs. Everything read back is checked; a part that does not check
@@ -47,6 +47,8 @@ export interface LastState {
   workspace?: string
   /** The library views shown as a board (list view keys, see `isBoardView`), the one switched last at the end. */
   boards?: readonly string[]
+  /** The library views shown as a gallery (see `isGalleryView`), the one switched last at the end. */
+  galleries?: readonly string[]
 }
 
 /** The stored format; another one (a later Devot) is not read. */
@@ -98,11 +100,20 @@ function readNote(value: unknown): NoteState | undefined {
   return note
 }
 
-export type ListLayout = 'list' | 'board'
+export type ListLayout = 'list' | 'board' | 'gallery'
 
 // A status view is one column already, and an agent's view is not kept (App.tsx), so neither has a board.
 const BOARD_FILTERS = /^(all|filter:pinned|filter:tag:(?<tag>[^|]*))$/
-const BOARDS_KEPT = 100
+const STATUS_FILTER = /^filter:status:(?<status>[^|]*)$/
+/** Views kept per layout; a view is in one list at most. */
+const VIEWS_KEPT = 100
+
+function viewParts(view: string): { filter: string; book: string } | undefined {
+  const parts = view.split('|')
+  if (parts.length !== 2) return undefined
+  const [filter, book] = parts as [string, string]
+  return book === '' || isId(book) ? { filter, book } : undefined
+}
 
 /**
  * Whether `view` is the key of a library view that can show a board: All
@@ -111,34 +122,56 @@ const BOARDS_KEPT = 100
  * one column already; search results, Templates and the Trash have no board.
  */
 export function isBoardView(view: string): boolean {
-  const parts = view.split('|')
-  if (parts.length !== 2) return false
-  const [filter, book] = parts as [string, string]
-  const match = BOARD_FILTERS.exec(filter)
+  const parts = viewParts(view)
+  const match = parts && BOARD_FILTERS.exec(parts.filter)
   if (!match) return false
   const tag = match.groups?.['tag']
-  return (tag === undefined || isId(tag)) && (book === '' || isId(book))
+  return tag === undefined || isId(tag)
 }
 
-export function layoutOf(boards: readonly string[] | undefined, view: string): ListLayout {
-  return boards?.includes(view) ? 'board' : 'list'
+/** Whether `view` can show a gallery: a view that can show a board, or a status filter. */
+export function isGalleryView(view: string): boolean {
+  if (isBoardView(view)) return true
+  const status = STATUS_FILTER.exec(viewParts(view)?.filter ?? '')?.groups?.['status']
+  return status !== undefined && (NOTE_STATUSES as readonly string[]).includes(status)
 }
 
-/** `boards` with `view` shown as `layout`; only the views switched last are kept. */
+/** The library views shown other than as a list. */
+export interface ViewLayouts {
+  boards: readonly string[]
+  galleries: readonly string[]
+}
+
+export function layoutOf(layouts: Partial<ViewLayouts> | undefined, view: string): ListLayout {
+  if (layouts?.boards?.includes(view)) return 'board'
+  return layouts?.galleries?.includes(view) ? 'gallery' : 'list'
+}
+
+/** `layouts` with `view` shown as `layout`; only the views switched last are kept. A view that cannot show `layout` leaves them as they are. */
 export function withLayout(
-  boards: readonly string[] | undefined,
+  layouts: Partial<ViewLayouts> | undefined,
   view: string,
   layout: ListLayout,
-): readonly string[] {
-  if (!isBoardView(view)) return boards ?? []
-  const others = (boards ?? []).filter((v) => v !== view)
-  return layout === 'board' ? [...others, view].slice(-BOARDS_KEPT) : others
+): ViewLayouts {
+  const boards = layouts?.boards ?? []
+  const galleries = layouts?.galleries ?? []
+  const can = layout === 'board' ? isBoardView(view) : isGalleryView(view)
+  if (!can)
+    return layouts?.boards && layouts.galleries ? (layouts as ViewLayouts) : { boards, galleries }
+  const kept = (views: readonly string[], shown: boolean) => {
+    const others = views.filter((v) => v !== view)
+    return shown ? [...others, view].slice(-VIEWS_KEPT) : others
+  }
+  return {
+    boards: kept(boards, layout === 'board'),
+    galleries: kept(galleries, layout === 'gallery'),
+  }
 }
 
-function readBoards(value: unknown): string[] | undefined {
+function readViews(value: unknown, can: (view: string) => boolean): string[] | undefined {
   if (!Array.isArray(value)) return undefined
-  const views = value.filter((v): v is string => typeof v === 'string' && isBoardView(v))
-  return [...new Set(views)].slice(-BOARDS_KEPT)
+  const views = value.filter((v): v is string => typeof v === 'string' && can(v))
+  return [...new Set(views)].slice(-VIEWS_KEPT)
 }
 
 export function parseLastState(raw: string | null): LastState | undefined {
@@ -161,8 +194,10 @@ export function parseLastState(raw: string | null): LastState | undefined {
   const note = readNote(value['note'])
   if (note) state.note = note
   if (isId(value['workspace'])) state.workspace = value['workspace']
-  const boards = readBoards(value['boards'])
+  const boards = readViews(value['boards'], isBoardView)
   if (boards) state.boards = boards
+  const galleries = readViews(value['galleries'], isGalleryView)
+  if (galleries) state.galleries = galleries
   return state
 }
 
@@ -277,6 +312,7 @@ export interface WindowView {
   selected: string | undefined
   workspace: string | undefined
   boards: readonly string[]
+  galleries: readonly string[]
   /** The open note's place as the editor and preview last reported it. */
   note: NoteState | undefined
   /** The state stored before the Trash showed. */
@@ -287,16 +323,21 @@ export interface WindowView {
 
 /**
  * The state to store for the window as it is. While the Trash shows, the one from before it, with
- * the boards as they are now, and the note's place if it is still the note that was open.
+ * the boards and galleries as they are now, and the note's place if it is still the note that was open.
  */
 export function lastStateOf(view: WindowView): LastState | undefined {
   const known = view.note
   if (view.inTrash) {
     const before = view.beforeTrash
     if (before?.note && known?.id === before.note.id) {
-      return { ...before, note: { ...known, keyboard: false }, boards: view.boards }
+      return {
+        ...before,
+        note: { ...known, keyboard: false },
+        boards: view.boards,
+        galleries: view.galleries,
+      }
     }
-    return before && { ...before, boards: view.boards }
+    return before && { ...before, boards: view.boards, galleries: view.galleries }
   }
   let note: NoteState | undefined
   if (view.selected !== undefined) {
@@ -317,6 +358,7 @@ export function lastStateOf(view: WindowView): LastState | undefined {
     ...(note ? { note } : {}),
     ...(view.workspace !== undefined ? { workspace: view.workspace } : {}),
     ...(view.boards.length > 0 ? { boards: view.boards } : {}),
+    ...(view.galleries.length > 0 ? { galleries: view.galleries } : {}),
   }
 }
 

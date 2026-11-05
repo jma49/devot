@@ -4,6 +4,7 @@ import {
   clampTop,
   defaultMode,
   isBoardView,
+  isGalleryView,
   lastStateOf,
   lastStateStore,
   layoutOf,
@@ -347,26 +348,54 @@ describe('list layouts', () => {
     expect(parseLastState(mixed)?.boards).toEqual(['all|', 'filter:pinned|'])
   })
 
-  it('is a list unless the view was switched to a board', () => {
+  it('is a list unless the view was switched to a board or a gallery', () => {
     expect(layoutOf(undefined, 'all|')).toBe('list')
     const boards = withLayout(undefined, 'all|', 'board')
     expect(layoutOf(boards, 'all|')).toBe('board')
     expect(layoutOf(boards, `all|${BOOK}`)).toBe('list')
     expect(layoutOf(withLayout(boards, 'all|', 'list'), 'all|')).toBe('list')
+    const gallery = withLayout(boards, 'all|', 'gallery')
+    expect(layoutOf(gallery, 'all|')).toBe('gallery')
+    expect(gallery).toEqual({ boards: [], galleries: ['all|'] })
+    expect(withLayout(gallery, 'all|', 'board')).toEqual({ boards: ['all|'], galleries: [] })
+    expect(withLayout(gallery, 'all|', 'list')).toEqual({ boards: [], galleries: [] })
+  })
+
+  it('shows a status view as a gallery, never as a board', () => {
+    const view = `filter:status:active|${BOOK}`
+    expect(isGalleryView(view)).toBe(true)
+    expect(isBoardView(view)).toBe(false)
+    for (const v of views) expect(isGalleryView(v)).toBe(true)
+    for (const v of ['trash', 'templates', 'search|{}', 'filter:status:nope|', `book:${BOOK}|`]) {
+      expect(isGalleryView(v)).toBe(false)
+    }
+    const shown = withLayout(undefined, view, 'gallery')
+    expect(layoutOf(shown, view)).toBe('gallery')
+    expect(withLayout(shown, view, 'board')).toBe(shown)
+    expect(withLayout(shown, 'trash', 'gallery')).toBe(shown)
+  })
+
+  it('reads back the views shown as a gallery, and only views that can show one', () => {
+    const galleries = ['all|', 'filter:status:completed|']
+    const state: LastState = { ...full, galleries }
+    expect(parseLastState(serializeLastState(state))).toEqual(state)
+    const raw = JSON.parse(serializeLastState(full)) as Record<string, unknown>
+    const mixed = JSON.stringify({ ...raw, galleries: ['all|', 3, 'trash', 'all|'] })
+    expect(parseLastState(mixed)?.galleries).toEqual(['all|'])
   })
 
   it('remembers the views switched last, as many as it keeps', () => {
-    let boards: readonly string[] = []
+    let layouts = withLayout(undefined, 'all|', 'list')
     for (let i = 0; i < 120; i += 1) {
       const id = `019a0000-0000-7000-8000-${String(i).padStart(12, '0')}`
-      boards = withLayout(boards, `all|${id}`, 'board')
+      layouts = withLayout(layouts, `all|${id}`, 'board')
     }
-    expect(boards).toHaveLength(100)
-    expect(boards[0]).toBe('all|019a0000-0000-7000-8000-000000000020')
+    expect(layouts.boards).toHaveLength(100)
+    expect(layouts.boards[0]).toBe('all|019a0000-0000-7000-8000-000000000020')
     // Switching a view again makes it the newest.
-    boards = withLayout(boards, boards[0]!, 'board')
-    expect(boards.at(-1)).toBe('all|019a0000-0000-7000-8000-000000000020')
-    expect(withLayout(boards, 'trash', 'board')).toBe(boards)
+    layouts = withLayout(layouts, layouts.boards[0]!, 'board')
+    expect(layouts.boards.at(-1)).toBe('all|019a0000-0000-7000-8000-000000000020')
+    expect(withLayout(layouts, 'trash', 'board')).toBe(layouts)
   })
 })
 
@@ -380,6 +409,7 @@ describe('lastStateOf', () => {
     selected: NOTE,
     workspace: PARENT,
     boards: ['all|'],
+    galleries: [`all|${BOOK}`],
     note: { id: NOTE, selection: { anchor: 2, head: 4 }, keyboard: false },
     beforeTrash: undefined,
     keyboard: () => true,
@@ -393,6 +423,7 @@ describe('lastStateOf', () => {
       note: { id: NOTE, selection: { anchor: 2, head: 4 }, keyboard: true },
       workspace: PARENT,
       boards: ['all|'],
+      galleries: [`all|${BOOK}`],
     })
   })
 
@@ -405,6 +436,7 @@ describe('lastStateOf', () => {
       selected: undefined,
       workspace: undefined,
       boards: [],
+      galleries: [],
       keyboard: () => (asked = true),
     })
     expect(state).toEqual({ view: { kind: 'all' }, filter: null, mode: 'edit' })

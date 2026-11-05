@@ -20,7 +20,7 @@ export const LIST_PANE: PaneSpec = {
   max: px(sizes['size.list-max-width']),
 }
 
-/** The note list while it shows a board: wider, with a width of its own. */
+/** The note list while it shows a board or a gallery: wider, with a width of its own. */
 export const BOARD_PANE: PaneSpec = {
   key: 'devot.board.width',
   min: px(sizes['size.board-min-width']),

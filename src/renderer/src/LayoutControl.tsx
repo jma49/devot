@@ -8,26 +8,35 @@ import { useSegmentSlide } from './segmentSlide'
 const LAYOUTS: { layout: ListLayout; icon: IconName; label: MessageKey; title: MessageKey }[] = [
   { layout: 'list', icon: 'layout.list', label: 'layout.list', title: 'command.showList' },
   { layout: 'board', icon: 'layout.board', label: 'layout.board', title: 'command.showBoard' },
+  {
+    layout: 'gallery',
+    icon: 'layout.gallery',
+    label: 'layout.gallery',
+    title: 'command.showGallery',
+  },
 ]
 
 // A switch mounts a new control, so the thumb's last place outlives the old one.
 const lastSegment: { view: string; index: number } = { view: '', index: -1 }
 
 /**
- * The List and Board segments. The list and the board each render their own
+ * The List, Board and Gallery segments, those of `layouts` (a status view has
+ * no board). The list, the board and the gallery each render their own
  * header, so a switch mounts a new control: `onChange` says whether the
  * pressed segment had the keyboard, and `takesKeyboard` (asked once on mount)
  * whether the new control's pressed segment takes it back.
  */
 export function LayoutControl(props: {
   layout: ListLayout
+  layouts: readonly ListLayout[]
   view: string
   onChange: (layout: ListLayout, keyboard: boolean) => void
   takesKeyboard?: () => boolean
 }) {
   const pressed = useRef<HTMLButtonElement>(null)
   const group = useRef<HTMLDivElement>(null)
-  const index = LAYOUTS.findIndex((l) => l.layout === props.layout)
+  const shown = LAYOUTS.filter((l) => props.layouts.includes(l.layout))
+  const index = shown.findIndex((l) => l.layout === props.layout)
   const from = useRef(lastSegment.view === props.view ? lastSegment.index : index)
   useSegmentSlide(group, index, from)
   useLayoutEffect(() => {
@@ -45,7 +54,7 @@ export function LayoutControl(props: {
       role="group"
       aria-label={t('layout.label')}
     >
-      {LAYOUTS.map((l) => (
+      {shown.map((l) => (
         <button
           key={l.layout}
           ref={props.layout === l.layout ? pressed : undefined}

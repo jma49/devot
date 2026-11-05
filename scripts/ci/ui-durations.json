@@ -33,6 +33,7 @@
   "tests/ui/format-menu.spec.ts": 52330,
   "tests/ui/format-toolbar.spec.ts": 114061,
   "tests/ui/front-matter.spec.ts": 10491,
+  "tests/ui/gallery.spec.ts": 30000,
   "tests/ui/glass-captions.spec.ts": 28574,
   "tests/ui/glass-colour.spec.ts": 22705,
   "tests/ui/glass-dialogs.spec.ts": 63470,
