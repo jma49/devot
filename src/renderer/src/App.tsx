@@ -44,7 +44,6 @@ import {
   type Trail,
 } from '../../core/navigation'
 import { highlightTerms, parseSearch, searchPattern, type SearchScope } from '../../core/search'
-import { countBucket } from '../../core/usage'
 import { filterNotes, noteGroups, statusCounts, tagCounts, type NoteFilter } from '../../core/tags'
 import {
   findBookNode,
@@ -122,8 +121,8 @@ import { useImageMenu, type ImageMenuTarget, type SetImageSize } from './imageMe
 import { ImageViewer, type ViewedImage } from './ImageViewer'
 import { DB_CHANGED, NOTES_LOADED, useExternalChanges } from './externalChanges'
 import { useMarkdownMirror } from './MarkdownMirror'
-import { latestOnly } from './preview/latest'
 import { SearchField } from './SearchField'
+import { useSearch, useSearchRuns } from './useSearch'
 import { areaOf, areaTargets, nextArea, usePaneTab, visible, type Area } from './areas'
 import { inEditor, sheetOpen, useMenuEvent, useWindowCommands } from './commands/dispatch'
 import { appHandlers } from './commands/appHandlers'
@@ -271,13 +270,6 @@ import { CLI_APPEND_EVENT, cliAppendHost, resolveAppendTarget } from './cliAppen
 import { QUICK_CAPTURE_EVENT, answerCapture, readCaptureRequest } from './quickCaptureHost'
 
 const EXPORT_ALL = 'devot:export-all'
-
-interface Search {
-  query: string
-  scope: SearchScope | undefined
-}
-
-const SEARCH_SETTLED_MS = 1000
 
 export const SHOW_PALETTE = 'devot:show-palette'
 export const OPEN_TODAY = 'devot:open-today'
@@ -429,16 +421,9 @@ export function App() {
   // Template picker: recent ones are read on open; with `into`, the pick fills that empty note instead of making a new one.
   const [picking, setPicking] = useState<{ recent: string[]; into?: string }>()
   const recentTemplates = useMemo(() => currentRecentTemplates(), [])
-  const [query, setQuery] = useState('')
-  const [searchIn, setSearchIn] = useState<'all' | 'view'>('view')
-  const [results, setResults] = useState<{
-    found: NoteSummary[]
-    capped: boolean
-    search: Search
-  }>()
-  const searchField = useRef<HTMLInputElement>(null)
-  const runSearch = useRef<(search: Search) => void>(undefined)
-  const latestSearch = useRef<Search>({ query: '', scope: undefined })
+  const search = useSearch(core)
+  const { query, setQuery, searchIn, setSearchIn, results, setResults, searchField } = search
+  const { rerunSearch, askSearchField } = search
   const searching = query.trim() !== '' && results !== undefined
   const [confirm, setConfirm] = useState<
     | { kind: 'empty' }
@@ -720,26 +705,29 @@ export function App() {
       setTags(nextTags.sort((a, b) => compareNames(a.name, b.name, navigator.languages)))
       setSavedSearches(nextSearches)
       // Results follow edits, renames, trash and restore.
-      if (latestSearch.current.query.trim()) runSearch.current?.(latestSearch.current)
+      rerunSearch()
       window.dispatchEvent(new CustomEvent(NOTES_LOADED))
       return { notes: nextNotes, templates: listed.templates, books: nextBooks }
     },
-    [authorshipChanged],
+    [authorshipChanged, rerunSearch],
   )
 
   // Every note write dates the note in the lists at once, so an edited note moves without a reload.
   // Not for a change that reloads the lists when done (`changeBooks`): a re-dated note could move before the reload removes it, sending the keyboard to the wrong row.
   const reloadsPending = useRef(0)
-  const showWrites = useCallback((writes: ReadonlyMap<string, number>) => {
-    for (const at of writes.values()) markWrite(at)
-    if (reloadsPending.current > 0) return
-    setNotes((list) => withWrites(list, writes))
-    setTemplates((list) => withWrites(list, writes))
-    setResults((shown) => {
-      const found = shown && withWrites(shown.found, writes)
-      return shown && found !== shown.found ? { ...shown, found: found! } : shown
-    })
-  }, [])
+  const showWrites = useCallback(
+    (writes: ReadonlyMap<string, number>) => {
+      for (const at of writes.values()) markWrite(at)
+      if (reloadsPending.current > 0) return
+      setNotes((list) => withWrites(list, writes))
+      setTemplates((list) => withWrites(list, writes))
+      setResults((shown) => {
+        const found = shown && withWrites(shown.found, writes)
+        return shown && found !== shown.found ? { ...shown, found: found! } : shown
+      })
+    },
+    [setResults],
+  )
 
   // Notes the core could not save yet: once a note saves, the lists show what is stored.
   const {
@@ -1233,69 +1221,7 @@ export function App() {
     setStartAttempt((n) => n + 1)
   }
 
-  useEffect(() => {
-    if (!core) return
-    let alive = true
-    const arm = () => {
-      if (!alive) return
-      runSearch.current = latestOnly(
-        async (search: Search) => {
-          const { found, capped } = await core.search(search.query, search.scope)
-          return { found, capped, search }
-        },
-        // Results that did not change keep their objects (and their rows their render).
-        (next) => {
-          // An answer that lands after the field was cleared is not kept: the
-          // next query would first show it.
-          if (!latestSearch.current.query.trim()) return
-          setResults((shown) =>
-            shown ? { ...next, found: keepUnchanged(shown.found, next.found) } : next,
-          )
-        },
-        () => console.warn('W_SEARCH_FAILED'),
-      )
-      // A query typed before the core started had no search to run, and the
-      // lists may have loaded before this effect.
-      if (latestSearch.current.query.trim()) runSearch.current(latestSearch.current)
-    }
-    // A UI test holds this back to type a search after the lists load but before it runs.
-    const held = DEVOT_UI_TEST
-      ? (globalThis as { devotHoldSearch?: Promise<void> }).devotHoldSearch
-      : undefined
-    if (held) void held.then(arm)
-    else arm()
-    return () => {
-      alive = false
-    }
-  }, [core])
-  useEffect(() => {
-    const search = { query, scope: searchScope }
-    latestSearch.current = search
-    if (!query.trim()) return
-    const timer = setTimeout(() => runSearch.current?.(search), 120)
-    return () => clearTimeout(timer)
-  }, [query, searchScope])
-  // A usage event once typing pauses and the results answer the query; results following a change, or the same query in the same place, are not a new search.
-  const countedSearch = useRef('')
-  useEffect(() => {
-    if (!query.trim()) {
-      countedSearch.current = ''
-      return
-    }
-    if (results?.search.query !== query || !!results.search.scope !== inView) return
-    const key = `${inView ? 'view' : 'all'}\n${query}`
-    if (countedSearch.current === key) return
-    const { found } = results
-    const timer = setTimeout(() => {
-      countedSearch.current = key
-      track('search.run', {
-        scope: inView ? 'view' : 'all',
-        clauses: parseSearch(query).length,
-        results: countBucket(found.length),
-      })
-    }, SEARCH_SETTLED_MS)
-    return () => clearTimeout(timer)
-  }, [query, results, inView])
+  useSearchRuns(search, { scope: searchScope, inView })
   // Typing a search in the Trash or Templates leaves it: neither is searched.
   const changeQuery = (next: string) => {
     if ((inTrash || inTemplates) && next.trim()) {
@@ -1315,21 +1241,15 @@ export function App() {
     setSearchIn('view')
   }
   // Search shortcuts focus the field from anywhere (Shift+Cmd+F: current view, Shift+Opt+Cmd+F: every note); results need the list, so they leave focus mode first.
-  const [searchRequest, setSearchRequest] = useState(0)
   const startSearch = useCallback(
     (where: 'all' | 'view') => {
       focusStore.save(false)
       setFocus(false)
       setSearchIn(where)
-      setSearchRequest((n) => n + 1)
+      askSearchField()
     },
-    [focusStore],
+    [focusStore, setSearchIn, askSearchField],
   )
-  useEffect(() => {
-    if (searchRequest === 0) return
-    searchField.current?.focus()
-    searchField.current?.select()
-  }, [searchRequest])
 
   // Help > Rebuild Search Index and the palette command. The notes stay usable
   // meanwhile; their reads and saves wait for the one statement. Rust refuses
@@ -1889,10 +1809,10 @@ export function App() {
   ) => {
     const made = listed.notes.find((n) => n.id === id) ?? listed.templates.find((n) => n.id === id)
     if (!made) return
-    const search = latestSearch.current
-    if (search.query.trim()) {
+    const latest = search.latestSearch.current
+    if (latest.query.trim()) {
       const { found } = await c
-        .search(search.query, search.scope)
+        .search(latest.query, latest.scope)
         .catch(() => ({ found: [], capped: false }))
       if (found.some((n) => n.id === id)) return
     } else {
@@ -2160,14 +2080,17 @@ export function App() {
 
   const typedTitle = useRef<{ id: string; title: string }>(undefined)
   const typedTitleTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const retitleListed = useCallback((id: string, named: string) => {
-    setNotes((list) => retitled(list, id, named))
-    setTemplates((list) => retitled(list, id, named))
-    setResults((shown) => {
-      const found = shown && retitled(shown.found, id, named)
-      return shown && found !== shown.found ? { ...shown, found: found! } : shown
-    })
-  }, [])
+  const retitleListed = useCallback(
+    (id: string, named: string) => {
+      setNotes((list) => retitled(list, id, named))
+      setTemplates((list) => retitled(list, id, named))
+      setResults((shown) => {
+        const found = shown && retitled(shown.found, id, named)
+        return shown && found !== shown.found ? { ...shown, found: found! } : shown
+      })
+    },
+    [setResults],
+  )
   const listTypedTitle = useCallback(() => {
     clearTimeout(typedTitleTimer.current)
     const typed = typedTitle.current
@@ -3190,7 +3113,15 @@ export function App() {
         placeholder={inView ? t('search.placeholder') : t('search.placeholderAll')}
       />
     ),
-    [query, inView, editing, changeQueryStable, clearSearchStable, openSearchFieldMenu],
+    [
+      searchField,
+      query,
+      inView,
+      editing,
+      changeQueryStable,
+      clearSearchStable,
+      openSearchFieldMenu,
+    ],
   )
   const layoutControl = useMemo(
     () =>
