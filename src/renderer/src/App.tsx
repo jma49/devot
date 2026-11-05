@@ -125,7 +125,6 @@ import { useFormatMenu } from './commands/formatMenu'
 import { shortcutLabel } from './commands/keys'
 import { commandKeys } from './commands/registry'
 import { useKeymap } from './commands/shortcutSettings'
-import { editingAllowed } from './licence'
 import { invoke } from './ipc'
 import { titleWithKey } from './commands/titles'
 import { ToolTips } from './ToolTips'
@@ -253,9 +252,7 @@ import { useKept, useStable } from './stable'
 import { textStore } from './textStore'
 import { useUpdates } from './UpdateNotice'
 import { track } from './usage'
-import { HTTP_API_DONE_TEST, HTTP_API_EVENT, httpApiHost } from './httpApiHost'
-import { CLI_APPEND_EVENT, cliAppendHost, resolveAppendTarget } from './cliAppend'
-import { QUICK_CAPTURE_EVENT, answerCapture, readCaptureRequest } from './quickCaptureHost'
+import { useCliAppend, useHttpApi, useQuickCapture } from './hostCalls'
 
 const EXPORT_ALL = 'devot:export-all'
 
@@ -405,9 +402,9 @@ export function App() {
   // Template picker: recent ones are read on open; with `into`, the pick fills that empty note instead of making a new one.
   const [picking, setPicking] = useState<{ recent: string[]; into?: string }>()
   const recentTemplates = useMemo(() => currentRecentTemplates(), [])
-  const search = useSearch(core)
-  const { query, setQuery, searchIn, setSearchIn, results, setResults, searchField } = search
-  const { rerunSearch, askSearchField } = search
+  const searchState = useSearch(core)
+  const { query, setQuery, searchIn, setSearchIn, results, setResults, searchField } = searchState
+  const { rerunSearch, askSearchField } = searchState
   const searching = query.trim() !== '' && results !== undefined
   const [confirm, setConfirm] = useState<
     | { kind: 'empty' }
@@ -1151,7 +1148,7 @@ export function App() {
     setListsLoaded,
   })
 
-  useSearchRuns(search, { scope: searchScope, inView })
+  useSearchRuns(searchState, { scope: searchScope, inView })
   // Typing a search in the Trash or Templates leaves it: neither is searched.
   const changeQuery = (next: string) => {
     if ((inTrash || inTemplates) && next.trim()) {
@@ -1251,71 +1248,8 @@ export function App() {
       : undefined,
   )
 
-  // Quick capture (menu bar mode): this window's core makes the note the
-  // capture window sent, and the list shows it.
-  useEffect(() => {
-    if (!core || DEVOT_UI_TEST) return
-    return unlistenLater(
-      listenHere<unknown>(QUICK_CAPTURE_EVENT, (e) => {
-        const request = readCaptureRequest(e.payload)
-        if (!request) return
-        void answerCapture(
-          request,
-          (id) => invoke('quick_capture_claim', { id }),
-          async (r) => {
-            await core.capture(r.title, r.body, r.bookId)
-          },
-          (id, error) => invoke('quick_capture_done', { id, error }),
-        ).then((saved) => {
-          if (!saved) return
-          track('note.created', { from: 'quick_capture' })
-          void refresh(core)
-        })
-      }),
-    )
-  }, [core, refresh])
-
-  // The local HTTP API: this window's core answers each call Rust checked.
-  useEffect(() => {
-    if (!core) return
-    if (DEVOT_UI_TEST) {
-      // No Rust in the UI tests' build: a test hands a call in as a page event and hears the answer as another.
-      const take = httpApiHost({
-        run: (call) => core.httpApi(call),
-        reply: async (id, result, error) => {
-          window.dispatchEvent(
-            new CustomEvent(HTTP_API_DONE_TEST, { detail: { id, result, error } }),
-          )
-        },
-        wrote: () => window.dispatchEvent(new CustomEvent(DB_CHANGED)),
-      })
-      const onCall = (e: Event) => void take((e as CustomEvent<unknown>).detail)
-      window.addEventListener(HTTP_API_EVENT, onCall)
-      return () => window.removeEventListener(HTTP_API_EVENT, onCall)
-    }
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    const take = httpApiHost({
-      run: (call) => core.httpApi(call),
-      reply: (id, result, error) => invoke('http_api_done', { id, result, error }),
-      wrote: () => window.dispatchEvent(new CustomEvent(DB_CHANGED)),
-    })
-    void listenHere<unknown>(HTTP_API_EVENT, (e) => void take(e.payload)).then((stop) => {
-      if (stopped) {
-        stop()
-        return
-      }
-      unlisten = stop
-      // Only now does the MCP bridge's socket open, so no call waits on a window still loading.
-      invoke('http_api_listening').catch((e: unknown) =>
-        console.warn('W_HTTP_API_LISTENING_FAILED', errorCode(e)),
-      )
-    })
-    return () => {
-      stopped = true
-      unlisten?.()
-    }
-  }, [core])
+  useQuickCapture(core, refresh)
+  useHttpApi(core)
 
   const shownWrites = useRef<{ noteId: string; ids: Set<string> } | undefined>(undefined)
   // Marking runs in call order: a later note's reload must not overtake an
@@ -1538,7 +1472,7 @@ export function App() {
   ) => {
     const made = listed.notes.find((n) => n.id === id) ?? listed.templates.find((n) => n.id === id)
     if (!made) return
-    const latest = search.latestSearch.current
+    const latest = searchState.latestSearch.current
     if (latest.query.trim()) {
       const { found } = await c
         .search(latest.query, latest.scope)
@@ -2160,48 +2094,7 @@ export function App() {
   const applyToOpenNote = useStable((noteId: string, update: Uint8Array) => {
     if (editorRef.current?.noteId === noteId) restoreRef.current?.(update)
   })
-  // `devot append` (cliAppend.ts): answered only once the note is saved, so the command's success means the text is on disk.
-  useEffect(() => {
-    if (!core || DEVOT_UI_TEST) return
-    let stopped = false
-    let unlisten: (() => void) | undefined
-    const take = cliAppendHost({
-      run: async (request) => {
-        if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
-        const id = await resolveAppendTarget(
-          request.target,
-          () => core.list(),
-          async () => (await core.openTodaysNote(dailySettings(), Date.now(), true)).id,
-        )
-        const update = await core.appendToNote(id, request.text, {
-          position: request.position,
-          ...(request.heading === null ? {} : { heading: request.heading }),
-        })
-        applyToOpenNote(id, update)
-        await core.flush()
-        await refresh(core)
-      },
-      claim: (id) => invoke('cli_append_claim', { id }),
-      reply: (id, error) => invoke('cli_append_done', { id, error }),
-    })
-    // Listening first, then asking for what waits: no request is lost between.
-    void listenHere<unknown>(CLI_APPEND_EVENT, (e) => void take(e.payload))
-      .then((stop) => {
-        if (stopped) stop()
-        else unlisten = stop
-        return stopped ? [] : invoke<unknown>('cli_append_take')
-      })
-      .then(
-        (held) => {
-          if (!stopped && Array.isArray(held)) held.forEach((request) => void take(request))
-        },
-        (e: unknown) => console.warn('W_CLI_APPEND_TAKE_FAILED', errorCode(e)),
-      )
-    return () => {
-      stopped = true
-      unlisten?.()
-    }
-  }, [core, refresh, applyToOpenNote])
+  useCliAppend(core, refresh, applyToOpenNote, dailySettings)
   const historyBar = useHistoryBar({
     core,
     noteId: selected,
