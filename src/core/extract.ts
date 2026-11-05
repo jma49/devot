@@ -25,6 +25,17 @@ function lineTitle(line: string): string {
   return (heading ? (heading[1] ?? '') : rest).trim()
 }
 
+/** The text a line shows as a title, the way `headline` reads it. Empty for a line of syntax only. */
+export function lineHeadline(line: string): string {
+  return readableText(lineTitle(line))
+}
+
+/** Whether a line shown as `headline` says no more than `title`; with no title, the headline is the title. */
+export function repeatsTitle(line: string, title: string): boolean {
+  const named = (text: string) => text.trim().toLowerCase().replace(/\s+/g, ' ')
+  return line !== '' && (title === '' || named(line) === named(title))
+}
+
 const HEADLINE_SCAN_CHARS = 4000
 export const HEADLINE_CHARS = 120
 
@@ -37,7 +48,7 @@ export function headline(markdown: string): string {
     if (close > 0) first = close + 1
   }
   for (const line of lines.slice(first)) {
-    const text = readableText(lineTitle(line))
+    const text = lineHeadline(line)
     if (text !== '') return [...text].slice(0, HEADLINE_CHARS).join('')
   }
   return ''
@@ -54,9 +65,7 @@ export const LIST_EXCERPT_CHARS = 200
 export function listExcerpt(markdown: string, title: string): string {
   let text = readableText(markdown.slice(0, EXCERPT_SCAN_CHARS))
   const first = headline(markdown)
-  const named = (line: string) => line.trim().toLowerCase().replace(/\s+/g, ' ')
-  if (first !== '' && (title === '' || named(first) === named(title)) && text.startsWith(first))
-    text = text.slice(first.length).trim()
+  if (repeatsTitle(first, title) && text.startsWith(first)) text = text.slice(first.length).trim()
   return [...text].slice(0, LIST_EXCERPT_CHARS).join('')
 }
 

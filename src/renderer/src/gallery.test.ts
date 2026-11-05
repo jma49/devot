@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { galleryColumns, galleryPlace, galleryStep, galleryWindow } from './gallery'
+import {
+  galleryColumns,
+  galleryGridTop,
+  galleryPlace,
+  galleryReveal,
+  galleryStep,
+  galleryWindow,
+} from './gallery'
 import { sizes } from './theme/tokens'
 import { expectWithinBudget } from '../../../tests/support/budget'
 
@@ -60,6 +67,36 @@ describe('galleryPlace', () => {
   it('gives each card its row and column', () => {
     expect(galleryPlace(0, 4)).toEqual({ row: 0, column: 0 })
     expect(galleryPlace(9, 4)).toEqual({ row: 2, column: 1 })
+  })
+})
+
+describe('galleryGridTop', () => {
+  it('measures the grid from the top of the scrolled content, not from the page', () => {
+    // A header of 60 above the scroller, the grid 16 into it, scrolled by 500.
+    expect(galleryGridTop({ top: 60, scrollTop: 500, clientTop: 0 }, { top: 60 + 16 - 500 })).toBe(
+      16,
+    )
+    expect(galleryGridTop({ top: 60, scrollTop: 0, clientTop: 1 }, { top: 77 })).toBe(16)
+  })
+})
+
+describe('galleryReveal', () => {
+  const view = { gridTop: 16, scrollTop: 900, height: 400 }
+  it('scrolls back to the very top for a card of the first row', () => {
+    expect(galleryReveal(0, 3, 210, 200, view)).toBe(0)
+    expect(galleryReveal(2, 3, 210, 200, view)).toBe(0)
+  })
+
+  it('scrolls up to a card above the view', () => {
+    expect(galleryReveal(4, 3, 210, 200, view)).toBe(16 + 210)
+  })
+
+  it('scrolls down just far enough to show a card below the view', () => {
+    expect(galleryReveal(18, 3, 210, 200, view)).toBe(16 + 6 * 210 + 200 - 400)
+  })
+
+  it('leaves the scroll alone for a card in view', () => {
+    expect(galleryReveal(15, 3, 210, 200, view)).toBe(900)
   })
 })
 

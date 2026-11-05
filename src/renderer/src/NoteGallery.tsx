@@ -18,7 +18,14 @@ import { dropSelectionLeftBehind } from './focus'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import type { MenuPoint } from './contextMenu'
 import { setNoteDragData } from './dragData'
-import { galleryColumns, galleryPlace, galleryStep, galleryWindow } from './gallery'
+import {
+  galleryColumns,
+  galleryGridTop,
+  galleryPlace,
+  galleryReveal,
+  galleryStep,
+  galleryWindow,
+} from './gallery'
 import { useCardPreviews, type CardPreview, type CardPreviewLoader } from './galleryPreviews'
 import { useHeadlines, type HeadlineLoader } from './headlines'
 import { currentLocale, t } from './i18n'
@@ -91,6 +98,16 @@ interface Grid {
   height: number
 }
 
+const gridTop = (outer: HTMLElement, inner: HTMLElement) =>
+  galleryGridTop(
+    {
+      top: outer.getBoundingClientRect().top,
+      scrollTop: outer.scrollTop,
+      clientTop: outer.clientTop,
+    },
+    inner.getBoundingClientRect(),
+  )
+
 /**
  * The note list as a gallery: one listbox of cards in rows, each with the
  * note's title and a thumbnail of the start of its body. The selection, the
@@ -145,7 +162,7 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
     if (!outer || !inner) return
     const next = {
       width: inner.clientWidth,
-      top: Math.max(0, outer.scrollTop - inner.offsetTop),
+      top: Math.max(0, outer.scrollTop - gridTop(outer, inner)),
       height: outer.clientHeight,
     }
     setGrid((was) =>
@@ -157,11 +174,13 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
     const outer = scroller.current
     const inner = list.current
     if (!outer || !inner || index < 0) return
-    const top = inner.offsetTop + galleryPlace(index, columns).row * rowStep
-    if (top < outer.scrollTop) outer.scrollTop = top
-    else if (top + CARD_HEIGHT > outer.scrollTop + outer.clientHeight) {
-      outer.scrollTop = top + CARD_HEIGHT - outer.clientHeight
+    const view = {
+      gridTop: gridTop(outer, inner),
+      scrollTop: outer.scrollTop,
+      height: outer.clientHeight,
     }
+    const top = galleryReveal(index, columns, rowStep, CARD_HEIGHT, view)
+    if (top !== outer.scrollTop) outer.scrollTop = top
   }
   /** Gives `id`'s card the keyboard and scrolls it into view; a card not rendered yet renders first. */
   const focusCard = (id: string) => {

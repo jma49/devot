@@ -1,11 +1,11 @@
 // A gallery card's page thumbnail: the start of a note's body, rendered by the
 // preview's parser and sanitizer with the light built-in renderers only. A card
 // draws nothing that needs a library, the network or the page's layout engine:
-// diagrams, math, frames and images from the web become a quiet placeholder.
+// diagrams, math, frames and every image but an attachment become a quiet placeholder.
 import type { Element, ElementContent, Root, RootContent } from 'hast'
 import { BUILTIN_RENDERERS } from './builtins'
 import { renderBody } from './index'
-import { remoteImageHost } from './remoteImages'
+import { attachmentId } from '../images'
 import {
   PREVIEW_API_VERSION,
   type AlertKind,
@@ -41,6 +41,9 @@ const CARD_RENDERERS = new Set([
   'devot.links',
 ])
 /** Offsets into the note and ids mean nothing on a card, and a page of cards must not repeat an id. */
+/** Attributes that make the page fetch something; only an `img` with an attachment `src` keeps one. */
+const LOADS = ['src', 'srcSet', 'poster', 'longDesc']
+const MEDIA = new Set(['picture', 'source', 'video', 'audio'])
 const DROPPED = ['id', 'ariaDescribedBy', 'dataTaskAt', 'dataImageFrom', 'dataImageTo']
 
 const classesOf = (node: Element): string[] =>
@@ -67,8 +70,13 @@ function placeholderFor(node: Element): { kind: Placeholder; inline: boolean } |
     return { kind: 'math', inline: true }
   }
   if (node.tagName === 'iframe') return { kind: 'embed', inline: false }
-  const src = node.properties['src']
-  if (node.tagName === 'img' && typeof src === 'string' && remoteImageHost(src) !== null) {
+  if (node.tagName === 'img') {
+    const src = node.properties['src']
+    const attached = typeof src === 'string' && attachmentId(src) !== null
+    const others = LOADS.some((key) => key !== 'src' && node.properties[key] !== undefined)
+    return attached && !others ? undefined : { kind: 'image', inline: false }
+  }
+  if (MEDIA.has(node.tagName) || LOADS.some((key) => node.properties[key] !== undefined)) {
     return { kind: 'image', inline: false }
   }
   return undefined

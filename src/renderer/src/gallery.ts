@@ -16,6 +16,34 @@ export function galleryPlace(index: number, columns: number): { row: number; col
 }
 
 /**
+ * How far below the top of the scrolled content the grid starts, from the
+ * client rectangles of the scroller and the grid: an offset parent outside
+ * the scroller would count what sits above it too.
+ */
+export function galleryGridTop(
+  scroller: { top: number; scrollTop: number; clientTop: number },
+  grid: { top: number },
+): number {
+  return grid.top - scroller.top - scroller.clientTop + scroller.scrollTop
+}
+
+/** The scroll offset that shows the card at `index` whole, moving as little as it can; a card of the first row shows the top of the gallery. */
+export function galleryReveal(
+  index: number,
+  columns: number,
+  rowStep: number,
+  cardHeight: number,
+  view: { gridTop: number; scrollTop: number; height: number },
+): number {
+  const { row } = galleryPlace(index, columns)
+  const top = row === 0 ? 0 : view.gridTop + row * rowStep
+  if (top < view.scrollTop) return top
+  const bottom = view.gridTop + row * rowStep + cardHeight
+  if (bottom > view.scrollTop + view.height) return bottom - view.height
+  return view.scrollTop
+}
+
+/**
  * The card an arrow key moves to from `at`, among `count` cards `columns`
  * across, or undefined where it stops: Left and Right go one card on (into
  * the next row at a row's end), Up and Down a row. Down from a row whose

@@ -1425,7 +1425,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
     async cardExcerpts(ids) {
       const found: Record<string, string> = {}
-      for (const note of await bodies(ids)) found[note.id] = cardExcerpt(note.bodyMd)
+      for (const note of await bodies(ids)) found[note.id] = cardExcerpt(note.bodyMd, note.title)
       return found
     },
 

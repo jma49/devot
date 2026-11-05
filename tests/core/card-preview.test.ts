@@ -39,31 +39,61 @@ const textOf = (nodes: readonly RootContent[]): string =>
     )
     .join('')
 
+const TITLE = 'Card title'
+
 describe('cardExcerpt', () => {
+  it('leaves out an opening line that repeats the title', () => {
+    expect(cardExcerpt('# Weekly plan\n\n- **one**\n- two', 'Weekly plan')).toBe('- **one**\n- two')
+    expect(cardExcerpt('Weekly  Plan\nMore *text*', 'weekly plan')).toBe('More *text*')
+    expect(cardExcerpt('---\ntags: [a]\n---\n\n## Weekly plan ##\n\nBody', 'Weekly plan')).toBe(
+      'Body',
+    )
+    expect(cardExcerpt('Weekly plan\n===\n\nBody', 'Weekly plan')).toBe('Body')
+  })
+
+  it('leaves out the opening line of an untitled note, which the card shows as its title', () => {
+    expect(cardExcerpt('# Ideas\n\nFirst idea', '')).toBe('First idea')
+  })
+
+  it('keeps an opening line that says more than the title', () => {
+    expect(cardExcerpt('# Weekly plan for May\n\nBody', 'Weekly plan')).toBe(
+      '# Weekly plan for May\n\nBody',
+    )
+    expect(cardExcerpt('```ts\nWeekly plan\n```', 'Weekly plan')).toBe('```ts\nWeekly plan\n```')
+  })
+
+  it('applies the caps after leaving the title out', () => {
+    const note =
+      '# Weekly plan\n\n' + Array.from({ length: 40 }, (_, i) => `Line ${i}`).join('\n\n')
+    const blocks = cardExcerpt(note, 'Weekly plan').split('\n\n')
+    expect(blocks).toHaveLength(CARD_EXCERPT_BLOCKS)
+    expect(blocks[0]).toBe('Line 0')
+  })
+
   it('keeps a short note whole', () => {
-    expect(cardExcerpt('# Plan\n\n- one\n- two\n')).toBe('# Plan\n\n- one\n- two\n')
+    expect(cardExcerpt('# Plan\n\n- one\n- two\n', TITLE)).toBe('# Plan\n\n- one\n- two\n')
   })
 
   it('leaves out front matter', () => {
-    expect(cardExcerpt('---\ntags: [a]\n---\nBody text')).toBe('Body text')
+    expect(cardExcerpt('---\ntags: [a]\n---\nBody text', TITLE)).toBe('Body text')
   })
 
   it('stops at whole blocks once the characters run out', () => {
     const paragraph = 'word '.repeat(60).trim()
     const note = Array.from({ length: 20 }, () => paragraph).join('\n\n')
-    const excerpt = cardExcerpt(note)
+    const excerpt = cardExcerpt(note, TITLE)
     expect(excerpt.length).toBeLessThanOrEqual(CARD_EXCERPT_CHARS)
     expect(excerpt.split('\n\n').every((block) => block === paragraph)).toBe(true)
   })
 
   it('takes at most a fixed number of blocks', () => {
     const note = Array.from({ length: 40 }, (_, i) => `Line ${i}`).join('\n\n')
-    expect(cardExcerpt(note).split('\n\n')).toHaveLength(CARD_EXCERPT_BLOCKS)
+    expect(cardExcerpt(note, TITLE).split('\n\n')).toHaveLength(CARD_EXCERPT_BLOCKS)
   })
 
   it('cuts one long block by lines, and closes a code fence it cuts', () => {
     const code = Array.from({ length: 200 }, (_, i) => `let x${i} = ${i}`).join('\n')
-    const excerpt = cardExcerpt('```ts\n' + code + '\n```\n\nAfter')
+    const excerpt = cardExcerpt('```ts\n' + code + '\n```\n\nAfter', TITLE)
     const lines = excerpt.split('\n')
     expect(lines[0]).toBe('```ts')
     expect(lines.at(-1)).toBe('```')
@@ -72,18 +102,18 @@ describe('cardExcerpt', () => {
   })
 
   it('cuts a single very long line at the character cap', () => {
-    const excerpt = cardExcerpt('a'.repeat(1_000_000))
+    const excerpt = cardExcerpt('a'.repeat(1_000_000), TITLE)
     expect(excerpt.length).toBe(CARD_EXCERPT_CHARS)
   })
 
   it('is empty for an empty note', () => {
-    expect(cardExcerpt('')).toBe('')
+    expect(cardExcerpt('', TITLE)).toBe('')
   })
 
   it('reads only the start of a huge note', (context) => {
     const note = '# Heading\n\n' + 'Some text here.\n\n'.repeat(200_000)
     const start = performance.now()
-    for (let i = 0; i < 100; i += 1) cardExcerpt(note)
+    for (let i = 0; i < 100; i += 1) cardExcerpt(note, TITLE)
     expectWithinBudget(context, performance.now() - start, 50)
   })
 })
@@ -159,6 +189,49 @@ describe('renderCardPreview', () => {
     ).toEqual(['Image', 'Embed'])
   })
 
+  it('loads only attachments: every other image source becomes a placeholder', async () => {
+    const sources = [
+      '<img src="https:example.com/track.png">',
+      '<img src="HTTPS://example.com/a.png">',
+      '<img src="//example.com/a.png">',
+      '<img src="/a.png">',
+      '<img src="a.png">',
+      '<img src=" https://example.com/a.png">',
+      '<img src="devot://file/not-an-id">',
+      '<img src="devot://note/0192a6f0-0000-7000-8000-00000000000a">',
+      '<img src="devot://file/0192a6f0-0000-7000-8000-00000000000a" srcset="https://example.com/a.png 2x">',
+      '<picture><source srcset="https://example.com/a.png"><img src="devot://file/0192a6f0-0000-7000-8000-00000000000a"></picture>',
+      '<video src="https://example.com/a.mp4" poster="https://example.com/p.png"></video>',
+      '<audio src="https://example.com/a.mp3"></audio>',
+      '![x](https:example.com/a.png)',
+      '![x](//example.com/a.png)',
+    ]
+    for (const source of sources) {
+      const all = elements((await renderCardPreview(source, labels)).children)
+      const loads = all.filter(
+        (el) =>
+          ['srcSet', 'poster', 'longDesc'].some((key) => el.properties[key] !== undefined) ||
+          (el.properties['src'] !== undefined &&
+            !/^devot:\/\/file\/0192a6f0-0000-7000-8000-00000000000a$/.test(
+              String(el.properties['src']),
+            )),
+      )
+      expect({ source, loads }).toEqual({ source, loads: [] })
+    }
+  })
+
+  it('keeps an attachment image, with or without a size', async () => {
+    for (const url of [
+      'devot://file/0192a6f0-0000-7000-8000-00000000000a',
+      'devot://file/0192a6f0-0000-7000-8000-00000000000a#small',
+    ]) {
+      const all = elements((await renderCardPreview(`![x](${url})`, labels)).children)
+      expect(all.find((el) => el.tagName === 'img')?.properties['src']).toBe(
+        'devot://file/0192a6f0-0000-7000-8000-00000000000a',
+      )
+    }
+  })
+
   it('still sanitizes the note: scripts and handlers never reach a card', async () => {
     const tree = await renderCardPreview('<script>x()</script><b onclick="y()">hi</b>', labels)
     const all = elements(tree.children)
@@ -173,6 +246,7 @@ describe('renderCardPreview', () => {
         (_, i) =>
           `## Part ${i}\n\nSome *text* with a [link](https://example.com) and \`code\`.\n\n- a\n- b`,
       ).join('\n\n'),
+      TITLE,
     )
     await renderCardPreview(note, labels)
     const start = performance.now()
