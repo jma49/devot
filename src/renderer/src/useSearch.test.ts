@@ -3,7 +3,7 @@ import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NoteSummary } from '../../core'
 import type { Core } from './core-client'
-import { renderHook, settle, unmountAll } from './testing/renderHook'
+import { renderHook, settle, unmountAll } from '../../../tests/support/render-hook'
 import { useSearch, useSearchRuns } from './useSearch'
 
 vi.hoisted(() => vi.stubGlobal('DEVOT_UI_TEST', false))

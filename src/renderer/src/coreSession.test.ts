@@ -6,8 +6,8 @@ import { useCoreSession, useQuitAndClose } from './coreSession'
 import { EXIT_CANCELLED_EVENT } from './exitCancelled'
 import { CLOSE_EVENT } from './saveGuards'
 import { createQuitGuard } from './saving'
-import { renderHook, settle, unmountAll } from './testing/renderHook'
-import { mockTauri } from './testing/tauriEvents'
+import { renderHook, settle, unmountAll } from '../../../tests/support/render-hook'
+import { mockTauri } from '../../../tests/support/tauri-events'
 
 vi.hoisted(() => vi.stubGlobal('DEVOT_UI_TEST', false))
 

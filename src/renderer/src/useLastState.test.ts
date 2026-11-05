@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NoteSummary } from '../../core'
 import type { Core } from './core-client'
 import { lastStateStore, type LastState } from './lastState'
-import { renderHook, settle, unmountAll } from './testing/renderHook'
+import { renderHook, settle, unmountAll } from '../../../tests/support/render-hook'
 import { useLastState } from './useLastState'
 
 vi.hoisted(() => vi.stubGlobal('DEVOT_UI_TEST', false))

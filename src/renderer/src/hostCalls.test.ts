@@ -5,8 +5,8 @@ import type { Core } from './core-client'
 import { useCliAppend, useHttpApi, useQuickCapture } from './hostCalls'
 import { HTTP_API_EVENT } from './httpApiHost'
 import { QUICK_CAPTURE_EVENT } from './quickCaptureHost'
-import { renderHook, settle, unmountAll } from './testing/renderHook'
-import { mockTauri } from './testing/tauriEvents'
+import { renderHook, settle, unmountAll } from '../../../tests/support/render-hook'
+import { mockTauri } from '../../../tests/support/tauri-events'
 
 vi.hoisted(() => vi.stubGlobal('DEVOT_UI_TEST', false))
 
