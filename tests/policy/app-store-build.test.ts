@@ -102,8 +102,13 @@ describe('the iPhone app', () => {
         strings(dict, 'NSPrivacyAccessedAPITypeReasons'),
       ]),
     )
-    // The app's own files: the database, attachments, backups and logs, all in its container.
-    expect(reasons).toEqual({ NSPrivacyAccessedAPICategoryFileTimestamp: ['C617.1'] })
+    expect(reasons).toEqual({
+      // The app's own files: the database, attachments, backups and logs, all in its container.
+      NSPrivacyAccessedAPICategoryFileTimestamp: ['C617.1'],
+      // statfs, fstatfs and statvfs read a volume's flags and file system type before writing to
+      // it (SQLite's locking style, atomic_file's read-only check), never its free space.
+      NSPrivacyAccessedAPICategoryDiskSpace: ['E174.1'],
+    })
   })
 
   // Devot seals synced notes with its own AES-256-GCM, not Apple's (ADR 0015).
