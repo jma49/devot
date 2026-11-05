@@ -31,7 +31,7 @@
       "freezePrototype": true,
       "csp": {
         "default-src": "'self'",
-        "script-src": "'self'",
+        "script-src": "'self' tauri://localhost",
         "style-src": "'self'",
         "img-src": "'self' data: blob: devot: https:",
         "font-src": "'self'",

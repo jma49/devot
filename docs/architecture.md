@@ -347,7 +347,7 @@ Search covers live notes (never the Trash) through the FTS5 trigram index (`src/
 ## Security
 
 - **Commands are least-privilege.** `src-tauri/build.rs` declares every app command, so none is reachable until a capability file (`src-tauri/capabilities/`) grants it to a window. Every command validates its arguments in Rust and returns error codes, never content.
-- **CSP** in `src-tauri/tauri.conf.json`: `script-src 'self'`, no `'unsafe-inline'`, no `eval`; connections only to the app and Tauri's IPC; images also from https; iframes from https, the app itself (the diagram frame) and `devot-plugin:` (plugins' sandboxed frames, see Extensions). `freezePrototype` is on. A test checks the policy. Styles are never inline: CodeMirror runs in a shadow root, where it adds its styles as constructed stylesheets, which the policy allows.
+- **CSP** in `src-tauri/tauri.conf.json`: `script-src 'self' tauri://localhost` (the sandboxed diagram frame has an opaque origin, which WebKit matches to no `tauri:` URL as `'self'`, so the app's origin is named), no `'unsafe-inline'`, no `eval`; connections only to the app and Tauri's IPC; images also from https; iframes from https, the app itself (the diagram frame) and `devot-plugin:` (plugins' sandboxed frames, see Extensions). `freezePrototype` is on. A test checks the policy. Styles are never inline: CodeMirror runs in a shadow root, where it adds its styles as constructed stylesheets, which the policy allows.
 - External links: `https:` opens in the browser; any other scheme needs an allowlist entry and a confirmation.
 - Untrusted URLs (for example, link titles) are fetched by Rust, never by the UI.
 - Secrets live in the OS keychain (AI provider keys: see AI > Providers).
