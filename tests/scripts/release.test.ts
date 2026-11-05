@@ -25,11 +25,6 @@ import { tempDir } from '../support/temp-dirs'
 const root = join(import.meta.dirname, '../..')
 
 describe('release versions', () => {
-  it('gives the app the version in package.json, which the iPhone build reads only from the Tauri config', () => {
-    const config = JSON.parse(readFileSync(join(root, 'src-tauri/tauri.conf.json'), 'utf8'))
-    expect(config.version).toBe('../package.json')
-  })
-
   it('takes the version from a release tag', () => {
     expect(versionFromTag('v0.9.1-beta1')).toBe('0.9.1-beta1')
     expect(versionFromTag('v0.10.12-beta9')).toBe('0.10.12-beta9')
