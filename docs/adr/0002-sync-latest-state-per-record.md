@@ -1,6 +1,6 @@
 # Sync stores the latest encrypted state of each record, not an update log
 
-Phase 2 sync is for one person with several devices. The relay holds one encrypted, current copy of every record. When two devices write the same record, the clients merge it themselves. Nothing ever appends to an update log, so nothing needs compacting. This replaces the "clients compact" line in `docs/architecture.md` (Sync and encryption). Attachments sync as records of their own (docs/adr/0003-sync-attachments-as-records.md).
+Phase 2 sync is for one person with several devices. The relay holds one encrypted, current copy of every record. When two devices write the same record, the clients merge it themselves. Nothing ever appends to an update log, so nothing needs compacting. This replaces the "clients compact" line in `docs/architecture.md` (Sync and encryption). Attachments sync as records of their own (docs/adr/0003-sync-attachments-as-records.md). A relay vault can be retired for a successor when its key changes (docs/adr/0017-sync-key-rotation.md).
 
 ## Records
 

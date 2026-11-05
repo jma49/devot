@@ -44,4 +44,5 @@ export const WHY: Readonly<Record<string, MessageKey>> = {
   E_SYNC_ICLOUD_STAGING: 'syncSettings.why.icloudStaging',
   E_SYNC_MOVED_REFUSED: 'syncSettings.why.movedRefused',
   E_SYNC_VAULT_MOVED: 'sync.advice.moved',
+  E_SYNC_VAULT_ROTATED: 'syncSettings.why.rotated',
 }

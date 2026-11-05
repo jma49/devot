@@ -66,6 +66,8 @@ export interface SyncSnapshot {
   icloudJoin: ICloudJoin | null
   /** This device started moving its relay vault to iCloud and has not switched yet. */
   moveStarted: boolean
+  /** The vault's key was changed on another device: only its successor may be joined. */
+  rotated: boolean
 }
 
 export const ICLOUD_JOIN_STATES = [
@@ -112,6 +114,7 @@ export const SYNC_OFF: SyncSnapshot = {
   },
   icloudJoin: null,
   moveStarted: false,
+  rotated: false,
 }
 
 const CODE = /^[EWI]_[A-Z0-9_]+$/
@@ -124,6 +127,7 @@ export const STOP_ADVICE: Readonly<Record<string, MessageKey>> = {
   E_SYNC_CIRCUIT_OPEN: 'sync.advice.circuit',
   [RESTORE_CHOICE]: 'sync.advice.restoreChoice',
   [VAULT_MOVED]: 'sync.advice.moved',
+  E_SYNC_VAULT_ROTATED: 'sync.advice.rotated',
 }
 
 const readCount = (value: unknown): number | null =>
@@ -191,6 +195,7 @@ export function readSnapshot(value: unknown): SyncSnapshot | undefined {
     },
     icloudJoin: readICloudJoin(v['icloudJoin']),
     moveStarted: v['moveStarted'] === true,
+    rotated: v['rotated'] === true,
   }
 }
 
@@ -290,6 +295,20 @@ export async function createSyncVault(
   publish(next)
   const key = v['recoveryKey']
   return { snapshot: next, recoveryKey: readRecoveryKey(key) }
+}
+
+/**
+ * Changes the vault key: the relay secret makes the new vault on the relay and is never kept. The
+ * new recovery key comes back to show until it is saved.
+ */
+export async function rotateSyncVault(
+  relaySecret: string,
+): Promise<{ snapshot: SyncSnapshot | undefined; recoveryKey: string | null }> {
+  const value = await invoke<unknown>('sync_vault_rotate', { relaySecret })
+  const v = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>
+  const next = readSnapshot(v['snapshot'])
+  publish(next)
+  return { snapshot: next, recoveryKey: readRecoveryKey(v['recoveryKey']) }
 }
 
 const readRecoveryKey = (key: unknown) =>

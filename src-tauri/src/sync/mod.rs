@@ -58,4 +58,6 @@ mod pairing_tests;
 #[cfg(test)]
 mod relay_tests;
 #[cfg(test)]
+mod rotation_relay_tests;
+#[cfg(test)]
 mod tests;

@@ -13,6 +13,7 @@ import {
   LIMITS,
   type QuotaCaps,
   toBase64Url,
+  VAULT_ROTATED,
 } from '../../src/core/sync/protocol'
 import { tempDir } from '../support/temp-dirs'
 
@@ -379,6 +380,85 @@ describe('revoked devices', () => {
     }
     expect(db.prepare('SELECT COUNT(*) AS n FROM records').get()).toEqual({ n: 0 })
     expect(db.prepare('SELECT id FROM devices').all()).toEqual([{ id: device }])
+  })
+})
+
+describe('retirement', () => {
+  const successor = 'successor-0123456789ab'
+  const at = Date.UTC(2026, 10, 5, 12)
+  const pushFrame = (rid: number) =>
+    encodeFrame({ type: 'push', rid, id: 'r', base: 0, kind: 'record', chunks: [1] }, [
+      new Uint8Array(1),
+    ])
+
+  it('says in the welcome that the relay can retire, and names no successor before it does', async () => {
+    const { relay, device } = await vaultAt(at)
+    const welcome = decodeFrame(relay.connected(device)).message
+    expect(welcome).toMatchObject({ rotation: 'on' })
+    expect(welcome).not.toHaveProperty('retired')
+  })
+
+  it('refuses pushes, pulls and enrollments once retired, naming the successor', async () => {
+    const { relay, device, send, enroll, db } = await vaultAt(at, { limiter: roomy() })
+    const phone = await enroll('phone')
+    expect(send(...record('r', 0))).toMatchObject({ type: 'pushed' })
+    const retired = relay.receive(device, encodeFrame({ type: 'retire', rid: 1, successor }))
+    expect(decodeFrame(retired.reply ?? '').message).toMatchObject({
+      type: 'retired',
+      rid: 1,
+      successor,
+    })
+    expect(decodeFrame(retired.changed ?? '').message).toMatchObject({ type: 'changed' })
+
+    for (const from of [device, phone]) {
+      const push = decodeFrame(relay.receive(from, pushFrame(2)).reply ?? '').message
+      expect(push).toMatchObject({ type: 'error', rid: 2, code: VAULT_ROTATED, successor })
+      const pull = relay.receive(from, encodeFrame({ type: 'pull', rid: 3, since: 0 })).reply
+      expect(decodeFrame(pull ?? '').message).toMatchObject({ code: VAULT_ROTATED, successor })
+    }
+    const again = await relay.enroll({
+      secret: toBase64Url(new Uint8Array(32).fill(1)),
+      label: 'thief',
+    })
+    expect(again).toMatchObject({ status: 409, body: { code: VAULT_ROTATED, successor } })
+    expect(db.prepare('SELECT COUNT(*) AS n FROM devices').get()).toEqual({ n: 2 })
+    expect(decodeFrame(relay.connected(phone)).message).toMatchObject({ retired: successor })
+    expect(send({ type: 'devices' })).toMatchObject({ type: 'devices' })
+  })
+
+  it('keeps the first successor: the same one is retired again, another is refused', async () => {
+    const { relay, device, enroll } = await vaultAt(at, { limiter: roomy() })
+    const phone = await enroll('phone')
+    const retire = (from: string, name: string) =>
+      decodeFrame(
+        relay.receive(from, encodeFrame({ type: 'retire', rid: 7, successor: name })).reply ?? '',
+      ).message
+    expect(retire(device, successor)).toMatchObject({ type: 'retired', successor })
+    expect(retire(device, successor)).toMatchObject({ type: 'retired', successor })
+    expect(retire(phone, 'another-0123456789abcd')).toMatchObject({
+      type: 'error',
+      code: VAULT_ROTATED,
+      successor,
+    })
+  })
+
+  it('refuses a successor that is not a vault ID or is the vault itself', async () => {
+    const { relay, send } = await vaultAt(at, { limiter: roomy() })
+    for (const name of ['short', relay.vault, 7, undefined]) {
+      expect(send({ type: 'retire', successor: name })).toMatchObject({
+        code: 'E_SYNC_BAD_MESSAGE',
+      })
+    }
+    expect(send(...record('r', 0))).toMatchObject({ type: 'pushed' })
+  })
+
+  it('a revoked device cannot retire the vault', async () => {
+    const { relay, send, enroll } = await vaultAt(at, { limiter: roomy() })
+    const phone = await enroll('phone')
+    send({ type: 'revoke', device: phone })
+    const outcome = relay.receive(phone, encodeFrame({ type: 'retire', successor }))
+    expect(outcome.close).toMatchObject({ device: phone, code: CLOSE.revoked })
+    expect(send(...record('r', 0))).toMatchObject({ type: 'pushed' })
   })
 })
 

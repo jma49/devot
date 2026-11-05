@@ -49,6 +49,10 @@ vi.mock('../ipc', () => ({
         return answers.icloud
       case 'sync_recovery_key':
         return null
+      case 'sync_vault_rotate':
+        if ((args as { relaySecret?: string }).relaySecret !== 'relay-secret')
+          throw new Error('E_SYNC_RELAY_SECRET')
+        return { snapshot: answers.snapshot, recoveryKey: 'ABCDE-FGHIJ-KLMNO' }
       case 'sync_devices':
         return answers.devices
       case 'sync_icloud_storage':
@@ -71,6 +75,7 @@ function snapshot(over: {
   status?: Record<string, unknown>
   icloudJoin?: Record<string, unknown> | null
   moveStarted?: boolean
+  rotated?: boolean
 }) {
   const relay = over.transport === 'relay'
   return {
@@ -88,6 +93,7 @@ function snapshot(over: {
     },
     icloudJoin: over.icloudJoin ?? null,
     moveStarted: over.moveStarted ?? false,
+    rotated: over.rotated ?? false,
   }
 }
 
@@ -448,6 +454,25 @@ describe.each([
     expect(el.textContent).toMatch(/removed from iCloud\. (Your )?notes stay here/i)
   })
 
+  it('asks a device whose vault key was changed elsewhere to join again, and shows no code', async () => {
+    for (const shown of [
+      snapshot({ transport: 'relay', enrolled: true, rotated: true }),
+      snapshot({
+        transport: 'relay',
+        enrolled: true,
+        status: { state: 'stopped', code: 'E_SYNC_VAULT_ROTATED' },
+      }),
+    ]) {
+      const el = await show(shown, NO_CONTAINER, phone)
+      expect(el.textContent).toMatch(/key was changed on another device/)
+      expect(button(el, 'Join')).toBeDefined()
+      expect(button(el, 'Show Pairing Code')).toBeUndefined()
+      expect(button(el, 'Change Vault Key…')).toBeUndefined()
+      act(() => root?.unmount())
+      root = undefined
+    }
+  })
+
   it('cancels leaving without a word to Rust, and offers it to no relay vault', async () => {
     const el = await show(snapshot({}), ICLOUD, phone)
     await act(async () => button(el, 'Leave This Vault…')?.click())
@@ -474,4 +499,51 @@ it('points the key field at its hint only when there is one', async () => {
   } finally {
     Object.assign(enPhone, { 'syncSettings.icloudLeaveKeyHint': shown })
   }
+})
+
+describe('Change Vault Key', () => {
+  it('changes a relay vault\u2019s key once the relay\u2019s secret is typed, then shows the new recovery key', async () => {
+    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER, false)
+    expect(el.querySelector('input[type=password]')).toBeNull()
+    await act(async () => button(el, 'Change Vault Key…')?.click())
+    const field = el.querySelector<HTMLInputElement>('input[type=password]')
+    expect(field).not.toBeNull()
+    expect(button(el, 'Change Key')?.disabled).toBe(true)
+    if (!field) return
+    type(field, 'wrong')
+    await act(async () => button(el, 'Change Key')?.click())
+    await settle()
+    expect(el.textContent).toMatch(/could not be changed \(E_SYNC_RELAY_SECRET\)/)
+    type(field, 'relay-secret')
+    await act(async () => button(el, 'Change Key')?.click())
+    await settle()
+    expect(calls.filter((c) => c.cmd === 'sync_vault_rotate').map((c) => c.args)).toEqual([
+      { relaySecret: 'wrong' },
+      { relaySecret: 'relay-secret' },
+    ])
+    expect(el.textContent).toContain('ABCDE-FGHIJ-KLMNO')
+    expect(el.querySelector('input[type=password]')).toBeNull()
+    expect(button(el, 'Change Vault Key…')).toBeDefined()
+  })
+
+  it('cancels without a word to Rust', async () => {
+    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER, false)
+    await act(async () => button(el, 'Change Vault Key…')?.click())
+    await act(async () => button(el, 'Cancel')?.click())
+    expect(el.querySelector('input[type=password]')).toBeNull()
+    expect(calls.some((c) => c.cmd === 'sync_vault_rotate')).toBe(false)
+  })
+
+  it('is offered on the Mac for a relay vault only', async () => {
+    for (const [shown, icloud, phone] of [
+      [snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER, true],
+      [snapshot({}), ICLOUD, false],
+      [snapshot({ transport: 'relay', enrolled: false }), NO_CONTAINER, false],
+    ] as const) {
+      const el = await show(shown, icloud, phone)
+      expect(button(el, 'Change Vault Key…')).toBeUndefined()
+      act(() => root?.unmount())
+      root = undefined
+    }
+  })
 })

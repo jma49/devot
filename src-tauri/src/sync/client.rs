@@ -153,7 +153,7 @@ fn relay_code(value: &Value) -> Option<&'static str> {
     KNOWN_CODES.iter().copied().find(|known| *known == code)
 }
 
-const KNOWN_CODES: [&str; 20] = [
+const KNOWN_CODES: [&str; 21] = [
     "E_SYNC_BAD_MESSAGE",
     "E_SYNC_PROTOCOL",
     "E_SYNC_TOO_LARGE",
@@ -174,9 +174,19 @@ const KNOWN_CODES: [&str; 20] = [
     "E_SYNC_FORBIDDEN",
     "E_SYNC_PAIRING_GONE",
     "E_SYNC_PAIRING_EXISTS",
+    "E_SYNC_VAULT_ROTATED",
 ];
 
 fn post(url: &str, body: &Value, bearer: Option<&str>) -> Result<Value, &'static str> {
+    post_answer(url, body, bearer).map_err(|(code, _)| code)
+}
+
+/// As `post`, with the relay's answer beside a refusal's code.
+fn post_answer(
+    url: &str,
+    body: &Value,
+    bearer: Option<&str>,
+) -> Result<Value, (&'static str, Value)> {
     let agent = agent();
     let mut call = agent
         .post(url)
@@ -186,8 +196,10 @@ fn post(url: &str, body: &Value, bearer: Option<&str>) -> Result<Value, &'static
     if let Some(value) = &authorization {
         call = call.header("Authorization", value.as_str());
     }
-    let body = serde_json::to_vec(body).map_err(|_| "E_SYNC_INTERNAL")?;
-    let mut response = call.send(&body[..]).map_err(|_| "E_SYNC_OFFLINE")?;
+    let body = serde_json::to_vec(body).map_err(|_| ("E_SYNC_INTERNAL", Value::Null))?;
+    let mut response = call
+        .send(&body[..])
+        .map_err(|_| ("E_SYNC_OFFLINE", Value::Null))?;
     let status = response.status().as_u16();
     let mut bytes = Vec::new();
     response
@@ -195,16 +207,17 @@ fn post(url: &str, body: &Value, bearer: Option<&str>) -> Result<Value, &'static
         .as_reader()
         .take(MAX_HTTP_ANSWER + 1)
         .read_to_end(&mut bytes)
-        .map_err(|_| "E_SYNC_OFFLINE")?;
+        .map_err(|_| ("E_SYNC_OFFLINE", Value::Null))?;
     let value: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     if status == 200 && bytes.len() as u64 <= MAX_HTTP_ANSWER {
         return Ok(value);
     }
-    Err(relay_code(&value).unwrap_or(match status {
+    let code = relay_code(&value).unwrap_or(match status {
         401 | 403 => "E_SYNC_RELAY_SECRET",
         404 => "E_SYNC_NO_VAULT",
         _ => "E_SYNC_RELAY_FAILED",
-    }))
+    });
+    Err((code, value))
 }
 
 fn enrolled(value: Value) -> Result<Enrolled, &'static str> {
@@ -226,6 +239,11 @@ fn valid_relay_id(id: &str) -> bool {
         && id
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+/// A vault ID as this device makes them: a hyphenated UUID.
+fn valid_vault_id(id: &str) -> bool {
+    uuid::Uuid::try_parse(id).is_ok_and(|uuid| uuid.hyphenated().to_string() == id)
 }
 
 fn clean_label(label: &str) -> String {
@@ -260,12 +278,29 @@ pub(crate) fn create_vault(
 }
 
 /// Enrolls this device in a vault the relay holds, with the secret any holder of the vault key
-/// derives.
+/// derives. A retired vault refuses with `E_SYNC_VAULT_ROTATED`.
 pub(crate) fn enroll(
     relay: &RelayUrl,
     vault: &Vault,
     label: &str,
 ) -> Result<Enrolled, &'static str> {
+    match enroll_or_retired(relay, vault, label)? {
+        Enrollment::Enrolled(enrolled) => Ok(enrolled),
+        Enrollment::Retired(_) => Err("E_SYNC_VAULT_ROTATED"),
+    }
+}
+
+/// What an enrollment came to: a token, or the successor of a retired vault.
+pub(crate) enum Enrollment {
+    Enrolled(Enrolled),
+    Retired(String),
+}
+
+pub(crate) fn enroll_or_retired(
+    relay: &RelayUrl,
+    vault: &Vault,
+    label: &str,
+) -> Result<Enrollment, &'static str> {
     let secret = vault.enrollment_secret();
     let encoded = Zeroizing::new(URL_SAFE_NO_PAD.encode(secret.as_ref()));
     let body = json!({
@@ -274,11 +309,20 @@ pub(crate) fn enroll(
         "secret": encoded.as_str(),
         "label": clean_label(label),
     });
-    enrolled(post(
+    match post_answer(
         &relay.vault_path(&vault.id().to_string(), "/devices"),
         &body,
         None,
-    )?)
+    ) {
+        Ok(reply) => enrolled(reply).map(Enrollment::Enrolled),
+        Err(("E_SYNC_VAULT_ROTATED", reply)) => reply
+            .get("successor")
+            .and_then(Value::as_str)
+            .filter(|id| valid_vault_id(id))
+            .map(|id| Enrollment::Retired(id.to_string()))
+            .ok_or("E_SYNC_VAULT_ROTATED"),
+        Err((code, _)) => Err(code),
+    }
 }
 
 const MAX_SEALED_BYTES: usize = 512;
@@ -427,6 +471,12 @@ pub(crate) struct Welcome {
     pub quota: Option<&'static str>,
     /// `on` or `off`, whether the relay holds attachments within a share; None from a relay older than that.
     pub attachments: Option<&'static str>,
+    /// Whether the relay can retire a vault (docs/adr/0017-sync-key-rotation.md).
+    #[serde(skip)]
+    pub rotation: bool,
+    /// The successor of a retired vault.
+    #[serde(skip)]
+    pub retired: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -638,6 +688,17 @@ fn read_welcome(socket: &mut Socket) -> Result<Welcome, &'static str> {
                         Some("off") => Some("off"),
                         _ => None,
                     },
+                    rotation: m.get("rotation").and_then(Value::as_str) == Some("on"),
+                    retired: m
+                        .get("retired")
+                        .map(|named| {
+                            named
+                                .as_str()
+                                .filter(|id| valid_vault_id(id))
+                                .map(str::to_string)
+                                .ok_or("E_SYNC_PROTOCOL")
+                        })
+                        .transpose()?,
                 };
                 return Ok(welcome);
             }
@@ -1232,6 +1293,45 @@ pub(crate) fn revoke(connection: &Connection, device: &str) -> Result<(), &'stat
     }
 }
 
+/// What a retire came to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Retire {
+    /// The vault is retired for the successor this device named.
+    Done,
+    /// Another device retired it first, for the successor named here.
+    Taken(String),
+}
+
+/// Retires the vault for `successor` (docs/adr/0017-sync-key-rotation.md): the relay refuses its
+/// pushes, pulls and enrollments from then on. A relay from before retirement answers
+/// `E_SYNC_BAD_MESSAGE`.
+pub(crate) fn retire(connection: &Connection, successor: &str) -> Result<Retire, &'static str> {
+    if !valid_vault_id(successor) {
+        return Err("E_SYNC_INTERNAL");
+    }
+    let answer = connection.answer(
+        &object(json!({ "type": "retire", "successor": successor })),
+        &[],
+    )?;
+    let named = answer
+        .message
+        .get("successor")
+        .and_then(Value::as_str)
+        .filter(|id| valid_vault_id(id));
+    match (error_code(&answer), named) {
+        (None, Some(named))
+            if named == successor
+                && answer.message.get("type").and_then(Value::as_str) == Some("retired") =>
+        {
+            Ok(Retire::Done)
+        }
+        (Some("E_SYNC_VAULT_ROTATED"), Some(named)) if named == successor => Ok(Retire::Done),
+        (Some("E_SYNC_VAULT_ROTATED"), Some(named)) => Ok(Retire::Taken(named.to_string())),
+        (Some(code), _) => Err(code),
+        (None, _) => Err("E_SYNC_PROTOCOL"),
+    }
+}
+
 #[cfg(test)]
 pub(crate) fn send_raw(connection: &Connection, message: Value) -> Result<Answer, &'static str> {
     connection.request(&object(message), &[])
@@ -1240,6 +1340,20 @@ pub(crate) fn send_raw(connection: &Connection, message: Value) -> Result<Answer
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_successor_the_relay_names_is_a_hyphenated_uuid_only() {
+        assert!(valid_vault_id("0f8e6a52-4c1b-4f7a-9d2e-3b5c6d7e8f90"));
+        for id in [
+            "",
+            "0F8E6A52-4C1B-4F7A-9D2E-3B5C6D7E8F90",
+            "0f8e6a524c1b4f7a9d2e3b5c6d7e8f90",
+            "{0f8e6a52-4c1b-4f7a-9d2e-3b5c6d7e8f90}",
+            "../0f8e6a52-4c1b-4f7a-9d2e-3b5c6d7e8f90",
+        ] {
+            assert!(!valid_vault_id(id), "{id}");
+        }
+    }
 
     #[test]
     fn takes_https_or_http_to_this_machine_only() {

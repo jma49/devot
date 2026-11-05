@@ -666,6 +666,19 @@ describe('sync between two devices', () => {
     expect((await sameNote(a, b, id))?.title).toBe('Theirs, later')
   })
 
+  it('stops and keeps its changes when another device retires the vault for a successor', async () => {
+    const { a, b } = await pair()
+    const successor = '0f8e6a52-4c1b-4f7a-9d2e-3b5c6d7e8f90'
+    expect((await a.transport.send({ type: 'retire', successor }))['type']).toBe('retired')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    await b.engine.idle()
+    expect(b.engine.status()).toMatchObject({ state: 'stopped', code: 'E_SYNC_VAULT_ROTATED' })
+    const id = await b.notes.create('Kept here')
+    await b.sync()
+    expect(b.engine.status().code).toBe('E_SYNC_VAULT_ROTATED')
+    expect((await b.note(id))?.title).toBe('Kept here')
+  })
+
   it('stops and says so when the device is revoked', async () => {
     const { a, b } = await pair()
     const devices = (await b.transport.send({ type: 'devices' }))['devices'] as {

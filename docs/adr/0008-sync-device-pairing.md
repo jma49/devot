@@ -1,6 +1,6 @@
 # Devices pair with a one-time code that carries a 128-bit secret; the relay holds only a sealed offer
 
-Status: accepted. Amended by ADR 0015 for vaults on iCloud.
+Status: accepted. Amended by ADR 0015 for vaults on iCloud, and by ADR 0017 (key rotation).
 
 A device that already syncs shows a pairing code: 128 random bits, as 32 characters to type or paste, and as a QR code that adds the relay's address. The code never reaches the relay. Both devices derive from it the pairing's ID, which the relay sees, and a key, which it does not. The existing device seals the vault's ID and key under that key and leaves the sealed offer on the relay for 10 minutes. The new device takes it once, opens it, enrolls with the relay on its own and returns a sealed confirmation. The recovery key, shown when the vault is made until the owner says it was saved, does the same job without another device: entered with the relay's address, it restores the vault and enrolls the device. This settles the design question of #336 (ADR 0004 left it open).
 
@@ -58,7 +58,7 @@ A 32-character code costs some typing in the rare case without a camera or clipb
 
 Nothing. The offer holds the vault ID and key only. The new device enrolls with the enrollment secret it derives itself and gets a token of its own. The relay keeps that token's hash, as for every device. No device ever sees another device's token, so removing one device (revoking its token) leaves the others alone.
 
-Removing a device revokes its token, not its knowledge: it still holds the vault key, from which the enrollment secret is derived. Devot does not enroll a removed device again on its own, even under another address of the same relay (the revoked mark is kept per vault). But whoever has the device can enroll it again on purpose, by joining with the recovery key or with a code, or by calling the relay directly. Locking out a lost device for good needs a new vault key that the other devices move to (key rotation), which is a follow-up; Settings says so when it asks to remove a device.
+Removing a device revokes its token, not its knowledge: it still holds the vault key, from which the enrollment secret is derived. Devot does not enroll a removed device again on its own, even under another address of the same relay (the revoked mark is kept per vault). But whoever has the device can enroll it again on purpose, by joining with the recovery key or with a code, or by calling the relay directly. Locking out a lost device for good needs a new vault key that the other devices move to: key rotation, ADR 0017. A join may replace a held vault that its relay retired, for the recorded successor only.
 
 ## Recovery key
 
@@ -81,7 +81,7 @@ Removing a device revokes its token, not its knowledge: it still holds the vault
 ## Consequences
 
 - docs/sync-relay.md documents the routes and how an owner updates their relay. docs/architecture.md and GLOSSARY.md name the pairing code, the offer and the recovery key.
-- Follow-ups: scanning the QR code inside Devot on iOS; acting on a `devot://pair` link (it should only fill in the join form, never join on its own); device names that tell two Macs apart (encrypted under the vault key so the relay does not see them); a way to leave a vault on purpose; key rotation, so a removed device that holds the vault key cannot join again.
+- Follow-ups: scanning the QR code inside Devot on iOS; acting on a `devot://pair` link (it should only fill in the join form, never join on its own); device names that tell two Macs apart (encrypted under the vault key so the relay does not see them); a way to leave a vault on purpose; key rotation, so a removed device that holds the vault key cannot join again (ADR 0017).
 
 ## Amended
 

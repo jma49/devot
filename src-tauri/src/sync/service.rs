@@ -37,6 +37,9 @@ use super::pairing::{self, Pairing, PairingChannel, Qr, RelayPairing};
 use super::settings::{DeviceCredentials, RelayDevice, SettingsStore, SyncSettings, Unseen};
 use super::{MAX_RECORD_BYTES, SecretStore, Vault};
 use crate::licence::Gate;
+use rotation::VAULT_ROTATED;
+
+mod rotation;
 
 pub(crate) const CHANGED_EVENT: &str = "devot://sync-changed";
 pub(crate) const SOCKET_EVENT: &str = "devot://sync-event";
@@ -165,6 +168,9 @@ pub(crate) struct Snapshot {
     pub icloud_join: Option<ICloudJoinView>,
     /// This device started moving its relay vault to iCloud and has not switched yet.
     pub move_started: bool,
+    /// Another device rotated the key of the vault this device holds: it joins the successor with a
+    /// pairing code or the new recovery key (docs/adr/0017-sync-key-rotation.md).
+    pub rotated: bool,
 }
 
 /// What this device found of its Apple ID's vault on iCloud, for Settings > Sync and the notice:
@@ -419,6 +425,9 @@ pub(crate) struct SyncService {
     /// Fails the next moved marker as if the relay refused it.
     #[cfg(test)]
     fails_marker: std::sync::atomic::AtomicBool,
+    /// Fails the next retire of a rotation as if the app quit just before it.
+    #[cfg(test)]
+    quits_before_retire: std::sync::atomic::AtomicBool,
 }
 
 const MAX_SAFE: u64 = 9_007_199_254_740_991;
@@ -522,6 +531,18 @@ fn push_dto(answer: cloudkit::PushAnswer) -> PushDto {
     }
 }
 
+/// The relay's secret as entered, trimmed; it only ever goes into the request that creates a vault.
+fn checked_relay_secret(relay_secret: &str) -> Result<Zeroizing<String>, &'static str> {
+    let relay_secret = Zeroizing::new(relay_secret.trim().to_string());
+    if relay_secret.is_empty()
+        || relay_secret.len() > MAX_RELAY_SECRET
+        || relay_secret.chars().any(char::is_control)
+    {
+        return Err("E_SYNC_RELAY_SECRET_INVALID");
+    }
+    Ok(relay_secret)
+}
+
 impl SyncService {
     pub(crate) fn new(
         settings: SettingsStore,
@@ -550,6 +571,8 @@ impl SyncService {
             fails_device_list: std::sync::atomic::AtomicBool::new(false),
             #[cfg(test)]
             fails_marker: std::sync::atomic::AtomicBool::new(false),
+            #[cfg(test)]
+            quits_before_retire: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -592,6 +615,11 @@ impl SyncService {
         self.fails_marker.store(true, Ordering::Relaxed);
     }
 
+    #[cfg(test)]
+    pub(crate) fn quit_before_next_retire(&self) {
+        self.quits_before_retire.store(true, Ordering::Relaxed);
+    }
+
     /// From the settings alone, without the keychain `snapshot` reads.
     pub(crate) fn enabled(&self) -> bool {
         self.settings.get().enabled
@@ -620,6 +648,9 @@ impl SyncService {
             && vault
                 .as_ref()
                 .is_some_and(|vault| settings.moving == vault.id().to_string());
+        let rotated = vault
+            .as_ref()
+            .is_some_and(|vault| settings.successor_of(&vault.id().to_string()).is_some());
         Snapshot {
             relay_url: settings.relay_url,
             enabled: settings.enabled,
@@ -629,6 +660,7 @@ impl SyncService {
             status: self.status.lock().map(|s| s.clone()).unwrap_or_default(),
             icloud_join: self.look.lock().ok().and_then(|look| look.clone()),
             move_started,
+            rotated,
         }
     }
 
@@ -670,13 +702,7 @@ impl SyncService {
     /// may be a later call than the one that made the key when the relay refused that one.
     pub(crate) fn create_vault(&self, relay_secret: &str) -> Result<Created, &'static str> {
         self.licence.require()?;
-        let relay_secret = Zeroizing::new(relay_secret.trim().to_string());
-        if relay_secret.is_empty()
-            || relay_secret.len() > MAX_RELAY_SECRET
-            || relay_secret.chars().any(char::is_control)
-        {
-            return Err("E_SYNC_RELAY_SECRET_INVALID");
-        }
+        let relay_secret = checked_relay_secret(relay_secret)?;
         let relay = self.relay()?;
         let vault = match Vault::load(self.secrets.as_ref()).map_err(|e| e.code())? {
             Some(vault) => vault,
@@ -751,6 +777,14 @@ impl SyncService {
         let relay = self.relay()?;
         let vault = self.held_vault()?;
         let credentials = self.credentials(&relay, &vault)?;
+        if self
+            .settings
+            .get()
+            .successor_of(&vault.id().to_string())
+            .is_some()
+        {
+            return Err(VAULT_ROTATED);
+        }
         self.pairing_cancel();
         let pairing = Pairing::generate().map_err(|e| e.code())?;
         let expires = self.now().saturating_add(pairing::TTL_MS);
@@ -931,9 +965,15 @@ impl SyncService {
             return Err("E_SYNC_PAIRING_RELAY");
         }
         // Refused before the offer is taken, so the code still works on another device. A device
-        // removed from its vault may hold it and be let back in.
+        // removed from its vault may hold it and be let back in; one whose vault was retired joins
+        // the successor.
         let held = Vault::load(self.secrets.as_ref()).map_err(|e| e.code())?;
+        let successor = match &held {
+            Some(held) => self.successor_of(&relay, held)?,
+            None => None,
+        };
         if let Some(held) = &held
+            && successor.is_none()
             && !self.revoked_from(held)?
         {
             return Err("E_SYNC_VAULT_EXISTS");
@@ -945,10 +985,8 @@ impl SyncService {
             log::warn!("W_SYNC_PAIRING_OFFER {} pairing={}", e.code(), pairing.id());
             e.code()
         })?;
-        if held.is_some_and(|held| !held.same(&vault)) {
-            return Err("E_SYNC_VAULT_EXISTS");
-        }
-        let (vault, device) = self.join(&relay, vault)?;
+        let replaces = Self::replaces(held.as_ref(), successor.as_deref(), &vault)?;
+        let (vault, device) = self.join(&relay, vault, replaces)?;
         let confirmed = pairing
             .seal_confirmation(&device)
             .map_err(|e| e.code())
@@ -1019,15 +1057,14 @@ impl SyncService {
         }
         let relay = self.relay()?;
         let vault = Vault::from_recovery_key(text).map_err(|e| e.code())?;
-        if let Some(held) = Vault::load(self.secrets.as_ref()).map_err(|e| e.code())? {
-            if !held.same(&vault) {
-                return Err("E_SYNC_VAULT_EXISTS");
-            }
-            if self.credentials(&relay, &held).is_ok() {
-                return Ok(self.changed());
-            }
-        }
-        let (vault, device) = self.join(&relay, vault)?;
+        let held = Vault::load(self.secrets.as_ref()).map_err(|e| e.code())?;
+        let successor = match &held {
+            Some(held) if !held.same(&vault) => self.successor_of(&relay, held)?,
+            Some(held) if self.credentials(&relay, held).is_ok() => return Ok(self.changed()),
+            _ => None,
+        };
+        let replaces = Self::replaces(held.as_ref(), successor.as_deref(), &vault)?;
+        let (vault, device) = self.join(&relay, vault, replaces)?;
         log::info!("I_SYNC_RECOVERED vault={} device={device}", vault.id());
         Ok(self.changed())
     }
@@ -1039,14 +1076,40 @@ impl SyncService {
             .is_some_and(|c| c.vault == vault.id().to_string() && c.token == REVOKED))
     }
 
+    /// Whether joining `vault` puts it in place of the vault held: only for the recorded
+    /// successor of a retired one. Any other vault held is never replaced.
+    fn replaces(
+        held: Option<&Vault>,
+        successor: Option<&str>,
+        vault: &Vault,
+    ) -> Result<bool, &'static str> {
+        match held {
+            None => Ok(false),
+            Some(held) if held.same(vault) => Ok(false),
+            Some(_) if successor == Some(vault.id().to_string().as_str()) => Ok(true),
+            Some(_) => Err("E_SYNC_VAULT_EXISTS"),
+        }
+    }
+
     /// Enrolls this device in `vault` on `relay`, then keeps the token, the vault and sync on, in
     /// that order: a refused enrollment keeps nothing, and the engine, which needs the vault, never
-    /// enrolls a second time meanwhile.
-    fn join(&self, relay: &RelayUrl, vault: Vault) -> Result<(Vault, String), &'static str> {
+    /// enrolls a second time meanwhile. `replaces` puts the vault in place of a retired one.
+    fn join(
+        &self,
+        relay: &RelayUrl,
+        vault: Vault,
+        replaces: bool,
+    ) -> Result<(Vault, String), &'static str> {
         let enrolled = client::enroll(relay, &vault, DEVICE_LABEL)?;
         self.keep(relay, &vault, &enrolled.device, &enrolled.token)?;
-        let vault = Vault::join(self.secrets.as_ref(), vault).map_err(|e| {
-            if DeviceCredentials::forget(self.secrets.as_ref()).is_err() {
+        let secrets = self.secrets.as_ref();
+        let kept = if replaces {
+            Vault::replace(secrets, &vault).map(|()| vault)
+        } else {
+            Vault::join(secrets, vault)
+        };
+        let vault = kept.map_err(|e| {
+            if DeviceCredentials::forget(secrets).is_err() {
                 log::warn!("W_SYNC_TOKEN_FORGET_FAILED");
             }
             e.code()
@@ -1054,6 +1117,11 @@ impl SyncService {
         let mut settings = self.settings.get();
         settings.enabled = true;
         settings.recovery_shown = vault.id().to_string();
+        if replaces {
+            settings.rotated = None;
+            settings.call_off_move();
+            log::info!("I_SYNC_SUCCESSOR_JOINED vault={}", vault.id());
+        }
         self.settings.set(&settings)?;
         Ok((vault, enrolled.device))
     }
@@ -1210,16 +1278,7 @@ impl SyncService {
         relay: &RelayUrl,
         vault: &Vault,
     ) -> Result<DeviceCredentials, &'static str> {
-        let enrolled = client::enroll(relay, vault, DEVICE_LABEL)?;
-        self.keep(relay, vault, &enrolled.device, &enrolled.token)?;
-        log::info!(
-            "I_SYNC_ENROLLED vault={} device={}",
-            vault.id(),
-            enrolled.device
-        );
-        DeviceCredentials::load(self.secrets.as_ref())
-            .map_err(|e| e.code())?
-            .ok_or("E_SYNC_NOT_ENROLLED")
+        self.enroll_or_retired(relay, vault)
     }
 
     /// What the relay's refusal means for the kept token. A revoked device keeps a marked token and
@@ -1266,6 +1325,11 @@ impl SyncService {
                 });
         }
         let relay = self.relay()?;
+        let vault = self.resume_rotation(&relay, vault)?;
+        let vault_id = vault.id().to_string();
+        if self.settings.get().successor_of(&vault_id).is_some() {
+            return Err(VAULT_ROTATED);
+        }
         // A removed device stays out under any address of the relay: only a join lets it back in.
         let credentials =
             match DeviceCredentials::load(self.secrets.as_ref()).map_err(|e| e.code())? {
@@ -1286,6 +1350,11 @@ impl SyncService {
         let (connection, welcome) = opened.inspect_err(|code| {
             Self::refused(self.secrets.as_ref(), code);
         })?;
+        if let Some(successor) = &welcome.retired {
+            connection.close();
+            self.found_retired(&vault, successor)?;
+            return Err(VAULT_ROTATED);
+        }
         log::info!(
             "I_SYNC_CONNECTED vault={vault_id} device={}",
             welcome.device

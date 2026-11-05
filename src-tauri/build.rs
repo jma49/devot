@@ -136,6 +136,7 @@ fn main() {
             "sync_get",
             "sync_set",
             "sync_vault_create",
+            "sync_vault_rotate",
             "sync_recovery_key",
             "sync_recovery_saved",
             "sync_pairing_open",

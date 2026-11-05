@@ -101,6 +101,10 @@ export type ClientMessage =
   | { type: 'revoke'; rid?: number; device: string }
   | { type: 'time'; rid?: number }
   | { type: 'usage'; rid?: number }
+  | { type: 'retire'; rid?: number; successor: string }
+
+/** A retired vault's refusal of push, pull and enroll; it carries the successor (docs/adr/0017-sync-key-rotation.md). */
+export const VAULT_ROTATED = 'E_SYNC_VAULT_ROTATED'
 
 export type RelayMessage =
   | {
@@ -113,6 +117,10 @@ export type RelayMessage =
       quota?: 'on' | 'off'
       /** Whether the relay enforces the attachment share; absent from a relay older than it. */
       attachments?: 'on' | 'off'
+      /** `on` from a relay that can retire a vault; absent from one older than that. */
+      rotation?: 'on'
+      /** The successor of a retired vault. */
+      retired?: string
     }
   | { type: 'records'; rid?: number; records: RecordHead[]; next: number; more: boolean }
   | { type: 'pushed'; rid?: number; id: string; version: number; seq: number }
@@ -120,6 +128,7 @@ export type RelayMessage =
   | { type: 'changed'; seq: number }
   | { type: 'devices'; rid?: number; devices: DeviceInfo[] }
   | { type: 'revoked'; rid?: number; device: string }
+  | { type: 'retired'; rid?: number; successor: string }
   | { type: 'time'; rid?: number; time: number }
   | ({ type: 'usage'; rid?: number } & Usage)
   | {
@@ -131,6 +140,8 @@ export type RelayMessage =
       /** With E_SYNC_QUOTA: the limit that tripped and when pushes are taken again (`quotaResetAt`). */
       limit?: QuotaLimit
       until?: number
+      /** With E_SYNC_VAULT_ROTATED: the vault that succeeds this one. */
+      successor?: string
     }
 
 /** HTTP bodies: vault creation and device enrollment, and the relay's answers. */

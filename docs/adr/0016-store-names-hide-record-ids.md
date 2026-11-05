@@ -1,6 +1,6 @@
 # Records are filed under names derived from their IDs, so the store does not learn when they were made
 
-Status: accepted (2026-11-05). Amends ADR 0002 (Records, risk 10) and ADR 0015 (the record mapping, the moved marker, what the iCloud account sees).
+Status: accepted (2026-11-05). Amends ADR 0002 (Records, risk 10) and ADR 0015 (the record mapping, the moved marker, what the iCloud account sees). Amended by ADR 0017: a key rotation is a new vault, so every store name changes.
 
 Record IDs are UUIDv7, which carry their creation time. The relay saw them as each record's `id`, and iCloud as each `CKRecord`'s name, so the store learned when every note, notebook, tag, saved search and attachment was made. The bodies were sealed; the timing was not.
 

@@ -50,6 +50,7 @@
     "allow-sync-get",
     "allow-sync-set",
     "allow-sync-vault-create",
+    "allow-sync-vault-rotate",
     "allow-sync-recovery-key",
     "allow-sync-recovery-saved",
     "allow-sync-pairing-open",

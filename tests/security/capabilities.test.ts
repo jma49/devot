@@ -206,7 +206,8 @@ describe('Tauri command permissions', () => {
       // It offers the recovery key until it is saved, pairs and joins devices, lists and removes them, and shows the relay's storage.
       // It shows iCloud's state and what the vault holds there, starts or restores an iCloud vault,
       // moves one from a relay, uploads it again, looks for the Apple ID's vault and passes on the
-      // owner's answer to joining it. It leaves an iCloud vault once its recovery key confirms it.
+      // owner's answer to joining it. It leaves an iCloud vault once its recovery key confirms it,
+      // and rotates a relay vault's key with the relay's secret.
       'allow-sync-device-remove',
       'allow-sync-devices',
       'allow-sync-get',
@@ -227,6 +228,7 @@ describe('Tauri command permissions', () => {
       'allow-sync-set',
       'allow-sync-usage',
       'allow-sync-vault-create',
+      'allow-sync-vault-rotate',
       'allow-system-accent',
       'allow-update-check',
       'allow-update-status',
@@ -277,6 +279,7 @@ describe('Tauri command permissions', () => {
     // The relay's storage: Settings shows it, and the main window's notice reads it; read-only.
     expect(windowsWith('allow-sync-usage')).toEqual(['main', 'settings'])
     expect(windowsWith('allow-sync-vault-create')).toEqual(['settings'])
+    expect(windowsWith('allow-sync-vault-rotate')).toEqual(['settings'])
   })
 
   it('lets every window read the system accent colour', () => {

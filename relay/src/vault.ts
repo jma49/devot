@@ -9,6 +9,7 @@ import {
   isCount,
   isLabel,
   isRecordId,
+  isVaultId,
   LIMITS,
   ProtocolError,
   type QuotaCaps,
@@ -16,6 +17,7 @@ import {
   type RecordHead,
   type RecordKind,
   splitChunks,
+  VAULT_ROTATED,
 } from '../../src/core/sync/protocol.ts'
 import { RateLimiter } from './limiter.ts'
 import { FREE_CAPS, trippedLimit } from './quota.ts'
@@ -100,6 +102,13 @@ const SCHEMA = [
   )`,
 ]
 const SCHEMA_VERSION = 1
+// Made by the first retire, so a vault from before retirement keeps its tables as they are
+// (docs/adr/0017-sync-key-rotation.md).
+const RETIREMENT = `CREATE TABLE IF NOT EXISTS retirement (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    successor TEXT NOT NULL,
+    at INTEGER NOT NULL
+  )`
 const MAX_DEVICES = 100
 /** Sealed file records up to this size (a purge's tombstone) are never refused for the attachment share. */
 const TOMBSTONE_BYTES = 1024
@@ -126,6 +135,10 @@ function peekRid(data: Outgoing): number | undefined {
   } catch {
     return undefined
   }
+}
+
+function rotatedReply(rid: number | undefined, successor: string): Outcome {
+  return { reply: encodeFrame({ type: 'error', rid, code: VAULT_ROTATED, successor }) }
 }
 
 function revokedClose(device: string): NonNullable<Outcome['close']> {
@@ -211,6 +224,11 @@ export class VaultRelay {
       return errorReply(400, 'E_SYNC_BAD_MESSAGE')
     }
     if (!this.exists()) return errorReply(404, 'E_SYNC_NO_VAULT')
+    const successor = this.successor()
+    if (successor !== null) {
+      this.pending.requests++
+      return { status: 409, body: { v: 1, type: 'error', code: VAULT_ROTATED, successor } }
+    }
     const verifier = await enrollmentVerifier(secret)
     const stored = this.sql.all('SELECT verifier, epoch FROM vault WHERE id = 1')[0]
     if (!stored || !sameBytes(verifier, stored['verifier'] as Uint8Array)) {
@@ -246,6 +264,7 @@ export class VaultRelay {
     const epoch = String(this.sql.all('SELECT epoch FROM vault WHERE id = 1')[0]?.['epoch'])
     const quota = this.quota ? 'on' : 'off'
     const attachments = this.quota?.fileBytes === undefined ? 'off' : 'on'
+    const retired = this.successor()
     return encodeFrame({
       type: 'welcome',
       time: this.now(),
@@ -254,6 +273,8 @@ export class VaultRelay {
       device,
       quota,
       attachments,
+      rotation: 'on',
+      ...(retired === null ? {} : { retired }),
     })
   }
 
@@ -296,11 +317,21 @@ export class VaultRelay {
     message: Record<string, unknown>,
     payload: Uint8Array,
   ): Outcome {
-    switch (message['type']) {
+    const type = message['type']
+    if (type === 'push' || type === 'pull') {
+      const successor = this.successor()
+      if (successor !== null) {
+        this.pending.messages++
+        return rotatedReply(rid, successor)
+      }
+    }
+    switch (type) {
       case 'push':
         return this.push(rid, message, payload)
       case 'pull':
         return this.pull(rid, message)
+      case 'retire':
+        return this.retire(rid, message)
       case 'devices':
         this.pending.messages++
         return { reply: encodeFrame({ type: 'devices', rid, devices: this.devices(device) }) }
@@ -465,6 +496,45 @@ export class VaultRelay {
       reply: encodeFrame({ type: 'revoked', rid, device: target }),
       close: revokedClose(target),
     }
+  }
+
+  /** Retires the vault for `successor`; the first successor named stays. */
+  private retire(rid: number | undefined, message: Record<string, unknown>): Outcome {
+    const successor = message['successor']
+    if (!isVaultId(successor) || successor === this.vault) {
+      throw new ProtocolError('E_SYNC_BAD_MESSAGE')
+    }
+    const kept = this.sql.transaction(() => {
+      const held = this.successor()
+      if (held !== null) {
+        this.pending.messages++
+        return held
+      }
+      let rows = this.sql.run(RETIREMENT)
+      rows += this.sql.run(
+        'INSERT INTO retirement (id, successor, at) VALUES (1, ?, ?)',
+        successor,
+        this.now(),
+      )
+      this.count({ rows, messages: 1 })
+      return successor
+    })
+    if (kept !== successor) return rotatedReply(rid, kept)
+    return {
+      reply: encodeFrame({ type: 'retired', rid, successor }),
+      // Connected devices pull at once and find the vault retired.
+      changed: encodeFrame({ type: 'changed', seq: this.head() }),
+    }
+  }
+
+  /** The vault that succeeds this one, once it is retired. */
+  private successor(): string | null {
+    const table = this.sql.all(
+      "SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'retirement'",
+    )
+    if (table.length === 0) return null
+    const row = this.sql.all('SELECT successor FROM retirement WHERE id = 1')[0]
+    return row ? String(row['successor']) : null
   }
 
   private devices(current: string): DeviceInfo[] {
