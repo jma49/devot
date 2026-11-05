@@ -21,6 +21,9 @@
   position: fixed;
   inset: 0;
   overflow: hidden;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+  touch-action: pan-x pan-y;
   background: var(--color-phone-background);
   color: var(--color-phone-text);
   font-family: -apple-system, system-ui, sans-serif;
@@ -28,6 +31,12 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+html:has(.phone-app),
+body:has(.phone-app) {
+  overflow-x: clip;
+  overscroll-behavior-x: none;
 }
 
 /* :where keeps this reset below every control's own class. */
