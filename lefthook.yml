@@ -12,8 +12,8 @@ pre-commit:
       glob: '*.{ts,tsx,js,mjs}'
       run: pnpm exec oxlint {staged_files}
     - name: rustfmt
-      # Two globs: `**/` needs a folder, so the first one covers build.rs and
-      # build_env.rs beside Cargo.toml.
+      # Two globs: `**/` needs a folder, so the first one covers build.rs,
+      # build_commands.rs and build_env.rs beside Cargo.toml.
       glob:
         - 'src-tauri/*.rs'
         - 'src-tauri/**/*.rs'

@@ -1,11 +1,31 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
-// Commands declared in build.rs need an explicit `allow-<command>` grant.
+// build.rs declares the commands of every area in build_commands.rs; each needs an explicit
+// `allow-<command>` grant.
+const commandsFile = () => readFileSync('src-tauri/build_commands.rs', 'utf8')
+
+function commandAreas(): Map<string, string[]> {
+  const areas = new Map<string, string[]>()
+  for (const [, name, list] of commandsFile().matchAll(
+    /^const (\w+): &\[&str\] = &\[([^\]]*)\];/gm,
+  )) {
+    areas.set(
+      name ?? '',
+      [...(list ?? '').matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1] ?? ''),
+    )
+  }
+  return areas
+}
+
+function declaredAreas(): string[] {
+  const list = /^pub const AREAS: &\[&\[&str\]\] = &\[([^\]]*)\];/m.exec(commandsFile())?.[1] ?? ''
+  return [...list.matchAll(/\b([A-Z_]+)\b/g)].map((m) => m[1] ?? '')
+}
+
 function declaredCommands(): string[] {
-  const build = readFileSync('src-tauri/build.rs', 'utf8')
-  const list = build.match(/\.commands\(&\[([^\]]*)\]\)/)?.[1] ?? ''
-  return [...list.matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1] ?? '')
+  const areas = commandAreas()
+  return declaredAreas().flatMap((area) => areas.get(area) ?? [])
 }
 
 interface Capability {
@@ -100,6 +120,15 @@ describe('Tauri command permissions', () => {
 
   it('declares at least one app command', () => {
     expect(declaredCommands().length).toBeGreaterThan(0)
+  })
+
+  it('declares the commands of every area in build.rs, each once', () => {
+    expect(readFileSync('src-tauri/build.rs', 'utf8')).toContain(
+      '.commands(build_commands::AREAS.concat().leak())',
+    )
+    expect(declaredAreas().sort()).toEqual([...commandAreas().keys()].sort())
+    const commands = declaredCommands()
+    expect(commands.filter((c, i) => commands.indexOf(c) !== i)).toEqual([])
   })
 
   it('grants exactly the declared commands, nothing more', () => {

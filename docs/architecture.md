@@ -347,7 +347,7 @@ Search covers live notes (never the Trash) through the FTS5 trigram index (`src/
 
 ## Security
 
-- **Commands are least-privilege.** `src-tauri/build.rs` declares every app command, so none is reachable until a capability file (`src-tauri/capabilities/`) grants it to a window. Every command validates its arguments in Rust and returns error codes, never content.
+- **Commands are least-privilege.** `src-tauri/build.rs` declares every app command (listed by area in `src-tauri/build_commands.rs`), so none is reachable until a capability file (`src-tauri/capabilities/`) grants it to a window. Every command validates its arguments in Rust and returns error codes, never content.
 - **CSP** in `src-tauri/tauri.conf.json`: `script-src 'self' tauri://localhost` (the sandboxed diagram frame has an opaque origin, which WebKit matches to no `tauri:` URL as `'self'`, so the app's origin is named), no `'unsafe-inline'`, no `eval`; connections only to the app and Tauri's IPC; images also from https; iframes from https, the app itself (the diagram frame) and `devot-plugin:` (plugins' sandboxed frames, see Extensions). `freezePrototype` is on. A test checks the policy. Styles are never inline: CodeMirror runs in a shadow root, where it adds its styles as constructed stylesheets, which the policy allows.
 - External links: `https:` opens in the browser; any other scheme needs an allowlist entry and a confirmation.
 - Untrusted URLs (for example, link titles) are fetched by Rust, never by the UI.
@@ -564,7 +564,7 @@ A Devot an AI tool started (`src-tauri/src/background.rs`, ADR 0012): `--devot-b
 ## Localisation
 
 - English is the source locale and the only one shipped now.
-- No UI text is written inline: every string comes from a typed message catalog by key, so adding a locale means adding a catalog, with English as the fallback for missing keys. The locale follows the macOS preferred languages.
+- No UI text is written inline: every string comes from a typed message catalog by key (English in `src/renderer/src/i18n/en/`, one module per UI area, merged into one typed object), so adding a locale means adding a catalog, with English as the fallback for missing keys. The locale follows the macOS preferred languages.
 - Placeholders (`{title}`) are filled with `format` in one pass, never with `String.replace`, whose replacement patterns (`$$`, `$&`, `$'`) would garble a title holding them; a policy test refuses `.replace('{`. A sentence is never built from pieces in code: each variant (with or without a count, a key or a scope) is its own catalog entry.
 - Dates, numbers and lists use `Intl`. When a second locale arrives, the catalogs move to ICU message syntax for plurals and placeholders, and native menu labels in Rust get the same catalog.
 - Code contains no CJK characters at all; test data that needs them uses `\u` escapes. A test enforces this over every tracked file.
@@ -676,7 +676,7 @@ When trade-offs collide: **data integrity > security > performance > functional 
 From phase 1:
 
 - A known XSS payload corpus run through the HTML sanitizer; every payload must come out inert.
-- Every Tauri command is declared in `build.rs` and granted only by capability files; `tests/security/capabilities.test.ts` checks that each declared command is granted explicitly and that no other app permission is granted.
+- Every Tauri command is declared in `build.rs` (from its area's list in `build_commands.rs`) and granted only by capability files; `tests/security/capabilities.test.ts` checks that each declared command is granted explicitly and that no other app permission is granted.
 - Command argument validation is unit-tested in Rust.
 - The CSP blocks external resource loads (`tests/security/csp.test.ts`).
 - Files are never written through a folder swapped for a link: Rust tests swap a folder on the way for a link between a writer's checks and its step (`atomic_file::race`, for the Markdown mirror's writes, moves, removals and kept files, notebook exports and their attachments) or after the folder was chosen (an export session's, a PDF's, the mirror's own), and check that nothing lands, moves or goes outside; `tests/policy/one-writer.test.ts` keeps folder changes by path out of the writers of folders the user chose.
