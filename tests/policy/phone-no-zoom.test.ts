@@ -3,7 +3,7 @@ import { expect, it } from 'vitest'
 
 it('the viewport stops the page from zooming', () => {
   const html = readFileSync('src/renderer/index.html', 'utf8')
-  const content = /<meta name="viewport" content="([^"]*)"/.exec(html)?.[1] ?? ''
+  const content = /<meta\s+name="viewport"\s+content="([^"]*)"/.exec(html)?.[1] ?? ''
   expect(content).toContain('maximum-scale=1')
   expect(content).toContain('user-scalable=no')
   expect(content).toContain('viewport-fit=cover')

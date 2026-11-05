@@ -41,8 +41,7 @@ it('puts no coloured tile behind a Settings or Library row icon', () => {
   }
 })
 
-it('lets the iPhone lay out edge to edge, and keeps pinch zoom', () => {
+it('lets the iPhone lay out edge to edge', () => {
   const html = readFileSync('src/renderer/index.html', 'utf8')
   expect(html).toContain('viewport-fit=cover')
-  expect(html).not.toMatch(/user-scalable|maximum-scale/)
 })
