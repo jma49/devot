@@ -120,11 +120,28 @@ describe('the phone layout tokens', () => {
 })
 
 describe('the phone motion tokens', () => {
-  it('squashes the lens as the spec does and takes 560 ms over capture', () => {
-    expect(Number(sizes['motion.scale.phone-lens-x'])).toBe(1.18)
-    expect(Number(sizes['motion.scale.phone-lens-y'])).toBe(0.86)
+  it('moves the lens on the platform default spring, and takes 560 ms over capture', () => {
+    expect(sizes['motion.spring.phone-lens-trail-damping']).toBe('1')
+    expect(sizes['motion.spring.phone-lens-trail-response']).toBe('0.5')
+    expect(Number(sizes['motion.spring.phone-lens-lead-response'])).toBeLessThan(0.5)
+    expect(Number(sizes['motion.scale.phone-lens-lift'])).toBe(1.08)
     expect(sizes['motion.duration.phone-capture']).toBe('560ms')
     expect(Number(sizes['motion.scale.phone-arrive'])).toBe(0.92)
+  })
+
+  it('draws the glass rim from tokens, on the bars and the lifted lens', () => {
+    expect(px('shadow.phone-glass-rim-offset')).toBe(1.5)
+    expect(px('shadow.phone-glass-rim-blur')).toBe(1)
+    expect(px('shadow.phone-glass-rim-spread')).toBe(-1)
+    const css = readFileSync('src/renderer/src/phone/phone.css', 'utf8')
+    const shadows = [...css.matchAll(/box-shadow:([^;]*);/g)].map((match) => match[1]!)
+    const rims = shadows.filter((shadow) => shadow.includes('--color-phone-glass-highlight'))
+    expect(rims.length).toBeGreaterThanOrEqual(2)
+    for (const rim of rims) {
+      const highlight = rim.split(',').find((layer) => layer.includes('glass-highlight'))!
+      expect(highlight).not.toMatch(/\d(px|pt)\b/)
+      expect(highlight).toContain('var(--shadow-phone-glass-rim-offset)')
+    }
   })
 
   it('keeps the toast 4 s and rising 100 above the bottom', () => {

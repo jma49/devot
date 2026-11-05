@@ -79,25 +79,228 @@ test('Activity has a top bar and moves the lens to the third place', async ({ pa
   expect(lens!.x).toBeCloseTo(button!.x, 0)
 })
 
-test('the lens springs to the last tab without showing past the bar', async ({ page }) => {
-  await tab(page, 'Settings').click()
-  const spill = await tabs(page).evaluate(
-    (bar) =>
-      new Promise<number>((resolve) => {
+const INSET = 4
+const TAB = (286 - INSET * 2) / 4
+
+async function lensInBar(page: Page) {
+  const [bar, lens] = await Promise.all([
+    tabs(page).boundingBox(),
+    tabs(page).locator('.phone-tabbar-lens').boundingBox(),
+  ])
+  return {
+    left: lens!.x - bar!.x,
+    right: bar!.x + bar!.width - (lens!.x + lens!.width),
+    top: lens!.y - bar!.y,
+    bottom: bar!.y + bar!.height - (lens!.y + lens!.height),
+    width: lens!.width,
+    centre: lens!.x + lens!.width / 2,
+  }
+}
+
+const tenths = (n: number) => Math.round(n * 10) / 10
+
+test('the lens rests inside the bar by an even inset at the first and the last tab', async ({
+  page,
+}) => {
+  for (const [name, left, right] of [
+    ['Notes', INSET, INSET + TAB * 3],
+    ['Settings', INSET + TAB * 3, INSET],
+  ] as const) {
+    await tab(page, name).click()
+    await expect
+      .poll(async () => {
+        const at = await lensInBar(page)
+        return [at.left, at.right, at.top, at.bottom].map(tenths)
+      })
+      .toEqual([left, right, INSET, INSET])
+    await expect(tabs(page).locator('.phone-tabbar-lens')).toHaveCSS('border-radius', '27px')
+  }
+})
+
+test('the lens stretches on its way to the last tab and never passes the bar inner edge', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await tab(page, 'Notes').click()
+  await expect.poll(async () => tenths((await lensInBar(page)).left)).toBe(INSET)
+  const sampling = tabs(page).evaluate(
+    (bar, inset) =>
+      new Promise<{ spill: number; widest: number }>((resolve) => {
         const lens = bar.querySelector('.phone-tabbar-lens')!
-        const clipped = getComputedStyle(bar).overflow === 'clip'
         const start = performance.now()
-        let most = 0
+        let spill = -Infinity
+        let widest = 0
         const sample = () => {
-          const over = lens.getBoundingClientRect().right - bar.getBoundingClientRect().right
-          most = Math.max(most, clipped ? 0 : over)
-          if (performance.now() - start < 800) requestAnimationFrame(sample)
-          else resolve(most)
+          const outer = bar.getBoundingClientRect()
+          const box = lens.getBoundingClientRect()
+          spill = Math.max(
+            spill,
+            outer.left + inset - box.left,
+            box.right - (outer.right - inset),
+            outer.top + inset - box.top,
+            box.bottom - (outer.bottom - inset),
+          )
+          widest = Math.max(widest, box.width)
+          if (performance.now() - start < 1200) requestAnimationFrame(sample)
+          else resolve({ spill, widest })
         }
         requestAnimationFrame(sample)
       }),
+    INSET,
   )
-  expect(spill).toBeLessThanOrEqual(0)
+  await tab(page, 'Settings').click()
+  const { spill, widest } = await sampling
+  // A click lifts the lens for a moment, and the lift stays within the inset.
+  expect(spill).toBeLessThanOrEqual(1)
+  expect(widest).toBeGreaterThan(TAB * 1.15)
+  await expect.poll(async () => tenths((await lensInBar(page)).right)).toBe(INSET)
+})
+
+test('dragging the lens along the bar follows the finger and opens the nearest tab', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const lens = tabs(page).locator('.phone-tabbar-lens')
+  const notes = (await tab(page, 'Notes').boundingBox())!
+  const activity = (await tab(page, 'Activity').boundingBox())!
+  const y = notes.y + notes.height / 2
+  await page.mouse.move(notes.x + notes.width / 2, y)
+  await page.mouse.down()
+  await expect(lens).toHaveAttribute('data-lifted')
+  const finger = Math.round(activity.x + activity.width * 0.7)
+  await page.mouse.move(finger, y, { steps: 12 })
+  await expect
+    .poll(async () => Math.abs((await lensInBar(page)).centre - finger))
+    .toBeLessThanOrEqual(0.5)
+  await page.mouse.up()
+  await expect(tab(page, 'Activity')).toHaveAttribute('aria-current', 'page')
+  await expect(lens).not.toHaveAttribute('data-lifted')
+  await expect
+    .poll(async () => Math.abs((await lensInBar(page)).centre - (activity.x + activity.width / 2)))
+    .toBeLessThanOrEqual(0.5)
+})
+
+test('a drag survives the pressed tab losing its touch capture to the bar', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const notes = (await tab(page, 'Notes').boundingBox())!
+  const activity = (await tab(page, 'Activity').boundingBox())!
+  const y = notes.y + notes.height / 2
+  await tabs(page).evaluate((nav: HTMLElement) => {
+    const remember = (e: PointerEvent) => (nav.dataset['pointer'] = String(e.pointerId))
+    nav.addEventListener('pointerdown', remember, { capture: true })
+  })
+  await page.mouse.move(notes.x + notes.width / 2, y)
+  await page.mouse.down()
+  await page.mouse.move(activity.x + activity.width / 2, y, { steps: 12 })
+  // Touch captures the pressed button implicitly; taking capture for the bar fires this on it.
+  await tab(page, 'Notes').evaluate((button) => {
+    const pointerId = Number(button.parentElement!.dataset['pointer'])
+    button.dispatchEvent(new PointerEvent('lostpointercapture', { bubbles: true, pointerId }))
+  })
+  await page.mouse.up()
+  await expect(tab(page, 'Activity')).toHaveAttribute('aria-current', 'page')
+})
+
+// Lifted 8%, the 54 pt lens keeps this much of the bar around it on every side.
+const LIFTED_MARGIN = INSET - (54 * 0.08) / 2
+
+for (const viewport of [
+  { width: 390, height: 844 },
+  { width: 844, height: 390 },
+]) {
+  test(`a held lens stays concentric with the bar at both ends, ${viewport.width} wide`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport)
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    const bar = (await tabs(page).boundingBox())!
+    const y = bar.y + bar.height / 2
+    for (const [name, side, past] of [
+      ['Notes', 'left', bar.x - 30],
+      ['Settings', 'right', bar.x + bar.width + 30],
+    ] as const) {
+      const box = (await tab(page, name).boundingBox())!
+      await page.mouse.move(box.x + box.width / 2, y)
+      await page.mouse.down()
+      const offBy = (margin: number) => async () => {
+        const at = await lensInBar(page)
+        return Math.max(...[at[side], at.top, at.bottom].map((m) => Math.abs(m - margin)))
+      }
+      await expect.poll(offBy(LIFTED_MARGIN)).toBeLessThanOrEqual(0.1)
+      await page.mouse.move(past, y, { steps: 8 })
+      await expect.poll(offBy(LIFTED_MARGIN)).toBeLessThanOrEqual(0.1)
+      await page.mouse.up()
+      await expect(tab(page, name)).toHaveAttribute('aria-current', 'page')
+      await expect.poll(offBy(INSET)).toBeLessThanOrEqual(0.1)
+    }
+  })
+}
+
+async function dragAcross(page: Page, from: string, to: string) {
+  const start = (await tab(page, from).boundingBox())!
+  const end = (await tab(page, to).boundingBox())!
+  const y = start.y + start.height / 2
+  await page.mouse.move(start.x + start.width / 2, y)
+  await page.mouse.down()
+  await page.mouse.move(end.x + end.width / 2, y, { steps: 10 })
+  await page.mouse.up()
+  await expect(tab(page, to)).toHaveAttribute('aria-current', 'page')
+}
+
+test('a drag leaves the next keyboard press on a tab working', async ({ page }) => {
+  await dragAcross(page, 'Notes', 'Activity')
+  await tab(page, 'Settings').focus()
+  await page.keyboard.press('Enter')
+  await expect(tab(page, 'Settings')).toHaveAttribute('aria-current', 'page')
+  await dragAcross(page, 'Settings', 'Library')
+  await tab(page, 'Notes').focus()
+  await page.keyboard.press('Space')
+  await expect(tab(page, 'Notes')).toHaveAttribute('aria-current', 'page')
+})
+
+test('a press released off the bar lets the lens down and the bar still drags', async ({
+  page,
+}) => {
+  const lens = tabs(page).locator('.phone-tabbar-lens')
+  for (const offBar of [
+    (box: { x: number; y: number }) => ({ x: box.x, y: box.y - 120 }),
+    () => ({ x: 200, y: 300 }),
+  ]) {
+    const notes = (await tab(page, 'Notes').boundingBox())!
+    const centre = { x: notes.x + notes.width / 2, y: notes.y + notes.height / 2 }
+    await page.mouse.move(centre.x, centre.y)
+    await page.mouse.down()
+    await expect(lens).toHaveAttribute('data-lifted')
+    const to = offBar(centre)
+    await page.mouse.move(to.x, to.y, { steps: 6 })
+    await page.mouse.up()
+    await expect(lens).not.toHaveAttribute('data-lifted')
+    await expect(tab(page, 'Library')).toHaveAttribute('aria-current', 'page')
+  }
+  await dragAcross(page, 'Library', 'Settings')
+  await expect(lens).not.toHaveAttribute('data-lifted')
+  await tab(page, 'Library').click()
+  await expect(tab(page, 'Library')).toHaveAttribute('aria-current', 'page')
+})
+
+test('a drag the bar is resized under is cancelled', async ({ page }) => {
+  const lens = tabs(page).locator('.phone-tabbar-lens')
+  const notes = (await tab(page, 'Notes').boundingBox())!
+  const activity = (await tab(page, 'Activity').boundingBox())!
+  const y = notes.y + notes.height / 2
+  await page.mouse.move(notes.x + notes.width / 2, y)
+  await page.mouse.down()
+  await page.mouse.move(activity.x + activity.width * 0.7, y, { steps: 10 })
+  await page.setViewportSize({ width: 844, height: 390 })
+  await expect(lens).not.toHaveAttribute('data-lifted')
+  await page.mouse.up()
+  await expect(tab(page, 'Library')).toHaveAttribute('aria-current', 'page')
+  const library = (await tab(page, 'Library').boundingBox())!
+  await expect
+    .poll(async () => Math.abs((await lensInBar(page)).centre - (library.x + library.width / 2)))
+    .toBeLessThanOrEqual(0.5)
+  await tab(page, 'Activity').click()
+  await expect(tab(page, 'Activity')).toHaveAttribute('aria-current', 'page')
 })
 
 test('the capture sheet grows from the circle, 374 by 440, and goes back', async ({ page }) => {

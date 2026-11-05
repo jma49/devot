@@ -7,9 +7,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react'
-import { t, type MessageKey } from '../i18n'
-import { Icon } from '../icons/Icon'
-import type { IconName } from '../icons/symbols'
+import { t } from '../i18n'
 import { motionMs } from '../motionTiming'
 import { motionReduced } from '../motionPreference'
 import {
@@ -37,81 +35,8 @@ import { PhoneNoteList } from './PhoneNoteList'
 import { PhoneSearch } from './PhoneSearch'
 import { PhoneToast, useUndoToast } from './PhoneToast'
 import { PhoneSettings, PhoneSettingsPane } from './PhoneSettings'
+import { PhoneTabBar } from './PhoneTabBar'
 import './phone.css'
-
-const TAB_LABEL: Record<PhoneTab, MessageKey> = {
-  notes: 'phone.tab.notes',
-  library: 'phone.tab.library',
-  activity: 'phone.tab.activity',
-  settings: 'phone.tab.settings',
-}
-
-const TAB_ICON: Record<PhoneTab, { rest: IconName; selected: IconName }> = {
-  notes: { rest: 'phone.tab.notes', selected: 'phone.tab.notes.fill' },
-  library: { rest: 'phone.tab.library', selected: 'phone.tab.library.fill' },
-  activity: { rest: 'phone.tab.activity', selected: 'phone.tab.activity.fill' },
-  settings: { rest: 'phone.tab.settings', selected: 'phone.tab.settings.fill' },
-}
-
-function TabBar(props: {
-  tab: PhoneTab
-  x: string
-  covered: boolean
-  dragging: boolean
-  needsAttention: boolean
-  onSelect: (tab: PhoneTab) => void
-}) {
-  const [moves, setMoves] = useState(0)
-  const index = PHONE_TABS.indexOf(props.tab)
-  return (
-    <nav
-      aria-label={t('phone.tabs')}
-      className="phone-glass phone-tabbar"
-      data-dragging={props.dragging || undefined}
-      inert={props.covered}
-      style={{ transform: `translateX(${props.x})` }}
-    >
-      <span
-        aria-hidden="true"
-        className="phone-tabbar-lens"
-        data-move={moves === 0 ? undefined : moves % 2 ? 'a' : 'b'}
-        style={{ transform: `translateX(${index * 100}%)` }}
-      />
-      {PHONE_TABS.map((tab) => {
-        const selected = tab === props.tab
-        const attention = tab === 'settings' && props.needsAttention
-        return (
-          <button
-            key={tab}
-            type="button"
-            className="phone-tab"
-            aria-label={t(TAB_LABEL[tab])}
-            aria-current={selected ? 'page' : undefined}
-            onClick={() => {
-              if (!selected) setMoves((n) => n + 1)
-              props.onSelect(tab)
-            }}
-          >
-            <span
-              className="phone-tab-icon"
-              data-move={selected && moves > 0 ? (moves % 2 ? 'a' : 'b') : undefined}
-            >
-              <Icon
-                name={selected ? TAB_ICON[tab].selected : TAB_ICON[tab].rest}
-                size="phone-tab"
-              />
-              {attention && (
-                <span className="phone-badge" role="img" aria-label={t('phone.badge.attention')}>
-                  !
-                </span>
-              )}
-            </span>
-          </button>
-        )
-      })}
-    </nav>
-  )
-}
 
 function Layer(props: {
   index: number
@@ -395,7 +320,7 @@ export function PhoneApp() {
           render={(route) => render(tab, route)}
         />
       ))}
-      <TabBar
+      <PhoneTabBar
         tab={state.tab}
         x={rootX}
         covered={depth > 0 || searching}

@@ -2627,10 +2627,6 @@
         "$value": { "value": 1200, "unit": "ms" },
         "$description": "A newly saved note's row in the accent wash, fading."
       },
-      "phone-lens": {
-        "$value": { "value": 520, "unit": "ms" },
-        "$description": "A lens squashing as it moves."
-      },
       "phone-pop": {
         "$value": { "value": 450, "unit": "ms" },
         "$description": "A selected tab's icon popping."
@@ -2824,13 +2820,9 @@
         "$value": 1.08,
         "$description": "A glass control under the finger grows and brightens."
       },
-      "phone-lens-x": {
-        "$value": 1.18,
-        "$description": "A lens squashing as it moves, wider."
-      },
-      "phone-lens-y": {
-        "$value": 0.86,
-        "$description": "A lens squashing as it moves, lower."
+      "phone-lens-lift": {
+        "$value": 1.08,
+        "$description": "The tab bar lens under a finger, grown about its middle. A lifted tab grows about 16% on the platform; 8% fits the bar's 4 pt inset at top and bottom, and phone/tabLens.ts keeps the ends that far from the bar's at any width."
       },
       "phone-peek-enter": {
         "$value": 0.86,
@@ -2895,11 +2887,21 @@
       "gentle-response": { "$value": 0.36 },
       "bouncy-damping": { "$value": 0.62 },
       "bouncy-response": { "$value": 0.42 },
-      "$description": "A segment's thumb under the pointer. Damping ratios (above 0, below 1) and responses in seconds, drawn by springEasing (motionTiming.ts).",
+      "$description": "A segment's thumb under the pointer. Damping ratios (above 0, at most 1) and responses in seconds, drawn by springEasing (motionTiming.ts).",
       "lift-damping": { "$value": 0.71 },
       "lift-response": { "$value": 0.3 },
       "settle-damping": { "$value": 0.8 },
-      "settle-response": { "$value": 0.4 }
+      "settle-response": { "$value": 0.4 },
+      "phone-lens-lead-damping": { "$value": 0.85 },
+      "phone-lens-lead-response": {
+        "$value": 0.35,
+        "$description": "The tab bar lens's end that leads: about 15% bounce, the platform's 'not very bouncy', and sooner than the trailing end, so the lens stretches as it travels."
+      },
+      "phone-lens-trail-damping": { "$value": 1 },
+      "phone-lens-trail-response": {
+        "$value": 0.5,
+        "$description": "The tab bar lens's end that trails: the platform's default spring, 0.5 s with no bounce."
+      }
     },
     "delay": {
       "$type": "duration",
@@ -2979,7 +2981,13 @@
         "unit": "px"
       },
       "$description": "The soft single shadow under a floating bar (the selection toolbar, the image size bar); its colour is color.shadow.float-bar."
-    }
+    },
+    "phone-glass-rim-offset": {
+      "$value": { "value": 1.5, "unit": "px" },
+      "$description": "The light rim along a phone glass surface's top left edge and the dark one along its bottom right (color.phone-glass-highlight and -lowlight), on the bars and the lifted tab bar lens."
+    },
+    "phone-glass-rim-blur": { "$value": { "value": 1, "unit": "px" } },
+    "phone-glass-rim-spread": { "$value": { "value": -1, "unit": "px" } }
   },
   "tooltip": {
     "$type": "dimension",
