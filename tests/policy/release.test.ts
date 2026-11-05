@@ -21,8 +21,8 @@ it("names the release from one version, Cargo.toml's", () => {
   expect(read('src-tauri/src/crash.rs')).toContain(
     'const RELEASE: &str = concat!("devot@", env!("CARGO_PKG_VERSION"));',
   )
-  // Without a version in tauri.conf.json, Tauri reports Cargo.toml's (the app bundle's version comes from it too).
-  expect(JSON.parse(read('src-tauri/tauri.conf.json'))).not.toHaveProperty('version')
+  // The iPhone build reads its version only from tauri.conf.json (1.0.0 without it), so it points at package.json.
+  expect(JSON.parse(read('src-tauri/tauri.conf.json'))).toHaveProperty('version', '../package.json')
   expect(read('src/renderer/src/main.tsx')).toContain('`devot@${version}`')
   expect(appVersion('.')).toBe(version)
   expect(releaseName('.')).toBe(`devot@${version}`)
