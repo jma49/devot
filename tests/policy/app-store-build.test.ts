@@ -52,6 +52,8 @@ describe('the iPhone app', () => {
       'TARGETED_DEVICE_FAMILY = 1;',
     ])
     expect(read(`${APPLE}/project.yml`)).toMatch(/^ {8}TARGETED_DEVICE_FAMILY: 1$/m)
+    expect(read(`${APPLE}/project.yml`)).not.toContain('~ipad')
+    expect(read(`${APPLE}/devot_iOS/Info.plist`)).not.toContain('~ipad')
   })
 
   it('bundles the privacy manifest', () => {
@@ -74,7 +76,7 @@ describe('the iPhone app', () => {
     expect(group).toContain(`${ref} /* PrivacyInfo.xcprivacy */`)
   })
 
-  it('declares no tracking, and what Devot receives as not linked to the user and for the app to work', () => {
+  it('declares no tracking, and what Devot receives for the app to work, linked only where the Worker keeps it with the licence', () => {
     const manifest = read(MANIFEST)
     expect(manifest).toMatch(/<key>NSPrivacyTracking<\/key>\s*<false\/>/)
     expect(manifest).toMatch(/<key>NSPrivacyTrackingDomains<\/key>\s*<array\/>/)
@@ -86,8 +88,19 @@ describe('the iPhone app', () => {
       // Sentry, once the user turns on crash reports.
       'NSPrivacyCollectedDataTypeCrashData',
     ])
+    const linked = Object.fromEntries(
+      collected.map((dict) => [
+        value(dict, 'NSPrivacyCollectedDataType'),
+        value(dict, 'NSPrivacyCollectedDataTypeLinked'),
+      ]),
+    )
+    expect(linked).toEqual({
+      NSPrivacyCollectedDataTypePurchaseHistory: 'false',
+      // A seat's device ID and label sit with the licence, whose licensee is the buyer's email.
+      NSPrivacyCollectedDataTypeDeviceID: 'true',
+      NSPrivacyCollectedDataTypeCrashData: 'false',
+    })
     for (const dict of collected) {
-      expect(value(dict, 'NSPrivacyCollectedDataTypeLinked')).toBe('false')
       expect(value(dict, 'NSPrivacyCollectedDataTypeTracking')).toBe('false')
       expect(strings(dict, 'NSPrivacyCollectedDataTypePurposes')).toEqual([
         'NSPrivacyCollectedDataTypePurposeAppFunctionality',
@@ -109,6 +122,15 @@ describe('the iPhone app', () => {
       // system type with statfs, fstatfs and statvfs before writing, never its free space.
       NSPrivacyAccessedAPICategoryDiskSpace: ['E174.1'],
     })
+  })
+
+  // The Tauri CLI passes xcodebuild none of the shell's other variables.
+  it('documents the iCloud development build through its build settings, not the environment', () => {
+    for (const doc of ['docs/releasing.md', 'docs/development.md']) {
+      const text = read(doc)
+      expect({ doc, env: /DEVOT_ICLOUD=YES pnpm/.test(text) }).toEqual({ doc, env: false })
+      expect(text).toContain('node scripts/release/app-store.ts icloud-settings')
+    }
   })
 
   // Devot seals synced notes with its own AES-256-GCM, not Apple's (ADR 0015).
