@@ -39,15 +39,17 @@ export function licenceRow(
   return { label: t('phone.settings.licence.attention'), needsAttention: true }
 }
 
+/** When the Licence row's value next changes as time passes: a trial's next day, or its end. */
+export function licenceRowChangesAt(licence: LicenceSnapshot, now: number): number | null {
+  const endsAt = licence.trial?.endsAt ?? null
+  if (endsAt === null || !trialRunning(licence, now)) return null
+  const days = Math.ceil((endsAt - now) / DAY_MS)
+  return endsAt - (days - 1) * DAY_MS
+}
+
 /** The panes a phone lists: General holds only crash reports there, so it shows only when they can be sent. */
 export function phonePanes<T extends string>(panes: readonly T[], crashReports: boolean): T[] {
   return panes.filter((pane) => pane !== 'general' || crashReports)
-}
-
-/** Panes whose name holds the query, in their order; an empty query finds them all. */
-export function paneMatches<T extends { name: string }>(panes: readonly T[], query: string): T[] {
-  const wanted = query.trim().toLocaleLowerCase()
-  return panes.filter((pane) => pane.name.toLocaleLowerCase().includes(wanted))
 }
 
 /**

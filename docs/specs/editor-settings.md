@@ -9,6 +9,8 @@ Part of the [architecture overview](../architecture.md).
   Text Appearance: font size (10 to 32 px; also Cmd+=, Cmd+- and Cmd+0 in the main window, the registry's `view.font*` commands), font family (System, SF Mono, Menlo, Monaco or Courier New), font weight (normal or 300 to 700), line height (1.2 to 2.0 offered, 1.0 to 2.5 accepted; 1.5 by default), showing invisible characters and highlighting trailing whitespace (`color.trailing-space`).
   Preview holds the preview's font size (10 to 32 px, 15 by default) and synced scrolling in split mode (see Split mode).
   General holds the default notebook for new notes.
+  Settings search (`settings/search.ts`) finds panes and single settings by every word typed, and a result opens its pane; the iPhone searches only the panes it lists and the rows it shows, including the rows only it has.
+  The AI pane saves a typed endpoint or model when the field is left, when the pane closes and when the app goes to the background, never per keystroke; an iPhone tab switch leaves the field first.
   The same store also holds Settings > Appearance's sidebar material (see Native look).
   The roomy defaults (line height 1.5, tab size 2, `*` bullets, links for pasted URLs, spell checking on, no active-line highlight) apply only to settings the user never set: Rust writes only the values the user set, so a default that changes later still reaches everything else.
 - **Default notebook:** an ID (or none) in the same store, applied by the main window when a note is made while the view shows no notebook (`notebookForNewNote`: the notebook shown, else the default when it still exists, else none).

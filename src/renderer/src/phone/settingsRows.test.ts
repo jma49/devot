@@ -1,23 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { LICENCE_UNKNOWN, type LicenceSnapshot } from '../licence'
-import { licenceRow, paneMatches, phonePanes, welcomeDue } from './settingsRows'
+import { licenceRow, licenceRowChangesAt, phonePanes, welcomeDue } from './settingsRows'
 
 const DAY = 24 * 60 * 60 * 1000
 const gated = (patch: Partial<LicenceSnapshot>): LicenceSnapshot => ({
   ...LICENCE_UNKNOWN,
   gated: true,
   ...patch,
-})
-
-describe('paneMatches', () => {
-  const panes = [{ name: 'General' }, { name: 'Sync' }]
-  it('finds a pane by any part of its name, ignoring case', () => {
-    expect(paneMatches(panes, ' SYN')).toEqual([{ name: 'Sync' }])
-  })
-  it('finds all for no query and none for no match', () => {
-    expect(paneMatches(panes, '')).toHaveLength(2)
-    expect(paneMatches(panes, 'x')).toEqual([])
-  })
 })
 
 describe('phonePanes', () => {
@@ -49,6 +38,28 @@ describe('the Licence row', () => {
   it('asks for attention once the trial is over', () => {
     const over = gated({ trial: { state: 'running', endsAt: DAY, code: null, source: 'keychain' } })
     expect(licenceRow(over, 2 * DAY).needsAttention).toBe(true)
+  })
+})
+
+describe('when the Licence row next changes', () => {
+  const trial = (endsAt: number | null) =>
+    gated({ trial: { state: 'running', endsAt, code: null, source: 'keychain' } })
+
+  it('is when the trial drops a day, and when it ends', () => {
+    const ends = 10 * DAY
+    expect(licenceRowChangesAt(trial(ends), 0)).toBe(DAY)
+    expect(licenceRowChangesAt(trial(ends), DAY / 2)).toBe(DAY)
+    expect(licenceRowChangesAt(trial(ends), DAY)).toBe(2 * DAY)
+    expect(licenceRowChangesAt(trial(ends), ends - DAY / 2)).toBe(ends)
+    const at = licenceRowChangesAt(trial(ends), DAY / 2)!
+    expect(licenceRow(trial(ends), at - 1).label).toBe('Trial, 10 days left')
+    expect(licenceRow(trial(ends), at).label).toBe('Trial, 9 days left')
+  })
+
+  it('is never while nothing in the row depends on the time', () => {
+    expect(licenceRowChangesAt(trial(null), 0)).toBeNull()
+    expect(licenceRowChangesAt(trial(DAY), 2 * DAY)).toBeNull()
+    expect(licenceRowChangesAt(gated({ state: 'valid', plan: 'pro' }), 0)).toBeNull()
   })
 })
 

@@ -41,6 +41,7 @@ import { PhoneSearch } from './PhoneSearch'
 import { PhoneToast, useUndoToast } from './PhoneToast'
 import { PhoneSettings, PhoneSettingsPane } from './PhoneSettings'
 import { PhoneTabBar } from './PhoneTabBar'
+import { useLicenceClock } from './licenceClock'
 import './phone.css'
 
 function Layer(props: {
@@ -233,7 +234,7 @@ export function PhoneApp() {
   const purchasing = usePurchaseOpen()
   const welcomed = useRef(false)
   const undoable = useUndoToast(store)
-  const [now] = useState(() => Date.now())
+  const now = useLicenceClock(licence)
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => (root.current ? startPhoneRoot(root.current) : undefined), [])
   useEffect(() => startLicence(), [])
@@ -356,7 +357,11 @@ export function PhoneApp() {
         dragging={dragging}
         needsAttention={licenceRow(licence, now).needsAttention}
         onSelect={(tab) => {
-          if (tab !== state.tab) haptic('selection')
+          if (tab !== state.tab) {
+            haptic('selection')
+            // A hidden tab keeps its focus, so a field that saves when it is left would never save.
+            if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+          }
           dispatch({ type: 'selectTab', tab })
         }}
       />
