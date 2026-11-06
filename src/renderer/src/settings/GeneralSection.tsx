@@ -50,7 +50,7 @@ export function GeneralSection() {
   const [error, setError] = useState<{ message: MessageKey; code: string }>()
   const [saveError, change] = useSettingsChange()
   const ids = useId()
-  // The iPhone layout has no board, activity strip, menu bar, updater, command line tool or folders to open, and does not read these defaults yet.
+  // The iPhone layout has no board, activity strip, menu bar, updater, command line tool or folders to open, and does not read these defaults yet; its Settings lists General only when crash reports can be sent.
   const onPhone = useOnPhone()
   const [cliTool, setCliTool] = useState<CliToolStatus>()
   const [cliBusy, setCliBusy] = useState(false)
@@ -66,15 +66,12 @@ export function GeneralSection() {
     }
   }, [onPhone])
   const [reports, setReports] = useState<CrashReports | null>(null)
-  const [reportsAnswered, setReportsAnswered] = useState(false)
   useEffect(() => {
     let live = true
-    crashReports()
-      .then(
-        (state) => live && setReports(state),
-        () => console.warn('W_CRASH_REPORTS_STATUS_FAILED'),
-      )
-      .finally(() => live && setReportsAnswered(true))
+    crashReports().then(
+      (state) => live && setReports(state),
+      () => console.warn('W_CRASH_REPORTS_STATUS_FAILED'),
+    )
     return () => {
       live = false
     }
@@ -259,9 +256,6 @@ export function GeneralSection() {
           </SettingsSection>
         </>
       )}
-      {onPhone && reportsAnswered && !reports?.available ? (
-        <p className="phone-settings-empty">{t('phone.general.empty')}</p>
-      ) : null}
       {onPhone && !reports?.available ? null : (
         <SettingsSection title="generalSettings.data">
           {onPhone ? null : (

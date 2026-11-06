@@ -55,6 +55,8 @@ export function PhoneCapture(props: {
         className="phone-glass phone-capture"
         data-open={open || undefined}
         data-hidden={!shown || undefined}
+        inert={!shown}
+        aria-hidden={!shown || undefined}
         role={open ? 'dialog' : undefined}
         aria-modal={open || undefined}
         aria-label={open ? t('noteList.newNote') : undefined}
@@ -74,6 +76,7 @@ export function PhoneCapture(props: {
         <form
           className="phone-capture-body"
           inert={!open}
+          aria-hidden={!open || undefined}
           onSubmit={(event) => {
             event.preventDefault()
             void save()

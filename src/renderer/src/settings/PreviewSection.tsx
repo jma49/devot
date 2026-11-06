@@ -19,12 +19,14 @@ export function PreviewSection() {
         </p>
       ) : null}
       <SettingsSection title="previewSettings.title" titleHidden={onPhone}>
-        <SettingToggle
-          label="previewSettings.syncScroll"
-          description="previewSettings.syncScrollHint"
-          checked={settings.syncScroll}
-          onChange={(syncScroll) => change({ syncScroll })}
-        />
+        {onPhone ? null : (
+          <SettingToggle
+            label="previewSettings.syncScroll"
+            description="previewSettings.syncScrollHint"
+            checked={settings.syncScroll}
+            onChange={(syncScroll) => change({ syncScroll })}
+          />
+        )}
         <SettingToggle
           label="previewSettings.remoteImages"
           description="previewSettings.remoteImagesHint"

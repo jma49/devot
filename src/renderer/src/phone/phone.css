@@ -16,6 +16,14 @@
   --phone-arrive-scale: var(--motion-scale-phone-arrive);
   /* At the design's 34 pt home indicator inset this is the 24 the prototype draws. */
   --phone-tab-bottom: max(var(--size-phone-tab-bottom), calc(env(safe-area-inset-bottom) - 10px));
+  /* A gradient theme's backdrop, under a veil of the page so it shows at the token's strength. */
+  --phone-backdrop-veil: color-mix(
+    in srgb,
+    var(--color-phone-background) calc((1 - var(--opacity-phone-backdrop)) * 100%),
+    transparent
+  );
+  --phone-backdrop:
+    linear-gradient(var(--phone-backdrop-veil), var(--phone-backdrop-veil)), var(--backdrop, none);
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -24,11 +32,17 @@
   touch-action: pan-x pan-y;
   background: var(--color-phone-background);
   color: var(--color-phone-text);
-  font-family: -apple-system, system-ui, sans-serif;
+  font-family: var(--font-family-ui);
   font-size: calc(17px * var(--phone-text-scale, 1));
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Faint text has no contrast to spare over a gradient. */
+:root:is([data-theme='dawn'], [data-theme='tide'], [data-theme='sage'], [data-theme='ember'])
+  .phone-app {
+  --color-phone-text-faint: var(--color-phone-text-secondary);
 }
 
 html:has(.phone-app),
@@ -151,6 +165,7 @@ button.phone-glass:active,
   position: absolute;
   inset: 0;
   background: var(--color-phone-background);
+  background-image: var(--phone-backdrop);
 }
 
 .phone-scroll {
@@ -617,6 +632,7 @@ button.phone-grouped-open:active:not(:disabled) {
   z-index: 30;
   inset: 0;
   background: var(--color-phone-background);
+  background-image: var(--phone-backdrop);
   opacity: 0;
   visibility: hidden;
   transition:

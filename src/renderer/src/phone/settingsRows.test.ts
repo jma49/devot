@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { LICENCE_UNKNOWN, type LicenceSnapshot } from '../licence'
-import { licenceRow, paneMatches, welcomeDue } from './settingsRows'
+import { licenceRow, paneMatches, phonePanes, welcomeDue } from './settingsRows'
 
 const DAY = 24 * 60 * 60 * 1000
 const gated = (patch: Partial<LicenceSnapshot>): LicenceSnapshot => ({
@@ -17,6 +17,14 @@ describe('paneMatches', () => {
   it('finds all for no query and none for no match', () => {
     expect(paneMatches(panes, '')).toHaveLength(2)
     expect(paneMatches(panes, 'x')).toEqual([])
+  })
+})
+
+describe('phonePanes', () => {
+  const panes = ['general', 'appearance', 'sync'] as const
+  it('lists General only when this build can send crash reports, its one setting', () => {
+    expect(phonePanes(panes, true)).toEqual(['general', 'appearance', 'sync'])
+    expect(phonePanes(panes, false)).toEqual(['appearance', 'sync'])
   })
 })
 

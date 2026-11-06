@@ -6,7 +6,8 @@ import type { Messages } from './en'
  */
 export const enPhone: Partial<Messages> = {
   'editorSettings.detail': 'These settings apply only on this iPhone.',
-  'editorSettings.toolbarHint': '',
+  'editorSettings.toolbar': 'Floating Toolbars',
+  'editorSettings.toolbarHint': 'Over selected text and tables',
   'editorSettings.lineNumbersHint': '',
   'editorSettings.highlightActiveLineHint': '',
   'editorSettings.lineWrappingHint': 'Can spare code and tables',

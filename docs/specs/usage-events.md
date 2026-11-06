@@ -14,6 +14,7 @@ Part of the [architecture overview](../architecture.md).
   The command checks the shape again (a dotted lowercase name, at most 16 properties whose values are short lowercase tokens or whole numbers).
   Recording failures are logged by code and never reach the user.
 - **Access:** only the main window may record (`usage_record`); only the Settings window may read and clear (`usage_list`, `usage_clear`, `src-tauri/capabilities/settings.json`).
+  The iPhone records none, so its Settings has no Usage row.
   Settings > Usage Data shows how many events are stored and of each kind (in cards), lists them on request (newest first, at most 500 shown, keys and values as stored) and clears them after a confirmation.
 - **Upload (later):** `UsageTransport` is the seam for sending events off the device.
   Nothing implements it.
