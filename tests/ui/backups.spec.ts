@@ -187,8 +187,8 @@ test('a failed automatic backup shows a notice that opens the backups', async ({
   await expect(notice).toHaveText(/The automatic backup failed/)
   await notice.getByRole('button', { name: 'Show Backups' }).click()
   await expect(page.getByRole('dialog', { name: 'Backups' })).toBeVisible()
-  await expect(page.getByRole('dialog', { name: 'Backups' }).getByRole('alert')).toContainText(
-    'E_BACKUP_SNAPSHOT_FAILED',
+  await expect(page.getByRole('dialog', { name: 'Backups' }).getByRole('alert')).toHaveText(
+    'The backup failed.',
   )
 })
 

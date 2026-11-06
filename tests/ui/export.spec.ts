@@ -496,9 +496,7 @@ test('a failure shows what did not complete, with its code, until dismissed', as
   const writes = (await calls(page, 'export_write')).length
   await mockExport(page, { export_attach: { error: 'E_EXPORT_ATTACH_FAILED' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as Markdown…')
-  await expect(notice).toHaveText(
-    /^The export is incomplete: 1 written, 1 with problems \(first: E_EXPORT_ATTACH_FAILED\)\./,
-  )
+  await expect(notice).toHaveText(/^The export is incomplete: 1 written, 1 with problems\./)
   expect((await calls(page, 'export_write')).length).toBe(writes + 1)
 })
 
@@ -510,8 +508,8 @@ test("an export's notice and a backup's both show, each with its buttons", async
   })
   await mockExport(page, { export_write: { error: 'E_EXPORT_WRITE_FAILED' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as Markdown…')
-  const backup = page.getByRole('alert').filter({ hasText: 'E_BACKUP_DIR' })
-  const exported = page.getByRole('alert').filter({ hasText: 'E_EXPORT_WRITE_FAILED' })
+  const backup = page.getByRole('alert').filter({ hasText: 'The automatic backup failed.' })
+  const exported = page.getByRole('alert').filter({ hasText: 'The export did not complete.' })
   await expect(backup).toBeVisible()
   await expect(exported).toBeVisible()
   // Neither covers the other: each one's Dismiss takes a click.

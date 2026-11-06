@@ -549,7 +549,7 @@ test('Install Extension opens the bundle, and says when it cannot', async ({ pag
   const desktop = page.getByRole('group', { name: 'Claude Desktop' })
   await desktop.getByRole('button', { name: 'Install Extension' }).click()
   await expect(page.getByRole('tabpanel').getByRole('alert')).toContainText(
-    'E_MCP_EXTENSION_OPEN_FAILED',
+    'The extension could not be opened.',
   )
   expect(await calls(page, 'settings_mcp_open_extension')).toHaveLength(1)
 })

@@ -201,7 +201,7 @@ test('a refused key is reported beside its own field', async ({ page }) => {
   // The pane may be scrolled to the provider: the error belongs beside the field (A122).
   const error = claude.getByRole('alert')
   await expect(error).toHaveText('The key could not be changed.')
-  await expect(field).toHaveAccessibleDescription(/E_AI_KEY_INVALID/)
+  await expect(field).toHaveAccessibleDescription(/The key could not be changed\./)
   // Typing a new key clears it.
   await field.fill('another')
   await expect(error).toHaveCount(0)
