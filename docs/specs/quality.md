@@ -1,0 +1,191 @@
+# Quality
+
+Part of the [architecture overview](../architecture.md).
+
+## Priorities
+
+When trade-offs collide: **data integrity > security > performance > functional correctness > visual polish.**
+Losing or corrupting a note is the one failure that cannot be undone.
+
+## Test layers
+
+1. **Unit (Vitest):** most TypeScript tests.
+   The core library is plain TypeScript and its unit tests run in milliseconds.
+2. **Integration (Vitest + real SQLite):** the core with its better-sqlite3 adapter on temporary database files; the database is never mocked.
+   Covers the data layer, import and export, the link index and MCP.
+3. **Property-based (Vitest + fast-check):** random operation sequences checked against invariants, for example: Yjs edits converge in any order; the link index always matches note bodies; a purge deletes only the attachments no note left shows.
+   Markdown export then import is checked by example round trips (`tests/core/export.test.ts`), not yet by a property test (phase 2).
+4. **Rust (cargo test):** command validation, storage on temporary SQLite files, and native code.
+   Tests that touch WebKit run on the main thread in harness-free test binaries (`harness = false`), because libtest's worker threads crash WebKit.
+5. **UI integration (Playwright, WebKit engine, phase 1):** the real UI in the UI tests' build (`vite.ui-test.config.ts`: notes in an in-memory storage), bundled and served by `vite preview` (`DEVOT_UI_SERVER=dev` serves it from Vite's dev server; `tests/support/ui-servers.ts`), with Tauri's IPC mocked and `Object.prototype` frozen in the main frame, as the app does.
+   Real keyboard input works here.
+   Runs on Linux CI.
+   A second project (`tests/ui-csp`) runs the built UI under the production CSP (`scripts/serve-csp.ts`), because `pnpm dev` relaxes the policy.
+   Each checkout serves on ports derived from its folder (`tests/support/ports.ts`; `DEVOT_UI_PORT` and `DEVOT_CSP_PORT` move them), and a server already answering on one fails the run unless `DEVOT_REUSE_SERVERS=1`.
+   In dev mode Vite pre-bundles the core worker's dependencies up front (`optimizeDeps.entries`), and a test fails if Vite re-bundles under an open page.
+   The window sets `data-ready` on `.window` once its lists have loaded and its last state is restored; tests open and reload the app with `openApp` and `reloadApp` (`tests/ui/fixtures.ts`), which wait for it, and check for a positive sign (a write, a notice) before they check that something did not happen.
+   Timing tests poll or compare growth between sizes; none relies on a wall-clock limit that load can break.
+6. **Full-app end-to-end (WebdriverIO + `@wdio/tauri-service`, phase 2):** a few critical flows in the built app on macOS, through the embedded WebDriver (debug builds only).
+   Its `browser.keys` does not type into CodeMirror; text goes in with `addValue`.
+   Real keyboard and IME input stay manual checks.
+
+## Data integrity
+
+- **Crash safety:** a test kills the app at random points during writes, reopens the database, and checks that every committed change is intact and the WAL recovers.
+- **Schema migrations:** a fixture database is kept for every released schema version; each must upgrade to the current one.
+- **Merge convergence:** property tests over Yjs edits (see above).
+- **Automatic local backups (phase 1):** a daily snapshot through SQLite's online backup API into `<app data>/backups/devot-<UTC time>-<number>.sqlite`.
+  A background thread checks 20 s after launch and then hourly; a backup is due when the last one taken (safety copies aside) is a day old.
+  Each check, and every backup or restore, first removes what a quit during a snapshot left (its private folder), so a nearly full disk gets that room back even when the next snapshot fails.
+  It copies from its own read-only connection in one step (a consistent read; WAL keeps writers going), checks the copy with `quick_check`, and renames it into place, never over another file (SQLite writes it in a new private folder in `backups/`, see Security).
+  Devot > Backups… lists them, the last taken first; restoring asks first, copies the current data aside as a safety copy (`devot-<UTC time>-<number>-before-restore.sqlite`, listed with the backups; when the live database itself fails that copy's `quick_check`, the very case a restore is for, it keeps the database's bytes with its `-wal` and `-shm` instead, `…-before-restore-raw.sqlite`, logs `W_BACKUP_SAFETY_RAW`, and the sheet marks that copy Unverified; any other failure to take the copy still calls the restore off), checks the snapshot with `quick_check` (a damaged one is refused, `E_BACKUP_DAMAGED`), copies it into the open database (waiting at most 10 s for another process's lock, then `E_STORAGE_BUSY`), migrates it, and reloads the window.
+  Every other window with a core of its own (each main window, `main` hidden too, and each note window) is asked first (`devot://restore-prepare`): it saves, holds compaction, stops its core and answers (`backup_restore_ready`); a window that has not answered in 5 seconds calls the restore off (`E_BACKUP_RESTORE_WINDOWS`).
+  Once the restore is over, ran or not, each of them reloads (`devot://restore-done`).
+  So no window writes the notes it held from before the restore back over it, and the compaction in `main` is held wherever the restore starts.
+  Failures are logged by code and shown as a notice.
+  While sync is on, a restore is refused (`E_BACKUP_SYNC_ON`, said in the sheet): the relay's newer clocks would win the next sync's merges and its purges are final, so the restore would be undone within a cycle.
+  A restore made with sync off sets `restoredAt` in `sync_state`.
+  When sync is next turned on, the engine connects to nothing while that marker is there (`E_SYNC_RESTORE_CHOICE`, in Settings as advice) and the main window asks (`RestoreSyncChoice.tsx`, ADR 0013): **Merge**, the default (Return and Escape), syncs as usual, so the other devices' later changes come back; **Keep This Mac's Copy** gives every field of every live note, note tag, notebook, tag and saved search here a fresh HLC (`keepRestored` in `src/core/sync/engine.ts`) and, during the next full pull, edits a body another device changed before the choice back to this device's text on top of the merged state (`keptBody`), so every device ends with the restored notes.
+  Either way the marker is cleared, and the dialog says that a note purged on another device cannot come back (a purge is final).
+  A restored library that never synced (no `hasSynced` in `sync_state`) is not asked about.
+  Notes made elsewhere after the backup are not in it and stay.
+  Restore has its own test.
+  - **Order and retention** (`src-tauri/src/backups.rs`): backups go in the order they were taken, which the number keeps (one more than the highest in the folder), never by the time in the name, so a clock set back or ahead can neither make a new backup the first to go nor keep a future one the newest.
+    Taking a backup (daily or Back Up Now) keeps the last 7 backups and, apart from them, the last 7 safety copies, raw ones among them, whose side files go with them (enough to restore each backup in turn and still go back), and never removes the one just taken.
+    It also keeps the first safety copy taken after each of the 7 backups it keeps, since that copy holds the notes from before a run of restores, which no backup has; it goes with the backup before it.
+    A restore removes nothing.
+    Names from before backups were numbered still list and restore, before every numbered one.
+  - **Clock changes:** the thread takes a backup only when it has not taken one itself in the last 24 hours by a clock that setting the time does not move and that keeps counting while the Mac sleeps (`CLOCK_MONOTONIC`, through `native::macos::time_since_boot`; Rust's `Instant` stops during sleep), as well as when the newest backup is a day old by the wall clock.
+    When the newest backup is from the future (the clock was set back), its age is unknown, and only the first rule applies.
+    So a clock set back, or a slow clock set right, costs a backup a day, never one an hour, and a Mac that sleeps still backs up daily.
+  - **Partial snapshots:** a quit or crash during a snapshot leaves its private folder behind.
+    Every check and every backup removes such folders (with older builds' `.partial` files and the side files of backups that are gone) while this process takes no snapshot; a snapshot also locks its folder (`flock`) while SQLite writes in it, and a locked folder is never removed, whoever tidies.
+    Links and anything outside `backups/` are never touched.
+
+## Security tests
+
+From phase 1:
+
+- A known XSS payload corpus run through the HTML sanitizer; every payload must come out inert.
+- Every Tauri command is declared in `build.rs` (from its area's list in `build_commands.rs`) and granted only by capability files; `tests/security/capabilities.test.ts` checks that each declared command is granted explicitly and that no other app permission is granted.
+- Command argument validation is unit-tested in Rust.
+- The CSP blocks external resource loads (`tests/security/csp.test.ts`).
+- Files are never written through a folder swapped for a link: Rust tests swap a folder on the way for a link between a writer's checks and its step (`atomic_file::race`, for the Markdown mirror's writes, moves, removals and kept files, notebook exports and their attachments) or after the folder was chosen (an export session's, a PDF's, the mirror's own), and check that nothing lands, moves or goes outside; `tests/policy/one-writer.test.ts` keeps folder changes by path out of the writers of folders the user chose.
+- MCP cannot read notebooks without AI access: `tests/core/ai.test.ts`, `tests/core/http-api.test.ts` and the bridge's tests in `src-tauri/src/mcp_bridge/` (over a real socket) check on real SQLite that notes in other notebooks, in sub-notebooks, in no notebook, in deleted notebooks, in the Trash or purged are invisible to every tool; `tests/core/http-api.test.ts` checks the same for the local HTTP API, and `tests/core/ai-storage.test.ts` that the AI queries made of plain storage calls (the app's) answer as the tests' SQLite adapter's.
+- The local HTTP API's guards: `src-tauri/src/http_api/tests.rs` (see Local HTTP API).
+
+## Static checks
+
+- TypeScript `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`; oxlint and oxfmt.
+- Architecture boundaries enforced by lint rules: the core library imports neither `@tauri-apps/*`, `better-sqlite3` nor `node:*`; the UI imports no Node modules.
+- Rust: `cargo fmt`, `cargo clippy -D warnings`, `unsafe_code = "deny"` outside `native::macos` and `native::ios`, and `cargo deny` (licences, advisories, sources) for the targets Devot ships.
+- Dependencies: every new dependency needs a stated reason in its PR; `pnpm audit` and `cargo deny` must pass.
+
+## Coverage
+
+Coverage is reported, not gated: a percentage is easy to game.
+Every PR must test the logic it changes, which review checks.
+
+## CI
+
+- GitHub Actions on hosted Linux runners and one macOS runner, free for a public repository: quick static checks (`web-checks`: `pnpm deps:audit`, tokens, format, lint, type check), unit and integration tests in their own job, UI tests (`ui`: Playwright WebKit in up to fourteen measured development shards, balanced by recorded durations, plus a separate production CSP job, two workers per runner), and Rust checks split between a compile/test job (`rust-check`: fmt, clippy, tests), a macOS job that runs clippy on the macOS host and for the iOS simulator (`ios-check`), a macOS job for the signing scripts' tests (`mac-scripts`, part of the `web` gate), and a parallel manifest-only `deny` job, all started together.
+  The required `web`, `rust` and `policy` gates sum up their actual jobs and write the results to the run summary.
+  `pnpm check` runs the same steps in one go (`pnpm deps:audit` and `cargo deny check` are the dependency checks: `pnpm audit` for npm, advisories, licences and sources for Rust), and a policy test (`tests/policy/ci-config.test.ts`) fails when the two drift apart. macOS-only code is behind `cfg(target_os = "macos")`: `ios-check` compiles and lints it on every pull request that needs the Rust jobs, and the `pre-push` hook compiles and tests it locally when a push changes Rust or Cargo files.
+- CI runs on every pull request, every push to main, or when started by hand.
+  A pull request runs only the jobs its changed files need: `scripts/ci/changed-code.sh` says which paths need the web and the Rust jobs, and `scripts/ci/ui-plan.ts` picks the UI specs (docs/development.md, Targeted UI CI).
+  Documentation-only changes run only the format check and the policy and token tests (`pnpm test:policy`), which read the docs; a pull request without web changes runs `policy-check` instead of the web jobs: the format check, lint, the type check and all of Vitest, whose tests also read the Rust sources, migrations and capabilities.
+  Every job runs unless the change detection said it is not needed, so missing outputs run everything, and the three required gates always report.
+  Pull-request runs cancel an older run for the same PR; main runs never cancel each other.
+  Each UI shard uploads its Playwright results (traces of failed attempts, including a test that failed once and passed on retry, and the JSON report the shard durations are refreshed from) as `playwright-results-<project>-<shard>` unless the run was cancelled.
+- The `PR title` workflow (`pr-title.yml`) checks that a pull request's title, which becomes the squash commit's message, is a Conventional Commit; it runs again when the title is edited.
+- The dependency checks run on every pull request that changes code, on a run started by hand and in `pnpm check`.
+  There is no scheduled run yet, so a new advisory on an unchanged dependency shows up with the next such run.
+- The other macOS jobs (full-app end-to-end, performance, GPU power) come in phase 2.
+
+## Workflow
+
+- All changes reach `main` through pull requests, and CI must pass before merging.
+  A ruleset on `main` enforces it: a pull request is required, the `web`, `rust` and `policy` checks must pass, and pull requests are squash-merged.
+  The local `pre-push` hook that blocks pushes to `main` stays as a convenience.
+- Issues marked `ready-for-agent` state acceptance criteria that translate directly into tests.
+  Agents work test-first, PRs include tests, a code review runs before merging.
+- Local hooks (lefthook): `pre-commit` runs oxfmt, oxlint and rustfmt on staged files; `pre-push` blocks `main`, runs the format check, and lints when the push changes code or config (TypeScript, JavaScript, JSON, YAML), then only what the pushed files need: the type check when it changes code or config, Vitest without its benchmarks and builds (`pnpm test:fast`, about half the time; CI runs all of it) when it changes those, CSS, HTML or the Rust sources, migrations and fixtures its tests read, and `cargo fmt --check`, clippy and cargo test when it changes Rust, Cargo, JSON or migration files under `src-tauri/`.
+  A push of docs or images runs neither; CI still runs what the change needs.
+  The rustfmt hook covers every Rust file under `src-tauri`, including `build.rs` and `build_env.rs`.
+
+## Crash reporting and logs
+
+- **Sentry:** the Rust SDK (`src-tauri/src/crash.rs`, ureq transport over the system TLS) for panics, the browser SDK (`src/renderer/src/crash.ts`, loaded only when a DSN is set) for uncaught UI errors, and a crash reporter process for native crashes (below).
+  One Sentry project for all three.
+  All are off until the user turns on Send Crash Reports in Settings > General, kept as the file `crash-reports-on` in the data folder: without it no event is sent, no crash reporter starts and any saved report is deleted.
+  A panic before the data folder is known is dropped.
+- **Native crashes** (`src-tauri/src/crash_reporter.rs`; signals, aborts, crashes inside WebKit or AppKit): in a DSN build, a background thread at launch starts a second copy of the app binary as the crash reporter (`devot --crash-reporter <Mach service> <app data>/crash-reports`; the service name carries the app's process ID and a random token).
+  Once the reporter says on its standard output that it holds the service (a name has one holder at a time, so no other process can stand in for it; a reporter that has not said so within 5 s is stopped), the app attaches a crash handler (Mach exception ports plus a `SIGABRT` hook; `native::macos::attach_crash_handler`, the only `unsafe` it needs).
+  On a crash the handler hands the crashed task to the reporter over Mach IPC and waits up to 10 s for its answer.
+  Then the app ends as it would have without the handler: the handler puts back the `SIGABRT` action and exception ports from before it was attached, a Mach exception goes on to those (by default the system's crash reporting, then the signal), and a `SIGABRT` (an abort, or one sent by another process) is raised again under the old action, which by default ends the app with that signal.
+  The handler's own thread blocks `SIGABRT`, so a signal sent to the app never lands on the thread that must answer it.
+  When the reporter ends (its output closes: it saved a crash, or something stopped it), the app detaches the handler, which could no longer report, and does not start another reporter: the reporter ends on its own only after a crash, and one stopped from outside could be stopped again; the app then crashes as it would in a build without a DSN.
+  The reporter accepts a crash only from the app that started it (by process ID).
+  It writes a minidump of the app **into memory**, walks each thread's frame-pointer chain through the dumped stack memory (on arm64 a leaf function's caller comes from the link register when that points into another binary; an abort's trace starts where the signal was raised, below the handler's own frames), and keeps only code addresses, the binaries they fall in (file names, never folders; debug IDs; frames in the app's own executable are in-app, so Sentry groups by them: that binary is found by the crashed process's executable path, since the minidump lists any plug-in bundle AppKit or WebKit loaded before it), the exception and signal numbers, and the OS version and CPU.
+  A frame-pointer chain or a register can hold data instead of a code address (note text, when data is used as a pointer), so an address outside every binary is never a frame, and a bad access's fault address (the Mach subcode) is kept only near null (below 4 KiB) or inside a binary; otherwise the Mach exception's numbers are left out and its names stay in the error type.
+  It builds a native Sentry event from those alone (the crashed thread and up to 63 others, 128 frames each), runs it through the same scrubbing as every other event, and saves it as `<event id>.json`.
+  A minidump that fails to write (it happened in about 1 of 150 crashes while the machine was overloaded) is tried twice more, 100 ms apart; if no minidump can be written or read, the report still carries the exception, named as it would be with one, without stacks.
+  The minidump itself holds stack memory, which may contain note text, so it never reaches the disk or the network, and registers are not kept.
+  The next launch (DSN builds only) sends up to five saved reports, newest first, on its own thread and one request each (ureq over the system TLS, as Sentry's transport, but reading Sentry's answer, which the SDK's background transport drops), and deletes the rest.
+  A report is deleted once Sentry has accepted it or refused it for good (another 4xx); without a connection, on a 429 or a 5xx it waits for a later launch, for up to 30 days, and nothing more is sent that launch.
+  The reporter sleeps in the kernel until a crash arrives (no polling) and exits when the app's end of a pipe closes, which happens on any quit or kill.
+  Builds without a DSN start no reporter, attach no handler and create no folder; a build without a DSN also refuses `--crash-reporter`.
+  Release builds keep line tables in a separate `devot.dSYM` next to the stripped binary, so Sentry can name functions once it is uploaded (below).
+  Crashes in WebKit's own processes (the page's content process) do not stop the app and are not reported.
+  Tests: `tests/native_crash.rs` crashes a process for real (an abort, a `SIGABRT` sent from another process, a bad memory access and a call through a pointer made of note text, with note-like text and attachment bytes on its heap and stack and a plug-in bundle loaded) and checks that it ends with the signal and that the reporter saved one report and exited: no minidump, no home path, user name, note text, address made of text or attachment bytes, frames in named binaries, only the app's own frames in-app, the trace starting at the crash; it also checks that nothing starts without a DSN, that the reporter exits with the app, and that once the reporter has been killed the handler is detached and an abort ends the app without a report.
+- **What native crash reports cost, measured on the reporter alone** (2026-10-11, M1 Pro, macOS 27.2, release builds, while the machine was heavily loaded; `cargo test --test native_crash -- measure <devot built with a DSN>`, which starts the reporter from a test binary, not from the app): builds without a DSN do no work at all (the binary grows by 16 KiB, 8.28 to 8.30 MiB, as the code is compiled out).
+  In a DSN build, starting the reporter returns in under 0.2 ms (two threads); the reporter is ready 13 to 31 ms later on its own thread (about 300 ms on a cold disk cache), with a footprint of about 2.4 MB (7 to 9 MB resident, mostly shared system libraries), 0 % CPU and no wakeups while it waits.
+  Not counted there: what the second copy of the 12 MB binary (it links AppKit and WebKit) takes from the app's own launch while both load, the `devot-crash-reports` thread that reads saved reports and sends them over TLS at launch, and the two threads the app gains, both blocked in the kernel: the exception handler's and one that waits for the reporter's output to close.
+  The binary grows by 1.2 MB (10.8 to 12.1 MB) for the minidump writer and parser; that adds 28 crates (`crash-handler`, `crash-context`, `minidump-writer`, `minidump` and what they use), all MIT or Apache-2.0, which `cargo deny` checks.
+- **Native crash reports against the budgets: pending a check on the real app.**
+  Launch to first editor paint (< 700 ms) and the idle footprint (< 200 MB) have not been measured on the app with and without a DSN yet, so whether they stay within budget is open.
+  Steps (macOS, Accessibility permission for the terminal, Devot quit, an idle machine; `sudo purge` asks for the password):
+  1. `DEVOT_SENTRY_DSN= pnpm tauri build --bundles app` (the empty variable wins over `.env.local`), then `cp -R src-tauri/target/release/bundle/macos/Devot.app /tmp/devot-no-dsn.app`.
+  2. `DEVOT_SENTRY_DSN=<the DSN> pnpm tauri build --bundles app`, then `cp -R src-tauri/target/release/bundle/macos/Devot.app /tmp/devot-dsn.app`.
+     With no saved crash reports, launching it sends nothing.
+  3. `bash scripts/perf/launch-cost.sh /tmp/devot-no-dsn.app`, then `bash scripts/perf/launch-cost.sh /tmp/devot-dsn.app`.
+     Each prints 5 cold and 5 warm launches (milliseconds from starting the binary until the open note's editor is in the accessibility tree, with the empty shell's time beside it; `scripts/perf/first-paint.swift`), then, after 60 s idle, `footprint` and `top -stats pid,cpu,idlew,power` (5 s) for the app and, in the DSN build, the reporter (WebKit's own processes are not included; a DSN does not change them).
+     The script runs the app with HOME in a temporary folder, so each build starts on a new data folder of its own (made by a first launch that is not timed and opens a first note, which the timed launches restore; the budget is judged on that library of one empty note) and never opens an installed Devot's notes or sends its saved crash reports.
+  4. Record the ranges here: cold and warm launch with and without a DSN, the app's idle footprint and wakeups with and without, the reporter's footprint and wakeups.
+     Within budget: the DSN build's launches under 700 ms and its app footprint plus the reporter's under 200 MB.
+- **Source maps and debug symbols:** release builds upload the UI's source maps and the app's `devot.dSYM` to Sentry; neither ships.
+  Tauri runs `pnpm ui:release` (`scripts/sentry/ui.ts`) before compiling the app, which embeds `dist/`: with the upload settings it builds hidden source maps (no `sourceMappingURL` comments), gives every script a Sentry debug ID (`sentry-cli sourcemaps inject`; the SDK moves it into the event's `debug_meta`, which scrubbing keeps, so Sentry matches each frame to its map), uploads the maps for release `devot@<version>`, and deletes them; without the settings it builds none.
+  Either way the build fails if `dist/` still holds a `.map` file or a comment pointing to one, or the UI tests' in-memory storage (checked before uploading anything; see App data folder), and a failed upload fails the build (after deleting the maps).
+  Tauri then runs `pnpm sentry:debug-files` (`scripts/sentry/debug-files.ts`) before bundling, which uploads the dSYM of that build.
+  Rust panics list the binaries loaded at launch by debug ID (the SDK's `debug-images`; scrubbing keeps the ones a frame is in), so Sentry names the functions of a stripped release build's frames from that dSYM; a unit test prepares a panic with the app's client settings and a stand-in transport and checks that the binary its frames are in is listed.
+  `pnpm ui:build` (development, tests, CI) never makes source maps.
+  Tests: `tests/policy/source-maps.bench.test.ts` runs both scripts against a stand-in sentry-cli.
+- **One release and one environment per build:** the version is `src-tauri/Cargo.toml`'s alone.
+  Rust reports `devot@<version>`; `tauri.conf.json` names no version, so Tauri gives the UI (`getVersion`) and the app bundle the same one; the source maps upload under that name.
+  Rust reports `development` for a build with debug assertions and `production` otherwise; the UI reads Tauri's `TAURI_ENV_DEBUG` (`true` for `tauri dev` and `tauri build --debug`, `false` for `tauri build`) and reports the same, and a UI built outside Tauri's CLI reports `development`.
+  `tests/policy/release.test.ts` checks that every side agrees.
+- **Turning uploads on:** set `SENTRY_AUTH_TOKEN` (an organisation auth token, made in Sentry under Settings > Developer Settings > Organization Tokens; it can upload release files and nothing more), `SENTRY_ORG` (the organisation slug) and `SENTRY_PROJECT` (the project slug) in the environment or in `.env.local` (an environment variable wins), then run `pnpm build`.
+  All three or none: some but not all stops the build.
+  `tauri build --debug` never uploads.
+  The token reaches `sentry-cli` (a pinned dev dependency, license FSL-1.1-MIT; it runs only on the developer's machine and is never shipped) through its environment, never as an argument, and Vite never exposes `SENTRY_` variables to the UI.
+- **Scrubbing:** all PII collection off (`dataCollection` in browser SDK 11, `send_default_pii` in Rust), no session replay, tracing or breadcrumbs.
+  Scrubbing is an allowlist on both sides (`src-tauri/src/crash_scrub.rs`, `src/renderer/src/crash.ts`): an event is rebuilt from a fixed list of fields, and each value is kept only in the shape its field must have.
+  What is kept: codes (a message or exception value becomes the code it starts with, or `<redacted>`; a rejection that is not an Error, which the SDK wraps in text of its own, keeps its code too), error types (names only, without the numbers a crash reason can go on with), code locations (function names; source files and scripts, without a query and with the user name in a home folder path replaced; lines; addresses only inside a binary the event lists, at a page boundary, and those binaries by file name and debug ID), the UI scripts' source map debug IDs (`debug_meta`), the release and environment, and system details (OS name, version and build; CPU, model and family; never the device's or host's name).
+  Everything else is left out: tags, fingerprints, extra data, breadcrumbs, user and request data, other contexts, registers, context lines, variables and mechanism data.
+  `before_send` and `beforeSend` run it (breadcrumbs are dropped as they come); native crash reports run it when saved and again when sent.
+  Devot's own errors carry codes and IDs, never content.
+  Unit tests on both sides fill every field of an event with note text, titles, paths that name the user, attachment bytes and addresses made of text, and assert that none of it survives.
+- **Consent:** on in the user's own builds; off in any build without a DSN.
+  The DSN is injected at build time from `DEVOT_SENTRY_DSN`, set in the environment or in a git-ignored `.env.local` at the repository root (see `.env.example`; Rust reads it in `build.rs`, Vite through `envDir` and `envPrefix`; an environment variable, even an empty one, wins. `build.rs` watches `.env.local` only while it exists, because Cargo treats a missing path, or the repository folder with `target` inside it, as changed on every run and would rebuild the app each time; so a `.env.local` created for the first time takes effect after `touch src-tauri/build.rs`, or when the variable is set instead) and never committed; tests run without it.
+  The CSP allows `https://*.ingest.us.sentry.io` in `connect-src`, nothing else.
+- **Plan:** Sentry's free Developer plan.
+  Over-quota events are rejected rather than billed.
+- **Local logs:** structured, size-rotated logs in the app data folder (`logs/devot.log`, JSON lines, 1 MiB per file, four older files kept).
+  User names in paths are replaced before writing.
+  The UI logs through `log_write`, which accepts only a code and IDs.
+  Help > Export Diagnostics… writes a text bundle (versions plus logs) to Downloads as a new file (numbered when its name is taken: it never replaces a file or writes through a link there) and reveals it in Finder (`open -R`, reaped like a link's `open`).
+  The core worker has a console of its own: its coded warnings and errors (a failed revision write, a swallowed notebook-order failure) and its uncaught errors and rejections (`E_WORKER_UNCAUGHT`, `E_WORKER_UNHANDLED_REJECTION`, by kind and code only) are posted to the page (`src/renderer/src/workerLog.ts`), which writes them through `log_write` like its own; the uncaught ones also go to Sentry by code (`reportCode` in `crash.ts`).
+- **Error codes on the way to the log and Sentry:** a failed storage call is logged as `W_STORAGE_FAILED` with its code (the change watch, which reads every second, logs a run of failures once, as `W_WATCH_READ_FAILED` with its code), and a SQLite failure's code says its kind (`E_STORAGE_BUSY`, `E_STORAGE_FULL`, `E_STORAGE_READONLY`, `E_STORAGE_CORRUPT`, `E_STORAGE_IO`, `E_STORAGE_CANTOPEN` for a file that cannot be made or opened, else `E_STORAGE_SQLITE`), never SQLite's message.
+  Commands reject with their code as a string; every command the UI runs goes through `src/renderer/src/ipc.ts` (a policy test keeps it so), which turns a rejection into an Error whose message is the code alone (`E_COMMAND_FAILED` for Tauri's own failures, which can quote what was sent).
+  The core's `errorCode()` reads the code an Error or a string starts with wherever a failure is reported (notices, batches, revision writes, the UI log).
+- Data region: US (the existing Sentry account).

@@ -1,9 +1,9 @@
 #!/bin/bash
 # Launch time and idle cost of a built Devot.app, against the budgets in
-# docs/architecture.md (launch to first editor paint < 700 ms, idle memory
+# docs/specs/performance.md (launch to first editor paint < 700 ms, idle memory
 # footprint < 200 MB). Run it on a build without a DSN and on one with a DSN
 # to see what native crash reports cost; the steps are in
-# docs/architecture.md ("What native crash reports cost").
+# docs/specs/quality.md ("What native crash reports cost").
 #
 # Prints, per run, the milliseconds from starting the binary to the window
 # showing the first editor paint (first-paint.swift; the empty shell's time is

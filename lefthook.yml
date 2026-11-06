@@ -1,4 +1,4 @@
-# Local git hooks. See docs/architecture.md, Quality > Workflow.
+# Local git hooks. See docs/specs/quality.md, Workflow.
 # Hooks run in a non-interactive shell (also from GUI git clients) that does
 # not read ~/.zshrc, so the Rust jobs add rustup's usual locations to PATH.
 pre-commit:

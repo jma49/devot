@@ -225,7 +225,7 @@ The row has no purchase, so nothing mails or shows it; deleting it restores the 
 
 `src-tauri/src/licence/` checks keys exactly as Formats says (`ed25519-dalek`, strict verification), keeps the key in the keychain beside the AI keys and reports one state: none, valid, revoked or invalid (with its code). A valid license unlocks every version; the build's date plays no part.
 
-In the release workflow's build, the first launch begins a 30-day trial, kept in the keychain beside the license (its start and the latest time seen), so reinstalling does not start it again and setting the clock back more than an hour ends it. While it runs everything works. Once it is over, unless the state is valid, notes are read-only: every write of user content is refused, sync refuses to create a vault or connect, and AI refuses to send (`E_LICENCE_REQUIRED`, or `E_LICENCE_UNREADABLE` when the keychain would not give the license or the trial). A note's text being saved as the trial ends is still written for five minutes. docs/architecture.md (Licences) has the details.
+In the release workflow's build, the first launch begins a 30-day trial, kept in the keychain beside the license (its start and the latest time seen), so reinstalling does not start it again and setting the clock back more than an hour ends it. While it runs everything works. Once it is over, unless the state is valid, notes are read-only: every write of user content is refused, sync refuses to create a vault or connect, and AI refuses to send (`E_LICENCE_REQUIRED`, or `E_LICENCE_UNREADABLE` when the keychain would not give the license or the trial). A note's text being saved as the trial ends is still written for five minutes. docs/specs/licences.md has the details.
 
 ### Seats
 
@@ -254,7 +254,7 @@ Release that build before the Worker signs anything with the key. Only the relea
 
 ### Revocations
 
-The app keeps the last revocation list that verified in `<app data>/license-revocations.txt` (the list as signed; it is public) and verifies it again whenever it reads it. A list older than the one kept (`issuedAt`) is ignored. The updater's schedule fetches `/revoked` once a day (also in a build without the updater key, while the build gates and a license is held): the list whole, over https, with no query or identifying header, then `apply_revocations`. A failure is logged by its code and changes nothing. docs/architecture.md (Updates) has the details.
+The app keeps the last revocation list that verified in `<app data>/license-revocations.txt` (the list as signed; it is public) and verifies it again whenever it reads it. A list older than the one kept (`issuedAt`) is ignored. The updater's schedule fetches `/revoked` once a day (also in a build without the updater key, while the build gates and a license is held): the list whole, over https, with no query or identifying header, then `apply_revocations`. A failure is logged by its code and changes nothing. docs/specs/updates.md has the details.
 
 ### What users see
 

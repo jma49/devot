@@ -38,7 +38,7 @@ The tag's message becomes the release notes and the update's notes in the app. A
 
 The workflow refuses a tag whose commit is not on `main`. Then it runs five jobs:
 
-1. **build** (macOS 26, Apple Silicon): sets the version from the tag (a tag of any other form fails the run) and builds the `app` bundle, ad-hoc signed (`signingIdentity: "-"`), with the updater's public key built in and `requireSignedVersion` on, so an install takes an update only when its signature records the version the feed announces. It verifies it (`codesign --verify --deep --strict`, and that the app has its layered icon: `Assets.car` and `CFBundleIconName`, see `architecture.md`, Design system) and hands it on as a `ditto` archive, which keeps the bundle's symlinks and extended attributes. This job runs the dependencies' code, so it gets a read-only token and no Apple credential or updater key.
+1. **build** (macOS 26, Apple Silicon): sets the version from the tag (a tag of any other form fails the run) and builds the `app` bundle, ad-hoc signed (`signingIdentity: "-"`), with the updater's public key built in and `requireSignedVersion` on, so an install takes an update only when its signature records the version the feed announces. It verifies it (`codesign --verify --deep --strict`, and that the app has its layered icon: `Assets.car` and `CFBundleIconName`, see `docs/specs/design-system.md`) and hands it on as a `ditto` archive, which keeps the bundle's symlinks and extended attributes. This job runs the dependencies' code, so it gets a read-only token and no Apple credential or updater key.
 2. **notarize** (macOS 26): signs the app with the Developer ID, has it notarized and staples it, makes the dmg and the updater bundle (`Devot.app.tar.gz`) from the stapled app, and signs, notarizes and staples the dmg (`scripts/release/macos-sign.sh`, see Signing the app). It holds the Apple credentials and runs only Apple's tools and the committed scripts, never `pnpm install`.
 3. **sign**: signs the notarize job's updater bundle with the updater key, recording the version (`scripts/release/release.ts sign`), and checks the signature against `TAURI_UPDATER_PUBKEY`: a private key that does not match the public key fails the run instead of shipping updates no install would accept. It runs only Node and `release.ts`, never `pnpm install`.
 4. **publish**: creates the release for the tag (a prerelease for a beta) with the dmg, the updater bundle and its signature.
@@ -128,7 +128,7 @@ A beta install reads `beta.json`, so a stable release also goes there when it is
 
 Release builds check 30 seconds after launch and then daily (hourly on a beta build), and on Devot > Check for Updates…. With Settings > General > Automatically Download Updates on (the default), an update downloads in the background; then Devot offers Restart to Update, which installs it and restarts once the notes are saved. A plain quit installs nothing; the next launch finds the update again.
 
-The same daily schedule fetches the license Worker's revocation list, also in a build without the updater key (docs/architecture.md, Updates).
+The same daily schedule fetches the license Worker's revocation list, also in a build without the updater key (docs/specs/updates.md).
 
 ## Signing the app
 
@@ -175,7 +175,7 @@ In the Apple Developer portal (Certificates, Identifiers & Profiles):
 
 In the CloudKit Console, for the container:
 
-1. In the **Development** environment, let a development-signed build create the record types (`pnpm tauri ios dev` after `icloud-settings`, iCloud entitlements above, on a registered iPhone, signed by the owner's team) `DevotVault`, `DevotMeta`, `DevotDevice`, `DevotClock`, `DevotRecord` and `DevotPairing` and their fields.
+1. In the **Development** environment, let a development-signed build create the record types `DevotVault`, `DevotMeta`, `DevotDevice`, `DevotClock`, `DevotRecord` and `DevotPairing` and their fields: on a registered iPhone, signed by the owner's team, turn on Sync Through iCloud, write a note and let it sync. Use a build that carries its web assets, since `pnpm tauri ios dev` loads every module through the dev server and a module the proxy fails leaves a blank window. After `icloud-settings` (iCloud entitlements above), set `iCloudContainerEnvironment` to `Development` in `ExportOptions.plist`, run `pnpm tauri ios build --debug --export-method debugging`, install it with `xcrun devicectl device install app` as in The iPhone app, then `git restore src-tauri/gen/apple`.
 2. **Deploy Schema Changes to Production** before the first release that uses them. A Developer ID or App Store build uses Production, where record types are never created on first save: an undeployed type fails the save with code 12 (`Cannot create new type`).
 3. Indexes: the transport looks records up only by record name and fetches zone changes, so it needs no index beyond those CloudKit keeps. When the transport (#603) starts querying a field, that field needs a queryable index, deployed the same way.
 

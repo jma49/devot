@@ -16,7 +16,7 @@ import { tempDir } from '../support/temp-dirs'
 
 // Backlinks read the link index; they used to be a phrase search for the note's address. Both must
 // find the same notes, except where the phrase search broke the rule of what counts as a link
-// (docs/architecture.md, Note links): an address in capitals, or one running on into more ID
+// (docs/specs/markdown-dialect.md, Note links): an address in capitals, or one running on into more ID
 // characters (a longer ID, so a link to another note), counted there and counts no more.
 
 const TARGET = '0192a6f0-0000-7000-8000-000000000001'

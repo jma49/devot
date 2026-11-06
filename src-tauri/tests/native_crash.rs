@@ -387,7 +387,7 @@ mod mac {
         );
     }
 
-    /// By hand, for docs/architecture.md: how long the reporter takes to be
+    /// By hand, for docs/specs/quality.md: how long the reporter takes to be
     /// ready and what it costs while it waits, for a given app binary (built
     /// with a DSN, or it refuses to start as a reporter):
     /// `cargo test --test native_crash -- measure <path to devot>`.

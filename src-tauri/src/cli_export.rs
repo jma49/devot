@@ -1,4 +1,4 @@
-//! `devot export` (docs/architecture.md, Command line). The exporter's page
+//! `devot export` (docs/specs/command-line.md). The exporter's page
 //! needs a web view, so this process runs a Tauri app whose one window is
 //! never shown; it opens no data folder, database or socket, so it can run
 //! beside an open Devot.

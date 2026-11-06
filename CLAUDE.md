@@ -1,6 +1,6 @@
 # Devot
 
-Architecture and agreed decisions: `docs/architecture.md`. Design system: `design/README.md`.
+Architecture and agreed decisions: read `docs/architecture.md` (the overview) first, then only the spec under `docs/specs/` for the area you are touching. Design system: `design/README.md`.
 
 Rules here hold for every contributor; add shared rules here. Personal or machine-specific rules (local paths, how you run agents) go in an untracked `CLAUDE.local.md` beside this file, which is read together with it and never committed.
 
@@ -23,6 +23,7 @@ Rules here hold for every contributor; add shared rules here. Personal or machin
 - Rust tools come from rustup. A non-interactive shell may not read your shell profile: put rustup's `bin` folder on `PATH` before running `cargo` (with Homebrew's rustup, `$(brew --prefix rustup)/bin`). The git hooks add the usual locations themselves.
 - A test that checks a time limit uses `expectWithinBudget` (`tests/support/budget.ts`), which skips on an overloaded machine; a policy test refuses `expect(ms).toBeLessThan(…)` by hand. Name a test file that takes seconds (benchmarks, big inputs, real builds) `*.bench.test.ts`: `pnpm test:fast` and the pre-push hook leave it out, CI runs it.
 - Local test runs are capped so a local run leaves the machine usable: Vitest 3 workers (`DEVOT_TEST_WORKERS`), Playwright 2 (`DEVOT_UI_WORKERS`), cargo 4 jobs (`CARGO_BUILD_JOBS`). Raise them with those variables if you like; CI sets its own.
+- New architecture detail goes into the matching spec under `docs/specs/`; `docs/architecture.md` changes only when a boundary or a constraint changes, and a new spec gets a line in its index. Write docs one sentence per line, so a change touches only its own sentences.
 - Comment sparingly. Names and structure should explain the code; write a comment only for what the code cannot say: a non-obvious reason, a constraint, a workaround with its cause, or a link to an issue or ADR. Never comment what a line does, restate a name or type, narrate a change, or leave commented-out code. Prefer one short line; a doc comment only on exported APIs whose behaviour is not obvious from the signature. When you touch a file, delete comments that break this rule rather than matching them.
 - Repository text (docs, issues, commits, comments, code) describes Devot on its own terms. Never name other note apps as a source or model for Devot.
 
