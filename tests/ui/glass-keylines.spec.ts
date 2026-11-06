@@ -104,15 +104,17 @@ test('toolbar controls are 32 pt capsules centred on y = 26', async ({ page }) =
   await expect(page.locator('.list .search-field')).toHaveCSS('height', '32px')
 })
 
-test('New Note is a 28 pt round button ending the search row', async ({ page }) => {
+test('New Note is a round button as tall as the search field, ending the search row', async ({
+  page,
+}) => {
   await noteWithBody(page, 'Plan', 'Text')
   const list = page.locator('.list')
   const create = list.getByRole('button', { name: 'New Note', exact: true })
   const field = list.locator('.search-field')
   const b = await create.boundingBox()
   const f = await field.boundingBox()
-  expect([b?.width, b?.height]).toEqual([28, 28])
-  expect((b?.y ?? 0) + 14).toBeCloseTo((f?.y ?? 0) + (f?.height ?? 0) / 2, 0)
+  expect([b?.width, b?.height]).toEqual([32, 32])
+  expect((b?.y ?? 0) + 16).toBeCloseTo((f?.y ?? 0) + (f?.height ?? 0) / 2, 0)
   expect(await right(field)).toBeLessThanOrEqual((b?.x ?? 0) + 0.5)
   await expect(list.locator('.list-header').getByRole('button', { name: 'New Note' })).toHaveCount(
     0,
