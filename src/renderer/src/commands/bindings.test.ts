@@ -44,7 +44,7 @@ const SOURCES = import.meta.glob<string>(
     '../editor/find.ts',
     '../editor/ghostText.ts',
     '../editor/editorMenu.ts',
-    '../Sidebar.tsx',
+    '../sidebar/useRowKeys.ts',
   ],
   { query: '?raw', import: 'default', eager: true },
 )
@@ -75,9 +75,9 @@ const BOUND_IN: Partial<Record<CommandId, [file: string, call: string]>> = {
   'note.newFromSelection': ['../editor/noteKeys.ts', 'editorCommandKeys'],
   'note.newFromLink': ['../editor/noteKeys.ts', 'editorCommandKeys'],
   'image.view': ['../editor/noteKeys.ts', 'editorCommandKeys'],
-  'sidebar.rowMenu': ['../Sidebar.tsx', 'commandMatches'],
-  'sidebar.workspaceUp': ['../Sidebar.tsx', 'commandMatches'],
-  'sidebar.workspaceUpFromAnyRow': ['../Sidebar.tsx', 'commandMatches'],
+  'sidebar.rowMenu': ['../sidebar/useRowKeys.ts', 'commandMatches'],
+  'sidebar.workspaceUp': ['../sidebar/useRowKeys.ts', 'commandMatches'],
+  'sidebar.workspaceUpFromAnyRow': ['../sidebar/useRowKeys.ts', 'commandMatches'],
 }
 
 function bound(id: CommandId): boolean {

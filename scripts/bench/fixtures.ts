@@ -1,6 +1,6 @@
 // Fixtures for `pnpm bench`: generated at bench time, never committed, and deterministic.
 import * as Y from 'yjs'
-/** The name of the note's text in its Yjs document (BODY in src/core/notes.ts). */
+/** The name of the note's text in its Yjs document (BODY in src/core/notes/body.ts). */
 const BODY = 'body'
 
 export const SAMPLE_END = 'End of the sample.'
