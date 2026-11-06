@@ -1,4 +1,4 @@
-//! Settings > General > Command Line Tool (docs/architecture.md, Command line).
+//! Settings > General > Command Line Tool (docs/specs/command-line.md).
 
 use std::ffi::OsStr;
 use std::io::ErrorKind;

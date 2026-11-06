@@ -199,7 +199,7 @@ pnpm dev      # run the app with hot reload
 pnpm check    # everything CI runs
 ```
 
-How releases are made: [`docs/releasing.md`](docs/releasing.md). Architecture and decisions: [`docs/architecture.md`](docs/architecture.md).
+How releases are made: [`docs/releasing.md`](docs/releasing.md). Architecture and decisions: [`docs/architecture.md`](docs/architecture.md), an overview that links a spec for each area in [`docs/specs/`](docs/specs/).
 
 ## Contributing
 

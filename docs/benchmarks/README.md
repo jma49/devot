@@ -90,4 +90,4 @@ The WebKit processes are those that started with the app; another WebKit app sta
 
 ## Reading the numbers
 
-The budgets in `docs/architecture.md` (keystroke to paint under 8 ms on a 120 Hz display, switching notes under 16 ms) are judged on the real app; the web harness gives the shape of the costs, not their final size. The numbers that stand out are listed with the measurement they would be judged by in the issues filed from this baseline.
+The budgets in `docs/specs/performance.md` (keystroke to paint under 8 ms on a 120 Hz display, switching notes under 16 ms) are judged on the real app; the web harness gives the shape of the costs, not their final size. The numbers that stand out are listed with the measurement they would be judged by in the issues filed from this baseline.

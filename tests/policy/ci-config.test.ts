@@ -438,10 +438,12 @@ function docsOnly(files: string[]): boolean {
 }
 
 it('changed-code.sh needs no build for documentation and the icon sources', () => {
-  expect(changedCode(['docs/architecture.md', 'README.md', 'docs/adr/0001.md'])).toBe(
-    'web=false rust=false',
-  )
-  expect(docsOnly(['docs/architecture.md', 'README.md', 'docs/adr/0001.md'])).toBe(true)
+  expect(
+    changedCode(['docs/architecture.md', 'docs/specs/ai.md', 'README.md', 'docs/adr/0001.md']),
+  ).toBe('web=false rust=false')
+  expect(
+    docsOnly(['docs/architecture.md', 'docs/specs/ai.md', 'README.md', 'docs/adr/0001.md']),
+  ).toBe(true)
   expect(changedCode(['docs/images/flow.png'])).toBe('web=false rust=false')
   expect(changedCode(['design/app-icon/source.svg', 'design/README.md'])).toBe(
     'web=false rust=false',
@@ -606,6 +608,8 @@ it('the pre-push hook runs the type check and unit tests for code and config, no
   expect(pushedBy('unit-tests', rustRead)).toEqual(rustRead)
   for (const name of ['typecheck', 'unit-tests']) {
     expect(pushedBy(name, code)).toEqual(code)
-    expect(pushedBy(name, ['docs/architecture.md', 'src-tauri/icons/icon.png'])).toEqual([])
+    expect(
+      pushedBy(name, ['docs/architecture.md', 'docs/specs/ai.md', 'src-tauri/icons/icon.png']),
+    ).toEqual([])
   }
 })

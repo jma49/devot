@@ -33,7 +33,7 @@ RELAY_SECRET="$(openssl rand -base64 32)" RELAY_DATA=/var/lib/devot-relay PORT=8
 | `HOST`         | `127.0.0.1`    | Address to listen on; leave it local behind a TLS proxy |
 | `RELAY_QUOTA`  | `free`         | `free`: the quota cap below; `off`: no cap              |
 
-A server of your own has none of the Workers Free limits, but the cap stays on by default: it is one of the cost guards every host keeps (`docs/architecture.md`, Sync and encryption), and it keeps a misbehaving device from filling the disk. Set `RELAY_QUOTA=off` to run without it.
+A server of your own has none of the Workers Free limits, but the cap stays on by default: it is one of the cost guards every host keeps (`docs/specs/sync-and-encryption.md`), and it keeps a misbehaving device from filling the disk. Set `RELAY_QUOTA=off` to run without it.
 
 The relay speaks plain HTTP: put a TLS proxy in front, such as Caddy (`devot-relay.example.com { reverse_proxy 127.0.0.1:8787 }`, which passes WebSockets through), and keep it running with your service manager. The relay is not a source of truth: if its folder is lost, devices upload their records again to a new vault. Pairings live in memory: a restart ends the codes on show, and a device shows a new one.
 

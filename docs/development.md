@@ -1,10 +1,10 @@
 # Developing Devot
 
-How to build, run and test Devot from a checkout. The rules every change follows are in `CLAUDE.md`; the architecture and agreed decisions are in `docs/architecture.md`; how releases are made is in `docs/releasing.md`.
+How to build, run and test Devot from a checkout. The rules every change follows are in `CLAUDE.md`; the architecture and agreed decisions are in `docs/architecture.md`, an overview that links a spec for each area under `docs/specs/`; how releases are made is in `docs/releasing.md`.
 
 ## Requirements
 
-- macOS 26 or later (Apple Silicon or Intel) and the Xcode command line tools (`xcode-select --install`), which are enough to run and test. A bundle with the layered app icon (`pnpm build`, `pnpm build:debug`) needs the full Xcode 26 or later: the command line tools have no `actool`, so the bundler only logs an error and leaves `Assets.car` out, and macOS 26 may then show the flat `icon.icns` in a box (`architecture.md`, Design system).
+- macOS 26 or later (Apple Silicon or Intel) and the Xcode command line tools (`xcode-select --install`), which are enough to run and test. A bundle with the layered app icon (`pnpm build`, `pnpm build:debug`) needs the full Xcode 26 or later: the command line tools have no `actool`, so the bundler only logs an error and leaves `Assets.car` out, and macOS 26 may then show the flat `icon.icns` in a box (`docs/specs/design-system.md`).
 - Node 24+ and pnpm 12 (`npm install -g pnpm@12`).
 - Rust through rustup (`brew install rustup` or [rustup.rs](https://rustup.rs)). `src-tauri/rust-toolchain.toml` pins the release CI uses, with clippy, rustfmt and the iOS simulator target; run `rustup toolchain install` in `src-tauri` once (and again after the pin changes), and every `cargo` there uses it. Make sure `cargo` is on your `PATH`; with Homebrew's rustup, add `$(brew --prefix rustup)/bin`.
 
@@ -19,7 +19,7 @@ pnpm check                            # everything CI runs, plus the dependency 
 
 A build you make yourself checks no license: everything works without one (`README.md`, License). To make an app you can keep in Applications, follow Building locally in `docs/releasing.md`.
 
-Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Application Support/io.github.jma49.devot.dev`, apart from the release app's `io.github.jma49.devot`, so development never touches the notes of an installed Devot. A release build made here (`pnpm build`) keeps its data and keychain items in `io.github.jma49.devot.local`: only the release workflow builds with `DEVOT_RELEASE_BUILD=1`, which names them after the installed app. Scripts that start the app never use the release folder (`docs/architecture.md`, App data folder).
+Debug builds (`pnpm dev`, `pnpm build:debug`) keep their data in `~/Library/Application Support/io.github.jma49.devot.dev`, apart from the release app's `io.github.jma49.devot`, so development never touches the notes of an installed Devot. A release build made here (`pnpm build`) keeps its data and keychain items in `io.github.jma49.devot.local`: only the release workflow builds with `DEVOT_RELEASE_BUILD=1`, which names them after the installed app. Scripts that start the app never use the release folder (`docs/specs/data-model.md`, App data folder).
 
 ## Scripts
 
@@ -153,6 +153,6 @@ Builds report crashes to Sentry only when they are made with a DSN. Copy `.env.e
 - `DEVOT_SENTRY_DSN`: turns on reports of Rust panics, UI errors and native crashes (a native crash is sent on the next launch).
 - `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_PROJECT` (all three or none): `pnpm build` then uploads the UI's source maps and the app's debug symbols to Sentry. They never ship in the app.
 
-Environment variables win over `.env.local`. Details: `docs/architecture.md`, Crash reporting and logs.
+Environment variables win over `.env.local`. Details: `docs/specs/quality.md`, Crash reporting and logs.
 
 To measure what crash reporting costs at launch and when idle, build the app with and without a DSN and run `bash scripts/perf/launch-cost.sh <Devot.app>` on each (steps in the same section). It runs the app on a temporary data folder, never an installed Devot's.

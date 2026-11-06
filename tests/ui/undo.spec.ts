@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test'
 import * as Y from 'yjs'
 import { expect, test, openApp } from './fixtures'
 
-// The editor has one undo system, CodeMirror's history (docs/architecture.md, Merging and history): it holds the
+// The editor has one undo system, CodeMirror's history (docs/specs/data-model.md, Merging and history): it holds the
 // user's own edits, never what reaches the note from outside, and a note keeps it while another is shown.
 
 const DB_CHANGED = 'devot:db-changed'
