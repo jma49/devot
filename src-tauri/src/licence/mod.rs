@@ -1096,6 +1096,11 @@ impl Licence {
         snapshot
     }
 
+    /// Whether a key is a licence signed with a key this build trusts; it reads no keychain.
+    pub(crate) fn signed(&self, key: &str) -> bool {
+        verify_licence(key, &self.keys).is_ok()
+    }
+
     /// Checks a key without keeping it: what adding it would show. It reads no keychain, since a
     /// link arrives on the main thread.
     pub(crate) fn offer(&self, input: &str) -> Result<Offer, &'static str> {

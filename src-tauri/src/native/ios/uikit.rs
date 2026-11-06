@@ -1,4 +1,4 @@
-//! UIKit: haptics, opening a URL, the interface style and SF Symbols.
+//! UIKit: haptics, opening a URL, the interface style, the share sheet and SF Symbols.
 
 use block2::RcBlock;
 use objc2::AllocAnyThread;
@@ -95,6 +95,96 @@ pub fn set_interface_style(style: isize) {
                 window.setOverrideUserInterfaceStyle(UIUserInterfaceStyle(style));
             }
         }
+        Some(())
+    });
+}
+
+/// The key window's top-most view controller that is not on its way out; with no key window, the
+/// first window's.
+fn top_view_controller(
+    mtm: objc2::MainThreadMarker,
+) -> Option<objc2::rc::Retained<objc2_ui_kit::UIViewController>> {
+    use objc2_ui_kit::{UIApplication, UIWindowScene};
+    let mut windows = Vec::new();
+    for scene in UIApplication::sharedApplication(mtm)
+        .connectedScenes()
+        .iter()
+    {
+        if let Some(scene) = scene.downcast_ref::<UIWindowScene>() {
+            windows.extend(scene.windows().iter());
+        }
+    }
+    let window = windows
+        .iter()
+        .find(|window| window.isKeyWindow())
+        .or(windows.first())?;
+    let mut top = window.rootViewController()?;
+    while let Some(next) = top.presentedViewController() {
+        if next.isBeingDismissed() {
+            break;
+        }
+        top = next;
+    }
+    Some(top)
+}
+
+/// Presents the system share sheet for a message and a link (`share::phone_share` has checked
+/// both) over the top-most view controller: on an iPhone it rises from the bottom, and a popover
+/// (an iPad's) points at the bottom middle of that controller's view. `done` hears whether an
+/// activity completed at the handler's first call (a cancel inside another app's share extension
+/// dismisses the whole sheet and answers once); when nothing was presented it is dropped uncalled.
+/// Main thread only.
+pub fn share(text: &str, url: &str, done: impl FnOnce(bool) + 'static) {
+    use std::cell::Cell;
+
+    use objc2::runtime::{AnyObject, Bool};
+    use objc2::{MainThreadMarker, MainThreadOnly};
+    use objc2_core_foundation::CGRect;
+    use objc2_foundation::{NSArray, NSError, NSURL};
+    use objc2_ui_kit::UIActivityViewController;
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    let _ = guarded("W_NATIVE_SHARE_FAILED", move || {
+        let presenter = top_view_controller(mtm)?;
+        let view = presenter.view()?;
+        let text = NSString::from_str(text);
+        let url = NSURL::URLWithString(&NSString::from_str(url))?;
+        let text_item: &AnyObject = &text;
+        let url_item: &AnyObject = &url;
+        let items = NSArray::from_slice(&[text_item, url_item]);
+        // SAFETY: the items are a string and a URL, both of which the share sheet takes, and there
+        // are no activities of the app's own.
+        let sheet = unsafe {
+            UIActivityViewController::initWithActivityItems_applicationActivities(
+                UIActivityViewController::alloc(mtm),
+                &items,
+                None,
+            )
+        };
+        let done = Cell::new(Some(done));
+        let finished = RcBlock::new(
+            move |_activity: *mut NSString,
+                  completed: Bool,
+                  _items: *mut NSArray,
+                  _error: *mut NSError| {
+                if let Some(done) = done.take() {
+                    done(completed.as_bool());
+                }
+            },
+        );
+        // SAFETY: `finished` is a live block of the handler's type, which the controller copies;
+        // UIKit calls it on the main thread, and it reads none of the pointers it is given.
+        unsafe { sheet.setCompletionWithItemsHandler(RcBlock::as_ptr(&finished)) };
+        if let Some(popover) = sheet.popoverPresentationController() {
+            let bounds = view.bounds();
+            popover.setSourceView(Some(&view));
+            popover.setSourceRect(CGRect::new(
+                CGPoint::new(bounds.size.width / 2.0, bounds.size.height),
+                CGSize::ZERO,
+            ));
+        }
+        presenter.presentViewController_animated_completion(&sheet, true, None);
         Some(())
     });
 }

@@ -34,4 +34,4 @@ pub use store::{
     store_entitlements, store_finish, store_listen, store_products, store_purchase, store_restore,
 };
 #[cfg(target_os = "ios")]
-pub use uikit::{haptic, open_url, set_interface_style, symbol_png};
+pub use uikit::{haptic, open_url, set_interface_style, share, symbol_png};

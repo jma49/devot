@@ -120,7 +120,8 @@ export const messages = {
   'phone.macKey.copy': 'Copy Key',
   'phone.macKey.copied': 'Copied',
   'phone.macKey.share': 'Share',
-  'phone.macKey.shareText': 'Devot license key: {key}\n\nOpen in Devot on your Mac: {link}',
+  'phone.macKey.shareText':
+    'Devot license key: {key}\n\nOpen the link on your Mac to add it in Devot.',
   'phone.purchase.title': 'Devot Pro',
   'phone.purchase.ended': 'Your trial has ended',
   'phone.purchase.unknown': 'Get Devot Pro',

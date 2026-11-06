@@ -101,6 +101,12 @@ impl Link {
 #[serde(transparent)]
 pub struct LicenceKey(String);
 
+impl LicenceKey {
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 impl std::fmt::Debug for LicenceKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("LicenceKey(..)")
