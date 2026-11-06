@@ -506,7 +506,7 @@ describe('the deleted-text cap', () => {
 
 describe('the statements', () => {
   it('runs the same statements as the Rust store', () => {
-    const rust = readFileSync('src-tauri/src/storage/mod.rs', 'utf8')
+    const rust = readFileSync('src-tauri/src/storage/agent_writes.rs', 'utf8')
     const statement = (name: string) =>
       new RegExp(`const ${name}: &str =\\s*"([^"]*)";`).exec(rust)?.[1] ?? ''
     const words = (sql: string) => sql.split(/\s+/).join(' ')

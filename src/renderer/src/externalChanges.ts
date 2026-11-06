@@ -2,7 +2,7 @@
 // note an outside writer creates. Rust notices them (src-tauri/src/watch.rs) and
 // sends `devot://db-changed`; the page re-sends it as a window event, which
 // the UI tests can send too, merges the changes into the notes the core holds
-// and reloads its lists (see App).
+// and reloads its lists (app/useExternalMerge.ts).
 import { useEffect, useRef } from 'react'
 import { listenHere, unlistenLater } from './windowEvents'
 

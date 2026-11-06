@@ -1,5 +1,14 @@
+use super::notes::{
+    BACKLINKS_SQL, NOTE_BODIES_SQL, NOTE_SUMMARIES_SQL, NOTES_LIST_SQL, TRASH_LIST_SQL,
+};
+use super::open::{MIGRATIONS, copy_pages, open_read_only};
+use super::search::{
+    ScanFolding, body_excerpt, caseless, fold, fold_text, scan_folding, search_sql,
+};
 use super::*;
+use rusqlite::{OpenFlags, params};
 use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 

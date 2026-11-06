@@ -595,7 +595,7 @@ test('Integrations still offers configs, with the installed path, when Rust cann
   const pane = page.getByRole('tabpanel')
   // The sentence reads as a sentence: it says what could not be read, and the code stays in the log (A159).
   await expect(pane.getByRole('alert')).toHaveText(
-    'Devot could not read the client configurations. Something it needs is not available now. Try again later.',
+    'Devot could not read the client configurations.',
   )
   const clients = await byHand(page)
   await expect(clients.locator('code').first()).toContainText(

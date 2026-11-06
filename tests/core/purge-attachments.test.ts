@@ -264,7 +264,7 @@ describe('purging a note and revision history', () => {
 
 describe('the statement that hands images over', () => {
   it('runs the same statement as the Rust store', () => {
-    const rust = readFileSync('src-tauri/src/storage/mod.rs', 'utf8')
+    const rust = readFileSync('src-tauri/src/storage/purge.rs', 'utf8')
     const statement = /const HAND_OVER_FILES_SQL: &str =\s*r#"([^#]*)"#;/.exec(rust)?.[1] ?? ''
     const words = (sql: string) => sql.split(/\s+/).join(' ').trim()
     expect(words(statement)).toBe(words(HAND_OVER_FILES_SQL))

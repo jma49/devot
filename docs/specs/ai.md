@@ -27,7 +27,7 @@ Part of the [architecture overview](../architecture.md).
   A request that may have been made is never sent twice: a connection lost after sending answers `E_MCP_CONNECTION_LOST`, and only a replaced token or a rate limit is retried, once.
 - **Picking up changes:** Rust polls `PRAGMA data_version` on the app's own connection every second, for any other writer on the file (`src-tauri/src/watch.rs`); it changes only when another connection commits, so the app's own saves are ignored.
   A change emits `devot://db-changed`.
-  The window first has the note service take in what was written (`mergeStored` in `src/core/notes.ts`): every note it holds in memory reads its stored copy back, its Yjs document takes the stored state in and each metadata field keeps the newer HLC, so the next save keeps the other's changes instead of writing its own copy over them, and a note whose stored copy lost edits of its own is saved again; a note deleted for good is dropped.
+  The window first has the note service take in what was written (`mergeStored` in `src/core/notes/relay.ts`): every note it holds in memory reads its stored copy back, its Yjs document takes the stored state in and each metadata field keeps the newer HLC, so the next save keeps the other's changes instead of writing its own copy over them, and a note whose stored copy lost edits of its own is saved again; a note deleted for good is dropped.
   The others stay in memory: letting one go there could lose an edit that had just loaded it (a pin from a batch change, say), so each outside change reads back every note held.
   The open editor takes in the merged state (nobody's undo step) and the title field a rename.
   Then the window saves pending edits and reloads its lists.

@@ -34,7 +34,7 @@ fn release_marker() {
     }
 }
 
-/// The StoreKit bridge's C functions (`native/ios.rs`), defined by the package in `apple/` that only
+/// The StoreKit bridge's C functions (`native/ios/store.rs`), defined by the package in `apple/` that only
 /// the iPhone app links.
 const STORE_BRIDGE: &[&str] = &[
     "devot_store_products",

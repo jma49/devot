@@ -90,7 +90,7 @@ export interface NoteQuery {
   pinned: boolean | null
 }
 
-/** Tag colour IDs; each theme colours them via `color.tag.<id>`. Rust validates against `TAG_COLORS` in storage/mod.rs. */
+/** Tag colour IDs; each theme colours them via `color.tag.<id>`. Rust validates against `TAG_COLORS` in storage/records.rs. */
 export const TAG_COLORS = [
   'red',
   'orange',

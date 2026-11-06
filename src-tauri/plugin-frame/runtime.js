@@ -16,7 +16,7 @@
   // reaches the network outside the policy. This guard keeps both out of the document by every insertion and HTML-parsing API it
   // can reach. A preconnect hint, though, opens its connection synchronously the moment WebKit sees the link, before the observer
   // below can remove one that slips past the guard (a `rel` set later, a paste), so hints are the native layer's job: WebKit's
-  // preconnect, preload, prefetch and DNS-prefetch preferences are off on every main window (native/macos.rs), and WebRTC with
+  // preconnect, preload, prefetch and DNS-prefetch preferences are off on every main window (native/macos/webkit.rs), and WebRTC with
   // them, so even a hint or frame this code misses cannot reach the network. The guard is defence in depth.
   // The plugin's script shares this realm and can change any prototype or global later, so the guard calls only what it keeps
   // here, never a method or getter read off a node or a prototype at the time of the call.

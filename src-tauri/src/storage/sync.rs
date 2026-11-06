@@ -199,7 +199,7 @@ impl Store {
                         updated_at, deleted_at, deleted_hlc
                  FROM saved_searches WHERE id = ?1",
             )?
-            .query_row([id], super::saved_search)
+            .query_row([id], super::saved_searches::saved_search)
             .optional()?)
     }
 
@@ -762,7 +762,7 @@ mod tests {
         let path = dir.path().join("devot.sqlite");
         {
             let conn = rusqlite::Connection::open(&path).unwrap();
-            for sql in &crate::storage::MIGRATIONS[..21] {
+            for sql in &crate::storage::open::MIGRATIONS[..21] {
                 conn.execute_batch(sql).unwrap();
             }
             conn.execute_batch(&format!(

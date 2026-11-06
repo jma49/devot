@@ -1,10 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
+import { listFiles } from '../support/git-files'
 import { undocumentedUnsafe } from '../support/policy-patterns'
 
 // clippy::undocumented_unsafe_blocks only runs where the macOS and iOS code compiles; this
 // catches a misplaced SAFETY comment on any machine first.
-const NATIVE = ['src-tauri/src/native/macos.rs', 'src-tauri/src/native/ios.rs']
+const NATIVE = listFiles('.', 'src-tauri/src/native/macos', 'src-tauri/src/native/ios').filter(
+  (file) => file.endsWith('.rs'),
+)
 
 it('Cargo.toml denies unsafe blocks without a SAFETY comment', () => {
   const manifest = readFileSync('src-tauri/Cargo.toml', 'utf8')
@@ -12,6 +15,8 @@ it('Cargo.toml denies unsafe blocks without a SAFETY comment', () => {
 })
 
 it('every unsafe block in the native code has a SAFETY comment where clippy reads it', () => {
+  expect(NATIVE).toContain('src-tauri/src/native/macos/mod.rs')
+  expect(NATIVE).toContain('src-tauri/src/native/ios/mod.rs')
   const offenders = NATIVE.flatMap((file) =>
     undocumentedUnsafe(readFileSync(file, 'utf8')).map((line) => `${file}:${line}`),
   )
