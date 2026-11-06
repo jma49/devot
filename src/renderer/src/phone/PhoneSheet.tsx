@@ -34,6 +34,8 @@ export function PhoneSheet(props: {
   tall?: boolean
   /** No head: the contents bring their own title. */
   plain?: boolean
+  /** Before the title, which then starts the head and takes the detail sheet's size. */
+  lead?: ReactNode
   /** A full-width glass button under the contents that closes the sheet. */
   done?: string
 }) {
@@ -162,7 +164,8 @@ export function PhoneSheet(props: {
         >
           <span aria-hidden="true" className="phone-sheet-grabber" />
           {props.plain ? null : (
-            <div className="phone-sheet-head">
+            <div className="phone-sheet-head" data-lead={props.lead !== undefined || undefined}>
+              {props.lead}
               <h2 className="phone-sheet-title">{props.title}</h2>
               <button
                 type="button"
