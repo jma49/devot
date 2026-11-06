@@ -74,7 +74,7 @@ const GOOD = {
   CFBundleShortVersionString: '1.2.0',
   CFBundleVersion: '42.1',
   UIDeviceFamily: [1],
-  ITSAppUsesNonExemptEncryption: true,
+  ITSAppUsesNonExemptEncryption: false,
   DevotCloudKitContainer: 'iCloud.io.github.jma49.devot',
 }
 
