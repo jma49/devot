@@ -3,7 +3,7 @@ import { sizes } from './theme/tokens'
 
 // A window narrower than size.sidebar-collapse-width has no room for the
 // sidebar beside the list and the editor's toolbar, so the sidebar gives way
-// until it is asked for (App.tsx).
+// until it is asked for (app/usePanes.ts).
 const NARROW = `(width < ${sizes['size.sidebar-collapse-width']})`
 
 // WebKit can skip a MediaQueryList's `change` and leave a kept list's `matches`
