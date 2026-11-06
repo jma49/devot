@@ -18,6 +18,7 @@
     "allow-note-get",
     "allow-note-open",
     "allow-notes-bodies",
+    "allow-notes-summaries",
     "allow-notes-search",
     "allow-note-backlinks",
     "allow-books-list",

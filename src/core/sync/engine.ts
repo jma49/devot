@@ -872,14 +872,15 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const [after] = merged.remoteNews ? await sync.syncRead([remote.id]) : [local]
     const bodyHlc = merged.record.kind === 'note' ? merged.record.bodyHlc : ''
     const state = stateOf(after, bodyHlc) ?? merged.record
+    const body = state.kind === 'note' ? bodyPrint(state.ydoc) : ''
     await sync.syncPut({
       id: remote.id,
       kind: remote.kind,
       version,
       tag,
-      fingerprint: fingerprint(merged.localNews ? remote : state),
+      fingerprint: merged.localNews ? fingerprint(remote) : fingerprint(state, body),
       bodyHlc,
-      bodyFp: state.kind === 'note' ? bodyPrint(state.ydoc) : '',
+      bodyFp: body,
       synced: after?.entry?.synced ?? 0,
     })
     return merged.remoteNews
@@ -1209,7 +1210,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       await sync.syncPut({ ...entry, synced: entry.edits })
       return null
     }
-    const print = fingerprint(state)
+    // stamp took the print of a live note's body, which the state holds.
+    const print = fingerprint(state, local.note && !local.note.purged ? stamped.bodyFp : undefined)
     if (print === entry.fingerprint) {
       if (unsynced.delete(id)) reportUnsynced()
       await sync.syncPut({ ...entry, ...stamped, synced: entry.edits })

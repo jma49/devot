@@ -32,6 +32,7 @@ import type {
   AgentWriteSummary,
   BookRecord,
   CompactableVersion,
+  NoteBody,
   NoteTagRecord,
   NoteQuery,
   NoteRecord,
@@ -266,14 +267,27 @@ export const SYNC_SQL = {
  * overflow page of both.
  */
 export const LIST_SQL = {
-  /** Live notes, most recently updated first. */
+  /** Live notes outside `@excludeBook` (null for all), most recently updated first, at most `@limit` (-1 for all). */
   notes: `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
             (SELECT group_concat(nt.tag_id) FROM note_tags nt
                JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
               WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds,
             body_version AS bodyVersion
      FROM notes INDEXED BY notes_list
-     WHERE deleted_at IS NULL ORDER BY updated_at DESC, id DESC`,
+     WHERE deleted_at IS NULL AND (@excludeBook IS NULL OR book_id IS NULL OR book_id <> @excludeBook)
+     ORDER BY updated_at DESC, id DESC LIMIT @limit`,
+  /** The list's rows for the live notes among `@ids` (a JSON array), looked up by ID, in list order. */
+  summaries: `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
+            (SELECT group_concat(nt.tag_id) FROM note_tags nt
+               JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
+              WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds,
+            body_version AS bodyVersion
+     FROM notes
+     WHERE id IN (SELECT value FROM json_each(@ids)) AND deleted_at IS NULL
+     ORDER BY updated_at DESC, id DESC`,
+  /** Titles and bodies of the notes among `@ids` (a JSON array) that are not purged, in the order asked. */
+  bodies: `SELECT n.id, n.title, n.body_md AS bodyMd FROM json_each(@ids) j JOIN notes n ON n.id = j.value
+     WHERE n.purged_at IS NULL ORDER BY j.key`,
   /**
    * Backlinks (`@id`, `@excludeBook`, `@limit`): the list's index in its order, keeping the notes
    * the link index has as linking to the note, so it stops at a page and reads no row.
@@ -672,13 +686,14 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
      WHERE n.deleted_at IS NULL AND n.book_id IN (SELECT value FROM json_each(?))
      GROUP BY t.id`,
   )
-  const list = db.prepare<[], SummaryRow>(LIST_SQL.notes)
+  const list = db.prepare<[{ excludeBook: string | null; limit: number }], SummaryRow>(
+    LIST_SQL.notes,
+  )
+  const summaries = db.prepare<[{ ids: string }], SummaryRow>(LIST_SQL.summaries)
+  const bodyRows = db.prepare<[{ ids: string }], NoteBody>(LIST_SQL.bodies)
   const get = db.prepare<[string], Row>('SELECT * FROM notes WHERE id = ? AND deleted_at IS NULL')
   const bodyMd = db.prepare<[string], { body_md: string }>('SELECT body_md FROM notes WHERE id = ?')
   const getAny = db.prepare<[string], Row>('SELECT * FROM notes WHERE id = ? AND purged_at IS NULL')
-  const bodyRow = db.prepare<[string], { id: string; title: string; body_md: string }>(
-    'SELECT id, title, body_md FROM notes WHERE id = ? AND purged_at IS NULL',
-  )
   const trash = db.prepare<[], TrashedNote>(LIST_SQL.trash)
   const backlinks = db.prepare<[{ id: string; excludeBook: string; limit: number }], SummaryRow>(
     LIST_SQL.backlinks,
@@ -950,7 +965,11 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       queue = run.catch(() => undefined)
       return run
     },
-    listNotes: async () => list.all().map(toSummary),
+    listNotes: async (page) =>
+      list
+        .all({ excludeBook: page?.excludeBookId ?? null, limit: page?.limit ?? -1 })
+        .map(toSummary),
+    getSummaries: async (ids) => summaries.all({ ids: JSON.stringify(ids) }).map(toSummary),
     async getNote(id, options) {
       const row = options?.trashed ? getAny.get(id) : get.get(id)
       return row ? toNote(row) : null
@@ -961,11 +980,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
       const { bodyMd: _, ...opened } = toNote(row)
       return opened
     },
-    getBodies: async (ids) =>
-      ids.flatMap((id) => {
-        const row = bodyRow.get(id)
-        return row ? [{ id: row.id, title: row.title, bodyMd: row.body_md }] : []
-      }),
+    getBodies: async (ids) => bodyRows.all({ ids: JSON.stringify(ids) }),
     async putNote(note) {
       // What the app's note_put refuses, this refuses too.
       const links = noteLinks(note.bodyMd)

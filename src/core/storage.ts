@@ -221,6 +221,11 @@ export interface NoteBody {
 /** The most notebooks one `putBooks` call takes (the Tauri command refuses more). */
 export const MAX_PUT_BOOKS = 5_000
 
+export interface ListPage {
+  excludeBookId?: string
+  limit?: number
+}
+
 /** The most IDs one `getBodies` call takes (the Tauri command refuses more). */
 export const MAX_BODY_IDS = 500
 
@@ -228,8 +233,10 @@ export const MAX_BODY_IDS = 500
 export type OpenedRecord = Omit<NoteRecord, 'bodyMd' | 'agentWrites'>
 
 export interface StorageAdapter {
-  /** Notes not in the trash, most recently updated first. */
-  listNotes(): Promise<NoteSummary[]>
+  /** Notes not in the trash, most recently updated first; outside `excludeBookId` and at most `limit` when given. */
+  listNotes(page?: ListPage): Promise<NoteSummary[]>
+  /** `listNotes` rows for `ids` (at most MAX_BODY_IDS) in list order; trashed, purged and unknown IDs are left out. */
+  getSummaries(ids: readonly string[]): Promise<NoteSummary[]>
   /** Null for a purged note; a note in the trash is returned only with `trashed`. */
   getNote(id: string, options?: { trashed?: boolean }): Promise<NoteRecord | null>
   /** `getNote` for a note to load: its record without the body. Null for a note not stored or in the trash. */

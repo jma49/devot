@@ -207,7 +207,7 @@ function activityRevisions(since: number): ActivityRevision[] {
 }
 
 export const memoryStorage: StorageAdapter = {
-  async listNotes() {
+  async listNotes(page) {
     failWith(FAIL_LIST)
     const liveTags = new Set(
       read<TagRecord>(TAGS)
@@ -216,8 +216,11 @@ export const memoryStorage: StorageAdapter = {
     )
     const links = read<NoteTagRecord>(NOTE_TAGS).filter((l) => l.present && liveTags.has(l.tagId))
     return read<Stored>(NOTES)
-      .filter((n) => n.deletedAt === null)
+      .filter(
+        (n) => n.deletedAt === null && (!page?.excludeBookId || n.bookId !== page.excludeBookId),
+      )
       .sort((a, b) => b.updatedAt - a.updatedAt || (a.id < b.id ? 1 : -1))
+      .slice(0, page?.limit)
       .map(({ id, title, createdAt, updatedAt, bookId, status, pinned, bodyVersion }) => ({
         id,
         title,
@@ -229,6 +232,10 @@ export const memoryStorage: StorageAdapter = {
         tagIds: links.filter((l) => l.noteId === id).map((l) => l.tagId),
         bodyVersion: bodyVersion ?? 0,
       }))
+  },
+  async getSummaries(ids) {
+    const wanted = new Set(ids)
+    return (await memoryStorage.listNotes()).filter((n) => wanted.has(n.id))
   },
   async getNote(id, options) {
     const n = storedNote(id)

@@ -29,6 +29,7 @@
     "allow-note-get",
     "allow-note-open",
     "allow-notes-bodies",
+    "allow-notes-summaries",
     "allow-note-put",
     "allow-app-exit-ready",
     "allow-app-exit-cancel",

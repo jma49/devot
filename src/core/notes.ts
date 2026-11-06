@@ -67,6 +67,7 @@ import {
   parseSearch,
   resolveSearch,
   SEARCH_LIMIT,
+  shortInTitles,
   tidyExcerpt,
   type SearchClause,
   type SearchScope,
@@ -94,10 +95,24 @@ import { clipTitle, MAX_BODY_BYTES, MAX_TITLE_CHARS, overBytes } from './noteLim
 import type { NoteRelayMessage, TakenIn } from './noteRelay'
 import { lineFeeds } from './text'
 
-const MAX_LINK_TARGETS = 500
+// One `getSummaries` read.
+const MAX_LINK_TARGETS = MAX_BODY_IDS
 const MAX_CHANGES_KEPT = 10_000
 
 export const BODY = 'body'
+
+/** Each save encodes a note's whole Yjs state, so a note whose state is past the first size waits longer after a pause, up to SAVE_DELAY_STRETCH times as long at the second. */
+const SAVE_DELAY_FROM_BYTES = 64 * 1024
+const SAVE_DELAY_FULL_BYTES = 1024 * 1024
+/** 2 s for the default 300 ms. */
+const SAVE_DELAY_STRETCH = 2_000 / 300
+
+/** How long after a pause a note whose state takes `stateBytes` is saved, for `baseMs` (NoteServiceOptions.saveDelayMs) a small note waits. */
+export function saveDelay(baseMs: number, stateBytes: number): number {
+  const span = SAVE_DELAY_FULL_BYTES - SAVE_DELAY_FROM_BYTES
+  const share = Math.min(1, Math.max(0, (stateBytes - SAVE_DELAY_FROM_BYTES) / span))
+  return Math.round(baseMs * (1 + (SAVE_DELAY_STRETCH - 1) * share))
+}
 
 /** Notes beyond this go once nothing of them can be lost (see trim); held and busy notes stay besides. */
 export const NOTES_IN_MEMORY = 8
@@ -126,6 +141,7 @@ export interface NoteServiceOptions {
   clock: Clock
   newId: () => string
   now?: () => number
+  /** How long after a pause a small note is saved (300 ms); a large one waits longer (see saveDelay). */
   saveDelayMs?: number
   /** Doubles with each failure in a row, up to 30 s. */
   retryDelayMs?: number
@@ -229,8 +245,15 @@ export interface NoteService {
   /** Called before the database is replaced (backup restore), so no sweep deletes what it chose from the old data. */
   holdCompaction(): Promise<void>
   resumeCompaction(): void
-  /** Templates are never found. `flush: false` (the `[[` popup runs on every key) searches as stored and writes nothing. */
-  search(query: string, scope?: SearchScope, options?: { flush?: boolean }): Promise<SearchResult>
+  /**
+   * Templates are never found. `flush: false` (the `[[` popup runs on every key) searches as stored and writes nothing.
+   * `shortInTitles` looks for text too short for the search index in titles only, which reads no body.
+   */
+  search(
+    query: string,
+    scope?: SearchScope,
+    options?: { flush?: boolean; shortInTitles?: boolean },
+  ): Promise<SearchResult>
   /** Pending edits are saved first; when the write fails it rejects and the note stays where it was. */
   trash(id: string): Promise<void>
   restore(id: string): Promise<void>
@@ -878,10 +901,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
 
   const schedule = (note: Live) => {
     clearTimeout(note.timer)
+    const delay = saveDelay(saveDelayMs, note.saved.ydoc.byteLength)
     note.timer = setTimeout(() => {
       note.timer = undefined
       save(note).catch(() => {})
-    }, saveDelayMs)
+    }, delay)
   }
 
   const drop = (note: Live) => {
@@ -1289,10 +1313,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
   }
 
   const service: NoteService = {
-    list: async (limit) => {
-      const notes = (await storage.listNotes()).filter((n) => n.bookId !== TEMPLATES_BOOK_ID)
-      return limit === undefined ? notes : notes.slice(0, limit)
-    },
+    list: (limit) =>
+      storage.listNotes({
+        excludeBookId: TEMPLATES_BOOK_ID,
+        ...(limit === undefined ? {} : { limit }),
+      }),
 
     async create(title = '', bookId = null) {
       await requireBook(bookId)
@@ -1620,7 +1645,8 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       const nameable = books.filter((b) => b.id !== TEMPLATES_BOOK_ID)
       const resolved = resolveSearch(clauses, { books, tags, scope, nameable })
       if (!resolved) return { found: [], capped: false }
-      const hits = await storage.searchNotes(excludeTemplates(resolved), SEARCH_LIMIT + 1)
+      const asked = lookup?.shortInTitles ? shortInTitles(resolved) : resolved
+      const hits = await storage.searchNotes(excludeTemplates(asked), SEARCH_LIMIT + 1)
       const found = hits.slice(0, SEARCH_LIMIT).map(({ excerpt, ...note }) => {
         const tidy = excerpt ? tidyExcerpt(excerpt) : ''
         return tidy ? { ...note, excerpt: tidy } : note
@@ -1688,9 +1714,11 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     async linkTargets(ids) {
       const want = new Set(ids.slice(0, MAX_LINK_TARGETS))
       if (want.size === 0) return {}
-      const [list, tags] = await Promise.all([storage.listNotes(), storage.listTags()])
+      const [targets, tags] = await Promise.all([
+        storage.getSummaries([...want]),
+        storage.listTags(),
+      ])
       const tagById = new Map(tags.filter((t) => t.deletedAt === null).map((t) => [t.id, t]))
-      const targets = list.filter((summary) => want.has(summary.id))
       // Batched, and from memory where it is held: only the Markdown is needed, not each full record.
       const bodiesById = new Map(
         (await bodies(targets.map((summary) => summary.id))).map((body) => [body.id, body.bodyMd]),

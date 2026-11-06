@@ -48,6 +48,7 @@ Import and export are in [import-and-export.md](import-and-export.md), the `devo
 - Typing `[[` opens note search (full-text, live notes only; the first notes of the list for an empty query) and inserts a standard note link, replacing the `]]` that bracket closing added.
   The popup never opens in code (fenced, indented or inline), HTML, comments, front matter or a link's address (the places the slash menu skips too), nor while the parser has not reached the cursor.
   A lookup runs on every key, so it finds notes as stored (`search` with `flush: false`) and never saves the open note, and an empty query takes only the notes the popup shows.
+  Text too short for the search index (under three characters) is looked for in titles only (`shortInTitles`), which the list's index holds, so a keystroke never scans every body; the search field keeps scanning bodies for it.
   Picking "New Note …" closes the popup at once (a second Return cannot make a second note), moves the cursor after the brackets and remembers the `[[query]]` as a range that follows the edits made while the note is made; when the note exists, exactly that range becomes the link, and text typed before, after or elsewhere is untouched.
   If the brackets were edited meanwhile or the editor was closed, nothing is linked and the new note is deleted again (as New Note from Selection does), so no note is left behind.
   There is no `[[wikilink]]` storage syntax.

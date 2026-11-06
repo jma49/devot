@@ -125,6 +125,12 @@ describe('sync records', () => {
     expect(bodyPrint(stateOf(a))).not.toBe(bodyPrint(stateOf(copy)))
     expect(fingerprint(note({ title: 'Other' }))).not.toBe(fingerprint(note()))
   })
+
+  it('fingerprint a note from the body print its caller holds instead of its state', () => {
+    const record = note({ ydoc: stateOf(textDoc('Hello\n')) })
+    expect(fingerprint(record, bodyPrint(record.ydoc))).toBe(fingerprint(record))
+    expect(fingerprint(record, bodyPrint(stateOf(textDoc(''))))).not.toBe(fingerprint(record))
+  })
 })
 
 describe('merging a note', () => {

@@ -210,6 +210,16 @@ describe('the page’s side', () => {
     expect(invoke).toHaveBeenLastCalledWith('notes_bodies', { ids: ['a', 'b'] })
   })
 
+  it('sends a list page to the Rust command, and list rows by ID in one call', async () => {
+    vi.mocked(invoke).mockResolvedValue([])
+    await tauriStorage.listNotes()
+    expect(invoke).toHaveBeenLastCalledWith('notes_list', { excludeBookId: null, limit: null })
+    await tauriStorage.listNotes({ excludeBookId: 'b', limit: 21 })
+    expect(invoke).toHaveBeenLastCalledWith('notes_list', { excludeBookId: 'b', limit: 21 })
+    await tauriStorage.getSummaries(['a', 'b'])
+    expect(invoke).toHaveBeenLastCalledWith('notes_summaries', { ids: ['a', 'b'] })
+  })
+
   it('sends the asked search limit to the Rust command', async () => {
     const query = { text: [], sets: [], pinned: false }
     vi.mocked(invoke).mockResolvedValueOnce([])

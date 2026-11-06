@@ -21,7 +21,12 @@ import type {
 import { fromWire, type WireNote, type WireRevision, type WireStorage } from './wire'
 
 export const tauriWire: WireStorage = {
-  listNotes: () => invoke<NoteSummary[]>('notes_list'),
+  listNotes: (page) =>
+    invoke<NoteSummary[]>('notes_list', {
+      excludeBookId: page?.excludeBookId ?? null,
+      limit: page?.limit ?? null,
+    }),
+  getSummaries: (ids) => invoke<NoteSummary[]>('notes_summaries', { ids }),
   getNote: (id, options) =>
     invoke<WireNote | null>('note_get', { id, trashed: options?.trashed ?? false }),
   // Handed to the worker as it came, not copied.

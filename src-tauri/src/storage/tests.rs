@@ -550,6 +550,85 @@ fn lists_live_notes_newest_first_and_hides_the_trash() {
 }
 
 #[test]
+fn lists_a_page_outside_a_notebook_counting_only_what_is_left() {
+    let (_dir, mut store) = temp_store();
+    let in_book = |id: &str, book: &str, at: i64| NoteRecord {
+        book_id: Some(book.into()),
+        book_hlc: format!("{at:013}-0000-test"),
+        ..note(id, id, at)
+    };
+    store.put_note(&note("a", "a", 10), &[]).unwrap();
+    store.put_note(&in_book("b", "templates", 20), &[]).unwrap();
+    store.put_note(&in_book("c", "other", 30), &[]).unwrap();
+    store.put_note(&in_book("d", "templates", 40), &[]).unwrap();
+    let ids = |book: Option<&str>, limit: Option<u32>| -> Vec<String> {
+        store
+            .list_notes_page(book, limit)
+            .unwrap()
+            .into_iter()
+            .map(|n| n.id)
+            .collect()
+    };
+    assert_eq!(ids(None, None), ["d", "c", "b", "a"]);
+    assert_eq!(ids(None, Some(2)), ["d", "c"]);
+    assert_eq!(ids(Some("templates"), None), ["c", "a"]);
+    assert_eq!(ids(Some("templates"), Some(1)), ["c"]);
+    assert!(ids(None, Some(0)).is_empty());
+    assert_eq!(
+        store.list_notes().unwrap(),
+        store.list_notes_page(None, None).unwrap()
+    );
+}
+
+#[test]
+fn reads_the_list_rows_of_live_notes_by_id_in_list_order() {
+    let (_dir, mut store) = temp_store();
+    for (id, at) in [("a", 10), ("b", 20), ("c", 30), ("d", 40)] {
+        store.put_note(&note(id, id, at), &[]).unwrap();
+    }
+    let trashed = NoteRecord {
+        deleted_at: Some(41),
+        deleted_hlc: Some("0000000000041-0000-test".into()),
+        ..based_on(1, note("b", "b", 21))
+    };
+    store.put_note(&trashed, &[]).unwrap();
+    store
+        .trash_and_purge("c", 50, "0000000000000050-0000-test")
+        .unwrap();
+    let ids: Vec<String> = ["a", "b", "c", "missing", "d"].map(String::from).into();
+    let listed: Vec<NoteSummary> = store
+        .list_notes()
+        .unwrap()
+        .into_iter()
+        .filter(|n| n.id == "a" || n.id == "d")
+        .collect();
+    assert_eq!(store.get_summaries(&ids).unwrap(), listed);
+    assert!(store.get_summaries(&[]).unwrap().is_empty());
+}
+
+#[test]
+fn opens_a_live_note_without_reading_its_body() {
+    let (_dir, mut store) = temp_store();
+    store.put_note(&note("a", "First", 10), &[]).unwrap();
+    let trashed = NoteRecord {
+        deleted_at: Some(11),
+        deleted_hlc: Some("0000000000011-0000-test".into()),
+        ..note("b", "Gone", 10)
+    };
+    store.put_note(&trashed, &[]).unwrap();
+    let full = store.get_note("a", false).unwrap().unwrap();
+    assert_eq!(
+        store.open_note("a").unwrap(),
+        Some(NoteRecord {
+            body_md: String::new(),
+            ..full
+        })
+    );
+    assert_eq!(store.open_note("b").unwrap(), None);
+    assert_eq!(store.open_note("missing").unwrap(), None);
+}
+
+#[test]
 fn listed_and_found_notes_carry_their_creation_time() {
     let (_dir, mut store) = temp_store();
     let mut a = note("a", "Groceries", 30);
@@ -2089,7 +2168,29 @@ fn lists_and_searches_read_covering_indexes() {
             .unwrap();
         rows.map(|r| r.unwrap()).collect::<Vec<_>>().join("\n")
     };
-    assert!(plan(NOTES_LIST_SQL, &[]).starts_with("SCAN notes USING COVERING INDEX notes_list"));
+    for page in [
+        NOTES_LIST_SQL
+            .replace("@excludeBook", "NULL")
+            .replace("@limit", "-1"),
+        NOTES_LIST_SQL
+            .replace("@excludeBook", "'b'")
+            .replace("@limit", "21"),
+    ] {
+        let list = plan(&page, &[]);
+        assert!(
+            list.starts_with("SCAN notes USING COVERING INDEX notes_list"),
+            "{list}"
+        );
+        assert!(!list.contains("TEMP B-TREE"), "{list}");
+    }
+    for by_id in [NOTE_SUMMARIES_SQL, NOTE_BODIES_SQL] {
+        let read = plan(&by_id.replace("@ids", "'[]'"), &[]);
+        assert!(
+            read.contains("USING INDEX sqlite_autoindex_notes_1 (id=?)"),
+            "{read}"
+        );
+        assert!(!read.contains("notes_list"), "{read}");
+    }
     assert!(plan(TRASH_LIST_SQL, &[]).starts_with("SEARCH notes USING COVERING INDEX notes_trash"));
     let backlinks = plan(
         &BACKLINKS_SQL

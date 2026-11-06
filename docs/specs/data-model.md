@@ -125,7 +125,8 @@ Part of the [architecture overview](../architecture.md).
 
 ## Saving and quitting
 
-- The core saves a note 300 ms after the last edit.
+- The core saves a note 300 ms after the last edit, or longer for a large one, since each save encodes its whole Yjs state: the wait grows with the state's size as last saved, from 300 ms at 64 KB to 2 s at 1 MB and beyond (`saveDelay`).
+  Quitting, opening another note, searching and the other flushes still save it at once.
   Writes of one note go one at a time, in order, each with the note as it is when the write starts, so an older snapshot never lands after a newer one; a flush waits for a write under way.
 - **Notes in memory:** the core keeps a note's Yjs document in memory while it is used, and only the most recently used notes once nothing uses them (`NOTES_IN_MEMORY`, 8), so browsing a library does not keep every note it opened.
   A note leaves memory only when nothing of it can be lost: no call is using it, no editor shows it (the editor holds its note while it is open, `hold` and `unhold`, so its replica and the core's document never part), no write is asked for or under way, no change is waiting for its save or failed to save, and its title is not being typed (quick title edits stay one event).
@@ -153,7 +154,7 @@ Part of the [architecture overview](../architecture.md).
 - A quit stops a running Rebuild Search Index, whose one statement would otherwise keep the saves queued behind it on the database thread waiting past the 2 s: a progress handler, installed for the rebuild alone, asks `exit::quitting` every 100 SQLite steps, and a stop rolls the rebuild's transaction back, leaving the index as it was (`E_SEARCH_REBUILD_STOPPED`).
   Not `sqlite3_interrupt`, which is lost when it lands between two statements and could stop the save that runs next.
 - On macOS the standard Quit menu item terminates without an exit event Rust can hold, so the app menu has its own Quit item (Cmd+Q) that starts the handshake, as does Quit Devot in the menu bar icon's menu; closing the last main window shown (Cmd+W or the close button) is held the same way, or in menu bar mode hides the window and quits nothing (see Menu bar mode); closing one of several main windows quits nothing (see Several main windows).
-  Quitting from the Dock or at logout still bypasses it, and autosave bounds the loss to the last 300 ms.
+  Quitting from the Dock or at logout still bypasses it, and autosave bounds the loss to the last 300 ms (2 s for a note of 1 MB or more).
 - `scripts/smoke/quit-saves.sh` checks both paths on the real app (types, quits at once, reads the database).
   It runs the debug bundle on the debug builds' data folder (see App data folder), needs Accessibility permission for the terminal and switches the keyboard to ABC while it runs, because an input method rewrites simulated keystrokes.
 
