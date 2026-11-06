@@ -112,6 +112,7 @@ describe('the release workflow', () => {
     expect(sign).toContain('release.ts sign "$TAG"')
     expect(sign).toMatch(/^    environment: release$/m)
     expect(jobNames().filter((name) => /^    environment:/m.test(job(name)))).toEqual([
+      'sentry',
       'notarize',
       'sign',
     ])
@@ -170,7 +171,7 @@ describe('the release workflow', () => {
       [...job(name).matchAll(/uses: actions\/upload-artifact@.*\n\s+with:\n\s+name: (\S+)/g)].map(
         (m) => m[1],
       )
-    expect(uploads('build')).toEqual(['app'])
+    expect(uploads('build')).toEqual(['app', 'sentry'])
     expect(uploads('notarize')).toEqual(['bundles'])
     expect(jobNames().filter((name) => uploads(name).includes('bundles'))).toEqual(['notarize'])
     expect(job('sign')).toMatch(/^    needs: \[build, notarize\]$/m)
@@ -182,6 +183,27 @@ describe('the release workflow', () => {
     expect(build).toContain('--bundles app --config')
     expect(build).toContain('signingIdentity: "-"')
     expect(build).not.toContain('createUpdaterArtifacts')
+  })
+
+  it('gives the Sentry token only to the sentry job, which runs no dependency code but sentry-cli', () => {
+    expect(step('Build')).not.toContain('SENTRY_AUTH_TOKEN')
+    expect(job('build')).not.toContain('secrets.SENTRY_AUTH_TOKEN')
+    expect(jobNames().filter((name) => job(name).includes('secrets.SENTRY_AUTH_TOKEN'))).toEqual([
+      'sentry',
+    ])
+    const sentry = job('sentry')
+    expect(sentry).toMatch(/^    environment: release$/m)
+    expect(sentry).not.toMatch(/pnpm (install|i)\b|pnpm\/action-setup/)
+    expect(sentry).toContain('--ignore-scripts "@sentry/cli@$version"')
+    expect(sentry).toContain('node scripts/sentry/staged.ts --stage sentry-stage')
+    // The build stages the maps and the dSYM in place of uploading them; the app ships neither.
+    expect(step('Build')).toMatch(/^\s+DEVOT_SENTRY_STAGE: .*sentry-stage/m)
+    expect(job('build')).toMatch(/name: sentry\n\s+path: sentry-stage\//)
+    const staged = readFileSync('scripts/sentry/staged.ts', 'utf8')
+    for (const [, from] of staged.matchAll(/^import .* from '([^']+)'$/gm)) {
+      expect(from).toMatch(/^node:|^\.\/upload\.ts$/)
+    }
+    expect(readFileSync('scripts/sentry/upload.ts', 'utf8')).not.toMatch(/from '(?!node:)/)
   })
 
   it("builds the release app, which alone keeps the installed app's data and keychain items", () => {

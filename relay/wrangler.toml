@@ -22,3 +22,22 @@ new_sqlite_classes = ["VaultObject"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["PairingObject"]
+
+# Shared limits on the routes that need no token (relay/src/front.ts), counted by Cloudflare for
+# every instance of the Worker in a location, before any Durable Object is reached. A namespace_id
+# must be unique in your account: change these if another Worker of yours uses them.
+[[ratelimits]]
+name = "ANONYMOUS_PER_ADDRESS"
+namespace_id = "40871"
+
+[ratelimits.simple]
+limit = 5
+period = 60
+
+[[ratelimits]]
+name = "ANONYMOUS_ALL"
+namespace_id = "40872"
+
+[ratelimits.simple]
+limit = 20
+period = 60

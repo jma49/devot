@@ -170,6 +170,37 @@ test('an invalid diagram shows an error in place', async ({ page }) => {
   await expect(preview(page)).toContainText('After the diagram.')
 })
 
+const TRACKED = [
+  '```mermaid\n%%{init: {"themeCSS": ".label{background-image:url(https://tracker.example/h.png)} svg{background:url(https://tracker.example/i.png)}"}}%%\nflowchart TD\n  A[Fake] --> B\n```',
+  '```mermaid\n---\nconfig:\n  themeCSS: ".node rect{fill:url(https://tracker.example/b.png)}"\n---\nflowchart TD\n  C[Front] --> D\n```',
+].join('\n\n')
+
+test("a diagram's CSS loads nothing from the web", async ({ page }) => {
+  const requests: string[] = []
+  page.on('request', (r) => requests.push(r.url()))
+  await newNote(page, 'Tracked', TRACKED)
+  await mode(page, 'Preview').click()
+  const svgs = preview(page).locator('.island-mermaid svg')
+  await expect(svgs).toHaveCount(2, { timeout: 20_000 })
+  await expect(svgs.first()).toContainText('Fake')
+  const css = await page.evaluate(() => {
+    const doc = (globalThis as unknown as { document: Document }).document
+    const rules = doc.adoptedStyleSheets.flatMap((sheet) =>
+      Array.from(sheet.cssRules, (rule) => rule.cssText),
+    )
+    const inline = Array.from(doc.querySelectorAll('.island-mermaid [style]'), (el) =>
+      el.getAttribute('style'),
+    )
+    return [...rules, ...inline].join('\n')
+  })
+  expect(css).not.toContain('tracker.example')
+  // Two frames, so anything the drawings would fetch has been asked for.
+  await page.evaluate(
+    () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
+  )
+  expect(requests.filter((url) => url.includes('tracker.example'))).toEqual([])
+})
+
 const FLOWCHART = '```mermaid\ngraph TD\n  Start --> Finish\n```'
 const SECOND_FLOWCHART = '```mermaid\nflowchart LR\n  Draft --> Review --> Done\n```'
 const SEQUENCE = '```mermaid\nsequenceDiagram\n  Alice->>Bob: Hello\n  Bob-->>Alice: Hi\n```'

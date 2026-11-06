@@ -37,6 +37,13 @@ describe('production CSP (tauri.conf.json)', () => {
     expect(scripts.filter((script) => !allowed(script))).toEqual([])
   })
 
+  it('keeps the diagram frame from loading images from the web', () => {
+    // The frame shows no web images, so a diagram's CSS cannot use it to reach a site.
+    const html = readFileSync('src/renderer/mermaid.html', 'utf8')
+    const policy = /<meta http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(html)?.[1]
+    expect(policy).toBe("img-src 'self' data: blob:")
+  })
+
   it('never allows inline code or eval', () => {
     const all = Object.keys(csp).flatMap(sources)
     expect(all).not.toContain("'unsafe-inline'")

@@ -226,6 +226,22 @@ export function isAnonymousPath(pathname: string): boolean {
 // Durable Object quota. Per address, for each instance of the front.
 export const ANONYMOUS_BURST = 30
 export const ANONYMOUS_PER_SECOND = 0.1
+/** The period of the shared limits in relay/wrangler.toml, which a refused call waits out. */
+export const SHARED_PERIOD_MS = 60_000
+
+/** A Workers Rate Limiting binding: counts every instance of the front in one Cloudflare location. */
+export interface SharedLimit {
+  limit(options: { key: string }): Promise<{ success: boolean }>
+}
+
+export interface SharedLimits {
+  perAddress?: SharedLimit | undefined
+  /** All anonymous calls together, so calls from many addresses still cannot use up the quota. */
+  all?: SharedLimit | undefined
+}
+
+const rateReply = (wait: number) =>
+  json(429, { v: PROTOCOL_VERSION, type: 'error', code: 'E_SYNC_RATE', retryAfter: wait })
 
 /** The answer that refuses an anonymous call over its address's rate, or null to go on. */
 export function anonymousLimit(
@@ -236,6 +252,21 @@ export function anonymousLimit(
 ): Response | null {
   if (!isAnonymousPath(new URL(request.url).pathname)) return null
   const wait = limiter.take(address, now)
-  if (wait === 0) return null
-  return json(429, { v: PROTOCOL_VERSION, type: 'error', code: 'E_SYNC_RATE', retryAfter: wait })
+  return wait === 0 ? null : rateReply(wait)
+}
+
+/** The answer that refuses an anonymous call over a shared limit, or null to go on. */
+export async function sharedAnonymousLimit(
+  limits: SharedLimits,
+  request: Request,
+  address: string,
+): Promise<Response | null> {
+  if (!isAnonymousPath(new URL(request.url).pathname)) return null
+  for (const [limit, key] of [
+    [limits.perAddress, `address:${address}`],
+    [limits.all, 'all'],
+  ] as const) {
+    if (limit && !(await limit.limit({ key })).success) return rateReply(SHARED_PERIOD_MS)
+  }
+  return null
 }

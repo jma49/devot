@@ -133,6 +133,9 @@ for (const [name, appearance, theme] of THEMES) {
       await expect
         .poll(async () => {
           const bars = await barContrasts(svgs.nth(0))
+          // A drawing being swapped for the new theme reads no colour yet: poll again.
+          if (bars.some((bar) => !/rgba?\(/.test(bar.text) || !/rgba?\(/.test(bar.bar)))
+            return ['redrawing']
           return bars
             .filter((bar) => bar.inside)
             .map((bar) => ({
