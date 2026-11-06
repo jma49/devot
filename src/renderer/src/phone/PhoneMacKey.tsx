@@ -3,6 +3,7 @@ import { errorCode } from '../../../core/errors'
 import { writeClipboardText } from '../clipboard'
 import { format, t } from '../i18n'
 import { Icon } from '../icons/Icon'
+import { invoke } from '../ipc'
 import { getMacKey, licenceLink, type MacKey } from '../licence'
 import { licenceProblem } from '../licenceView'
 import { PhoneSheet } from './PhoneSheet'
@@ -80,17 +81,14 @@ function MacKeySheet(props: { onClose: () => void }) {
 
 function ReadyKey(props: { macKey: MacKey; copied: boolean; onCopied: () => void }) {
   const { key } = props.macKey
-  const canShare = typeof navigator.share === 'function'
   const copy = () =>
     void writeClipboardText(key).then(props.onCopied, () => console.warn('W_MAC_KEY_COPY_FAILED'))
+  // The page's own share sheet shows as a clipped popover; a cancelled share resolves.
   const share = () =>
-    // A share the user cancels rejects too: nothing to tell them.
-    void navigator
-      .share({
-        title: t('phone.macKey.title'),
-        text: format(t('phone.macKey.shareText'), { key, link: licenceLink(key) }),
-      })
-      .catch(() => undefined)
+    void invoke('phone_share', {
+      text: format(t('phone.macKey.shareText'), { key }),
+      url: licenceLink(key),
+    }).catch(() => console.warn('W_MAC_KEY_SHARE_FAILED'))
   return (
     <>
       <p className="phone-detail-body phone-figures phone-mac-key">{key}</p>
@@ -98,11 +96,9 @@ function ReadyKey(props: { macKey: MacKey; copied: boolean; onCopied: () => void
         <button type="button" className="phone-purchase-primary" onClick={copy}>
           {t('phone.macKey.copy')}
         </button>
-        {canShare && (
-          <button type="button" className="phone-glass phone-detail-done" onClick={share}>
-            {t('phone.macKey.share')}
-          </button>
-        )}
+        <button type="button" className="phone-glass phone-detail-done" onClick={share}>
+          {t('phone.macKey.share')}
+        </button>
         <p className="phone-detail-body" role="status">
           {props.copied ? t('phone.macKey.copied') : null}
         </p>

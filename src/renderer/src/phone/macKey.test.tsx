@@ -94,20 +94,33 @@ describe('Get a Mac License Key', () => {
     expect(document.body.textContent).toContain('Copied')
   })
 
-  it('shares the key with the link that opens it in Devot on a Mac, where sharing exists', async () => {
-    await settings({ pro: true })
-    await openKey()
-    expect(button('Share')).toBeUndefined()
-    act(() => root.render(<></>))
-
+  it("shares the key and its link through the iPhone's own share sheet, not the page's", async () => {
     const share = vi.fn<(data: ShareData) => Promise<void>>(async () => {})
     vi.stubGlobal('navigator', { ...navigator, share })
     await settings({ pro: true })
     await openKey()
     await act(async () => button('Share')?.click())
-    const text = share.mock.calls[0]?.[0].text ?? ''
+    expect(share).not.toHaveBeenCalled()
+    const [, args] = commands().find(([command]) => command === 'phone_share') ?? []
+    const { text, url } = args as { text: string; url: string }
     expect(text).toContain(KEY)
-    expect(text).toContain(`devot://licence?key=${encodeURIComponent(KEY)}`)
+    expect(url).toBe(`devot://licence?key=${encodeURIComponent(KEY)}`)
+  })
+
+  it('takes a cancelled or failed share quietly', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === 'store_mac_key') return answer()
+      if (command === 'phone_share') throw new Error('E_SHARE_FAILED')
+      return undefined
+    })
+    await settings({ pro: true })
+    await openKey()
+    await act(async () => button('Share')?.click())
+    expect(warn).toHaveBeenCalledWith('W_MAC_KEY_SHARE_FAILED')
+    expect(warn.mock.calls.flat().join(' ')).not.toContain(KEY)
+    expect(document.body.querySelector('[role="alert"]')).toBeNull()
+    warn.mockRestore()
   })
 
   it('says why the Worker gave no key, and asks again on Try Again', async () => {

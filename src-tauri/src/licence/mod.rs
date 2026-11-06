@@ -38,7 +38,7 @@ use tauri::State as Tauri;
 pub(crate) use activation::ACTIVATION_ACCOUNT;
 pub(crate) use client::Reply as ActivationReply;
 pub(crate) use device::DEVICE_ACCOUNT;
-pub(crate) use format::MAX_LENGTH;
+pub(crate) use format::{LICENCE_PREFIX, MAX_LENGTH};
 use format::{
     Payload, Revocations, VerifyError, verify_activation, verify_licence, verify_revocations,
 };

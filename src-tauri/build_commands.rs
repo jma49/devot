@@ -1,7 +1,8 @@
 // Every app command, by area: build.rs declares them all, and each needs a grant in capabilities/.
 // A new command goes at the end of its area's list.
 
-/// The window around the editor: native look, clipboard, menus, links and the app's exit.
+/// The window around the editor: native look, clipboard, menus, links, the iPhone's share sheet
+/// and the app's exit.
 const SHELL: &[&str] = &[
     "symbol_png",
     "haptic",
@@ -24,6 +25,7 @@ const SHELL: &[&str] = &[
     "sidebar_menu_set",
     "command_menu_set",
     "deep_link_take",
+    "phone_share",
 ];
 
 /// Notes, notebooks, tags, saved searches and their files.
