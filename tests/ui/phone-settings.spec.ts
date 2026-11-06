@@ -806,7 +806,7 @@ test('section headers and footers start on one inset, the rows text keyline', as
       defaultModel: 'm',
       key: 'unset',
     })
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       ai_settings_get: () => ({
         active: 'anthropic',
         suggestOnIdle: false,
