@@ -12,7 +12,7 @@ use super::super::store::{KeyStore, MemoryKey};
 use super::super::testing::{ID, key, sign, test_keys};
 use super::super::trial::{LENGTH_MS, TrialSource, TrialState};
 use super::super::{KEYS_OFF, Licence, REQUIRED, Snapshot};
-use super::{Bought, Limits, Storefront, mac_key};
+use super::{Bought, Limits, Storefront, mac_key, purchase_line};
 use crate::app_store::fake::{FakeAppStore, transaction};
 use crate::app_store::{
     AppStore, Ownership, Product, Purchase, Restore, RevocationReason, StoreError, StoreProduct,
@@ -690,5 +690,21 @@ fn a_mac_key_refusal_is_the_workers_code_and_other_builds_have_none() {
     assert_eq!(
         mac_key(&direct.licence, issued),
         Err("E_APP_STORE_UNAVAILABLE")
+    );
+}
+
+#[test]
+fn a_purchase_logs_its_outcome_by_product_and_code() {
+    assert_eq!(
+        purchase_line(Product::Trial, &Ok(Bought::Purchased)),
+        "I_APP_STORE_PURCHASE trial purchased"
+    );
+    assert_eq!(
+        purchase_line(Product::Pro, &Ok(Bought::Cancelled)),
+        "I_APP_STORE_PURCHASE pro cancelled"
+    );
+    assert_eq!(
+        purchase_line(Product::Trial, &Err(StoreError::UNAVAILABLE)),
+        "W_APP_STORE_PURCHASE trial E_APP_STORE_UNAVAILABLE"
     );
 }
