@@ -43,7 +43,7 @@ impl ExitGate {
             return None;
         }
         let round = self.rounds.fetch_add(1, Ordering::SeqCst) + 1;
-        let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
+        let mut waiting = crate::locks::lock(&self.waiting);
         let begun = self
             .held
             .compare_exchange(0, round, Ordering::SeqCst, Ordering::SeqCst)
@@ -57,7 +57,7 @@ impl ExitGate {
 
     /// `label` has saved (or is gone): whether the held quit waits for no window now.
     fn saved(&self, label: &str) -> bool {
-        let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
+        let mut waiting = crate::locks::lock(&self.waiting);
         waiting.remove(label);
         self.asked() && waiting.is_empty()
     }
@@ -71,7 +71,7 @@ impl ExitGate {
     }
 
     fn call_off(&self) {
-        let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
+        let mut waiting = crate::locks::lock(&self.waiting);
         waiting.clear();
         self.held.store(0, Ordering::SeqCst);
     }

@@ -166,7 +166,7 @@ impl NoteWindows {
     }
 
     fn with_frames<T>(&self, f: impl FnOnce(&mut Frames, &mut bool) -> T) -> T {
-        let mut held = self.frames.lock().unwrap_or_else(|e| e.into_inner());
+        let mut held = crate::locks::lock(&self.frames);
         let (frames, changed) = held.get_or_insert_with(|| {
             let read = std::fs::read(&self.path).unwrap_or_default();
             (Frames::parse(&read), false)
@@ -195,7 +195,7 @@ impl NoteWindows {
 
     /// The round of a new ask to save before closing, or None while one is under way.
     fn begin_close(&self, label: &str) -> Option<u64> {
-        let mut closing = self.closing.lock().unwrap_or_else(|e| e.into_inner());
+        let mut closing = crate::locks::lock(&self.closing);
         if closing.contains_key(label) {
             return None;
         }
@@ -206,19 +206,19 @@ impl NoteWindows {
 
     /// Whether `label` is saving before it closes.
     pub(crate) fn is_closing(&self, label: &str) -> bool {
-        let closing = self.closing.lock().unwrap_or_else(|e| e.into_inner());
+        let closing = crate::locks::lock(&self.closing);
         closing.contains_key(label)
     }
 
     /// The ask is answered or called off; whether one was under way.
     fn end_close(&self, label: &str) -> bool {
-        let mut closing = self.closing.lock().unwrap_or_else(|e| e.into_inner());
+        let mut closing = crate::locks::lock(&self.closing);
         closing.remove(label).is_some()
     }
 
     /// Whether the ask of `round` is still unanswered: the window closes without its answer.
     fn timed_out(&self, label: &str, round: u64) -> bool {
-        let mut closing = self.closing.lock().unwrap_or_else(|e| e.into_inner());
+        let mut closing = crate::locks::lock(&self.closing);
         let late = closing.get(label) == Some(&round);
         if late {
             closing.remove(label);

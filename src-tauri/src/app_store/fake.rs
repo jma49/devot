@@ -78,7 +78,7 @@ impl State {
 
 impl FakeAppStore {
     fn state(&self) -> MutexGuard<'_, State> {
-        self.state.lock().unwrap_or_else(|e| e.into_inner())
+        crate::locks::lock(&self.state)
     }
 
     pub(crate) fn set_products(&self, products: Result<Vec<StoreProduct>, StoreError>) {

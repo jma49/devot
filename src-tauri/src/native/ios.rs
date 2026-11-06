@@ -257,7 +257,7 @@ mod store {
     static STORE_UPDATES: OnceLock<Box<dyn Fn(Vec<u8>) + Send + Sync>> = OnceLock::new();
 
     fn store_calls() -> MutexGuard<'static, StoreCalls> {
-        STORE_CALLS.lock().unwrap_or_else(|e| e.into_inner())
+        crate::locks::lock(&STORE_CALLS)
     }
 
     fn copy_store_reply(json: *const u8, len: usize) -> Vec<u8> {
@@ -481,6 +481,7 @@ pub(crate) mod cloudkit {
     };
 
     use super::guarded;
+    use crate::locks::lock;
     use crate::sync::cloudkit::error::code;
     use crate::sync::cloudkit::kit::{
         Account, CONTAINER, Changes, CkError, CkRecord, CloudKit, SavePolicy, Value,
@@ -775,12 +776,6 @@ pub(crate) mod cloudkit {
         // SAFETY: CloudKit passes a valid record or nil, retained for the block's call.
         let record = unsafe { record.as_ref() }?;
         guarded("W_SYNC_ICLOUD_RECORD_READ", || from_ck(record, with_assets))
-    }
-
-    fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-        mutex
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     impl CloudKit for Native {

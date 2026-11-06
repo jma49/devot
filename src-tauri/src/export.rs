@@ -553,7 +553,7 @@ impl Exports {
     }
 
     pub fn attached(&self, id: u64, file_id: &str) -> Option<String> {
-        let sessions = self.sessions.lock().ok()?;
+        let sessions = crate::locks::lock(&self.sessions);
         sessions.get(&id)?.attachments.get(file_id).cloned()
     }
 

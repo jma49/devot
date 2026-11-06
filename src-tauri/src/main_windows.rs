@@ -72,18 +72,18 @@ fn front_of(recent: &[String], windows: &[(String, bool)]) -> Option<String> {
 
 impl MainWindows {
     fn focused(&self, label: &str) {
-        let mut recent = self.recent.lock().unwrap_or_else(|e| e.into_inner());
+        let mut recent = crate::locks::lock(&self.recent);
         recent.retain(|kept| kept != label);
         recent.insert(0, label.to_owned());
     }
 
     fn gone(&self, label: &str) {
-        let mut recent = self.recent.lock().unwrap_or_else(|e| e.into_inner());
+        let mut recent = crate::locks::lock(&self.recent);
         recent.retain(|kept| kept != label);
     }
 
     fn front(&self, windows: &[(String, bool)]) -> Option<String> {
-        let recent = self.recent.lock().unwrap_or_else(|e| e.into_inner());
+        let recent = crate::locks::lock(&self.recent);
         front_of(&recent, windows)
     }
 

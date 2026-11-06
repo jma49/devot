@@ -39,6 +39,7 @@ mod keyboard_shortcuts;
 mod keychain;
 mod licence;
 mod link_info;
+mod locks;
 mod logs;
 mod main_windows;
 #[cfg(desktop)]

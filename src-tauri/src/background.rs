@@ -318,9 +318,7 @@ pub fn background_idle_answer(
     if !crate::main_windows::is_main(window.label()) {
         return Err("E_BACKGROUND_WINDOW".into());
     }
-    if let Ok(mut slot) = state.idle_answer.lock()
-        && let Some(reply) = slot.take()
-    {
+    if let Some(reply) = crate::locks::lock(&state.idle_answer).take() {
         let _ = reply.send(saved);
     }
     Ok(())

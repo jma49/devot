@@ -45,9 +45,7 @@ static MAIN_WINDOWS: std::sync::Mutex<Vec<(String, usize)>> = std::sync::Mutex::
 
 #[cfg(target_os = "macos")]
 fn is_main_window(ns_window: *const std::ffi::c_void) -> bool {
-    MAIN_WINDOWS
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
+    crate::locks::lock(&MAIN_WINDOWS)
         .iter()
         .any(|(_, address)| *address == ns_window as usize)
 }
@@ -64,9 +62,7 @@ pub fn main_window_built(window: &tauri::WebviewWindow) {
         macos::turn_off_peer_connections(window);
         macos::turn_off_resource_hints(window);
         match window.ns_window() {
-            Ok(address) if !address.is_null() => MAIN_WINDOWS
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
+            Ok(address) if !address.is_null() => crate::locks::lock(&MAIN_WINDOWS)
                 .push((window.label().to_owned(), address as usize)),
             _ => log::warn!("W_FORMAT_KEY_MONITOR_NO_WINDOW"),
         }
@@ -87,10 +83,7 @@ pub fn keep_running_while_hidden(window: &tauri::WebviewWindow) {
 /// A main window is gone: its NSWindow is no longer one to serve.
 pub fn main_window_gone(label: &str) {
     #[cfg(target_os = "macos")]
-    MAIN_WINDOWS
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .retain(|(kept, _)| kept != label);
+    crate::locks::lock(&MAIN_WINDOWS).retain(|(kept, _)| kept != label);
     #[cfg(not(target_os = "macos"))]
     let _ = label;
 }
@@ -273,9 +266,7 @@ async fn render_one_at_a_time<T: Send + 'static>(
     render: impl FnOnce() -> T + Send + 'static,
 ) -> Option<T> {
     tauri::async_runtime::spawn_blocking(move || {
-        let _turn = SYMBOL_RENDER
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _turn = crate::locks::lock(&SYMBOL_RENDER);
         render()
     })
     .await

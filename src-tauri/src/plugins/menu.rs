@@ -137,8 +137,8 @@ pub fn refresh(app: &AppHandle) {
                 .is_ok()
         });
     let planned = plan(&plugins.list(), editing);
-    let mut added = menus.added.lock().unwrap_or_else(|e| e.into_inner());
-    let mut actions = menus.actions.lock().unwrap_or_else(|e| e.into_inner());
+    let mut added = crate::locks::lock(&menus.added);
+    let mut actions = crate::locks::lock(&menus.actions);
     for (place, item) in added.drain(..) {
         if menus.submenu(place).remove(&item).is_err() {
             log::warn!("W_PLUGIN_MENU_FAILED");
@@ -177,14 +177,9 @@ pub fn on_menu_event(app: &AppHandle, id: &str) -> bool {
     if !id.starts_with(ITEM_PREFIX) {
         return false;
     }
-    let action = app.try_state::<PluginMenus>().and_then(|menus| {
-        menus
-            .actions
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .get(id)
-            .cloned()
-    });
+    let action = app
+        .try_state::<PluginMenus>()
+        .and_then(|menus| crate::locks::lock(&menus.actions).get(id).cloned());
     if let Some(action) = action
         && crate::main_windows::emit_front(app, ACTION_EVENT, action).is_err()
     {

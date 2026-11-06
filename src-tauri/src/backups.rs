@@ -438,7 +438,7 @@ struct Preparing {
 
 impl Preparing {
     fn waiting(&self) -> std::sync::MutexGuard<'_, Option<HashSet<String>>> {
-        self.waiting.lock().unwrap_or_else(|e| e.into_inner())
+        crate::locks::lock(&self.waiting)
     }
 
     fn begin(&self, asked: HashSet<String>) -> Result<(), &'static str> {
@@ -665,7 +665,7 @@ pub async fn backups_list(backups: State<'_, Backups>) -> Result<BackupStatus, S
         .map_err(|_| "E_BACKUP_TASK")?;
     Ok(BackupStatus {
         backups: list,
-        last_error: backups.last_error.lock().ok().and_then(|e| *e),
+        last_error: *crate::locks::lock(&backups.last_error),
     })
 }
 

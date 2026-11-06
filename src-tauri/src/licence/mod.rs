@@ -283,7 +283,7 @@ impl Licence {
 
     fn with_purchases<T>(&self, f: impl FnOnce(&mut Purchases) -> T) -> Option<T> {
         let purchases = self.purchases.as_ref()?;
-        let mut purchases = purchases.lock().unwrap_or_else(|e| e.into_inner());
+        let mut purchases = crate::locks::lock(purchases);
         Some(f(&mut purchases))
     }
 
@@ -731,9 +731,7 @@ impl Licence {
         if self.with_activation_record(|_| ()).is_ok() {
             return;
         }
-        if self.seat_unread.lock().ok().and_then(|code| *code)
-            != Some("E_LICENCE_ACTIVATION_UNREADABLE")
-        {
+        if *crate::locks::lock(&self.seat_unread) != Some("E_LICENCE_ACTIVATION_UNREADABLE") {
             return;
         }
         if self.reset_activation_record().is_err() {
@@ -1026,7 +1024,7 @@ impl Licence {
             .trial_lock()
             .ok()
             .and_then(|trial| trial.as_ref().and_then(|trial| trial.record.err()));
-        let seat = self.seat_unread.lock().ok().and_then(|code| *code);
+        let seat = *crate::locks::lock(&self.seat_unread);
         if [key, trial, seat]
             .into_iter()
             .flatten()

@@ -188,11 +188,7 @@ struct Turn<'a>(&'a Mirror);
 
 impl Drop for Turn<'_> {
     fn drop(&mut self) {
-        *self
-            .0
-            .writing
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = false;
+        *crate::locks::lock(&self.0.writing) = false;
         self.0.idle.notify_one();
     }
 }
@@ -232,7 +228,7 @@ impl Mirror {
 
     fn write_turn(&self) -> Turn<'_> {
         // Nothing can panic while the flag is held, so a poisoned lock still holds a sound value.
-        let mut writing = self.writing.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut writing = crate::locks::lock(&self.writing);
         while *writing {
             writing = self
                 .idle

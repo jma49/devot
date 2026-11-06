@@ -240,10 +240,9 @@ impl Updates {
         }
     }
 
+    #[track_caller]
     fn lock(&self) -> MutexGuard<'_, Inner> {
-        self.inner
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+        crate::locks::lock(&self.inner)
     }
 
     fn status_of(&self, inner: &Inner) -> Status {

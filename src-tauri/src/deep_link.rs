@@ -250,10 +250,7 @@ pub struct DeepLinks(Mutex<Inbox>);
 
 impl DeepLinks {
     fn with<T>(&self, f: impl FnOnce(&mut Inbox) -> T) -> T {
-        let mut inbox = self
-            .0
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut inbox = crate::locks::lock(&self.0);
         f(&mut inbox)
     }
 
