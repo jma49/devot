@@ -64,7 +64,7 @@ describe('Glass radii are concentric: inner radius = outer radius - inset', () =
   })
 
   it('asks macOS for the window corner the tokens assume', () => {
-    const native = readFileSync('src-tauri/src/native/macos.rs', 'utf8')
+    const native = readFileSync('src-tauri/src/native/macos/mod.rs', 'utf8')
     const corner = /const WINDOW_CORNER_RADIUS: f64 = ([\d.]+);/.exec(native)?.[1]
     expect(Number(corner)).toBe(radius('window'))
   })

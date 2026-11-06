@@ -13,7 +13,7 @@ const swift = readdirSync(SOURCES)
   .filter((name) => name.endsWith('.swift'))
   .map((name) => read(join(SOURCES, name)))
   .join('\n')
-const ios = read('src-tauri/src/native/ios.rs')
+const ios = read('src-tauri/src/native/ios/mod.rs')
 
 type Signature = { params: string[]; returns: string }
 
@@ -101,7 +101,7 @@ it('only native/ios.rs declares or calls the bridge', () => {
   const callers = listFiles('.', 'src-tauri/src')
     .filter((file) => file.startsWith('src-tauri/src/') && file.endsWith('.rs'))
     .filter((file) => /devot_store_\w+\(/.test(read(file)))
-  expect(callers).toEqual(['src-tauri/src/native/ios.rs'])
+  expect(callers).toEqual(['src-tauri/src/native/ios/mod.rs'])
 })
 
 it('Rust, Swift and the StoreKit configuration name the same two products', () => {
@@ -139,7 +139,7 @@ it('the iPhone app links the Swift package and the Mac build has no Swift', () =
 it('no log or error in the App Store code can carry a JWS', () => {
   const files = [
     ...readdirSync('src-tauri/src/app_store').map((name) => `src-tauri/src/app_store/${name}`),
-    'src-tauri/src/native/ios.rs',
+    'src-tauri/src/native/ios/mod.rs',
   ]
   const logs = files.flatMap((file) =>
     read(file)

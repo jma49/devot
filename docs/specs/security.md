@@ -58,7 +58,7 @@ Devot registers `devot://` with macOS (`plugins.deep-link` in `tauri.conf.json`,
 
 Window transparency and the 120 Hz unlock use private APIs, so Devot cannot ship on the Mac App Store.
 
-- All Objective-C and private API code lives in `src-tauri/src/native/macos.rs`, and the iPhone app's UIKit code (public APIs only) in `src-tauri/src/native/ios.rs`: the only modules allowed to use `unsafe`.
+- All Objective-C and private API code lives in `src-tauri/src/native/macos/`, and the iPhone app's UIKit code (public APIs only) in `src-tauri/src/native/ios/`: the only modules allowed to use `unsafe`.
   Every block carries a `SAFETY` comment.
 - Every private call is guarded by `respondsToSelector:`, and so is every message to an object a private call returns, whose answers are checked for their class before use (the 60 fps lookup skips a `_WKFeature` that no longer answers `key`).
   Private calls run inside `guarded`, which catches an Objective-C exception (`objc2::exception::catch`) as well as a Rust panic: `catch_unwind` alone cannot stop an Objective-C exception, which aborts the app when it unwinds into Rust.
