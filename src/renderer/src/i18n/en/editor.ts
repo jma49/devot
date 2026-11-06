@@ -69,7 +69,7 @@ export const messages = {
   'noteInfo.updated': 'Updated',
   'noteInfo.editDateNamed': '{field}: {date}. Change the date',
   'noteInfo.dateIncomplete': 'Enter a complete date and time.',
-  'noteInfo.timeSkipped': 'That time is skipped when the clocks change.',
+  'noteInfo.timeSkipped': 'This time doesn’t exist on this day because the clocks change.',
   'noteInfo.createdTooLate': 'Created cannot be later than Updated.',
   'noteInfo.updatedTooEarly': 'Updated cannot be earlier than Created.',
   'noteInfo.dateFailed': 'The date could not be saved.',
