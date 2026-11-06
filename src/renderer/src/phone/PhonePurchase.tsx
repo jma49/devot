@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { errorCode } from '../../../core/errors'
 import { format, t } from '../i18n'
+import { Icon } from '../icons/Icon'
 import {
   editingAllowed,
   purchase,
@@ -38,11 +39,23 @@ function messageText(message: PurchaseMessage): string {
   }
 }
 
+const FEATURES = [
+  ['phone.purchase.featureEdit', 'phone.purchase.featureFree'],
+  ['phone.purchase.featureSync', null],
+  ['phone.purchase.featureAi', null],
+] as const
+
+function purchaseHeading(licence: LicenceSnapshot): string {
+  if (licence.trial?.state === 'available') return t('phone.purchase.title')
+  if (licence.appStore?.code) return t('phone.purchase.unknown')
+  return t(licence.trial?.state === 'ended' ? 'phone.purchase.ended' : 'phone.purchase.title')
+}
+
 /**
  * The welcome and purchase sheet's contents (docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md,
- * What the iPhone shows): the trial's length, what it locks when it ends, and Devot Pro at
- * StoreKit's price. It names no other price and links nowhere: StoreKit's own sheets take the
- * payment.
+ * What the iPhone shows): what Devot Pro unlocks and what stays free, one main action (the
+ * trial while it is available, otherwise Devot Pro at StoreKit's price), and the account links.
+ * It names no other price and links nowhere: StoreKit's own sheets take the payment.
  */
 export function PurchaseOffer(props: {
   licence: LicenceSnapshot
@@ -57,23 +70,22 @@ export function PurchaseOffer(props: {
   const price = props.products.find((product) => product.product === 'pro')?.displayPrice
   const startable = licence.trial?.state === 'available'
   const message = props.message
+  const buy = () => busy === null && props.onBuy('pro')
   return (
     <>
-      <div className="phone-detail-head">
-        <span className="phone-detail-icon">
-          <span aria-hidden="true" className="phone-dove phone-purchase-dove" style={doveMask} />
-        </span>
-        <h2 className="phone-detail-title">
-          {startable
-            ? format(t('phone.purchase.welcome'), { days: String(TRIAL_DAYS) })
-            : t(licence.appStore?.code ? 'phone.purchase.unknown' : 'phone.purchase.ended')}
-        </h2>
-      </div>
-      <p className="phone-detail-body">
-        {format(t(startable ? 'phone.purchase.body' : 'phone.purchase.endedBody'), {
-          days: String(TRIAL_DAYS),
-        })}
-      </p>
+      <ul className="phone-purchase-features">
+        {FEATURES.map(([feature, note]) => (
+          <li key={feature} className="phone-purchase-feature">
+            <span className="phone-purchase-check">
+              <Icon name="check" size="sm" />
+            </span>
+            <span className="phone-purchase-feature-text">
+              {t(feature)}
+              {note && <span className="phone-purchase-note">{t(note)}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
       {message && (
         <p
           className="phone-detail-body phone-purchase-message"
@@ -83,25 +95,38 @@ export function PurchaseOffer(props: {
         </p>
       )}
       <div className="phone-purchase-actions">
-        {startable && (
+        {startable ? (
+          <>
+            <button
+              type="button"
+              className="phone-purchase-primary"
+              aria-disabled={busy !== null}
+              onClick={() => busy === null && props.onBuy('trial')}
+            >
+              {format(t('phone.purchase.tryFree'), { days: String(TRIAL_DAYS) })}
+            </button>
+            <button
+              type="button"
+              className="phone-purchase-buy-once"
+              aria-disabled={busy !== null}
+              onClick={buy}
+            >
+              {price ? format(t('phone.purchase.buyOnce'), { price }) : t('phone.purchase.buy')}
+            </button>
+          </>
+        ) : (
           <button
             type="button"
             className="phone-purchase-primary"
             aria-disabled={busy !== null}
-            onClick={() => busy === null && props.onBuy('trial')}
+            onClick={buy}
           >
-            {format(t('phone.purchase.startTrial'), { days: String(TRIAL_DAYS) })}
+            {t('phone.purchase.buy')}
+            {price && <span className="phone-purchase-price">{price}</span>}
           </button>
         )}
-        <button
-          type="button"
-          className={startable ? 'phone-glass phone-detail-done' : 'phone-purchase-primary'}
-          aria-disabled={busy !== null}
-          onClick={() => busy === null && props.onBuy('pro')}
-        >
-          {t('phone.purchase.buy')}
-          {price && <span className="phone-purchase-price">{price}</span>}
-        </button>
+      </div>
+      <div className="phone-purchase-links">
         <button
           type="button"
           className="phone-purchase-link"
@@ -111,9 +136,12 @@ export function PurchaseOffer(props: {
           {t('phone.purchase.restore')}
         </button>
         {licence.appStore?.takesKeys && (
-          <button type="button" className="phone-purchase-link" onClick={props.onEnterKey}>
-            {t('phone.purchase.enterKey')}
-          </button>
+          <>
+            <span aria-hidden="true" className="phone-purchase-divider" />
+            <button type="button" className="phone-purchase-link" onClick={props.onEnterKey}>
+              {t('phone.purchase.enterKey')}
+            </button>
+          </>
         )}
       </div>
     </>
@@ -169,10 +197,13 @@ export function PhonePurchaseSheet(props: { licence: LicenceSnapshot; onEnterKey
   }
   return (
     <PhoneSheet
-      title={t('phone.purchase.title')}
+      title={purchaseHeading(props.licence)}
       onClose={closePurchase}
-      plain
-      done={t('phone.purchase.notNow')}
+      lead={
+        <span className="phone-detail-icon">
+          <span aria-hidden="true" className="phone-dove phone-purchase-dove" style={doveMask} />
+        </span>
+      }
     >
       <PurchaseOffer
         licence={props.licence}

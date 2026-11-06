@@ -6,10 +6,11 @@ import { PRICE } from '../../../../tests/support/price'
 import { invoke } from '../ipc'
 import { readCurrentLicence, type StoreProductView } from '../licence'
 import { LicenceButton } from '../LicenceLocked'
+import { openPurchase, purchaseOpen } from '../purchaseSheet'
 import { LicenceSection } from '../settings/LicenceSection'
 import { OnPhone } from '../settings/onPhone'
 import { PhoneSettings } from './PhoneSettings'
-import { PurchaseOffer } from './PhonePurchase'
+import { PhonePurchaseSheet, PurchaseOffer } from './PhonePurchase'
 
 vi.mock('../ipc', () => ({ invoke: vi.fn<() => Promise<unknown>>() }))
 vi.stubGlobal('DEVOT_UI_TEST', true)
@@ -111,7 +112,8 @@ describe('the purchase sheet', () => {
       appStore: { ...value.appStore, takesKeys },
     })
     const licence = await readCurrentLicence()
-    return rendered(
+    const holder = document.createElement('div')
+    holder.innerHTML = rendered(
       <PurchaseOffer
         licence={licence}
         products={products}
@@ -123,75 +125,171 @@ describe('the purchase sheet', () => {
         {...patch}
       />,
     )
+    return holder
   }
+  const primary = (sheet: HTMLElement) =>
+    [...sheet.querySelectorAll('.phone-purchase-primary')].map((button) => button.textContent)
+  const quiet = (sheet: HTMLElement) =>
+    [...sheet.querySelectorAll('.phone-purchase-buy-once')].map((button) => button.textContent)
+  const links = (sheet: HTMLElement) =>
+    [...sheet.querySelectorAll('.phone-purchase-links button')].map((button) => button.textContent)
 
-  it('offers the trial with its length before it starts, and all four actions', async () => {
-    const sheet = await offer('available')
-    expect(sheet).toContain('Try Devot free for 30 days')
-    expect(sheet).toContain('editing, sync and AI need Devot Pro')
-    for (const label of [
-      'Start 30-day Trial',
-      'Buy Devot Pro',
-      'Restore Purchases',
-      'Enter License Key',
-    ])
-      expect(sheet).toContain(`>${label}`)
-  })
-
-  it('leaves the trial out once it has ended', async () => {
-    const sheet = await offer('ended')
-    expect(sheet).toContain('Your trial has ended')
-    expect(sheet).not.toContain('Start 30-day Trial')
-    expect(sheet).toContain('Buy Devot Pro')
-  })
-
-  it('does not say the trial has ended while the purchases are unknown', async () => {
-    const value = appStore('ended')
-    vi.mocked(invoke).mockResolvedValueOnce({
-      ...value,
-      appStore: { ...value.appStore, code: 'E_APP_STORE_NO_REPLY' },
-    })
-    const licence = await readCurrentLicence()
-    const sheet = rendered(
-      <PurchaseOffer
-        licence={licence}
-        products={products}
-        busy={null}
-        message={null}
-        onBuy={() => {}}
-        onRestore={() => {}}
-        onEnterKey={() => {}}
-      />,
+  it('says what Devot Pro unlocks and that reading stays free', async () => {
+    const lines = [...(await offer('available')).querySelectorAll('li')].map((line) =>
+      line.textContent?.trim(),
     )
-    expect(sheet).not.toContain('Your trial has ended')
-    expect(sheet).toContain('Get Devot Pro')
-    expect(sheet).toContain('Buy Devot Pro')
+    expect(lines).toEqual([
+      'Write and edit every noteFree: read, search and export forever',
+      'Sync with your Mac',
+      'AI that suggests and edits',
+    ])
   })
 
-  it('leaves Enter License Key out of a build that takes no key', async () => {
-    expect(await offer('available', {}, false)).not.toContain('Enter License Key')
+  it('leads with the trial, and buys once at the price in a quiet button', async () => {
+    const sheet = await offer('available')
+    expect(primary(sheet)).toEqual(['Try Free for 30 Days'])
+    expect(quiet(sheet)).toEqual([`Buy Once for ${STOREKIT_PRICE}`])
+    expect(links(sheet)).toEqual(['Restore Purchases', 'Enter License Key'])
+    expect(sheet.querySelectorAll('.phone-purchase-divider')).toHaveLength(1)
+  })
+
+  it('makes buying the one action once the trial has ended', async () => {
+    const sheet = await offer('ended')
+    expect(primary(sheet)).toEqual([`Buy Devot Pro${STOREKIT_PRICE}`])
+    expect(quiet(sheet)).toEqual([])
+    expect(shown(sheet.innerHTML)).not.toContain('Try Free')
+    expect(shown(sheet.innerHTML)).toContain('Free: read, search and export forever')
+    expect(links(sheet)).toEqual(['Restore Purchases', 'Enter License Key'])
+  })
+
+  it('leaves Enter License Key and its divider out of a build that takes no key', async () => {
+    for (const trial of ['available', 'ended'] as const) {
+      const sheet = await offer(trial, {}, false)
+      expect(links(sheet)).toEqual(['Restore Purchases'])
+      expect(sheet.querySelector('.phone-purchase-divider')).toBeNull()
+    }
   })
 
   it('buys with no price before StoreKit gives one', async () => {
-    const sheet = await offer('ended', { products: [] })
-    expect(sheet).toContain('Buy Devot Pro')
-    expect(shown(sheet)).not.toMatch(PRICE)
+    const before = await offer('available', { products: [] })
+    expect(quiet(before)).toEqual(['Buy Devot Pro'])
+    expect(shown(before.innerHTML)).not.toMatch(PRICE)
+    const after = await offer('ended', { products: [] })
+    expect(primary(after)).toEqual(['Buy Devot Pro'])
+    expect(shown(after.innerHTML)).not.toMatch(PRICE)
   })
 
-  it('holds every action while one runs, and says why one failed', async () => {
-    const sheet = await offer('ended', {
+  it('holds every purchase action while one runs, and says why one failed', async () => {
+    const sheet = await offer('available', {
       busy: 'pro',
       message: { kind: 'failed', code: 'E_APP_STORE_NO_REPLY' },
     })
-    expect(sheet.match(/aria-disabled="true"/g)).toHaveLength(2)
-    expect(sheet).toContain('role="alert"')
-    expect(sheet).toContain('The App Store did not reply.')
+    const held = [...sheet.querySelectorAll('[aria-disabled="true"]')].map((b) => b.textContent)
+    expect(held).toEqual([
+      'Try Free for 30 Days',
+      `Buy Once for ${STOREKIT_PRICE}`,
+      'Restore Purchases',
+    ])
+    expect(sheet.querySelector('[role="alert"]')?.textContent).toContain(
+      'The purchase did not go through.',
+    )
+    expect(
+      (await offer('ended', { busy: 'restore' })).querySelectorAll('[aria-disabled="true"]'),
+    ).toHaveLength(2)
   })
 
   it('tells of a purchase waiting for approval', async () => {
     const sheet = await offer('ended', { message: { kind: 'pending' } })
-    expect(sheet).toContain('role="status"')
-    expect(sheet).toContain('Waiting for approval')
+    expect(sheet.querySelector('[role="status"]')?.textContent).toContain('Waiting for approval')
+  })
+
+  it('buys the trial or Devot Pro from their buttons, and restores from its link', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(appStore('available'))
+    const licence = await readCurrentLicence()
+    const asked: string[] = []
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    act(() =>
+      root.render(
+        <PurchaseOffer
+          licence={licence}
+          products={products}
+          busy={null}
+          message={null}
+          onBuy={(product) => asked.push(product)}
+          onRestore={() => asked.push('restore')}
+          onEnterKey={() => asked.push('key')}
+        />,
+      ),
+    )
+    for (const button of host.querySelectorAll('button')) button.click()
+    act(() => root.unmount())
+    host.remove()
+    expect(asked).toEqual(['trial', 'pro', 'restore', 'key'])
+  })
+})
+
+describe('the purchase sheet over the app', () => {
+  const open = async (licence: unknown) => {
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === 'store_products') return products
+      if (command === 'licence_get') return licence
+      return undefined
+    })
+    const current = await readCurrentLicence()
+    openPurchase()
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    await act(async () =>
+      root.render(<PhonePurchaseSheet licence={current} onEnterKey={() => {}} />),
+    )
+    return {
+      dialog: document.querySelector<HTMLElement>('[role="dialog"]'),
+      done: () => {
+        act(() => root.unmount())
+        host.remove()
+        vi.mocked(invoke).mockReset()
+        vi.mocked(invoke).mockResolvedValue(undefined)
+      },
+    }
+  }
+
+  const heading = (dialog: HTMLElement | null) => ({
+    label: dialog?.getAttribute('aria-label'),
+    title: dialog?.querySelector('h2')?.textContent,
+  })
+
+  it('heads the sheet with the dove and the state of the trial', async () => {
+    const unknown = appStore('ended')
+    for (const [licence, title] of [
+      [appStore('available'), 'Devot Pro'],
+      [appStore('ended'), 'Your trial has ended'],
+      [appStore('running'), 'Devot Pro'],
+      [
+        {
+          ...unknown,
+          appStore: { ...unknown.appStore, code: 'E_APP_STORE_NO_REPLY' },
+        },
+        'Get Devot Pro',
+      ],
+    ] as const) {
+      const { dialog, done } = await open(licence)
+      expect(heading(dialog)).toEqual({ label: title, title })
+      expect(dialog?.querySelector('.phone-sheet-head .phone-purchase-dove')).not.toBeNull()
+      done()
+    }
+  })
+
+  it('closes from the X in its head, and has no Not Now', async () => {
+    const { dialog, done } = await open(appStore('available'))
+    expect(dialog?.textContent).not.toContain('Not Now')
+    const close = dialog?.querySelector<HTMLButtonElement>('.phone-sheet-head button')
+    expect(close?.getAttribute('aria-label')).toBe('Close')
+    act(() => close?.click())
+    await vi.waitFor(() => expect(purchaseOpen()).toBe(false))
+    done()
   })
 })
 
@@ -236,6 +334,7 @@ describe('Settings in an App Store build', () => {
     )
     await act(async () => restore?.click())
     expect(host.textContent).toContain('The App Store did not reply.')
+    expect(host.textContent).not.toContain('E_APP_STORE_NO_REPLY')
     act(() => root.unmount())
     host.remove()
     vi.mocked(invoke).mockReset()
