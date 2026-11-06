@@ -15,12 +15,14 @@ import { licenceProblem } from '../licenceView'
 import { OnPhone } from '../settings/onPhone'
 import type { IconName } from '../icons/symbols'
 import { PANES, PANE_TABS, type PaneId } from '../settings/panes'
+import { searchSettings } from '../settings/search'
 import { startSyncStatus, useSyncSnapshot } from '../sync'
 import { syncNeedsOwner } from '../syncICloud'
 import { doveMask } from './dove'
 import { MacKeyRow } from './PhoneMacKey'
 import { PhoneDetailSheet } from './PhoneSheet'
-import { licenceRow, paneMatches, phonePanes } from './settingsRows'
+import { useLicenceClock } from './licenceClock'
+import { licenceRow, phonePanes } from './settingsRows'
 import { logFailure } from '../failure'
 
 /** The panes that open on a phone; the rest are left out of its Settings. The phone records no usage. */
@@ -207,17 +209,21 @@ function SettingsSearch(props: {
   onClose: () => void
 }) {
   const [query, setQuery] = useState('')
-  const found = paneMatches(
-    props.panes.map((pane) => ({ pane, name: t(PANE_TABS[pane].label) })),
-    query,
-  )
+  const rows: Row[] =
+    query.trim() === ''
+      ? props.panes.map((pane) => paneRow(pane))
+      : searchSettings(query, t, { onPhone: true, panes: props.panes }).map((result) => ({
+          ...paneRow(result.pane as PhonePane),
+          label: result.label,
+          ...(result.paneLabel ? { value: t(result.paneLabel) } : {}),
+        }))
   return (
     <div className="phone-settings-search">
       <div className="phone-scroll phone-settings">
-        {found.length > 0 ? (
+        {rows.length > 0 ? (
           <ul className="phone-card">
-            {found.map(({ pane }) => (
-              <SettingsRow key={pane} row={paneRow(pane)} onOpen={props.onOpen} />
+            {rows.map((row) => (
+              <SettingsRow key={`${row.pane}:${row.label}`} row={row} onOpen={props.onOpen} />
             ))}
           </ul>
         ) : (
@@ -257,7 +263,7 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
   const licence = useLicence()
   const version = useVersion()
   const sync = useSyncSnapshot()
-  const [now] = useState(() => Date.now())
+  const now = useLicenceClock(licence)
   const [searching, setSearching] = useState(false)
   const [trialOpen, setTrialOpen] = useState(false)
   const panes = phonePanes(OPEN_PANES, useCrashReportsAvailable())

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import {
   AI_PROVIDERS,
   type AiProviderId,
@@ -115,6 +115,19 @@ export function AiSection() {
       })
     }
   }
+
+  const commitTyped = useEffectEvent(() => commit())
+  // Back, or a tap that dismisses the app, can leave a field without blurring it.
+  useEffect(() => {
+    const hidden = () => {
+      if (document.visibilityState === 'hidden') commitTyped()
+    }
+    document.addEventListener('visibilitychange', hidden)
+    return () => {
+      document.removeEventListener('visibilitychange', hidden)
+      commitTyped()
+    }
+  }, [])
 
   const setSuggestOnIdle = (suggestOnIdle: boolean) => {
     if (!view || !drafts) return
