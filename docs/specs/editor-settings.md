@@ -19,6 +19,7 @@ Part of the [architecture overview](../architecture.md).
   Reading the file is lenient: a missing, out-of-range or damaged value takes its default and the rest are kept; the file holds only the values the user set, merged with each change.
   A file that cannot be read (anything but a missing one, such as a permission or I/O error) is never written over, since a change would drop the values it holds: the defaults show, a change is refused with `E_EDITOR_SETTINGS_READ_FAILED`, and the file is read again on the next read or change.
   A damaged file (not a JSON object) is copied to `editor-settings.json.damaged` before the next change replaces it.
+  Every settings file kept on this device (keyboard shortcuts, the mirror, AI, the HTTP API and sync) follows the same rule through one store (`src-tauri/src/settings_file.rs`), each with its own codes: a change is refused with its `E_*_READ_FAILED` while its file cannot be read.
   `src/core/editorSettings.ts` holds the same lists, ranges and defaults for the UI.
 - **Editor font:** SF Mono by default, nothing bundled.
   Font Family also offers an installed font (`fontFamily: 'installed'`, the family in `installedFont`, listed by AppKit through `fonts_installed`) or an imported file (`'imported'`, the file name in `importedFont`).

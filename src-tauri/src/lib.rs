@@ -58,6 +58,7 @@ pub mod page_setup;
 mod pending;
 mod plugins;
 mod settings;
+mod settings_file;
 mod sidebar_material;
 mod single_instance;
 mod startup;

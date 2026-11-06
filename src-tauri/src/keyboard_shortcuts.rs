@@ -13,9 +13,11 @@
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, State};
+
+use crate::settings_file::{Codes, SettingsFile};
 
 pub const FILE: &str = "keyboard-shortcuts.json";
 pub const CHANGED_EVENT: &str = "devot://keyboard-shortcuts-changed";
@@ -179,38 +181,30 @@ struct Held {
     read: bool,
 }
 
+const CODES: Codes = Codes {
+    unreadable: "W_KEYBOARD_SHORTCUTS_UNREADABLE",
+    copy_failed: "W_KEYBOARD_SHORTCUTS_COPY_FAILED",
+    read_failed: "W_KEYBOARD_SHORTCUTS_READ_FAILED",
+    write_failed: "E_KEYBOARD_SHORTCUTS_WRITE_FAILED",
+};
+
 pub struct KeyboardShortcutsStore {
-    path: PathBuf,
+    file: SettingsFile,
     current: Mutex<Option<Held>>,
 }
 
 impl KeyboardShortcutsStore {
     pub fn new(path: &Path) -> Self {
         Self {
-            path: path.to_owned(),
+            file: SettingsFile::new(path, &CODES),
             current: Mutex::new(None),
         }
     }
 
     fn read(&self) -> Held {
-        let overrides = match std::fs::read(&self.path) {
-            Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(value @ Value::Object(_)) => Some(from_stored(&value)),
-                _ => {
-                    log::warn!("W_KEYBOARD_SHORTCUTS_UNREADABLE");
-                    let kept = crate::atomic_file::keep_damaged(&self.path, &bytes).is_ok();
-                    if !kept {
-                        log::warn!("W_KEYBOARD_SHORTCUTS_COPY_FAILED");
-                    }
-                    kept.then(Overrides::new)
-                }
-            },
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(Overrides::new()),
-            Err(_) => {
-                log::warn!("W_KEYBOARD_SHORTCUTS_READ_FAILED");
-                None
-            }
-        };
+        let overrides = self
+            .file
+            .read_as(|map| Some(from_stored(&Value::Object(map))));
         Held {
             read: overrides.is_some(),
             snapshot: Snapshot {
@@ -260,10 +254,7 @@ impl KeyboardShortcutsStore {
             revision: now.snapshot.revision + 1,
             overrides: with_patch(&now.snapshot.overrides, patch)?,
         };
-        let json = serde_json::to_vec_pretty(&next.overrides)
-            .map_err(|_| "E_KEYBOARD_SHORTCUTS_WRITE_FAILED")?;
-        crate::atomic_file::write_replacing(&self.path, &json)
-            .map_err(|_| "E_KEYBOARD_SHORTCUTS_WRITE_FAILED")?;
+        self.file.write(&next.overrides)?;
         now.snapshot = next.clone();
         Ok(next)
     }
@@ -273,11 +264,7 @@ impl KeyboardShortcutsStore {
 pub async fn keyboard_shortcuts_get(
     store: State<'_, Arc<KeyboardShortcutsStore>>,
 ) -> Result<Snapshot, String> {
-    let store = Arc::clone(&store);
-    tauri::async_runtime::spawn_blocking(move || store.get())
-        .await
-        .map_err(|_| "E_KEYBOARD_SHORTCUTS_TASK".to_string())?
-        .map_err(String::from)
+    crate::task::blocking_with(&store, "E_KEYBOARD_SHORTCUTS_TASK", |store| store.get()).await
 }
 
 #[tauri::command]
@@ -286,11 +273,10 @@ pub async fn keyboard_shortcuts_set(
     store: State<'_, Arc<KeyboardShortcutsStore>>,
     patch: Map<String, Value>,
 ) -> Result<Snapshot, String> {
-    let store = Arc::clone(&store);
-    let next = tauri::async_runtime::spawn_blocking(move || store.update(&patch))
-        .await
-        .map_err(|_| "E_KEYBOARD_SHORTCUTS_TASK".to_string())?
-        .map_err(String::from)?;
+    let next = crate::task::blocking_with(&store, "E_KEYBOARD_SHORTCUTS_TASK", move |store| {
+        store.update(&patch)
+    })
+    .await?;
     if app.emit(CHANGED_EVENT, &next).is_err() {
         log::warn!("W_KEYBOARD_SHORTCUTS_EMIT_FAILED");
     }

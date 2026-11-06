@@ -6,11 +6,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use zeroize::Zeroizing;
 
 use super::client::RelayUrl;
 use super::cloudkit::ICloudState;
 use super::{SecretStore, SyncError};
+use crate::settings_file::{Codes, SettingsFile};
 
 pub(crate) const FILE: &str = "sync-settings.json";
 const DEVICE_ACCOUNT: &str = "device";
@@ -99,58 +101,60 @@ impl SyncSettings {
     }
 }
 
+const CODES: Codes = Codes {
+    unreadable: "W_SYNC_SETTINGS_UNREADABLE",
+    copy_failed: "W_SYNC_SETTINGS_COPY_FAILED",
+    read_failed: "W_SYNC_SETTINGS_READ_FAILED",
+    write_failed: "E_SYNC_SETTINGS_WRITE_FAILED",
+};
+
 pub(crate) struct SettingsStore {
-    path: PathBuf,
+    file: SettingsFile,
     write: Mutex<()>,
 }
 
 impl SettingsStore {
     pub(crate) fn new(path: &Path) -> Self {
         Self {
-            path: path.to_owned(),
+            file: SettingsFile::new(path, &CODES),
             write: Mutex::new(()),
         }
     }
 
     /// The folder the settings file is in: the app's data folder.
     pub(crate) fn dir(&self) -> PathBuf {
-        self.path
+        self.file
+            .path()
             .parent()
             .map_or_else(PathBuf::new, Path::to_path_buf)
     }
 
-    pub(crate) fn get(&self) -> SyncSettings {
-        match std::fs::read(&self.path) {
-            Ok(bytes) => serde_json::from_slice::<SyncSettings>(&bytes)
-                .ok()
-                .map(|settings| SyncSettings {
-                    relay_url: RelayUrl::parse(&settings.relay_url)
-                        .map(|url| url.as_str().to_string())
-                        .unwrap_or_default(),
-                    ..settings
-                })
-                .unwrap_or_else(|| {
-                    log::warn!("W_SYNC_SETTINGS_UNREADABLE");
-                    if crate::atomic_file::keep_damaged(&self.path, &bytes).is_err() {
-                        log::warn!("W_SYNC_SETTINGS_COPY_FAILED");
-                    }
-                    SyncSettings::default()
-                }),
-            Err(e) => {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    log::warn!("W_SYNC_SETTINGS_READ_FAILED");
-                }
-                SyncSettings::default()
-            }
-        }
+    fn read(&self) -> Option<SyncSettings> {
+        self.file.read_as(|map| {
+            let settings = serde_json::from_value::<SyncSettings>(Value::Object(map)).ok()?;
+            Some(SyncSettings {
+                relay_url: RelayUrl::parse(&settings.relay_url)
+                    .map(|url| url.as_str().to_string())
+                    .unwrap_or_default(),
+                ..settings
+            })
+        })
     }
 
+    /// The defaults (off) while the file cannot be read.
+    pub(crate) fn get(&self) -> SyncSettings {
+        self.read().unwrap_or_default()
+    }
+
+    /// Refused while the file cannot be read, so a change made from the defaults shown meanwhile
+    /// never replaces what it holds.
     pub(crate) fn set(&self, settings: &SyncSettings) -> Result<(), &'static str> {
         let _writing = self
             .write
             .lock()
             .map_err(|_| "E_SYNC_SETTINGS_WRITE_FAILED")?;
-        self.write(settings)
+        self.read().ok_or("E_SYNC_SETTINGS_READ_FAILED")?;
+        self.file.write(settings)
     }
 
     /// Reads, changes and writes the settings under the write lock, so a change made from another
@@ -163,16 +167,9 @@ impl SettingsStore {
             .write
             .lock()
             .map_err(|_| "E_SYNC_SETTINGS_WRITE_FAILED")?;
-        let mut settings = self.get();
+        let mut settings = self.read().ok_or("E_SYNC_SETTINGS_READ_FAILED")?;
         change(&mut settings);
-        self.write(&settings)
-    }
-
-    fn write(&self, settings: &SyncSettings) -> Result<(), &'static str> {
-        let json =
-            serde_json::to_vec_pretty(settings).map_err(|_| "E_SYNC_SETTINGS_WRITE_FAILED")?;
-        crate::atomic_file::write_replacing(&self.path, &json)
-            .map_err(|_| "E_SYNC_SETTINGS_WRITE_FAILED")
+        self.file.write(&settings)
     }
 }
 
@@ -268,5 +265,38 @@ mod tests {
         let written: serde_json::Value =
             serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         assert_eq!(written.get("moving"), None);
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_never_written_over() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE);
+        std::fs::create_dir(&path).unwrap();
+        let store = SettingsStore::new(&path);
+        assert_eq!(store.get(), SyncSettings::default());
+        assert_eq!(
+            store.update(|settings| settings.enabled = true),
+            Err("E_SYNC_SETTINGS_READ_FAILED")
+        );
+        assert_eq!(
+            store.set(&SyncSettings::default()),
+            Err("E_SYNC_SETTINGS_READ_FAILED")
+        );
+        assert!(path.is_dir());
+    }
+
+    #[test]
+    fn a_damaged_file_is_kept_aside_and_the_next_change_replaces_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE);
+        std::fs::write(&path, br#"{"enabled":"yes"}"#).unwrap();
+        let store = SettingsStore::new(&path);
+        assert_eq!(store.get(), SyncSettings::default());
+        store.update(|settings| settings.enabled = true).unwrap();
+        assert!(store.get().enabled);
+        let kept = dir
+            .path()
+            .join(format!("{FILE}{}", crate::atomic_file::DAMAGED_SUFFIX));
+        assert_eq!(std::fs::read(kept).unwrap(), br#"{"enabled":"yes"}"#);
     }
 }
