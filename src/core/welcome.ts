@@ -8,7 +8,7 @@
 
 import { TEMPLATES_BOOK_ID } from './books'
 import { clipTitle } from './noteLimits'
-import { seedState } from './notes'
+import { seedState } from './notes/body'
 import { lineFeeds } from './text'
 import type { Clock } from './hlc'
 import type { StorageAdapter } from './storage'

@@ -280,6 +280,47 @@ mod tests {
     }
 
     #[test]
+    fn a_library_holding_only_templates_is_still_seeded() {
+        let (_dir, db) = open();
+        let templates: BookRecord = serde_json::from_value(serde_json::json!({
+            "id": "00000000-0000-7000-8000-000000000001",
+            "name": "Templates",
+            "nameHlc": HLC,
+            "parentId": null,
+            "parentHlc": "",
+            "createdAt": AT,
+            "updatedAt": AT,
+            "deletedAt": null,
+            "deletedHlc": null,
+        }))
+        .unwrap();
+        let mut template = note(MINE);
+        template.book_id = Some(templates.id.clone());
+        block_on(db.write(Write::Content, move |store| {
+            store.put_book(&templates)?;
+            store.put_note(&template, &[])
+        }))
+        .unwrap();
+        assert!(block_on(seed(&db, HLC.into(), AT)).unwrap());
+        assert_eq!(note_ids(&db), [WELCOME, EXAMPLE, MINE]);
+    }
+
+    #[test]
+    fn a_library_with_a_note_in_the_trash_is_not_seeded() {
+        let (_dir, db) = open();
+        let mut trashed = note(MINE);
+        trashed.deleted_at = Some(AT);
+        trashed.deleted_hlc = Some(HLC.into());
+        block_on(db.write(Write::Content, move |store| store.put_note(&trashed, &[]))).unwrap();
+        assert!(!block_on(seed(&db, HLC.into(), AT)).unwrap());
+        assert!(
+            block_on(db.call(|store| store.list_books()))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn a_library_whose_welcome_notes_were_purged_is_not_seeded_again() {
         let (_dir, db) = open();
         block_on(seed(&db, HLC.into(), AT)).unwrap();

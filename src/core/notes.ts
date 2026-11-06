@@ -1,4 +1,4 @@
-export { BODY, bodyText, seedClient, seedState } from './notes/body'
+export { BODY, bodyText, seedClient } from './notes/body'
 export { NOTES_IN_MEMORY } from './notes/memory'
 export { saveDelay } from './notes/saving'
 export { createNoteService } from './notes/service'
