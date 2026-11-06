@@ -148,16 +148,7 @@ test('controls have the design sizes and reach their targets', async ({ page }) 
 })
 
 test('no pane has an info button or a long explanation under a row', async ({ page }) => {
-  for (const name of [
-    'General',
-    'Appearance',
-    'Editing',
-    'Preview',
-    'Sync',
-    'AI',
-    'License',
-    'Usage',
-  ]) {
+  for (const name of ['Appearance', 'Editing', 'Preview', 'Sync', 'AI', 'License']) {
     const pane = await openPane(page, name)
     await expect(pane.getByRole('button', { name: /^About / })).toHaveCount(0)
     await expect(pane.getByText('Glass lets the background show through')).toHaveCount(0)
@@ -180,8 +171,8 @@ test('Editing rows have at most one line of description, the control centred', a
     expect(control.y + control.height / 2).toBeCloseTo(whole.y + whole.height / 2, 0)
   }
   await expect(
-    pane.locator('.setting:has(label:text-is("Toolbar")) .setting-description'),
-  ).toHaveCount(0)
+    pane.locator('.setting:has(label:text-is("Floating Toolbars")) .setting-description'),
+  ).toHaveText('Over selected text and tables')
 })
 
 test('the controls in a card share one right edge', async ({ page }) => {
@@ -371,138 +362,10 @@ test('theme thumbs share one size and one set of columns, and choosing moves not
   expect(await boxes('Light Mode Theme')).toEqual(light)
 })
 
-function seedUsage(page: Page, count: number) {
-  return page.addInitScript((events) => {
-    const now = Date.now()
-    const names = ['note.created', 'search.run', 'import.finished']
-    window.devotIpcMocks = {
-      usage_list: () =>
-        Array.from({ length: events }, (_, i) => ({
-          id: i + 1,
-          at: now - i * 3_600_000,
-          name: names[i % 3],
-          properties: {},
-        })),
-    }
-  }, count)
-}
-
-test('no label in the Usage type list wraps, and numbers share a right edge', async ({ page }) => {
-  await seedUsage(page, 9)
-  const pane = await openPane(page, 'Usage')
-  const rows = pane.locator('.phone-usage-types li')
-  await expect(rows).toHaveCount(3)
-  const heights = await pane
-    .locator('.phone-usage-type')
-    .evaluateAll((labels) =>
-      labels.map(
-        (label) =>
-          label.getBoundingClientRect().height / parseFloat(getComputedStyle(label).fontSize),
-      ),
-    )
-  for (const lines of heights) expect(lines).toBeLessThan(1.6)
-  const rights = await pane
-    .locator('.phone-usage-count')
-    .evaluateAll((counts) => counts.map((c) => c.getBoundingClientRect().right))
-  expect(new Set(rights).size).toBe(1)
-  const borders = await rows.evaluateAll((items) =>
-    items.map((item) => getComputedStyle(item).borderTopWidth),
-  )
-  expect(new Set(borders)).toEqual(new Set(['0px']))
-})
-
-test('Usage with nothing stored shows one compact empty state and nothing to act on', async ({
-  page,
-}) => {
-  await seedUsage(page, 0)
-  const pane = await openPane(page, 'Usage')
-  await expect(pane.getByText('No usage events are stored.')).toHaveCount(1)
-  await expect(pane.locator('.settings-card')).toHaveCount(0)
-  await expect(pane.getByRole('radiogroup')).toHaveCount(0)
-  await expect(pane.getByRole('button', { name: /^(Show Events|Clear Usage Data)/ })).toHaveCount(0)
-})
-
-test('a period with no events gives way to one empty state, and the stored ones stay actionable', async ({
-  page,
-}) => {
-  await page.addInitScript(() => {
-    window.devotIpcMocks = {
-      usage_list: () => [
-        { id: 1, at: Date.now() - 20 * 86_400_000, name: 'search.run', properties: {} },
-      ],
-    }
-  })
-  const pane = await openPane(page, 'Usage')
-  await pane.getByRole('radio', { name: '7 Days' }).click()
-  await expect(pane.getByText('No recorded events in this period.')).toHaveCount(1)
-  await expect(pane.locator('.phone-usage-types, .usage-heat, .usage-daily')).toHaveCount(0)
-  await expect(pane.locator('.settings-card')).toHaveCount(1)
-  await expect(pane.getByRole('button', { name: /^Clear Usage Data/ })).toBeEnabled()
-})
-
-test('Usage actions are rows in the accent colour, the destructive one in its colour, under one footnote', async ({
-  page,
-}) => {
-  await seedUsage(page, 9)
-  const pane = await openPane(page, 'Usage')
-  const colours = await pane.evaluate((el) => {
-    const probe = document.createElement('span')
-    el.append(probe)
-    const resolve = (value: string) => {
-      probe.style.color = value
-      return getComputedStyle(probe).color
-    }
-    const seen = {
-      accent: resolve('var(--color-accent-text)'),
-      destructive: resolve('var(--color-phone-destructive)'),
-    }
-    probe.remove()
-    return seen
-  })
-  const show = pane.getByRole('button', { name: 'Show Events' })
-  const clear = pane.getByRole('button', { name: /^Clear Usage Data/ })
-  for (const [row, colour] of [
-    [show, colours.accent],
-    [clear, colours.destructive],
-  ] as const) {
-    await expect(row).not.toHaveAttribute('aria-disabled')
-    expect(await row.evaluate((el) => getComputedStyle(el).color)).toBe(colour)
-    expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44)
-  }
-  await expect(pane.locator('.phone-footnote')).toHaveCount(1)
-})
-
-test('the Usage heat map legend stays inside its card at 390 pt', async ({ page }) => {
-  await seedUsage(page, 9)
-  const pane = await openPane(page, 'Usage')
-  const legend = (await pane.locator('.usage-legend').boundingBox())!
-  const card = (await pane.locator('.settings-card').filter({ hasText: 'Fewer' }).boundingBox())!
-  expect(legend.x).toBeGreaterThanOrEqual(card.x)
-  expect(legend.x + legend.width).toBeLessThanOrEqual(card.x + card.width)
-})
-
-test('a General pane with nothing to set says so, centred and clear of the band', async ({
-  page,
-}) => {
-  const pane = await openPane(page, 'General')
-  const empty = pane.getByText('Nothing here to set on this iPhone.')
-  await expect(empty).toBeVisible()
-  const box = (await empty.boundingBox())!
-  expect(box.x + box.width / 2).toBeCloseTo(195, 0)
-  const padding = await empty.evaluate((el) => {
-    const style = getComputedStyle(el)
-    return { left: style.paddingLeft, right: style.paddingRight, top: parseFloat(style.paddingTop) }
-  })
-  expect(padding.left).toBe(padding.right)
-  expect(padding.top).toBeGreaterThan(44)
-})
-
 test('a pane does not repeat its screen title as its first section title', async ({ page }) => {
-  await seedUsage(page, 9)
   for (const [name, repeated] of [
     ['License', 'License'],
     ['Preview', 'Preview'],
-    ['Usage', 'Usage overview'],
   ] as const) {
     const pane = await openPane(page, name)
     await expect(pane.locator('.settings-block-title', { hasText: repeated })).toHaveCount(0)
@@ -510,74 +373,34 @@ test('a pane does not repeat its screen title as its first section title', async
   }
 })
 
-test('Usage figures are the body font with tabular figures: one hero over a grid of three', async ({
-  page,
-}) => {
-  await seedUsage(page, 9)
-  const pane = await openPane(page, 'Usage')
-  await expect(pane.locator('.phone-figures')).toHaveCount(0)
-  const body = await pane
-    .locator('.setting-label', { hasText: 'Events' })
-    .evaluate((el) => getComputedStyle(el).fontFamily)
-  for (const figure of [
-    pane.locator('.phone-usage-hero strong'),
-    pane.locator('.phone-usage-grid dd').first(),
-    pane.locator('.phone-usage-range'),
-    pane.locator('.phone-usage-count').first(),
-    pane.locator('.phone-usage-capacity'),
-  ]) {
-    const style = await figure.evaluate((el) => ({
-      family: getComputedStyle(el).fontFamily,
-      numeric: getComputedStyle(el).fontVariantNumeric,
-    }))
-    expect(style).toEqual({ family: body, numeric: 'tabular-nums' })
-  }
-  await expect(pane.locator('.phone-usage-hero strong')).toHaveText('9')
-  const cells = await pane
-    .locator('.phone-usage-grid > div')
-    .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().y))
-  expect(cells).toHaveLength(3)
-  expect(new Set(cells).size).toBe(1)
-  const segmented = (await pane.getByRole('radiogroup', { name: 'Time period' }).boundingBox())!
-  expect(segmented.width).toBeCloseTo(390 - 2 * 16, 0)
-  await expect(pane.getByText('Time period', { exact: true })).toHaveCount(0)
-})
-
-test('a long select value is cut with an ellipsis, in its row, beside its whole label', async ({
-  page,
-}) => {
-  const long = `custom.${'very-long-event-name-'.repeat(6)}end`
-  await page.addInitScript((name) => {
+test('a long select value is cut with an ellipsis inside its card', async ({ page }) => {
+  const name = `Imported ${'Very Long Font Family Name '.repeat(4)}End`
+  await page.addInitScript((font) => {
     window.devotIpcMocks = {
-      usage_list: () => [{ id: 1, at: Date.now(), name, properties: {} }],
+      ...window.devotIpcMocks,
+      fonts_list: () => [{ id: 'long.ttf', name: font }],
     }
-  }, long)
-  const pane = await openPane(page, 'Usage')
-  const select = pane.getByRole('combobox', { name: 'Event type' })
-  await select.selectOption(long)
-  const row = pane.locator('.phone-usage-filters')
-  const value = row.locator('.select-value')
-  await expect(value).toContainText('very-long-event-name')
-  const seen = await value.evaluate((el) => ({
+  }, name)
+  const pane = await openPane(page, 'Appearance')
+  await pane.getByRole('combobox', { name: 'Note Font' }).selectOption('imported')
+  const select = pane.locator('select[id$="imported-font"]').first()
+  await select.selectOption('long.ttf')
+  const shown = select.locator('xpath=..').locator('.select-value')
+  await expect(shown).toContainText('Very Long Font Family Name')
+  const seen = await shown.evaluate((el) => ({
     cut: el.scrollWidth > el.clientWidth,
     overflow: getComputedStyle(el).textOverflow,
     wrap: getComputedStyle(el).whiteSpace,
   }))
   expect(seen).toEqual({ cut: true, overflow: 'ellipsis', wrap: 'nowrap' })
-  const [range, drawn] = await Promise.all([
-    row.locator('.phone-usage-range').evaluate((el) => ({
-      right: el.getBoundingClientRect().right,
-      bottom: el.getBoundingClientRect().bottom,
-      whole: el.scrollWidth <= el.clientWidth,
-    })),
-    row.locator('.select').boundingBox(),
+  const [drawn, card] = await Promise.all([
+    shown.boundingBox(),
+    shown.locator('xpath=ancestor::*[contains(@class,"settings-card")]').boundingBox(),
   ])
-  expect(range.whole).toBe(true)
-  expect(drawn!.x >= range.right || drawn!.y >= range.bottom - 1).toBe(true)
-  expect(drawn!.x + drawn!.width).toBeLessThanOrEqual(390 - 16 + 0.5)
+  expect(drawn!.x + drawn!.width).toBeLessThanOrEqual(card!.x + card!.width + 0.5)
 })
 
-test.describe('License, Usage and disabled switches', () => {
+test.describe('License and disabled switches', () => {
   const noLicence = {
     gated: true,
     state: 'none',
@@ -613,13 +436,12 @@ test.describe('License, Usage and disabled switches', () => {
   }
 
   const firstCardTop = async (pane: Locator) =>
-    (await pane.locator('.settings-card, .phone-usage-controls').first().boundingBox())!.y
+    (await pane.locator('.settings-card').first().boundingBox())!.y
 
-  test('License and Usage start where other panes do, with no empty head', async ({ page }) => {
+  test('License starts where other panes do, with no empty head', async ({ page }) => {
     await seedLicence(page)
-    await seedUsage(page, 9)
     const sync = await firstCardTop(await openPane(page, 'Sync'))
-    for (const name of ['General', 'Editing', 'Preview', 'License', 'Usage']) {
+    for (const name of ['Editing', 'Preview', 'License']) {
       const pane = await openPane(page, name)
       if (await pane.locator('.settings-card').count()) {
         const first = pane.locator('.settings-block').first()
@@ -650,33 +472,6 @@ test.describe('License, Usage and disabled switches', () => {
       const fits = await button.evaluate((el) => el.scrollWidth <= el.clientWidth)
       expect(fits).toBe(true)
     }
-  })
-
-  test('at twice the text size Usage stacks its period and its figures', async ({ page }) => {
-    await seedUsage(page, 9)
-    const pane = await openPaneAtDoubleText(page, 'Usage')
-    const segments = pane.getByRole('radio')
-    await expect(segments).toHaveCount(3)
-    const boxes = await Promise.all(
-      [0, 1, 2].map(async (i) => (await segments.nth(i).boundingBox())!),
-    )
-    for (const [i, box] of boxes.entries()) {
-      expect(box.height).toBeGreaterThanOrEqual(44)
-      if (i > 0) expect(box.y).toBeGreaterThanOrEqual(boxes[i - 1]!.y + boxes[i - 1]!.height - 1)
-      const fits = await segments.nth(i).evaluate((el) => el.scrollWidth <= el.clientWidth)
-      expect(fits).toBe(true)
-    }
-    const pill = (await pane.locator('.phone-segmented-pill').boundingBox())!
-    expect(pill.y).toBeCloseTo(boxes[1]!.y, 0)
-    expect(pill.height).toBeCloseTo(boxes[1]!.height, 0)
-
-    const cells = await pane
-      .locator('.phone-usage-grid > div')
-      .evaluateAll((items) => items.map((item) => item.getBoundingClientRect()))
-    for (const [i, cell] of cells.entries())
-      if (i > 0) expect(cell.y).toBeGreaterThanOrEqual(cells[i - 1]!.bottom - 1)
-    const select = (await pane.locator('.phone-usage-filters .select').boundingBox())!
-    expect(select.x + select.width).toBeLessThanOrEqual(390 - 16 + 0.5)
   })
 
   test('a disabled switch stays at full opacity and differs from an off one', async ({ page }) => {
@@ -900,16 +695,7 @@ test('at twice the text size a Settings row puts its value under its whole label
   expect(value!.y).toBeGreaterThanOrEqual(label!.y + label!.height - 1)
 })
 
-for (const name of [
-  'General',
-  'Editing',
-  'Preview',
-  'Appearance',
-  'Sync',
-  'AI',
-  'Usage',
-  'License',
-]) {
+for (const name of ['Editing', 'Preview', 'Appearance', 'Sync', 'AI', 'License']) {
   test(`the ${name} pane leaves the page no wider than the screen and unable to pan sideways`, async ({
     page,
   }) => {

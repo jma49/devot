@@ -39,6 +39,11 @@ export function licenceRow(
   return { label: t('phone.settings.licence.attention'), needsAttention: true }
 }
 
+/** The panes a phone lists: General holds only crash reports there, so it shows only when they can be sent. */
+export function phonePanes<T extends string>(panes: readonly T[], crashReports: boolean): T[] {
+  return panes.filter((pane) => pane !== 'general' || crashReports)
+}
+
 /** Panes whose name holds the query, in their order; an empty query finds them all. */
 export function paneMatches<T extends { name: string }>(panes: readonly T[], query: string): T[] {
   const wanted = query.trim().toLocaleLowerCase()

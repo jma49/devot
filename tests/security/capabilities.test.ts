@@ -609,10 +609,14 @@ describe('the iPhone capability', () => {
 
   it('leaves out what touches the Mac, plugins or the local HTTP API', () => {
     const desktop = permissionIds(phone[0]!).filter((p) =>
-      /cli-tool|plugin-|data-folder|mirror-|http-api|font-import|main-window|update-|start-dragging/.test(
-        p,
-      ),
+      /cli-tool|plugin-|data-folder|mirror-|http-api|main-window|update-|start-dragging/.test(p),
     )
     expect(desktop).toEqual([])
+  })
+
+  it('imports a font through the Files picker, as Settings does on the Mac', () => {
+    expect(permissionIds(phone[0]!)).toEqual(
+      expect.arrayContaining(['allow-font-import', 'allow-fonts-list', 'allow-font-read']),
+    )
   })
 })

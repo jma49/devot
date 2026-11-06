@@ -9,7 +9,7 @@ import {
   parseColor,
   type Rgb,
 } from '../../src/renderer/src/theme/contrast'
-import { dark, ivoryDark, ivoryLight, light } from '../../src/renderer/src/theme/tokens'
+import { dark, ivoryDark, ivoryLight, light, sizes } from '../../src/renderer/src/theme/tokens'
 
 // Every theme has the default theme's tokens in light and dark; the palette checks pin
 // the design values (design/README.md "Themes").
@@ -322,5 +322,51 @@ describe('the gradient themes', () => {
         }
       }
     }
+  })
+
+  it('keep the iPhone page text and marks readable over every stop', () => {
+    // The iPhone paints the gradient at this strength over its page, behind the lists, Settings and the note.
+    const strength = Number(sizes['opacity.phone-backdrop'])
+    expect(strength).toBeGreaterThan(0)
+    const texts = [
+      'phone.text',
+      'phone.text-secondary',
+      'phone.section-head',
+      'accent.text',
+      'text.editor',
+    ]
+    const marks = ['status.active-mark', 'status.hold-mark', 'status.done-mark', 'phone.dove']
+    const failures: string[] = []
+    for (const token of backdrops) {
+      const theme = system[token.path.endsWith('.light') ? 'light' : 'dark']
+      const rgb = (path: string) => parseColor(theme[`color.${path}`]!).rgb
+      for (const stop of token.value as { color: { hex: string; alpha: number } }[]) {
+        const page = composite(
+          { rgb: parseColor(stop.color.hex).rgb, alpha: stop.color.alpha * strength },
+          rgb('phone.background'),
+        )
+        for (const [paths, min] of [
+          [texts, 4.5],
+          [marks, 3],
+        ] as const) {
+          for (const path of paths) {
+            const ratio = contrastRatio(rgb(path), page)
+            if (ratio < min) failures.push(`${token.path} ${path} ${ratio.toFixed(2)}`)
+          }
+        }
+      }
+    }
+    expect(failures).toEqual([])
+  })
+
+  it('give the iPhone faint text the secondary colour, as it has no room for a gradient', () => {
+    const css = readFileSync('src/renderer/src/phone/phone.css', 'utf8')
+    const rule =
+      /:root:is\(([^)]*)\)\s+\.phone-app \{\s*--color-phone-text-faint: var\(--color-phone-text-secondary\);/.exec(
+        css,
+      )
+    expect(rule?.[1]?.split(',').map((s) => s.trim())).toEqual(
+      GRADIENT_THEMES.map((id) => `[data-theme='${id}']`),
+    )
   })
 })
