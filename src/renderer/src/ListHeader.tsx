@@ -97,42 +97,40 @@ export function ListHeader(props: ListHeaderProps) {
           </span>
         </div>
       </div>
-      {props.filter || props.sort || props.layout || action ? (
-        <div
-          className="list-filter"
-          onKeyDown={(e) => {
-            // Return in the Filter field hands the keyboard to the list (not
-            // the Return that picks a candidate of an input method).
-            if (e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return
-            if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || isImeKey(e.nativeEvent)) return
-            e.preventDefault()
-            props.onFilterDone()
-          }}
-        >
-          <div className="list-filter-search">
-            {props.filter}
-            {action}
-          </div>
-          {props.sort || props.layout ? (
-            <div className="list-filter-tools">
-              {props.sort ? (
-                <button
-                  ref={sortButtonRef}
-                  type="button"
-                  className="sort-chip"
-                  aria-label={t('sort.button')}
-                  title={props.sort.label}
-                  onClick={(e) => props.sort?.onOpen(e.currentTarget)}
-                >
-                  {props.sort.chip}
-                  <Icon name="popup.chevron" size="xs" />
-                </button>
-              ) : null}
-              {props.layout}
-            </div>
-          ) : null}
+      <div
+        className="list-filter"
+        onKeyDown={(e) => {
+          // Return in the Filter field hands the keyboard to the list (not
+          // the Return that picks a candidate of an input method).
+          if (e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return
+          if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || isImeKey(e.nativeEvent)) return
+          e.preventDefault()
+          props.onFilterDone()
+        }}
+      >
+        <div className="list-filter-search">
+          {props.filter}
+          {action}
         </div>
-      ) : null}
+        {props.sort || props.layout ? (
+          <div className="list-filter-tools">
+            {props.sort ? (
+              <button
+                ref={sortButtonRef}
+                type="button"
+                className="sort-chip"
+                aria-label={t('sort.button')}
+                title={props.sort.label}
+                onClick={(e) => props.sort?.onOpen(e.currentTarget)}
+              >
+                {props.sort.chip}
+                <Icon name="popup.chevron" size="xs" />
+              </button>
+            ) : null}
+            {props.layout}
+          </div>
+        ) : null}
+      </div>
     </>
   )
 }

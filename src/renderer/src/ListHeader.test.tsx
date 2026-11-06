@@ -52,6 +52,14 @@ describe('the note list header', () => {
     expect(button).toContain('title="New Template"')
   })
 
+  it('keeps New Note on the search row when the view has no filter, sort or layout', () => {
+    const html = header({ filter: undefined, sort: undefined, layout: undefined })
+    const row = html.slice(html.indexOf('class="list-filter"'))
+    expect(html).toContain('class="list-filter"')
+    expect(row).toMatch(newNote)
+    expect(row).not.toContain('list-filter-tools')
+  })
+
   it("shows a view-specific action in New Note's place", () => {
     const html = header({ headerAction: <button className="button">Empty Trash</button> })
     expect(html).not.toContain('New Note')
