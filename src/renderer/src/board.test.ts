@@ -15,6 +15,7 @@ import {
   createBoardHistories,
   createMoveHistory,
   dropWash,
+  leftColumn,
   moveChanges,
   redoChanges,
   statusStep,
@@ -335,5 +336,21 @@ describe('dropWash', () => {
   it('washes any column for notes dragged from elsewhere (the list, another window)', () => {
     expect(dropWash('active', undefined)).toBe('active')
     expect(dropWash('none', new Set())).toBe('none')
+  })
+})
+
+describe('leftColumn', () => {
+  const box = { left: 10, right: 190, top: 50, bottom: 450 }
+
+  it('keeps the wash while the pointer is inside the column, whatever child it crossed into', () => {
+    expect(leftColumn(box, 100, 200)).toBe(false)
+    expect(leftColumn(box, 11, 449)).toBe(false)
+  })
+
+  it('ends it once the pointer is on or past the column’s edge', () => {
+    expect(leftColumn(box, 10, 200)).toBe(true)
+    expect(leftColumn(box, 191, 200)).toBe(true)
+    expect(leftColumn(box, 100, 49)).toBe(true)
+    expect(leftColumn(box, 100, 450)).toBe(true)
   })
 })

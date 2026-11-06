@@ -114,6 +114,7 @@ Part of the [design system](design-system.md).
   The board has its own width, dragged from `size.board-min-width` to `size.board-max-width`.
   Until the user drags it, the width fits the columns shown (`fittedBoardWidth` in `paneWidth.ts`: the list's outer keyline on each side, `size.board-column-width` per column and `space.5` between them), so it changes when Dropped is hidden or shown.
   A drag stores the width (`BOARD_PANE`), and a double-click or Enter on the edge clears it, going back to the fitted width.
+  A window whose board was reset before this rule kept the old default width (860) as a stored width, so it shows that width until the edge is double-clicked once.
   In a narrow window the board gives way before the editor, and its columns keep `size.board-column-min-width` and scroll sideways, a focused card scrolling into view.
   While a board shows, the editor keeps `size.board-editor-min-width` (380 px, the least at which its toolbar, title and metadata row are not clipped) in place of the usual two panes' width, so at laptop widths the board scrolls rather than the editor being squeezed.
 - **Gallery layout** (`src/renderer/src/NoteGallery.tsx`, `gallery.ts`, `galleryPreviews.ts`): the third segment of the layout control (Show as Gallery in the palette, `view.toggleGallery`) shows a view as a grid of cards, each a scaled-down, read-only first page of the note (its title, then the start of its body) with its meta line under it.
@@ -126,6 +127,7 @@ Part of the [design system](design-system.md).
   The gallery shares the board's pane width (`BOARD_PANE`), its fitted default and its editor minimum.
   Cards are `size.gallery-card-min-width` to `size.gallery-card-max-width` wide (`galleryColumns`), and the page sheet is 3:4, so a card's height follows its width (`galleryCardHeight`); the page is laid out at `size.gallery-page-width` and scaled to the sheet (`galleryScale`).
   The caption under the sheet is the board card's meta line led by the pin and the status mark; the title is not repeated.
+  A card is named by its content, as a board card is: the title as hidden text, then the caption (the sheet is hidden from assistive technology).
   The phone has no gallery.
 - **Restoring the last state** (`src/renderer/src/lastState.ts`): a window opens where it was left.
   It restores the library view (All Notes, a notebook or Templates) with its filter, the library views shown as a board (see Board layout; at most the 100 switched last), the view mode (write, edit, split or preview; a window that kept none opens in the install's default, see Write mode), the open note, the note's selection, and its scroll position: in edit and split mode the editor's, kept as the line at the top and an offset into it so it finds the same line at another width or font size (in split mode only the editor's: the editor leads), in preview mode the preview's (applied again while images and diagrams load, until it is reached or the user scrolls); an editor restored hidden in preview mode goes to its place when it shows.

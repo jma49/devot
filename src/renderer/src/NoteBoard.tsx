@@ -25,6 +25,7 @@ import {
   columnJump,
   columnWindow,
   dropWash,
+  leftColumn,
   type BoardColumn,
 } from './board'
 import { CardMeta } from './CardMeta'
@@ -514,7 +515,9 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       title: byId.get(noteId)?.title || headlines.get(noteId) || t('note.untitled'),
     }))
     setNoteDragData(event.dataTransfer, picked)
-    setBoardDragCard(event.dataTransfer, event.currentTarget, ids.length, locale)
+    const column = byId.get(id)?.status
+    if (column)
+      setBoardDragCard(event.dataTransfer, event.currentTarget, ids.length, locale, column)
     setDragged(new Set(ids))
   })
   const draggedFrom = useMemo(
@@ -535,8 +538,8 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       onDragEnter: over,
       onDragOver: over,
       onDragLeave: (event: DragEvent) => {
-        const to = event.relatedTarget
-        if (to instanceof Node && event.currentTarget.contains(to)) return
+        const box = event.currentTarget.getBoundingClientRect()
+        if (!leftColumn(box, event.clientX, event.clientY)) return
         setDropOn((on) => (on === status ? undefined : on))
       },
       onDrop: (event: DragEvent) => {

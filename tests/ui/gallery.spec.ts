@@ -63,7 +63,8 @@ test('a view switches to a gallery of page previews, and a card opens its note',
   // The view's order, pinned first; the untitled note's page starts with its first line.
   expect(await cardTitles(page)).toEqual(['Delta', 'Alpha', 'Bravo', 'Charlie', 'Echo'])
   const foxtrot = card(page, 'Foxtrot')
-  await expect(foxtrot).toHaveAccessibleName('Foxtrot opens the page.')
+  // Named by its content, as a board card is: the title, then the caption.
+  await expect(foxtrot).toHaveAccessibleName(/^Foxtrot opens the page\. \S/)
   await expect(foxtrot.locator('.note-title')).toHaveCount(0)
   await expect(foxtrot.locator('.gallery-page p').first()).toHaveText('Foxtrot opens the page.')
 

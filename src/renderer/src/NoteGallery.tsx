@@ -579,7 +579,7 @@ interface CardProps {
   events: CardEvents
 }
 
-const GalleryCard = memo(function GalleryCard(props: CardProps) {
+export const GalleryCard = memo(function GalleryCard(props: CardProps) {
   const { note: n, events } = props
   const id = n.id
   const ref = useCallback((el: HTMLLIElement) => events.setCard(id, el), [events, id])
@@ -593,7 +593,6 @@ const GalleryCard = memo(function GalleryCard(props: CardProps) {
       className="gallery-card"
       data-note-id={id}
       role="option"
-      aria-label={displayTitle(n.title, props.headline)}
       aria-selected={props.selected}
       aria-posinset={props.position}
       aria-setsize={props.setSize}
@@ -609,6 +608,8 @@ const GalleryCard = memo(function GalleryCard(props: CardProps) {
       onKeyDown={(e) => events.keyDown(id, e)}
       onContextMenu={props.menu ? (e) => events.contextMenu(id, e) : undefined}
     >
+      {/* The option is named by its content, as a board card is: the title, then the caption. */}
+      <span className="visually-hidden">{displayTitle(n.title, props.headline)}</span>
       <div className="gallery-sheet" aria-hidden inert>
         <div className="gallery-thumb">
           {n.title || props.preview?.length === 0 ? (

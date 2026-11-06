@@ -130,6 +130,18 @@ export function dropWash(
   return over
 }
 
+/**
+ * Whether a dragleave on a column leaves the column itself.
+ * WebKit sends dragleave without a relatedTarget, and crossing into one of the column's own children sends one too.
+ */
+export function leftColumn(
+  box: { left: number; right: number; top: number; bottom: number },
+  x: number,
+  y: number,
+): boolean {
+  return !(x > box.left && x < box.right && y > box.top && y < box.bottom)
+}
+
 export interface StatusChange {
   id: string
   from: NoteStatus

@@ -1,3 +1,4 @@
+import type { NoteStatus } from '../../core/storage'
 import { noteCount } from './format'
 
 export const DRAG_CARD_TITLES = 4
@@ -29,16 +30,19 @@ function dragHolder(): HTMLDivElement {
 /**
  * Sets a copy of a board card as the drag's image, lifted off the board,
  * with `dragCardBadge` in its corner when the drag carries several notes.
- * The copy is drawn off screen at the card's width, as `setDragCard` draws its card.
+ * The copy is drawn off screen at the card's width, as `setDragCard` draws its card,
+ * in a holder marked with the card's `column`, so the column's card rules reach it.
  */
 export function setBoardDragCard(
   dataTransfer: DataTransfer,
   card: HTMLElement,
   count: number,
   locale: string,
+  column: NoteStatus,
 ): void {
   if (typeof dataTransfer.setDragImage !== 'function') return
   const holder = dragHolder()
+  holder.classList.add(`status-${column}`)
   const copy = card.cloneNode(true) as HTMLElement
   for (const name of ['id', 'aria-selected', 'data-open', 'data-dragging', 'tabindex']) {
     copy.removeAttribute(name)
