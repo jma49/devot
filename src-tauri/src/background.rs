@@ -291,8 +291,7 @@ fn watch_idle(app: &AppHandle) {
     let Some(state) = app.try_state::<Background>() else {
         return;
     };
-    loop {
-        std::thread::sleep(CHECK_EVERY);
+    while exit::wait_unless_exiting(app, CHECK_EVERY) {
         match step_now(app, &state) {
             IdleStep::Stop => return,
             IdleStep::Wait => {}
@@ -318,9 +317,7 @@ pub fn background_idle_answer(
     if !crate::main_windows::is_main(window.label()) {
         return Err("E_BACKGROUND_WINDOW".into());
     }
-    if let Ok(mut slot) = state.idle_answer.lock()
-        && let Some(reply) = slot.take()
-    {
+    if let Some(reply) = crate::locks::lock(&state.idle_answer).take() {
         let _ = reply.send(saved);
     }
     Ok(())

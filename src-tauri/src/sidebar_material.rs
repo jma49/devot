@@ -47,11 +47,7 @@ pub struct SidebarMaterial {
 impl SidebarMaterial {
     /// The effect a main window opens with: as the setting is now.
     pub fn effects(&self) -> Option<WindowEffectsConfig> {
-        let material = self
-            .shown
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .material;
+        let material = crate::locks::lock(&self.shown).material;
         effects_for(material, self.configured.as_ref())
     }
 

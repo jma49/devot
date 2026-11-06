@@ -45,9 +45,7 @@ static MAIN_WINDOWS: std::sync::Mutex<Vec<(String, usize)>> = std::sync::Mutex::
 
 #[cfg(target_os = "macos")]
 fn is_main_window(ns_window: *const std::ffi::c_void) -> bool {
-    MAIN_WINDOWS
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
+    crate::locks::lock(&MAIN_WINDOWS)
         .iter()
         .any(|(_, address)| *address == ns_window as usize)
 }
@@ -64,9 +62,7 @@ pub fn main_window_built(window: &tauri::WebviewWindow) {
         macos::turn_off_peer_connections(window);
         macos::turn_off_resource_hints(window);
         match window.ns_window() {
-            Ok(address) if !address.is_null() => MAIN_WINDOWS
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
+            Ok(address) if !address.is_null() => crate::locks::lock(&MAIN_WINDOWS)
                 .push((window.label().to_owned(), address as usize)),
             _ => log::warn!("W_FORMAT_KEY_MONITOR_NO_WINDOW"),
         }
@@ -87,10 +83,7 @@ pub fn keep_running_while_hidden(window: &tauri::WebviewWindow) {
 /// A main window is gone: its NSWindow is no longer one to serve.
 pub fn main_window_gone(label: &str) {
     #[cfg(target_os = "macos")]
-    MAIN_WINDOWS
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .retain(|(kept, _)| kept != label);
+    crate::locks::lock(&MAIN_WINDOWS).retain(|(kept, _)| kept != label);
     #[cfg(not(target_os = "macos"))]
     let _ = label;
 }
@@ -123,7 +116,6 @@ pub fn show_alert(title: &str, message: &str) {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub struct KeyDown {
     pub command: bool,
     pub control: bool,
@@ -139,7 +131,6 @@ pub struct KeyDown {
 /// gets the key first (it may use Control keys) and a format would end its composition. The menu
 /// takes the key only when one of its items has it, which is only while the editor has the keyboard
 /// (`format_menu`).
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn offers_to_format_menu(key: KeyDown) -> bool {
     (key.command || key.control) && key.in_main_window && key.main_window_is_key && !key.marked_text
 }
@@ -214,7 +205,7 @@ const SYMBOL_WEIGHTS: [&str; 9] = [
 
 /// A symbol is drawn at this many times the point size asked for, one pixel to a point
 /// (`PIXELS_PER_POINT` in `icons/symbols.ts`).
-#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 const SYMBOL_PIXELS_PER_POINT: f64 = 2.0;
 
 /// In pixels; at the largest point size the widest symbol of Devot's catalogs is 576.
@@ -222,7 +213,10 @@ const MAX_SYMBOL_CANVAS: f64 = 1024.0;
 
 /// UIKit's `UIImageSymbolWeight` for a weight of `SYMBOL_WEIGHTS`: 1 (ultralight) to 9 (black), in
 /// that order; regular (4) for any other.
-#[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "ios")),
+    expect(dead_code, reason = "only iOS and tests use it")
+)]
 fn symbol_weight_rank(weight: &str) -> isize {
     SYMBOL_WEIGHTS
         .iter()
@@ -232,7 +226,10 @@ fn symbol_weight_rank(weight: &str) -> isize {
 
 /// The bitmap, in whole pixels, that a symbol image of `width` by `height` points fills at one
 /// pixel to a point; none for a size no symbol has.
-#[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "ios")),
+    expect(dead_code, reason = "only iOS and tests use it")
+)]
 fn symbol_canvas(width: f64, height: f64) -> Option<(f64, f64)> {
     // UIKit's whole sizes can carry float noise (34.00000000000001).
     let side = |points: f64| {
@@ -262,20 +259,24 @@ fn validate_symbol_request(name: &str, point_size: f64, weight: &str) -> Result<
 
 /// AppKit lets an image be used on any thread, but by one thread at a time, and the symbol images
 /// it hands out may be shared.
-#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(any(target_os = "macos", target_os = "ios"))),
+    expect(dead_code, reason = "only macOS, iOS and tests use it")
+)]
 static SYMBOL_RENDER: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Tauri runs a synchronous command on the main thread, which at launch also routes the page's
 /// first IPC: rendering the first paint's 22 icons there held it for about 115 ms (80 of them on
 /// the first, when AppKit loads the symbols). None when the render panicked.
-#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(any(target_os = "macos", target_os = "ios"))),
+    expect(dead_code, reason = "only macOS, iOS and tests use it")
+)]
 async fn render_one_at_a_time<T: Send + 'static>(
     render: impl FnOnce() -> T + Send + 'static,
 ) -> Option<T> {
     tauri::async_runtime::spawn_blocking(move || {
-        let _turn = SYMBOL_RENDER
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _turn = crate::locks::lock(&SYMBOL_RENDER);
         render()
     })
     .await
@@ -308,7 +309,10 @@ pub async fn symbol_png(
 }
 
 /// UIKit's `UIUserInterfaceStyle` for an appearance: unspecified (the system's), light or dark.
-#[cfg_attr(not(target_os = "ios"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "ios")),
+    expect(dead_code, reason = "only iOS and tests use it")
+)]
 fn interface_style(theme: Option<tauri::Theme>) -> isize {
     match theme {
         Some(tauri::Theme::Light) => 1,
@@ -416,7 +420,7 @@ pub async fn clipboard_write_text(app: tauri::AppHandle, text: String) -> Result
 }
 
 /// How long a secret stays on the clipboard when nothing replaces it.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg(target_os = "macos")]
 const SECRET_CLIPBOARD_SECS: u64 = 90;
 
 /// Puts a secret (the sync recovery key) on this Mac's clipboard only, marked so clipboard managers
@@ -453,10 +457,16 @@ pub async fn clipboard_write_secret(app: tauri::AppHandle, text: String) -> Resu
     }
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 const MAX_CLIPBOARD_READ_BYTES: usize = crate::commands::notes::MAX_BODY_BYTES;
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 fn clipboard_read_result(text: Option<String>) -> Result<String, &'static str> {
     let text = text.unwrap_or_default();
     if text.len() > MAX_CLIPBOARD_READ_BYTES {
@@ -493,7 +503,6 @@ const MAX_LOOK_UP_CHARS: usize = 1_000;
 const MAX_SPEECH_CHARS: usize = 100_000;
 
 /// Whether the point lies inside the view is checked against the view itself.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn validate_look_up(text: &str, x: f64, y: f64) -> Result<(), &'static str> {
     if text.trim().is_empty() {
         return Err("E_LOOK_UP_TEXT_EMPTY");
@@ -529,7 +538,10 @@ pub struct LookUpFont {
     pub italic: bool,
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LookUpFamily {
     System,
@@ -540,7 +552,6 @@ enum LookUpFamily {
 
 /// Where a Look Up font comes from, in the order to try: an imported font
 /// is its file's bytes, read (and checked) before AppKit is asked.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FontSource {
     System,
@@ -549,7 +560,6 @@ pub enum FontSource {
     File(Vec<u8>),
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct LookUpStyle {
     pub sources: Vec<FontSource>,
@@ -563,7 +573,10 @@ pub struct LookUpStyle {
 
 /// A name is checked like the other font names (no quotes or backslashes, a length limit) and
 /// skipped when it fails; so is the whole list when it is too long.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 fn look_up_families(list: &str) -> Vec<LookUpFamily> {
     if list.chars().count() > MAX_LOOK_UP_FONT_LIST {
         return Vec::new();
@@ -601,7 +614,10 @@ fn look_up_family(name: &str) -> Option<LookUpFamily> {
     crate::fonts::valid_family_name(name).then(|| LookUpFamily::Installed(name.to_string()))
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 fn css_weight_name(weight: f64) -> &'static str {
     if !weight.is_finite() {
         return "regular";
@@ -610,7 +626,10 @@ fn css_weight_name(weight: f64) -> &'static str {
     SYMBOL_WEIGHTS[index]
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 fn manager_weight(weight: f64) -> isize {
     const SCALE: [isize; 9] = [2, 3, 4, 5, 6, 8, 9, 10, 11];
     let index = SYMBOL_WEIGHTS
@@ -622,7 +641,10 @@ fn manager_weight(weight: f64) -> isize {
 
 /// Of the faces' traits (CoreText's weight, -1 to 1, and italic), the one closest to the wanted
 /// ones, a matching italic before a closer weight; the first face when none can be read.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 fn closest_face(faces: &[Option<(f64, bool)>], weight: f64, italic: bool) -> usize {
     let distance = |(face_weight, face_italic): (f64, bool)| {
         let off = (face_weight - weight).abs();
@@ -639,7 +661,10 @@ fn closest_face(faces: &[Option<(f64, bool)>], weight: f64, italic: bool) -> usi
         .map_or(0, |(index, _)| index)
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 fn look_up_style(font: Option<&LookUpFont>, read: impl Fn(&str) -> Option<Vec<u8>>) -> LookUpStyle {
     let fallback = LookUpStyle {
         sources: Vec::new(),
@@ -669,14 +694,16 @@ fn look_up_style(font: Option<&LookUpFont>, read: impl Fn(&str) -> Option<Vec<u8
     }
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    target_os = "ios",
+    expect(dead_code, reason = "iOS reads no speech request")
+)]
 #[derive(Debug, PartialEq, Eq)]
 enum SpeechRequest {
     Start(Option<String>),
     Stop,
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn validate_speech(action: &str, text: Option<String>) -> Result<SpeechRequest, &'static str> {
     match action {
         "stop" => Ok(SpeechRequest::Stop),
@@ -821,7 +848,6 @@ fn valid_menu_id(id: &str) -> bool {
         })
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn validate_editor_menu(
     items: &[EditorMenuEntry],
     x: f64,
@@ -878,7 +904,6 @@ fn validate_editor_menu(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub struct KeyEquivalent {
     pub key: String,
     pub command: bool,
@@ -887,7 +912,10 @@ pub struct KeyEquivalent {
     pub control: bool,
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 fn key_equivalent(accelerator: &str) -> Option<KeyEquivalent> {
     let mut parts: Vec<&str> = accelerator.split('+').collect();
     // `CmdOrCtrl++` names the plus key.

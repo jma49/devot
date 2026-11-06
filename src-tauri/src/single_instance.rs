@@ -16,7 +16,7 @@ use std::net::Shutdown;
 use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tauri::plugin::{Builder, TauriPlugin};
@@ -411,13 +411,7 @@ pub(crate) fn init() -> TauriPlugin<Wry> {
                 && let Some(listening) = app.try_state::<Listening>()
             {
                 remove_bound(&listening.socket, listening.bound);
-                drop(
-                    listening
-                        .lock
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .take(),
-                );
+                drop(crate::locks::lock(&listening.lock).take());
             }
         })
         .build()

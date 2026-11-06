@@ -1,13 +1,14 @@
 //! Kept on this device only (`<app data>/http-api.json`): never synced, never in backups. The token
 //! is in the keychain (`token`); the file says what it may do.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::token::Scope;
+use crate::settings_file::{Codes, SettingsFile};
 
 pub const FILE: &str = "http-api.json";
 pub const DEFAULT_PORT: u16 = 27_484;
@@ -64,50 +65,48 @@ impl HttpApiSettings {
     }
 }
 
+const CODES: Codes = Codes {
+    unreadable: "W_HTTP_API_SETTINGS_UNREADABLE",
+    copy_failed: "W_HTTP_API_SETTINGS_COPY_FAILED",
+    read_failed: "W_HTTP_API_SETTINGS_READ_FAILED",
+    write_failed: "E_HTTP_API_SETTINGS_WRITE_FAILED",
+};
+
 pub struct SettingsStore {
-    path: PathBuf,
+    file: SettingsFile,
     write: Mutex<()>,
 }
 
 impl SettingsStore {
     pub fn new(path: &Path) -> Self {
         Self {
-            path: path.to_owned(),
+            file: SettingsFile::new(path, &CODES),
             write: Mutex::new(()),
         }
     }
 
-    pub fn get(&self) -> HttpApiSettings {
-        match std::fs::read(&self.path) {
-            Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(value) => HttpApiSettings::lenient(&value),
-                Err(_) => {
-                    log::warn!("W_HTTP_API_SETTINGS_UNREADABLE");
-                    if crate::atomic_file::keep_damaged(&self.path, &bytes).is_err() {
-                        log::warn!("W_HTTP_API_SETTINGS_COPY_FAILED");
-                    }
-                    HttpApiSettings::default()
-                }
-            },
-            Err(e) => {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    log::warn!("W_HTTP_API_SETTINGS_READ_FAILED");
-                }
-                HttpApiSettings::default()
-            }
-        }
+    fn read(&self) -> Option<HttpApiSettings> {
+        self.file
+            .read_as(|map| Some(HttpApiSettings::lenient(&Value::Object(map))))
     }
 
+    /// The defaults (off) while the file cannot be read.
+    pub fn get(&self) -> HttpApiSettings {
+        self.read().unwrap_or_default()
+    }
+
+    /// Refused while the file cannot be read, so a change made from the defaults shown meanwhile
+    /// never replaces what it holds.
     pub fn set(&self, settings: HttpApiSettings) -> Result<HttpApiSettings, &'static str> {
         check_port(settings.port)?;
         let _writing = self
             .write
             .lock()
             .map_err(|_| "E_HTTP_API_SETTINGS_WRITE_FAILED")?;
-        let json =
-            serde_json::to_vec_pretty(&settings).map_err(|_| "E_HTTP_API_SETTINGS_WRITE_FAILED")?;
-        crate::atomic_file::write_replacing(&self.path, &json)
-            .map_err(|_| "E_HTTP_API_SETTINGS_WRITE_FAILED")?;
+        if self.read().is_none() {
+            return Err("E_HTTP_API_SETTINGS_READ_FAILED");
+        }
+        self.file.write(&settings)?;
         Ok(settings)
     }
 }
@@ -178,5 +177,29 @@ mod tests {
         );
         std::fs::write(dir.path().join(FILE), b"{ nope").unwrap();
         assert_eq!(store.get(), HttpApiSettings::default());
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_reads_as_off_and_is_never_written_over() {
+        let (dir, store) = store();
+        std::fs::create_dir(dir.path().join(FILE)).unwrap();
+        assert_eq!(store.get(), HttpApiSettings::default());
+        let on = HttpApiSettings {
+            enabled: true,
+            ..HttpApiSettings::default()
+        };
+        assert_eq!(store.set(on), Err("E_HTTP_API_SETTINGS_READ_FAILED"));
+        assert!(dir.path().join(FILE).is_dir());
+    }
+
+    #[test]
+    fn a_file_that_is_not_an_object_reads_as_off() {
+        let (dir, store) = store();
+        std::fs::write(dir.path().join(FILE), b"true").unwrap();
+        assert_eq!(store.get(), HttpApiSettings::default());
+        assert_eq!(
+            store.set(HttpApiSettings::default()),
+            Ok(HttpApiSettings::default())
+        );
     }
 }

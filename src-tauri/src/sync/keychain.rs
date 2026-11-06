@@ -41,20 +41,16 @@ impl Keychain {
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod apple {
-    use security_framework::passwords::{
-        PasswordOptions, delete_generic_password_options, generic_password,
-        set_generic_password_options,
-    };
     use zeroize::Zeroizing;
 
     use super::{Keychain, SecretStore, SyncError};
+    use crate::keychain::{DUPLICATE_ITEM as DUPLICATE, Item};
 
-    // errSecItemNotFound, errSecDuplicateItem
-    const NOT_FOUND: i32 = -25300;
-    const DUPLICATE: i32 = -25299;
-
-    fn options(keychain: &Keychain, account: &str) -> PasswordOptions {
-        PasswordOptions::new_generic_password(&keychain.service, account)
+    fn item<'a>(keychain: &'a Keychain, account: &'a str) -> Item<'a> {
+        Item {
+            service: &keychain.service,
+            account,
+        }
     }
 
     // The password API's setter updates an existing item, so the add calls `SecItemAdd` itself. An
@@ -80,11 +76,10 @@ mod apple {
 
     impl SecretStore for Keychain {
         fn read(&self, account: &str) -> Result<Option<Zeroizing<Vec<u8>>>, SyncError> {
-            match generic_password(options(self, account)) {
-                Ok(secret) => Ok(Some(Zeroizing::new(secret))),
-                Err(error) if error.code() == NOT_FOUND => Ok(None),
-                Err(error) => Err(SyncError::Keychain(error.code())),
-            }
+            item(self, account)
+                .get()
+                .map(|secret| secret.map(Zeroizing::new))
+                .map_err(SyncError::Keychain)
         }
 
         fn add(&self, account: &str, secret: &[u8]) -> Result<bool, SyncError> {
@@ -98,18 +93,13 @@ mod apple {
         fn replace(&self, account: &str, secret: &[u8]) -> Result<(), SyncError> {
             match add_item(self, account, secret) {
                 Ok(()) => Ok(()),
-                Err(DUPLICATE) => set_generic_password_options(secret, options(self, account))
-                    .map_err(|error| SyncError::Keychain(error.code())),
+                Err(DUPLICATE) => item(self, account).set(secret).map_err(SyncError::Keychain),
                 Err(status) => Err(SyncError::Keychain(status)),
             }
         }
 
         fn remove(&self, account: &str) -> Result<bool, SyncError> {
-            match delete_generic_password_options(options(self, account)) {
-                Ok(()) => Ok(true),
-                Err(error) if error.code() == NOT_FOUND => Ok(false),
-                Err(error) => Err(SyncError::Keychain(error.code())),
-            }
+            item(self, account).delete().map_err(SyncError::Keychain)
         }
     }
 }

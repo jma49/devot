@@ -815,9 +815,7 @@ impl Connection {
     }
 
     fn forget(&self, rid: u64) {
-        if let Ok(mut waiters) = self.waiters.lock() {
-            waiters.remove(&rid);
-        }
+        crate::locks::lock(&self.waiters).remove(&rid);
     }
 
     /// Sends a message and waits for its answer; waits out the relay's rate limit as it asks. An
@@ -857,7 +855,7 @@ impl Connection {
 
     pub(crate) fn close(&self) {
         let _ = self.outgoing.send(Outgoing::Close);
-        let thread = self.thread.lock().ok().and_then(|mut t| t.take());
+        let thread = crate::locks::lock(&self.thread).take();
         if let Some(thread) = thread {
             let grace = Instant::now() + CLOSE_GRACE;
             while !thread.is_finished() && Instant::now() < grace {
@@ -945,7 +943,7 @@ fn run(
 fn dispatch(answer: Answer, waiters: &Waiters, on_event: &dyn Fn(Event)) {
     let rid = answer.message.get("rid").and_then(Value::as_u64);
     if let Some(rid) = rid {
-        let waiter = waiters.lock().ok().and_then(|mut w| w.remove(&rid));
+        let waiter = crate::locks::lock(waiters).remove(&rid);
         if let Some(waiter) = waiter {
             let _ = waiter.send(Ok(answer));
         }
@@ -959,10 +957,8 @@ fn dispatch(answer: Answer, waiters: &Waiters, on_event: &dyn Fn(Event)) {
 }
 
 fn fail_all(waiters: &Waiters, code: &'static str) {
-    if let Ok(mut waiters) = waiters.lock() {
-        for (_, waiter) in waiters.drain() {
-            let _ = waiter.send(Err(code));
-        }
+    for (_, waiter) in crate::locks::lock(waiters).drain() {
+        let _ = waiter.send(Err(code));
     }
 }
 

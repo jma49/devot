@@ -61,11 +61,17 @@ pub enum MenuPlace {
 }
 
 pub struct CommandItem {
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    #[cfg_attr(
+        all(not(test), not(target_os = "macos")),
+        expect(dead_code, reason = "only macOS and tests use it")
+    )]
     pub place: MenuPlace,
     pub command: &'static str,
     /// Read on macOS to clear the item's key.
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    #[cfg_attr(
+        all(not(test), not(target_os = "macos")),
+        expect(dead_code, reason = "only macOS and tests use it")
+    )]
     pub titles: &'static [&'static str],
 }
 

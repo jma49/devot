@@ -277,7 +277,7 @@ async fn own_notes(db: &Db) -> Result<u64, String> {
 
 /// Looks for the Apple ID's vault at launch and when the account changes; the outcome reaches the
 /// windows in the snapshot.
-#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) async fn look_for_icloud_vault(app: tauri::AppHandle) {
     use tauri::Manager as _;
     let (Some(sync), Some(db)) = (app.try_state::<Arc<SyncService>>(), app.try_state::<Db>())

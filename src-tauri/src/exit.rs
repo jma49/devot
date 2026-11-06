@@ -14,8 +14,8 @@
 
 use crate::MAIN_WINDOW;
 use std::collections::HashSet;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Condvar, Mutex, PoisonError};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Env, Manager, RunEvent, Window, WindowEvent};
 
@@ -34,6 +34,9 @@ pub struct ExitGate {
     rounds: AtomicU64,
     /// The windows the held quit waits for.
     waiting: Mutex<HashSet<String>>,
+    /// Set once the app exits, so background loops end instead of sleeping through it.
+    stopped: Mutex<bool>,
+    stop: Condvar,
 }
 
 impl ExitGate {
@@ -43,7 +46,7 @@ impl ExitGate {
             return None;
         }
         let round = self.rounds.fetch_add(1, Ordering::SeqCst) + 1;
-        let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
+        let mut waiting = crate::locks::lock(&self.waiting);
         let begun = self
             .held
             .compare_exchange(0, round, Ordering::SeqCst, Ordering::SeqCst)
@@ -57,7 +60,7 @@ impl ExitGate {
 
     /// `label` has saved (or is gone): whether the held quit waits for no window now.
     fn saved(&self, label: &str) -> bool {
-        let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
+        let mut waiting = crate::locks::lock(&self.waiting);
         waiting.remove(label);
         self.asked() && waiting.is_empty()
     }
@@ -71,13 +74,39 @@ impl ExitGate {
     }
 
     fn call_off(&self) {
-        let mut waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
+        let mut waiting = crate::locks::lock(&self.waiting);
         waiting.clear();
         self.held.store(0, Ordering::SeqCst);
     }
 
     fn timed_out(&self, round: u64) -> bool {
         !self.ready.load(Ordering::SeqCst) && self.held.load(Ordering::SeqCst) == round
+    }
+
+    /// False once the app is exiting, at once if it already is.
+    fn wait(&self, timeout: Duration) -> bool {
+        let stopped = crate::locks::lock(&self.stopped);
+        let (stopped, _) = self
+            .stop
+            .wait_timeout_while(stopped, timeout, |stopped| !*stopped)
+            .unwrap_or_else(PoisonError::into_inner);
+        !*stopped
+    }
+
+    fn stop(&self) {
+        *crate::locks::lock(&self.stopped) = true;
+        self.stop.notify_all();
+    }
+}
+
+/// A background loop's pause between rounds: false when the app is exiting, so the loop ends.
+pub fn wait_unless_exiting(app: &AppHandle, timeout: Duration) -> bool {
+    match app.try_state::<ExitGate>() {
+        Some(gate) => gate.wait(timeout),
+        None => {
+            std::thread::sleep(timeout);
+            true
+        }
     }
 }
 
@@ -257,6 +286,7 @@ pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
 /// by now, so the single-instance socket is gone and a restarted process cannot hand its launch
 /// back to this one.
 fn on_exit(app: &AppHandle) {
+    app.state::<ExitGate>().stop();
     #[cfg(desktop)]
     if let Some(api) = app.try_state::<std::sync::Arc<crate::http_api::HttpApi>>() {
         api.stop_bridge();
@@ -310,6 +340,20 @@ mod tests {
 
     fn savers(labels: &[&str]) -> HashSet<String> {
         labels.iter().map(|l| (*l).to_owned()).collect()
+    }
+
+    #[test]
+    fn a_background_wait_ends_when_the_app_exits() {
+        let gate = Arc::new(ExitGate::default());
+        assert!(gate.wait(Duration::from_millis(1)));
+        let waiter = {
+            let gate = Arc::clone(&gate);
+            std::thread::spawn(move || gate.wait(Duration::from_secs(600)))
+        };
+        std::thread::sleep(Duration::from_millis(20));
+        gate.stop();
+        assert!(!waiter.join().unwrap());
+        assert!(!gate.wait(Duration::from_secs(600)));
     }
 
     #[test]

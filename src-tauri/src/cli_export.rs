@@ -6,7 +6,7 @@
 use std::ffi::OsString;
 use std::io::Read;
 use std::path::PathBuf;
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::Serialize;
@@ -14,6 +14,7 @@ use tauri::{AppHandle, State, WebviewUrl, WebviewWindowBuilder};
 
 use crate::atomic_file::{self, Folder, Place};
 use crate::cli::{self, Export, Format, Input, fill};
+use crate::locks::lock;
 use crate::{export, import, strings};
 
 pub const LABEL: &str = "cli-export";
@@ -37,10 +38,6 @@ static ENDING: Mutex<Ending> = Mutex::new(Ending {
     pdf_folder: None,
     temp: None,
 });
-
-fn lock(ending: &Mutex<Ending>) -> MutexGuard<'_, Ending> {
-    ending.lock().unwrap_or_else(PoisonError::into_inner)
-}
 
 /// Writes the target through a temporary file beside it, which an early exit removes, and puts it
 /// in place unless the export was abandoned meanwhile: once there, the export has succeeded.
@@ -314,7 +311,7 @@ async fn cli_export_finish(
     job: State<'_, Job>,
     html: String,
 ) -> Result<(), String> {
-    let target = job.target.lock().ok().and_then(|mut target| target.take());
+    let target = lock(&job.target).take();
     let Some((folder, name)) = target else {
         return Err("E_CLI_EXPORT_DONE".into());
     };
@@ -335,7 +332,7 @@ async fn cli_export_finish(
 
 #[tauri::command]
 fn cli_export_fail(app: AppHandle, job: State<'_, Job>, code: String) {
-    let target = job.target.lock().ok().and_then(|mut target| target.take());
+    let target = lock(&job.target).take();
     if target.is_none() {
         return;
     }

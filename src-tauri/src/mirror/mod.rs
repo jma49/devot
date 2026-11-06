@@ -16,6 +16,7 @@
 mod folder;
 
 use crate::commands::notes::valid_note_id;
+use crate::settings_file::{Codes, SettingsFile};
 use crate::storage::Db;
 #[cfg(desktop)]
 use crate::strings;
@@ -50,6 +51,12 @@ pub const KEPT_NAMED: usize = 20;
 
 const INVALID: &str = "E_MIRROR_SETTINGS_INVALID";
 const READ_FAILED: &str = "E_MIRROR_SETTINGS_READ_FAILED";
+const CODES: Codes = Codes {
+    unreadable: "W_MIRROR_SETTINGS_UNREADABLE",
+    copy_failed: "W_MIRROR_SETTINGS_COPY_FAILED",
+    read_failed: "W_MIRROR_SETTINGS_READ_FAILED",
+    write_failed: "E_MIRROR_SETTINGS_WRITE_FAILED",
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -168,7 +175,7 @@ struct Inner {
 pub type Notify<'a> = &'a dyn Fn(&Status);
 
 pub struct Mirror {
-    settings: PathBuf,
+    settings: SettingsFile,
     home: Option<PathBuf>,
     inner: Mutex<Inner>,
     /// A batch, a resume or a confirmation writing the folder: one at a time. `inner` is never
@@ -181,11 +188,7 @@ struct Turn<'a>(&'a Mirror);
 
 impl Drop for Turn<'_> {
     fn drop(&mut self) {
-        *self
-            .0
-            .writing
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = false;
+        *crate::locks::lock(&self.0.writing) = false;
         self.0.idle.notify_one();
     }
 }
@@ -210,7 +213,7 @@ fn unopened(error: &std::io::Error) -> &'static str {
 impl Mirror {
     pub fn new(settings: &Path, home: Option<PathBuf>) -> Self {
         Self {
-            settings: settings.to_owned(),
+            settings: SettingsFile::new(settings, &CODES),
             home,
             inner: Mutex::new(Inner::default()),
             writing: Mutex::new(false),
@@ -219,29 +222,13 @@ impl Mirror {
     }
 
     fn read_settings(&self) -> Option<Stored> {
-        match std::fs::read(&self.settings) {
-            Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(value @ Value::Object(_)) => Some(Stored::from_value(&value)),
-                _ => {
-                    log::warn!("W_MIRROR_SETTINGS_UNREADABLE");
-                    let kept = crate::atomic_file::keep_damaged(&self.settings, &bytes).is_ok();
-                    if !kept {
-                        log::warn!("W_MIRROR_SETTINGS_COPY_FAILED");
-                    }
-                    kept.then(Stored::default)
-                }
-            },
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(Stored::default()),
-            Err(_) => {
-                log::warn!("W_MIRROR_SETTINGS_READ_FAILED");
-                None
-            }
-        }
+        self.settings
+            .read_as(|map| Some(Stored::from_value(&Value::Object(map))))
     }
 
     fn write_turn(&self) -> Turn<'_> {
         // Nothing can panic while the flag is held, so a poisoned lock still holds a sound value.
-        let mut writing = self.writing.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut writing = crate::locks::lock(&self.writing);
         while *writing {
             writing = self
                 .idle
@@ -314,10 +301,7 @@ impl Mirror {
             include_attachments,
             library: inner.library.clone(),
         };
-        let json =
-            serde_json::to_vec_pretty(&stored).map_err(|_| "E_MIRROR_SETTINGS_WRITE_FAILED")?;
-        crate::atomic_file::write_replacing(&self.settings, &json)
-            .map_err(|_| "E_MIRROR_SETTINGS_WRITE_FAILED")
+        self.settings.write(&stored)
     }
 
     fn library(&self, inner: &mut Inner) -> Result<String, &'static str> {

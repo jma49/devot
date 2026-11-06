@@ -10,11 +10,12 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, State};
 
 use crate::page_setup::{Margins, PageSetup, Paper, valid_slot};
+use crate::settings_file::{Codes, SettingsFile};
 
 pub const FILE: &str = "editor-settings.json";
 pub const CHANGED_EVENT: &str = "devot://editor-settings-changed";
@@ -552,8 +553,15 @@ struct Held {
     stored: Option<Map<String, Value>>,
 }
 
+const CODES: Codes = Codes {
+    unreadable: "W_EDITOR_SETTINGS_UNREADABLE",
+    copy_failed: "W_EDITOR_SETTINGS_COPY_FAILED",
+    read_failed: "W_EDITOR_SETTINGS_READ_FAILED",
+    write_failed: "E_EDITOR_SETTINGS_WRITE_FAILED",
+};
+
 pub struct EditorSettingsStore {
-    path: PathBuf,
+    file: SettingsFile,
     current: Mutex<Option<Held>>,
     /// The page setup's paper until the user picks one (asked when the
     /// file is read).
@@ -563,7 +571,7 @@ pub struct EditorSettingsStore {
 impl EditorSettingsStore {
     pub fn new(path: &Path) -> Self {
         Self {
-            path: path.to_owned(),
+            file: SettingsFile::new(path, &CODES),
             current: Mutex::new(None),
             default_paper: || Paper::A4,
         }
@@ -578,24 +586,7 @@ impl EditorSettingsStore {
     }
 
     fn read(&self) -> Held {
-        let stored = match std::fs::read(&self.path) {
-            Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(Value::Object(map)) => Some(map),
-                _ => {
-                    log::warn!("W_EDITOR_SETTINGS_UNREADABLE");
-                    let kept = crate::atomic_file::keep_damaged(&self.path, &bytes).is_ok();
-                    if !kept {
-                        log::warn!("W_EDITOR_SETTINGS_COPY_FAILED");
-                    }
-                    kept.then(Map::new)
-                }
-            },
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(Map::new()),
-            Err(_) => {
-                log::warn!("W_EDITOR_SETTINGS_READ_FAILED");
-                None
-            }
-        };
+        let stored = self.file.read();
         let mut settings = EditorSettings {
             page_paper: (self.default_paper)(),
             ..EditorSettings::default()
@@ -681,10 +672,7 @@ impl EditorSettingsStore {
             revision: now.snapshot.revision + 1,
             settings,
         };
-        let json =
-            serde_json::to_vec_pretty(&stored).map_err(|_| "E_EDITOR_SETTINGS_WRITE_FAILED")?;
-        crate::atomic_file::write_replacing(&self.path, &json)
-            .map_err(|_| "E_EDITOR_SETTINGS_WRITE_FAILED")?;
+        self.file.write(&stored)?;
         *now = Held {
             snapshot: next.clone(),
             stored: Some(stored),
@@ -698,11 +686,8 @@ pub async fn editor_settings_get(
     app: AppHandle,
     store: State<'_, Arc<EditorSettingsStore>>,
 ) -> Result<Snapshot, String> {
-    let store = Arc::clone(&store);
-    let snapshot = tauri::async_runtime::spawn_blocking(move || store.get())
-        .await
-        .map_err(|_| "E_EDITOR_SETTINGS_TASK".to_string())?
-        .map_err(String::from)?;
+    let snapshot =
+        crate::task::blocking_with(&store, "E_EDITOR_SETTINGS_TASK", |store| store.get()).await?;
     // An iOS window is built without a theme and its scene connects after setup: the page's first
     // read is when its window surely exists.
     #[cfg(target_os = "ios")]
@@ -762,11 +747,10 @@ pub async fn editor_settings_set(
         #[cfg(desktop)]
         crate::menu::sync_scroll_set_by_page(&app);
     }
-    let store = Arc::clone(&store);
-    let next = tauri::async_runtime::spawn_blocking(move || store.update(&patch))
-        .await
-        .map_err(|_| "E_EDITOR_SETTINGS_TASK".to_string())?
-        .map_err(String::from)?;
+    let next = crate::task::blocking_with(&store, "E_EDITOR_SETTINGS_TASK", move |store| {
+        store.update(&patch)
+    })
+    .await?;
     announce(&app, &next);
     Ok(next)
 }

@@ -43,60 +43,46 @@ impl Keychain {
             service: service.to_string(),
         }
     }
+
+    fn item<'a>(&'a self, account: &'a str) -> crate::keychain::Item<'a> {
+        crate::keychain::Item {
+            service: &self.service,
+            account,
+        }
+    }
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 impl KeyStore for Keychain {
     fn has(&self, provider: ProviderId) -> Result<bool, &'static str> {
-        use security_framework::item::{ItemClass, ItemSearchOptions, Limit};
-        match ItemSearchOptions::new()
-            .class(ItemClass::generic_password())
-            .service(&self.service)
-            .account(&account(provider))
-            .load_attributes(true)
-            .limit(Limit::Max(1))
-            .search()
-        {
-            Ok(found) => Ok(!found.is_empty()),
-            Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(false),
-            Err(_) => Err("E_AI_KEYCHAIN_FAILED"),
-        }
+        self.item(&account(provider))
+            .has()
+            .map_err(|_| "E_AI_KEYCHAIN_FAILED")
     }
 
     fn get(&self, provider: ProviderId) -> Result<Option<String>, &'static str> {
-        use security_framework::passwords::get_generic_password;
-        match get_generic_password(&self.service, &account(provider)) {
-            Ok(bytes) => String::from_utf8(bytes)
+        match self.item(&account(provider)).get() {
+            Ok(Some(bytes)) => String::from_utf8(bytes)
                 .map(Some)
                 .map_err(|_| "E_AI_KEYCHAIN_FAILED"),
-            Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(None),
+            Ok(None) => Ok(None),
             Err(_) => Err("E_AI_KEYCHAIN_FAILED"),
         }
     }
 
     fn set(&self, provider: ProviderId, key: &str) -> Result<(), &'static str> {
-        security_framework::passwords::set_generic_password(
-            &self.service,
-            &account(provider),
-            key.as_bytes(),
-        )
-        .map_err(|_| "E_AI_KEYCHAIN_FAILED")
+        self.item(&account(provider))
+            .set(key.as_bytes())
+            .map_err(|_| "E_AI_KEYCHAIN_FAILED")
     }
 
     fn clear(&self, provider: ProviderId) -> Result<(), &'static str> {
-        match security_framework::passwords::delete_generic_password(
-            &self.service,
-            &account(provider),
-        ) {
-            Ok(()) => Ok(()),
-            Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(()),
-            Err(_) => Err("E_AI_KEYCHAIN_FAILED"),
-        }
+        self.item(&account(provider))
+            .delete()
+            .map(|_| ())
+            .map_err(|_| "E_AI_KEYCHAIN_FAILED")
     }
 }
-
-#[cfg(any(target_os = "macos", target_os = "ios"))]
-const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
 
 /// Where there is no keychain: every use fails, so a key is never kept anywhere else.
 #[cfg(not(any(target_os = "macos", target_os = "ios")))]
@@ -195,26 +181,5 @@ mod tests {
         keys.clear(ProviderId::Anthropic).unwrap();
         assert_eq!(keys.get(ProviderId::Anthropic), Ok(None));
         assert_eq!(keys.get(ProviderId::Openai), Ok(Some("c".into())));
-    }
-
-    /// Touches the real login keychain, so it runs only when asked: `cargo test -- --ignored keychain`.
-    #[cfg(target_os = "macos")]
-    #[test]
-    #[ignore = "uses the login keychain"]
-    fn keychain_round_trip() {
-        let keychain = Keychain::new("io.github.jma49.devot.test-keychain");
-        let _ = keychain.clear(ProviderId::Openai);
-        assert_eq!(keychain.get(ProviderId::Openai), Ok(None));
-        assert_eq!(keychain.has(ProviderId::Openai), Ok(false));
-        keychain.set(ProviderId::Openai, "sk-test").unwrap();
-        assert_eq!(keychain.has(ProviderId::Openai), Ok(true));
-        keychain.set(ProviderId::Openai, "sk-test-2").unwrap();
-        assert_eq!(
-            keychain.get(ProviderId::Openai),
-            Ok(Some("sk-test-2".into()))
-        );
-        keychain.clear(ProviderId::Openai).unwrap();
-        assert_eq!(keychain.get(ProviderId::Openai), Ok(None));
-        assert_eq!(keychain.has(ProviderId::Openai), Ok(false));
     }
 }

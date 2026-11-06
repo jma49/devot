@@ -7,7 +7,7 @@
 //! A transaction's JWS never reaches a log, an error or a debug print: logs carry codes only.
 #![cfg_attr(
     not(any(test, target_os = "ios")),
-    allow(
+    expect(
         dead_code,
         reason = "off iOS the store is the fake, which only tests script"
     )

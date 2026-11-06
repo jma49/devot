@@ -438,7 +438,7 @@ struct Preparing {
 
 impl Preparing {
     fn waiting(&self) -> std::sync::MutexGuard<'_, Option<HashSet<String>>> {
-        self.waiting.lock().unwrap_or_else(|e| e.into_inner())
+        crate::locks::lock(&self.waiting)
     }
 
     fn begin(&self, asked: HashSet<String>) -> Result<(), &'static str> {
@@ -613,9 +613,7 @@ impl Backups {
 
     fn record(&self, app: &AppHandle, result: &Result<BackupInfo, &'static str>) {
         let error = result.as_ref().err().copied();
-        if let Ok(mut last) = self.last_error.lock() {
-            *last = error;
-        }
+        *crate::locks::lock(&self.last_error) = error;
         if let Some(code) = error {
             log::warn!("W_BACKUP_FAILED {code}");
             if crate::main_windows::emit_all(app, FAILED_EVENT, code).is_err() {
@@ -630,10 +628,14 @@ pub fn start(app: &AppHandle) {
     let spawned = std::thread::Builder::new()
         .name("devot-backups".into())
         .spawn(move || {
-            std::thread::sleep(FIRST_CHECK);
             let mut last: Option<Duration> = None;
-            loop {
-                let backups = app.state::<Backups>();
+            let mut pause = FIRST_CHECK;
+            while crate::exit::wait_unless_exiting(&app, pause) {
+                pause = CHECK_EVERY;
+                let Some(backups) = app.try_state::<Backups>() else {
+                    log::warn!("W_BACKUP_STATE_MISSING");
+                    return;
+                };
                 let since_last = last.and_then(|t| monotonic().checked_sub(t));
                 if let Some(result) = backups.check(logs::now_ms(), since_last) {
                     if result.is_ok() {
@@ -642,7 +644,6 @@ pub fn start(app: &AppHandle) {
                     }
                     backups.record(&app, &result);
                 }
-                std::thread::sleep(CHECK_EVERY);
             }
         });
     if spawned.is_err() {
@@ -665,7 +666,7 @@ pub async fn backups_list(backups: State<'_, Backups>) -> Result<BackupStatus, S
         .map_err(|_| "E_BACKUP_TASK")?;
     Ok(BackupStatus {
         backups: list,
-        last_error: backups.last_error.lock().ok().and_then(|e| *e),
+        last_error: *crate::locks::lock(&backups.last_error),
     })
 }
 

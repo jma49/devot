@@ -168,7 +168,10 @@ pub fn valid_family_name(name: &str) -> bool {
         && name.chars().all(allowed)
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 fn family_list(names: impl IntoIterator<Item = String>) -> Vec<String> {
     let mut out: Vec<String> = names.into_iter().filter(|n| valid_family_name(n)).collect();
     out.sort_by_cached_key(|n| n.to_lowercase());

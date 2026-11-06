@@ -227,7 +227,7 @@ impl Plugins {
 
     pub fn stage(&self, package: Package) -> Staged {
         let token = {
-            let mut next = self.next.lock().unwrap_or_else(|e| e.into_inner());
+            let mut next = crate::locks::lock(&self.next);
             let token = *next;
             *next += 1;
             token
@@ -242,7 +242,7 @@ impl Plugins {
                 granted: old.granted,
             });
         let manifest = package.manifest.clone();
-        let mut staged = self.staged.lock().unwrap_or_else(|e| e.into_inner());
+        let mut staged = crate::locks::lock(&self.staged);
         staged.push((token, package));
         while staged.len() > STAGED_MAX {
             staged.remove(0);
@@ -255,24 +255,21 @@ impl Plugins {
     }
 
     pub fn cancel(&self, token: u64) {
-        self.staged
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .retain(|(t, _)| *t != token);
+        crate::locks::lock(&self.staged).retain(|(t, _)| *t != token);
     }
 
     /// Writes the staged package to a new folder and renames it into place, replacing an installed plugin of the same ID
     /// whole. It is on, with every permission its manifest asks for: the user approved them.
     pub fn install(&self, token: u64) -> Result<Installed, &'static str> {
         let package = {
-            let mut staged = self.staged.lock().unwrap_or_else(|e| e.into_inner());
+            let mut staged = crate::locks::lock(&self.staged);
             let at = staged
                 .iter()
                 .position(|(t, _)| *t == token)
                 .ok_or(STAGED_GONE)?;
             staged.remove(at).1
         };
-        let _writing = self.writing.lock().unwrap_or_else(|e| e.into_inner());
+        let _writing = crate::locks::lock(&self.writing);
         let mut stored = self.read_stored().ok_or(FAILED)?;
         std::fs::create_dir_all(self.data.join(DIR)).map_err(|_| FAILED)?;
         let plugins = self.folder().map_err(|_| FAILED)?;
@@ -321,7 +318,7 @@ impl Plugins {
     }
 
     pub fn set_enabled(&self, id: &str, enabled: bool) -> Result<(), &'static str> {
-        let _writing = self.writing.lock().unwrap_or_else(|e| e.into_inner());
+        let _writing = crate::locks::lock(&self.writing);
         let mut stored = self.read_stored().ok_or(FAILED)?;
         let entry = stored.plugins.get_mut(id).ok_or(NOT_FOUND)?;
         entry.enabled = enabled;
@@ -334,7 +331,7 @@ impl Plugins {
         if !manifest::is_id(id) {
             return Err(NOT_FOUND);
         }
-        let _writing = self.writing.lock().unwrap_or_else(|e| e.into_inner());
+        let _writing = crate::locks::lock(&self.writing);
         let mut stored = self.read_stored().ok_or(FAILED)?;
         let known = stored.plugins.remove(id).is_some();
         self.store(&stored)?;

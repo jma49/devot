@@ -86,7 +86,7 @@ impl<T> Pending<T> {
         Ok((self.register(Reply::Blocking(reply))?, answer))
     }
 
-    #[cfg_attr(mobile, allow(dead_code))]
+    #[cfg(desktop)]
     pub fn wait_async(&self) -> Result<(u64, oneshot::Receiver<T>), Refused> {
         let (reply, answer) = oneshot::channel();
         Ok((self.register(Reply::Async(reply))?, answer))
@@ -94,28 +94,24 @@ impl<T> Pending<T> {
 
     /// The window takes a request before it acts on it; false once Rust has given up on it.
     pub fn claim(&self, id: u64) -> bool {
-        let Ok(mut waiting) = self.waiting.lock() else {
-            return false;
-        };
+        let mut waiting = crate::locks::lock(&self.waiting);
         waiting.get_mut(&id).map(|w| w.claimed = true).is_some()
     }
 
     /// False for an ID that is not waiting (answered already, given up, or never asked).
     pub fn answer(&self, id: u64, answer: T) -> bool {
-        let waiting = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
+        let waiting = crate::locks::lock(&self.waiting).remove(&id);
         waiting.is_some_and(|w| w.reply.send(answer))
     }
 
     pub fn forget(&self, id: u64) {
-        if let Ok(mut waiting) = self.waiting.lock() {
-            waiting.remove(&id);
-        }
+        crate::locks::lock(&self.waiting).remove(&id);
     }
 
     /// Stops waiting on `id`; a request already gone counts as one that may land, since its
     /// answer may be on its way.
     pub fn give_up(&self, id: u64) -> GaveUp {
-        let waiting = self.waiting.lock().ok().and_then(|mut w| w.remove(&id));
+        let waiting = crate::locks::lock(&self.waiting).remove(&id);
         match waiting {
             Some(w) if !w.claimed => GaveUp::Unclaimed,
             _ => GaveUp::MayLand,
@@ -123,9 +119,9 @@ impl<T> Pending<T> {
     }
 
     /// Whether any request is waiting; true when that cannot be told.
-    #[cfg_attr(mobile, allow(dead_code))]
+    #[cfg(desktop)]
     pub fn busy(&self) -> bool {
-        self.waiting.lock().map_or(true, |w| !w.is_empty())
+        !crate::locks::lock(&self.waiting).is_empty()
     }
 }
 
@@ -154,6 +150,19 @@ mod tests {
         assert!(!pending.answer(first, "again"), "answered once");
         assert!(!pending.answer(99, "never"), "never asked");
         assert!(!pending.busy());
+    }
+
+    #[test]
+    fn an_answer_still_reaches_its_waiter_after_a_panic_under_the_lock() {
+        let pending = Pending::<u8>::default();
+        let (id, answer) = pending.wait().unwrap();
+        let _ = std::panic::catch_unwind(|| {
+            let _held = pending.waiting.lock().unwrap();
+            panic!("poison");
+        });
+        assert!(pending.claim(id));
+        assert!(pending.answer(id, 9));
+        assert_eq!(answer.recv(), Ok(9));
     }
 
     #[test]

@@ -322,10 +322,12 @@ pub fn write_file(
     })
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 const PDF_NAME: &str = "page.pdf";
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const PDF_DIR: &str = "pdf";
 
 /// AppKit makes the file by its path itself, so it prints into a new private folder
@@ -342,12 +344,18 @@ pub fn sweep_pdf_folders(dir: &Path, now: std::time::SystemTime) {
     atomic_file::remove_stale_temp_dirs(dir, PDF_STALE_AFTER, now);
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    all(not(test), not(target_os = "macos")),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 pub struct PdfPartial {
     dir: TempDir,
 }
 
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(
+    not(target_os = "macos"),
+    expect(dead_code, reason = "only macOS uses all of it")
+)]
 impl PdfPartial {
     pub fn new_in(dir: &Path) -> Result<Self, &'static str> {
         std::fs::create_dir_all(dir).map_err(|_| "E_EXPORT_PDF_FOLDER_FAILED")?;
@@ -493,19 +501,17 @@ impl Exports {
         file_name: Option<String>,
     ) -> u64 {
         let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
-        if let Ok(mut sessions) = self.sessions.lock() {
-            sessions.insert(
-                id,
-                Session {
-                    root,
-                    kind,
-                    format,
-                    file_name,
-                    attachments: HashMap::new(),
-                    names: HashSet::new(),
-                },
-            );
-        }
+        crate::locks::lock(&self.sessions).insert(
+            id,
+            Session {
+                root,
+                kind,
+                format,
+                file_name,
+                attachments: HashMap::new(),
+                names: HashSet::new(),
+            },
+        );
         id
     }
 
@@ -553,7 +559,7 @@ impl Exports {
     }
 
     pub fn attached(&self, id: u64, file_id: &str) -> Option<String> {
-        let sessions = self.sessions.lock().ok()?;
+        let sessions = crate::locks::lock(&self.sessions);
         sessions.get(&id)?.attachments.get(file_id).cloned()
     }
 
@@ -610,9 +616,7 @@ impl Exports {
     }
 
     pub fn finish(&self, id: u64) {
-        if let Ok(mut sessions) = self.sessions.lock() {
-            sessions.remove(&id);
-        }
+        crate::locks::lock(&self.sessions).remove(&id);
     }
 }
 

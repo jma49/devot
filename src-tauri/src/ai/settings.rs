@@ -1,6 +1,6 @@
 //! Kept on this device only (`<app data>/ai-settings.json`): never synced, never in backups. Keys are in `keychain`.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -8,6 +8,7 @@ use serde_json::Value;
 use tauri::Url;
 
 use super::provider::{MAX_MODEL_CHARS, ProviderId, provider};
+use crate::settings_file::{Codes, SettingsFile};
 
 pub const FILE: &str = "ai-settings.json";
 const MAX_ENDPOINT_LEN: usize = 2048;
@@ -156,50 +157,48 @@ pub fn clean_model(model: &str) -> Result<String, &'static str> {
     Ok(model.to_string())
 }
 
+const CODES: Codes = Codes {
+    unreadable: "W_AI_SETTINGS_UNREADABLE",
+    copy_failed: "W_AI_SETTINGS_COPY_FAILED",
+    read_failed: "W_AI_SETTINGS_READ_FAILED",
+    write_failed: "E_AI_SETTINGS_WRITE_FAILED",
+};
+
 pub struct SettingsStore {
-    path: PathBuf,
+    file: SettingsFile,
     write: Mutex<()>,
 }
 
 impl SettingsStore {
     pub fn new(path: &Path) -> Self {
         Self {
-            path: path.to_owned(),
+            file: SettingsFile::new(path, &CODES),
             write: Mutex::new(()),
         }
     }
 
-    pub fn get(&self) -> AiSettings {
-        match std::fs::read(&self.path) {
-            Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
-                Ok(value) => AiSettings::lenient(&value),
-                Err(_) => {
-                    log::warn!("W_AI_SETTINGS_UNREADABLE");
-                    if crate::atomic_file::keep_damaged(&self.path, &bytes).is_err() {
-                        log::warn!("W_AI_SETTINGS_COPY_FAILED");
-                    }
-                    AiSettings::default()
-                }
-            },
-            Err(e) => {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    log::warn!("W_AI_SETTINGS_READ_FAILED");
-                }
-                AiSettings::default()
-            }
-        }
+    fn read(&self) -> Option<AiSettings> {
+        self.file
+            .read_as(|map| Some(AiSettings::lenient(&Value::Object(map))))
     }
 
+    /// The defaults while the file cannot be read.
+    pub fn get(&self) -> AiSettings {
+        self.read().unwrap_or_default()
+    }
+
+    /// Refused while the file cannot be read, so a change made from the defaults shown meanwhile
+    /// never replaces what it holds.
     pub fn set(&self, settings: AiSettings) -> Result<AiSettings, &'static str> {
         let settings = settings.validated()?;
         let _writing = self
             .write
             .lock()
             .map_err(|_| "E_AI_SETTINGS_WRITE_FAILED")?;
-        let json =
-            serde_json::to_vec_pretty(&settings).map_err(|_| "E_AI_SETTINGS_WRITE_FAILED")?;
-        crate::atomic_file::write_replacing(&self.path, &json)
-            .map_err(|_| "E_AI_SETTINGS_WRITE_FAILED")?;
+        if self.read().is_none() {
+            return Err("E_AI_SETTINGS_READ_FAILED");
+        }
+        self.file.write(&settings)?;
         Ok(settings)
     }
 }
@@ -346,5 +345,26 @@ mod tests {
         assert_eq!(store.get(), AiSettings::default());
         let kept = dir.path().join(format!("{FILE}{DAMAGED_SUFFIX}"));
         assert_eq!(std::fs::read(kept).unwrap(), b"{ nope");
+    }
+
+    #[test]
+    fn a_file_that_is_not_an_object_is_kept_aside() {
+        let (dir, store) = store();
+        std::fs::write(dir.path().join(FILE), b"[1]").unwrap();
+        assert_eq!(store.get(), AiSettings::default());
+        let kept = dir.path().join(format!("{FILE}{DAMAGED_SUFFIX}"));
+        assert_eq!(std::fs::read(kept).unwrap(), b"[1]");
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_never_written_over() {
+        let (dir, store) = store();
+        std::fs::create_dir(dir.path().join(FILE)).unwrap();
+        assert_eq!(store.get(), AiSettings::default());
+        assert_eq!(
+            store.set(AiSettings::default()),
+            Err("E_AI_SETTINGS_READ_FAILED")
+        );
+        assert!(dir.path().join(FILE).is_dir());
     }
 }

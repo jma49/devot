@@ -1,5 +1,10 @@
-// Desktop-only commands leave their helpers unused on a phone.
-#![cfg_attr(mobile, allow(dead_code))]
+#![cfg_attr(
+    mobile,
+    expect(
+        dead_code,
+        reason = "desktop-only commands leave their helpers unused on a phone"
+    )
+)]
 
 mod ai;
 mod app_store;
@@ -35,8 +40,11 @@ mod format_menu;
 mod http_api;
 mod import;
 mod keyboard_shortcuts;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+mod keychain;
 mod licence;
 mod link_info;
+mod locks;
 mod logs;
 mod main_windows;
 #[cfg(desktop)]
@@ -58,6 +66,7 @@ pub mod page_setup;
 mod pending;
 mod plugins;
 mod settings;
+mod settings_file;
 mod sidebar_material;
 mod single_instance;
 mod startup;
