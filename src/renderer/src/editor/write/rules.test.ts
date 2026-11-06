@@ -5,15 +5,8 @@ import { expectWithinBudget } from '../../../../../tests/support/budget'
 import example from '../../welcome/markdown-example.md?raw'
 import { noteMarkdown } from '../markdown'
 import { writeBlocksOf } from './blockRanges'
-import {
-  isRevealed,
-  revealedLines,
-  selectedRanges,
-  touches,
-  writeRanges,
-  type Selected,
-  type WriteRange,
-} from './rules'
+import { writeRanges, type WriteRange } from './rules'
+import { isRevealed, revealedLines, selectedRanges, touches, type Selected } from './selection'
 
 const NOTE = '0192f0a2-7c1e-7d3a-9b2c-3d4e5f607182'
 

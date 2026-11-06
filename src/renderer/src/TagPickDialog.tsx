@@ -7,7 +7,7 @@ import { noteCount } from './format'
 import { currentLocale, format, t } from './i18n'
 import { isImeKey } from './ime'
 import { useNameLimit } from './nameLimit'
-import { TagDot } from './TagEditor'
+import { TagDot } from './TagDot'
 
 const optionId = (i: number) => `tag-pick-option-${i}`
 

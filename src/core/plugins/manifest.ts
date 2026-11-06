@@ -1,5 +1,6 @@
 // A plugin's manifest (`devot-plugin.json`, ADR 0005). Rust checks it by the same rules (src-tauri/src/plugins/manifest.rs);
 // both run the cases in tests/fixtures/plugins/manifests.json.
+import { isRecord } from '../isRecord'
 import { trimWhitespace } from '../text'
 
 export const PLUGIN_API_VERSION = 1
@@ -86,9 +87,6 @@ const LIMITS = {
 const fail = (code: string): never => {
   throw new Error(code)
 }
-
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const length = (value: string) => [...value].length
 

@@ -1,8 +1,9 @@
 // The message protocol between Devot and a plugin's frame (ADR 0005), version 1. Every message a plugin sends is read here
 // before the host acts on it: its shape, a known method, the permission behind it and its sizes.
 import { MAX_BODY_BYTES, MAX_TITLE_CHARS } from '../noteLimits'
-import { wellFormed } from '../text'
-import { isRecord, type PluginPermission } from './manifest'
+import { utf8Length, wellFormed } from '../text'
+import { isRecord } from '../isRecord'
+import type { PluginPermission } from './manifest'
 
 export const PLUGIN_PROTOCOL_VERSION = 1
 
@@ -66,8 +67,6 @@ const isSeq = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 
 const CODE = /^E_[A-Z0-9_]{1,62}$/
-
-const utf8Length = (text: string) => new TextEncoder().encode(text).length
 
 /** A message from a plugin, or null for anything that is not one (left unanswered). */
 export function readMessage(raw: unknown): IncomingMessage | null {

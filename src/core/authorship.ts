@@ -7,7 +7,8 @@
 
 import * as Y from 'yjs'
 import { textEdits } from './diff'
-import { trimWhitespace } from './text'
+import { isRecord } from './isRecord'
+import { trimWhitespace, utf8Length } from './text'
 
 const BODY = 'body'
 export const WRITERS = 'writers'
@@ -190,9 +191,6 @@ const isKind = (value: unknown): value is WriterKind =>
   (WRITER_KINDS as readonly unknown[]).includes(value)
 const isField = (value: unknown): value is WriteField =>
   (WRITE_FIELDS as readonly unknown[]).includes(value)
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
 function readWriter(session: string, value: unknown): Writer | null {
   if (!AUTHORSHIP_ID.test(session) || !isRecord(value) || value['v'] !== RECORD_VERSION) return null
   const { kind, name, process } = value
@@ -362,20 +360,6 @@ function captureWrite(text: Y.Text, tr: Y.Transaction) {
     }
   }
   return { inserted, deleted, removed }
-}
-
-function utf8Length(text: string): number {
-  let bytes = 0
-  for (let i = 0; i < text.length; i += 1) {
-    const code = text.charCodeAt(i)
-    if (code < 0x80) bytes += 1
-    else if (code < 0x800) bytes += 2
-    else if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
-      bytes += 4
-      i += 1
-    } else bytes += 3
-  }
-  return bytes
 }
 
 /** Drops the oldest writes' deleted text until the note keeps at most `max` bytes of it. */

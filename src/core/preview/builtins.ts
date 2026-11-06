@@ -1,6 +1,7 @@
 // Built-in preview renderers. They run on the sanitized tree and only build
 // structure from validated values.
 import type { Element, ElementContent, Properties, Root, RootContent } from 'hast'
+import { textOf } from '../hastText'
 import { createEmojiRenderer } from './emoji'
 import {
   parseImageMarkdown,
@@ -60,11 +61,6 @@ const el = (tagName: string, properties: Properties, children: ElementContent[] 
 })
 
 const txt = (value: string): ElementContent => ({ type: 'text', value })
-
-function textOf(node: RootContent | Root): string {
-  if (node.type === 'text') return node.value
-  return 'children' in node ? node.children.map(textOf).join('') : ''
-}
 
 const isBlank = (node: RootContent) => node.type === 'text' && node.value.trim() === ''
 

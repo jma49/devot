@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
-import { BODY } from '../../src/core'
+import { BODY, bodyText } from '../../src/core'
 import {
   bodyPrint,
   decodeRecord,
@@ -11,7 +11,6 @@ import {
   mergeSearch,
   mergeTag,
   stampsOf,
-  textOf,
   tombstone,
   type BookState,
   type NoteState,
@@ -154,7 +153,7 @@ describe('merging a note', () => {
         statusHlc: hlc(3),
       }),
     )
-    expect(textOf(merged.record.ydoc)).toBe('Mine. Hello there\n')
+    expect(bodyText(merged.record.ydoc)).toBe('Mine. Hello there\n')
     expect(merged.record).toMatchObject({ title: 'Mine', pinned: true, status: 'active' })
     expect(merged).toMatchObject({
       localNews: true,

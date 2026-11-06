@@ -424,8 +424,6 @@ export function fingerprint(record: SyncRecord): string {
   return sha256Hex(`${JSON.stringify({ ...fields, tags: byTag(fields.tags) })}\n${bodyPrint(ydoc)}`)
 }
 
-export const textOf = (state: Uint8Array): string => docOf(state).getText(BODY).toString()
-
 /** What storage derives from a note's state: its text and its agent_writes rows (ADR 0007). */
 export function bodyFacts(id: string, state: Uint8Array) {
   const doc = docOf(state)

@@ -472,9 +472,10 @@ const codeOf = (error: unknown) => errorCode(error, 'E_STORAGE_WRITE_FAILED')
 export const seedClient = (id: string, markdown: string) =>
   Number.parseInt(sha256Hex(`${id}\n${lineFeeds(markdown)}`).slice(0, 8), 16)
 
-const textOf = (state: Uint8Array) => {
+/** The Markdown a note's Yjs state holds. */
+export const bodyText = (state: Uint8Array): string => {
   const doc = new Y.Doc()
-  Y.applyUpdate(doc, state)
+  if (state.length > 0) Y.applyUpdate(doc, state)
   return doc.getText(BODY).toString()
 }
 
@@ -654,7 +655,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
       let same = latest === undefined && before.text === ''
       if (latest && latest.length === textLength(before.text)) {
         const stored = await storage.getRevision(latest.id)
-        same = stored?.ydoc != null && textOf(stored.ydoc) === before.text
+        same = stored?.ydoc != null && bodyText(stored.ydoc) === before.text
       }
       if (!same) {
         await storage.putRevision({
@@ -1143,7 +1144,7 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
     if (!revision || revision.noteId !== id || revision.kind !== 'body' || !revision.ydoc) {
       throw notFound()
     }
-    return textOf(revision.ydoc)
+    return bodyText(revision.ydoc)
   }
 
   const trashed = async (id: string): Promise<NoteRecord> => {

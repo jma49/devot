@@ -7,12 +7,12 @@ import {
   spectrumGradient,
   type Hsv,
 } from './theme/hsv'
+import { clamp } from './clamp'
 import { format, t } from './i18n'
 import { isImeKey } from './ime'
 import { tagColorStyle } from './tagColorStyle'
 
 const START: Hsv = { h: 210, s: 0.7, v: 0.85 }
-const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value))
 const percent = (value: number) => Math.round(value * 100)
 
 function fractionsAt(e: PointerEvent<HTMLElement>) {

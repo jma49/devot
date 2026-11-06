@@ -13,6 +13,7 @@ import { ColorSwatches } from '../ColorSwatches'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { useNameLimit } from '../nameLimit'
 import { quickTagRows, readRecentTags, rememberTag } from '../quickTag'
+import { localStore } from '../localStore'
 import { Icon } from '../icons/Icon'
 import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import type { IconName } from '../icons/symbols'
@@ -107,8 +108,6 @@ export function StatusPicker(props: {
   )
 }
 
-const recentStore = () => globalThis.localStorage as Storage | undefined
-
 export function TagPicker(props: {
   note: NoteSummary
   tags: readonly TagRecord[]
@@ -121,7 +120,7 @@ export function TagPicker(props: {
   const [draft, setDraft] = useState('')
   const [color, setColor] = useState<TagColorValue | null>(null)
   const [picking, setPicking] = useState(false)
-  const [recent, setRecent] = useState(() => readRecentTags(recentStore()))
+  const [recent, setRecent] = useState(() => readRecentTags(localStore()))
   const limit = useNameLimit(draft, MAX_TAG_NAME_CHARS, setDraft)
   const text = trimWhitespace(draft)
   // The note's own tags stay listed, so a tap can take one off.
@@ -129,8 +128,8 @@ export function TagPicker(props: {
   const creating = rows.at(-1)?.kind === 'create'
   const toggle = (tag: TagRecord, on: boolean) => {
     if (on) {
-      rememberTag(recentStore(), tag.id)
-      setRecent(readRecentTags(recentStore()))
+      rememberTag(localStore(), tag.id)
+      setRecent(readRecentTags(localStore()))
     }
     props.onToggle(tag, on)
   }

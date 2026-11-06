@@ -28,6 +28,7 @@ import {
   nameKey,
 } from './export'
 import { sha256Hex } from './sha256'
+import { sleep } from './sleep'
 import type { NoteStatus, NoteSummary, StorageAdapter, TagRecord, BookRecord } from './storage'
 
 export interface MirrorNoteEntry {
@@ -827,8 +828,6 @@ const MAX_RENDERS = 10
 const UNSETTLED = 'E_MIRROR_UNSETTLED'
 const CHUNK = { bodies: 200, files: 1000, hashes: 20, paths: 2000, ops: 200 }
 
-const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
-
 const chunks = <T>(list: readonly T[], size: number): T[][] => {
   const out: T[][] = []
   for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size))
@@ -846,7 +845,7 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
   const maxWaitMs = options.maxWaitMs ?? 5000
   const retryMs = options.retryMs ?? 30_000
   const slice = options.slice ?? 1000
-  const yieldNow = options.yieldNow ?? (() => new Promise<void>((r) => setTimeout(r, 0)))
+  const yieldNow = options.yieldNow ?? (() => sleep(0))
   let enabled = false
   let paused = false
   let wantFull = false
@@ -1129,7 +1128,7 @@ export function createMirrorRunner(options: MirrorRunnerOptions): MirrorRunner {
       await running
     },
     async idle() {
-      const busy = () => running ?? (timer === undefined ? undefined : wait(5))
+      const busy = () => running ?? (timer === undefined ? undefined : sleep(5))
       for (let next = busy(); next; next = busy()) await next
     },
   }

@@ -7,6 +7,7 @@
 // - Whatever else holds content the note cannot keep (SVG, other MathML, frames, objects, media, other `data:` and local-file URLs) is listed in `dropped`.
 
 import type { Element, ElementContent, Nodes, Root } from 'hast'
+import { textOf } from './hastText'
 import { fromHtml } from 'hast-util-from-html'
 import { defaultSchema, sanitize, type Schema } from 'hast-util-sanitize'
 import { toMdast } from 'hast-util-to-mdast'
@@ -55,11 +56,6 @@ export interface HtmlConversion {
    * `MAX_DROPPED` of them, then `+N` for the rest.
    */
   dropped: string[]
-}
-
-function textOf(node: Nodes): string {
-  if (node.type === 'text') return node.value
-  return 'children' in node ? node.children.map((c) => textOf(c as Nodes)).join('') : ''
 }
 
 function find(node: Nodes, tag: string): Element | null {

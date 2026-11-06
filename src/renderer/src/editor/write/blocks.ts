@@ -22,8 +22,7 @@ import { revealedIn, setWriteFocus } from './focus'
 import { blockLook, carryWriteBlocks, writeBlocksOf } from './blockRanges'
 import { changedSpans, firstReaching, lineSpans, type Span } from './changes'
 import { RenderedBlockWidget } from './rendered'
-import type { Revealed } from './rules'
-import { isRevealed } from './rules'
+import { isRevealed, type Revealed } from './selection'
 
 /**
  * A rule's decorations in layers: `outer` marks wrap all others and stay in

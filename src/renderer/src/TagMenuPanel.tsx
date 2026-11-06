@@ -12,7 +12,7 @@ import { t, type MessageKey } from './i18n'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
 import { editingAllowed } from './licence'
-import { TagDot } from './TagEditor'
+import { TagDot } from './TagDot'
 import { TAG_COMMANDS, TAG_MENU, tagShortcut, type TagAction, type TagMenuTarget } from './tagMenu'
 
 const menuRef = closingRef('scale', 'tag-menu')

@@ -9,13 +9,12 @@ import { isImeKey } from './ime'
 import { useNameLimit } from './nameLimit'
 import { fieldStep, placePickerPanel } from './Picker'
 import { quickTagRows, readRecentTags, rememberTag } from './quickTag'
-import { TagDot } from './TagEditor'
+import { localStore } from './localStore'
+import { TagDot } from './TagDot'
 import { tagDotClass } from './tagColorStyle'
 import type { TagRow } from './tagRows'
 
 const panelRef = closingRef('scale', 'quick-tag')
-const recentStore = () => globalThis.localStorage as Storage | undefined
-
 /**
  * Tags a note from one pop-up: a field, the matching tags with their counts, and a row that
  * creates a new one in a colour from the swatches. Return applies and stays open for the next
@@ -38,7 +37,7 @@ export function QuickTag(props: {
   const [active, setActive] = useState(-1)
   const [color, setColor] = useState<TagColorValue | null>(null)
   const [picking, setPicking] = useState(false)
-  const [recent, setRecent] = useState(() => readRecentTags(recentStore()))
+  const [recent, setRecent] = useState(() => readRecentTags(localStore()))
   const rows = quickTagRows(props.tags, props.onNote, draft, recent)
   const creating = rows.at(-1)?.kind === 'create'
   const changeDraft = (next: string) => {
@@ -67,8 +66,8 @@ export function QuickTag(props: {
   }, [])
 
   const remember = (id: string) => {
-    rememberTag(recentStore(), id)
-    setRecent(readRecentTags(recentStore()))
+    rememberTag(localStore(), id)
+    setRecent(readRecentTags(localStore()))
   }
   const apply = (row: TagRow | undefined) => {
     if (!row) return

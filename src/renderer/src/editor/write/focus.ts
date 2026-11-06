@@ -2,7 +2,7 @@
 // decorations come from a state field, which cannot ask the view.
 import { StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { revealedLines, selectedRanges, type Revealed, type Selected } from './rules'
+import { revealedLines, selectedRanges, type Revealed, type Selected } from './selection'
 
 export const setWriteFocus = StateEffect.define<boolean>()
 

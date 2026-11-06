@@ -1,6 +1,7 @@
 // Markdown to a sanitized HTML tree (hast) for the preview. Note content is untrusted (import, sync and AI write it too): raw HTML is parsed, then sanitized by an
 // allowlist, and only then do preview renderers add Devot's own structure. The tree is plain data, so it crosses the worker boundary.
 import type { Comment, Element, ElementContent, Root as HastRoot, RootContent } from 'hast'
+import { textOf } from '../hastText'
 import type { Root as MdastRoot } from 'mdast'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema, type Options as Schema } from 'rehype-sanitize'
@@ -255,11 +256,6 @@ interface Rendered {
 
 /** Elements carrying a source line, and those carrying an offset into the note. */
 export const PIECE_LINE_PROPERTY = 'dataSourceLine'
-
-function textOf(node: RootContent): string {
-  if (node.type === 'text') return node.value
-  return 'children' in node ? node.children.map(textOf).join('') : ''
-}
 
 /** The headings `headingIds` names, in its order. */
 function unnamedHeadings(nodes: readonly RootContent[], out: Rendered['headings']): void {

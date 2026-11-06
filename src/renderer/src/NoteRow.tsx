@@ -1,14 +1,6 @@
-import {
-  Fragment,
-  memo,
-  useCallback,
-  type DragEvent,
-  type KeyboardEvent,
-  type MouseEvent,
-} from 'react'
+import { memo, useCallback, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import type { NoteSummary, TagRecord } from '../../core'
 import type { NoteStatus } from '../../core/storage'
-import { matchSegments } from '../../core/search'
 import { compareNames } from '../../core/sort'
 import type { ListDatesStyle } from '../../core/editorSettings'
 import type { StripDay } from '../../core/activity'
@@ -17,9 +9,11 @@ import { writerLabelParts, type WriterRef } from './authorshipLabels'
 import { fullDate, rowDate } from './format'
 import { format, t } from './i18n'
 import { Icon } from './icons/Icon'
+import { Marked } from './Marked'
 import type { IconName } from './icons/symbols'
 import { tagColorStyle } from './tagColorStyle'
-import { chipClass, TagDot } from './TagEditor'
+import { TagDot } from './TagDot'
+import { chipClass } from './TagEditor'
 import { WriterLabel } from './WriterLabel'
 
 export const STATUS_ICONS: Readonly<Record<NoteStatus, IconName>> = {
@@ -28,13 +22,6 @@ export const STATUS_ICONS: Readonly<Record<NoteStatus, IconName>> = {
   on_hold: 'status.onHold',
   completed: 'status.completed',
   dropped: 'status.dropped',
-}
-
-export function Marked({ text, pattern }: { text: string; pattern: RegExp | null | undefined }) {
-  if (!pattern) return text
-  return matchSegments(text, pattern).map((s, i) =>
-    s.match ? <mark key={i}>{s.text}</mark> : <Fragment key={i}>{s.text}</Fragment>,
-  )
 }
 
 export function parseProgress(
