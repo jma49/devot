@@ -54,7 +54,6 @@ const ENTRIES: readonly SettingsEntry[] = [
   { pane: 'editing', label: 'editorSettings.lineHeight' },
   { pane: 'editing', label: 'editorSettings.showInvisibles' },
   { pane: 'editing', label: 'editorSettings.highlightTrailingWhitespace' },
-  { pane: 'preview', label: 'previewSettings.fontSize', only: 'mac' },
   { pane: 'preview', label: 'previewSettings.syncScroll', only: 'mac' },
   { pane: 'preview', label: 'previewSettings.remoteImages' },
   { pane: 'mirror', label: 'mirror.folderLabel' },
