@@ -1488,10 +1488,10 @@ button {
   flex: 1;
   flex-direction: row;
   align-items: baseline;
-  justify-content: center;
+  justify-content: flex-start;
   gap: calc(var(--font-size-list-title) * 0.3);
   min-width: 0;
-  padding-inline: var(--space-3);
+  padding-inline: var(--space-4) var(--space-3);
   overflow: hidden;
   font-size: var(--font-size-list-title);
   font-weight: var(--font-weight-medium);
@@ -1541,6 +1541,38 @@ button {
 
 .list-filter .search-field {
   width: 100%;
+}
+
+/* The field and the list's action (New Note) share a row; the field gives way. */
+.list-filter-search {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.list-filter-search .search-field {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.list-filter .list-create {
+  flex: none;
+  width: var(--size-list-action);
+  height: var(--size-list-action);
+  border-radius: var(--radius-capsule);
+}
+
+:root[data-sidebar-material='on'] .list-filter .list-create {
+  background: var(--color-fill-track);
+}
+
+:root[data-sidebar-material='on']
+  .list-filter
+  .list-create:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--color-fill-tool-hover);
+  color: var(--color-text-primary);
 }
 
 /* At rest a funnel sits in a slot at the start; once a query is typed the funnel goes and the clear button takes the end slot, so the text moves to the start. */
@@ -7232,7 +7264,7 @@ button.popup:focus-visible {
 /* The note list's header: the view's name over its count, with no icon. */
 :root[data-sidebar-material='on'] .list .list-header .toolbar-title {
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 0;
   font-weight: var(--font-weight-semibold);
   line-height: 1.2;
@@ -7242,7 +7274,7 @@ button.popup:focus-visible {
   display: none;
 }
 
-/* Centred in a column, the name would otherwise take its full width instead of an ellipsis. */
+/* In a column, the name would otherwise take its full width instead of an ellipsis. */
 :root[data-sidebar-material='on'] .list-header .headline {
   max-width: 100%;
 }

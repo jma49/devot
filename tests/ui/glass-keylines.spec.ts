@@ -51,6 +51,7 @@ test('the note list has two left edges and one right edge', async ({ page }) => 
   for (const end of [
     list.locator('.search-field'),
     list.locator('.layout-control'),
+    list.getByRole('button', { name: 'New Note', exact: true }),
     list.locator('.row').first(),
   ]) {
     expect(Math.round(listRight - (await right(end)))).toBe(12)
@@ -98,12 +99,27 @@ test('every sidebar row has its icon at 18 and its label at 44, chevron or not',
 
 test('toolbar controls are 32 pt capsules centred on y = 26', async ({ page }) => {
   await noteWithBody(page, 'Plan', 'Text')
-  for (const name of ['Focus Mode', 'More', 'New Note']) {
+  for (const name of ['Focus Mode', 'More']) {
     const b = await page.getByRole('button', { name, exact: true }).first().boundingBox()
     expect(b?.height, name).toBe(32)
     expect((b?.y ?? 0) + (b?.height ?? 0) / 2, name).toBe(26)
   }
   await expect(page.locator('.list .search-field')).toHaveCSS('height', '32px')
+})
+
+test('New Note is a 28 pt round button ending the search row', async ({ page }) => {
+  await noteWithBody(page, 'Plan', 'Text')
+  const list = page.locator('.list')
+  const create = list.getByRole('button', { name: 'New Note', exact: true })
+  const field = list.locator('.search-field')
+  const b = await create.boundingBox()
+  const f = await field.boundingBox()
+  expect([b?.width, b?.height]).toEqual([28, 28])
+  expect((b?.y ?? 0) + 14).toBeCloseTo((f?.y ?? 0) + (f?.height ?? 0) / 2, 0)
+  expect(await right(field)).toBeLessThanOrEqual((b?.x ?? 0) + 0.5)
+  await expect(list.locator('.list-header').getByRole('button', { name: 'New Note' })).toHaveCount(
+    0,
+  )
 })
 
 test('toolbar groups start and end on the note keylines, in every view', async ({ page }) => {

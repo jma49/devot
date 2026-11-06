@@ -194,10 +194,10 @@ for (const width of [1280, 800]) {
     await expect(headline).toHaveText(name)
     await expect(headline).toHaveAttribute('title', name)
     await expect(headline).toHaveCSS('text-overflow', 'ellipsis')
-    const [h, add] = [
+    const [h, bar] = [
       await box(headline),
-      await box(page.getByRole('button', { name: 'New Note', exact: true })),
+      await box(page.getByRole('toolbar', { name: 'Toolbar' })),
     ]
-    expect(h.x + h.width).toBeLessThanOrEqual(add.x)
+    expect(h.x + h.width).toBeLessThanOrEqual(bar.x + bar.width)
   })
 }

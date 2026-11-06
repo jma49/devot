@@ -82,6 +82,7 @@ Part of the [design system](design-system.md).
 - **Duplicate** (`duplicateNote` in `src/core/duplicate.ts`): the copy has the original's body (as Yjs state), notebook, status and tags, and the title "<title> copy" (the suffix comes from the message catalog; an untitled note's copy stays untitled, and a title is cut to the title limit).
   It is not pinned: a pin is a place in the list, and two pinned twins would crowd it.
   A tag that cannot be put on the copy is left off and logged by code; the copy is still made.
+- Note list header (`src/renderer/src/ListHeader.tsx`): the toolbar has the sidebar toggle and the view's name over its count (left-aligned, cut off with an ellipsis); New Note is the last control of the search row below it, and a view's own action (Empty in the Trash) takes its place. Layout in `design/layout.md`.
 - Note list order (`src/core/sort.ts`, `src/renderer/src/noteSort.ts`): a sort button in the list header opens a native pop-up under it with six check items (title A to Z or Z to A; date updated or date created, newest or oldest first) and Use as Default.
   The order is a view preference kept in the webview's local storage, never in the database, so it does not sync.
   Each library view keeps its own order: All Notes, each notebook, and each filter (a filter is keyed by itself, whatever notebook narrows it).

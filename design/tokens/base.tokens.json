@@ -2494,6 +2494,14 @@
       },
       "$description": "Glass interface: the note list's text keyline, from its left edge: the sort label, section captions and row text."
     },
+    "list-action": {
+      "$type": "dimension",
+      "$value": {
+        "value": 28,
+        "unit": "px"
+      },
+      "$description": "Glass interface: the round New Note button at the end of the note list's search row, on the list's outer keyline."
+    },
     "toolbar-control": {
       "$type": "dimension",
       "$value": {

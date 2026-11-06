@@ -293,6 +293,7 @@ export const sizes = {
   "size.settings-footnote-line": "16px",
   "size.list-keyline-outer": "12px",
   "size.list-keyline-inner": "24px",
+  "size.list-action": "28px",
   "size.toolbar-control": "32px",
   "size.editor-keyline": "32px",
   "size.glass-switch-width": "44px",

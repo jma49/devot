@@ -28,7 +28,7 @@ export interface ListHeaderProps {
 
 const STATUS_DELAY_MS = 500
 
-/** The note list's toolbar (the view's name, New Note) and the filter row under it, for the list and the board alike. */
+/** The note list's toolbar (the sidebar toggle and the view's name) and the filter row under it, which ends with New Note, for the list and the board alike. */
 export function ListHeader(props: ListHeaderProps) {
   const { title, sortButtonRef } = props
   const caption = listCaption(props.count, props.scope, currentLocale(), props.capped)
@@ -37,6 +37,20 @@ export function ListHeader(props: ListHeaderProps) {
     const timer = setTimeout(() => setSpoken(caption), STATUS_DELAY_MS)
     return () => clearTimeout(timer)
   }, [caption])
+
+  const action = props.headerAction ?? (
+    <button
+      type="button"
+      className="tool list-create"
+      data-tauri-drag-region="false"
+      aria-label={props.createLabel ?? t('noteList.newNote')}
+      title={props.createLabel ?? t('noteList.newNote')}
+      onClick={props.onCreate}
+      disabled={!props.onCreate}
+    >
+      <ToolIcon name="note.new" />
+    </button>
+  )
 
   return (
     <>
@@ -50,9 +64,9 @@ export function ListHeader(props: ListHeaderProps) {
         <div className="list-header-side" data-tauri-drag-region>
           {props.leading}
         </div>
-        {/* The view's name on one line, centred between the toggle and New Note.
-            All of it drags the window (a double-click zooms it); the count is
-            only spoken. */}
+        {/* The view's name from the toggle on, one line that truncates. All of
+            it drags the window (a double-click zooms it); the count is only
+            spoken. */}
         <div
           className="toolbar-title"
           data-tauri-drag-region="deep"
@@ -82,23 +96,8 @@ export function ListHeader(props: ListHeaderProps) {
             {caption}
           </span>
         </div>
-        <div className="list-header-side list-header-end" data-tauri-drag-region>
-          {props.headerAction ?? (
-            <button
-              type="button"
-              className="tool"
-              data-tauri-drag-region="false"
-              aria-label={props.createLabel ?? t('noteList.newNote')}
-              title={props.createLabel ?? t('noteList.newNote')}
-              onClick={props.onCreate}
-              disabled={!props.onCreate}
-            >
-              <ToolIcon name="note.new" />
-            </button>
-          )}
-        </div>
       </div>
-      {props.filter || props.sort || props.layout ? (
+      {props.filter || props.sort || props.layout || action ? (
         <div
           className="list-filter"
           onKeyDown={(e) => {
@@ -110,7 +109,10 @@ export function ListHeader(props: ListHeaderProps) {
             props.onFilterDone()
           }}
         >
-          {props.filter}
+          <div className="list-filter-search">
+            {props.filter}
+            {action}
+          </div>
           {props.sort || props.layout ? (
             <div className="list-filter-tools">
               {props.sort ? (

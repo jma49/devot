@@ -155,13 +155,14 @@ test('Glass toolbar glyphs share an 18 point box in 32 point capsules', async ({
   expect(offsets.size).toBe(1)
 })
 
-test("the list header's toggle, name and New Note share the toolbars' centre line", async ({
+test("the list header's toggle and name share the toolbars' centre line, and New Note the search field's", async ({
   page,
 }) => {
   await newNote(page, 'Plan')
   const header = page.locator('.list-header')
   const toggle = header.locator('.sidebar-toggle')
-  const create = header.getByRole('button', { name: 'New Note', exact: true })
+  const create = page.locator('.list-filter').getByRole('button', { name: 'New Note', exact: true })
+  const field = page.locator('.list-filter .search-field')
   const name = header.locator('.headline')
   const inset = header.locator('.window-inset')
   // The line the traffic lights sit on: the middle of the 52 px toolbars.
@@ -171,7 +172,9 @@ test("the list header's toggle, name and New Note share the toolbars' centre lin
     expect(Math.abs(centreY(b) - line), what).toBeLessThanOrEqual(0.5)
   const check = async () => {
     await sameLine('toggle', await box(toggle))
-    await sameLine('New Note', await box(create))
+    expect(Math.abs(centreY(await box(create)) - centreY(await box(field)))).toBeLessThanOrEqual(
+      0.5,
+    )
     await sameLine('name and count', await box(header.locator('.toolbar-title')))
     for (const button of [toggle, create]) {
       const b = await box(button)
@@ -184,7 +187,7 @@ test("the list header's toggle, name and New Note share the toolbars' centre lin
     expect(t.x).toBe(room.x + room.width)
     const text = await textBox(name)
     expect(text.x).toBeGreaterThan(t.x + t.width)
-    expect(text.x + text.width).toBeLessThan((await box(create)).x)
+    expect(text.x - (t.x + t.width)).toBeLessThanOrEqual(16)
   }
   await check()
   for (const button of await page.locator('.editor-toolbar .tool').all())
