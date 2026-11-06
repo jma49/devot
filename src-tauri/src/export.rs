@@ -493,19 +493,17 @@ impl Exports {
         file_name: Option<String>,
     ) -> u64 {
         let id = self.next.fetch_add(1, Ordering::Relaxed) + 1;
-        if let Ok(mut sessions) = self.sessions.lock() {
-            sessions.insert(
-                id,
-                Session {
-                    root,
-                    kind,
-                    format,
-                    file_name,
-                    attachments: HashMap::new(),
-                    names: HashSet::new(),
-                },
-            );
-        }
+        crate::locks::lock(&self.sessions).insert(
+            id,
+            Session {
+                root,
+                kind,
+                format,
+                file_name,
+                attachments: HashMap::new(),
+                names: HashSet::new(),
+            },
+        );
         id
     }
 
@@ -610,9 +608,7 @@ impl Exports {
     }
 
     pub fn finish(&self, id: u64) {
-        if let Ok(mut sessions) = self.sessions.lock() {
-            sessions.remove(&id);
-        }
+        crate::locks::lock(&self.sessions).remove(&id);
     }
 }
 

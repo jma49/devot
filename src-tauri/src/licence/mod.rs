@@ -643,9 +643,7 @@ impl Licence {
         let device = match self.device_id() {
             Ok(device) => device,
             Err(code) => {
-                if let Ok(mut unread) = self.seat_unread.lock() {
-                    *unread = Some(code);
-                }
+                *crate::locks::lock(&self.seat_unread) = Some(code);
                 return None;
             }
         };
@@ -1066,9 +1064,7 @@ impl Licence {
         if let Ok(mut unread) = self.unread() {
             *unread = None;
         }
-        if let Ok(mut unread) = self.seat_unread.lock() {
-            *unread = None;
-        }
+        *crate::locks::lock(&self.seat_unread) = None;
         if let Ok(mut trial) = self.trial_lock()
             && trial.as_ref().is_some_and(|trial| trial.record.is_err())
         {

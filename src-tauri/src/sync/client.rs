@@ -815,9 +815,7 @@ impl Connection {
     }
 
     fn forget(&self, rid: u64) {
-        if let Ok(mut waiters) = self.waiters.lock() {
-            waiters.remove(&rid);
-        }
+        crate::locks::lock(&self.waiters).remove(&rid);
     }
 
     /// Sends a message and waits for its answer; waits out the relay's rate limit as it asks. An
@@ -959,10 +957,8 @@ fn dispatch(answer: Answer, waiters: &Waiters, on_event: &dyn Fn(Event)) {
 }
 
 fn fail_all(waiters: &Waiters, code: &'static str) {
-    if let Ok(mut waiters) = waiters.lock() {
-        for (_, waiter) in waiters.drain() {
-            let _ = waiter.send(Err(code));
-        }
+    for (_, waiter) in crate::locks::lock(waiters).drain() {
+        let _ = waiter.send(Err(code));
     }
 }
 

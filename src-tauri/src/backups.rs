@@ -613,9 +613,7 @@ impl Backups {
 
     fn record(&self, app: &AppHandle, result: &Result<BackupInfo, &'static str>) {
         let error = result.as_ref().err().copied();
-        if let Ok(mut last) = self.last_error.lock() {
-            *last = error;
-        }
+        *crate::locks::lock(&self.last_error) = error;
         if let Some(code) = error {
             log::warn!("W_BACKUP_FAILED {code}");
             if crate::main_windows::emit_all(app, FAILED_EVENT, code).is_err() {
