@@ -56,7 +56,7 @@ export function isCustomTagColor(value: unknown): value is `#${string}` {
   return typeof value === 'string' && CUSTOM_TAG_COLOR.test(value)
 }
 
-/** Same rule as `valid_tag_color` in storage/mod.rs. `isTagColor` is the palette alone, which is all a notebook icon takes. */
+/** Same rule as `valid_tag_color` in storage/records.rs. `isTagColor` is the palette alone, which is all a notebook icon takes. */
 export function isTagColorValue(value: unknown): value is TagColorValue {
   return isTagColor(value) || isCustomTagColor(value)
 }

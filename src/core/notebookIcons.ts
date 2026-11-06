@@ -1,5 +1,5 @@
 // The notebook icon catalogs: the SF Symbols (design/icons/notebook-symbols.json) and Lucide icons (design/icons/notebook-lucide.json) a notebook can show, by
-// category, with the extra words search matches. Names only; Rust accepts only these names (`notebook_icon` in src-tauri/src/storage/mod.rs).
+// category, with the extra words search matches. Names only; Rust accepts only these names (`notebook_icon` in src-tauri/src/storage/records.rs).
 import lucideCatalog from '../../design/icons/notebook-lucide.json'
 import catalog from '../../design/icons/notebook-symbols.json'
 

@@ -348,7 +348,7 @@ jobs:
       - run: cargo test
 
   # The Mac's and the phone's `cfg` branches compile only against Apple's SDK:
-  # rust-check on Linux leaves out native/macos.rs and the other macOS code.
+  # rust-check on Linux leaves out native/macos/ and the other macOS code.
   ios-check:
     name: macOS and iOS compile
     needs: changes
