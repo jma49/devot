@@ -70,13 +70,41 @@ Its keyline is `size.phone-grouped-pad-x` (16) from a card's edge: section heade
 - **Optional meta line:** 11 pt, items 6 apart. A meta line holding only the time leaves the grid.
 - **Excerpt:** 12, line height 1.45, two lines, secondary.
 
+## Board
+
+The width, the empty line, the fade, the meta line and the drag hold in Classic too; Classic keeps its column tiles, card edge and selection.
+
+- **Columns:** on the note list's keylines: the board sits 12 from the pane's sides (`size.list-keyline-outer`), columns `size.board-column-width` (180) wide and 10 apart (`space.5`).
+  A column has no tile behind it.
+  In a narrow pane columns shrink to `size.board-column-min-width` (150), then scroll sideways.
+- **Width:** until the user drags the pane's edge, the board is as wide as its columns: 2 × 12 + n × 180 + (n − 1) × 10, so 964 for five columns and 774 with Dropped hidden.
+  A drag keeps the user's width; a double-click or Enter on the edge goes back to the fitted width.
+- **Header:** 32 tall (`space.10`), its text on the inner keyline: the status mark in the status colour, the name 13 semibold in primary, then the count in caption size (11) in tertiary.
+- **Empty column:** one line, "No Notes", in tertiary at footnote size, centred.
+- **Cards:** 6 apart (`space.3`), filled only with `color.fill.card` (one stroke rule), `radius.list-row` (12) and the note row's padding: 10 top, 11 bottom (`size.list-row-padding-bottom`), 12 sides, lines 4 apart.
+  The title is 13 semibold on up to three lines; under it the meta line, 11 on a 14 line (`size.card-meta-line`) in secondary: the time, then a dot per tag ending 12 inside the card's right edge.
+  A card in the Dropped column draws its title in secondary unless it is selected.
+- **States:** under the pointer a card takes `color.fill.tool-hover`; selected, the list's accent wash (`color.accent.fill` at `opacity.list-selected` over `color.fill.card`), with no bar; with the keyboard the inset `color.focus.ring` ring.
+- **Fade:** a column's cards fade out over their last 18 (`space.8`) instead of being cut.
+- **Drag:** the dragged cards stay in place at `opacity.card-dragged` (0.35), and the column under the pointer takes `color.fill.track` at `radius.list-row`, in place of an outline.
+  The drag image is a copy of the card on the popover's shadow, with an accent count badge when it carries several notes.
+
 ## Gallery cards
 
-- A grid 12 from the pane's sides (`space.6`), cards 10 apart (`space.5`) and as many across as keep each at least `size.gallery-card-min-width` (180); every card is `size.gallery-card-height` (240) tall.
-- **Cell:** the card is the list row's highlight: transparent, `radius.list-row` (12), padding 4 (`space.2`) at the top and sides and 6 (`space.3`) at the bottom. Under the pointer it takes `color.fill.row-selected-inactive`, selected the accent wash at `opacity.list-selected`, and with the keyboard the inset `color.focus.ring` ring, as a row does. No bar.
-- **Sheet:** `color.surface.editor` with a 0.5 hairline edge (`color.line.hairline`) and `radius.card` (8): 4 inside the cell, so the radii are concentric. Padding 8 at the top and sides puts the page on the inner keyline; the bottom fades out over 36 instead of being cut.
-- **Page:** the note's first page laid out at `size.gallery-page-width` (400) and scaled to the sheet: the title in the note's title style (28/34 bold, scaled with the body), then the body on the note type scale, headings primary and text secondary. An untitled note starts with its first line, or "Untitled" in tertiary when it has none. A diagram, math, a frame or an image from the web shows as a placeholder in a `color.fill.track` box with tertiary text.
-- **Caption:** one line 6 under the sheet on the inner keyline, 11 (`font-size.caption`) in tertiary: the pin, then the time.
+- A grid 12 from the pane's sides (`size.list-keyline-outer`), cards 10 apart (`space.5`), each between `size.gallery-card-min-width` (220) and `size.gallery-card-max-width` (300) wide.
+  As many go across as keep each at most 300, unless that would make one narrower than 220.
+  The pane's width is the board's (see Board), fitted to the board's columns until the user drags it.
+- **Cell:** the card is the list row's highlight: transparent, `radius.list-row` (12), padding 4 (`space.2`).
+  Under the pointer it takes `color.fill.row-selected-inactive`, selected the accent wash at `opacity.list-selected`, and with the keyboard the inset `color.focus.ring` ring, as a row does.
+  No bar.
+- **Sheet:** a 3:4 page, so its height follows the card's width: `color.surface.editor` with `radius.card` (8), 4 inside the cell so the radii are concentric.
+  It has no hairline; a soft two-layer shadow (`color.shadow.page-key` and `color.shadow.page-ambient`, with `shadow.page-*`) lifts it off the list.
+  The page sits 8 (`space.4`) inside the sheet; the bottom fades out instead of being cut.
+- **Page:** the note's first page laid out at `size.gallery-page-width` (480) and scaled to the sheet, about one half: the title in the note's title style (28/34 bold, scaled with the body), then the body on the note type scale, headings primary and text secondary.
+  An untitled note starts with its first line, or "Untitled" in tertiary when it has none.
+  A diagram, math, a frame or an image from the web shows as a placeholder in a `color.fill.track` box with tertiary text.
+- **Caption:** one line 6 (`space.3`) under the sheet on the inner keyline, 11 (`font-size.caption`) in tertiary, the board card's meta line led by the marks: the pin, the status mark in its colour, the time, then the tag dots at the line's end.
+  The title is not repeated, as the page shows it.
 
 ## One stroke rule
 

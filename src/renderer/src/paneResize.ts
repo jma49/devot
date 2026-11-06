@@ -1,15 +1,27 @@
 // The drag and keyboard behaviour of a pane's resize edge, shared by the
 // sidebar and the note list: pointer capture, arrow keys, Home/End, Enter
-// and double-click to reset. The width is saved when a drag or key ends.
+// and double-click to reset. The width is saved when a drag or key ends; a
+// reset forgets it, so the pane follows its default or `fitted` width again.
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { clampPaneWidth, currentPaneWidthStore, paneWidthForKey, type PaneSpec } from './paneWidth'
+import {
+  clampPaneWidth,
+  currentPaneWidthStore,
+  paneWidthForKey,
+  shownPaneWidth,
+  type PaneSpec,
+} from './paneWidth'
 
-export function usePaneResize(pane: PaneSpec) {
-  const [width, setWidth] = useState(() => currentPaneWidthStore(pane).read())
-  const resizing = useRef<{ x: number; width: number } | null>(null)
+export function usePaneResize(pane: PaneSpec, fitted?: number) {
+  const [stored, setStored] = useState(() => currentPaneWidthStore(pane).stored())
+  const width = shownPaneWidth(pane, stored, fitted)
+  const resizing = useRef<{ x: number; width: number; set: boolean } | null>(null)
   const keep = (next: number) => {
-    setWidth(next)
+    setStored(next)
     currentPaneWidthStore(pane).write(next)
+  }
+  const reset = () => {
+    setStored(undefined)
+    currentPaneWidthStore(pane).clear()
   }
   const dragged = (from: { x: number; width: number }, e: PointerEvent<HTMLDivElement>) =>
     clampPaneWidth(pane, from.width + e.clientX - from.x)
@@ -26,20 +38,19 @@ export function usePaneResize(pane: PaneSpec) {
       const next = paneWidthForKey(pane, e.key, e.shiftKey, width)
       if (next === undefined) return
       e.preventDefault()
-      keep(next)
+      if (next === 'reset') reset()
+      else keep(next)
     },
-    onDoubleClick() {
-      keep(pane.default)
-    },
+    onDoubleClick: reset,
     onPointerDown(e: PointerEvent<HTMLDivElement>) {
       if (e.button !== 0) return
       e.preventDefault()
       e.currentTarget.setPointerCapture(e.pointerId)
-      resizing.current = { x: e.clientX, width }
+      resizing.current = { x: e.clientX, width, set: stored !== undefined }
     },
     onPointerMove(e: PointerEvent<HTMLDivElement>) {
       const from = resizing.current
-      if (from) setWidth(dragged(from, e))
+      if (from) setStored(dragged(from, e))
     },
     onPointerUp: end,
     onPointerCancel: end,
@@ -48,7 +59,10 @@ export function usePaneResize(pane: PaneSpec) {
     const from = resizing.current
     if (!from) return
     resizing.current = null
-    keep(dragged(from, e))
+    const next = dragged(from, e)
+    // A drag that ends where it began leaves a width that was not set unset, so it stays fitted.
+    if (next === from.width && !from.set) setStored(undefined)
+    else keep(next)
   }
   return { width, edge }
 }

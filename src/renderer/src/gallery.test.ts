@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  galleryCardHeight,
   galleryColumns,
   galleryGridTop,
   galleryPlace,
@@ -8,36 +9,78 @@ import {
   galleryStep,
   galleryWindow,
 } from './gallery'
+import { fittedBoardWidth } from './paneWidth'
 import { sizes } from './theme/tokens'
 import { expectWithinBudget } from '../../../tests/support/budget'
 
 const px = (name: keyof typeof sizes) => Number.parseFloat(sizes[name])
 
 describe('galleryScale', () => {
-  it('fits the page inside the cell and the sheet padding', () => {
+  it('fits the page inside the cell and the sheet padding, at about half size', () => {
     const inset = 2 * px('space.2') + 2 * px('space.4')
-    expect(galleryScale(206, inset, px('size.gallery-page-width'))).toBeCloseTo(182 / 400)
+    expect(galleryScale(260, inset, px('size.gallery-page-width'))).toBeCloseTo(236 / 480)
+    expect(galleryScale(260, inset, px('size.gallery-page-width'))).toBeCloseTo(0.5, 1)
   })
 
   it('is nothing for a card not measured yet or too narrow for its padding', () => {
-    expect(galleryScale(0, 24, 400)).toBe(0)
-    expect(galleryScale(20, 24, 400)).toBe(0)
+    expect(galleryScale(0, 24, 480)).toBe(0)
+    expect(galleryScale(20, 24, 480)).toBe(0)
   })
 })
 
 describe('galleryColumns', () => {
-  it('fits as many cards as their least width allows, at least one', () => {
-    expect(galleryColumns(1000, 180, 12)).toBe(5)
-    expect(galleryColumns(563, 180, 12)).toBe(2)
-    expect(galleryColumns(564, 180, 12)).toBe(3)
-    expect(galleryColumns(100, 180, 12)).toBe(1)
-    expect(galleryColumns(0, 180, 12)).toBe(1)
+  const across = (width: number) => galleryColumns(width, 220, 300, 10)
+  const cardWidth = (width: number) => {
+    const n = across(width)
+    return (width - 10 * (n - 1)) / n
+  }
+
+  it('puts as many across as keep each card at most 300 wide', () => {
+    expect(across(300)).toBe(1)
+    expect(across(610)).toBe(2)
+    expect(across(680)).toBe(3)
+    expect(across(1600)).toBe(6)
+    for (const width of [610, 680, 920, 1000, 1600]) {
+      expect(cardWidth(width)).toBeLessThanOrEqual(300)
+      expect(cardWidth(width)).toBeGreaterThanOrEqual(220)
+    }
   })
 
-  it('puts about four across at the wide pane’s default width', () => {
-    // `.gallery-grid` in app.css: space-6 at each side, space-5 between cards.
-    const inner = px('size.board-default-width') - 2 * px('space.6')
-    expect(galleryColumns(inner, px('size.gallery-card-min-width'), px('space.5'))).toBe(4)
+  it('never makes a card narrower than 220 to stay under 300: a pane too narrow for one more card widens those it has', () => {
+    expect(across(440)).toBe(1)
+    expect(across(450)).toBe(2)
+    expect(cardWidth(450)).toBe(220)
+    expect(across(670)).toBe(2)
+    expect(cardWidth(670)).toBe(330)
+  })
+
+  it('keeps at least one card, however narrow the pane', () => {
+    expect(across(100)).toBe(1)
+    expect(across(0)).toBe(1)
+  })
+
+  it('puts four across at the board’s fitted width, and three with Dropped hidden', () => {
+    // `.gallery-scroll` in app.css: the outer keyline at each side, space-5 between cards.
+    const columns = (pane: number) =>
+      galleryColumns(
+        pane - 2 * px('size.list-keyline-outer'),
+        px('size.gallery-card-min-width'),
+        px('size.gallery-card-max-width'),
+        px('space.5'),
+      )
+    expect(columns(fittedBoardWidth(5))).toBe(4)
+    expect(columns(fittedBoardWidth(4))).toBe(3)
+  })
+})
+
+describe('galleryCardHeight', () => {
+  it('follows the width: a 3:4 sheet inside the cell’s padding, and the caption under it', () => {
+    expect(galleryCardHeight(260, 4, 26)).toBe(4 + 336 + 26)
+    expect(galleryCardHeight(220, 4, 26)).toBeCloseTo(4 + (212 * 4) / 3 + 26)
+  })
+
+  it('is no taller than its padding and caption before the card is measured', () => {
+    expect(galleryCardHeight(0, 4, 26)).toBe(30)
   })
 })
 

@@ -116,6 +116,32 @@ export function statusStep(
   return at < 0 ? undefined : statuses[at + by]
 }
 
+/**
+ * The column a drag over `over` washes: none when every card dragged is in
+ * it already, as a drop there changes nothing. `dragged` holds the statuses
+ * of this board's dragged cards; notes dragged from elsewhere wash any column.
+ */
+export function dropWash(
+  over: NoteStatus | undefined,
+  dragged: ReadonlySet<NoteStatus> | undefined,
+): NoteStatus | undefined {
+  if (over === undefined) return undefined
+  if (dragged && dragged.size === 1 && dragged.has(over)) return undefined
+  return over
+}
+
+/**
+ * Whether a dragleave on a column leaves the column itself.
+ * WebKit sends dragleave without a relatedTarget, and crossing into one of the column's own children sends one too.
+ */
+export function leftColumn(
+  box: { left: number; right: number; top: number; bottom: number },
+  x: number,
+  y: number,
+): boolean {
+  return !(x > box.left && x < box.right && y > box.top && y < box.bottom)
+}
+
 export interface StatusChange {
   id: string
   from: NoteStatus

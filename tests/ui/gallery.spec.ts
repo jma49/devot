@@ -63,7 +63,8 @@ test('a view switches to a gallery of page previews, and a card opens its note',
   // The view's order, pinned first; the untitled note's page starts with its first line.
   expect(await cardTitles(page)).toEqual(['Delta', 'Alpha', 'Bravo', 'Charlie', 'Echo'])
   const foxtrot = card(page, 'Foxtrot')
-  await expect(foxtrot).toHaveAccessibleName('Foxtrot opens the page.')
+  // Named by its content, as a board card is: the title, then the caption.
+  await expect(foxtrot).toHaveAccessibleName(/^Foxtrot opens the page\. \S/)
   await expect(foxtrot.locator('.note-title')).toHaveCount(0)
   await expect(foxtrot.locator('.gallery-page p').first()).toHaveText('Foxtrot opens the page.')
 
@@ -99,7 +100,7 @@ test('a view switches to a gallery of page previews, and a card opens its note',
   await expect(page.getByRole('listbox', { name: 'Notes' }).getByRole('option')).toHaveCount(6)
 })
 
-test("a card is the note's first page on a sheet, with the pin and the time under it, selected as a row is", async ({
+test("a card is the note's first page on a sheet, with the pin, the status and the time under it, selected as a row is", async ({
   page,
 }) => {
   await layout(page, 'Gallery').click()
@@ -109,8 +110,11 @@ test("a card is the note's first page on a sheet, with the pin and the time unde
     await expect(c.locator('.gallery-sheet .gallery-page').first()).toBeVisible()
     await expect(c.locator('.gallery-card-caption time')).toHaveCount(1)
   }
-  await expect(card(page, 'Delta').locator('.gallery-card-caption .icon')).toHaveCount(1)
-  await expect(card(page, 'Alpha').locator('.gallery-card-caption .icon')).toHaveCount(0)
+  await expect(card(page, 'Delta').locator('.gallery-card-caption .card-pin')).toHaveCount(1)
+  await expect(card(page, 'Alpha').locator('.gallery-card-caption .card-pin')).toHaveCount(0)
+  await expect(card(page, 'Delta').locator('.card-status.status-completed')).toHaveCount(1)
+  await expect(card(page, 'Alpha').locator('.card-status.status-active')).toHaveCount(1)
+  await expect(card(page, 'Echo').locator('.card-status')).toHaveCount(0)
 
   const titles = gallery(page).locator('.gallery-sheet .note-title')
   await expect(titles).toHaveCount(5)
@@ -163,4 +167,26 @@ test('an untitled note with an empty body shows Untitled on its page', async ({ 
   await titleField(page).fill('')
   const empty = gallery(page).locator('.gallery-page .note-title.is-untitled')
   await expect(empty).toHaveText('Untitled')
+})
+
+test('cards are 220 to 300 wide, each sheet 3:4, and the pane opens at the board’s fitted width', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1800, height: 900 })
+  await layout(page, 'Gallery').click()
+  await expect(gallery(page).getByRole('option')).toHaveCount(6)
+  expect((await gallery(page).boundingBox())?.width).toBe(964)
+  const boxes = await gallery(page)
+    .locator('.gallery-card')
+    .evaluateAll((els) =>
+      els.map((el) => {
+        const sheet = el.querySelector('.gallery-sheet')!.getBoundingClientRect()
+        return { card: el.getBoundingClientRect().width, ratio: sheet.height / sheet.width }
+      }),
+    )
+  for (const box of boxes) {
+    expect(box.card).toBeGreaterThanOrEqual(220)
+    expect(box.card).toBeLessThanOrEqual(300)
+    expect(box.ratio).toBeCloseTo(4 / 3, 2)
+  }
 })

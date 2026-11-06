@@ -1758,14 +1758,6 @@
       },
       "$description": "The narrowest the note list is dragged or shrinks to while it shows a board."
     },
-    "board-default-width": {
-      "$type": "dimension",
-      "$value": {
-        "value": 860,
-        "unit": "px"
-      },
-      "$description": "The board's width until the user drags its right edge: room for its five columns at their narrowest."
-    },
     "board-max-width": {
       "$type": "dimension",
       "$value": {
@@ -1782,34 +1774,50 @@
       },
       "$description": "The narrowest the editor gets beside a board: its toolbar, title and metadata row fit without clipping. The board scrolls sideways before the editor goes below it."
     },
+    "board-column-width": {
+      "$type": "dimension",
+      "$value": {
+        "value": 180,
+        "unit": "px"
+      },
+      "$description": "A board column's width. Until the user drags its edge the board is exactly as wide as its columns: this width each, space.5 apart, with size.list-keyline-outer at each side."
+    },
     "board-column-min-width": {
       "$type": "dimension",
       "$value": {
         "value": 150,
         "unit": "px"
       },
-      "$description": "The narrowest a board column gets; narrower boards scroll sideways. Five fit the board's default width."
+      "$description": "The narrowest a board column shrinks to in a board dragged narrower than its columns; narrower still, the board scrolls sideways."
+    },
+    "card-meta-line": {
+      "$type": "dimension",
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "The line of a card's meta row (a board card, a gallery card's caption): as tall as a small icon."
     },
     "gallery-card-min-width": {
       "$type": "dimension",
       "$value": {
-        "value": 180,
+        "value": 220,
         "unit": "px"
       },
-      "$description": "The narrowest a gallery card gets; cards share the width left over. Four fit the board's default width."
+      "$description": "The narrowest a gallery card gets, unless the pane is narrower than one."
     },
-    "gallery-card-height": {
+    "gallery-card-max-width": {
       "$type": "dimension",
       "$value": {
-        "value": 240,
+        "value": 300,
         "unit": "px"
       },
-      "$description": "Every gallery card's height: the sheet with the note's first page, and the caption line under it."
+      "$description": "The widest a gallery card gets: a wider pane takes more cards across, not bigger ones. A card's sheet is 3:4, so its height follows its width."
     },
     "gallery-page-width": {
       "$type": "dimension",
       "$value": {
-        "value": 400,
+        "value": 480,
         "unit": "px"
       },
       "$description": "The width a gallery card's page thumbnail is laid out at before it is scaled down to the card, so every card shows its note at one reading width."
@@ -2989,6 +2997,31 @@
         "unit": "px"
       }
     },
+    "page-key-y": {
+      "$value": {
+        "value": 1,
+        "unit": "px"
+      },
+      "$description": "The two-layer shadow under a gallery card's page; its colours are the theme's color.shadow.page-key and page-ambient."
+    },
+    "page-key-blur": {
+      "$value": {
+        "value": 2,
+        "unit": "px"
+      }
+    },
+    "page-ambient-y": {
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      }
+    },
+    "page-ambient-blur": {
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      }
+    },
     "float-bar-y": {
       "$value": {
         "value": 2,
@@ -3064,6 +3097,10 @@
     "list-selected": {
       "$value": 0.2,
       "$description": "A selected note row's background: the accent fill at this strength."
+    },
+    "card-dragged": {
+      "$value": 0.35,
+      "$description": "A board card while it is being dragged: it stays in its place, faint, until the drop."
     },
     "card-selected": {
       "$value": 0.1,
