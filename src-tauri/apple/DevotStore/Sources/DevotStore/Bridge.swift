@@ -1,6 +1,6 @@
 import Foundation
 
-// The C functions src-tauri/src/native/ios.rs declares. Each starts a task and returns at once,
+// The C functions src-tauri/src/native/ios/store.rs declares. Each starts a task and returns at once,
 // from any thread. The task calls `reply` exactly once, on a thread of its own, with the caller's
 // request number and the reply's UTF-8 JSON. That buffer is Swift's: it stays valid until `reply`
 // returns, Rust copies it, and Swift frees it afterwards.
