@@ -58,7 +58,7 @@ Part of the [design system](design-system.md).
 - Status shortcuts (`src/renderer/src/statusKeys.ts`): Control+Command+1 to 5 set the open note's status (none, active, on hold, completed, dropped) anywhere in the window, also while typing, but not over a sheet.
   They are the registry's `status.*` commands (`window` scope), so the palette lists them while a note is open and Settings > Keyboard Shortcuts can change them.
   Unit tests check that they take no key another command, a context menu, the menu bar or macOS already uses.
-- Notebook drag and drop (`src/renderer/src/Sidebar.tsx`): dropping a notebook on the top quarter of another puts it before that one, on the bottom quarter after it (after an open notebook's sub-notebooks too; the top quarter of a first sub-notebook puts it first inside), in the middle inside it; a line on the row's edge shows where it will go (after an open notebook: under its last visible sub-notebook, at its indent).
+- Notebook drag and drop (`src/renderer/src/sidebar/useDrops.ts`): dropping a notebook on the top quarter of another puts it before that one, on the bottom quarter after it (after an open notebook's sub-notebooks too; the top quarter of a first sub-notebook puts it first inside), in the middle inside it; a line on the row's edge shows where it will go (after an open notebook: under its last visible sub-notebook, at its indent).
   A drag that ends anywhere, dropped or cancelled, clears the drop marks.
   A notebook never drops on itself or among its own sub-notebooks.
   The Notebooks header puts it first at the top level.
@@ -68,7 +68,7 @@ Part of the [design system](design-system.md).
   A notebook with AI access on shows a small sparkle before its count while its row is under the pointer, has the keyboard, is selected or has its menu open; at rest the sparkle takes no room, so the name gets it, and its accessible name stays.
   Every action of a notebook or tag row has a keyboard route: Shift+F10, the menu key or Control+Return (the registry's `sidebar.rowMenu`, scope `sidebar`) opens the focused row's native menu under the row, where the arrow keys and Return pick (Allow AI Access, the exports, New Notebook Inside, the tag Colour submenu and the rest); Rename, Move Up and Move Down and Delete also have keys of their own.
   The menu key is a named key (`ContextMenu`) of the shortcut notation, so Settings > Keyboard Shortcuts can record it.
-- **Sidebar sections and footer** (`Sidebar.tsx`, `sidebarSections.ts`, `SidebarFooter.tsx`): Notebooks, Status, Tags and Agents have one header shape: the title on the left; on the right the section's own actions (search, add) and then its disclosure chevron, shown while the header is under the pointer or has the keyboard inside it.
+- **Sidebar sections and footer** (`Sidebar.tsx`, `sidebar/sectionHeader.tsx`, `sidebarSections.ts`, `SidebarFooter.tsx`): Notebooks, Status, Tags and Agents have one header shape: the title on the left; on the right the section's own actions (search, add) and then its disclosure chevron, shown while the header is under the pointer or has the keyboard inside it.
   A collapsed section keeps its chevron shown, so its state shows.
   Each section folds, and each window remembers which are folded in local storage (`devot.sidebarCollapsed.<window label>`); naming a notebook opens a folded Notebooks section.
   The footer is one button that opens the backup and mirror status: it reads the last save time ("Saved at 11:37:02") once a note was saved in this window, else the panel's name.
@@ -126,7 +126,7 @@ Part of the [design system](design-system.md).
   It is saved at once when the view, filter, note or mode changes, 400 ms after the selection or a scroll position stops changing (never per keystroke; the editor measures its top line only when it scrolls, and moves it with edits made above it), and when the page goes away or out of sight and at the start of the quit handshake.
   Nothing is saved until the window has restored, so a window that is still loading never overwrites it, and a view or note picked while it loads is kept rather than replaced.
   The restored note opens like any other, as the first entry of Back and Forward's trail.
-- **Keyboard navigation** (`src/core/navigation.ts`, `src/renderer/src/areas.ts`, `src/renderer/src/Sidebar.tsx`):
+- **Keyboard navigation** (`src/core/navigation.ts`, `src/renderer/src/areas.ts`, `src/renderer/src/sidebar/useRowKeys.ts`):
   - **Back and Forward:** each window keeps the trail of notes it opened (up to 100, in memory): opening a note from anywhere (the list, the palette, a link, Next or Previous) drops the entries ahead and adds it; Cmd+[ and Cmd+], and the Back and Forward buttons (SF Symbols `arrow.left` and `arrow.right`) after the focus mode button at the start of the editor's toolbar, move along it.
     They skip notes deleted since and the open note itself, and are disabled (the keys do nothing, the palette does not offer them) with nowhere to go.
     Notes opened in the Trash are not entries; Back from the Trash leaves it for the last note opened.
