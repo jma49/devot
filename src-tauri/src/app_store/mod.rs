@@ -1,6 +1,6 @@
 //! The App Store as Rust sees it (docs/adr/0014-iphone-sold-on-the-app-store-with-the-licence-kept.md,
 //! The native bridge): the two products, a purchase, Restore Purchases, the current entitlements,
-//! StoreKit's transaction updates and finishing a transaction. On iOS it is StoreKit 2 through the
+//! StoreKit's transaction updates, finishing a transaction and a refund request. On iOS it is StoreKit 2 through the
 //! Swift package `src-tauri/apple/DevotStore` (`storekit`); everywhere else it is `FakeAppStore`.
 //! Nothing here decides what unlocks the app: that is the entitlement rules' job
 //! (`licence::purchases`), and `licence::app_store` is the one caller.
@@ -25,7 +25,7 @@ use std::fmt;
 use std::future::Future;
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedReceiver;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -169,6 +169,14 @@ pub(crate) enum Finish {
     NotFound,
 }
 
+/// Apple's refund request sheet. Apple decides later: a refund arrives as a revoked transaction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum Refund {
+    Requested,
+    Cancelled,
+}
+
 /// A failure as its code alone, so it can be logged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct StoreError(&'static str);
@@ -183,6 +191,8 @@ impl StoreError {
     pub(crate) const UNVERIFIED: StoreError = StoreError("E_APP_STORE_UNVERIFIED");
     /// The transaction listener was started already; it runs once per launch.
     pub(crate) const LISTENING: StoreError = StoreError("E_APP_STORE_LISTENING");
+    /// This Apple account holds no Devot Pro purchase that counts.
+    pub(crate) const NO_PRO: StoreError = StoreError("E_APP_STORE_NO_PRO");
     pub(crate) const UNKNOWN: StoreError = StoreError("E_APP_STORE_UNKNOWN");
 
     /// A code the bridge reports, or `UNKNOWN` for one it does not know.
@@ -203,7 +213,7 @@ impl fmt::Display for StoreError {
 
 /// A bridge call with a time limit. The bridge has none of its own, so a StoreKit call that never
 /// answers (a hung `AppStore.sync()` or products fetch) would hold its caller for ever. Every call
-/// but `purchase`, whose sheet the user is looking at, goes through this.
+/// but `purchase` and `request_refund`, whose sheets the user is looking at, goes through this.
 pub(crate) async fn within<T>(
     limit: Duration,
     call: impl Future<Output = Result<T, StoreError>>,
@@ -242,6 +252,11 @@ pub(crate) trait AppStore: Send + Sync {
         &self,
         transaction_id: u64,
     ) -> impl Future<Output = Result<Finish, StoreError>> + Send;
+    /// Opens Apple's refund request sheet for the transaction, over the active window.
+    fn request_refund(
+        &self,
+        transaction_id: u64,
+    ) -> impl Future<Output = Result<Refund, StoreError>> + Send;
 }
 
 #[cfg(target_os = "ios")]

@@ -42,6 +42,7 @@ const STORE_BRIDGE: &[&str] = &[
     "devot_store_restore",
     "devot_store_entitlements",
     "devot_store_finish",
+    "devot_store_refund",
     "devot_store_listen",
 ];
 

@@ -126,6 +126,24 @@ func errorCode(_ error: Error) -> String {
     return "E_APP_STORE_UNKNOWN"
 }
 
+func refundReply(_ status: Transaction.RefundRequestStatus) -> Reply {
+    switch status {
+    case .success: return Reply(status: "refundRequested")
+    case .userCancelled: return Reply(status: "cancelled")
+    @unknown default: return .error("E_APP_STORE_UNKNOWN")
+    }
+}
+
+func refundCode(_ error: Error) -> String {
+    if let error = error as? Transaction.RefundRequestError {
+        switch error {
+        case .duplicateRequest: return "E_APP_STORE_REFUND_DUPLICATE"
+        default: return "E_APP_STORE_REFUND_FAILED"
+        }
+    }
+    return errorCode(error)
+}
+
 func isUserCancel(_ error: Error) -> Bool {
     if case .userCancelled? = error as? StoreKitError { return true }
     return false

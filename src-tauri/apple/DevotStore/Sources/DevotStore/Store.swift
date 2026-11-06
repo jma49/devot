@@ -1,5 +1,8 @@
 import Foundation
 import StoreKit
+#if os(iOS)
+import UIKit
+#endif
 
 /// StoreKit 2's side of the bridge. Each call gives one reply and never throws: every failure is a
 /// code. It decides nothing; Rust reads the replies and applies the entitlement rules.
@@ -92,6 +95,31 @@ enum Store {
         }
         return Reply(status: "notFound")
     }
+
+    /// Apple's refund request sheet for the transaction, over the app's active window scene. Apple
+    /// decides later; a refund arrives as a revoked transaction update.
+    @MainActor
+    static func refund(_ transactionID: UInt64) async -> Reply {
+        #if os(iOS)
+        guard let scene = activeScene() else { return .error("E_APP_STORE_NO_SCENE") }
+        do {
+            return refundReply(try await Transaction.beginRefundRequest(for: transactionID, in: scene))
+        } catch {
+            return isUserCancel(error) ? Reply(status: "cancelled") : .error(refundCode(error))
+        }
+        #else
+        return .error("E_APP_STORE_NO_SCENE")
+        #endif
+    }
+
+    #if os(iOS)
+    @MainActor
+    private static func activeScene() -> UIWindowScene? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+    }
+    #endif
 
     static func update(_ result: VerificationResult<Transaction>) -> Reply {
         switch Checked(result) {

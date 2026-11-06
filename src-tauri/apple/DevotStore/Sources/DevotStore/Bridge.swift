@@ -59,6 +59,11 @@ public func devotStoreFinish(_ request: UInt64, _ transactionID: UInt64, _ callb
     reply(request, callback) { await Store.finish(transactionID) }
 }
 
+@_cdecl("devot_store_refund")
+public func devotStoreRefund(_ request: UInt64, _ transactionID: UInt64, _ callback: DevotStoreReply) {
+    reply(request, callback) { await Store.refund(transactionID) }
+}
+
 final class Listener: @unchecked Sendable {
     private let lock = NSLock()
     private var task: Task<Void, Never>?

@@ -337,6 +337,11 @@ impl Licence {
             .flatten()
     }
 
+    pub(crate) fn pro_transaction_id(&self) -> Option<u64> {
+        self.with_purchases(|purchases| purchases.pro_transaction_id())
+            .flatten()
+    }
+
     fn app_store_view(&self) -> Option<AppStoreView> {
         self.with_purchases(|purchases| AppStoreView {
             pro: purchases.pro(),

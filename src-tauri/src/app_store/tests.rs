@@ -4,8 +4,8 @@ use super::fake::{FakeAppStore, transaction};
 use super::payload;
 use super::platform;
 use super::{
-    AppStore, Entitlements, Finish, Ownership, Product, Purchase, Restore, RevocationReason,
-    StoreEnvironment, StoreError, StoreProduct, StoreTransaction, Update,
+    AppStore, Entitlements, Finish, Ownership, Product, Purchase, Refund, Restore,
+    RevocationReason, StoreEnvironment, StoreError, StoreProduct, StoreTransaction, Update,
 };
 
 const JWS: &str = "eyJhbGciOiJFUzI1NiJ9.eyJ0cmFuc2FjdGlvbklkIjoiMSJ9.c2lnbmF0dXJl";
@@ -148,6 +148,7 @@ fn malformed_replies_are_the_payload_code_never_a_panic() {
         assert_eq!(payload::entitlements(reply), Err(StoreError::PAYLOAD));
         assert_eq!(payload::finish(reply), Err(StoreError::PAYLOAD));
         assert_eq!(payload::update(reply), Err(StoreError::PAYLOAD));
+        assert_eq!(payload::refund(reply), Err(StoreError::PAYLOAD));
     }
 }
 
@@ -159,6 +160,11 @@ fn a_reply_meant_for_another_call_is_the_payload_code() {
     let purchased = bytes(&json!({"status": "purchased", "transaction": transaction_json()}));
     assert_eq!(payload::update(&purchased), Err(StoreError::PAYLOAD));
     assert_eq!(payload::restore(&purchased), Err(StoreError::PAYLOAD));
+    assert_eq!(payload::refund(&synced), Err(StoreError::PAYLOAD));
+    assert_eq!(
+        payload::purchase(&bytes(&json!({"status": "refundRequested"}))),
+        Err(StoreError::PAYLOAD)
+    );
 }
 
 #[test]
@@ -191,6 +197,9 @@ fn swift_error_codes_map_to_the_known_codes_and_anything_else_to_unknown() {
         "E_APP_STORE_PURCHASE_FAILED",
         "E_APP_STORE_PRODUCT_NOT_FOUND",
         "E_APP_STORE_UNKNOWN_PRODUCT",
+        "E_APP_STORE_REFUND_DUPLICATE",
+        "E_APP_STORE_REFUND_FAILED",
+        "E_APP_STORE_NO_SCENE",
         "E_APP_STORE_UNKNOWN",
     ] {
         let reply = bytes(&json!({"status": "error", "code": code}));
@@ -297,6 +306,25 @@ fn restore_and_finish_outcomes_are_read() {
 }
 
 #[test]
+fn refund_request_outcomes_are_read() {
+    assert_eq!(
+        payload::refund(&bytes(&json!({"status": "refundRequested"}))),
+        Ok(Refund::Requested)
+    );
+    assert_eq!(
+        payload::refund(&bytes(&json!({"status": "cancelled"}))),
+        Ok(Refund::Cancelled)
+    );
+    assert_eq!(
+        payload::refund(&bytes(
+            &json!({"status": "error", "code": "E_APP_STORE_REFUND_DUPLICATE"})
+        ))
+        .map_err(StoreError::code),
+        Err("E_APP_STORE_REFUND_DUPLICATE")
+    );
+}
+
+#[test]
 fn a_transaction_debug_print_leaves_out_the_jws() {
     let printed = format!("{:?}", parsed_transaction());
     assert!(!printed.contains(JWS), "{printed}");
@@ -324,6 +352,7 @@ fn error_codes_are_app_store_codes() {
         StoreError::UNAVAILABLE,
         StoreError::NO_REPLY,
         StoreError::LISTENING,
+        StoreError::NO_PRO,
         StoreError::UNKNOWN,
     ] {
         assert!(error.code().starts_with("E_APP_STORE_"), "{error}");
@@ -353,6 +382,7 @@ fn an_empty_fake_is_a_device_without_the_store() {
             Ok(Entitlements::default())
         );
         assert_eq!(store.finish(1).await, Ok(Finish::NotFound));
+        assert_eq!(store.request_refund(1).await, Err(StoreError::UNAVAILABLE));
     });
 }
 
@@ -447,6 +477,23 @@ fn a_refund_in_the_fake_revokes_and_reports_the_transaction() {
             store.current_entitlements().await,
             Ok(Entitlements::default())
         );
+    });
+}
+
+#[test]
+fn the_fake_records_each_refund_request_and_gives_its_scripted_outcome() {
+    runtime().block_on(async {
+        let store = FakeAppStore::default();
+        store.set_refund_request(Ok(Refund::Requested));
+        assert_eq!(store.request_refund(11).await, Ok(Refund::Requested));
+        store.set_refund_request(Ok(Refund::Cancelled));
+        assert_eq!(store.request_refund(11).await, Ok(Refund::Cancelled));
+        store.set_refund_request(Err(StoreError::from_code("E_APP_STORE_REFUND_FAILED")));
+        assert_eq!(
+            store.request_refund(12).await,
+            Err(StoreError::from_code("E_APP_STORE_REFUND_FAILED"))
+        );
+        assert_eq!(store.refund_requests(), vec![11, 11, 12]);
     });
 }
 

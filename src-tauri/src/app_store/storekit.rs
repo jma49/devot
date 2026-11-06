@@ -7,8 +7,8 @@ use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 use tokio::sync::oneshot;
 
 use super::{
-    AppStore, Entitlements, Finish, Product, Purchase, Restore, StoreError, StoreProduct, Update,
-    payload,
+    AppStore, Entitlements, Finish, Product, Purchase, Refund, Restore, StoreError, StoreProduct,
+    Update, payload,
 };
 use crate::native::ios;
 
@@ -58,5 +58,9 @@ impl AppStore for StoreKit {
 
     async fn finish(&self, transaction_id: u64) -> Result<Finish, StoreError> {
         payload::finish(&reply(ios::store_finish(transaction_id)).await?)
+    }
+
+    async fn request_refund(&self, transaction_id: u64) -> Result<Refund, StoreError> {
+        payload::refund(&reply(ios::store_refund(transaction_id)).await?)
     }
 }

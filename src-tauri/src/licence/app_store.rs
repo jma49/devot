@@ -3,7 +3,8 @@
 //! entitlements and follows the updates for the life of the app; the commands sell the two products
 //! and Restore Purchases. What each transaction unlocks is the licence's decision (`purchases`).
 //! A transaction is finished only once the licence holds it. Get a Mac Licence Key exchanges the
-//! Devot Pro purchase for its key at the licence Worker.
+//! Devot Pro purchase for its key at the licence Worker, and Request a Refund opens Apple's sheet
+//! for that purchase.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,7 +15,8 @@ use tauri::State as Tauri;
 use super::client::{self, MacKey};
 use super::{Licence, Snapshot};
 use crate::app_store::{
-    self, AppStore, Product, Purchase, Restore, StoreError, StoreTransaction, Update, within,
+    self, AppStore, Product, Purchase, Refund, Restore, StoreError, StoreTransaction, Update,
+    within,
 };
 use crate::task;
 
@@ -180,6 +182,19 @@ impl<S: AppStore + 'static> Storefront<S> {
         }
         self.read_entitlements().await
     }
+
+    /// No time limit, as for a purchase: Apple's sheet is open. The transaction is the Devot Pro
+    /// purchase the licence holds; a refund Apple grants arrives later as a revoked update.
+    pub(crate) async fn request_refund(&self) -> Result<Refund, StoreError> {
+        if !self.licence.sold_on_app_store() {
+            return Err(StoreError::UNAVAILABLE);
+        }
+        let id = self
+            .licence
+            .pro_transaction_id()
+            .ok_or(StoreError::NO_PRO)?;
+        self.store.request_refund(id).await
+    }
 }
 
 /// The storefront, in an App Store build; every other build has none.
@@ -249,7 +264,7 @@ pub(crate) fn mac_key(
     if !licence.sold_on_app_store() {
         return Err(StoreError::UNAVAILABLE.code());
     }
-    let transaction = licence.pro_transaction().ok_or("E_APP_STORE_NO_PRO")?;
+    let transaction = licence.pro_transaction().ok_or(StoreError::NO_PRO.code())?;
     let key =
         exchange(&transaction).inspect_err(|code| log::warn!("W_APP_STORE_MAC_KEY {code}"))?;
     log::info!("I_APP_STORE_MAC_KEY {}", key.id);
@@ -263,6 +278,27 @@ pub async fn store_mac_key(licence: Tauri<'_, Arc<Licence>>) -> Result<MacKey, S
         mac_key(licence, client::exchange_from_site)
     })
     .await
+}
+
+/// Request a Refund: takes no argument, so the transaction is never one a window names.
+#[tauri::command]
+pub async fn store_refund(shop: Tauri<'_, Shop>) -> Result<Refund, String> {
+    let outcome = storefront(&shop)?.request_refund().await;
+    let line = refund_line(&outcome);
+    if outcome.is_ok() {
+        log::info!("{line}");
+    } else {
+        log::warn!("{line}");
+    }
+    outcome.map_err(|error| error.code().to_owned())
+}
+
+fn refund_line(outcome: &Result<Refund, StoreError>) -> String {
+    match outcome {
+        Ok(Refund::Requested) => "I_APP_STORE_REFUND_REQUESTED".to_owned(),
+        Ok(Refund::Cancelled) => "I_APP_STORE_REFUND_CANCELLED".to_owned(),
+        Err(error) => format!("W_APP_STORE_REFUND {}", error.code()),
+    }
 }
 
 #[cfg(test)]

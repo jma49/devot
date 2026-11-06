@@ -5,6 +5,7 @@ import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import {
   editingAllowed,
+  requestRefund,
   restorePurchases,
   soldOnAppStore,
   trialRunning,
@@ -89,10 +90,34 @@ function restoreValue(state: Restoring | null): string | undefined {
   return licenceProblem(state.code)
 }
 
-/** Restore Purchases, in an App Store build: an action, so it has no chevron; its outcome is its value. */
+/** An App Store action: it has no chevron, and its outcome is its value. */
+function ActionRow(props: {
+  label: MessageKey
+  value: string | undefined
+  busy: boolean
+  onClick: () => void
+}) {
+  return (
+    <li className="phone-grouped-row">
+      <button
+        type="button"
+        className="phone-grouped-open phone-settings-action"
+        aria-disabled={props.busy}
+        onClick={props.onClick}
+      >
+        <span className="phone-grouped-text">
+          <span className="phone-grouped-label">{t(props.label)}</span>
+          <span className="phone-grouped-count" role="status">
+            {props.value}
+          </span>
+        </span>
+      </button>
+    </li>
+  )
+}
+
 function RestoreRow() {
   const [state, setState] = useState<Restoring | null>(null)
-  const value = restoreValue(state)
   const restore = () => {
     if (state === 'running') return
     setState('running')
@@ -103,21 +128,48 @@ function RestoreRow() {
     )
   }
   return (
-    <li className="phone-grouped-row">
-      <button
-        type="button"
-        className="phone-grouped-open phone-settings-action"
-        aria-disabled={state === 'running'}
-        onClick={restore}
-      >
-        <span className="phone-grouped-text">
-          <span className="phone-grouped-label">{t('phone.settings.restore')}</span>
-          <span className="phone-grouped-count" role="status">
-            {value}
-          </span>
-        </span>
-      </button>
-    </li>
+    <ActionRow
+      label="phone.settings.restore"
+      value={restoreValue(state)}
+      busy={state === 'running'}
+      onClick={restore}
+    />
+  )
+}
+
+type Refunding = 'running' | 'requested' | { readonly problem: MessageKey }
+
+const REFUND_PROBLEMS: Readonly<Record<string, MessageKey>> = {
+  E_APP_STORE_REFUND_DUPLICATE: 'phone.settings.refundDuplicate',
+  E_APP_STORE_NETWORK: 'phone.settings.refundOffline',
+}
+
+function refundValue(state: Refunding | null): string | undefined {
+  if (state === null) return undefined
+  if (state === 'running') return t('phone.settings.refundOpening')
+  if (state === 'requested') return t('phone.settings.refundRequested')
+  return t(state.problem)
+}
+
+/** Request a Refund, while Devot Pro is held through the App Store: a cancel leaves the row as it was. */
+function RefundRow() {
+  const [state, setState] = useState<Refunding | null>(null)
+  const request = () => {
+    if (state === 'running') return
+    setState('running')
+    requestRefund().then(
+      (outcome) => setState(outcome === 'requested' ? 'requested' : null),
+      (error: unknown) =>
+        setState({ problem: REFUND_PROBLEMS[errorCode(error)] ?? 'phone.settings.refundFailed' }),
+    )
+  }
+  return (
+    <ActionRow
+      label="phone.settings.refund"
+      value={refundValue(state)}
+      busy={state === 'running'}
+      onClick={request}
+    />
   )
 }
 
@@ -239,7 +291,12 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
             after: (
               <>
                 <RestoreRow />
-                {licence.appStore?.pro && <MacKeyRow />}
+                {licence.appStore?.pro && (
+                  <>
+                    <MacKeyRow />
+                    <RefundRow />
+                  </>
+                )}
               </>
             ),
           }

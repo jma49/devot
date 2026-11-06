@@ -594,6 +594,7 @@ const PHONE_ONLY = [
   'allow-store-restore',
   'allow-store-mac-key',
   'allow-phone-share',
+  'allow-store-refund',
 ]
 
 describe('the iPhone capability', () => {
