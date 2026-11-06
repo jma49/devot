@@ -21,6 +21,7 @@ import {
   type StorageAdapter,
   type WelcomeContent,
 } from '../../src/core'
+import { noteCounts } from '../../src/core/noteCounts'
 import {
   createSyncEngine,
   type SyncEngineOptions,
@@ -254,6 +255,21 @@ describe('sync between two devices', () => {
     // A took in B's paragraph: its text from before is kept too.
     const before = (await a.storage.listRevisions(id)).filter((r) => r.value === MERGE)
     expect(before.map((r) => r.length)).toEqual(['Monday: gym\n\nTuesday\n\nWednesday\n'.length])
+  })
+
+  it('counts the words a merge version shows, as Note Info does', async () => {
+    const { a, b } = await pair()
+    const id = await a.notes.create('Trip')
+    await a.notes.setBody(id, '- [ ] Pack the [bag](https://example.com/bag)\n\nTickets\n')
+    await settle(a, b)
+    await a.notes.setBody(id, '- [x] Pack the [bag](https://example.com/bag)\n\nTickets\n')
+    await b.notes.setBody(id, '- [ ] Pack the [bag](https://example.com/bag)\n\nTickets now\n')
+    await settle(a, b)
+    const kept = (await b.storage.listRevisions(id)).filter((r) => r.value === MERGE)
+    const version = await b.storage.getRevision(kept[0]!.id)
+    const local = '- [ ] Pack the [bag](https://example.com/bag)\n\nTickets now\n'
+    expect(version?.words).toBe(noteCounts(local).words)
+    expect(version?.words).toBe(5)
   })
 
   it('keeps the text from before another device’s change, at most every ten minutes', async () => {

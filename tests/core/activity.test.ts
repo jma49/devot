@@ -151,6 +151,23 @@ describe('activity on SQLite', () => {
     expect(versions.map((v) => [v.at, v.value])).toEqual([[NOW - 100 * DAY_MS, 'baseline']])
   })
 
+  it('counts the words a baseline shows, as Note Info does', async () => {
+    const { storage, notes } = service()
+    time = NOW - 100 * DAY_MS
+    const id = await notes.create('Imported')
+    const body = '---\ntitle: Kept from before\n---\n- [x] Read the [notes](https://example.com/n)'
+    await notes.setBody(id, body)
+    await notes.release(id)
+    time = NOW
+    await notes.setPinned(id, true)
+    await notes.flush()
+    const [baseline] = (await storage.listRevisions(id)).filter((r) => r.kind === 'body')
+    expect(baseline?.value).toBe('baseline')
+    const version = await storage.getRevision(baseline!.id)
+    expect(version?.words).toBe(noteCounts(body).words)
+    expect(version?.words).toBe(3)
+  })
+
   it('never counts text a note had before its history began, when it is edited later', async () => {
     const storage = sqlite()
     time = NOW - 100 * DAY_MS

@@ -278,7 +278,7 @@ Part of the [architecture overview](../architecture.md).
   The editor reports counts through a debounced pacer (300 ms after the last edit or selection change; the whole note is counted again only after a text change, the selection from its own text; the core worker counts, so a long note's count never holds a frame, and an answer for text changed since is dropped), and only while the footer is shown (`showCounts`, Settings > Editing; Mac only).
   With a selection the footer reads `12 of 340`.
   The activity figures count words the same way (`noteCounts`), so a week's words match what Note Info shows.
-  Versions stored before that counted the raw text, so a note's first version after it can move its day's words by the difference, once.
+  Versions stored before that counted the raw text, so a note's first version after it can move its day's words by the difference, once. That change can be negative, for a note whose raw text held more words than it shows.
 - **Outline** (`src/renderer/src/outline/`): View > Show Outline (the `outline` editor setting, off by default; a check item in Rust's menu, and the palette has the same command) puts a column of the note's headings at the right edge of the panes (`OutlinePanel.tsx`).
   The headings come from `outlineEntries` (the palette's outline) filtered to headings, rebuilt only when the text changes, nested by level; their fold state is kept per note for the window's life, keyed by level, text and which of that pair it is.
   The heading marked is the last at or above the caret's line (editor and split) or the preview's top line (Preview).
