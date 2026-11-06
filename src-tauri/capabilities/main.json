@@ -73,6 +73,7 @@
     "allow-note-tag-get",
     "allow-saved-searches-list",
     "allow-saved-search-put",
+    "allow-welcome-seed",
     "allow-notes-trash-list",
     "allow-note-purge",
     "allow-revision-put",

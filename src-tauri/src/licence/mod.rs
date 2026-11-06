@@ -1049,9 +1049,9 @@ impl Licence {
     }
 
     /// The database's write gate: user content is refused once the trial is over without a valid
-    /// licence; sync's bookkeeping and the search index never are.
+    /// licence; sync's bookkeeping, the search index and the bundled first-launch notes never are.
     pub(crate) fn require_write(&self, what: Write) -> Result<(), &'static str> {
-        if what == Write::Bookkeeping || self.unlocked(what) {
+        if matches!(what, Write::Bookkeeping | Write::Welcome) || self.unlocked(what) {
             Ok(())
         } else {
             Err(self.refusal())

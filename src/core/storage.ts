@@ -5,6 +5,7 @@
 
 import type { AgentWriteRow } from './authorship'
 import type { FileCopy, FileMeta } from './files'
+import type { WelcomeSeed } from './welcome'
 
 export interface NoteRecord {
   id: string
@@ -263,6 +264,8 @@ export interface StorageAdapter {
   putBook(book: BookRecord): Promise<void>
   /** Each as `putBook`, in order, in one transaction: all of them or none. At most MAX_PUT_BOOKS. */
   putBooks(books: readonly BookRecord[]): Promise<void>
+  /** Writes the first-launch notes into a library that has never held anything (see welcome.ts) and answers whether it did. The app's store takes only the seed's stamps and writes its own bundled copy, whatever the licence: a caller can write no other content through it. */
+  seedWelcome(seed: WelcomeSeed): Promise<boolean>
   listTags(): Promise<TagRecord[]>
   putTag(tag: TagRecord): Promise<void>
   /** Writes the tag and the saved searches rewritten for its new name in one transaction: all of them or none. */

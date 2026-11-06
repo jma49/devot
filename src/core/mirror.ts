@@ -1176,6 +1176,11 @@ export function observeWrites(storage: StorageAdapter, changed: () => void): Sto
     isLiveBook: (id) => storage.isLiveBook(id),
     putBook: after((book) => storage.putBook(book)),
     putBooks: after((books) => storage.putBooks(books)),
+    async seedWelcome(seed) {
+      const seeded = await storage.seedWelcome(seed)
+      if (seeded) changed()
+      return seeded
+    },
     listTags: () => storage.listTags(),
     putTag: after((tag) => storage.putTag(tag)),
     renameTag: after((tag, searches) => storage.renameTag(tag, searches)),

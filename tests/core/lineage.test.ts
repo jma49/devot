@@ -411,7 +411,6 @@ describe('first-launch notes', () => {
     seedWelcome({
       storage: d.storage,
       clock: d.clock,
-      newId: d.newId,
       content: given,
     })
 

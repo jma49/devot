@@ -161,6 +161,7 @@ pub fn run() {
             commands::tags::note_tag_get,
             commands::saved_searches::saved_searches_list,
             commands::saved_searches::saved_search_put,
+            commands::welcome::welcome_seed,
             exit::app_exit_ready,
             exit::app_exit_cancel,
             external::open_external,

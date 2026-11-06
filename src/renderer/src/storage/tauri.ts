@@ -58,6 +58,8 @@ export const tauriWire: WireStorage = {
   isLiveBook: (id) => invoke<boolean>('book_is_live', { id }),
   putBook: (book) => invoke('book_put', { book }),
   putBooks: (books) => invoke('books_put', { books }),
+  // Rust writes its own copy of the seed (src-tauri/src/storage/welcome_seed.json), so only the stamps cross.
+  seedWelcome: ({ hlc, at }) => invoke<boolean>('welcome_seed', { hlc, at }),
   listTags: () => invoke<TagRecord[]>('tags_list'),
   putTag: (tag) => invoke('tag_put', { tag }),
   renameTag: (tag, searches) => invoke('tag_rename', { tag, searches }),

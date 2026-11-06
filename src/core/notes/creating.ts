@@ -6,7 +6,7 @@ import { fileLinkSpans, newFileCopies, replaceFileLinks, type FileCopy } from '.
 import { clipTitle, MAX_TITLE_CHARS } from '../noteLimits'
 import type { NoteRecord, NoteStatus } from '../storage'
 import { lineFeeds } from '../text'
-import { BODY, seedClient } from './body'
+import { BODY, seedState } from './body'
 import { asWritten } from './records'
 import type { NoteContext } from './context'
 import type { Kernel } from './kernel'
@@ -121,12 +121,9 @@ export function creatingMethods(
     },
 
     async seed(id, title, bookId, markdown, pinned = false) {
-      const seeded = new Y.Doc()
-      seeded.clientID = seedClient(id, markdown)
-      seeded.getText(BODY).insert(0, lineFeeds(markdown))
       // Edits go on under a client of this device's own: two devices writing as the seed's client would give two changes one ID.
       const doc = new Y.Doc()
-      Y.applyUpdate(doc, Y.encodeStateAsUpdate(seeded))
+      Y.applyUpdate(doc, seedState(id, markdown))
       await insertNote(title, await liveBook(bookId), doc, [], 'none', id, false, pinned)
     },
 

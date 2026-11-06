@@ -411,7 +411,8 @@ describe('Tauri command permissions', () => {
         (m) => m[1] ?? '',
       )
     // Its core never changes notebooks or tags, keeps saved searches, applies a template, lists the
-    // Trash, compacts the history, shows activity or lists agent writes: those start in the main window.
+    // Trash, compacts the history, shows activity, lists agent writes or seeds the first-launch notes:
+    // those start in the main window.
     const mainOnly = [
       'activity_list',
       'activity_notes_list',
@@ -430,6 +431,7 @@ describe('Tauri command permissions', () => {
       'saved_searches_list',
       'tag_put',
       'tag_rename',
+      'welcome_seed',
     ]
     const reached = [
       ...invoked('src/renderer/src/storage/tauri.ts').filter((c) => !mainOnly.includes(c)),

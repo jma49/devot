@@ -165,7 +165,7 @@ const coreApi = {
     })
     mirrorStorage = storage
     syncParts = { storage, clock, newId: ids }
-    welcome = (content) => seedWelcome({ storage, clock, newId: ids, content })
+    welcome = (content) => seedWelcome({ storage, clock, content })
     service = createNoteService({
       storage,
       clock,

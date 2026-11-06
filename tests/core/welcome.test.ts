@@ -5,6 +5,7 @@ import {
   createIdGenerator,
   createNoteService,
   seedWelcome,
+  type StorageAdapter,
   WELCOME_BOOK_ID,
   type WelcomeContent,
 } from '../../src/core'
@@ -29,7 +30,7 @@ function setup() {
   open.push(storage)
   const clock = createClock('mac1')
   const newId = createIdGenerator()
-  const seed = () => seedWelcome({ storage, clock, newId, content })
+  const seed = () => seedWelcome({ storage, clock, content })
   const notes = createNoteService({ storage, clock, newId, saveDelayMs: 5 })
   return { storage, seed, notes }
 }
@@ -54,7 +55,6 @@ describe('first-launch notes', () => {
     await seedWelcome({
       storage,
       clock: createClock('mac1'),
-      newId: createIdGenerator(),
       now,
       content,
     })
@@ -62,6 +62,30 @@ describe('first-launch notes', () => {
     expect(listed).toHaveLength(2)
     expect(listed.map((n) => n.updatedAt)).toEqual(listed.map((n) => n.createdAt))
     expect(listed.find((n) => n.id === A)?.pinned).toBe(true)
+  })
+
+  // The app's store writes its own bundled copy in that call, the one write a library without a licence takes (src-tauri/src/commands/welcome.rs).
+  it('seeds through one storage call, never a write the licence gates', async () => {
+    const { storage } = setup()
+    const refuse = () => Promise.reject(new Error('E_LICENCE_REQUIRED'))
+    const locked: StorageAdapter = {
+      ...storage,
+      putNote: refuse,
+      putBook: refuse,
+      putBooks: refuse,
+      putFile: refuse,
+      seedWelcome: (seed) => storage.seedWelcome(seed),
+    }
+    expect(await seedWelcome({ storage: locked, clock: createClock('mac1'), content })).toBe(A)
+    expect((await storage.listNotes()).map((n) => n.id).sort()).toEqual([A, B])
+  })
+
+  it('stamps the whole seed with one clock time', async () => {
+    const { storage, seed } = setup()
+    await seed()
+    const [book] = await storage.listBooks()
+    const note = await storage.getNote(A)
+    expect(new Set([book?.nameHlc, note?.titleHlc, note?.bookHlc, note?.pinnedHlc]).size).toBe(1)
   })
 
   it('leaves a library that already has notes alone', async () => {

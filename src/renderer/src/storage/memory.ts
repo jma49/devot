@@ -15,6 +15,7 @@
 // one in `devot.test.failRevisions`, and the listing of notes (the first load
 // of the lists) with one in `devot.test.failList`.
 import { isNotebookIcon } from '../../../core/notebookIcons'
+import { writeWelcomeSeed } from '../../../core/welcome'
 import type {
   ActivityRevision,
   AgentWriteSummary,
@@ -522,6 +523,7 @@ export const memoryStorage: StorageAdapter = {
   async isLiveBook(id) {
     return read<BookRecord>(BOOKS).some((b) => b.id === id && b.deletedAt === null)
   },
+  seedWelcome: (seed) => writeWelcomeSeed(memoryStorage, seed),
   async putBooks(books) {
     const all = new Map(read<BookRecord>(BOOKS).map((b) => [b.id, b]))
     for (const book of books) all.set(book.id, mergeBook(all.get(book.id), book))

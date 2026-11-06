@@ -12,3 +12,4 @@ pub mod saved_searches;
 pub mod search_index;
 pub mod sync;
 pub mod tags;
+pub mod welcome;

@@ -12,6 +12,7 @@
     "playwright-report/**",
     "test-results/**",
     "src/renderer/src/theme/tokens.*",
+    "src-tauri/src/commands/welcome_seed.json",
     "tests/core/fixtures/html-import/**"
   ]
 }
