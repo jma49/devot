@@ -139,7 +139,7 @@ describe('the purchase sheet', () => {
       line.textContent?.trim(),
     )
     expect(lines).toEqual([
-      'Write and edit every noteFree: read, search and export forever',
+      'Write and edit every noteFree: read and search forever',
       'Sync with your Mac',
       'AI that suggests and edits',
     ])
@@ -158,7 +158,7 @@ describe('the purchase sheet', () => {
     expect(primary(sheet)).toEqual([`Buy Devot Pro${STOREKIT_PRICE}`])
     expect(quiet(sheet)).toEqual([])
     expect(shown(sheet.innerHTML)).not.toContain('Try Free')
-    expect(shown(sheet.innerHTML)).toContain('Free: read, search and export forever')
+    expect(shown(sheet.innerHTML)).toContain('Free: read and search forever')
     expect(links(sheet)).toEqual(['Restore Purchases', 'Enter License Key'])
   })
 

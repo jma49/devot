@@ -78,7 +78,7 @@ Detail sheet, for the trial and a failed suggestion: a sheet with a `color.phone
 
 Purchase sheet (App Store builds): its head is the dove in a `color.phone.lens` circle, a 20 bold title and the glass close circle on the trailing edge, a 44 target that closes it as Escape and a drag down do.
 The title is Devot Pro, and says the trial has ended once it has.
-Under it, three lines of what Devot Pro unlocks, each with a check in `color.accent.text`, in the grouped row's text sizes: 16/23 in the body colour, and under the first, 14/19 in `color.phone.text-secondary`, that reading, search and export stay free.
+Under it, three lines of what Devot Pro unlocks, each with a check in `color.accent.text`, in the grouped row's text sizes: 16/23 in the body colour, and under the first, 14/19 in `color.phone.text-secondary`, that reading and search stay free.
 Then one filled action, `size.phone-sheet-done` high: Try Free while the trial is available, with Buy Once and StoreKit's price as a 44 accent text button under it; once the trial has ended, Buy Devot Pro with the price is the filled action and the trial is gone.
 The price always sits in the buy action, and Buy names no price until StoreKit gives one.
 Restore Purchases and Enter License Key share the last line, each a 44 target in 15 accent text, with a `size.phone-separator` hairline in `color.phone.separator` between them; Enter License Key and the hairline are there only in a build that takes keys.
