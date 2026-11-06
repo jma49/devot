@@ -1565,16 +1565,6 @@
       "$type": "dimension",
       "$value": { "value": 2, "unit": "px" }
     },
-    "phone-usage-bar": {
-      "$type": "dimension",
-      "$value": { "value": 44, "unit": "px" },
-      "$description": "The most a share bar takes in the Usage list; the label comes first."
-    },
-    "phone-usage-chart": {
-      "$type": "dimension",
-      "$value": { "value": 96, "unit": "px" },
-      "$description": "The Usage pane's daily chart."
-    },
     "phone-group-title": {
       "$type": "dimension",
       "$value": { "value": 10, "unit": "px" },

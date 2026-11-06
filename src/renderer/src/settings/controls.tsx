@@ -235,29 +235,37 @@ export function NumberStepper({
     onType(String(Math.min(max, Math.max(min, current + delta))))
     onLeave()
   }
+  const onPhone = useOnPhone()
+  const less = (
+    <button
+      type="button"
+      className="stepper-button"
+      aria-label={t('stepper.less')}
+      disabled={current <= min}
+      onClick={() => stepBy(-step)}
+    >
+      <Icon name="stepper.less" size="sm" />
+    </button>
+  )
+  const field = (
+    <input
+      id={id}
+      type="number"
+      className="stepper-field"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      aria-describedby={describedBy}
+      onChange={(e) => onType(e.currentTarget.value)}
+      onBlur={onLeave}
+    />
+  )
+  // On iPhone the number reads before the pair, so it comes first in tab order too.
   return (
     <div className="stepper">
-      <button
-        type="button"
-        className="stepper-button"
-        aria-label={t('stepper.less')}
-        disabled={current <= min}
-        onClick={() => stepBy(-step)}
-      >
-        <Icon name="stepper.less" size="sm" />
-      </button>
-      <input
-        id={id}
-        type="number"
-        className="stepper-field"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        aria-describedby={describedBy}
-        onChange={(e) => onType(e.currentTarget.value)}
-        onBlur={onLeave}
-      />
+      {onPhone ? field : less}
+      {onPhone ? less : field}
       <button
         type="button"
         className="stepper-button"

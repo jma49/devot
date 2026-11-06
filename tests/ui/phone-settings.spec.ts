@@ -255,7 +255,7 @@ test('the Sync pane lists devices, marks this one and offers pairing', async ({ 
   await expect(pane.getByText(/^Last synced/)).toBeVisible()
   await expect(pane.getByRole('listitem').filter({ hasText: 'This phone' })).toContainText('You')
   await expect(pane.getByRole('button', { name: 'Remove' }).first()).toBeVisible()
-  await expect(pane.locator('.phone-accent-button')).toBeVisible()
+  await expect(pane.getByRole('button', { name: 'Show Pairing Code' })).toBeVisible()
   await expect(pane.getByText('Recovery Key')).toHaveCount(0)
 })
 
@@ -398,11 +398,20 @@ test('a long select value is cut with an ellipsis inside its card', async ({ pag
     wrap: getComputedStyle(el).whiteSpace,
   }))
   expect(seen).toEqual({ cut: true, overflow: 'ellipsis', wrap: 'nowrap' })
-  const [drawn, card] = await Promise.all([
+  const drawn = select.locator('xpath=..')
+  const [value, chevron, row, card] = await Promise.all([
     shown.boundingBox(),
+    drawn.locator('.phone-chevron').boundingBox(),
+    drawn.boundingBox(),
     shown.locator('xpath=ancestor::*[contains(@class,"settings-card")]').boundingBox(),
   ])
-  expect(drawn!.x + drawn!.width).toBeLessThanOrEqual(card!.x + card!.width + 0.5)
+  expect(value!.x - card!.x).toBeCloseTo(16, 0)
+  expect(card!.x + card!.width - (chevron!.x + chevron!.width)).toBeCloseTo(16, 0)
+  expect(chevron!.x).toBeGreaterThanOrEqual(value!.x + value!.width)
+  expect(row!.height).toBeGreaterThanOrEqual(56)
+  expect(await drawn.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(
+    'linear-gradient',
+  )
 })
 
 test.describe('License and disabled switches', () => {
@@ -499,7 +508,15 @@ test.describe('License and disabled switches', () => {
     const disabled = sync.getByRole('switch', { name: 'Sync This Device' })
     await expect(disabled).toBeDisabled()
     const row = sync.locator('.setting').filter({ has: disabled })
-    expect(await row.evaluate((el) => getComputedStyle(el).opacity)).toBe('0.45')
+    const faded = (target: Locator) =>
+      target.evaluate((el) => ({
+        row: getComputedStyle(el).opacity,
+        parts: [...el.children].map((child) => getComputedStyle(child).opacity),
+        label: getComputedStyle(el.querySelector('.setting-label')!).color,
+      }))
+    const dimmed = await faded(row)
+    expect(dimmed.row).toBe('1')
+    expect(new Set(dimmed.parts)).toEqual(new Set(['0.45']))
     const off = await paint(disabled)
     expect(off.opacity).toBe('1')
     const preview = await openPane(page, 'Preview')
@@ -513,6 +530,41 @@ test.describe('License and disabled switches', () => {
         .evaluate((el) => getComputedStyle(el).opacity),
     ).toBe('1')
     await expect.poll(() => paint(enabled)).toEqual(off)
+    const enabledLabel = await faded(preview.locator('.setting').filter({ has: enabled }))
+    expect(dimmed.label).toBe(enabledLabel.label)
+  })
+
+  test('a disabled select row fades once, its hairline kept', async ({ page }) => {
+    const pane = await openPane(page, 'Appearance')
+    const select = pane.getByRole('combobox', { name: 'Animations' })
+    const row = pane.locator('.setting').filter({ has: select })
+    await select.evaluate((el) => ((el as HTMLSelectElement).disabled = true))
+    const seen = await row.evaluate((el) => ({
+      row: getComputedStyle(el).opacity,
+      parts: [...el.children].map((child) => getComputedStyle(child).opacity),
+      select: getComputedStyle(el.querySelector('.select')!).opacity,
+    }))
+    expect(seen.row).toBe('1')
+    expect(new Set(seen.parts)).toEqual(new Set(['0.45']))
+    expect(seen.select).toBe('1')
+  })
+
+  test('at twice the text size a select and a stepper stack under their label, on the right edge', async ({
+    page,
+  }) => {
+    const pane = await openPaneAtDoubleText(page, 'Editing')
+    for (const [role, name, control] of [
+      ['spinbutton', 'Cursor Scroll Margin', '.stepper'],
+      ['combobox', 'Indent Unit', '.select'],
+    ] as const) {
+      const row = pane.locator('.setting').filter({ has: page.getByRole(role, { name }) })
+      const [label, drawn] = await Promise.all([
+        row.locator('.setting-label').boundingBox(),
+        row.locator(control).boundingBox(),
+      ])
+      expect(drawn!.y).toBeGreaterThanOrEqual(label!.y + label!.height - 1)
+      expect(Math.abs((await rightPadding(row.locator(control))) - 16)).toBeLessThanOrEqual(1)
+    }
   })
 })
 
@@ -637,6 +689,37 @@ test('segmented controls and steppers in a card are concentric with it', async (
   const minus = (await stepper.locator('.stepper-button').first().boundingBox())!
   expect(field.x + field.width).toBeLessThanOrEqual(minus.x)
   expect((await stepper.boundingBox())!.width).toBeLessThan(200)
+})
+
+test('a stepper reads and tabs as its number, then - and +, each a 44 by 44 target', async ({
+  page,
+}) => {
+  const pane = await openPane(page, 'Editing')
+  const stepper = pane.locator('.settings-card .stepper').first()
+  expect(
+    await stepper
+      .locator('input, button')
+      .evaluateAll((items) => items.map((el) => el.getAttribute('aria-label') ?? el.tagName)),
+  ).toEqual(['INPUT', 'Less', 'More'])
+  const targets = await stepper.locator('.stepper-button').evaluateAll((buttons) =>
+    buttons.map((button) => {
+      const box = button.getBoundingClientRect()
+      const x = box.left + box.width / 2
+      const hits = (y: number) => document.elementFromPoint(x, y)?.closest('.stepper-button')
+      const reach = (from: number, step: number) => {
+        let y = from
+        while (hits(y + step) === button) y += step
+        return y
+      }
+      const middle = box.top + box.height / 2
+      return { width: box.width, height: reach(middle, 1) - reach(middle, -1) + 1 }
+    }),
+  )
+  expect(targets).toHaveLength(2)
+  for (const target of targets) {
+    expect(target.width).toBeGreaterThanOrEqual(44)
+    expect(target.height).toBeGreaterThanOrEqual(43)
+  }
 })
 
 const cardRight = (control: Locator) =>

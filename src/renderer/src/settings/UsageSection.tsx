@@ -10,8 +10,6 @@ import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { clearUsage, listUsage } from '../usage'
 import { Select, Setting, SettingsSection } from './controls'
-import { useOnPhone } from './onPhone'
-import { PhoneSegmented } from '../phone/PhoneControls'
 import { usageActivity, usageDayInstant, type UsagePeriod } from '../../../core/usageActivity'
 import { dayDate } from '../format'
 import { Icon } from '../icons/Icon'
@@ -38,7 +36,6 @@ function GlassUsageSection() {
   const [confirming, setConfirming] = useState(false)
   const [readError, setReadError] = useState<string>()
   const [clearError, setClearError] = useState<string>()
-  const onPhone = useOnPhone()
   const locale = currentLocale()
   const [period, setPeriod] = useState<UsagePeriod>(30)
   const rangeGroup = useRef<HTMLDivElement>(null)
@@ -170,13 +167,7 @@ function GlassUsageSection() {
     </SettingsSection>
   )
   const dailyChart = (
-    <svg
-      className="usage-daily"
-      viewBox={onPhone ? '30 0 750 102' : '0 0 780 125'}
-      preserveAspectRatio={onPhone ? 'none' : undefined}
-      role="img"
-      aria-label={t('usage.byDay')}
-    >
+    <svg className="usage-daily" viewBox="0 0 780 125" role="img" aria-label={t('usage.byDay')}>
       {[0, 0.5, 1].map((fraction) => (
         <g key={fraction}>
           <line
@@ -320,164 +311,11 @@ function GlassUsageSection() {
         : name === 'import.finished'
           ? 'usage.import'
           : 'settings.usage'
-  const axisDays = [0, Math.floor((period - 1) / 2), period - 1]
-  const dayAxis = (i: number) =>
-    new Intl.DateTimeFormat(locale, {
-      month: 'short',
-      day: 'numeric',
-      timeZone: 'UTC',
-    }).format(usageDayInstant(data.days[i]!.day))
   const errorList = errors.map((text) => (
     <p key={text} role="alert" className="settings-error">
       {text}
     </p>
   ))
-
-  if (onPhone) {
-    const average = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(data.average)
-    return (
-      <section
-        className="settings-section usage-dashboard"
-        aria-labelledby="usage-title"
-        aria-busy={events === undefined && !readError}
-      >
-        <h2 id="usage-title" className="visually-hidden">
-          {t('usage.title')}
-        </h2>
-        {errorList}
-        {events === undefined ? (
-          readError ? null : (
-            <p role="status">{t('usage.loading')}</p>
-          )
-        ) : count === 0 ? (
-          <div className="phone-settings-empty phone-usage-empty">
-            <p>{t('usage.empty')}</p>
-            <p>{t('usage.privacy')}</p>
-          </div>
-        ) : (
-          <>
-            <div className="phone-usage-controls">
-              <PhoneSegmented
-                label={t('usage.range')}
-                labelHidden
-                value={String(period)}
-                options={([7, 30, 90] as const).map((days) => ({
-                  value: String(days),
-                  label: format(t('usage.period'), { days: number(days) }),
-                }))}
-                onChange={(days) => setPeriod(Number(days) as UsagePeriod)}
-              />
-              <div className="phone-usage-filters">
-                <span className="phone-usage-range">{dateRange}</span>
-                <Select
-                  id="usage-filter"
-                  aria-label={t('usage.filter')}
-                  value={eventType}
-                  onChange={(e) => setEventType(e.target.value)}
-                >
-                  {typeOptions}
-                </Select>
-              </div>
-            </div>
-            {data.total === 0 ? (
-              <div className="phone-usage-empty">
-                <p>{t('usage.noPeriod')}</p>
-                <p>{t('usage.sparse')}</p>
-              </div>
-            ) : (
-              <>
-                <SettingsSection title="usage.overview" titleHidden>
-                  <div className="phone-usage-hero">
-                    <span>{t('usage.total')}</span>
-                    <strong>{number(data.total)}</strong>
-                  </div>
-                  {dailyChart}
-                  <div className="phone-usage-axis" aria-hidden="true">
-                    {axisDays.map((i) => (
-                      <span key={i}>{dayAxis(i)}</span>
-                    ))}
-                  </div>
-                  <dl className="phone-usage-grid">
-                    <div>
-                      <dt>{t('usage.active')}</dt>
-                      <dd>
-                        {number(data.activeDays)}{' '}
-                        {format(t('usage.ofDays'), { days: number(period) })}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>{t('usage.notes')}</dt>
-                      <dd>{number(data.notes)}</dd>
-                    </div>
-                    <div>
-                      <dt>{t('usage.dailyAverage')}</dt>
-                      <dd>{average}</dd>
-                    </div>
-                  </dl>
-                </SettingsSection>
-                <SettingsSection title="usage.byHour">
-                  <div className="phone-usage-heat">
-                    {heatmap}
-                    <p className="phone-usage-peak">{peak}</p>
-                    <span className="usage-legend">
-                      {t('usage.fewer')}
-                      {[0, 1, 2, 3, 4].map((n) => (
-                        <i key={n} className={`activity-level-${n}`} />
-                      ))}
-                      {t('usage.more')}
-                    </span>
-                  </div>
-                </SettingsSection>
-                <SettingsSection title="usage.byType">
-                  <ul className="phone-usage-types" aria-label={t('usage.byType')}>
-                    {breakdown.map((row) => {
-                      const share = row.count / data.total
-                      return (
-                        <li key={row.name}>
-                          <Icon size="md" name={typeIcon(row.name)} />
-                          <span className="phone-usage-type">{typeLabel(row.name)}</span>
-                          <span className="usage-type-track" aria-hidden="true">
-                            <i style={{ width: `${share * 100}%` }} />
-                          </span>
-                          <span className="phone-usage-count">{number(row.count)}</span>
-                          <span className="phone-usage-share">{percent(share)}</span>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </SettingsSection>
-              </>
-            )}
-            <SettingsSection title="usage.storage" footnote={t('usage.privacy')}>
-              <div className="setting">
-                <span className="setting-label">{t('usage.total')}</span>
-                <span className="phone-usage-capacity">
-                  {format(t('usage.capacity'), { count: number(count), limit: number(10000) })}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="phone-action-row"
-                aria-expanded={shown}
-                onClick={() => setShown((s) => !s)}
-              >
-                {shown ? t('usage.hide') : t('usage.show')}
-              </button>
-              <button
-                type="button"
-                className="phone-action-row phone-action-destructive"
-                onClick={() => setConfirming(true)}
-              >
-                {t('usage.clear')}
-              </button>
-            </SettingsSection>
-          </>
-        )}
-        {eventList}
-        {confirmDialog}
-      </section>
-    )
-  }
 
   return (
     <section
@@ -652,6 +490,5 @@ function GlassUsageSection() {
 
 export function UsageSection() {
   const glass = useEditorSetting('sidebarMaterial')
-  const onPhone = useOnPhone()
-  return glass || onPhone ? <GlassUsageSection /> : <UsageClassicSection />
+  return glass ? <GlassUsageSection /> : <UsageClassicSection />
 }

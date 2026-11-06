@@ -65,7 +65,6 @@ export function ICloudActions(props: {
 }) {
   const [confirming, setConfirming] = useState<ICloudAction>()
   const [running, setRunning] = useState(false)
-  const onPhone = useOnPhone()
   const run = (action: ICloudAction) => {
     setConfirming(undefined)
     if (running) return
@@ -79,11 +78,11 @@ export function ICloudActions(props: {
   const asked = confirming ? CONFIRMS[confirming] : undefined
   return (
     <div className="settings-buttons">
-      {props.actions.map((action, i) => (
+      {props.actions.map((action) => (
         <button
           key={action}
           type="button"
-          className={onPhone && i === 0 ? 'button phone-accent-button' : 'button'}
+          className="button"
           disabled={running || (props.locked && action !== 'turnOff' && action !== 'decline')}
           onClick={() => (CONFIRMS[action] ? setConfirming(action) : run(action))}
         >
@@ -127,7 +126,6 @@ export function TransportQuestion({
   cleared: () => void
 }) {
   const [starting, setStarting] = useState(false)
-  const onPhone = useOnPhone()
   const blocked = props.icloud.account === 'available' ? undefined : props.icloud.account
   const line = blocked
     ? ACCOUNT_LINES[blocked]
@@ -151,7 +149,7 @@ export function TransportQuestion({
         <button
           ref={ref}
           type="button"
-          className={onPhone ? 'button phone-accent-button' : 'button'}
+          className="button"
           disabled={starting || props.locked || blocked !== undefined}
           onClick={start}
         >
