@@ -236,6 +236,15 @@ describe('the date picker', () => {
     expect(calls.close).toHaveBeenCalledOnce()
   })
 
+  it('closes the picker when its own row is clicked again', () => {
+    openCreated()
+    const row = button(/^Created:/)!
+    act(() => row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+    click(row)
+    expect(document.querySelector('.date-picker')).toBeNull()
+    expect(row.getAttribute('aria-expanded')).toBe('false')
+  })
+
   it('takes typed minutes and says when the date could not be saved', async () => {
     show({ onSetDates: vi.fn<() => Promise<void>>(() => Promise.reject(new Error('E_X'))) })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

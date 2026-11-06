@@ -184,13 +184,16 @@ export function NoteInfoCard(props: {
 
   useLayoutEffect(() => {
     const away = (event: MouseEvent) => {
-      if (!(event.target instanceof Node)) return
+      const target = event.target
+      if (!(target instanceof Node)) return
       if (editing) {
-        if (!shownPicker(card.current)?.contains(event.target)) closePicker(editing)
+        // The open picker's own row closes it on its click.
+        const inside = [shownPicker(card.current), rows.current[editing]]
+        if (!inside.some((el) => el?.contains(target))) closePicker(editing)
         return
       }
       const anchor = card.current?.parentElement
-      if (!anchor?.contains(event.target)) onClose()
+      if (!anchor?.contains(target)) onClose()
     }
     document.addEventListener('mousedown', away)
     return () => document.removeEventListener('mousedown', away)
