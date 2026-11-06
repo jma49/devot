@@ -117,7 +117,8 @@ const revisionIn = (revision: WireRevision): RevisionRecord => ({
  */
 export function fromWire(wire: WireStorage): StorageAdapter {
   return {
-    listNotes: () => wire.listNotes(),
+    listNotes: (page) => wire.listNotes(page),
+    getSummaries: (ids) => wire.getSummaries(ids),
     async getNote(id, options) {
       const note = await wire.getNote(id, options)
       return note ? noteIn(note) : null

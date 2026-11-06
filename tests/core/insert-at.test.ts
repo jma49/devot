@@ -1,7 +1,13 @@
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
-import { BODY, createClock, createIdGenerator, createNoteService } from '../../src/core'
+import {
+  BODY,
+  createClock,
+  createIdGenerator,
+  createNoteService,
+  TEMPLATES_BOOK_ID,
+} from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -108,5 +114,27 @@ describe('lookups for the link popup', () => {
     for (const title of ['a', 'b', 'c']) await notes.create(title)
     expect(await notes.list()).toHaveLength(3)
     expect(await notes.list(2)).toHaveLength(2)
+  })
+
+  it('list leaves templates out before it stops at a limit', async () => {
+    const { notes } = services()
+    const kept = [await notes.create('a'), await notes.create('b')]
+    for (const title of ['t1', 't2']) await notes.create(title, TEMPLATES_BOOK_ID)
+    expect((await notes.list(2)).map((n) => n.id).sort()).toEqual([...kept].sort())
+    expect((await notes.list()).map((n) => n.id).sort()).toEqual([...kept].sort())
+  })
+
+  it('looks for text too short for the index in titles alone when asked, and longer text everywhere', async () => {
+    const { notes } = services()
+    const titled = await notes.create('Plan qx')
+    const bodied = await notes.create('Other')
+    await notes.setBody(bodied, 'qx and qxz')
+    await notes.flush()
+    const found = async (query: string, shortInTitles = false) =>
+      (await notes.search(query, undefined, { flush: false, shortInTitles })).found.map((n) => n.id)
+    expect((await found('qx')).sort()).toEqual([titled, bodied].sort())
+    expect(await found('qx', true)).toEqual([titled])
+    expect(await found('qxz', true)).toEqual([bodied])
+    expect(await found('body:qx', true)).toEqual([bodied])
   })
 })

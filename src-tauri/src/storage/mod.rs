@@ -597,7 +597,8 @@ const NOTES_LIST_SQL: &str = "SELECT id, title, created_at AS createdAt, updated
               WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds,
             body_version AS bodyVersion
      FROM notes INDEXED BY notes_list
-     WHERE deleted_at IS NULL ORDER BY updated_at DESC, id DESC";
+     WHERE deleted_at IS NULL AND (@excludeBook IS NULL OR book_id IS NULL OR book_id <> @excludeBook)
+     ORDER BY updated_at DESC, id DESC LIMIT @limit";
 /// Backlinks: the list's index in its order, keeping the notes the link index has as linking to
 /// `@id`, so it stops at a page and reads no row.
 const BACKLINKS_SQL: &str = "SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
@@ -613,6 +614,19 @@ const BACKLINKS_SQL: &str = "SELECT id, title, created_at AS createdAt, updated_
 const TRASH_LIST_SQL: &str =
     "SELECT id, title, deleted_at AS deletedAt, book_id AS bookId FROM notes INDEXED BY notes_trash
      WHERE deleted_at IS NOT NULL AND purged_at IS NULL ORDER BY deleted_at DESC, id DESC";
+/// Rows by ID (`@ids`, a JSON array), as the TypeScript adapter's LIST_SQL has them: each found
+/// through the primary key and read from its row, blobs and all, which for a page of IDs costs
+/// far less than the list's index of every note.
+const NOTE_SUMMARIES_SQL: &str = "SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, book_id AS bookId, status, pinned,
+            (SELECT group_concat(nt.tag_id) FROM note_tags nt
+               JOIN tags t ON t.id = nt.tag_id AND t.deleted_at IS NULL
+              WHERE nt.note_id = notes.id AND nt.present = 1) AS tagIds,
+            body_version AS bodyVersion
+     FROM notes
+     WHERE id IN (SELECT value FROM json_each(@ids)) AND deleted_at IS NULL
+     ORDER BY updated_at DESC, id DESC";
+const NOTE_BODIES_SQL: &str = "SELECT n.id, n.title, n.body_md AS bodyMd FROM json_each(@ids) j JOIN notes n ON n.id = j.value
+     WHERE n.purged_at IS NULL ORDER BY j.key";
 
 /// What a list row reads from a note: its title and Markdown body, never its Yjs state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1367,9 +1381,31 @@ impl Store {
         Ok(notes)
     }
 
+    #[cfg(test)]
     pub fn list_notes(&self) -> Result<Vec<NoteSummary>> {
+        self.list_notes_page(None, None)
+    }
+
+    /// `list_notes` without the notes in `exclude_book`, at most `limit` of them.
+    pub fn list_notes_page(
+        &self,
+        exclude_book: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Vec<NoteSummary>> {
         let mut statement = self.conn.prepare_cached(NOTES_LIST_SQL)?;
-        let rows = statement.query_map([], summary)?;
+        let limit = limit.map_or(-1, i64::from);
+        let rows = statement.query_map(
+            rusqlite::named_params! { "@excludeBook": exclude_book, "@limit": limit },
+            summary,
+        )?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// The list rows of the live notes among `ids`, in list order.
+    pub fn get_summaries(&self, ids: &[String]) -> Result<Vec<NoteSummary>> {
+        let mut statement = self.conn.prepare_cached(NOTE_SUMMARIES_SQL)?;
+        let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".into());
+        let rows = statement.query_map(rusqlite::named_params! { "@ids": ids }, summary)?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
@@ -1388,33 +1424,45 @@ impl Store {
 
     /// The bodies of `ids` in their order, trashed notes included; purged and unknown IDs are left out.
     pub fn get_bodies(&self, ids: &[String]) -> Result<Vec<NoteBody>> {
-        let mut statement = self.conn.prepare_cached(
-            "SELECT id, title, body_md FROM notes WHERE id = ?1 AND purged_at IS NULL",
-        )?;
-        let mut found = Vec::with_capacity(ids.len());
-        for id in ids {
-            let body = statement
-                .query_row([id], |row| {
-                    Ok(NoteBody {
-                        id: row.get(0)?,
-                        title: row.get(1)?,
-                        body_md: row.get(2)?,
-                    })
-                })
-                .optional()?;
-            found.extend(body);
-        }
-        Ok(found)
+        let mut statement = self.conn.prepare_cached(NOTE_BODIES_SQL)?;
+        let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".into());
+        let rows = statement.query_map(rusqlite::named_params! { "@ids": ids }, |row| {
+            Ok(NoteBody {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                body_md: row.get(2)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
     /// With `trashed`, a trashed note too (never a purged one).
     pub fn get_note(&self, id: &str, trashed: bool) -> Result<Option<NoteRecord>> {
-        let mut statement = self.conn.prepare_cached(
+        self.read_note(
             "SELECT id, title, title_hlc, body_md, ydoc, created_at, updated_at,
                     deleted_at, deleted_hlc, book_id, book_hlc, status, status_hlc,
                     pinned, pinned_hlc, body_version, dates_hlc
              FROM notes WHERE id = ?1 AND purged_at IS NULL AND (?2 OR deleted_at IS NULL)",
-        )?;
+            id,
+            trashed,
+        )
+    }
+
+    /// `get_note` of a note out of the Trash for its editor, which reads the body from the Yjs
+    /// state: `body_md` is left empty, and never read.
+    pub fn open_note(&self, id: &str) -> Result<Option<NoteRecord>> {
+        self.read_note(
+            "SELECT id, title, title_hlc, '', ydoc, created_at, updated_at,
+                    deleted_at, deleted_hlc, book_id, book_hlc, status, status_hlc,
+                    pinned, pinned_hlc, body_version, dates_hlc
+             FROM notes WHERE id = ?1 AND purged_at IS NULL AND (?2 OR deleted_at IS NULL)",
+            id,
+            false,
+        )
+    }
+
+    fn read_note(&self, sql: &str, id: &str, trashed: bool) -> Result<Option<NoteRecord>> {
+        let mut statement = self.conn.prepare_cached(sql)?;
         Ok(statement
             .query_row(params![id, trashed], |row| {
                 Ok(NoteRecord {

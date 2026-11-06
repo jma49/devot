@@ -291,8 +291,11 @@ export const coreApi = {
   flush: (options?: { versions?: boolean }) => required().flush(options),
   holdCompaction: () => required().holdCompaction(),
   resumeCompaction: () => required().resumeCompaction(),
-  search: (query: string, scope?: SearchScope, options?: { flush?: boolean }) =>
-    required().search(query, scope, options),
+  search: (
+    query: string,
+    scope?: SearchScope,
+    options?: { flush?: boolean; shortInTitles?: boolean },
+  ) => required().search(query, scope, options),
   trash: (id: string) => required().trash(id),
   restore: (id: string) => required().restore(id),
   listTrash: () => required().listTrash(),

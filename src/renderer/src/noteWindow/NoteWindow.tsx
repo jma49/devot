@@ -227,7 +227,7 @@ export function NoteWindow() {
   const findLinkTargets = async (query: string) => {
     if (!core) return []
     const found = query
-      ? (await core.search(query, undefined, { flush: false })).found
+      ? (await core.search(query, undefined, { flush: false, shortInTitles: true })).found
       : await core.list(MAX_LINK_NOTES + 1)
     return found.filter((n) => n.id !== noteId)
   }

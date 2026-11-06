@@ -359,6 +359,7 @@ describe('Tauri command permissions', () => {
       'allow-notes-bodies',
       'allow-notes-list',
       'allow-notes-search',
+      'allow-notes-summaries',
       'allow-open-external',
       'allow-revision-get',
       'allow-revision-put',

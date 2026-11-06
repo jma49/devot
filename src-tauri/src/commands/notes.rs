@@ -157,9 +157,34 @@ impl NoteDto {
     }
 }
 
+fn validate_list_page(exclude_book_id: Option<&str>) -> Result<(), &'static str> {
+    if exclude_book_id.is_some_and(|id| !valid_note_id(id)) {
+        return Err("E_BOOK_ID_INVALID");
+    }
+    Ok(())
+}
+
+/// Every live note, or with `exclude_book_id` and `limit` a page of them (see `list_notes_page`).
 #[tauri::command]
-pub async fn notes_list(db: State<'_, Db>) -> Result<Vec<NoteSummary>, String> {
-    db.call(|store| store.list_notes())
+pub async fn notes_list(
+    db: State<'_, Db>,
+    exclude_book_id: Option<String>,
+    limit: Option<u32>,
+) -> Result<Vec<NoteSummary>, String> {
+    validate_list_page(exclude_book_id.as_deref()).map_err(String::from)?;
+    db.call(move |store| store.list_notes_page(exclude_book_id.as_deref(), limit))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// List rows of many notes in one call (at most MAX_BODY_IDS), the live ones of `ids`.
+#[tauri::command]
+pub async fn notes_summaries(
+    db: State<'_, Db>,
+    ids: Vec<String>,
+) -> Result<Vec<NoteSummary>, String> {
+    validate_body_ids(&ids).map_err(String::from)?;
+    db.call(move |store| store.get_summaries(&ids))
         .await
         .map_err(|e| e.to_string())
 }
@@ -242,7 +267,7 @@ pub async fn note_open(db: State<'_, Db>, id: String) -> Result<tauri::ipc::Resp
     if !valid_note_id(&id) {
         return Err("E_NOTE_ID_INVALID".into());
     }
-    db.call(move |store| store.get_note(&id, false))
+    db.call(move |store| store.open_note(&id))
         .await
         .map(|note| tauri::ipc::Response::new(opened_frame(note.as_ref())))
         .map_err(|e| e.to_string())
@@ -513,6 +538,19 @@ mod tests {
                 Err("E_BACKLINKS_LIMIT_INVALID")
             );
         }
+    }
+
+    #[test]
+    fn lists_a_page_outside_a_notebook_given_by_a_valid_id() {
+        assert_eq!(validate_list_page(None), Ok(()));
+        assert_eq!(
+            validate_list_page(Some("00000000-0000-7000-8000-000000000001")),
+            Ok(())
+        );
+        assert_eq!(
+            validate_list_page(Some("' OR 1 --")),
+            Err("E_BOOK_ID_INVALID")
+        );
     }
 
     /// TEMPLATES_BOOK_ID in src/core/books.ts (a policy test checks they match).

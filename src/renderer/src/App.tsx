@@ -1641,7 +1641,7 @@ export function App() {
   const findLinkTargets = async (linkQuery: string) => {
     if (!core) return []
     const found = linkQuery
-      ? (await core.search(linkQuery, undefined, { flush: false })).found
+      ? (await core.search(linkQuery, undefined, { flush: false, shortInTitles: true })).found
       : await core.list(MAX_LINK_NOTES + 1)
     const targets = found.filter((n) => n.id !== selected)
     const named = await displayTitles(loadHeadlines, targets.slice(0, MAX_LINK_NOTES))

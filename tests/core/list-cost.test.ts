@@ -37,7 +37,7 @@ function sqlite(): SqliteAdapter {
   return storage
 }
 
-type Params = Record<string, string | number>
+type Params = Record<string, string | number | null>
 
 /** Per sort in a plan, the top-level step it sits under ('' for a sort of the whole result). */
 const sortsUnder = (db: Database.Database, sql: string, params: Params = {}) => {
@@ -190,10 +190,24 @@ const record = (id: string, fields: Partial<NoteRecord>): NoteRecord => ({
 describe('lists and search read covering indexes', () => {
   it('reads the note list and the Trash from covering indexes, never a row', () => {
     const { db } = sqlite()
-    const list = plan(db, LIST_SQL.notes)
-    expect(list).toMatch(/^SCAN notes USING COVERING INDEX notes_list$/m)
-    expect(list).not.toMatch(/TEMP B-TREE/)
+    for (const page of [
+      { excludeBook: null, limit: -1 },
+      { excludeBook: 'b1', limit: 21 },
+    ]) {
+      const list = plan(db, LIST_SQL.notes, page)
+      expect(list).toMatch(/^SCAN notes USING COVERING INDEX notes_list$/m)
+      expect(list).not.toMatch(/TEMP B-TREE/)
+    }
     expect(plan(db, LIST_SQL.trash)).toMatch(/^SEARCH notes USING COVERING INDEX notes_trash /)
+  })
+
+  it('reads list rows and bodies by ID through the primary key, never a scan', () => {
+    const { db } = sqlite()
+    for (const sql of [LIST_SQL.summaries, LIST_SQL.bodies]) {
+      const ids = plan(db, sql, { ids: '[]' })
+      expect(ids).toMatch(/SEARCH n(otes)? USING INDEX sqlite_autoindex_notes_1 \(id=\?\)/)
+      expect(ids).not.toMatch(/SCAN notes|notes_list/)
+    }
   })
 
   it('reads backlinks from the link index and the list index, never a row or the search index', () => {
@@ -212,6 +226,8 @@ describe('lists and search read covering indexes', () => {
     expect(words(statement('NOTES_LIST_SQL'))).toBe(words(LIST_SQL.notes))
     expect(words(statement('TRASH_LIST_SQL'))).toBe(words(LIST_SQL.trash))
     expect(words(statement('BACKLINKS_SQL'))).toBe(words(LIST_SQL.backlinks))
+    expect(words(statement('NOTE_SUMMARIES_SQL'))).toBe(words(LIST_SQL.summaries))
+    expect(words(statement('NOTE_BODIES_SQL'))).toBe(words(LIST_SQL.bodies))
   })
 
   it('searches live notes in the list index: a ranked search joins its matches to it', () => {

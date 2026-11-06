@@ -415,13 +415,17 @@ export const bodyPrint = (state: Uint8Array): string => (state.length ? printOf(
 const byTag = (tags: readonly NoteTagState[]) =>
   [...tags].sort((a, b) => (a.tagId < b.tagId ? -1 : a.tagId > b.tagId ? 1 : 0))
 
-/** Equal for records that hold the same fields and the same body, whatever the bytes of its state. */
-export function fingerprint(record: SyncRecord): string {
+/**
+ * Equal for records that hold the same fields and the same body, whatever the bytes of its state.
+ * `body`, a note's `bodyPrint` its caller holds already, spares decoding the state again.
+ */
+export function fingerprint(record: SyncRecord, body?: string): string {
   // A file's bytes never change under its ID, so its fields stand for them.
   if (record.kind === 'file') return sha256Hex(JSON.stringify(split(record).header))
   if (record.kind !== 'note') return sha256Hex(JSON.stringify(record))
   const { ydoc, ...fields } = record
-  return sha256Hex(`${JSON.stringify({ ...fields, tags: byTag(fields.tags) })}\n${bodyPrint(ydoc)}`)
+  const print = body ?? bodyPrint(ydoc)
+  return sha256Hex(`${JSON.stringify({ ...fields, tags: byTag(fields.tags) })}\n${print}`)
 }
 
 export const textOf = (state: Uint8Array): string => docOf(state).getText(BODY).toString()

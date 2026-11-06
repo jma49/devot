@@ -32,6 +32,7 @@ const NOTES: &[&str] = &[
     "note_get",
     "note_open",
     "notes_bodies",
+    "notes_summaries",
     "note_put",
     "notes_search",
     "note_backlinks",

@@ -596,6 +596,16 @@ export function excludeTemplates(query: NoteQuery): NoteQuery {
 
 export const indexable = (value: string) => [...value].length >= 3
 
+/** Text the index cannot take and no field names is looked for in titles alone: a scan of titles reads the list's index, never a body. */
+export function shortInTitles(query: NoteQuery): NoteQuery {
+  return {
+    ...query,
+    text: query.text.map((t) =>
+      t.field === 'any' && !indexable(t.value) ? { ...t, field: 'title' as const } : t,
+    ),
+  }
+}
+
 const FTS_COLUMN = { any: '', title: 'title : ', body: 'body_md : ' } as const
 
 export function ftsQuery(conditions: readonly Pick<TextCondition, 'field' | 'value'>[]): string {
