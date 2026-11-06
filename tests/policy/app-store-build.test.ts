@@ -133,12 +133,12 @@ describe('the iPhone app', () => {
     }
   })
 
-  // Devot seals synced notes with its own AES-256-GCM, not Apple's (ADR 0015).
-  it('declares the encryption it uses in Info.plist', () => {
+  // App Store Connect's answer for standard algorithms outside France: no documents, so no compliance code (docs/releasing.md).
+  it('declares no non-exempt encryption in Info.plist', () => {
     expect(read(`${APPLE}/devot_iOS/Info.plist`)).toMatch(
-      /<key>ITSAppUsesNonExemptEncryption<\/key>\n\t<true\/>/,
+      /<key>ITSAppUsesNonExemptEncryption<\/key>\n\t<false\/>/,
     )
-    expect(read(`${APPLE}/project.yml`)).toMatch(/^ {8}ITSAppUsesNonExemptEncryption: true$/m)
+    expect(read(`${APPLE}/project.yml`)).toMatch(/^ {8}ITSAppUsesNonExemptEncryption: false$/m)
   })
 
   it('keeps the development export, and exports for the App Store with its own options', () => {
