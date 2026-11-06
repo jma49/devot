@@ -175,7 +175,7 @@ In the Apple Developer portal (Certificates, Identifiers & Profiles):
 
 In the CloudKit Console, for the container:
 
-1. In the **Development** environment, let a development-signed build create the record types (`pnpm tauri ios dev` after `icloud-settings`, iCloud entitlements above, on a registered iPhone, signed by the owner's team) `DevotVault`, `DevotMeta`, `DevotDevice`, `DevotClock`, `DevotRecord` and `DevotPairing` and their fields.
+1. In the **Development** environment, let a development-signed build create the record types `DevotVault`, `DevotMeta`, `DevotDevice`, `DevotClock`, `DevotRecord` and `DevotPairing` and their fields: on a registered iPhone, signed by the owner's team, turn on Sync Through iCloud, write a note and let it sync. Use a build that carries its web assets, since `pnpm tauri ios dev` loads every module through the dev server and a module the proxy fails leaves a blank window. After `icloud-settings` (iCloud entitlements above), set `iCloudContainerEnvironment` to `Development` in `ExportOptions.plist`, run `pnpm tauri ios build --debug --export-method debugging`, install it with `xcrun devicectl device install app` as in The iPhone app, then `git restore src-tauri/gen/apple`.
 2. **Deploy Schema Changes to Production** before the first release that uses them. A Developer ID or App Store build uses Production, where record types are never created on first save: an undeployed type fails the save with code 12 (`Cannot create new type`).
 3. Indexes: the transport looks records up only by record name and fetches zone changes, so it needs no index beyond those CloudKit keeps. When the transport (#603) starts querying a field, that field needs a queryable index, deployed the same way.
 
