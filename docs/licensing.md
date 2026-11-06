@@ -176,6 +176,10 @@ As it should, a release build on a Mac refuses it (`E_LICENCE_UNKNOWN_KID`), and
 To refund the purchase, use Settings > Request a Refund in a development-signed App Store build with the same sandbox account, and approve the refund in the sandbox sheet that opens.
 The notification then logs `I_APP_STORE_REVOKED <license> REFUND`, Devot Pro ends on the iPhone and both rows leave Settings, and the Mac key no longer activates (`E_LICENCE_REVOKED`).
 Then buy Devot Pro again with the same account and open Get a Mac License Key: if Apple gave the new purchase a new `originalTransactionId`, it gets a new license (`I_APP_STORE_EXCHANGED` with a new ID); if Apple reused the refunded one, the buyer is refused with `E_LICENCE_REVOKED` and the license must be restored by hand (Revoking by hand) until the Worker handles a repurchase.
+The sandbox has two known faults of its own.
+Apple's refund sheet may show Cannot Connect and send no `REFUND` notification, while StoreKit still answers that the request was sent (`I_APP_STORE_REFUND_REQUESTED`).
+Clear Purchase History in App Store Connect removes the purchases from Apple's server but not from the iPhone: StoreKit keeps reporting Devot Pro after Restore Purchases (`I_APP_STORE_RESTORE synced`, then `I_APP_STORE_ENTITLEMENTS pro=true`), and the Worker refuses the exchange with `E_APP_STORE_NOT_FOUND`.
+To start again from no purchases, use a new sandbox tester.
 Buying the Trial never shows either row, and a family-shared purchase is refused.
 
 ## Revoking by hand
