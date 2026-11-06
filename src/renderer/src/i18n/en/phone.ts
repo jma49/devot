@@ -104,9 +104,9 @@ export const messages = {
   'phone.settings.closeSearch': 'Close search',
   'phone.settings.trial': 'Trial',
   'phone.settings.trialEnds':
-    'Your trial ends on {date}. After that every note stays readable and exportable; editing needs a license. A license is bought once and covers your Mac and this iPhone.',
+    'Your trial ends on {date}. After that every note stays readable and searchable; editing needs a license. A license is bought once and covers your Mac and this iPhone.',
   'phone.settings.trialEndsStore':
-    'Your trial ends on {date}. After that every note stays readable and exportable; editing needs Devot Pro.',
+    'Your trial ends on {date}. After that every note stays readable and searchable; editing needs Devot Pro.',
   'phone.settings.restore': 'Restore Purchases',
   'phone.settings.restoring': 'Restoring',
   'phone.settings.restored': 'Restored',
@@ -132,7 +132,7 @@ export const messages = {
   'phone.purchase.ended': 'Your trial has ended',
   'phone.purchase.unknown': 'Get Devot Pro',
   'phone.purchase.featureEdit': 'Write and edit every note',
-  'phone.purchase.featureFree': 'Free: read, search and export forever',
+  'phone.purchase.featureFree': 'Free: read and search forever',
   'phone.purchase.featureSync': 'Sync with your Mac',
   'phone.purchase.featureAi': 'AI that suggests and edits',
   'phone.purchase.tryFree': 'Try Free for {days} Days',
