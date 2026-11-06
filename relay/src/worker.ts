@@ -7,6 +7,7 @@ import {
   anonymousLimit,
   handleHttp,
   isSocketPath,
+  sharedAnonymousLimit,
   socketTarget,
 } from './front.ts'
 import { RateLimiter } from './limiter.ts'
@@ -21,6 +22,9 @@ export interface Env {
   VAULTS: DurableObjectNamespace<VaultObject>
   PAIRINGS: DurableObjectNamespace<PairingObject>
   RELAY_SECRET: string
+  /** Absent on a relay deployed from an older relay/wrangler.toml; the in-memory limit still holds. */
+  ANONYMOUS_PER_ADDRESS?: RateLimit
+  ANONYMOUS_ALL?: RateLimit
 }
 
 interface Attachment {
@@ -183,7 +187,13 @@ export default {
     const vaultFor = (vault: string) => env.VAULTS.get(env.VAULTS.idFromName(vault))
     if (!isSocketPath(new URL(request.url).pathname)) {
       const address = request.headers.get('cf-connecting-ip') ?? ''
-      const limited = anonymousLimit(anonymous, request, address, Date.now())
+      const limited =
+        anonymousLimit(anonymous, request, address, Date.now()) ??
+        (await sharedAnonymousLimit(
+          { perAddress: env.ANONYMOUS_PER_ADDRESS, all: env.ANONYMOUS_ALL },
+          request,
+          address,
+        ))
       if (limited) return limited
       return handleHttp(request, env.RELAY_SECRET, {
         create: (vault, body) => vaultFor(vault).create(vault, body),
