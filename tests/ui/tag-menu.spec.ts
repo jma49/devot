@@ -391,7 +391,5 @@ test('a Copy Tag ID that fails says so, with its code', async ({ page }) => {
   })
   await openMenu(page, 'idea')
   await pickItem(page, 'Copy Tag ID')
-  await expect(page.getByRole('alert')).toContainText(
-    'The ID could not be copied (E_CLIPBOARD_WRITE_FAILED).',
-  )
+  await expect(page.getByRole('alert')).toContainText('The ID could not be copied.')
 })

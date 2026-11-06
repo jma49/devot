@@ -30,7 +30,6 @@ export const messages = {
   'syncSettings.state.offline': 'Offline; trying again.',
   'syncSettings.state.paused': 'Paused.',
   'syncSettings.state.stopped': 'Stopped.',
-  'syncSettings.code': 'Code {code}.',
   'syncSettings.stoppedRevoked':
     'This device was removed from sync. Your notes stay on this device.',
   'syncSettings.lastSync': 'Last synced {time}.',
@@ -59,9 +58,9 @@ export const messages = {
     '{count} image is not synced: your relay is too old to hold images. Update it: run wrangler deploy again from the new release, or restart the Node relay from it.',
   'syncSettings.filesOutdatedOther':
     '{count} images are not synced: your relay is too old to hold images. Update it: run wrangler deploy again from the new release, or restart the Node relay from it.',
-  'syncSettings.urlFailed': 'The relay address could not be saved ({code}).',
-  'syncSettings.vaultFailed': 'The vault could not be created ({code}).',
-  'syncSettings.changeFailed': 'Sync could not be turned on or off ({code}).',
+  'syncSettings.urlFailed': 'The relay address could not be saved.',
+  'syncSettings.vaultFailed': 'The vault could not be created.',
+  'syncSettings.changeFailed': 'Sync could not be turned on or off.',
   'syncSettings.recovery': 'Recovery Key',
   'syncSettings.recoveryHint':
     'Keep this key in your password manager, or print it. With it and the relay’s address, a new device joins your vault even when no other device is left. Once you say you saved it, Devot does not show it again.',
@@ -69,8 +68,8 @@ export const messages = {
   'syncSettings.recoveryCopied':
     'The recovery key was copied. It leaves the clipboard after 90 seconds.',
   'syncSettings.recoverySaved': 'I Saved It',
-  'syncSettings.copyFailed': 'The recovery key could not be copied ({code}).',
-  'syncSettings.recoverySaveFailed': 'Devot could not note that the key was saved ({code}).',
+  'syncSettings.copyFailed': 'The recovery key could not be copied.',
+  'syncSettings.recoverySaveFailed': 'Devot could not note that the key was saved.',
   'syncSettings.setup': 'Set Up Sync',
   'syncSettings.setupHint':
     'Is this the first device you are syncing, or are you adding it to notes that another of your devices already syncs?',
@@ -93,7 +92,7 @@ export const messages = {
     'The relay cannot be reached, so its storage is not shown. It appears here when the relay can be reached again.',
   'syncSettings.usage.old':
     'Your relay is from an earlier release and cannot report its storage. Update it to see how much room is left.',
-  'syncSettings.usage.failed': 'The relay’s storage could not be read ({code}).',
+  'syncSettings.usage.failed': 'The relay’s storage could not be read.',
   'syncSettings.usage.roomImages': '{room}. Images can use {images} of that.',
   'syncSettings.usage.roomImagesUsed':
     '{room}. Images have used their share, so only notes can use it.',
@@ -112,7 +111,7 @@ export const messages = {
   'syncSettings.pairCopyLink': 'Copy Link',
   'syncSettings.pairLinkCopied':
     'The pairing link was copied. It carries the relay’s address, works once for 10 minutes, and leaves the clipboard after 90 seconds.',
-  'syncSettings.pairCopyFailed': 'The pairing link could not be copied ({code}).',
+  'syncSettings.pairCopyFailed': 'The pairing link could not be copied.',
   'syncSettings.pairQr': 'QR code for pairing a device',
   'syncSettings.pairCode': 'Pairing code',
   'syncSettings.pairExpiresIn': 'Expires in {time}.',
@@ -123,8 +122,8 @@ export const messages = {
   'syncSettings.pairRetrying': 'Cannot reach the relay. Trying again…',
   'syncSettings.pairUnconfirmed':
     'A device took this code but did not finish joining. If that was not one of your devices, someone else may hold this vault’s key and could join later: check Devices and remove any you do not know.',
-  'syncSettings.pairFailed': 'The pairing code could not be shown ({code}).',
-  'syncSettings.pairCheckFailed': 'The pairing stopped ({code}).',
+  'syncSettings.pairFailed': 'The pairing code could not be shown.',
+  'syncSettings.pairCheckFailed': 'The pairing stopped.',
   'syncSettings.joinCode': 'Join With a Code',
   'syncSettings.joinCodeHint':
     'The code another of your devices shows under Add a Device, or the link its QR code holds. The link carries the relay’s address; with only the code, enter the relay below first.',
@@ -137,7 +136,7 @@ export const messages = {
     'The pasted link names this relay. Your notes will go through it, encrypted, so continue only if it is your own relay.',
   'syncSettings.linkRelayButton': 'Use This Relay',
   'syncSettings.joined': 'This device joined the vault and sync is on.',
-  'syncSettings.joinFailed': 'This device could not join the vault ({code}).',
+  'syncSettings.joinFailed': 'This device could not join the vault.',
   'syncSettings.devices': 'Devices',
   'syncSettings.devicesHint':
     'The devices in this vault. Removing one stops it syncing; its notes stay on it.',
@@ -151,9 +150,9 @@ export const messages = {
     'Sync stops there and its notes stay. The device still holds this vault’s key, so whoever has it can join again; Devot cannot change the key yet.',
   'syncSettings.deviceRemoveButton': 'Remove',
   'syncSettings.deviceRemoved': 'The device was removed from sync.',
-  'syncSettings.devicesFailed': 'The devices could not be listed ({code}).',
+  'syncSettings.devicesFailed': 'The devices could not be listed.',
   'syncSettings.devicesRetry': 'Try Again',
-  'syncSettings.removeFailed': 'The device could not be removed ({code}).',
+  'syncSettings.removeFailed': 'The device could not be removed.',
   'syncSettings.why.outdated':
     'Your relay is from before pairing: update it (docs/sync-relay.md, Update the relay). The recovery key works with it meanwhile.',
   'syncSettings.why.otherVault':
@@ -239,7 +238,7 @@ export const messages = {
   'syncSettings.icloudStorageValue':
     'About {size}, added up from the notes and images this vault syncs.',
   'syncSettings.icloudStorageReading': 'Adding up what the vault stores…',
-  'syncSettings.icloudStorageFailed': 'What the vault stores could not be added up ({code}).',
+  'syncSettings.icloudStorageFailed': 'What the vault stores could not be added up.',
   'syncSettings.icloudStorageManaged':
     'Your iCloud storage, and how much of it is left, is managed in System Settings > Apple Account > iCloud.',
   'syncSettings.icloudDevicesHint':
@@ -268,14 +267,14 @@ export const messages = {
   'syncSettings.rotateSecretHint':
     'Enter the relay\u2019s secret to make the new vault. It is used once and not kept.',
   'syncSettings.rotateButton': 'Change Key',
-  'syncSettings.rotateFailed': 'The vault key could not be changed ({code}).',
+  'syncSettings.rotateFailed': 'The vault key could not be changed.',
   'syncSettings.rotated':
     'The vault key was changed. Save the new recovery key, then join your other devices again.',
   'syncSettings.rotatedAway':
     'The vault key was changed on another device. To sync again, enter a pairing code from a device that has the new key, or the new recovery key. Your notes stay here.',
   'syncSettings.why.rotated':
     'This key was changed. Use a pairing code from a device that has the new key, or the new recovery key.',
-  'syncSettings.icloudChangeFailed': 'Sync through iCloud could not be changed ({code}).',
+  'syncSettings.icloudChangeFailed': 'Sync through iCloud could not be changed.',
   'syncSettings.icloudLeave': 'Leave This Vault',
   'syncSettings.icloudLeaveHint':
     'Removes the vault from this Apple ID. Your notes stay on every device, and the other devices ask before they sync again. To pause sync and keep the vault, turn sync off.',
@@ -284,7 +283,7 @@ export const messages = {
     'Type this vault’s recovery key to leave it. Nothing is removed from iCloud until you do.',
   'syncSettings.icloudLeaveButton': 'Leave This Vault',
   'syncSettings.icloudLeft': 'The vault was removed from iCloud. Your notes stay here.',
-  'syncSettings.icloudLeaveFailed': 'The vault could not be left ({code}).',
+  'syncSettings.icloudLeaveFailed': 'The vault could not be left.',
   'syncSettings.pairHintIcloud':
     'Only for a device that did not join by itself through the iCloud Keychain. Show a code here and scan it on the new device. It works once, for 10 minutes.',
   'syncSettings.joinCodeIcloudHint':
@@ -315,7 +314,7 @@ export const messages = {
   'sync.notice.clock':
     'Sync is paused: this device’s clock is more than 5 minutes off. Set the date and time automatically to sync again.',
   'sync.notice.stopped':
-    'Sync has stopped ({code}). In Settings > Sync, turn Sync This Device off and on to try again, or set this device up again.',
+    'Sync has stopped. In Settings > Sync, turn Sync This Device off and on to try again, or set this device up again.',
   'sync.notice.stoppedAdvice': 'Sync has stopped. {advice}',
   'sync.advice.protocol': 'Update Devot and your relay to the same release.',
   'sync.advice.restoreChoice':
@@ -343,7 +342,7 @@ export const messages = {
   'sync.notice.licenceTrialEnded':
     'Sync has stopped: your trial has ended, and sync needs a Devot license. Your notes stay on this device. Add a license in Settings > License.',
   'sync.notice.licenceUnreadable':
-    'Sync has stopped: Devot could not read its license from the keychain ({code}). Your notes stay on this device. See Settings > License.',
+    'Sync has stopped: Devot could not read its license from the keychain. Your notes stay on this device. See Settings > License.',
   'sync.notice.paused':
     'Sync paused until {time}: the relay has reached its quota for today. Your notes keep working on this device and sync after that.',
   'sync.notice.pausedUpload':

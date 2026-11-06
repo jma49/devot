@@ -185,7 +185,7 @@ describe('the purchase sheet', () => {
     })
     expect(sheet.match(/aria-disabled="true"/g)).toHaveLength(2)
     expect(sheet).toContain('role="alert"')
-    expect(sheet).toContain('The App Store did not reply. (E_APP_STORE_NO_REPLY)')
+    expect(sheet).toContain('The App Store did not reply.')
   })
 
   it('tells of a purchase waiting for approval', async () => {
@@ -235,7 +235,7 @@ describe('Settings in an App Store build', () => {
       button.textContent?.includes('Restore Purchases'),
     )
     await act(async () => restore?.click())
-    expect(host.textContent).toContain('The App Store did not reply. (E_APP_STORE_NO_REPLY)')
+    expect(host.textContent).toContain('The App Store did not reply.')
     act(() => root.unmount())
     host.remove()
     vi.mocked(invoke).mockReset()

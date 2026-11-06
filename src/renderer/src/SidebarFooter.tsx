@@ -5,6 +5,7 @@ import { currentLocale, format, t } from './i18n'
 import { Chevron } from './Chevron'
 import { clockTime, useLastWrite } from './lastWrite'
 import { pausedMessage, useMirrorStatus } from './mirror'
+import { failureText, logFailure } from './failure'
 
 const dateTime = (ms: number) =>
   new Intl.DateTimeFormat(currentLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(ms)
@@ -21,7 +22,9 @@ function StatusPanel(props: { id: string; onClose: () => void }) {
     let alive = true
     listBackups().then(
       (status) => alive && setBackups({ kind: 'ready', status }),
-      (error: unknown) => alive && setBackups({ kind: 'failed', code: errorCode(error) }),
+      (error: unknown) =>
+        alive &&
+        setBackups({ kind: 'failed', code: logFailure(errorCode(error), 'W_BACKUPS_FAILED') }),
     )
     return () => {
       alive = false
@@ -33,7 +36,7 @@ function StatusPanel(props: { id: string; onClose: () => void }) {
     <div id={props.id} className="footer-panel" role="group" aria-label={t('sidebar.statusLabel')}>
       <p className="footer-line">
         {backups.kind === 'failed'
-          ? format(t('generalSettings.backupsFailed'), { code: backups.code })
+          ? failureText('generalSettings.backupsFailed', backups.code)
           : backups.kind === 'loading'
             ? ''
             : last
@@ -42,7 +45,7 @@ function StatusPanel(props: { id: string; onClose: () => void }) {
       </p>
       {backups.kind === 'ready' && backups.status.lastError !== null ? (
         <p className="footer-line footer-error">
-          {format(t('backups.autoFailed'), { code: backups.status.lastError })}
+          {failureText('backups.autoFailed', backups.status.lastError)}
         </p>
       ) : null}
       <p className="footer-line">

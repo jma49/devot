@@ -125,15 +125,13 @@ test('images that could not be stored are reported in a notice, with the code', 
   await expect(body(page)).toContainText('devot://file/')
   const notice = page.getByRole('alert').filter({ hasText: 'could not be added' })
   await expect(notice).toHaveText(
-    /^An image could not be added\. Images can be PNG, JPEG, GIF, WebP, AVIF or HEIC\. \(E_FILE_TYPE_REFUSED\)/,
+    /^An image could not be added\. Images can be PNG, JPEG, GIF, WebP, AVIF or HEIC\./,
   )
   await notice.getByRole('button', { name: 'Dismiss' }).click()
   await expect(notice).toHaveCount(0)
 
   await sendFiles(page, 'drop', [refused('a.png'), refused('b.png')])
-  await expect(notice).toHaveText(
-    /^2 images could not be added\. Images can be .+ \(E_FILE_TYPE_REFUSED\)/,
-  )
+  await expect(notice).toHaveText(/^2 images could not be added\. Images can be .+/)
   await notice.getByRole('button', { name: 'Dismiss' }).click()
 
   // The size is checked before the bytes are read.
@@ -141,7 +139,7 @@ test('images that could not be stored are reported in a notice, with the code', 
     { name: 'huge.png', type: 'image/png', bytes: PNG, size: 10 * 1024 * 1024 + 1 },
   ])
   await expect(notice).toHaveText(
-    /^An image could not be added\. An image can be at most 10 MB, and not empty\. \(E_FILE_SIZE_INVALID\)/,
+    /^An image could not be added\. An image can be at most 10 MB, and not empty\./,
   )
   await expect(body(page)).not.toContainText('huge')
 })

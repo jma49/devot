@@ -5,6 +5,7 @@ import type { DeepLink } from './deepLink'
 import { format, t } from './i18n'
 import { addLicence, readCurrentLicence } from './licence'
 import { licenceProblem, licenseeName, planLicenceLink, type LicenceOffer } from './licenceView'
+import { failureText, logFailure } from './failure'
 
 type LicenceLink = Extract<DeepLink, { kind: 'licence' }>
 
@@ -39,7 +40,10 @@ export function useLicenceLink(): {
             { licensee: licenseeName(offer.licensee, true) },
           ),
         ),
-      (e: unknown) => setNotice(format(t('deepLink.licenceFailed'), { code: errorCode(e) })),
+      (e: unknown) =>
+        setNotice(
+          failureText('deepLink.licenceFailed', logFailure(errorCode(e), 'W_LICENCE_LINK_FAILED')),
+        ),
     )
 
   const handle = (link: LicenceLink) => {
@@ -60,7 +64,10 @@ export function useLicenceLink(): {
         else if (plan.kind === 'same') setNotice(t('deepLink.licenceSame'))
         else setAsking({ key, offer, message: plan.message, detail: plan.detail })
       },
-      (e: unknown) => setNotice(format(t('deepLink.licenceFailed'), { code: errorCode(e) })),
+      (e: unknown) =>
+        setNotice(
+          failureText('deepLink.licenceFailed', logFailure(errorCode(e), 'W_LICENCE_LINK_FAILED')),
+        ),
     )
   }
 

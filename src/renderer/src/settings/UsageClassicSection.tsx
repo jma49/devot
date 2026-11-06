@@ -7,6 +7,7 @@ import { countOf } from '../format'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { clearUsage, listUsage } from '../usage'
 import { Setting, SettingsSection } from './controls'
+import { failureText, logFailure } from '../failure'
 
 const LABELS: Record<UsageEventName, MessageKey> = {
   'note.created': 'usage.event.note.created',
@@ -38,7 +39,7 @@ export function UsageClassicSection() {
           setEvents(list)
           setReadError(undefined)
         },
-        (e: unknown) => setReadError(errorCode(e)),
+        (e: unknown) => setReadError(logFailure(errorCode(e), 'W_USAGE_FAILED')),
       ),
     [],
   )
@@ -60,7 +61,7 @@ export function UsageClassicSection() {
         setClearError(undefined)
         return load()
       },
-      (e: unknown) => setClearError(errorCode(e)),
+      (e: unknown) => setClearError(logFailure(errorCode(e), 'W_USAGE_FAILED')),
     )
   }
 
@@ -81,8 +82,8 @@ export function UsageClassicSection() {
       ),
     )
   const errors = [
-    readError && format(t('usage.failed'), { code: readError }),
-    clearError && format(t('usage.clearFailed'), { code: clearError }),
+    readError && failureText('usage.failed', readError),
+    clearError && failureText('usage.clearFailed', clearError),
   ].filter(Boolean)
 
   return (

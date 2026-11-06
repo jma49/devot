@@ -3,6 +3,7 @@ import { backupNow, errorCode, listBackups, type BackupInfo } from './backups'
 import { ConfirmDialog } from './ConfirmDialog'
 import { fileSize } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
+import { failureText, logFailure } from './failure'
 
 const backupDate = (ms: number, locale: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(ms)
@@ -44,7 +45,11 @@ export function BackupsDialog(props: {
           setBackups(status.backups)
           if (status.lastError) setError({ message: 'backups.failed', code: status.lastError })
         },
-        (e: unknown) => setError({ message: 'backups.listFailed', code: errorCode(e) }),
+        (e: unknown) =>
+          setError({
+            message: 'backups.listFailed',
+            code: logFailure(errorCode(e), 'W_BACKUPS_FAILED'),
+          }),
       ),
     [],
   )
@@ -68,7 +73,7 @@ export function BackupsDialog(props: {
     try {
       await work()
     } catch (e) {
-      setError(failure(errorCode(e)))
+      setError(failure(logFailure(errorCode(e), 'W_BACKUPS_FAILED')))
     } finally {
       setBusy(false)
     }
@@ -99,7 +104,7 @@ export function BackupsDialog(props: {
       <p className="sheet-detail">{t('backups.detail')}</p>
       {error ? (
         <p role="alert" className="sheet-error">
-          {format(t(error.message), { code: error.code })}
+          {failureText(error.message, error.code)}
         </p>
       ) : null}
       {backups && backups.length === 0 ? (

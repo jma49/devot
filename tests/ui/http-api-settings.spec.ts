@@ -158,7 +158,7 @@ test('says why it is not listening', async ({ page }) => {
   await openSettings(page, 'Integrations')
   const api = section(page)
   await api.getByRole('switch', { name: 'Allow Local HTTP API' }).check()
-  await expect(api).toContainText('Not listening (E_HTTP_API_PORT_IN_USE).')
+  await expect(api).toContainText('Not listening.')
 })
 
 test('a new token or another access replaces the token', async ({ page }) => {
@@ -178,10 +178,10 @@ test('a new token or another access replaces the token', async ({ page }) => {
   expect(await calls(page, 'clipboard_write_text')).toEqual([{ text: SECOND }])
 })
 
-test('shows a failure by its code', async ({ page }) => {
+test('says a failure without its code', async ({ page }) => {
   await fakeRust(page, { token: 'unknown' })
   await openSettings(page, 'Integrations')
   const api = section(page)
   await api.getByRole('button', { name: 'Show' }).click()
-  await expect(api.getByRole('alert')).toContainText('E_HTTP_API_TOKEN_MISSING')
+  await expect(api.getByRole('alert')).toHaveText('The token could not be read or made.')
 })

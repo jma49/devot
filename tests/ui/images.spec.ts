@@ -375,7 +375,7 @@ test('a copy or save of an image that fails says so with its code; a cancelled s
 
   await openMenu()
   await pickMenuItem(page, 'Copy Image')
-  await expect(notice).toHaveText(/The image could not be copied\. \(E_FILE_NOT_FOUND\)/)
+  await expect(notice).toHaveText(/The image could not be copied\./)
   await notice.getByRole('button', { name: 'Dismiss' }).click()
   await expect(notice).toHaveCount(0)
 
@@ -387,7 +387,7 @@ test('a copy or save of an image that fails says so with its code; a cancelled s
   await mock({ image_save: { error: 'E_IMAGE_SAVE_FAILED' } })
   await openMenu()
   await pickMenuItem(page, 'Save Image As…')
-  await expect(notice).toHaveText(/The image could not be saved\. \(E_IMAGE_SAVE_FAILED\)/)
+  await expect(notice).toHaveText(/The image could not be saved\./)
 })
 
 test('size presets show in the preview and stay in the Markdown', async ({ page }) => {

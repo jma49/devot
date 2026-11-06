@@ -27,6 +27,7 @@ import {
   type CliToolState,
   type CliToolStatus,
 } from './window'
+import { failureText, logFailure } from '../failure'
 
 const indented = (name: string, depth: number) => `${'  '.repeat(depth)}${name}`
 
@@ -112,7 +113,7 @@ export function GeneralSection() {
     action().then(
       () => setError(undefined),
       (e: unknown) => {
-        const code = errorCode(e)
+        const code = logFailure(errorCode(e), 'W_SETTINGS_FAILED')
         setError({ message: typeof message === 'function' ? message(code) : message, code })
       },
     )
@@ -131,12 +132,12 @@ export function GeneralSection() {
       </h2>
       {error ? (
         <p role="alert" className="settings-error">
-          {format(t(error.message), { code: error.code })}
+          {failureText(error.message, error.code)}
         </p>
       ) : null}
       {saveError ? (
         <p role="alert" className="settings-error">
-          {format(t('editorSettings.failed'), { code: saveError })}
+          {failureText('editorSettings.failed', saveError)}
         </p>
       ) : null}
       {onPhone ? null : (

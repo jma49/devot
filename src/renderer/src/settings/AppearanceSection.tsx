@@ -45,6 +45,7 @@ import {
 } from '../phone/glassPrefs'
 import { PhoneGroup, PhoneSegmented, PhoneSlider } from '../phone/PhoneControls'
 import type { Appearance } from '../theme/appearance'
+import { failureText } from '../failure'
 
 /** The font size description: what it is, and the keys in effect (or the palette's commands when one has no key). */
 function fontSizeHint(): string {
@@ -371,7 +372,7 @@ export function AppearanceSection() {
         </h2>
         {error ? (
           <p role="alert" className="settings-error">
-            {format(t('appearanceSettings.failed'), { code: error })}
+            {failureText('appearanceSettings.failed', error)}
           </p>
         ) : null}
         <PhoneGroup title={t('appearanceSettings.colorScheme')}>
@@ -485,7 +486,7 @@ export function AppearanceSection() {
       </h2>
       {error ? (
         <p role="alert" className="settings-error">
-          {format(t('appearanceSettings.failed'), { code: error })}
+          {failureText('appearanceSettings.failed', error)}
         </p>
       ) : null}
       <SettingsSection

@@ -242,7 +242,8 @@ test('an import that fails partway keeps the notes it made, tries the rest and s
     ['first', 'QUIET ONE'],
     ['second', 'QUIET TWO'],
   ])
-  await expect(page.getByRole('alert')).toContainText('E_PLUGIN_FAILED')
+  await expect(page.getByRole('alert')).toContainText('could not finish.')
+  await expect(page.getByRole('alert')).not.toContainText('E_PLUGIN_FAILED')
 })
 
 test('a read-only licence keeps plugin imports and edits from changing notes', async ({ page }) => {
@@ -293,6 +294,6 @@ test('a failing plugin shows a notice with its code, never its text', async ({ p
   })
   await paletteRun(page, 'Upper Case')
   await expect(page.locator('[data-devot-plugin-notice]')).toHaveText(
-    /Plugin tools could not finish \(E_PLUGIN_FAILED\)\./,
+    /Plugin tools could not finish\./,
   )
 })

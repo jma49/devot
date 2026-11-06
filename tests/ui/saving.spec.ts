@@ -61,7 +61,7 @@ test('changes that cannot be saved stay, are reported and are saved once writing
   await page.keyboard.press('ControlOrMeta+End')
   await page.keyboard.insertText(', then more')
   await expect(notice(page)).toHaveText(
-    /^Changes to 1 note could not be saved \(E_STORAGE_SQLITE\)\. Devot keeps trying\./,
+    /^Changes to 1 note could not be saved\. Devot keeps trying\./,
   )
   await expect
     .poll(() => saveFailures(page))
@@ -72,9 +72,7 @@ test('changes that cannot be saved stay, are reported and are saved once writing
   await noteRow(page, 'Other').click()
   await expect(titleField(page)).toHaveValue('Other')
   await titleField(page).fill('Other, renamed')
-  await expect(notice(page)).toHaveText(
-    /^Changes to 2 notes could not be saved \(E_STORAGE_SQLITE\)\./,
-  )
+  await expect(notice(page)).toHaveText(/^Changes to 2 notes could not be saved\./)
   await noteRow(page, 'Kept').click()
   await expect(body(page)).toHaveText('saved first, then more')
   expect((await stored(page, 'Kept'))?.bodyMd).toBe('saved first')

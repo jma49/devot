@@ -121,7 +121,7 @@ test('a failed clear stays reported after the window reloads', async ({ page }) 
     .getByRole('button', { name: 'Clear', exact: true })
     .click()
   const alert = section(page).getByRole('alert')
-  await expect(alert).toHaveText('The usage data could not be cleared (E_USAGE_STORE_FAILED).')
+  await expect(alert).toHaveText('The usage data could not be cleared.')
   await page.evaluate(() => window.dispatchEvent(new window.Event('focus')))
   await expect(alert).toBeVisible()
   await expect(section(page)).toContainText('4 events are stored on this Mac.')
@@ -143,9 +143,7 @@ test('reloads the events when the window comes back to the front', async ({ page
 
 test('shows why the events could not be read', async ({ page }) => {
   await open(page, { error: 'E_USAGE_OPEN_FAILED' })
-  await expect(section(page).getByRole('alert')).toHaveText(
-    'The usage data could not be read (E_USAGE_OPEN_FAILED).',
-  )
+  await expect(section(page).getByRole('alert')).toHaveText('The usage data could not be read.')
 })
 
 const changedElsewhere = changeEditorSettingsElsewhere
@@ -474,7 +472,7 @@ test('Disconnect names the file, removes only on confirming and reports a refusa
   await expect(dialog).toContainText('removes only its devot entry from /Users/me/.claude.json')
   await dialog.getByRole('button', { name: 'Disconnect', exact: true }).click()
   await expect(page.getByRole('tabpanel').getByRole('alert')).toHaveText(
-    'The client’s configuration was not changed (E_MCP_CONFIG_CHANGED).',
+    'The client’s configuration was not changed.',
   )
   await expect(claude).toContainText('Connected')
   // It shows the file as it is now before another try.
@@ -510,7 +508,7 @@ test('A moved app, a foreign entry and an unreadable file each say what to do', 
   const codex = page.getByRole('group', { name: 'Codex' })
   await expect(codex.getByRole('button', { name: 'Replace Codex' })).toBeEnabled()
   const desktop = page.getByRole('group', { name: 'Claude Desktop' })
-  await expect(desktop).toContainText('Its file cannot be changed safely (E_MCP_CONFIG_UNPARSABLE)')
+  await expect(desktop).toContainText('Its file cannot be changed safely')
   await expect(desktop.getByRole('button', { name: 'Connect Claude Desktop' })).toHaveCount(0)
   await expect(
     (await byHand(page)).getByRole('button', { name: 'Copy the Claude Desktop configuration' }),
@@ -595,9 +593,9 @@ test('Integrations still offers configs, with the installed path, when Rust cann
   })
   await openSettings(page, 'Integrations')
   const pane = page.getByRole('tabpanel')
-  // The sentence reads as a sentence: it says what could not be found, with the code in brackets (A159).
+  // The sentence reads as a sentence: it says what could not be read, and the code stays in the log (A159).
   await expect(pane.getByRole('alert')).toHaveText(
-    'Devot could not read the client configurations (E_DATA_FOLDER_UNAVAILABLE).',
+    'Devot could not read the client configurations. Something it needs is not available now. Try again later.',
   )
   const clients = await byHand(page)
   await expect(clients.locator('code').first()).toContainText(
@@ -721,9 +719,7 @@ test('AI Tools says why tools cannot reach Devot, with the code', async ({ page 
     { ...ACCESS, reachable: false, problem: 'E_HTTP_API_PORT_IN_USE' },
     'normal',
   )
-  await expect(aiTools.getByRole('alert')).toHaveText(
-    'AI tools cannot reach Devot now (E_HTTP_API_PORT_IN_USE).',
-  )
+  await expect(aiTools.getByRole('alert')).toHaveText('AI tools cannot reach Devot now.')
 })
 
 test('A keychain that waits is said calmly, with what to do and the code', async ({ page }) => {
@@ -734,7 +730,7 @@ test('A keychain that waits is said calmly, with what to do and the code', async
   )
   await expect(aiTools.getByRole('alert')).toHaveCount(0)
   await expect(aiTools.getByRole('status')).toHaveText(
-    'macOS is asking whether Devot may use its keychain item. Choose Allow in that dialog, and AI tools can reach Devot (E_MCP_KEYCHAIN_WAITING).',
+    'macOS is asking whether Devot may use its keychain item. Choose Allow in that dialog, and AI tools can reach Devot.',
   )
 })
 
@@ -750,11 +746,9 @@ test('A failure to quit or to save says so with its code', async ({ page }) => {
   await openSettings(page, 'Integrations')
   const aiTools = page.getByRole('region', { name: 'AI Tools' })
   await aiTools.getByRole('switch', { name: 'Allow AI Tools' }).click()
-  await expect(aiTools.getByRole('alert')).toHaveText(
-    'The AI Tools settings could not be changed (E_MCP_ACCESS_WRITE_FAILED).',
-  )
+  await expect(aiTools.getByRole('alert')).toHaveText('The AI Tools settings could not be changed.')
   await aiTools.getByRole('button', { name: 'Quit Devot' }).click()
-  await expect(aiTools.getByRole('alert')).toHaveText('Devot could not quit (E_BACKGROUND_WINDOW).')
+  await expect(aiTools.getByRole('alert')).toHaveText('Devot could not quit.')
 })
 
 test('General installs and removes the devot command, showing whether it is there', async ({
@@ -800,7 +794,7 @@ test('General says when the devot command cannot be installed', async ({ page })
     /^Something else is at \/usr\/local\/bin\/devot/,
   )
   await install.click()
-  await expect(general.getByRole('alert')).toContainText('E_CLI_PATH_TAKEN')
+  await expect(general.getByRole('alert')).toHaveText('The command line tool could not be changed.')
   await expect(install).toBeEnabled()
 })
 
@@ -825,7 +819,7 @@ test('General says when the data folder cannot be opened', async ({ page }) => {
   await page.goto('/settings.html')
   const general = page.getByRole('region', { name: 'General' })
   await general.getByRole('button', { name: 'Open Data Folder' }).click()
-  await expect(general.getByRole('alert')).toContainText('E_DATA_FOLDER_OPEN_FAILED')
+  await expect(general.getByRole('alert')).toHaveText('The data folder could not be opened.')
 })
 
 test('General offers the notebooks as the default for new notes', async ({ page }) => {
@@ -1153,7 +1147,7 @@ test('a change that cannot be stored is reported and undone', async ({ page }) =
   // Clicked, not checked: the box is checked only until the store refuses.
   await checkbox(page, 'Line Numbers').click()
   await expect(editor(page).getByRole('alert')).toHaveText(
-    'The editor settings could not be saved (E_EDITOR_SETTINGS_WRITE_FAILED).',
+    'The editor settings could not be saved.',
   )
   await expect(checkbox(page, 'Line Numbers')).not.toBeChecked()
 })

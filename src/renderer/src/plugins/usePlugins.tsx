@@ -33,6 +33,7 @@ import {
 import { frameConnector, showFrame } from './frames'
 import { createPluginHost, type PluginHost } from './host'
 import { pluginRenderersChanged } from './rendererRevision'
+import { failureText, logFailure } from '../failure'
 
 export interface PluginWindow {
   /** The note open in the editor. */
@@ -121,7 +122,10 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
   )
   const fail = useCallback(
     (plugin: string, error: unknown) =>
-      setFailure({ name: nameOf(plugin), code: errorCode(error, 'E_PLUGIN_FAILED') }),
+      setFailure({
+        name: nameOf(plugin),
+        code: logFailure(errorCode(error, 'E_PLUGIN_FAILED'), 'W_PLUGIN_FAILED'),
+      }),
     [nameOf],
   )
 
@@ -271,7 +275,9 @@ export function usePlugins(core: Core | undefined, app: PluginWindow) {
   const notice: ReactNode = failure ? (
     <div role="alert" className="notice" data-devot-part="notice" data-devot-plugin-notice>
       <span className="notice-text">
-        {licenceRefused ? t('plugins.trialEnded') : format(t('plugins.failed'), failure)}
+        {licenceRefused
+          ? t('plugins.trialEnded')
+          : failureText('plugins.failed', failure.code, { name: failure.name })}
       </span>
       {licenceRefused ? (
         <button

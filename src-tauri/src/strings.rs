@@ -103,7 +103,6 @@ pub const STARTUP_BUSY: &str =
     "Another program kept the notes database busy. Open Devot again in a moment.";
 pub const STARTUP_OTHER: &str = "Something went wrong while Devot was starting.";
 pub const STARTUP_FOLDER: &str = "Data folder: {folder}";
-pub const STARTUP_CODE: &str = "Code: {code}";
 
 // The editor's menu: the system items Rust adds to the page's (macOS only).
 #[cfg(target_os = "macos")]

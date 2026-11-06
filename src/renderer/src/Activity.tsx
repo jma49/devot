@@ -8,6 +8,7 @@ import type { Core } from './core-client'
 import { countOf } from './format'
 import { currentLocale, format, t } from './i18n'
 import { listenHere, unlistenLater } from './windowEvents'
+import { failureText, logFailure } from './failure'
 
 const SHOW_ACTIVITY = 'devot:show-activity'
 
@@ -112,7 +113,9 @@ export function Activity(props: { core: Core; onClose: () => void }) {
         setHeatmap(found)
         setActive(found.today)
       },
-      (e: unknown) => current && setError(format(t('activity.failed'), { code: errorCode(e) })),
+      (e: unknown) =>
+        current &&
+        setError(failureText('activity.failed', logFailure(errorCode(e), 'W_ACTIVITY_FAILED'))),
     )
     return () => {
       current = false

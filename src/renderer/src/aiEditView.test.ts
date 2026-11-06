@@ -33,15 +33,18 @@ describe('the proposal rows', () => {
 })
 
 describe('why there is no proposal', () => {
-  it('says what to change, with the code, and whether asking again can help', () => {
+  it('says what to change, never the code, and whether asking again can help', () => {
     expect(aiEditFailure('E_AI_KEY_MISSING')).toEqual({
-      message: 'No AI provider is set up. Add a key in Settings > AI. (E_AI_KEY_MISSING)',
+      message: 'No AI provider is set up. Add a key in Settings > AI.',
       retry: false,
     })
     expect(aiEditFailure('E_AI_ACCESS_DENIED').message).toContain('Allow AI Access')
     expect(aiEditFailure('E_AI_TIMEOUT').retry).toBe(true)
     expect(aiEditFailure('E_SOMETHING_ELSE').message).toBe(
-      'The proposal could not be made or applied. (E_SOMETHING_ELSE)',
+      'The proposal could not be made or applied.',
+    )
+    expect(aiEditFailure('E_AI_HTTP').message).toBe(
+      'The proposal could not be made or applied. The server refused the request.',
     )
     expect(aiEditFailure('E_AI_SELECTION_TOO_LARGE').message).toContain('20,000 characters')
   })
@@ -49,7 +52,7 @@ describe('why there is no proposal', () => {
   it('tells a keychain that kept the licence back apart from a missing licence', () => {
     const unreadable = aiEditFailure('E_LICENCE_UNREADABLE')
     expect(unreadable.message).toContain('keychain')
-    expect(unreadable.message).toContain('(E_LICENCE_UNREADABLE)')
+    expect(unreadable.message).not.toContain('E_')
     expect(unreadable.retry).toBe(true)
     expect(aiEditFailure('E_LICENCE_REQUIRED').message).not.toContain('keychain')
     expect(aiSuggestFailure('E_LICENCE_UNREADABLE')).toContain('keychain')

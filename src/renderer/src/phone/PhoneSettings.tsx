@@ -20,6 +20,7 @@ import { doveMask } from './dove'
 import { MacKeyRow } from './PhoneMacKey'
 import { PhoneDetailSheet } from './PhoneSheet'
 import { licenceRow, paneMatches, phonePanes } from './settingsRows'
+import { logFailure } from '../failure'
 
 /** The panes that open on a phone; the rest are left out of its Settings. The phone records no usage. */
 type PhonePane = Exclude<PaneId, 'keyboard' | 'mirror' | 'integrations' | 'plugins' | 'usage'>
@@ -97,7 +98,8 @@ function RestoreRow() {
     setState('running')
     restorePurchases().then(
       () => setState(editingAllowed() ? 'restored' : 'nothing'),
-      (error: unknown) => setState({ code: errorCode(error) }),
+      (error: unknown) =>
+        setState({ code: logFailure(errorCode(error), 'W_PHONE_RESTORE_FAILED') }),
     )
   }
   return (

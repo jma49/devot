@@ -59,14 +59,14 @@ export const messages = {
   'generalSettings.openDataFolder': 'Open Data Folder',
   'generalSettings.dataFolderHint':
     'Where Devot keeps your notes, attachments, backups, logs and settings on this Mac.',
-  'generalSettings.openFailed': 'The data folder could not be opened ({code}).',
+  'generalSettings.openFailed': 'The data folder could not be opened.',
   'generalSettings.backups': 'Backups',
   'generalSettings.crashReports': 'Send Crash Reports',
   'generalSettings.crashReportsHint':
     'Off by default. When on, a crash sends error codes and code locations so it can be fixed, never note text, titles or file names. Native crashes are caught from the next launch.',
-  'generalSettings.crashReportsFailed': 'The crash report setting could not be saved ({code}).',
+  'generalSettings.crashReportsFailed': 'The crash report setting could not be saved.',
   'generalSettings.showBackups': 'Show Backups\u2026',
-  'generalSettings.backupsFailed': 'The backups could not be shown ({code}).',
+  'generalSettings.backupsFailed': 'The backups could not be shown.',
   'generalSettings.commandLine': 'Command Line',
   'generalSettings.commandLineTool': 'Command Line Tool',
   'generalSettings.commandLineAbsent':
@@ -78,7 +78,7 @@ export const messages = {
   'generalSettings.commandLineUnavailable': 'This build of Devot has no command line tool.',
   'generalSettings.install': 'Install',
   'generalSettings.uninstall': 'Uninstall',
-  'generalSettings.commandLineFailed': 'The command line tool could not be changed ({code}).',
+  'generalSettings.commandLineFailed': 'The command line tool could not be changed.',
   'generalSettings.commandLineNotInApplications':
     'Move Devot to the Applications folder and open it from there, then install the command line tool.',
   'generalSettings.updates': 'Updates',
@@ -94,16 +94,16 @@ export const messages = {
   'quickCapture.noNotebook': 'No Notebook',
   'quickCapture.save': 'Save',
   'quickCapture.cancel': 'Cancel',
-  'quickCapture.saveFailed': 'The note could not be saved ({code}). Your text is kept here.',
+  'quickCapture.saveFailed': 'The note could not be saved. Your text is kept here.',
   'quickCapture.trialEnded':
     'Your Devot trial has ended, so no note can be saved. Add a license in Settings > License.',
   'quickCapture.licenceUnreadable':
     'The note could not be saved: Devot could not read its license from the keychain. Your text is kept here. See Settings > License.',
-  'quickCapture.notebookGone': 'That notebook no longer exists ({code}). Choose another one.',
+  'quickCapture.notebookGone': 'That notebook no longer exists. Choose another one.',
   'quickCapture.noAnswer':
-    'Devot did not save the note in time ({code}). Your text is kept here; open Devot and try again.',
+    'Devot did not save the note in time. Your text is kept here; open Devot and try again.',
   'quickCapture.stillSaving':
-    'Devot is still saving this note ({code}). It will appear in your notes; check there before saving it again.',
+    'Devot is still saving this note. It will appear in your notes; check there before saving it again.',
   'generalSettings.autoDownloadUpdates': 'Automatically Download Updates',
   'generalSettings.autoDownloadUpdatesHint':
     'Download new versions in the background, then offer to restart. Off, Devot asks before downloading.',
@@ -196,7 +196,7 @@ export const messages = {
   'editorSettings.importedFontMissing':
     'This font file is missing, so the default font shows instead. Import it again to use it.',
   'editorSettings.importFont': 'Import Font…',
-  'editorSettings.importFontFailed': 'The font could not be imported ({code}).',
+  'editorSettings.importFontFailed': 'The font could not be imported.',
   'editorSettings.fontWeight': 'Font Weight',
   'editorSettings.fontWeightHint': 'The weight of the editor text.',
   'editorSettings.weight.normal': 'normal',
@@ -207,7 +207,7 @@ export const messages = {
   'editorSettings.highlightTrailingWhitespace': 'Highlight Trailing Whitespace',
   'editorSettings.highlightTrailingWhitespaceHint':
     'Whether to tint spaces and tabs at the end of a line.',
-  'editorSettings.failed': 'The editor settings could not be saved ({code}).',
+  'editorSettings.failed': 'The editor settings could not be saved.',
   'previewSettings.title': 'Preview',
   'previewSettings.fontSize': 'Font Size',
   'previewSettings.fontSizeHint': 'The size of the text in the preview, in pixels.',
@@ -217,7 +217,7 @@ export const messages = {
   'previewSettings.remoteImages': 'Load Images from the Web',
   'previewSettings.remoteImagesHint':
     "Whether images from the web load by themselves. When off, each site's images wait for Load until Devot quits.",
-  'previewSettings.failed': 'The preview settings could not be saved ({code}).',
+  'previewSettings.failed': 'The preview settings could not be saved.',
   'appearanceSettings.title': 'Appearance',
   'appearanceSettings.groupAppearance': 'Appearance',
   'appearanceSettings.colorScheme': 'Color scheme',
@@ -265,5 +265,5 @@ export const messages = {
   'appearanceSettings.animations.always': 'Always',
   'appearanceSettings.animations.system': 'Follow System',
   'appearanceSettings.animations.off': 'Off',
-  'appearanceSettings.failed': 'The appearance settings could not be saved ({code}).',
+  'appearanceSettings.failed': 'The appearance settings could not be saved.',
 } as const

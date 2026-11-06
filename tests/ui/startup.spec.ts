@@ -46,14 +46,15 @@ test('a first load that fails says so with its code, and Try Again loads the not
   await page.reload()
 
   await expect(failure(page)).toContainText('Devot could not load your notes.')
-  await expect(failure(page)).toContainText('E_STORAGE_BUSY')
+  await expect(failure(page)).toContainText('Export Diagnostics')
+  await expect(failure(page)).not.toContainText('E_STORAGE_BUSY')
   await expect(page.getByRole('listbox', { name: 'Notes' })).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: 'Sidebar' })).toHaveCount(0)
   await expect.poll(() => logged(page, 'W_CORE_START_FAILED')).toEqual([['E_STORAGE_BUSY']])
 
   await tryAgain(page).click()
-  await expect(failure(page)).toContainText('E_STORAGE_BUSY')
   await expect.poll(() => logged(page, 'W_CORE_START_FAILED')).toHaveLength(2)
+  await expect(failure(page)).toContainText('Devot could not load your notes.')
 
   await page.evaluate(() => localStorage.removeItem('devot.test.failList'))
   await tryAgain(page).click()
@@ -65,7 +66,7 @@ test('a first load that fails says so with its code, and Try Again loads the not
 test('a worker that does not load says so, and Try Again starts it', async ({ page }) => {
   await page.route('**/core.worker*', (route) => route.abort())
   await page.reload()
-  await expect(failure(page)).toContainText('E_CORE_WORKER_FAILED')
+  await expect(failure(page)).toContainText('Devot could not load your notes.')
   await expect(page.getByRole('listbox', { name: 'Notes' })).toHaveCount(0)
   await expect.poll(() => logged(page, 'W_CORE_START_FAILED')).toEqual([['E_CORE_WORKER_FAILED']])
 

@@ -141,7 +141,7 @@ const reportFailure = (action: 'copy' | 'save', fileId: string) => (error: unkno
   setImageActionFailure({ action, code })
 }
 
-/** Runs an image action on an image; a failed copy or save is logged and shown by code (useImageActionFailure). */
+/** Runs an image action on an image; a failed copy or save is logged by code and shown (useImageActionFailure). */
 export function runImageAction(
   action: ImageAction,
   image: ImageMenuTarget,

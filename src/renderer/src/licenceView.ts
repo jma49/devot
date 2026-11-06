@@ -1,6 +1,7 @@
 // What the windows say about the licence: why a key was refused, the state in a sentence, the
 // trial's time left and its reminder, and what a devot://licence link would change.
 import type { LicenceState } from '../../core/entitlements'
+import { failureReason } from './failure'
 import { fullDate } from './format'
 import { format, t, type MessageKey } from './i18n'
 import {
@@ -53,7 +54,8 @@ export const licenseeName = (licensee: string, inline = false): string =>
     : licensee
 
 export function licenceProblem(code: string): string {
-  return format(t('licence.problem'), { reason: t(REASONS[code] ?? 'licence.reason.other'), code })
+  const reason = REASONS[code] ?? failureReason(code)
+  return t(reason ?? 'licence.reason.other')
 }
 
 const LOCKED: Readonly<Record<'sync' | 'ai', readonly [MessageKey, MessageKey]>> = {
@@ -91,7 +93,7 @@ export function stateSentence(licence: LicenceSnapshot): string {
   if (licence.state === 'none' && !licence.gated) return t('licenceSettings.ungated')
   if (licence.state === 'none' && licence.code)
     return format(t('licenceSettings.state.unreadable'), { problem: licenceProblem(licence.code) })
-  return format(t(STATES[licence.state]), { code: licence.code ?? '' })
+  return t(STATES[licence.state])
 }
 
 export interface LicenceOffer {
@@ -157,7 +159,7 @@ export function trialSentence(
   if (!licence.gated || licence.state === 'valid' || !trial) return null
   if (licence.appStore?.pro || licence.appStore?.code) return null
   if (trial.state === 'available') return t('licenceSettings.trial.available')
-  if (trial.code) return format(t('licenceSettings.trial.unreadable'), { code: trial.code })
+  if (trial.code) return t('licenceSettings.trial.unreadable')
   if (trialRunning(licence, now) && trial.endsAt !== null)
     return format(t('licenceSettings.trial.running'), {
       date: fullDate(trial.endsAt, locale),

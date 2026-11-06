@@ -15,6 +15,7 @@ import { errorCode } from './backups'
 import type { MessageKey } from './i18n'
 import { invoke } from './ipc'
 import type { SyncSnapshot } from './sync'
+import { logFailure } from './failure'
 
 export const USAGE_NOTICE_TEXT: Readonly<Record<UsageNotice, MessageKey>> = {
   storageWarn: 'sync.notice.usage.storageWarn',
@@ -64,7 +65,7 @@ export function readingFailure(code: string): UsageReading {
     : code === 'E_SYNC_BAD_MESSAGE'
       ? 'old'
       : 'failed'
-  return { state: 'unavailable', why, code }
+  return { state: 'unavailable', why, code: logFailure(code, 'W_SYNC_USAGE_FAILED') }
 }
 
 async function readUsage(): Promise<UsageReading> {

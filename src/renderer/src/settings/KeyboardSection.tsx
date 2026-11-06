@@ -23,6 +23,7 @@ import { isImeKey } from '../ime'
 import { MoreMenu, SettingsSection } from './controls'
 import { GROUP_LABELS, groupedShortcuts } from './shortcutSearch'
 import { ToolbarEnd } from './toolbar'
+import { failureText, logFailure } from '../failure'
 
 const SCOPES: Readonly<Record<Exclude<CommandScope, 'window'>, MessageKey>> = {
   editor: 'shortcuts.scope.editor',
@@ -89,7 +90,7 @@ export function KeyboardSection() {
     setAnnouncement(format(t('shortcuts.set'), { command: label(id), keys: keysText(keys) }))
     changeShortcuts(change.patch).then(
       () => setError(undefined),
-      (e: unknown) => setError(errorCode(e)),
+      (e: unknown) => setError(logFailure(errorCode(e), 'W_SHORTCUTS_FAILED')),
     )
   }
 
@@ -151,7 +152,7 @@ export function KeyboardSection() {
       </p>
       {error ? (
         <p role="alert" className="settings-error">
-          {format(t('shortcuts.failed'), { code: error })}
+          {failureText('shortcuts.failed', error)}
         </p>
       ) : null}
       <div className="settings-search shortcuts-filter">
@@ -326,7 +327,7 @@ export function KeyboardSection() {
             setAnnouncement(t('shortcuts.resetAllDone'))
             changeShortcuts(resetAllKeys(overrides)).then(
               () => setError(undefined),
-              (e: unknown) => setError(errorCode(e)),
+              (e: unknown) => setError(logFailure(errorCode(e), 'W_SHORTCUTS_FAILED')),
             )
           }}
           onCancel={() => setResettingAll(false)}

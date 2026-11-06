@@ -254,7 +254,7 @@ test('a restore the core refuses says so, and the message goes when another vers
   await failCoreCalls(page, ['restoreRevision'])
   await bar(page).getByRole('button', { name: 'Restore Whole Version' }).click()
   const said = bar(page).locator('.history-bar-note')
-  await expect(said).toHaveText(/^The version could not be restored \(E_/)
+  await expect(said).toHaveText(/^The version could not be restored/)
   await expect(said).toHaveAttribute('role', 'alert')
   await expect(said).not.toHaveText(/could not be loaded/)
 

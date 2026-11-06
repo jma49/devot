@@ -5,28 +5,32 @@ import { setIPhoneWording } from '../i18n'
 import { WHY, failureText } from './syncWhy'
 import type { MessageKey } from '../i18n'
 
-const WITH_CODE = (Object.keys(en) as MessageKey[]).filter(
-  (key) =>
-    (en[key].match(/\{\w+\}/g) ?? []).every((slot) => slot === '{code}') &&
-    en[key].includes('{code}'),
+const FAILURES = (Object.keys(en) as MessageKey[]).filter((key) =>
+  /^syncSettings\.[\w.]*[fF]ailed$/.test(key),
 )
 
 describe('failureText', () => {
-  it('leaves no placeholder on screen, whatever the message or code', () => {
+  it('leaves no placeholder or code on screen, whatever the message or code', () => {
+    expect(FAILURES.length).toBeGreaterThan(10)
     for (const phone of [false, true]) {
       setIPhoneWording(phone)
-      for (const key of WITH_CODE)
+      for (const key of FAILURES)
         for (const code of [...Object.keys(WHY), 'E_SYNC_UNEXPLAINED'])
-          expect(failureText(key, code), `${key} ${code}`).not.toMatch(/[{}]/)
+          expect(failureText(key, code), `${key} ${code}`).not.toMatch(/[{}]|E_SYNC/)
     }
     setIPhoneWording(false)
   })
 
-  it('names an unexplained code and omits an explained one', () => {
-    expect(failureText('syncSettings.devicesFailed', 'E_SYNC_UNEXPLAINED')).toContain(
-      '(E_SYNC_UNEXPLAINED)',
+  it('says the action alone for an unexplained code, and the reason for an explained one', () => {
+    expect(failureText('syncSettings.devicesFailed', 'E_SYNC_UNEXPLAINED')).toBe(
+      en['syncSettings.devicesFailed'],
     )
-    expect(failureText('syncSettings.devicesFailed', 'E_SYNC_OFFLINE')).not.toContain('E_SYNC')
+    expect(failureText('syncSettings.devicesFailed', 'E_SYNC_OFFLINE')).toBe(
+      `${en['syncSettings.devicesFailed']} ${en['syncSettings.why.unreachable']}`,
+    )
+    expect(failureText('syncSettings.devicesFailed', 'E_NET_TIMEOUT')).toBe(
+      `${en['syncSettings.devicesFailed']} ${en['failure.timeout']}`,
+    )
   })
 
   it('ends the explanation with a full stop, also where the phone copy is a bare label', () => {

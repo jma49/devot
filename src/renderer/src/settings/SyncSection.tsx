@@ -35,6 +35,7 @@ import {
 } from './SyncICloud'
 import { UsageRows } from './SyncUsage'
 import { failureText, logFailure } from './syncWhy'
+import { failureReason } from '../failure'
 
 const SAY_AFTER_MS = 50
 
@@ -99,8 +100,8 @@ function statusDetails(snapshot: SyncSnapshot, locale: string): string[] {
   const parts: string[] = []
   if (upload && snapshot.enabled)
     parts.push(format(t('syncSettings.upload'), uploadCounts(upload, locale)))
-  if (code && snapshot.enabled && state !== 'idle' && !wordedCode(snapshot))
-    parts.push(format(t('syncSettings.code'), { code }))
+  const reason = code ? failureReason(code) : undefined
+  if (reason && snapshot.enabled && state !== 'idle' && !wordedCode(snapshot)) parts.push(t(reason))
   parts.push(
     lastSync === null
       ? t('syncSettings.neverSynced')

@@ -11,6 +11,7 @@ import {
 } from '../mirror'
 import { useMirrorFolderChoice } from '../MirrorFolderChoice'
 import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
+import { failureText, logFailure } from '../failure'
 
 export function MirrorSection() {
   const status = useMirrorStatus()
@@ -38,7 +39,11 @@ export function MirrorSection() {
   const change = (patch: MirrorPatch) =>
     changeMirror(patch).then(
       () => setError(undefined),
-      (e: unknown) => setError({ message: 'mirror.changeFailed', code: errorCode(e) }),
+      (e: unknown) =>
+        setError({
+          message: 'mirror.changeFailed',
+          code: logFailure(errorCode(e), 'W_MIRROR_SETTING_FAILED'),
+        }),
     )
 
   return (
@@ -48,7 +53,7 @@ export function MirrorSection() {
       </h2>
       {error ? (
         <p role="alert" className="settings-error">
-          {format(t(error.message), { code: error.code })}
+          {failureText(error.message, error.code)}
         </p>
       ) : null}
       {on && status.paused !== null ? (

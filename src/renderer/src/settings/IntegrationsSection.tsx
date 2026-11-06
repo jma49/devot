@@ -27,6 +27,7 @@ import {
   showMainWindow,
   type AiAccessSummary,
 } from './window'
+import { failureText, logFailure } from '../failure'
 
 const CLIENTS: readonly {
   id: string
@@ -272,7 +273,7 @@ export function IntegrationsSection() {
         (e: unknown) => {
           if (!live) return
           // The configs still help, with the path an installed app has.
-          setSetupError(errorCode(e))
+          setSetupError(logFailure(errorCode(e), 'W_INTEGRATIONS_FAILED'))
           setSetup(NO_MCP_SETUP)
         },
       )
@@ -294,7 +295,7 @@ export function IntegrationsSection() {
         setCopyError(undefined)
         setAnnouncement(format(t('integrations.copied'), { client: t(title) }))
       },
-      (e: unknown) => setCopyError(errorCode(e)),
+      (e: unknown) => setCopyError(logFailure(errorCode(e), 'W_INTEGRATIONS_FAILED')),
     )
   }
 
@@ -319,7 +320,7 @@ export function IntegrationsSection() {
           if (action === 'connect') setAccessChanged((n) => n + 1)
         },
         (e: unknown) => {
-          setChangeError(errorCode(e))
+          setChangeError(logFailure(errorCode(e), 'W_INTEGRATIONS_FAILED'))
           // The file may have changed meanwhile: show it as it is now before another try.
           setSetupVersion((n) => n + 1)
         },
@@ -337,16 +338,16 @@ export function IntegrationsSection() {
           setAnnouncement(t('integrations.extensionOpened'))
           setAccessChanged((n) => n + 1)
         },
-        (e: unknown) => setExtensionError(errorCode(e)),
+        (e: unknown) => setExtensionError(logFailure(errorCode(e), 'W_INTEGRATIONS_FAILED')),
       )
       .finally(() => setBusy(false))
   }
 
   const errors = [
-    setupError && format(t('integrations.setupFailed'), { code: setupError }),
-    copyError && format(t('integrations.copyFailed'), { code: copyError }),
-    changeError && format(t('integrations.changeFailed'), { code: changeError }),
-    extensionError && format(t('integrations.extensionFailed'), { code: extensionError }),
+    setupError && failureText('integrations.setupFailed', setupError),
+    copyError && failureText('integrations.copyFailed', copyError),
+    changeError && failureText('integrations.changeFailed', changeError),
+    extensionError && failureText('integrations.extensionFailed', extensionError),
   ].filter(Boolean)
 
   const canWrite = setup !== undefined && setup.command !== null && !setup.temporary
@@ -365,7 +366,7 @@ export function IntegrationsSection() {
           <span className="setting-label">{name}</span>
           <span className="setting-description client-state">
             <span className="client-state-dot" data-state={status.state} aria-hidden="true" />
-            {format(t(STATE_TEXT[status.state]), { code: status.code ?? '' })}
+            {t(STATE_TEXT[status.state])}
           </span>
         </div>
         <div className="setting-control">

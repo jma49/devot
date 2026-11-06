@@ -252,6 +252,7 @@ import { textStore } from './textStore'
 import { useUpdates } from './UpdateNotice'
 import { track } from './usage'
 import { useCliAppend, useHttpApi, useQuickCapture } from './hostCalls'
+import { logFailure } from './failure'
 
 const EXPORT_ALL = 'devot:export-all'
 
@@ -1505,7 +1506,7 @@ export function App() {
       id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
     } catch (e) {
       early.fail()
-      setChangeNotice(errorCode(e))
+      setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
       return
     }
     early.claim(id)
@@ -1524,7 +1525,7 @@ export function App() {
     const id = await core
       .applyTemplate(templateId, Date.now(), newNoteBookId())
       .catch((e: unknown) => {
-        setChangeNotice(errorCode(e))
+        setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
         return undefined
       })
     if (!id) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
@@ -1546,7 +1547,7 @@ export function App() {
       // oxlint-disable-next-line react/purity -- openToday runs from a command, never during a render.
       opened = await core.openTodaysNote(dailySettings(), Date.now(), editing)
     } catch (e) {
-      setChangeNotice(errorCode(e))
+      setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
       return
     }
     if (opened.created) track('note.created', { from: 'today' })
@@ -1569,7 +1570,7 @@ export function App() {
       .applyTemplateTo(templateId, noteId, Date.now())
       .then(() => true)
       .catch((e: unknown) => {
-        setChangeNotice(errorCode(e))
+        setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
         return false
       })
     if (!done) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
@@ -3058,7 +3059,7 @@ export function App() {
       kind === 'tag' ? sidebarMenus.current?.tag(id, at) : sidebarMenus.current?.book(id, at)
   }, [menuKey])
 
-  if (startFailure) return <StartFailure code={startFailure} onRetry={retryStart} />
+  if (startFailure) return <StartFailure onRetry={retryStart} />
 
   return (
     <div

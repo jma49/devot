@@ -351,7 +351,7 @@ describe.each([
     const alert = el.querySelector('[role=alert]')?.textContent ?? ''
     expect(alert).toMatch(/^Sync through iCloud could not be changed\. .*iCloud/)
     expect(el.textContent).not.toContain('E_SYNC_CLOUDKIT_UNAVAILABLE')
-    expect(warn).toHaveBeenCalledWith('W_SYNC_SETTINGS_FAILED E_SYNC_CLOUDKIT_UNAVAILABLE')
+    expect(warn).toHaveBeenCalledWith('W_SYNC_SETTINGS_FAILED', 'E_SYNC_CLOUDKIT_UNAVAILABLE')
   })
 
   it('drops the failure banner when the next iCloud attempt succeeds', async () => {
@@ -371,7 +371,7 @@ describe.each([
     expect(el.querySelector('[role=alert]')).toBeNull()
   })
 
-  it('keeps the code in a failure the app cannot explain', async () => {
+  it('says only the action for a failure the app cannot explain, and logs its code', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const el = await show(
       snapshot({ enabled: false, vault: false, transport: 'relay' }),
@@ -381,17 +381,20 @@ describe.each([
     answers.useFails = 'E_SYNC_UNEXPLAINED'
     await act(async () => button(el, 'Sync Through iCloud')?.click())
     await settle()
-    expect(el.querySelector('[role=alert]')?.textContent).toContain('(E_SYNC_UNEXPLAINED)')
-    expect(warn).not.toHaveBeenCalled()
+    expect(el.querySelector('[role=alert]')?.textContent).toBe(
+      'Sync through iCloud could not be changed.',
+    )
+    expect(warn).toHaveBeenCalledWith('W_SYNC_SETTINGS_FAILED', 'E_SYNC_UNEXPLAINED')
   })
 
-  it('shows the code on a state no words cover, and not on one they do', async () => {
+  it('shows no code on a state no words cover', async () => {
     const plain = await show(
       snapshot({ transport: 'relay', status: { state: 'stopped', code: 'E_SYNC_UNEXPLAINED' } }),
       ICLOUD,
       phone,
     )
-    expect(plain.textContent).toContain('Code E_SYNC_UNEXPLAINED.')
+    expect(plain.textContent).toContain('Stopped.')
+    expect(plain.textContent).not.toContain('E_SYNC_UNEXPLAINED')
   })
 
   it('shows no code beside the words for a build without the container', async () => {
@@ -427,22 +430,22 @@ describe.each([
     ['stopped', 'E_SYNC_QUOTA'],
     ['stopped', 'E_SYNC_OFFLINE'],
     ['stopped', 'E_SYNC_ICLOUD_FULL_LATER'],
-  ])('keeps the code on a %s relay whose words do not cover %s', async (state, code) => {
+  ])('shows no code on a %s relay whose words do not cover %s', async (state, code) => {
     const el = await show(
       snapshot({ transport: 'relay', status: { state, code, pausedUntil: null } }),
       ICLOUD,
       phone,
     )
-    expect(el.textContent).toContain(`Code ${code}.`)
+    expect(el.textContent).not.toContain(code)
   })
 
-  it('keeps the code on a pause without a time, whose words are only the state', async () => {
+  it('shows no code on a pause without a time, whose words are only the state', async () => {
     const el = await show(
       snapshot({ transport: 'relay', status: { state: 'paused', code: 'E_SYNC_QUOTA' } }),
       ICLOUD,
       phone,
     )
-    expect(el.textContent).toContain('Code E_SYNC_QUOTA.')
+    expect(el.textContent).not.toContain('E_SYNC_QUOTA')
   })
 
   it('keeps the upload and the last sync on an iCloud state', async () => {

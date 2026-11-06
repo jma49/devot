@@ -124,7 +124,7 @@ test.describe('Settings > Licence', () => {
     await panel.getByRole('textbox', { name: 'License Key' }).fill(BAD_KEY)
     await panel.getByRole('textbox', { name: 'License Key' }).press('Enter')
     await expect(panel.getByRole('alert')).toHaveText(
-      'The key could not be added. Its signature does not match, so it was changed after it was issued. (E_LICENCE_SIGNATURE)',
+      'The key could not be added. Its signature does not match, so it was changed after it was issued.',
     )
     await expect(panel.getByRole('textbox', { name: 'License Key' })).toHaveValue(BAD_KEY)
   })
@@ -153,9 +153,7 @@ test.describe('Settings > Licence', () => {
     await fakeRust(page, { ...none(), state: 'invalid', code: 'E_LICENCE_UNKNOWN_KID' })
     await openSettings(page, 'License')
     const panel = page.getByRole('tabpanel')
-    await expect(panel).toContainText(
-      'The license on this device could not be verified (E_LICENCE_UNKNOWN_KID)',
-    )
+    await expect(panel).toContainText('The license on this device could not be verified')
     await expect(panel.getByRole('button', { name: 'Buy a License' })).toBeVisible()
     await expect(panel.getByRole('button', { name: 'Remove License…' })).toBeEnabled()
   })
@@ -296,7 +294,7 @@ test.describe('locked sync and AI', () => {
     await openApp(page)
     const notice = page.getByRole('alert').filter({ hasText: 'Sync has stopped' })
     await expect(notice).toContainText('could not read its license from the keychain')
-    await expect(notice).toContainText('E_LICENCE_UNREADABLE')
+    await expect(notice).not.toContainText('E_LICENCE_UNREADABLE')
     await expect(notice).not.toContainText('trial')
     await expect(notice.getByRole('button', { name: 'Buy a License' })).toHaveCount(0)
   })
@@ -413,7 +411,7 @@ test.describe('devot://licence links', () => {
     await open(page)
     await sendLink(page, { kind: 'licence', key: null, offer: null, code: 'E_LICENCE_UNKNOWN_KID' })
     await expect(notice(page)).toHaveText(
-      /The license in the link could not be added. It was signed by a key this version of Devot does not know. Update Devot and try again. \(E_LICENCE_UNKNOWN_KID\)/,
+      /The license in the link could not be added. It was signed by a key this version of Devot does not know. Update Devot and try again./,
     )
     expect(await calls(page, 'licence_set')).toEqual([])
   })

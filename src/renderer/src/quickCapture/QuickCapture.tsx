@@ -2,12 +2,13 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore, type Keyboard
 import { errorCode } from '../../../core/errors'
 import { clipTitle } from '../../../core/noteLimits'
 import { useEditorSetting } from '../editorSettings'
-import { format, t, type MessageKey } from '../i18n'
+import { t, type MessageKey } from '../i18n'
 import { isImeKey } from '../ime'
 import { invoke } from '../ipc'
 import { LICENCE_REQUIRED, LICENCE_UNREADABLE, startLicence, useEditing } from '../licence'
 import { readNotebooks, subscribeNotebooks, type NotebookChoice } from '../notebookChoices'
 import { clearDraft, isEmptyCapture, notebookToShow, readDraft, writeDraft } from './draft'
+import { logFailure, withReason } from '../failure'
 
 // One string, so the store's snapshot is stable between changes.
 const notebooksJson = () => JSON.stringify(readNotebooks())
@@ -22,6 +23,11 @@ function failure(code: string): MessageKey {
     return 'quickCapture.noAnswer'
   if (code === 'E_QUICK_CAPTURE_LATE') return 'quickCapture.stillSaving'
   return 'quickCapture.saveFailed'
+}
+
+const failureText = (code: string): string => {
+  const key = failure(code)
+  return key === 'quickCapture.saveFailed' ? withReason(t(key), code) : t(key)
 }
 
 const close = () =>
@@ -69,7 +75,7 @@ export function QuickCapture() {
     try {
       await invoke('quick_capture_save', { capture: { title: clipTitle(title), body, bookId } })
     } catch (e) {
-      setError(errorCode(e, 'E_QUICK_CAPTURE_FAILED'))
+      setError(logFailure(errorCode(e, 'E_QUICK_CAPTURE_FAILED'), 'W_QUICK_CAPTURE_FAILED'))
       setSaving(false)
       return
     }
@@ -123,7 +129,7 @@ export function QuickCapture() {
       />
       {error ? (
         <p role="alert" className="quick-capture-error">
-          {format(t(failure(error)), { code: error })}
+          {failureText(error)}
         </p>
       ) : editing ? null : (
         <p role="status" className="quick-capture-error" data-devot-trial-ended>

@@ -1,9 +1,10 @@
-import { format, t } from './i18n'
+import { t } from './i18n'
+import { failureText } from './failure'
 
 export function BackupNotice(props: { code: string; onShow: () => void; onDismiss: () => void }) {
   return (
     <div role="alert" className="notice" data-devot-part="notice">
-      <span className="notice-text">{format(t('backups.autoFailed'), { code: props.code })}</span>
+      <span className="notice-text">{failureText('backups.autoFailed', props.code)}</span>
       <button type="button" className="button" onClick={props.onShow}>
         {t('backups.show')}
       </button>

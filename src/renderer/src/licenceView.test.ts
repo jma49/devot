@@ -77,12 +77,12 @@ describe('what the windows say', () => {
     expect(stateSentence(none)).toMatch(/^No license is added/)
     expect(stateSentence({ ...none, gated: false })).toMatch(/does not check licenses/)
     expect(stateSentence({ ...none, code: 'E_LICENCE_KEYCHAIN' })).toMatch(
-      /keychain could not be used\. \(E_LICENCE_KEYCHAIN\)/,
+      /keychain could not be used\.$/,
     )
     expect(stateSentence(held())).toBe('Editing, sync and AI are unlocked on this device.')
     expect(stateSentence(held({ state: 'revoked' }))).toMatch(/revoked/)
     expect(stateSentence({ ...none, state: 'invalid', code: 'E_LICENCE_SIGNATURE' })).toMatch(
-      /could not be verified \(E_LICENCE_SIGNATURE\)/,
+      /could not be verified\. Add the key/,
     )
   })
 
@@ -96,11 +96,15 @@ describe('what the windows say', () => {
   })
 
   it('says why a key was refused', () => {
-    expect(licenceProblem('E_LICENCE_MALFORMED')).toBe(
-      'This is not a complete Devot license key. (E_LICENCE_MALFORMED)',
-    )
+    expect(licenceProblem('E_LICENCE_MALFORMED')).toBe('This is not a complete Devot license key.')
     expect(licenceProblem('E_LICENCE_UNKNOWN_KID')).toMatch(/Update Devot/)
-    expect(licenceProblem('E_COMMAND_FAILED')).toBe('Something went wrong. (E_COMMAND_FAILED)')
+    expect(licenceProblem('E_COMMAND_FAILED')).toBe('Something went wrong.')
+  })
+
+  it('says a plain reason for a key that could not be fetched, never the code', () => {
+    expect(licenceProblem('E_NET_HOST_REFUSED')).toBe('Devot does not connect to that address.')
+    expect(licenceProblem('E_NET_TIMEOUT')).toBe('It took too long. Try again.')
+    expect(licenceProblem('E_NET_FAILED')).not.toMatch(/E_/)
   })
 
   it('names Devot Pro, not a license, for a lock in an App Store build', () => {
@@ -122,7 +126,7 @@ describe('what the windows say', () => {
 
   it('says how to get past a refused keychain prompt', () => {
     expect(licenceProblem('E_LICENCE_KEYCHAIN_DENIED')).toMatch(
-      /login password and click Always Allow\. \(E_LICENCE_KEYCHAIN_DENIED\)$/,
+      /login password and click Always Allow\.$/,
     )
     expect(stateSentence({ ...none, code: 'E_LICENCE_KEYCHAIN_DENIED' })).toMatch(
       /^The license could not be read\. macOS did not let Devot read its keychain items\./,
@@ -179,16 +183,14 @@ describe('a key exchanged for an App Store purchase', () => {
 
   it("says why the Worker gave no key, by Rust's code", () => {
     expect(licenceProblem('E_APP_STORE_FAMILY_SHARED')).toBe(
-      'A purchase shared through Family Sharing comes with no license key. (E_APP_STORE_FAMILY_SHARED)',
+      'A purchase shared through Family Sharing comes with no license key.',
     )
     expect(licenceProblem('E_APP_STORE_NO_PRO')).toBe(
-      'This Apple Account holds no Devot Pro purchase. (E_APP_STORE_NO_PRO)',
+      'This Apple Account holds no Devot Pro purchase.',
     )
-    expect(licenceProblem('E_LICENCE_REVOKED')).toBe(
-      'This license has been revoked. (E_LICENCE_REVOKED)',
-    )
+    expect(licenceProblem('E_LICENCE_REVOKED')).toBe('This license has been revoked.')
     expect(licenceProblem('E_APP_STORE_UPSTREAM')).toBe(
-      'The App Store’s answer could not be checked. Try again later. (E_APP_STORE_UPSTREAM)',
+      'The App Store’s answer could not be checked. Try again later.',
     )
   })
 })
@@ -246,7 +248,7 @@ describe('the trial', () => {
         END,
         'en',
       ),
-    ).toMatch(/keychain \(E_LICENCE_KEYCHAIN\)/)
+    ).toMatch(/read from the keychain, so notes are read-only/)
     expect(trialSentence(held(), END, 'en')).toBeNull()
     expect(trialSentence(LICENCE_UNKNOWN, END, 'en')).toBeNull()
   })
@@ -289,7 +291,7 @@ describe('an App Store build', () => {
       'Checking your App Store purchases.',
     )
     expect(stateSentence(store({ code: 'E_APP_STORE_NO_REPLY' }))).toBe(
-      'Your App Store purchases could not be checked: The App Store did not reply. (E_APP_STORE_NO_REPLY)',
+      'Your App Store purchases could not be checked: The App Store did not reply.',
     )
     expect(trialSentence(store({ code: 'E_APP_STORE_UNREAD' }), END, 'en')).toBeNull()
   })
@@ -301,7 +303,7 @@ describe('an App Store build', () => {
 
   it('explains a key refused because the build takes none', () => {
     expect(licenceProblem('E_LICENCE_KEYS_OFF')).toBe(
-      'This version of Devot unlocks through the App Store, not with a license key. (E_LICENCE_KEYS_OFF)',
+      'This version of Devot unlocks through the App Store, not with a license key.',
     )
   })
 })

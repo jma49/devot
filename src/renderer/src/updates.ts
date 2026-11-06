@@ -9,6 +9,7 @@ import { useSyncExternalStore } from 'react'
 import { hasDesktopShell } from './platform'
 import { format, t, type MessageKey } from './i18n'
 import { invoke } from './ipc'
+import { failureText } from './failure'
 
 const UPDATE_STATUS = 'devot:update-status'
 const TAURI_EVENT = 'devot://update-status'
@@ -91,8 +92,8 @@ const downloadingText = (version: string, percent: number | null) =>
     ? format(t('updates.downloading'), { version })
     : format(t('updates.downloadingPercent'), { version, percent: String(percent) })
 
-const failureText = (code: string) =>
-  code === 'E_UPDATE_UNAVAILABLE' ? t('updates.unavailable') : format(t('updates.failed'), { code })
+const updateFailureText = (code: string) =>
+  code === 'E_UPDATE_UNAVAILABLE' ? t('updates.unavailable') : failureText('updates.failed', code)
 
 /**
  * The notice the window labelled `window` shows for `status`, or null: an
@@ -136,7 +137,7 @@ export function updateNotice(status: UpdateStatus, window: string): UpdateNotice
         : null
     case 'failed':
       return mine
-        ? { key: `failed:${status.revision}`, text: failureText(status.code), action: null }
+        ? { key: `failed:${status.revision}`, text: updateFailureText(status.code), action: null }
         : null
     default:
       return null
@@ -158,7 +159,7 @@ export function updateStatusText(status: UpdateStatus): string {
     case 'ready':
       return line('updates.ready', { version: status.version })
     case 'failed':
-      return failureText(status.code)
+      return updateFailureText(status.code)
     default:
       return status.current ? version : ''
   }

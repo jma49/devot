@@ -11,6 +11,7 @@ import {
   saveMcpAccess,
   type AiAccessSummary,
 } from './window'
+import { failureText, logFailure } from '../failure'
 
 const SCOPES: readonly { id: McpScope; label: MessageKey }[] = [
   { id: 'readWrite', label: 'mcpAccess.readWrite' },
@@ -56,7 +57,11 @@ export function McpAccessSection(props: {
           }
         },
         (e: unknown) => {
-          if (live) setFailure({ message: 'mcpAccess.loadFailed', code: errorCode(e) })
+          if (live)
+            setFailure({
+              message: 'mcpAccess.loadFailed',
+              code: logFailure(errorCode(e), 'W_MCP_ACCESS_FAILED'),
+            })
         },
       )
       loadRunMode().then(
@@ -64,7 +69,11 @@ export function McpAccessSection(props: {
           if (live) setMode(loaded)
         },
         (e: unknown) => {
-          if (live) setFailure({ message: 'mcpAccess.loadFailed', code: errorCode(e) })
+          if (live)
+            setFailure({
+              message: 'mcpAccess.loadFailed',
+              code: logFailure(errorCode(e), 'W_MCP_ACCESS_FAILED'),
+            })
         },
       )
     }
@@ -92,14 +101,21 @@ export function McpAccessSection(props: {
           onChange(next)
           setFailure(undefined)
         },
-        (e: unknown) => setFailure({ message: 'mcpAccess.saveFailed', code: errorCode(e) }),
+        (e: unknown) =>
+          setFailure({
+            message: 'mcpAccess.saveFailed',
+            code: logFailure(errorCode(e), 'W_MCP_ACCESS_FAILED'),
+          }),
       )
     })
   }
 
   const quit = () => {
     quitDevot().catch((e: unknown) =>
-      setFailure({ message: 'mcpAccess.quitFailed', code: errorCode(e) }),
+      setFailure({
+        message: 'mcpAccess.quitFailed',
+        code: logFailure(errorCode(e), 'W_MCP_ACCESS_FAILED'),
+      }),
     )
   }
 
@@ -122,7 +138,7 @@ export function McpAccessSection(props: {
     >
       {failure ? (
         <p role="alert" className="settings-error">
-          {format(t(failure.message), { code: failure.code })}
+          {failureText(failure.message, failure.code)}
         </p>
       ) : null}
       {access ? (
@@ -135,11 +151,11 @@ export function McpAccessSection(props: {
           />
           {access.enabled && access.problem === KEYCHAIN_WAITING ? (
             <p role="status" className="settings-note">
-              {format(t('mcpAccess.keychainWaiting'), { code: access.problem })}
+              {failureText('mcpAccess.keychainWaiting', access.problem)}
             </p>
           ) : access.enabled && access.problem !== null ? (
             <p role="alert" className="settings-error">
-              {format(t('mcpAccess.notReachable'), { code: access.problem })}
+              {failureText('mcpAccess.notReachable', access.problem)}
             </p>
           ) : null}
           <Setting label="mcpAccess.notebooks" description={notebooks}>

@@ -1,6 +1,7 @@
-import { format, t } from './i18n'
+import { t } from './i18n'
 import { countOf } from './format'
 import type { RebuildState } from './searchIndex'
+import { failureText } from './failure'
 
 export function SearchIndexNotice(props: {
   state: RebuildState
@@ -26,7 +27,7 @@ export function SearchIndexNotice(props: {
                 'searchIndex.rebuiltOne',
                 'searchIndex.rebuiltOther',
               )
-            : format(t('searchIndex.failed'), { code: state.code })}
+            : failureText('searchIndex.failed', state.code)}
       </span>
       {state.phase === 'running' ? null : (
         <button type="button" className="button" onClick={props.onDismiss}>

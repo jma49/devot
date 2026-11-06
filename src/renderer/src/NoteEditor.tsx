@@ -102,6 +102,7 @@ import { previewLabels } from './preview/Preview'
 import type { Core } from './core-client'
 import type { ScrollPane } from './preview/scrollSync'
 import { clampSelection, clampTop, type EditorTop, type SelectionState } from './lastState'
+import { logFailure } from './failure'
 
 // The note being left while the next one loads: on screen, but nothing typed may land in it.
 const pausedSlot = new Compartment()
@@ -780,7 +781,7 @@ export function NoteEditor({
                   ? Promise.reject(new Error('E_AI_ACCESS_DENIED'))
                   : Promise.resolve(null)),
               cancel: () => suggestions.current?.cancel(),
-              failed: (code) => suggestFailed.current?.(code),
+              failed: (code) => suggestFailed.current?.(logFailure(code, 'W_AI_SUGGEST_FAILED')),
             }),
             formatToolbar(
               (...args) => alertMenu.current(...args),

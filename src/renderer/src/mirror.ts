@@ -177,7 +177,7 @@ const PAUSED_MESSAGES = new Map<string, MessageKey>([
 ])
 
 export function pausedMessage(code: string): string {
-  return format(t(PAUSED_MESSAGES.get(code) ?? 'mirror.paused'), { code })
+  return t(PAUSED_MESSAGES.get(code) ?? 'mirror.paused')
 }
 
 const KEPT_SHOWN = 3

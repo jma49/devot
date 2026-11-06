@@ -13,6 +13,7 @@ import type { ImportKind, ImportProblem, ImportReport, ImportScan } from '../../
 // pull in the Markdown pipeline.
 import { importTree, isHtmlFile, notebookCount, type ImportFolder } from '../../core/importTree'
 import type { BookNode } from '../../core/books'
+import { errorCode } from '../../core/errors'
 import { bookOptions, filterBooks, firstBookMatch, NO_BOOK, type BookOption } from './BookPicker'
 import { countOf, fileSize, noteCount } from './format'
 import { currentLocale, format, t, type MessageKey } from './i18n'
@@ -21,6 +22,7 @@ import { isImeKey } from './ime'
 import { useScanFound } from './importProgress'
 import { importReason } from './importReasons'
 import { fieldStep } from './Picker'
+import { failureText, logFailure } from './failure'
 
 export interface ImportJob {
   id: number | null
@@ -66,9 +68,7 @@ function Problems(props: { problems: ImportProblem[]; title: MessageKey }) {
                 {p.image ? <span className="import-image">{p.image}</span> : null}
               </span>
               <span className="import-reason">
-                {reason
-                  ? format(t('import.reasonWithCode'), { reason: t(reason), code: p.code })
-                  : format(t('import.reason.other'), { code: p.code })}
+                {reason ? t(reason) : failureText('import.reason.other', p.code)}
               </span>
             </li>
           )
@@ -370,7 +370,10 @@ export function ImportDialog(props: {
     props.onImport(from, chosen, progress, { wikiLinks }).then(
       (report) => setStage({ kind: 'done', report }),
       (e: unknown) =>
-        setStage({ kind: 'failed', code: e instanceof Error ? e.message : 'E_IMPORT_FAILED' }),
+        setStage({
+          kind: 'failed',
+          code: logFailure(errorCode(e, 'E_IMPORT_FAILED'), 'W_IMPORT_FAILED'),
+        }),
     )
   }
   const start = () => {
@@ -404,7 +407,7 @@ export function ImportDialog(props: {
     content = (
       <>
         <p role="alert" className="sheet-error">
-          {format(t('import.failed'), { code: job.failed })}
+          {failureText('import.failed', job.failed)}
         </p>
         {reason ? <p className="sheet-detail">{t(reason)}</p> : null}
       </>
@@ -523,7 +526,7 @@ export function ImportDialog(props: {
     content = (
       <>
         <p role="alert" className="sheet-error">
-          {format(t('import.failed'), { code: step.code })}
+          {failureText('import.failed', step.code)}
         </p>
         {reason ? <p className="sheet-detail">{t(reason)}</p> : null}
       </>

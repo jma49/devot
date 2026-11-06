@@ -6,6 +6,7 @@ import { STORAGE_FULL, type SyncSnapshot } from '../sync'
 import { USAGE_NOTICE_TEXT, useRelayUsage, type UsageReading } from '../syncUsage'
 import { Setting, SettingsNote } from './controls'
 import { useOnPhone } from './onPhone'
+import { failureText } from '../failure'
 
 // What the relay holds and may hold (docs/sync-relay.md, Quota), in plain words, in Settings > Sync.
 
@@ -65,7 +66,7 @@ function Unavailable({ reading, retry }: { reading: UsageReading | null; retry: 
       ? t('syncSettings.usage.offline')
       : failed.why === 'old'
         ? t('syncSettings.usage.old')
-        : format(t('syncSettings.usage.failed'), { code: failed.code })
+        : failureText('syncSettings.usage.failed', failed.code)
   return (
     <Setting label="syncSettings.usage.title" description={text}>
       {failed && failed.why !== 'old' ? (

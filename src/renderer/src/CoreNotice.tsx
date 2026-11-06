@@ -1,4 +1,5 @@
-import { format, t } from './i18n'
+import { t } from './i18n'
+import { failureText } from './failure'
 
 /**
  * Tells the user that the core worker, which holds the notes and saves them,
@@ -8,7 +9,7 @@ import { format, t } from './i18n'
 export function CoreNotice(props: { code: string; onDismiss: () => void }) {
   return (
     <div role="alert" className="notice" data-devot-part="notice">
-      <span className="notice-text">{format(t('core.failed'), { code: props.code })}</span>
+      <span className="notice-text">{failureText('core.failed', props.code)}</span>
       <button type="button" className="button" onClick={props.onDismiss}>
         {t('notice.dismiss')}
       </button>

@@ -1,5 +1,6 @@
 // What the Edit with AI sheet shows: a proposal's diff as rows, and why there is none, by the code the core or Rust refused with.
 import { MAX_AI_EDIT_CHARS, type ProposalPart } from '../../core/aiEdit'
+import { withReason } from './failure'
 import { currentLocale, format, t, type MessageKey } from './i18n'
 import { licenceSnapshot, trialOver } from './licence'
 
@@ -41,10 +42,12 @@ const reasonKey = (reasons: Record<string, MessageKey>, code: string, other: Mes
     : (reasons[code] ?? other)
 
 export function aiEditFailure(code: string): { message: string; retry: boolean } {
-  const reason = format(t(reasonKey(REASONS, code, 'aiEdit.reason.other')), {
-    count: MAX_AI_EDIT_CHARS.toLocaleString(currentLocale()),
-  })
-  return { message: format(t('aiEdit.failed'), { reason, code }), retry: !SETTLED.has(code) }
+  const key = reasonKey(REASONS, code, 'aiEdit.reason.other')
+  const text = format(t(key), { count: MAX_AI_EDIT_CHARS.toLocaleString(currentLocale()) })
+  return {
+    message: key === 'aiEdit.reason.other' ? withReason(text, code) : text,
+    retry: !SETTLED.has(code),
+  }
 }
 
 const SUGGEST_REASONS: Record<string, MessageKey> = {
@@ -54,8 +57,9 @@ const SUGGEST_REASONS: Record<string, MessageKey> = {
 }
 
 export function aiSuggestFailure(code: string): string {
-  const reason = t(reasonKey(SUGGEST_REASONS, code, 'aiSuggest.reason.other'))
-  return format(t('aiSuggest.failed'), { reason, code })
+  const key = reasonKey(SUGGEST_REASONS, code, 'aiSuggest.reason.other')
+  const reason = key === 'aiSuggest.reason.other' ? withReason(t(key), code) : t(key)
+  return format(t('aiSuggest.failed'), { reason })
 }
 
 /** Unchanged lines shown around a change; longer runs fold to a count. */
