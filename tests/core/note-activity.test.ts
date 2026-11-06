@@ -264,7 +264,7 @@ describe('activity strips on SQLite', () => {
   })
 
   it('runs the same statement as the Rust store', () => {
-    const rust = readFileSync('src-tauri/src/storage/mod.rs', 'utf8')
+    const rust = readFileSync('src-tauri/src/storage/activity.rs', 'utf8')
     const statement = /const NOTE_ACTIVITY_SQL: &str =\s*"([^"]*)";/.exec(rust)?.[1] ?? ''
     const words = (sql: string) => sql.split(/\s+/).join(' ')
     expect(words(statement)).toBe(words(ACTIVITY_SQL.noteRevisions))

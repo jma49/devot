@@ -6,7 +6,7 @@ Part of the [architecture overview](../architecture.md).
   One transport per vault.
   Builds without Devot's iCloud container report `E_SYNC_CLOUDKIT_UNAVAILABLE` and keep the relay.
   - **CloudKit transport** (`src-tauri/src/sync/cloudkit/`): the transport logic (zones, paging by change token, batch caps, change tags, error mapping, asset staging) is safe Rust over a `CloudKit` trait of eight primitives (account, user record, zones exist, save zones, fetch, save, changes, subscribe).
-    The objc2 implementation is written once in `native/ios.rs`, which macOS compiles too, so `unsafe` stays in the two native files; tests run the transport against an in-memory fake.
+    The objc2 implementation is written once in `native/ios/cloudkit.rs`, which macOS compiles too, so `unsafe` stays in the two native folders; tests run the transport against an in-memory fake.
     A build tells it holds the container before anything touches `CKContainer`: on macOS from its signed entitlements (`SecTaskCopyValueForEntitlement`), on iOS from `DevotCloudKitContainer` in Info.plist, empty on builds without it.
     Each operation waits at most 120 s (600 s with assets) and is cancelled after.
     A change tag is a record's archived system fields, saved under `ifServerRecordUnchanged`; a cursor is an archived `CKServerChangeToken`.

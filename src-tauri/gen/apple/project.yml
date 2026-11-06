@@ -4,7 +4,7 @@ options:
   deploymentTarget:
     iOS: 15.0
 fileGroups: [../../src]
-# StoreKit 2 behind a C ABI (docs/adr/0014); native/ios.rs calls it. Only the iPhone app links it.
+# StoreKit 2 behind a C ABI (docs/adr/0014); native/ios/store.rs calls it. Only the iPhone app links it.
 packages:
   DevotStore:
     path: ../../apple/DevotStore

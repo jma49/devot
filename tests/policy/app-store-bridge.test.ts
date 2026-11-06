@@ -13,7 +13,7 @@ const swift = readdirSync(SOURCES)
   .filter((name) => name.endsWith('.swift'))
   .map((name) => read(join(SOURCES, name)))
   .join('\n')
-const ios = read('src-tauri/src/native/ios.rs')
+const store = read('src-tauri/src/native/ios/store.rs')
 
 type Signature = { params: string[]; returns: string }
 
@@ -30,7 +30,7 @@ function swiftFunctions(): Map<string, Signature> {
 }
 
 function rustFunctions(): Map<string, Signature> {
-  const block = /unsafe extern "C" \{([\s\S]*?)\n\}/.exec(ios)?.[1] ?? ''
+  const block = /unsafe extern "C" \{([\s\S]*?)\n\}/.exec(store)?.[1] ?? ''
   const found = new Map<string, Signature>()
   for (const [, name, params, returns] of block.matchAll(
     /fn (\w+)\(([^)]*)\)(?:\s*->\s*(\w+))?;/g,
@@ -61,7 +61,7 @@ const SAME_TYPE: Record<string, string> = {
   Void: '()',
 }
 
-it('every C function of the Swift package is declared in native/ios.rs with the same types', () => {
+it('every C function of the Swift package is declared in native/ios/store.rs with the same types', () => {
   const exported = swiftFunctions()
   const declared = rustFunctions()
   expect(exported.size).toBe(6)
@@ -85,10 +85,10 @@ it("the callbacks' C types match on both sides", () => {
   expect(swift).toContain(
     'typealias DevotStoreUpdate = @convention(c) (UnsafePointer<UInt8>?, UInt) -> Void',
   )
-  expect(ios).toContain(
+  expect(store).toContain(
     'type StoreReply = extern "C" fn(request: u64, json: *const u8, len: usize);',
   )
-  expect(ios).toContain('type StoreUpdate = extern "C" fn(json: *const u8, len: usize);')
+  expect(store).toContain('type StoreUpdate = extern "C" fn(json: *const u8, len: usize);')
 })
 
 it("build.rs leaves each of the Swift package's C functions to the iPhone app's link", () => {
@@ -97,11 +97,11 @@ it("build.rs leaves each of the Swift package's C functions to the iPhone app's 
   expect(names.sort()).toEqual([...swiftFunctions().keys()].sort())
 })
 
-it('only native/ios.rs declares or calls the bridge', () => {
+it('only native/ios/store.rs declares or calls the bridge', () => {
   const callers = listFiles('.', 'src-tauri/src')
     .filter((file) => file.startsWith('src-tauri/src/') && file.endsWith('.rs'))
     .filter((file) => /devot_store_\w+\(/.test(read(file)))
-  expect(callers).toEqual(['src-tauri/src/native/ios.rs'])
+  expect(callers).toEqual(['src-tauri/src/native/ios/store.rs'])
 })
 
 it('Rust, Swift and the StoreKit configuration name the same two products', () => {
@@ -139,7 +139,7 @@ it('the iPhone app links the Swift package and the Mac build has no Swift', () =
 it('no log or error in the App Store code can carry a JWS', () => {
   const files = [
     ...readdirSync('src-tauri/src/app_store').map((name) => `src-tauri/src/app_store/${name}`),
-    'src-tauri/src/native/ios.rs',
+    ...listFiles('.', 'src-tauri/src/native/ios'),
   ]
   const logs = files.flatMap((file) =>
     read(file)

@@ -219,7 +219,7 @@ describe('lists and search read covering indexes', () => {
   })
 
   it('runs the same list statements as the Rust store', () => {
-    const rust = readFileSync('src-tauri/src/storage/mod.rs', 'utf8')
+    const rust = readFileSync('src-tauri/src/storage/notes.rs', 'utf8')
     const statement = (name: string) =>
       new RegExp(`const ${name}: &str =\\s*"([^"]*)";`).exec(rust)?.[1] ?? ''
     const words = (sql: string) => sql.split(/\s+/).join(' ')
