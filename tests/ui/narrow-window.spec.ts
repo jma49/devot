@@ -45,16 +45,10 @@ for (const width of [760, 800, 900]) {
       expect(b.x + b.width, `control ${i} ends inside`).toBeLessThanOrEqual(width)
       expect(b.width, `control ${i} keeps a width`).toBeGreaterThan(20)
     }
-    const clipped = await toolbar.evaluate(
-      (el) => (el as unknown as { scrollWidth: number; clientWidth: number }).scrollWidth,
-    )
+    const clipped = await toolbar.evaluate((el) => el.scrollWidth)
     expect(clipped).toBeLessThanOrEqual((await box(toolbar)).width)
     expect(
-      await page.evaluate(
-        () =>
-          (globalThis as unknown as { document: { documentElement: { scrollWidth: number } } })
-            .document.documentElement.scrollWidth,
-      ),
+      await page.evaluate(() => window.document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(width)
 
     const editor = await box(page.locator('[data-devot-part=editor-body]'))
@@ -137,11 +131,7 @@ test('a sidebar asked for in a narrow window is hidden again after a trip throug
 
 test('the window follows its width when the media query reports no change', async ({ page }) => {
   await page.addInitScript(() => {
-    const proto = (
-      globalThis as unknown as {
-        MediaQueryList: { prototype: { addEventListener: (...args: unknown[]) => void } }
-      }
-    ).MediaQueryList.prototype
+    const proto = window.MediaQueryList.prototype
     proto.addEventListener = () => {}
   })
   await openNote(page, 800, 'note')
@@ -171,11 +161,7 @@ test('Cmd+/ shows the sidebar in a narrow window, which then fits without scroll
   await expect(sidebar(page)).toBeVisible()
   await expect(page.getByRole('region', { name: 'Notes' })).toBeVisible()
   expect(
-    await page.evaluate(
-      () =>
-        (globalThis as unknown as { document: { documentElement: { scrollWidth: number } } })
-          .document.documentElement.scrollWidth,
-    ),
+    await page.evaluate(() => window.document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(800)
   await page.keyboard.press('Meta+Slash')
   await expect(sidebar(page)).toBeHidden()

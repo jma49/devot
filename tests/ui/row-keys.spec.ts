@@ -1,7 +1,7 @@
 // Every notebook and tag row action has a keyboard route: Shift+F10, the menu key or Control+Return
 // opens the row's native menu; window shortcuts use Meta (the registry's Mod matches metaKey everywhere).
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, shownMenu, test, openApp, type TestWindow } from './fixtures'
+import { expect, pickMenuItem, shownMenu, test, openApp } from './fixtures'
 
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
@@ -41,16 +41,11 @@ async function createNote(page: Page, title: string) {
 }
 
 const popups = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'plugin:menu|popup',
-      ).length,
-  )
+  page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
 
 const popupAt = (page: Page) =>
   page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     const popup = w.devotIpcCalls.findLast((c) => c.cmd === 'plugin:menu|popup')
     return (popup?.args['at'] as { position: { x: number; y: number } } | undefined)?.position
   })

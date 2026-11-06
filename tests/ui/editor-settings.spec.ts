@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test, openApp, type TestWindow } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test, openApp } from './fixtures'
 
 // Rust sends `devot://editor-settings-changed` to every window; the page re-sends it as
 // `devot:editor-settings-changed`, which these tests send to stand in for a change from the Settings window.
@@ -25,17 +25,11 @@ const changed = changeEditorSettingsElsewhere
 
 const setCalls = (page: Page) =>
   page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
-      .filter((c) => c.cmd === 'editor_settings_set')
-      .map((c) => c.args['patch']),
+    window.devotIpcCalls.filter((c) => c.cmd === 'editor_settings_set').map((c) => c.args['patch']),
   )
 
 const markEditor = (page: Page) =>
-  page
-    .locator('.cm-editor')
-    .evaluate(
-      (el) => ((el as unknown as { dataset: Record<string, string> }).dataset['probe'] = '1'),
-    )
+  page.locator('.cm-editor').evaluate((el) => (el.dataset['probe'] = '1'))
 
 test.beforeEach(async ({ page }) => {
   await openApp(page)
@@ -43,7 +37,7 @@ test.beforeEach(async ({ page }) => {
 
 test('the editor starts with the stored settings', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotEditorRevision = 4
     w.devotEditorSettings = { lineNumbers: false, fontSize: 17, spellCheck: true }
   })
@@ -177,11 +171,7 @@ test('Cmd+= and Cmd+- change the font size, and Cmd+0 resets it', async ({ page 
 /** Holds `editor_settings_set` answers until `release`; Rust's event waits until `announce`. */
 const holdAnswers = (page: Page) =>
   page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow & {
-      devotHeld: { answer: () => void; event: () => void }[]
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     w.devotHeld = []
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
@@ -202,22 +192,17 @@ const holdAnswers = (page: Page) =>
 
 const release = (page: Page, n: number) =>
   page.evaluate((i) => {
-    ;(globalThis as unknown as { devotHeld: { answer: () => void }[] }).devotHeld[i]!.answer()
+    window.devotHeld[i]!.answer()
   }, n - 1)
 
 const announce = (page: Page, n: number) =>
   page.evaluate((i) => {
-    ;(globalThis as unknown as { devotHeld: { event: () => void }[] }).devotHeld[i]!.event()
+    window.devotHeld[i]!.event()
   }, n - 1)
 
 /** Reads the size as it is now, without waiting. */
 const fontSizeNow = (page: Page) =>
-  content(page).evaluate(
-    (el) =>
-      (
-        globalThis as unknown as { getComputedStyle(e: unknown): { fontSize: string } }
-      ).getComputedStyle(el).fontSize,
-  )
+  content(page).evaluate((el) => window.getComputedStyle(el).fontSize)
 
 test('quick presses all count, whatever order the answers come in', async ({ page }) => {
   await newNote(page, 'alpha')

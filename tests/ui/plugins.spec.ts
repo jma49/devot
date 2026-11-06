@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, openApp, test, type TestWindow } from './fixtures'
+import { expect, openApp, test } from './fixtures'
 import { pickPluginMenu, pluginFrame, servePlugins, testPlugin } from './plugins'
 
 // Contract tests for each contribution point (ADR 0005): commands, menu items, keymaps, preview renderers, import and export
@@ -20,10 +20,7 @@ const savedNotes = (page: Page) =>
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 
@@ -110,7 +107,7 @@ async function paletteRun(page: Page, label: string) {
 test.beforeEach(async ({ page }) => {
   await servePlugins(page, [tools, denied, off])
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       plugin_import_pick: () => [
@@ -228,7 +225,7 @@ test('an import that fails partway keeps the notes it made, tries the rest and s
   page,
 }) => {
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       plugin_import_pick: () => [
@@ -289,9 +286,7 @@ test('a failing plugin shows a notice with its code, never its text', async ({ p
   await noteWith(page, 'x')
   const frame = await pluginFrame(page, 'com.example.tools')
   await frame.evaluate(() => {
-    const g = globalThis as unknown as {
-      devot: { commands: { handle(id: string, fn: () => never): void } }
-    }
+    const g = window
     g.devot.commands.handle('upper', () => {
       throw new Error('note text in an error')
     })

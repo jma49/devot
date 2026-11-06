@@ -28,10 +28,7 @@ async function isOver(upper: Locator, lower: Locator): Promise<boolean> {
 const runCommand = (page: Page, id: string) =>
   page.evaluate(
     (detail) => {
-      const w = globalThis as unknown as {
-        dispatchEvent(e: unknown): void
-        CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-      }
+      const w = window
       w.dispatchEvent(new w.CustomEvent('devot:open-url', { detail }))
     },
     { kind: 'command', id },
@@ -111,7 +108,7 @@ test('an image shows its Markdown over it from a click, and opens on a double cl
   const image = page.locator('.cm-wm-block-image')
   const img = image.locator('img')
   await expect
-    .poll(() => img.evaluate((i) => (i as unknown as { naturalWidth: number }).naturalWidth))
+    .poll(() => img.evaluate((i) => (i as HTMLImageElement).naturalWidth))
     .toBe(REMOTE_SIZE.width)
   await expect.poll(() => lines(page)).toEqual(['Top', 'End'])
 
@@ -154,13 +151,9 @@ test('an image is entered by the arrows, selected by Backspace and deleted by th
   await page.keyboard.press('ControlOrMeta+a')
   await expect(image).toHaveClass(/cm-wm-block-selected/)
   const copied = await body(page).evaluate((content) => {
-    // This config has no DOM types: the few browser classes used here.
-    const w = globalThis as unknown as {
-      DataTransfer: new () => { getData(type: string): string }
-      ClipboardEvent: new (type: string, init: object) => unknown
-    }
+    const w = window
     const data = new w.DataTransfer()
-    ;(content as unknown as { dispatchEvent(e: unknown): boolean }).dispatchEvent(
+    content.dispatchEvent(
       new w.ClipboardEvent('copy', { clipboardData: data, bubbles: true, cancelable: true }),
     )
     return data.getData('text/plain')

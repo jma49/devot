@@ -1,19 +1,10 @@
 import type { Locator, Page } from '@playwright/test'
 import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
 
-type Styles = {
-  getComputedStyle(el: unknown): { color: string; backgroundColor: string }
-  document: {
-    documentElement: unknown
-    createElement(tag: string): { style: { color: string }; remove(): void }
-    body: { appendChild(el: unknown): void }
-  }
-}
-
 /** A token as the page paints it, so the comparison holds in any appearance. */
 const token = (page: Page, name: string) =>
   page.evaluate((variable) => {
-    const { document, getComputedStyle } = globalThis as unknown as Styles
+    const { document, getComputedStyle } = window
     const probe = document.createElement('span')
     probe.style.color = `var(${variable})`
     document.body.appendChild(probe)
@@ -25,13 +16,9 @@ const token = (page: Page, name: string) =>
 /** An icon is a mask painted with its background (SF Symbols) or an SVG in its colour (Lucide). */
 const iconColour = (icon: Locator) =>
   icon.evaluate((el) => {
-    const { getComputedStyle } = globalThis as unknown as Styles
+    const { getComputedStyle } = window
     const style = getComputedStyle(el)
-    return (el as unknown as { classList: { contains(c: string): boolean } }).classList.contains(
-      'icon-svg',
-    )
-      ? style.color
-      : style.backgroundColor
+    return el.classList.contains('icon-svg') ? style.color : style.backgroundColor
   })
 
 const sourceIcon = (page: Page, name: string) =>

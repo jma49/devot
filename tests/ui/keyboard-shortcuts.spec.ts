@@ -7,7 +7,6 @@ import {
   storedShortcuts,
   test,
   openApp,
-  type TestWindow,
 } from './fixtures'
 
 // Rust stores shortcut changes and tells every window (`devot://keyboard-shortcuts-changed`, sent in the page
@@ -45,10 +44,7 @@ async function record(page: Page, command: string, keys: string) {
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 
@@ -152,10 +148,8 @@ test('waits for a key after modifiers, ignores composing, and Escape cancels', a
   await page.keyboard.up('Shift')
   // Keys an input method is composing are its own.
   await recorder(page, 'Italic').evaluate((el) => {
-    const w = globalThis as unknown as {
-      KeyboardEvent: new (type: string, init: Record<string, unknown>) => unknown
-    }
-    ;(el as unknown as { dispatchEvent(e: unknown): void }).dispatchEvent(
+    const w = window
+    el.dispatchEvent(
       new w.KeyboardEvent('keydown', {
         key: 'Process',
         code: 'KeyN',

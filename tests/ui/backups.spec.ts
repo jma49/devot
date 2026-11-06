@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, openApp, test, type TestWindow } from './fixtures'
+import { expect, openApp, test } from './fixtures'
 
 const OLD = {
   id: 'devot-2026-10-08T09-00-00-000Z.sqlite',
@@ -14,7 +14,7 @@ const NEW = {
 
 async function open(page: Page, mocks: Record<string, unknown>) {
   await page.addInitScript((m) => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = m
+    window.devotIpcMocks = m
   }, mocks)
   await openApp(page)
 }
@@ -24,19 +24,13 @@ async function open(page: Page, mocks: Record<string, unknown>) {
 const showBackups = async (page: Page) => {
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:show-backups'))
   })
 }
 
 const calls = (page: Page, cmd: string) =>
-  page.evaluate(
-    (c) => (globalThis as unknown as TestWindow).devotIpcCalls.filter((call) => call.cmd === c),
-    cmd,
-  )
+  page.evaluate((c) => window.devotIpcCalls.filter((call) => call.cmd === c), cmd)
 
 test('says when there are no backups, and backs up on request', async ({ page }) => {
   await open(page, { backups_list: { backups: [], lastError: null }, backup_now: NEW })
@@ -70,7 +64,7 @@ test('lists backups newest first with their sizes; restoring asks first, then re
   expect(await calls(page, 'backup_restore')).toHaveLength(0)
 
   await page.evaluate(() => {
-    ;(globalThis as unknown as { beforeReload?: boolean }).beforeReload = true
+    window.beforeReload = true
   })
   await restore.click()
   const reloaded = page.waitForEvent('load')
@@ -79,9 +73,7 @@ test('lists backups newest first with their sizes; restoring asks first, then re
     .getByRole('button', { name: 'Restore' })
     .click()
   await reloaded
-  expect(
-    await page.evaluate(() => (globalThis as unknown as { beforeReload?: boolean }).beforeReload),
-  ).toBeUndefined()
+  expect(await page.evaluate(() => window.beforeReload)).toBeUndefined()
   await expect(page.getByRole('dialog', { name: 'Backups' })).toBeHidden()
 })
 
@@ -154,10 +146,7 @@ test('a backup restored from another window: this one saves, writes nothing more
     )
   const send = (name: string) =>
     page.evaluate((n) => {
-      const w = globalThis as unknown as {
-        dispatchEvent(e: unknown): void
-        CustomEvent: new (t: string) => unknown
-      }
+      const w = window
       w.dispatchEvent(new w.CustomEvent(n))
     }, name)
   await send('devot:restore-prepare')
@@ -208,10 +197,7 @@ test('a failed automatic backup shows a notice that opens the backups', async ({
 test('a failure while the window is open shows the notice; Dismiss hides it', async ({ page }) => {
   await open(page, { backups_list: { backups: [], lastError: null } })
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: string }) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:backup-failed', { detail: 'E_BACKUP_DIR' }))
   })
   const notice = page.getByRole('alert')
@@ -222,7 +208,7 @@ test('a failure while the window is open shows the notice; Dismiss hides it', as
 
 test('stays open through repeated Escapes while busy, then closes', async ({ page }) => {
   await page.addInitScript((backup) => {
-    const w = globalThis as unknown as TestWindow & { releaseBackup?: () => void }
+    const w = window
     let release = () => {}
     const held = new Promise<void>((resolve) => (release = resolve))
     w.releaseBackup = () => release()
@@ -245,7 +231,7 @@ test('stays open through repeated Escapes while busy, then closes', async ({ pag
     await page.keyboard.press('Escape')
     await expect(dialog).toBeVisible()
   }
-  await page.evaluate(() => (globalThis as unknown as { releaseBackup(): void }).releaseBackup())
+  await page.evaluate(() => window.releaseBackup())
   await expect(dialog.getByRole('button', { name: 'Done' })).toBeEnabled()
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
@@ -259,7 +245,7 @@ test('the Backups menu key acts on nothing here while another window has the key
   await open(page, { backups_list: { backups: [NEW], lastError: null } })
   const focus = (on: boolean) =>
     page.evaluate((v) => {
-      ;(globalThis as unknown as { document: { hasFocus(): boolean } }).document.hasFocus = () => v
+      window.document.hasFocus = () => v
     }, on)
   await focus(false)
   await showBackups(page)

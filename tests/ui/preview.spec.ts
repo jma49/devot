@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, openApp, type TestWindow } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 async function newNote(page: Page, title: string, body = '') {
   const before = await page.getByRole('listbox', { name: 'Notes' }).getByRole('option').count()
@@ -101,7 +101,7 @@ test('https links open in the system browser', async ({ page }) => {
   await mode(page, 'Split').click()
   await preview(page).getByRole('link', { name: 'the site' }).click()
   await expect
-    .poll(() => page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls))
+    .poll(() => page.evaluate(() => window.devotIpcCalls))
     .toContainEqual({ cmd: 'open_external', args: { url: 'https://example.com/page' } })
   await expect(page).toHaveURL(/localhost/)
 })
@@ -189,12 +189,7 @@ for (const [name, second] of [
   })
 }
 
-const adoptedSheets = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as { document: { adoptedStyleSheets: unknown[] } }).document
-        .adoptedStyleSheets.length,
-  )
+const adoptedSheets = (page: Page) => page.evaluate(() => window.document.adoptedStyleSheets.length)
 
 test('a diagram drawn again releases the styles of the one it replaces', async ({ page }) => {
   await newNote(page, 'Sheets', FLOWCHART)
@@ -262,8 +257,7 @@ test('a diagram that fails to draw for a passing reason is asked for again', asy
   // The frame's next drawing fails before Mermaid runs (as when it runs out of memory).
   const frame = await mermaidFrame(page)
   await frame.evaluate(() => {
-    type Body = { appendChild: (node: unknown) => unknown }
-    const body = (globalThis as unknown as { document: { body: Body } }).document.body
+    const body = window.document.body
     const original = body.appendChild
     body.appendChild = () => {
       body.appendChild = original
@@ -296,15 +290,13 @@ test('a diagram whose drawing cannot be read is not promised again', async ({ pa
   // The frame's next drawing reaches the preview as something other than SVG.
   const frame = await mermaidFrame(page)
   await frame.evaluate(() => {
-    type Port = { postMessage(message: unknown, ...rest: unknown[]): void }
-    const proto = (globalThis as unknown as { MessagePort: { prototype: Port } }).MessagePort
-      .prototype
+    const proto = MessagePort.prototype
     const original = proto.postMessage
-    proto.postMessage = function (this: Port, message: unknown, ...rest: unknown[]) {
+    proto.postMessage = function (this: MessagePort, message: unknown, ...rest: unknown[]) {
       const m = message as { type?: string }
-      if (m.type !== 'rendered') return original.call(this, message, ...rest)
+      if (m.type !== 'rendered') return Reflect.apply(original, this, [message, ...rest])
       proto.postMessage = original
-      return original.call(this, { ...m, svg: '<html/>' }, ...rest)
+      return Reflect.apply(original, this, [{ ...m, svg: '<html/>' }, ...rest])
     }
   })
   await appendToNote(page, `\n\n${SECOND_FLOWCHART}\n`)
@@ -393,7 +385,7 @@ test('a link the preview will not open says so and offers its address', async ({
   await preview(page).getByRole('link', { name: 'this' }).click()
   await expect(notice).toHaveText('Only https links open from the preview: http://example.com')
   const opened = await page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls.filter((c) => c.cmd === 'open_external'),
+    window.devotIpcCalls.filter((c) => c.cmd === 'open_external'),
   )
   expect(opened).toEqual([])
   await preview(page).getByRole('button', { name: 'Dismiss' }).click()
@@ -423,17 +415,10 @@ test('an image with a width and a height keeps the ratio of the picture', async 
   await newNote(page, 'Photo', '![photo w:320 h:100](/test-images/ratio.svg)')
   await mode(page, 'Preview').click()
   const image = preview(page).locator('img').first()
-  await expect
-    .poll(() => image.evaluate((el) => (el as unknown as { naturalWidth: number }).naturalWidth))
-    .toBe(400)
+  await expect.poll(() => image.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBe(400)
   const drawn = await image.evaluate((el) => {
-    type Style = Record<string, string>
-    const style = (
-      globalThis as unknown as { getComputedStyle(e: unknown): Style }
-    ).getComputedStyle(el)
-    const box = (
-      el as unknown as { getBoundingClientRect(): { width: number; height: number } }
-    ).getBoundingClientRect()
+    const style = window.getComputedStyle(el)
+    const box = el.getBoundingClientRect()
     const across = parseFloat(style['paddingLeft']!) + parseFloat(style['paddingRight']!)
     const down = parseFloat(style['paddingTop']!) + parseFloat(style['paddingBottom']!)
     return (box.width - across) / (box.height - down)
@@ -466,11 +451,7 @@ test('a diagram that parses but cannot be laid out is not drawn again at each ed
   // Mermaid measures with getBBox: a drawing that cannot be measured fails after the source parsed.
   const frame = await mermaidFrame(page)
   await frame.evaluate(() => {
-    type Window = {
-      SVGGraphicsElement: { prototype: { getBBox(): unknown } }
-      devotMeasured: number
-    }
-    const w = globalThis as unknown as Window
+    const w = window
     w.devotMeasured = 0
     w.SVGGraphicsElement.prototype.getBBox = () => {
       w.devotMeasured += 1
@@ -482,8 +463,7 @@ test('a diagram that parses but cannot be laid out is not drawn again at each ed
     'This diagram has an error and cannot be drawn.',
     { timeout: 20_000 },
   )
-  const measured = () =>
-    frame.evaluate(() => (globalThis as unknown as { devotMeasured: number }).devotMeasured)
+  const measured = () => frame.evaluate(() => window.devotMeasured)
   const before = await measured()
   for (const text of ['\nOne.\n', '\nTwo.\n', '\nThree.\n']) {
     await appendToNote(page, text)
@@ -500,21 +480,12 @@ test('right-to-left text reads right to left in the preview and the editor', asy
   await expect(paragraphs).toHaveCount(2)
   const bidi = (index: number) =>
     paragraphs.nth(index).evaluate((el) => {
-      const style = (
-        globalThis as unknown as { getComputedStyle(e: unknown): Record<string, string> }
-      ).getComputedStyle(el)
+      const style = window.getComputedStyle(el)
       return style['unicodeBidi']
     })
   expect(await bidi(0)).toBe('plaintext')
   const line = page.locator('.cm-line').filter({ hasText: 'שלום' })
-  expect(
-    await line.evaluate(
-      (el) =>
-        (
-          globalThis as unknown as { getComputedStyle(e: unknown): Record<string, string> }
-        ).getComputedStyle(el)['unicodeBidi'],
-    ),
-  ).toBe('plaintext')
+  expect(await line.evaluate((el) => window.getComputedStyle(el)['unicodeBidi'])).toBe('plaintext')
 })
 
 test('a note link chip follows its note when it changes elsewhere', async ({ page }) => {
@@ -551,10 +522,7 @@ test('a note link chip follows its note when it changes elsewhere', async ({ pag
         ),
       ),
     )
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:db-changed'))
   }, target)
   await expect(chip).toContainText('Renamed')

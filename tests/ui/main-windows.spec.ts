@@ -8,7 +8,6 @@ import {
   reloadApp,
   statusPicker,
   test,
-  type TestWindow,
 } from './fixtures'
 
 // File > New Window opens another main window (src-tauri/src/main_windows.rs). Rust builds it; here the
@@ -32,10 +31,7 @@ const trashRow = (page: Page) => sidebar(page).getByRole('button', { name: /^Tra
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 
@@ -56,7 +52,7 @@ async function openSecondWindow(context: BrowserContext, label = 'main-2') {
   const win = await context.newPage()
   await mockTauri(win)
   await win.addInitScript((windowLabel) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotWindowLabel = windowLabel
     w.devotIpcMocks = {
       note_window_close_ready: null,
@@ -76,7 +72,7 @@ test.beforeEach(async ({ page }) => {
 
 test('New Window in the palette asks Rust for another main window', async ({ page }) => {
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { ...w.devotIpcMocks, main_window_new: null }
   })
   await page.keyboard.press('Meta+KeyK')
@@ -207,8 +203,8 @@ test('closing a window File > New Window opened saves its edits first', async ({
   await win.keyboard.press('End')
   await win.keyboard.type(' Typed just before closing.')
   await win.evaluate((name) => {
-    const w = globalThis as unknown as { dispatchEvent(e: unknown): void }
-    const make = globalThis as unknown as { CustomEvent: new (t: string) => unknown }
+    const w = window
+    const make = window
     w.dispatchEvent(new make.CustomEvent(name))
   }, CLOSE_EVENT)
   await expect.poll(() => calls(win, 'note_window_close_ready')).toHaveLength(1)
@@ -218,8 +214,8 @@ test('closing a window File > New Window opened saves its edits first', async ({
 
 test('the first window never answers a window close: Rust hides it or quits', async ({ page }) => {
   await page.evaluate(() => {
-    const w = globalThis as unknown as { dispatchEvent(e: unknown): void }
-    const make = globalThis as unknown as { CustomEvent: new (t: string) => unknown }
+    const w = window
+    const make = window
     w.dispatchEvent(new make.CustomEvent('devot:note-window-close'))
   })
   await page.waitForTimeout(200)

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, openSettings, test, type TestWindow } from './fixtures'
+import { expect, openSettings, test } from './fixtures'
 
 // Settings > Plugins. Rust is faked in the page: it keeps the installed plugins, stages a package when one is picked and
 // installs it only on confirmation, as src-tauri/src/plugins/mod.rs does.
@@ -18,7 +18,7 @@ const manifest = (version: string, permissions: string[]) => ({
 
 async function fakeRust(page: Page, picked: ReturnType<typeof manifest> | null) {
   await page.addInitScript((staged) => {
-    const w = globalThis as unknown as TestWindow & { devotPlugins: unknown[] }
+    const w = window
     w.devotPlugins = []
     const changed = () => window.dispatchEvent(new CustomEvent('devot:plugins-changed'))
     w.devotIpcMocks = {
@@ -53,13 +53,7 @@ async function fakeRust(page: Page, picked: ReturnType<typeof manifest> | null) 
 }
 
 const calls = (page: Page, cmd: string) =>
-  page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((x) => x.cmd === c)
-        .map((x) => x.args),
-    cmd,
-  )
+  page.evaluate((c) => window.devotIpcCalls.filter((x) => x.cmd === c).map((x) => x.args), cmd)
 
 const list = (page: Page) => page.getByRole('list', { name: 'Installed plugins' })
 
@@ -102,7 +96,7 @@ test('installs nothing when the review is cancelled', async ({ page }) => {
 test('says what a new version replaces', async ({ page }) => {
   await fakeRust(page, manifest('2.0.0', ['commands', 'note.edit']))
   await page.addInitScript(() => {
-    const w = globalThis as unknown as { devotPlugins: unknown[] }
+    const w = window
     w.devotPlugins = [
       {
         manifest: {
@@ -152,7 +146,7 @@ test('turns a plugin off and on, and removes it after asking', async ({ page }) 
 test('shows why a package was refused, by its code', async ({ page }) => {
   await fakeRust(page, null)
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { ...w.devotIpcMocks, plugin_install_pick: { error: 'E_PLUGIN_API_VERSION' } }
   })
   await openSettings(page, 'Plugins')

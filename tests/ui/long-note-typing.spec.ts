@@ -61,16 +61,7 @@ interface ViewLike {
 function watchKeys(content: Locator) {
   return content.evaluate((el) => {
     const view = (el as unknown as { cmTile: { view: ViewLike } }).cmTile.view
-    const w = globalThis as unknown as {
-      devotKeys: { work: number; frame: number }[]
-      addEventListener(type: string, f: () => void, capture: boolean): void
-      requestAnimationFrame(f: () => void): void
-      MessageChannel: new () => {
-        port1: { onmessage: (() => void) | null }
-        port2: { postMessage(v: unknown): void }
-      }
-      performance: { now(): number }
-    }
+    const w = window
     w.devotKeys = []
     let current: { work: number; frame: number } | null = null
     const timed = (name: 'update' | 'measure') => {
@@ -136,16 +127,10 @@ test('a keystroke in a 200 KB note stays within its budget', async ({ page }) =>
     await page.keyboard.press(key)
     await page.waitForTimeout(50)
   }
-  await expect
-    .poll(() =>
-      page.evaluate(() => (globalThis as unknown as { devotKeys: unknown[] }).devotKeys.length),
-    )
-    .toBe(KEYS.length)
+  await expect.poll(() => page.evaluate(() => window.devotKeys.length)).toBe(KEYS.length)
   await expect(body(page)).toContainText(`A ${KEYS}paragraph of prose`)
 
-  const keys = await page.evaluate(
-    () => (globalThis as unknown as { devotKeys: { work: number; frame: number }[] }).devotKeys,
-  )
+  const keys = await page.evaluate(() => window.devotKeys)
   const work = median(keys.map((k) => k.work))
   const frame = median(keys.map((k) => k.frame))
   const scale = budgetScale(process.env)

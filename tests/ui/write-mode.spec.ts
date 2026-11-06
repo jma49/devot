@@ -21,10 +21,7 @@ const findBar = (page: Page) => page.getByRole('search', { name: 'Find in Note' 
 const runCommand = (page: Page, id: string) =>
   page.evaluate(
     (detail) => {
-      const w = globalThis as unknown as {
-        dispatchEvent(e: unknown): void
-        CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-      }
+      const w = window
       w.dispatchEvent(new w.CustomEvent('devot:open-url', { detail }))
     },
     { kind: 'command', id },
@@ -58,22 +55,12 @@ function charBox(page: Page, lineIndex: number, chars: string, nth = 0) {
   return body(page).evaluate(
     (content, asked) => {
       const { line, text, index } = asked
-      type Node = { nodeType: number; data: string; childNodes: Node[] }
-      type El = Node & { querySelectorAll(s: string): El[] }
-      const w = globalThis as unknown as {
-        document: {
-          createRange(): {
-            setStart(n: Node, o: number): void
-            setEnd(n: Node, o: number): void
-            getBoundingClientRect(): { x: number; y: number; width: number; height: number }
-          }
-        }
-      }
-      const row = (content as unknown as El).querySelectorAll('.cm-line')[line]
+      const w = window
+      const row = content.querySelectorAll('.cm-line')[line]
       if (!row) throw new Error('E_TEST_NO_LINE')
-      const texts: Node[] = []
+      const texts: Text[] = []
       const walk = (n: Node) => {
-        if (n.nodeType === 3) texts.push(n)
+        if (n.nodeType === 3) texts.push(n as Text)
         else for (const c of n.childNodes) walk(c)
       }
       walk(row)
@@ -105,25 +92,15 @@ function compose(page: Page, lineIndex: number, col: number, parts: string[]) {
   return body(page).evaluate(
     async (content, asked) => {
       const { line, column, steps } = asked
-      type Node = { nodeType: number; data: string; childNodes: Node[] }
-      type El = Node & {
-        querySelectorAll(s: string): El[]
-        dispatchEvent(e: unknown): boolean
-      }
-      const w = globalThis as unknown as {
-        CompositionEvent: new (t: string, init: object) => unknown
-        InputEvent: new (t: string, init: object) => unknown
-        requestAnimationFrame(f: () => void): void
-        document: { getSelection(): { collapse(n: Node, o: number): void } | null }
-      }
-      const el = content as unknown as El
+      const w = window
+      const el = content
       const frame = () => new Promise<void>((resolve) => w.requestAnimationFrame(() => resolve()))
       const place = () => {
         const row = el.querySelectorAll('.cm-line')[line]
         if (!row) throw new Error('E_TEST_NO_LINE')
-        const texts: Node[] = []
+        const texts: Text[] = []
         const walk = (n: Node) => {
-          if (n.nodeType === 3) texts.push(n)
+          if (n.nodeType === 3) texts.push(n as Text)
           else for (const c of n.childNodes) walk(c)
         }
         walk(row)
@@ -178,9 +155,7 @@ test.describe('a new install', () => {
     await expect(modes(page).getByRole('button', { pressed: true })).toHaveCount(0)
     const names = await modes(page)
       .getByRole('button')
-      .evaluateAll((buttons) =>
-        buttons.map((b) => (b as unknown as { ariaLabel: string | null }).ariaLabel),
-      )
+      .evaluateAll((buttons) => buttons.map((b) => b.ariaLabel))
     expect(names).toEqual(['Edit', 'Split', 'Preview'])
     const button = await writeButton(page).boundingBox()
     const group = await modes(page).boundingBox()
@@ -298,12 +273,7 @@ test.describe('a new install', () => {
       page
         .locator('.cm-line')
         .first()
-        .evaluate(
-          (row) =>
-            (
-              row as unknown as { getBoundingClientRect(): { height: number } }
-            ).getBoundingClientRect().height,
-        )
+        .evaluate((row) => row.getBoundingClientRect().height)
     const drawn = await height()
     await page.keyboard.press('ControlOrMeta+Home')
     await expect.poll(() => lines(page)).toEqual([rendered, '', '1The source.'])
@@ -372,14 +342,7 @@ test.describe('a new install', () => {
     const tops = () =>
       page
         .locator('.cm-line')
-        .evaluateAll((rows) =>
-          rows.map((r) =>
-            Math.round(
-              (r as unknown as { getBoundingClientRect(): { y: number } }).getBoundingClientRect()
-                .y,
-            ),
-          ),
-        )
+        .evaluateAll((rows) => rows.map((r) => Math.round(r.getBoundingClientRect().y)))
     await page.keyboard.press('ControlOrMeta+End')
     const before = await tops()
     for (const line of [0, 2, 4]) {
@@ -593,19 +556,12 @@ test.describe('switching between Write and Edit', () => {
     const scroller = page.locator('.editor-scroll')
     const topLine = () =>
       body(page).evaluate((content) => {
-        const el = content as unknown as {
-          querySelectorAll(
-            s: string,
-          ): { textContent: string; getBoundingClientRect(): { bottom: number } }[]
-          closest(s: string): { getBoundingClientRect(): { top: number } } | null
-        }
+        const el = content
         const top = el.closest('.editor-scroll')?.getBoundingClientRect().top ?? 0
         const rows = [...el.querySelectorAll('.cm-line')]
         return rows.find((r) => r.getBoundingClientRect().bottom > top + 1)?.textContent ?? ''
       })
-    await expect
-      .poll(() => scroller.evaluate((el) => (el as unknown as { scrollTop: number }).scrollTop))
-      .toBeGreaterThan(0)
+    await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
     const before = await topLine()
     await modes(page).getByRole('button', { name: 'Edit' }).click()
     await expect(modes(page).getByRole('button', { pressed: true })).toHaveAccessibleName('Edit')

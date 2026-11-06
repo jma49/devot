@@ -1,20 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { MAX_RECENT_TEMPLATES, recentTemplates, templateGroups } from './templates'
-
-function memory(initial: Record<string, string> = {}) {
-  const items = new Map(Object.entries(initial))
-  return {
-    getItem: (key: string) => items.get(key) ?? null,
-    setItem: (key: string, value: string) => void items.set(key, value),
-    removeItem: (key: string) => void items.delete(key),
-  }
-}
+import { memoryStorage } from '../../../tests/support/local-storage'
 
 const note = (id: string, title: string) => ({ id, title })
 
 describe('recent templates', () => {
   it('keeps the templates used last, newest first, each once, up to a limit', () => {
-    const store = recentTemplates(memory())
+    const store = recentTemplates(memoryStorage())
     expect(store.load()).toEqual([])
     store.use('a')
     store.use('b')
@@ -26,10 +18,10 @@ describe('recent templates', () => {
   })
 
   it('reads damaged or missing data as none, and survives a storage that throws', () => {
-    expect(recentTemplates(memory({ 'devot.templates.recent': '{oops' })).load()).toEqual([])
-    expect(recentTemplates(memory({ 'devot.templates.recent': '[1, "a", null]' })).load()).toEqual([
-      'a',
-    ])
+    expect(recentTemplates(memoryStorage({ 'devot.templates.recent': '{oops' })).load()).toEqual([])
+    expect(
+      recentTemplates(memoryStorage({ 'devot.templates.recent': '[1, "a", null]' })).load(),
+    ).toEqual(['a'])
     const broken = {
       getItem: () => {
         throw new Error('denied')

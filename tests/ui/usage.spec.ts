@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, reloadApp, test, type TestWindow } from './fixtures'
+import { expect, reloadApp, test } from './fixtures'
 
 // The app records a few usage events through `usage_record`; none of them
 // carries a title, a query or an ID.
@@ -10,9 +10,7 @@ const header = (page: Page) => page.locator('.list .headline')
 
 const recorded = (page: Page) =>
   page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
-      .filter((c) => c.cmd === 'usage_record')
-      .map((c) => c.args),
+    window.devotIpcCalls.filter((c) => c.cmd === 'usage_record').map((c) => c.args),
   )
 
 async function createNote(page: Page, title: string) {
@@ -82,7 +80,7 @@ test('a query typed key by key counts as one search', async ({ page }) => {
 
 test('a failed recording never gets in the way', async ({ page }) => {
   await page.evaluate(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       usage_record: { error: 'E_USAGE_OPEN_FAILED' },
     }
   })
@@ -91,9 +89,7 @@ test('a failed recording never gets in the way', async ({ page }) => {
   await expect
     .poll(() =>
       page.evaluate(() =>
-        (globalThis as unknown as TestWindow).devotIpcCalls
-          .filter((c) => c.cmd === 'log_write')
-          .map((c) => c.args['code']),
+        window.devotIpcCalls.filter((c) => c.cmd === 'log_write').map((c) => c.args['code']),
       ),
     )
     .toContain('W_USAGE_RECORD_FAILED')

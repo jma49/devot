@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, test } from './fixtures'
 
 // The Format menu (src-tauri/src/format_menu.rs): keys come from the command registry and are live only while
 // the editor has the keyboard; a picked item (`devot://format`, re-sent as `devot:format`) formats the selection.
@@ -17,10 +17,7 @@ async function newNote(page: Page, text: string) {
 
 const pick = (page: Page, id: unknown) =>
   page.evaluate((detail) => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (type: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:format', { detail }))
   }, id)
 
@@ -31,13 +28,7 @@ const pick = (page: Page, id: unknown) =>
 const keyThenPick = (page: Page, code: string, id: string) =>
   page.evaluate(
     ([keyCode, detail, key]) => {
-      const w = globalThis as unknown as {
-        document: { activeElement: unknown; body: unknown }
-        navigator: { platform: string }
-        dispatchEvent(e: unknown): void
-        CustomEvent: new (type: string, init: { detail: unknown }) => unknown
-        KeyboardEvent: new (type: string, init: Record<string, unknown>) => unknown
-      }
+      const w = window
       const mac = /Mac/.test(w.navigator.platform)
       const target = (w.document.activeElement ?? w.document.body) as {
         dispatchEvent(e: unknown): void
@@ -59,7 +50,7 @@ const keyThenPick = (page: Page, code: string, id: string) =>
 
 const menuStates = (page: Page) =>
   page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
+    window.devotIpcCalls
       .filter((c) => c.cmd === 'format_menu_set')
       .map((c) => c.args as { enabled: boolean; keys: Record<string, string> }),
   )
@@ -88,18 +79,12 @@ test('the Format menu has its keys while the editor has the keyboard', async ({ 
   await body(page).click()
   await expect.poll(() => lastMenuState(page)).toMatchObject({ enabled: true })
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      Event: new (type: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.Event('blur'))
   })
   await expect.poll(() => lastMenuState(page)).toEqual({ enabled: false, keys: {} })
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      Event: new (type: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.Event('focus'))
   })
   await expect.poll(() => lastMenuState(page)).toMatchObject({ enabled: true })
@@ -140,13 +125,7 @@ test('a format key is offered only where the format does something', async ({ pa
   expect(keys['format.link']).toBeUndefined()
   expect(keys['format.heading1']).toBeUndefined()
   await page.keyboard.press('ControlOrMeta+i')
-  expect(
-    await page.evaluate(() =>
-      (globalThis as unknown as { getSelection(): { toString(): string } })
-        .getSelection()
-        .toString(),
-    ),
-  ).toBe('code')
+  expect(await page.evaluate(() => window.getSelection()!.toString())).toBe('code')
   expect(await body(page).innerText()).not.toContain('*')
   await page.keyboard.press('ControlOrMeta+Home')
   await expect
@@ -192,10 +171,7 @@ test('the menu is off while notes are read-only', async ({ page }) => {
   await newNote(page, 'word')
   await expect.poll(() => lastMenuState(page)).toMatchObject({ enabled: true })
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     w.dispatchEvent(
       new w.CustomEvent('devot:licence-changed', {
         detail: {

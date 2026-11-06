@@ -9,15 +9,7 @@ import {
   typingElsewhere,
   windowLabel,
 } from './focus'
-
-function memoryStorage() {
-  const items = new Map<string, string>()
-  return {
-    items,
-    getItem: (key: string) => items.get(key) ?? null,
-    setItem: (key: string, value: string) => void items.set(key, value),
-  }
-}
+import { memoryStorage } from '../../../tests/support/local-storage'
 
 describe('focusStore', () => {
   it('is off until turned on, and remembers the choice', () => {

@@ -1,12 +1,10 @@
-import { expect, openApp, test, type TestWindow } from './fixtures'
-
-type Held = TestWindow & { releaseRebuild?: (notes: number) => void }
+import { expect, openApp, test } from './fixtures'
 
 test('Rebuild Search Index from the palette shows progress, then the result', async ({ page }) => {
   await openApp(page)
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
   await page.evaluate(() => {
-    const w = globalThis as unknown as Held
+    const w = window
     w.devotIpcMocks = {
       search_index_rebuild: () =>
         new Promise<number>((resolve) => {
@@ -27,7 +25,7 @@ test('Rebuild Search Index from the palette shows progress, then the result', as
   // The app stays usable while it runs.
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
 
-  await page.evaluate(() => (globalThis as unknown as Held).releaseRebuild?.(3))
+  await page.evaluate(() => window.releaseRebuild?.(3))
   await expect(notice).toContainText('Search index rebuilt (3 notes).')
   await notice.getByRole('button', { name: 'Dismiss' }).click()
   await expect(notice).toHaveCount(0)
@@ -37,13 +35,10 @@ test('a failed rebuild shows its code', async ({ page }) => {
   await openApp(page)
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
   await page.evaluate(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       search_index_rebuild: { error: 'E_STORAGE_CORRUPT' },
     }
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:rebuild-search-index'))
   })
   await expect(page.locator('[data-devot-search-index="failed"]')).toContainText(

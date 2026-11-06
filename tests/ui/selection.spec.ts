@@ -9,11 +9,8 @@ const line = (page: Page, n: number) => page.locator('.cm-line').nth(n - 1)
 function selectionRects(page: Page): Promise<(Box & { fill: string })[]> {
   return page.locator('.cm-selectionBackground').evaluateAll((rects) =>
     rects.map((rect) => {
-      // This config has no DOM types: only the members used here.
-      const el = rect as unknown as { getBoundingClientRect(): Box }
-      const view = globalThis as unknown as {
-        getComputedStyle(e: unknown): { backgroundColor: string }
-      }
+      const el = rect
+      const view = window
       const { x, y, width, height } = el.getBoundingClientRect()
       return { x, y, width, height, fill: view.getComputedStyle(rect).backgroundColor }
     }),

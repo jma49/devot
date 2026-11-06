@@ -8,15 +8,9 @@ import {
   RECENT_SEARCHES_KEY,
   rememberSearch,
 } from './search'
+import { memoryStorage } from '../../../../tests/support/local-storage'
 
-const store = (initial?: string) => {
-  const items = new Map<string, string>(initial ? [[RECENT_SEARCHES_KEY, initial]] : [])
-  return {
-    items,
-    getItem: (key: string) => items.get(key) ?? null,
-    setItem: (key: string, value: string) => void items.set(key, value),
-  }
-}
+const store = (initial?: string) => memoryStorage(initial ? { [RECENT_SEARCHES_KEY]: initial } : {})
 
 describe('recent searches', () => {
   it('keeps the newest first, once each, and only so many', () => {

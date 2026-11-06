@@ -1,9 +1,10 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { flatten, resolve, type TokenTree } from '../../scripts/tokens/compile'
 import { icnsArgb, icnsEntries } from '../support/icns'
 import { alphaAt, decodePng, pngSize, type Png } from '../support/png'
+import { listFiles } from '../support/git-files'
 
 // The app icon from its design sources (design/app-icon/) to what the bundles ship
 // (src-tauri/icons/ and the Xcode project's asset catalog). scripts/app-icon/build.sh makes the images.
@@ -15,14 +16,7 @@ const DOCUMENT = 'AppIcon.icon'
 
 const readJson = <T>(path: string) => JSON.parse(readFileSync(path, 'utf8')) as T
 
-function files(dir: string): string[] {
-  return readdirSync(dir)
-    .flatMap((name) => {
-      const path = join(dir, name)
-      return statSync(path).isDirectory() ? files(path) : [path]
-    })
-    .sort()
-}
+const files = (dir: string) => listFiles('.', dir).sort()
 
 const brandColours = (): Set<string> => {
   const base = flatten(readJson<TokenTree>('design/tokens/base.tokens.json'))

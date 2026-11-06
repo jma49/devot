@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, test } from './fixtures'
 
 // A core that cannot start never looks like an empty library; core worker warnings reach the local log like the page's own.
 
@@ -11,7 +11,7 @@ const tryAgain = (page: Page) => failure(page).getByRole('button', { name: 'Try 
 const logged = (page: Page, code: string) =>
   page.evaluate(
     (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
+      window.devotIpcCalls
         .filter((call) => call.cmd === 'log_write' && call.args['code'] === c)
         .map((call) => call.args['ids']),
     code,
@@ -106,9 +106,7 @@ test('a warning from the core worker reaches the local log by code', async ({ pa
   await titleField(page).fill('Warned again')
   await expect.poll(() => logged(page, 'W_REVISION_FAILED')).toContainEqual(['E_STORAGE_FULL'])
   // Codes only: nothing of the note.
-  const lines = await page.evaluate(() =>
-    JSON.stringify((globalThis as unknown as TestWindow).devotIpcCalls),
-  )
+  const lines = await page.evaluate(() => JSON.stringify(window.devotIpcCalls))
   expect(lines).not.toContain('Warned again')
 })
 

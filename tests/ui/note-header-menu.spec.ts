@@ -1,13 +1,5 @@
 import type { Page } from '@playwright/test'
-import {
-  clipboardWrites,
-  expect,
-  pickMenuItem,
-  shownMenu,
-  test,
-  openApp,
-  type TestWindow,
-} from './fixtures'
+import { clipboardWrites, expect, pickMenuItem, shownMenu, test, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
@@ -27,12 +19,7 @@ const storedTags = (page: Page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem('devot.test.tags') ?? '[]') as StoredTag[])
 
 const popups = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'plugin:menu|popup',
-      ).length,
-  )
+  page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
 
 async function newNote(page: Page, title: string) {
   const before = await noteRows(page).count()
@@ -155,7 +142,7 @@ test('a Copy Notebook ID that fails says so, with its code', async ({ page }) =>
     .getByRole('button', { name: /^All Notes/ })
     .click()
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       clipboard_write_text: { error: 'E_CLIPBOARD_WRITE_FAILED' },

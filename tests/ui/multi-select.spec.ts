@@ -10,7 +10,6 @@ import {
   pickStatus,
   statusPicker,
   openApp,
-  type TestWindow,
 } from './fixtures'
 import { seedNotes } from './renders'
 import { slowCore } from './slowCore'
@@ -101,12 +100,7 @@ async function pick(page: Page, first: string, ...more: string[]) {
 }
 
 const popups = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'plugin:menu|popup',
-      ).length,
-  )
+  page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
 
 async function runCommand(page: Page, label: string) {
   await page.keyboard.press('Meta+k')
@@ -278,18 +272,11 @@ test('a held command key does its work once and is stopped, so it never repeats 
   await expect(titleField(page)).toHaveValue('Gamma')
   // The page's last listener sees each key after the list's own.
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      seenKeys: [string, boolean, boolean][]
-      addEventListener(
-        type: string,
-        listener: (e: { key: string; repeat: boolean; defaultPrevented: boolean }) => void,
-      ): void
-    }
+    const w = window
     w.seenKeys = []
     w.addEventListener('keydown', (e) => w.seenKeys.push([e.key, e.repeat, e.defaultPrevented]))
   })
-  const seen = () =>
-    page.evaluate(() => (globalThis as unknown as { seenKeys: unknown[] }).seenKeys)
+  const seen = () => page.evaluate(() => window.seenKeys)
   await page.keyboard.down('Meta')
   // Held, Cmd+A is stopped and selects nothing more.
   await page.keyboard.down('a')
@@ -569,14 +556,10 @@ test('export and print act on one note: not offered or run while several are sel
 }) => {
   await fourNotes(page)
   await page.evaluate(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = { note_print: true }
+    window.devotIpcMocks = { note_print: true }
   })
   const printed = () =>
-    page.evaluate(
-      () =>
-        (globalThis as unknown as TestWindow).devotIpcCalls.filter((c) => c.cmd === 'note_print')
-          .length,
-    )
+    page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'note_print').length)
   const palette = page.getByRole('dialog', { name: 'Command Palette' })
   const exportCommands = palette
     .getByRole('option')
@@ -706,11 +689,7 @@ test('dragging selected notes onto a notebook, a tag, a status or the Trash chan
 test('status, tag and Trash rows show where notes will drop', async ({ page }) => {
   await createNote(page, 'Wanderer')
   const data = await page.evaluateHandle(() => {
-    const transfer = new (
-      globalThis as unknown as {
-        DataTransfer: new () => { setData(type: string, value: string): void }
-      }
-    ).DataTransfer()
+    const transfer = new window.DataTransfer()
     transfer.setData('application/x-devot-note', 'note')
     return transfer
   })
@@ -764,11 +743,7 @@ test('templates drop on notebooks and the Trash, not on a status or a tag', asyn
   const before = await stored(page)
   // A drag of templates: no status or tag row shows itself as a target.
   const data = await page.evaluateHandle(() => {
-    const transfer = new (
-      globalThis as unknown as {
-        DataTransfer: new () => { setData(type: string, value: string): void }
-      }
-    ).DataTransfer()
+    const transfer = new window.DataTransfer()
     transfer.setData('application/x-devot-note', 'note')
     transfer.setData('application/x-devot-template', '')
     return transfer
@@ -877,9 +852,7 @@ test('a note that cannot be changed is reported, and the others still change', a
   await createNote(page, 'Free')
   // The store refuses to save Locked pinned (a write failing part-way).
   await page.evaluate(() => {
-    type Setter = (this: unknown, key: string, value: string) => void
-    const proto = (globalThis as unknown as { Storage: { prototype: { setItem: Setter } } }).Storage
-      .prototype
+    const proto = window.Storage.prototype
     const setItem = proto.setItem
     proto.setItem = function (key, value) {
       if (key === 'devot.test.notes') {
@@ -945,7 +918,7 @@ test('Copy Note Links copies the links of 1,500 notes', async ({ page }) => {
   await expect(row('Note 1')).toBeVisible()
   // The command takes what Rust takes, and no more.
   await page.evaluate((limit) => {
-    const w = globalThis as unknown as TestWindow & { devotClipboard?: string }
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       clipboard_write_text: (args: { text: string }) => {
@@ -966,8 +939,7 @@ test('Copy Note Links copies the links of 1,500 notes', async ({ page }) => {
   await row('Note 1500').click({ modifiers: ['Shift'] })
   await expect(summary(page)).toContainText('1,500 Notes Selected')
   await summary(page).getByRole('button', { name: 'Copy Note Links' }).click()
-  const copied = () =>
-    page.evaluate(() => (globalThis as unknown as { devotClipboard?: string }).devotClipboard ?? '')
+  const copied = () => page.evaluate(() => window.devotClipboard ?? '')
   await expect.poll(async () => (await copied()).split('\n').length).toBe(1500)
   const links = await copied()
   // Far more than the command once took (64 KiB).
@@ -979,7 +951,7 @@ test('Copy Note Links copies the links of 1,500 notes', async ({ page }) => {
 test('a copy that fails says so, with its code', async ({ page }) => {
   await fourNotes(page)
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       clipboard_write_text: { error: 'E_CLIPBOARD_WRITE_FAILED' },

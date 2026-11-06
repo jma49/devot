@@ -261,12 +261,10 @@ test('keys that end or steer an input method composition make no note', async ({
     { key: 'ArrowDown', keyCode: 229 },
   ]) {
     await filter.evaluate((input, keys) => {
-      const Keyboard = (
-        globalThis as unknown as { KeyboardEvent: new (t: string, o: object) => object }
-      ).KeyboardEvent
+      const Keyboard = window.KeyboardEvent
       const event = new Keyboard('keydown', { ...keys, bubbles: true, cancelable: true })
       if ('keyCode' in keys) Object.defineProperty(event, 'keyCode', { value: keys.keyCode })
-      ;(input as unknown as { dispatchEvent(e: object): void }).dispatchEvent(event)
+      input.dispatchEvent(event)
     }, init)
   }
   await expect(picker(page)).toBeVisible()

@@ -15,7 +15,6 @@ import {
   reloadApp,
   shownMenu,
   test,
-  type TestWindow,
 } from './fixtures'
 
 const CLAUDE = newWriter('mcp', 'Claude Code', 'mcp0000000000001')
@@ -120,21 +119,16 @@ async function seed(page: Page, notes: Seeded[]) {
 const httpApi = (page: Page, op: string, note: string | null, args: Record<string, unknown>) =>
   page.evaluate(
     (call) => {
-      const w = globalThis as unknown as {
-        addEventListener(type: string, on: (e: { detail: { id: number } }) => void): void
-        removeEventListener(type: string, on: (e: { detail: { id: number } }) => void): void
-        dispatchEvent(e: unknown): void
-        CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-      }
       const id = Math.floor(Math.random() * 1e9)
       return new Promise<unknown>((resolve) => {
-        const on = (e: { detail: { id: number } }) => {
-          if (e.detail.id !== id) return
-          w.removeEventListener('devot:http-api-done', on)
-          resolve(e.detail)
+        const on = (e: Event) => {
+          const { detail } = e as CustomEvent<{ id: number }>
+          if (detail.id !== id) return
+          removeEventListener('devot:http-api-done', on)
+          resolve(detail)
         }
-        w.addEventListener('devot:http-api-done', on)
-        w.dispatchEvent(new w.CustomEvent('devot://http-api', { detail: { id, ...call } }))
+        addEventListener('devot:http-api-done', on)
+        dispatchEvent(new CustomEvent('devot://http-api', { detail: { id, ...call } }))
       })
     },
     { op, note, args },
@@ -611,7 +605,7 @@ test('once the trial is over without a licence, Undo All and Clear Authorship ar
   page,
 }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       licence_get: () => ({

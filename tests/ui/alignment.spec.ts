@@ -23,14 +23,7 @@ const centreY = (b: Box) => b.y + b.height / 2
 
 const textBox = (locator: Locator): Promise<Box> =>
   locator.evaluate((el) => {
-    const g = globalThis as unknown as {
-      document: {
-        createRange(): {
-          selectNodeContents(node: unknown): void
-          getBoundingClientRect(): Box
-        }
-      }
-    }
+    const g = window
     const range = g.document.createRange()
     range.selectNodeContents(el)
     const r = range.getBoundingClientRect()
@@ -39,14 +32,7 @@ const textBox = (locator: Locator): Promise<Box> =>
 
 const textStartX = (locator: Locator): Promise<number> =>
   locator.evaluate((el) => {
-    const g = globalThis as unknown as {
-      document: {
-        createRange(): {
-          selectNodeContents(node: unknown): void
-          getClientRects(): ArrayLike<{ x: number }>
-        }
-      }
-    }
+    const g = window
     const range = g.document.createRange()
     range.selectNodeContents(el)
     return range.getClientRects()[0]?.x ?? -1
@@ -227,11 +213,7 @@ test('title ink follows the text caps in every view and both styles; toolbar ink
   page,
 }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as {
-      __TAURI_INTERNALS__: {
-        invoke(command: string, args: Record<string, unknown>): Promise<unknown>
-      }
-    }
+    const w = window
     const ipc = w['__TAURI_INTERNALS__']
     const original = ipc.invoke
     ipc.invoke = async (command, args) => {

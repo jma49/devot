@@ -6,7 +6,6 @@ import {
   reloadApp,
   test,
   openApp,
-  type TestWindow,
 } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -87,19 +86,7 @@ async function setUp(page: Page) {
 const painted = (page: Page, selector: string, color: string) =>
   page.evaluate(
     ([sel, id]) => {
-      // This config has no DOM types.
-      interface El {
-        style: { setProperty(name: string, value: string): void }
-        remove(): void
-      }
-      const w = globalThis as unknown as {
-        document: {
-          querySelector(s: string): El | null
-          createElement(tag: string): El
-          body: { append(el: El): void }
-        }
-        getComputedStyle(el: El): { color: string; backgroundColor: string }
-      }
+      const w = window
       const el = w.document.querySelector(sel)
       const probe = w.document.createElement('span')
       probe.style.setProperty('color', `var(--color-tag-${id})`)
@@ -396,7 +383,7 @@ test('a suggestion picked from two tags of one name goes on by ID', async ({ pag
 test('a Copy Tag ID that fails says so, with its code', async ({ page }) => {
   await setUp(page)
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       clipboard_write_text: { error: 'E_CLIPBOARD_WRITE_FAILED' },

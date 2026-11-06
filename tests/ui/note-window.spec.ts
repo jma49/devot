@@ -1,5 +1,5 @@
 import type { BrowserContext, Page } from '@playwright/test'
-import { expect, mockTauri, openApp, pickMenuItem, test, type TestWindow } from './fixtures'
+import { expect, mockTauri, openApp, pickMenuItem, test } from './fixtures'
 import { slowCore } from './slowCore'
 
 // A note in a window of its own (note.html, src-tauri/src/note_window.rs). Rust opens the window and
@@ -24,10 +24,7 @@ const rows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByR
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 
@@ -51,7 +48,7 @@ async function openNoteWindow(context: BrowserContext, id: string) {
   const win = await context.newPage()
   await mockTauri(win)
   await win.addInitScript((noteId) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       note_window_note: noteId,
       note_window_open: null,
@@ -75,7 +72,7 @@ test('Shift-Return on a note in the list, or Open in New Window, opens it in a w
   page,
 }) => {
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { ...w.devotIpcMocks, note_window_open: null }
   })
   const id = await noteInMain(page, 'Plan', 'Steps')
@@ -228,8 +225,8 @@ test('closing a note window saves its edits first', async ({ page, context }) =>
   await win.keyboard.press('End')
   await win.keyboard.type(' Typed just before closing.')
   await win.evaluate((name) => {
-    const w = globalThis as unknown as { dispatchEvent(e: unknown): void }
-    const make = globalThis as unknown as { CustomEvent: new (t: string) => unknown }
+    const w = window
+    const make = window
     w.dispatchEvent(new make.CustomEvent(name))
   }, CLOSE_EVENT)
   await expect.poll(() => calls(win, 'note_window_close_ready')).toHaveLength(1)
@@ -239,8 +236,8 @@ test('closing a note window saves its edits first', async ({ page, context }) =>
 
 const send = (page: Page, name: string) =>
   page.evaluate((n) => {
-    const w = globalThis as unknown as { dispatchEvent(e: unknown): void }
-    const make = globalThis as unknown as { CustomEvent: new (t: string) => unknown }
+    const w = window
+    const make = window
     w.dispatchEvent(new make.CustomEvent(n))
   }, name)
 
@@ -282,8 +279,8 @@ test('a note window that cannot open its note still answers a close and a quit a
   await expect(win.getByRole('alert')).toBeVisible()
   await win.evaluate(
     (names) => {
-      const w = globalThis as unknown as { dispatchEvent(e: unknown): void }
-      const make = globalThis as unknown as { CustomEvent: new (t: string) => unknown }
+      const w = window
+      const make = window
       for (const name of names) w.dispatchEvent(new make.CustomEvent(name))
     },
     [CLOSE_EVENT, FLUSH_EVENT],
@@ -300,10 +297,7 @@ test('a note window turns read-only once the trial is over, with the bar to add 
   const win = await openNoteWindow(context, id)
   await expect(body(win)).toContainText('Steps')
   await win.evaluate(() => {
-    const w = globalThis as unknown as TestWindow & {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     w.devotIpcMocks = { ...w.devotIpcMocks, settings_open_licence: null }
     w.dispatchEvent(
       new w.CustomEvent('devot:licence-changed', {
@@ -332,7 +326,7 @@ test('a note window turns read-only once the trial is over, with the bar to add 
 test('Open in New Window that fails says why', async ({ page }) => {
   await noteInMain(page, 'Plan', 'Steps')
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { ...w.devotIpcMocks, note_window_open: { error: 'E_TEST_WINDOW_FAILED' } }
   })
   await rows(page).first().click({ button: 'right' })

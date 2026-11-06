@@ -22,10 +22,7 @@ const bar = (page: Page) => page.getByRole('toolbar', { name: 'Table', exact: tr
 const runCommand = (page: Page, id: string) =>
   page.evaluate(
     (detail) => {
-      const w = globalThis as unknown as {
-        dispatchEvent(e: unknown): void
-        CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-      }
+      const w = window
       w.dispatchEvent(new w.CustomEvent('devot:open-url', { detail }))
     },
     { kind: 'command', id },
@@ -67,25 +64,15 @@ function compose(page: Page, lineIndex: number, col: number, parts: string[]) {
   return body(page).evaluate(
     async (content, asked) => {
       const { line, column, steps } = asked
-      type Node = { nodeType: number; data: string; childNodes: Node[] }
-      type El = Node & {
-        querySelectorAll(s: string): El[]
-        dispatchEvent(e: unknown): boolean
-      }
-      const w = globalThis as unknown as {
-        CompositionEvent: new (t: string, init: object) => unknown
-        InputEvent: new (t: string, init: object) => unknown
-        requestAnimationFrame(f: () => void): void
-        document: { getSelection(): { collapse(n: Node, o: number): void } | null }
-      }
-      const el = content as unknown as El
+      const w = window
+      const el = content
       const frame = () => new Promise<void>((resolve) => w.requestAnimationFrame(() => resolve()))
       const place = () => {
         const row = el.querySelectorAll('.cm-line')[line]
         if (!row) throw new Error('E_TEST_NO_LINE')
-        const texts: Node[] = []
+        const texts: Text[] = []
         const walk = (n: Node) => {
-          if (n.nodeType === 3) texts.push(n)
+          if (n.nodeType === 3) texts.push(n as Text)
           else for (const c of n.childNodes) walk(c)
         }
         walk(row)

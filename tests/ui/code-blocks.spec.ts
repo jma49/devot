@@ -1,12 +1,5 @@
 import type { Page } from '@playwright/test'
-import {
-  changeEditorSettingsElsewhere,
-  clipboardWrites,
-  expect,
-  test,
-  openApp,
-  type TestWindow,
-} from './fixtures'
+import { changeEditorSettingsElsewhere, clipboardWrites, expect, test, openApp } from './fixtures'
 
 // The preview's code blocks show a header and highlighting; task boxes tick the task in the note.
 
@@ -72,7 +65,7 @@ test('a code block shows its language, title, mark, line numbers and source, wit
   await expect(source.locator('.code-ref')).toHaveText('in a1b2c3d')
   await source.getByRole('link', { name: /Open source/ }).click()
   await expect
-    .poll(() => page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls))
+    .poll(() => page.evaluate(() => window.devotIpcCalls))
     .toContainEqual({
       cmd: 'open_external',
       args: { url: 'https://github.com/o/r/blob/a1b2c3d/src/a.ts' },
@@ -109,9 +102,7 @@ test('a selection is centred in a code block, and the active line keeps to its b
   const line = (await first.boundingBox())!
   // The box sits in from the line by the shared padding, on the text column.
   const hang = await first.evaluate((el) => {
-    const view = globalThis as unknown as {
-      getComputedStyle(e: unknown, pseudo?: string): Record<string, string>
-    }
+    const view = window
     return parseFloat(view.getComputedStyle(el, '::before').left ?? '0')
   })
   const boxLeft = line.x + hang
@@ -120,11 +111,7 @@ test('a selection is centred in a code block, and the active line keeps to its b
   const gaps = () =>
     page.locator('.cm-selectionBackground').evaluateAll((els) =>
       els.map((el) => {
-        const r = (
-          el as unknown as {
-            getBoundingClientRect(): { left: number; width: number; height: number }
-          }
-        ).getBoundingClientRect()
+        const r = el.getBoundingClientRect()
         return { left: r.left, width: r.width, height: r.height }
       }),
     )
@@ -141,9 +128,7 @@ test('a selection is centred in a code block, and the active line keeps to its b
 
   const tint = () =>
     page.locator('.cm-activeLine').evaluate((el) => {
-      const view = globalThis as unknown as {
-        getComputedStyle(e: unknown, pseudo?: string): Record<string, string>
-      }
+      const view = window
       const box = view.getComputedStyle(el, '::before')
       return {
         line: view.getComputedStyle(el).backgroundColor,
@@ -176,11 +161,7 @@ test('line numbers stay evenly spaced through a code block in the editor', async
     page.locator(selector).evaluateAll(
       (els, numbered) =>
         els.flatMap((el) => {
-          const e = el as unknown as {
-            style: { visibility: string }
-            textContent: string
-            getBoundingClientRect(): { top: number }
-          }
+          const e = el
           if (e.style.visibility === 'hidden') return []
           if (numbered && !/^\d+$/.test(e.textContent.trim())) return []
           return [e.getBoundingClientRect().top]

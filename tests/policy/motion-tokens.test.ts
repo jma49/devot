@@ -1,17 +1,10 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { isColorChecked } from '../support/policy-patterns'
+import { listFiles } from '../support/git-files'
 
 // Motion comes from `--motion-*` tokens, never literals; Reduce Motion turns every scale off (pop-ups only fade).
 const UI_ROOT = 'src/renderer/src'
-
-function files(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name)
-    return statSync(path).isDirectory() ? files(path) : [path]
-  })
-}
 
 const EASING = /\bease(-in|-out|-in-out)?\b|cubic-bezier\(/
 const TIME = /(?<![\w.-])(?!0m?s\b)\d*\.?\d+m?s\b/
@@ -25,7 +18,7 @@ function hasMotionLiteral(line: string): boolean {
 }
 
 it('UI motion uses design tokens, not literal durations or curves', () => {
-  const offenders = files(UI_ROOT)
+  const offenders = listFiles('.', UI_ROOT)
     .filter(isColorChecked)
     .flatMap((file) =>
       readFileSync(file, 'utf8')
@@ -54,7 +47,7 @@ it('the motion pattern catches literals and leaves tokens alone', () => {
 })
 
 it('things grow and shrink only through the scale variables, which Reduce Motion sets to 1', () => {
-  const scales = files(UI_ROOT)
+  const scales = listFiles('.', UI_ROOT)
     .filter(isColorChecked)
     .flatMap((file) => readFileSync(file, 'utf8').match(/(?<![\w-])scale[:(][^;\n]*/g) ?? [])
   expect(scales.length).toBeGreaterThan(0)

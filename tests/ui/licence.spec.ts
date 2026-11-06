@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, openApp, openSettings, pickMenuItem, test, type TestWindow } from './fixtures'
+import { expect, openApp, openSettings, pickMenuItem, test } from './fixtures'
 
 // The licence: Settings > Licence, what sync and AI show while it is missing, and devot://licence
 // links. Rust is faked in the page: it keeps one licence and answers as the real commands do,
@@ -43,7 +43,7 @@ const held = (state: string, id = ID): Licence => ({
 async function fakeRust(page: Page, initial: Licence, added: Licence = held('valid')) {
   await page.addInitScript(
     ([start, next, bad]) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       let licence = start
       w.devotIpcMocks = {
         ...w.devotIpcMocks,
@@ -66,10 +66,7 @@ async function fakeRust(page: Page, initial: Licence, added: Licence = held('val
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 
@@ -218,7 +215,7 @@ test.describe('locked sync and AI', () => {
   test('Edit with AI says a licence is needed when Rust refuses it', async ({ page }) => {
     await fakeRust(page, inTrial())
     await page.addInitScript(() => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcMocks = {
         ...w.devotIpcMocks,
         ai_generate: { error: 'E_LICENCE_REQUIRED' },
@@ -260,7 +257,7 @@ test.describe('locked sync and AI', () => {
   test('the main window says sync stopped for want of a licence, with Buy', async ({ page }) => {
     await fakeRust(page, none())
     await page.addInitScript(() => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcMocks = {
         ...w.devotIpcMocks,
         sync_get: {
@@ -284,7 +281,7 @@ test.describe('locked sync and AI', () => {
   test('the main window says the keychain kept the licence back, with no Buy', async ({ page }) => {
     await fakeRust(page, none())
     await page.addInitScript(() => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcMocks = {
         ...w.devotIpcMocks,
         sync_get: {
@@ -351,21 +348,14 @@ test.describe('devot://licence links', () => {
     await openApp(page)
     await expect
       .poll(() =>
-        page.evaluate(() =>
-          (globalThis as unknown as TestWindow).devotIpcCalls.some(
-            (call) => call.cmd === 'deep_link_take',
-          ),
-        ),
+        page.evaluate(() => window.devotIpcCalls.some((call) => call.cmd === 'deep_link_take')),
       )
       .toBe(true)
   }
 
   const sendLink = (page: Page, link: Record<string, unknown>) =>
     page.evaluate((detail) => {
-      const w = globalThis as unknown as {
-        dispatchEvent(e: unknown): void
-        CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-      }
+      const w = window
       w.dispatchEvent(new w.CustomEvent('devot:open-url', { detail }))
     }, link)
 

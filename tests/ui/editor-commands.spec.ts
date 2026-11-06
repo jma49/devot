@@ -5,7 +5,6 @@ import {
   expect,
   test,
   openApp,
-  type TestWindow,
 } from './fixtures'
 
 // Editor keys use ControlOrMeta (CodeMirror's Mod), window keys Meta. Selections come from clicks and Shift with
@@ -50,33 +49,22 @@ async function selectLine(page: Page, n: number) {
 
 async function paste(page: Page, text: string) {
   await body(page).evaluate((el, value) => {
-    // This config has no DOM types: the few browser classes used here.
-    const w = globalThis as unknown as {
-      DataTransfer: new () => { setData(type: string, value: string): void }
-      ClipboardEvent: new (type: string, init: object) => unknown
-    }
+    const w = window
     const data = new w.DataTransfer()
     data.setData('text/plain', value)
     const init = { bubbles: true, cancelable: true, clipboardData: data }
-    ;(el as unknown as { dispatchEvent(e: unknown): boolean }).dispatchEvent(
-      new w.ClipboardEvent('paste', init),
-    )
+    el.dispatchEvent(new w.ClipboardEvent('paste', init))
   }, text)
 }
 
 const setClipboard = (page: Page, text: string) =>
   page.evaluate((value) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { ...w.devotIpcMocks, clipboard_read_text: value }
   }, text)
 
 const clipboardReads = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'clipboard_read_text',
-      ).length,
-  )
+  page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'clipboard_read_text').length)
 
 test.beforeEach(async ({ page }) => {
   await openApp(page)
@@ -106,9 +94,9 @@ test('Shift+Cmd+H inserts a horizontal rule under the line, and the palette offe
   await expect(body(page)).toBeFocused()
   const keys = await page.evaluate(
     () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((c) => c.cmd === 'format_menu_set')
-        .at(-1)?.args['keys'] as Record<string, string>,
+      window.devotIpcCalls.filter((c) => c.cmd === 'format_menu_set').at(-1)?.args[
+        'keys'
+      ] as Record<string, string>,
   )
   expect(keys['format.horizontalRule']).toBe('Shift+CmdOrCtrl+H')
 })

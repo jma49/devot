@@ -1,19 +1,10 @@
-import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createClock, createIdGenerator, createNoteService, newWriter } from '../../src/core'
 import { reportingNoteWrites } from '../../src/renderer/src/noteWrites'
 import { fromWire, toWire } from '../../src/renderer/src/storage/wire'
-import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
-import { tempDir } from '../support/temp-dirs'
+import { tempSqliteAdapter } from '../support/sqlite-adapter'
 
-const open: SqliteAdapter[] = []
-afterEach(() => open.splice(0).forEach((a) => a.close()))
-
-function storage(): SqliteAdapter {
-  const adapter = openSqliteAdapter(join(tempDir('devot-writes-'), 'devot.sqlite'))
-  open.push(adapter)
-  return adapter
-}
+const storage = () => tempSqliteAdapter('devot-writes-')
 
 const reported = () => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -62,7 +53,6 @@ describe('reportingNoteWrites', () => {
     heard.length = 0
     const record = await adapter.getNote(id)
     adapter.close()
-    open.length = 0
     await expect(wrapped.putNote({ ...record!, updatedAt: 9_000 })).rejects.toThrow('not open')
     await reported()
     expect(heard).toEqual([])

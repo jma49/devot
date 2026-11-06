@@ -8,14 +8,7 @@ import {
   readNotebooks,
   readTemplates,
 } from './notebookChoices'
-
-function memory() {
-  const items = new Map<string, string>()
-  return {
-    getItem: (key: string) => items.get(key) ?? null,
-    setItem: (key: string, value: string) => void items.set(key, value),
-  }
-}
+import { memoryStorage } from '../../../tests/support/local-storage'
 
 const node = (id: string, depth: number, children: BookNode[] = []): BookNode => ({
   id,
@@ -39,7 +32,7 @@ describe('notebook choices', () => {
   })
 
   it('goes from one window to the other through storage', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     expect(readNotebooks(storage)).toEqual([])
     publishNotebooks([{ id: 'a', name: 'Work', depth: 0 }], storage)
     expect(readNotebooks(storage)).toEqual([{ id: 'a', name: 'Work', depth: 0 }])
@@ -52,7 +45,7 @@ describe('notebook choices', () => {
   })
 
   it('keeps the templates apart from the notebooks, by ID and title', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     publishTemplates([{ id: 't', title: 'Daily' }], storage)
     expect(readTemplates(storage)).toEqual([{ id: 't', title: 'Daily' }])
     expect(readNotebooks(storage)).toEqual([])

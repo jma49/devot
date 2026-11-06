@@ -16,5 +16,6 @@
     "vite.ui-test.config.ts",
     "vitest.config.ts",
     "playwright.config.ts"
-  ]
+  ],
+  "exclude": ["tests/ui", "tests/ui-csp"]
 }

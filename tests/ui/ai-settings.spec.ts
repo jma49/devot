@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, openSettings, test, type TestWindow } from './fixtures'
+import { expect, openSettings, test } from './fixtures'
 
 // Settings > AI. Rust is faked in the page: it keeps the settings and says
 // only whether a key is stored, as the real commands do.
@@ -9,7 +9,7 @@ const SECRET = 'sk-test-0123456789'
 async function fakeRust(page: Page, failing?: string, storedKey = 'unset', keyFailing?: string) {
   await page.addInitScript(
     ([failure, initial, keyFailure]) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       const provider = (endpoint: string, model: string, defaultModel: string) => ({
         endpoint,
         model,
@@ -53,10 +53,7 @@ async function fakeRust(page: Page, failing?: string, storedKey = 'unset', keyFa
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 

@@ -14,21 +14,10 @@ async function newNote(page: Page, text: string) {
 }
 
 // The page's DOM, which the Node types of the test files do not describe.
-interface Dom {
-  getComputedStyle(element: unknown): {
-    fontWeight: string
-    textDecorationLine: string
-    color: string
-  }
-  document: {
-    body: { append(node: unknown): void }
-    createElement(tag: string): { style: { color: string }; remove(): void }
-  }
-}
 
 function lineStyle(locator: Locator) {
   return locator.evaluate((el) => {
-    const dom = globalThis as unknown as Dom
+    const dom = window
     const parts = [el, ...el.querySelectorAll('*')].filter((e) => e.textContent?.trim())
     const styles = parts.map((e) => dom.getComputedStyle(e))
     return {
@@ -41,7 +30,7 @@ function lineStyle(locator: Locator) {
 
 function tokenColor(page: Page, name: string) {
   return page.evaluate((variable) => {
-    const dom = globalThis as unknown as Dom
+    const dom = window
     const probe = dom.document.createElement('span')
     probe.style.color = `var(${variable})`
     dom.document.body.append(probe)

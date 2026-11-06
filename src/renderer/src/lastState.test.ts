@@ -15,24 +15,12 @@ import {
   type LastState,
   type WindowView,
 } from './lastState'
+import { memoryStorage } from '../../../tests/support/local-storage'
 
 const NOTE = '019a0000-0000-7000-8000-000000000001'
 const BOOK = '019a0000-0000-7000-8000-0000000000b1'
 const TAG = '019a0000-0000-7000-8000-0000000000a1'
 const PARENT = '019a0000-0000-7000-8000-0000000000b0'
-
-function memoryStorage() {
-  const items = new Map<string, string>()
-  return {
-    items,
-    getItem: (key: string) => items.get(key) ?? null,
-    setItem: (key: string, value: string) => void items.set(key, value),
-    key: (index: number) => [...items.keys()][index] ?? null,
-    get length() {
-      return items.size
-    },
-  }
-}
 
 const full: LastState = {
   view: { kind: 'book', id: BOOK },

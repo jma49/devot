@@ -1,10 +1,4 @@
-import {
-  changeEditorSettingsElsewhere,
-  expect,
-  openSettings,
-  test,
-  type TestWindow,
-} from './fixtures'
+import { changeEditorSettingsElsewhere, expect, openSettings, test } from './fixtures'
 
 const AT = new Date(2026, 10, 1, 12).getTime()
 const events = [
@@ -30,7 +24,7 @@ test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(AT)
   await page.addInitScript((storedEvents) => {
     let stored = storedEvents
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       usage_list: () => stored,
       usage_clear: () => {
         stored = []

@@ -42,10 +42,7 @@ async function writeOutside(page: Page, title: string, body: string, bookId: str
 
 const signalChange = (page: Page) =>
   page.evaluate((name) => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent(name))
   }, DB_CHANGED)
 
@@ -186,8 +183,7 @@ test('typing saved before the window hears of an outside write keeps both', asyn
   await expect(body).toHaveText('From Claude. Typed here. More.')
 })
 
-const selectedText = (page: Page) =>
-  page.evaluate(() => String((globalThis as unknown as { getSelection(): unknown }).getSelection()))
+const selectedText = (page: Page) => page.evaluate(() => String(window.getSelection()))
 
 test('an outside edit to the open note keeps the caret, the selection and undo', async ({
   page,

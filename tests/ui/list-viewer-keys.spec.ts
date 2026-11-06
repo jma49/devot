@@ -76,10 +76,7 @@ test('View Image opens the viewer from the palette on a line with an image; Tab 
   // setting the web view would skip the buttons, or leave the dialog.
   const handled = (shiftKey: boolean) =>
     page.evaluate((shift) => {
-      const w = globalThis as unknown as {
-        document: { activeElement: { dispatchEvent(e: unknown): boolean } | null }
-        KeyboardEvent: new (type: string, init: object) => unknown
-      }
+      const w = window
       const event = new w.KeyboardEvent('keydown', {
         key: 'Tab',
         shiftKey: shift,

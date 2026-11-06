@@ -1,7 +1,6 @@
 import type { Page } from '@playwright/test'
 import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
 
-// The page globals these tests touch; this config has no DOM types.
 interface Rect {
   left: number
   top: number
@@ -11,59 +10,21 @@ interface Rect {
   height: number
 }
 
-interface Animation {
-  pause(): void
-  currentTime: number | null
-  playState: string
-  finished: Promise<unknown>
-  effect: { getTiming(): { duration?: unknown }; getComputedTiming(): { endTime?: unknown } } | null
-}
-
-interface Node {
-  getBoundingClientRect(): Rect
-  getAnimations(): Animation[]
-  querySelector(selector: string): Node | null
-  querySelectorAll(selector: string): ArrayLike<Node>
-  getAttribute(name: string): string | null
-  click(): void
-  shadowRoot: Node | null
-  clientLeft: number
-  clientTop: number
-  clientWidth: number
-  clientHeight: number
-  scrollTop: number
-  scrollWidth: number
-}
-
-interface Win {
-  document: Node & {
-    getElementById(id: string): Node | null
-    timeline: { currentTime: number | null }
-  }
-  getComputedStyle(el: Node): { opacity: string; paddingLeft: string; clipPath: string }
-  requestAnimationFrame(callback: () => void): number
-  setTimeout(callback: () => void, ms: number): number
-  localStorage: { clear(): void; setItem(key: string, value: string): void }
-  performance: { now(): number }
-  devotSamples: number[][]
-  devotSampling: boolean
-}
-
 type Probe = 'column' | 'gutter' | 'panes' | 'rows'
 
 /** Records `probe` once a frame, then the animation time and the clock, until `stopSampling`. */
 function startSampling(page: Page, probe: Probe, arg = ''): Promise<void> {
   return page.evaluate(
     ([kind, key]) => {
-      const g = globalThis as unknown as Win
+      const g = window
       const doc = g.document
-      const textLeft = (el: Node | null | undefined) =>
+      const textLeft = (el: Element | null | undefined) =>
         el
           ? el.getBoundingClientRect().left +
             el.clientLeft +
             Number.parseFloat(g.getComputedStyle(el).paddingLeft)
           : Number.NaN
-      const opacity = (el: Node | null) =>
+      const opacity = (el: Element | null) =>
         el ? Number.parseFloat(g.getComputedStyle(el).opacity) : -1
       const measure = (): number[] => {
         if (kind === 'column') {
@@ -72,7 +33,7 @@ function startSampling(page: Page, probe: Probe, arg = ''): Promise<void> {
         }
         if (kind === 'gutter') {
           const editor = doc.querySelector('.editor')?.shadowRoot
-          const left = (el: Node | null | undefined) =>
+          const left = (el: Element | null | undefined) =>
             el ? el.getBoundingClientRect().left : Number.NaN
           const scroll = editor?.querySelector('.editor-scroll')
           return [
@@ -109,7 +70,7 @@ function startSampling(page: Page, probe: Probe, arg = ''): Promise<void> {
 
 function stopSampling(page: Page): Promise<number[][]> {
   return page.evaluate(() => {
-    const g = globalThis as unknown as Win
+    const g = window
     g.devotSampling = false
     return g.devotSamples
   })
@@ -169,7 +130,7 @@ async function createBook(page: Page, name: string) {
 /** Every motion slowed `scale` times (the UI tests' build reads it on each motion). */
 function slowMotion(page: Page, scale: number) {
   return page.evaluate((factor) => {
-    const g = globalThis as unknown as Win
+    const g = window
     g.localStorage.setItem('devot.motionScale', String(factor))
   }, scale)
 }
@@ -177,7 +138,7 @@ function slowMotion(page: Page, scale: number) {
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto('/')
-  await page.evaluate(() => (globalThis as unknown as Win).localStorage.clear())
+  await page.evaluate(() => window.localStorage.clear())
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('data-motion', 'full')
   await slowMotion(page, 5)
@@ -186,7 +147,7 @@ test.beforeEach(async ({ page }) => {
 /** Waits until every motion that ends (not the caret's blink) has ended, and three frames more. */
 function motionsSettled(page: Page): Promise<void> {
   return page.evaluate(async () => {
-    const g = globalThis as unknown as Win
+    const g = window
     const frame = () => new Promise<void>((done) => g.requestAnimationFrame(() => done()))
     for (let quiet = 0; quiet < 3;) {
       await frame()
@@ -221,7 +182,7 @@ interface Leaving {
 function leaving(page: Page, rows: string, row: Rect): Promise<Leaving> {
   return page.locator(`${rows} [data-closing="row"]`).evaluate(
     (ghost, [selector, before]) => {
-      const g = globalThis as unknown as Win
+      const g = window
       const list = g.document.querySelector(selector)
       if (!list) throw new Error('E_TEST_NO_LIST')
       const at = list.getBoundingClientRect()
@@ -235,7 +196,7 @@ function leaving(page: Page, rows: string, row: Rect): Promise<Leaving> {
         width: list.clientWidth,
         height: list.clientHeight,
       }
-      const node = ghost as unknown as Node
+      const node = ghost
       return {
         row: before,
         ghost: node.getBoundingClientRect(),
@@ -280,12 +241,12 @@ test('a trashed row fades out exactly where it was, and only inside the list', a
   // Half of it under the list's top edge, where the header and the sort chip are.
   // Scrolled once the selection has settled, then read again: nothing scrolls it back.
   const row = await noteRow(page, 'Seven').evaluate(async (el) => {
-    const g = globalThis as unknown as Win
+    const g = window
     const frames = async (n: number) => {
       for (let i = 0; i < n; i++)
         await new Promise<void>((done) => g.requestAnimationFrame(() => done()))
     }
-    const target = el as unknown as Node
+    const target = el
     const list = g.document.querySelector('.rows')
     if (!list) throw new Error('E_TEST_NO_LIST')
     await frames(3)
@@ -307,7 +268,7 @@ test('a deleted notebook fades out exactly where it was, inside the sidebar', as
   for (const name of ['Alpha', 'Bravo', 'Charlie']) await createBook(page, name)
   const item = page.locator('.sidebar [data-motion-key^="book:"]', { hasText: 'Bravo' })
   await item.locator('.book-row').click()
-  const row = await item.evaluate((el) => (el as unknown as Node).getBoundingClientRect())
+  const row = await item.evaluate((el) => el.getBoundingClientRect())
   await page.keyboard.press('Backspace')
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.keyboard.press('Enter')
@@ -320,7 +281,7 @@ test('a row trashed while it fades in fades out from there, never brighter', asy
   const keep = (await noteRow(page, 'Keep').getAttribute('data-note-id')) ?? ''
   // The new row's fade is held a quarter of the way in, however long the clicks below take.
   const held = page.evaluate((key) => {
-    const g = globalThis as unknown as Win
+    const g = window
     return new Promise<number>((done) => {
       const look = () => {
         const fresh = Array.from(g.document.querySelectorAll('.rows [data-note-id]')).find(
@@ -360,15 +321,15 @@ test('a section clicked again while it closes opens again', async ({ page }) => 
   const toggle = page.locator(sectionToggle)
   await expect(toggle).toHaveAttribute('aria-expanded', 'true')
   await page.evaluate(async (selector) => {
-    const g = globalThis as unknown as Win
-    g.document.querySelector(selector)?.click()
+    const g = window
+    g.document.querySelector<HTMLElement>(selector)?.click()
     await new Promise<void>((done) => g.setTimeout(done, 30))
-    g.document.querySelector(selector)?.click()
+    g.document.querySelector<HTMLElement>(selector)?.click()
   }, sectionToggle)
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const list = (globalThis as unknown as Win).document.getElementById('statuses-list')
+        const list = window.document.getElementById('statuses-list')
         return list ? list.getBoundingClientRect().height : 0
       }),
     )
@@ -383,13 +344,13 @@ test('a section closed while it opens shrinks from where it is', async ({ page }
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-expanded', 'false')
   const heights = await page.evaluate(async (selector) => {
-    const g = globalThis as unknown as Win
+    const g = window
     const frame = () => new Promise<void>((done) => g.requestAnimationFrame(() => done()))
     const list = () => g.document.getElementById('statuses-list')
-    g.document.querySelector(selector)?.click()
+    g.document.querySelector<HTMLElement>(selector)?.click()
     for (let i = 0; i < 12; i++) await frame()
     const seen = [list()?.getBoundingClientRect().height ?? -1]
-    g.document.querySelector(selector)?.click()
+    g.document.querySelector<HTMLElement>(selector)?.click()
     for (let i = 0; i < 600 && list(); i++) {
       await frame()
       seen.push(list()?.getBoundingClientRect().height ?? 0)
@@ -481,7 +442,7 @@ test('entering focus mode while the sidebar still hides carries every pane on fr
   // still enters focus mode partway through the sidebar's fade.
   const toggle = await page.evaluate(
     async ([hideButton, focusToggle]) => {
-      const g = globalThis as unknown as Win
+      const g = window
       const doc = g.document
       const frame = () => new Promise<void>((done) => g.requestAnimationFrame(() => done()))
       const now = () => Number(doc.timeline.currentTime)
@@ -495,14 +456,14 @@ test('entering focus mode while the sidebar still hides carries every pane on fr
           ]
         })
       const focused = () => doc.querySelector('.window[data-focus]') !== null
-      ;(hideButton as unknown as Node).click()
+      ;(hideButton as HTMLElement).click()
       await frame()
       const hidden = now()
       while (now() - hidden < 300) await frame()
       const before = panes()
       const at = now()
       const clock = g.performance.now()
-      ;(focusToggle as unknown as Node).click()
+      ;(focusToggle as HTMLElement).click()
       for (let i = 0; i < 100 && !focused(); i++) await Promise.resolve()
       for (let i = 0; i < 20 && !focused(); i++) await frame()
       // WebKit may draw the moves at the clock's time before the animation time moves on.

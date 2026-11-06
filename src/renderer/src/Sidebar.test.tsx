@@ -5,20 +5,13 @@ import type { BookNode } from '../../core/books'
 import type { TagRecord } from '../../core/storage'
 import { Sidebar } from './Sidebar'
 import { sectionStore, type SectionStore } from './sidebarSections'
+import { memoryStorage } from '../../../tests/support/local-storage'
 
 // Icons and the footer read the window (symbols, the mirror and backups); the
 // sections are what these tests look at.
 vi.mock('./icons/Icon', () => ({ Icon: () => null, SymbolIcon: () => null }))
 vi.mock('./SidebarFooter', () => ({ SidebarFooter: () => null }))
 vi.mock('./commands/shortcutSettings', () => ({ useKeymap: () => ({}) }))
-
-const memory = () => {
-  const map = new Map<string, string>()
-  return {
-    getItem: (key: string) => map.get(key) ?? null,
-    setItem: (key: string, value: string) => void map.set(key, value),
-  }
-}
 
 const book: BookNode = {
   id: 'b1',
@@ -94,7 +87,7 @@ const order = (html: string, texts: string[]) =>
 
 describe('Sidebar sections', () => {
   it('render in the order: All Notes, Pinned, Templates, Notebooks, Status, Tags, Trash', () => {
-    const html = render(sectionStore(memory(), 'main'))
+    const html = render(sectionStore(memoryStorage(), 'main'))
     const found = order(html, [
       'All Notes',
       'Pinned',
@@ -110,7 +103,7 @@ describe('Sidebar sections', () => {
   })
 
   it('hides the rows of a collapsed Tags section, and a fresh sidebar remembers it', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     expect(render(sectionStore(storage, 'main'))).toContain('Tutorial')
     sectionStore(storage, 'main').save(new Set(['tags']))
     const collapsed = render(sectionStore(storage, 'main'))
@@ -128,7 +121,7 @@ describe('Sidebar sections', () => {
       depth: 1,
     }
     const parent: BookNode = { ...book, children: [child] }
-    const storage = memory()
+    const storage = memoryStorage()
     expect(render(sectionStore(storage, 'main'), [parent])).toContain('Receipts')
     sectionStore(storage, 'main').saveBooks(new Set(['b1']))
     const folded = render(sectionStore(storage, 'main'), [parent])
@@ -137,7 +130,7 @@ describe('Sidebar sections', () => {
   })
 
   it('turns one chevron: down while a section is open, up while it is folded', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     const open = render(sectionStore(storage, 'main'))
     expect(open).toMatch(/aria-label="Collapse Tags"[^>]*><span class="chevron"><\/span>/)
     sectionStore(storage, 'main').save(new Set(['tags']))
@@ -148,7 +141,7 @@ describe('Sidebar sections', () => {
   })
 
   it('shows a chevron on Status and Tags, a search on Notebooks and Tags', () => {
-    const html = render(sectionStore(memory(), 'main'))
+    const html = render(sectionStore(memoryStorage(), 'main'))
     expect(html).toContain('aria-label="Collapse Status"')
     expect(html).toContain('aria-label="Collapse Tags"')
     expect(html).toContain('aria-label="Search Notebooks"')
@@ -164,7 +157,7 @@ describe('Saved searches in the sidebar', () => {
   ]
 
   it('sit between Status and Tags, each with its count, none for one with text', () => {
-    const html = render(sectionStore(memory(), 'main'), [book], { savedSearches: searches })
+    const html = render(sectionStore(memoryStorage(), 'main'), [book], { savedSearches: searches })
     const positions = order(html, ['Status', 'Saved Searches', 'In flight', 'Mentions', 'Tags'])
     expect(positions.every(([, at]) => at >= 0)).toBe(true)
     const at = positions.map(([, each]) => each)
@@ -174,7 +167,7 @@ describe('Saved searches in the sidebar', () => {
   })
 
   it('shows the one the search field runs as pressed', () => {
-    const html = render(sectionStore(memory(), 'main'), [book], {
+    const html = render(sectionStore(memoryStorage(), 'main'), [book], {
       savedSearches: searches,
       activeSearch: 's2',
     })
@@ -183,8 +176,8 @@ describe('Saved searches in the sidebar', () => {
   })
 
   it('has no section without saved searches, and folds like the others', () => {
-    expect(render(sectionStore(memory(), 'main'))).not.toContain('Saved Searches')
-    const storage = memory()
+    expect(render(sectionStore(memoryStorage(), 'main'))).not.toContain('Saved Searches')
+    const storage = memoryStorage()
     sectionStore(storage, 'main').save(new Set(['searches']))
     const folded = render(sectionStore(storage, 'main'), [book], { savedSearches: searches })
     expect(folded).toContain('aria-label="Expand Saved Searches"')
@@ -197,7 +190,7 @@ describe('Sidebar in a workspace', () => {
   const space: BookNode = { ...book, id: 'w1', name: 'Projects', parentId: 'w0', depth: 1 }
   const sub: BookNode = { ...book, id: 'w2', name: 'Plans', parentId: 'w1', depth: 0 }
   const inWorkspace = () =>
-    render(sectionStore(memory(), 'main'), [sub], {
+    render(sectionStore(memoryStorage(), 'main'), [sub], {
       total: 3,
       selection: { kind: 'book', id: 'w1' },
       statusCounts: new Map([['active', 2]]),
@@ -231,7 +224,7 @@ describe('Sidebar in a workspace', () => {
   })
 
   it('shows no title outside a workspace', () => {
-    const html = render(sectionStore(memory(), 'main'))
+    const html = render(sectionStore(memoryStorage(), 'main'))
     expect(html).not.toContain('sidebar-workspace')
     expect(html).toContain('data-sidebar-row="all"')
   })

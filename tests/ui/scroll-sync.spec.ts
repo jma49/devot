@@ -1,29 +1,7 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test, openApp, type TestWindow } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test, openApp } from './fixtures'
 
 const SECTIONS = 120
-
-/** The DOM these tests touch (this config has no DOM types). */
-interface DomNode {
-  scrollTop: number
-  readonly scrollHeight: number
-  readonly clientHeight: number
-  readonly clientTop: number
-  readonly textContent: string | null
-  readonly shadowRoot: {
-    querySelector(selector: string): DomNode | null
-  } | null
-  querySelectorAll(selector: string): ArrayLike<DomNode>
-  getBoundingClientRect(): { top: number }
-  closest(selector: string): DomNode | null
-  querySelector(selector: string): DomNode | null
-  addEventListener(type: string, listener: () => void): void
-  focus(): void
-}
-interface PageGlobals {
-  document: { querySelector(selector: string): DomNode | null }
-  requestAnimationFrame(run: () => void): number
-}
 
 function longNote(): string {
   const parts: string[] = []
@@ -54,7 +32,7 @@ async function openLongNote(page: Page) {
 /** Scrolls the editor until the line `text` is at its top, one step per frame as a user would. */
 async function scrollEditorTo(page: Page, text: string) {
   await page.evaluate(async (wanted) => {
-    const win = globalThis as unknown as PageGlobals
+    const win = window
     const box = win.document
       .querySelector('[data-devot-part="editor-body"]')!
       .shadowRoot!.querySelector('.editor-scroll')!
@@ -83,9 +61,9 @@ async function scrollPreviewTo(page: Page, name: string) {
   await preview(page)
     .getByRole('heading', { name, exact: true })
     .evaluate((heading) => {
-      const pane = (heading as unknown as DomNode).closest('.preview')!
+      const pane = heading.closest('.preview')!
       const top = pane.getBoundingClientRect().top + pane.clientTop
-      pane.scrollTop += (heading as unknown as DomNode).getBoundingClientRect().top - top
+      pane.scrollTop += heading.getBoundingClientRect().top - top
     })
 }
 
@@ -93,8 +71,8 @@ function previewOffset(page: Page, name: string) {
   return preview(page)
     .getByRole('heading', { name, exact: true })
     .evaluate((heading) => {
-      const pane = (heading as unknown as DomNode).closest('.preview')!
-      const top = (heading as unknown as DomNode).getBoundingClientRect().top
+      const pane = heading.closest('.preview')!
+      const top = heading.getBoundingClientRect().top
       return top - pane.getBoundingClientRect().top - pane.clientTop
     })
 }
@@ -102,7 +80,7 @@ function previewOffset(page: Page, name: string) {
 /** How far the editor line `text` is below the editor's top edge, or null when it is not drawn. */
 function editorOffset(page: Page, text: string) {
   return page.evaluate((wanted) => {
-    const win = globalThis as unknown as PageGlobals
+    const win = window
     const box = win.document
       .querySelector('[data-devot-part="editor-body"]')!
       .shadowRoot!.querySelector('.editor-scroll')!
@@ -114,7 +92,7 @@ function editorOffset(page: Page, text: string) {
 
 const scrollTops = (page: Page) =>
   page.evaluate(() => {
-    const win = globalThis as unknown as PageGlobals
+    const win = window
     const box = win.document
       .querySelector('[data-devot-part="editor-body"]')!
       .shadowRoot!.querySelector('.editor-scroll')!
@@ -163,12 +141,8 @@ test('the editor lines up again when its lines turn out taller than it guessed',
   await scrollPreviewTo(page, 'Section 70')
   await expect.poll(() => editorOffset(page, '## Section 70').then(near)).toBe(true)
   await page.locator('[data-devot-part="editor-body"]').evaluate((host) => {
-    const root = (host as unknown as { shadowRoot: { append(node: unknown): void } }).shadowRoot
-    const doc = (
-      globalThis as unknown as {
-        document: { createElement(tag: string): { textContent: string } }
-      }
-    ).document
+    const root = host.shadowRoot!
+    const doc = window.document
     const style = doc.createElement('style')
     style.textContent = '.cm-line { padding-bottom: 8px !important; }'
     root.append(style)
@@ -187,7 +161,7 @@ test('a wheel over either pane scrolls both, and the follower never scrolls back
   await expect.poll(async () => (await scrollTops(page)).preview).toBeGreaterThan(500)
   // Once both have settled, nothing moves any more: no scroll went back and forth.
   const settled = await page.evaluate(async () => {
-    const win = globalThis as unknown as PageGlobals
+    const win = window
     const frame = () => new Promise<void>((done) => win.requestAnimationFrame(() => done()))
     const box = win.document
       .querySelector('[data-devot-part="editor-body"]')!
@@ -226,7 +200,7 @@ test('wheel steps move the preview in the same event, never back, to the matchin
     last = top
   }
   const next = await page.evaluate(() => {
-    const win = globalThis as unknown as PageGlobals
+    const win = window
     const box = win.document
       .querySelector('[data-devot-part="editor-body"]')!
       .shadowRoot!.querySelector('.editor-scroll')!
@@ -261,8 +235,8 @@ test('the preview keeps up while typing above what it shows', async ({ page }) =
     .poll(async () => {
       const inEditor = await editorOffset(page, 'Inserted paragraph')
       const inPreview = await inserted.evaluate((block) => {
-        const pane = (block as unknown as DomNode).closest('.preview')!
-        const top = (block as unknown as DomNode).getBoundingClientRect().top
+        const pane = block.closest('.preview')!
+        const top = block.getBoundingClientRect().top
         return top - pane.getBoundingClientRect().top - pane.clientTop
       })
       return inEditor !== null && Math.abs(inEditor) < 50 && near(inPreview - inEditor)
@@ -281,7 +255,7 @@ test('is on by default and turned off and on from the palette', async ({ page })
   await expect
     .poll(() =>
       page.evaluate(() =>
-        (globalThis as unknown as TestWindow).devotIpcCalls
+        window.devotIpcCalls
           .filter((c) => c.cmd === 'editor_settings_set')
           .map((c) => c.args['patch']),
       ),

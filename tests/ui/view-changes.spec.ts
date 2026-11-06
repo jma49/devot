@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, pickNoteMore, pickStatus, openApp, type TestWindow } from './fixtures'
+import { expect, test, pickNoteMore, pickStatus, openApp } from './fixtures'
 
 // Window shortcuts are pressed with Meta, as the app's registry takes it on every platform.
 
@@ -178,12 +178,7 @@ test.describe('Templates', () => {
 
   test('Sort Notes in the palette opens the sort pop-up', async ({ page }) => {
     const popups = () =>
-      page.evaluate(
-        () =>
-          (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-            (c) => c.cmd === 'plugin:menu|popup',
-          ).length,
-      )
+      page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
     await createTemplate(page, 'Weekly')
     await page.keyboard.press('Meta+KeyK')
     await paletteField(page).fill('Sort Notes')

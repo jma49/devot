@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, openApp, type TestWindow } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 import { slowCore } from './slowCore'
 
 // Switching notes keeps the note being left on screen until the next one's
@@ -27,7 +27,7 @@ async function newNote(page: Page, title: string, text: string) {
 /** Samples the editor's and the preview's text every frame until `stop` is called. */
 const watchFrames = (page: Page) =>
   page.evaluate(() => {
-    const w = window as unknown as { devotFrames: { editor: string; preview: string }[] }
+    const w = window
     w.devotFrames = []
     const sample = () => {
       const editor =
@@ -41,10 +41,7 @@ const watchFrames = (page: Page) =>
     requestAnimationFrame(sample)
   })
 
-const framesSeen = (page: Page) =>
-  page.evaluate(
-    () => (window as unknown as { devotFrames: { editor: string; preview: string }[] }).devotFrames,
-  )
+const framesSeen = (page: Page) => page.evaluate(() => window.devotFrames)
 
 test.beforeEach(async ({ page }) => {
   await slowCore(page, ['open'])
@@ -158,9 +155,8 @@ test('keys typed after a switch is called off go to the note still shown, never 
 const editorMenus = (page: Page) =>
   page.evaluate(
     () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter((c) =>
-        ['editor_menu_popup', 'plugin:menu|popup'].includes(c.cmd),
-      ).length,
+      window.devotIpcCalls.filter((c) => ['editor_menu_popup', 'plugin:menu|popup'].includes(c.cmd))
+        .length,
   )
 
 test('the note being left offers no editor menu while the next one loads, so nothing aims at the wrong note (#531)', async ({

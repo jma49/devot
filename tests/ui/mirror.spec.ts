@@ -6,7 +6,6 @@ import {
   openSettings,
   test,
   type MockMirror,
-  type TestWindow,
 } from './fixtures'
 
 // The Markdown mirror in the UI; Rust's side is the fixture's fake (tests/core covers the passes on real files). App shortcuts are pressed with Meta.
@@ -16,21 +15,18 @@ const ON: Partial<MockMirror> = { folder: '~/Notes', generation: 1, size: 12_345
 const section = (page: Page) => page.getByRole('region', { name: 'Markdown Mirror' }).first()
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 const setPick = (page: Page, pick: { folder: string; name: string; empty: boolean } | null) =>
   page.evaluate((p) => {
-    ;(globalThis as unknown as TestWindow).devotMirrorPick = p
+    window.devotMirrorPick = p
   }, pick)
 
 async function openWith(page: Page, path: string, mirror?: Partial<MockMirror>) {
   if (mirror) {
     await page.addInitScript((m) => {
-      ;(globalThis as unknown as TestWindow).devotMirror = {
+      window.devotMirror = {
         revision: 0,
         generation: 0,
         folder: null,
@@ -141,7 +137,7 @@ test.describe('Settings > Markdown Mirror', () => {
 
   test('says why a folder could not be used', async ({ page }) => {
     await page.addInitScript(() => {
-      ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      window.devotIpcMocks = {
         mirror_choose: { error: 'E_MIRROR_FOLDER_READ_ONLY' },
       }
     })
@@ -163,8 +159,7 @@ const notices = (page: Page) => page.locator('.notices [role="alert"]')
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
-const applied = (page: Page) =>
-  page.evaluate(() => (globalThis as unknown as TestWindow).devotMirrorApplied ?? [])
+const applied = (page: Page) => page.evaluate(() => window.devotMirrorApplied ?? [])
 
 async function runCommand(page: Page, query: string, label: string) {
   await page.keyboard.press('Meta+KeyK')
@@ -211,7 +206,7 @@ test.describe('the main window', () => {
 
   test('says what could not be done: a folder used, or the mirror turned off', async ({ page }) => {
     await page.addInitScript(() => {
-      ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      window.devotIpcMocks = {
         mirror_choose: { error: 'E_MIRROR_FOLDER_READ_ONLY' },
         mirror_set: { error: 'E_MIRROR_SETTINGS_WRITE_FAILED' },
       }
@@ -257,7 +252,7 @@ test.describe('the main window', () => {
 
   test("a pass's failures reach the log by code", async ({ page }) => {
     await page.addInitScript(() => {
-      ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      window.devotIpcMocks = {
         mirror_apply: (args: unknown) =>
           ((args as { ops: unknown[] }).ops ?? []).map(() => ({ code: 'E_MIRROR_WRITE_FAILED' })),
       }
@@ -284,7 +279,7 @@ test.describe('the main window', () => {
       .toContain('First line.')
 
     await page.addInitScript(() => {
-      ;(globalThis as unknown as TestWindow).devotMirror = {
+      window.devotMirror = {
         revision: 0,
         generation: 1,
         folder: '~/Notes',

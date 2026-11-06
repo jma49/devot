@@ -6,15 +6,7 @@ import {
   paneWidthForKey,
   paneWidthStore,
 } from './paneWidth'
-
-function memory(initial: Record<string, string> = {}) {
-  const items = new Map(Object.entries(initial))
-  return {
-    items,
-    getItem: (key: string) => items.get(key) ?? null,
-    setItem: (key: string, value: string) => void items.set(key, value),
-  }
-}
+import { memoryStorage } from '../../../tests/support/local-storage'
 
 describe('the note list width', () => {
   it('is 300 px by default, between 220 and 500 px', () => {
@@ -32,12 +24,12 @@ describe('the note list width', () => {
   })
 
   it('opens at the default until a width is remembered', () => {
-    expect(paneWidthStore(LIST_PANE, memory()).read()).toBe(300)
+    expect(paneWidthStore(LIST_PANE, memoryStorage()).read()).toBe(300)
     expect(paneWidthStore(LIST_PANE, undefined).read()).toBe(300)
   })
 
   it('remembers the width a drag ended at, clamped', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     paneWidthStore(LIST_PANE, storage).write(412.2)
     expect(storage.items.get('devot.list.width')).toBe('412')
     expect(paneWidthStore(LIST_PANE, storage).read()).toBe(412)
@@ -46,10 +38,14 @@ describe('the note list width', () => {
   })
 
   it('clamps or ignores a remembered value it cannot use', () => {
-    expect(paneWidthStore(LIST_PANE, memory({ 'devot.list.width': '9999' })).read()).toBe(500)
-    expect(paneWidthStore(LIST_PANE, memory({ 'devot.list.width': '12' })).read()).toBe(220)
-    expect(paneWidthStore(LIST_PANE, memory({ 'devot.list.width': 'wide' })).read()).toBe(300)
-    expect(paneWidthStore(LIST_PANE, memory({ 'devot.list.width': '' })).read()).toBe(300)
+    expect(paneWidthStore(LIST_PANE, memoryStorage({ 'devot.list.width': '9999' })).read()).toBe(
+      500,
+    )
+    expect(paneWidthStore(LIST_PANE, memoryStorage({ 'devot.list.width': '12' })).read()).toBe(220)
+    expect(paneWidthStore(LIST_PANE, memoryStorage({ 'devot.list.width': 'wide' })).read()).toBe(
+      300,
+    )
+    expect(paneWidthStore(LIST_PANE, memoryStorage({ 'devot.list.width': '' })).read()).toBe(300)
   })
 
   it('works on with storage that fails', () => {
@@ -107,12 +103,14 @@ describe('the sidebar width', () => {
   })
 
   it('is kept under its own key, apart from the note list width', () => {
-    const storage = memory({ 'devot.list.width': '400' })
+    const storage = memoryStorage({ 'devot.list.width': '400' })
     paneWidthStore(SIDEBAR_PANE, storage).write(260.4)
     expect(storage.items.get('devot.sidebar.width')).toBe('260')
     expect(paneWidthStore(SIDEBAR_PANE, storage).read()).toBe(260)
     expect(paneWidthStore(LIST_PANE, storage).read()).toBe(400)
-    expect(paneWidthStore(SIDEBAR_PANE, memory({ 'devot.sidebar.width': '9999' })).read()).toBe(500)
+    expect(
+      paneWidthStore(SIDEBAR_PANE, memoryStorage({ 'devot.sidebar.width': '9999' })).read(),
+    ).toBe(500)
     expect(paneWidthStore(SIDEBAR_PANE, undefined).read()).toBe(200)
   })
 })

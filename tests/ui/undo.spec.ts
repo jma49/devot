@@ -41,10 +41,7 @@ async function editOutside(page: Page, title: string, edit: (doc: Y.Doc) => void
   await page.evaluate((all) => localStorage.setItem('devot.test.notes', JSON.stringify(all)), notes)
   // Rust's `devot://db-changed`, as the page re-sends it.
   await page.evaluate((name) => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent(name))
   }, DB_CHANGED)
 }

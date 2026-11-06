@@ -19,23 +19,12 @@ const titleField = (page: Page) => page.getByRole('textbox', { name: 'Title' })
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 
-/** Page globals these tests read; no DOM types in this config. */
-interface PageGlobals {
-  document: {
-    createRange(): {
-      selectNodeContents(node: unknown): void
-      getClientRects(): ArrayLike<{ x: number; y: number }>
-    }
-  }
-  getComputedStyle(el: unknown): { color: string }
-}
-
 const textStart = (page: Page, selector: string) =>
   page
     .locator(selector)
     .first()
     .evaluate((el) => {
-      const g = globalThis as unknown as PageGlobals
+      const g = window
       const range = g.document.createRange()
       range.selectNodeContents(el)
       const rect = range.getClientRects()[0]
@@ -196,10 +185,8 @@ for (const scheme of ['light', 'dark'] as const) {
         .locator('.cm-content span')
         .filter({ hasText: new RegExp(`^${text.replace(/[*()[\]]/g, '\\$&')}$`) })
         .first()
-        .evaluate((el) => (globalThis as unknown as PageGlobals).getComputedStyle(el).color)
-    const text = await body(page).evaluate(
-      (el) => (globalThis as unknown as PageGlobals).getComputedStyle(el).color,
-    )
+        .evaluate((el) => window.getComputedStyle(el).color)
+    const text = await body(page).evaluate((el) => window.getComputedStyle(el).color)
     const mark = await colourOf('###')
     const heading = await colourOf(' Free Mode')
     expect(mark).not.toBe(heading)
@@ -230,12 +217,8 @@ test('split mode gives the editor and the preview half each, with no rule and no
   if (!editorBox || !previewBox) throw new Error('no panes')
   expect(Math.abs(editorBox.width - previewBox.width)).toBeLessThan(2)
   const gutter = await page.evaluate(() => {
-    const d = (globalThis as unknown as { document: { querySelector(s: string): unknown } })
-      .document
-    const style = (el: unknown) =>
-      (
-        globalThis as unknown as { getComputedStyle(el: unknown): Record<string, string> }
-      ).getComputedStyle(el)
+    const d = window.document
+    const style = (el: Element | null) => getComputedStyle(el!)
     return (
       parseFloat(style(d.querySelector('.editor'))['paddingRight'] ?? '0') +
       parseFloat(style(d.querySelector('.preview'))['paddingLeft'] ?? '0')

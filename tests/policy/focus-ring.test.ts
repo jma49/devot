@@ -1,7 +1,7 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { cssRules } from '../support/css-rules'
+import { listFiles } from '../support/git-files'
 
 // One `size.focus-ring` ring in `color.focus.ring` on every custom control, just inside when the control clips children;
 // the theme card's ring sits beside its selection ring. Native form controls keep the system ring.
@@ -12,13 +12,6 @@ const DASHED_RING = 'var(--size-focus-ring) dashed var(--color-focus-ring)'
 const OFFSETS = new Set(['0', 'calc(-1 * var(--size-focus-ring))', 'var(--size-focus-ring)'])
 /** Not a focus ring: where a drag will drop (`.drop-target`), dashed. */
 const DROP = 'var(--size-drop-indicator) dashed var(--color-accent-fill)'
-
-function files(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name)
-    return statSync(path).isDirectory() ? files(path) : [path]
-  })
-}
 
 function offenders(css: string): string[] {
   return cssRules(css).flatMap(({ selector, body }) => {
@@ -33,7 +26,7 @@ function offenders(css: string): string[] {
 }
 
 it('draws every focus ring from the focus ring tokens', () => {
-  const css = files(UI_ROOT).filter((f) => f.endsWith('.css') && !f.endsWith('tokens.css'))
+  const css = listFiles('.', UI_ROOT).filter((f) => f.endsWith('.css') && !f.endsWith('tokens.css'))
   expect(css.flatMap((f) => offenders(readFileSync(f, 'utf8')))).toEqual([])
 })
 
@@ -50,7 +43,9 @@ it('the focus ring check catches other rings and leaves the token ring alone', (
 })
 
 it('no UI code paints an outline in the accent colour', () => {
-  const ts = files(UI_ROOT).filter((f) => /\.tsx?$/.test(f) && !f.includes('/theme/tokens'))
+  const ts = listFiles('.', UI_ROOT).filter(
+    (f) => /\.tsx?$/.test(f) && !f.includes('/theme/tokens'),
+  )
   const found = ts.flatMap((f) =>
     readFileSync(f, 'utf8')
       .split('\n')

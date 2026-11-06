@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, test, type TestWindow, pickNoteMore } from './fixtures'
+import { expect, pickMenuItem, test, pickNoteMore } from './fixtures'
 
 const FILES: Record<string, string> = {
   // Front matter of its own: kept in the note, nothing read from it.
@@ -61,7 +61,7 @@ async function confirm(page: Page, into?: string) {
 async function open(page: Page, options: { hold?: boolean } = {}) {
   await page.addInitScript(
     ({ files, hold }) => {
-      const w = globalThis as unknown as TestWindow & { releaseImport?: () => void }
+      const w = window
       let release = () => {}
       const held = hold ? new Promise<void>((resolve) => (release = resolve)) : Promise.resolve()
       w.releaseImport = () => release()
@@ -98,10 +98,7 @@ const send = (
 ) =>
   page.evaluate(
     ({ type: name, detail: payload }) => {
-      const w = globalThis as unknown as {
-        dispatchEvent(e: unknown): void
-        CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-      }
+      const w = window
       w.dispatchEvent(new w.CustomEvent(name, { detail: payload }))
     },
     { type, detail },
@@ -109,19 +106,13 @@ const send = (
 
 const showBackups = (page: Page) =>
   page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:show-backups'))
   })
 const backups = (page: Page) => page.getByRole('dialog', { name: 'Backups' })
 
 const calls = (page: Page, cmd: string) =>
-  page.evaluate(
-    (c) => (globalThis as unknown as TestWindow).devotIpcCalls.filter((call) => call.cmd === c),
-    cmd,
-  )
+  page.evaluate((c) => window.devotIpcCalls.filter((call) => call.cmd === c), cmd)
 
 const scanning = (page: Page, id = 7, name = 'Vault') =>
   send(page, 'devot:import-scanning', { id, name, kind: 'folder' })
@@ -441,7 +432,7 @@ test('shows progress while importing and cannot be dismissed until done', async 
     await expect(dialog(page)).toBeVisible()
   }
 
-  await page.evaluate(() => (globalThis as unknown as { releaseImport(): void }).releaseImport())
+  await page.evaluate(() => window.releaseImport())
   await expect(dialog(page)).toContainText('Imported 3 notes into 2 notebooks.')
   await expect(dialog(page).getByRole('progressbar')).toHaveCount(0)
   await page.keyboard.press('Escape')
@@ -508,7 +499,7 @@ test('imports picked in a row wait until the previous one is closed', async ({ p
   await send(page, 'devot:import-ready', { ...SCAN, id: 9, name: 'Second', skipped: [] })
   await confirm(page)
   await expect(dialog(page)).toContainText('Importing \u201cVault\u201d\u2026')
-  await page.evaluate(() => (globalThis as unknown as { releaseImport(): void }).releaseImport())
+  await page.evaluate(() => window.releaseImport())
   await expect(dialog(page)).toContainText('Imported 3 notes into 2 notebooks.')
   await expect(dialog(page)).toContainText('Huge.md')
   await button(page, 'Done').click()
@@ -535,7 +526,7 @@ test('backups wait while an import runs, so a restore cannot mix with it', async
   await expect(dialog(page)).toBeVisible()
   await expect(backups(page)).toHaveCount(0)
 
-  await page.evaluate(() => (globalThis as unknown as { releaseImport(): void }).releaseImport())
+  await page.evaluate(() => window.releaseImport())
   await expect(dialog(page)).toContainText('Imported 3 notes into 2 notebooks.')
   await expect(backups(page)).toHaveCount(0)
   await button(page, 'Done').click()

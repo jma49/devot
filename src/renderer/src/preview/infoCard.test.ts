@@ -7,6 +7,7 @@ import {
   parseDateInput,
   setBacklinksOpen,
 } from './infoCard'
+import { memoryStorage } from '../../../../tests/support/local-storage'
 
 const info = {
   noteId: '0192a6f0-0000-7000-8000-00000000000a',
@@ -44,11 +45,7 @@ describe('the note info card', () => {
 
 describe('the backlinks preference', () => {
   it('starts closed and remembers the last choice', () => {
-    const kept = new Map<string, string>()
-    const storage = {
-      getItem: (k: string) => kept.get(k) ?? null,
-      setItem: (k: string, v: string) => void kept.set(k, v),
-    }
+    const storage = memoryStorage()
     expect(backlinksOpen(storage)).toBe(false)
     setBacklinksOpen(true, storage)
     expect(backlinksOpen(storage)).toBe(true)

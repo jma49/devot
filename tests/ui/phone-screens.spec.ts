@@ -244,7 +244,7 @@ test.describe('under Reduce Motion', () => {
 test('at twice the text size every peek action is on screen', async ({ page }) => {
   await openNotes(page)
   await page.locator('.phone-app').evaluate((app) => {
-    const shell = app as unknown as { style: CSSStyleDeclaration; dataset: Record<string, string> }
+    const shell = app
     shell.style.setProperty('--phone-text-scale', '2')
     shell.dataset['textSize'] = 'accessibility'
   })

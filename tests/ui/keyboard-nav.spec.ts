@@ -1,15 +1,7 @@
 // Window shortcuts are pressed with Meta (the registry's Mod matches metaKey on every platform);
 // editor keys are platform-neutral, and the caret is placed by typing and clicking only.
 import type { Locator, Page } from '@playwright/test'
-import {
-  expect,
-  pickMenuItem,
-  reloadApp,
-  test,
-  type TestWindow,
-  pickNoteMore,
-  pickStatus,
-} from './fixtures'
+import { expect, pickMenuItem, reloadApp, test, pickNoteMore, pickStatus } from './fixtures'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const noteRows = (page: Page) => list(page).getByRole('option')
@@ -55,10 +47,7 @@ async function typeBody(page: Page, text: string) {
 
 const ipcCalls = (page: Page, cmd: string) =>
   page.evaluate(
-    (name) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((c) => c.cmd === name)
-        .map((c) => c.args),
+    (name) => window.devotIpcCalls.filter((c) => c.cmd === name).map((c) => c.args),
     cmd,
   )
 
@@ -66,10 +55,7 @@ const ipcCalls = (page: Page, cmd: string) =>
 const pressTwiceAtOnce = (page: Page, code: 'BracketLeft' | 'BracketRight', shift = false) =>
   page.evaluate(
     (press) => {
-      const w = globalThis as unknown as {
-        document: { activeElement: unknown; body: { dispatchEvent(e: unknown): void } }
-        KeyboardEvent: new (type: string, init: Record<string, unknown>) => unknown
-      }
+      const w = window
       const { code: keyCode, shift: shiftKey } = press
       const key = { BracketLeft: shiftKey ? '{' : '[', BracketRight: shiftKey ? '}' : ']' }[keyCode]
       const init = { key, code: keyCode, metaKey: true, shiftKey, bubbles: true, cancelable: true }
@@ -86,10 +72,7 @@ const pressTwiceAtOnce = (page: Page, code: 'BracketLeft' | 'BracketRight', shif
 const holdKey = (page: Page, key: string, times: number, shift = true) =>
   page.evaluate(
     (press) => {
-      const w = globalThis as unknown as {
-        document: { activeElement: unknown; body: { dispatchEvent(e: unknown): void } }
-        KeyboardEvent: new (type: string, init: Record<string, unknown>) => unknown
-      }
+      const w = window
       const init = {
         key: press.key,
         code: press.key,
@@ -110,10 +93,7 @@ const holdKey = (page: Page, key: string, times: number, shift = true) =>
 /** View > Hide Sidebar from the menu bar; the page receives it as this event. */
 const pickViewHideSidebar = (page: Page) =>
   page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (type: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:toggle-sidebar'))
   })
 
@@ -502,12 +482,7 @@ test('arrowing out of the Trash shows All Notes without the filter left behind',
 
 test('Sort Notes\u2026 in the palette opens the list\u2019s sort pop-up', async ({ page }) => {
   const popups = () =>
-    page.evaluate(
-      () =>
-        (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-          (c) => c.cmd === 'plugin:menu|popup',
-        ).length,
-    )
+    page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
   await createNote(page, 'Alpha')
   await page.keyboard.press('Meta+KeyK')
   const field = page.getByRole('combobox', { name: 'Command Palette' })
@@ -575,10 +550,7 @@ test.describe('the sidebar', () => {
 
   test('a held Cmd+/ toggles once, and its repeats go nowhere else', async ({ page }) => {
     await page.evaluate(() => {
-      const w = globalThis as unknown as {
-        addEventListener(type: string, listener: (e: unknown) => void): void
-        devotRepeats: boolean[]
-      }
+      const w = window
       w.devotRepeats = []
       w.addEventListener('keydown', (e) => {
         const key = e as { repeat: boolean; defaultPrevented: boolean }
@@ -593,11 +565,7 @@ test.describe('the sidebar', () => {
     await page.keyboard.up('Meta')
     await expect(sidebar(page)).toBeHidden()
     // The repeats were stopped, so a native menu item never sees them.
-    expect(
-      await page.evaluate(
-        () => (globalThis as unknown as { devotRepeats: boolean[] }).devotRepeats,
-      ),
-    ).toEqual([true])
+    expect(await page.evaluate(() => window.devotRepeats)).toEqual([true])
   })
 
   test('the same Cmd+/ reaching the menu bar too is dropped once; later picks hide and show it', async ({
@@ -605,12 +573,7 @@ test.describe('the sidebar', () => {
   }) => {
     // The key, then at once the menu item with that key, as if the menu bar saw the same press.
     await page.evaluate(() => {
-      const w = globalThis as unknown as {
-        document: { body: { dispatchEvent(e: unknown): void } }
-        dispatchEvent(e: unknown): void
-        CustomEvent: new (type: string) => unknown
-        KeyboardEvent: new (type: string, init: Record<string, unknown>) => unknown
-      }
+      const w = window
       const init = { key: '/', code: 'Slash', metaKey: true, bubbles: true, cancelable: true }
       w.document.body.dispatchEvent(new w.KeyboardEvent('keydown', init))
       w.dispatchEvent(new w.CustomEvent('devot:toggle-sidebar'))

@@ -1,32 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { PANES, paneAfterKey, paneFromQuery, paneStore } from './panes'
-
-function memory(initial: Record<string, string> = {}) {
-  const items = new Map(Object.entries(initial))
-  return {
-    getItem: (key: string) => items.get(key) ?? null,
-    setItem: (key: string, value: string) => void items.set(key, value),
-  }
-}
+import { memoryStorage } from '../../../../tests/support/local-storage'
 
 describe('the last pane', () => {
   it('opens on General until a pane is remembered', () => {
-    expect(paneStore(memory()).read()).toBe('general')
+    expect(paneStore(memoryStorage()).read()).toBe('general')
     expect(paneStore(undefined).read()).toBe('general')
   })
 
   it('remembers the pane shown last', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     paneStore(storage).write('mirror')
     expect(paneStore(storage).read()).toBe('mirror')
   })
 
   it('opens a pane remembered under its old name', () => {
-    expect(paneStore(memory({ 'devot.settings.pane': 'editor' })).read()).toBe('editing')
+    expect(paneStore(memoryStorage({ 'devot.settings.pane': 'editor' })).read()).toBe('editing')
   })
 
   it('falls back to General for a value that names no pane', () => {
-    expect(paneStore(memory({ 'devot.settings.pane': 'cloud' })).read()).toBe('general')
+    expect(paneStore(memoryStorage({ 'devot.settings.pane': 'cloud' })).read()).toBe('general')
   })
 
   it('works on when storage throws', () => {

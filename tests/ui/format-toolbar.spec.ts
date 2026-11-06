@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, symbolRequests, test, openApp, type TestWindow } from './fixtures'
+import { expect, symbolRequests, test, openApp } from './fixtures'
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const toolbar = (page: Page) => page.getByRole('toolbar', { name: 'Format' })
@@ -29,32 +29,16 @@ async function selectWord(page: Page, n: number, word: string) {
   // the word sits still inside the scroller.
   const at = await body(page).evaluate(
     async (content, [index, target]) => {
-      // This config has no DOM types: only the members used here.
-      type Rect = Box & { bottom: number; right: number }
-      const w = globalThis as unknown as {
-        requestAnimationFrame(run: () => void): void
-        document: {
-          createTreeWalker(root: unknown, show: number): { nextNode(): { data: string } | null }
-          createRange(): {
-            setStart(node: unknown, offset: number): void
-            setEnd(node: unknown, offset: number): void
-            getBoundingClientRect(): Rect
-          }
-        }
-      }
-      const doc = w.document
-      type Node = { closest(s: string): Node | null; getBoundingClientRect(): Rect }
-      const root = content as Node & { querySelectorAll(s: string): ArrayLike<Node> }
-      const scroller = root.closest('.cm-scroller')
+      const scroller = content.closest('.cm-scroller')
       const measure = () => {
         // Lines are drawn again as the editor scrolls: look the line up each time.
-        const line = root.querySelectorAll('.cm-line')[index]
+        const line = content.querySelectorAll('.cm-line')[index]
         if (!line) return null
-        const texts = doc.createTreeWalker(line, 4 /* NodeFilter.SHOW_TEXT */)
+        const texts = document.createTreeWalker(line, NodeFilter.SHOW_TEXT)
         for (let node = texts.nextNode(); node; node = texts.nextNode()) {
-          const i = node.data.indexOf(target)
+          const i = (node.nodeValue ?? '').indexOf(target)
           if (i < 0) continue
-          const range = doc.createRange()
+          const range = document.createRange()
           range.setStart(node, i)
           range.setEnd(node, i + target.length)
           const r = range.getBoundingClientRect()
@@ -62,7 +46,7 @@ async function selectWord(page: Page, n: number, word: string) {
         }
         return null
       }
-      const frame = () => new Promise<void>((resolve) => w.requestAnimationFrame(resolve))
+      const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
       const inside = (p: { x: number; y: number }) => {
         const box = scroller?.getBoundingClientRect()
         return !box || (p.x > box.x && p.x < box.right && p.y > box.y && p.y < box.bottom)
@@ -113,18 +97,11 @@ async function expectBesideSelection(page: Page): Promise<Box> {
   const selected = page.locator('.cm-selectionBackground')
   await expect(selected.first()).toBeVisible()
   // CodeMirror measures in the next frame.
-  await page.evaluate(
-    () =>
-      new Promise((done) =>
-        (
-          globalThis as unknown as { requestAnimationFrame(f: () => void): void }
-        ).requestAnimationFrame(() => done(null)),
-      ),
-  )
+  await page.evaluate(() => new Promise((done) => window.requestAnimationFrame(() => done(null))))
   const bar = await toolbar(page).boundingBox()
   const boxes = await selected.evaluateAll((els) =>
     els.map((el) => {
-      const r = (el as unknown as { getBoundingClientRect(): Box }).getBoundingClientRect()
+      const r = el.getBoundingClientRect()
       return { x: r.x, y: r.y, width: r.width, height: r.height }
     }),
   )
@@ -174,15 +151,7 @@ test('the toolbar shows for a selection: one outlined box of named SF Symbol but
   }
   const order = await toolbar(page)
     .locator('> *')
-    .evaluateAll((els) =>
-      els.map(
-        (el) =>
-          (el as unknown as { getAttribute(name: string): string | null }).getAttribute(
-            'aria-label',
-          ) ??
-          (el as unknown as { getAttribute(name: string): string | null }).getAttribute('role'),
-      ),
-    )
+    .evaluateAll((els) => els.map((el) => el.getAttribute('aria-label') ?? el.getAttribute('role')))
   expect(order).toEqual([
     ...names.slice(0, 6).map((n) => n[0]),
     'separator',
@@ -206,14 +175,8 @@ test('the toolbar shows for a selection: one outlined box of named SF Symbol but
   const bar = page.locator('.cm-format-toolbar')
   await expect(bar).toBeVisible()
   const look = await bar.evaluate((el) => {
-    type Style = Record<string, string> & { getPropertyValue(n: string): string }
-    type El = {
-      getBoundingClientRect(): { width: number; height: number }
-      querySelector(s: string): El | null
-    }
-    const style = (target: unknown) =>
-      (globalThis as unknown as { getComputedStyle(t: unknown): Style }).getComputedStyle(target)
-    const root = el as unknown as El
+    const style = (target: Element | null) => getComputedStyle(target!)
+    const root = el
     const box = root.querySelector('.cm-float-notch')!.getBoundingClientRect()
     const icon = style(root.querySelector('.cm-float-button .icon'))
     return {
@@ -232,7 +195,7 @@ test('the toolbar shows for a selection: one outlined box of named SF Symbol but
   // into it rather than overhanging.
   for (const px of look.size) expect(Number.isInteger(Number.parseFloat(px ?? ''))).toBe(true)
   expect(look.mask).toBe('100% 100%')
-  const calls = await page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls)
+  const calls = await page.evaluate(() => window.devotIpcCalls)
   expect(symbolRequests(calls)).toContain('bold@14')
 })
 
@@ -455,9 +418,8 @@ test('Edit > Undo also takes back one format at a time', async ({ page }) => {
   // before the Yjs binding; format transactions isolate their history, so each is its own step.
   const menuUndo = () =>
     body(page).evaluate((el) => {
-      const Input = (globalThis as unknown as { InputEvent: new (t: string, o: object) => unknown })
-        .InputEvent
-      ;(el as unknown as { dispatchEvent(e: unknown): void }).dispatchEvent(
+      const Input = window.InputEvent
+      el.dispatchEvent(
         new Input('beforeinput', { inputType: 'historyUndo', bubbles: true, cancelable: true }),
       )
     })
@@ -481,11 +443,11 @@ test('the toolbar sits above the selection start, on the first line too, and hid
   expect(bar.y + bar.height).toBeLessThanOrEqual(start.y + 1)
   await expect(toolbar(page)).toBeInViewport()
   await editorBox(page).evaluate((el) => {
-    ;(el as unknown as { scrollTop: number }).scrollTop = 1500
+    el.scrollTop = 1500
   })
   await expect(toolbar(page)).not.toBeInViewport()
   await editorBox(page).evaluate((el) => {
-    ;(el as unknown as { scrollTop: number }).scrollTop = 0
+    el.scrollTop = 0
   })
   await expect(toolbar(page)).toBeInViewport()
 
@@ -507,25 +469,13 @@ test('the notch keeps pointing at the selection start when the bar is held back 
     .locator('.cm-line')
     .nth(1)
     .evaluate((line, all) => {
-      const doc = (
-        globalThis as unknown as {
-          document: {
-            createTreeWalker(root: unknown, show: number): { nextNode(): { data: string } | null }
-            createRange(): {
-              setStart(node: unknown, offset: number): void
-              setEnd(node: unknown, offset: number): void
-              getBoundingClientRect(): { top: number; left: number }
-            }
-          }
-        }
-      ).document
-      const node = doc.createTreeWalker(line, 4).nextNode()
+      const node = document.createTreeWalker(line, NodeFilter.SHOW_TEXT).nextNode()
       if (!node) return null
       let best: string | null = null
       let top: number | null = null
       for (const w of all) {
-        const at = node.data.indexOf(w)
-        const range = doc.createRange()
+        const at = (node.nodeValue ?? '').indexOf(w)
+        const range = document.createRange()
         range.setStart(node, at)
         range.setEnd(node, at + w.length)
         const r = range.getBoundingClientRect()
@@ -542,14 +492,8 @@ test('the notch keeps pointing at the selection start when the bar is held back 
     .poll(async () => {
       const [placed, sel] = await Promise.all([
         bar.evaluate((el) => {
-          const r = (el as unknown as { getBoundingClientRect(): Box }).getBoundingClientRect()
-          const value = (
-            globalThis as unknown as {
-              getComputedStyle(el: unknown): { getPropertyValue(n: string): string }
-            }
-          )
-            .getComputedStyle(el)
-            .getPropertyValue('--float-notch-x')
+          const r = el.getBoundingClientRect()
+          const value = window.getComputedStyle(el).getPropertyValue('--float-notch-x')
           return { left: r.x, notch: Number.parseFloat(value) }
         }),
         page.locator('.cm-selectionBackground').first().boundingBox(),
@@ -579,9 +523,7 @@ test('a tooltip on the first button stays inside the editor, its notch on the bu
   expect(tipBox.x + tipBox.width).toBeLessThanOrEqual(host.x + host.width - 3)
 
   const notchLeft = await tip.evaluate((el) => {
-    const view = globalThis as unknown as {
-      getComputedStyle(el: unknown, pseudo?: string): { left: string }
-    }
+    const view = window
     return Number.parseFloat(view.getComputedStyle(el, '::before').left)
   })
   // The notch's box is 8px (space-4); its centre is 4px past the reported left.

@@ -1,18 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { clockTime, lastWrite, markWrite } from './lastWrite'
 import { sectionStore } from './sidebarSections'
-
-const memory = () => {
-  const map = new Map<string, string>()
-  return {
-    getItem: (key: string) => map.get(key) ?? null,
-    setItem: (key: string, value: string) => void map.set(key, value),
-  }
-}
+import { memoryStorage } from '../../../tests/support/local-storage'
 
 describe('sectionStore', () => {
   it('remembers the collapsed sections for the window, as a fresh store reads them', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     sectionStore(storage, 'main').save(new Set(['tags']))
     expect([...sectionStore(storage, 'main').load()]).toEqual(['tags'])
     expect([...sectionStore(storage, 'other').load()]).toEqual([])
@@ -21,13 +14,13 @@ describe('sectionStore', () => {
   })
 
   it('remembers a collapsed Notebooks section like the others', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     sectionStore(storage, 'main').save(new Set(['books', 'agents']))
     expect([...sectionStore(storage, 'main').load()]).toEqual(['books', 'agents'])
   })
 
   it('reads damaged or unavailable storage as none collapsed', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     storage.setItem('devot.sidebarCollapsed.main', '{"x":1}')
     expect([...sectionStore(storage, 'main').load()]).toEqual([])
     storage.setItem('devot.sidebarCollapsed.main', '["tags","bogus"]')
@@ -48,7 +41,7 @@ describe('sectionStore', () => {
 
 describe('sectionStore notebook folds', () => {
   it('remembers the folded notebooks for the window, apart from the sections', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     sectionStore(storage, 'main').saveBooks(new Set(['b1', 'b2']))
     expect([...sectionStore(storage, 'main').loadBooks()]).toEqual(['b1', 'b2'])
     expect([...sectionStore(storage, 'other').loadBooks()]).toEqual([])
@@ -58,7 +51,7 @@ describe('sectionStore notebook folds', () => {
   })
 
   it('reads damaged or unavailable storage as none folded', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     storage.setItem('devot.sidebarBooksCollapsed.main', '{"x":1}')
     expect([...sectionStore(storage, 'main').loadBooks()]).toEqual([])
     storage.setItem('devot.sidebarBooksCollapsed.main', '["b1",7,null]')

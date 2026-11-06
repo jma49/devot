@@ -1,15 +1,11 @@
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, test, type TestWindow } from './fixtures'
+import { expect, pickMenuItem, test } from './fixtures'
 
 // Next edit suggestions (ghost text). Rust is faked in the page: `ai_generate` answers what the test queues in
 // `devotAiReplies` (a text, `{ error }`, or `{ hold }`, which waits until the test calls `devotRelease`), and
 // `ai_settings_get` says whether a provider is set up and whether suggestions on a pause are on (`devotSuggestOnIdle`).
 
 type Reply = string | { error: string } | { hold: true }
-interface Window {
-  devotRelease?: (text: string) => void
-  devotSuggestOnIdle?: boolean
-}
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const bookRow = (page: Page, name: string) =>
@@ -31,7 +27,7 @@ const savedBody = (page: Page) =>
 
 const requests = (page: Page) =>
   page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
+    window.devotIpcCalls
       .filter((c) => c.cmd === 'ai_generate')
       .map((c) => c.args['request'] as { messages: { content: string }[]; maxTokens: number }),
   )
@@ -45,7 +41,7 @@ interface Options {
 async function fakeProvider(page: Page, replies: Reply[], options: Options = {}) {
   await page.addInitScript(
     ([queued, { key = 'set' }]) => {
-      const w = globalThis as unknown as TestWindow & Window
+      const w = window
       const provider = (model: string) => ({
         endpoint: 'https://example.test',
         model,
@@ -116,7 +112,7 @@ async function ready(page: Page, replies: Reply[], text: string, options: Option
   // Not before: writing the note is typing too, and on a slow machine its own pause can pass before the caret moves.
   if (options.idle) {
     await page.evaluate(() => {
-      ;(globalThis as unknown as Window).devotSuggestOnIdle = true
+      window.devotSuggestOnIdle = true
     })
   }
 }
@@ -171,7 +167,7 @@ test('asks after a pause when the user turned that on, and only then', async ({ 
   expect(await requests(page)).toEqual([])
 
   await page.evaluate(() => {
-    ;(globalThis as unknown as Window).devotSuggestOnIdle = true
+    window.devotSuggestOnIdle = true
   })
   await page.keyboard.type(' we')
   await expect(ghost(page)).toContainText('to ship.', { timeout: 6_000 })
@@ -189,7 +185,7 @@ test('Escape then Tab leaves the editor while a pause’s request is on its way,
   await page.keyboard.press('Escape')
   await page.keyboard.press('Tab')
   await expect(body(page)).not.toBeFocused()
-  await page.evaluate(() => (globalThis as unknown as Window).devotRelease?.(' late.'))
+  await page.evaluate(() => window.devotRelease?.(' late.'))
   await page.waitForTimeout(300)
   await expect(ghost(page)).toHaveCount(0)
   await expect.poll(() => savedBody(page)).toBe('We plan to')
@@ -214,7 +210,7 @@ test('typing while a request is on its way drops its answer', async ({ page }) =
   await page.keyboard.press(SUGGEST_KEY)
   await expect.poll(async () => (await requests(page)).length).toBe(1)
   await page.keyboard.type('!')
-  await page.evaluate(() => (globalThis as unknown as Window).devotRelease?.(' late.'))
+  await page.evaluate(() => window.devotRelease?.(' late.'))
   await page.waitForTimeout(300)
   await expect(ghost(page)).toHaveCount(0)
   await expect.poll(() => savedBody(page)).toBe('We plan!')
@@ -226,7 +222,7 @@ test('switching notes drops the answer of a request for the first', async ({ pag
   await expect.poll(async () => (await requests(page)).length).toBe(1)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
   await expect(noteRows(page)).toHaveCount(2)
-  await page.evaluate(() => (globalThis as unknown as Window).devotRelease?.(' late.'))
+  await page.evaluate(() => window.devotRelease?.(' late.'))
   await page.waitForTimeout(300)
   await expect(ghost(page)).toHaveCount(0)
 })

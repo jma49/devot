@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, openApp, pickNoteMore, test, type TestWindow } from './fixtures'
+import { expect, openApp, pickNoteMore, test } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const title = (page: Page) => page.getByRole('textbox', { name: 'Title' })
@@ -18,7 +18,7 @@ async function open(
 ) {
   await page.addInitScript(
     ([m, hold]) => {
-      const w = globalThis as unknown as TestWindow & { devotReleaseImport?: () => void }
+      const w = window
       if (hold) {
         let release = () => {}
         const held = new Promise<void>((resolve) => (release = resolve))
@@ -35,21 +35,14 @@ async function open(
   await openApp(page)
   await expect
     .poll(() =>
-      page.evaluate(() =>
-        (globalThis as unknown as TestWindow).devotIpcCalls.some(
-          (call) => call.cmd === 'deep_link_take',
-        ),
-      ),
+      page.evaluate(() => window.devotIpcCalls.some((call) => call.cmd === 'deep_link_take')),
     )
     .toBe(true)
 }
 
 const sendLink = (page: Page, link: Record<string, unknown>) =>
   page.evaluate((detail) => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:open-url', { detail }))
   }, link)
 
@@ -179,7 +172,7 @@ test('files from the command line that cannot be imported end their session', as
   await expect
     .poll(() =>
       page.evaluate(() =>
-        (globalThis as unknown as TestWindow).devotIpcCalls
+        window.devotIpcCalls
           .filter((call) => call.cmd === 'import_finish')
           .map((call) => call.args['id']),
       ),
@@ -203,9 +196,7 @@ test('two hand-offs naming the same new notebook make one notebook', async ({ pa
   await page.waitForTimeout(400)
   expect(await importReads(page)).toEqual([1])
 
-  await page.evaluate(() =>
-    (globalThis as unknown as { devotReleaseImport(): void }).devotReleaseImport(),
-  )
+  await page.evaluate(() => window.devotReleaseImport())
   await expect(
     page.getByRole('tree', { name: 'Notebooks' }).getByRole('treeitem', { name: /^Projects\b/ }),
   ).toHaveCount(1)
@@ -216,7 +207,7 @@ test('two hand-offs naming the same new notebook make one notebook', async ({ pa
 /** The sessions whose files were read, in order. */
 const importReads = (page: Page) =>
   page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
+    window.devotIpcCalls
       .filter((call) => call.cmd === 'import_read')
       .map((call) => call.args['id'] as number),
   )

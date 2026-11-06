@@ -6,7 +6,6 @@ import {
   paintedBackground,
   test,
   tokenColour,
-  type TestWindow,
 } from './fixtures'
 
 // A chosen appearance marks the root (`data-appearance`) and the generated tokens switch with it whatever the system
@@ -18,7 +17,7 @@ const editorSurface = (page: Page) => tokenColour(page, '--color-surface-editor'
 
 const settingsCalls = (page: Page) =>
   page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
+    window.devotIpcCalls
       .filter((call) => call.cmd === 'editor_settings_set')
       .map((call) => call.args['patch']),
   )

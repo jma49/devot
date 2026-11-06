@@ -4,6 +4,8 @@
 
 import Database from 'better-sqlite3'
 import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { onTestFinished } from 'vitest'
 import type { AiStorage } from '../../src/core/ai'
 import { checkUpload } from '../../src/core/files'
 import { noteLinks } from '../../src/core/links'
@@ -47,6 +49,7 @@ import type {
   TrashedNote,
 } from '../../src/core/storage'
 import { MAX_PUT_BOOKS } from '../../src/core/storage'
+import { tempDir } from './temp-dirs'
 
 /**
  * The text a search field looks in. With ranked text, a body is read from
@@ -603,6 +606,13 @@ export function openFailureCode(error: unknown, path: string, migrate: boolean):
   const code = (error as { code?: unknown } | null)?.code
   if (code === 'ERR_DLOPEN_FAILED') return 'E_STORAGE_MODULE_FAILED'
   return migrate || existsSync(path) ? 'E_STORAGE_OPEN_FAILED' : 'E_STORAGE_NOT_FOUND'
+}
+
+/** An adapter on a new database in a temporary folder, closed when the test ends. */
+export function tempSqliteAdapter(prefix: string): SqliteAdapter {
+  const adapter = openSqliteAdapter(join(tempDir(prefix), 'devot.sqlite'))
+  onTestFinished(() => adapter.close())
+  return adapter
 }
 
 export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteAdapter {

@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, openApp, type TestWindow } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const header = (page: Page) => page.getByRole('toolbar', { name: 'Toolbar' }).locator('.headline')
@@ -81,19 +81,7 @@ test('the Tags chevron turns up over the toggle duration and back down, and Redu
   await createTag(page, 'urgent')
   const chevron = sidebar(page).locator('.section-header', { hasText: 'Tags' }).locator('.chevron')
   const style = (property: string) =>
-    chevron.evaluate(
-      (el, p) =>
-        (
-          globalThis as unknown as {
-            getComputedStyle(e: unknown): {
-              getPropertyValue(n: string): string
-            }
-          }
-        )
-          .getComputedStyle(el)
-          .getPropertyValue(p),
-      property,
-    )
+    chevron.evaluate((el, p) => window.getComputedStyle(el).getPropertyValue(p), property)
   expect(await style('transition-duration')).toBe('0.2s')
   await sidebar(page).getByRole('button', { name: 'Collapse Tags' }).click()
   await expect(chevron).toHaveAttribute('data-turn', 'up')
@@ -134,7 +122,7 @@ test('until the backups are known the footer names its panel, never a bare chevr
   page,
 }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       backups_list: () => new Promise(() => {}),
     }
   })
@@ -148,7 +136,7 @@ test('the footer sums up backups and the mirror, and tells when the last note wa
   page,
 }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       backups_list: { backups: [{ id: 'b', createdAt: 1, size: 1 }], lastError: null },
     }
   })

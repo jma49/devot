@@ -5,7 +5,6 @@ import {
   pickMenuItem,
   shownMenu,
   test,
-  type TestWindow,
   pickNoteMore,
 } from '../ui/fixtures'
 import {
@@ -19,26 +18,23 @@ import { pluginFrame, servePlugins, testPlugin } from '../ui/plugins'
 // Runs the built UI under the production CSP (scripts/serve-csp.ts); `pnpm dev` relaxes it.
 
 declare global {
-  // This config has no DOM types: only the members read here.
-  var devotCspViolations: string[]
+  interface Window {
+    devotCspViolations: string[]
+  }
 }
 
 async function start(page: Page, path = '/') {
   await page.addInitScript(() => {
-    type Violation = {
-      violatedDirective: string
-      blockedURI: string
-      target: { nodeName?: string } | null
-    }
-    const win = globalThis as unknown as {
-      addEventListener(type: string, listener: (event: Violation) => void): void
-    }
-    globalThis.devotCspViolations = []
-    win.addEventListener('securitypolicyviolation', (event) => {
+    window.devotCspViolations = []
+    addEventListener('securitypolicyviolation', (event) => {
       // WebKit reports a <select>'s internal style attribute as a violation; the control still works.
-      if (event.violatedDirective === 'style-src-attr' && event.target?.nodeName === 'SELECT')
+      if (
+        event.violatedDirective === 'style-src-attr' &&
+        event.target instanceof Element &&
+        event.target.nodeName === 'SELECT'
+      )
         return
-      globalThis.devotCspViolations.push(`${event.violatedDirective} ${event.blockedURI}`)
+      window.devotCspViolations.push(`${event.violatedDirective} ${event.blockedURI}`)
     })
   })
   await page.route(/^https:\/\//, (route) => route.abort())
@@ -53,7 +49,7 @@ async function newNote(page: Page, body: string) {
   await page.getByRole('button', { name: 'Split' }).click()
 }
 
-const violations = (page: Page) => page.evaluate(() => globalThis.devotCspViolations)
+const violations = (page: Page) => page.evaluate(() => window.devotCspViolations)
 
 test('the editor is styled and nothing breaks the policy', async ({ page }) => {
   await start(page)
@@ -71,14 +67,7 @@ test('mermaid diagrams render with their theme', async ({ page }) => {
   await expect(rect).toBeVisible()
   await expect(page.locator('iframe.mermaid-frame')).toHaveAttribute('sandbox', 'allow-scripts')
   await expect
-    .poll(() =>
-      rect.evaluate(
-        (el) =>
-          (
-            globalThis as unknown as { getComputedStyle(e: unknown): { fill: string } }
-          ).getComputedStyle(el).fill,
-      ),
-    )
+    .poll(() => rect.evaluate((el) => window.getComputedStyle(el).fill))
     .not.toBe('rgb(0, 0, 0)')
 })
 
@@ -132,7 +121,7 @@ test('a note exports as an HTML page with its diagram drawn, under the policy', 
 }) => {
   await start(page)
   await page.evaluate(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       export_begin: { id: 1, fileName: 'Chart.html' },
       export_write: null,
       export_finish: null,
@@ -145,7 +134,7 @@ test('a note exports as an HTML page with its diagram drawn, under the policy', 
   await pickMenuItem(page, 'Export as HTML\u2026')
   const written = () =>
     page.evaluate(() =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
+      window.devotIpcCalls
         .filter((c) => c.cmd === 'export_write')
         .map((c) => String(c.args['text'])),
     )
@@ -158,7 +147,7 @@ test('a note exports as an HTML page with its diagram drawn, under the policy', 
 
 test('a folder import runs in the built workers under the policy', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as { devotIpcMocks: Record<string, unknown> }
+    const w = window
     w.devotIpcMocks = {
       import_read: ({ path }: { path: string }) =>
         path.endsWith('.html')
@@ -171,10 +160,7 @@ test('a folder import runs in the built workers under the policy', async ({ page
   await start(page)
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     const scan = {
       id: 1,
       name: 'Folder',
@@ -202,7 +188,7 @@ test('a folder import runs in the built workers under the policy', async ({ page
   expect(await violations(page)).toEqual([])
   // The core worker would parse the files itself, logging this, had the import worker not started.
   const logged = await page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
+    window.devotIpcCalls
       .filter((call) => call.cmd === 'log_write')
       .map((call) => JSON.stringify(call.args)),
   )
@@ -217,7 +203,7 @@ test('the notebook menu works and outlines its notebook under the policy', async
   await field.press('Enter')
   const row = page.getByRole('treeitem', { name: /^Outer\b/ }).locator('> .book-row')
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow & { closeMenu?: () => void }
+    const w = window
     w.devotIpcMocks = {
       'plugin:menu|popup': () =>
         new Promise<null>((resolve) => {
@@ -229,7 +215,7 @@ test('the notebook menu works and outlines its notebook under the policy', async
   await expect.poll(() => shownMenu(page)).toContain('New Notebook Inside')
   // A selected row under the keyboard also has a 5 px bar in its box-shadow.
   await expect(row).toHaveCSS('box-shadow', /0px 0px 0px 2px inset$/)
-  await page.evaluate(() => (globalThis as unknown as { closeMenu: () => void }).closeMenu())
+  await page.evaluate(() => window.closeMenu())
   await expect(row).not.toHaveCSS('box-shadow', /0px 0px 0px 2px inset$/)
   await pickMenuItem(page, 'New Notebook Inside')
   await field.fill('Inner')
@@ -237,7 +223,7 @@ test('the notebook menu works and outlines its notebook under the policy', async
   const inner = page.getByRole('treeitem', { name: /^Inner\b/ })
   await expect(inner).toHaveAttribute('aria-level', '2')
   await page.evaluate(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {}
+    window.devotIpcMocks = {}
   })
   await inner.locator('> .book-row').click({ button: 'right' })
   await expect.poll(() => shownMenu(page)).toContain('Move to Top Level')
@@ -271,12 +257,7 @@ test('notebook drops show their insertion line and indent under the policy', asy
     '2',
   )
   const indent = (name: string) =>
-    row(name).evaluate(
-      (el) =>
-        (
-          globalThis as unknown as { getComputedStyle(e: unknown): { paddingInlineStart: string } }
-        ).getComputedStyle(el).paddingInlineStart,
-    )
+    row(name).evaluate((el) => window.getComputedStyle(el).paddingInlineStart)
   expect(await indent('Alpha')).toBe('10px')
   expect(await indent('Charlie')).toBe('26px')
 
@@ -288,25 +269,14 @@ test('notebook drops show their insertion line and indent under the policy', asy
   const alphaItem = page.getByRole('treeitem', { name: /^Alpha\b/ }).locator('+ li')
   await expect(alphaItem).toHaveClass(/drop-after/)
   const after = await alphaItem.evaluate((el) => {
-    const style = (
-      globalThis as unknown as {
-        getComputedStyle(e: unknown, p: string): { height: string; left: string }
-      }
-    ).getComputedStyle(el, '::after')
+    const style = window.getComputedStyle(el, '::after')
     return { height: style.height, left: style.left }
   })
   expect(after).toEqual({ height: '2px', left: '0px' })
   await page.mouse.move(to.x + to.width / 2, to.y + 2, { steps: 4 })
   await expect(row('Alpha')).toHaveClass(/drop-before/)
   const line = await row('Alpha').evaluate((el) => {
-    const style = (
-      globalThis as unknown as {
-        getComputedStyle(
-          e: unknown,
-          p: string,
-        ): { height: string; backgroundColor: string; position: string }
-      }
-    ).getComputedStyle(el, '::before')
+    const style = window.getComputedStyle(el, '::before')
     return { height: style.height, background: style.backgroundColor, position: style.position }
   })
   expect(line).toMatchObject({ height: '2px', position: 'absolute' })
@@ -329,24 +299,11 @@ test('the selection toolbar is styled and placed by the editor under the policy'
     .locator('.cm-line')
     .last()
     .evaluate((line) => {
-      type Box = { x: number; y: number; width: number; height: number }
-      const doc = (
-        globalThis as unknown as {
-          document: {
-            createTreeWalker(root: unknown, show: number): { nextNode(): { data: string } | null }
-            createRange(): {
-              setStart(node: unknown, offset: number): void
-              setEnd(node: unknown, offset: number): void
-              getBoundingClientRect(): Box
-            }
-          }
-        }
-      ).document
-      const texts = doc.createTreeWalker(line, 4 /* NodeFilter.SHOW_TEXT */)
+      const texts = document.createTreeWalker(line, NodeFilter.SHOW_TEXT)
       for (let node = texts.nextNode(); node; node = texts.nextNode()) {
-        const i = node.data.indexOf('line')
+        const i = (node.nodeValue ?? '').indexOf('line')
         if (i < 0) continue
-        const range = doc.createRange()
+        const range = document.createRange()
         range.setStart(node, i)
         range.setEnd(node, i + 4)
         const r = range.getBoundingClientRect()
@@ -386,7 +343,7 @@ test('revision history compares and restores under the policy', async ({ page })
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const store = globalThis as unknown as { localStorage: { getItem(k: string): string } }
+        const store = window
         return store.localStorage.getItem('devot.test.notes')
       }),
     )
@@ -423,14 +380,7 @@ test('find marks matches in the editor and the preview under the policy', async 
   await expect(marks.first()).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(page.locator('.cm-find-current')).not.toHaveCSS(
     'background-color',
-    await marks
-      .last()
-      .evaluate(
-        (el) =>
-          (
-            globalThis as unknown as { getComputedStyle(e: unknown): { backgroundColor: string } }
-          ).getComputedStyle(el).backgroundColor,
-      ),
+    await marks.last().evaluate((el) => window.getComputedStyle(el).backgroundColor),
   )
   await page.getByRole('article', { name: 'Preview' }).locator('strong').click()
   await page.keyboard.press('Meta+f')
@@ -438,9 +388,7 @@ test('find marks matches in the editor and the preview under the policy', async 
   await expect(bar.getByRole('status')).toHaveText('1 of 1')
   expect(
     await page.evaluate(() => {
-      const registry = (
-        globalThis as unknown as { CSS: { highlights: Map<string, { size: number }> } }
-      ).CSS.highlights
+      const registry = window.CSS.highlights
       return registry.get('devot-find-current')?.size
     }),
   ).toBe(1)
@@ -458,7 +406,7 @@ for (const glass of [true, false]) {
   }) => {
     await page.clock.setFixedTime(Date.UTC(2026, 10, 1, 12))
     await page.addInitScript((sidebarMaterial) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotEditorSettings = { sidebarMaterial }
       w.devotIpcMocks = {
         usage_list: [
@@ -494,7 +442,7 @@ for (const glass of [true, false]) {
 
 test('the quick capture window works under the policy', async ({ page }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       quick_capture_save: null,
       quick_capture_close: null,
     }
@@ -517,7 +465,7 @@ test('a note window edits and previews its note under the policy', async ({ page
     .poll(() => page.evaluate(() => localStorage.getItem('devot.test.notes')))
     .toContain('x^2')
   await page.addInitScript((noteId) => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = { note_window_note: noteId }
+    window.devotIpcMocks = { note_window_note: noteId }
   }, id)
   await start(page, '/note.html')
   await expect(page.getByRole('textbox', { name: 'Note body' })).toContainText('Text with')
@@ -539,7 +487,7 @@ test('the editor settings work under the policy in both windows', async ({ page 
   expect(await violations(page)).toEqual([])
 
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotEditorRevision = 1
     w.devotEditorSettings = { fontSize: 18, fontFamily: 'menlo', readableWidth: true }
   })
@@ -589,10 +537,7 @@ test('the activity heatmap is styled under the policy', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Note body' }).click()
   await page.keyboard.insertText('Written today')
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:show-activity'))
   })
   const sheet = page.getByRole('dialog', { name: 'Activity' })
@@ -675,8 +620,7 @@ test('an image from the web loads in the preview and under its line, within the 
   )
   const address = 'https://example.com/chart.png'
   await newNote(page, `![Chart](${address})\n\nafter`)
-  const loaded = (img: Locator) =>
-    img.evaluate((el) => (el as unknown as { naturalWidth: number }).naturalWidth)
+  const loaded = (img: Locator) => img.evaluate((el) => (el as HTMLImageElement).naturalWidth)
   const shown = page.getByRole('article', { name: 'Preview' }).locator(`img[src="${address}"]`)
   await expect(shown).toBeVisible()
   await expect.poll(() => loaded(shown)).toBe(1)
@@ -694,28 +638,13 @@ interface Seen {
   decoration: string
   opacity: string
 }
-interface Probe {
-  createTreeWalker(
-    root: unknown,
-    what: number,
-  ): { nextNode(): { nodeValue: string | null; parentElement: unknown } | null }
-}
 
 function textStyle(page: Page, needle: string): Promise<Seen> {
   return page.locator('.cm-content').evaluate((root, text) => {
-    const g = globalThis as unknown as {
-      document: Probe
-      getComputedStyle(e: unknown): {
-        color: string
-        backgroundColor: string
-        textDecorationLine: string
-        opacity: string
-      }
-    }
-    const walker = g.document.createTreeWalker(root, 4)
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (!node.nodeValue?.includes(text)) continue
-      const style = g.getComputedStyle(node.parentElement)
+      if (!node.nodeValue?.includes(text) || !node.parentElement) continue
+      const style = getComputedStyle(node.parentElement)
       return {
         color: style.color,
         background: style.backgroundColor,
@@ -732,14 +661,7 @@ function partStyle(page: Page, selector: string): Promise<Seen> {
     .locator(selector)
     .first()
     .evaluate((el) => {
-      const g = globalThis as unknown as {
-        getComputedStyle(e: unknown): {
-          color: string
-          backgroundColor: string
-          textDecorationLine: string
-          opacity: string
-        }
-      }
+      const g = window
       const style = g.getComputedStyle(el)
       return {
         color: style.color,
@@ -751,17 +673,9 @@ function partStyle(page: Page, selector: string): Promise<Seen> {
 }
 
 async function themeColour(page: Page, name: string): Promise<string> {
-  const value = await page.locator('.cm-content').evaluate(
-    (el, variable) =>
-      (
-        globalThis as unknown as {
-          getComputedStyle(e: unknown): { getPropertyValue(n: string): string }
-        }
-      )
-        .getComputedStyle(el)
-        .getPropertyValue(variable),
-    name,
-  )
+  const value = await page
+    .locator('.cm-content')
+    .evaluate((el, variable) => window.getComputedStyle(el).getPropertyValue(variable), name)
   return value.trim()
 }
 
@@ -785,7 +699,7 @@ for (const scheme of ['light', 'dark'] as const) {
   test(`the editor is readable in ${scheme} mode`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme })
     await page.addInitScript(() => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotEditorRevision = 1
       w.devotEditorSettings = { lineNumbers: true, lineWrapping: 'off', highlightActiveLine: true }
     })
@@ -825,7 +739,7 @@ for (const scheme of ['light', 'dark'] as const) {
     expect(ratio(gutters.color, gutterBackground), `${scheme} gutter`).toBeGreaterThanOrEqual(4.5)
     // The gutter is sticky: scrolled text passes under it and must not show through.
     const scrolled = await page.locator('.cm-scroller').evaluate((el) => {
-      const scroller = el as unknown as { scrollLeft: number }
+      const scroller = el
       scroller.scrollLeft = 300
       return scroller.scrollLeft
     })
@@ -865,7 +779,7 @@ for (const scheme of ['light', 'dark'] as const) {
         expect(ratio(color, bg), `${scheme} ${what} on the ${where}`).toBeGreaterThanOrEqual(4.5)
       }
     }
-    await page.locator('.cm-content').evaluate((el) => (el as unknown as { blur(): void }).blur())
+    await page.locator('.cm-content').evaluate((el) => el.blur())
     await expect(page.locator('.cm-editor')).not.toHaveClass(/cm-focused/)
     const [unfocused, unfocusedLine] = await painted()
     expect(contrastRatio(unfocused, surface), `${scheme} unfocused`).toBeGreaterThanOrEqual(1.15)

@@ -1,25 +1,12 @@
 import type { Page } from '@playwright/test'
-import {
-  clipboardWrites,
-  expect,
-  pickMenuItem,
-  shownMenu,
-  test,
-  openApp,
-  type TestWindow,
-} from './fixtures'
+import { clipboardWrites, expect, pickMenuItem, shownMenu, test, openApp } from './fixtures'
 
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 const mode = (page: Page, name: 'Edit' | 'Split' | 'Preview') =>
   page.getByRole('group', { name: 'View mode' }).getByRole('button', { name })
 
 const popups = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'plugin:menu|popup',
-      ).length,
-  )
+  page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
 
 async function newNote(page: Page, title: string, body: string) {
   const rows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -63,7 +50,7 @@ test('a link offers Copy Link Address', async ({ page }) => {
   await pickMenuItem(page, 'Copy Link Address')
   await expect.poll(() => clipboardWrites(page)).toEqual(['https://example.com/page'])
   const opened = await page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls.some((c) => c.cmd === 'open_external'),
+    window.devotIpcCalls.some((c) => c.cmd === 'open_external'),
   )
   expect(opened).toBe(false)
 })
@@ -73,9 +60,7 @@ test('Select All selects the preview alone', async ({ page }) => {
   await mode(page, 'Split').click()
   await preview(page).getByText('Only this text.').click({ button: 'right' })
   await pickMenuItem(page, 'Select All')
-  const selected = await page.evaluate(() =>
-    (globalThis as unknown as { getSelection(): { toString(): string } }).getSelection().toString(),
-  )
+  const selected = await page.evaluate(() => window.getSelection()!.toString())
   expect(selected).toContain('Only this text.')
   expect(selected).not.toContain('New Note')
 })

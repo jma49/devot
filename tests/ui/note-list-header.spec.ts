@@ -62,13 +62,7 @@ test('a row keeps its tag chips on one meta line; the activity strip goes first'
     meta
       .locator(selector)
       .evaluateAll(
-        (els, top) =>
-          els.map(
-            (el) =>
-              (
-                el as unknown as { getBoundingClientRect(): { top: number } }
-              ).getBoundingClientRect().top < top,
-          ),
+        (els, top) => els.map((el) => el.getBoundingClientRect().top < top),
         line.y + line.height,
       )
   expect(await shown('.chip')).toEqual([true, true, true])

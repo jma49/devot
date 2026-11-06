@@ -1,13 +1,5 @@
 import type { Page } from '@playwright/test'
-import {
-  expect,
-  openApp,
-  openSettings,
-  pickNoteMore,
-  reloadApp,
-  test,
-  type TestWindow,
-} from './fixtures'
+import { expect, openApp, openSettings, pickNoteMore, reloadApp, test } from './fixtures'
 
 // The 30-day trial: while it runs everything works; once it is over without a licence, notes are
 // read-only, one bar says so with Buy and Add Licence, and Settings > Licence says how long is left.
@@ -35,7 +27,7 @@ async function fakeTrial(page: Page, endsIn: number) {
 
 async function fakeTrialEndingAt(page: Page, endsAt: number) {
   await page.addInitScript((end) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       licence_get: () => ({
@@ -55,19 +47,13 @@ async function fakeTrialEndingAt(page: Page, endsAt: number) {
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 
 const changeLicence = (page: Page, licence: Licence) =>
   page.evaluate((detail) => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:licence-changed', { detail }))
   }, licence)
 
@@ -379,10 +365,7 @@ test.describe('Settings > Licence', () => {
     )
     await page.getByRole('tab', { name: 'General', exact: true }).click()
     await page.evaluate(() => {
-      const w = globalThis as unknown as {
-        dispatchEvent(e: unknown): void
-        CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-      }
+      const w = window
       w.dispatchEvent(new w.CustomEvent('devot:settings-pane', { detail: 'licence' }))
     })
     await expect(page.getByRole('tab', { name: 'License', exact: true })).toHaveAttribute(

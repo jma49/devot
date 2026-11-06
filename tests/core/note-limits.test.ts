@@ -14,6 +14,7 @@ import {
 } from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
+import { restoreLocalStorage, useMemoryLocalStorage } from '../support/local-storage'
 
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
@@ -103,27 +104,8 @@ describe('note writes over the limits', () => {
   })
 
   describe('in the UI tests’ memory adapter', () => {
-    // Node's own localStorage warns when read without a file; it is replaced
-    // without reading it.
-    const nodeLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
-    beforeAll(() => {
-      const items = new Map<string, string>()
-      const value = {
-        getItem: (key: string) => items.get(key) ?? null,
-        setItem: (key: string, text: string) => void items.set(key, text),
-        removeItem: (key: string) => void items.delete(key),
-        clear: () => items.clear(),
-      }
-      Object.defineProperty(globalThis, 'localStorage', {
-        value,
-        configurable: true,
-        writable: true,
-      })
-    })
-    afterAll(() => {
-      if (nodeLocalStorage) Object.defineProperty(globalThis, 'localStorage', nodeLocalStorage)
-      else Reflect.deleteProperty(globalThis, 'localStorage')
-    })
+    beforeAll(useMemoryLocalStorage)
+    afterAll(restoreLocalStorage)
 
     it('are refused the same way', async () => {
       const { memoryStorage } = await import('../../src/renderer/src/storage/memory')
