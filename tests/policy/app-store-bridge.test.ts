@@ -64,7 +64,7 @@ const SAME_TYPE: Record<string, string> = {
 it('every C function of the Swift package is declared in native/ios.rs with the same types', () => {
   const exported = swiftFunctions()
   const declared = rustFunctions()
-  expect(exported.size).toBe(6)
+  expect(exported.size).toBe(7)
   expect([...declared.keys()].sort()).toEqual([...exported.keys()].sort())
   for (const [name, signature] of exported) {
     expect({ name, params: signature.params.map((type) => SAME_TYPE[type] ?? type) }).toEqual({
