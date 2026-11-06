@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-store-refund"
+description = "Enables the store_refund command without any pre-configured scope."
+commands.allow = ["store_refund"]
+
+[[permission]]
+identifier = "deny-store-refund"
+description = "Denies the store_refund command without any pre-configured scope."
+commands.deny = ["store_refund"]

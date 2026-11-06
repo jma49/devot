@@ -68,6 +68,14 @@ impl Purchases {
             .map(|transaction| transaction.jws.as_str())
     }
 
+    /// The ID of the Devot Pro purchase's transaction held, which a refund request names.
+    pub(crate) fn pro_transaction_id(&self) -> Option<u64> {
+        self.held
+            .values()
+            .find(|transaction| grants(transaction, Product::Pro))
+            .map(|transaction| transaction.transaction_id)
+    }
+
     /// When the Trial was first bought by this Apple account, from Apple's signed transaction.
     pub(crate) fn trial_start(&self) -> Option<i64> {
         self.held
@@ -239,12 +247,18 @@ mod tests {
             held(vec![trial.clone(), family.clone()]).pro_transaction(),
             None
         );
+        assert_eq!(
+            held(vec![trial.clone(), family.clone()]).pro_transaction_id(),
+            None
+        );
         let pro = transaction(Product::Pro, 3, NOW);
         let purchases = held(vec![trial, family, pro.clone()]);
         assert_eq!(purchases.pro_transaction(), Some(pro.jws.as_str()));
+        assert_eq!(purchases.pro_transaction_id(), Some(3));
         let mut refunded = purchases;
         refunded.apply(revoked(pro), NOW);
         assert_eq!(refunded.pro_transaction(), None);
+        assert_eq!(refunded.pro_transaction_id(), None);
     }
 
     #[test]

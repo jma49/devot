@@ -1,6 +1,7 @@
 //! The App Store off iOS, and in tests. Empty, it is a device without the store: no products, no
 //! entitlements, and a purchase or restore fails with `E_APP_STORE_UNAVAILABLE`. Tests script it
-//! the way StoreKit Test scripts StoreKit: what a purchase gives, the products, a refund, updates.
+//! the way StoreKit Test scripts StoreKit: what a purchase gives, the products, a refund, updates,
+//! what a refund request gives.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Mutex, MutexGuard};
@@ -8,8 +9,8 @@ use std::sync::{Mutex, MutexGuard};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 use super::{
-    AppStore, Entitlements, Finish, Ownership, Product, Purchase, Restore, RevocationReason,
-    StoreEnvironment, StoreError, StoreProduct, StoreTransaction, Update,
+    AppStore, Entitlements, Finish, Ownership, Product, Purchase, Refund, Restore,
+    RevocationReason, StoreEnvironment, StoreError, StoreProduct, StoreTransaction, Update,
 };
 
 #[derive(Default)]
@@ -25,6 +26,8 @@ struct State {
     unfinished: Vec<u64>,
     finished: Vec<u64>,
     purchased: Vec<Product>,
+    refund_request: Result<Refund, StoreError>,
+    refund_requests: Vec<u64>,
     /// Updates sent before the listener starts, which StoreKit also delivers once it does.
     queued: VecDeque<Update>,
     listener: Option<UnboundedSender<Update>>,
@@ -43,6 +46,8 @@ impl Default for State {
             unfinished: Vec::new(),
             finished: Vec::new(),
             purchased: Vec::new(),
+            refund_request: Err(StoreError::UNAVAILABLE),
+            refund_requests: Vec::new(),
             queued: VecDeque::new(),
             listener: None,
             listening: false,
@@ -125,6 +130,16 @@ impl FakeAppStore {
         }));
     }
 
+    /// What every refund request gives from now on; Apple's decision is `refund`.
+    pub(crate) fn set_refund_request(&self, outcome: Result<Refund, StoreError>) {
+        self.state().refund_request = outcome;
+    }
+
+    /// The transactions a refund was asked for, in order.
+    pub(crate) fn refund_requests(&self) -> Vec<u64> {
+        self.state().refund_requests.clone()
+    }
+
     pub(crate) fn set_silent(&self, silent: bool) {
         self.state().silent = silent;
     }
@@ -201,6 +216,12 @@ impl AppStore for FakeAppStore {
         state.unfinished.remove(index);
         state.finished.push(transaction_id);
         Ok(Finish::Finished)
+    }
+
+    async fn request_refund(&self, transaction_id: u64) -> Result<Refund, StoreError> {
+        let mut state = self.state();
+        state.refund_requests.push(transaction_id);
+        state.refund_request
     }
 }
 

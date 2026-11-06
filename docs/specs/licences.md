@@ -20,6 +20,10 @@ Part of the [architecture overview](../architecture.md).
     Writes need a live lease or the 30-day migration window a key added offline gets; a device offline past its lease is read-only until it reaches the Worker once.
     The daily schedule in `updates.rs` renews the lease within 7 days of its end, and `licence_refresh` (Settings) asks now.
     The `/devices` page frees a seat for a device the buyer no longer has.
+  - **Request a Refund** (iPhone App Store builds, `licence/app_store.rs`, docs/licensing.md, App Store builds): Settings shows the row beside Get a Mac License Key while Devot Pro is held through the App Store.
+    `store_refund` (the iPhone's main window only) takes no argument and asks StoreKit for a refund of the Devot Pro transaction the licence holds, through the Swift bridge's `devot_store_refund`, which opens Apple's sheet over the active `UIWindowScene`.
+    Its outcome is requested or cancelled; Apple's decision arrives later as a revoked transaction update, so the command changes nothing the licence holds.
+    The row shows plain sentences from the catalog, never a code, and the logs carry codes only, never the transaction.
   - **Enforcement:** with gating on, no valid license and the trial over, `SyncService` refuses to create a vault and to connect, and `Ai::generate` (the one path every AI request takes: edit proposals, next edit suggestions, every provider) refuses before it reads a key, all with `E_LICENCE_REQUIRED`, or `E_LICENCE_UNREADABLE` when the keychain would not give the license, the trial or the seat (any `E_LICENCE_KEYCHAIN*` read error), which adding a license would not fix; the item is read again at the next tick, so that code may clear on its own.
     A device that already syncs stops at its next connect: the engine treats both codes as ones that stop sync, and the main window starts the engine again when the license changes.
   - **Read-only:** every write of user content refuses with `E_LICENCE_REQUIRED` too.

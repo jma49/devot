@@ -166,6 +166,16 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(again.status, "notFound")
     }
 
+    // Apple's refund sheet cannot be driven from a test, so only its outcomes are checked here.
+    func testARefundRequestIsRequestedOrCancelledAndAFailureOnlyItsCode() {
+        XCTAssertEqual(refundReply(.success), Reply(status: "refundRequested"))
+        XCTAssertEqual(refundReply(.userCancelled), Reply(status: "cancelled"))
+        XCTAssertEqual(refundCode(Transaction.RefundRequestError.duplicateRequest), "E_APP_STORE_REFUND_DUPLICATE")
+        XCTAssertEqual(refundCode(Transaction.RefundRequestError.failed), "E_APP_STORE_REFUND_FAILED")
+        XCTAssertEqual(
+            refundCode(StoreKitError.networkError(URLError(.notConnectedToInternet))), "E_APP_STORE_NETWORK")
+    }
+
     func testOnlyTheTwoProductsCanBeBought() async {
         let reply = await Store.purchase("io.github.jma49.devot.other")
         XCTAssertEqual(reply, .error("E_APP_STORE_UNKNOWN_PRODUCT"))

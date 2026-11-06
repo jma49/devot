@@ -12,11 +12,11 @@ use super::super::store::{KeyStore, MemoryKey};
 use super::super::testing::{ID, key, sign, test_keys};
 use super::super::trial::{LENGTH_MS, TrialSource, TrialState};
 use super::super::{KEYS_OFF, Licence, REQUIRED, Snapshot};
-use super::{Bought, Limits, Storefront, mac_key, purchase_line};
+use super::{Bought, Limits, Storefront, mac_key, purchase_line, refund_line};
 use crate::app_store::fake::{FakeAppStore, transaction};
 use crate::app_store::{
-    AppStore, Ownership, Product, Purchase, Restore, RevocationReason, StoreError, StoreProduct,
-    StoreTransaction, Update,
+    AppStore, Ownership, Product, Purchase, Refund, Restore, RevocationReason, StoreError,
+    StoreProduct, StoreTransaction, Update,
 };
 use crate::storage::Write;
 
@@ -706,5 +706,85 @@ fn a_purchase_logs_its_outcome_by_product_and_code() {
     assert_eq!(
         purchase_line(Product::Trial, &Err(StoreError::UNAVAILABLE)),
         "W_APP_STORE_PURCHASE trial E_APP_STORE_UNAVAILABLE"
+    );
+}
+
+#[test]
+fn a_refund_is_requested_for_the_held_pro_purchase_alone() {
+    let setup = app_store();
+    setup.store().set_refund_request(Ok(Refund::Requested));
+    assert_eq!(
+        block_on(setup.shop.request_refund()),
+        Err(StoreError::NO_PRO)
+    );
+    entitled(
+        &setup,
+        vec![
+            transaction(Product::Trial, 1, START),
+            StoreTransaction {
+                ownership: Ownership::FamilyShared,
+                ..transaction(Product::Pro, 2, START)
+            },
+        ],
+    );
+    assert_eq!(
+        block_on(setup.shop.request_refund()),
+        Err(StoreError::NO_PRO)
+    );
+    assert!(setup.store().refund_requests().is_empty());
+
+    let pro = transaction(Product::Pro, 3, START);
+    entitled(
+        &setup,
+        vec![transaction(Product::Trial, 1, START), pro.clone()],
+    );
+    assert_eq!(block_on(setup.shop.request_refund()), Ok(Refund::Requested));
+    assert_eq!(setup.store().refund_requests(), vec![3]);
+
+    setup.licence.take_transaction(refunded(pro, START));
+    assert_eq!(
+        block_on(setup.shop.request_refund()),
+        Err(StoreError::NO_PRO)
+    );
+    assert_eq!(setup.store().refund_requests(), vec![3]);
+}
+
+#[test]
+fn a_cancelled_or_failed_refund_request_changes_nothing_held() {
+    let setup = app_store();
+    entitled(&setup, vec![transaction(Product::Pro, 3, START)]);
+    setup.store().set_refund_request(Ok(Refund::Cancelled));
+    assert_eq!(block_on(setup.shop.request_refund()), Ok(Refund::Cancelled));
+    let failed = StoreError::from_code("E_APP_STORE_REFUND_DUPLICATE");
+    setup.store().set_refund_request(Err(failed));
+    assert_eq!(block_on(setup.shop.request_refund()), Err(failed));
+    assert!(setup.writes(), "Devot Pro stays until Apple decides");
+    assert_eq!(setup.store().refund_requests(), vec![3, 3]);
+}
+
+#[test]
+fn only_an_app_store_build_requests_a_refund() {
+    let direct = build(true, true, Arc::new(MemoryKey::default()));
+    direct.store().set_refund_request(Ok(Refund::Requested));
+    assert_eq!(
+        block_on(direct.shop.request_refund()),
+        Err(StoreError::UNAVAILABLE)
+    );
+    assert!(direct.store().refund_requests().is_empty());
+}
+
+#[test]
+fn a_refund_request_logs_its_outcome_as_a_code() {
+    assert_eq!(
+        refund_line(&Ok(Refund::Requested)),
+        "I_APP_STORE_REFUND_REQUESTED"
+    );
+    assert_eq!(
+        refund_line(&Ok(Refund::Cancelled)),
+        "I_APP_STORE_REFUND_CANCELLED"
+    );
+    assert_eq!(
+        refund_line(&Err(StoreError::from_code("E_APP_STORE_NETWORK"))),
+        "W_APP_STORE_REFUND E_APP_STORE_NETWORK"
     );
 }

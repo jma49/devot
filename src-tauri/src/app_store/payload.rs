@@ -7,11 +7,11 @@
 use serde::Deserialize;
 
 use super::{
-    Entitlements, Finish, Product, Purchase, Restore, StoreError, StoreProduct, StoreTransaction,
-    Update,
+    Entitlements, Finish, Product, Purchase, Refund, Restore, StoreError, StoreProduct,
+    StoreTransaction, Update,
 };
 
-const ERRORS: [&str; 10] = [
+const ERRORS: [&str; 13] = [
     "E_APP_STORE_NETWORK",
     "E_APP_STORE_SYSTEM",
     "E_APP_STORE_NOT_AVAILABLE",
@@ -21,6 +21,9 @@ const ERRORS: [&str; 10] = [
     "E_APP_STORE_PURCHASE_FAILED",
     "E_APP_STORE_PRODUCT_NOT_FOUND",
     "E_APP_STORE_UNKNOWN_PRODUCT",
+    "E_APP_STORE_REFUND_DUPLICATE",
+    "E_APP_STORE_REFUND_FAILED",
+    "E_APP_STORE_NO_SCENE",
     "E_APP_STORE_UNKNOWN",
 ];
 
@@ -82,6 +85,7 @@ enum Reply {
     },
     Finished,
     NotFound,
+    RefundRequested,
     Error {
         code: String,
     },
@@ -157,6 +161,14 @@ pub(super) fn finish(json: &[u8]) -> Result<Finish, StoreError> {
     match read(json)? {
         Reply::Finished => Ok(Finish::Finished),
         Reply::NotFound => Ok(Finish::NotFound),
+        _ => Err(StoreError::PAYLOAD),
+    }
+}
+
+pub(super) fn refund(json: &[u8]) -> Result<Refund, StoreError> {
+    match read(json)? {
+        Reply::RefundRequested => Ok(Refund::Requested),
+        Reply::Cancelled => Ok(Refund::Cancelled),
         _ => Err(StoreError::PAYLOAD),
     }
 }

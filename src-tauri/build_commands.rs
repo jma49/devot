@@ -148,6 +148,7 @@ const LICENCE: &[&str] = &[
     "store_purchase",
     "store_restore",
     "store_mac_key",
+    "store_refund",
     "settings_open_licence",
     "update_status",
     "update_check",

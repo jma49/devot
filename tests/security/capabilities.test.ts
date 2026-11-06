@@ -590,6 +590,7 @@ const PHONE_ONLY = [
   'allow-store-purchase',
   'allow-store-restore',
   'allow-store-mac-key',
+  'allow-store-refund',
 ]
 
 describe('the iPhone capability', () => {

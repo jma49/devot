@@ -372,6 +372,16 @@ export async function restorePurchases(): Promise<LicenceSnapshot> {
   return next ?? snapshot
 }
 
+export type RefundRequest = 'requested' | 'cancelled'
+
+/**
+ * Request a Refund: Apple's own sheet for the Devot Pro purchase Rust holds. Apple decides later,
+ * and a refund arrives as a revoked transaction, by `licence-changed`. Rejects with a code.
+ */
+export async function requestRefund(): Promise<RefundRequest> {
+  return (await invoke<unknown>('store_refund')) === 'requested' ? 'requested' : 'cancelled'
+}
+
 /** The Mac licence key of the Devot Pro purchase this Apple account holds. */
 export interface MacKey {
   readonly key: string

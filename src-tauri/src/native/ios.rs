@@ -244,6 +244,7 @@ mod store {
         fn devot_store_restore(request: u64, reply: StoreReply);
         fn devot_store_entitlements(request: u64, reply: StoreReply);
         fn devot_store_finish(request: u64, transaction_id: u64, reply: StoreReply);
+        fn devot_store_refund(request: u64, transaction_id: u64, reply: StoreReply);
         fn devot_store_listen(update: StoreUpdate) -> bool;
     }
 
@@ -322,6 +323,11 @@ mod store {
     pub fn store_finish(transaction_id: u64) -> oneshot::Receiver<Vec<u8>> {
         // SAFETY: as in `store_products`; the transaction ID is a plain number.
         store_call(|request| unsafe { devot_store_finish(request, transaction_id, store_reply) })
+    }
+
+    pub fn store_refund(transaction_id: u64) -> oneshot::Receiver<Vec<u8>> {
+        // SAFETY: as in `store_finish`.
+        store_call(|request| unsafe { devot_store_refund(request, transaction_id, store_reply) })
     }
 
     /// Starts StoreKit's transaction listener, which hands every update's JSON to `deliver` on a Swift

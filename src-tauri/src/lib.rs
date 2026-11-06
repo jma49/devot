@@ -214,6 +214,7 @@ pub fn run() {
             licence::app_store::store_purchase,
             licence::app_store::store_restore,
             licence::app_store::store_mac_key,
+            licence::app_store::store_refund,
             link_info::link_title,
             link_info::github_snippet,
             #[cfg(desktop)]
