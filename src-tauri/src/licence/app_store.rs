@@ -202,10 +202,24 @@ pub async fn store_products(shop: Tauri<'_, Shop>) -> Result<Vec<ProductView>, S
 #[tauri::command]
 pub async fn store_purchase(shop: Tauri<'_, Shop>, product: String) -> Result<Bought, String> {
     let product = product_of(&product).ok_or("E_APP_STORE_UNKNOWN_PRODUCT")?;
-    storefront(&shop)?
-        .purchase(product)
-        .await
-        .map_err(|error| error.code().to_owned())
+    let shop = storefront(&shop)?;
+    log::info!("I_APP_STORE_PURCHASE_STARTED {}", product_key(product));
+    let outcome = shop.purchase(product).await;
+    match &outcome {
+        Ok(_) => log::info!("{}", purchase_line(product, &outcome)),
+        Err(_) => log::warn!("{}", purchase_line(product, &outcome)),
+    }
+    outcome.map_err(|error| error.code().to_owned())
+}
+
+fn purchase_line(product: Product, outcome: &Result<Bought, StoreError>) -> String {
+    let product = product_key(product);
+    match outcome {
+        Ok(Bought::Purchased) => format!("I_APP_STORE_PURCHASE {product} purchased"),
+        Ok(Bought::Pending) => format!("I_APP_STORE_PURCHASE {product} pending"),
+        Ok(Bought::Cancelled) => format!("I_APP_STORE_PURCHASE {product} cancelled"),
+        Err(error) => format!("W_APP_STORE_PURCHASE {product} {}", error.code()),
+    }
 }
 
 /// Restore Purchases: the outcome is the licence's state after it.
