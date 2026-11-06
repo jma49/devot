@@ -14,7 +14,7 @@ const theme = (appearance: 'light' | 'dark', id = 'system') =>
 describe('tag colour palette', () => {
   it('is the same list in the core and in Rust', () => {
     const rust = /pub const TAG_COLORS: \[&str; \d+\] = \[([^\]]*)\]/.exec(
-      read('src-tauri/src/storage/mod.rs'),
+      read('src-tauri/src/storage/records.rs'),
     )
     const ids = [...(rust?.[1] ?? '').matchAll(/"([^"]+)"/g)].map((m) => m[1])
     expect(ids).toEqual([...TAG_COLORS])

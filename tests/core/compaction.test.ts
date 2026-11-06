@@ -233,7 +233,7 @@ describe('the storage a compaction sweep uses', () => {
   })
 
   it('runs the same statements as the Rust store', () => {
-    const source = readFileSync('src-tauri/src/storage/mod.rs', 'utf8')
+    const source = readFileSync('src-tauri/src/storage/revisions.rs', 'utf8')
     const statement = (name: string) =>
       new RegExp(`const ${name}: &str =\\s*"([^"]*)";`).exec(source)?.[1] ?? ''
     const words = (sql: string) => sql.split(/\s+/).join(' ')

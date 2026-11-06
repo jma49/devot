@@ -104,7 +104,7 @@ export const SCHEMA_VERSION = migrations.length
 
 /**
  * What the activity heatmap reads (listActivity), with `@since`; the same
- * statements as the Rust store (storage/mod.rs, list_activity). Each reads
+ * statements as the Rust store (storage/activity.rs, list_activity). Each reads
  * a covering index of migration 0012, never a table row (rows hold Yjs
  * states): only what falls in the window, and for each body version the
  * one before it (versions are ordered by time, then length, words and rowid).
@@ -149,7 +149,7 @@ export const ACTIVITY_SQL = {
 
 /**
  * The agent_writes index (docs/adr/0007-authorship-by-yjs-item-ids.md), the
- * same statements as the Rust store's (storage/mod.rs; a test compares them).
+ * same statements as the Rust store's (storage/agent_writes.rs; a test compares them).
  * A note's rows are replaced with each write that carries them, keeping
  * `seen` of the rows it still has. The list keeps every unseen row, however
  * old, so a note whose writes are all older than the newest `limit` still
@@ -183,7 +183,7 @@ export const AGENT_WRITES_SQL = {
 
 /**
  * Revision history and its compaction (src/core/revisions.ts), the same
- * statements as the Rust store's (storage/mod.rs; a test compares them).
+ * statements as the Rust store's (storage/revisions.rs; a test compares them).
  * The reads go through covering indexes (migration 0013's
  * revisions_history, and revisions_by_time), never a version's Yjs state.
  */
@@ -264,7 +264,7 @@ export const SYNC_SQL = {
 
 /**
  * The note list and the Trash, the same statements as the Rust store's
- * (storage/mod.rs; a test compares them). Each reads an index that covers it
+ * (storage/notes.rs; a test compares them). Each reads an index that covers it
  * (migration 0014), never a note's row: a note's small columns come after
  * its Markdown and its Yjs state, so reading them from the row walks every
  * overflow page of both.
@@ -311,7 +311,7 @@ export const LIST_SQL = {
 } as const
 
 /**
- * A search as SQL, the same as the Rust store builds (storage/mod.rs,
+ * A search as SQL, the same as the Rust store builds (storage/search.rs,
  * search_sql): every condition is one clause of a WHERE, so the limit
  * applies after all of them. Live notes come from the list's index
  * (notes_list), never from their rows: ranked text matches the trigram
@@ -411,7 +411,7 @@ export function searchStatement(
  * an outside writer, a restored version, an old duplicate), and its image must stay.
  * The search index finds those notes (a phrase match, so no note is read
  * whole); it ignores case, so `instr` checks the address as written. The
- * same statement as the Rust store's (storage/mod.rs, HAND_OVER_FILES_SQL;
+ * same statement as the Rust store's (storage/purge.rs, HAND_OVER_FILES_SQL;
  * a test compares them).
  */
 export const HAND_OVER_FILES_SQL = `UPDATE files SET note_hlc = MAX(note_hlc, @hlc), note_id = COALESCE((
@@ -643,7 +643,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     // write transaction begins IMMEDIATE, as the Rust store's do: one that
     // read first would fail at once when it then needs to write. Deleted
     // text is overwritten (secure_delete), so free pages keep none.
-    // The SQL function the Rust store registers too (storage/mod.rs): terms
+    // The SQL function the Rust store registers too (storage/search.rs): terms
     // too short for the trigram index are scanned with it, so they ignore
     // case in every script as the index does (SQLite's lower() is ASCII only).
     db.function('devot_fold', { deterministic: true }, (text) =>
@@ -732,7 +732,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const addNoteLink = db.prepare('INSERT OR IGNORE INTO links (source_id, target_id) VALUES (?, ?)')
   const handOverFiles = db.prepare<[{ id: string; hlc: string }]>(HAND_OVER_FILES_SQL)
   const dropFiles = db.prepare('DELETE FROM files WHERE note_id = ?')
-  // Revision history: same statements as the Rust store (storage/mod.rs).
+  // Revision history: same statements as the Rust store (storage/revisions.rs).
   const dropRevisions = db.prepare('DELETE FROM revisions WHERE note_id = ?')
   const keepAgentWrites = db.prepare(AGENT_WRITES_SQL.keep)
   const putAgentWrite = db.prepare(AGENT_WRITES_SQL.put)
@@ -802,7 +802,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     `INSERT INTO files (id, note_id, name, mime, size, data, created_at)
      SELECT @to, @noteId, name, mime, size, data, @createdAt FROM files WHERE id = @from`,
   )
-  // Same per-field last-writer-wins merge as the Rust store (storage/mod.rs).
+  // Same per-field last-writer-wins merge as the Rust store (storage/notes.rs).
   // A compare-and-set on the body, as the Rust store's put_note: written
   // only while the stored body is at the version the record is based on.
   const put = db.prepare(
