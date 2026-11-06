@@ -13,13 +13,13 @@ Rules here hold for every contributor; add shared rules here. Personal or machin
 - Tests make temporary folders only through `tempDir` (`tests/support/temp-dirs.ts`, removed when the test file ends) or Rust's `tempfile` (removed on drop); a policy test refuses `mkdtempSync(join(tmpdir(), …))` and `env::temp_dir()` by hand. Nothing a test makes may outlive the run.
 - The core library (`src/core`) must not import `@tauri-apps/*`, `better-sqlite3` or `node:*`; the UI (`src/renderer`) must not import Node modules.
 - `unsafe` Rust is allowed only in `src-tauri/src/native/macos.rs` and `src-tauri/src/native/ios.rs`, with a `SAFETY` comment on every block. Guard every private API call with `respondsToSelector:` and fall back instead of crashing.
-- Every new Tauri command is declared in `src-tauri/build.rs` and granted in `src-tauri/capabilities/`; it validates its arguments in Rust.
+- Every new Tauri command is declared in its area's list in `src-tauri/build_commands.rs` (which `src-tauri/build.rs` passes to Tauri) and granted in `src-tauri/capabilities/`; it validates its arguments in Rust.
 - Tests that touch WebKit must run on the main thread: put them in a `harness = false` test under `src-tauri/tests/`.
 - Error messages and logs carry codes and IDs, never note content.
 - Components use theme design tokens only, never primitives or colour literals (`design/README.md`); after editing tokens, run `pnpm tokens` (CI fails when its output is stale).
 - Glass layout follows `design/layout.md`: keylines, one stroke rule, one caption style, the note type scale. A new element in the Glass interface snaps to them, and a new rule goes there.
 - Motion follows `design/motion.md`: every new or changed interaction is classified there before it is built, and the spec is updated with it.
-- UI text is English and comes from the i18n message catalog by key; never inline a user-facing string. No CJK characters anywhere in tracked files (a test enforces it); write CJK test data with `\u` escapes.
+- UI text is English and comes from the i18n message catalog by key; never inline a user-facing string. A new key goes in the module of `src/renderer/src/i18n/en/` that lists its prefix (`en/index.ts`). No CJK characters anywhere in tracked files (a test enforces it); write CJK test data with `\u` escapes.
 - Rust tools come from rustup. A non-interactive shell may not read your shell profile: put rustup's `bin` folder on `PATH` before running `cargo` (with Homebrew's rustup, `$(brew --prefix rustup)/bin`). The git hooks add the usual locations themselves.
 - A test that checks a time limit uses `expectWithinBudget` (`tests/support/budget.ts`), which skips on an overloaded machine; a policy test refuses `expect(ms).toBeLessThan(…)` by hand. Name a test file that takes seconds (benchmarks, big inputs, real builds) `*.bench.test.ts`: `pnpm test:fast` and the pre-push hook leave it out, CI runs it.
 - Local test runs are capped so a local run leaves the machine usable: Vitest 3 workers (`DEVOT_TEST_WORKERS`), Playwright 2 (`DEVOT_UI_WORKERS`), cargo 4 jobs (`CARGO_BUILD_JOBS`). Raise them with those variables if you like; CI sets its own.
