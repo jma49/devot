@@ -61,6 +61,7 @@ export function ICloudActions(props: {
   actions: readonly ICloudAction[]
   locked: boolean
   failed: Failure
+  cleared: () => void
 }) {
   const [confirming, setConfirming] = useState<ICloudAction>()
   const [running, setRunning] = useState(false)
@@ -70,6 +71,7 @@ export function ICloudActions(props: {
     if (running) return
     setRunning(true)
     RUN[action]()
+      .then(props.cleared)
       .catch(props.failed('syncSettings.icloudChangeFailed'))
       .finally(() => setRunning(false))
   }
@@ -122,6 +124,7 @@ export function TransportQuestion({
   declined: boolean
   onRelay: () => void
   failed: Failure
+  cleared: () => void
 }) {
   const [starting, setStarting] = useState(false)
   const onPhone = useOnPhone()
@@ -135,6 +138,7 @@ export function TransportQuestion({
     if (starting || props.locked) return
     setStarting(true)
     ;(props.declined ? answerICloudJoin(true) : syncThroughICloud())
+      .then(props.cleared)
       .catch(props.failed('syncSettings.icloudChangeFailed'))
       .finally(() => setStarting(false))
   }
@@ -181,7 +185,7 @@ export function TransportRow(props: { snapshot: SyncSnapshot; onICloud?: () => v
 }
 
 /** A relay vault's way to iCloud: confirmed, then a new epoch there and the moved marker here. */
-export function MoveToICloudRow(props: { locked: boolean; failed: Failure }) {
+export function MoveToICloudRow(props: { locked: boolean; failed: Failure; cleared: () => void }) {
   const [asking, setAsking] = useState(false)
   const [moving, setMoving] = useState(false)
   const move = () => {
@@ -189,6 +193,7 @@ export function MoveToICloudRow(props: { locked: boolean; failed: Failure }) {
     if (moving) return
     setMoving(true)
     syncThroughICloud()
+      .then(props.cleared)
       .catch(props.failed('syncSettings.icloudChangeFailed'))
       .finally(() => setMoving(false))
   }
