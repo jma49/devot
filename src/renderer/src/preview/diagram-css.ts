@@ -1,6 +1,8 @@
 // A diagram's CSS can come from its note (a directive's themeCSS, classDef, style), so nothing
 // in it may make the page fetch: no URL but a same-document fragment, no image function, no import.
-const FETCHES = /url\((?![\s'"]*#)|image-set\(|(?<![\w-])(?:image|src)\(|@import/i
+const FETCHES = /url\((?![\s'"]*#)|image-set\(|(?:^|[^\w-])(?:image|src)\(|@import/i
+/** Every form FETCHES finds has one of these, escapes included; the rest of a drawing skips the full check. */
+const MAY_FETCH = /[(@\\]/
 
 type Item = string | { prelude: string; body: Item[] }
 
@@ -14,7 +16,7 @@ function unescaped(text: string): string {
 }
 
 export function pointsElsewhere(text: string): boolean {
-  return FETCHES.test(unescaped(text))
+  return MAY_FETCH.test(text) && FETCHES.test(unescaped(text))
 }
 
 function stringEnd(css: string, from: number): number {
