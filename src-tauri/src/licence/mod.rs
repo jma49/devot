@@ -38,7 +38,7 @@ use tauri::State as Tauri;
 pub(crate) use activation::ACTIVATION_ACCOUNT;
 pub(crate) use client::Reply as ActivationReply;
 pub(crate) use device::DEVICE_ACCOUNT;
-pub(crate) use format::{LICENCE_PREFIX, MAX_LENGTH};
+pub(crate) use format::MAX_LENGTH;
 use format::{
     Payload, Revocations, VerifyError, verify_activation, verify_licence, verify_revocations,
 };
@@ -1094,6 +1094,11 @@ impl Licence {
         let snapshot = self.snapshot();
         (self.emit)(&snapshot);
         snapshot
+    }
+
+    /// Whether a key is a licence signed with a key this build trusts; it reads no keychain.
+    pub(crate) fn signed(&self, key: &str) -> bool {
+        verify_licence(key, &self.keys).is_ok()
     }
 
     /// Checks a key without keeping it: what adding it would show. It reads no keychain, since a

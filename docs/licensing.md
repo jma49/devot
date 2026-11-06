@@ -242,7 +242,8 @@ An iPhone release build compiled with `DEVOT_DISTRIBUTION=app-store` beside `DEV
   `store_mac_key` takes no argument: Rust sends the signed transaction of the Devot Pro purchase the licence holds, never one from a window, to `/app-store/exchange`, checks that the answer is a key for the license it names with the App Store licensee, and gives the window the key and its ID.
   The sheet shows the key with Copy Key and Share; the iPhone never adds it.
   Share calls `phone_share` with a message that holds the key, to paste, and the key's `devot://licence?key=` link, which opens it in Devot on a Mac.
-  Rust takes only a link it would build from a licence key and presents the iPhone's own share sheet from the bottom, with the message and the link as a URL; the web view's share sheet showed as a clipped popover over the sheet.
+  Rust verifies the key in the link with the licence's public keys, takes only the link it would build from that key and a message that holds the key, and presents the iPhone's own share sheet from the bottom, with the message and the link as a URL.
+  The web view's share sheet showed as a clipped popover over the sheet.
   A cancelled share is not an error.
   Logs: `I_APP_STORE_MAC_KEY <license>`, `W_APP_STORE_MAC_KEY <code>`, `I_SHARE_DONE`, `I_SHARE_CANCELLED`, `W_SHARE_FAILED`; none carries the key.
 - **Licence keys** are taken while `APP_STORE_TAKES_LICENCE_KEYS` is on, the one switch for ADR 0014, Risks 1. Off, `licence_set` and `devot://license` links answer `E_LICENCE_KEYS_OFF` and the windows hide the key field and Enter License Key.

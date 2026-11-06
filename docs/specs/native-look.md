@@ -251,10 +251,11 @@ Part of the [design system](design-system.md).
   UIKit lays the symbol out for a display scale of 1, on whole points as AppKit does: its PNG is then within a pixel of the Mac's in size and in where the symbol sits, 8 bits a channel in sRGB like AppKit's (laid out for the screen's scale, UIKit sizes it in thirds of a point and it sits higher).
   It is an async command whose render runs on a blocking thread, one render at a time (AppKit uses an image on one thread at a time) in an autorelease pool of its own, never on the main thread: Tauri runs a synchronous command there, and at launch the main thread also routes the page's first IPC, which the first paint's 22 icons held up for about 115 ms (80 of them on the first, when AppKit loads the symbols).
   The UI caches results per name, size and appearance, and re-requests them when the appearance changes.
-- Share sheet (iPhone): `phone_share` presents UIKit's share sheet (`native/ios.rs`) over the key window's top-most view controller, so it rises from the bottom as every iPhone app's does; a page's own share sheet shows in the web view as a clipped popover.
+- Share sheet (iPhone): `phone_share` presents UIKit's share sheet (`native/ios.rs`) over the key window's top-most view controller, so it rises from the bottom as every iPhone app's does.
+  A page's own share sheet shows in the web view as a clipped popover.
   A popover, as an iPad would show, points at the bottom middle of that controller's view, so the sheet always has a source.
-  The command resolves once the sheet is gone, a cancel included, and answers `E_SHARE_FAILED` when nothing could be presented.
-  It shares the Mac License Key alone (docs/licensing.md, Get a Mac License Key): a message and a `devot://licence?key=` link built from a licence key, checked in Rust.
+  The command resolves at the share sheet's first answer, a cancel included (a cancel inside another app's share extension dismisses the whole sheet and answers once), and answers `E_SHARE_FAILED` when nothing could be presented.
+  It shares the Mac License Key alone (docs/licensing.md, Get a Mac License Key): a message that holds a licence key this build verifies, and that key's `devot://licence?key=` link, checked in Rust.
 - Icon placement (`src/renderer/src/icons/symbols.ts`): `boxPoints` chooses the source point size from the role's box.
   `inkBounds` measures actual alpha coverage, and `placeInCanvas` centres that ink in a fixed canvas, preserving its scale unless it exceeds the box.
   Oversized ink is reduced to fit; transparent PNG padding contributes no size and never creates overhang or negative layout margins.

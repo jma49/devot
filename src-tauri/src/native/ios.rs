@@ -144,7 +144,8 @@ fn top_view_controller(
 /// Presents the system share sheet for a message and a link (`share::phone_share` has checked
 /// both) over the top-most view controller: on an iPhone it rises from the bottom, and a popover
 /// (an iPad's) points at the bottom middle of that controller's view. `done` hears whether an
-/// activity completed once the sheet is gone; when nothing was presented it is dropped uncalled.
+/// activity completed at the handler's first call (a cancel inside another app's share extension
+/// dismisses the whole sheet and answers once); when nothing was presented it is dropped uncalled.
 /// Main thread only.
 #[cfg(target_os = "ios")]
 pub fn share(text: &str, url: &str, done: impl FnOnce(bool) + 'static) {
@@ -177,14 +178,11 @@ pub fn share(text: &str, url: &str, done: impl FnOnce(bool) + 'static) {
         };
         let done = Cell::new(Some(done));
         let finished = RcBlock::new(
-            move |activity: *mut NSString,
+            move |_activity: *mut NSString,
                   completed: Bool,
                   _items: *mut NSArray,
                   _error: *mut NSError| {
-                // Backing out of another app's share extension answers too, with the sheet still up.
-                if (completed.as_bool() || activity.is_null())
-                    && let Some(done) = done.take()
-                {
+                if let Some(done) = done.take() {
                     done(completed.as_bool());
                 }
             },
