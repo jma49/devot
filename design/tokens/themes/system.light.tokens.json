@@ -384,10 +384,10 @@
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
-          "components": [0.8314, 0.1882, 0.1529],
-          "hex": "#d43027"
+          "components": [0.8, 0.1804, 0.1451],
+          "hex": "#cc2e25"
         },
-        "$description": "Text of a destructive row. Design #ff3b30, moved only as far as 4.5:1 on a card and a menu needs."
+        "$description": "Text of a destructive row. Design #ff3b30, moved only as far as 4.5:1 on a card, a menu and a gradient theme's page needs."
       },
       "status-none": {
         "$type": "color",

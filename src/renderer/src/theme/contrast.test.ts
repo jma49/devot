@@ -10,6 +10,7 @@ import {
   type Rgba,
 } from './contrast'
 import { dark, ivoryDark, ivoryLight, light, sizes } from './tokens'
+import backdropTokens from '../../../../design/tokens/backdrops.tokens.json'
 import { applyAccent, cardBackdrops, SELECTION_CONTRAST, type StyleTarget } from './accent'
 
 // WCAG AA, from the token values: text needs 4.5:1, graphics 3:1. The pairs
@@ -390,9 +391,40 @@ const SYSTEM_ACCENTS: Record<string, [string, string]> = {
   'pure yellow': ['#ffff00', '#ffff00'],
 }
 
+type BackdropScheme = 'light' | 'dark'
+
+/** A gradient theme's stops as painted on the phone page: over the page, under the veil that shows them at `opacity.phone-backdrop`. */
+function phonePagesUnderGradients(theme: Theme, scheme: BackdropScheme): Rgb[] {
+  const page = solid(theme, 'phone.background')
+  const strength = Number(sizes['opacity.phone-backdrop'])
+  const { backdrop } = backdropTokens
+  return [backdrop.dawn, backdrop.tide, backdrop.sage, backdrop.ember].flatMap((entry) =>
+    entry[scheme].$value.map(({ color }) => {
+      const stop = composite(
+        { rgb: color.components.map((c) => Math.round(c * 255)) as Rgb, alpha: color.alpha },
+        page,
+      )
+      return stop.map((c, i) => c * strength + page[i]! * (1 - strength)) as Rgb
+    }),
+  )
+}
+
+describe.each([
+  ['light', light as Theme],
+  ['dark', dark as Theme],
+] as const)('destructive text on the phone gradient themes in %s', (scheme, theme) => {
+  it('keeps 4.5:1 on the page and on glass over the page', () => {
+    const pages = phonePagesUnderGradients(theme, scheme)
+    const glass = pages.map((p) => over(theme, 'phone.glass', p))
+    expect(worst(solid(theme, 'phone.destructive'), [...pages, ...glass])).toBeGreaterThanOrEqual(
+      4.5,
+    )
+  })
+})
+
 describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme) => {
   const plain = ['phone.background', 'phone.card', 'phone.elevated'].map((s) => solid(theme, s))
-  // Status marks and destructive rows sit on the page and on sheet cards, never on a grouped page's card.
+  // Status marks sit on the page and on sheet cards, never on a grouped page's card.
   const marked = ['phone.background', 'phone.elevated'].map((s) => solid(theme, s))
   const raised = over(theme, 'phone.swipe-surface', solid(theme, 'phone.background'))
   const glassOver = plain.map((s) => over(theme, 'phone.glass', s))
@@ -424,7 +456,7 @@ describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme
         'section head': [solid(theme, 'phone.section-head'), [solid(theme, 'phone.background')]],
         destructive: [
           solid(theme, 'phone.destructive'),
-          [solid(theme, 'phone.elevated'), ...glassOver],
+          [solid(theme, 'phone.card'), solid(theme, 'phone.elevated'), ...glassOver],
         ],
         'a pane action row': [solid(theme, 'text.destructive'), [solid(theme, 'phone.card')]],
         'accent text': [solid(theme, 'accent.text'), [solid(theme, 'phone.background')]],
