@@ -48,14 +48,11 @@ test('the note list has two left edges and one right edge', async ({ page }) => 
   expect(Math.round((await inkLeft(list.locator('.row-title').first())) - origin)).toBe(24)
   expect(await from(list.locator('.sidebar-toggle, .list-header-side').first())).toBe(12)
 
-  for (const end of [
-    list.locator('.search-field'),
-    list.locator('.layout-control'),
-    list.getByRole('button', { name: 'New Note', exact: true }),
-    list.locator('.row').first(),
-  ]) {
+  const create = list.getByRole('button', { name: 'New Note', exact: true })
+  for (const end of [list.locator('.layout-control'), create, list.locator('.row').first()]) {
     expect(Math.round(listRight - (await right(end)))).toBe(12)
   }
+  expect(Math.round((await left(create)) - (await right(list.locator('.search-field'))))).toBe(6)
 })
 
 test('every sidebar row has its icon at 18 and its label at 44, chevron or not', async ({
