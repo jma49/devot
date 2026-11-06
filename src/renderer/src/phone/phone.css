@@ -2641,12 +2641,11 @@ button.phone-grouped-open:active:not(:disabled) {
 }
 
 .phone-settings-pane .setting-toggle:has(input:disabled) .setting-label {
-  color: inherit;
+  color: var(--color-text-primary);
 }
 
-.phone-settings-pane
-  .setting:has(> .setting-control > :is(input:disabled, .select:has(> select:disabled)))
-  > * {
+.phone-settings-pane .setting:has(> .setting-control > input:disabled) > *,
+.phone-settings-pane .setting:has(> .setting-control > .select > select:disabled) > * {
   opacity: var(--opacity-disabled);
 }
 

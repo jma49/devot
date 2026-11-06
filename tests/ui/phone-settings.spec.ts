@@ -302,7 +302,9 @@ test('a stepper and a select sit on their label row, at the row right padding', 
 test('a select row is its native target, its value and chevron on the right', async ({ page }) => {
   const pane = await openPane(page, 'Appearance')
   const select = pane.getByRole('combobox', { name: 'Animations' })
-  const row = pane.locator('.setting').filter({ has: select })
+  const row = pane
+    .locator('.setting')
+    .filter({ has: page.getByRole('combobox', { name: 'Animations' }) })
   const [box, whole] = [(await select.boundingBox())!, (await row.boundingBox())!]
   expect(box.x).toBeCloseTo(whole.x, 0)
   expect(box.width).toBeCloseTo(whole.width, 0)
@@ -507,7 +509,9 @@ test.describe('License and disabled switches', () => {
     const sync = await openPane(page, 'Sync')
     const disabled = sync.getByRole('switch', { name: 'Sync This Device' })
     await expect(disabled).toBeDisabled()
-    const row = sync.locator('.setting').filter({ has: disabled })
+    const row = sync
+      .locator('.setting')
+      .filter({ has: page.getByRole('switch', { name: 'Sync This Device' }) })
     const faded = (target: Locator) =>
       target.evaluate((el) => ({
         row: getComputedStyle(el).opacity,
@@ -526,18 +530,26 @@ test.describe('License and disabled switches', () => {
     expect(
       await preview
         .locator('.setting')
-        .filter({ has: enabled })
+        .filter({ has: page.getByRole('switch') })
+        .first()
         .evaluate((el) => getComputedStyle(el).opacity),
     ).toBe('1')
     await expect.poll(() => paint(enabled)).toEqual(off)
-    const enabledLabel = await faded(preview.locator('.setting').filter({ has: enabled }))
+    const enabledLabel = await faded(
+      preview
+        .locator('.setting')
+        .filter({ has: page.getByRole('switch') })
+        .first(),
+    )
     expect(dimmed.label).toBe(enabledLabel.label)
   })
 
   test('a disabled select row fades once, its hairline kept', async ({ page }) => {
     const pane = await openPane(page, 'Appearance')
     const select = pane.getByRole('combobox', { name: 'Animations' })
-    const row = pane.locator('.setting').filter({ has: select })
+    const row = pane
+      .locator('.setting')
+      .filter({ has: page.getByRole('combobox', { name: 'Animations' }) })
     await select.evaluate((el) => ((el as HTMLSelectElement).disabled = true))
     const seen = await row.evaluate((el) => ({
       row: getComputedStyle(el).opacity,
@@ -696,11 +708,14 @@ test('a stepper reads and tabs as its number, then - and +, each a 44 by 44 targ
 }) => {
   const pane = await openPane(page, 'Editing')
   const stepper = pane.locator('.settings-card .stepper').first()
+  await stepper.scrollIntoViewIfNeeded()
   expect(
     await stepper
       .locator('input, button')
       .evaluateAll((items) => items.map((el) => el.getAttribute('aria-label') ?? el.tagName)),
   ).toEqual(['INPUT', 'Less', 'More'])
+  await stepper.getByRole('button', { name: 'More' }).click()
+  await expect(stepper.getByRole('button', { name: 'Less' })).toBeEnabled()
   const targets = await stepper.locator('.stepper-button').evaluateAll((buttons) =>
     buttons.map((button) => {
       const box = button.getBoundingClientRect()
