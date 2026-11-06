@@ -67,6 +67,7 @@ mod pending;
 mod plugins;
 mod settings;
 mod settings_file;
+mod share;
 mod sidebar_material;
 mod single_instance;
 mod startup;
@@ -322,6 +323,7 @@ pub fn run() {
             #[cfg(desktop)]
             updates::update_restart,
             deep_link::deep_link_take,
+            share::phone_share,
             cli_append::cli_append_claim,
             cli_append::cli_append_done,
             cli_append::cli_append_take,

@@ -584,12 +584,16 @@ describe('Tauri command permissions', () => {
   })
 })
 
-/** StoreKit's purchases (docs/adr/0014): only an App Store build on an iPhone sells anything. */
+/**
+ * StoreKit's purchases (docs/adr/0014): only an App Store build on an iPhone sells anything; and
+ * the iPhone's share sheet, which offers the Mac License Key.
+ */
 const PHONE_ONLY = [
   'allow-store-products',
   'allow-store-purchase',
   'allow-store-restore',
   'allow-store-mac-key',
+  'allow-phone-share',
   'allow-store-refund',
 ]
 
@@ -603,7 +607,7 @@ describe('the iPhone capability', () => {
     ])
   })
 
-  it('grants only what the Settings window already has, and the App Store purchases', () => {
+  it('grants only what the Settings window already has, the App Store purchases and the share sheet', () => {
     const allowed = new Set([...permissionIds(settings), ...PHONE_ONLY])
     expect(permissionIds(phone[0]!).filter((p) => !allowed.has(p))).toEqual([])
     expect(permissionIds(settings).filter((p) => PHONE_ONLY.includes(p))).toEqual([])
@@ -614,6 +618,11 @@ describe('the iPhone capability', () => {
       /cli-tool|plugin-|data-folder|mirror-|http-api|main-window|update-|start-dragging/.test(p),
     )
     expect(desktop).toEqual([])
+  })
+
+  it("shares the Mac License Key through the iPhone's share sheet", () => {
+    expect(permissionIds(phone[0]!)).toContain('allow-phone-share')
+    expect(capabilities().filter((c) => permissionIds(c).includes('allow-phone-share'))).toEqual([])
   })
 
   it('imports a font through the Files picker, as Settings does on the Mac', () => {
