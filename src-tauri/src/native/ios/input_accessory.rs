@@ -51,9 +51,9 @@ unsafe fn responds(object: &AnyObject, selector: Sel) -> bool {
 /// way.
 ///
 /// # Safety
-/// `web_view` must be null or point to a live `WKWebView`; main thread.
+/// `web_view` must be null or point to a live object; main thread.
 unsafe fn hide_in_web_view(web_view: *mut AnyObject) -> bool {
-    // SAFETY: null or a live WKWebView (caller contract).
+    // SAFETY: null or a live object (caller contract).
     let Some(web_view) = (unsafe { web_view.as_ref() }) else {
         return false;
     };
