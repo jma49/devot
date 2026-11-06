@@ -398,7 +398,7 @@ export function PhoneNote(props: {
         >
           <Icon name="nav.back" size="lg" />
         </button>
-        <span className="phone-note-crumb phone-figures">{crumb}</span>
+        <span className="phone-note-crumb phone-mono">{crumb}</span>
         <div className="phone-glass phone-capsule">
           <button
             type="button"

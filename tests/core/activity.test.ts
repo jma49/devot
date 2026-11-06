@@ -17,6 +17,7 @@ import {
   type OffsetAt,
   type StorageAdapter,
 } from '../../src/core'
+import { noteCounts } from '../../src/core/noteCounts'
 import { restoreLocalStorage, useMemoryLocalStorage } from '../support/local-storage'
 import { ACTIVITY_SQL, openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { watchSweeps } from '../support/sweeps'
@@ -148,6 +149,23 @@ describe('activity on SQLite', () => {
     // The pin kept the text the note arrived with, as its baseline.
     const versions = (await storage.listRevisions(id)).filter((r) => r.kind === 'body')
     expect(versions.map((v) => [v.at, v.value])).toEqual([[NOW - 100 * DAY_MS, 'baseline']])
+  })
+
+  it('counts the words a baseline shows, as Note Info does', async () => {
+    const { storage, notes } = service()
+    time = NOW - 100 * DAY_MS
+    const id = await notes.create('Imported')
+    const body = '---\ntitle: Kept from before\n---\n- [x] Read the [notes](https://example.com/n)'
+    await notes.setBody(id, body)
+    await notes.release(id)
+    time = NOW
+    await notes.setPinned(id, true)
+    await notes.flush()
+    const [baseline] = (await storage.listRevisions(id)).filter((r) => r.kind === 'body')
+    expect(baseline?.value).toBe('baseline')
+    const version = await storage.getRevision(baseline!.id)
+    expect(version?.words).toBe(noteCounts(body).words)
+    expect(version?.words).toBe(3)
   })
 
   it('never counts text a note had before its history began, when it is edited later', async () => {
@@ -381,5 +399,16 @@ describe('word counts in SQLite', () => {
     expect(stored.at(-1)).toMatchObject({ words: 4, previousWords: 2 })
     expect(writing.weeks.this.words).toBe(4)
     expect(writing.weeks.this.mostEdited).toEqual([{ noteId: id, words: 4 }])
+  })
+
+  it('counts the words a note shows, as Note Info does', async () => {
+    const { notes } = service()
+    const id = await notes.create('Plan')
+    const body =
+      '---\ntitle: Plan for the week\n---\n- [x] Pair the [relay](https://example.com/relay) now'
+    await notes.setBody(id, body)
+    const writing = await notes.writing(time, UTC)
+    expect(noteCounts(body).words).toBe(4)
+    expect(writing.weeks.this.words).toBe(noteCounts(body).words)
   })
 })

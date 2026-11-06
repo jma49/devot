@@ -4114,6 +4114,11 @@ div.card-placeholder {
   white-space: nowrap;
 }
 
+.activity-month:last-child {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .activity-weekdays {
   display: flex;
   flex-direction: column;

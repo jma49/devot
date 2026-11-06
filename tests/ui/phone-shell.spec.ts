@@ -495,10 +495,10 @@ test('a grouped page uses the grid: card 16, row 32, group title 26, 44 rows', a
   await expect(head).toHaveCSS('text-transform', 'none')
 })
 
-test('counts use the shared mono figures', async ({ page }) => {
+test('counts use the UI font with tabular figures', async ({ page }) => {
   const count = page.getByRole('region', { name: 'Library' }).locator('.phone-figures').first()
   await expect(count).toHaveCSS('font-variant-numeric', 'tabular-nums')
-  await expect(count).toHaveCSS('font-family', /monospace/)
+  await expect(count).not.toHaveCSS('font-family', /monospace/)
 })
 
 test('one background behind every page', async ({ page }) => {

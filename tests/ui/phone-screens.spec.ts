@@ -84,7 +84,7 @@ test('a row draws its status mark at 20, its text at 52 to 370, with no avatar',
   await expect(row.locator('.phone-note-excerpt')).toHaveCSS('white-space', 'nowrap')
 })
 
-test('a section head has a mono count and collapses its rows', async ({ page }) => {
+test('a section head has a figures count and collapses its rows', async ({ page }) => {
   await openNotes(page)
   const head = section(page, 'recent').getByRole('button', { name: /Recent/ })
   await expect(head).toHaveAttribute('aria-expanded', 'true')

@@ -915,7 +915,8 @@ test('a device shows when it was added, its date in figures, and no This Device'
   await expect(meta).toHaveText(/^Added \S/)
   await expect(meta).not.toContainText('This Device')
   await expect(meta).not.toHaveCSS('font-family', /mono|Menlo/i)
-  await expect(meta.locator('.phone-figures')).toHaveCSS('font-family', /mono|Menlo/i)
+  await expect(meta.locator('.phone-figures')).toHaveCSS('font-variant-numeric', 'tabular-nums')
+  await expect(meta.locator('.phone-figures')).not.toHaveCSS('font-family', /mono|Menlo/i)
   await expect(meta.locator('.phone-figures')).not.toContainText('Added')
 })
 

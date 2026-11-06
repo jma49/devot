@@ -24,7 +24,7 @@ import { isNotebookIcon } from '../notebookIcons'
 import { BODY, bodyText } from '../notes'
 import { sleep } from '../sleep'
 import { MERGE, REVISION_EVERY_MS, textLength } from '../revisions'
-import { countWords } from '../words'
+import { noteCounts } from '../noteCounts'
 import { quotaResetAt } from './protocol'
 import type {
   BookRecord,
@@ -923,7 +923,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       ydoc: note.ydoc,
       length: textLength(note.bodyMd),
       value: MERGE,
-      words: countWords(note.bodyMd),
+      words: noteCounts(note.bodyMd).words,
     })
   }
 

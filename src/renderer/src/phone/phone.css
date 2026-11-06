@@ -3,6 +3,8 @@
   --phone-scroll-bottom: calc(
     var(--size-phone-glass-bar) + var(--size-phone-tab-bottom) * 2 + var(--size-phone-nav-control)
   );
+  /* The phone's Preview Font Size is the body's size, so the scale is drawn at the body size. */
+  --note-heading-glass-preview-reference: var(--note-heading-glass-body-size);
   --phone-glass-press-scale: var(--motion-scale-phone-glass-press);
   --phone-icon-dip-scale: var(--motion-scale-phone-icon-dip);
   --phone-icon-pop-scale: var(--motion-scale-phone-icon-pop);
@@ -220,8 +222,12 @@ button.phone-glass:active,
 }
 
 .phone-figures {
-  font-family: var(--font-family-mono);
+  font-family: var(--font-family-ui);
   font-variant-numeric: tabular-nums;
+}
+
+.phone-mono {
+  font-family: var(--font-family-mono);
 }
 
 .phone-nav-control {
@@ -3493,6 +3499,11 @@ button.phone-grouped-open:active:not(:disabled) {
   font-size: calc(11px * var(--phone-text-scale, 1));
   color: var(--color-phone-text-secondary);
   white-space: nowrap;
+}
+
+.phone-heat-months > span:last-child {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .phone-heat-grid {

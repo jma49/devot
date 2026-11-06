@@ -307,7 +307,7 @@ export function NoteRow(props: RowProps) {
                   {noteDate(note.updatedAt, props.now, currentLocale())}
                 </span>
               ) : (
-                <span className="phone-note-time phone-note-book phone-figures">{props.meta}</span>
+                <span className="phone-note-time phone-note-book phone-mono">{props.meta}</span>
               )}
             </span>
             <span className="phone-note-line">
