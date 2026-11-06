@@ -132,7 +132,7 @@ export const paneTiming = (): KeyframeAnimationOptions =>
   motionTiming('motion.duration.slide', 'motion.easing.move')
 
 const RIDERS =
-  '.list-header .sidebar-toggle, .list-header .toolbar-title > :not([hidden], .visually-hidden), .list-header-end, .editor-toolbar > *, .window > .content > :not(.toolbar)'
+  '.list-header .sidebar-toggle, .list-header .toolbar-title > :not([hidden], .visually-hidden), .editor-toolbar > *, .window > .content > :not(.toolbar)'
 
 const paneElement = (pane: Pane) => document.querySelector<HTMLElement>(`.window > .${pane}`)
 
