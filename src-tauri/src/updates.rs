@@ -571,16 +571,16 @@ pub fn start(app: &AppHandle) {
     let spawned = std::thread::Builder::new()
         .name("devot-updates".into())
         .spawn(move || {
-            std::thread::sleep(FIRST_CHECK);
             let mut checks = Checks::default();
-            loop {
+            let mut pause = FIRST_CHECK;
+            while crate::exit::wait_unless_exiting(&app, pause) {
+                pause = WAKE_EVERY;
                 if let Some(licence) = &licence {
                     checks.run(licence);
                 }
                 if updater && due_now(&app) {
                     tauri::async_runtime::block_on(check(app.clone(), None));
                 }
-                std::thread::sleep(WAKE_EVERY);
             }
         });
     if spawned.is_err() {

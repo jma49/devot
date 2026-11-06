@@ -630,10 +630,14 @@ pub fn start(app: &AppHandle) {
     let spawned = std::thread::Builder::new()
         .name("devot-backups".into())
         .spawn(move || {
-            std::thread::sleep(FIRST_CHECK);
             let mut last: Option<Duration> = None;
-            loop {
-                let backups = app.state::<Backups>();
+            let mut pause = FIRST_CHECK;
+            while crate::exit::wait_unless_exiting(&app, pause) {
+                pause = CHECK_EVERY;
+                let Some(backups) = app.try_state::<Backups>() else {
+                    log::warn!("W_BACKUP_STATE_MISSING");
+                    return;
+                };
                 let since_last = last.and_then(|t| monotonic().checked_sub(t));
                 if let Some(result) = backups.check(logs::now_ms(), since_last) {
                     if result.is_ok() {
@@ -642,7 +646,6 @@ pub fn start(app: &AppHandle) {
                     }
                     backups.record(&app, &result);
                 }
-                std::thread::sleep(CHECK_EVERY);
             }
         });
     if spawned.is_err() {

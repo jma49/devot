@@ -86,14 +86,15 @@ pub(crate) fn start(app: &tauri::AppHandle) {
     if cfg!(debug_assertions) {
         return;
     }
+    let app = app.clone();
     let spawned = std::thread::Builder::new()
         .name("devot-licence-checks".into())
         .spawn(move || {
-            std::thread::sleep(FIRST_CHECK);
             let mut checks = Checks::default();
-            loop {
+            let mut pause = FIRST_CHECK;
+            while crate::exit::wait_unless_exiting(&app, pause) {
+                pause = WAKE_EVERY;
                 checks.run(&licence);
-                std::thread::sleep(WAKE_EVERY);
             }
         });
     if spawned.is_err() {

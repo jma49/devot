@@ -291,8 +291,7 @@ fn watch_idle(app: &AppHandle) {
     let Some(state) = app.try_state::<Background>() else {
         return;
     };
-    loop {
-        std::thread::sleep(CHECK_EVERY);
+    while exit::wait_unless_exiting(app, CHECK_EVERY) {
         match step_now(app, &state) {
             IdleStep::Stop => return,
             IdleStep::Wait => {}
