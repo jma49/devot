@@ -17,7 +17,7 @@ export const SUGGEST_AFTER_CHARS = 500
 export const SUGGEST_MAX_TOKENS = 256
 export const SUGGEST_MAX_CHARS = 1_500
 /** A late suggestion is worth nothing, and a request that hangs holds up the next one. */
-export const SUGGEST_TIMEOUT_SECS = 20
+const SUGGEST_TIMEOUT_SECS = 20
 /** How long typing pauses before an idle suggestion is asked for. */
 export const SUGGEST_IDLE_MS = 1_500
 

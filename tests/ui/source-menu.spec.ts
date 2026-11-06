@@ -7,7 +7,6 @@ import {
   shownMenu,
   test,
   openApp,
-  type TestWindow,
 } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -35,12 +34,7 @@ async function labels(page: Page): Promise<string[]> {
 }
 
 const popups = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'plugin:menu|popup',
-      ).length,
-  )
+  page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
 
 async function popUp(page: Page, open: () => Promise<void>) {
   const before = await popups(page)

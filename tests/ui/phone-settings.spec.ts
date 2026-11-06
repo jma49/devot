@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, test } from './fixtures'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -37,7 +37,7 @@ const glassOpaque = (page: Page) =>
 
 test('an ended trial shows on the Settings tab and its License row at launch', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       licence_get: () => ({
@@ -209,7 +209,7 @@ test('the AI pane picks a provider with a segmented control and shows only its f
       anthropic: provider('https://a.example'),
       openai: provider('https://o.example'),
     }
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       ai_settings_get: () => state,
       ai_settings_set: (args: { settings: Record<string, unknown> }) => {
         for (const id of ['anthropic', 'openai'] as const) {
@@ -236,7 +236,7 @@ test('the AI pane picks a provider with a segmented control and shows only its f
 
 test('the Sync pane lists devices, marks this one and offers pairing', async ({ page }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       sync_get: () => ({
         relayUrl: 'https://relay.example',
         enabled: true,
@@ -261,7 +261,7 @@ test('the Sync pane lists devices, marks this one and offers pairing', async ({ 
 
 test('the Sync pane shows the recovery key only while it waits to be saved', async ({ page }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       sync_get: () => ({
         relayUrl: 'https://relay.example',
         enabled: true,
@@ -385,8 +385,10 @@ test('a pane does not repeat its screen title as its first section title', async
 test('a long select value is cut with an ellipsis inside its card', async ({ page }) => {
   const name = `Imported ${'Very Long Font Family Name '.repeat(4)}End`
   await page.addInitScript((font) => {
-    const w = globalThis as unknown as TestWindow
-    w.devotIpcMocks = { ...w.devotIpcMocks, fonts_list: () => [{ id: 'long.ttf', name: font }] }
+    window.devotIpcMocks = {
+      ...window.devotIpcMocks,
+      fonts_list: () => [{ id: 'long.ttf', name: font }],
+    }
   }, name)
   const pane = await openPane(page, 'Appearance')
   await pane.getByRole('combobox', { name: 'Note Font' }).selectOption('imported')
@@ -429,16 +431,13 @@ test.describe('License and disabled switches', () => {
 
   const seedLicence = (page: Page) =>
     page.addInitScript((licence) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcMocks = { ...w.devotIpcMocks, licence_get: () => licence }
     }, noLicence)
 
   const atDoubleText = (page: Page) =>
     page.locator('.phone-app').evaluate((app) => {
-      const shell = app as unknown as {
-        style: CSSStyleDeclaration
-        dataset: Record<string, string>
-      }
+      const shell = app
       shell.style.setProperty('--phone-text-scale', '2')
       shell.dataset['textSize'] = 'accessibility'
     })
@@ -584,7 +583,7 @@ test('the Sync pane shows what the relay holds, with the room left and a warning
   page,
 }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       sync_get: () => ({
         relayUrl: 'https://relay.example',
         enabled: true,
@@ -845,7 +844,7 @@ test('a button that removes something is in the destructive colour', async ({ pa
       defaultModel: 'm',
       key: 'set',
     })
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       ai_settings_get: () => ({
         active: 'anthropic',
         suggestOnIdle: false,
@@ -897,7 +896,7 @@ test('a device shows when it was added, its date in figures, and no This Device'
   page,
 }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       sync_get: () => ({
         relayUrl: 'https://relay.example',
         enabled: true,
@@ -925,7 +924,7 @@ test('at twice the text size a Settings row puts its value under its whole label
 }) => {
   await openSettings(page)
   await page.locator('.phone-app').evaluate((app) => {
-    const shell = app as unknown as { style: CSSStyleDeclaration; dataset: Record<string, string> }
+    const shell = app
     shell.style.setProperty('--phone-text-scale', '2')
     shell.dataset['textSize'] = 'accessibility'
   })

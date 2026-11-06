@@ -15,7 +15,7 @@ import {
 import { invoke } from './ipc'
 import { openPurchase } from './purchaseSheet'
 
-export const LICENCE_CHANGED = 'devot:licence-changed'
+const LICENCE_CHANGED = 'devot:licence-changed'
 /** What Rust and the core refuse sync and AI with when the licence does not include them. */
 export const LICENCE_REQUIRED = 'E_LICENCE_REQUIRED'
 /** What they refuse with instead when the keychain would not give the licence or the trial. */

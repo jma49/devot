@@ -9,7 +9,6 @@ import {
   openApp,
   pickStatus,
   statusPicker,
-  type TestWindow,
 } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -72,12 +71,7 @@ async function openMenu(page: Page, title: string) {
 }
 
 const popups = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'plugin:menu|popup',
-      ).length,
-  )
+  page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
 
 test.beforeEach(async ({ page }) => {
   await openApp(page)
@@ -110,11 +104,9 @@ test('right-click shows the native note menu, grouped, with its shortcuts', asyn
   ])
   // The web view's own menu is suppressed.
   const prevented = await noteRow(page, 'Plan').evaluate((el) => {
-    const { MouseEvent } = globalThis as unknown as {
-      MouseEvent: new (type: string, init: object) => { defaultPrevented: boolean }
-    }
+    const { MouseEvent } = window
     const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
-    ;(el as unknown as { dispatchEvent(e: unknown): void }).dispatchEvent(event)
+    el.dispatchEvent(event)
     return event.defaultPrevented
   })
   expect(prevented).toBe(true)
@@ -123,10 +115,7 @@ test('right-click shows the native note menu, grouped, with its shortcuts', asyn
   await openMenu(page, 'Plan')
   expect(await shownMenu(page)).toContain('Unpin P')
   const menus = await page.evaluate(
-    () =>
-      Object.values((globalThis as unknown as TestWindow).devotMenus).filter(
-        (m) => m.kind === 'Menu',
-      ).length,
+    () => Object.values(window.devotMenus).filter((m) => m.kind === 'Menu').length,
   )
   expect(menus).toBe(1)
 })
@@ -479,10 +468,8 @@ test('pressing P twice quickly pins and then unpins', async ({ page }) => {
   await focusRow(page, 'Quick')
   // Both presses land before the list has caught up with the first one.
   await noteRow(page, 'Quick').evaluate((el) => {
-    const { KeyboardEvent } = globalThis as unknown as {
-      KeyboardEvent: new (type: string, init: object) => unknown
-    }
-    const row = el as unknown as { dispatchEvent(e: unknown): void }
+    const { KeyboardEvent } = window
+    const row = el
     for (let i = 0; i < 2; i++) {
       row.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', code: 'KeyP', bubbles: true }))
     }
@@ -506,14 +493,10 @@ test('fast arrow keys reach the last row while notes are still opening', async (
   // No waits: earlier notes finish opening after the keyboard has moved on,
   // and must not pull the focus back to their rows.
   await page.evaluate(async () => {
-    const { document, KeyboardEvent, setTimeout } = globalThis as unknown as {
-      document: { activeElement: { dispatchEvent(e: unknown): void } }
-      KeyboardEvent: new (type: string, init: object) => unknown
-      setTimeout: (f: () => void, ms: number) => void
-    }
+    const { document, KeyboardEvent, setTimeout } = window
     for (let i = 0; i < 9; i++) {
       const key = { key: 'ArrowDown', code: 'ArrowDown', bubbles: true, cancelable: true }
-      document.activeElement.dispatchEvent(new KeyboardEvent('keydown', key))
+      document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', key))
       await new Promise<void>((resolve) => setTimeout(resolve, 0))
     }
   })

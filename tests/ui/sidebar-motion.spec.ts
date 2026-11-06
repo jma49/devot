@@ -56,9 +56,7 @@ test('the line for a notebook dropped before a row spans the row', async ({ page
   const target = row(page, 'Alpha')
   await expect(target).toHaveClass(/drop-before/)
   const line = await target.evaluate((el) => {
-    const g = globalThis as unknown as {
-      getComputedStyle(e: unknown, p: string): { left: string; right: string; borderRadius: string }
-    }
+    const g = window
     const style = g.getComputedStyle(el, '::before')
     return { left: style.left, right: style.right, radius: style.borderRadius }
   })

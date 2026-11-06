@@ -1,18 +1,10 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { listFiles } from '../support/git-files'
 import { hasColorLiteral, isColorChecked, isColorExempt } from '../support/policy-patterns'
 
 // UI colours come only from generated tokens; CodeMirror themes live in .ts files, so TypeScript is scanned too.
 const UI_ROOT = 'src/renderer/src'
-
-function files(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name)
-    return statSync(path).isDirectory() ? files(path) : [path]
-  })
-}
 
 // The plugin frame and the HTML pages paint before the UI's styles load, so they are scanned too.
 const pages = () => [
@@ -21,7 +13,7 @@ const pages = () => [
 ]
 
 it('UI styles use design tokens, not colour literals', () => {
-  const scanned = [...files(UI_ROOT).filter(isColorChecked), ...pages()]
+  const scanned = [...listFiles('.', UI_ROOT).filter(isColorChecked), ...pages()]
   expect(scanned).toEqual(
     expect.arrayContaining(['src-tauri/plugin-frame/runtime.js', 'src/renderer/index.html']),
   )
@@ -111,7 +103,7 @@ it('the colour pattern catches literals in TypeScript and leaves tokens alone', 
 })
 
 it("the editor does not use CodeMirror's default highlight style, which has light-only colours", () => {
-  const offenders = files(UI_ROOT)
+  const offenders = listFiles('.', UI_ROOT)
     .filter((file) => /\.tsx?$/.test(file) && !file.endsWith('.test.ts'))
     .filter((file) => /\bdefaultHighlightStyle\b/.test(readFileSync(file, 'utf8')))
   expect(offenders).toEqual([])

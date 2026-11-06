@@ -1,26 +1,14 @@
 import type { Locator, Page } from '@playwright/test'
 import { light } from '../../src/renderer/src/theme/tokens'
-import {
-  changeEditorSettingsElsewhere,
-  expect,
-  symbolRequests,
-  test,
-  openApp,
-  type TestWindow,
-} from './fixtures'
+import { changeEditorSettingsElsewhere, expect, symbolRequests, test, openApp } from './fixtures'
 
 function rgb(hex: string): string {
   const n = Number.parseInt(hex.slice(1), 16)
   return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
 }
 
-type Styles = { getComputedStyle(el: unknown): { getPropertyValue(p: string): string } }
-
 const css = (locator: Locator, property: string) =>
-  locator.evaluate(
-    (el, p) => (globalThis as unknown as Styles).getComputedStyle(el).getPropertyValue(p),
-    property,
-  )
+  locator.evaluate((el, p) => window.getComputedStyle(el).getPropertyValue(p), property)
 
 const alpha = (color: string) => {
   const parts =
@@ -132,8 +120,7 @@ test('icons are SF Symbols, cached per name, size and appearance', async ({ page
   // The symbol is black; the theme colours it.
   expect(await css(icon, 'background-color')).toBe(await css(newNote, 'color'))
 
-  const requests = () =>
-    page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls).then(symbolRequests)
+  const requests = () => page.evaluate(() => window.devotIpcCalls).then(symbolRequests)
   await expect.poll(requests).toContain('note.text@14')
   const once = await requests()
   expect(once.filter((r) => r === 'square.and.pencil@14')).toHaveLength(1)
@@ -200,9 +187,7 @@ test('coded console warnings reach the local log without other arguments', async
   const id = '01920000-0000-7000-8000-000000000001'
   await page.evaluate((noteId) => console.warn('W_UI_TEST', noteId, 'Private title'), id)
   const logged = () =>
-    page.evaluate(() =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter((c) => c.cmd === 'log_write'),
-    )
+    page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'log_write'))
   await expect
     .poll(async () => (await logged()).map((c) => c.args))
     .toContainEqual({ level: 'warn', code: 'W_UI_TEST', ids: [id] })
@@ -238,14 +223,7 @@ test('the window stays put while the caret scrolls to the end of a long note', a
   await expect(page.locator('.cm-tooltip-autocomplete')).toBeVisible()
   const scrolled = () =>
     page.evaluate(() => {
-      const doc = (
-        globalThis as unknown as {
-          document: {
-            documentElement: { scrollTop: number }
-            body: { scrollTop: number }
-          }
-        }
-      ).document
+      const doc = window.document
       return doc.documentElement.scrollTop + doc.body.scrollTop
     })
   expect(await scrolled()).toBe(0)

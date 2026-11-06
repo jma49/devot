@@ -132,7 +132,7 @@ interface Props {
  * from (the renderer marks each inline image). The editor checks that the
  * text is still there before changing it.
  */
-export function previewImageTarget(img: HTMLImageElement, markdown: string): ImageMenuTarget {
+function previewImageTarget(img: HTMLImageElement, markdown: string): ImageMenuTarget {
   const from = Number(img.dataset['imageFrom'])
   const to = Number(img.dataset['imageTo'])
   const text =

@@ -271,7 +271,7 @@ export const STRIP_DAYS = 14
  * Fixed steps of characters changed in a day, not percentiles as on the heatmap: a strip shows a few days of one note, and the same day must keep its
  * shade as rows scroll in and out, so rows compare at a glance.
  */
-export const STRIP_STEPS = [100, 500, 2000] as const
+const STRIP_STEPS = [100, 500, 2000] as const
 
 export interface StripDay {
   day: number

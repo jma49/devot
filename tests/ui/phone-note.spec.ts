@@ -16,7 +16,7 @@ const note = (page: Page) => page.locator('section.phone-screen:has(.phone-note-
 
 const atDoubleText = (page: Page) =>
   page.locator('.phone-app').evaluate((app) => {
-    const root = app as unknown as { style: CSSStyleDeclaration; dataset: Record<string, string> }
+    const root = app
     root.style.setProperty('--phone-text-scale', '2')
     root.dataset['textSize'] = 'accessibility'
   })
@@ -225,7 +225,7 @@ test('hidden note bars are inert', async ({ page }) => {
       .locator('button:not([disabled])')
       .first()
       .evaluate((button) => {
-        ;(button as unknown as { focus: () => void }).focus()
+        button.focus()
         return button.ownerDocument.activeElement === button
       })
   await expect(accessory).toHaveAttribute('inert')

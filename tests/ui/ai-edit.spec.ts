@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, pickMenuItem, pickNoteMore, shownMenu, test, type TestWindow } from './fixtures'
+import { expect, pickMenuItem, pickNoteMore, shownMenu, test } from './fixtures'
 
 // Edit with AI from the selection toolbar and the editor menu. Rust is faked in the page: `ai_generate` answers what the
 // test sets in `devotAiReplies` (a text, or `{ error }`), one per request, and every request is in `devotIpcCalls`.
@@ -27,14 +27,14 @@ const savedBody = (page: Page) =>
 
 const requests = (page: Page) =>
   page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
+    window.devotIpcCalls
       .filter((c) => c.cmd === 'ai_generate')
       .map((c) => c.args['request'] as { messages: { content: string }[] }),
   )
 
 async function fakeProvider(page: Page, replies: Reply[]) {
   await page.addInitScript((queued) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       ai_generate: () => {

@@ -9,10 +9,7 @@ const day = (page: Page, label: string | RegExp) =>
 /** View > Activity… (the native menu reaches the page as this event). */
 const showActivity = (page: Page) =>
   page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:show-activity'))
   })
 
@@ -141,14 +138,7 @@ test('shows 52 weeks of activity, each day with its totals by pointer or key, sh
   await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
 
   const shade = (label: RegExp) =>
-    day(page, label).evaluate(
-      (el) =>
-        (
-          globalThis as unknown as {
-            getComputedStyle(e: unknown): { backgroundColor: string }
-          }
-        ).getComputedStyle(el).backgroundColor,
-    )
+    day(page, label).evaluate((el) => window.getComputedStyle(el).backgroundColor)
   const busiest = /^Monday, October 5, 2026:/
   const idle = /^Sunday, October 4, 2026:/
   const created = /^Tuesday, September 1, 2026:/

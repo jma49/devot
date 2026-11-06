@@ -166,9 +166,9 @@ async function settle(...devices: Device[]) {
 }
 
 /** Lets a touch's debounce fire, then waits for the engine's queue to empty. */
-async function quiet(device: Device) {
+async function quiet(on: Device) {
   await new Promise((resolve) => setTimeout(resolve, 80))
-  await device.engine.idle()
+  await on.engine.idle()
 }
 
 async function sameNote(a: Device, b: Device, id: string) {

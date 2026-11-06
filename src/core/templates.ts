@@ -27,7 +27,7 @@ import type { BookRecord, NoteStatus, NoteSummary, StorageAdapter } from './stor
 import { sameName, type TagService } from './tags'
 import { lineFeeds } from './text'
 
-export const TEMPLATES_BOOK_NAME = 'Templates'
+const TEMPLATES_BOOK_NAME = 'Templates'
 
 export const TEMPLATE_KEYS = ['title', 'notebook', 'tags', 'status'] as const
 

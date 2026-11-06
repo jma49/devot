@@ -20,7 +20,7 @@ export interface AppearanceTarget {
   dataset: Record<string, string | undefined>
 }
 
-export const APPEARANCE_CHANGED = 'devot:appearance-changed'
+const APPEARANCE_CHANGED = 'devot:appearance-changed'
 
 const DARK = '(prefers-color-scheme: dark)'
 

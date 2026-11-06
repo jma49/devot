@@ -1,10 +1,11 @@
 // A plugin's manifest (`devot-plugin.json`, ADR 0005). Rust checks it by the same rules (src-tauri/src/plugins/manifest.rs);
 // both run the cases in tests/fixtures/plugins/manifests.json.
+import { isRecord } from '../isRecord'
 import { trimWhitespace } from '../text'
 
-export const PLUGIN_API_VERSION = 1
+const PLUGIN_API_VERSION = 1
 
-export const PLUGIN_PERMISSIONS = [
+const PLUGIN_PERMISSIONS = [
   'note.read',
   'note.edit',
   'commands',
@@ -59,15 +60,9 @@ const LANGUAGE = /^[a-z0-9][a-z0-9_+#.-]{0,31}$/
 const EXTENSION = /^[a-z0-9]{1,10}$/
 const KEY = /^(?:(?:Mod|Ctrl|Alt|Shift)\+){1,4}[^\s+]{1,12}$/
 
-export const RESERVED_PLUGIN_FOLDER = '__devot'
+const RESERVED_PLUGIN_FOLDER = '__devot'
 /** Built-in renderers draw these (math, the Mermaid island). */
-export const RESERVED_LANGUAGES: readonly string[] = [
-  'math',
-  'mermaid',
-  'plantuml',
-  'puml',
-  'markmap',
-]
+const RESERVED_LANGUAGES: readonly string[] = ['math', 'mermaid', 'plantuml', 'puml', 'markmap']
 
 const LIMITS = {
   id: 64,
@@ -86,9 +81,6 @@ const LIMITS = {
 const fail = (code: string): never => {
   throw new Error(code)
 }
-
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const length = (value: string) => [...value].length
 
@@ -147,7 +139,7 @@ function unique<T>(items: readonly T[], key: (item: T) => string): void {
   }
 }
 
-export function isPluginId(value: unknown): value is string {
+function isPluginId(value: unknown): value is string {
   return (
     typeof value === 'string' &&
     value.length <= LIMITS.id &&

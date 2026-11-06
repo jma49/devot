@@ -10,8 +10,8 @@ import { t } from '../i18n'
 import example from './markdown-example.md?raw'
 import welcome from './welcome.md?raw'
 
-export const WELCOME_NOTE_ID = '00000000-0000-7000-8000-000000000011'
-export const EXAMPLE_NOTE_ID = '00000000-0000-7000-8000-000000000012'
+const WELCOME_NOTE_ID = '00000000-0000-7000-8000-000000000011'
+const EXAMPLE_NOTE_ID = '00000000-0000-7000-8000-000000000012'
 const IMAGE_ID = '00000000-0000-7000-8000-000000000013'
 
 const SAMPLE_PNG =

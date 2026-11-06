@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, test } from './fixtures'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -36,7 +36,7 @@ async function expectWholeSheet(page: Page, sheet: Locator, last: Locator): Prom
 
 const seedTrial = (page: Page) =>
   page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       licence_get: () => ({

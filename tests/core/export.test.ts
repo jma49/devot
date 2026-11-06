@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -29,6 +29,7 @@ import {
 } from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
+import { filesUnder } from '../support/files-under'
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 1])
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 2])
@@ -300,18 +301,9 @@ function folderSink(sqlite: SqliteAdapter, root: string, fileName?: string) {
   return { sink, written }
 }
 
-function walk(root: string, rel = ''): string[] {
-  return readdirSync(join(root, rel))
-    .sort()
-    .flatMap((name) => {
-      const path = rel ? `${rel}/${name}` : name
-      return statSync(join(root, path)).isDirectory() ? walk(root, path) : [path]
-    })
-}
-
 /** Imports the folder at `root` as Rust scans it: Markdown files, sorted. */
 async function importFolder(lib: Library, root: string, name: string) {
-  const files = walk(root).filter((p) => p.endsWith('.md'))
+  const files = filesUnder(root).filter((p) => p.endsWith('.md'))
   const scan: ImportScan = {
     id: 1,
     name,
@@ -456,7 +448,7 @@ describe('Markdown export', () => {
       sink,
     })
     expect(report).toEqual({ notes: 7, attachments: 3, problems: [] })
-    expect(walk(root)).toEqual([
+    expect(filesUnder(root)).toEqual([
       'Inbox.md',
       'Own matter.md',
       'Plans 2026/Deep/Spec 2.md',
@@ -550,7 +542,7 @@ describe('Markdown export', () => {
       sink: folderSink(lib.sqlite, root, 'renamed.md').sink,
     })
     expect(report).toEqual({ notes: 1, attachments: 2, problems: [] })
-    expect(walk(root)).toEqual([
+    expect(filesUnder(root)).toEqual([
       'attachments/board.png',
       'attachments/my shot (1).jpg',
       'renamed.md',
@@ -867,7 +859,7 @@ describe('names macOS takes for one', () => {
       sink: folderSink(lib.sqlite, root).sink,
     })
     expect(report?.problems).toEqual([])
-    expect(walk(root)).toHaveLength(titles.length + 2)
+    expect(filesUnder(root)).toHaveLength(titles.length + 2)
     const fresh = library()
     const imported = await importFolder(fresh, root, 'Top')
     expect(imported.problems).toEqual([])
@@ -1068,7 +1060,7 @@ describe('images', () => {
       sink: folderSink(lib.sqlite, root).sink,
     })
     expect(report).toEqual({ notes: 1, attachments: names.length, problems: [] })
-    expect(walk(root)).toEqual([
+    expect(filesUnder(root)).toEqual([
       'Images.md',
       'attachments/after-script.png',
       'attachments/after-text.png',

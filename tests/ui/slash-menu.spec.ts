@@ -212,13 +212,10 @@ test('Return from an input method does not pick', async ({ page }) => {
   await waitForFirst(page, 'Blockquote')
   // The Return that ends a composition (WebKit may report it after compositionend).
   const handled = await body(page).evaluate((el) => {
-    // This config has no DOM types: the one browser class used here.
-    const w = globalThis as unknown as {
-      KeyboardEvent: new (type: string, init: object) => { defaultPrevented: boolean }
-    }
+    const w = window
     const init = { key: 'Enter', code: 'Enter', isComposing: true, bubbles: true, cancelable: true }
     const event = new w.KeyboardEvent('keydown', init)
-    ;(el as unknown as { dispatchEvent(e: unknown): boolean }).dispatchEvent(event)
+    el.dispatchEvent(event)
     return event.defaultPrevented
   })
   expect(handled).toBe(false)

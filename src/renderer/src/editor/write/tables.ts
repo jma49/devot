@@ -180,8 +180,7 @@ export function caretOf(selection: EditorSelection): number | null {
 }
 
 /** Where an empty cell shows the caret: after its first space, where a printed cell's text starts. */
-export const blankPoint = (cell: TableCell) =>
-  cell.to - cell.from >= 2 ? cell.from + 1 : cell.from
+const blankPoint = (cell: TableCell) => (cell.to - cell.from >= 2 ? cell.from + 1 : cell.from)
 
 /**
  * What a cell shows: its text, and the spaces typed after it while the caret

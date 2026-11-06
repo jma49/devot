@@ -4,28 +4,6 @@ import { clipboardWrites, expect, test, openApp } from './fixtures'
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
 const copyButtons = (page: Page) => preview(page).getByRole('button', { name: 'Copy Code' })
 
-/** The page's globals the paste test touches (this config has no DOM types). */
-interface PasteGlobals {
-  devotPastedHtml?: string
-  document: {
-    createElement(tag: string): {
-      contentEditable: string
-      style: { setProperty(name: string, value: string): void }
-      setAttribute(name: string, value: string): void
-      addEventListener(
-        type: 'paste',
-        listener: (event: { clipboardData: { getData(type: string): string } | null }) => void,
-      ): void
-    }
-    createRange(): {
-      setStart(node: unknown, offset: number): void
-      setEnd(node: unknown, offset: number): void
-    }
-    body: { append(node: unknown): void }
-  }
-  getSelection(): { removeAllRanges(): void; addRange(range: unknown): void } | null
-}
-
 const NOTE = [
   '---',
   'title: front matter is not a code block',
@@ -117,7 +95,7 @@ test('the button is reachable from the keyboard', async ({ page }) => {
 
 test('a failed copy says so', async ({ page }) => {
   await page.evaluate(() => {
-    ;(globalThis as unknown as { devotIpcMocks: unknown }).devotIpcMocks = {
+    window.devotIpcMocks = {
       clipboard_write_text: { error: 'E_CLIPBOARD_WRITE_FAILED' },
     }
   })
@@ -169,7 +147,7 @@ test('copying a selection across a block leaves the button out of the copied HTM
   await openNote(page, 'Before the block.\n\n```\nselected code\n```\n\nAfter the block.')
   await expect(copyButtons(page)).toHaveCount(1)
   await page.evaluate(() => {
-    const w = globalThis as unknown as PasteGlobals
+    const w = window
     const target = w.document.createElement('div')
     target.contentEditable = 'true'
     target.setAttribute('aria-label', 'Paste target')
@@ -181,7 +159,7 @@ test('copying a selection across a block leaves the button out of the copied HTM
     w.document.body.append(target)
   })
   await preview(page).evaluate((article) => {
-    const w = globalThis as unknown as PasteGlobals
+    const w = window
     const paragraphs = article.querySelectorAll('p')
     const range = w.document.createRange()
     range.setStart(paragraphs[0]!.firstChild!, 0)
@@ -196,7 +174,7 @@ test('copying a selection across a block leaves the button out of the copied HTM
   await expect(page.getByLabel('Paste target')).toContainText('selected code')
   const pasted = page.getByLabel('Paste target')
   await expect(pasted.locator('[data-devot-ui], .code-copy, button')).toHaveCount(0)
-  const html = await page.evaluate(() => (globalThis as unknown as PasteGlobals).devotPastedHtml)
+  const html = await page.evaluate(() => window.devotPastedHtml)
   expect(html).toContain('selected code')
   expect(html).not.toContain('data-devot-ui')
   expect(html).not.toContain('<button')

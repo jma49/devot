@@ -38,7 +38,7 @@ const BANDS = [
 
 const SLOT_LABELS = ['pageSetup.left', 'pageSetup.center', 'pageSetup.right'] as const
 
-export const currentPageSetup = (settings: EditorSettings = editorSettings()): PageSetup =>
+const currentPageSetup = (settings: EditorSettings = editorSettings()): PageSetup =>
   Object.fromEntries(PAGE_SETUP_KEYS.map((key) => [key, settings[key]])) as PageSetup
 
 /** Text a slot can hold: control characters (from a paste) are dropped. */

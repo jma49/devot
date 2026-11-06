@@ -37,7 +37,7 @@ type Box = { x: number; y: number; width: number; height: number }
 function selectionRects(page: Page): Promise<Box[]> {
   return page.locator('.cm-selectionBackground').evaluateAll((rects) =>
     rects.map((rect) => {
-      const el = rect as unknown as { getBoundingClientRect(): Box }
+      const el = rect
       const { x, y, width, height } = el.getBoundingClientRect()
       return { x, y, width, height }
     }),
@@ -73,41 +73,21 @@ test('a selection of whole rows is one block across formats, and a partial row s
   await newNote(page, NOTE)
 
   const columns = await page.locator('.cm-content').evaluate((content) => {
-    const view = globalThis as unknown as {
-      getComputedStyle(el: unknown, pseudo?: string): { left: string }
-      document: {
-        createRange(): {
-          selectNodeContents(node: unknown): void
-          getClientRects(): ArrayLike<{ x: number }>
-        }
-      }
-    }
-    const textLeft = (el: unknown) => {
-      const range = view.document.createRange()
-      range.selectNodeContents(el)
+    const textLeft = (el: Node | null) => {
+      const range = document.createRange()
+      range.selectNodeContents(el!)
       return range.getClientRects()[0]?.x ?? -1
     }
-    const root = content as unknown as {
-      querySelector(s: string): {
-        getBoundingClientRect(): { left: number; right: number }
-        querySelector(s: string): unknown
-      }
-    }
-    const quote = root.querySelector('.cm-md-quote')
-    const code = root.querySelector('.cm-codeblock')
+    const quote = content.querySelector('.cm-md-quote')!
+    const code = content.querySelector('.cm-codeblock')!
     const fence = code.querySelector('.cm-codeblock-fence') ?? code
-    const lines = (
-      content as unknown as { querySelectorAll(s: string): ArrayLike<unknown> }
-    ).querySelectorAll('.cm-line')
-    let prose: unknown = null
-    for (const line of Array.from(
-      lines as ArrayLike<{ className: string; textContent: string | null }>,
-    )) {
+    let prose: Element | null = null
+    for (const line of Array.from(content.querySelectorAll('.cm-line'))) {
       if (line.className === 'cm-line' && (line.textContent ?? '').startsWith('Paragraph'))
         prose = line
     }
     const codeBox = code.getBoundingClientRect()
-    const hang = Number.parseFloat(view.getComputedStyle(code, '::before').left)
+    const hang = Number.parseFloat(getComputedStyle(code, '::before').left)
     return {
       quote: quote.getBoundingClientRect().left,
       code: codeBox.left + hang,

@@ -1,4 +1,5 @@
 import { LicenceError } from './errors.ts'
+import { isRecord } from './format.ts'
 
 /** Every request pins this version, so a change in the account's default changes nothing here. */
 export const STRIPE_VERSION = '2026-09-30.endive'
@@ -97,10 +98,6 @@ export function stripeClient(apiKey: string, fetcher: Fetch = (i, init) => fetch
     },
   }
   return client
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 const text = (value: unknown): string | null => (typeof value === 'string' ? value : null)

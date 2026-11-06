@@ -31,6 +31,7 @@ export function ImageViewer({ image, onClose }: { image: ViewedImage; onClose: (
     const from = zoomedFrom.current
     zoomedFrom.current = null
     if (from && shown.current) resizeFrom(shown.current, from)
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each zoom plays the move from the size before it.
   }, [actual])
   // Read during the first render, before showModal moves focus into the
   // dialog; inside the editor's shadow root, the element that has it there.

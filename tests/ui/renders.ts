@@ -4,23 +4,16 @@ import type { Page } from '@playwright/test'
 // when its fiber holds props or hook state not seen before; a skipped component keeps the old ones. Components are
 // found by function name, which the UI tests' build keeps (vite.ui-test.config.ts).
 
-interface RenderWindow {
-  devotRenders: Record<string, number>
-  devotRendered: string[]
-  devotNoteWrites: number
-}
-
 /** Counts renders of the named components (by function name) from the next page load on. Call before `page.goto`. */
 export async function countRenders(page: Page, names: readonly string[]): Promise<void> {
   await page.addInitScript((watched) => {
-    const w = globalThis as unknown as RenderWindow & Record<string, unknown>
+    const w = window
     w.devotRenders = Object.fromEntries(watched.map((name) => [name, 0]))
     w.devotRendered = []
     w.devotNoteWrites = 0
-    const storage = (globalThis as unknown as { Storage: { prototype: Record<string, unknown> } })
-      .Storage.prototype
-    const setItem = storage['setItem'] as (this: unknown, key: string, value: string) => void
-    storage['setItem'] = function (this: unknown, key: string, value: string) {
+    const storage = Storage.prototype
+    const setItem = storage.setItem
+    storage.setItem = function (this: Storage, key: string, value: string) {
       if (key === 'devot.test.notes') w.devotNoteWrites += 1
       return setItem.call(this, key, value)
     }
@@ -75,7 +68,7 @@ export async function renderCounts(
   page: Page,
 ): Promise<{ renders: Record<string, number>; writes: number }> {
   const { renders, rendered, writes } = await page.evaluate(() => {
-    const w = globalThis as unknown as RenderWindow
+    const w = window
     return { renders: { ...w.devotRenders }, rendered: w.devotRendered, writes: w.devotNoteWrites }
   })
   const unseen = Object.keys(renders).filter((name) => !rendered.includes(name))
@@ -85,7 +78,7 @@ export async function renderCounts(
 
 export function resetRenderCounts(page: Page): Promise<void> {
   return page.evaluate(() => {
-    const w = globalThis as unknown as RenderWindow
+    const w = window
     for (const name of Object.keys(w.devotRenders)) w.devotRenders[name] = 0
     w.devotNoteWrites = 0
   })

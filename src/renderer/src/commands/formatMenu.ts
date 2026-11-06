@@ -39,8 +39,8 @@ import {
 } from './registry'
 import { subscribeKeymap } from './shortcutSettings'
 
-export const FORMAT_MENU_EVENT = 'devot://format'
-export const FORMAT_MENU_PAGE_EVENT = 'devot:format'
+const FORMAT_MENU_EVENT = 'devot://format'
+const FORMAT_MENU_PAGE_EVENT = 'devot:format'
 let inert: ReadonlySet<FormatId> = new Set()
 let resend: (() => void) | undefined
 

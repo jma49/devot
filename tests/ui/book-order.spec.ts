@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, pickMenuItem, shownMenu, test, openApp, type TestWindow } from './fixtures'
+import { expect, pickMenuItem, shownMenu, test, openApp } from './fixtures'
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
@@ -45,11 +45,7 @@ async function drop(source: Locator, target: Locator, zone: Zone) {
 
 const line = (target: Locator, edge: 'before' | 'after') =>
   target.evaluate((el, pseudo) => {
-    const style = (
-      globalThis as unknown as {
-        getComputedStyle(e: unknown, p: string): { content: string; height: string }
-      }
-    ).getComputedStyle(el, pseudo)
+    const style = window.getComputedStyle(el, pseudo)
     return style.content === 'none' ? null : style.height
   }, `::${edge}`)
 
@@ -57,13 +53,7 @@ function outline(target: Locator): Promise<{ style: string; width: string; offse
 function outline(target: Locator, property: string): Promise<string>
 function outline(target: Locator, property?: string) {
   return target.evaluate((el, p) => {
-    const style = (
-      globalThis as unknown as {
-        getComputedStyle(e: unknown): Record<string, string> & {
-          getPropertyValue(n: string): string
-        }
-      }
-    ).getComputedStyle(el)
+    const style = window.getComputedStyle(el)
     if (p) return style.getPropertyValue(p)
     return { style: style.outlineStyle!, width: style.outlineWidth!, offset: style.outlineOffset! }
   }, property)
@@ -182,11 +172,7 @@ test('the bottom edge of an open notebook puts a notebook after it', async ({ pa
   await expect(group).toHaveClass(/drop-after/)
   await expect(row(page, 'Work')).not.toHaveClass(/drop-/)
   const drawn = await group.evaluate((el) => {
-    const style = (
-      globalThis as unknown as {
-        getComputedStyle(e: unknown, p: string): { height: string; left: string; bottom: string }
-      }
-    ).getComputedStyle(el, '::after')
+    const style = window.getComputedStyle(el, '::after')
     return { height: style.height, left: style.left, bottom: style.bottom }
   })
   expect(drawn).toEqual({ height: '2px', left: '0px', bottom: '-1px' })
@@ -214,11 +200,7 @@ test('a cancelled note drag leaves no drop highlight', async ({ page }) => {
   if (!box) throw new Error('E_TEST_NO_BOX')
   // dragleave comes with the pointer still inside the row, then dragend on the note it started from.
   const data = await page.evaluateHandle(() => {
-    const transfer = new (
-      globalThis as unknown as {
-        DataTransfer: new () => { setData(type: string, value: string): void }
-      }
-    ).DataTransfer()
+    const transfer = new window.DataTransfer()
     transfer.setData('application/x-devot-note', 'note')
     return transfer
   })
@@ -291,12 +273,7 @@ test('Move Up and Move Down in the notebook menu', async ({ page }) => {
   await createBook(page, 'Charlie')
   const menuFor = async (name: string) => {
     const popups = () =>
-      page.evaluate(
-        () =>
-          (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-            (c) => c.cmd === 'plugin:menu|popup',
-          ).length,
-      )
+      page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
     const before = await popups()
     await row(page, name).click({ button: 'right' })
     await expect.poll(popups).toBe(before + 1)

@@ -10,7 +10,7 @@ pre-commit:
       stage_fixed: true
     - name: lint
       glob: '*.{ts,tsx,js,mjs}'
-      run: pnpm exec oxlint {staged_files}
+      run: pnpm exec oxlint --deny-warnings {staged_files}
     - name: rustfmt
       # Two globs: `**/` needs a folder, so the first one covers build.rs,
       # build_commands.rs and build_env.rs beside Cargo.toml.

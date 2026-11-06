@@ -10,7 +10,7 @@ import { currentLocale, format, t } from './i18n'
 
 const entryId = (i: number) => `history-entry-${i}`
 
-export const SHOW_HISTORY = 'devot:show-history'
+const SHOW_HISTORY = 'devot:show-history'
 
 export function useHistoryMenu(open: () => void) {
   useMenuEvent('devot://show-history', SHOW_HISTORY, open)

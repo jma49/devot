@@ -1,9 +1,9 @@
 import type { Page } from '@playwright/test'
-import { expect, openApp, test, type TestWindow } from './fixtures'
+import { expect, openApp, test } from './fixtures'
 
 async function openWaiting(page: Page) {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       sync_get: {

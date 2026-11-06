@@ -18,7 +18,7 @@ test('the find bar fades in and leaves a fading copy when it closes', async ({ p
   expect(await name('.find-bar')).toBe('bar-in')
   // Read as the copy is put in, in the page: it lives one popover duration, less than a slow round trip.
   await page.evaluate(() => {
-    const w = globalThis as unknown as { devotClosing?: string }
+    const w = window
     new MutationObserver((_, observer) => {
       const copy = document.querySelector('.find-bar[data-closing]')
       if (!copy) return
@@ -28,12 +28,6 @@ test('the find bar fades in and leaves a fading copy when it closes', async ({ p
   })
   await page.keyboard.press('Escape')
   await expect(bar(page)).toHaveCount(0)
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () => (globalThis as unknown as { devotClosing?: string }).devotClosing ?? null,
-      ),
-    )
-    .toBe('bar-out')
+  await expect.poll(() => page.evaluate(() => window.devotClosing ?? null)).toBe('bar-out')
   await expect(page.locator('.find-bar')).toHaveCount(0)
 })

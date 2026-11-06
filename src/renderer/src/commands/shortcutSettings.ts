@@ -20,7 +20,7 @@ import { setCommandKeys } from './registry'
 import { createSyncedStore } from '../syncedStore'
 import { invoke } from '../ipc'
 
-export const KEYBOARD_SHORTCUTS_CHANGED = 'devot:keyboard-shortcuts-changed'
+const KEYBOARD_SHORTCUTS_CHANGED = 'devot:keyboard-shortcuts-changed'
 const TAURI_EVENT = 'devot://keyboard-shortcuts-changed'
 
 export interface ShortcutsSnapshot {
@@ -28,7 +28,7 @@ export interface ShortcutsSnapshot {
   overrides: ShortcutOverrides
 }
 
-export function readShortcutsSnapshot(value: unknown): ShortcutsSnapshot | undefined {
+function readShortcutsSnapshot(value: unknown): ShortcutsSnapshot | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { revision, overrides } = value as Record<string, unknown>
   if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0)
@@ -54,7 +54,7 @@ store.subscribe(() => {
 const reported = (snapshot: ShortcutsSnapshot | undefined) =>
   snapshot && { revision: snapshot.revision, value: snapshot.overrides }
 
-export function shortcutOverrides(): ShortcutOverrides {
+function shortcutOverrides(): ShortcutOverrides {
   return store.current()
 }
 

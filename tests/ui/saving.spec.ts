@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, openApp, type TestWindow } from './fixtures'
+import { expect, test, openApp } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
 const noteRow = (page: Page, title: string) => noteRows(page).filter({ hasText: title })
@@ -20,7 +20,7 @@ const stored = (page: Page, title: string) =>
 
 const saveFailures = (page: Page) =>
   page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
+    window.devotIpcCalls
       .filter((c) => c.cmd === 'log_write' && c.args['code'] === 'W_NOTE_SAVE_FAILED')
       .map((c) => c.args['ids']),
   )
@@ -94,7 +94,7 @@ test('the window hears of a failed save before the reply of the call it failed i
   // own to see what the window has heard when the reply comes.
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeVisible()
   const heard = await page.evaluate(async () => {
-    const { startCore } = (globalThis as unknown as TestWindow).devotTestModules
+    const { startCore } = window.devotTestModules
     const lists: { id: string; code: string }[][] = []
     const core = await startCore((problems) => lists.push(problems))
     const id = await core.create('Heard')

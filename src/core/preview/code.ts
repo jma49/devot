@@ -1,7 +1,8 @@
 // Code blocks: a header with the block's language and an optional title, and syntax highlighting. The fence's info string comes from the note's Markdown at the
 // block's position: ```js, ```js:app.js and ```js title="app.js". A fence can also name its source and number its lines: ```ts line=10-20 commit=a1b2c3d url=https://....
 // The highlighter loads only for notes that need it, and then only the grammars their code blocks use.
-import type { Element, ElementContent, Root, RootContent } from 'hast'
+import type { Element, ElementContent, Root } from 'hast'
+import { textOf } from '../hastText'
 import languageIcons from '../../../design/icons/languages.json'
 import {
   httpsUrl,
@@ -122,7 +123,7 @@ export function codeLanguage(language: string): Language {
 
 export type Highlighter = (grammar: string, code: string) => Promise<ElementContent[] | null>
 
-export async function loadHighlighter(): Promise<Highlighter> {
+async function loadHighlighter(): Promise<Highlighter> {
   const { highlight } = await import('./highlight')
   return highlight
 }
@@ -138,11 +139,6 @@ const FENCE = /^(`{3,}|~{3,})([^\n]*)/
 
 const el = (tagName: string, properties: Element['properties'], children: ElementContent[] = []) =>
   ({ type: 'element', tagName, properties, children }) as Element
-
-function textOf(node: RootContent | Root): string {
-  if (node.type === 'text') return node.value
-  return 'children' in node ? node.children.map(textOf).join('') : ''
-}
 
 function icon(mark: string | undefined): Element {
   const own = mark ? languageIcons.icons[mark as keyof typeof languageIcons.icons] : undefined

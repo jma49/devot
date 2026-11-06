@@ -5,7 +5,6 @@ import {
   openSettings,
   paintedBackground,
   test,
-  type TestWindow,
 } from './fixtures'
 
 // With the window material on, the note list and editor share one sheet over it and the sidebar floats with its own
@@ -40,16 +39,13 @@ const glass = (page: Page) => style(page).getByRole('radio', { name: 'Glass' })
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 
 const stored = (page: Page, settings: Record<string, unknown>) =>
   page.addInitScript((s) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotEditorRevision = 2
     w.devotEditorSettings = s
   }, settings)
@@ -94,7 +90,7 @@ for (const scheme of ['light', 'dark'] as const) {
 test('the first paint matches the settings the window was built with', async ({ page }) => {
   // What Rust hands the page before its scripts run; stored settings never answer here.
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow & { devotInitialEditorSettings: unknown }
+    const w = window
     w.devotInitialEditorSettings = { revision: 0, settings: { sidebarMaterial: false } }
     w.devotIpcMocks = { editor_settings_get: () => new Promise(() => {}) }
   })
@@ -107,7 +103,7 @@ test('the first paint matches the settings the window was built with', async ({ 
 test('turned on, the sidebar stays opaque until Rust has restored the effect', async ({ page }) => {
   await stored(page, { sidebarMaterial: false })
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow & { devotFinishSync?: () => void }
+    const w = window
     w.devotIpcMocks = {
       sidebar_material_sync: () =>
         new Promise((resolve) => {
@@ -122,9 +118,7 @@ test('turned on, the sidebar stays opaque until Rust has restored the effect', a
   await changeEditorSettingsElsewhere(page, { sidebarMaterial: true })
   await expect.poll(() => calls(page, 'sidebar_material_sync')).toHaveLength(2)
   await expectShown(page, false)
-  await page.evaluate(() =>
-    (globalThis as unknown as { devotFinishSync: () => void }).devotFinishSync(),
-  )
+  await page.evaluate(() => window.devotFinishSync())
   await expectShown(page, true)
 })
 
@@ -132,16 +126,7 @@ test('turned off, the sidebar is painted opaque before Rust drops the effect', a
   // Frames are counted: a frame after the change has rendered once the counter moved on twice
   // (the first step only starts that frame).
   await page.addInitScript(() => {
-    const g = globalThis as unknown as TestWindow & {
-      document: unknown
-      requestAnimationFrame(cb: () => void): number
-      MutationObserver: new (cb: () => void) => {
-        observe(target: unknown, options: Record<string, unknown>): void
-      }
-      devotFrame: number
-      devotOffAtFrame?: number
-      devotSyncAtFrame: { frame: number; shown: string }[]
-    }
+    const g = window
     g.devotFrame = 0
     g.devotSyncAtFrame = []
     const tick = () => {
@@ -174,18 +159,9 @@ test('turned off, the sidebar is painted opaque before Rust drops the effect', a
   await expectShown(page, true)
   await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
   await expectShown(page, false)
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () => (globalThis as unknown as { devotSyncAtFrame: unknown[] }).devotSyncAtFrame.length,
-      ),
-    )
-    .toBe(1)
+  await expect.poll(() => page.evaluate(() => window.devotSyncAtFrame.length)).toBe(1)
   const { off, sync } = await page.evaluate(() => {
-    const g = globalThis as unknown as {
-      devotOffAtFrame: number
-      devotSyncAtFrame: { frame: number; shown: string }[]
-    }
+    const g = window
     return { off: g.devotOffAtFrame, sync: g.devotSyncAtFrame[0] }
   })
   expect(sync?.shown).toBe('off')
@@ -197,7 +173,7 @@ test('Rust reporting no material keeps the sidebar opaque', async ({ page }) => 
   // before the later change reaches this window.
   await stored(page, { sidebarMaterial: false })
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { sidebar_material_sync: false }
   })
   await page.goto('/')
@@ -220,15 +196,7 @@ for (const { load, shown } of [
 ] as const) {
   test(`after a ${load} the first paint shows the material ${shown}`, async ({ page }) => {
     await page.addInitScript(() => {
-      const g = globalThis as unknown as TestWindow & {
-        document: unknown
-        sessionStorage: { getItem(key: string): string | null }
-        MutationObserver: new (cb: () => void) => {
-          observe(target: unknown, options: Record<string, unknown>): void
-        }
-        devotInitialEditorSettings: unknown
-        devotShown: string[]
-      }
+      const g = window
       g.devotInitialEditorSettings = { revision: 0, settings: {} }
       g.devotShown = []
       new g.MutationObserver(() => {
@@ -248,24 +216,18 @@ for (const { load, shown } of [
     await expectShown(page, true)
     await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
     await expectShown(page, false)
-    await page.evaluate(() =>
-      (
-        globalThis as unknown as { sessionStorage: { setItem(k: string, v: string): void } }
-      ).sessionStorage.setItem('test.loaded', '1'),
-    )
+    await page.evaluate(() => window.sessionStorage.setItem('test.loaded', '1'))
     if (load === 'reload') await page.reload()
     else await page.goto('/')
     await expectShown(page, shown === 'on')
-    expect(
-      await page.evaluate(() => (globalThis as unknown as { devotShown: string[] }).devotShown),
-    ).toEqual([shown])
+    expect(await page.evaluate(() => window.devotShown)).toEqual([shown])
   })
 }
 
 test('a failed sync keeps the sidebar opaque', async ({ page }) => {
   await stored(page, { sidebarMaterial: false })
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { sidebar_material_sync: { error: 'E_SIDEBAR_MATERIAL_APPLY_FAILED' } }
   })
   await page.goto('/')
@@ -319,7 +281,7 @@ test('the Settings window shows the stored choice and changes from elsewhere', a
 
 test('a change that cannot be stored is reported and dropped', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { editor_settings_set: { error: 'E_EDITOR_SETTINGS_WRITE_FAILED' } }
   })
   await openSettings(page, 'Appearance')

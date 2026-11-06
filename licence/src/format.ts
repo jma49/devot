@@ -201,7 +201,7 @@ async function verifyEnvelope<T extends { kid: string }>(
   return valid ? { ok: true, payload } : { ok: false, code: 'E_LICENCE_SIGNATURE' }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

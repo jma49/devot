@@ -8,7 +8,6 @@ import {
   pickMenuItem,
   test,
   openApp,
-  type TestWindow,
 } from './fixtures'
 
 const ONE_PIXEL_PNG =
@@ -44,9 +43,7 @@ async function openIconDialog(page: Page, name: string) {
 /** The symbol names `symbol_png` was asked for so far. */
 const rendered = (page: Page) =>
   page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
-      .filter((c) => c.cmd === 'symbol_png')
-      .map((c) => String(c.args['name'])),
+    window.devotIpcCalls.filter((c) => c.cmd === 'symbol_png').map((c) => String(c.args['name'])),
   )
 
 test.beforeEach(async ({ page }) => {
@@ -174,7 +171,7 @@ test('a symbol paints nothing until its image is in; a category switch keeps the
   await expect(cell(page, 'person').locator('.icon')).not.toHaveAttribute('data-pending', '')
 
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow & { releaseSymbols?: (png: string) => void }
+    const w = window
     const held = new Promise<string>((resolve) => {
       w.releaseSymbols = resolve
     })
@@ -190,7 +187,7 @@ test('a symbol paints nothing until its image is in; a category switch keeps the
   expect(await box.evaluate((el) => el.getBoundingClientRect().height)).toBe(height)
 
   await page.evaluate((png) => {
-    ;(globalThis as unknown as { releaseSymbols: (png: string) => void }).releaseSymbols(png)
+    window.releaseSymbols(png)
   }, ONE_PIXEL_PNG)
   await expect(pending).toBeVisible()
   await expect(pending).not.toHaveAttribute('data-pending', '')

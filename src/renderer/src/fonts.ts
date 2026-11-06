@@ -62,7 +62,7 @@ export function fontStack(
   }
 }
 
-export const FONT_VARIABLES: Readonly<Record<FontSlot, string>> = {
+const FONT_VARIABLES: Readonly<Record<FontSlot, string>> = {
   app: '--font-family-ui',
   note: '--editor-font-family',
   code: '--code-font-family',

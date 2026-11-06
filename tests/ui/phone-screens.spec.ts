@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, test } from './fixtures'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -244,7 +244,7 @@ test.describe('under Reduce Motion', () => {
 test('at twice the text size every peek action is on screen', async ({ page }) => {
   await openNotes(page)
   await page.locator('.phone-app').evaluate((app) => {
-    const shell = app as unknown as { style: CSSStyleDeclaration; dataset: Record<string, string> }
+    const shell = app
     shell.style.setProperty('--phone-text-scale', '2')
     shell.dataset['textSize'] = 'accessibility'
   })
@@ -528,8 +528,10 @@ test('General on a phone leaves out the menu bar, updates and command line tool'
   page,
 }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
-    w.devotIpcMocks = { ...w.devotIpcMocks, crash_reports_get: { available: true, on: false } }
+    window.devotIpcMocks = {
+      ...window.devotIpcMocks,
+      crash_reports_get: { available: true, on: false },
+    }
   })
   await page.reload()
   const pane = await openPane(page, 'General')

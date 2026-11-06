@@ -7,7 +7,6 @@ import {
   shownMenu,
   test,
   openApp,
-  type TestWindow,
 } from './fixtures'
 
 // Rust shows the editor's native menu and adds spelling guesses for the word sent with it; Cut, Copy, Paste and Select All are the system's own.
@@ -22,19 +21,11 @@ async function menu(page: Page): Promise<string[]> {
 }
 
 const popups = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'editor_menu_popup',
-      ).length,
-  )
+  page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'editor_menu_popup').length)
 
 const menuWord = (page: Page) =>
   page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.findLast(
-        (c) => c.cmd === 'editor_menu_popup',
-      )?.args['word'],
+    () => window.devotIpcCalls.findLast((c) => c.cmd === 'editor_menu_popup')?.args['word'],
   )
 
 async function newNote(page: Page, text: string) {
@@ -116,11 +107,7 @@ test('Look Up asks Rust for the dictionary at the pointer', async ({ page }) => 
   await pickMenuItem(page, 'Look Up “serendipity”')
   await expect
     .poll(() =>
-      page.evaluate(
-        () =>
-          (globalThis as unknown as TestWindow).devotIpcCalls.find((c) => c.cmd === 'text_look_up')
-            ?.args['text'],
-      ),
+      page.evaluate(() => window.devotIpcCalls.find((c) => c.cmd === 'text_look_up')?.args['text']),
     )
     .toBe('serendipity')
 })
@@ -133,9 +120,7 @@ test('Speech starts and stops through Rust', async ({ page }) => {
   await rightClick(page, 'read')
   await pickMenuItem(page, 'Stop Speaking', 'Speech')
   const speech = await page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
-      .filter((c) => c.cmd === 'text_speak')
-      .map((c) => c.args['action']),
+    window.devotIpcCalls.filter((c) => c.cmd === 'text_speak').map((c) => c.args['action']),
   )
   expect(speech).toEqual(['start', 'stop'])
 })
@@ -170,7 +155,7 @@ test('a link offers Open Link and Copy Link Address', async ({ page }) => {
   await rightClick(page, 'site')
   await pickMenuItem(page, 'Open Link')
   await expect
-    .poll(() => page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls))
+    .poll(() => page.evaluate(() => window.devotIpcCalls))
     .toContainEqual({ cmd: 'open_external', args: { url: 'https://example.com/a' } })
 })
 

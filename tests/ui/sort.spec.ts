@@ -7,7 +7,6 @@ import {
   pickNoteMore,
   openNotePinned,
   openApp,
-  type TestWindow,
 } from './fixtures'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
@@ -49,12 +48,7 @@ const menuWith = (
 ]
 
 const popups = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'plugin:menu|popup',
-      ).length,
-  )
+  page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
 
 async function openSortMenu(page: Page) {
   const before = await popups(page)
@@ -121,10 +115,7 @@ test('the sort pop-up lists the six orders and shows the current one', async ({ 
   await openSortMenu(page)
   expect(await shownMenu(page)).toEqual(menuWith('Date Updated (Newest First)', true))
   const at = await page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.findLast(
-        (c) => c.cmd === 'plugin:menu|popup',
-      )?.args['at'],
+    () => window.devotIpcCalls.findLast((c) => c.cmd === 'plugin:menu|popup')?.args['at'],
   )
   const box = await sortButton(page).boundingBox()
   expect(at).toEqual({

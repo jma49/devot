@@ -111,7 +111,7 @@ export const BOOK_MENU: MenuGroups<BookAction, BookMenuTarget> = [
   [entry('delete')],
 ]
 
-export const WORKSPACE_ACTIONS = ['rename', 'changeIcon', 'copyId'] as const satisfies BookCommand[]
+const WORKSPACE_ACTIONS = ['rename', 'changeIcon', 'copyId'] as const satisfies BookCommand[]
 
 export const WORKSPACE_MENU: MenuGroups<BookAction, BookMenuTarget> = [
   [entry('rename'), entry('changeIcon')],

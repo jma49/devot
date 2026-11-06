@@ -20,6 +20,8 @@ export function replaceRanges(text: string, edits: readonly TextEdit[]): string 
   return out
 }
 
+export const utf8Length = (text: string): number => new TextEncoder().encode(text).length
+
 export const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff
 export const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff
 

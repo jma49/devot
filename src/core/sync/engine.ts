@@ -21,7 +21,8 @@ import { fileLinks } from '../files'
 import { receiveStored, type Clock } from '../hlc'
 import { clipTitle } from '../noteLimits'
 import { isNotebookIcon } from '../notebookIcons'
-import { BODY } from '../notes'
+import { BODY, bodyText } from '../notes'
+import { sleep } from '../sleep'
 import { MERGE, REVISION_EVERY_MS, textLength } from '../revisions'
 import { countWords } from '../words'
 import { quotaResetAt } from './protocol'
@@ -42,7 +43,6 @@ import {
   mergeRecord,
   stampsOf,
   bodyFacts,
-  textOf,
   tombstone,
   tombstoneFile,
   type BookState,
@@ -85,8 +85,8 @@ import {
 
 export const PUSH_IDLE_MS = 3_000
 export const PUSH_EVERY_MS = 10_000
-export const MAX_PUSH_RETRIES = 5
-export const MAX_CLOCK_SKEW_MS = 5 * 60_000
+const MAX_PUSH_RETRIES = 5
+const MAX_CLOCK_SKEW_MS = 5 * 60_000
 const RETRY_BASE_MS = 250
 const RECONNECT_MIN_MS = 1_000
 const RECONNECT_MAX_MS = 5 * 60_000
@@ -243,8 +243,6 @@ export interface SyncEngine {
   /** Internal, for tests: how many records the push breaker still holds times for. */
   pushesRemembered(): number
 }
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const storageFailure = (code: string) => code.startsWith('E_STORAGE_')
 
@@ -697,7 +695,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const doc = new Y.Doc()
     Y.applyUpdate(doc, record.ydoc)
     const text = doc.getText(BODY)
-    const edits = textEdits(text.toString(), textOf(mine.ydoc))
+    const edits = textEdits(text.toString(), bodyText(mine.ydoc))
     if (edits.length === 0) return merged
     doc.transact(() => {
       for (const edit of edits.reverse()) {

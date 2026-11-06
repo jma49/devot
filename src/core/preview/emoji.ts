@@ -5,7 +5,7 @@ import { PREVIEW_API_VERSION, type PreviewRenderer } from './registry'
 
 export type EmojiTable = ReadonlyMap<string, string>
 
-export async function loadEmojiTable(): Promise<EmojiTable> {
+async function loadEmojiTable(): Promise<EmojiTable> {
   const { gemoji } = await import('gemoji')
   return new Map(gemoji.flatMap((g) => g.names.map((name) => [name, g.emoji] as const)))
 }

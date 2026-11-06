@@ -50,13 +50,7 @@ const fontSize = (page: Page, selector: string) =>
   preview(page)
     .locator(selector)
     .first()
-    .evaluate((e) =>
-      Number.parseFloat(
-        (
-          globalThis as unknown as { getComputedStyle(el: unknown): { fontSize: string } }
-        ).getComputedStyle(e).fontSize,
-      ),
-    )
+    .evaluate((e) => Number.parseFloat(window.getComputedStyle(e).fontSize))
 
 test.beforeEach(async ({ page }) => {
   await openApp(page)
@@ -130,13 +124,7 @@ test('Cmd+= and Cmd+- size the editor; the preview keeps its own size', async ({
   const editorSize = () =>
     page
       .locator('.cm-content')
-      .evaluate((e) =>
-        Number.parseFloat(
-          (
-            globalThis as unknown as { getComputedStyle(el: unknown): { fontSize: string } }
-          ).getComputedStyle(e).fontSize,
-        ),
-      )
+      .evaluate((e) => Number.parseFloat(window.getComputedStyle(e).fontSize))
   const base = await fontSize(page, 'p')
   await page.locator('.cm-content').click()
   await page.keyboard.press('Meta+Equal')

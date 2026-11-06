@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TagRecord } from '../../core/storage'
 import { quickTagRows, readRecentTags, rememberTag } from './quickTag'
+import { memoryStorage } from '../../../tests/support/local-storage'
 
 const tag = (id: string, name: string): TagRecord => ({
   id,
@@ -17,14 +18,6 @@ const TAGS = [tag('a', 'alpha'), tag('b', 'beta'), tag('c', 'gamma'), tag('d', '
 
 const names = (rows: ReturnType<typeof quickTagRows>) =>
   rows.map((r) => (r.kind === 'tag' ? r.tag.name : `+${r.name}`))
-
-function memoryStore() {
-  const items = new Map<string, string>()
-  return {
-    getItem: (key: string) => items.get(key) ?? null,
-    setItem: (key: string, value: string) => void items.set(key, value),
-  }
-}
 
 beforeEach(() => {
   vi.stubGlobal('navigator', { languages: ['en'] })
@@ -59,13 +52,13 @@ describe('quickTagRows', () => {
 
 describe('recent tags', () => {
   it('keeps the newest first, each once, up to eight', () => {
-    const store = memoryStore()
+    const store = memoryStorage()
     for (const id of ['1', '2', '3', '1', '4', '5', '6', '7', '8', '9']) rememberTag(store, id)
     expect(readRecentTags(store)).toEqual(['9', '8', '7', '6', '5', '4', '1', '3'])
   })
 
   it('reads a damaged store as none', () => {
-    const store = memoryStore()
+    const store = memoryStorage()
     store.setItem('devot.tags.recent', '{broken')
     expect(readRecentTags(store)).toEqual([])
     expect(readRecentTags(undefined)).toEqual([])

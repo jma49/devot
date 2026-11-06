@@ -5,18 +5,13 @@ import type { Core } from './core-client'
 import { lastStateStore, type LastState } from './lastState'
 import { renderHook, settle, unmountAll } from '../../../tests/support/render-hook'
 import { useLastState } from './useLastState'
+import { memoryStorage } from '../../../tests/support/local-storage'
 
 vi.hoisted(() => vi.stubGlobal('DEVOT_UI_TEST', false))
 
 afterEach(unmountAll)
 
-function memoryStore() {
-  const items = new Map<string, string>()
-  return lastStateStore(
-    { getItem: (key) => items.get(key) ?? null, setItem: (key, text) => void items.set(key, text) },
-    'main',
-  )
-}
+const memoryStore = () => lastStateStore(memoryStorage(), 'main')
 
 const ALL = { kind: 'all' } as const
 const BOOK = '01900000-0000-7000-8000-000000000001'

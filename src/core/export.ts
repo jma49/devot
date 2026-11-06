@@ -275,7 +275,7 @@ export function linkPath(path: string): string {
 }
 
 /** As `linkPath`, plus quotes, `=` and backticks, so it is one value however the attribute is quoted. */
-export function attributePath(path: string): string {
+function attributePath(path: string): string {
   return linkPath(path).replace(/["'=`]/g, percentEncoded)
 }
 

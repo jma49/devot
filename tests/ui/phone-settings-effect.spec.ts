@@ -1,6 +1,6 @@
 // iPhone Settings rows either change what the phone shows or are left out of it.
 import type { Locator, Page } from '@playwright/test'
-import { expect, test, type TestWindow } from './fixtures'
+import { expect, test } from './fixtures'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -12,8 +12,10 @@ const root = (page: Page) => page.getByRole('region', { name: 'Settings' })
 
 function crashReports(page: Page, available: boolean) {
   return page.addInitScript((shown) => {
-    const w = globalThis as unknown as TestWindow
-    w.devotIpcMocks = { ...w.devotIpcMocks, crash_reports_get: { available: shown, on: false } }
+    window.devotIpcMocks = {
+      ...window.devotIpcMocks,
+      crash_reports_get: { available: shown, on: false },
+    }
   }, available)
 }
 

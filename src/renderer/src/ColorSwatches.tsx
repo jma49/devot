@@ -2,7 +2,7 @@ import { TAG_COLORS, type TagColor, type TagColorValue } from '../../core/storag
 import { isCustomTagColor } from '../../core/tags'
 import { t } from './i18n'
 import { Icon } from './icons/Icon'
-import { TagDot } from './TagEditor'
+import { TagDot } from './TagDot'
 
 export function ColorSwatches<V extends TagColorValue = TagColor>(props: {
   value: V | null

@@ -5,14 +5,14 @@ test.use({ viewport: { width: 1280, height: 480 } })
 
 const sidebar = (page: Page) => page.getByRole('navigation', { name: 'Sidebar' })
 const scroller = (page: Page) => sidebar(page).locator('.sidebar-scroll')
-const book = (page: Page, name: string) =>
+const book = (page: Page, label: string) =>
   page.getByRole('tree', { name: 'Notebooks' }).getByRole('treeitem', {
-    name: new RegExp(`^${name}\\b`),
+    name: new RegExp(`^${label}\\b`),
   })
-const row = (page: Page, name: string) => book(page, name).locator('> .book-row')
+const row = (page: Page, label: string) => book(page, label).locator('> .book-row')
 const nameField = (page: Page) => page.getByRole('textbox', { name: 'Notebook name' })
-const source = (page: Page, name: string) =>
-  sidebar(page).getByRole('button', { name: new RegExp(`^${name}\\b`) })
+const source = (page: Page, label: string) =>
+  sidebar(page).getByRole('button', { name: new RegExp(`^${label}\\b`) })
 
 async function name(page: Page, value: string) {
   await expect(nameField(page)).toBeFocused()

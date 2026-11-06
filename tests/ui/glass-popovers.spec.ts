@@ -1,9 +1,9 @@
 import type { Locator, Page } from '@playwright/test'
-import { bookPicker, expect, statusPicker, test, type TestWindow } from './fixtures'
+import { bookPicker, expect, statusPicker, test } from './fixtures'
 
 async function start(page: Page, glass: boolean, path = '/') {
   await page.addInitScript((sidebarMaterial) => {
-    const w = globalThis as unknown as TestWindow & { devotInitialEditorSettings: unknown }
+    const w = window
     w.devotInitialEditorSettings = { revision: 0, settings: { sidebarMaterial } }
     w.devotIpcMocks = { editor_settings_get: () => new Promise(() => {}) }
   }, glass)

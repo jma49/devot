@@ -2,7 +2,6 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -33,6 +32,7 @@ import {
 import { folderHost, MANIFEST } from '../support/mirror-host'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
+import { filesUnder } from '../support/files-under'
 
 // The mirror end to end on real SQLite and a real folder, with a stand-in for Rust
 // (tests/support/mirror-host.ts) running the planned operations with Rust's checks.
@@ -101,15 +101,7 @@ function library(options: { root?: string; dbPath?: string } = {}) {
 
 type Library = ReturnType<typeof library>
 
-function walk(root: string, rel = ''): string[] {
-  return readdirSync(join(root, rel))
-    .sort()
-    .flatMap((name) => {
-      const path = rel ? `${rel}/${name}` : name
-      if (path === MANIFEST) return []
-      return statSync(join(root, path)).isDirectory() ? walk(root, path) : [path]
-    })
-}
+const walk = (root: string) => filesUnder(root).filter((path) => path !== MANIFEST)
 
 const readIn = (root: string, path: string) => readFileSync(join(root, path), 'utf8')
 const read = (lib: Library, path: string) => readIn(lib.root, path)

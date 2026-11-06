@@ -5,8 +5,8 @@
 import { findMatches, type FindOptions } from '../../../core/find'
 import { NO_MATCHES, seedQuery, type FindChange, type FindTarget } from '../find/target'
 
-export const MATCH_HIGHLIGHT = 'devot-find'
-export const CURRENT_HIGHLIGHT = 'devot-find-current'
+const MATCH_HIGHLIGHT = 'devot-find'
+const CURRENT_HIGHLIGHT = 'devot-find-current'
 
 const BLOCK =
   'p, li, h1, h2, h3, h4, h5, h6, pre, blockquote, td, th, dt, dd, caption, figcaption, summary, div, section, header, footer, aside, details, table, ul, ol, dl, tr, article'

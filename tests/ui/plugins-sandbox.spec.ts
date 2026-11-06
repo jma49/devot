@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, openApp, test, type TestWindow } from './fixtures'
+import { expect, openApp, test } from './fixtures'
 import { pluginFrame, servePlugins, testPlugin } from './plugins'
 
 // The malicious-plugin suite (ADR 0005): code in a plugin's frame tries what a hostile plugin would, and reaches neither Tauri,
@@ -106,9 +106,7 @@ test('runs each plugin in its own sandboxed frame with an opaque origin, never i
 
 test('cannot reach Tauri or the main window', async ({ page }) => {
   const frame = await pluginFrame(page, 'com.example.probe')
-  const before = await page.evaluate(
-    () => (globalThis as unknown as TestWindow).devotIpcCalls.length,
-  )
+  const before = await page.evaluate(() => window.devotIpcCalls.length)
   const reached = await frame.evaluate(() => {
     const g = globalThis as Record<string, unknown>
     const tries: Record<string, string> = {}
@@ -147,9 +145,7 @@ test('cannot reach Tauri or the main window', async ({ page }) => {
     cookies: 'blocked',
   })
   await page.waitForTimeout(200)
-  const after = await page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls.slice(0).map((c) => c.cmd),
-  )
+  const after = await page.evaluate(() => window.devotIpcCalls.slice(0).map((c) => c.cmd))
   expect(after.slice(before).filter((cmd) => cmd !== 'log_write')).toEqual([])
 })
 
@@ -571,9 +567,7 @@ test('cannot read or change a note without its permission, nor call anything the
   const frame = await pluginFrame(page, 'com.example.probe')
   await runCommand(page, 'Probe')
   const answers = await frame.evaluate(async () => {
-    const g = globalThis as unknown as {
-      devot: { note: { read(): Promise<unknown>; replace(e: unknown): Promise<unknown> } }
-    }
+    const g = window
     const codeOf = (p: Promise<unknown>) =>
       p.then(
         () => 'allowed',
@@ -589,10 +583,7 @@ test('cannot read or change a note without its permission, nor call anything the
     replace: 'E_PLUGIN_PERMISSION_DENIED',
   })
   const raw = await frame.evaluate(async () => {
-    const g = globalThis as unknown as {
-      stolen: MessagePort
-      answers: { seq: number; code?: string }[]
-    }
+    const g = window
     const send = (seq: number, method: string, params?: unknown) =>
       g.stolen.postMessage({ devot: 1, kind: 'call', seq, method, params })
     send(901, 'invoke', { cmd: 'notes_list' })
@@ -621,12 +612,10 @@ test('reads the note only while one of its commands runs, even with the permissi
 }) => {
   const frame = await pluginFrame(page, 'com.example.victim')
   const code = await frame.evaluate(() =>
-    (globalThis as unknown as { devot: { note: { read(): Promise<unknown> } } }).devot.note
-      .read()
-      .then(
-        () => 'allowed',
-        (e: { code?: string }) => e.code,
-      ),
+    window.devot.note.read().then(
+      () => 'allowed',
+      (e: { code?: string }) => e.code,
+    ),
   )
   expect(code).toBe('E_PLUGIN_NOT_ACTIVE')
 })

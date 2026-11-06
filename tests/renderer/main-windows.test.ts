@@ -1,11 +1,9 @@
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createClock, createIdGenerator, createNoteService } from '../../src/core'
 import { coalesced, listsLink, reportingWrites } from '../../src/renderer/src/mainWindows'
 import { fromWire, toWire } from '../../src/renderer/src/storage/wire'
-import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
-import { tempDir } from '../support/temp-dirs'
+import { tempSqliteAdapter } from '../support/sqlite-adapter'
 
 const own = vi.hoisted(() => ({
   listen: vi.fn<(event: string, handler: () => void) => Promise<() => void>>(() =>
@@ -18,14 +16,7 @@ const tauri = vi.hoisted(() => ({
 vi.mock('@tauri-apps/api/webviewWindow', () => ({ getCurrentWebviewWindow: () => own }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: tauri.invoke }))
 
-const open: SqliteAdapter[] = []
-afterEach(() => open.splice(0).forEach((a) => a.close()))
-
-function storage(): SqliteAdapter {
-  const adapter = openSqliteAdapter(join(tempDir('devot-mains-'), 'devot.sqlite'))
-  open.push(adapter)
-  return adapter
-}
+const storage = () => tempSqliteAdapter('devot-mains-')
 
 describe('coalesced', () => {
   beforeEach(() => vi.useFakeTimers())

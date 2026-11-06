@@ -26,7 +26,7 @@ const TOKEN_STATES: readonly unknown[] = ['set', 'unset', 'unknown', 'unavailabl
 const isPort = (value: unknown): value is number =>
   Number.isInteger(value) && (value as number) >= 1 && (value as number) <= HTTP_API_MAX_PORT
 
-export function asHttpApiView(value: unknown): HttpApiView | undefined {
+function asHttpApiView(value: unknown): HttpApiView | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { enabled, port, scope, listening, problem, token } = value as Record<string, unknown>
   if (typeof enabled !== 'boolean' || !isPort(port) || !SCOPES.includes(scope)) return undefined

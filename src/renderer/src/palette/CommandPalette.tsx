@@ -1,6 +1,5 @@
 import { fieldStep } from '../Picker'
 import {
-  Fragment,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -15,9 +14,10 @@ import { useEditorSetting } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { BookIcon } from '../BookIcon'
-import { TagDot } from '../TagEditor'
+import { TagDot } from '../TagDot'
 import { isImeKey } from '../ime'
 import type { IconName } from '../icons/symbols'
+import { MarkedRanges } from '../Marked'
 import {
   escapeStep,
   lineOfQuery,
@@ -104,20 +104,6 @@ const PLACEHOLDER: Readonly<Record<PaletteSource, MessageKey>> = {
 }
 
 const optionId = (i: number) => `palette-option-${i}`
-
-function Marked({ text, ranges }: { text: string; ranges: readonly [number, number][] }) {
-  const parts: { text: string; match: boolean }[] = []
-  let at = 0
-  for (const [from, to] of ranges) {
-    if (from > at) parts.push({ text: text.slice(at, from), match: false })
-    parts.push({ text: text.slice(from, to), match: true })
-    at = to
-  }
-  if (at < text.length) parts.push({ text: text.slice(at), match: false })
-  return parts.map((p, i) =>
-    p.match ? <mark key={i}>{p.text}</mark> : <Fragment key={i}>{p.text}</Fragment>,
-  )
-}
 
 /**
  * The command palette: one field over a list of sources, or over the results
@@ -392,7 +378,7 @@ export function CommandPalette(props: {
                     className={`palette-label${r.kind === 'command' ? ' palette-command' : ''}${r.done ? ' palette-done' : ''}`}
                     dir="auto"
                   >
-                    <Marked text={r.label} ranges={r.ranges} />
+                    <MarkedRanges text={r.label} ranges={r.ranges} />
                     {r.description ? (
                       <span className="palette-description">{r.description}</span>
                     ) : null}

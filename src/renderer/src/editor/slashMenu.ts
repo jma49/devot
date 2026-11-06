@@ -48,7 +48,7 @@ import { inTable } from './tableCommands'
 
 export type SlashGroup = 'basic' | 'alerts' | 'other'
 
-export const SLASH_GROUPS: readonly { id: SlashGroup; label: MessageKey }[] = [
+const SLASH_GROUPS: readonly { id: SlashGroup; label: MessageKey }[] = [
   { id: 'basic', label: 'slash.groupBasic' },
   { id: 'alerts', label: 'slash.groupAlerts' },
   { id: 'other', label: 'slash.groupOther' },

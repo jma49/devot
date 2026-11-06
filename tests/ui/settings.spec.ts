@@ -1,11 +1,5 @@
 import type { Page } from '@playwright/test'
-import {
-  changeEditorSettingsElsewhere,
-  expect,
-  openSettings,
-  test,
-  type TestWindow,
-} from './fixtures'
+import { changeEditorSettingsElsewhere, expect, openSettings, test } from './fixtures'
 
 const AT = Date.UTC(2026, 9, 10, 9, 30)
 
@@ -34,7 +28,7 @@ const list = (page: Page) => section(page).getByRole('list', { name: 'Stored eve
 
 async function open(page: Page, events: unknown[] | { error: string }) {
   await page.addInitScript((stored) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     let current = stored
     w.devotIpcMocks = {
       usage_list: () => {
@@ -52,10 +46,7 @@ async function open(page: Page, events: unknown[] | { error: string }) {
 }
 
 const calls = (page: Page, cmd: string) =>
-  page.evaluate(
-    (c) => (globalThis as unknown as TestWindow).devotIpcCalls.filter((call) => call.cmd === c),
-    cmd,
-  )
+  page.evaluate((c) => window.devotIpcCalls.filter((call) => call.cmd === c), cmd)
 
 test('the settings window has a Usage Data section', async ({ page }) => {
   await open(page, [])
@@ -121,7 +112,7 @@ test('clears the stored events after asking', async ({ page }) => {
 test('a failed clear stays reported after the window reloads', async ({ page }) => {
   await open(page, EVENTS)
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { ...w.devotIpcMocks, usage_clear: { error: 'E_USAGE_STORE_FAILED' } }
   })
   await section(page).getByRole('button', { name: 'Clear Usage Data\u2026' }).click()
@@ -131,11 +122,7 @@ test('a failed clear stays reported after the window reloads', async ({ page }) 
     .click()
   const alert = section(page).getByRole('alert')
   await expect(alert).toHaveText('The usage data could not be cleared (E_USAGE_STORE_FAILED).')
-  await page.evaluate(() =>
-    (globalThis as unknown as { dispatchEvent(e: unknown): void }).dispatchEvent(
-      new (globalThis as unknown as { Event: new (t: string) => unknown }).Event('focus'),
-    ),
-  )
+  await page.evaluate(() => window.dispatchEvent(new window.Event('focus')))
   await expect(alert).toBeVisible()
   await expect(section(page)).toContainText('4 events are stored on this Mac.')
 })
@@ -145,11 +132,9 @@ test('reloads the events when the window comes back to the front', async ({ page
   await expect(section(page)).toContainText('No usage events are stored.')
   await page.evaluate(
     (events) => {
-      const w = globalThis as unknown as TestWindow & { dispatchEvent(e: unknown): void }
+      const w = window
       w.devotIpcMocks = { usage_list: events }
-      w.dispatchEvent(
-        new (globalThis as unknown as { Event: new (t: string) => unknown }).Event('focus'),
-      )
+      w.dispatchEvent(new window.Event('focus'))
     },
     EVENTS.slice(0, 1),
   )
@@ -247,7 +232,7 @@ test('opens on the pane shown last', async ({ page }) => {
 
 test('General opens the data folder and the Backups dialog', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { settings_open_data_folder: null, settings_show_backups: null }
   })
   await page.goto('/settings.html')
@@ -311,7 +296,7 @@ function setupWith(states: { claudeCode?: string; codex?: string; claudeDesktop?
 
 test('Integrations offers configs to copy that run this app as the bridge', async ({ page }) => {
   await page.addInitScript((setup) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { settings_mcp_setup: setup }
   }, setupWith())
   await openSettings(page, 'Integrations')
@@ -354,7 +339,7 @@ test('Clients has one row per client with its state, and only the buttons that s
 }) => {
   await page.addInitScript(
     (setup) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcMocks = {
         settings_mcp_setup: setup,
         settings_ai_access_summary: { notebooks: 3, allowed: 1 },
@@ -392,7 +377,7 @@ test('Connect shows what it will write and where, and writes only once confirmed
 }) => {
   await page.addInitScript(
     ({ setup, connected }) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcMocks = {
         settings_mcp_setup: setup,
         settings_mcp_connect: connected,
@@ -440,7 +425,7 @@ test('Claude Code is changed through its own CLI when there is one, and the dial
   const command = `/opt/homebrew/bin/claude mcp add --scope user devot -- '${BRIDGE}' --cli mcp`
   await page.addInitScript(
     (setup) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcMocks = {
         settings_mcp_setup: setup,
         settings_ai_access_summary: { notebooks: 3, allowed: 1 },
@@ -473,7 +458,7 @@ test('Disconnect names the file, removes only on confirming and reports a refusa
 }) => {
   await page.addInitScript(
     (setup) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcMocks = {
         settings_mcp_setup: setup,
         settings_mcp_disconnect: { error: 'E_MCP_CONFIG_CHANGED' },
@@ -501,7 +486,7 @@ test('A moved app, a foreign entry and an unreadable file each say what to do', 
 }) => {
   await page.addInitScript(
     (setup) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcMocks = {
         settings_mcp_setup: setup,
         settings_ai_access_summary: { notebooks: 3, allowed: 1 },
@@ -535,7 +520,7 @@ test('A moved app, a foreign entry and an unreadable file each say what to do', 
 test('Connect waits until Devot is installed, while configs stay available', async ({ page }) => {
   await page.addInitScript(
     (setup) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcMocks = {
         settings_mcp_setup: setup,
         settings_ai_access_summary: { notebooks: 3, allowed: 1 },
@@ -555,7 +540,7 @@ test('Connect waits until Devot is installed, while configs stay available', asy
 
 test('Install Extension opens the bundle, and says when it cannot', async ({ page }) => {
   await page.addInitScript((setup) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       settings_mcp_setup: setup,
       settings_mcp_open_extension: { error: 'E_MCP_EXTENSION_OPEN_FAILED' },
@@ -576,7 +561,7 @@ test('Connecting with no notebook allowed opens nothing more, and the notice sta
 }) => {
   await page.addInitScript(
     ({ setup, connected }) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcMocks = {
         settings_mcp_setup: setup,
         settings_mcp_connect: connected,
@@ -605,7 +590,7 @@ test('Integrations still offers configs, with the installed path, when Rust cann
   page,
 }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { settings_mcp_setup: { error: 'E_DATA_FOLDER_UNAVAILABLE' } }
   })
   await openSettings(page, 'Integrations')
@@ -642,14 +627,14 @@ const ACCESS: McpAccessMock = {
 
 async function openAiTools(page: Page, access: McpAccessMock, mode: string) {
   await page.addInitScript(
-    ({ setup, access, mode }) => {
-      const w = globalThis as unknown as TestWindow
+    ({ setup, access: granted, mode: background }) => {
+      const w = window
       w.devotIpcMocks = {
         settings_mcp_setup: setup,
         settings_ai_access_summary: { notebooks: 3, allowed: 1 },
-        mcp_access_get: access,
-        background_state: { mode },
-        mcp_access_set: (args: unknown) => ({ ...access, ...(args as object) }),
+        mcp_access_get: granted,
+        background_state: { mode: background },
+        mcp_access_set: (args: unknown) => ({ ...granted, ...(args as object) }),
         background_quit: null,
       }
     },
@@ -662,16 +647,16 @@ async function openAiTools(page: Page, access: McpAccessMock, mode: string) {
 test('AI Tools says plainly, before any Connect, that Devot may start in the background', async ({
   page,
 }) => {
-  const section = await openAiTools(page, ACCESS, 'normal')
-  const start = section.getByRole('switch', { name: 'Start in the Background' })
+  const aiTools = await openAiTools(page, ACCESS, 'normal')
+  const start = aiTools.getByRole('switch', { name: 'Start in the Background' })
   await expect(start).toBeChecked()
   await expect(start).toHaveAccessibleDescription(
     'When an AI tool asks and Devot is closed, Devot opens without a window. Quit it from the menu bar at any time.',
   )
-  await expect(section.locator('.settings-footnote')).toHaveText(
+  await expect(aiTools.locator('.settings-footnote')).toHaveText(
     'A Devot started in the background quits by itself after 10 minutes without a request. With Start in the Background off, AI tools get an error until you open Devot.',
   )
-  const rows = section.locator('.setting-label')
+  const rows = aiTools.locator('.setting-label')
   await expect(rows).toHaveText([
     'Allow AI Tools',
     'Notebooks',
@@ -679,23 +664,23 @@ test('AI Tools says plainly, before any Connect, that Devot may start in the bac
     'Start in the Background',
     'Status',
   ])
-  await expect(section).toContainText('1 of 3 notebooks allow AI access.')
-  await expect(section).toContainText('Open as usual.')
-  await expect(section.getByRole('button', { name: 'Quit Devot' })).toHaveCount(0)
-  const before = await section.boundingBox()
+  await expect(aiTools).toContainText('1 of 3 notebooks allow AI access.')
+  await expect(aiTools).toContainText('Open as usual.')
+  await expect(aiTools.getByRole('button', { name: 'Quit Devot' })).toHaveCount(0)
+  const before = await aiTools.boundingBox()
   const client = await page.getByRole('region', { name: 'Clients' }).boundingBox()
   expect(before!.y).toBeLessThan(client!.y)
 })
 
 test('Notebooks in AI Tools opens the notebook picker in the main window', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { main_window_show: null }
   })
   await openSettings(page, 'Integrations')
-  const section = page.getByRole('region', { name: 'AI Tools' })
-  await expect(section).toContainText('1 of 1 notebooks allow AI access.')
-  await section.getByRole('button', { name: 'Choose\u2026' }).click()
+  const aiTools = page.getByRole('region', { name: 'AI Tools' })
+  await expect(aiTools).toContainText('1 of 1 notebooks allow AI access.')
+  await aiTools.getByRole('button', { name: 'Choose\u2026' }).click()
   expect(await calls(page, 'main_window_show')).toEqual([{ cmd: 'main_window_show', args: {} }])
   expect(await page.evaluate(() => localStorage.getItem('devot:choose-ai-access'))).toBe('1')
 })
@@ -703,25 +688,25 @@ test('Notebooks in AI Tools opens the notebook picker in the main window', async
 test('AI Tools shows when Devot runs in the background, and Quit Devot asks Rust to quit', async ({
   page,
 }) => {
-  const section = await openAiTools(page, ACCESS, 'background')
-  await expect(section).toContainText('Running in the background for AI tools.')
-  await section.getByRole('button', { name: 'Quit Devot' }).click()
+  const aiTools = await openAiTools(page, ACCESS, 'background')
+  await expect(aiTools).toContainText('Running in the background for AI tools.')
+  await aiTools.getByRole('button', { name: 'Quit Devot' }).click()
   expect(await calls(page, 'background_quit')).toEqual([{ cmd: 'background_quit', args: {} }])
-  await expect(section.getByRole('alert')).toHaveCount(0)
+  await expect(aiTools.getByRole('alert')).toHaveCount(0)
 })
 
 test('AI Tools turns background starts off and chooses read-only, keeping the other choices', async ({
   page,
 }) => {
-  const section = await openAiTools(page, ACCESS, 'normal')
-  await section.getByRole('switch', { name: 'Start in the Background' }).click()
+  const aiTools = await openAiTools(page, ACCESS, 'normal')
+  await aiTools.getByRole('switch', { name: 'Start in the Background' }).click()
   await expect.poll(() => calls(page, 'mcp_access_set')).toHaveLength(1)
   expect((await calls(page, 'mcp_access_set'))[0]!.args).toEqual({
     enabled: true,
     scope: 'readWrite',
     backgroundStart: false,
   })
-  await section.getByRole('combobox', { name: 'Access' }).selectOption('read')
+  await aiTools.getByRole('combobox', { name: 'Access' }).selectOption('read')
   await expect.poll(() => calls(page, 'mcp_access_set')).toHaveLength(2)
   expect((await calls(page, 'mcp_access_set'))[1]!.args).toEqual({
     enabled: true,
@@ -731,31 +716,31 @@ test('AI Tools turns background starts off and chooses read-only, keeping the ot
 })
 
 test('AI Tools says why tools cannot reach Devot, with the code', async ({ page }) => {
-  const section = await openAiTools(
+  const aiTools = await openAiTools(
     page,
     { ...ACCESS, reachable: false, problem: 'E_HTTP_API_PORT_IN_USE' },
     'normal',
   )
-  await expect(section.getByRole('alert')).toHaveText(
+  await expect(aiTools.getByRole('alert')).toHaveText(
     'AI tools cannot reach Devot now (E_HTTP_API_PORT_IN_USE).',
   )
 })
 
 test('A keychain that waits is said calmly, with what to do and the code', async ({ page }) => {
-  const section = await openAiTools(
+  const aiTools = await openAiTools(
     page,
     { ...ACCESS, reachable: false, problem: 'E_MCP_KEYCHAIN_WAITING' },
     'normal',
   )
-  await expect(section.getByRole('alert')).toHaveCount(0)
-  await expect(section.getByRole('status')).toHaveText(
+  await expect(aiTools.getByRole('alert')).toHaveCount(0)
+  await expect(aiTools.getByRole('status')).toHaveText(
     'macOS is asking whether Devot may use its keychain item. Choose Allow in that dialog, and AI tools can reach Devot (E_MCP_KEYCHAIN_WAITING).',
   )
 })
 
 test('A failure to quit or to save says so with its code', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       mcp_access_set: { error: 'E_MCP_ACCESS_WRITE_FAILED' },
       background_quit: { error: 'E_BACKGROUND_WINDOW' },
@@ -763,20 +748,20 @@ test('A failure to quit or to save says so with its code', async ({ page }) => {
     }
   })
   await openSettings(page, 'Integrations')
-  const section = page.getByRole('region', { name: 'AI Tools' })
-  await section.getByRole('switch', { name: 'Allow AI Tools' }).click()
-  await expect(section.getByRole('alert')).toHaveText(
+  const aiTools = page.getByRole('region', { name: 'AI Tools' })
+  await aiTools.getByRole('switch', { name: 'Allow AI Tools' }).click()
+  await expect(aiTools.getByRole('alert')).toHaveText(
     'The AI Tools settings could not be changed (E_MCP_ACCESS_WRITE_FAILED).',
   )
-  await section.getByRole('button', { name: 'Quit Devot' }).click()
-  await expect(section.getByRole('alert')).toHaveText('Devot could not quit (E_BACKGROUND_WINDOW).')
+  await aiTools.getByRole('button', { name: 'Quit Devot' }).click()
+  await expect(aiTools.getByRole('alert')).toHaveText('Devot could not quit (E_BACKGROUND_WINDOW).')
 })
 
 test('General installs and removes the devot command, showing whether it is there', async ({
   page,
 }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     const path = '/usr/local/bin/devot'
     w.devotIpcMocks = {
       cli_tool_install: { state: 'installed', path },
@@ -802,7 +787,7 @@ test('General installs and removes the devot command, showing whether it is ther
 
 test('General says when the devot command cannot be installed', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       cli_tool_status: { state: 'other', path: '/usr/local/bin/devot' },
       cli_tool_install: { error: 'E_CLI_PATH_TAKEN' },
@@ -821,7 +806,7 @@ test('General says when the devot command cannot be installed', async ({ page })
 
 test('General offers no devot command in a build without one', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { cli_tool_status: { state: 'unavailable', path: '/usr/local/bin/devot' } }
   })
   await page.goto('/settings.html')
@@ -834,7 +819,7 @@ test('General offers no devot command in a build without one', async ({ page }) 
 
 test('General says when the data folder cannot be opened', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { settings_open_data_folder: { error: 'E_DATA_FOLDER_OPEN_FAILED' } }
   })
   await page.goto('/settings.html')
@@ -845,9 +830,7 @@ test('General says when the data folder cannot be opened', async ({ page }) => {
 
 test('General offers the notebooks as the default for new notes', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow & {
-      localStorage: { setItem(k: string, v: string): void }
-    }
+    const w = window
     w.devotEditorSettings = { defaultNotebook: 'book-b' }
     w.localStorage.setItem(
       'devot.notebookChoices',
@@ -877,7 +860,7 @@ const fontSize = (page: Page) =>
 
 async function openAppearance(page: Page, stored: Record<string, unknown> = {}) {
   await page.addInitScript((settings) => {
-    const w = globalThis as unknown as TestWindow & { devotEditorSettings: unknown }
+    const w = window
     w.devotEditorSettings = settings
     w.devotIpcMocks = { usage_list: [] }
   }, stored)
@@ -886,7 +869,7 @@ async function openAppearance(page: Page, stored: Record<string, unknown> = {}) 
 
 async function openEditor(page: Page, stored: Record<string, unknown> = {}) {
   await page.addInitScript((settings) => {
-    const w = globalThis as unknown as TestWindow & { devotEditorSettings: unknown }
+    const w = window
     w.devotEditorSettings = settings
     w.devotIpcMocks = { usage_list: [] }
   }, stored)
@@ -1018,7 +1001,7 @@ test('the new defaults show for settings never set', async ({ page }) => {
 
 test('the font size description drops its keys when one of them is cleared', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotShortcutRevision = 1
     w.devotShortcutOverrides = { 'view.fontSmaller': [] }
   })
@@ -1126,15 +1109,8 @@ test('a font size out of range is not stored, and leaving the field shows the st
 /** Types each value in one go with no timer between keystrokes, however slow the machine. */
 const typeBurst = (page: Page, values: string[]) =>
   fontSize(page).evaluate((input, typed) => {
-    const field = input as unknown as {
-      value: string
-      dispatchEvent(e: unknown): void
-      focus(): void
-    }
-    const w = globalThis as unknown as {
-      Event: new (type: string, init: { bubbles: boolean }) => unknown
-      HTMLInputElement: { prototype: object }
-    }
+    const field = input
+    const w = window
     const set = Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, 'value')?.set
     field.focus()
     for (const value of typed) {
@@ -1168,7 +1144,7 @@ test('a change made in another window shows at once', async ({ page }) => {
 test('a change that cannot be stored is reported and undone', async ({ page }) => {
   await openEditor(page)
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       editor_settings_set: { error: 'E_EDITOR_SETTINGS_WRITE_FAILED' },
@@ -1186,7 +1162,7 @@ const preview = (page: Page) => page.getByRole('region', { name: 'Preview' })
 
 test('Preview has synced scrolling; its font size sits in Appearance', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow & { devotEditorSettings: unknown }
+    const w = window
     w.devotIpcMocks = { usage_list: [] }
   })
   await openSettings(page, 'Preview')
@@ -1201,7 +1177,7 @@ test('Preview has synced scrolling; its font size sits in Appearance', async ({ 
 
 test('Preview loads images from the web by default and can make them wait', async ({ page }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = { usage_list: [] }
+    window.devotIpcMocks = { usage_list: [] }
   })
   await openSettings(page, 'Preview')
   const remote = preview(page).getByRole('switch', { name: 'Load Images from the Web' })
@@ -1214,7 +1190,7 @@ test('Integrations says under AI Tools when no notebook allows AI access, and op
   page,
 }) => {
   await page.addInitScript((setup) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       settings_mcp_setup: setup,
       settings_ai_access_summary: { notebooks: 3, allowed: 0 },
@@ -1238,7 +1214,7 @@ test('Integrations says under AI Tools when no notebook allows AI access, and op
 
 test('the AI access notice goes once a notebook allows access', async ({ page }) => {
   await page.addInitScript((setup) => {
-    const w = globalThis as unknown as TestWindow & { allowed?: number }
+    const w = window
     w.devotIpcMocks = {
       settings_mcp_setup: setup,
       settings_ai_access_summary: () => ({ notebooks: 2, allowed: w.allowed ?? 0 }),
@@ -1248,7 +1224,7 @@ test('the AI access notice goes once a notebook allows access', async ({ page })
   const aiTools = page.getByRole('region', { name: 'AI Tools' })
   await expect(aiTools).toContainText('No notebook allows AI access yet')
   await page.evaluate(() => {
-    ;(globalThis as unknown as { allowed: number }).allowed = 1
+    window.allowed = 1
     window.dispatchEvent(new Event('focus'))
   })
   await expect(aiTools).toContainText('1 of 2 notebooks allow AI access.')
@@ -1258,7 +1234,7 @@ test('the AI access notice goes once a notebook allows access', async ({ page })
 
 test('Integrations says how to create a notebook when there is none', async ({ page }) => {
   await page.addInitScript((setup) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       settings_mcp_setup: setup,
       settings_ai_access_summary: { notebooks: 0, allowed: 0 },
@@ -1341,10 +1317,10 @@ test('cards end on one right edge whether or not the pane scrolls', async ({ pag
     })
   }
   const general = await edges('General')
-  const preview = await edges('Preview')
-  expect([general.scrolls, preview.scrolls]).toEqual([true, false])
+  const previewPane = await edges('Preview')
+  expect([general.scrolls, previewPane.scrolls]).toEqual([true, false])
   const right = general.rights[0]!
-  for (const edge of [...general.rights, ...preview.rights]) expect(edge).toBeCloseTo(right, 1)
+  for (const edge of [...general.rights, ...previewPane.rights]) expect(edge).toBeCloseTo(right, 1)
 })
 
 test('the selected pane turns a lighter grey, not a colour, while the window is behind another', async ({
@@ -1367,7 +1343,7 @@ test('the selected pane turns a lighter grey, not a colour, while the window is 
 
 test('crash reports stay off until chosen', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = window as unknown as { devotIpcMocks?: Record<string, unknown> }
+    const w = window
     w.devotIpcMocks = {
       crash_reports_get: { available: true, on: false },
       crash_reports_set: { available: true, on: true },
@@ -1383,7 +1359,7 @@ test('crash reports stay off until chosen', async ({ page }) => {
 
 test('a build that can send no crash reports does not offer them', async ({ page }) => {
   await page.addInitScript(() => {
-    const w = window as unknown as { devotIpcMocks?: Record<string, unknown> }
+    const w = window
     w.devotIpcMocks = { crash_reports_get: { available: false, on: false } }
   })
   await page.goto('/settings.html')

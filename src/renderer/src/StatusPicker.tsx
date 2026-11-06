@@ -8,7 +8,7 @@ import { STATUS_ICONS } from './NoteRow'
 import { PickerList, usePickerOpen, type PickerOption } from './Picker'
 import { STATUS_COMMANDS } from './statusKeys'
 
-export function statusOptions(): PickerOption[] {
+function statusOptions(): PickerOption[] {
   return NOTE_STATUSES.map((status) => {
     const key = commandKeys(STATUS_COMMANDS[status])[0]
     return {

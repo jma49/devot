@@ -76,8 +76,7 @@ test('an edge label sits beside its line and arrowheads are small', async ({ pag
 
   const overlaps = await svg.evaluate((root) => {
     const box = root.querySelector('.edgeLabel rect.background')!.getBoundingClientRect()
-    const scale =
-      root.getBoundingClientRect().width / (root as unknown as SVGSVGElement).viewBox.baseVal.width
+    const scale = root.getBoundingClientRect().width / (root as SVGSVGElement).viewBox.baseVal.width
     const path = root.querySelector<SVGPathElement>('[data-id="L_B_C_0"].flowchart-link')!
     const matrix = path.getScreenCTM()!
     const length = path.getTotalLength()
@@ -104,8 +103,7 @@ test('an edge label sits beside its line and arrowheads are small', async ({ pag
   const clearance = await svg.evaluate((root) => {
     const text = root.querySelector('.edgeLabel text')!.getBoundingClientRect()
     const line = root.querySelector('[data-id="L_B_C_0"].flowchart-link')!.getBoundingClientRect()
-    const scale =
-      root.getBoundingClientRect().width / (root as unknown as SVGSVGElement).viewBox.baseVal.width
+    const scale = root.getBoundingClientRect().width / (root as SVGSVGElement).viewBox.baseVal.width
     return (text.top - line.bottom) / scale
   })
   expect(clearance).toBeGreaterThanOrEqual(0)

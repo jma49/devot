@@ -83,12 +83,12 @@ export function sizeOfAction(action: ImageAction): ImageSize | undefined {
   return IMAGE_SIZES.find((s) => s === size)
 }
 
-export function copyImage(fileId: string): Promise<void> {
+function copyImage(fileId: string): Promise<void> {
   return invoke('image_copy', { id: fileId })
 }
 
 /** Save Image As…: Rust asks where, then writes it; true once saved. */
-export function saveImage(fileId: string): Promise<boolean> {
+function saveImage(fileId: string): Promise<boolean> {
   return invoke<boolean>('image_save', { id: fileId })
 }
 

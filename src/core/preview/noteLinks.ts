@@ -3,17 +3,13 @@
 // progress and tags. A link to a note that is gone gets a broken-link icon.
 // It only runs when the caller says which notes exist (`noteLinks`), so
 // exported pages keep plain links. Every value it shows goes in as text.
-import type { Element, ElementContent, Root, RootContent } from 'hast'
+import type { Element, ElementContent, Root } from 'hast'
+import { textOf } from '../hastText'
 import { customTagColorProperties, tagColorClass } from '../tags'
 import { glyph } from './glyphs'
 import { PREVIEW_API_VERSION, type NoteLinkTarget, type PreviewRenderer } from './registry'
 
 const NOTE_HREF = /^devot:\/\/note\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
-
-function textOf(node: RootContent | Root): string {
-  if (node.type === 'text') return node.value
-  return 'children' in node ? node.children.map(textOf).join('') : ''
-}
 
 const squash = (text: string) => text.replace(/\s+/g, ' ').trim()
 

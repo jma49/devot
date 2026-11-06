@@ -246,6 +246,7 @@ export function ICloudStorageRows(props: { snapshot: SyncSnapshot }) {
     return () => {
       current = false
     }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each sync may change what the vault takes, so it is added up again.
   }, [lastSync])
   const text =
     stored.state === 'ready'

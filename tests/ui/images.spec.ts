@@ -7,7 +7,6 @@ import {
   shownMenu,
   test,
   type IpcCall,
-  type TestWindow,
 } from './fixtures'
 
 // Attachments (devot://file) do not load in Playwright's browser, so the viewer is checked with an image
@@ -46,9 +45,7 @@ async function newNote(page: Page, text: string) {
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
     (name) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((c: IpcCall) => c.cmd === name)
-        .map((c: IpcCall) => c.args),
+      window.devotIpcCalls.filter((c: IpcCall) => c.cmd === name).map((c: IpcCall) => c.args),
     cmd,
   )
 
@@ -74,14 +71,14 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/')
   await page.evaluate(() => {
     localStorage.clear()
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       image_copy: null,
       image_save: true,
     }
   })
   await page.reload()
   await page.evaluate(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       image_copy: null,
       image_save: true,
     }
@@ -236,7 +233,7 @@ test('double-clicking a preview image opens the viewer, fitted to the window', a
   await showMode(page, 'Preview')
   const img = preview(page).locator('img')
   await expect
-    .poll(() => img.evaluate((i) => (i as unknown as { naturalWidth: number }).naturalWidth))
+    .poll(() => img.evaluate((i) => (i as HTMLImageElement).naturalWidth))
     .toBe(BIG_SIZE.width)
   await img.dblclick()
 
@@ -264,7 +261,7 @@ test('double-clicking a preview image opens the viewer, fitted to the window', a
   const stage = viewer(page).locator('.image-viewer-stage')
   expect(
     await stage.evaluate((s) => {
-      const el = s as unknown as { scrollWidth: number; clientWidth: number }
+      const el = s
       return el.scrollWidth > el.clientWidth
     }),
   ).toBe(true)
@@ -282,9 +279,7 @@ test('the viewer keeps the keyboard, and Escape gives it back', async ({ page })
 
   const insideViewer = () =>
     page.evaluate(() => {
-      const d = globalThis as unknown as {
-        document: { activeElement: { closest(s: string): unknown } | null }
-      }
+      const d = window
       return d.document.activeElement?.closest('dialog.image-viewer') != null
     })
   for (let i = 0; i < 6; i += 1) {
@@ -360,7 +355,7 @@ test('a copy or save of an image that fails says so with its code; a cancelled s
 }) => {
   const mock = (mocks: Record<string, unknown>) =>
     page.evaluate((m) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcMocks = { ...w.devotIpcMocks, ...m }
     }, mocks)
   await mock({ image_copy: { error: 'E_FILE_NOT_FOUND' }, image_save: false })
@@ -408,9 +403,7 @@ test('size presets show in the preview and stay in the Markdown', async ({ page 
   // Auto's width comes from the loaded image, so measure only once all have loaded.
   for (let i = 0; i < 4; i += 1) {
     await expect
-      .poll(() =>
-        imgs.nth(i).evaluate((img) => (img as unknown as { naturalWidth: number }).naturalWidth),
-      )
+      .poll(() => imgs.nth(i).evaluate((img) => (img as HTMLImageElement).naturalWidth))
       .toBe(BIG_SIZE.width)
   }
   await expect.poll(() => width(0)).toBeCloseTo(240, 0)
@@ -507,7 +500,7 @@ test('an image under its line opens the viewer on a double-click', async ({ page
   await newNote(page, `![Big picture](${remote})\n`)
   const img = inlineImages(page).locator('img')
   await expect
-    .poll(() => img.evaluate((i) => (i as unknown as { naturalWidth: number }).naturalWidth))
+    .poll(() => img.evaluate((i) => (i as HTMLImageElement).naturalWidth))
     .toBe(BIG_SIZE.width)
   await img.dispatchEvent('dblclick', { bubbles: true })
   await expect(viewer(page)).toBeVisible()
@@ -522,16 +515,8 @@ test('an image dropped on an image under its line goes into the note', async ({ 
   const img = inlineImages(page).locator('img')
   await expect(img).toHaveCount(1)
   await img.evaluate((el) => {
-    type Data = { items: { add(file: unknown): void } }
-    const w = globalThis as unknown as {
-      DataTransfer: new () => Data
-      File: new (parts: unknown[], name: string, options: { type: string }) => unknown
-      DragEvent: new (type: string, init: object) => unknown
-    }
-    const target = el as unknown as {
-      getBoundingClientRect(): { left: number; top: number }
-      dispatchEvent(event: unknown): boolean
-    }
+    const w = window
+    const target = el
     const data = new w.DataTransfer()
     const png = [
       0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52,

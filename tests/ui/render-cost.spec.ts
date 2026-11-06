@@ -98,12 +98,7 @@ test('with 10,000 notes a keystroke stays within its budget and renders no row',
   await expect(spoken(page)).toHaveText('10,000 notes')
   await openNote(page, 'Note 1')
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      devotKeyMs: number[]
-      addEventListener(type: string, f: () => void, capture: boolean): void
-      requestAnimationFrame(f: () => void): void
-      performance: { now(): number }
-    }
+    const w = window
     w.devotKeyMs = []
     w.addEventListener(
       'keydown',
@@ -118,20 +113,14 @@ test('with 10,000 notes a keystroke stays within its budget and renders no row',
 
   for (const key of KEYS) await page.keyboard.press(key)
   await expect(body(page)).toContainText(KEYS)
-  await expect
-    .poll(() =>
-      page.evaluate(() => (globalThis as unknown as { devotKeyMs: number[] }).devotKeyMs.length),
-    )
-    .toBe(KEYS.length)
+  await expect.poll(() => page.evaluate(() => window.devotKeyMs.length)).toBe(KEYS.length)
   await expect(excerpt(page, 'Note 1')).toContainText(KEYS)
 
   const { renders, writes } = await renderCounts(page)
   expect(writes).toBeGreaterThan(0)
   expect(renders['NoteRow']).toBeLessThanOrEqual(2 * writes)
   expect(renders['Sidebar']).toBe(0)
-  const times = await page.evaluate(
-    () => (globalThis as unknown as { devotKeyMs: number[] }).devotKeyMs,
-  )
+  const times = await page.evaluate(() => window.devotKeyMs)
   const median = [...times].sort((a, b) => a - b)[Math.floor(times.length / 2)]!
   const budget = BUDGET_MS * budgetScale(process.env)
   // A local machine running several suites at once cannot hold a budget; CI always enforces it.

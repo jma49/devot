@@ -309,7 +309,7 @@ export interface FenceLanguage {
 }
 
 /** Every alias `@codemirror/language-data` knows (the lower-case name is one), A to Z. */
-export const FENCE_LANGUAGES: readonly FenceLanguage[] = (() => {
+const FENCE_LANGUAGES: readonly FenceLanguage[] = (() => {
   const seen = new Set<string>()
   const out: FenceLanguage[] = []
   for (const language of languages) {

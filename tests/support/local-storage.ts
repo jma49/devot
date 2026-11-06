@@ -4,15 +4,28 @@
 // Taken without reading it.
 const nodeLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
 
-export function useMemoryLocalStorage(): void {
-  const items = new Map<string, string>()
-  const value = {
+/** A Storage kept in a map, which the test can read as `items`. */
+export function memoryStorage(initial: Record<string, string> = {}) {
+  const items = new Map(Object.entries(initial))
+  return {
+    items,
     getItem: (key: string) => items.get(key) ?? null,
     setItem: (key: string, text: string) => void items.set(key, text),
     removeItem: (key: string) => void items.delete(key),
     clear: () => items.clear(),
+    key: (index: number) => [...items.keys()][index] ?? null,
+    get length() {
+      return items.size
+    },
   }
-  Object.defineProperty(globalThis, 'localStorage', { value, configurable: true, writable: true })
+}
+
+export function useMemoryLocalStorage(): void {
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: memoryStorage(),
+    configurable: true,
+    writable: true,
+  })
 }
 
 export function restoreLocalStorage(): void {

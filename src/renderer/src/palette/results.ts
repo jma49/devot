@@ -27,7 +27,7 @@ export const SOURCE_KEYS: Readonly<Record<PaletteSource, string | undefined>> = 
 
 export type PaletteKind = PaletteSource | 'source'
 
-export const PALETTE_KINDS: readonly PaletteKind[] = ['command', 'book', 'tag', 'note']
+const PALETTE_KINDS: readonly PaletteKind[] = ['command', 'book', 'tag', 'note']
 
 export interface PaletteState {
   scope: PaletteSource | null

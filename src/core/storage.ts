@@ -164,7 +164,7 @@ export interface BookRecord {
   iconHlc: string
 }
 
-export const REVISION_KINDS = ['body', 'title', 'book', 'status', 'pinned'] as const
+const REVISION_KINDS = ['body', 'title', 'book', 'status', 'pinned'] as const
 export type RevisionKind = (typeof REVISION_KINDS)[number]
 
 export interface RevisionRecord {

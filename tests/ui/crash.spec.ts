@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test, type IpcCall, type TestWindow } from './fixtures'
+import { expect, test, type IpcCall } from './fixtures'
 
 // A DSN for a host that the test intercepts; nothing leaves the machine.
 const DSN = 'https://public@o1.ingest.us.sentry.io/1'
@@ -11,7 +11,7 @@ async function startSentry(page: Page): Promise<string[]> {
     await route.fulfill({ status: 200, body: '{}' })
   })
   await page.addInitScript(() => {
-    const w = window as unknown as { devotIpcMocks?: Record<string, unknown> }
+    const w = window
     w.devotIpcMocks = { ...w.devotIpcMocks, crash_reports_get: { available: true, on: true } }
   })
   await page.goto('/')
@@ -29,9 +29,7 @@ async function startSentry(page: Page): Promise<string[]> {
 
 const logged = (page: Page) =>
   page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
-      .filter((c: IpcCall) => c.cmd === 'log_write')
-      .map((c: IpcCall) => c.args),
+    window.devotIpcCalls.filter((c: IpcCall) => c.cmd === 'log_write').map((c: IpcCall) => c.args),
   )
 
 test('an uncaught error reaches Sentry scrubbed of note content', async ({ page }) => {
@@ -63,7 +61,7 @@ test('a command that fails unhandled reaches the log and Sentry with its code', 
   const sent = await startSentry(page)
   // Rust rejects with its code as a string, and more after it.
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       backup_restore: { error: 'E_STORAGE_SCHEMA_TOO_NEW v13' },

@@ -11,6 +11,7 @@ import {
   USAGE_RECHECK_MS,
   watchUsage,
 } from '../../src/renderer/src/syncUsage'
+import { memoryStorage } from '../support/local-storage'
 
 const answers: { next: unknown } = { next: undefined }
 vi.mock('../../src/renderer/src/ipc', () => ({
@@ -59,13 +60,8 @@ it('tells an unreachable relay, a relay too old to report and any other failure 
   expect(readingFailure('E_SYNC_REVOKED')).toMatchObject({ why: 'failed', code: 'E_SYNC_REVOKED' })
 })
 
-const store = new Map<string, string>()
 beforeEach(() => {
-  store.clear()
-  vi.stubGlobal('localStorage', {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => void store.set(key, value),
-  })
+  vi.stubGlobal('localStorage', memoryStorage())
   resetUsageWatch()
 })
 afterEach(() => vi.unstubAllGlobals())

@@ -27,7 +27,7 @@ export const SYNC_CHANGED = 'devot:sync-changed'
 const CHANGED_EVENT = 'devot://sync-changed'
 const SOCKET_EVENT = 'devot://sync-event'
 
-export const SYNC_STATES = [
+const SYNC_STATES = [
   'off',
   'connecting',
   'syncing',
@@ -70,15 +70,8 @@ export interface SyncSnapshot {
   rotated: boolean
 }
 
-export const ICLOUD_JOIN_STATES = [
-  'unavailable',
-  'none',
-  'joined',
-  'ask',
-  'declined',
-  'fallback',
-] as const
-export const ICLOUD_FALLBACK_REASONS = ['missing', 'otherVault', 'unreadable'] as const
+const ICLOUD_JOIN_STATES = ['unavailable', 'none', 'joined', 'ask', 'declined', 'fallback'] as const
+const ICLOUD_FALLBACK_REASONS = ['missing', 'otherVault', 'unreadable'] as const
 
 /**
  * Rust's ICloudJoinView: `ask` with the library's `notes`, `fallback` (a pairing code or the
@@ -92,7 +85,7 @@ export interface ICloudJoin {
 }
 
 /** The relay's share for attachments is used up, or the relay cannot hold attachments at all. */
-export const UNSYNCED_FILES_CODES = ['E_SYNC_ATTACHMENTS_FULL', 'E_SYNC_RELAY_OUTDATED'] as const
+const UNSYNCED_FILES_CODES = ['E_SYNC_ATTACHMENTS_FULL', 'E_SYNC_RELAY_OUTDATED'] as const
 export type UnsyncedFilesCode = (typeof UNSYNCED_FILES_CODES)[number]
 
 export const SYNC_OFF: SyncSnapshot = {
@@ -480,7 +473,7 @@ export async function removeDevice(device: string): Promise<SyncDevice[]> {
   return readDevices(await invoke<unknown>('sync_device_remove', { device }))
 }
 
-export const tauriSync: WireSync = {
+const tauriSync: WireSync = {
   syncPending: (after, limit) => invoke<SyncPending[]>('sync_pending', { after, limit }),
   syncPendingCount: () => invoke<number>('sync_pending_count'),
   syncRead: (ids) => invoke<WireSyncLocal[]>('sync_read', { ids }),
@@ -494,7 +487,7 @@ export const tauriSync: WireSync = {
   syncFileDelete: (id) => invoke('sync_file_delete', { id }),
 }
 
-export const tauriTransport: WireTransport = {
+const tauriTransport: WireTransport = {
   connect: () => invoke<Welcome>('sync_connect'),
   pull: (since) =>
     invoke<{ records: WirePulled[]; next: string; more: boolean }>('sync_pull', { since }),

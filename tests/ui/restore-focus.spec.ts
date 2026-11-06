@@ -25,21 +25,9 @@ async function leaveWithKeyboardInEditor(page: Page) {
 /** Runs before the app restores anything, once the search field exists: moves the keyboard there and, with `text`, types a query. */
 async function userStartsSearching(page: Page, text?: string) {
   await page.addInitScript((typed) => {
-    interface Field {
-      focus(): void
-      dispatchEvent(e: unknown): void
-    }
-    const w = globalThis as unknown as {
-      document: object & { querySelector(s: string): Field | null }
-      HTMLInputElement: { prototype: object }
-      Event: new (type: string, init: object) => unknown
-      MutationObserver: new (cb: () => void) => {
-        observe(node: object, options: object): void
-        disconnect(): void
-      }
-    }
+    const w = window
     const watch = new w.MutationObserver(() => {
-      const field = w.document.querySelector('input[type="search"]')
+      const field = w.document.querySelector<HTMLInputElement>('input[type="search"]')
       if (!field) return
       watch.disconnect()
       field.focus()

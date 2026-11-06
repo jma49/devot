@@ -22,18 +22,8 @@ async function sendFiles(
 ) {
   await body(page).evaluate(
     (el, { kind: action, files: list }) => {
-      // No DOM types in this config: the few browser classes used here.
-      type Data = { items: { add(file: unknown): void } }
-      const w = globalThis as unknown as {
-        DataTransfer: new () => Data
-        File: new (parts: unknown[], name: string, options: { type: string }) => unknown
-        ClipboardEvent: new (type: string, init: object) => unknown
-        DragEvent: new (type: string, init: object) => unknown
-      }
-      const target = el as unknown as {
-        getBoundingClientRect(): { left: number; top: number }
-        dispatchEvent(event: unknown): boolean
-      }
+      const w = window
+      const target = el
       const data = new w.DataTransfer()
       for (const f of list) {
         const bytes = new Uint8Array(Math.max(f.size ?? 0, f.bytes.length))

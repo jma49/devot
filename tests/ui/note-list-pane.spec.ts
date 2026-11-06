@@ -123,15 +123,14 @@ test('dragging several notes shows a card with their titles, and the count past 
 }) => {
   await page.evaluate(() => {
     const seen: string[][] = []
-    ;(globalThis as unknown as { dragCards: string[][] }).dragCards = seen
+    window.dragCards = seen
     const original = DataTransfer.prototype.setDragImage
     DataTransfer.prototype.setDragImage = function (image: Element, x: number, y: number) {
       seen.push([...image.querySelectorAll('.drag-card-line')].map((l) => l.textContent ?? ''))
       original.call(this, image, x, y)
     }
   })
-  const cards = () =>
-    page.evaluate(() => (globalThis as unknown as { dragCards: string[][] }).dragCards)
+  const cards = () => page.evaluate(() => window.dragCards)
   for (const title of ['One', 'Two', 'Three', 'Four', 'Five']) await createNote(page, title)
   // Somewhere that takes no drop: only the drag's start matters here.
   const away = pane(page).locator('.toolbar-title')

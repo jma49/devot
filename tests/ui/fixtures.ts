@@ -29,7 +29,7 @@ export type EditorMenuEntry =
   | { kind: 'predefined'; item: string }
   | { kind: 'submenu'; id: string; text: string; items: EditorMenuEntry[] }
 
-/** The page globals these tests touch; this config has no DOM types. */
+/** The page globals these tests touch, declared on the page's Window. */
 export interface TestWindow {
   devotIpcCalls: IpcCall[]
   devotIpcMocks?: Record<string, unknown>
@@ -60,6 +60,10 @@ export interface TestWindow {
   devotMirrorApplied?: { kind: string; id: string; path?: string | null; text?: string }[]
 }
 
+declare global {
+  interface Window extends TestWindow {}
+}
+
 export interface MockMirror {
   revision: number
   generation: number
@@ -87,12 +91,7 @@ export const test = base.extend<{ install: 'kept' | 'new' }>({
     await mockTauri(page)
     if (install === 'kept') {
       await page.addInitScript(() => {
-        const w = globalThis as unknown as {
-          localStorage: {
-            getItem(key: string): string | null
-            setItem(key: string, value: string): void
-          }
-        }
+        const w = window
         if (w.localStorage.getItem('devot.defaultMode') === null)
           w.localStorage.setItem('devot.defaultMode', 'edit')
       })
@@ -135,9 +134,9 @@ export async function mockTauri(page: Page): Promise<void> {
   await page.addInitScript((png) => {
     // As in the app: Tauri puts its IPC in the main frame only (plugins' frames never get it) and freezes Object.prototype there
     // before page scripts run.
-    if ((globalThis as unknown as { top: unknown }).top !== globalThis) return
+    if (window.top !== window) return
     Object.freeze(Object.prototype)
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcCalls = []
     w.devotMenus = {}
     let nextRid = 1
@@ -230,10 +229,7 @@ export async function mockTauri(page: Page): Promise<void> {
             w.devotShortcutOverrides = next
             w.devotShortcutRevision = (w.devotShortcutRevision ?? 0) + 1
             const snapshot = { revision: w.devotShortcutRevision, overrides: next }
-            const win = globalThis as unknown as {
-              dispatchEvent(e: unknown): void
-              CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-            }
+            const win = window
             win.dispatchEvent(
               new win.CustomEvent('devot:keyboard-shortcuts-changed', { detail: snapshot }),
             )
@@ -254,21 +250,14 @@ export async function mockTauri(page: Page): Promise<void> {
               revision: w.devotEditorRevision,
               settings: { animations: 'system', ...w.devotEditorSettings },
             }
-            const win = globalThis as unknown as {
-              dispatchEvent(e: unknown): void
-              CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-            }
+            const win = window
             win.dispatchEvent(
               new win.CustomEvent('devot:editor-settings-changed', { detail: next }),
             )
             return next
           }
           if (cmd.startsWith('mirror_')) {
-            const win = globalThis as unknown as {
-              dispatchEvent(e: unknown): void
-              CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-              localStorage: { getItem(key: string): string | null }
-            }
+            const win = window
             const mirror = (w.devotMirror ??= {
               revision: 0,
               generation: 0,
@@ -456,7 +445,7 @@ export function symbolRequests(calls: IpcCall[]): string[] {
  */
 export async function shownMenu(page: Page): Promise<string[]> {
   return page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     const shown = w.devotIpcCalls.findLast(
       (c) => c.cmd === 'plugin:menu|popup' || c.cmd === 'editor_menu_popup',
     )
@@ -502,7 +491,7 @@ export async function shownMenu(page: Page): Promise<string[]> {
 
 export async function answerEditorMenu(page: Page, pick: unknown): Promise<void> {
   const answered = await page.evaluate((p) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     const open = w.devotEditorMenu
     w.devotEditorMenu = undefined
     open?.answer(p)
@@ -525,7 +514,7 @@ export async function pickMenuItem(page: Page, label: string, submenu?: string):
 async function pickMenuItemNow(page: Page, label: string, submenu?: string): Promise<boolean> {
   return page.evaluate(
     ([text, parent]) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       const shown = w.devotIpcCalls.findLast(
         (c) => c.cmd === 'plugin:menu|popup' || c.cmd === 'editor_menu_popup',
       )
@@ -566,7 +555,7 @@ async function pickMenuItemNow(page: Page, label: string, submenu?: string): Pro
 
 export async function clipboardWrites(page: Page): Promise<string[]> {
   return page.evaluate(() =>
-    (globalThis as unknown as TestWindow).devotIpcCalls
+    window.devotIpcCalls
       .filter((c) => c.cmd === 'clipboard_write_text')
       .map((c) => String(c.args['text'])),
   )
@@ -575,10 +564,7 @@ export async function clipboardWrites(page: Page): Promise<string[]> {
 /** A change made in another window: stores all of `settings` with the next revision and sends the page Rust's event. */
 export function changeEditorSettingsElsewhere(page: Page, settings: Record<string, unknown>) {
   return page.evaluate((stored) => {
-    const w = globalThis as unknown as TestWindow & {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     w.devotEditorSettings = stored
     w.devotEditorRevision = (w.devotEditorRevision ?? 0) + 1
     const detail = {
@@ -590,16 +576,13 @@ export function changeEditorSettingsElsewhere(page: Page, settings: Record<strin
 }
 
 export function storedShortcuts(page: Page): Promise<Record<string, string[]>> {
-  return page.evaluate(() => (globalThis as unknown as TestWindow).devotShortcutOverrides ?? {})
+  return page.evaluate(() => window.devotShortcutOverrides ?? {})
 }
 
 /** A change made in another window (Settings): stores all of `overrides` with the next revision and sends Rust's event. */
 export function changeShortcutsElsewhere(page: Page, overrides: Record<string, string[]>) {
   return page.evaluate((stored) => {
-    const w = globalThis as unknown as TestWindow & {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     w.devotShortcutOverrides = stored
     w.devotShortcutRevision = (w.devotShortcutRevision ?? 0) + 1
     const detail = { revision: w.devotShortcutRevision, overrides: stored }
@@ -609,10 +592,7 @@ export function changeShortcutsElsewhere(page: Page, overrides: Record<string, s
 
 export function changeMirrorElsewhere(page: Page, change: Partial<MockMirror>) {
   return page.evaluate((next) => {
-    const w = globalThis as unknown as TestWindow & {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     const mirror = (w.devotMirror ??= {
       revision: 0,
       generation: 0,
@@ -632,12 +612,7 @@ export function changeMirrorElsewhere(page: Page, change: Partial<MockMirror>) {
 }
 
 const menuPopups = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'plugin:menu|popup',
-      ).length,
-  )
+  page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
 
 /** Opens the note's More menu and returns its items; `keepFocus` clicks the button without taking the keyboard. */
 export async function openNoteMore(

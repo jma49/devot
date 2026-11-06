@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, openSettings, test, type TestWindow } from './fixtures'
+import { expect, openSettings, test } from './fixtures'
 
 // The quick capture window (menu bar mode). Rust and the main window's core save its note
 // (src-tauri/src/menu_bar.rs); here `quick_capture_save` is mocked and the calls are read back.
@@ -9,16 +9,13 @@ const NOTEBOOKS = [
   { id: 'b2', name: 'Inbox', depth: 1 },
 ]
 
-type HeldSave = { devotAnswerSave?: () => void }
-
 async function open(
   page: Page,
   options: { defaultNotebook?: string; save?: unknown; holdSave?: boolean } = {},
 ) {
   await page.addInitScript(
     ({ notebooks, defaultNotebook, save, holdSave }) => {
-      const w = globalThis as unknown as TestWindow &
-        HeldSave & { localStorage: { setItem(key: string, value: string): void } }
+      const w = window
       // The main window publishes the notebooks (notebookChoices.ts).
       w.localStorage.setItem('devot.notebookChoices', JSON.stringify(notebooks))
       if (defaultNotebook) w.devotEditorSettings = { defaultNotebook }
@@ -44,10 +41,7 @@ async function open(
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 
@@ -139,7 +133,7 @@ test('while a save is on its way, nothing can be typed, cancelled or left as a d
   await expect(page.getByRole('button', { name: 'Cancel' })).toBeDisabled()
   await body(page).press('Escape')
   expect(await calls(page, 'quick_capture_close')).toEqual([])
-  await page.evaluate(() => (globalThis as unknown as HeldSave).devotAnswerSave?.())
+  await page.evaluate(() => window.devotAnswerSave?.())
   await expect.poll(() => calls(page, 'quick_capture_close')).toHaveLength(1)
   await page.reload()
   await expect(title(page)).toHaveValue('')

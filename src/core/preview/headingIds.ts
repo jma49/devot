@@ -2,7 +2,8 @@
 // rules are GitHub's: lower-case, punctuation dropped, spaces to hyphens, and
 // `-1`, `-2` on repeats. Ids are set after sanitizing, from the heading's text,
 // with the sanitizer's prefix, so they never match the app's own ids.
-import type { Element, Root, RootContent } from 'hast'
+import type { Element, Root } from 'hast'
+import { textOf } from '../hastText'
 import { PREVIEW_API_VERSION, type PreviewRenderer } from './registry'
 
 const DROPPED = /[^\p{L}\p{M}\p{N}\p{Pc}\- ]/gu
@@ -34,11 +35,6 @@ export function createSlugger(): (text: string) => string {
 }
 
 const HEADING = /^h[1-6]$/
-
-function textOf(node: RootContent | Root): string {
-  if (node.type === 'text') return node.value
-  return 'children' in node ? node.children.map(textOf).join('') : ''
-}
 
 function visit(node: Root | Element, next: (text: string) => string): void {
   for (const child of node.children) {

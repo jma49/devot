@@ -1,3 +1,5 @@
+import { clamp } from './clamp'
+
 export interface Box {
   left: number
   top: number
@@ -18,9 +20,8 @@ export interface TipLimits {
   arrowInset: number
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), Math.max(min, max))
-}
+/** Within `min` and `max`; `min` wins when the tip is wider than the room. */
+const fit = (value: number, min: number, max: number) => clamp(value, min, Math.max(min, max))
 
 /**
  * Places a tooltip bubble of `tip` size next to `anchor` in a window of
@@ -40,7 +41,7 @@ export function placeTip(
   const side = above < limits.edge && below > above ? 'below' : 'above'
   const top = side === 'above' ? above : anchor.top + anchor.height + limits.gap
   const centre = anchor.left + anchor.width / 2
-  const left = clamp(centre - tip.width / 2, limits.edge, view.width - limits.edge - tip.width)
-  const arrowX = clamp(centre - left, limits.arrowInset, tip.width - limits.arrowInset)
+  const left = fit(centre - tip.width / 2, limits.edge, view.width - limits.edge - tip.width)
+  const arrowX = fit(centre - left, limits.arrowInset, tip.width - limits.arrowInset)
   return { left, top, side, arrowX }
 }

@@ -1,7 +1,7 @@
-import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
+import { listFiles } from '../support/git-files'
 
 // Dev and test runs never touch an installed Devot's notes: debug builds use their own data folder
 // (src-tauri/src/data_folder.rs); the scripts, CI and git hooks use that or a temporary one.
@@ -17,14 +17,7 @@ function devSuffix(): string {
   return suffix![1]!
 }
 
-function files(...paths: string[]): string[] {
-  return execFileSync('git', ['ls-files', '-co', '--exclude-standard', ...paths], {
-    cwd: root,
-    encoding: 'utf8',
-  })
-    .split('\n')
-    .filter(Boolean)
-}
+const files = (...paths: string[]) => listFiles(root, ...paths)
 
 const run = () => files('scripts', 'package.json', 'lefthook.yml', '.github')
 

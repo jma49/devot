@@ -32,7 +32,14 @@ import {
   type StorageAdapter,
 } from './storage'
 import { cleanTagName, createTagService, sameName } from './tags'
-import { isHighSurrogate, isLowSurrogate, lineFeeds, trimWhitespace, wellFormed } from './text'
+import {
+  isHighSurrogate,
+  isLowSurrogate,
+  lineFeeds,
+  trimWhitespace,
+  utf8Length,
+  wellFormed,
+} from './text'
 
 export const AI_SEARCH_LIMIT = 20
 export const MAX_AI_SEARCH_LIMIT = 50
@@ -110,9 +117,9 @@ export function aiStorageOver(storage: StorageAdapter): AiStorage {
       for (const note of notes) {
         for (const id of note.tagIds) counts.set(id, (counts.get(id) ?? 0) + 1)
       }
-      return [...counts].flatMap(([id, notes]) => {
+      return [...counts].flatMap(([id, count]) => {
         const name = tags.get(id)
-        return name === undefined ? [] : [{ id, name, notes }]
+        return name === undefined ? [] : [{ id, name, notes: count }]
       })
     },
   }
@@ -235,11 +242,9 @@ function cleanTitle(title: string): string {
   return clean
 }
 
-const bytes = (text: string) => new TextEncoder().encode(text).length
-
 /** `limit` is what AI may send as a whole body, or what a note may hold once patched. */
 function checkBody(body: string, limit = MAX_AI_BODY_BYTES): void {
-  if (bytes(body) > limit) throw new Error('E_NOTE_BODY_TOO_LARGE')
+  if (utf8Length(body) > limit) throw new Error('E_NOTE_BODY_TOO_LARGE')
   // The app would refuse to save the note again (E_NOTE_LINKS_TOO_MANY).
   if (noteLinks(body).length > MAX_NOTE_LINKS) throw new Error('E_NOTE_LINKS_TOO_MANY')
 }
@@ -250,7 +255,7 @@ export function applyPatches(body: string, patches: readonly AiPatch[]): string 
     throw new Error('E_AI_PATCHES_INVALID')
   }
   // What AI sends is limited as a whole body is; the note may be larger.
-  const sent = patches.reduce((sum, p) => sum + bytes(p.find) + bytes(p.replace), 0)
+  const sent = patches.reduce((sum, p) => sum + utf8Length(p.find) + utf8Length(p.replace), 0)
   if (sent > MAX_AI_BODY_BYTES) throw new Error('E_NOTE_BODY_TOO_LARGE')
   let text = body
   for (const patch of patches) {

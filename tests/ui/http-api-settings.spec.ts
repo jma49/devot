@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, openSettings, test, type TestWindow } from './fixtures'
+import { expect, openSettings, test } from './fixtures'
 
 // Settings > Integrations > Local HTTP API. Rust is faked in the page: it keeps
 // the settings, says only whether a token is stored, and gives the token only
@@ -14,7 +14,7 @@ async function fakeRust(
 ) {
   await page.addInitScript(
     ([first, second, problem, initialToken, holdFirstSet]) => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       const state: Record<string, any> = {
         enabled: false,
         port: 27484,
@@ -30,7 +30,7 @@ async function fakeRust(
       let release: (() => void) | undefined
       const held = holdFirstSet ? new Promise<void>((resolve) => (release = resolve)) : null
       let firstSet = true
-      ;(w as unknown as { devotReleaseHttpApi: () => void }).devotReleaseHttpApi = () => release?.()
+      w.devotReleaseHttpApi = () => release?.()
       w.devotIpcMocks = {
         http_api_get: () => view(),
         http_api_set: async (args: { enabled: boolean; port: number }) => {
@@ -72,10 +72,7 @@ async function fakeRust(
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 
@@ -147,9 +144,7 @@ test('the switch and the port are saved in turn, each with the other’s change'
   await page.waitForTimeout(600)
   expect(await calls(page, 'http_api_set')).toEqual([{ enabled: true, port: 27484 }])
 
-  await page.evaluate(() =>
-    (globalThis as unknown as { devotReleaseHttpApi(): void }).devotReleaseHttpApi(),
-  )
+  await page.evaluate(() => window.devotReleaseHttpApi())
   await expect(api).toContainText('Listening on 127.0.0.1:40123.')
   // The second save carries the port and the switch that was turned on, not a stale `enabled`.
   expect(await calls(page, 'http_api_set')).toEqual([

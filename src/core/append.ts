@@ -97,7 +97,7 @@ function readLines(body: string): { line: Line; heading: Heading | undefined }[]
 }
 
 /** The text as it goes in: line feeds only, trailing line breaks dropped (a shell's echo adds one). Throws E_APPEND_TEXT_EMPTY. */
-export function cleanAppendText(text: string): string {
+function cleanAppendText(text: string): string {
   const clean = lineFeeds(text).replace(/\n+$/, '')
   if (clean.trim() === '') throw new Error('E_APPEND_TEXT_EMPTY')
   return clean

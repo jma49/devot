@@ -8,7 +8,7 @@ export type { MessageKey } from './en'
 
 const catalogs: Record<string, Partial<Messages>> = { en }
 
-export const SOURCE_LOCALE = 'en'
+const SOURCE_LOCALE = 'en'
 
 export function resolveLocale(preferred: readonly string[]): string {
   for (const tag of preferred) {

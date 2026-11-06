@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { changeEditorSettingsElsewhere, expect, test, openApp, type TestWindow } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test, openApp } from './fixtures'
 
 // The highlighted format shows in the URL's place; a page title or hosted file is fetched (mocked: link_title, github_snippet) only once highlighted.
 
@@ -24,17 +24,11 @@ async function newNote(page: Page, text: string) {
 
 async function paste(page: Page, text: string) {
   await body(page).evaluate((el, value) => {
-    // This config has no DOM types: the few browser classes used here.
-    const w = globalThis as unknown as {
-      DataTransfer: new () => { setData(type: string, value: string): void }
-      ClipboardEvent: new (type: string, init: object) => unknown
-    }
+    const w = window
     const data = new w.DataTransfer()
     data.setData('text/plain', value)
     const init = { bubbles: true, cancelable: true, clipboardData: data }
-    ;(el as unknown as { dispatchEvent(e: unknown): boolean }).dispatchEvent(
-      new w.ClipboardEvent('paste', init),
-    )
+    el.dispatchEvent(new w.ClipboardEvent('paste', init))
   }, text)
 }
 
@@ -42,11 +36,7 @@ async function paste(page: Page, text: string) {
 const settleList = (page: Page) => page.waitForTimeout(150)
 
 const calls = (page: Page, cmd: string) =>
-  page.evaluate(
-    (name) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter((c) => c.cmd === name).length,
-    cmd,
-  )
+  page.evaluate((name) => window.devotIpcCalls.filter((c) => c.cmd === name).length, cmd)
 
 test.beforeEach(async ({ page }) => {
   await openApp(page)
@@ -56,7 +46,7 @@ test('a pasted URL offers its formats; the title is fetched only once highlighte
   page,
 }) => {
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       // Slow enough to show the loading state.
@@ -114,7 +104,7 @@ test('Escape keeps the URL as copied and fetches nothing', async ({ page }) => {
 
 test('a failed fetch says why in the preview', async ({ page }) => {
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { ...w.devotIpcMocks, link_title: { error: 'E_LINK_NOT_HTML' } }
   })
   await newNote(page, 'x ')
@@ -136,7 +126,7 @@ test('a failed fetch says why in the preview', async ({ page }) => {
 
 test('a format picked before its fetch fails says why, and the URL stays', async ({ page }) => {
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
       link_title: () =>
@@ -161,7 +151,7 @@ test('a format picked before its fetch fails says why, and the URL stays', async
 
 test('a GitHub file link pastes as a fenced snippet', async ({ page }) => {
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { ...w.devotIpcMocks, github_snippet: 'one\ntwo\nthree\n' }
   })
   const link = 'https://github.com/o/r/blob/main/src/a.ts#L2-L3'
@@ -190,7 +180,7 @@ test('a GitHub file link pastes as a fenced snippet', async ({ page }) => {
 
 test('Paste URL As… opens the chooser for the clipboard URL', async ({ page }) => {
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { ...w.devotIpcMocks, clipboard_read_text: 'https://a.example/' }
   })
   await newNote(page, 'go ')

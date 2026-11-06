@@ -57,7 +57,7 @@ export function createSymbolCache(render: RenderSymbol): SymbolCache {
  * (`symbol_png`), so a symbol asked for at `renderPoints` has `ratio` pixels
  * to a point: one device pixel to each of its pixels.
  */
-export const PIXELS_PER_POINT = 2
+const PIXELS_PER_POINT = 2
 
 /**
  * The point size every symbol shown in a `box` (CSS pixels) is drawn at: a

@@ -175,11 +175,7 @@ for (const width of [1280, 800]) {
       expect(chevron.x + chevron.width).toBeLessThanOrEqual(p.x + p.width + 1)
       expect(chevron.width).toBeGreaterThan(0)
       expect(p.x + p.width).toBeLessThanOrEqual(width)
-      const scrollWidth = await page.evaluate(
-        () =>
-          (globalThis as unknown as { document: { documentElement: { scrollWidth: number } } })
-            .document.documentElement.scrollWidth,
-      )
+      const scrollWidth = await page.evaluate(() => window.document.documentElement.scrollWidth)
       expect(scrollWidth).toBeLessThanOrEqual(width)
     }
 

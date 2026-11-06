@@ -284,7 +284,7 @@ const after = (done: () => void) => {
   return () => clearTimeout(timer)
 }
 
-export const OPEN_URL = 'devot:open-url'
+const OPEN_URL = 'devot:open-url'
 const TAURI_EVENT = 'devot://open-url'
 
 /**

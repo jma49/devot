@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
-import { matchSegments } from '../../../core/search'
 import type { NoteStatus, NoteSummary, TagRecord } from '../../../core/storage'
 import { noteDate } from '../format'
 import { displayTitle } from '../headlines'
@@ -32,6 +31,7 @@ import {
   SWIPE_OPEN,
 } from './swipe'
 import type { PhoneData, PhoneStore } from './usePhoneData'
+import { Marked } from '../Marked'
 
 const FILTER_LABEL: Readonly<Record<PhoneStatusFilter, MessageKey>> = {
   all: 'phone.filter.all',
@@ -86,18 +86,6 @@ function NoteMark(props: { status: NoteStatus }) {
     >
       <StatusMark status={props.status} />
     </span>
-  )
-}
-
-function Marked(props: { text: string; pattern: RegExp | null | undefined }) {
-  return matchSegments(props.text, props.pattern ?? null).map((segment, i) =>
-    segment.match ? (
-      <mark key={i} className="phone-match">
-        {segment.text}
-      </mark>
-    ) : (
-      segment.text
-    ),
   )
 }
 
@@ -312,7 +300,7 @@ export function NoteRow(props: RowProps) {
           <span className="phone-note-text">
             <span className="phone-note-line">
               <span className="phone-note-title">
-                <Marked text={props.title} pattern={props.titlePattern} />
+                <Marked text={props.title} pattern={props.titlePattern} className="phone-match" />
               </span>
               {props.meta === undefined ? (
                 <span className="phone-note-time phone-figures">
@@ -332,7 +320,11 @@ export function NoteRow(props: RowProps) {
                     #{props.tag.name}{' '}
                   </span>
                 )}
-                <Marked text={props.excerpt} pattern={props.excerptPattern} />
+                <Marked
+                  text={props.excerpt}
+                  pattern={props.excerptPattern}
+                  className="phone-match"
+                />
               </span>
               {note.pinned && (
                 <span className="phone-note-pin" role="img" aria-label={t('sidebar.pinned')}>

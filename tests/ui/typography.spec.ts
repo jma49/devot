@@ -39,11 +39,6 @@ const NOTE = [
   '| 1 | 2 |',
 ].join('\n')
 
-interface Box {
-  top: number
-  bottom: number
-}
-
 test('Classic note text keeps one rhythm: spaces in quarter lines, headings on one scale', async ({
   page,
 }) => {
@@ -58,11 +53,8 @@ test('Classic note text keeps one rhythm: spaces in quarter lines, headings on o
   await expect(body.locator('table')).toBeVisible()
 
   const measured = await body.evaluate((root) => {
-    type Style = { fontSize: string; lineHeight: string }
-    const css = (el: unknown) =>
-      (globalThis as unknown as { getComputedStyle(e: unknown): Style }).getComputedStyle(el)
-    type El = { tagName: string; getBoundingClientRect(): Box; children: ArrayLike<El> }
-    const kids = Array.from((root as unknown as El).children)
+    const css = (el: Element | null | undefined) => getComputedStyle(el!)
+    const kids = Array.from(root.children)
     const p = kids.find((k) => k.tagName === 'P')!
     const size = (tag: string) =>
       Number.parseFloat(css(kids.find((k) => k.tagName === tag)).fontSize)
@@ -111,12 +103,9 @@ test('Classic: the editor sizes heading lines on the same scale as the preview',
   await changeEditorSettingsElsewhere(page, { sidebarMaterial: false })
   await newNote(page, 'Editor headings', '# One\n\n## Two\n\n### Three\n\n#### Four\n\n###### Six')
   const sizes = await page.locator('.cm-content').evaluate((content) => {
-    type Style = { fontSize: string; lineHeight: string }
-    const css = (el: unknown) =>
-      (globalThis as unknown as { getComputedStyle(e: unknown): Style }).getComputedStyle(el)
-    const root = content as unknown as { querySelector(s: string): unknown }
+    const css = (el: Element | null | undefined) => getComputedStyle(el!)
     const at = (level: number) => {
-      const style = css(root.querySelector(`.cm-md-h${level}`))
+      const style = css(content.querySelector(`.cm-md-h${level}`))
       return { size: Number.parseFloat(style.fontSize), line: Number.parseFloat(style.lineHeight) }
     }
     return {
@@ -153,7 +142,7 @@ test('CJK text gets the line breaking and spacing the web view supports', async 
   await expect(paragraph).toHaveCSS('font-kerning', 'normal')
 
   const supported = await page.evaluate(() => {
-    const css = (globalThis as unknown as { CSS: { supports(q: string): boolean } }).CSS
+    const css = window.CSS
     return {
       autospace: css.supports('text-autospace: normal'),
       trim: css.supports('text-spacing-trim: trim-start'),

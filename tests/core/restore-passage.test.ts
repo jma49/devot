@@ -97,13 +97,13 @@ describe('inlineDiff', () => {
     const from = 'alpha\nbeta \u{1f600}\ngamma\ndelta\n'
     const to = 'alpha\nBETA \u{1f600}\ndelta\nepsilon'
     const segments = inlineDiff(from, to)
-    const textOf = (kinds: string[]) =>
+    const joined = (kinds: string[]) =>
       segments
         .filter((s) => kinds.includes(s.kind))
         .map((s) => s.text)
         .join('')
-    expect(textOf(['same', 'removed'])).toBe(from)
-    expect(textOf(['same', 'added'])).toBe(to)
+    expect(joined(['same', 'removed'])).toBe(from)
+    expect(joined(['same', 'added'])).toBe(to)
   })
 })
 

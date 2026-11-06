@@ -17,6 +17,7 @@ import { compareNames } from '../../../core/sort'
 import { NoteRow, useExcerpts } from './PhoneNoteList'
 import { STATUS_LABEL, statusMark } from './pickers'
 import { excerptNearMatch, readRecentSearches, rememberSearch } from './search'
+import { localStore } from '../localStore'
 import { useKeyboard } from './useKeyboard'
 import type { PhoneStore } from './usePhoneData'
 
@@ -25,8 +26,6 @@ const STATUS_CHIPS: readonly NoteStatus[] = ['active', 'on_hold', 'completed']
 
 const dotColor = (color: TagColor | null) =>
   color ? `var(--color-tag-${color})` : 'var(--color-phone-status-none)'
-
-const recentStore = () => globalThis.localStorage as Storage | undefined
 
 function Chip(props: {
   label: string
@@ -96,7 +95,7 @@ export function PhoneSearch(props: {
     if (props.open) {
       setQuery(props.query ?? '')
       setResults(null)
-      setRecent(readRecentSearches(recentStore()))
+      setRecent(readRecentSearches(localStore()))
     }
   }
 
@@ -146,7 +145,7 @@ export function PhoneSearch(props: {
     .filter((tag) => tag.deletedAt === null)
     .sort((a, b) => compareNames(a.name, b.name, navigator.languages))
 
-  const remember = () => setRecent(rememberSearch(recentStore(), query))
+  const remember = () => setRecent(rememberSearch(localStore(), query))
   const fill = (next: string) => {
     setQuery(next)
     input.current?.focus()

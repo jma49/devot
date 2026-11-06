@@ -46,10 +46,8 @@ export function mockTauri(answer: Answer = () => null) {
     listening: (event: string) => listeners.get(event)?.length ?? 0,
     emit: (event: string, payload?: unknown) => {
       const internals = (
-        window as unknown as {
-          __TAURI_INTERNALS__: { runCallback: (id: number, data: unknown) => void }
-        }
-      ).__TAURI_INTERNALS__
+        window as unknown as Record<string, { runCallback: (id: number, data: unknown) => void }>
+      )['__TAURI_INTERNALS__']!
       for (const id of listeners.get(event) ?? []) internals.runCallback(id, { event, id, payload })
     },
     clear: clearMocks,

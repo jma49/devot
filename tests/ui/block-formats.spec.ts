@@ -1,13 +1,5 @@
 import type { Page } from '@playwright/test'
-import {
-  clipboardWrites,
-  expect,
-  pickMenuItem,
-  shownMenu,
-  test,
-  openApp,
-  type TestWindow,
-} from './fixtures'
+import { clipboardWrites, expect, pickMenuItem, shownMenu, test, openApp } from './fixtures'
 
 // Keys are platform-neutral: ControlOrMeta for the command key, selections via Select All, not macOS text-navigation keys.
 
@@ -73,7 +65,7 @@ test('the alert button picks the kind from a pop-up', async ({ page }) => {
   await expect.poll(() => lines(page)).toEqual(['> [!NOTE]', '> Second'])
   const built = await page.evaluate(
     () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
+      window.devotIpcCalls.filter(
         (c) =>
           c.cmd === 'plugin:menu|new' &&
           String((c.args['options'] as { id?: string } | undefined)?.id).startsWith('devot.alert.'),

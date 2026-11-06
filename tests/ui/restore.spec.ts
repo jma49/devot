@@ -32,10 +32,10 @@ const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
  */
 const settledTop = (target: Locator) =>
   target.evaluate(async (e) => {
-    const w = globalThis as unknown as { requestAnimationFrame(cb: () => void): void }
+    const w = window
     const frames = () =>
       new Promise<void>((resolve) =>
-        w.requestAnimationFrame(() => w.requestAnimationFrame(resolve)),
+        w.requestAnimationFrame(() => w.requestAnimationFrame(() => resolve())),
       )
     let top = e.scrollTop
     for (let i = 0; i < 50; i += 1) {
@@ -51,22 +51,9 @@ const line = (page: Page, text: string) =>
 async function dblclickWord(page: Page, text: string, from: number, to: number) {
   const word = await line(page, text).evaluate(
     (e, [start, end]) => {
-      interface Rect {
-        left: number
-        top: number
-        width: number
-        height: number
-      }
-      const { Range } = globalThis as unknown as {
-        Range: new () => {
-          setStart(node: unknown, offset: number): void
-          setEnd(node: unknown, offset: number): void
-          getBoundingClientRect(): Rect
-        }
-      }
       const range = new Range()
-      range.setStart(e.firstChild, start)
-      range.setEnd(e.firstChild, end)
+      range.setStart(e.firstChild!, start)
+      range.setEnd(e.firstChild!, end)
       const rect = range.getBoundingClientRect()
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
     },
@@ -206,9 +193,6 @@ test('preview mode comes back scrolled where it was, without taking the keyboard
   await expect(scroller(page)).toBeHidden()
   expect(
     await page.evaluate(() => {
-      const { document } = globalThis as unknown as {
-        document: { activeElement: { closest(selector: string): unknown } | null }
-      }
       return document.activeElement?.closest('[data-devot-part="editor-body"]') ? 'editor' : 'other'
     }),
   ).toBe('other')

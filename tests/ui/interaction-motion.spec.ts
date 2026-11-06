@@ -40,7 +40,7 @@ test('a segment thumb slides to the new mode, on top of the final state, and is 
   const group = page.getByRole('group', { name: 'View mode' })
   const pressed = group.getByRole('button', { pressed: true })
   await page.evaluate(() => {
-    const w = globalThis as unknown as { devotThumb?: string }
+    const w = window
     new MutationObserver((_, observer) => {
       const thumb = document.querySelector('.segment-thumb')
       if (!thumb) return
@@ -50,11 +50,7 @@ test('a segment thumb slides to the new mode, on top of the final state, and is 
   })
   await group.getByRole('button', { name: 'Preview' }).click()
   await expect(pressed).toHaveAccessibleName('Preview')
-  await expect
-    .poll(() =>
-      page.evaluate(() => (globalThis as unknown as { devotThumb?: string }).devotThumb ?? ''),
-    )
-    .toMatch(/translateX\(/)
+  await expect.poll(() => page.evaluate(() => window.devotThumb ?? '')).toMatch(/translateX\(/)
   await expect(page.locator('.segment-thumb')).toHaveCount(0)
   await expect(group).not.toHaveAttribute('data-sliding')
 })
@@ -74,7 +70,7 @@ test('choosing Write mid-slide drops the thumb, and leaving Write slides none', 
   await expect(page.locator('.segment-thumb')).toHaveCount(0)
   await expect(group).not.toHaveAttribute('data-sliding')
   await page.evaluate(() => {
-    const w = globalThis as unknown as { devotThumbSeen?: boolean }
+    const w = window
     new MutationObserver(() => {
       if (document.querySelector('.segment-thumb')) w.devotThumbSeen = true
     }).observe(document.body, { childList: true, subtree: true })
@@ -83,11 +79,7 @@ test('choosing Write mid-slide drops the thumb, and leaving Write slides none', 
   await expect(group.getByRole('button', { pressed: true })).toHaveAccessibleName('Split')
   await expect(write).toHaveAttribute('aria-pressed', 'false')
   await page.waitForTimeout(300)
-  expect(
-    await page.evaluate(
-      () => (globalThis as unknown as { devotThumbSeen?: boolean }).devotThumbSeen,
-    ),
-  ).toBeUndefined()
+  expect(await page.evaluate(() => window.devotThumbSeen)).toBeUndefined()
 })
 
 test('dragging the thumb to another segment selects it', async ({ page }) => {
@@ -134,7 +126,7 @@ test('the pane that comes with a mode change slides in', async ({ page }) => {
   await openApp(page)
   await newNote(page).click()
   await page.evaluate(() => {
-    const w = globalThis as unknown as { devotFades?: number }
+    const w = window
     new MutationObserver((_, observer) => {
       const pane = document.querySelector('.panes > .preview')
       if (!pane) return
@@ -148,9 +140,5 @@ test('the pane that comes with a mode change slides in', async ({ page }) => {
     .getByRole('group', { name: 'View mode' })
     .getByRole('button', { name: 'Split' })
     .click()
-  await expect
-    .poll(() =>
-      page.evaluate(() => (globalThis as unknown as { devotFades?: number }).devotFades ?? -1),
-    )
-    .toBeGreaterThan(0)
+  await expect.poll(() => page.evaluate(() => window.devotFades ?? -1)).toBeGreaterThan(0)
 })

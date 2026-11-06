@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, pickMenuItem, pickNoteMore, test, type TestWindow } from './fixtures'
+import { expect, pickMenuItem, pickNoteMore, test } from './fixtures'
 
 const FOLDERS = ['Inbox', 'Projects', 'Projects/Deep', 'Areas', 'Resources', 'Archive', 'Daily']
 const SCAN = {
@@ -27,7 +27,7 @@ async function settled(dialog: Locator) {
 
 async function start(page: Page, glass: boolean) {
   await page.addInitScript((sidebarMaterial) => {
-    const w = globalThis as unknown as TestWindow & { devotInitialEditorSettings: unknown }
+    const w = window
     w.devotInitialEditorSettings = { revision: 0, settings: { sidebarMaterial } }
     w.devotIpcMocks = { editor_settings_get: () => new Promise(() => {}) }
   }, glass)
@@ -38,10 +38,7 @@ async function start(page: Page, glass: boolean) {
 async function openImport(page: Page, glass: boolean) {
   await start(page, glass)
   await page.evaluate((scan) => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     w.dispatchEvent(
       new w.CustomEvent('devot:import-scanning', {
         detail: { id: 7, name: 'Vault', kind: 'folder' },
@@ -73,7 +70,7 @@ async function openConfirm(page: Page, glass: boolean) {
 // Resetting shortcuts loses nothing that matters: a confirm that keeps the plain layout.
 async function openPlainConfirm(page: Page) {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as TestWindow & { devotInitialEditorSettings: unknown }
+    const w = window
     w.devotInitialEditorSettings = { revision: 0, settings: { sidebarMaterial: true } }
     w.devotIpcMocks = { editor_settings_get: () => new Promise(() => {}) }
   })

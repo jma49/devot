@@ -52,10 +52,7 @@ async function addTag(page: Page, name: string) {
 
 const showFromMenu = (page: Page) =>
   page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (type: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:show-palette'))
   })
 
@@ -341,7 +338,7 @@ test('a menu item picked while another window has the keyboard acts on nothing h
   // With Settings or a native panel focused, Rust still sends the menu item's event to this window.
   const focus = (windowHasFocus: boolean) =>
     page.evaluate((on) => {
-      ;(globalThis as unknown as { document: { hasFocus(): boolean } }).document.hasFocus = () => on
+      window.document.hasFocus = () => on
     }, windowHasFocus)
   await focus(false)
   await showFromMenu(page)
@@ -391,10 +388,8 @@ test('Return that ends an input method composition picks nothing', async ({ page
   await createNote(page, 'Compose')
   await search(page, 'focus')
   await field(page).evaluate((input) => {
-    const target = input as unknown as { dispatchEvent(e: unknown): void }
-    const Keyboard = (
-      globalThis as unknown as { KeyboardEvent: new (t: string, o: object) => unknown }
-    ).KeyboardEvent
+    const target = input
+    const Keyboard = window.KeyboardEvent
     target.dispatchEvent(
       new Keyboard('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true }),
     )
@@ -471,8 +466,7 @@ test('opening the open note again keeps its preview', async ({ page }) => {
 
 const keyboardHeld = (page: Page) =>
   page.evaluate(() => {
-    const d = (globalThis as unknown as { document: { activeElement: unknown; body: unknown } })
-      .document
+    const d = window.document
     return d.activeElement !== null && d.activeElement !== d.body
   })
 

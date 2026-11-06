@@ -10,7 +10,6 @@ import {
   test,
   openApp,
   type IpcCall,
-  type TestWindow,
 } from './fixtures'
 
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -41,7 +40,7 @@ async function createNote(page: Page, title: string, text: string) {
 
 async function mockExport(page: Page, mocks: Record<string, unknown> = {}) {
   await page.evaluate((more) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = {
       export_begin: { id: 7, fileName: 'Plan.md' },
       export_attach: 'attachments/board.png',
@@ -56,11 +55,7 @@ async function mockExport(page: Page, mocks: Record<string, unknown> = {}) {
 }
 
 const calls = (page: Page, cmd: string) =>
-  page.evaluate(
-    (name) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter((c: IpcCall) => c.cmd === name),
-    cmd,
-  )
+  page.evaluate((name) => window.devotIpcCalls.filter((c: IpcCall) => c.cmd === name), cmd)
 
 const popups = (page: Page) => calls(page, 'plugin:menu|popup').then((c) => c.length)
 
@@ -253,7 +248,7 @@ test('Page Setup comes first: it remembers the paper, margins, header and footer
     pageSkipFirst: true,
     pageRules: true,
   })
-  const ipc = await page.evaluate(() => (globalThis as unknown as TestWindow).devotIpcCalls)
+  const ipc = await page.evaluate(() => window.devotIpcCalls)
   const order = ipc.map((c: IpcCall) => c.cmd)
   expect(order.lastIndexOf('editor_settings_set')).toBeLessThan(order.indexOf('export_pdf'))
   // How the header and footer look comes from the design tokens.
@@ -296,18 +291,13 @@ test('an exported page keeps a diagram on a light surface in the dark, and a hei
   await view.emulateMedia({ colorScheme: 'dark' })
   await view.setViewportSize({ width: 160, height: 600 })
   await view.setContent(html, { waitUntil: 'load' })
-  type Style = Record<string, string>
   const computed = (selector: string) =>
     view
       .locator(selector)
       .first()
       .evaluate((el) => {
-        const style = (
-          globalThis as unknown as { getComputedStyle(e: unknown): Style }
-        ).getComputedStyle(el)
-        const box = (
-          el as unknown as { getBoundingClientRect(): { height: number } }
-        ).getBoundingClientRect()
+        const style = window.getComputedStyle(el)
+        const box = el.getBoundingClientRect()
         return { background: style['backgroundColor']!, height: box.height }
       })
   const channels = (color: string) => (color.match(/\d+/g) ?? []).slice(0, 3).map(Number)
@@ -318,7 +308,7 @@ test('an exported page keeps a diagram on a light surface in the dark, and a hei
     .locator('.island')
     .first()
     .evaluate((el) => {
-      const box = el as unknown as { scrollWidth: number; clientWidth: number }
+      const box = el
       return box.scrollWidth - box.clientWidth
     })
   expect(overflow).toBeLessThanOrEqual(0)
@@ -446,7 +436,7 @@ test('a cancelled panel writes nothing and shows nothing', async ({ page }) => {
     ['Export as HTML…', 'Plan.html'],
   ] as const) {
     await page.evaluate(() => {
-      const w = globalThis as unknown as TestWindow
+      const w = window
       w.devotIpcCalls.length = 0
     })
     await mockExport(page, { export_begin: null })
@@ -515,10 +505,7 @@ test('a failure shows what did not complete, with its code, until dismissed', as
 test("an export's notice and a backup's both show, each with its buttons", async ({ page }) => {
   await createNote(page, 'Plan', BODY)
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: string }) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:backup-failed', { detail: 'E_BACKUP_DIR' }))
   })
   await mockExport(page, { export_write: { error: 'E_EXPORT_WRITE_FAILED' } })

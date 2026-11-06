@@ -19,7 +19,7 @@ const DISMISS_TRAVEL = 120
 const DISMISS_SPEED = 0.5
 
 /** Whether letting go of a sheet dragged down by `travel` at `speed` (points a millisecond) closes it. */
-export const sheetCloses = (travel: number, speed: number): boolean =>
+const sheetCloses = (travel: number, speed: number): boolean =>
   travel > DISMISS_TRAVEL || (speed > DISMISS_SPEED && travel > 24)
 
 /**

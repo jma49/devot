@@ -12,7 +12,7 @@ import { t, type MessageKey } from './i18n'
 import { Icon } from './icons/Icon'
 import { isImeKey } from './ime'
 import { editingAllowed } from './licence'
-import { TagDot } from './TagEditor'
+import { TagDot } from './TagDot'
 import { TAG_COMMANDS, TAG_MENU, tagShortcut, type TagAction, type TagMenuTarget } from './tagMenu'
 
 const menuRef = closingRef('scale', 'tag-menu')
@@ -80,6 +80,7 @@ export function TagMenu(props: {
     const box = el.getBoundingClientRect()
     el.style.left = `${Math.max(margin, Math.min(props.at.x, innerWidth - box.width - margin))}px`
     el.style.top = `${Math.max(margin, Math.min(props.at.y, innerHeight - box.height - margin))}px`
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Opening or closing the colour picker changes the panel's size, so it is placed again.
   }, [props.at, picking])
 
   useEffect(() => {

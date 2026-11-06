@@ -7,7 +7,7 @@ const prefixOf = (key: string) => key.split('.')[0] ?? ''
 describe('the English catalog', () => {
   it('types a key that no area module defines as an error', () => {
     const known: MessageKey = 'sidebar.label'
-    // @ts-expect-error
+    // @ts-expect-error -- no area module defines this key
     const misspelled: MessageKey = 'sidebar.labell'
     expect([known, misspelled]).toHaveLength(2)
   })

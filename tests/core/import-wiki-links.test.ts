@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative, sep } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   createBookService,
@@ -16,6 +16,7 @@ import {
 } from '../../src/core'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
+import { filesUnder } from '../support/files-under'
 
 const FIXTURE = join(__dirname, 'fixtures', 'wiki-import')
 
@@ -36,17 +37,9 @@ async function setup() {
   return { sqlite, services }
 }
 
-function walk(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
-    entry.isDirectory() ? walk(join(dir, entry.name)) : [join(dir, entry.name)],
-  )
-}
-
 /** The fixture folder as Rust would scan and read it. */
 function fixtureFolder(sqlite: SqliteAdapter): { scan: ImportScan; source: ImportSource } {
-  const paths = walk(FIXTURE)
-    .map((file) => relative(FIXTURE, file).split(sep).join('/'))
-    .sort()
+  const paths = filesUnder(FIXTURE).sort()
   const item = (path: string) => ({ path, bytes: 1 })
   const scan: ImportScan = {
     id: 1,

@@ -160,9 +160,9 @@ describe('saving a #Name that names a tag', () => {
   })
 
   it('still runs with no matches once the tag is deleted', async () => {
-    const { searches, notes, tags, books, storage } = setup()
+    const { searches, notes, tags: tagService, books, storage } = setup()
     const note = await notes.create('Launch')
-    const tag = await tags.addToNote(note, 'urgent')
+    const tag = await tagService.addToNote(note, 'urgent')
     await notes.flush()
     const hash = await searches.create('Hash', '#urgent')
     const negated = await searches.create('Not', '-#urgent')
@@ -176,8 +176,8 @@ describe('saving a #Name that names a tag', () => {
       [unknown]: '#later',
       [edited]: 'is:active tag:urgent',
     })
-    await tags.remove(tag)
-    const context = { books: await books.list(), tags: await tags.list() }
+    await tagService.remove(tag)
+    const context = { books: await books.list(), tags: await tagService.list() }
     expect(savedSearchQuery({ query: saved[hash]! }, context)).toBeNull()
     expect(
       countMatches(await storage.listNotes(), savedSearchQuery({ query: saved[hash]! }, context)),

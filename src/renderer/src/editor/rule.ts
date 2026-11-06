@@ -21,7 +21,7 @@ import {
 } from './formatContext'
 import { mayBeFrontMatter } from './markdown'
 
-export const QUOTE_PREFIX = /^(?: {0,3}>[ \t]?)+/
+const QUOTE_PREFIX = /^(?: {0,3}>[ \t]?)+/
 const WHOLE_BLOCKS = new Set(['Table', 'SetextHeading1', 'SetextHeading2'])
 const EMPTY_MARKER = /^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])(?:[ \t]+\[[ xX]\])?|#{1,6})[ \t]*$/
 

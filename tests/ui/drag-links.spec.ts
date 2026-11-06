@@ -18,18 +18,10 @@ async function newNote(page: Page, title: string) {
 
 async function dragStart(row: ReturnType<typeof noteRows>) {
   return row.evaluate((el) => {
-    // This config has no DOM types: the few browser classes used here.
-    const w = globalThis as unknown as {
-      DataTransfer: new () => {
-        effectAllowed: string
-        getData(type: string): string
-        types: readonly string[]
-      }
-      DragEvent: new (type: string, init: object) => unknown
-    }
+    const w = window
     const dt = new w.DataTransfer()
     el.dispatchEvent(
-      new (w.DragEvent as unknown as new (t: string, i: object) => Event)('dragstart', {
+      new w.DragEvent('dragstart', {
         bubbles: true,
         dataTransfer: dt,
       }),
@@ -64,13 +56,7 @@ test('a notebook row drags out as Name:id', async ({ page }) => {
     .getByRole('treeitem', { name: /^Work\b/ })
     .locator('> .book-row')
   const data = await row.evaluate((el) => {
-    const w = globalThis as unknown as {
-      DataTransfer: new () => {
-        effectAllowed: string
-        getData(type: string): string
-      }
-      DragEvent: new (type: string, init: object) => Event
-    }
+    const w = window
     const dt = new w.DataTransfer()
     el.dispatchEvent(new w.DragEvent('dragstart', { bubbles: true, dataTransfer: dt }))
     return {
@@ -89,16 +75,11 @@ test('notes dropped on the editor insert their links as one undo step', async ({
   await page.keyboard.type('before')
   await page.getByRole('textbox', { name: 'Title' }).fill('Target')
   await body(page).evaluate((el) => {
-    const w = globalThis as unknown as {
-      DataTransfer: new () => { setData(type: string, value: string): void }
-      DragEvent: new (type: string, init: object) => Event
-    }
+    const w = window
     const dt = new w.DataTransfer()
     dt.setData('application/x-devot-note', 'a\nb')
     dt.setData('text/plain', '[One](devot://note/a)\n[Two](devot://note/b)')
-    const box = (
-      el as unknown as { getBoundingClientRect(): { left: number; top: number } }
-    ).getBoundingClientRect()
+    const box = el.getBoundingClientRect()
     el.dispatchEvent(
       new w.DragEvent('drop', {
         bubbles: true,
@@ -120,10 +101,7 @@ test('a note or notebook dropped on the title field does not insert text', async
   await newNote(page, 'Keep')
   const title = page.getByRole('textbox', { name: 'Title' })
   const dropped = await title.evaluate((el) => {
-    const w = globalThis as unknown as {
-      DataTransfer: new () => { setData(type: string, value: string): void }
-      DragEvent: new (type: string, init: object) => Event
-    }
+    const w = window
     const dt = new w.DataTransfer()
     dt.setData('application/x-devot-book', 'k')
     dt.setData('text/plain', 'Work:k')

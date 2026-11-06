@@ -23,10 +23,7 @@ const TAB: Press = { key: 'Tab', code: 'Tab' }
 function imeKey(target: Locator, press: Press, how: How): Promise<boolean> {
   return target.evaluate(
     (el, sent) => {
-      // This config has no DOM types: the one browser class used here.
-      const w = globalThis as unknown as {
-        KeyboardEvent: new (type: string, init: object) => { defaultPrevented: boolean }
-      }
+      const w = window
       const event = new w.KeyboardEvent('keydown', {
         ...sent.press,
         isComposing: sent.how === 'composing',
@@ -35,7 +32,7 @@ function imeKey(target: Locator, press: Press, how: How): Promise<boolean> {
         composed: true,
       })
       if (sent.how === 'ended') Object.defineProperty(event, 'keyCode', { value: 229 })
-      ;(el as unknown as { dispatchEvent(e: unknown): boolean }).dispatchEvent(event)
+      el.dispatchEvent(event)
       return event.defaultPrevented
     },
     { press, how },
@@ -57,23 +54,17 @@ const book = (page: Page, name: string) =>
 
 const composition = (page: Page, type: 'compositionstart' | 'compositionend') =>
   body(page).evaluate((el, name) => {
-    const w = globalThis as unknown as {
-      CompositionEvent: new (name: string, init: object) => unknown
-    }
+    const w = window
     const event = new w.CompositionEvent(name, { bubbles: true, composed: true, data: '' })
-    ;(el as unknown as { dispatchEvent(e: unknown): boolean }).dispatchEvent(event)
+    el.dispatchEvent(event)
   }, type)
 
 /** Runs a composition and sends `press` right after it, as WebKit does; returns ms from composition start to the key. */
 const keyEndingComposition = (target: Locator, press: Press, keyCode: number) =>
   target.evaluate(
     (el, sent) => {
-      const w = globalThis as unknown as {
-        CompositionEvent: new (name: string, init: object) => unknown
-        KeyboardEvent: new (name: string, init: object) => unknown
-        performance: { now(): number }
-      }
-      const node = el as unknown as { dispatchEvent(e: unknown): boolean }
+      const w = window
+      const node = el
       const init = { bubbles: true, composed: true }
       const start = w.performance.now()
       node.dispatchEvent(new w.CompositionEvent('compositionstart', { ...init, data: '' }))
@@ -93,10 +84,7 @@ function skipUnlessAtOnce(took: number) {
 
 const pickFormat = (page: Page, id: string) =>
   page.evaluate((detail) => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (type: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:format', { detail }))
   }, id)
 

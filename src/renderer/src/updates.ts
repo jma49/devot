@@ -10,7 +10,7 @@ import { hasDesktopShell } from './platform'
 import { format, t, type MessageKey } from './i18n'
 import { invoke } from './ipc'
 
-export const UPDATE_STATUS = 'devot:update-status'
+const UPDATE_STATUS = 'devot:update-status'
 const TAURI_EVENT = 'devot://update-status'
 
 export type UpdateState =

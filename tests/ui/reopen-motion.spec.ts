@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, openApp, statusPicker, test, type TestWindow } from './fixtures'
+import { expect, openApp, statusPicker, test } from './fixtures'
 
 // A dialog or pop-up opened again while its closing copy fades takes over from the copy: keys reach the
 // window during the fade, one of it shows at a time, and its opacity and the dim never fall back.
@@ -19,12 +19,11 @@ interface KeyRecord {
   copies: number
 }
 
-interface Probe {
-  devotSamples: Sample[]
-  devotSampling: boolean
-  devotKeys: KeyRecord[]
-  /** The copy's and the dim's opacity as the reopened one took them over (removed them). */
-  devotBefore?: { copy: number | null; dim: number | null }
+declare global {
+  interface Window {
+    devotReopenSamples: Sample[]
+    devotReopenKeys: KeyRecord[]
+  }
 }
 
 const palette = (page: Page) => page.getByRole('dialog', { name: 'Command Palette' })
@@ -35,7 +34,7 @@ const newNoteButton = (page: Page) => page.getByRole('button', { name: 'New Note
 async function openWithMotion(page: Page) {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       backups_list: { backups: [], lastError: null },
     }
   })
@@ -46,13 +45,13 @@ async function openWithMotion(page: Page) {
 /** Notes, on every key pressed, how many closing dialog copies were in the page. */
 async function recordKeys(page: Page) {
   await page.evaluate(() => {
-    const w = globalThis as unknown as Probe
-    w.devotKeys = []
+    const w = window
+    w.devotReopenKeys = []
     addEventListener(
       'keydown',
       (e) => {
         const copies = document.querySelectorAll('dialog[data-closing]').length
-        w.devotKeys.push({ code: e.code, t: performance.now(), copies })
+        w.devotReopenKeys.push({ code: e.code, t: performance.now(), copies })
       },
       { capture: true },
     )
@@ -84,7 +83,7 @@ async function soonAfter(
   )
 }
 
-const keys = (page: Page) => page.evaluate(() => (globalThis as unknown as Probe).devotKeys)
+const keys = (page: Page) => page.evaluate(() => window.devotReopenKeys)
 
 /**
  * Samples, every frame, the elements matching `selector`: how many there are, the open one's opacity,
@@ -93,8 +92,8 @@ const keys = (page: Page) => page.evaluate(() => (globalThis as unknown as Probe
  */
 async function startSampling(page: Page, selector: string) {
   await page.evaluate((sel) => {
-    const w = globalThis as unknown as Probe
-    w.devotSamples = []
+    const w = window
+    w.devotReopenSamples = []
     w.devotSampling = true
     const ids = new Map<Element, number>()
     const idOf = (el: Element) => ids.get(el) ?? ids.set(el, ids.size + 1).size
@@ -124,7 +123,7 @@ async function startSampling(page: Page, selector: string) {
     }
     const tick = () => {
       if (!w.devotSampling) return
-      w.devotSamples.push(sample())
+      w.devotReopenSamples.push(sample())
       requestAnimationFrame(tick)
     }
     tick()
@@ -134,10 +133,10 @@ async function startSampling(page: Page, selector: string) {
 /** The samples taken every frame, and what the reopened one took over. */
 async function stopSampling(page: Page, frames = 20) {
   return page.evaluate(async (n) => {
-    const w = globalThis as unknown as Probe
+    const w = window
     for (let i = 0; i < n; i++) await new Promise((r) => requestAnimationFrame(r))
     w.devotSampling = false
-    return { samples: w.devotSamples, before: w.devotBefore }
+    return { samples: w.devotReopenSamples, before: w.devotBefore }
   }, frames)
 }
 
@@ -150,7 +149,7 @@ const shown = (s: Sample) => s.live ?? s.copy ?? 0
  * value, never dips) is covered by closing.test.ts and dialogMotion.test.ts.
  */
 function expectTakesOver(
-  { samples, before }: { samples: Sample[]; before?: Probe['devotBefore'] },
+  { samples, before }: { samples: Sample[]; before?: Window['devotBefore'] },
   value: (s: Sample) => number = shown,
   from: number | null | undefined = before?.copy,
 ) {
@@ -185,23 +184,18 @@ function expectDimFadesFrom(samples: Sample[], atClose: number) {
  */
 async function noteCopyOffset(scroller: Locator, copy: string) {
   await scroller.evaluate((el, selector) => {
-    const root = el.getRootNode() as unknown as {
-      querySelector(selector: string): { scrollTop: number } | null
-    }
+    const root = el.getRootNode() as Document | ShadowRoot
     const seen = new MutationObserver(() => {
       const found = root.querySelector(selector)
       if (!found) return
-      ;(globalThis as unknown as { devotCopyTop: number }).devotCopyTop = found.scrollTop
+      window.devotCopyTop = found.scrollTop
       seen.disconnect()
     })
-    seen.observe(root as unknown as Node, { childList: true, subtree: true })
+    seen.observe(root, { childList: true, subtree: true })
   }, copy)
 }
 
-const notedCopyOffset = (page: Page) =>
-  expect.poll(() =>
-    page.evaluate(() => (globalThis as unknown as { devotCopyTop?: number }).devotCopyTop),
-  )
+const notedCopyOffset = (page: Page) => expect.poll(() => page.evaluate(() => window.devotCopyTop))
 
 /**
  * Ends `el`'s entrance, so the samples start from a settled page. Finished rather than awaited: a

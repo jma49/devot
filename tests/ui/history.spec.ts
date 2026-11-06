@@ -191,10 +191,7 @@ test('opens from the note menu, the menu bar and its shortcut; works by keyboard
   await expect(sheet(page)).toBeHidden()
 
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:show-history'))
   })
   await expect(sheet(page)).toBeVisible()

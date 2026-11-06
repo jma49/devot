@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { localStore } from '../localStore'
 
 export interface GlassPrefs {
   /** -100 is solid, 0 the design, 100 twice as clear. */
@@ -6,7 +7,7 @@ export interface GlassPrefs {
 }
 
 // This device's own key in the webview's storage: never the Mac's window transparency, and never synced.
-export const TRANSPARENCY_KEY = 'devot.phone.glassTransparency'
+const TRANSPARENCY_KEY = 'devot.phone.glassTransparency'
 export const TRANSPARENCY_MAX = 100
 export const TRANSPARENCY_STEP = 5
 
@@ -27,9 +28,7 @@ export function glassSurface(transparency: number): string {
     : `color-mix(in srgb, var(--color-phone-glass) ${100 - transparency / 2}%, transparent)`
 }
 
-const storage = () => globalThis.localStorage as Storage | undefined
-
-const load = (): GlassPrefs => readGlassPrefs(storage()?.getItem(TRANSPARENCY_KEY) ?? null)
+const load = (): GlassPrefs => readGlassPrefs(localStore()?.getItem(TRANSPARENCY_KEY) ?? null)
 
 let current = load()
 const listeners = new Set<() => void>()
@@ -43,7 +42,7 @@ function apply(): void {
 
 export function setGlassPrefs(patch: Partial<GlassPrefs>): void {
   current = { ...current, ...patch }
-  storage()?.setItem(TRANSPARENCY_KEY, String(current.transparency))
+  localStore()?.setItem(TRANSPARENCY_KEY, String(current.transparency))
   apply()
   for (const listener of listeners) listener()
 }

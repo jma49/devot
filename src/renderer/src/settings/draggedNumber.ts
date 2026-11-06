@@ -59,6 +59,7 @@ export function useDraggedNumber({
   // change made elsewhere) is what the slider shows.
   useEffect(() => {
     if (!dragging.current) setDragged(null)
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each new stored value ends what a finished drag showed.
   }, [stored])
 
   return {

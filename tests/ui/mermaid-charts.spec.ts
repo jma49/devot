@@ -208,7 +208,7 @@ test('a gantt chart is drawn for its pane and its dates do not collide', async (
     .poll(() =>
       svg.evaluate((root) => {
         const shown = root.getBoundingClientRect().width
-        const drawn = (root as unknown as SVGSVGElement).viewBox.baseVal.width
+        const drawn = (root as SVGSVGElement).viewBox.baseVal.width
         return Math.abs(shown / drawn - 1)
       }),
     )
@@ -302,7 +302,7 @@ test('the diagram frame is sandboxed away from the window and its IPC', async ({
   await expect(element).toHaveAttribute('sandbox', 'allow-scripts')
   const frame = await (await element.elementHandle())!.contentFrame()
   const reach = await frame!.evaluate(() => {
-    const own = globalThis as unknown as { origin: string; parent: Record<string, unknown> }
+    const own = window
     try {
       return { origin: own.origin, ipc: typeof own.parent['__TAURI_INTERNALS__'] }
     } catch (error) {

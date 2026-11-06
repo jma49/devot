@@ -23,7 +23,7 @@ export const PLAN_GATED_FEATURES: readonly Feature[] = [
 export type Plan = 'pro'
 
 /** A licence names a plan, not features, so a paid feature added later reaches every licence. */
-export const PLAN_FEATURES: Readonly<Record<Plan, readonly Feature[]>> = {
+const PLAN_FEATURES: Readonly<Record<Plan, readonly Feature[]>> = {
   pro: PLAN_GATED_FEATURES,
 }
 

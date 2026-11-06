@@ -9,7 +9,7 @@ import {
 import { invoke } from '../ipc'
 import { unlistenLater } from '../windowEvents'
 
-export const PLUGINS_CHANGED = 'devot:plugins-changed'
+const PLUGINS_CHANGED = 'devot:plugins-changed'
 /** A pick in the menu bar: `{ kind, plugin, id }` (src-tauri/src/plugins/menu.rs). */
 export const PLUGIN_ACTION = 'devot:plugin-action'
 export const PLUGIN_ACTION_TAURI = 'devot://plugin-action'

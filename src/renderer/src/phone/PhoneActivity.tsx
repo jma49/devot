@@ -89,6 +89,7 @@ export function PhoneActivity(props: { data: PhoneData; onOpenNote: (id: string)
     return () => {
       current = false
     }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each load of the lists counts the writing again.
   }, [core, loadedAt])
 
   const week = writing?.weeks[choice]

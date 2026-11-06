@@ -22,7 +22,7 @@ import { useSegmentSlide } from './segmentSlide'
 import { ColorSwatches } from './ColorSwatches'
 import { columnsOf, gridStep } from './iconGrid'
 
-export const ICON_SEARCH_DELAY = 300
+const ICON_SEARCH_DELAY = 300
 
 const ICON_SETS: readonly { id: NotebookIconSet; label: MessageKey }[] = [
   { id: 'sfSymbols', label: 'appearanceSettings.iconStyleSfSymbols' },

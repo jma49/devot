@@ -1,14 +1,6 @@
 // When the row that has the keyboard leaves the list, the next row (previous at the end) opens and takes it, or the list when empty.
 import type { Page } from '@playwright/test'
-import {
-  expect,
-  pickMenuItem,
-  test,
-  pickNoteMore,
-  openNotePinned,
-  openApp,
-  type TestWindow,
-} from './fixtures'
+import { expect, pickMenuItem, test, pickNoteMore, openNotePinned, openApp } from './fixtures'
 
 const list = (page: Page) => page.getByRole('listbox', { name: 'Notes' })
 const noteRows = (page: Page) => list(page).getByRole('option')
@@ -45,12 +37,7 @@ async function expectOpenAndFocused(page: Page, title: string) {
 }
 
 const popups = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'plugin:menu|popup',
-      ).length,
-  )
+  page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
 
 async function openMenu(page: Page, title: string) {
   const before = await popups(page)
@@ -256,7 +243,7 @@ test('switching views from the keyboard opens no note', async ({ page }) => {
  */
 async function rescueFirst(page: Page) {
   await page.addInitScript(() => {
-    const w = globalThis as unknown as { devotRescueFirst?: boolean }
+    const w = window
     const now = performance.now.bind(performance)
     let skew = 0
     performance.now = () => (w.devotRescueFirst ? (skew += 50) : skew) + now()
@@ -273,7 +260,7 @@ async function rescueFirst(page: Page) {
 
 const setRescueFirst = (page: Page, on: boolean) =>
   page.evaluate((v) => {
-    ;(globalThis as unknown as { devotRescueFirst?: boolean }).devotRescueFirst = v
+    window.devotRescueFirst = v
   }, on)
 
 test('the next row opens even when the focus rescue looks before the list', async ({ page }) => {

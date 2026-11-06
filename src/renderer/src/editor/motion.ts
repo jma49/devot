@@ -25,8 +25,7 @@ export const tipIn = 'cm-fade-in var(--motion-duration-popover) var(--motion-eas
 
 const tipOut = 'cm-fade-out var(--motion-duration-popover) var(--motion-easing-standard) forwards'
 
-export const fadeOut =
-  'cm-fade-out var(--motion-duration-fade) var(--motion-easing-standard) forwards'
+const fadeOut = 'cm-fade-out var(--motion-duration-fade) var(--motion-easing-standard) forwards'
 
 export const closingStyles = {
   '.cm-tooltip[data-closing][data-closing-motion="fade"]': {

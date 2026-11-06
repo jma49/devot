@@ -39,7 +39,7 @@ export interface FindTarget {
   subscribe(listener: (change: FindChange) => void): () => void
 }
 
-export const MAX_SEED_CHARS = 200
+const MAX_SEED_CHARS = 200
 
 export function seedQuery(text: string): string {
   return text.length > MAX_SEED_CHARS || /[\r\n]/.test(text) ? '' : text

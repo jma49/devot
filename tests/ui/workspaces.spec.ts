@@ -191,21 +191,16 @@ async function noteId(page: Page, title: string) {
 const httpApi = (page: Page, op: string, note: string, args: Record<string, unknown>) =>
   page.evaluate(
     (call) => {
-      const w = globalThis as unknown as {
-        addEventListener(type: string, on: (e: { detail: { id: number } }) => void): void
-        removeEventListener(type: string, on: (e: { detail: { id: number } }) => void): void
-        dispatchEvent(e: unknown): void
-        CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-      }
       const id = Math.floor(Math.random() * 1e9)
       return new Promise<unknown>((resolve) => {
-        const on = (e: { detail: { id: number } }) => {
-          if (e.detail.id !== id) return
-          w.removeEventListener('devot:http-api-done', on)
-          resolve(e.detail)
+        const on = (e: Event) => {
+          const { detail } = e as CustomEvent<{ id: number }>
+          if (detail.id !== id) return
+          removeEventListener('devot:http-api-done', on)
+          resolve(detail)
         }
-        w.addEventListener('devot:http-api-done', on)
-        w.dispatchEvent(new w.CustomEvent('devot://http-api', { detail: { id, ...call } }))
+        addEventListener('devot:http-api-done', on)
+        dispatchEvent(new CustomEvent('devot://http-api', { detail: { id, ...call } }))
       })
     },
     { op, note, args },

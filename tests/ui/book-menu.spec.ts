@@ -1,13 +1,5 @@
 import type { Page } from '@playwright/test'
-import {
-  expect,
-  pickMenuItem,
-  shownMenu,
-  test,
-  bookPicker,
-  openApp,
-  type TestWindow,
-} from './fixtures'
+import { expect, pickMenuItem, shownMenu, test, bookPicker, openApp } from './fixtures'
 
 const tree = (page: Page) => page.getByRole('tree', { name: 'Notebooks' })
 const book = (page: Page, name: string) =>
@@ -49,12 +41,7 @@ async function setUp(page: Page) {
 }
 
 const popups = (page: Page) =>
-  page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
-        (c) => c.cmd === 'plugin:menu|popup',
-      ).length,
-  )
+  page.evaluate(() => window.devotIpcCalls.filter((c) => c.cmd === 'plugin:menu|popup').length)
 
 async function openMenu(page: Page, name: string) {
   const before = await popups(page)
@@ -63,12 +50,7 @@ async function openMenu(page: Page, name: string) {
 }
 
 const menuCount = (page: Page) =>
-  page.evaluate(
-    () =>
-      Object.values((globalThis as unknown as TestWindow).devotMenus).filter(
-        (m) => m.kind === 'Menu',
-      ).length,
-  )
+  page.evaluate(() => Object.values(window.devotMenus).filter((m) => m.kind === 'Menu').length)
 
 test.beforeEach(async ({ page }) => {
   await openApp(page)
@@ -131,11 +113,9 @@ test('right-click shows the native notebook menu for that notebook', async ({ pa
   await expect(book(page, 'Work')).toHaveAttribute('aria-selected', 'false')
 
   const prevented = await row(page, 'Work').evaluate((el) => {
-    const { MouseEvent } = globalThis as unknown as {
-      MouseEvent: new (type: string, init: object) => { defaultPrevented: boolean }
-    }
+    const { MouseEvent } = window
     const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
-    ;(el as unknown as { dispatchEvent(e: unknown): void }).dispatchEvent(event)
+    el.dispatchEvent(event)
     return event.defaultPrevented
   })
   expect(prevented).toBe(true)
@@ -145,7 +125,7 @@ test('the clicked notebook is outlined while its menu is open', async ({ page })
   await setUp(page)
   // Hold the menu open until the test closes it.
   await page.evaluate(() => {
-    const w = globalThis as unknown as TestWindow & { closeMenu?: () => void }
+    const w = window
     w.devotIpcMocks = {
       'plugin:menu|popup': () =>
         new Promise<null>((resolve) => {
@@ -156,7 +136,7 @@ test('the clicked notebook is outlined while its menu is open', async ({ page })
   await openMenu(page, 'Work')
   await expect(row(page, 'Work')).toHaveClass(/menu-target/)
   await expect(row(page, 'Home')).not.toHaveClass(/menu-target/)
-  await page.evaluate(() => (globalThis as unknown as { closeMenu: () => void }).closeMenu())
+  await page.evaluate(() => window.closeMenu())
   await expect(row(page, 'Work')).not.toHaveClass(/menu-target/)
 })
 

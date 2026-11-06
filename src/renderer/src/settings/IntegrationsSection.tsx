@@ -284,6 +284,7 @@ export function IntegrationsSection() {
       live = false
       window.removeEventListener('focus', load)
     }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each new setupVersion reads the clients' files again.
   }, [setupVersion])
 
   const copy = (title: MessageKey, text: string) => {

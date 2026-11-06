@@ -85,7 +85,7 @@ const keyOf = (block: HTMLElement) => {
   return key
 }
 
-export function buttonHost(block: HTMLElement): HTMLElement {
+function buttonHost(block: HTMLElement): HTMLElement {
   const header = block.parentElement?.matches('.code-block')
     ? block.parentElement.querySelector<HTMLElement>(':scope > .code-header')
     : null

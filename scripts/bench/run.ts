@@ -55,11 +55,11 @@ function sh(command: string, argv: string[], env: Record<string, string> = {}): 
 }
 
 function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
+  return new Promise((settle, reject) => {
     const server = createServer()
     server.listen(0, () => {
       const { port } = server.address() as { port: number }
-      server.close(() => resolve(port))
+      server.close(() => settle(port))
     })
     server.on('error', reject)
   })
@@ -474,7 +474,7 @@ async function main() {
       )
     )
       break
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    await new Promise((settle) => setTimeout(settle, 100))
   }
 
   const browser = await webkit.launch()

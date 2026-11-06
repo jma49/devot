@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type RefObject } from 'react'
 import type { TagColorValue, TagRecord } from '../../core/storage'
-import { isCustomTagColor, MAX_TAG_NAME_CHARS } from '../../core/tags'
+import { MAX_TAG_NAME_CHARS } from '../../core/tags'
 import { trimWhitespace } from '../../core/text'
 import { closingRef } from './closing'
 import type { MenuPoint } from './contextMenu'
@@ -11,20 +11,8 @@ import { fieldStep } from './Picker'
 import { useNameLimit } from './nameLimit'
 import { QuickTag } from './QuickTagPopover'
 import { tagRows, type TagRow } from './tagRows'
-import { tagColorClass, tagColorStyle, tagDotClass } from './tagColorStyle'
-
-export function TagDot(props: { color: TagColorValue }) {
-  const { color } = props
-  return (
-    <span
-      className={tagDotClass(color)}
-      style={tagColorStyle(color)}
-      data-color={color}
-      role="img"
-      aria-label={isCustomTagColor(color) ? t('tagColor.custom') : t(`tagColor.${color}`)}
-    />
-  )
-}
+import { tagColorClass, tagColorStyle } from './tagColorStyle'
+import { TagDot } from './TagDot'
 
 export const chipClass = (color: TagColorValue | null | undefined) =>
   color ? `chip tag-chip ${tagColorClass(color)}` : 'chip'

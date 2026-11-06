@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, openApp, openSettings, test, type TestWindow } from './fixtures'
+import { expect, openApp, openSettings, test } from './fixtures'
 
 const IDLE = {
   revision: 0,
@@ -11,7 +11,7 @@ const IDLE = {
 
 async function open(page: Page, mocks: Record<string, unknown> = {}) {
   await page.addInitScript((m) => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = m
+    window.devotIpcMocks = m
   }, mocks)
   await openApp(page)
   // The window listens once it has started; sending earlier loses the status.
@@ -20,18 +20,12 @@ async function open(page: Page, mocks: Record<string, unknown> = {}) {
 
 const sendStatus = (page: Page, status: Record<string, unknown>) =>
   page.evaluate((detail) => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:update-status', { detail }))
   }, status)
 
 const calls = (page: Page, cmd: string) =>
-  page.evaluate(
-    (c) => (globalThis as unknown as TestWindow).devotIpcCalls.filter((call) => call.cmd === c),
-    cmd,
-  )
+  page.evaluate((c) => window.devotIpcCalls.filter((call) => call.cmd === c), cmd)
 
 test('offers Restart to Update once an update is downloaded', async ({ page }) => {
   await open(page, { update_status: IDLE, update_restart: null })
@@ -73,7 +67,7 @@ test('the palette checks for updates, and the window reports its own check', asy
 
 test('Settings > General turns automatic downloads off and checks now', async ({ page }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       update_status: {
         revision: 0,
         current: '0.3.0-beta.1',
@@ -91,11 +85,7 @@ test('Settings > General turns automatic downloads off and checks now', async ({
   await toggle.click()
   await expect(toggle).not.toBeChecked()
   await expect
-    .poll(() =>
-      page.evaluate(
-        () => (globalThis as unknown as TestWindow).devotEditorSettings?.['autoDownloadUpdates'],
-      ),
-    )
+    .poll(() => page.evaluate(() => window.devotEditorSettings?.['autoDownloadUpdates']))
     .toBe(false)
   await expect(general).toContainText('Devot 0.3.0-beta.1.')
   await general.getByRole('button', { name: 'Check Now' }).click()

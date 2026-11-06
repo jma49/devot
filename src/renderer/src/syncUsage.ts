@@ -67,7 +67,7 @@ export function readingFailure(code: string): UsageReading {
   return { state: 'unavailable', why, code }
 }
 
-export async function readUsage(): Promise<UsageReading> {
+async function readUsage(): Promise<UsageReading> {
   try {
     const usage = readRelayUsage(await invoke<unknown>('sync_usage'))
     if (usage) return { state: 'ready', view: viewStorage(usage) }
@@ -89,6 +89,7 @@ export function useRelayUsage(active: boolean, again: string): UsageReading | nu
     return () => {
       current = false
     }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each new `again` reads the usage again.
   }, [active, again])
   return active ? reading : null
 }

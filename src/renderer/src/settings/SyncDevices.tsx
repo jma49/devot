@@ -43,7 +43,7 @@ function countdown(ms: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-export function QrCode({ qr }: { qr: ShownPairing['qr'] }) {
+function QrCode({ qr }: { qr: ShownPairing['qr'] }) {
   const total = qr.size + QUIET_MODULES * 2
   let path = ''
   for (let y = 0; y < qr.size; y++) {
@@ -513,6 +513,7 @@ export function DevicesRow(props: {
     return () => {
       current = false
     }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A refresh or a Try Again lists the devices again.
   }, [refresh, retried, onAnnounce])
 
   // The Try Again button that had focus is gone: the list takes it.

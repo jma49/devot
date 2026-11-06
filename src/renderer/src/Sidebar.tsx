@@ -83,7 +83,7 @@ import { conceal, reveal, slideIn } from './reveal'
 import { useRowMotion } from './rowMotion'
 import { currentSectionStore, type CollapsibleSection, type SectionStore } from './sidebarSections'
 import { tagDotClass } from './tagColorStyle'
-import { TagDot } from './TagEditor'
+import { TagDot } from './TagDot'
 import { TagSettingsDialog } from './TagSettingsDialog'
 
 export type Selection =

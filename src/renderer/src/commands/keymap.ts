@@ -40,7 +40,7 @@ export type ShortcutPatch = Readonly<Record<string, readonly string[] | null>>
 export type Keymap = ReadonlyMap<CommandId, readonly string[]>
 
 /** At most this many keys per command (Rust refuses more). */
-export const MAX_KEYS_PER_COMMAND = 4
+const MAX_KEYS_PER_COMMAND = 4
 
 export type KeyProblem = 'invalid' | 'reserved' | 'navigation' | 'editMenu' | 'needsModifier'
 

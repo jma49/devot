@@ -1,19 +1,20 @@
 // The message protocol between Devot and a plugin's frame (ADR 0005), version 1. Every message a plugin sends is read here
 // before the host acts on it: its shape, a known method, the permission behind it and its sizes.
 import { MAX_BODY_BYTES, MAX_TITLE_CHARS } from '../noteLimits'
-import { wellFormed } from '../text'
-import { isRecord, type PluginPermission } from './manifest'
+import { utf8Length, wellFormed } from '../text'
+import { isRecord } from '../isRecord'
+import type { PluginPermission } from './manifest'
 
 export const PLUGIN_PROTOCOL_VERSION = 1
 
 /** Methods a plugin calls on the host. */
-export const PLUGIN_METHODS = ['note.read', 'note.replace', 'ui.show', 'ui.hide'] as const
+const PLUGIN_METHODS = ['note.read', 'note.replace', 'ui.show', 'ui.hide'] as const
 export type PluginMethod = (typeof PLUGIN_METHODS)[number]
 
 /** Methods the host calls on a plugin. */
 export type HostMethod = 'command.run' | 'preview.render' | 'import.convert' | 'export.convert'
 
-export const METHOD_PERMISSION: Readonly<Record<PluginMethod, PluginPermission | null>> = {
+const METHOD_PERMISSION: Readonly<Record<PluginMethod, PluginPermission | null>> = {
   'note.read': 'note.read',
   'note.replace': 'note.edit',
   'ui.show': null,
@@ -23,10 +24,10 @@ export const METHOD_PERMISSION: Readonly<Record<PluginMethod, PluginPermission |
 /** The note methods, and showing a panel, work only while a command of the plugin runs or its panel is open. */
 const NEEDS_ACTIVE: ReadonlySet<PluginMethod> = new Set(['note.read', 'note.replace', 'ui.show'])
 
-export const UI_HEIGHT = { min: 80, max: 640, default: 320 } as const
+const UI_HEIGHT = { min: 80, max: 640, default: 320 } as const
 /** A drawn block's Markdown, and a converted file's text. */
 export const MAX_RENDER_CHARS = 256 * 1024
-export const MAX_EXPORT_CHARS = 20 * 1024 * 1024
+const MAX_EXPORT_CHARS = 20 * 1024 * 1024
 /** Calls a plugin may have waiting on the host at once. */
 export const MAX_PENDING_CALLS = 64
 export const HOST_CALL_TIMEOUT_MS: Readonly<Record<HostMethod, number>> = {
@@ -66,8 +67,6 @@ const isSeq = (value: unknown): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 
 const CODE = /^E_[A-Z0-9_]{1,62}$/
-
-const utf8Length = (text: string) => new TextEncoder().encode(text).length
 
 /** A message from a plugin, or null for anything that is not one (left unanswered). */
 export function readMessage(raw: unknown): IncomingMessage | null {

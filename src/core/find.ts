@@ -136,7 +136,7 @@ export function expandReplacement(
   return out
 }
 
-export function allMatches(text: string, options: FindOptions): Iterable<FindMatch> {
+function allMatches(text: string, options: FindOptions): Iterable<FindMatch> {
   const re = compile(options)
   return re === null || re === 'invalid' ? [] : matchesOf(text, re)
 }

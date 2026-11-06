@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, openApp, statusPicker, test, type TestWindow } from './fixtures'
+import { expect, openApp, statusPicker, test } from './fixtures'
 
 async function newNote(page: Page) {
   await openApp(page)
@@ -31,7 +31,7 @@ test('a dropdown near the bottom opens over its button and stays inside the marg
   await newNote(page)
   const button = (await statusPicker(page).boundingBox())!
   await page.evaluate(() => {
-    ;(globalThis as unknown as { scrollTo(x: number, y: number): void }).scrollTo(0, 0)
+    window.scrollTo(0, 0)
   })
   await statusPicker(page).click()
   const list = popover(page)
@@ -70,17 +70,14 @@ test('pressing outside closes a dropdown', async ({ page }) => {
 
 test('a dialog grows in as the page dims', async ({ page }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       backups_list: { backups: [], lastError: null },
     }
   })
   await openApp(page)
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:show-backups'))
   })
   const dialog = page.getByRole('dialog', { name: 'Backups' })
@@ -109,24 +106,21 @@ test('with motion on, a dropdown unfolds as it grows in', async ({ page }) => {
 test('with motion on, a closing dialog blurs and fades away as the dim fades', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       backups_list: { backups: [], lastError: null },
     }
   })
   await openApp(page)
   await expect(page.getByRole('button', { name: 'New Note', exact: true })).toBeEnabled()
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:show-backups'))
   })
   const dialog = page.getByRole('dialog', { name: 'Backups' })
   await expect(dialog).toBeVisible()
   // Read as the copies are put in, in the page: the dialog's lives 200 ms, less than a slow round trip.
   await page.evaluate(() => {
-    const w = globalThis as unknown as { devotClosing?: Record<string, string | null> }
+    const w = window
     new MutationObserver((_, observer) => {
       const copy = document.querySelector('dialog[data-closing="dialog"]')
       const dim = document.querySelector('.dialog-backdrop[data-closing]')
@@ -142,11 +136,7 @@ test('with motion on, a closing dialog blurs and fades away as the dim fades', a
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
   await expect
-    .poll(() =>
-      page.evaluate(
-        () => (globalThis as unknown as { devotClosing?: unknown }).devotClosing ?? null,
-      ),
-    )
+    .poll(() => page.evaluate(() => window.devotClosing ?? null))
     .toEqual({ copy: 'dialog-out', dim: 'fade-out', hidden: 'true' })
   await expect(page.locator('dialog[data-closing="dialog"]')).toHaveCount(0)
   await expect(page.locator('.dialog-backdrop[data-closing]')).toHaveCount(0)

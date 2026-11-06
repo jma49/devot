@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs'
 import type { Frame, Page } from '@playwright/test'
-import type { TestWindow } from './fixtures'
 
 // Plugins in the UI tests (ADR 0005). The test server answers `/__devot-plugins/<id>/…` as Rust answers `devot-plugin://`
 // (src-tauri/src/plugins/serve.rs): the same container and plugin pages from src-tauri/plugin-frame/, under the same policies in
@@ -104,7 +103,7 @@ export async function servePlugins(page: Page, plugins: TestPlugin[]): Promise<v
     granted: p.granted ?? (p.manifest['permissions'] as string[]),
   }))
   await page.addInitScript((list) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotIpcMocks = { ...w.devotIpcMocks, plugins_list: list }
   }, listed)
 }

@@ -41,7 +41,7 @@ export interface LinkSources {
   linked: (id: string) => void
 }
 
-export const LINK_TRIGGER = /\[\[[^[\]\n]*$/
+const LINK_TRIGGER = /\[\[[^[\]\n]*$/
 export const MAX_LINK_NOTES = 20
 
 interface Pending {
@@ -136,7 +136,7 @@ async function noteInfo(sources: LinkSources, id: string): Promise<Node | null> 
   return preview === undefined ? null : noteCardDom(preview)
 }
 
-export function linkCompletionSource(sources: LinkSources): CompletionSource {
+function linkCompletionSource(sources: LinkSources): CompletionSource {
   return async (completion: CompletionContext) => {
     const match = completion.matchBefore(LINK_TRIGGER)
     if (!match) return null

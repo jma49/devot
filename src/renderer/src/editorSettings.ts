@@ -18,7 +18,7 @@ import { sizes } from './theme/tokens'
 import { createSyncedStore } from './syncedStore'
 import { invoke } from './ipc'
 
-export const EDITOR_SETTINGS_CHANGED = 'devot:editor-settings-changed'
+const EDITOR_SETTINGS_CHANGED = 'devot:editor-settings-changed'
 const TAURI_EVENT = 'devot://editor-settings-changed'
 
 const PREVIEW_BASE_SIZE = parseFloat(sizes['font.size.preview'])

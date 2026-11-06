@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { clipboardWrites, expect, openApp, openSettings, test, type TestWindow } from './fixtures'
+import { clipboardWrites, expect, openApp, openSettings, test } from './fixtures'
 
 // Settings > Sync, and the main window's notice. Rust is faked in the page: it keeps the relay's
 // URL and whether sync is on, and says only whether a vault and a token are there, as the real
@@ -32,14 +32,7 @@ const NOW = Date.UTC(2026, 9, 26, 12)
 async function fakeRust(page: Page, initial: FakeSync = {}) {
   await page.addInitScript(
     ({ start, recoveryKey, code, now }) => {
-      const w = globalThis as unknown as TestWindow & {
-        devotPairing?: string
-        devotPairingFails?: string
-        /** What listing the devices fails with. */
-        devotDevicesFails?: string
-        /** A device enrolled with the code on show but never confirmed. */
-        devotStrangerEnrolled?: boolean
-      }
+      const w = window
       const state = {
         relayUrl: start.relayUrl ?? '',
         enabled: start.enabled ?? false,
@@ -133,10 +126,7 @@ async function fakeRust(page: Page, initial: FakeSync = {}) {
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 
@@ -243,7 +233,7 @@ test('creates the vault with the relay’s secret, asked once and never kept', a
   expect(await calls(page, 'sync_vault_create')).toEqual([{ relaySecret: SECRET }])
   const others = await page.evaluate(
     (s) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter(
+      window.devotIpcCalls.filter(
         (c) => c.cmd !== 'sync_vault_create' && JSON.stringify(c.args ?? {}).includes(s),
       ).length,
     SECRET,
@@ -618,11 +608,11 @@ test('shows a pairing code with its QR code and countdown until a device joins',
   await expect(progress).toHaveText('Waiting for the other device…')
   await expect(panel.locator('.pairing')).toContainText(/Expires in (10:00|9:5\d)\./)
   await page.evaluate(() => {
-    ;(globalThis as unknown as { devotPairing: string }).devotPairing = 'taken'
+    window.devotPairing = 'taken'
   })
   await expect(panel).toContainText('A device is joining…')
   await page.evaluate(() => {
-    ;(globalThis as unknown as { devotPairing: string }).devotPairing = 'paired'
+    window.devotPairing = 'paired'
   })
   await expect(panel.getByRole('status').first()).toHaveText('A new device joined the vault.')
   await expect(pairingCode(panel)).toHaveCount(0)
@@ -648,7 +638,7 @@ test('cancels a code on show, and says when it expired', async ({ page }) => {
   expect(await calls(page, 'sync_pairing_cancel')).toHaveLength(2)
 
   await page.evaluate(() => {
-    ;(globalThis as unknown as { devotPairing: string }).devotPairing = 'expired'
+    window.devotPairing = 'expired'
   })
   await show.click()
   await expect(panel).toContainText('The code expired. Show a new one to try again.')
@@ -669,7 +659,7 @@ test('warns when a device took the code and never finished joining, and lists it
   await expect(items).toHaveCount(2)
   await panel.getByRole('button', { name: 'Show Pairing Code' }).click()
   await page.evaluate(() => {
-    const w = globalThis as unknown as { devotPairing: string; devotStrangerEnrolled: boolean }
+    const w = window
     w.devotStrangerEnrolled = true
     w.devotPairing = 'unconfirmed'
   })
@@ -688,7 +678,7 @@ test('keeps polling while the relay is out of reach, and closes the code when th
   const panel = page.getByRole('tabpanel')
   const fail = (code: string | undefined) =>
     page.evaluate((c) => {
-      ;(globalThis as unknown as { devotPairingFails?: string | undefined }).devotPairingFails = c
+      window.devotPairingFails = c
     }, code)
   await fail('E_SYNC_OFFLINE')
   await panel.getByRole('button', { name: 'Show Pairing Code' }).click()
@@ -704,7 +694,7 @@ test('keeps polling while the relay is out of reach, and closes the code when th
   await expect(items).toHaveCount(2)
   // The device that took the code may have enrolled before its confirmation failed to open.
   await page.evaluate(() => {
-    ;(globalThis as unknown as { devotStrangerEnrolled: boolean }).devotStrangerEnrolled = true
+    window.devotStrangerEnrolled = true
   })
   await fail('E_SYNC_PAIRING_AUTH')
   await expect(panel.getByRole('alert')).toHaveText(/^The pairing stopped\./)
@@ -857,7 +847,7 @@ test('a pairing that ends leaves an open Remove dialog open', async ({ page }) =
     .getByRole('button', { name: /^Remove / })
     .click()
   await page.evaluate(() => {
-    ;(globalThis as unknown as { devotPairing: string }).devotPairing = 'paired'
+    window.devotPairing = 'paired'
   })
   await expect(pairingCode(panel)).toHaveCount(0)
   await expect(items).toHaveCount(3)
@@ -878,7 +868,7 @@ test('a pairing that ends does not re-enable the Remove button of a removal in f
     .click()
   await page.getByRole('dialog').getByRole('button', { name: 'Remove', exact: true }).click()
   await page.evaluate(() => {
-    ;(globalThis as unknown as { devotPairing: string }).devotPairing = 'paired'
+    window.devotPairing = 'paired'
   })
   await expect(items).toHaveCount(3)
   await expect(items.nth(1).getByRole('button', { name: /^Remove / })).toHaveAttribute(
@@ -892,7 +882,7 @@ test('a pairing that ends does not re-enable the Remove button of a removal in f
 
 test('lists the devices again with Try Again when the relay was out of reach', async ({ page }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as { devotDevicesFails: string }).devotDevicesFails = 'E_SYNC_OFFLINE'
+    window.devotDevicesFails = 'E_SYNC_OFFLINE'
   })
   await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true })
   await openSettings(page, 'Sync')
@@ -903,7 +893,7 @@ test('lists the devices again with Try Again when the relay was out of reach', a
   await expect(panel).not.toContainText('E_SYNC_OFFLINE')
   await expect(panel.getByRole('listitem')).toHaveCount(0)
   await page.evaluate(() => {
-    delete (globalThis as unknown as { devotDevicesFails?: string }).devotDevicesFails
+    delete window.devotDevicesFails
   })
   await panel.getByRole('button', { name: 'Try Again' }).click()
   await expect(panel.getByRole('list', { name: 'Devices in this vault' })).toBeVisible()
@@ -915,7 +905,7 @@ test('Try Again says when the listing fails again, and hands focus to the list w
   page,
 }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as { devotDevicesFails: string }).devotDevicesFails = 'E_SYNC_OFFLINE'
+    window.devotDevicesFails = 'E_SYNC_OFFLINE'
   })
   await fakeRust(page, { relayUrl: RELAY, enabled: true, enrolled: true })
   await openSettings(page, 'Sync')
@@ -928,7 +918,7 @@ test('Try Again says when the listing fails again, and hands focus to the list w
     /^The devices could not be listed\. The relay could not be reached, or it answered with an error\./,
   )
   await page.evaluate(() => {
-    delete (globalThis as unknown as { devotDevicesFails?: string }).devotDevicesFails
+    delete window.devotDevicesFails
   })
   await retry.focus()
   await page.keyboard.press('Enter')
@@ -987,7 +977,7 @@ test('a pairing that ends on its own leaves focus where the person put it', asyn
   const relay = panel.getByRole('textbox', { name: 'Relay', exact: true })
   await relay.focus()
   await page.evaluate(() => {
-    ;(globalThis as unknown as { devotPairing: string }).devotPairing = 'expired'
+    window.devotPairing = 'expired'
   })
   await expect(pairingCode(panel)).toHaveCount(0)
   await expect(relay).toBeFocused()
@@ -1004,7 +994,7 @@ test('announces the same failure or confirmation again', async ({ page }) => {
   const panel = page.getByRole('tabpanel')
   await panel.getByRole('button', { name: 'I’m Adding Another Device' }).click()
   await page.evaluate(() => {
-    const w = globalThis as unknown as { alertsAdded: number }
+    const w = window
     w.alertsAdded = 0
     new MutationObserver((records) => {
       for (const record of records)
@@ -1036,7 +1026,7 @@ test('says again that a second device was removed', async ({ page }) => {
   await openSettings(page, 'Sync')
   const panel = page.getByRole('tabpanel')
   await page.evaluate(() => {
-    const w = globalThis as unknown as { said: string[] }
+    const w = window
     w.said = []
     const region = document.querySelector('p.visually-hidden[role="status"]')!
     new MutationObserver(() => w.said.push(region.textContent ?? '')).observe(region, {
@@ -1056,7 +1046,7 @@ test('says again that a second device was removed', async ({ page }) => {
   }
   await expect
     .poll(async () => {
-      const said = await page.evaluate(() => (globalThis as unknown as { said: string[] }).said)
+      const said = await page.evaluate(() => window.said)
       return said.filter((text) => text === 'The device was removed from sync.').length
     })
     .toBe(2)
@@ -1286,7 +1276,7 @@ const IDLE = { state: 'idle', lastSync: Date.UTC(2026, 9, 23, 19), code: null, t
 /** What the relay answers a `usage` with, or `{ error }` for a failure; changed later with `setUsage`. */
 async function fakeUsage(page: Page, usage: unknown) {
   await page.addInitScript((answer) => {
-    const w = globalThis as unknown as TestWindow
+    const w = window
     w.devotUsage = answer
     w.devotIpcMocks = {
       ...w.devotIpcMocks,
@@ -1301,7 +1291,7 @@ async function fakeUsage(page: Page, usage: unknown) {
 
 const setUsage = (page: Page, usage: unknown) =>
   page.evaluate((answer) => {
-    ;(globalThis as unknown as TestWindow).devotUsage = answer
+    window.devotUsage = answer
   }, usage)
 
 /** A new sync state, so the main window reads the relay's storage again. */

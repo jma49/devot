@@ -1,8 +1,8 @@
 // What a step changed for Write mode's blocks, as spans of the new note: the
-// lines an edit touched, the top-level blocks the parser read again, and the
-// lines a selection is on. Blocks outside these are kept, moved with the text.
+// lines an edit touched and the top-level blocks the parser read again.
+// Blocks outside these are kept, moved with the text.
 import { syntaxTree } from '@codemirror/language'
-import type { ChangeDesc, EditorState, Text, Transaction } from '@codemirror/state'
+import type { ChangeDesc, Text, Transaction } from '@codemirror/state'
 import { Tree, type TreeBuffer } from '@lezer/common'
 
 /** From and to, both included. */
@@ -98,7 +98,7 @@ function sameUnit(a: Unit, b: Unit): boolean {
  * tree's: a block that reads the same, untouched by the change and at the
  * place it moved the block to, is kept.
  */
-export function treeChanges(before: Tree, after: Tree, changes: ChangeDesc): Span[] {
+function treeChanges(before: Tree, after: Tree, changes: ChangeDesc): Span[] {
   const out: Span[] = []
   const a = unitsOf(before)
   const b = unitsOf(after)
@@ -161,12 +161,4 @@ export function changedSpans(tr: Transaction): Span[] | null {
   const after = syntaxTree(tr.state)
   if (before !== after) spans.push(...treeChanges(before, after, tr.changes))
   return lineSpans(tr.state.doc, spans)
-}
-
-/** The lines the selection of `state` is on. */
-export function selectionSpans(state: EditorState): Span[] {
-  return lineSpans(
-    state.doc,
-    state.selection.ranges.map((r): Span => [r.from, r.to]),
-  )
 }

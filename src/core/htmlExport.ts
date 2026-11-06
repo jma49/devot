@@ -14,6 +14,7 @@
 //   drawings; alerts become block quotes with a bold title. A sized image gets no `width` either (Half has no pixel width to give).
 
 import type { Element, ElementContent, Properties, Root, RootContent } from 'hast'
+import { textOf } from './hastText'
 import { fromHtml } from 'hast-util-from-html'
 import { toHtml } from 'hast-util-to-html'
 import { FILE_URL } from './export'
@@ -62,9 +63,6 @@ const classes = (node: Element): string[] => {
 
 const codeBlock = (language: string, source: string): Element =>
   el('pre', {}, [el('code', { className: [`language-${language}`] }, [txt(source)])])
-
-const textOf = (node: ElementContent): string =>
-  node.type === 'text' ? node.value : 'children' in node ? node.children.map(textOf).join('') : ''
 
 const link = (href: string): Element => el('p', {}, [el('a', { href }, [txt(href)])])
 

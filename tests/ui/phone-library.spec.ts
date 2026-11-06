@@ -219,10 +219,7 @@ test('a deeply nested notebook keeps room for its name', async ({ page }) => {
   await expect(deepest).toBeVisible()
   for (const scale of ['1', '2']) {
     await page.locator('.phone-app').evaluate((app, value) => {
-      const shell = app as unknown as {
-        style: CSSStyleDeclaration
-        dataset: Record<string, string>
-      }
+      const shell = app
       shell.style.setProperty('--phone-text-scale', value)
       if (value === '1') delete shell.dataset['textSize']
       else shell.dataset['textSize'] = 'accessibility'

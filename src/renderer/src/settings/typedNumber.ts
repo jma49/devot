@@ -4,7 +4,7 @@
 // elsewhere, or a refused one).
 import { useEffect, useRef, useState } from 'react'
 
-export const TYPING_PAUSE_MS = 400
+const TYPING_PAUSE_MS = 400
 
 export function useTypedNumber({
   stored,

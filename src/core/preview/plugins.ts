@@ -1,6 +1,7 @@
 // Plugins' preview renderers (ADR 0005): a fenced code block in a plugin's language goes to the plugin, which answers Markdown.
 // The answer is rendered and sanitized like note text, minus anything remote, so a plugin adds only what a note could; a block without an answer stays code.
 import type { Element, ElementContent, Root, RootContent } from 'hast'
+import { textOf } from '../hastText'
 import {
   PIECE_OFFSET_PROPERTIES,
   PREVIEW_API_VERSION,
@@ -17,9 +18,6 @@ export interface PluginRendererSpec {
 export type RenderPluginBlock = (key: string, source: string) => Promise<string | null>
 
 export type MarkdownNodes = (markdown: string, context: PreviewContext) => Promise<RootContent[]>
-
-const textOf = (node: RootContent): string =>
-  node.type === 'text' ? node.value : 'children' in node ? node.children.map(textOf).join('') : ''
 
 function languageOf(pre: Element): { code: Element; language: string } | undefined {
   const [code, ...rest] = pre.children

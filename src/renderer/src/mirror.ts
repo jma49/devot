@@ -14,7 +14,7 @@ import { format, t, type MessageKey } from './i18n'
 import { invoke } from './ipc'
 import { createSyncedStore, type Revision } from './syncedStore'
 
-export const MIRROR_CHANGED = 'devot:mirror-changed'
+const MIRROR_CHANGED = 'devot:mirror-changed'
 const TAURI_EVENT = 'devot://mirror-changed'
 
 export interface MirrorStatus {
@@ -107,7 +107,7 @@ export function startMirrorStatus(): void {
   }
 }
 
-export const mirrorStatus = (): MirrorStatus => store.current()
+const mirrorStatus = (): MirrorStatus => store.current()
 
 /**
  * After a quit was called off: a window that had already answered may have stopped its mirror. A

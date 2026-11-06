@@ -121,7 +121,7 @@ export interface CliToolStatus {
 
 const CLI_TOOL_STATES: readonly string[] = ['installed', 'absent', 'other', 'unavailable']
 
-export function asCliToolStatus(value: unknown): CliToolStatus | undefined {
+function asCliToolStatus(value: unknown): CliToolStatus | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const { state, path } = value as Record<string, unknown>
   if (typeof state !== 'string' || !CLI_TOOL_STATES.includes(state)) return undefined

@@ -7,7 +7,6 @@ import {
   storedShortcuts,
   test,
   openApp,
-  type TestWindow,
 } from './fixtures'
 
 // Rust stores shortcut changes and tells every window (`devot://keyboard-shortcuts-changed`, sent in the page
@@ -45,10 +44,7 @@ async function record(page: Page, command: string, keys: string) {
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
-    (c) =>
-      (globalThis as unknown as TestWindow).devotIpcCalls
-        .filter((call) => call.cmd === c)
-        .map((call) => call.args),
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
     cmd,
   )
 
@@ -152,10 +148,8 @@ test('waits for a key after modifiers, ignores composing, and Escape cancels', a
   await page.keyboard.up('Shift')
   // Keys an input method is composing are its own.
   await recorder(page, 'Italic').evaluate((el) => {
-    const w = globalThis as unknown as {
-      KeyboardEvent: new (type: string, init: Record<string, unknown>) => unknown
-    }
-    ;(el as unknown as { dispatchEvent(e: unknown): void }).dispatchEvent(
+    const w = window
+    el.dispatchEvent(
       new w.KeyboardEvent('keydown', {
         key: 'Process',
         code: 'KeyN',
@@ -297,8 +291,8 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   const body = page.getByRole('textbox', { name: 'Note body' })
   await body.click()
   await page.keyboard.insertText('alpha beta')
-  const rows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
-  await rows.first().click({ button: 'right' })
+  const noteRows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
+  await noteRows.first().click({ button: 'right' })
   await expect.poll(() => shownMenu(page)).toContain('Duplicate CmdOrCtrl+D')
   await page.locator('.cm-line').first().dblclick()
   const boldButton = page.getByRole('toolbar', { name: 'Format' }).getByRole('button', {
@@ -360,10 +354,10 @@ test('a shortcut changed in Settings works in the main window at once', async ({
     },
   })
 
-  await rows.first().click()
+  await noteRows.first().click()
   await page.keyboard.press('KeyJ')
-  await expect(rows).toHaveCount(2)
-  await rows.first().click({ button: 'right' })
+  await expect(noteRows).toHaveCount(2)
+  await noteRows.first().click({ button: 'right' })
   await expect.poll(() => shownMenu(page)).toContain('Duplicate J')
 
   const palette = page.getByRole('dialog', { name: 'Command Palette' })

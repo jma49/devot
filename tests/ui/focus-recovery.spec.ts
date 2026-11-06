@@ -1,15 +1,7 @@
 // The keyboard never falls to the page when its element is removed, hidden or disabled, or its sheet closes.
 // Window shortcuts use Meta (the registry's Mod matches metaKey everywhere).
 import type { Page } from '@playwright/test'
-import {
-  expect,
-  pickMenuItem,
-  pickNoteMore,
-  shownMenu,
-  test,
-  openApp,
-  type TestWindow,
-} from './fixtures'
+import { expect, pickMenuItem, pickNoteMore, shownMenu, test, openApp } from './fixtures'
 
 const list = (page: Page) => page.getByRole('region', { name: 'Notes' })
 const noteRows = (page: Page) => page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
@@ -32,19 +24,13 @@ async function deleteFocusedBook(page: Page, name: string) {
 
 const onPage = (page: Page) =>
   page.evaluate(() => {
-    const { document } = globalThis as unknown as {
-      document: { activeElement: { tagName: string } | null }
-    }
     return document.activeElement === null || document.activeElement.tagName === 'BODY'
   })
 
 async function settledFocus(page: Page) {
   await expect.poll(() => onPage(page)).toBe(false)
   return page.evaluate(() => {
-    const { document } = globalThis as unknown as {
-      document: { activeElement: { closest(s: string): object | null } }
-    }
-    const el = document.activeElement
+    const el = document.activeElement!
     const area = el.closest('[data-devot-part="sidebar"]')
       ? 'sidebar'
       : el.closest('[data-devot-part="list"]')
@@ -234,7 +220,7 @@ test('the Backups sheet opens on Done, and closing it gives the keyboard back', 
   page,
 }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       backups_list: { backups: [], lastError: null },
       backup_now: null,
     }
@@ -244,10 +230,7 @@ test('the Backups sheet opens on Done, and closing it gives the keyboard back', 
   const row = noteRows(page).first()
   await row.focus()
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string) => unknown
-    }
+    const w = window
     w.dispatchEvent(new w.CustomEvent('devot:show-backups'))
   })
   const dialog = page.getByRole('dialog', { name: 'Backups' })
@@ -258,16 +241,14 @@ test('the Backups sheet opens on Done, and closing it gives the keyboard back', 
   await expect(dialog).toBeHidden()
   await expect(row).toBeFocused()
   const backups = await page.evaluate(
-    () =>
-      (globalThis as unknown as TestWindow).devotIpcCalls.filter((c) => c.cmd === 'backup_now')
-        .length,
+    () => window.devotIpcCalls.filter((c) => c.cmd === 'backup_now').length,
   )
   expect(backups).toBe(0)
 })
 
 test('the Import sheet gives the keyboard back when it closes', async ({ page }) => {
   await page.addInitScript(() => {
-    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+    window.devotIpcMocks = {
       import_read: '# Heading\n',
       import_finish: null,
       backups_list: { backups: [], lastError: null },
@@ -278,10 +259,7 @@ test('the Import sheet gives the keyboard back when it closes', async ({ page })
   const row = noteRows(page).first()
   await row.focus()
   await page.evaluate(() => {
-    const w = globalThis as unknown as {
-      dispatchEvent(e: unknown): void
-      CustomEvent: new (t: string, init: { detail: unknown }) => unknown
-    }
+    const w = window
     w.dispatchEvent(
       new w.CustomEvent('devot:import-ready', {
         detail: {

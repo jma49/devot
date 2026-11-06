@@ -38,9 +38,7 @@ async function newNote(page: Page, title: string, text: string) {
 
 const previewHighlights = (page: Page) =>
   page.evaluate(() => {
-    const registry = (
-      globalThis as unknown as { CSS: { highlights: Map<string, { size: number }> } }
-    ).CSS.highlights
+    const registry = window.CSS.highlights
     return [registry.get('devot-find')?.size ?? 0, registry.get('devot-find-current')?.size ?? 0]
   })
 

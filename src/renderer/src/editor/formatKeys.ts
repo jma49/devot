@@ -7,7 +7,7 @@ import { ViewPlugin, type EditorView, type PluginValue, type ViewUpdate } from '
 import type { Extension } from '@codemirror/state'
 import { inertFormats, type FormatId } from './formats'
 
-export const INERT_DELAY_MS = 150
+const INERT_DELAY_MS = 150
 
 /**
  * Reports the formats that do nothing at the selection to `report`, now and

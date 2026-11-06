@@ -1,19 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { clearDraft, isEmptyCapture, notebookToShow, readDraft, writeDraft } from './draft'
-
-function memory() {
-  const items = new Map<string, string>()
-  return {
-    items,
-    getItem: (key: string) => items.get(key) ?? null,
-    setItem: (key: string, value: string) => void items.set(key, value),
-    removeItem: (key: string) => void items.delete(key),
-  }
-}
+import { memoryStorage } from '../../../../tests/support/local-storage'
 
 describe('the quick capture draft', () => {
   it('is kept as it is typed and read back when the window opens again', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     expect(readDraft(storage)).toBeNull()
     writeDraft({ title: 'Call', body: 'about the lease', bookId: 'b1' }, storage)
     expect(readDraft(storage)).toEqual({ title: 'Call', body: 'about the lease', bookId: 'b1' })
@@ -22,7 +13,7 @@ describe('the quick capture draft', () => {
   })
 
   it('is cleared once its note is saved, or when it holds nothing', () => {
-    const storage = memory()
+    const storage = memoryStorage()
     writeDraft({ title: 'Call', body: '', bookId: null }, storage)
     clearDraft(storage)
     expect(readDraft(storage)).toBeNull()
@@ -33,7 +24,7 @@ describe('the quick capture draft', () => {
 
   it('reads a damaged draft as none', () => {
     for (const stored of ['{', '[]', '{"title":1,"body":"","bookId":null}', '{"title":"a"}']) {
-      const storage = memory()
+      const storage = memoryStorage()
       storage.setItem('devot.quickCapture.draft', stored)
       expect(readDraft(storage)).toBeNull()
     }

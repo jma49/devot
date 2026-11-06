@@ -1,4 +1,5 @@
 import { sizes } from '../theme/tokens'
+import { clamp } from '../clamp'
 
 export interface Bar {
   readonly width: number
@@ -47,8 +48,6 @@ const spring = (name: 'lead' | 'trail'): Spring => ({
 })
 const LEAD = spring('lead')
 const TRAIL = spring('trail')
-
-const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value))
 
 export const restingSpan = (index: number): Span => ({ left: index, right: index + 1 })
 
