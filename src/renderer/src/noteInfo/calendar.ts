@@ -11,12 +11,15 @@ export interface Day {
 
 export type DateField = 'created' | 'updated'
 
-/** The date being chosen. A cleared hour or minute is null; seconds are kept and never shown. */
+/**
+ * The date being chosen. A cleared hour or minute is null.
+ * `from` is the date the picker opened on: its seconds and milliseconds are kept and never shown.
+ */
 export interface Pending {
   day: Day
   hour: number | null
   minute: number | null
-  second: number
+  from: number
 }
 
 export interface DateBounds {
@@ -59,19 +62,31 @@ export function addMonths(d: Day, n: number): Day {
 
 export function pendingOf(at: number): Pending {
   const date = new Date(at)
-  return {
-    day: dayFromDate(date),
-    hour: date.getHours(),
-    minute: date.getMinutes(),
-    second: date.getSeconds(),
-  }
+  return { day: dayFromDate(date), hour: date.getHours(), minute: date.getMinutes(), from: at }
 }
 
-/** The time `pending` names in local time; null while its hour or minute is cleared. */
+const sameFields = (a: Pending, b: Pending) =>
+  sameDay(a.day, b.day) && a.hour === b.hour && a.minute === b.minute
+
+/**
+ * The time `pending` names in local time; null while its hour or minute is cleared, or when the
+ * clocks skip it. Unchanged, it is `from` itself, even in the repeated hour when the clocks go back.
+ */
 export function pendingAt(pending: Pending): number | null {
-  const { day, hour, minute, second } = pending
+  const { day, hour, minute, from } = pending
   if (hour === null || minute === null) return null
-  return new Date(day.year, day.month, day.day, hour, minute, second).getTime()
+  if (sameFields(pending, pendingOf(from))) return from
+  const kept = new Date(from)
+  const date = new Date(
+    day.year,
+    day.month,
+    day.day,
+    hour,
+    minute,
+    kept.getSeconds(),
+    kept.getMilliseconds(),
+  )
+  return sameFields(pending, pendingOf(date.getTime())) ? date.getTime() : null
 }
 
 /** Created may not come after Updated, and Updated may not come before Created. */
@@ -154,8 +169,10 @@ export function pendingProblem(
   pending: Pending,
   info: Pick<NoteInfoData, 'createdAt' | 'updatedAt'>,
 ): MessageKey | undefined {
+  if (pending.hour === null || pending.minute === null) return 'noteInfo.dateIncomplete'
   const at = pendingAt(pending)
-  if (at === null || at < 0) return 'noteInfo.dateIncomplete'
+  if (at === null) return 'noteInfo.timeSkipped'
+  if (at < 0) return 'noteInfo.dateIncomplete'
   if (datesEdit(info, field, at)) return undefined
   return field === 'created' ? 'noteInfo.createdTooLate' : 'noteInfo.updatedTooEarly'
 }

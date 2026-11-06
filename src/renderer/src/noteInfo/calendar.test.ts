@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   addMonths,
   boundsFor,
@@ -19,8 +19,8 @@ import {
 } from './calendar'
 
 const day = (year: number, month: number, d: number): Day => ({ year, month, day: d })
-const at = (...parts: [number, number, number, number?, number?, number?]) =>
-  new Date(...(parts as [number, number, number, number, number, number])).getTime()
+const at = (...parts: [number, number, number, number?, number?, number?, number?]) =>
+  new Date(...(parts as [number, number, number, number, number, number, number])).getTime()
 
 const info = { createdAt: at(2026, 9, 13, 1, 43, 54), updatedAt: at(2026, 10, 2, 9, 30, 0) }
 
@@ -102,7 +102,7 @@ describe('the time segments', () => {
     day: day(2026, 10, 2),
     hour,
     minute,
-    second: 42,
+    from: at(2026, 10, 2, 9, 5, 42),
   })
 
   it('steps and wraps the hour and the minute', () => {
@@ -144,9 +144,10 @@ describe('the time segments', () => {
     expect(typeSegment(pending(3), 'hour', '', '0', true).pending.hour).toBeNull()
   })
 
-  it('keeps the seconds it never shows', () => {
-    const start = at(2026, 10, 2, 9, 30, 42)
+  it('keeps the seconds and milliseconds it never shows', () => {
+    const start = at(2026, 10, 2, 9, 30, 42, 700)
     expect(pendingAt(pendingOf(start))).toBe(start)
+    expect(pendingAt({ ...pendingOf(start), minute: 31 })).toBe(start + 60_000)
     expect(pendingAt(pending(null))).toBeNull()
   })
 })
@@ -173,6 +174,42 @@ describe('what Set refuses', () => {
     expect(pendingProblem('created', of(info.updatedAt), info)).toBeUndefined()
     expect(pendingProblem('updated', of(info.createdAt), info)).toBeUndefined()
     expect(pendingProblem('updated', of(at(2030, 0, 1)), info)).toBeUndefined()
+  })
+
+  it('nothing for an unchanged date that shares its second with the other one', () => {
+    const now = at(2026, 9, 13, 1, 43, 54, 700)
+    const fresh = { createdAt: now, updatedAt: now }
+    expect(pendingProblem('updated', of(fresh.updatedAt), fresh)).toBeUndefined()
+    expect(pendingProblem('created', of(fresh.createdAt), fresh)).toBeUndefined()
+  })
+})
+
+describe('the clock changes', () => {
+  const zone = process.env['TZ']
+  beforeAll(() => {
+    process.env['TZ'] = 'America/New_York'
+  })
+  afterAll(() => {
+    if (zone === undefined) delete process.env['TZ']
+    else process.env['TZ'] = zone
+  })
+
+  it('refuses a time the clocks skip', () => {
+    // On 8 March 2026 New York's clocks go from 02:00 to 03:00.
+    const skipped: Pending = { ...pendingOf(at(2026, 2, 8, 1, 30)), hour: 2, minute: 30 }
+    expect(pendingAt(skipped)).toBeNull()
+    expect(pendingProblem('updated', skipped, { createdAt: 0, updatedAt: 0 })).toBe(
+      'noteInfo.timeSkipped',
+    )
+  })
+
+  it('writes back the second of two equal times unchanged', () => {
+    // On 1 November 2026 New York's clocks go back from 02:00 to 01:00, so 01:30 comes twice.
+    const second = Date.UTC(2026, 10, 1, 6, 30)
+    expect(new Date(second).getHours()).toBe(1)
+    expect(pendingAt(pendingOf(second))).toBe(second)
+    const dates = { createdAt: Date.UTC(2026, 10, 1, 6, 15), updatedAt: second }
+    expect(pendingProblem('updated', pendingOf(second), dates)).toBeUndefined()
   })
 })
 
