@@ -499,9 +499,9 @@ test.describe('with motion', () => {
 test('Settings lists its sections and opens a pane', async ({ page }) => {
   await tabs(page).getByRole('button', { name: 'Settings' }).click()
   const settings = page.getByRole('region', { name: 'Settings' })
-  await expect(settings.getByRole('button', { name: /Appearance/ })).toBeVisible()
-  await settings.getByRole('button', { name: /General/ }).click()
-  await expect(page.locator('section.phone-screen[aria-label="General"]')).toBeVisible()
+  await expect(settings.getByRole('button', { name: /Editing/ })).toBeVisible()
+  await settings.getByRole('button', { name: /Appearance/ }).click()
+  await expect(page.locator('section.phone-screen[aria-label="Appearance"]')).toBeVisible()
 })
 
 async function openPane(page: Page, name: string) {
