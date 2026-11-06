@@ -205,9 +205,11 @@ pub async fn store_purchase(shop: Tauri<'_, Shop>, product: String) -> Result<Bo
     let shop = storefront(&shop)?;
     log::info!("I_APP_STORE_PURCHASE_STARTED {}", product_key(product));
     let outcome = shop.purchase(product).await;
-    match &outcome {
-        Ok(_) => log::info!("{}", purchase_line(product, &outcome)),
-        Err(_) => log::warn!("{}", purchase_line(product, &outcome)),
+    let line = purchase_line(product, &outcome);
+    if outcome.is_ok() {
+        log::info!("{line}");
+    } else {
+        log::warn!("{line}");
     }
     outcome.map_err(|error| error.code().to_owned())
 }
