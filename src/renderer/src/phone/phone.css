@@ -391,6 +391,10 @@ button.phone-glass:active,
 }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .phone-app {
+    --phone-backdrop: none;
+  }
+
   .phone-glass {
     background: var(--color-phone-glass-opaque);
     backdrop-filter: none;

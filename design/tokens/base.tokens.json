@@ -2865,7 +2865,7 @@
         "$description": "A saved note as it starts flying into its row."
       },
       "phone-peek-bar": {
-        "$value": 0.3,
+        "$value": 0.4,
         "$description": "The size the peek status bar grows from."
       },
       "phone-peek-menu": {

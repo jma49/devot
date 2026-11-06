@@ -373,6 +373,31 @@ test('a pane does not repeat its screen title as its first section title', async
   }
 })
 
+test('a long select value is cut with an ellipsis inside its card', async ({ page }) => {
+  const name = `Imported ${'Very Long Font Family Name '.repeat(4)}End`
+  await page.addInitScript((font) => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = { ...w.devotIpcMocks, fonts_list: () => [{ id: 'long.ttf', name: font }] }
+  }, name)
+  const pane = await openPane(page, 'Appearance')
+  await pane.getByRole('combobox', { name: 'Note Font' }).selectOption('imported')
+  const select = pane.locator('select[id$="imported-font"]').first()
+  await select.selectOption('long.ttf')
+  const shown = select.locator('xpath=..').locator('.select-value')
+  await expect(shown).toContainText('Very Long Font Family Name')
+  const seen = await shown.evaluate((el) => ({
+    cut: el.scrollWidth > el.clientWidth,
+    overflow: getComputedStyle(el).textOverflow,
+    wrap: getComputedStyle(el).whiteSpace,
+  }))
+  expect(seen).toEqual({ cut: true, overflow: 'ellipsis', wrap: 'nowrap' })
+  const [drawn, card] = await Promise.all([
+    shown.boundingBox(),
+    shown.locator('xpath=ancestor::*[contains(@class,"settings-card")]').boundingBox(),
+  ])
+  expect(drawn!.x + drawn!.width).toBeLessThanOrEqual(card!.x + card!.width + 0.5)
+})
+
 test.describe('License and disabled switches', () => {
   const noLicence = {
     gated: true,
