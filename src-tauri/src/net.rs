@@ -144,8 +144,20 @@ fn public_addresses(found: &[SocketAddr]) -> Vec<SocketAddr> {
     found
         .iter()
         .copied()
-        .filter(|address| public_ip(address.ip()))
+        .filter(|address| public_ip(address.ip()) || fake_ip(address.ip()))
         .collect()
+}
+
+// VPN apps in fake-IP mode answer every name with an address in 198.18.0.0/15 and route it by
+// name, so a name resolving there reaches that name, never this machine or the local network.
+fn fake_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => {
+            let [a, b, ..] = ip.octets();
+            a == 198 && (b & 0xfe) == 18
+        }
+        IpAddr::V6(_) => false,
+    }
 }
 
 #[derive(Debug)]
@@ -463,6 +475,23 @@ mod tests {
         ] {
             assert!(public_ip(public.parse().unwrap()), "{public}");
         }
+    }
+
+    #[test]
+    fn keeps_a_name_a_fake_ip_vpn_resolves_but_not_a_url_naming_that_address() {
+        let found: Vec<SocketAddr> = [
+            "198.18.0.7:443",
+            "198.19.255.1:443",
+            "192.168.1.2:443",
+            "[::ffff:198.18.0.7]:443",
+        ]
+        .iter()
+        .map(|a| a.parse().unwrap())
+        .collect();
+        assert_eq!(public_addresses(&found), found[..2].to_vec());
+        assert!(!fake_ip("198.17.255.255".parse().unwrap()));
+        assert!(!fake_ip("198.20.0.1".parse().unwrap()));
+        assert!(!public_host(&Url::parse("https://198.18.0.7/").unwrap()));
     }
 
     #[test]
