@@ -23,4 +23,14 @@ describe('the note list header layout', () => {
     expect(create.body.get('border-radius')).toBe('var(--radius-capsule)')
     expect(rule('.list-filter-search')!.body.get('gap')).toBe('var(--space-3)')
   })
+
+  it('shrinks the search field, not New Note, in a narrow list', () => {
+    const root = /className="([^"]+)"/.exec(
+      readFileSync('src/renderer/src/SearchField.tsx', 'utf8'),
+    )!
+    const field = rule(`.list-filter-search > .${root[1]}`)!
+    expect(field.body.get('flex')).toBe('1')
+    expect(field.body.get('min-width')).toBe('0')
+    expect(rule('.list-filter .list-create')!.body.get('flex')).toBe('none')
+  })
 })

@@ -1551,7 +1551,7 @@ button {
   gap: var(--space-3);
 }
 
-.list-filter-search .search-field {
+.list-filter-search > .search-field-box {
   flex: 1;
   width: auto;
   min-width: 0;
