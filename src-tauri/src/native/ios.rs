@@ -1330,8 +1330,7 @@ pub(crate) mod synced_keychain {
         static kSecMatchLimitOne: CFStringRef;
     }
 
-    const NOT_FOUND: i32 = -25300;
-    const DUPLICATE: i32 = -25299;
+    use crate::keychain::{DUPLICATE_ITEM as DUPLICATE, ITEM_NOT_FOUND as NOT_FOUND};
     /// `errSecDecode`: the item's data was not data.
     const DECODE: i32 = -26275;
     /// `errSecInternalComponent`: the call itself failed.

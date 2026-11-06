@@ -56,9 +56,6 @@ const ACCOUNT: &str = "http-api-token";
 /// The bridge's own token (ADR 0012), so the HTTP API's can be rotated or stay off without it.
 const MCP_ACCOUNT: &str = "mcp-bridge-token";
 
-#[cfg(target_os = "macos")]
-const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
-
 /// A generic password under the app's identifier as service, so a debug build keeps its own.
 pub struct Keychain {
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -84,41 +81,35 @@ impl Keychain {
 }
 
 #[cfg(target_os = "macos")]
+impl Keychain {
+    fn item(&self) -> crate::keychain::Item<'_> {
+        crate::keychain::Item {
+            service: &self.service,
+            account: self.account,
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
 impl TokenStore for Keychain {
     fn has(&self) -> Result<bool, &'static str> {
-        use security_framework::item::{ItemClass, ItemSearchOptions, Limit};
-        match ItemSearchOptions::new()
-            .class(ItemClass::generic_password())
-            .service(&self.service)
-            .account(self.account)
-            .load_attributes(true)
-            .limit(Limit::Max(1))
-            .search()
-        {
-            Ok(found) => Ok(!found.is_empty()),
-            Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(false),
-            Err(_) => Err("E_HTTP_API_KEYCHAIN_FAILED"),
-        }
+        self.item().has().map_err(|_| "E_HTTP_API_KEYCHAIN_FAILED")
     }
 
     fn get(&self) -> Result<Option<Token>, &'static str> {
-        use security_framework::passwords::get_generic_password;
-        match get_generic_password(&self.service, self.account) {
-            Ok(bytes) => String::from_utf8(bytes)
+        match self.item().get() {
+            Ok(Some(bytes)) => String::from_utf8(bytes)
                 .map(|text| Some(Zeroizing::new(text)))
                 .map_err(|_| "E_HTTP_API_KEYCHAIN_FAILED"),
-            Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(None),
+            Ok(None) => Ok(None),
             Err(_) => Err("E_HTTP_API_KEYCHAIN_FAILED"),
         }
     }
 
     fn set(&self, token: &str) -> Result<(), &'static str> {
-        security_framework::passwords::set_generic_password(
-            &self.service,
-            self.account,
-            token.as_bytes(),
-        )
-        .map_err(|_| "E_HTTP_API_KEYCHAIN_FAILED")
+        self.item()
+            .set(token.as_bytes())
+            .map_err(|_| "E_HTTP_API_KEYCHAIN_FAILED")
     }
 }
 
@@ -202,25 +193,5 @@ mod tests {
         let (http, mcp) = (Keychain::new("x"), Keychain::for_mcp("x"));
         assert_eq!(http.service, mcp.service);
         assert_ne!(http.account, mcp.account);
-    }
-
-    /// Touches the real login keychain, so it runs only when asked: `cargo test -- --ignored keychain`.
-    #[cfg(target_os = "macos")]
-    #[test]
-    #[ignore = "uses the login keychain"]
-    fn keychain_round_trip() {
-        let keychain = Keychain::new("io.github.jma49.devot.test-keychain");
-        let token = generate().unwrap();
-        keychain.set(&token).unwrap();
-        assert_eq!(keychain.has(), Ok(true));
-        assert_eq!(
-            keychain.get().unwrap().map(|t| t.to_string()),
-            Some(token.to_string())
-        );
-        let _ = security_framework::passwords::delete_generic_password(
-            "io.github.jma49.devot.test-keychain",
-            ACCOUNT,
-        );
-        assert_eq!(keychain.has(), Ok(false));
     }
 }

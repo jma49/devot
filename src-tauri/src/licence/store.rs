@@ -17,9 +17,6 @@ pub(crate) const LICENCE_ACCOUNT: &str = "licence";
 pub(crate) const TRIAL_ACCOUNT: &str = "trial";
 pub(crate) const APP_STORE_TRIAL_ACCOUNT: &str = "app-store-trial";
 
-#[cfg(any(target_os = "macos", target_os = "ios"))]
-const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
-
 /// A keychain status as an error code: a refused access prompt (`errSecUserCanceled`,
 /// `errSecAuthFailed`) gets its own, which the windows explain.
 #[cfg_attr(
@@ -50,43 +47,39 @@ impl Keychain {
             account,
         }
     }
+
+    fn item(&self) -> crate::keychain::Item<'_> {
+        crate::keychain::Item {
+            service: &self.service,
+            account: self.account,
+        }
+    }
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 impl KeyStore for Keychain {
     fn get(&self) -> Result<Option<String>, &'static str> {
-        use security_framework::passwords::get_generic_password;
-        match get_generic_password(&self.service, self.account) {
-            Ok(bytes) => String::from_utf8(bytes)
+        match self.item().get() {
+            Ok(Some(bytes)) => String::from_utf8(bytes)
                 .map(Some)
                 .map_err(|_| "E_LICENCE_KEYCHAIN"),
-            Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(None),
-            Err(e) => {
+            Ok(None) => Ok(None),
+            Err(status) => {
                 log::warn!(
-                    "W_LICENCE_KEYCHAIN_READ_FAILED account={} status={}",
+                    "W_LICENCE_KEYCHAIN_READ_FAILED account={} status={status}",
                     self.account,
-                    e.code()
                 );
-                Err(keychain_error(e.code()))
+                Err(keychain_error(status))
             }
         }
     }
 
     fn set(&self, key: &str) -> Result<(), &'static str> {
-        security_framework::passwords::set_generic_password(
-            &self.service,
-            self.account,
-            key.as_bytes(),
-        )
-        .map_err(|e| keychain_error(e.code()))
+        self.item().set(key.as_bytes()).map_err(keychain_error)
     }
 
     fn clear(&self) -> Result<(), &'static str> {
-        match security_framework::passwords::delete_generic_password(&self.service, self.account) {
-            Ok(()) => Ok(()),
-            Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(()),
-            Err(e) => Err(keychain_error(e.code())),
-        }
+        self.item().delete().map(|_| ()).map_err(keychain_error)
     }
 }
 

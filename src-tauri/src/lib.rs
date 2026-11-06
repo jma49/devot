@@ -35,6 +35,8 @@ mod format_menu;
 mod http_api;
 mod import;
 mod keyboard_shortcuts;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+mod keychain;
 mod licence;
 mod link_info;
 mod logs;
