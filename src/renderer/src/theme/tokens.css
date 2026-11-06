@@ -398,6 +398,7 @@
   --opacity-phone-dim-push: 0.08;
   --opacity-phone-dim-peek: 0.18;
   --opacity-phone-dim-sheet: 0.25;
+  --opacity-phone-backdrop: 0.3;
   --opacity-disabled: 0.45;
   --opacity-dragged: 0.5;
   --opacity-list-selected: 0.2;

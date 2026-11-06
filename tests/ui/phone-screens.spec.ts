@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, type TestWindow } from './fixtures'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -499,9 +499,9 @@ test.describe('with motion', () => {
 test('Settings lists its sections and opens a pane', async ({ page }) => {
   await tabs(page).getByRole('button', { name: 'Settings' }).click()
   const settings = page.getByRole('region', { name: 'Settings' })
-  await expect(settings.getByRole('button', { name: /Appearance/ })).toBeVisible()
-  await settings.getByRole('button', { name: /General/ }).click()
-  await expect(page.locator('section.phone-screen[aria-label="General"]')).toBeVisible()
+  await expect(settings.getByRole('button', { name: /Editing/ })).toBeVisible()
+  await settings.getByRole('button', { name: /Appearance/ }).click()
+  await expect(page.locator('section.phone-screen[aria-label="Appearance"]')).toBeVisible()
 })
 
 async function openPane(page: Page, name: string) {
@@ -527,6 +527,11 @@ test('Appearance on a phone has its own interface control and no system accent',
 test('General on a phone leaves out the menu bar, updates and command line tool', async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as TestWindow
+    w.devotIpcMocks = { ...w.devotIpcMocks, crash_reports_get: { available: true, on: false } }
+  })
+  await page.reload()
   const pane = await openPane(page, 'General')
   for (const title of ['Menu Bar', 'Updates', 'Command Line']) {
     await expect(pane.getByRole('heading', { name: title })).toHaveCount(0)

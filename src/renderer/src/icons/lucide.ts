@@ -183,7 +183,6 @@ export const LUCIDE_ICONS = {
   'phone.settings.sync': RefreshCwIcon,
   'phone.settings.backups': HistoryIcon,
   'phone.settings.ai': SparklesIcon,
-  'phone.settings.usage': ChartColumnIcon,
   'phone.settings.licence': CreditCardIcon,
   'phone.settings.about': InfoIcon,
   'phone.disclosure': ChevronRightIcon,

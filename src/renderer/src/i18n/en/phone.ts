@@ -143,7 +143,6 @@ export const messages = {
   'phone.appearance.solid': 'Solid',
   'phone.appearance.clear': 'Clear',
   'phone.appearance.editor': 'Editor',
-  'phone.general.empty': 'Nothing here to set on this iPhone.',
   'phone.appearance.textSize': 'Text size',
   'phone.appearance.textSizeSmall': 'A',
   'phone.sync.hint': 'Encrypted; your relay cannot read notes',

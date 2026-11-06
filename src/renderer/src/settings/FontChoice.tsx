@@ -11,6 +11,7 @@ import { errorCode } from '../../../core/errors'
 import { importFont, importedFonts, installedFonts, type FontFile } from '../fonts'
 import { format, t, type MessageKey } from '../i18n'
 import { Select, Setting, SettingsSection } from './controls'
+import { useOnPhone } from './onPhone'
 
 const FONT_LABELS: Readonly<Record<FontFamilyId, MessageKey>> = {
   system: 'editorSettings.font.system',
@@ -70,6 +71,8 @@ export function FontFamilySetting({
   id: (name: string) => string
   label?: MessageKey
 }) {
+  const chosen = slotFont(settings, slot).family
+  const families = useFontFamilies(chosen)
   return (
     <Setting
       label={label}
@@ -79,13 +82,13 @@ export function FontFamilySetting({
     >
       <Select
         id={id('font')}
-        value={slotFont(settings, slot).family}
+        value={chosen}
         aria-describedby={id('font-hint')}
         onChange={(e) =>
           change({ [FONT_SLOTS[slot].family]: e.currentTarget.value as FontFamilyId })
         }
       >
-        {FONT_FAMILIES.map((f) => (
+        {families.map((f) => (
           <option key={f} value={f}>
             {t(FONT_LABELS[f])}
           </option>
@@ -93,6 +96,17 @@ export function FontFamilySetting({
       </Select>
     </Setting>
   )
+}
+
+/**
+ * The families a slot offers. An iPhone lists no installed fonts (iOS gives an app no list of them),
+ * so Installed Font is left out there unless it is already the choice.
+ */
+function useFontFamilies(chosen: FontFamilyId): readonly FontFamilyId[] {
+  const onPhone = useOnPhone()
+  return onPhone
+    ? FONT_FAMILIES.filter((f) => f !== 'installed' || chosen === 'installed')
+    : FONT_FAMILIES
 }
 
 /**
