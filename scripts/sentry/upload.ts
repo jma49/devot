@@ -27,6 +27,25 @@ export function uploadSettings(env: Env): Upload | undefined {
   return { token, org, project }
 }
 
+/**
+ * Where a release build leaves its source maps and dSYMs for a later upload (scripts/sentry/staged.ts),
+ * so the build that runs the dependencies' code needs no token. Debug builds stage nothing.
+ */
+export function stageDir(env: Env): string | undefined {
+  if (env['TAURI_ENV_DEBUG'] === 'true') return undefined
+  return env['DEVOT_SENTRY_STAGE']?.trim() || undefined
+}
+
+export const STAGE_AND_UPLOAD =
+  'E_SENTRY_STAGE_AND_UPLOAD: set DEVOT_SENTRY_STAGE or the upload settings, not both'
+
+/** For the one call that needs no account: writing debug IDs into the scripts. */
+export function offlineEnv(): Env {
+  const env: Env = { ...process.env }
+  for (const key of UPLOAD_SETTINGS) delete env[key]
+  return env
+}
+
 /** The settings travel in the environment, never as arguments. */
 export function cliEnv(upload: Upload): Env {
   return {

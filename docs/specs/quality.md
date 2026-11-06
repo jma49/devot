@@ -157,9 +157,11 @@ Every PR must test the logic it changes, which review checks.
   Tauri runs `pnpm ui:release` (`scripts/sentry/ui.ts`) before compiling the app, which embeds `dist/`: with the upload settings it builds hidden source maps (no `sourceMappingURL` comments), gives every script a Sentry debug ID (`sentry-cli sourcemaps inject`; the SDK moves it into the event's `debug_meta`, which scrubbing keeps, so Sentry matches each frame to its map), uploads the maps for release `devot@<version>`, and deletes them; without the settings it builds none.
   Either way the build fails if `dist/` still holds a `.map` file or a comment pointing to one, or the UI tests' in-memory storage (checked before uploading anything; see App data folder), and a failed upload fails the build (after deleting the maps).
   Tauri then runs `pnpm sentry:debug-files` (`scripts/sentry/debug-files.ts`) before bundling, which uploads the dSYM of that build.
+  With `DEVOT_SENTRY_STAGE` in place of the upload settings, both scripts do the same but copy the maps (with `release`, the release name) and the dSYM into that folder instead of uploading them, and `scripts/sentry/staged.ts` uploads the folder later.
+  The release workflow builds that way, so the job that runs the dependencies' code never holds the Sentry token; a job of its own uploads the folder (`docs/releasing.md`).
   Rust panics list the binaries loaded at launch by debug ID (the SDK's `debug-images`; scrubbing keeps the ones a frame is in), so Sentry names the functions of a stripped release build's frames from that dSYM; a unit test prepares a panic with the app's client settings and a stand-in transport and checks that the binary its frames are in is listed.
   `pnpm ui:build` (development, tests, CI) never makes source maps.
-  Tests: `tests/policy/source-maps.bench.test.ts` runs both scripts against a stand-in sentry-cli.
+  Tests: `tests/policy/source-maps.bench.test.ts` runs the three scripts against a stand-in sentry-cli.
 - **One release and one environment per build:** the version is `src-tauri/Cargo.toml`'s alone.
   Rust reports `devot@<version>`; `tauri.conf.json` names no version, so Tauri gives the UI (`getVersion`) and the app bundle the same one; the source maps upload under that name.
   Rust reports `development` for a build with debug assertions and `production` otherwise; the UI reads Tauri's `TAURI_ENV_DEBUG` (`true` for `tauri dev` and `tauri build --debug`, `false` for `tauri build`) and reports the same, and a UI built outside Tauri's CLI reports `development`.

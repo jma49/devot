@@ -9,9 +9,12 @@ name: Release
 # update feeds at it (in the fixed `updater` release: beta.json for a beta,
 # stable.json and beta.json for a stable release).
 #
-# The jobs keep the Apple credentials, the updater key and the write token
-# away from the dependencies' code: `build` runs it (pnpm install, build
-# scripts, build.rs) with a read-only token and no secret but Sentry's;
+# The jobs keep the Apple credentials, the updater key, the Sentry token and
+# the write token away from the dependencies' code: `build` runs it (pnpm
+# install, build scripts, build.rs) with a read-only token and no secret but
+# the Sentry DSN, and leaves the UI's source maps and the app's dSYM in an
+# artifact of their own (never in the app); `sentry` holds the Sentry token
+# and runs only sentry-cli and scripts/sentry/staged.ts (node: modules only);
 # `notarize` holds the Developer ID certificate and the notary key and runs
 # only Apple's tools and scripts/release/macos-*.sh; `sign` holds the updater
 # key and runs only Node and scripts/release/release.ts (node: modules only);
@@ -32,7 +35,9 @@ name: Release
 #   vars.APPLE_SIGNING_IDENTITY                 "Developer ID Application: <name> (<team ID>)"
 #   vars.APPLE_API_KEY_ID, vars.APPLE_API_ISSUER_ID  the API key's ID and issuer
 # Optional (crash reporting, as in a local build's .env.local):
-#   secrets.DEVOT_SENTRY_DSN, secrets.SENTRY_AUTH_TOKEN, vars.SENTRY_ORG, vars.SENTRY_PROJECT
+#   secrets.DEVOT_SENTRY_DSN                    in the repository settings, built into the app
+#   secrets.SENTRY_AUTH_TOKEN                   in the `release` environment; only the sentry job reads it
+#   vars.SENTRY_ORG, vars.SENTRY_PROJECT        in the repository settings; without them nothing is staged or uploaded
 on:
   push:
     tags: ['v*']
@@ -140,9 +145,8 @@ jobs:
           DEVOT_RELEASE_BUILD: '1'
           PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
           DEVOT_SENTRY_DSN: ${{ secrets.DEVOT_SENTRY_DSN }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          # The maps and the dSYM go here for the sentry job (scripts/sentry/ui.ts, debug-files.ts).
+          DEVOT_SENTRY_STAGE: ${{ vars.SENTRY_PROJECT != '' && format('{0}/sentry-stage', github.workspace) || '' }}
         run: |
           if [ -z "$PUBKEY" ]; then
             echo "::error::The updater key is not set up (see docs/releasing.md)."
@@ -175,6 +179,47 @@ jobs:
           path: handover/
           if-no-files-found: error
           retention-days: 7
+      - if: vars.SENTRY_PROJECT != ''
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sentry
+          path: sentry-stage/
+          if-no-files-found: error
+          retention-days: 7
+
+  # Holds the Sentry token; runs only sentry-cli, installed alone at the
+  # version package.json pins and without install scripts, and the committed
+  # scripts/sentry/staged.ts (no pnpm install).
+  sentry:
+    needs: build
+    if: vars.SENTRY_PROJECT != ''
+    environment: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          # Off: package.json's packageManager would turn on a cache this job cannot use.
+          package-manager-cache: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: sentry
+          path: sentry-stage
+      - name: Install sentry-cli
+        run: |
+          version=$(jq -r '.devDependencies["@sentry/cli"]' package.json)
+          npm install --prefix "$RUNNER_TEMP/sentry-cli" --no-save --ignore-scripts "@sentry/cli@$version"
+      - name: Upload the source maps and the dSYM
+        env:
+          DEVOT_SENTRY_CLI: ${{ runner.temp }}/sentry-cli/node_modules/.bin/sentry-cli
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: node scripts/sentry/staged.ts --stage sentry-stage
 
   # Holds the Developer ID certificate and the notary key; runs only Apple's
   # tools and the committed scripts, no dependency code (no pnpm install).

@@ -1,6 +1,8 @@
 // Builds the UI for a release; Tauri runs it as `beforeBuildCommand`, which embeds dist/.
 // With the Sentry upload settings (upload.ts) it builds hidden source maps, gives every script
-// a debug ID, uploads the maps and deletes them; without, it builds none. The build fails if
+// a debug ID, uploads the maps and deletes them; with DEVOT_SENTRY_STAGE it does the same but
+// copies the maps there for scripts/sentry/staged.ts instead of uploading; with neither, it
+// builds none. The build fails if
 // dist/ holds a source map or a comment pointing to one, or (before uploading) the UI tests'
 // in-memory storage (vite.ui-test.config.ts), so the app never keeps notes where backups and
 // an outside writer cannot see them.
@@ -9,16 +11,19 @@
 // are read, default the repository root), --config <file> (the Vite config,
 // default vite.config.ts).
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { build, loadEnv } from 'vite'
 import {
   argument,
   cliEnv,
+  offlineEnv,
   releaseName,
   removeSourceMaps,
   sentryCli,
   sourceMapLeaks,
+  STAGE_AND_UPLOAD,
+  stageDir,
   testStorageLeaks,
   uploadSettings,
   type Upload,
@@ -48,28 +53,43 @@ function upload(settings: Upload) {
   return true
 }
 
+function stageMaps(stage: string) {
+  const run = spawnSync(sentryCli(root), ['sourcemaps', 'inject', outDir], {
+    stdio: 'inherit',
+    env: offlineEnv(),
+  })
+  if (run.status !== 0) return false
+  mkdirSync(stage, { recursive: true })
+  cpSync(outDir, join(stage, 'ui'), { recursive: true })
+  writeFileSync(join(stage, 'release'), releaseName(root))
+  return true
+}
+
 let settings: Upload | undefined
 try {
   settings = uploadSettings(env)
 } catch (error) {
   fail((error as Error).message)
 }
+const stage = stageDir(env)
+if (stage && settings) fail(STAGE_AND_UPLOAD)
 
 let uploaded = true
 let testStorage: string[] = []
 try {
   await build({
     configFile,
-    build: { outDir, emptyOutDir: true, sourcemap: settings ? 'hidden' : false },
+    build: { outDir, emptyOutDir: true, sourcemap: settings || stage ? 'hidden' : false },
   })
   // A bundle with the UI tests' storage never ships, so it uploads nothing.
   testStorage = testStorageLeaks(outDir)
-  if (settings && testStorage.length === 0) {
-    uploaded = upload(settings)
-  } else if (!settings) {
-    console.log(
-      'I_SOURCEMAP_UPLOAD_SKIPPED: SENTRY_AUTH_TOKEN, SENTRY_ORG and SENTRY_PROJECT are not set',
-    )
+  if (testStorage.length === 0) {
+    if (settings) uploaded = upload(settings)
+    else if (stage) uploaded = stageMaps(stage)
+    else
+      console.log(
+        'I_SOURCEMAP_UPLOAD_SKIPPED: SENTRY_AUTH_TOKEN, SENTRY_ORG and SENTRY_PROJECT are not set',
+      )
   }
 } finally {
   // Even when the build or the upload fails, no map stays in dist/.
@@ -79,6 +99,7 @@ if (testStorage.length > 0) {
   fail(`E_TEST_STORAGE_IN_RELEASE: the UI tests' storage is in ${testStorage.join(' ')}`)
 }
 if (!uploaded) fail('E_SOURCEMAP_UPLOAD_FAILED: sentry-cli failed; the maps are deleted')
+if (stage) console.log(`I_SOURCEMAPS_STAGED: in ${stage}, and deleted from the build`)
 const leaks = sourceMapLeaks(outDir)
 if (leaks.length > 0) fail(`E_SOURCEMAP_LEAK: ${leaks.join(' ')}`)
 if (settings) console.log('I_SOURCEMAPS_UPLOADED: the maps are sent and deleted')

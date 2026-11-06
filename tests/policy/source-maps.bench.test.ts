@@ -373,6 +373,38 @@ export default mergeConfig(base, { envDir: ${JSON.stringify(envDir)} })
     BUILD,
   )
 
+  it(
+    'with a staging folder, keeps the maps there for a later upload and ships none',
+    () => {
+      const out = join(work, 'dist-stage')
+      const stage = join(work, 'stage-ui')
+      const { cli, log } = fakeCli('stage')
+      const run = runScript('ui.ts', cli, { DEVOT_SENTRY_STAGE: stage }, ['--out-dir', out])
+      expect({ status: run.status, stderr: run.stderr }).toMatchObject({ status: 0 })
+      // Only the debug IDs are written here, and without a token.
+      expect(calls(log)).toEqual([
+        { args: ['sourcemaps', 'inject', out], env: ['', '', ''], maps: expect.any(Number) },
+      ])
+      expect(sourceMapLeaks(out)).toEqual([])
+      const staged = allFiles(join(stage, 'ui'))
+      expect(staged.filter((f) => f.endsWith('.map')).length).toBeGreaterThan(10)
+      expect(staged.some((f) => f.endsWith('.js'))).toBe(true)
+      expect(readFileSync(join(stage, 'release'), 'utf8')).toBe(releaseName(root))
+    },
+    BUILD,
+  )
+
+  it('refuses a staging folder together with the upload settings', () => {
+    const out = join(work, 'dist-stage-and-upload')
+    const { cli, log } = fakeCli('stage-and-upload')
+    const env = { ...SETTINGS, DEVOT_SENTRY_STAGE: join(work, 'stage-both') }
+    const run = runScript('ui.ts', cli, env, ['--out-dir', out])
+    expect(run.status).not.toBe(0)
+    expect(run.stderr).toContain('E_SENTRY_STAGE_AND_UPLOAD')
+    expect(existsSync(out)).toBe(false)
+    expect(calls(log)).toEqual([])
+  })
+
   it('stops before building when only some settings are set', () => {
     const out = join(work, 'dist-partial')
     const { cli, log } = fakeCli('partial')
@@ -443,6 +475,67 @@ describe('debug symbol upload', () => {
     })
     expect(run.status).not.toBe(0)
     expect(run.stderr).toContain('E_DSYM_MISSING')
+    expect(calls(log)).toEqual([])
+  })
+
+  it('copies the release dSYM into a staging folder instead of uploading it', () => {
+    const dir = target('target-stage')
+    const stage = join(work, 'stage-dsym')
+    const { cli, log } = fakeCli('dsym-stage')
+    const run = runScript('debug-files.ts', cli, {
+      CARGO_TARGET_DIR: dir,
+      DEVOT_SENTRY_STAGE: stage,
+    })
+    expect({ status: run.status, stderr: run.stderr }).toMatchObject({ status: 0 })
+    expect(readFileSync(join(stage, 'dsym/0/devot.dSYM/Contents/Info.plist'), 'utf8')).toBe(
+      '<plist/>',
+    )
+    expect(calls(log)).toEqual([])
+  })
+})
+
+describe('upload of what a build staged', () => {
+  function staged(name: string) {
+    const stage = join(work, name)
+    tree(stage, {
+      release: 'devot@9.9.9',
+      'ui/assets/a.js': 'f()\n',
+      'ui/assets/a.js.map': '{}',
+      'dsym/0/devot.dSYM/Contents/Info.plist': '<plist/>',
+    })
+    return stage
+  }
+
+  it('uploads the maps under the staged release, then the dSYMs, with the token by environment', () => {
+    const stage = staged('stage-upload')
+    const { cli, log } = fakeCli('staged')
+    const run = runScript('staged.ts', cli, SETTINGS, ['--stage', stage])
+    expect({ status: run.status, stderr: run.stderr }).toMatchObject({ status: 0 })
+    expect(calls(log).map((c) => c.args)).toEqual([
+      ['sourcemaps', 'upload', '--release', 'devot@9.9.9', join(stage, 'ui')],
+      ['debug-files', 'upload', join(stage, 'dsym')],
+    ])
+    for (const call of calls(log)) expect(call.env).toEqual(Object.values(SETTINGS))
+  })
+
+  it('uploads nothing without the settings', () => {
+    const stage = staged('stage-skip')
+    const { cli, log } = fakeCli('staged-skip')
+    const run = runScript('staged.ts', cli, {}, ['--stage', stage])
+    expect(run.status).toBe(0)
+    expect(run.stdout).toContain('I_SENTRY_UPLOAD_SKIPPED')
+    expect(calls(log)).toEqual([])
+  })
+
+  it('fails when the upload fails or the staging folder is incomplete', () => {
+    const { cli } = fakeCli('staged-failed', 'sourcemaps upload')
+    const failed = runScript('staged.ts', cli, SETTINGS, ['--stage', staged('stage-failed')])
+    expect(failed.status).not.toBe(0)
+    expect(failed.stderr).toContain('E_SOURCEMAP_UPLOAD_FAILED')
+    const { cli: ok, log } = fakeCli('staged-empty')
+    const empty = runScript('staged.ts', ok, SETTINGS, ['--stage', join(work, 'stage-none')])
+    expect(empty.status).not.toBe(0)
+    expect(empty.stderr).toContain('E_SENTRY_STAGE_MISSING')
     expect(calls(log)).toEqual([])
   })
 })
