@@ -12,7 +12,7 @@ use super::super::store::{KeyStore, MemoryKey};
 use super::super::testing::{ID, key, sign, test_keys};
 use super::super::trial::{LENGTH_MS, TrialSource, TrialState};
 use super::super::{KEYS_OFF, Licence, REQUIRED, Snapshot};
-use super::{Bought, Limits, Storefront, mac_key, purchase_line, refund_line};
+use super::{Bought, Limits, Storefront, mac_key, purchase_line, refund_line, restore_line};
 use crate::app_store::fake::{FakeAppStore, transaction};
 use crate::app_store::{
     AppStore, Ownership, Product, Purchase, Refund, Restore, RevocationReason, StoreError,
@@ -706,6 +706,22 @@ fn a_purchase_logs_its_outcome_by_product_and_code() {
     assert_eq!(
         purchase_line(Product::Trial, &Err(StoreError::UNAVAILABLE)),
         "W_APP_STORE_PURCHASE trial E_APP_STORE_UNAVAILABLE"
+    );
+}
+
+#[test]
+fn a_restore_logs_its_outcome_by_code() {
+    assert_eq!(
+        restore_line(&Ok(Restore::Synced)),
+        "I_APP_STORE_RESTORE synced"
+    );
+    assert_eq!(
+        restore_line(&Ok(Restore::Cancelled)),
+        "I_APP_STORE_RESTORE cancelled"
+    );
+    assert_eq!(
+        restore_line(&Err(StoreError::UNAVAILABLE)),
+        "W_APP_STORE_RESTORE E_APP_STORE_UNAVAILABLE"
     );
 }
 

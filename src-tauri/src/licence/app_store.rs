@@ -176,9 +176,12 @@ impl<S: AppStore + 'static> Storefront<S> {
     /// `AppStore.sync()`, then the current entitlements again, which decide; read even when the
     /// sign-in was cancelled or the sync failed, since they may still have changed.
     pub(crate) async fn restore(&self) -> Result<(), StoreError> {
-        match within(self.limits.restore, self.store.restore()).await {
-            Ok(Restore::Synced | Restore::Cancelled) => {}
-            Err(error) => log::warn!("W_APP_STORE_RESTORE {}", error.code()),
+        let outcome = within(self.limits.restore, self.store.restore()).await;
+        let line = restore_line(&outcome);
+        if outcome.is_ok() {
+            log::info!("{line}");
+        } else {
+            log::warn!("{line}");
         }
         self.read_entitlements().await
     }
@@ -236,6 +239,14 @@ fn purchase_line(product: Product, outcome: &Result<Bought, StoreError>) -> Stri
         Ok(Bought::Pending) => format!("I_APP_STORE_PURCHASE {product} pending"),
         Ok(Bought::Cancelled) => format!("I_APP_STORE_PURCHASE {product} cancelled"),
         Err(error) => format!("W_APP_STORE_PURCHASE {product} {}", error.code()),
+    }
+}
+
+fn restore_line(outcome: &Result<Restore, StoreError>) -> String {
+    match outcome {
+        Ok(Restore::Synced) => "I_APP_STORE_RESTORE synced".to_owned(),
+        Ok(Restore::Cancelled) => "I_APP_STORE_RESTORE cancelled".to_owned(),
+        Err(error) => format!("W_APP_STORE_RESTORE {}", error.code()),
     }
 }
 
