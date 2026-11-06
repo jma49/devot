@@ -5,7 +5,7 @@
 // (src-tauri/src/mcp_clients.rs).
 const SERVER_NAME = 'devot'
 
-export const MCP_CLIENTS = ['claudeCode', 'codex', 'claudeDesktop'] as const
+const MCP_CLIENTS = ['claudeCode', 'codex', 'claudeDesktop'] as const
 export type McpClient = (typeof MCP_CLIENTS)[number]
 
 const CONNECTION_STATES = ['notConnected', 'connected', 'stale', 'other', 'unreadable'] as const

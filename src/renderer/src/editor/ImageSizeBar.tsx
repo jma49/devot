@@ -14,7 +14,7 @@ import { imageForBar, imageSizeChange, type EditorImage } from './images'
 import { barsMayShow } from './barRules'
 import { releaseBarFocus, toolbarState, toolbarStateExtension } from './toolbarState'
 
-export function currentPreset(image: EditorImage): ImageSize | null {
+function currentPreset(image: EditorImage): ImageSize | null {
   return image.dimensions ? null : image.size
 }
 

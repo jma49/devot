@@ -9,7 +9,7 @@ import { countOf } from './format'
 import { currentLocale, format, t } from './i18n'
 import { listenHere, unlistenLater } from './windowEvents'
 
-export const SHOW_ACTIVITY = 'devot:show-activity'
+const SHOW_ACTIVITY = 'devot:show-activity'
 
 export function useActivityMenu(open: () => void) {
   const latest = useRef(open)

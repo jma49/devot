@@ -123,7 +123,7 @@ export function codeLanguage(language: string): Language {
 
 export type Highlighter = (grammar: string, code: string) => Promise<ElementContent[] | null>
 
-export async function loadHighlighter(): Promise<Highlighter> {
+async function loadHighlighter(): Promise<Highlighter> {
   const { highlight } = await import('./highlight')
   return highlight
 }

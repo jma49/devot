@@ -25,7 +25,7 @@ const DIALOG_KINDS = [
   'dialog.image-viewer',
 ]
 /** The dialogs that open with motion (app.css), so close with it too. */
-export const MOVING_DIALOGS = DIALOG_KINDS.join(', ')
+const MOVING_DIALOGS = DIALOG_KINDS.join(', ')
 const DIMMING = '.confirm, .sheet, .link-dialog'
 
 const FALLBACK_SLACK_MS = 100

@@ -5,7 +5,7 @@ import { invoke } from './ipc'
 import type { MenuPoint } from './contextMenu'
 
 /** The longest text Look Up takes (the same as Rust's). */
-export const MAX_LOOK_UP_CHARS = 1000
+const MAX_LOOK_UP_CHARS = 1000
 
 /** The longest text Speech takes (the same as Rust's). */
 export const MAX_SPEECH_CHARS = 100_000

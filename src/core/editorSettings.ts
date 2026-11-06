@@ -230,7 +230,7 @@ export const PAGE_SLOT_MAX_CHARS = 100
  * A header or footer slot: up to 100 characters, no control characters.
  * The same check runs in Rust (src-tauri/src/page_setup.rs).
  */
-export const isPageSlot = (v: unknown): v is string =>
+const isPageSlot = (v: unknown): v is string =>
   typeof v === 'string' && [...v].length <= PAGE_SLOT_MAX_CHARS && !/\p{Cc}/u.test(v)
 export const PASTE_URL_STYLES: readonly PasteUrlStyle[] = ['plain', 'autolink', 'link', 'choose']
 export const APPEARANCES: readonly AppearanceChoice[] = ['light', 'dark', 'system']
@@ -274,11 +274,11 @@ const isFlag = (v: unknown) => typeof v === 'boolean'
 const isNotebookId = (v: unknown) =>
   v === null || (typeof v === 'string' && /^[\w-]{1,64}$/.test(v))
 
-export const isFontFamilyName = (v: unknown): v is string =>
+const isFontFamilyName = (v: unknown): v is string =>
   typeof v === 'string' &&
   /^[\p{Alphabetic}\p{N}\-_&+()][\p{Alphabetic}\p{N} \-_.&+()]{0,127}$/u.test(v)
 
-export const isFontFileName = (v: unknown): v is string =>
+const isFontFileName = (v: unknown): v is string =>
   typeof v === 'string' &&
   /^[\p{Alphabetic}\p{N}\-_][\p{Alphabetic}\p{N} \-_]{0,63}\.(ttf|otf|woff|woff2)$/u.test(v)
 

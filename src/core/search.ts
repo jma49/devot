@@ -86,7 +86,7 @@ export function statusFromName(name: string): NoteStatus | null {
 }
 
 /** True, false, yes, no, 1, 0 in any case; null for any other value. */
-export function pinnedFromValue(value: string): 'true' | 'false' | null {
+function pinnedFromValue(value: string): 'true' | 'false' | null {
   const key = value.trim().toLowerCase()
   if (key === 'true' || key === 'yes' || key === '1') return 'true'
   if (key === 'false' || key === 'no' || key === '0') return 'false'
@@ -115,7 +115,7 @@ export interface SearchSpan {
 /** Never throws: what cannot be read is searched as text. */
 export const parseSearch = (query: string): SearchClause[] => scanSearch(query).map((s) => s.clause)
 
-export function scanSearch(query: string): SearchSpan[] {
+function scanSearch(query: string): SearchSpan[] {
   const text = wellFormed(query)
   const clauses: SearchSpan[] = []
   let at = 0
@@ -332,8 +332,8 @@ export const EXCERPT_CHARS = 160
 export const EXCERPT_BEFORE = 40
 
 /** Code points of a long body read on each side of a found word (see bodyExcerpt); a body of at most twice as many is read whole. */
-export const EXCERPT_STRETCH = 300
-export const EXCERPT_PLACES = 8
+const EXCERPT_STRETCH = 300
+const EXCERPT_PLACES = 8
 
 /** Lower case, one character for one, as the trigram index and the Rust store's `fold` do (tests/support/folds.json holds shared cases). */
 const fold = (chars: readonly string[]) =>

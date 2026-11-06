@@ -221,7 +221,7 @@ const LAST_LINE_ROOM = 4
  * setting, and with Scroll Past End a few lines below it, so the last line
  * scrolls up from the bottom of the window.
  */
-export function scrollMarginsOf(s: EditorSettings): { top: number; bottom: number } {
+function scrollMarginsOf(s: EditorSettings): { top: number; bottom: number } {
   const room = s.scrollPastEnd ? Math.round(s.fontSize * s.lineHeight * LAST_LINE_ROOM) : 0
   return { top: s.cursorScrollMargin, bottom: Math.max(s.cursorScrollMargin, room) }
 }

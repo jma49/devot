@@ -12,9 +12,9 @@ import { workerLogIn } from './workerLog'
 
 export type Core = Comlink.Remote<CoreApi>
 
-export const START_TIMEOUT_MS = 30_000
+const START_TIMEOUT_MS = 30_000
 
-export const WORKER_FAILED = 'E_CORE_WORKER_FAILED'
+const WORKER_FAILED = 'E_CORE_WORKER_FAILED'
 
 export interface CoreWorker extends EventTarget {
   postMessage(message: unknown, transfer?: Transferable[]): void

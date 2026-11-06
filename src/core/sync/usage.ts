@@ -4,7 +4,7 @@
 export type Fill = 'ok' | 'warn' | 'full'
 
 /** A band changes at this share of a cap, and again at the cap. */
-export const WARN_FRACTION = 0.8
+const WARN_FRACTION = 0.8
 
 /** What a relay's `usage` message says about storage. */
 export interface RelayStorage {

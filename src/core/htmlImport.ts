@@ -39,7 +39,7 @@ const BASE64_URL = /^data:[^,]*;base64,([\s\S]*)$/i
 
 const KEPT_SRC = /^https?:/i
 
-export const MAX_DROPPED = 100
+const MAX_DROPPED = 100
 
 export interface HtmlImage {
   id: string

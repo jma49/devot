@@ -16,7 +16,7 @@ export interface WorkerLogMessage {
   workerLog: LogEntry
 }
 
-export const WORKER_CODES = {
+const WORKER_CODES = {
   uncaught: 'E_WORKER_UNCAUGHT',
   rejection: 'E_WORKER_UNHANDLED_REJECTION',
 } as const

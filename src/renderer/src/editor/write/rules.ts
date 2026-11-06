@@ -42,7 +42,7 @@ function inBlock(blocks: readonly WriteBlock[], pos: number): boolean {
 }
 
 /** Shown as their source. A table's cells take marks like a paragraph (tableGrid.ts draws the grid). */
-export const SOURCE_BLOCKS = new Set([
+const SOURCE_BLOCKS = new Set([
   'FencedCode',
   'CodeBlock',
   'HTMLBlock',

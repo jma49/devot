@@ -62,7 +62,7 @@ export interface DeviceInfo {
 }
 
 /** The relay's counted limits a push can trip (docs/sync-relay.md, Quota). */
-export const QUOTA_LIMITS = ['rowsWritten', 'requests', 'storedBytes'] as const
+const QUOTA_LIMITS = ['rowsWritten', 'requests', 'storedBytes'] as const
 export type QuotaLimit = (typeof QUOTA_LIMITS)[number]
 
 export const isQuotaLimit = (value: unknown): value is QuotaLimit =>

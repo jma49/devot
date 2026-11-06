@@ -272,7 +272,7 @@ function Destination(props: {
   )
 }
 
-export function resultCounts(report: ImportReport, skipped: number) {
+function resultCounts(report: ImportReport, skipped: number) {
   const later = report.problems.slice(skipped)
   const stopped = later.filter((p) => p.code === 'E_IMPORT_STOPPED').length
   const failed = new Set(

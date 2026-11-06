@@ -100,7 +100,7 @@ const alone = (range: Range<Decoration>): BlockLayers => ({
 })
 
 /** Front matter folds to one row naming its keys; the caret inside opens it. */
-export const frontMatterRule: BlockRule = {
+const frontMatterRule: BlockRule = {
   pieces(state, revealed, from) {
     const node = syntaxTree(state).topNode.firstChild
     if (node?.name !== FRONT_MATTER || node.from !== 0 || from > node.to) return []
@@ -121,7 +121,7 @@ export const frontMatterRule: BlockRule = {
  * Images, formulas, diagrams and embeds as the preview shows them. A closed
  * block takes its lines; an open one shows its source with the rendering under it.
  */
-export const renderedBlockRule: BlockRule = {
+const renderedBlockRule: BlockRule = {
   pieces(state, _revealed, from, to) {
     const blocks = writeBlocksOf(state)
     const out: BlockPiece[] = []

@@ -15,7 +15,7 @@ export function hsvToRgb({ h, s, v }: Hsv): Rgb {
   return [channel(5), channel(3), channel(1)]
 }
 
-export function rgbToHsv([r, g, b]: Rgb): Hsv {
+function rgbToHsv([r, g, b]: Rgb): Hsv {
   const [red, green, blue] = [r / 255, g / 255, b / 255]
   const max = Math.max(red, green, blue)
   const spread = max - Math.min(red, green, blue)

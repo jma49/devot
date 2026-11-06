@@ -450,7 +450,7 @@ export function lineKeys(): { id: CommandId; key: string }[] {
   return LINE_COMMANDS.flatMap((id) => editorCommandKeys(id).map((key) => ({ id, key })))
 }
 
-export const lineCommandKeys: () => Extension = registryKeys(() =>
+const lineCommandKeys: () => Extension = registryKeys(() =>
   Prec.high(
     keymap.of(
       lineKeys().map(({ id, key }) => ({

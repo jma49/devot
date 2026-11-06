@@ -85,8 +85,8 @@ import {
 
 export const PUSH_IDLE_MS = 3_000
 export const PUSH_EVERY_MS = 10_000
-export const MAX_PUSH_RETRIES = 5
-export const MAX_CLOCK_SKEW_MS = 5 * 60_000
+const MAX_PUSH_RETRIES = 5
+const MAX_CLOCK_SKEW_MS = 5 * 60_000
 const RETRY_BASE_MS = 250
 const RECONNECT_MIN_MS = 1_000
 const RECONNECT_MAX_MS = 5 * 60_000

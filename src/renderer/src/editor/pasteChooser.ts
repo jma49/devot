@@ -58,7 +58,7 @@ export interface PasteFetcher {
   snippet: (url: string) => Promise<string>
 }
 
-export const pasteFetcher = Facet.define<PasteFetcher, PasteFetcher | null>({
+const pasteFetcher = Facet.define<PasteFetcher, PasteFetcher | null>({
   combine: (values) => values[0] ?? null,
 })
 

@@ -53,10 +53,10 @@ const oneLine = (text: string, max: number, code: string): string => {
   return trimmed
 }
 
-export const cleanSavedSearchName = (name: string): string =>
+const cleanSavedSearchName = (name: string): string =>
   oneLine(name, MAX_SAVED_SEARCH_NAME_CHARS, 'E_SAVED_SEARCH_NAME_INVALID')
 
-export const cleanSavedSearchQuery = (query: string): string =>
+const cleanSavedSearchQuery = (query: string): string =>
   oneLine(query, MAX_SAVED_SEARCH_QUERY_CHARS, 'E_SAVED_SEARCH_QUERY_INVALID')
 
 /** The query as saved: trimmed, its #Name tags spelled tag:Name unless that would make it too long. */
@@ -219,11 +219,6 @@ export function savedSearchQuery(
     nameable,
   })
   return resolved ? excludeTemplates(resolved) : null
-}
-
-/** Whether a listed note meets the query's conditions on its fields; its text is not at hand. */
-export function meetsConditions(note: NoteSummary, query: NoteQuery): boolean {
-  return conditionsOf(query)(note)
 }
 
 // The sidebar counts every saved search over every listed note on each change, so each set is looked up by hash, not searched.

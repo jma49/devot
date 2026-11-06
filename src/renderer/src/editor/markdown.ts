@@ -146,7 +146,7 @@ export const markupTags = {
   task: Tag.define(tags.processingInstruction),
 }
 
-export const MarkupMarks: MarkdownConfig = {
+const MarkupMarks: MarkdownConfig = {
   props: [
     styleTags({
       HeaderMark: markupTags.heading,

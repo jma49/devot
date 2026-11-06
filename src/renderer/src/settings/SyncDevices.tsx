@@ -43,7 +43,7 @@ function countdown(ms: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-export function QrCode({ qr }: { qr: ShownPairing['qr'] }) {
+function QrCode({ qr }: { qr: ShownPairing['qr'] }) {
   const total = qr.size + QUIET_MODULES * 2
   let path = ''
   for (let y = 0; y < qr.size; y++) {

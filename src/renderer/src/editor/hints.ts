@@ -31,7 +31,7 @@ export const chooseTemplate = Facet.define<() => void, (() => void) | null>({
  * cursor on an empty line of a note that is not empty, where `/` opens the
  * menu (not in code, HTML or front matter).
  */
-export function slashHintLine(state: EditorState): number | null {
+function slashHintLine(state: EditorState): number | null {
   const { ranges, main } = state.selection
   if (state.doc.length === 0 || ranges.length > 1 || !main.empty) return null
   const line = state.doc.lineAt(main.head)

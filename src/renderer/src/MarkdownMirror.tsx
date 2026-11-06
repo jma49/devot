@@ -22,7 +22,7 @@ import {
 } from './mirror'
 import { useMirrorFolderChoice } from './MirrorFolderChoice'
 
-export const LAUNCH_DELAY_MS = 2000
+const LAUNCH_DELAY_MS = 2000
 
 export interface MarkdownMirror {
   status: MirrorStatus

@@ -15,7 +15,7 @@ export function inEditor(element: EventTarget | null): boolean {
   return element instanceof Element && element.closest('[data-devot-part="editor-body"]') !== null
 }
 
-export function inTextField(target: EventTarget | null): boolean {
+function inTextField(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
     (target.isContentEditable ||

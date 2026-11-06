@@ -9,7 +9,7 @@ export interface MathEngine {
   parse(html: string): Root
 }
 
-export async function loadMathEngine(): Promise<MathEngine> {
+async function loadMathEngine(): Promise<MathEngine> {
   const [{ default: temml }, { fromHtml }] = await Promise.all([
     import('temml'),
     import('hast-util-from-html'),

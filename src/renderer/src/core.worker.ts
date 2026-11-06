@@ -150,7 +150,7 @@ const requiredTemplates = () => {
   return templates
 }
 
-export const coreApi = {
+const coreApi = {
   /**
    * Starts the core on `remote`, the page's storage: Yjs states are coded here, off the UI thread (wire.ts), and a wrapper tells the Markdown mirror of every write. Unsaved notes are sent to the page as a SaveProblemsMessage each time that list changes, and what the core relays to the other windows and takes in from them as a RelayOut.
    * A lean core (a note window's, or a main window other than `main`) leaves compaction and the notebooks' order to the first main window's.

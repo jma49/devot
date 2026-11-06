@@ -255,7 +255,7 @@ import { useCliAppend, useHttpApi, useQuickCapture } from './hostCalls'
 
 const EXPORT_ALL = 'devot:export-all'
 
-export const SHOW_PALETTE = 'devot:show-palette'
+const SHOW_PALETTE = 'devot:show-palette'
 export const OPEN_TODAY = 'devot:open-today'
 
 const dailySettings = (): DailyNotesSettings => {
@@ -263,8 +263,8 @@ const dailySettings = (): DailyNotesSettings => {
   return { dailyNotebook, dailyTemplate, dailyTitleFormat }
 }
 
-export const TOGGLE_PREVIEW = 'devot:toggle-preview'
-export const SHOW_SPLIT = 'devot:show-split'
+const TOGGLE_PREVIEW = 'devot:toggle-preview'
+const SHOW_SPLIT = 'devot:show-split'
 
 /** How many untitled notes the palette looks up the first line of (the newest). */
 const PALETTE_HEADLINES = 500
@@ -283,7 +283,7 @@ const LIST_TITLE_MS = 150
 
 const EDITOR_REMEASURE_MS = 100
 
-export const TOGGLE_SIDEBAR = 'devot:toggle-sidebar'
+const TOGGLE_SIDEBAR = 'devot:toggle-sidebar'
 
 /** A menu toggle this soon after the key did the same is that key press echoing through the menu; it is dropped. */
 const MENU_ECHO_MS = 500

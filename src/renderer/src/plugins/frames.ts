@@ -4,7 +4,7 @@ import type { InstalledPlugin } from '../../../core/plugins'
 import type { Connection } from './host'
 
 /** The UI tests serve the same pages under the test server (tests/ui/plugins.ts). */
-export const pluginBase = (id: string) =>
+const pluginBase = (id: string) =>
   DEVOT_UI_TEST ? `${location.origin}/__devot-plugins/${id}/` : `devot-plugin://localhost/${id}/`
 
 const LOAD_TIMEOUT_MS = 10_000

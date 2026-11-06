@@ -301,7 +301,7 @@ export function blockLook(state: EditorState, block: WriteBlock): BlockLook {
 }
 
 /** The closed block that takes `pos` (its edges included), if any. */
-export function closedBlockAt(state: EditorState, pos: number): WriteBlock | null {
+function closedBlockAt(state: EditorState, pos: number): WriteBlock | null {
   for (const block of writeBlocksOf(state)) {
     if (block.from > pos) return null
     if (pos <= block.to) return blockLook(state, block) === 'open' ? null : block

@@ -57,7 +57,7 @@ const INSTRUCTIONS: Record<AiEditPreset, string> = {
     'Create a Mermaid diagram of what it describes. Reply with one fenced code block whose language is mermaid, and nothing else.',
 }
 
-export function aiEditAdds(ask: AiEditAsk): boolean {
+function aiEditAdds(ask: AiEditAsk): boolean {
   return 'preset' in ask && ADDS.has(ask.preset)
 }
 

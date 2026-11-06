@@ -7,7 +7,7 @@ export interface GlassPrefs {
 }
 
 // This device's own key in the webview's storage: never the Mac's window transparency, and never synced.
-export const TRANSPARENCY_KEY = 'devot.phone.glassTransparency'
+const TRANSPARENCY_KEY = 'devot.phone.glassTransparency'
 export const TRANSPARENCY_MAX = 100
 export const TRANSPARENCY_STEP = 5
 

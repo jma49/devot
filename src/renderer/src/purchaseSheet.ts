@@ -15,7 +15,7 @@ export const openPurchase = (): void => set(true)
 export const closePurchase = (): void => set(false)
 export const purchaseOpen = (): boolean => open
 
-export function subscribePurchase(listener: () => void): () => void {
+function subscribePurchase(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }

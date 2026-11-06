@@ -55,7 +55,7 @@ export function headline(markdown: string): string {
 }
 
 const EXCERPT_SCAN_CHARS = 2000
-export const LIST_EXCERPT_CHARS = 200
+const LIST_EXCERPT_CHARS = 200
 
 /**
  * The first line leads the excerpt only when it says more than the title: for a

@@ -29,7 +29,7 @@ import { ToolbarEnd } from './toolbar'
 
 /** Rust asks an open Settings window for a pane (Add Licence); re-sent in the page for the UI tests. */
 const PANE_EVENT = 'devot://settings-pane'
-export const SHOW_PANE = 'devot:settings-pane'
+const SHOW_PANE = 'devot:settings-pane'
 
 /** How many panes the toolbar's Back and Forward remember. */
 const HISTORY_LIMIT = 30

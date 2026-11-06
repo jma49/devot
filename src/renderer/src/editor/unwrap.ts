@@ -131,11 +131,7 @@ function sidewaysScroller(view: EditorView): HTMLElement {
   return getComputedStyle(content).overflowX === 'auto' ? content : view.scrollDOM
 }
 
-export function revealSideways(
-  view: EditorView,
-  caret: { left: number; right: number },
-  margin = 0,
-) {
+function revealSideways(view: EditorView, caret: { left: number; right: number }, margin = 0) {
   const scroller = sidewaysScroller(view)
   const box = scroller.getBoundingClientRect()
   if (caret.left < box.left + margin) scroller.scrollLeft -= box.left + margin - caret.left

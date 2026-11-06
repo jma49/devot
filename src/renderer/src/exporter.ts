@@ -25,7 +25,7 @@ import { dark, light, sizes } from './theme/tokens'
 
 export type BookExport = 'exportMarkdown' | 'exportHtml'
 
-export const panelKind = (target: ExportTarget): 'note' | 'notebook' =>
+const panelKind = (target: ExportTarget): 'note' | 'notebook' =>
   target.kind === 'note' ? 'note' : 'notebook'
 
 interface Begun {
@@ -34,7 +34,7 @@ interface Begun {
 }
 
 /** The page's styles: the design tokens (dark on dark screens; printing is always light), the preview's content rules and the page's own. */
-export function pageStyles(): string {
+function pageStyles(): string {
   const vars = (values: Readonly<Record<string, string>>, indent: string) =>
     Object.entries(values)
       .map(([key, value]) => `${indent}--${key.replaceAll('.', '-')}: ${value};`)
@@ -48,7 +48,7 @@ export function pageStyles(): string {
 }
 
 /** The printed header's and footer's look (src-tauri/src/page_setup.rs); sizes as points. */
-export function pageLook() {
+function pageLook() {
   const channels = (token: string) => {
     const { rgb, alpha } = parseColor(token)
     return { r: rgb[0] / 255, g: rgb[1] / 255, b: rgb[2] / 255, a: alpha }

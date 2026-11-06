@@ -53,7 +53,7 @@ const validRow = (row: AgentWriteRow) =>
   typeof row.created === 'boolean'
 
 /** E_NOTE_WRITES_INVALID unless note_put takes the rows (validate_agent_writes in Rust). */
-export function checkAgentWrites(rows: readonly AgentWriteRow[]): void {
+function checkAgentWrites(rows: readonly AgentWriteRow[]): void {
   if (rows.length > MAX_AGENT_WRITE_ROWS || !rows.every(validRow)) {
     throw new Error('E_NOTE_WRITES_INVALID')
   }

@@ -17,12 +17,12 @@ export const WRITES = 'writes'
 export const WRITER_KINDS = ['mcp', 'http', 'aiEdit'] as const
 export type WriterKind = (typeof WRITER_KINDS)[number]
 
-export const WRITE_FIELDS = ['title', 'notebook', 'tags', 'status', 'trash'] as const
+const WRITE_FIELDS = ['title', 'notebook', 'tags', 'status', 'trash'] as const
 export type WriteField = (typeof WRITE_FIELDS)[number]
 
 export const MAX_WRITER_NAME_CHARS = 100
 /** The deleted text a note keeps for Undo; beyond it the oldest writes' text is dropped. */
-export const MAX_REMOVED_BYTES = 1024 * 1024
+const MAX_REMOVED_BYTES = 1024 * 1024
 /** The most `agent_writes` rows a note sends to storage, the newest (note_put refuses more). */
 export const MAX_AGENT_WRITE_ROWS = 10_000
 

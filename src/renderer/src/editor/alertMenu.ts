@@ -16,9 +16,9 @@ export interface AlertMenuTarget {
 
 export type ShowAlertMenu = (view: EditorView, anchor: Element) => Promise<void>
 
-export const alertCommand = (kind: AlertKind): CommandId => `format.${alertFormat(kind)}`
+const alertCommand = (kind: AlertKind): CommandId => `format.${alertFormat(kind)}`
 
-export const ALERT_MENU: MenuGroups<AlertKind, AlertMenuTarget> = [
+const ALERT_MENU: MenuGroups<AlertKind, AlertMenuTarget> = [
   ALERT_KINDS.map((kind) =>
     commandEntry<AlertKind, AlertMenuTarget>(kind, alertCommand(kind), {
       label: `alert.${kind}`,

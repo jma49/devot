@@ -98,7 +98,7 @@ export interface MirrorResult {
   moved?: boolean
 }
 
-export function applyResult(manifest: MirrorManifest, op: MirrorOp, result: MirrorResult): void {
+function applyResult(manifest: MirrorManifest, op: MirrorOp, result: MirrorResult): void {
   switch (op.kind) {
     case 'keep':
     case 'forget':
@@ -265,7 +265,7 @@ export interface MirrorMemo {
   links: Map<string, string[]>
 }
 
-export const createMirrorMemo = (): MirrorMemo => ({
+const createMirrorMemo = (): MirrorMemo => ({
   stems: new Map(),
   sources: new Map(),
   links: new Map(),

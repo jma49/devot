@@ -6,11 +6,10 @@ const SEGMENTS = ':scope > .segment:not(.segment-thumb)'
 const THUMB = ':scope > .segment-thumb'
 const DRAG_START_PX = 3
 
-export const thumbTransform = (x: number, lift: number): string =>
-  `translateX(${x}px) scale(${lift})`
+const thumbTransform = (x: number, lift: number): string => `translateX(${x}px) scale(${lift})`
 
 /** The segment under `x`, from the left edges of the segments. */
-export function segmentAt(lefts: readonly number[], width: number, x: number): number {
+function segmentAt(lefts: readonly number[], width: number, x: number): number {
   const centre = x + width / 2
   let found = 0
   lefts.forEach((left, i) => {

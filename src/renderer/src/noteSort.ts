@@ -100,7 +100,7 @@ export function sortStore(storage: KeyValue | undefined) {
 const sameOrder = (a: ListOrder, b: ListOrder) =>
   a === b || (a !== 'relevance' && b !== 'relevance' && noteSortId(a) === noteSortId(b))
 
-export function currentSortStore() {
+function currentSortStore() {
   let storage: KeyValue | undefined
   try {
     storage = (globalThis as { localStorage?: KeyValue }).localStorage

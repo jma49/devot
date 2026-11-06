@@ -52,7 +52,7 @@ const THEMES = { light, dark } as const
  */
 export const SELECTION_CONTRAST = 1.3
 
-export const GRAPHIC_CONTRAST = 3
+const GRAPHIC_CONTRAST = 3
 
 export function ringSurfaces(appearance: Appearance): Rgb[] {
   const theme = THEMES[appearance]
@@ -72,7 +72,7 @@ export function ringAlpha(fill: Rgb, appearance: Appearance, from: number): numb
   return 1
 }
 
-export const INACTIVE_SELECTION_CONTRAST = 1.15
+const INACTIVE_SELECTION_CONTRAST = 1.15
 
 /**
  * The editor selection for an accent fill: the fill mixed into the editor
@@ -136,7 +136,7 @@ function textBackdrops(appearance: Appearance, selection: Rgb, fill: Rgb): Rgb[]
  * (white), as the editor selection, and as text on the surfaces and the
  * selection, each at AA.
  */
-export function readableAccent(
+function readableAccent(
   hex: string,
   appearance: Appearance,
 ): Record<(typeof ROLES)[number], string> {
@@ -176,7 +176,7 @@ export function applyAccent(info: AccentInfo, style: StyleTarget): void {
   }
 }
 
-export const ACCENT_EVENT = 'devot://accent-changed'
+const ACCENT_EVENT = 'devot://accent-changed'
 
 const OWN_PALETTE: AccentInfo = { multicolor: true, light: null, dark: null }
 

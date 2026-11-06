@@ -8,12 +8,7 @@ import { invoke } from './ipc'
 import { VAULT_MOVED } from '../../core/sync/transport'
 import { adoptSnapshot, type ICloudJoin, type SyncSnapshot } from './sync'
 
-export const ICLOUD_ACCOUNTS = [
-  'available',
-  'noAccount',
-  'restricted',
-  'temporarilyUnavailable',
-] as const
+const ICLOUD_ACCOUNTS = ['available', 'noAccount', 'restricted', 'temporarilyUnavailable'] as const
 export type ICloudAccount = (typeof ICLOUD_ACCOUNTS)[number]
 
 /** Rust's ICloudView: a build without the container is never `available`. */
@@ -22,7 +17,7 @@ export interface ICloudStatus {
   account: ICloudAccount | null
 }
 
-export const ICLOUD_NONE: ICloudStatus = { available: false, account: null }
+const ICLOUD_NONE: ICloudStatus = { available: false, account: null }
 
 export function readICloudStatus(value: unknown): ICloudStatus {
   if (typeof value !== 'object' || value === null) return ICLOUD_NONE
@@ -32,7 +27,7 @@ export function readICloudStatus(value: unknown): ICloudStatus {
 }
 
 /** Unavailable when Rust cannot say, so Settings stays the relay's as it was. */
-export const icloudStatus = (): Promise<ICloudStatus> =>
+const icloudStatus = (): Promise<ICloudStatus> =>
   invoke<unknown>('sync_icloud_status').then(readICloudStatus, () => ICLOUD_NONE)
 
 /** Asked again when the sync state changes: an account change reaches the windows that way. */
@@ -167,7 +162,7 @@ export function icloudAttention(snapshot: SyncSnapshot): ICloudAttention | undef
 export const BEFORE_JOINING = new Set<ICloudAttention['kind']>(['ask', 'fallback'])
 
 /** Marks Sync in the phone's Settings: the owner has something to do there. */
-export const NEEDS_OWNER = new Set<ICloudAttention['kind']>([
+const NEEDS_OWNER = new Set<ICloudAttention['kind']>([
   'signedOut',
   'restricted',
   'full',

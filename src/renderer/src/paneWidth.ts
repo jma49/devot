@@ -40,8 +40,8 @@ interface KeyValue {
   setItem(key: string, value: string): void
 }
 
-export const PANE_KEY_STEP = 10
-export const PANE_KEY_STEP_LARGE = 50
+const PANE_KEY_STEP = 10
+const PANE_KEY_STEP_LARGE = 50
 
 export function clampPaneWidth(pane: PaneSpec, width: number): number {
   if (!Number.isFinite(width)) return pane.default

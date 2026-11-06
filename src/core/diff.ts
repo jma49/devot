@@ -169,7 +169,7 @@ export interface TextSegment {
 const words = (text: string) => text.match(/\s+|[^\s]+/g) ?? []
 
 /** textEdits with each replacement split further by words, so a changed word shows (and comes back) on its own, not with the rest of its line. */
-export function wordEdits(from: string, to: string): TextEdit[] {
+function wordEdits(from: string, to: string): TextEdit[] {
   const out: TextEdit[] = []
   for (const edit of textEdits(from, to)) {
     let at = edit.start
