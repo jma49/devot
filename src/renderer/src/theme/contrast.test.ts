@@ -424,7 +424,7 @@ describe.each([
 
 describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme) => {
   const plain = ['phone.background', 'phone.card', 'phone.elevated'].map((s) => solid(theme, s))
-  // Status marks and destructive rows sit on the page and on sheet cards, never on a grouped page's card.
+  // Status marks sit on the page and on sheet cards, never on a grouped page's card.
   const marked = ['phone.background', 'phone.elevated'].map((s) => solid(theme, s))
   const raised = over(theme, 'phone.swipe-surface', solid(theme, 'phone.background'))
   const glassOver = plain.map((s) => over(theme, 'phone.glass', s))
@@ -456,7 +456,7 @@ describe.each(Object.entries(themes))('the %s theme on the phone', (_name, theme
         'section head': [solid(theme, 'phone.section-head'), [solid(theme, 'phone.background')]],
         destructive: [
           solid(theme, 'phone.destructive'),
-          [solid(theme, 'phone.elevated'), ...glassOver],
+          [solid(theme, 'phone.card'), solid(theme, 'phone.elevated'), ...glassOver],
         ],
         'a pane action row': [solid(theme, 'text.destructive'), [solid(theme, 'phone.card')]],
         'accent text': [solid(theme, 'accent.text'), [solid(theme, 'phone.background')]],
