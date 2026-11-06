@@ -6,6 +6,10 @@
 
 #[cfg(target_os = "ios")]
 mod icloud;
+/// Hides the bar above the keyboard by a runtime subclass of WebKit's content view; macOS compiles
+/// it for its tests only.
+#[cfg(any(target_os = "ios", test))]
+mod input_accessory;
 #[cfg(target_os = "ios")]
 mod keychain;
 #[cfg(target_os = "ios")]
@@ -27,6 +31,8 @@ pub(crate) mod synced_keychain;
 
 #[cfg(target_os = "ios")]
 pub(crate) use icloud::receive_icloud_notices;
+#[cfg(target_os = "ios")]
+pub use input_accessory::hide_input_accessory_bar;
 #[cfg(target_os = "ios")]
 pub use keychain::add_device_only_password;
 #[cfg(target_os = "ios")]

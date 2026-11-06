@@ -370,6 +370,8 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo clippy --lib --target aarch64-apple-ios-sim -- -D warnings
+      # The input bar's Objective-C runtime tests run only on an Apple host.
+      - run: cargo test --lib input_accessory
 
   # The StoreKit bridge (src-tauri/apple/DevotStore): its tests in a host app on an iPhone
   # simulator, as StoreKit Test needs, then the iPhone app built for the simulator, which is the
