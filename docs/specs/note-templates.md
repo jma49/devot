@@ -11,7 +11,7 @@ Part of the [Markdown dialect](markdown-dialect.md).
   A Devot from before templates shows it as a plain notebook; if it deletes it there, templates keep working (the note service accepts the ID even without a live row).
 - **Out of the library:** the note service's `list` and `search` leave templates out (`excludeTemplates` in `src/core/search.ts` adds one condition, or joins a notebook exclusion, so the longest query stays within the 12 conditions Rust accepts), and `book:Templates` names nothing.
   AI tools never count Templates as allowed, even with Allow AI Access set on its row by an older Devot, so AI tools list, find and read no template.
-  Backlinks (Note Info's linked-from list) leave templates out the same way (`findBacklinks`), so a template linking to a note never shows there.
+  Backlinks (Note Info's Backlinks section) leave templates out the same way (`findBacklinks`), so a template linking to a note never shows there.
   Counts, filters, the palette's notes and the `[[` popup follow from the note list.
   The Trash and the activity heatmap treat templates like any note.
 - **A note from a template** (`src/core/templates.ts`): Cmd+T anywhere in the window (the registry's `note.newFromTemplate`, also New Note from Template… in the command palette) opens a picker: a filter, the templates used last on this device first (local storage, at most five, never synced), then the rest by title, and a preview of the note the selected one would make now: its title, notebook, tags and status, and its Markdown as plain text.

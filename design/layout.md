@@ -119,6 +119,21 @@ A control or block in a note is filled or outlined, never both, and a dashed bor
 - **Add Tag:** the text "+ Tag" in tertiary with 8 padding. A dashed focus-ring outline shows only while it holds the keyboard.
 - **Code:** fill only. Blocks use `radius.list-row` (12), inline code `radius.inline-code` (5), in the preview and the editor. Edit mode's table box takes the same fill and `radius.list-row`.
 
+## Note info card
+
+- **Summary:** the last item of the pill row, after "+ Tag": tertiary text on a 26 pt capsule (`size.note-pill`, `size.note-pill-pad` sides) with no fill at rest, `color.fill.tool-hover` under the pointer and `color.fill.card` while its card is open.
+  It keeps its place while the counts load, so the row never shifts.
+- **Card:** a glass popover `size.note-info-width` (320) wide, `space.3` under the summary and kept `size.popover-margin` inside the window; `radius.glass-popover` (18), inset `size.glass-popover-inset` (6), on `color.surface.popover` with the glass rim and the popover shadow.
+- **Keylines:** from the card's edge, 6 for row highlights, 16 for icons and captions, 42 for labels and 116 for values.
+  A row is a grid of the 16 pt icon slot, the label column `size.note-info-label` (64) and the value, `space.5` apart, with `space.5` sides; a value that has no label (a backlink) starts on 42.
+- **Rows:** at least `size.note-info-row` (30) tall, highlighted in `radius.glass-menu-row` (12), concentric with the card.
+  Labels are secondary, values primary; a date being set shows in `color.accent.text`.
+- **Sections:** Properties and Backlinks open under a caption row `size.note-info-caption` (24) tall in the one caption style (11, semibold, tertiary), with the count beside the title and the disclosure chevron at the row's right end, shown under the pointer or the keyboard.
+- **Foot:** pinned under the scrolling sections, `space.2` below them with no rule: the Tasks meter (a `size.note-info-meter` (4) capsule in `color.fill.track`, filled `color.accent.fill`, then "1/4") and Words.
+- **Date picker:** a glass popover `size.date-picker-width` (276) wide that hangs from its date row (above it when the window has no room below), with the card's radius and inset.
+  A head row `size.date-picker-head` (32) has the month and three `size.date-picker-nav` (26) circles (previous, today, next); weekday captions are `size.date-picker-week` (22) tall; days are `size.date-picker-cell` (32) rows with a `size.date-picker-day` (30) circle, the selected day filled `color.accent.fill`, today in `color.accent.text`, days of the months around in tertiary and days ruled out at `opacity.disabled`.
+  The time row sits on `color.fill.card` in `radius.glass-menu-row`, and Cancel and Set share the foot, Set filled with the accent.
+
 ## Note type scale
 
 Tokens: `note.heading.glass.*`, `note.space.*`. Size / line height:
@@ -131,7 +146,7 @@ Tokens: `note.heading.glass.*`, `note.space.*`. Size / line height:
 | H3      | 16/22 semibold            | 20 above, 6 below   |
 | Body    | 14, line height 1.6       | paragraphs 12 apart |
 
-In the preview the body starts 22 under the pills (the note info card, when shown, comes first); the editor keeps 8. The user's font size is the base: the preview scales by its setting over 15, the editor's heading lines by theirs over 13. The title-to-pills and pills-to-body spacing stays fixed.
+In the preview the body starts 22 under the pills; the editor keeps 8. The user's font size is the base: the preview scales by its setting over 15, the editor's heading lines by theirs over 13. The title-to-pills and pills-to-body spacing stays fixed.
 
 ## Colour
 
