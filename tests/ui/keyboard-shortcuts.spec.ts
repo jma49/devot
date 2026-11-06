@@ -297,8 +297,8 @@ test('a shortcut changed in Settings works in the main window at once', async ({
   const body = page.getByRole('textbox', { name: 'Note body' })
   await body.click()
   await page.keyboard.insertText('alpha beta')
-  const rows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
-  await rows.first().click({ button: 'right' })
+  const noteRows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
+  await noteRows.first().click({ button: 'right' })
   await expect.poll(() => shownMenu(page)).toContain('Duplicate CmdOrCtrl+D')
   await page.locator('.cm-line').first().dblclick()
   const boldButton = page.getByRole('toolbar', { name: 'Format' }).getByRole('button', {
@@ -360,10 +360,10 @@ test('a shortcut changed in Settings works in the main window at once', async ({
     },
   })
 
-  await rows.first().click()
+  await noteRows.first().click()
   await page.keyboard.press('KeyJ')
-  await expect(rows).toHaveCount(2)
-  await rows.first().click({ button: 'right' })
+  await expect(noteRows).toHaveCount(2)
+  await noteRows.first().click({ button: 'right' })
   await expect.poll(() => shownMenu(page)).toContain('Duplicate J')
 
   const palette = page.getByRole('dialog', { name: 'Command Palette' })

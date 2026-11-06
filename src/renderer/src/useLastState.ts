@@ -119,6 +119,7 @@ export function useLastState({
   }, [saveNow])
   useEffect(
     () => saveNow(),
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each change of the state it saves is saved at once.
     [saveNow, restored, library, filter, selected, mode, workspace, layouts],
   )
   // So is the state when the page goes away or out of sight, and the

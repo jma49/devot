@@ -513,6 +513,7 @@ export function DevicesRow(props: {
     return () => {
       current = false
     }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A refresh or a Try Again lists the devices again.
   }, [refresh, retried, onAnnounce])
 
   // The Try Again button that had focus is gone: the list takes it.

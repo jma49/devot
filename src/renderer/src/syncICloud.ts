@@ -54,6 +54,7 @@ export function useICloudStatus(snapshot: SyncSnapshot): ICloudStatus {
     return () => {
       current = false
     }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each change of the sync state asks for the iCloud status again.
   }, [changed])
   return status
 }

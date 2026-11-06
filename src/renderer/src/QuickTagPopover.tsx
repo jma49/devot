@@ -52,6 +52,7 @@ export function QuickTag(props: {
   })
   useLayoutEffect(() => {
     if (panel.current) placePickerPanel(panel.current)
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Opening or closing the colour picker changes the panel's size, so it is placed again.
   }, [picking])
   useEffect(() => {
     if (!picking) field.current?.focus()

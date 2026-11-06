@@ -110,9 +110,9 @@ export function aiStorageOver(storage: StorageAdapter): AiStorage {
       for (const note of notes) {
         for (const id of note.tagIds) counts.set(id, (counts.get(id) ?? 0) + 1)
       }
-      return [...counts].flatMap(([id, notes]) => {
+      return [...counts].flatMap(([id, count]) => {
         const name = tags.get(id)
-        return name === undefined ? [] : [{ id, name, notes }]
+        return name === undefined ? [] : [{ id, name, notes: count }]
       })
     },
   }

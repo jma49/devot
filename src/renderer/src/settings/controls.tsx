@@ -90,6 +90,7 @@ export function Select(props: ComponentProps<'select'>) {
   // A select is as wide as its widest option; a phone row shows the chosen one's text at its own width, under the invisible native control.
   useLayoutEffect(() => {
     if (onPhone) setShown(select.current?.selectedOptions[0]?.text ?? '')
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A new value or new options change the chosen option's text.
   }, [onPhone, props.value, props.children])
   return (
     <span className="select">

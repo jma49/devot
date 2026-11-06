@@ -76,6 +76,9 @@ describe('release versions', () => {
     expect(() => withCargoVersion('[package]\nname = "x"\n[lib]\nversion = "1"', '1.0.0')).toThrow(
       'E_RELEASE_CARGO_VERSION_MISSING',
     )
+    expect(() => withCargoVersion('[lib]\nversion = "1"', '1.0.0')).toThrow(
+      'E_RELEASE_CARGO_VERSION_MISSING',
+    )
     const real = readFileSync(join(root, 'src-tauri/Cargo.toml'), 'utf8')
     expect(withCargoVersion(real, '0.3.0-beta.1')).toContain('\nversion = "0.3.0-beta.1"\n')
   })

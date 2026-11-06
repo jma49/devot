@@ -611,7 +611,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   try {
     db = new Database(path, { fileMustExist: !migrate })
   } catch (error) {
-    throw new Error(openFailureCode(error, path, migrate))
+    throw new Error(openFailureCode(error, path, migrate), { cause: error })
   }
   try {
     // The same pragmas as the Rust store: WAL lets the app and an outside writer
@@ -1169,7 +1169,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     async renameTag(tag, searches) {
       db.transaction(() => {
         putTag.run(tag)
-        for (const search of searches) putSavedSearch.run(search)
+        for (const saved of searches) putSavedSearch.run(saved)
       })()
     },
     listSavedSearches: async () => savedSearches.all().map(toSavedSearch),

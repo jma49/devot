@@ -1575,8 +1575,8 @@ export function createNoteService(options: NoteServiceOptions): NoteService {
         schedule(note)
       }),
 
-    async writeMeta(id, change, options) {
-      if ('bookId' in change && !options?.bookChecked) await requireBook(change.bookId)
+    async writeMeta(id, change, writeOptions) {
+      if ('bookId' in change && !writeOptions?.bookChecked) await requireBook(change.bookId)
       if ('status' in change && !NOTE_STATUSES.includes(change.status)) {
         throw new Error('E_NOTE_STATUS_INVALID')
       }

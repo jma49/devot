@@ -327,6 +327,19 @@ interface FocusReturn {
   element: HTMLElement | null
 }
 
+/** A trashed note as a list row; rows that did not change keep their objects (keepUnchanged). */
+const trashRow = (n: TrashedNote): NoteSummary => ({
+  id: n.id,
+  title: n.title,
+  createdAt: n.deletedAt,
+  updatedAt: n.deletedAt,
+  bodyVersion: 0,
+  bookId: n.bookId,
+  status: 'none',
+  pinned: false,
+  tagIds: [],
+})
+
 export function App() {
   // The last state restores view, filter and mode at once, the open note once the lists load (lastState.ts).
   const lastStateStore = useMemo(() => currentLastStateStore(), [])
@@ -396,6 +409,7 @@ export function App() {
     lastState?.view.kind === 'templates' ? null : (lastState?.filter ?? null),
   )
   const [trash, setTrash] = useState<TrashedNote[]>([])
+  const [trashRows, setTrashRows] = useState<NoteSummary[]>([])
   const [templates, setTemplates] = useState<NoteSummary[]>([])
   const [builtIn, setBuiltIn] = useState<string>()
   // Template picker: recent ones are read on open; with `into`, the pick fills that empty note instead of making a new one.
@@ -476,7 +490,7 @@ export function App() {
   useLayoutEffect(() => {
     document.querySelector('.window > .sidebar')?.toggleAttribute('inert', focus || sidebarOff)
     document.querySelector('.window > .list')?.toggleAttribute('inert', focus)
-    // A start that failed is replaced by a fresh window (Try Again): its panes are new.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A start that failed is replaced by a fresh window (Try Again): its panes are new.
   }, [focus, sidebarOff, startFailure])
   // Notes opened, for Back and Forward. The ref moves at once so quick presses each step on; the state renders it.
   const trailRef = useRef<Trail>(EMPTY_TRAIL)
@@ -631,6 +645,7 @@ export function App() {
       panes.removeAttribute('data-editor-scrolled')
       panes.removeAttribute('data-preview-scrolled')
     }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Another note starts at the top, so the scroll edges are read again.
   }, [editorPane, previewPane, mode, selected])
   // Coming from Preview, the place being read leads; otherwise the editor does.
   const modeBefore = useRef(mode)
@@ -676,6 +691,7 @@ export function App() {
       ])
       const nextNotes = listed.notes
       setTrash(nextTrash)
+      setTrashRows((prev) => keepUnchanged(prev, nextTrash.map(trashRow)))
       // Notes that did not change keep their objects (and their rows their render).
       setTemplates((prev) => keepUnchanged(prev, listed.templates))
       setNotes((prev) => keepUnchanged(prev, nextNotes))
@@ -775,27 +791,6 @@ export function App() {
       : undefined
   const inTrash = library.kind === 'trash'
   const inTemplates = library.kind === 'templates'
-  const keptTrashRows = useRef<NoteSummary[]>([])
-  // oxlint-disable react/refs -- Trash rows that did not change keep their objects across renders (keepUnchanged).
-  const trashRows = useMemo(
-    () =>
-      (keptTrashRows.current = keepUnchanged(
-        keptTrashRows.current,
-        trash.map((n): NoteSummary => ({
-          id: n.id,
-          title: n.title,
-          createdAt: n.deletedAt,
-          updatedAt: n.deletedAt,
-          bodyVersion: 0,
-          bookId: n.bookId,
-          status: 'none',
-          pinned: false,
-          tagIds: [],
-        })),
-      )),
-    [trash],
-  )
-  // oxlint-enable react/refs
   const agentWrites = useAgentWrites(core, authorship)
   // In a workspace the Agents section counts only its notes, and choosing an agent lists only those.
   const workspaceNoteIds = useMemo(
@@ -1184,7 +1179,7 @@ export function App() {
   // Help > Rebuild Search Index and the palette command. The notes stay usable
   // meanwhile; their reads and saves wait for the one statement. Rust refuses
   // a second rebuild while one runs, but the window does not ask.
-  const rebuildIndex = useCallback(async () => {
+  const rebuildIndex = useStable(async () => {
     if (!core || indexRunning.current) return
     indexRunning.current = true
     try {
@@ -1192,13 +1187,9 @@ export function App() {
     } finally {
       indexRunning.current = false
     }
-  }, [core, refresh])
-  const rebuildIndexRef = useRef(rebuildIndex)
+  })
   useEffect(() => {
-    rebuildIndexRef.current = rebuildIndex
-  }, [rebuildIndex])
-  useEffect(() => {
-    const run = () => void rebuildIndexRef.current()
+    const run = () => void rebuildIndex()
     window.addEventListener(REBUILD_SEARCH_INDEX, run)
     const unlisten = DEVOT_UI_TEST
       ? undefined
@@ -1211,7 +1202,7 @@ export function App() {
       window.removeEventListener(REBUILD_SEARCH_INDEX, run)
       unlisten?.()
     }
-  }, [])
+  }, [rebuildIndex])
   useEffect(() => {
     if (indexState?.phase !== 'done') return
     const timer = setTimeout(() => setIndexState(undefined), 5000)
@@ -2231,9 +2222,9 @@ export function App() {
     runExport('export', (exporter) => exporter.runSelectionExport(core!, action, ids))
   const exportAll = (action: 'exportMarkdown' | 'exportHtml') =>
     runExport('export', (exporter) => exporter.runAllExport(core!, action))
-  useMenuEvent('devot://export-all', EXPORT_ALL, (format) => {
-    if (format === 'markdown') void exportAll('exportMarkdown')
-    else if (format === 'html') void exportAll('exportHtml')
+  useMenuEvent('devot://export-all', EXPORT_ALL, (kind) => {
+    if (kind === 'markdown') void exportAll('exportMarkdown')
+    else if (kind === 'html') void exportAll('exportHtml')
   })
   const noteActions = useNoteActions({
     headlines: loadHeadlines,
@@ -2464,6 +2455,7 @@ export function App() {
     modeKeyboard.current = undefined
     if (to === 'editor') editorRef.current?.focus()
     else if (to === 'preview') document.querySelector<HTMLElement>('main .preview')?.focus()
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- The pane asked for takes the keyboard once the mode has changed.
   }, [mode])
   const [modeSeen, setModeSeen] = useState(mode)
   const modeChange = useRef<{ from: Mode; before: ModeBoxes } | null>(null)

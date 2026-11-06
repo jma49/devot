@@ -642,14 +642,14 @@ const ACCESS: McpAccessMock = {
 
 async function openAiTools(page: Page, access: McpAccessMock, mode: string) {
   await page.addInitScript(
-    ({ setup, access, mode }) => {
+    ({ setup, access: granted, mode: background }) => {
       const w = globalThis as unknown as TestWindow
       w.devotIpcMocks = {
         settings_mcp_setup: setup,
         settings_ai_access_summary: { notebooks: 3, allowed: 1 },
-        mcp_access_get: access,
-        background_state: { mode },
-        mcp_access_set: (args: unknown) => ({ ...access, ...(args as object) }),
+        mcp_access_get: granted,
+        background_state: { mode: background },
+        mcp_access_set: (args: unknown) => ({ ...granted, ...(args as object) }),
         background_quit: null,
       }
     },
@@ -662,16 +662,16 @@ async function openAiTools(page: Page, access: McpAccessMock, mode: string) {
 test('AI Tools says plainly, before any Connect, that Devot may start in the background', async ({
   page,
 }) => {
-  const section = await openAiTools(page, ACCESS, 'normal')
-  const start = section.getByRole('switch', { name: 'Start in the Background' })
+  const aiTools = await openAiTools(page, ACCESS, 'normal')
+  const start = aiTools.getByRole('switch', { name: 'Start in the Background' })
   await expect(start).toBeChecked()
   await expect(start).toHaveAccessibleDescription(
     'When an AI tool asks and Devot is closed, Devot opens without a window. Quit it from the menu bar at any time.',
   )
-  await expect(section.locator('.settings-footnote')).toHaveText(
+  await expect(aiTools.locator('.settings-footnote')).toHaveText(
     'A Devot started in the background quits by itself after 10 minutes without a request. With Start in the Background off, AI tools get an error until you open Devot.',
   )
-  const rows = section.locator('.setting-label')
+  const rows = aiTools.locator('.setting-label')
   await expect(rows).toHaveText([
     'Allow AI Tools',
     'Notebooks',
@@ -679,10 +679,10 @@ test('AI Tools says plainly, before any Connect, that Devot may start in the bac
     'Start in the Background',
     'Status',
   ])
-  await expect(section).toContainText('1 of 3 notebooks allow AI access.')
-  await expect(section).toContainText('Open as usual.')
-  await expect(section.getByRole('button', { name: 'Quit Devot' })).toHaveCount(0)
-  const before = await section.boundingBox()
+  await expect(aiTools).toContainText('1 of 3 notebooks allow AI access.')
+  await expect(aiTools).toContainText('Open as usual.')
+  await expect(aiTools.getByRole('button', { name: 'Quit Devot' })).toHaveCount(0)
+  const before = await aiTools.boundingBox()
   const client = await page.getByRole('region', { name: 'Clients' }).boundingBox()
   expect(before!.y).toBeLessThan(client!.y)
 })
@@ -693,9 +693,9 @@ test('Notebooks in AI Tools opens the notebook picker in the main window', async
     w.devotIpcMocks = { main_window_show: null }
   })
   await openSettings(page, 'Integrations')
-  const section = page.getByRole('region', { name: 'AI Tools' })
-  await expect(section).toContainText('1 of 1 notebooks allow AI access.')
-  await section.getByRole('button', { name: 'Choose\u2026' }).click()
+  const aiTools = page.getByRole('region', { name: 'AI Tools' })
+  await expect(aiTools).toContainText('1 of 1 notebooks allow AI access.')
+  await aiTools.getByRole('button', { name: 'Choose\u2026' }).click()
   expect(await calls(page, 'main_window_show')).toEqual([{ cmd: 'main_window_show', args: {} }])
   expect(await page.evaluate(() => localStorage.getItem('devot:choose-ai-access'))).toBe('1')
 })
@@ -703,25 +703,25 @@ test('Notebooks in AI Tools opens the notebook picker in the main window', async
 test('AI Tools shows when Devot runs in the background, and Quit Devot asks Rust to quit', async ({
   page,
 }) => {
-  const section = await openAiTools(page, ACCESS, 'background')
-  await expect(section).toContainText('Running in the background for AI tools.')
-  await section.getByRole('button', { name: 'Quit Devot' }).click()
+  const aiTools = await openAiTools(page, ACCESS, 'background')
+  await expect(aiTools).toContainText('Running in the background for AI tools.')
+  await aiTools.getByRole('button', { name: 'Quit Devot' }).click()
   expect(await calls(page, 'background_quit')).toEqual([{ cmd: 'background_quit', args: {} }])
-  await expect(section.getByRole('alert')).toHaveCount(0)
+  await expect(aiTools.getByRole('alert')).toHaveCount(0)
 })
 
 test('AI Tools turns background starts off and chooses read-only, keeping the other choices', async ({
   page,
 }) => {
-  const section = await openAiTools(page, ACCESS, 'normal')
-  await section.getByRole('switch', { name: 'Start in the Background' }).click()
+  const aiTools = await openAiTools(page, ACCESS, 'normal')
+  await aiTools.getByRole('switch', { name: 'Start in the Background' }).click()
   await expect.poll(() => calls(page, 'mcp_access_set')).toHaveLength(1)
   expect((await calls(page, 'mcp_access_set'))[0]!.args).toEqual({
     enabled: true,
     scope: 'readWrite',
     backgroundStart: false,
   })
-  await section.getByRole('combobox', { name: 'Access' }).selectOption('read')
+  await aiTools.getByRole('combobox', { name: 'Access' }).selectOption('read')
   await expect.poll(() => calls(page, 'mcp_access_set')).toHaveLength(2)
   expect((await calls(page, 'mcp_access_set'))[1]!.args).toEqual({
     enabled: true,
@@ -731,24 +731,24 @@ test('AI Tools turns background starts off and chooses read-only, keeping the ot
 })
 
 test('AI Tools says why tools cannot reach Devot, with the code', async ({ page }) => {
-  const section = await openAiTools(
+  const aiTools = await openAiTools(
     page,
     { ...ACCESS, reachable: false, problem: 'E_HTTP_API_PORT_IN_USE' },
     'normal',
   )
-  await expect(section.getByRole('alert')).toHaveText(
+  await expect(aiTools.getByRole('alert')).toHaveText(
     'AI tools cannot reach Devot now (E_HTTP_API_PORT_IN_USE).',
   )
 })
 
 test('A keychain that waits is said calmly, with what to do and the code', async ({ page }) => {
-  const section = await openAiTools(
+  const aiTools = await openAiTools(
     page,
     { ...ACCESS, reachable: false, problem: 'E_MCP_KEYCHAIN_WAITING' },
     'normal',
   )
-  await expect(section.getByRole('alert')).toHaveCount(0)
-  await expect(section.getByRole('status')).toHaveText(
+  await expect(aiTools.getByRole('alert')).toHaveCount(0)
+  await expect(aiTools.getByRole('status')).toHaveText(
     'macOS is asking whether Devot may use its keychain item. Choose Allow in that dialog, and AI tools can reach Devot (E_MCP_KEYCHAIN_WAITING).',
   )
 })
@@ -763,13 +763,13 @@ test('A failure to quit or to save says so with its code', async ({ page }) => {
     }
   })
   await openSettings(page, 'Integrations')
-  const section = page.getByRole('region', { name: 'AI Tools' })
-  await section.getByRole('switch', { name: 'Allow AI Tools' }).click()
-  await expect(section.getByRole('alert')).toHaveText(
+  const aiTools = page.getByRole('region', { name: 'AI Tools' })
+  await aiTools.getByRole('switch', { name: 'Allow AI Tools' }).click()
+  await expect(aiTools.getByRole('alert')).toHaveText(
     'The AI Tools settings could not be changed (E_MCP_ACCESS_WRITE_FAILED).',
   )
-  await section.getByRole('button', { name: 'Quit Devot' }).click()
-  await expect(section.getByRole('alert')).toHaveText('Devot could not quit (E_BACKGROUND_WINDOW).')
+  await aiTools.getByRole('button', { name: 'Quit Devot' }).click()
+  await expect(aiTools.getByRole('alert')).toHaveText('Devot could not quit (E_BACKGROUND_WINDOW).')
 })
 
 test('General installs and removes the devot command, showing whether it is there', async ({
@@ -1341,10 +1341,10 @@ test('cards end on one right edge whether or not the pane scrolls', async ({ pag
     })
   }
   const general = await edges('General')
-  const preview = await edges('Preview')
-  expect([general.scrolls, preview.scrolls]).toEqual([true, false])
+  const previewPane = await edges('Preview')
+  expect([general.scrolls, previewPane.scrolls]).toEqual([true, false])
   const right = general.rights[0]!
-  for (const edge of [...general.rights, ...preview.rights]) expect(edge).toBeCloseTo(right, 1)
+  for (const edge of [...general.rights, ...previewPane.rights]) expect(edge).toBeCloseTo(right, 1)
 })
 
 test('the selected pane turns a lighter grey, not a colour, while the window is behind another', async ({

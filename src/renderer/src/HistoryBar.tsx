@@ -140,6 +140,7 @@ function HistoryOverlay(props: {
 
   useEffect(() => {
     root.current?.querySelector('del, ins')?.scrollIntoView({ block: 'nearest' })
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each version shown scrolls its first change into view.
   }, [props.past.id])
 
   // The panes under the overlay take no keys or clicks, so typing cannot reach a note the reader cannot see. Run after every
@@ -258,6 +259,7 @@ export function useHistoryBar(props: {
     return () => {
       current = false
     }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- An edit of the note or a reload reads its history again.
   }, [core, noteId, enabled, props.updatedAt, reload])
 
   const list = steps && steps.noteId === noteId ? steps.steps : []

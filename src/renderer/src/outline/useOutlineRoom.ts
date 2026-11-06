@@ -28,6 +28,7 @@ export function useOutlineRoom(
     const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => observer.disconnect()
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Another note may bring other panes, so they are observed again.
   }, [panes, mode, note])
   return fits
 }

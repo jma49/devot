@@ -89,6 +89,7 @@ export function useRelayUsage(active: boolean, again: string): UsageReading | nu
     return () => {
       current = false
     }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each new `again` reads the usage again.
   }, [active, again])
   return active ? reading : null
 }

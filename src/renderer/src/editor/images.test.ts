@@ -112,7 +112,8 @@ describe('inline image previews', () => {
   it('shows under each line the images a whole scan finds, through edits that change what reads as an image', () => {
     const shown = (st: EditorState) => {
       const at: number[] = []
-      for (let it = st.field(inlineImageField).iter(); it.value; it.next()) at.push(it.from)
+      for (let cursor = st.field(inlineImageField).iter(); cursor.value; cursor.next())
+        at.push(cursor.from)
       return at
     }
     let s = state(

@@ -123,7 +123,8 @@ export const feedChannels = (version: string): Channel[] =>
 export function withCargoVersion(toml: string, version: string): string {
   const lines = toml.split('\n')
   const start = lines.indexOf('[package]')
-  for (let i = start + 1; start >= 0 && i < lines.length; i++) {
+  if (start < 0) throw new Error('E_RELEASE_CARGO_VERSION_MISSING')
+  for (let i = start + 1; i < lines.length; i++) {
     if (lines[i]!.startsWith('[')) break
     if (/^version\s*=/.test(lines[i]!)) {
       lines[i] = `version = "${version}"`

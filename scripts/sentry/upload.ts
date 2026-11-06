@@ -61,11 +61,11 @@ function builtAt(release: string): number {
   const dsym = join(release, 'devot.dSYM')
   if (!existsSync(dsym)) return -1
   const dwarf = join(dsym, 'Contents/Resources/DWARF')
-  const files = [
+  const built = [
     join(release, 'devot'),
     ...(existsSync(dwarf) ? readdirSync(dwarf).map((name) => join(dwarf, name)) : []),
   ]
-  return Math.max(0, ...files.filter((f) => existsSync(f)).map((f) => statSync(f).mtimeMs))
+  return Math.max(0, ...built.filter((f) => existsSync(f)).map((f) => statSync(f).mtimeMs))
 }
 
 /**

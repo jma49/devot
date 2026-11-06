@@ -123,6 +123,7 @@ export function useCoreStart(
     relay,
     lists,
     primary,
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Try Again starts the library again.
     startAttempt,
     adopt,
     setStartFailure,

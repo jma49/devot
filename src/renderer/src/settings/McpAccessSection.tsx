@@ -75,6 +75,7 @@ export function McpAccessSection(props: {
       live = false
       window.removeEventListener('focus', load)
     }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A change of `changed` reads the access again.
   }, [changed, onChange])
 
   /** Saves one after another, each sending every choice as it stands then. */

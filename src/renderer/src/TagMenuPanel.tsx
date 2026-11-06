@@ -80,6 +80,7 @@ export function TagMenu(props: {
     const box = el.getBoundingClientRect()
     el.style.left = `${Math.max(margin, Math.min(props.at.x, innerWidth - box.width - margin))}px`
     el.style.top = `${Math.max(margin, Math.min(props.at.y, innerHeight - box.height - margin))}px`
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Opening or closing the colour picker changes the panel's size, so it is placed again.
   }, [props.at, picking])
 
   useEffect(() => {
