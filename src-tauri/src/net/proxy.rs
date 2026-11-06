@@ -7,7 +7,10 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 
 // Only the macOS reader builds these; elsewhere `system()` answers no settings.
-#[cfg_attr(not(any(target_os = "macos", test)), allow(dead_code))]
+#[cfg_attr(
+    not(any(target_os = "macos", test)),
+    expect(dead_code, reason = "only macOS and tests use it")
+)]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Value {
     Number(i64),

@@ -2114,7 +2114,10 @@ impl SyncService {
     }
 
     /// A silent push said a watched zone changed: the engine pulls, as for a relay's `changed`.
-    #[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
+    #[cfg_attr(
+        all(not(test), not(any(target_os = "macos", target_os = "ios"))),
+        expect(dead_code, reason = "only macOS, iOS and tests use it")
+    )]
     pub(crate) fn icloud_changed(&self) {
         if matches!(self.live(), Ok(LiveRef::ICloud(_))) {
             (self.emit)(SOCKET_EVENT, json!({ "type": "changed", "cursor": "" }));
@@ -2130,7 +2133,10 @@ impl SyncService {
     }
 
     /// `CKAccountChanged`: the engine of a vault on iCloud looks at the account again.
-    #[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
+    #[cfg_attr(
+        all(not(test), not(any(target_os = "macos", target_os = "ios"))),
+        expect(dead_code, reason = "only macOS, iOS and tests use it")
+    )]
     pub(crate) fn icloud_account_changed(&self) {
         let settings = self.settings.get();
         let on_icloud = Vault::load(self.secrets.as_ref())

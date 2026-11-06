@@ -58,9 +58,15 @@ const MCP_ACCOUNT: &str = "mcp-bridge-token";
 
 /// A generic password under the app's identifier as service, so a debug build keeps its own.
 pub struct Keychain {
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    #[cfg_attr(
+        all(not(test), not(target_os = "macos")),
+        expect(dead_code, reason = "only macOS and tests use it")
+    )]
     service: String,
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    #[cfg_attr(
+        all(not(test), not(target_os = "macos")),
+        expect(dead_code, reason = "only macOS and tests use it")
+    )]
     account: &'static str,
 }
 

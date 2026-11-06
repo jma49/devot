@@ -86,7 +86,7 @@ impl<T> Pending<T> {
         Ok((self.register(Reply::Blocking(reply))?, answer))
     }
 
-    #[cfg_attr(mobile, allow(dead_code))]
+    #[cfg(desktop)]
     pub fn wait_async(&self) -> Result<(u64, oneshot::Receiver<T>), Refused> {
         let (reply, answer) = oneshot::channel();
         Ok((self.register(Reply::Async(reply))?, answer))
@@ -119,7 +119,7 @@ impl<T> Pending<T> {
     }
 
     /// Whether any request is waiting; true when that cannot be told.
-    #[cfg_attr(mobile, allow(dead_code))]
+    #[cfg(desktop)]
     pub fn busy(&self) -> bool {
         !crate::locks::lock(&self.waiting).is_empty()
     }

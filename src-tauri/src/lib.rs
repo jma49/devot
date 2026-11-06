@@ -1,5 +1,10 @@
-// Desktop-only commands leave their helpers unused on a phone.
-#![cfg_attr(mobile, allow(dead_code))]
+#![cfg_attr(
+    mobile,
+    expect(
+        dead_code,
+        reason = "desktop-only commands leave their helpers unused on a phone"
+    )
+)]
 
 mod ai;
 mod app_store;

@@ -27,7 +27,7 @@ impl StartupError {
 /// An advisory lock (`flock`) on the folder itself: no file is written, and the system lets go when
 /// the process ends however it ends, so a crash never leaves the folder held.
 #[derive(Debug)]
-pub struct FolderLock(#[allow(dead_code)] File);
+pub struct FolderLock(#[expect(dead_code, reason = "held for its lock, never read")] File);
 
 /// A folder that cannot be locked at all (a file system without locks) is logged and used without
 /// the lock, rather than keeping Devot from starting; then `None`.

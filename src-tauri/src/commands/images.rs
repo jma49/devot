@@ -77,7 +77,7 @@ async fn attachment(db: &Db, id: String) -> Result<FileRecord, String> {
 }
 
 /// Most pixels Copy Image takes: the pasteboard gets the image decoded (TIFF, four bytes a pixel) and decoding takes a few copies more, so a few-MB file could ask for gigabytes. Save Image As takes any size.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg(target_os = "macos")]
 pub const MAX_COPY_PIXELS: u64 = 100_000_000;
 
 #[tauri::command]
