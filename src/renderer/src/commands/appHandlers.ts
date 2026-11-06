@@ -27,6 +27,7 @@ import {
   type NoteMenuAction,
   type TrashAction,
 } from '../noteMenu'
+import { requestNoteInfo } from '../noteInfo/command'
 import type { PaletteSource } from '../palette/results'
 import { stepSidebarRow, type Selection } from '../Sidebar'
 import { STATUS_COMMANDS } from '../statusKeys'
@@ -283,6 +284,10 @@ export function appHandlers(at: AppCommandState, act: AppCommandActions): Comman
     handlers['note.quickTag'] = { run: () => act.quickTag(openNote.id) }
   }
   if (openNote) addNoteHandlers(handlers, openNote, at, act)
+  const trashedOne = at.inTrash && at.selected !== undefined && !at.multiIds
+  if ((openNote && !at.selectedIsTemplate) || trashedOne) {
+    handlers['view.noteInfo'] = { run: requestNoteInfo }
+  }
   // Find works while a note is open; its keys run ahead of the editor's (useFind).
   Object.assign(handlers, at.findCommands)
   if (handlers['note.move']) handlers['note.moveAnywhere'] = handlers['note.move']

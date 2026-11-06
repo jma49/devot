@@ -1,228 +1,374 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { NoteSummary, TaskProgress } from '../../../core'
-import { errorCode } from '../../../core/errors'
-import type { Core } from '../core-client'
-import { displayTitles } from '../headlines'
-import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import type { NoteFacts } from '../../../core/noteFacts'
+import type { PropertyRow } from '../../../core/preview/frontMatterView'
+import { closingRef } from '../closing'
+import { exactDate, formatNumber, fullDate, taskCount } from '../format'
+import { currentLocale, format, t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
-import { expand } from '../resizeMotion'
+import { frontMatterChange, type FrontMatterChange } from '../preview/frontMatterApply'
+import { tagColorClass, tagColorStyle } from '../tagColorStyle'
+import { DatePicker, type DateOutcome } from './DatePicker'
+import type { DateField } from './calendar'
 import {
-  backlinksOpen,
-  dateInputValue,
   datesEdit,
-  infoFields,
-  parseDateInput,
-  setBacklinksOpen,
-  type InfoField,
+  sectionOpen,
+  setSectionOpen,
+  type InfoSection,
   type NoteInfoData,
 } from './infoCard'
-
-function Field(props: { icon: IconName; label: string; children: ReactNode }) {
-  return (
-    <div className="note-info-field">
-      <span className="note-info-icon">
-        <Icon name={props.icon} size="lg" />
-      </span>
-      <span className="note-info-caption">
-        <span className="note-info-label">{props.label}</span>
-        <span className="note-info-value">{props.children}</span>
-      </span>
-    </div>
-  )
-}
 
 export type SetNoteDates = (
   noteId: string,
   dates: { createdAt?: number; updatedAt?: number },
 ) => Promise<void>
 
-export type DateOutcome = 'saved' | 'refused' | 'failed'
-
-/**
- * A date of the card. With `onSet` a click opens a date-time field: Return
- * saves it, Escape (or leaving the field) puts the date back. A date that is
- * not saved keeps the field open and says why.
- */
-export function DateValue(props: {
-  field: InfoField
-  at: number
-  onSet?: ((at: number) => Promise<DateOutcome>) | undefined
-}) {
-  const { field, at, onSet } = props
-  const [editing, setEditing] = useState(false)
-  const [problem, setProblem] = useState<MessageKey>()
-  const input = useRef<HTMLInputElement>(null)
-  const button = useRef<HTMLButtonElement>(null)
-  const returnToButton = useRef(false)
-  useEffect(() => {
-    if (editing) input.current?.focus()
-    else if (returnToButton.current) button.current?.focus()
-    returnToButton.current = false
-  }, [editing])
-  const leave = () => {
-    returnToButton.current = true
-    setEditing(false)
-  }
-  const time = (
-    <time data-info={field.key} dateTime={field.dateTime} title={onSet ? undefined : field.exact}>
-      {field.value}
-    </time>
-  )
-  if (!onSet) return time
-  if (!editing) {
-    return (
-      <button
-        ref={button}
-        type="button"
-        className="note-info-date"
-        title={field.exact}
-        aria-label={format(t('noteInfo.editDateNamed'), {
-          field: field.label,
-          date: field.value,
-        })}
-        onClick={() => setEditing(true)}
-      >
-        {time}
-      </button>
-    )
-  }
-  const problemId = `note-info-${field.key}-problem`
-  return (
-    <span className="note-info-date-edit">
-      <input
-        ref={input}
-        type="datetime-local"
-        step={1}
-        className="note-info-date-input"
-        aria-label={field.label}
-        aria-invalid={problem ? true : undefined}
-        aria-describedby={problem ? problemId : undefined}
-        data-info-edit={field.key}
-        defaultValue={dateInputValue(at)}
-        onBlur={() => setEditing(false)}
-        onChange={() => setProblem(undefined)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            event.preventDefault()
-            event.stopPropagation()
-            leave()
-          } else if (event.key === 'Enter') {
-            event.preventDefault()
-            event.stopPropagation()
-            const next = parseDateInput(event.currentTarget.value)
-            if (next === null) return setProblem('noteInfo.dateIncomplete')
-            void onSet(next).then((outcome) => {
-              if (outcome === 'saved') leave()
-              else if (outcome === 'failed') setProblem('noteInfo.dateFailed')
-              else
-                setProblem(
-                  field.key === 'created' ? 'noteInfo.createdTooLate' : 'noteInfo.updatedTooEarly',
-                )
-            })
-          }
-        }}
-      />
-      {problem ? (
-        <span id={problemId} className="note-info-date-problem" role="alert">
-          {t(problem)}
-        </span>
-      ) : null}
-    </span>
-  )
-}
-
-interface Backlink {
+export interface Backlink {
   id: string
   name: string
 }
 
-export function NoteInfo(props: {
-  core: Core
+const cardRef = closingRef('scale', 'note-info-card')
+
+const shownPicker = (card: HTMLElement | null) =>
+  card?.querySelector<HTMLElement>(':scope > .date-picker:not([data-closing])') ?? null
+
+function Row(props: {
+  icon?: IconName | undefined
+  label: ReactNode
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={`note-info-row${props.className ? ` ${props.className}` : ''}`}>
+      <span className="note-info-icon">
+        {props.icon ? <Icon name={props.icon} size="sm" /> : null}
+      </span>
+      <span className="note-info-label">{props.label}</span>
+      <span className="note-info-value">{props.children}</span>
+    </div>
+  )
+}
+
+function Section(props: {
+  section: InfoSection
+  title: string
+  count: number
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(() => sectionOpen(props.section))
+  const id = `note-info-${props.section}`
+  return (
+    <section className="note-info-section" data-open={open || undefined}>
+      <button
+        type="button"
+        className="note-info-caption"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => {
+          setOpen(!open)
+          setSectionOpen(props.section, !open)
+        }}
+      >
+        <span>{props.title}</span>
+        <span className="note-info-count">{formatNumber(props.count, currentLocale())}</span>
+        <Icon name="disclosure.open" size="xs" className="note-info-chevron" />
+      </button>
+      {open ? (
+        <div id={id} className="note-info-fold">
+          {props.children}
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+function PropertyValue(props: {
+  row: PropertyRow
+  onApply?: ((change: FrontMatterChange) => void) | undefined
+}) {
+  const { value, difference } = props.row
+  const names = {
+    title: t('preview.applyTitle'),
+    status: t('preview.applyStatus'),
+    tags: t('preview.applyTags'),
+  }
+  return (
+    <>
+      {value.kind === 'chips'
+        ? value.chips.map((chip, i) => (
+            <span
+              key={i}
+              className={
+                chip.color
+                  ? `frontmatter-chip tag-chip ${tagColorClass(chip.color)}`
+                  : 'frontmatter-chip'
+              }
+              style={tagColorStyle(chip.color)}
+            >
+              {chip.name}
+            </span>
+          ))
+        : value.text}
+      {difference ? (
+        <span className="frontmatter-note">
+          <span className="frontmatter-badge" title={difference.badge}>
+            {difference.badge}
+          </span>
+          {difference.value !== null && props.onApply ? (
+            <button
+              type="button"
+              className="frontmatter-apply"
+              aria-label={names[difference.field]}
+              onClick={() => {
+                const change = frontMatterChange(difference.field, difference.value)
+                if (change) props.onApply?.(change)
+              }}
+            >
+              {t('preview.frontMatterApply')}
+            </button>
+          ) : null}
+        </span>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * The open note's Note Info: when it was created and updated (set from a date picker), its
+ * front matter, the notes that link to it, and its tasks and words. Escape closes it.
+ */
+export function NoteInfoCard(props: {
   info: NoteInfoData
-  tasks: TaskProgress
+  facts: NoteFacts | undefined
+  backlinks: readonly Backlink[] | undefined
   onOpenNote: (id: string) => void
   onSetDates?: SetNoteDates | undefined
+  onApplyFrontMatter?: ((change: FrontMatterChange) => void) | undefined
+  onClose: () => void
 }) {
-  const { core, info, tasks, onOpenNote, onSetDates } = props
-  /** Writes field `key` as `at`; anything but 'saved' keeps the field open to fix. */
-  const setDate = (key: 'created' | 'updated', at: number): Promise<DateOutcome> => {
+  const { info, facts, backlinks, onOpenNote, onSetDates, onApplyFrontMatter, onClose } = props
+  const locale = currentLocale()
+  const card = useRef<HTMLDivElement>(null)
+  const rows = useRef<Partial<Record<DateField, HTMLButtonElement | null>>>({})
+  const setCard = useCallback((el: HTMLDivElement | null) => {
+    card.current = el
+    return cardRef(el)
+  }, [])
+  const [editing, setEditing] = useState<DateField>()
+  const [pendingAt, setPendingAt] = useState<number | null>(null)
+
+  const closePicker = useCallback(
+    (field: DateField) => {
+      setEditing(undefined)
+      setPendingAt(null)
+      rows.current[field]?.focus()
+    },
+    [setPendingAt],
+  )
+
+  useLayoutEffect(() => {
+    if (!editing) return
+    const row = rows.current[editing]
+    const panel = shownPicker(card.current)
+    if (!row || !card.current || !panel) return
+    const box = card.current.getBoundingClientRect()
+    const anchor = row.getBoundingClientRect()
+    const below = anchor.bottom + panel.offsetHeight < window.innerHeight
+    panel.dataset['side'] = below ? 'below' : 'above'
+    panel.style.top = below
+      ? `${anchor.bottom - box.top}px`
+      : `${anchor.top - box.top - panel.offsetHeight}px`
+    panel.style.left = `${anchor.left - box.left}px`
+  }, [editing])
+
+  useLayoutEffect(() => {
+    const away = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) return
+      if (editing) {
+        if (!shownPicker(card.current)?.contains(event.target)) closePicker(editing)
+        return
+      }
+      const anchor = card.current?.parentElement
+      if (!anchor?.contains(event.target)) onClose()
+    }
+    document.addEventListener('mousedown', away)
+    return () => document.removeEventListener('mousedown', away)
+  }, [editing, closePicker, onClose])
+
+  const setDate = (field: DateField, at: number): Promise<DateOutcome> => {
     if (!onSetDates) return Promise.resolve('failed')
-    const dates = datesEdit(info, key, at)
+    const dates = datesEdit(info, field, at)
     if (!dates) return Promise.resolve('refused')
     return onSetDates(info.noteId, dates).then(
-      (): DateOutcome => 'saved',
+      (): DateOutcome => {
+        closePicker(field)
+        return 'saved'
+      },
       (): DateOutcome => {
         console.warn('W_NOTE_DATES_FAILED', info.noteId)
         return 'failed'
       },
     )
   }
-  const [backlinks, setBacklinks] = useState<Backlink[]>([])
-  const [open, setOpen] = useState(backlinksOpen)
 
-  useEffect(() => {
-    let current = true
-    core
-      .backlinks(info.noteId)
-      .then(async (notes: NoteSummary[]) => {
-        const names = await displayTitles((ids) => core.headlines(ids), notes)
-        if (current) setBacklinks(notes.map((n) => ({ id: n.id, name: names.get(n.id) ?? '' })))
-      })
-      .catch((e: unknown) => console.warn('W_BACKLINKS_FAILED', info.noteId, errorCode(e)))
-    return () => {
-      current = false
+  const dateRow = (field: DateField, icon: IconName, at: number) => {
+    const label = t(field === 'created' ? 'noteInfo.created' : 'noteInfo.updated')
+    const shown = editing === field && pendingAt !== null ? pendingAt : at
+    const value = fullDate(shown, locale)
+    const time = (
+      <time dateTime={new Date(shown).toISOString()} data-info={field}>
+        {value}
+      </time>
+    )
+    if (!onSetDates) {
+      return (
+        <div className="note-info-row" title={exactDate(at, locale)}>
+          <span className="note-info-icon">
+            <Icon name={icon} size="sm" />
+          </span>
+          <span className="note-info-label">{label}</span>
+          <span className="note-info-value">{time}</span>
+        </div>
+      )
     }
-  }, [core, info.noteId])
+    return (
+      <button
+        ref={(el) => {
+          rows.current[field] = el
+        }}
+        type="button"
+        className="note-info-row note-info-date"
+        title={exactDate(at, locale)}
+        aria-label={format(t('noteInfo.editDateNamed'), {
+          field: label,
+          date: fullDate(at, locale),
+        })}
+        aria-haspopup="dialog"
+        aria-expanded={editing === field}
+        data-editing={editing === field || undefined}
+        onClick={() => {
+          setPendingAt(null)
+          setEditing(editing === field ? undefined : field)
+        }}
+      >
+        <span className="note-info-icon">
+          <Icon name={icon} size="sm" />
+        </span>
+        <span className="note-info-label">{label}</span>
+        <span className="note-info-value">{time}</span>
+      </button>
+    )
+  }
 
+  const front = facts?.frontMatter ?? null
+  const tasks = facts?.tasks
   return (
-    <div className="note-info" data-find-skip="">
-      <div className="note-info-card" role="group" aria-label={t('noteInfo.label')}>
-        {infoFields(info, tasks, currentLocale()).map((field) => (
-          <Field key={field.key} icon={field.icon} label={field.label}>
-            {field.tasks ? (
-              <>
-                <progress className="task-bar" value={field.tasks.done} max={field.tasks.total} />
-                <span data-info={field.key}>{field.value}</span>
-              </>
+    <div
+      ref={setCard}
+      className="note-info-card"
+      role="dialog"
+      aria-label={t('noteInfo.label')}
+      tabIndex={-1}
+      data-find-skip=""
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        event.preventDefault()
+        event.stopPropagation()
+        onClose()
+      }}
+    >
+      <div className="note-info-scroll">
+        <div className="note-info-dates">
+          {dateRow('created', 'date.created', info.createdAt)}
+          {dateRow('updated', 'date.updated', info.updatedAt)}
+        </div>
+        {front ? (
+          <Section
+            section="properties"
+            title={t('noteInfo.properties')}
+            count={front.kind === 'properties' ? front.rows.length : 1}
+          >
+            {front.kind === 'properties' ? (
+              <dl className="note-info-properties">
+                {front.rows.map((row, i) => (
+                  <div key={i} className="note-info-row note-info-property">
+                    <span className="note-info-icon" />
+                    <dt className="note-info-label" title={row.key}>
+                      {row.key}
+                    </dt>
+                    <dd className="note-info-value">
+                      <PropertyValue row={row} onApply={onApplyFrontMatter} />
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             ) : (
-              <DateValue
-                field={field}
-                at={field.key === 'created' ? info.createdAt : info.updatedAt}
-                onSet={
-                  onSetDates && field.key !== 'progress'
-                    ? (at) => setDate(field.key as 'created' | 'updated', at)
-                    : undefined
-                }
-              />
+              <pre className="note-info-yaml">
+                <code>{front.yaml}</code>
+              </pre>
             )}
-          </Field>
-        ))}
+          </Section>
+        ) : null}
+        <Section section="backlinks" title={t('noteInfo.backlinks')} count={backlinks?.length ?? 0}>
+          {backlinks && backlinks.length > 0 ? (
+            <ul className="note-info-links">
+              {backlinks.map((note) => (
+                <li key={note.id}>
+                  <button
+                    type="button"
+                    className="note-info-row note-info-link"
+                    onClick={() => {
+                      onClose()
+                      onOpenNote(note.id)
+                    }}
+                  >
+                    <span className="note-info-icon">
+                      <Icon name="backlink" size="sm" />
+                    </span>
+                    <span className="note-info-value">{note.name || t('note.untitled')}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="note-info-empty">{t('noteInfo.noBacklinks')}</p>
+          )}
+        </Section>
       </div>
-      {backlinks.length > 0 ? (
-        <details
-          className="note-backlinks"
-          open={open}
-          onToggle={(event) => {
-            const now = event.currentTarget.open
-            const list = event.currentTarget.querySelector('ul')
-            if (now && !open && list) expand(list)
-            setOpen(now)
-            setBacklinksOpen(now)
-          }}
-        >
-          <summary>{t('noteInfo.backlinks')}</summary>
-          <ul>
-            {backlinks.map((note) => (
-              <li key={note.id}>
-                <button type="button" className="note-backlink" onClick={() => onOpenNote(note.id)}>
-                  <Icon name="backlink" size="sm" />
-                  <span>{note.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </details>
+      <div className="note-info-foot">
+        {tasks && tasks.total > 0 ? (
+          <Row icon="progress" label={t('noteInfo.tasks')} className="note-info-meter">
+            <progress
+              className="note-info-meter-bar"
+              value={tasks.done}
+              max={tasks.total}
+              aria-label={taskCount(tasks.done, tasks.total, locale)}
+            />
+            <span>
+              {format(t('noteInfo.summaryTasks'), {
+                done: formatNumber(tasks.done, locale),
+                total: formatNumber(tasks.total, locale),
+              })}
+            </span>
+          </Row>
+        ) : null}
+        <Row icon="settings.markdown" label={t('noteInfo.words')}>
+          {facts ? formatNumber(facts.words, locale) : null}
+        </Row>
+      </div>
+      {editing ? (
+        <DatePicker
+          key={editing}
+          field={editing}
+          label={t(editing === 'created' ? 'noteInfo.created' : 'noteInfo.updated')}
+          at={editing === 'created' ? info.createdAt : info.updatedAt}
+          info={info}
+          locale={locale}
+          onPending={setPendingAt}
+          onCancel={() => closePicker(editing)}
+          onSet={(at) => setDate(editing, at)}
+        />
       ) : null}
     </div>
   )

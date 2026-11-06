@@ -485,7 +485,7 @@
   line-height: calc(1.5em - 2px);
 }
 
-/* The live preview's note fields beside what the front matter says (builtins.ts). */
+/* Note Info's properties: the note's own field beside what the front matter says (frontMatterView.ts). */
 .frontmatter-note {
   display: inline-flex;
   align-items: baseline;

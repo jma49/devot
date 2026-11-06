@@ -56,6 +56,7 @@ pub const MENU_VIEW: &str = "View";
 pub const REVISION_HISTORY: &str = "Revision History…";
 pub const COMMAND_PALETTE: &str = "Command Palette…";
 pub const ACTIVITY: &str = "Activity…";
+pub const NOTE_INFO: &str = "Note Info";
 pub const HIDE_SIDEBAR: &str = "Hide Sidebar";
 pub const SHOW_SIDEBAR: &str = "Show Sidebar";
 pub const TOGGLE_PREVIEW: &str = "Toggle Editor and Preview";

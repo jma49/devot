@@ -125,4 +125,21 @@ describe('appHandlers', () => {
       appHandlers(state({ findCommands: { 'palette.open': find } }), actions())['palette.open'],
     ).toBe(find)
   })
+
+  it('offers Note Info for one note open, in the Trash too, but not for a template', () => {
+    const one = note('a')
+    expect(appHandlers(state(), actions())['view.noteInfo']).toBeUndefined()
+    expect(appHandlers(state({ openNote: one }), actions())['view.noteInfo']).toBeDefined()
+    expect(
+      appHandlers(state({ openNote: one, selectedIsTemplate: true }), actions())['view.noteInfo'],
+    ).toBeUndefined()
+    expect(
+      appHandlers(state({ inTrash: true, selected: 'a' }), actions())['view.noteInfo'],
+    ).toBeDefined()
+    expect(
+      appHandlers(state({ inTrash: true, selected: 'a', multiIds: ['a', 'b'] }), actions())[
+        'view.noteInfo'
+      ],
+    ).toBeUndefined()
+  })
 })

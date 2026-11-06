@@ -9,7 +9,6 @@ import {
   type MouseEvent,
 } from 'react'
 import type { PreviewLabels, PreviewNote, RemoteImageWait } from '../../../core'
-import type { TaskProgress } from '../../../core/tasks'
 import { NOTES_LOADED } from '../externalChanges'
 import { fragmentId } from '../../../core/preview/headingIds'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
@@ -44,11 +43,7 @@ import { createIslandMounter } from './islands'
 import { islands } from './islandRegistry'
 import { CodeCopyButtons, codeBlocks } from './CodeCopy'
 import { latestOnly } from './latest'
-import { NoteInfo } from './NoteInfo'
-import type { NoteInfoData } from './infoCard'
-import type { SetNoteDates } from './NoteInfo'
 import { previewScrollPane, type PreviewScrollPane, type ScrollPane } from './scrollSync'
-import { frontMatterChange, type FrontMatterChange } from './frontMatterApply'
 
 const NOTE_LINK = /^devot:\/\/note\/([0-9a-f-]{36})$/
 
@@ -76,7 +71,7 @@ export function previewLabels(): PreviewLabels {
 /** The open note's fields as the live preview's front matter compares them. */
 export type PreviewNoteFields = Omit<PreviewNote, 'labels'>
 
-function previewNote(fields: PreviewNoteFields): PreviewNote {
+export function previewNote(fields: PreviewNoteFields): PreviewNote {
   return {
     ...fields,
     labels: {
@@ -101,17 +96,16 @@ interface RenderInput {
   markdown: string
   loadedEmbeds: string[]
   remoteImages: RemoteImageWait | undefined
-  note: PreviewNoteFields | undefined
+  frontMatterInInfo: boolean
 }
 
 interface Props {
   core: Core
   markdown: string
-  info?: NoteInfoData | undefined
-  /** Only the main window's live preview: its front matter then shows what differs from the note. */
-  note?: PreviewNoteFields | undefined
-  onApplyFrontMatter?: ((change: FrontMatterChange) => void) | undefined
-  onSetDates?: SetNoteDates | undefined
+  /** The note shown, so its linked notes are asked for again when another one opens. */
+  noteId?: string | undefined
+  /** The main window's live preview: Note Info shows the front matter, so the body leaves it out. */
+  frontMatterInInfo?: boolean
   onOpenNote: (id: string) => void
   onFind?: (target: FindTarget | null) => void
   onScrollPane?: (pane: ScrollPane | null) => void
@@ -147,10 +141,6 @@ function previewImageTarget(img: HTMLImageElement, markdown: string): ImageMenuT
   }
 }
 
-const NO_TASKS: TaskProgress = { done: 0, total: 0 }
-
-const sameTasks = (a: TaskProgress, b: TaskProgress) => a.done === b.done && a.total === b.total
-
 const sameList = (a: readonly HTMLElement[], b: readonly HTMLElement[]) =>
   a.length === b.length && a.every((el, i) => el === b[i])
 
@@ -171,10 +161,8 @@ export function LivePreview({ text, ...props }: Omit<Props, 'markdown'> & { text
 export function Preview({
   core,
   markdown,
-  info,
-  note: noteFields,
-  onApplyFrontMatter,
-  onSetDates,
+  noteId,
+  frontMatterInInfo = false,
   onOpenNote,
   onFind,
   onScrollPane,
@@ -214,13 +202,12 @@ export function Preview({
   const scrollHandle = useRef(onScrollPane)
   const scrollAsked = useRef(initialScroll)
   const scrolled = useRef(onScroll)
-  const noteNow = useRef(info?.noteId)
+  const noteNow = useRef(noteId)
   /** The notes the shown preview links to; their chips are asked for again when one of them changes. */
   const shownLinks = useRef<readonly string[]>([])
   const linksChanged = useRef(0)
-  const [tasks, setTasks] = useState<TaskProgress>(NO_TASKS)
   useEffect(() => {
-    noteNow.current = info?.noteId
+    noteNow.current = noteId
     findHandle.current = onFind
     scrollHandle.current = onScrollPane
     scrollAsked.current = initialScroll
@@ -273,7 +260,7 @@ export function Preview({
               labels: previewLabels(),
               loadedEmbeds: input.loadedEmbeds,
               ...(input.remoteImages ? { remoteImages: input.remoteImages } : {}),
-              ...(input.note ? { note: previewNote(input.note) } : {}),
+              ...(input.frontMatterInInfo ? { frontMatterInInfo: true } : {}),
             },
             pieces.current.map((piece) => piece.key),
             // The chips' notes are asked for again when another note opens or one of them changes.
@@ -294,7 +281,6 @@ export function Preview({
         }
         shown.current = input.markdown
         shownLinks.current = next.links
-        setTasks((now) => (sameTasks(now, next.tasks) ? now : next.tasks))
         mounter.mount(host.current, islandContext.current, islandRendered)
         const blocks = codeBlocks(host.current)
         setCodes((now) => (sameList(now, blocks) ? now : blocks))
@@ -328,26 +314,20 @@ export function Preview({
   // Leaving the preview frees what its diagrams hold (their stylesheets).
   useEffect(() => () => mounter.dispose(), [mounter])
 
-  // The window passes the fields as a new object on every render: the preview renders again only when they change.
-  const noteKey = noteFields ? JSON.stringify(noteFields) : ''
-  const fields = useMemo(
-    () => (noteKey ? (JSON.parse(noteKey) as PreviewNoteFields) : undefined),
-    [noteKey],
-  )
   useEffect(
-    () => render.current?.({ markdown, loadedEmbeds, remoteImages, note: fields }),
-    [markdown, loadedEmbeds, remoteImages, fields],
+    () => render.current?.({ markdown, loadedEmbeds, remoteImages, frontMatterInInfo }),
+    [markdown, loadedEmbeds, remoteImages, frontMatterInInfo],
   )
-  const input = useRef<RenderInput>({ markdown, loadedEmbeds, remoteImages, note: fields })
+  const input = useRef<RenderInput>({ markdown, loadedEmbeds, remoteImages, frontMatterInInfo })
   useEffect(() => {
-    input.current = { markdown, loadedEmbeds, remoteImages, note: fields }
+    input.current = { markdown, loadedEmbeds, remoteImages, frontMatterInInfo }
   })
   useEffect(() => onPluginRenderersChanged(() => render.current?.(input.current)), [])
   // Another window or process can change a note a chip shows.
   useEffect(() => {
     const changed = (event: Event) => {
-      const noteId = (event as CustomEvent<string | undefined>).detail
-      if (noteId && !shownLinks.current.includes(noteId)) return
+      const changedId = (event as CustomEvent<string | undefined>).detail
+      if (changedId && !shownLinks.current.includes(changedId)) return
       linksChanged.current += 1
       render.current?.(input.current)
     }
@@ -362,16 +342,6 @@ export function Preview({
       // The box shows what the note says: the change comes back as a render.
       event.preventDefault()
       onToggleTask?.(Number(box.getAttribute('data-task-at')))
-      return
-    }
-    const apply = target.closest('button[data-frontmatter-apply]')
-    if (apply) {
-      // The row shows what the note says: once applied, the render drops its badge.
-      const change = frontMatterChange(
-        apply.getAttribute('data-frontmatter-apply'),
-        apply.getAttribute('data-frontmatter-value'),
-      )
-      if (change) onApplyFrontMatter?.(change)
       return
     }
     const remote = target.closest('[data-remote-image-load]')
@@ -462,7 +432,7 @@ export function Preview({
       return
     }
     const target = event.target as Element
-    // The info card's date fields keep the web view's own menu.
+    // Text fields keep the web view's own menu.
     if (target.closest('input, textarea, select, [contenteditable]')) return
     event.preventDefault()
     menuAt.current = at
@@ -497,15 +467,6 @@ export function Preview({
           if (!scrollTarget.current) scrolled.current?.(event.currentTarget.scrollTop)
         }}
       >
-        {info ? (
-          <NoteInfo
-            core={core}
-            info={info}
-            tasks={tasks}
-            onOpenNote={onOpenNote}
-            onSetDates={onSetDates}
-          />
-        ) : null}
         <div ref={host} className="preview-body" />
         {refusedLink ? (
           <div className="notice preview-notice" data-devot-part="notice">

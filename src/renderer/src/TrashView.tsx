@@ -3,6 +3,7 @@ import type { Core } from './core-client'
 import { headline } from '../../core/extract'
 import { displayTitle } from './headlines'
 import { t } from './i18n'
+import { NoteInfoSummary } from './noteInfo/NoteInfoSummary'
 import { Preview } from './preview/Preview'
 
 export function TrashView(props: {
@@ -53,11 +54,20 @@ export function TrashView(props: {
         </button>
       </div>
       <h1 className="title trash-title">{name}</h1>
+      <div className="note-meta">
+        <NoteInfoSummary
+          core={core}
+          info={{ noteId, createdAt: note.createdAt, updatedAt: note.updatedAt }}
+          markdown={note.bodyMd}
+          onOpenNote={() => {}}
+        />
+      </div>
       <div className="panes panes-preview">
         <Preview
           core={core}
           markdown={note.bodyMd}
-          info={{ noteId, createdAt: note.createdAt, updatedAt: note.updatedAt }}
+          noteId={noteId}
+          frontMatterInInfo
           onOpenNote={() => {}}
         />
       </div>

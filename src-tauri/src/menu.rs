@@ -42,6 +42,8 @@ pub const PALETTE_ID: &str = "devot.palette";
 pub const SHOW_PALETTE_EVENT: &str = "devot://show-palette";
 pub const ACTIVITY_ID: &str = "devot.activity";
 pub const SHOW_ACTIVITY_EVENT: &str = "devot://show-activity";
+pub const NOTE_INFO_ID: &str = "devot.noteInfo";
+pub const NOTE_INFO_EVENT: &str = "devot://note-info";
 pub const SIDEBAR_ID: &str = "devot.sidebar";
 pub const TOGGLE_SIDEBAR_EVENT: &str = "devot://toggle-sidebar";
 pub const TOGGLE_PREVIEW_ID: &str = "devot.togglePreview";
@@ -115,6 +117,11 @@ pub const COMMAND_ITEMS: &[CommandItem] = &[
         place: MenuPlace::File,
         command: "note.today",
         titles: &[strings::OPEN_TODAY],
+    },
+    CommandItem {
+        place: MenuPlace::View,
+        command: "view.noteInfo",
+        titles: &[strings::NOTE_INFO],
     },
 ];
 
@@ -391,6 +398,9 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .accelerator("CmdOrCtrl+K")
         .build(app)?;
     let activity = MenuItemBuilder::with_id(ACTIVITY_ID, strings::ACTIVITY).build(app)?;
+    let note_info = MenuItemBuilder::with_id(NOTE_INFO_ID, strings::NOTE_INFO)
+        .accelerator("Alt+CmdOrCtrl+I")
+        .build(app)?;
     let sidebar = MenuItemBuilder::with_id(SIDEBAR_ID, strings::HIDE_SIDEBAR)
         .accelerator("CmdOrCtrl+/")
         .build(app)?;
@@ -453,6 +463,7 @@ pub fn install(app: &App) -> tauri::Result<()> {
                 CommandMenuItem::Check(sync_scroll.clone()),
                 CommandMenuItem::Plain(backups.clone()),
                 CommandMenuItem::Plain(today.clone()),
+                CommandMenuItem::Plain(note_info.clone()),
             ])
             .collect(),
     ));
@@ -468,6 +479,7 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .item(&history_bar)
         .item(&authorship)
         .item(&outline)
+        .item(&note_info)
         .item(&activity)
         .separator()
         .fullscreen()
@@ -541,6 +553,10 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     } else if event.id() == PALETTE_ID {
         if crate::main_windows::emit_front(app, SHOW_PALETTE_EVENT, ()).is_err() {
             log::warn!("W_PALETTE_MENU_EMIT_FAILED");
+        }
+    } else if event.id() == NOTE_INFO_ID {
+        if crate::main_windows::emit_front(app, NOTE_INFO_EVENT, ()).is_err() {
+            log::warn!("W_NOTE_INFO_MENU_EMIT_FAILED");
         }
     } else if event.id() == ACTIVITY_ID {
         if crate::main_windows::emit_front(app, SHOW_ACTIVITY_EVENT, ()).is_err() {
@@ -784,7 +800,8 @@ mod tests {
                 "view.split",
                 "view.syncScroll",
                 "app.backups",
-                "note.today"
+                "note.today",
+                "view.noteInfo"
             ]
         );
         let places: Vec<_> = COMMAND_ITEMS.iter().map(|item| item.place).collect();
@@ -798,7 +815,8 @@ mod tests {
                 MenuPlace::View,
                 MenuPlace::View,
                 MenuPlace::App,
-                MenuPlace::File
+                MenuPlace::File,
+                MenuPlace::View
             ]
         );
         assert_eq!(COMMAND_ITEMS[6].titles, [strings::BACKUPS]);
@@ -832,6 +850,7 @@ mod tests {
                 ("view.syncScroll", None),
                 ("app.backups", None),
                 ("note.today", None),
+                ("view.noteInfo", None),
             ]
         );
         let plan = plan_command_keys(&keys(&[("palette.open", Some("Ctrl+F5"))])).unwrap();

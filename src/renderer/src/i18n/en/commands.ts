@@ -8,6 +8,7 @@ export const messages = {
   'command.showOutline': 'Show Outline',
   'command.hideOutline': 'Hide Outline',
   'command.showAuthorship': 'Show Authorship',
+  'command.noteInfo': 'Note Info',
   'command.hideAuthorship': 'Hide Authorship',
   'command.palette': 'Command Palette',
   'command.searchView': 'Search in Current View',

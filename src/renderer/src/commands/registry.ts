@@ -685,6 +685,13 @@ export const COMMANDS = [
     keys: [],
   },
   {
+    id: 'view.noteInfo',
+    label: 'command.noteInfo',
+    group: 'view',
+    scope: 'window',
+    keys: ['Mod+Alt+I'],
+  },
+  {
     id: 'view.toggleListDates',
     label: 'command.showAbsoluteDates',
     group: 'view',
@@ -1639,6 +1646,7 @@ export type CommandHandlers = Partial<Record<CommandId, CommandHandler>>
  */
 export const NATIVE_MENU_COMMANDS: Readonly<Record<string, CommandId>> = {
   'devot.history': 'note.history',
+  'devot.noteInfo': 'view.noteInfo',
   'devot.palette': 'palette.open',
   'devot.sidebar': 'view.sidebar',
   // A check item; Rust toggles the setting itself, and drops the echo of a

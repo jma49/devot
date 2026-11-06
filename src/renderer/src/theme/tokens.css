@@ -102,7 +102,6 @@
   --radius-list-row: 12px;
   --radius-inline-code: 5px;
   --radius-quote-bar: 2px;
-  --radius-note-info: 14px;
   --radius-glass-popover: 18px;
   --radius-glass-floating-bar: 18px;
   --radius-glass-dialog: 26px;
@@ -181,6 +180,17 @@
   --size-settings-control: 28px;
   --size-note-pill: 26px;
   --size-note-pill-pad: 10px;
+  --size-note-info-width: 320px;
+  --size-note-info-label: 64px;
+  --size-note-info-row: 30px;
+  --size-note-info-caption: 24px;
+  --size-note-info-meter: 4px;
+  --size-date-picker-width: 276px;
+  --size-date-picker-head: 32px;
+  --size-date-picker-cell: 32px;
+  --size-date-picker-day: 30px;
+  --size-date-picker-nav: 26px;
+  --size-date-picker-week: 22px;
   --size-settings-swatch-width: 84px;
   --size-settings-swatch-height: 62px;
   --size-settings-slider-width: 160px;

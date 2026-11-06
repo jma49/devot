@@ -24,6 +24,7 @@ import { ModeControl, editorOnly, type Mode } from '../ModeControl'
 import type { useNoteActions } from '../noteActions'
 import { NoteEditor, type ApplyRestore } from '../NoteEditor'
 import { OutlinePanel } from '../outline/OutlinePanel'
+import { LiveNoteInfoSummary } from '../noteInfo/NoteInfoSummary'
 import { LivePreview } from '../preview/Preview'
 import { tagChanges, type FrontMatterChange } from '../preview/frontMatterApply'
 import type { ScrollPane } from '../preview/scrollSync'
@@ -306,49 +307,67 @@ export function NotePane({
           {selectedIsTemplate ? (
             <p className="note-meta template-hint">{t('templates.editorHint')}</p>
           ) : (
-            <div className="note-meta" inert={!editing}>
-              <BookPicker
-                tree={tree}
-                value={selectedNote?.bookId ?? null}
-                onChange={(bookId) => void moveNote(selected, bookId)}
-                onMenu={(bookId, at) => void showNotebookMenu({ bookId }, at)}
-              />
-              <StatusPicker
-                value={selectedNote?.status ?? 'none'}
-                onChange={(status) => void setStatus(selected, status)}
-              />
-              <TagEditor
-                inputRef={tagInputRef}
-                tags={tags}
-                value={selectedNote?.tagIds ?? []}
-                onAdd={(name) => void changeBooks((c) => c.addTag(selected, name))}
-                onPut={(tagId) => void putTagOnNotes([selected], tagId)}
-                onRemove={(tagId) => void changeBooks((c) => c.removeTag(selected, tagId))}
-                quick={{
-                  open: quickTagNote === selected,
-                  onOpen: () => setQuickTagNote(selected),
-                  onClose: () => setQuickTagNote(undefined),
-                  counts: sidebarTagged,
-                  shortcut: quickTagShortcut,
-                  onCreate: async (name, color) => {
-                    let created: string | undefined
-                    await changeBooks(async (c) => {
-                      created = await c.addTag(selected, name)
-                      if (color) await c.setTagColor(created, color)
-                    })
-                    return created
-                  },
-                }}
-                onChipMenu={(tagId, at) =>
-                  void showChipMenu(
-                    {
-                      tagId,
-                      filtered: activeFilter?.kind === 'tag' && activeFilter.tagId === tagId,
+            <div className="note-meta">
+              <div className="note-meta-fields" inert={!editing}>
+                <BookPicker
+                  tree={tree}
+                  value={selectedNote?.bookId ?? null}
+                  onChange={(bookId) => void moveNote(selected, bookId)}
+                  onMenu={(bookId, at) => void showNotebookMenu({ bookId }, at)}
+                />
+                <StatusPicker
+                  value={selectedNote?.status ?? 'none'}
+                  onChange={(status) => void setStatus(selected, status)}
+                />
+                <TagEditor
+                  inputRef={tagInputRef}
+                  tags={tags}
+                  value={selectedNote?.tagIds ?? []}
+                  onAdd={(name) => void changeBooks((c) => c.addTag(selected, name))}
+                  onPut={(tagId) => void putTagOnNotes([selected], tagId)}
+                  onRemove={(tagId) => void changeBooks((c) => c.removeTag(selected, tagId))}
+                  quick={{
+                    open: quickTagNote === selected,
+                    onOpen: () => setQuickTagNote(selected),
+                    onClose: () => setQuickTagNote(undefined),
+                    counts: sidebarTagged,
+                    shortcut: quickTagShortcut,
+                    onCreate: async (name, color) => {
+                      let created: string | undefined
+                      await changeBooks(async (c) => {
+                        created = await c.addTag(selected, name)
+                        if (color) await c.setTagColor(created, color)
+                      })
+                      return created
                     },
-                    at,
-                  )
-                }
-              />
+                  }}
+                  onChipMenu={(tagId, at) =>
+                    void showChipMenu(
+                      {
+                        tagId,
+                        filtered: activeFilter?.kind === 'tag' && activeFilter.tagId === tagId,
+                      },
+                      at,
+                    )
+                  }
+                />
+              </div>
+              {selectedNote ? (
+                <LiveNoteInfoSummary
+                  key={selected}
+                  core={core}
+                  text={openText}
+                  info={{
+                    noteId: selectedNote.id,
+                    createdAt: selectedNote.createdAt,
+                    updatedAt: selectedNote.updatedAt,
+                  }}
+                  note={previewFields}
+                  onOpenNote={(id) => void select(id)}
+                  onSetDates={editing ? setNoteDates : undefined}
+                  onApplyFrontMatter={editing ? applyFrontMatter : undefined}
+                />
+              ) : null}
             </div>
           )}
           {find.bar}
@@ -416,18 +435,8 @@ export function NotePane({
               <LivePreview
                 core={core}
                 text={openText}
-                info={
-                  selectedNote
-                    ? {
-                        noteId: selectedNote.id,
-                        createdAt: selectedNote.createdAt,
-                        updatedAt: selectedNote.updatedAt,
-                      }
-                    : undefined
-                }
-                note={previewFields}
-                onApplyFrontMatter={editing ? applyFrontMatter : undefined}
-                onSetDates={inTrash || !core || !editing ? undefined : setNoteDates}
+                noteId={selected}
+                frontMatterInInfo={!selectedIsTemplate}
                 onOpenNote={(id) => void select(id)}
                 onFind={setPreviewFind}
                 onScrollPane={setPreviewPane}

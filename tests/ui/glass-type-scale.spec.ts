@@ -80,7 +80,6 @@ test('the pills sit 10 under the title and the body 22 under the pills', async (
   await showPreview(page)
   const title = await page.locator('.title').boundingBox()
   const meta = await page.locator('.note-meta').boundingBox()
-  // The note info card, when shown, is the first thing under the pills.
   const first = await page.locator('.preview > :first-child').boundingBox()
   if (!title || !meta || !first) throw new Error('no layout')
   expect(Math.abs(meta.y - (title.y + title.height) - 10)).toBeLessThan(1)
