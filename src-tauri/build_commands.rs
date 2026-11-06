@@ -56,6 +56,7 @@ const NOTES: &[&str] = &[
     "saved_searches_list",
     "saved_search_put",
     "search_index_rebuild",
+    "welcome_seed",
 ];
 
 /// Revisions, activity, agent writes and usage.

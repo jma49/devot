@@ -20,6 +20,9 @@ pub enum Write {
     Content,
     /// What holds no user content: sync's own state, the search index.
     Bookkeeping,
+    /// The first-launch notes this build bundles, into a library that has never held them
+    /// (`commands::welcome`): written whatever the licence, so a new library is never empty.
+    Welcome,
 }
 
 pub type WriteGate = Arc<dyn Fn(Write) -> std::result::Result<(), &'static str> + Send + Sync>;

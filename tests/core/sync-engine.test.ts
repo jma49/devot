@@ -778,7 +778,6 @@ describe('sync between two devices', () => {
       await seedWelcome({
         storage: d.storage,
         clock: d.clock,
-        newId: createIdGenerator(),
         content: welcome(text),
       })
     }

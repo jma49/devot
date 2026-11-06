@@ -746,6 +746,7 @@ fn once_the_trial_ran_out_user_content_sync_and_ai_are_refused() {
     assert_eq!(s.licence.require(), Err(REQUIRED));
     assert_eq!(s.licence.require_write(Write::Content), Err(REQUIRED));
     assert_eq!(s.licence.require_write(Write::Bookkeeping), Ok(()));
+    assert_eq!(s.licence.require_write(Write::Welcome), Ok(()));
 }
 
 #[test]

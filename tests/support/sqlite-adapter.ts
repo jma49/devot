@@ -27,6 +27,7 @@ import type {
   SyncStore,
 } from '../../src/core/sync/store'
 import { isTagColor, isTagColorValue } from '../../src/core/tags'
+import { writeWelcomeSeed } from '../../src/core/welcome'
 import type {
   ActivityData,
   ActivityNote,
@@ -956,7 +957,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   // One atomic run at a time: a second BEGIN inside the first would fail.
   let queue: Promise<unknown> = Promise.resolve()
 
-  return {
+  const adapter: SqliteAdapter = {
     db,
     close: () => db.close(),
     schemaVersion: () => userVersion.get()?.user_version ?? 0,
@@ -1179,6 +1180,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     async putBook(book) {
       putBook.run({ ...book, aiAccess: book.aiAccess ? 1 : 0 })
     },
+    seedWelcome: (seed) => writeWelcomeSeed(adapter, seed),
     async putBooks(records) {
       // As the Tauri command refuses.
       if (records.length === 0 || records.length > MAX_PUT_BOOKS)
@@ -1211,4 +1213,5 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
         : null
     },
   }
+  return adapter
 }

@@ -16,12 +16,14 @@ mod saved_searches;
 mod search;
 mod sync;
 mod tags;
+mod welcome;
 
 pub use sync::{SYNC_KINDS, SyncEntry, SyncFile, SyncFileWrite, SyncLocal, SyncPending};
 
 pub use db::{Db, Write};
 pub use open::{SCHEMA_VERSION, snapshot};
 pub use records::*;
+pub use welcome::WelcomeNote;
 
 use rusqlite::Connection;
 
