@@ -31,7 +31,7 @@ function ControlHead(props: { id: string; label: string; description?: string | 
 
 export function PhoneSegmented<T extends string>(props: {
   label: string
-  /** The choices name what they set, as a period's days do: the label is for assistive tech only. */
+  /** The choices (a period's days) or the group title say what it sets: the label is for assistive tech only. */
   labelHidden?: boolean | undefined
   description?: string | undefined
   value: T
@@ -93,6 +93,8 @@ export function PhoneSegmented<T extends string>(props: {
 
 export function PhoneSlider(props: {
   label: string
+  /** The group title above the card already shows the label: it is for assistive tech only. */
+  labelHidden?: boolean | undefined
   min: number
   max: number
   step: number
@@ -109,13 +111,13 @@ export function PhoneSlider(props: {
   const percent = ((props.value - props.min) / (props.max - props.min)) * 100
   return (
     <div className="phone-control">
-      <ControlHead id={id} label={props.label} />
+      {props.labelHidden ? null : <ControlHead id={id} label={props.label} />}
       <div className="phone-slider-row" data-glyph-ends={props.glyphEnds || undefined}>
         <span className="phone-slider-end">{props.minLabel}</span>
         <input
           type="range"
           className="phone-slider"
-          aria-labelledby={id}
+          {...(props.labelHidden ? { 'aria-label': props.label } : { 'aria-labelledby': id })}
           aria-valuetext={props.valueText}
           min={props.min}
           max={props.max}

@@ -65,7 +65,7 @@ test('an ended trial shows on the Settings tab and its License row at launch', a
 
 test('Settings has its groups and leaves out what only the Mac has', async ({ page }) => {
   await openSettings(page)
-  for (const title of ['General', 'Sync & storage', 'AI & integrations']) {
+  for (const title of ['General', 'Sync & Storage', 'AI & Integrations']) {
     await expect(root(page).getByRole('heading', { name: title, exact: true })).toBeVisible()
   }
   await expect(root(page).getByRole('button', { name: /^Appearance/ })).toBeEnabled()
@@ -294,22 +294,29 @@ test('a stepper and a select sit on their label row, at the row right padding', 
     expect(drawn!.x).toBeGreaterThan(label!.x + label!.width)
     const whole = (await row.boundingBox())!
     expect(Math.abs(drawn!.y + drawn!.height / 2 - (whole.y + whole.height / 2))).toBeLessThan(2)
-    expect(await rightPadding(box)).toBeCloseTo(12, 0)
-    expect(whole.height).toBeGreaterThanOrEqual(44)
+    expect(await rightPadding(box)).toBeCloseTo(16, 0)
+    expect(whole.height).toBeGreaterThanOrEqual(56)
   }
 })
 
-test('a select draws its chosen value at its own width and stays a native 44 target', async ({
-  page,
-}) => {
+test('a select row is its native target, its value and chevron on the right', async ({ page }) => {
   const pane = await openPane(page, 'Appearance')
   const select = pane.getByRole('combobox', { name: 'Animations' })
-  const box = (await select.boundingBox())!
-  expect(box.height).toBeGreaterThanOrEqual(44)
+  const row = pane.locator('.setting').filter({ has: select })
+  const [box, whole] = [(await select.boundingBox())!, (await row.boundingBox())!]
+  expect(box.x).toBeCloseTo(whole.x, 0)
+  expect(box.width).toBeCloseTo(whole.width, 0)
+  expect(box.height).toBeCloseTo(whole.height, 0)
   await select.selectOption('off')
-  const value = select.locator('xpath=..').locator('.select-value')
-  await expect(value).toHaveText('Off')
-  expect((await select.boundingBox())!.width).toBeLessThan(box.width)
+  const drawn = select.locator('xpath=..')
+  await expect(drawn.locator('.select-value')).toHaveText('Off')
+  await expect(drawn.locator('.phone-chevron')).toBeAttached()
+  await expect(drawn.locator('.select-chevron')).toHaveCount(0)
+  const [value, chevron] = await Promise.all([
+    drawn.locator('.select-value').boundingBox(),
+    drawn.locator('.phone-chevron').boundingBox(),
+  ])
+  expect(chevron!.x).toBeGreaterThanOrEqual(value!.x + value!.width)
 })
 
 test('a free-text field stacks under its label at the row width', async ({ page }) => {
@@ -319,7 +326,7 @@ test('a free-text field stacks under its label at the row width', async ({ page 
   const label = pane.getByText('Relay', { exact: true })
   const [box, labelBox] = await Promise.all([field.boundingBox(), label.boundingBox()])
   expect(box!.y).toBeGreaterThanOrEqual(labelBox!.y + labelBox!.height)
-  expect(box!.width).toBe(390 - 2 * 16 - 2 * 12)
+  expect(box!.width).toBe(390 - 2 * 16 - 2 * 16)
 })
 
 test('theme thumbs share one size and one set of columns, and choosing moves nothing', async ({
@@ -452,7 +459,7 @@ test.describe('License and disabled switches', () => {
     }
   })
 
-  test('at twice the text size License stacks its buttons at the row width', async ({ page }) => {
+  test('at twice the text size License stacks its buttons as full-width rows', async ({ page }) => {
     await seedLicence(page)
     const pane = await openPaneAtDoubleText(page, 'License')
     const card = (await pane.locator('.settings-card').boundingBox())!
@@ -465,7 +472,7 @@ test.describe('License and disabled switches', () => {
     const removeBox = (await remove.boundingBox())!
     expect(addBox.y + addBox.height).toBeLessThanOrEqual(removeBox.y)
     for (const box of [buy, addBox, removeBox]) {
-      expect(box.width).toBeCloseTo(card.width - 2 * 12, 0)
+      expect(box.width).toBeCloseTo(card.width, 0)
       expect(box.x).toBeGreaterThanOrEqual(card.x)
       expect(box.x + box.width).toBeLessThanOrEqual(card.x + card.width)
     }
@@ -475,22 +482,37 @@ test.describe('License and disabled switches', () => {
     }
   })
 
-  test('a disabled switch stays at full opacity and differs from an off one', async ({ page }) => {
+  test('a disabled row is dimmed as a whole, its switch drawn as an enabled one', async ({
+    page,
+  }) => {
     const paint = (input: Locator) =>
       input.evaluate((el) => {
         const after = getComputedStyle(el, '::after')
-        return { opacity: getComputedStyle(el).opacity, thumb: after.backgroundColor }
+        return {
+          opacity: getComputedStyle(el).opacity,
+          thumb: after.backgroundColor,
+          shadow: after.boxShadow,
+          track: getComputedStyle(el).backgroundColor,
+        }
       })
     const sync = await openPane(page, 'Sync')
     const disabled = sync.getByRole('switch', { name: 'Sync This Device' })
     await expect(disabled).toBeDisabled()
+    const row = sync.locator('.setting').filter({ has: disabled })
+    expect(await row.evaluate((el) => getComputedStyle(el).opacity)).toBe('0.45')
     const off = await paint(disabled)
     expect(off.opacity).toBe('1')
     const preview = await openPane(page, 'Preview')
     const enabled = preview.getByRole('switch').first()
     if (await enabled.isChecked()) await enabled.click()
     await expect(enabled).not.toBeChecked()
-    expect(off.thumb).not.toBe((await paint(enabled)).thumb)
+    expect(
+      await preview
+        .locator('.setting')
+        .filter({ has: enabled })
+        .evaluate((el) => getComputedStyle(el).opacity),
+    ).toBe('1')
+    await expect.poll(() => paint(enabled)).toEqual(off)
   })
 })
 
@@ -543,24 +565,33 @@ test('a phone without sync asks first or another device, then shows only that pa
   await expect(pane.getByRole('textbox', { name: 'Join With a Code' })).toHaveCount(0)
 })
 
-test('buttons in a card stay inside it, with corners concentric to the card', async ({ page }) => {
+test('buttons in a card are full-width action rows with tinted labels on the keyline', async ({
+  page,
+}) => {
   const pane = await openPane(page, 'Sync')
   const buttons = pane.locator('.settings-card .settings-buttons .button:visible')
   await expect(buttons.first()).toBeVisible()
   for (const button of await buttons.all()) {
     const card = button.locator('xpath=ancestor::*[contains(@class, "settings-card")][1]')
     const [box, cardBox] = [(await button.boundingBox())!, (await card.boundingBox())!]
-    expect(box.x + box.width).toBeLessThanOrEqual(cardBox.x + cardBox.width)
-    const { radius, expected } = await button.evaluate((el) => {
+    expect(box.x).toBeCloseTo(cardBox.x, 0)
+    expect(box.width).toBeCloseTo(cardBox.width, 0)
+    expect(box.height).toBeGreaterThanOrEqual(56)
+    const seen = await button.evaluate((el) => {
       const style = getComputedStyle(el)
-      const probe = document.createElement('div')
-      probe.style.width = 'calc(var(--radius-phone-card) - var(--size-phone-row-pad))'
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--color-accent-text)'
       el.append(probe)
-      const value = probe.getBoundingClientRect().width
+      const accent = getComputedStyle(probe).color
       probe.remove()
-      return { radius: parseFloat(style.borderTopLeftRadius), expected: value }
+      return {
+        radius: parseFloat(style.borderTopLeftRadius),
+        padding: parseFloat(style.paddingLeft),
+        tinted: style.color === accent,
+        background: style.backgroundColor,
+      }
     })
-    expect(radius).toBeCloseTo(expected, 0)
+    expect(seen).toEqual({ radius: 0, padding: 16, tinted: true, background: 'rgba(0, 0, 0, 0)' })
     expect(await button.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
   }
 })
@@ -580,7 +611,7 @@ const radius = (target: Locator) =>
   target.evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius))
 
 test('segmented controls and steppers in a card are concentric with it', async ({ page }) => {
-  const inner = 'calc(var(--radius-phone-card) - var(--size-phone-row-pad))'
+  const inner = 'calc(var(--radius-phone-grouped-card) - var(--size-phone-grouped-pad-x))'
   const appearance = await openPane(page, 'Appearance')
   const segmented = appearance.locator('.settings-card .phone-segmented').first()
   await expect(segmented).toBeVisible()
@@ -591,7 +622,120 @@ test('segmented controls and steppers in a card are concentric with it', async (
   const editing = await openPane(page, 'Editing')
   const stepper = editing.locator('.settings-card .stepper').first()
   await expect(stepper).toBeVisible()
-  expect(await radius(stepper)).toBeCloseTo(await resolved(stepper, inner), 0)
+  const expected = await resolved(stepper, inner)
+  const corners = await stepper.locator('.stepper-button').evaluateAll((buttons) =>
+    buttons.map((el) => {
+      const style = getComputedStyle(el)
+      return [parseFloat(style.borderTopLeftRadius), parseFloat(style.borderTopRightRadius)]
+    }),
+  )
+  expect(corners).toEqual([
+    [expected, 0],
+    [0, expected],
+  ])
+  const field = (await stepper.locator('.stepper-field').boundingBox())!
+  const minus = (await stepper.locator('.stepper-button').first().boundingBox())!
+  expect(field.x + field.width).toBeLessThanOrEqual(minus.x)
+  expect((await stepper.boundingBox())!.width).toBeLessThan(200)
+})
+
+const cardRight = (control: Locator) =>
+  control
+    .locator('xpath=ancestor::*[contains(@class,"settings-card")][1]')
+    .evaluate((card) => card.getBoundingClientRect().right)
+
+test('trailing values, chevrons and switches share one right edge across every row', async ({
+  page,
+}) => {
+  for (const name of ['Editing', 'Appearance', 'Preview']) {
+    const pane = await openPane(page, name)
+    const controls = pane.locator(
+      '.settings-card .setting:not(.setting-stacked) > .setting-control > :is([role="switch"], .select, .stepper)',
+    )
+    expect(await controls.count()).toBeGreaterThan(0)
+    const gaps: number[] = []
+    for (const control of await controls.all()) {
+      const right = await control.evaluate((el) => el.getBoundingClientRect().right)
+      gaps.push((await cardRight(control)) - right)
+    }
+    for (const gap of gaps) expect(Math.abs(gap - 16)).toBeLessThanOrEqual(1)
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(1)
+  }
+})
+
+test('pane rows are at least 56 high, 72 with a description', async ({ page }) => {
+  for (const name of ['Editing', 'Appearance', 'Preview', 'Sync']) {
+    const pane = await openPane(page, name)
+    const rows = await pane.locator('.settings-card .setting:visible').evaluateAll((items) =>
+      items.map((row) => ({
+        height: row.getBoundingClientRect().height,
+        described: row.querySelector('.setting-description') !== null,
+      })),
+    )
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) expect(row.height).toBeGreaterThanOrEqual(row.described ? 72 : 56)
+  }
+})
+
+test('rows in a card are parted by inset hairlines, none above the first', async ({ page }) => {
+  const pane = await openPane(page, 'Editing')
+  const cards = await pane.locator('.settings-card').evaluateAll((items) =>
+    items.map((card) =>
+      [...card.children]
+        .filter((child) => !child.classList.contains('visually-hidden'))
+        .map((child) => {
+          const style = getComputedStyle(child)
+          return { image: style.backgroundImage, size: style.backgroundSize }
+        }),
+    ),
+  )
+  const parted = cards.filter((rows) => rows.length > 1)
+  expect(parted.length).toBeGreaterThan(0)
+  for (const [first, ...rest] of parted) {
+    expect(first!.image).toBe('none')
+    for (const row of rest) {
+      expect(row.image).toContain('linear-gradient')
+      expect(row.size).toMatch(/^calc\(100% - 16px\) 0\.5px$|^calc\(-16px \+ 100%\) 0\.5px$/)
+    }
+  }
+})
+
+test('section headers and footers start on one inset, the rows text keyline', async ({ page }) => {
+  await page.addInitScript(() => {
+    const provider = (endpoint: string) => ({
+      endpoint,
+      model: '',
+      defaultEndpoint: endpoint,
+      defaultModel: 'm',
+      key: 'unset',
+    })
+    ;(globalThis as unknown as TestWindow).devotIpcMocks = {
+      ai_settings_get: () => ({
+        active: 'anthropic',
+        suggestOnIdle: false,
+        anthropic: provider('https://a.example'),
+        openai: provider('https://o.example'),
+      }),
+    }
+  })
+  const pane = await openPane(page, 'AI')
+  const starts = await pane.evaluate((el) => {
+    const start = (node: Element) =>
+      node.getBoundingClientRect().left + parseFloat(getComputedStyle(node).paddingLeft)
+    const card = el.querySelector('.settings-card')!.getBoundingClientRect().left
+    return {
+      card,
+      headers: [...el.querySelectorAll('.settings-block-title')].map(start),
+      footers: [...el.querySelectorAll('.phone-footnote')].map(start),
+      labels: [...el.querySelectorAll('.settings-card .setting-label')].map(
+        (label) => label.getBoundingClientRect().left,
+      ),
+    }
+  })
+  expect(starts.headers.length).toBeGreaterThan(0)
+  expect(starts.footers.length).toBeGreaterThan(0)
+  for (const x of [...starts.headers, ...starts.footers, ...starts.labels])
+    expect(x).toBeCloseTo(starts.card + 16, 0)
 })
 
 test('a button that removes something is in the destructive colour', async ({ page }) => {

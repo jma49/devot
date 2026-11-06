@@ -519,7 +519,7 @@ test('Appearance on a phone has its own interface control and no system accent',
   page,
 }) => {
   const pane = await openPane(page, 'Appearance')
-  await expect(pane.getByText('Color scheme')).toBeVisible()
+  await expect(pane.getByText('Color Scheme')).toBeVisible()
   await expect(pane.getByText('Interface style')).toHaveCount(0)
   await expect(pane.getByText('Use the System Accent Color')).toHaveCount(0)
 })

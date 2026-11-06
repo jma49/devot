@@ -95,13 +95,19 @@ export function Select(props: ComponentProps<'select'>) {
     <span className="select">
       <select ref={select} {...props} />
       {onPhone ? (
-        <span className="select-value" aria-hidden="true">
-          {shown}
+        <>
+          <span className="select-value" aria-hidden="true">
+            {shown}
+          </span>
+          <span className="phone-chevron" aria-hidden="true">
+            <Icon name="phone.disclosure" size="xs" weight="medium" />
+          </span>
+        </>
+      ) : (
+        <span className="select-chevron" aria-hidden="true">
+          <Icon name="popup" size="sm" />
         </span>
-      ) : null}
-      <span className="select-chevron" aria-hidden="true">
-        <Icon name="popup" size="sm" />
-      </span>
+      )}
     </span>
   )
 }

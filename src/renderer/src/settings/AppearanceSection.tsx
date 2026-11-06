@@ -374,17 +374,19 @@ export function AppearanceSection() {
             {format(t('appearanceSettings.failed'), { code: error })}
           </p>
         ) : null}
-        <PhoneGroup>
+        <PhoneGroup title={t('appearanceSettings.colorScheme')}>
           <PhoneSegmented
             label={t('appearanceSettings.colorScheme')}
+            labelHidden
             value={settings.appearance}
             options={SCHEMES.map((choice) => ({ value: choice, label: t(SCHEME_LABELS[choice]) }))}
             onChange={(appearance) => change({ appearance })}
           />
         </PhoneGroup>
-        <PhoneGroup>
+        <PhoneGroup title={t('phone.appearance.transparency')}>
           <PhoneSlider
             label={t('phone.appearance.transparency')}
+            labelHidden
             min={-TRANSPARENCY_MAX}
             max={TRANSPARENCY_MAX}
             step={TRANSPARENCY_STEP}
@@ -409,9 +411,10 @@ export function AppearanceSection() {
             onChoose={(darkTheme) => change({ darkTheme })}
           />
         </SettingsSection>
-        <PhoneGroup title={t('phone.appearance.editor')}>
+        <PhoneGroup title={t('phone.appearance.textSize')}>
           <PhoneSlider
             label={t('phone.appearance.textSize')}
+            labelHidden
             min={FONT_SIZE_MIN}
             max={FONT_SIZE_MAX}
             step={1}
@@ -423,6 +426,8 @@ export function AppearanceSection() {
             onChange={textSize.drag}
             onRelease={textSize.release}
           />
+        </PhoneGroup>
+        <PhoneGroup title={t('phone.appearance.editor')}>
           <FontFamilySetting
             slot="note"
             label="editorSettings.noteFont"
