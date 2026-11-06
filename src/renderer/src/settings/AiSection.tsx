@@ -302,9 +302,10 @@ export function AiSection() {
         )}
         {view && drafts ? (
           <>
-            <PhoneGroup footnote={t('aiSettings.detail')}>
+            <PhoneGroup title={t('phone.ai.provider')} footnote={t('aiSettings.detail')}>
               <PhoneSegmented
                 label={t('phone.ai.provider')}
+                labelHidden
                 value={view.active}
                 options={AI_PROVIDERS.map((p) => ({ value: p, label: t(NAMES[p]) }))}
                 onChange={(active) => commit(active)}

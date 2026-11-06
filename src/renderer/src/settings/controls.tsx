@@ -95,13 +95,19 @@ export function Select(props: ComponentProps<'select'>) {
     <span className="select">
       <select ref={select} {...props} />
       {onPhone ? (
-        <span className="select-value" aria-hidden="true">
-          {shown}
+        <>
+          <span className="select-value" aria-hidden="true">
+            {shown}
+          </span>
+          <span className="phone-chevron" aria-hidden="true">
+            <Icon name="phone.disclosure" size="xs" weight="medium" />
+          </span>
+        </>
+      ) : (
+        <span className="select-chevron" aria-hidden="true">
+          <Icon name="popup" size="sm" />
         </span>
-      ) : null}
-      <span className="select-chevron" aria-hidden="true">
-        <Icon name="popup" size="sm" />
-      </span>
+      )}
     </span>
   )
 }
@@ -229,29 +235,37 @@ export function NumberStepper({
     onType(String(Math.min(max, Math.max(min, current + delta))))
     onLeave()
   }
+  const onPhone = useOnPhone()
+  const less = (
+    <button
+      type="button"
+      className="stepper-button"
+      aria-label={t('stepper.less')}
+      disabled={current <= min}
+      onClick={() => stepBy(-step)}
+    >
+      <Icon name="stepper.less" size="sm" />
+    </button>
+  )
+  const field = (
+    <input
+      id={id}
+      type="number"
+      className="stepper-field"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      aria-describedby={describedBy}
+      onChange={(e) => onType(e.currentTarget.value)}
+      onBlur={onLeave}
+    />
+  )
+  // On iPhone the number reads before the pair, so it comes first in tab order too.
   return (
     <div className="stepper">
-      <button
-        type="button"
-        className="stepper-button"
-        aria-label={t('stepper.less')}
-        disabled={current <= min}
-        onClick={() => stepBy(-step)}
-      >
-        <Icon name="stepper.less" size="sm" />
-      </button>
-      <input
-        id={id}
-        type="number"
-        className="stepper-field"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        aria-describedby={describedBy}
-        onChange={(e) => onType(e.currentTarget.value)}
-        onBlur={onLeave}
-      />
+      {onPhone ? field : less}
+      {onPhone ? less : field}
       <button
         type="button"
         className="stepper-button"

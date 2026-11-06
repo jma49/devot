@@ -322,7 +322,7 @@ export function PairingRow(props: {
           <button
             ref={showButton}
             type="button"
-            className={onPhone ? 'button phone-accent-button' : 'button'}
+            className="button"
             disabled={opening || props.locked}
             onClick={show}
           >

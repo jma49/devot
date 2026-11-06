@@ -1097,6 +1097,11 @@
       "$value": { "value": 16, "unit": "px" },
       "$description": "A grouped row's pressed fill."
     },
+    "phone-grouped-card": {
+      "$type": "dimension",
+      "$value": { "value": 24, "unit": "px" },
+      "$description": "A card of Settings rows, on the Settings screen and in its panes."
+    },
     "phone-menu-row": {
       "$type": "dimension",
       "$value": { "value": 20, "unit": "px" },
@@ -1497,6 +1502,31 @@
       "$value": { "value": 12, "unit": "px" },
       "$description": "A grouped row's side padding."
     },
+    "phone-grouped-min": {
+      "$type": "dimension",
+      "$value": { "value": 56, "unit": "px" },
+      "$description": "The least height of a Settings row, at the default text size: it grows with Dynamic Type."
+    },
+    "phone-grouped-min-described": {
+      "$type": "dimension",
+      "$value": { "value": 72, "unit": "px" },
+      "$description": "The least height of a Settings row with a description under its label."
+    },
+    "phone-grouped-pad-x": {
+      "$type": "dimension",
+      "$value": { "value": 16, "unit": "px" },
+      "$description": "A Settings row's side padding: its separator, the section headers and the footers start there too."
+    },
+    "phone-grouped-pad-y": {
+      "$type": "dimension",
+      "$value": { "value": 12, "unit": "px" },
+      "$description": "A Settings row's padding above and below its text."
+    },
+    "phone-grouped-gap": {
+      "$type": "dimension",
+      "$value": { "value": 12, "unit": "px" },
+      "$description": "Between a Settings row's icon, text, value and accessory."
+    },
     "phone-group-gap": {
       "$type": "dimension",
       "$value": { "value": 20, "unit": "px" },
@@ -1534,16 +1564,6 @@
     "phone-theme-ring": {
       "$type": "dimension",
       "$value": { "value": 2, "unit": "px" }
-    },
-    "phone-usage-bar": {
-      "$type": "dimension",
-      "$value": { "value": 44, "unit": "px" },
-      "$description": "The most a share bar takes in the Usage list; the label comes first."
-    },
-    "phone-usage-chart": {
-      "$type": "dimension",
-      "$value": { "value": 96, "unit": "px" },
-      "$description": "The Usage pane's daily chart."
     },
     "phone-group-title": {
       "$type": "dimension",

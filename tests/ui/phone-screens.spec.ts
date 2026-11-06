@@ -519,7 +519,7 @@ test('Appearance on a phone has its own interface control and no system accent',
   page,
 }) => {
   const pane = await openPane(page, 'Appearance')
-  await expect(pane.getByText('Color scheme')).toBeVisible()
+  await expect(pane.getByText('Color Scheme')).toBeVisible()
   await expect(pane.getByText('Interface style')).toHaveCount(0)
   await expect(pane.getByText('Use the System Accent Color')).toHaveCount(0)
 })
@@ -538,14 +538,21 @@ test('General on a phone leaves out the menu bar, updates and command line tool'
   }
 })
 
-test('a phone Settings row keeps a select beside its label, in iPhone words', async ({ page }) => {
+test('a phone Settings row shows its select value beside its label, in iPhone words', async ({
+  page,
+}) => {
   const pane = await openPane(page, 'Editing')
   const field = pane.getByRole('combobox', { name: 'Unordered List Bullet' })
   const label = pane.getByText('Unordered List Bullet', { exact: true })
   await expect(field).toBeVisible()
-  const [fieldBox, labelBox] = await Promise.all([field.boundingBox(), label.boundingBox()])
-  expect(fieldBox!.x).toBeGreaterThan(labelBox!.x + labelBox!.width)
-  expect(fieldBox!.y).toBeLessThan(labelBox!.y + labelBox!.height)
+  const value = field.locator('xpath=..').locator('.select-value')
+  const [fieldBox, labelBox, valueBox] = await Promise.all([
+    field.boundingBox(),
+    label.boundingBox(),
+    value.boundingBox(),
+  ])
+  expect(valueBox!.x).toBeGreaterThan(labelBox!.x + labelBox!.width)
+  expect(valueBox!.y).toBeLessThan(labelBox!.y + labelBox!.height)
   expect(fieldBox!.height).toBeGreaterThanOrEqual(44)
   await expect(pane.getByText('These settings apply only on this iPhone.')).toBeVisible()
 })

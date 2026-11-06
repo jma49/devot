@@ -34,6 +34,35 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 
 A note under a card belongs to it: 8 below the card, about 24 above the next section's title. Its icon starts on the caption line (16 from the card's edge) and centres on the text's first line.
 
+## Phone grouped lists
+
+The iPhone's Settings screen and every pane under it are one grouped list; the Mac's Settings window keeps its own layout.
+Its keyline is `size.phone-grouped-pad-x` (16) from a card's edge: section headers, row labels, descriptions, the start of each separator and footers all start on it.
+
+- **Card:** `radius.phone-grouped-card` (24) in `color.phone.card`, no padding of its own; its rows run edge to edge and it clips their pressed fill.
+- **Row:** at least `size.phone-grouped-min` (56), or `size.phone-grouped-min-described` (72) with a description, with `size.phone-grouped-pad-y` (12) above and below and `size.phone-grouped-gap` (12) between its icon, text, value and accessory.
+  A row on the Settings screen keeps its icon in `size.phone-row-icon`.
+- **Separator:** a `size.phone-separator` hairline in `color.phone.separator` between rows, from the keyline (the label's keyline on the Settings screen) to the card's right edge; none above a card's first row.
+- **Text:** label 16/23 in the body colour; at most one short description under it, 14/19 in `color.phone.text-secondary`, `space.2` below the label.
+- **Trailing edge:** a value, a switch, a stepper and a chevron end on one right edge, `size.phone-grouped-pad-x` from the card's edge, in every row and every pane.
+  At the accessibility sizes a select or a stepper goes under its label and stays on that edge.
+- **Values and pickers:** a select's value is 14/19 in `color.phone.text-secondary`, at most 40% of the row, on one line cut with an ellipsis, then the disclosure chevron.
+  The label wraps before a short value is cut.
+  The whole row opens the picker.
+  A picker among a row's actions (the imported font) is a row of its own: its value on the keyline, the chevron on the right edge.
+- **Stepper:** its value as a trailing value, then a `size.phone-stepper-height` pair of `size.phone-stepper-button` buttons on `color.phone.lens`, its outer corners concentric with the card; it never stretches.
+  The value comes first in reading and tab order, and each button is a 44 by 44 target.
+- **Controls that fill a row:** a segmented control or a slider takes the row's width with `size.phone-grouped-pad-x` on every side, so its corners are concentric with the card; its name is the section header, never a label inside the card.
+  A free-text field goes under its label at the row's width.
+- **Actions:** each is a full-width row of its own, its label in `color.accent.text` on the keyline, and in `color.phone.destructive` when it removes something.
+  A row's actions sit under its text, parted by separators.
+  An action beside a row's text (a device's Remove) is the tinted label alone.
+- **Disabled:** the row's contents fade once to `opacity.disabled`, its control drawn as an enabled one and its label in the body colour; the hairline above it does not fade.
+  A disabled action row fades the same way.
+- **Focus:** the ring goes round the whole row, inside it, since the card clips anything outside.
+- **Headers and footers:** 14/19 in `color.phone.text-secondary` on the keyline, a header medium and `space.4` above its card, a footer `space.4` below it.
+  At most one footer per card.
+
 ## Note rows
 
 - A grid with gap 4, so a missing line leaves no hole. Padding 10 top, 11 bottom, 12 sides. Rows sit 2 apart, with no separators.

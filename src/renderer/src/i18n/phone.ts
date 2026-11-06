@@ -5,6 +5,7 @@ import type { Messages } from './en'
  * on one line. An empty text means the row's label says it all and it has no description.
  */
 export const enPhone: Partial<Messages> = {
+  'appearanceSettings.colorScheme': 'Color Scheme',
   'editorSettings.detail': 'These settings apply only on this iPhone.',
   'editorSettings.toolbar': 'Floating Toolbars',
   'editorSettings.toolbarHint': 'Over selected text and tables',
