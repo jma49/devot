@@ -1564,6 +1564,25 @@ button.phone-grouped-open:active:not(:disabled) {
   justify-content: center;
 }
 
+/* A head with a lead (the purchase sheet's dove) reads as a detail sheet's: lead, title, then Close. */
+.phone-sheet-head[data-lead] {
+  justify-content: flex-start;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.phone-sheet-head[data-lead] > .phone-sheet-title {
+  flex: 1;
+  min-width: 0;
+  font-size: calc(20px * var(--phone-text-scale, 1));
+  font-weight: 700;
+}
+
+.phone-sheet-head[data-lead] > .phone-sheet-close {
+  position: static;
+  flex: none;
+}
+
 .phone-sheet-body {
   flex: 1;
   min-height: 0;
@@ -2830,10 +2849,49 @@ button.phone-grouped-open:active:not(:disabled) {
   font-weight: 600;
 }
 
-/* The purchase sheet: one filled action, then glass, then text actions, each at least a target tall. */
+/* The purchase sheet: what Pro unlocks, one filled action, then a quiet Buy and the account links,
+   each at least a target tall. */
 .phone-purchase-dove {
   width: 18px;
   height: 16px;
+}
+
+.phone-purchase-features {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.phone-purchase-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: calc(16px * var(--phone-text-scale, 1));
+  line-height: calc(23px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text);
+}
+
+.phone-purchase-check {
+  flex: none;
+  height: calc(23px * var(--phone-text-scale, 1));
+  display: flex;
+  align-items: center;
+  color: var(--color-accent-text);
+}
+
+.phone-purchase-feature-text {
+  min-width: 0;
+}
+
+.phone-purchase-note {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: calc(14px * var(--phone-text-scale, 1));
+  line-height: calc(19px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
 }
 
 .phone-purchase-message {
@@ -2867,13 +2925,39 @@ button.phone-grouped-open:active:not(:disabled) {
   font-weight: 400;
 }
 
-.phone-purchase-link {
+.phone-purchase-buy-once {
   min-height: var(--size-phone-target);
   color: var(--color-accent-text);
   font-size: calc(17px * var(--phone-text-scale, 1));
+  font-weight: 600;
 }
 
-:is(.phone-purchase-primary, .phone-detail-done, .phone-purchase-link)[aria-disabled='true'] {
+.phone-purchase-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  column-gap: 12px;
+}
+
+.phone-purchase-link {
+  min-height: var(--size-phone-target);
+  color: var(--color-accent-text);
+  font-size: calc(15px * var(--phone-text-scale, 1));
+}
+
+.phone-purchase-divider {
+  width: var(--size-phone-separator);
+  height: calc(18px * var(--phone-text-scale, 1));
+  background: var(--color-phone-separator);
+}
+
+:is(
+  .phone-purchase-primary,
+  .phone-purchase-buy-once,
+  .phone-detail-done,
+  .phone-purchase-link
+)[aria-disabled='true'] {
   opacity: var(--opacity-disabled);
 }
 
