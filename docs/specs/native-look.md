@@ -256,6 +256,10 @@ Part of the [design system](design-system.md).
   A popover, as an iPad would show, points at the bottom middle of that controller's view, so the sheet always has a source.
   The command resolves at the share sheet's first answer, a cancel included (a cancel inside another app's share extension dismisses the whole sheet and answers once), and answers `E_SHARE_FAILED` when nothing could be presented.
   It shares the Mac License Key alone (docs/licensing.md, Get a Mac License Key): a message that holds a licence key this build verifies, and that key's `devot://licence?key=` link, checked in Rust.
+- Bar above the keyboard (iPhone): the system's bar for a web page's fields (previous, next and a check mark) is hidden in the main window's web view (`native/ios/input_accessory.rs`), as it sat between the formatting bar and the keyboard and repeated it.
+  Hide keyboard on the formatting bar dismisses the keyboard instead, and every other field closes with its own sheet or screen.
+  WebKit has no public switch for it (none in the iOS 27 SDK), so `main_window_built` gives the web view's content view a runtime subclass of its class whose `inputAccessoryView` is nil.
+  Only a subview of the scroll view whose class is exactly `WKContentView` and that answers `inputAccessoryView` is changed (`native/input_accessory.rs`); any other WebKit keeps its bar and logs `W_NATIVE_INPUT_ACCESSORY_UNAVAILABLE`.
 - Icon placement (`src/renderer/src/icons/symbols.ts`): `boxPoints` chooses the source point size from the role's box.
   `inkBounds` measures actual alpha coverage, and `placeInCanvas` centres that ink in a fixed canvas, preserving its scale unless it exceeds the box.
   Oversized ink is reduced to fit; transparent PNG padding contributes no size and never creates overhang or negative layout margins.
