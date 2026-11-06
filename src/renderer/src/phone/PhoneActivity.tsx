@@ -5,7 +5,7 @@ import {
   type Writing,
   type WritingWeekChoice,
 } from '../../../core/activity'
-import { monthLabels } from '../Activity'
+import { monthLabels } from '../activityMonths'
 import { formatNumber } from '../format'
 import { displayTitle } from '../headlines'
 import { currentLocale, format, t, type MessageKey } from '../i18n'

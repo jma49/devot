@@ -110,7 +110,11 @@ test('a ranked row is a 44 pt target that opens the note', async ({ page }) => {
     .getByRole('button')
     .filter({ hasText: '+240' })
   expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44)
-  await expect(row.locator('.phone-ranked-growth')).toHaveCSS('font-family', /mono/i)
+  await expect(row.locator('.phone-ranked-growth')).toHaveCSS(
+    'font-variant-numeric',
+    'tabular-nums',
+  )
+  await expect(row.locator('.phone-ranked-growth')).not.toHaveCSS('font-family', /mono/i)
   await row.click()
   await expect(page.getByRole('region', { name: 'Sync handshake' })).toBeVisible()
 })

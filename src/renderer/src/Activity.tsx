@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 // Imported directly (not through the core index) so the main bundle does not
 // pull in the rest of the core.
 import { ACTIVITY_LEVELS, DAY_MS, weekday, type ActivityHeatmap } from '../../core/activity'
+import { dateOf, monthLabels } from './activityMonths'
 import { errorCode } from './backups'
 import { sheetOpen } from './commands/dispatch'
 import type { Core } from './core-client'
@@ -37,10 +38,6 @@ export function useActivityMenu(open: () => void) {
   }, [])
 }
 
-/** A day number (see core/activity.ts) as a date; day numbers count UTC days. */
-const dateOf = (day: number, locale: string, options: Intl.DateTimeFormatOptions) =>
-  new Intl.DateTimeFormat(locale, { ...options, timeZone: 'UTC' }).format(day * DAY_MS)
-
 const listOf = (parts: string[], locale: string) =>
   new Intl.ListFormat(locale, { type: 'unit', style: 'long' }).format(parts)
 
@@ -60,24 +57,6 @@ function dayLabels(heatmap: ActivityHeatmap, locale: string): string[] {
       totals: parts.length ? list.format(parts) : t('activity.none'),
     })
   })
-}
-
-/**
- * Month names over the weeks where a month starts, kept apart enough to
- * read: the first week is labelled unless the next label is too close, and
- * the last two weeks are not (a name would run past the grid).
- */
-export function monthLabels(first: number, weeks: number, locale: string): string[] {
-  const month = (week: number) => new Date((first + week * 7) * DAY_MS).getUTCMonth()
-  const labels = Array.from({ length: weeks }, (_, week) =>
-    week > 0 && week < weeks - 2 && month(week) !== month(week - 1)
-      ? dateOf(first + week * 7, locale, { month: 'short' })
-      : '',
-  )
-  if (labels.slice(1, 3).every((label) => label === '')) {
-    labels[0] = dateOf(first, locale, { month: 'short' })
-  }
-  return labels
 }
 
 const WEEKDAYS = 7

@@ -12,7 +12,7 @@ import {
   textLength,
 } from '../revisions'
 import type { CompactableVersion, NoteRecord, RevisionKind } from '../storage'
-import { countWords } from '../words'
+import { noteCounts } from '../noteCounts'
 import { BODY, bodyText } from './body'
 import type { Live, NoteContext } from './context'
 
@@ -117,7 +117,7 @@ export function createVersions(ctx: NoteContext) {
         ydoc,
         length: textLength(text),
         value,
-        words: countWords(text),
+        words: noteCounts(text).words,
       })
       note.rev.lastText = text
     })
@@ -145,7 +145,7 @@ export function createVersions(ctx: NoteContext) {
           ydoc: before.ydoc,
           length: textLength(before.text),
           value: latest === undefined ? BASELINE : null,
-          words: countWords(before.text),
+          words: noteCounts(before.text).words,
         })
       }
       // A version taken meanwhile is newer.

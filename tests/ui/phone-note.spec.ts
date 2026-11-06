@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import * as Y from 'yjs'
-import { expect, test } from './fixtures'
+import { changeEditorSettingsElsewhere, expect, test } from './fixtures'
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -64,6 +64,14 @@ test('the mode toggle swaps Edit and Preview, and the sparkle leaves in Preview'
   await expect(note(page).locator('.phone-note-preview')).toHaveAttribute('data-shown', 'true')
 })
 
+test('the preview body is drawn at the Preview Font Size it shows', async ({ page }) => {
+  const body = note(page).locator('.preview p').first()
+  await changeEditorSettingsElsewhere(page, { previewFontSize: 15 })
+  await expect(body).toHaveCSS('font-size', '15px')
+  await changeEditorSettingsElsewhere(page, { previewFontSize: 20 })
+  await expect(body).toHaveCSS('font-size', '20px')
+})
+
 test("Preview and Edit text share the title's edges", async ({ page }) => {
   const heading = (await note(page).locator('.phone-note-heading').boundingBox())!
   const paragraph = (await note(page).locator('.preview p').first().boundingBox())!
@@ -119,7 +127,7 @@ test('typing shows the formatting bar on the keyboard and hides the bottom bar',
   await expect(note(page).getByRole('button', { name: 'Hide keyboard' })).toBeVisible()
 })
 
-test('note info has stats in mono, icon rows and a working Move to Trash', async ({ page }) => {
+test('note info has stats in figures, icon rows and a working Move to Trash', async ({ page }) => {
   await note(page).getByRole('button', { name: 'Note Info' }).click()
   const sheet = page.getByRole('dialog', { name: 'Note Info' })
   await expect(sheet.locator('.phone-info-stat dd').first()).toHaveClass(/phone-figures/)
@@ -487,7 +495,8 @@ test('the find count draws its numbers as figures and its words in the body font
   await expect(figures).toHaveCount(2)
   for (const figure of await figures.all()) {
     await expect(figure).toHaveText(/^\d+$/)
-    await expect(figure).toHaveCSS('font-family', /mono|Menlo/i)
+    await expect(figure).toHaveCSS('font-variant-numeric', 'tabular-nums')
+    await expect(figure).not.toHaveCSS('font-family', /mono|Menlo/i)
   }
 })
 

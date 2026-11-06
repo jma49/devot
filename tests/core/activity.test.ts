@@ -17,6 +17,7 @@ import {
   type OffsetAt,
   type StorageAdapter,
 } from '../../src/core'
+import { noteCounts } from '../../src/core/noteCounts'
 import { restoreLocalStorage, useMemoryLocalStorage } from '../support/local-storage'
 import { ACTIVITY_SQL, openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { watchSweeps } from '../support/sweeps'
@@ -381,5 +382,16 @@ describe('word counts in SQLite', () => {
     expect(stored.at(-1)).toMatchObject({ words: 4, previousWords: 2 })
     expect(writing.weeks.this.words).toBe(4)
     expect(writing.weeks.this.mostEdited).toEqual([{ noteId: id, words: 4 }])
+  })
+
+  it('counts the words a note shows, as Note Info does', async () => {
+    const { notes } = service()
+    const id = await notes.create('Plan')
+    const body =
+      '---\ntitle: Plan for the week\n---\n- [x] Pair the [relay](https://example.com/relay) now'
+    await notes.setBody(id, body)
+    const writing = await notes.writing(time, UTC)
+    expect(noteCounts(body).words).toBe(4)
+    expect(writing.weeks.this.words).toBe(noteCounts(body).words)
   })
 })

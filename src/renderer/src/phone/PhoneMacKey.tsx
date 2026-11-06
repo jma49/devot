@@ -96,7 +96,7 @@ function ReadyKey(props: { macKey: MacKey; copied: boolean; onCopied: () => void
     }).catch(() => console.warn('W_MAC_KEY_SHARE_FAILED'))
   return (
     <>
-      <p className="phone-detail-body phone-figures phone-mac-key">{key}</p>
+      <p className="phone-detail-body phone-mono phone-mac-key">{key}</p>
       <div className="phone-purchase-actions">
         <button type="button" className="phone-purchase-primary" onClick={copy}>
           {t('phone.macKey.copy')}

@@ -176,7 +176,7 @@ export interface RevisionRecord {
   length: number | null
   /** Event: the new value ('1' / '0' for pinned). Body: BASELINE (revisions.ts) when it keeps the text the history began with, else null. */
   value: string | null
-  /** countWords of the text; null for an event and for a version taken before schema v24. */
+  /** The words the note shows (noteCounts); null for an event and for a version taken before schema v24. */
   words: number | null
 }
 
