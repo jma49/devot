@@ -1262,10 +1262,15 @@
     "glass-floating-bar": {
       "$type": "dimension",
       "$value": {
-        "value": 18,
+        "value": 19,
         "unit": "px"
       },
-      "$description": "Glass interface: the selection toolbar and the image size bar."
+      "$description": "Glass interface: the selection toolbar and the image size bar, a capsule: size.float-toolbar-end + size.float-button / 2."
+    },
+    "glass-find-bar": {
+      "$type": "dimension",
+      "$value": { "value": 15, "unit": "px" },
+      "$description": "Glass interface: the find bar, concentric with its 22 px capsule controls: size.glass-find-bar-inset + size.segment-height / 2."
     },
     "glass-dialog": {
       "$type": "dimension",
@@ -1297,7 +1302,7 @@
         "value": 12,
         "unit": "px"
       },
-      "$description": "Glass interface: a tooltip, which stands alone and has no inset child."
+      "$description": "Glass interface: a tooltip; its keycap (radius.button) sits space.3 from the top, bottom and end, concentric with it."
     },
     "window": {
       "$type": "dimension",
@@ -1708,6 +1713,41 @@
       "$type": "dimension",
       "$value": { "value": 22, "unit": "px" },
       "$description": "The date picker: the row of weekday captions."
+    },
+    "note-pill-gap": {
+      "$type": "dimension",
+      "$value": { "value": 6, "unit": "px" },
+      "$description": "Glass interface: the gap between a note pill's text and the dot, icon, chevron or x beside it (space.3)."
+    },
+    "note-pill-end-dot": {
+      "$type": "dimension",
+      "$value": { "value": 9, "unit": "px" },
+      "$description": "Glass interface: a tag dot's inset from a note pill's end, concentric with the end cap: (size.note-pill - space.4) / 2."
+    },
+    "note-pill-end-xs": {
+      "$type": "dimension",
+      "$value": { "value": 8, "unit": "px" },
+      "$description": "Glass interface: a 10 px glyph box's inset from a note pill's end (the pop-up chevron, the status icon): (size.note-pill - space.5) / 2."
+    },
+    "note-pill-end-sm": {
+      "$type": "dimension",
+      "$value": { "value": 6, "unit": "px" },
+      "$description": "Glass interface: the notebook icon's inset from a note pill's end: (size.note-pill - size.icon-sm) / 2."
+    },
+    "note-pill-remove": {
+      "$type": "dimension",
+      "$value": { "value": 16, "unit": "px" },
+      "$description": "Glass interface: a removable tag pill's x button, square, its glyph centred in it."
+    },
+    "note-pill-end-remove": {
+      "$type": "dimension",
+      "$value": { "value": 5, "unit": "px" },
+      "$description": "Glass interface: the x button's inset from a tag pill's end and from its top and bottom: (size.note-pill - size.note-pill-remove) / 2."
+    },
+    "note-pill-trail": {
+      "$type": "dimension",
+      "$value": { "value": 24, "unit": "px" },
+      "$description": "Glass interface: the end padding of a removable tag pill, kept while the x is hidden: size.note-pill-end-xs + space.5 + size.note-pill-gap, so the label sits one gap from the x's glyph box."
     },
     "settings-swatch-width": {
       "$type": "dimension",
@@ -2181,6 +2221,26 @@
       "$value": { "value": 20, "unit": "px" },
       "$description": "The Glass sidebar's footer capsule: size.sidebar-row-inset + 20 / 2 = radius.sidebar, so it shares a centre with the sidebar's corners."
     },
+    "capsule-edge": {
+      "$type": "dimension",
+      "$value": { "value": 1, "unit": "px" },
+      "$description": "The border of an outlined capsule (the Glass sidebar footer, the sort chip, a note row's tag chip); an end inset is measured from outside it."
+    },
+    "sidebar-footer-gap": {
+      "$type": "dimension",
+      "$value": { "value": 6, "unit": "px" },
+      "$description": "The Glass sidebar footer: the gap between its dot, text and chevron (space.3)."
+    },
+    "sidebar-footer-end-dot": {
+      "$type": "dimension",
+      "$value": { "value": 5, "unit": "px" },
+      "$description": "The Glass sidebar footer: the start padding before its dot, concentric with the end cap: (size.sidebar-footer - space.4) / 2 - size.capsule-edge."
+    },
+    "sidebar-footer-end-sm": {
+      "$type": "dimension",
+      "$value": { "value": 2, "unit": "px" },
+      "$description": "The Glass sidebar footer: the end padding after its chevron's 14 px box: (size.sidebar-footer - size.icon-sm) / 2 - size.capsule-edge."
+    },
     "scrollbar": {
       "$type": "dimension",
       "$description": "The width of a scroll bar.",
@@ -2257,6 +2317,16 @@
         "value": 28,
         "unit": "px"
       }
+    },
+    "float-toolbar-end": {
+      "$type": "dimension",
+      "$value": { "value": 5, "unit": "px" },
+      "$description": "Glass interface: a floating bar's padding at its ends, the same as above and below its buttons: (size.float-toolbar-height - size.float-button) / 2."
+    },
+    "glass-find-bar-inset": {
+      "$type": "dimension",
+      "$value": { "value": 4, "unit": "px" },
+      "$description": "Glass interface: the find bar's padding on every side."
     },
     "link-dialog-width": {
       "$type": "dimension",
@@ -2377,6 +2447,36 @@
       },
       "$description": "The Filter field's icon slot (the funnel at rest, the clear button with a query): the text starts after it."
     },
+    "list-filter-control": {
+      "$type": "dimension",
+      "$value": { "value": 20, "unit": "px" },
+      "$description": "The height of the note list's sort chip and layout control."
+    },
+    "list-filter-control-gap": {
+      "$type": "dimension",
+      "$value": { "value": 6, "unit": "px" },
+      "$description": "Glass interface: the gap between the sort chip's label and its chevron, the same as the sidebar footer's at this height (space.3)."
+    },
+    "list-filter-control-end-xs": {
+      "$type": "dimension",
+      "$value": { "value": 4, "unit": "px" },
+      "$description": "Glass interface: the sort chip's end padding after its 10 px chevron box: (size.list-filter-control - space.5) / 2 - size.capsule-edge."
+    },
+    "row-chip": {
+      "$type": "dimension",
+      "$value": { "value": 17, "unit": "px" },
+      "$description": "A tag chip in a note row: a caption2 line (10 x 1.5) and its 1 px border above and below."
+    },
+    "row-chip-gap": {
+      "$type": "dimension",
+      "$value": { "value": 4, "unit": "px" },
+      "$description": "A tag chip in a note row: the gap between its dot and its name (space.2)."
+    },
+    "row-chip-end-dot": {
+      "$type": "dimension",
+      "$value": { "value": 3.5, "unit": "px" },
+      "$description": "A tag chip in a note row: the start padding before its dot: (size.row-chip - space.4) / 2 - size.capsule-edge."
+    },
     "sidebar-inset": {
       "$type": "dimension",
       "$value": {
@@ -2457,6 +2557,11 @@
       },
       "$description": "Glass interface: the height of the palette's capsule field."
     },
+    "glass-palette-field-end-md": {
+      "$type": "dimension",
+      "$value": { "value": 11.5, "unit": "px" },
+      "$description": "Glass interface: the palette field's start padding before its 17 px magnifier or Back: (size.glass-palette-field - size.icon-md) / 2."
+    },
     "glass-palette-row": {
       "$type": "dimension",
       "$value": {
@@ -2488,6 +2593,11 @@
         "unit": "px"
       },
       "$description": "Glass interface: a destructive confirm's full-width capsule."
+    },
+    "glass-alert-inset": {
+      "$type": "dimension",
+      "$value": { "value": 10, "unit": "px" },
+      "$description": "Glass interface: a destructive alert's padding at its sides and bottom, so its buttons are concentric with its corners: radius.glass-dialog - size.glass-alert-button / 2."
     },
     "glass-popover-row": {
       "$type": "dimension",
@@ -2564,6 +2674,21 @@
         "unit": "px"
       },
       "$description": "Glass interface: the height of a toolbar control, and a round toolbar button's width."
+    },
+    "toolbar-control-gap": {
+      "$type": "dimension",
+      "$value": { "value": 6, "unit": "px" },
+      "$description": "Glass interface: the gap between a 32 px field's leading glyph and its text (space.3)."
+    },
+    "toolbar-control-end-sm": {
+      "$type": "dimension",
+      "$value": { "value": 9, "unit": "px" },
+      "$description": "Glass interface: a 14 px glyph's inset from a 32 px capsule's end (the list's and Settings' magnifiers): (size.toolbar-control - size.icon-sm) / 2."
+    },
+    "toolbar-control-end-toolbar": {
+      "$type": "dimension",
+      "$value": { "value": 7, "unit": "px" },
+      "$description": "Glass interface: Back's and Forward's chevron inset from the ends of their shared capsule: (size.toolbar-control - size.icon-toolbar) / 2."
     },
     "editor-keyline": {
       "$type": "dimension",
