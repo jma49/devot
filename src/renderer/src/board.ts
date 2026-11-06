@@ -116,6 +116,20 @@ export function statusStep(
   return at < 0 ? undefined : statuses[at + by]
 }
 
+/**
+ * The column a drag over `over` washes: none when every card dragged is in
+ * it already, as a drop there changes nothing. `dragged` holds the statuses
+ * of this board's dragged cards; notes dragged from elsewhere wash any column.
+ */
+export function dropWash(
+  over: NoteStatus | undefined,
+  dragged: ReadonlySet<NoteStatus> | undefined,
+): NoteStatus | undefined {
+  if (over === undefined) return undefined
+  if (dragged && dragged.size === 1 && dragged.has(over)) return undefined
+  return over
+}
+
 export interface StatusChange {
   id: string
   from: NoteStatus

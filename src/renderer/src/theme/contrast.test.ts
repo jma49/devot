@@ -231,8 +231,7 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     expect(
       under(4.5, {
         title: [solid(theme, 'text.primary'), cards],
-        headline: [solid(theme, 'text.secondary'), cards],
-        date: [solid(theme, 'accent.text'), cards],
+        'headline and date': [solid(theme, 'text.secondary'), cards],
       }),
     ).toEqual([])
   })
@@ -515,14 +514,29 @@ describe('the system accent', () => {
       const fills = ['fill.track', 'fill.row-selected-unemphasized']
       const text = read(`--system-accent-text-${appearance}`)
       expect(worst(text, backdrops(theme, fills))).toBeGreaterThanOrEqual(4.5)
-      const cards = cardBackdrops(theme, read(`--system-accent-fill-${appearance}`))
-      expect(worst(text, cards)).toBeGreaterThanOrEqual(4.5)
     })
   })
 
   // The accents macOS offers; the extremes only test the adjustment.
   const EXTREMES = new Set(['white', 'black', 'pure yellow'])
   const OFFERED = Object.entries(SYSTEM_ACCENTS).filter(([name]) => !EXTREMES.has(name))
+
+  describe.each(OFFERED)('%s washing a selected board card', (_name, [lightHex, darkHex]) => {
+    const read = applied(lightHex, darkHex)
+
+    it.each([
+      ['light', light as Theme],
+      ['dark', dark as Theme],
+    ] as const)('keeps card text at 4.5:1 on a %s card', (appearance, theme) => {
+      const cards = cardBackdrops(theme, read(`--system-accent-fill-${appearance}`))
+      expect(
+        under(4.5, {
+          title: [solid(theme, 'text.primary'), cards],
+          'headline and date': [solid(theme, 'text.secondary'), cards],
+        }),
+      ).toEqual([])
+    })
+  })
 
   describe.each(OFFERED)('%s as the editor selection', (_name, [lightHex, darkHex]) => {
     const read = applied(lightHex, darkHex)

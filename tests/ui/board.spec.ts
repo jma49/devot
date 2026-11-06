@@ -441,3 +441,55 @@ test('a card changing column flies there on a copy above the columns', async ({ 
   await expect.poll(() => page.evaluate(() => window.devotFlight ?? '')).toMatch(/translate\(-\d/)
   await expect(page.locator('[data-closing="row"]')).toHaveCount(0)
 })
+
+test('until its edge is dragged the board is as wide as its columns, and Enter or a double-click fits it again', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1800, height: 900 })
+  await layout(page, 'Board').click()
+  const width = async () => (await board(page).boundingBox())?.width
+  expect(await width()).toBe(964)
+  await changeEditorSettingsElsewhere(page, { boardDropped: false })
+  await expect(board(page).locator('.board-column')).toHaveCount(4)
+  expect(await width()).toBe(774)
+  const edge = page.getByRole('separator', { name: 'Resize Board' })
+  await edge.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(width).toBe(784)
+  await changeEditorSettingsElsewhere(page, { boardDropped: true })
+  await expect(board(page).locator('.board-column')).toHaveCount(5)
+  expect(await width()).toBe(784)
+  await edge.focus()
+  await page.keyboard.press('Enter')
+  await expect.poll(width).toBe(964)
+  await edge.focus()
+  await page.keyboard.press('ArrowLeft')
+  await expect.poll(width).toBe(954)
+  await edge.dblclick()
+  await expect.poll(width).toBe(964)
+})
+
+test('an empty column says it has no notes', async ({ page }) => {
+  await layout(page, 'Board').click()
+  await expect(column(page, 'On Hold')).toContainText('No Notes')
+  await expect(column(page, 'On Hold').getByRole('option')).toHaveCount(0)
+  await expect(column(page, 'Active')).not.toContainText('No Notes')
+})
+
+test('a drag leaves its cards faint in place and washes the column under it, not their own', async ({
+  page,
+}) => {
+  await layout(page, 'Board').click()
+  const dataTransfer = await page.evaluateHandle(() => new DataTransfer())
+  await card(page, 'Charlie').dispatchEvent('dragstart', { dataTransfer })
+  await expect(card(page, 'Charlie')).toHaveAttribute('data-dragging', 'true')
+  await expect(card(page, 'Charlie')).toHaveCSS('opacity', '0.35')
+  const washed = board(page).locator('.board-column[data-drop]')
+  await column(page, 'On Hold').dispatchEvent('dragover', { dataTransfer })
+  await expect(washed).toHaveAttribute('data-status', 'on_hold')
+  await column(page, 'Active').dispatchEvent('dragover', { dataTransfer })
+  await expect(washed).toHaveCount(0)
+  await card(page, 'Charlie').dispatchEvent('dragend', { dataTransfer })
+  await expect(card(page, 'Charlie')).not.toHaveAttribute('data-dragging', 'true')
+  await expect(washed).toHaveCount(0)
+})

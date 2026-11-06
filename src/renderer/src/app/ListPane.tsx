@@ -10,6 +10,7 @@ import { Icon } from '../icons/Icon'
 import { NoteBoard } from '../NoteBoard'
 import { NoteGallery } from '../NoteGallery'
 import { NoteList } from '../NoteList'
+import { fittedBoardWidth } from '../paneWidth'
 import { STATUSES, type SidebarMenus } from '../Sidebar'
 import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import type { SearchResults } from '../useSearch'
@@ -145,6 +146,9 @@ export function ListPane({
             : undefined
       }
       notes={galleryNotes}
+      tags={tagsById}
+      changedBy={agentWrites.view.changedBy}
+      fittedWidth={fittedBoardWidth(boardStatusList.length)}
       capped={searching && (results?.capped ?? false)}
       selected={selected}
       opening={switching ? openingId : undefined}

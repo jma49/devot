@@ -13,15 +13,17 @@ import {
   type ReactNode,
   type Ref,
 } from 'react'
-import type { NoteSummary } from '../../core'
+import type { NoteSummary, TagRecord } from '../../core'
 import type { ListDatesStyle } from '../../core/editorSettings'
+import type { WriterRef } from './authorshipLabels'
+import { CardMeta } from './CardMeta'
 import { dropSelectionLeftBehind } from './focus'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import type { MenuPoint } from './contextMenu'
 import { setNoteDragData } from './dragData'
 import { useEditorSetting } from './editorSettings'
-import { fullDate, rowDate } from './format'
 import {
+  galleryCardHeight,
   galleryColumns,
   galleryGridTop,
   galleryPlace,
@@ -33,7 +35,6 @@ import {
 import { useCardPreviews, type CardPreview, type CardPreviewLoader } from './galleryPreviews'
 import { displayTitle, useHeadlines, type HeadlineLoader } from './headlines'
 import { currentLocale, t } from './i18n'
-import { Icon } from './icons/Icon'
 import { dragCardLines, setDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
 import { ListHeader } from './ListHeader'
@@ -69,6 +70,11 @@ interface Props {
   layout?: ReactNode
   /** The notes the view lists, in its order (pinned first). */
   notes: readonly NoteSummary[]
+  tags: ReadonlyMap<string, TagRecord>
+  /** The notes agents changed since the owner last looked, with the newest writer (agentWrites.ts). */
+  changedBy?: ReadonlyMap<string, WriterRef> | undefined
+  /** The pane's width until the user sets one: the board's for the view (`fittedBoardWidth`), whose width the gallery shares. */
+  fittedWidth: number
   selected: string | undefined
   opening?: string | undefined
   onSelect: (id: string) => void
@@ -89,12 +95,14 @@ interface Props {
 }
 
 const px = (value: string) => Number.parseFloat(value)
-const CARD_HEIGHT = px(sizes['size.gallery-card-height'])
 const CARD_MIN_WIDTH = px(sizes['size.gallery-card-min-width'])
+const CARD_MAX_WIDTH = px(sizes['size.gallery-card-max-width'])
 const PAGE_WIDTH = px(sizes['size.gallery-page-width'])
-/** `.gallery-grid` gap, and the cell's and the sheet's side padding, in app.css. */
+/** `.gallery-grid` gap, the cell's padding (top and sides), the sheet's side padding, and what is under the sheet (caption margin, line and the cell's bottom padding), in app.css. */
 const GAP = px(sizes['space.5'])
-const PAGE_INSET = 2 * px(sizes['space.2']) + 2 * px(sizes['space.4'])
+const CELL_INSET = px(sizes['space.2'])
+const PAGE_INSET = 2 * CELL_INSET + 2 * px(sizes['space.4'])
+const BELOW_SHEET = 2 * px(sizes['space.3']) + px(sizes['size.card-meta-line'])
 const OVERSCAN_PX = 600
 
 interface Grid {
@@ -135,9 +143,10 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
   const [revealed, setRevealed] = useState<string>()
   const toFocus = useRef<string>(undefined)
   const [grid, setGrid] = useState<Grid>({ width: 0, top: 0, height: 0 })
-  const columns = galleryColumns(grid.width, CARD_MIN_WIDTH, GAP)
+  const columns = galleryColumns(grid.width, CARD_MIN_WIDTH, CARD_MAX_WIDTH, GAP)
   const cardWidth = Math.max(0, (grid.width - GAP * (columns - 1)) / columns)
-  const rowStep = CARD_HEIGHT + GAP
+  const cardHeight = galleryCardHeight(cardWidth, CELL_INSET, BELOW_SHEET)
+  const rowStep = cardHeight + GAP
   const rows = Math.ceil(notes.length / columns)
   const shown = useMemo(() => {
     const kept: number[] = []
@@ -154,7 +163,7 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
   const locale = currentLocale()
   const now = useNow()
   const dates = useEditorSetting('listDates')
-  const { width, edge } = usePaneResize(BOARD_PANE)
+  const { width, edge } = usePaneResize(BOARD_PANE, props.fittedWidth)
   const emptyText =
     props.empty && notes.length === 0 ? listEmpty(props.empty, props.editing) : undefined
 
@@ -186,7 +195,7 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
       scrollTop: outer.scrollTop,
       height: outer.clientHeight,
     }
-    const top = galleryReveal(index, columns, rowStep, CARD_HEIGHT, view)
+    const top = galleryReveal(index, columns, rowStep, cardHeight, view)
     if (top !== outer.scrollTop) outer.scrollTop = top
   }
   /** Gives `id`'s card the keyboard and scrolls it into view; a card not rendered yet renders first. */
@@ -497,6 +506,7 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
               {
                 height: rows > 0 ? rows * rowStep - GAP : 0,
                 '--gallery-card-width': `${cardWidth}px`,
+                '--gallery-card-height': `${cardHeight}px`,
                 '--gallery-scale': scale,
               } as CSSProperties
             }
@@ -517,6 +527,8 @@ export const NoteGallery = memo(function NoteGallery(props: Props) {
                         chosen ? chosen.has(note.id) : note.id === (props.opening ?? selected)
                       }
                       tabbable={note.id === tabStop}
+                      tags={props.tags}
+                      changedBy={props.changedBy?.get(note.id)}
                       headline={headlines.get(note.id)}
                       preview={previews.get(note.id)}
                       draggable={props.draggable}
@@ -554,6 +566,8 @@ interface CardProps {
   setSize: number
   selected: boolean
   tabbable: boolean
+  tags: ReadonlyMap<string, TagRecord>
+  changedBy: WriterRef | undefined
   headline: string | undefined
   preview: CardPreview | undefined
   draggable: boolean
@@ -608,13 +622,15 @@ const GalleryCard = memo(function GalleryCard(props: CardProps) {
         </div>
       </div>
       <span className="gallery-card-caption">
-        {n.pinned ? <Icon name="notes.pinned" size="sm" /> : null}
-        <time
-          dateTime={new Date(n.updatedAt).toISOString()}
-          title={fullDate(n.updatedAt, props.locale)}
-        >
-          {rowDate(n.updatedAt, props.now, props.locale, props.dates)}
-        </time>
+        <CardMeta
+          note={n}
+          tags={props.tags}
+          now={props.now}
+          locale={props.locale}
+          dates={props.dates}
+          changedBy={props.changedBy}
+          marks
+        />
       </span>
     </li>
   )

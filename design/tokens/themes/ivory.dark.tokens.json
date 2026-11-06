@@ -1846,6 +1846,26 @@
       }
     },
     "shadow": {
+      "page-key": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.35
+        },
+        "$description": "The close layer of the shadow under a gallery card's page."
+      },
+      "page-ambient": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.1216, 0.1176, 0.1137],
+          "hex": "#1f1e1d",
+          "alpha": 0.25
+        },
+        "$description": "The soft, wide layer of the shadow under a gallery card's page."
+      },
       "popover-key": {
         "$type": "color",
         "$value": {

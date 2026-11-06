@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { NoteStatus } from '../../core/storage'
 import { sizes } from './theme/tokens'
+import { fittedBoardWidth } from './paneWidth'
 import {
   appliedChanges,
   boardColumns,
@@ -13,6 +14,7 @@ import {
   columnWindow,
   createBoardHistories,
   createMoveHistory,
+  dropWash,
   moveChanges,
   redoChanges,
   statusStep,
@@ -277,16 +279,19 @@ describe('columnWindow', () => {
   })
 })
 
-describe('the default board width', () => {
-  it('fits every column at its narrowest', () => {
+describe('the fitted board width', () => {
+  it('is the columns at their width with the board’s gaps and keylines, Dropped shown or hidden', () => {
     const px = (name: keyof typeof sizes) => parseFloat(sizes[name])
-    const columns = boardStatuses(true).length
-    // `.board-columns` in app.css: space-4 between columns, space-6 at each side.
-    const needed =
-      columns * px('size.board-column-min-width') +
-      (columns - 1) * px('space.4') +
-      2 * px('space.6')
-    expect(px('size.board-default-width')).toBeGreaterThanOrEqual(needed)
+    // `.board-columns` under Glass in app.css: space-5 between columns, the outer keyline at each side.
+    for (const dropped of [true, false]) {
+      const columns = boardStatuses(dropped).length
+      const needed =
+        columns * px('size.board-column-width') +
+        (columns - 1) * px('space.5') +
+        2 * px('size.list-keyline-outer')
+      expect(fittedBoardWidth(columns)).toBe(needed)
+    }
+    expect(px('size.board-column-min-width')).toBeLessThan(px('size.board-column-width'))
   })
 })
 
@@ -313,5 +318,22 @@ describe('boardJump', () => {
     expect(boardJump(columns, 'e', 'PageDown')).toBeUndefined()
     expect(boardJump(columns, 'b', 'PageUp')).toBeUndefined()
     expect(boardJump(columns, 'a', 'ArrowDown')).toBeUndefined()
+  })
+})
+
+describe('dropWash', () => {
+  it('washes the column under the pointer', () => {
+    expect(dropWash('on_hold', new Set(['active']))).toBe('on_hold')
+    expect(dropWash(undefined, new Set(['active']))).toBeUndefined()
+  })
+
+  it('leaves the cards’ own column bare, as a drop there changes nothing', () => {
+    expect(dropWash('active', new Set(['active']))).toBeUndefined()
+    expect(dropWash('active', new Set(['active', 'none']))).toBe('active')
+  })
+
+  it('washes any column for notes dragged from elsewhere (the list, another window)', () => {
+    expect(dropWash('active', undefined)).toBe('active')
+    expect(dropWash('none', new Set())).toBe('none')
   })
 })

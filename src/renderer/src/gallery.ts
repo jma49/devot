@@ -1,14 +1,33 @@
 // The note list as a gallery: cards of one size in rows, as many across as the
-// pane fits. Every card has the same height, so where a card sits and which
-// cards show follow from its index alone, and a gallery of thousands renders
-// only the rows near the part that shows.
+// pane fits. Every card has the same size, its height following its width, so
+// where a card sits and which cards show follow from its index alone, and a
+// gallery of thousands renders only the rows near the part that shows.
 
 /** Rows rendered before the gallery has been measured. */
 const FIRST_ROWS = 8
 
-/** How many cards of at least `minWidth`, `gap` apart, fit across `width`; never fewer than one. */
-export function galleryColumns(width: number, minWidth: number, gap: number): number {
-  return Math.max(1, Math.floor((width + gap) / (minWidth + gap)))
+/** A card's sheet, as wide as it is tall times this. */
+const SHEET_RATIO = 3 / 4
+
+/**
+ * How many cards, `gap` apart, go across `width`: as many as keep each at
+ * most `maxWidth`, but never so many that one is under `minWidth`, and at
+ * least one. Where both cannot hold the cards widen past `maxWidth`.
+ */
+export function galleryColumns(
+  width: number,
+  minWidth: number,
+  maxWidth: number,
+  gap: number,
+): number {
+  const wanted = Math.ceil((width + gap) / (maxWidth + gap))
+  const fit = Math.floor((width + gap) / (minWidth + gap))
+  return Math.max(1, Math.min(wanted, fit))
+}
+
+/** A card's height for its `width`: the cell's `inset` above and beside a 3:4 sheet, and `below` it (the caption and the cell's bottom padding). */
+export function galleryCardHeight(width: number, inset: number, below: number): number {
+  return inset + Math.max(0, width - 2 * inset) / SHEET_RATIO + below
 }
 
 /** The zoom that fits a page laid out at `pageWidth` into a card `width` wide less its `inset` (cell and sheet padding). */

@@ -196,13 +196,14 @@
   --size-list-default-width: 300px;
   --size-list-max-width: 500px;
   --size-board-min-width: 240px;
-  --size-board-default-width: 860px;
   --size-board-max-width: 1600px;
   --size-board-editor-min-width: 380px;
+  --size-board-column-width: 180px;
   --size-board-column-min-width: 150px;
-  --size-gallery-card-min-width: 180px;
-  --size-gallery-card-height: 240px;
-  --size-gallery-page-width: 400px;
+  --size-card-meta-line: 14px;
+  --size-gallery-card-min-width: 220px;
+  --size-gallery-card-max-width: 300px;
+  --size-gallery-page-width: 480px;
   --size-pane-resize-handle: 4px;
   --size-quote-bar: 3px;
   --size-alert-pad-top: 11px;
@@ -391,6 +392,10 @@
   --shadow-popover-y: 2px;
   --shadow-popover-key-blur: 4px;
   --shadow-popover-ambient-blur: 10px;
+  --shadow-page-key-y: 1px;
+  --shadow-page-key-blur: 2px;
+  --shadow-page-ambient-y: 4px;
+  --shadow-page-ambient-blur: 14px;
   --shadow-float-bar-y: 2px;
   --shadow-float-bar-blur: 12px;
   --shadow-phone-glass-rim-offset: 1.5px;
@@ -406,6 +411,7 @@
   --opacity-disabled: 0.45;
   --opacity-dragged: 0.5;
   --opacity-list-selected: 0.2;
+  --opacity-card-dragged: 0.35;
   --opacity-card-selected: 0.1;
   --opacity-tag-fill: 0.1;
   --opacity-tag-border: 0.2;
@@ -619,6 +625,8 @@
   --color-match-bg: #f3e1bb;
   --color-match-border: #d9b871;
   --color-trailing-space: rgb(175 59 54 / 0.25);
+  --color-shadow-page-key: rgb(20 32 50 / 0.1);
+  --color-shadow-page-ambient: rgb(20 32 50 / 0.08);
   --color-shadow-popover-key: rgb(0 0 0 / 0.12);
   --color-shadow-popover-ambient: rgb(0 0 0 / 0.15);
   --color-shadow-float-bar: rgb(0 0 0 / 0.18);
@@ -848,6 +856,8 @@
     --color-match-bg: #5b4a26;
     --color-match-border: #80672f;
     --color-trailing-space: rgb(233 120 115 / 0.3);
+    --color-shadow-page-key: rgb(0 0 0 / 0.35);
+    --color-shadow-page-ambient: rgb(0 0 0 / 0.25);
     --color-shadow-popover-key: rgb(0 0 0 / 0.2);
     --color-shadow-popover-ambient: rgb(0 0 0 / 0.3);
     --color-shadow-float-bar: rgb(0 0 0 / 0.4);
@@ -1078,6 +1088,8 @@
   --color-match-bg: #5b4a26;
   --color-match-border: #80672f;
   --color-trailing-space: rgb(233 120 115 / 0.3);
+  --color-shadow-page-key: rgb(0 0 0 / 0.35);
+  --color-shadow-page-ambient: rgb(0 0 0 / 0.25);
   --color-shadow-popover-key: rgb(0 0 0 / 0.2);
   --color-shadow-popover-ambient: rgb(0 0 0 / 0.3);
   --color-shadow-float-bar: rgb(0 0 0 / 0.4);
@@ -1307,6 +1319,8 @@
   --color-match-bg: #f3e1bb;
   --color-match-border: #d9b871;
   --color-trailing-space: rgb(175 59 54 / 0.25);
+  --color-shadow-page-key: rgb(20 32 50 / 0.1);
+  --color-shadow-page-ambient: rgb(20 32 50 / 0.08);
   --color-shadow-popover-key: rgb(0 0 0 / 0.12);
   --color-shadow-popover-ambient: rgb(0 0 0 / 0.15);
   --color-shadow-float-bar: rgb(0 0 0 / 0.18);
@@ -1536,6 +1550,8 @@
   --color-match-bg: #f3e1bb;
   --color-match-border: #d9b871;
   --color-trailing-space: rgb(180 70 63 / 0.25);
+  --color-shadow-page-key: rgb(31 30 29 / 0.1);
+  --color-shadow-page-ambient: rgb(31 30 29 / 0.08);
   --color-shadow-popover-key: rgb(31 30 29 / 0.12);
   --color-shadow-popover-ambient: rgb(31 30 29 / 0.15);
   --color-shadow-float-bar: rgb(31 30 29 / 0.18);
@@ -1765,6 +1781,8 @@
     --color-match-bg: #5b4a26;
     --color-match-border: #80672f;
     --color-trailing-space: rgb(238 136 132 / 0.3);
+    --color-shadow-page-key: rgb(31 30 29 / 0.35);
+    --color-shadow-page-ambient: rgb(31 30 29 / 0.25);
     --color-shadow-popover-key: rgb(31 30 29 / 0.2);
     --color-shadow-popover-ambient: rgb(31 30 29 / 0.3);
     --color-shadow-float-bar: rgb(31 30 29 / 0.5);
@@ -1995,6 +2013,8 @@
   --color-match-bg: #5b4a26;
   --color-match-border: #80672f;
   --color-trailing-space: rgb(238 136 132 / 0.3);
+  --color-shadow-page-key: rgb(31 30 29 / 0.35);
+  --color-shadow-page-ambient: rgb(31 30 29 / 0.25);
   --color-shadow-popover-key: rgb(31 30 29 / 0.2);
   --color-shadow-popover-ambient: rgb(31 30 29 / 0.3);
   --color-shadow-float-bar: rgb(31 30 29 / 0.5);
@@ -2224,6 +2244,8 @@
   --color-match-bg: #f3e1bb;
   --color-match-border: #d9b871;
   --color-trailing-space: rgb(180 70 63 / 0.25);
+  --color-shadow-page-key: rgb(31 30 29 / 0.1);
+  --color-shadow-page-ambient: rgb(31 30 29 / 0.08);
   --color-shadow-popover-key: rgb(31 30 29 / 0.12);
   --color-shadow-popover-ambient: rgb(31 30 29 / 0.15);
   --color-shadow-float-bar: rgb(31 30 29 / 0.18);

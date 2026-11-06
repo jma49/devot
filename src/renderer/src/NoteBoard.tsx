@@ -24,21 +24,20 @@ import {
   cardStep,
   columnJump,
   columnWindow,
+  dropWash,
   type BoardColumn,
 } from './board'
-import { compareNames } from '../../core/sort'
+import { CardMeta } from './CardMeta'
 import { dropSelectionLeftBehind } from './focus'
 import { keyMatches } from './commands/keys'
 import { commandMatches, heldCommandKey } from './commands/registry'
 import type { MenuPoint } from './contextMenu'
 import { DRAG_NOTE, setNoteDragData } from './dragData'
 import { useEditorSetting } from './editorSettings'
-import { fullDate, rowDate } from './format'
 import { useHeadlines, type HeadlineLoader } from './headlines'
-import { currentLocale, format, t } from './i18n'
-import { tagColorStyle, tagDotClass } from './tagColorStyle'
+import { currentLocale, t } from './i18n'
 import { Icon } from './icons/Icon'
-import { dragCardLines, setDragCard } from './listDrag'
+import { setBoardDragCard } from './listDrag'
 import { listEmpty, type ListEmptyKind } from './listEmpty'
 import { ListHeader } from './ListHeader'
 import {
@@ -53,9 +52,9 @@ import { noteShortcut, type NoteAction } from './noteMenu'
 import { spacerHeight } from './listWindow'
 import { useNow } from './NoteList'
 import type { WriterRef } from './authorshipLabels'
-import { ChangedBy, STATUS_ICONS } from './NoteRow'
+import { STATUS_ICONS } from './NoteRow'
 import { usePaneResize } from './paneResize'
-import { BOARD_PANE } from './paneWidth'
+import { BOARD_PANE, fittedBoardWidth } from './paneWidth'
 import { useRowMotion } from './rowMotion'
 import { useStable } from './stable'
 
@@ -202,7 +201,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
   const now = useNow()
   const locale = currentLocale()
   const dates = useEditorSetting('listDates')
-  const { width, edge } = usePaneResize(BOARD_PANE)
+  const { width, edge } = usePaneResize(BOARD_PANE, fittedBoardWidth(statuses.length))
 
   const idBase = useId()
   const board = useRef<HTMLElement>(null)
@@ -515,15 +514,14 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       title: byId.get(noteId)?.title || headlines.get(noteId) || t('note.untitled'),
     }))
     setNoteDragData(event.dataTransfer, picked)
-    setDragCard(
-      event.dataTransfer,
-      dragCardLines(
-        picked.map((n) => n.title),
-        locale,
-      ),
-    )
+    setBoardDragCard(event.dataTransfer, event.currentTarget, ids.length, locale)
     setDragged(new Set(ids))
   })
+  const draggedFrom = useMemo(
+    () => (dragged ? new Set([...dragged].flatMap((id) => byId.get(id)?.status ?? [])) : undefined),
+    [dragged, byId],
+  )
+  const washed = dropWash(dropOn, draggedFrom)
   const dropTarget = (status: NoteStatus) => {
     const { onMove } = props
     if (!onMove) return {}
@@ -656,7 +654,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
                 key={column.status}
                 className={`board-column status-${column.status}`}
                 data-status={column.status}
-                data-drop={dropOn === column.status || undefined}
+                data-drop={washed === column.status || undefined}
                 {...dropTarget(column.status)}
               >
                 <div className="board-column-header" id={headingId}>
@@ -682,7 +680,13 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
                       : undefined
                   }
                 >
-                  {cardsOf(column)}
+                  {column.notes.length > 0 ? (
+                    cardsOf(column)
+                  ) : (
+                    <li className="board-empty" role="presentation">
+                      {t('board.columnEmpty')}
+                    </li>
+                  )}
                 </ul>
               </div>
             )
@@ -726,13 +730,6 @@ const BoardCard = memo(function BoardCard(props: CardProps) {
   const { note: n, events } = props
   const id = n.id
   const ref = useCallback((el: HTMLLIElement) => events.setCard(id, el), [events, id])
-  // By name, as the note header lists them; the note stores them in its query's order.
-  const tags = n.tagIds
-    .flatMap((tagId) => {
-      const tag = props.tags.get(tagId)
-      return tag ? [tag] : []
-    })
-    .sort((a, b) => compareNames(a.name, b.name, props.locale))
   return (
     <li
       ref={ref}
@@ -757,32 +754,15 @@ const BoardCard = memo(function BoardCard(props: CardProps) {
       <span className={n.title ? 'card-title' : 'card-title card-headline'} dir="auto">
         {n.title || props.headline || t('note.untitled')}
       </span>
-      <span className="card-meta">
-        <time
-          className="card-time"
-          dateTime={new Date(n.updatedAt).toISOString()}
-          title={fullDate(n.updatedAt, props.locale)}
-        >
-          {rowDate(n.updatedAt, props.now, props.locale, props.dates)}
-        </time>
-        {props.changedBy ? <ChangedBy writer={props.changedBy} compact /> : null}
-        {tags.length > 0 ? (
-          <span className="card-tags">
-            {tags.map((tag) => (
-              <span
-                key={tag.id}
-                className={tagDotClass(tag.color)}
-                style={tagColorStyle(tag.color)}
-                aria-hidden
-                title={tag.name}
-              />
-            ))}
-            <span className="visually-hidden">
-              {format(t('board.cardTags'), { tags: tags.map((tag) => tag.name).join(', ') })}
-            </span>
-          </span>
-        ) : null}
-      </span>
+      <CardMeta
+        note={n}
+        tags={props.tags}
+        now={props.now}
+        locale={props.locale}
+        dates={props.dates}
+        changedBy={props.changedBy}
+        marks={false}
+      />
     </li>
   )
 })

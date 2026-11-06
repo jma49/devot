@@ -106,16 +106,27 @@ export function selectionTints(fill: Rgb, appearance: Appearance): { focused: Rg
 export const selectionTint = (fill: Rgb, appearance: Appearance): Rgb =>
   selectionTints(fill, appearance).focused
 
-/** What a board card's text sits on (app.css `.card`): the card fill on a column's track over the list, and a selected card's accent wash. */
+/**
+ * What a board card's text sits on (app.css `.card`), plain and selected: in
+ * Classic the card fill on a column's track with a light accent wash, in Glass
+ * the card fill on the list itself with the list's selection wash.
+ */
 export function cardBackdrops(theme: Readonly<Record<string, string>>, fill: Rgb): Rgb[] {
   const color = (path: string) => parseColor(theme[`color.${path}`] ?? '')
-  const column = composite(color('fill.track'), color('surface.list').rgb)
+  const list = color('surface.list').rgb
+  const column = composite(color('fill.track'), list)
   const card = color('fill.card')
-  const wash = Number(sizes['opacity.card-selected'])
-  return [composite(card, column), composite(mixSrgb({ rgb: fill, alpha: 1 }, wash, card), column)]
+  const washed = (opacity: 'card-selected' | 'list-selected') =>
+    mixSrgb({ rgb: fill, alpha: 1 }, Number(sizes[`opacity.${opacity}`]), card)
+  return [
+    composite(card, column),
+    composite(washed('card-selected'), column),
+    composite(card, list),
+    composite(washed('list-selected'), list),
+  ]
 }
 
-function textBackdrops(appearance: Appearance, selection: Rgb, fill: Rgb): Rgb[] {
+function textBackdrops(appearance: Appearance, selection: Rgb): Rgb[] {
   const theme = THEMES[appearance]
   const surfaces = (['list', 'editor', 'sidebar-opaque'] as const).map(
     (name) => parseColor(theme[`color.surface.${name}`]).rgb,
@@ -127,7 +138,6 @@ function textBackdrops(appearance: Appearance, selection: Rgb, fill: Rgb): Rgb[]
     ...surfaces.flatMap((s) => fills.map((f) => composite(f, s))),
     selection,
     composite(parseColor(theme['color.editor.active-line']), selection),
-    ...cardBackdrops(theme, fill),
   ]
 }
 
@@ -157,7 +167,7 @@ function readableAccent(
     text: toHex(
       readableOn(
         accent,
-        textBackdrops(appearance, selection, fillRgb),
+        textBackdrops(appearance, selection),
         appearance === 'light' ? 'darker' : 'lighter',
         TARGET,
       ),

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BOARD_PANE,
   LIST_PANE,
   SIDEBAR_PANE,
   clampPaneWidth,
+  fittedBoardWidth,
   paneWidthForKey,
   paneWidthStore,
+  shownPaneWidth,
 } from './paneWidth'
 import { memoryStorage } from '../../../tests/support/local-storage'
 
@@ -48,6 +51,26 @@ describe('the note list width', () => {
     expect(paneWidthStore(LIST_PANE, memoryStorage({ 'devot.list.width': '' })).read()).toBe(300)
   })
 
+  it('forgets the width set, so the pane opens at its default again', () => {
+    const storage = memoryStorage({ 'devot.list.width': '412' })
+    const store = paneWidthStore(LIST_PANE, storage)
+    expect(store.stored()).toBe(412)
+    store.clear()
+    expect(storage.items.has('devot.list.width')).toBe(false)
+    expect(store.stored()).toBeUndefined()
+    expect(store.read()).toBe(300)
+  })
+
+  it('has no width set while none is stored or the stored one is not a number', () => {
+    expect(paneWidthStore(LIST_PANE, memoryStorage()).stored()).toBeUndefined()
+    expect(
+      paneWidthStore(LIST_PANE, memoryStorage({ 'devot.list.width': 'wide' })).stored(),
+    ).toBeUndefined()
+    expect(paneWidthStore(LIST_PANE, memoryStorage({ 'devot.list.width': '12' })).stored()).toBe(
+      220,
+    )
+  })
+
   it('works on with storage that fails', () => {
     const broken = {
       getItem: () => {
@@ -56,9 +79,14 @@ describe('the note list width', () => {
       setItem: () => {
         throw new Error('full')
       },
+      removeItem: () => {
+        throw new Error('off')
+      },
     }
     expect(paneWidthStore(LIST_PANE, broken).read()).toBe(300)
     expect(() => paneWidthStore(LIST_PANE, broken).write(400)).not.toThrow()
+    expect(() => paneWidthStore(LIST_PANE, broken).clear()).not.toThrow()
+    expect(paneWidthStore(LIST_PANE, broken).stored()).toBeUndefined()
   })
 })
 
@@ -72,10 +100,10 @@ describe('listWidthForKey', () => {
     expect(paneWidthForKey(LIST_PANE, 'ArrowLeft', false, 220)).toBe(220)
   })
 
-  it('goes to the ends with Home and End and back to the default with Enter', () => {
+  it('goes to the ends with Home and End, and Enter forgets the width set', () => {
     expect(paneWidthForKey(LIST_PANE, 'Home', false, 400)).toBe(220)
     expect(paneWidthForKey(LIST_PANE, 'End', false, 400)).toBe(500)
-    expect(paneWidthForKey(LIST_PANE, 'Enter', false, 400)).toBe(300)
+    expect(paneWidthForKey(LIST_PANE, 'Enter', false, 400)).toBe('reset')
   })
 
   it('leaves other keys alone', () => {
@@ -99,7 +127,7 @@ describe('the sidebar width', () => {
     expect(paneWidthForKey(SIDEBAR_PANE, 'ArrowRight', true, 200)).toBe(250)
     expect(paneWidthForKey(SIDEBAR_PANE, 'Home', false, 300)).toBe(170)
     expect(paneWidthForKey(SIDEBAR_PANE, 'End', false, 300)).toBe(500)
-    expect(paneWidthForKey(SIDEBAR_PANE, 'Enter', false, 300)).toBe(200)
+    expect(paneWidthForKey(SIDEBAR_PANE, 'Enter', false, 300)).toBe('reset')
   })
 
   it('is kept under its own key, apart from the note list width', () => {
@@ -112,5 +140,36 @@ describe('the sidebar width', () => {
       paneWidthStore(SIDEBAR_PANE, memoryStorage({ 'devot.sidebar.width': '9999' })).read(),
     ).toBe(500)
     expect(paneWidthStore(SIDEBAR_PANE, undefined).read()).toBe(200)
+  })
+})
+
+describe('the board width', () => {
+  it('fits its columns exactly until the user sets a width: 964 px for five, 774 for four', () => {
+    expect(fittedBoardWidth(5)).toBe(964)
+    expect(fittedBoardWidth(4)).toBe(774)
+    expect(BOARD_PANE.default).toBe(964)
+  })
+
+  it('keeps a fitted width within the pane’s limits', () => {
+    expect(fittedBoardWidth(1)).toBe(BOARD_PANE.min)
+    expect(fittedBoardWidth(20)).toBe(BOARD_PANE.max)
+  })
+
+  it('shows the width the user set, else the fitted one, else the default', () => {
+    expect(shownPaneWidth(BOARD_PANE, 700, 774)).toBe(700)
+    expect(shownPaneWidth(BOARD_PANE, undefined, 774)).toBe(774)
+    expect(shownPaneWidth(BOARD_PANE, undefined, undefined)).toBe(964)
+    expect(shownPaneWidth(LIST_PANE, undefined, undefined)).toBe(300)
+    expect(shownPaneWidth(BOARD_PANE, 99_999, 774)).toBe(BOARD_PANE.max)
+  })
+
+  it('is shared by the board and the gallery, and a reset returns both to the fitted width', () => {
+    const storage = memoryStorage()
+    const store = paneWidthStore(BOARD_PANE, storage)
+    store.write(1100)
+    expect(storage.items.get('devot.board.width')).toBe('1100')
+    expect(shownPaneWidth(BOARD_PANE, store.stored(), fittedBoardWidth(4))).toBe(1100)
+    store.clear()
+    expect(shownPaneWidth(BOARD_PANE, store.stored(), fittedBoardWidth(4))).toBe(774)
   })
 })

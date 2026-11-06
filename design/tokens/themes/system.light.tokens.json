@@ -1868,6 +1868,26 @@
       }
     },
     "shadow": {
+      "page-key": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0784, 0.1255, 0.1961],
+          "hex": "#142032",
+          "alpha": 0.1
+        },
+        "$description": "The close layer of the shadow under a gallery card's page."
+      },
+      "page-ambient": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [0.0784, 0.1255, 0.1961],
+          "hex": "#142032",
+          "alpha": 0.08
+        },
+        "$description": "The soft, wide layer of the shadow under a gallery card's page."
+      },
       "popover-key": {
         "$type": "color",
         "$value": {
