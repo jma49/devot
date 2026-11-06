@@ -46,7 +46,8 @@ const FEATURES = [
 
 function purchaseHeading(licence: LicenceSnapshot): string {
   if (licence.trial?.state === 'available') return t('phone.purchase.title')
-  return t(licence.appStore?.code ? 'phone.purchase.unknown' : 'phone.purchase.ended')
+  if (licence.appStore?.code) return t('phone.purchase.unknown')
+  return t(licence.trial?.state === 'ended' ? 'phone.purchase.ended' : 'phone.purchase.title')
 }
 
 /**

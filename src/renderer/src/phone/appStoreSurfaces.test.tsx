@@ -266,6 +266,7 @@ describe('the purchase sheet over the app', () => {
     for (const [licence, title] of [
       [appStore('available'), 'Devot Pro'],
       [appStore('ended'), 'Your trial has ended'],
+      [appStore('running'), 'Devot Pro'],
       [
         {
           ...unknown,

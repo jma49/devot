@@ -2904,7 +2904,6 @@ button.phone-grouped-open:active:not(:disabled) {
   gap: 10px;
 }
 
-.phone-purchase-actions > .phone-detail-done,
 .phone-purchase-primary {
   display: flex;
   align-items: center;
@@ -2952,12 +2951,7 @@ button.phone-grouped-open:active:not(:disabled) {
   background: var(--color-phone-separator);
 }
 
-:is(
-  .phone-purchase-primary,
-  .phone-purchase-buy-once,
-  .phone-detail-done,
-  .phone-purchase-link
-)[aria-disabled='true'] {
+:is(.phone-purchase-primary, .phone-purchase-buy-once, .phone-purchase-link)[aria-disabled='true'] {
   opacity: var(--opacity-disabled);
 }
 
