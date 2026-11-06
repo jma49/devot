@@ -1,4 +1,5 @@
-import { format, t, type MessageKey } from '../i18n'
+import { failureText as plainFailureText, logFailure as logCode } from '../failure'
+import { t, type MessageKey } from '../i18n'
 
 // Why a join, a pairing or a vault's creation failed, for the codes a person can act on.
 export const WHY: Readonly<Record<string, MessageKey>> = {
@@ -47,21 +48,13 @@ export const WHY: Readonly<Record<string, MessageKey>> = {
   E_SYNC_VAULT_ROTATED: 'syncSettings.why.rotated',
 }
 
-/**
- * A failure in words: the action's sentence, then the reason. A code Devot can explain is left
- * out of the text; any other code stays in it for support.
- */
+/** A failure in words: the action's sentence, then the reason Devot can give for the code, never the code. */
 export function failureText(message: MessageKey, code: string): string {
   const why = WHY[code]
-  if (!why) return format(t(message), { code })
-  const sentence = t(message).replace(' ({code})', '')
-  if (sentence.includes('{code}')) return format(t(message), { code })
+  if (!why) return plainFailureText(message, code)
   const reason = t(why)
-  return `${sentence} ${/[.!?]$/.test(reason) ? reason : `${reason}.`}`
+  return `${t(message)} ${/[.!?]$/.test(reason) ? reason : `${reason}.`}`
 }
 
 /** Call once when a failure is caught: the code that failureText leaves out of the text reaches the log. */
-export function logFailure(code: string): string {
-  if (WHY[code]) console.warn(`W_SYNC_SETTINGS_FAILED ${code}`)
-  return code
-}
+export const logFailure = (code: string): string => logCode(code, 'W_SYNC_SETTINGS_FAILED')

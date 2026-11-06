@@ -150,7 +150,5 @@ test('a Copy Notebook ID that fails says so, with its code', async ({ page }) =>
   })
   await page.getByRole('button', { name: /^Notebook\b/ }).click({ button: 'right' })
   await pickMenuItem(page, 'Copy Notebook ID')
-  await expect(page.getByRole('alert')).toContainText(
-    'The ID could not be copied (E_CLIPBOARD_WRITE_FAILED).',
-  )
+  await expect(page.getByRole('alert')).toContainText('The ID could not be copied.')
 })

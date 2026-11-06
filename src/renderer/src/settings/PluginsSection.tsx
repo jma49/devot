@@ -14,6 +14,7 @@ import {
   watchPlugins,
   type StagedPlugin,
 } from '../plugins/api'
+import { failureText, logFailure } from '../failure'
 
 const PERMISSION_TEXT: Readonly<Record<PluginPermission, MessageKey>> = {
   'note.read': 'plugins.permission.note.read',
@@ -103,7 +104,11 @@ export function PluginsSection() {
     () =>
       listPlugins().then(
         (list) => setPlugins(list),
-        (e: unknown) => setFailure({ message: 'plugins.loadFailed', code: errorCode(e) }),
+        (e: unknown) =>
+          setFailure({
+            message: 'plugins.loadFailed',
+            code: logFailure(errorCode(e), 'W_PLUGINS_FAILED'),
+          }),
       ),
     [],
   )
@@ -119,7 +124,8 @@ export function PluginsSection() {
         setFailure(undefined)
         return load()
       },
-      (e: unknown) => setFailure({ message: failed, code: errorCode(e) }),
+      (e: unknown) =>
+        setFailure({ message: failed, code: logFailure(errorCode(e), 'W_PLUGINS_FAILED') }),
     )
 
   const pick = (kind: 'folder' | 'archive') =>
@@ -128,7 +134,11 @@ export function PluginsSection() {
         setFailure(undefined)
         if (next) setStaged(next)
       },
-      (e: unknown) => setFailure({ message: 'plugins.installFailed', code: errorCode(e) }),
+      (e: unknown) =>
+        setFailure({
+          message: 'plugins.installFailed',
+          code: logFailure(errorCode(e), 'W_PLUGINS_FAILED'),
+        }),
     )
 
   const install = () => {
@@ -151,7 +161,7 @@ export function PluginsSection() {
       <p>{t('plugins.detail')}</p>
       {failure ? (
         <p role="alert" className="settings-error">
-          {format(t(failure.message), { code: failure.code })}
+          {failureText(failure.message, failure.code)}
         </p>
       ) : null}
       <SettingsSection title="plugins.installTitle">

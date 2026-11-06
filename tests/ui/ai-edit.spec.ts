@@ -232,7 +232,7 @@ test('sends nothing from a notebook without AI access, and says why', async ({ p
 
   await fromToolbar(page, 'Summarize')
   await expect(sheet(page).getByRole('alert')).toHaveText(
-    'AI can only use notes in a notebook with Allow AI Access on. Turn it on in the notebook’s menu. (E_AI_ACCESS_DENIED)',
+    'AI can only use notes in a notebook with Allow AI Access on. Turn it on in the notebook’s menu.',
   )
   await expect(sheet(page).getByRole('button', { name: 'Try Again' })).toHaveCount(0)
   expect(await requests(page)).toEqual([])
@@ -248,7 +248,7 @@ test('asks again after a failure that may pass', async ({ page }) => {
   await selectLine(page, 0)
 
   await fromToolbar(page, 'Make Bullet List')
-  await expect(sheet(page).getByRole('alert')).toContainText('(E_AI_TIMEOUT)')
+  await expect(sheet(page).getByRole('alert')).toContainText('could not be reached')
   await sheet(page).getByRole('button', { name: 'Try Again' }).click()
   await expect(sheet(page).locator('ins')).toHaveText(['- one', '- two'])
   expect(await requests(page)).toHaveLength(2)
@@ -262,6 +262,6 @@ test('names the missing key', async ({ page }) => {
   await selectLine(page, 0)
   await fromToolbar(page, 'Reformat')
   await expect(sheet(page).getByRole('alert')).toHaveText(
-    'No AI provider is set up. Add a key in Settings > AI. (E_AI_KEY_MISSING)',
+    'No AI provider is set up. Add a key in Settings > AI.',
   )
 })

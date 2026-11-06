@@ -960,14 +960,10 @@ test('a copy that fails says so, with its code', async ({ page }) => {
   await pick(page, 'Delta', 'Gamma')
   await summary(page).getByRole('button', { name: 'Copy Note Links' }).click()
   const notice = page.getByRole('alert')
-  await expect(notice).toHaveText(
-    /The note links could not be copied \(E_CLIPBOARD_WRITE_FAILED\)\./,
-  )
+  await expect(notice).toHaveText(/The note links could not be copied\./)
   await notice.getByRole('button', { name: 'Dismiss' }).click()
   await expect(notice).toHaveCount(0)
   await openMenu(page, 'Beta')
   await pickMenuItem(page, 'Copy Note Link')
-  await expect(notice).toHaveText(
-    /The note link could not be copied \(E_CLIPBOARD_WRITE_FAILED\)\./,
-  )
+  await expect(notice).toHaveText(/The note link could not be copied\./)
 })

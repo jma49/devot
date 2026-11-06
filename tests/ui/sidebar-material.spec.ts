@@ -286,7 +286,9 @@ test('a change that cannot be stored is reported and dropped', async ({ page }) 
   })
   await openSettings(page, 'Appearance')
   await style(page).getByText('Classic', { exact: true }).click()
-  await expect(appearance(page).getByRole('alert')).toContainText('E_EDITOR_SETTINGS_WRITE_FAILED')
+  await expect(appearance(page).getByRole('alert')).toHaveText(
+    'The appearance settings could not be saved.',
+  )
   await expect(glass(page)).toBeChecked()
 })
 

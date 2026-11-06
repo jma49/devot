@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   asMcpAccess,
   asMcpClientStatus,
@@ -6,6 +6,7 @@ import {
   asRunMode,
   BRIDGE_ARGS,
   claudeCodeCommand,
+  clientStateLog,
   codexConfig,
   mcpServersJson,
   NO_MCP_SETUP,
@@ -110,5 +111,25 @@ describe('Rust\u2019s answer', () => {
     expect(asRunMode({ mode: 'normal' })).toBe('normal')
     expect(asRunMode({ mode: 'other' })).toBeNull()
     expect(asRunMode(null)).toBeNull()
+  })
+})
+
+describe('clientStateLog', () => {
+  const status = (client: 'codex' | 'claudeCode', code: string | null) =>
+    ({ client, code }) as Parameters<ReturnType<typeof clientStateLog>>[0][number]
+
+  it('logs a client’s config code once until it changes, and again after it clears', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const log = clientStateLog()
+    log([status('codex', 'E_MCP_CONFIG_UNPARSABLE'), status('claudeCode', null)])
+    log([status('codex', 'E_MCP_CONFIG_UNPARSABLE'), status('claudeCode', null)])
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith('W_MCP_CLIENT_STATE', 'E_MCP_CONFIG_UNPARSABLE')
+    log([status('codex', 'E_MCP_CONFIG_TOO_LARGE')])
+    expect(warn).toHaveBeenLastCalledWith('W_MCP_CLIENT_STATE', 'E_MCP_CONFIG_TOO_LARGE')
+    log([status('codex', null)])
+    log([status('codex', 'E_MCP_CONFIG_TOO_LARGE')])
+    expect(warn).toHaveBeenCalledTimes(3)
+    warn.mockRestore()
   })
 })

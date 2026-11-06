@@ -146,7 +146,7 @@ test('scans, shows what it found and where it goes, and writes nothing before Im
   await expect(rows.nth(3)).not.toContainText('Notebook')
   await expect(dialog(page)).toContainText('Will be skipped')
   await expect(dialog(page).getByRole('listitem').filter({ hasText: 'Huge.md' })).toContainText(
-    'Larger than 10 MB (E_IMPORT_FILE_TOO_LARGE)',
+    'Larger than 10 MB',
   )
 
   await button(page, 'Continue').click()
@@ -172,7 +172,7 @@ test('scans, shows what it found and where it goes, and writes nothing before Im
   await expect(problems.nth(0)).toContainText('Huge.md')
   await expect(problems.nth(1)).toContainText('Projects/Deep/Spec.md')
   await expect(problems.nth(1)).toContainText('Projects/Deep/missing.png')
-  await expect(problems.nth(1)).toContainText('File not found (E_IMPORT_FILE_NOT_FOUND)')
+  await expect(problems.nth(1)).toContainText('File not found')
   // A usage event with the counts only: no names or paths.
   await expect
     .poll(async () => (await calls(page, 'usage_record')).map((c) => c.args))
@@ -451,13 +451,13 @@ test('a scan that fails shows why, in the sheet it started, a trial that is over
 }) => {
   await open(page)
   await send(page, 'devot:import-failed', { id: null, code: 'E_IMPORT_TOO_MANY_FILES' })
-  await expect(dialog(page)).toContainText('The import failed (E_IMPORT_TOO_MANY_FILES).')
+  await expect(dialog(page)).toContainText('The import failed.')
   await expect(dialog(page)).toContainText('more than 10,000 Markdown files')
   await button(page, 'Done').click()
   await expect(dialog(page)).toBeHidden()
 
   await send(page, 'devot:import-failed', { id: null, code: 'E_LICENCE_REQUIRED' })
-  await expect(dialog(page)).toContainText('The import failed (E_LICENCE_REQUIRED).')
+  await expect(dialog(page)).toContainText('The import failed.')
   await expect(dialog(page)).toContainText(
     'Your Devot trial has ended, so nothing can be imported. Add a license in Settings > License.',
   )
@@ -467,7 +467,7 @@ test('a scan that fails shows why, in the sheet it started, a trial that is over
   await scanning(page, 13)
   await expect(dialog(page)).toContainText('Looking through')
   await send(page, 'devot:import-failed', { id: 13, code: 'E_IMPORT_FOLDER_TOO_LARGE' })
-  await expect(dialog(page)).toContainText('The import failed (E_IMPORT_FOLDER_TOO_LARGE).')
+  await expect(dialog(page)).toContainText('The import failed.')
   await button(page, 'Done').click()
   await expect(dialog(page)).toBeHidden()
   await expect(noteRows(page)).toHaveCount(0)
@@ -510,7 +510,7 @@ test('imports picked in a row wait until the previous one is closed', async ({ p
   await expect(dialog(page)).toContainText('Imported 3 notes into 2 notebooks.')
   await button(page, 'Done').click()
 
-  await expect(dialog(page)).toContainText('The import failed (E_IMPORT_ROOT_INVALID).')
+  await expect(dialog(page)).toContainText('The import failed.')
   await button(page, 'Done').click()
   await expect(dialog(page)).toBeHidden()
   expect((await calls(page, 'import_finish')).map((c) => c.args['id'])).toEqual([7, 9])

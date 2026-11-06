@@ -7,6 +7,7 @@ import type { Core } from './core-client'
 import { countOf } from './format'
 import { displayTitle, displayTitles } from './headlines'
 import { currentLocale, format, t } from './i18n'
+import { failureText, logFailure } from './failure'
 
 const entryId = (i: number) => `history-entry-${i}`
 
@@ -104,7 +105,9 @@ export function RevisionHistory(props: {
     let current = true
     core.history(noteId).then(
       (found) => current && setEntries(found),
-      (e: unknown) => current && setError(format(t('history.failed'), { code: errorCode(e) })),
+      (e: unknown) =>
+        current &&
+        setError(failureText('history.failed', logFailure(errorCode(e), 'W_HISTORY_FAILED'))),
     )
     return () => {
       current = false
@@ -119,7 +122,9 @@ export function RevisionHistory(props: {
     let current = true
     core.compareRevision(noteId, versionId).then(
       (blocks) => current && setDiff({ id: versionId, blocks }),
-      (e: unknown) => current && setError(format(t('history.failed'), { code: errorCode(e) })),
+      (e: unknown) =>
+        current &&
+        setError(failureText('history.failed', logFailure(errorCode(e), 'W_HISTORY_FAILED'))),
     )
     return () => {
       current = false
@@ -163,7 +168,7 @@ export function RevisionHistory(props: {
     try {
       props.onRestore(await core.restoreRevision(noteId, versionId))
     } catch (e) {
-      setError(format(t('history.restoreFailed'), { code: errorCode(e) }))
+      setError(failureText('history.restoreFailed', logFailure(errorCode(e), 'W_HISTORY_FAILED')))
       setBusy(false)
     }
   }

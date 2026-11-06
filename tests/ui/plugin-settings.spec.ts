@@ -151,7 +151,5 @@ test('shows why a package was refused, by its code', async ({ page }) => {
   })
   await openSettings(page, 'Plugins')
   await page.getByRole('button', { name: 'Install from Archive…' }).click()
-  await expect(page.getByRole('alert')).toHaveText(
-    'The plugin could not be installed (E_PLUGIN_API_VERSION).',
-  )
+  await expect(page.getByRole('alert')).toHaveText('The plugin could not be installed.')
 })

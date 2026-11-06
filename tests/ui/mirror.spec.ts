@@ -127,7 +127,7 @@ test.describe('Settings > Markdown Mirror', () => {
     await expect(section(page)).toContainText('~/Notes')
     await changeMirrorElsewhere(page, { paused: 'E_MIRROR_FOLDER_MISSING', size: 2_500 })
     await expect(section(page).getByRole('alert')).toHaveText(
-      'The mirror is paused: its folder is missing (E_MIRROR_FOLDER_MISSING). It resumes once the folder is back.',
+      'The mirror is paused: its folder is missing. It resumes once the folder is back.',
     )
     await expect(section(page)).toContainText('Size on disk: 3 kB')
     await changeMirrorElsewhere(page, { paused: null, folder: '/Volumes/Disk/Notes' })
@@ -143,9 +143,7 @@ test.describe('Settings > Markdown Mirror', () => {
     })
     await openWith(page, '/settings.html')
     await section(page).getByRole('button', { name: 'Choose Folder…' }).click()
-    await expect(section(page).getByRole('alert')).toHaveText(
-      'The folder could not be used (E_MIRROR_FOLDER_READ_ONLY).',
-    )
+    await expect(section(page).getByRole('alert')).toHaveText('The folder could not be used.')
     await expect(section(page)).toContainText('The mirror is off.')
   })
 })
@@ -213,13 +211,9 @@ test.describe('the main window', () => {
     })
     await openWith(page, '/', ON)
     await runCommand(page, 'mirror folder', 'Choose Markdown Mirror Folder\u2026')
-    await expect(notices(page)).toContainText(
-      'The folder could not be used (E_MIRROR_FOLDER_READ_ONLY).',
-    )
+    await expect(notices(page)).toContainText('The folder could not be used.')
     await runCommand(page, 'turn off mirror', 'Turn Off Markdown Mirror')
-    await expect(notices(page)).toContainText(
-      'The mirror setting could not be saved (E_MIRROR_SETTINGS_WRITE_FAILED).',
-    )
+    await expect(notices(page)).toContainText('The mirror setting could not be saved.')
   })
 
   test('a pause and files kept because they were edited outside show as notices', async ({
@@ -228,7 +222,7 @@ test.describe('the main window', () => {
     await openWith(page, '/', ON)
     await changeMirrorElsewhere(page, { paused: 'E_MIRROR_FOLDER_READ_ONLY' })
     await expect(notices(page)).toHaveText([
-      'The mirror is paused: its folder cannot be written (E_MIRROR_FOLDER_READ_ONLY). It resumes once it can.Dismiss',
+      'The mirror is paused: its folder cannot be written. It resumes once it can.Dismiss',
     ])
     await changeMirrorElsewhere(page, { paused: null })
     await expect(notices(page)).toHaveCount(0)

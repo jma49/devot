@@ -10,7 +10,7 @@ import * as Comlink from 'comlink'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { errorCode } from './backups'
 import type { Core } from './core-client'
-import { currentLocale, format, t, type MessageKey } from './i18n'
+import { currentLocale, t, type MessageKey } from './i18n'
 import {
   changeMirror,
   keptMessage,
@@ -21,6 +21,7 @@ import {
   type MirrorStatus,
 } from './mirror'
 import { useMirrorFolderChoice } from './MirrorFolderChoice'
+import { failureText, logFailure } from './failure'
 
 const LAUNCH_DELAY_MS = 2000
 
@@ -48,11 +49,13 @@ export function useMarkdownMirror(core: Core | undefined, ready: boolean): Markd
   useEffect(() => {
     if (!core || !ready || started) return
     let alive = true
-    const logFailure = (code: string) => console.warn('W_MIRROR_FAILED', code)
-    core.startMirror(Comlink.proxy(mirrorHost), t('note.untitled'), Comlink.proxy(logFailure)).then(
-      () => alive && setStarted(true),
-      () => console.warn('W_MIRROR_START_FAILED'),
-    )
+    const logMirrorFailure = (code: string) => console.warn('W_MIRROR_FAILED', code)
+    core
+      .startMirror(Comlink.proxy(mirrorHost), t('note.untitled'), Comlink.proxy(logMirrorFailure))
+      .then(
+        () => alive && setStarted(true),
+        () => console.warn('W_MIRROR_START_FAILED'),
+      )
     return () => {
       alive = false
     }
@@ -95,7 +98,11 @@ export function useMarkdownMirror(core: Core | undefined, ready: boolean): Markd
     setFailure(undefined)
     await changeMirror({ turnOff: true }).then(
       () => undefined,
-      (error: unknown) => setFailure({ message: 'mirror.changeFailed', code: errorCode(error) }),
+      (error: unknown) =>
+        setFailure({
+          message: 'mirror.changeFailed',
+          code: logFailure(errorCode(error), 'W_MIRROR_SETTING_FAILED'),
+        }),
     )
   }, [])
 
@@ -104,7 +111,7 @@ export function useMarkdownMirror(core: Core | undefined, ready: boolean): Markd
   if (failure) {
     notices.push(
       <div key="mirror-failure" role="alert" className="notice" data-devot-part="notice">
-        <span className="notice-text">{format(t(failure.message), { code: failure.code })}</span>
+        <span className="notice-text">{failureText(failure.message, failure.code)}</span>
         <button type="button" className="button" onClick={() => setFailure(undefined)}>
           {t('notice.dismiss')}
         </button>

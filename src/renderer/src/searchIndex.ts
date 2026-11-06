@@ -4,6 +4,7 @@
 // send it too.
 import { invoke } from './ipc'
 import { errorCode } from '../../core/errors'
+import { logFailure } from './failure'
 
 export const REBUILD_SEARCH_INDEX = 'devot:rebuild-search-index'
 
@@ -27,7 +28,7 @@ export async function rebuildSearchIndex(
   try {
     notes = await invoke<number>('search_index_rebuild')
   } catch (error) {
-    show({ phase: 'failed', code: errorCode(error) })
+    show({ phase: 'failed', code: logFailure(errorCode(error), 'W_SEARCH_REBUILD_FAILED') })
     return
   }
   await reload().catch(() => console.warn('W_SEARCH_REBUILD_RELOAD_FAILED'))

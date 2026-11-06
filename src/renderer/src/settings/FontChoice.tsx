@@ -9,9 +9,10 @@ import {
 } from '../../../core/editorSettings'
 import { errorCode } from '../../../core/errors'
 import { importFont, importedFonts, installedFonts, type FontFile } from '../fonts'
-import { format, t, type MessageKey } from '../i18n'
+import { t, type MessageKey } from '../i18n'
 import { Select, Setting, SettingsSection } from './controls'
 import { useOnPhone } from './onPhone'
+import { failureText, logFailure } from '../failure'
 
 const FONT_LABELS: Readonly<Record<FontFamilyId, MessageKey>> = {
   system: 'editorSettings.font.system',
@@ -180,10 +181,10 @@ export function FontChoice({
         setImported((list) => [...(list ?? []).filter((f) => f.id !== file.id), file])
         change({ [keys.imported]: file.id })
       },
-      (e: unknown) => setImportError(errorCode(e)),
+      (e: unknown) => setImportError(logFailure(errorCode(e), 'W_FONT_IMPORT_FAILED')),
     )
   const description = importError
-    ? format(t('editorSettings.importFontFailed'), { code: importError })
+    ? failureText('editorSettings.importFontFailed', importError)
     : missing
       ? t('editorSettings.importedFontMissing')
       : t('editorSettings.importedFontHint')

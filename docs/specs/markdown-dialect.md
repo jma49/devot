@@ -37,7 +37,7 @@ Import and export are in [import-and-export.md](import-and-export.md), the `devo
   The size is set from the image context menu or the palette (`image.size*` commands, for the image at the cursor or the first on its line), as one editor transaction, after checking the text there is still that image.
 - **Pasting and dropping images:** each image goes straight from the page to storage (`src/renderer/src/attachments.ts`) and its link goes in at the cursor or the drop point.
   The page refuses what Rust would refuse (over 10 MiB, not a supported raster image) before sending the bytes.
-  An image that cannot be stored (refused as not an image or too large, or the database busy past its timeout) is skipped, logged by code and reported in a notice: how many images could not be added and the first one's code.
+  An image that cannot be stored (refused as not an image or too large, or the database busy past its timeout) is skipped, logged by code and reported in a notice: how many images could not be added and why.
   The link lands where the image was pasted or dropped, not where the caret is when the file is stored: the place is remembered as a Yjs relative position (`src/renderer/src/editor/anchoredInsert.ts`), which follows every edit made meanwhile (text typed at the place goes after the link) and means the same place in the editor's replica and in the core's document.
   If the note was left meanwhile, `NoteService.insertAt` puts the link into the note at that place (the file is never left without a link); if the note is open again by then, its editor takes the link.
   Only a note deleted meanwhile loses it, and its files go with it.

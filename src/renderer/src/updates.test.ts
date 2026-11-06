@@ -80,9 +80,7 @@ describe('update notice', () => {
     expect(notice(upToDate, 'settings')).toBeNull()
     expect(notice(status({ state: 'upToDate' }))).toBeNull()
     const failed = status({ state: 'failed', code: 'E_UPDATE_CHECK_FAILED', askedBy: 'main' })
-    expect(notice(failed)?.text).toBe(
-      'Devot could not check for or install updates (E_UPDATE_CHECK_FAILED).',
-    )
+    expect(notice(failed)?.text).toBe('Devot could not check for or install updates.')
     expect(notice(failed, 'settings')).toBeNull()
     expect(
       notice(status({ state: 'failed', code: 'E_UPDATE_UNAVAILABLE', askedBy: 'main' }))?.text,
@@ -124,7 +122,7 @@ describe('the status line in Settings', () => {
       'Devot 1.0.0 is ready to install.',
     )
     expect(updateStatusText(status({ state: 'failed', code: 'E_UPDATE_DOWNLOAD_FAILED' }))).toBe(
-      'Devot could not check for or install updates (E_UPDATE_DOWNLOAD_FAILED).',
+      'Devot could not check for or install updates.',
     )
   })
 })

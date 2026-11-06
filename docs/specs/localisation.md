@@ -7,6 +7,7 @@ Part of the [architecture overview](../architecture.md).
   The locale follows the macOS preferred languages.
 - Placeholders (`{title}`) are filled with `format` in one pass, never with `String.replace`, whose replacement patterns (`$$`, `$&`, `$'`) would garble a title holding them; a policy test refuses `.replace('{`.
   A sentence is never built from pieces in code: each variant (with or without a count, a key or a scope) is its own catalog entry.
+  No message has a `{code}` slot or names an error code; the code goes to the log ([quality](quality.md)).
 - Dates, numbers and lists use `Intl`.
   When a second locale arrives, the catalogs move to ICU message syntax for plurals and placeholders, and native menu labels in Rust get the same catalog.
 - Code contains no CJK characters at all; test data that needs them uses `\u` escapes.

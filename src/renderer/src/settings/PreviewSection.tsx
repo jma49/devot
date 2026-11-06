@@ -1,7 +1,8 @@
 import { useEditorSettings } from '../editorSettings'
-import { format, t } from '../i18n'
+import { t } from '../i18n'
 import { SettingToggle, SettingsSection, useSettingsChange } from './controls'
 import { useOnPhone } from './onPhone'
+import { failureText } from '../failure'
 
 export function PreviewSection() {
   const settings = useEditorSettings()
@@ -15,7 +16,7 @@ export function PreviewSection() {
       </h2>
       {error ? (
         <p role="alert" className="settings-error">
-          {format(t('previewSettings.failed'), { code: error })}
+          {failureText('previewSettings.failed', error)}
         </p>
       ) : null}
       <SettingsSection title="previewSettings.title" titleHidden={onPhone}>

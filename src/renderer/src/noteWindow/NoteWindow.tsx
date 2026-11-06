@@ -9,7 +9,7 @@ import { onRestoreElsewhere } from '../backups'
 import { startCore, stopCore, type Core } from '../core-client'
 import { useAlertMenu } from '../editor/alertMenu'
 import { useExternalChanges } from '../externalChanges'
-import { t, format } from '../i18n'
+import { t } from '../i18n'
 import { useImageMenu, type SetImageSize } from '../imageMenu'
 import { ImageActionNotice } from '../ImageNotice'
 import { ImageViewer, type ViewedImage } from '../ImageViewer'
@@ -41,6 +41,7 @@ import { scrollPreviewTo } from '../outline/room'
 import { useOutlineRoom } from '../outline/useOutlineRoom'
 import type { ScrollPane } from '../preview/scrollSync'
 import { ActivationBar, TrialEndedBar } from '../TrialNotices'
+import { failureText } from '../failure'
 
 /** Hears what Rust asks of this window: the global quit, and the close of this window alone. */
 function listenAsked(onClose: () => void, onQuit: () => void): () => void {
@@ -249,7 +250,7 @@ export function NoteWindow() {
     return (
       <div className="window note-window" data-ready>
         <p role="alert" className="note-window-failure">
-          {format(t('noteWindow.unavailable'), { code: failure })}
+          {failureText('noteWindow.unavailable', failure)}
         </p>
       </div>
     )

@@ -42,6 +42,6 @@ test('a failed rebuild shows its code', async ({ page }) => {
     w.dispatchEvent(new w.CustomEvent('devot:rebuild-search-index'))
   })
   await expect(page.locator('[data-devot-search-index="failed"]')).toContainText(
-    'E_STORAGE_CORRUPT',
+    'The search index could not be rebuilt.',
   )
 })

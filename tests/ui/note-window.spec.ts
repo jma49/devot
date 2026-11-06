@@ -331,7 +331,9 @@ test('Open in New Window that fails says why', async ({ page }) => {
   })
   await rows(page).first().click({ button: 'right' })
   await pickMenuItem(page, 'Open in New Window')
-  await expect(page.getByRole('alert').filter({ hasText: 'E_TEST_WINDOW_FAILED' })).toBeVisible()
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'The change could not be made.' }),
+  ).toBeVisible()
 })
 
 test('a note trashed and then purged in the main window turns its window read-only, saying why', async ({

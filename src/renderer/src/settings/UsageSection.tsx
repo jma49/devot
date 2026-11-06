@@ -14,6 +14,7 @@ import { usageActivity, usageDayInstant, type UsagePeriod } from '../../../core/
 import { dayDate } from '../format'
 import { Icon } from '../icons/Icon'
 import { useSegmentSlide } from '../segmentSlide'
+import { failureText, logFailure } from '../failure'
 
 const LABELS: Record<UsageEventName, MessageKey> = {
   'note.created': 'usage.event.note.created',
@@ -57,7 +58,7 @@ function GlassUsageSection() {
         setReadError(undefined)
       },
       (e: unknown) => {
-        if (current === request.current) setReadError(errorCode(e))
+        if (current === request.current) setReadError(logFailure(errorCode(e), 'W_USAGE_FAILED'))
       },
     )
   }, [])
@@ -85,7 +86,7 @@ function GlassUsageSection() {
         setClearError(undefined)
         return load()
       },
-      (e: unknown) => setClearError(errorCode(e)),
+      (e: unknown) => setClearError(logFailure(errorCode(e), 'W_USAGE_FAILED')),
     )
   }
 
@@ -110,8 +111,8 @@ function GlassUsageSection() {
       ),
     )
   const errors = [
-    readError && format(t('usage.failed'), { code: readError }),
-    clearError && format(t('usage.clearFailed'), { code: clearError }),
+    readError && failureText('usage.failed', readError),
+    clearError && failureText('usage.clearFailed', clearError),
   ].filter(Boolean)
 
   const breakdown = (

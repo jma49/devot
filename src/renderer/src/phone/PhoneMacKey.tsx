@@ -7,6 +7,7 @@ import { invoke } from '../ipc'
 import { getMacKey, licenceLink, type MacKey } from '../licence'
 import { licenceProblem } from '../licenceView'
 import { PhoneSheet } from './PhoneSheet'
+import { logFailure } from '../failure'
 
 type Fetching =
   | { readonly kind: 'getting' }
@@ -24,7 +25,11 @@ function MacKeySheet(props: { onClose: () => void }) {
     getMacKey().then(
       (key) => mounted.current && setFetching({ kind: 'ready', key, copied: false }),
       (error: unknown) =>
-        mounted.current && setFetching({ kind: 'failed', code: errorCode(error) }),
+        mounted.current &&
+        setFetching({
+          kind: 'failed',
+          code: logFailure(errorCode(error), 'W_PHONE_MAC_KEY_FAILED'),
+        }),
     )
   }, [])
   useEffect(() => {

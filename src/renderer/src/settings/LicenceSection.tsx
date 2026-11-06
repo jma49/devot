@@ -20,6 +20,7 @@ import {
 } from '../licenceView'
 import { Setting, SettingsNote, SettingsSection } from './controls'
 import { useOnPhone } from './onPhone'
+import { failureText, logFailure } from '../failure'
 
 const MINUTE_MS = 60_000
 
@@ -70,7 +71,9 @@ export function LicenceSection() {
         (e: unknown) => {
           setAnnouncement('')
           setError(
-            format(t('licenceSettings.addFailed'), { problem: licenceProblem(errorCode(e)) }),
+            format(t('licenceSettings.addFailed'), {
+              problem: licenceProblem(logFailure(errorCode(e), 'W_LICENCE_SETTINGS_FAILED')),
+            }),
           )
         },
       )
@@ -86,7 +89,12 @@ export function LicenceSection() {
       },
       (e: unknown) => {
         setAnnouncement('')
-        setError(format(t('licenceSettings.removeFailed'), { code: errorCode(e) }))
+        setError(
+          failureText(
+            'licenceSettings.removeFailed',
+            logFailure(errorCode(e), 'W_LICENCE_SETTINGS_FAILED'),
+          ),
+        )
       },
     )
   }
@@ -103,7 +111,7 @@ export function LicenceSection() {
           setAnnouncement('')
           setError(
             format(t('licenceSettings.devices.refreshFailed'), {
-              problem: licenceProblem(errorCode(e)),
+              problem: licenceProblem(logFailure(errorCode(e), 'W_LICENCE_SETTINGS_FAILED')),
             }),
           )
         },

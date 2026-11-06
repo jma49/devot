@@ -15,6 +15,7 @@ import {
   type HttpApiView,
 } from './httpApi'
 import { useTypedNumber } from './typedNumber'
+import { failureText, logFailure } from '../failure'
 
 const SCOPES: readonly { id: HttpApiScope; label: MessageKey }[] = [
   { id: 'read', label: 'httpApi.read' },
@@ -44,7 +45,11 @@ export function HttpApiSection() {
         wanted.current = { enabled: loaded.enabled, port: loaded.port }
       },
       (e: unknown) => {
-        if (live) setFailure({ message: 'httpApi.loadFailed', code: errorCode(e) })
+        if (live)
+          setFailure({
+            message: 'httpApi.loadFailed',
+            code: logFailure(errorCode(e), 'W_HTTP_API_SETTINGS_FAILED'),
+          })
       },
     )
     return () => {
@@ -62,7 +67,10 @@ export function HttpApiSection() {
       },
       (e: unknown) => {
         setAnnouncement('')
-        setFailure({ message: failed, code: errorCode(e) })
+        setFailure({
+          message: failed,
+          code: logFailure(errorCode(e), 'W_HTTP_API_SETTINGS_FAILED'),
+        })
         return undefined
       },
     )
@@ -103,7 +111,10 @@ export function HttpApiSection() {
         return token
       },
       (e: unknown) => {
-        setFailure({ message: 'httpApi.tokenFailed', code: errorCode(e) })
+        setFailure({
+          message: 'httpApi.tokenFailed',
+          code: logFailure(errorCode(e), 'W_HTTP_API_SETTINGS_FAILED'),
+        })
         return undefined
       },
     )
@@ -119,7 +130,11 @@ export function HttpApiSection() {
     if (token === undefined) return
     writeClipboardText(token).then(
       () => setAnnouncement(t('httpApi.tokenCopied')),
-      (e: unknown) => setFailure({ message: 'httpApi.copyFailed', code: errorCode(e) }),
+      (e: unknown) =>
+        setFailure({
+          message: 'httpApi.copyFailed',
+          code: logFailure(errorCode(e), 'W_HTTP_API_SETTINGS_FAILED'),
+        }),
     )
   }
 
@@ -129,7 +144,7 @@ export function HttpApiSection() {
       ? t('httpApi.portHint')
       : view.listening !== null
         ? format(t('httpApi.listening'), { port: String(view.listening) })
-        : format(t('httpApi.notListening'), { code: view.problem ?? 'E_HTTP_API_FAILED' })
+        : failureText('httpApi.notListening', view.problem ?? 'E_HTTP_API_FAILED')
   const noKeychain = view?.token === 'unavailable'
   const hasToken = view?.token === 'set' || view?.token === 'unknown'
 
@@ -138,7 +153,7 @@ export function HttpApiSection() {
       <p className="settings-note">{t('httpApi.detail')}</p>
       {failure ? (
         <p role="alert" className="settings-error">
-          {format(t(failure.message), { code: failure.code })}
+          {failureText(failure.message, failure.code)}
         </p>
       ) : null}
       <p className="visually-hidden" role="status" aria-live="polite">

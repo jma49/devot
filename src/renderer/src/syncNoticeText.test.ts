@@ -16,8 +16,9 @@ describe('syncNoticeMessages', () => {
     expect(text).toBe('Sync has stopped. Update Devot and your relay to the same release.')
   })
 
-  it('keeps the code in a stop it cannot explain', () => {
+  it('says only that sync stopped for a stop it cannot explain, never the code', () => {
     const [text] = syncNoticeMessages(stopped('E_SYNC_UNEXPLAINED'), false, null)
-    expect(text).toContain('E_SYNC_UNEXPLAINED')
+    expect(text).toMatch(/^Sync has stopped\./)
+    expect(text).not.toContain('E_SYNC_UNEXPLAINED')
   })
 })

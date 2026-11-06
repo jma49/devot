@@ -15,6 +15,7 @@ import { SUGGEST_AFTER_CHARS, SUGGEST_BEFORE_CHARS } from '../../../core/aiSugge
 import { PhoneGroup, PhoneSegmented } from '../phone/PhoneControls'
 import { Select, Setting, SettingsSection, SettingToggle } from './controls'
 import { useOnPhone } from './onPhone'
+import { failureText, logFailure } from '../failure'
 
 const NAMES: Record<AiProviderId, MessageKey> = {
   anthropic: 'aiSettings.provider.anthropic',
@@ -60,7 +61,7 @@ export function AiSection() {
         setDrafts(draftsOf(loaded))
       },
       (e: unknown) => {
-        if (live) setLoadError(errorCode(e))
+        if (live) setLoadError(logFailure(errorCode(e), 'W_AI_SETTINGS_FAILED'))
       },
     )
     return () => {
@@ -92,7 +93,7 @@ export function AiSection() {
         setSaveError(undefined)
       },
       (e: unknown) => {
-        setSaveError(errorCode(e))
+        setSaveError(logFailure(errorCode(e), 'W_AI_SETTINGS_FAILED'))
         // What Rust keeps is what the fields show again.
         if (view) settle(change, view)
       },
@@ -133,13 +134,13 @@ export function AiSection() {
       },
       (e: unknown) => {
         setAnnouncement('')
-        setKeyError({ provider, code: errorCode(e) })
+        setKeyError({ provider, code: logFailure(errorCode(e), 'W_AI_SETTINGS_FAILED') })
       },
     )
 
   const errors = [
-    loadError && format(t('aiSettings.loadFailed'), { code: loadError }),
-    saveError && format(t('aiSettings.saveFailed'), { code: saveError }),
+    loadError && failureText('aiSettings.loadFailed', loadError),
+    saveError && failureText('aiSettings.saveFailed', saveError),
   ].filter(Boolean)
   // An error above a long pane may be out of sight: bring it into view when it appears.
   const errorsRef = useRef<HTMLDivElement | null>(null)
@@ -234,7 +235,7 @@ export function AiSection() {
           {/* The refused key is reported beside the field it belongs to, not only above the pane. */}
           {ownKeyError ? (
             <p id={field('key-error')} role="alert" className="settings-error">
-              {format(t('aiSettings.keyFailed'), { code: ownKeyError })}
+              {failureText('aiSettings.keyFailed', ownKeyError)}
             </p>
           ) : null}
           <div className="settings-buttons">

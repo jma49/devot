@@ -16,6 +16,7 @@ import { licenceProblem } from '../licenceView'
 import { closePurchase } from '../purchaseSheet'
 import { doveMask } from './dove'
 import { PhoneSheet } from './PhoneSheet'
+import { logFailure } from '../failure'
 
 export type PurchaseBusy = StoreProduct | 'restore'
 
@@ -172,7 +173,11 @@ export function PhonePurchaseSheet(props: { licence: LicenceSnapshot; onEnterKey
           if (bought === 'purchased') closePurchase()
           else if (bought === 'pending') setMessage({ kind: 'pending' })
         },
-        (error: unknown) => setMessage({ kind: 'failed', code: errorCode(error) }),
+        (error: unknown) =>
+          setMessage({
+            kind: 'failed',
+            code: logFailure(errorCode(error), 'W_PHONE_PURCHASE_FAILED'),
+          }),
       )
       .finally(() => setBusy(null))
   }
@@ -182,7 +187,11 @@ export function PhonePurchaseSheet(props: { licence: LicenceSnapshot; onEnterKey
     restorePurchases()
       .then(
         () => (editingAllowed() ? closePurchase() : setMessage({ kind: 'nothingRestored' })),
-        (error: unknown) => setMessage({ kind: 'restoreFailed', code: errorCode(error) }),
+        (error: unknown) =>
+          setMessage({
+            kind: 'restoreFailed',
+            code: logFailure(errorCode(error), 'W_PHONE_RESTORE_FAILED'),
+          }),
       )
       .finally(() => setBusy(null))
   }

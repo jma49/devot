@@ -333,7 +333,8 @@ describe('Settings in an App Store build', () => {
       button.textContent?.includes('Restore Purchases'),
     )
     await act(async () => restore?.click())
-    expect(host.textContent).toContain('The App Store did not reply. (E_APP_STORE_NO_REPLY)')
+    expect(host.textContent).toContain('The App Store did not reply.')
+    expect(host.textContent).not.toContain('E_APP_STORE_NO_REPLY')
     act(() => root.unmount())
     host.remove()
     vi.mocked(invoke).mockReset()

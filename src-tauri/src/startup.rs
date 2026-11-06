@@ -100,15 +100,15 @@ fn says(code: &str) -> (&'static str, &'static str) {
 
 fn notice(error: &StartupError, data_dir: Option<&Path>) -> Notice {
     let (title, text) = says(error.code());
-    let mut details: Vec<String> = data_dir
-        .map(|dir| strings::STARTUP_FOLDER.replace("{folder}", &dir.display().to_string()))
-        .into_iter()
-        .collect();
-    details.push(strings::STARTUP_CODE.replace("{code}", error.code()));
-    Notice {
-        title,
-        message: format!("{text}\n\n{}", details.join("\n")),
-    }
+    // The code goes to the log only (report), never into the alert.
+    let message = match data_dir {
+        Some(dir) => format!(
+            "{text}\n\n{}",
+            strings::STARTUP_FOLDER.replace("{folder}", &dir.display().to_string())
+        ),
+        None => text.to_owned(),
+    };
+    Notice { title, message }
 }
 
 pub fn report(error: &StartupError, data_dir: Option<&Path>, alert: impl FnOnce(&Notice)) {
@@ -165,11 +165,11 @@ mod tests {
             "{}",
             notice.message
         );
-        assert!(notice.message.ends_with(&format!("Code: {code}")));
+        assert!(!notice.message.contains("E_STORAGE"), "{}", notice.message);
         assert!(
             notice
                 .message
-                .contains(&format!("Data folder: {}", dir.path().display()))
+                .ends_with(&format!("Data folder: {}", dir.path().display()))
         );
         assert!(
             test_log::lines().contains(&format!("ERROR E_STARTUP_FAILED {code}")),
@@ -244,14 +244,13 @@ mod tests {
             let notice = alert_for(&StartupError::new(code), dir.path());
             assert_eq!(notice.title, title, "{code}");
             assert!(notice.message.starts_with(says), "{code}");
-            assert!(notice.message.ends_with(&format!("Code: {code}")), "{code}");
+            assert!(!notice.message.contains(code), "{code}");
         }
         let mut shown = Vec::new();
         report(&StartupError::new("E_DATA_FOLDER_UNKNOWN"), None, |n| {
             shown.push(n.clone())
         });
-        assert!(!shown[0].message.contains("Data folder"));
-        assert!(shown[0].message.ends_with("Code: E_DATA_FOLDER_UNKNOWN"));
+        assert_eq!(shown[0].message, strings::STARTUP_OTHER);
     }
 
     #[test]

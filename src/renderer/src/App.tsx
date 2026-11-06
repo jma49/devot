@@ -600,7 +600,7 @@ export function App() {
     sidebarSetTagColor: librarySidebar.sidebarSetTagColor,
   })
 
-  if (startFailure) return <StartFailure code={startFailure} onRetry={retryStart} />
+  if (startFailure) return <StartFailure onRetry={retryStart} />
 
   return (
     <div

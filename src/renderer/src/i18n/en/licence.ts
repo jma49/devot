@@ -11,7 +11,7 @@ export const messages = {
   'licenceSettings.state.valid': 'Editing, sync and AI are unlocked on this device.',
   'licenceSettings.state.revoked': 'This license was revoked after a refund or a lost dispute.',
   'licenceSettings.state.invalid':
-    'The license on this device could not be verified ({code}). Add the key from your purchase email again.',
+    'The license on this device could not be verified. Add the key from your purchase email again.',
   'licenceSettings.state.unreadable': 'The license could not be read. {problem}',
   'licenceSettings.state.purchased': 'Devot Pro, bought on the App Store.',
   'licenceSettings.state.storeReading': 'Checking your App Store purchases.',
@@ -22,7 +22,7 @@ export const messages = {
   'licenceSettings.trial.ended':
     'The trial has ended, so notes are read-only and sync and AI are locked until you add a license.',
   'licenceSettings.trial.unreadable':
-    'The trial could not be read from the keychain ({code}), so notes are read-only until you add a license.',
+    'The trial could not be read from the keychain, so notes are read-only until you add a license.',
   'licenceSettings.trial.available': 'Not started. Start it free from Buy Devot Pro.',
   'licenceSettings.licensee': 'Licensed To',
   'licenceSettings.id': 'License ID',
@@ -62,8 +62,7 @@ export const messages = {
   'licenceSettings.added': 'The license was added.',
   'licenceSettings.removed': 'The license was removed.',
   'licenceSettings.addFailed': 'The key could not be added. {problem}',
-  'licenceSettings.removeFailed': 'The license could not be removed ({code}).',
-  'licence.problem': '{reason} ({code})',
+  'licenceSettings.removeFailed': 'The license could not be removed.',
   'licence.reason.malformed': 'This is not a complete Devot license key.',
   'licence.reason.unknownKid':
     'It was signed by a key this version of Devot does not know. Update Devot and try again.',
@@ -120,6 +119,6 @@ export const messages = {
   'updates.ready': 'Devot {version} is ready to install.',
   'updates.restart': 'Restart to Update',
   'updates.later': 'Later',
-  'updates.failed': 'Devot could not check for or install updates ({code}).',
+  'updates.failed': 'Devot could not check for or install updates.',
   'updates.unavailable': 'This build of Devot does not update itself.',
 } as const

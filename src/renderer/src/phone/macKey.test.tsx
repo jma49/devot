@@ -130,7 +130,7 @@ describe('Get a Mac License Key', () => {
     await settings({ pro: true })
     await openKey()
     expect(document.body.textContent).toContain(
-      'The key could not be fetched. A purchase shared through Family Sharing comes with no license key. (E_APP_STORE_FAMILY_SHARED)',
+      'The key could not be fetched. A purchase shared through Family Sharing comes with no license key.',
     )
     answer = async () => ({ key: KEY, id: ID })
     await act(async () => button('Try Again')?.click())
@@ -142,7 +142,7 @@ describe('Get a Mac License Key', () => {
     answer = async () => ({ key: 'not a key', id: ID })
     await settings({ pro: true })
     await openKey()
-    expect(document.body.textContent).toContain('(E_APP_STORE_EXCHANGE_FAILED)')
+    expect(document.body.textContent).toContain('The license server could not give a key.')
     expect(document.body.textContent).not.toContain('not a key')
   })
 })

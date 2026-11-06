@@ -29,6 +29,7 @@ import { currentLocale, format, t } from './i18n'
 import { isImeKey } from './ime'
 import { describeChange } from './RevisionHistory'
 import { useText, type TextStore } from './textStore'
+import { failureText, logFailure } from './failure'
 
 // A press that moves less than this is a click: it keeps the version it picked on screen.
 const CLICK_SLOP_PX = 4
@@ -254,7 +255,7 @@ export function useHistoryBar(props: {
         setNow(Date.now())
         setError(undefined)
       },
-      (e: unknown) => current && setError(errorCode(e)),
+      (e: unknown) => current && setError(logFailure(errorCode(e), 'W_HISTORY_FAILED')),
     )
     return () => {
       current = false
@@ -274,7 +275,7 @@ export function useHistoryBar(props: {
     let current = true
     core.revisionText(noteId, step.id).then(
       (text) => current && setTexts((before) => new Map(before).set(step.id, text)),
-      (e: unknown) => current && setError(errorCode(e)),
+      (e: unknown) => current && setError(logFailure(errorCode(e), 'W_HISTORY_FAILED')),
     )
     return () => {
       current = false
@@ -378,7 +379,8 @@ export function useHistoryBar(props: {
       restored.current = true
       setReload((n) => n + 1)
     } catch (e) {
-      if (noteIdNow.current === noteId) setRestoreError(errorCode(e))
+      if (noteIdNow.current === noteId)
+        setRestoreError(logFailure(errorCode(e), 'W_HISTORY_FAILED'))
     } finally {
       setBusy(false)
     }
@@ -394,16 +396,17 @@ export function useHistoryBar(props: {
       restored.current = true
       setReload((n) => n + 1)
     } catch (e) {
-      if (noteIdNow.current === noteId) setRestoreError(errorCode(e))
+      if (noteIdNow.current === noteId)
+        setRestoreError(logFailure(errorCode(e), 'W_HISTORY_FAILED'))
     } finally {
       setBusy(false)
     }
   }
 
   const note = error
-    ? format(t('historyBar.failed'), { code: error })
+    ? failureText('historyBar.failed', error)
     : restoreError
-      ? format(t('history.restoreFailed'), { code: restoreError })
+      ? failureText('history.restoreFailed', restoreError)
       : list.length === 0
         ? t('history.empty')
         : showing

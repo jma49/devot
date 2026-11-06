@@ -86,7 +86,7 @@ test('keeps the text and says why when the note could not be saved', async ({ pa
   await title(page).fill('Lost?')
   await save(page).click()
   await expect(page.getByRole('alert')).toHaveText(
-    'That notebook no longer exists (E_BOOK_NOT_FOUND). Choose another one.',
+    'That notebook no longer exists. Choose another one.',
   )
   await expect(title(page)).toHaveValue('Lost?')
   expect(await calls(page, 'quick_capture_close')).toEqual([])
@@ -100,7 +100,7 @@ test('says a note Devot is still saving will appear, so it is not saved twice', 
   await title(page).fill('Slow')
   await save(page).click()
   await expect(page.getByRole('alert')).toHaveText(
-    'Devot is still saving this note (E_QUICK_CAPTURE_LATE). It will appear in your notes; check there before saving it again.',
+    'Devot is still saving this note. It will appear in your notes; check there before saving it again.',
   )
   await expect(title(page)).toHaveValue('Slow')
 })

@@ -233,7 +233,7 @@ test('sends nothing from a notebook without AI access, and says why', async ({ p
   await notebook(page, 'Private', false)
   await note(page, 'secret plans')
   await page.keyboard.press(SUGGEST_KEY)
-  await expect(page.getByRole('alert')).toContainText('(E_AI_ACCESS_DENIED)')
+  await expect(page.getByRole('alert')).toContainText('Allow AI Access on')
   await expect(ghost(page)).toHaveCount(0)
   expect(await requests(page)).toEqual([])
 })
@@ -241,15 +241,15 @@ test('sends nothing from a notebook without AI access, and says why', async ({ p
 test('sends nothing without a provider set up, and says why', async ({ page }) => {
   await ready(page, [' unused.'], 'We plan', { key: 'unset' })
   await page.keyboard.press(SUGGEST_KEY)
-  await expect(page.getByRole('alert')).toContainText('(E_AI_KEY_MISSING)')
+  await expect(page.getByRole('alert')).toContainText('No AI provider is set up.')
   expect(await requests(page)).toEqual([])
 })
 
 test('names a failure of the provider, and says when it had nothing to add', async ({ page }) => {
   await ready(page, [{ error: 'E_AI_RATE_LIMITED' }, '  \n'], 'We plan')
   await page.keyboard.press(SUGGEST_KEY)
-  await expect(page.getByRole('alert')).toContainText('(E_AI_RATE_LIMITED)')
+  await expect(page.getByRole('alert')).toContainText('the rate limit was reached')
   await page.keyboard.press(SUGGEST_KEY)
-  await expect(page.getByRole('alert')).toContainText('(E_AI_SUGGESTION_NONE)')
+  await expect(page.getByRole('alert')).toContainText('had nothing to add here')
   await expect(ghost(page)).toHaveCount(0)
 })

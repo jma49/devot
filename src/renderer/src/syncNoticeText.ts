@@ -38,7 +38,7 @@ function stateMessage(snapshot: SyncSnapshot, pauseOver: boolean): string | unde
       return t('sync.notice.licenceTrialEnded')
     const advice = STOP_ADVICE[code]
     if (advice) return format(t('sync.notice.stoppedAdvice'), { advice: t(advice) })
-    return format(t(STOPPED[code] ?? 'sync.notice.stopped'), { code })
+    return t(STOPPED[code] ?? 'sync.notice.stopped')
   }
   return icloud ? icloudNotice(icloud, pauseOver) : undefined
 }

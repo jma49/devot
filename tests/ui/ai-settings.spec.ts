@@ -146,9 +146,7 @@ test('a refused change shows its code and puts the stored values back', async ({
   const endpoint = claude.getByRole('textbox', { name: 'Endpoint' })
   await endpoint.fill('http://example.com')
   await endpoint.press('Enter')
-  await expect(page.getByRole('alert')).toHaveText(
-    'The AI settings could not be saved (E_AI_ENDPOINT_INVALID).',
-  )
+  await expect(page.getByRole('alert')).toHaveText('The AI settings could not be saved.')
   await expect(endpoint).toHaveValue('https://api.anthropic.com')
 })
 
@@ -202,8 +200,8 @@ test('a refused key is reported beside its own field', async ({ page }) => {
   await claude.getByRole('button', { name: 'Save Key' }).click()
   // The pane may be scrolled to the provider: the error belongs beside the field (A122).
   const error = claude.getByRole('alert')
-  await expect(error).toHaveText('The key could not be changed (E_AI_KEY_INVALID).')
-  await expect(field).toHaveAccessibleDescription(/E_AI_KEY_INVALID/)
+  await expect(error).toHaveText('The key could not be changed.')
+  await expect(field).toHaveAccessibleDescription(/The key could not be changed\./)
   // Typing a new key clears it.
   await field.fill('another')
   await expect(error).toHaveCount(0)

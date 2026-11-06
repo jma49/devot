@@ -22,6 +22,7 @@ import type { useSearch } from '../useSearch'
 import type { LibraryLists } from './useLibraryLists'
 import type { ViewState } from './useLibraryView'
 import type { useMode } from './useMode'
+import { logFailure } from '../failure'
 
 export const dailySettings = (): DailyNotesSettings => {
   const { dailyNotebook, dailyTemplate, dailyTitleFormat } = editorSettings()
@@ -125,7 +126,7 @@ export function useNoteMaking({
       id = inTemplates ? await core.createTemplate() : await core.create('', newNoteBookId())
     } catch (e) {
       early.fail()
-      setChangeNotice(errorCode(e))
+      setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
       return
     }
     early.claim(id)
@@ -144,7 +145,7 @@ export function useNoteMaking({
     const id = await core
       .applyTemplate(templateId, Date.now(), newNoteBookId())
       .catch((e: unknown) => {
-        setChangeNotice(errorCode(e))
+        setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
         return undefined
       })
     if (!id) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)
@@ -165,7 +166,7 @@ export function useNoteMaking({
     try {
       opened = await core.openTodaysNote(dailySettings(), Date.now(), editing)
     } catch (e) {
-      setChangeNotice(errorCode(e))
+      setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
       return
     }
     if (opened.created) track('note.created', { from: 'today' })
@@ -188,7 +189,7 @@ export function useNoteMaking({
       .applyTemplateTo(templateId, noteId, Date.now())
       .then(() => true)
       .catch((e: unknown) => {
-        setChangeNotice(errorCode(e))
+        setChangeNotice(logFailure(errorCode(e), 'W_NOTE_CREATE_FAILED'))
         return false
       })
     if (!done) return console.warn('W_TEMPLATE_APPLY_FAILED', templateId)

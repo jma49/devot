@@ -106,9 +106,7 @@ test('a failed restore keeps the dialog open with the code', async ({ page }) =>
     .getByRole('dialog', { name: /Restore the backup/ })
     .getByRole('button', { name: 'Restore' })
     .click()
-  await expect(page.getByRole('alert')).toHaveText(
-    'The backup could not be restored (E_BACKUP_RESTORE_FAILED).',
-  )
+  await expect(page.getByRole('alert')).toHaveText('The backup could not be restored.')
   expect(await calls(page, 'backup_restore')).toEqual([
     { cmd: 'backup_restore', args: { id: OLD.id } },
   ])
@@ -126,7 +124,7 @@ test('a restore refused while sync is on says why', async ({ page }) => {
     .getByRole('button', { name: 'Restore' })
     .click()
   await expect(page.getByRole('alert')).toHaveText(
-    'A backup can’t be restored while sync is on: the next sync would bring back the changes made since (E_BACKUP_SYNC_ON).',
+    'A backup can’t be restored while sync is on: the next sync would bring back the changes made since.',
   )
 })
 
@@ -165,7 +163,7 @@ test('a list that cannot be read says so', async ({ page }) => {
   await open(page, { backups_list: { error: 'E_BACKUP_DIR' } })
   await showBackups(page)
   await expect(page.getByRole('dialog', { name: 'Backups' }).getByRole('alert')).toHaveText(
-    'The backups could not be listed (E_BACKUP_DIR).',
+    'The backups could not be listed.',
   )
 })
 
@@ -186,11 +184,11 @@ test('a restore another window was not ready for says to try again', async ({ pa
 test('a failed automatic backup shows a notice that opens the backups', async ({ page }) => {
   await open(page, { backups_list: { backups: [OLD], lastError: 'E_BACKUP_SNAPSHOT_FAILED' } })
   const notice = page.getByRole('alert')
-  await expect(notice).toHaveText(/The automatic backup failed \(E_BACKUP_SNAPSHOT_FAILED\)/)
+  await expect(notice).toHaveText(/The automatic backup failed/)
   await notice.getByRole('button', { name: 'Show Backups' }).click()
   await expect(page.getByRole('dialog', { name: 'Backups' })).toBeVisible()
-  await expect(page.getByRole('dialog', { name: 'Backups' }).getByRole('alert')).toContainText(
-    'E_BACKUP_SNAPSHOT_FAILED',
+  await expect(page.getByRole('dialog', { name: 'Backups' }).getByRole('alert')).toHaveText(
+    'The backup failed.',
   )
 })
 
@@ -201,7 +199,8 @@ test('a failure while the window is open shows the notice; Dismiss hides it', as
     w.dispatchEvent(new w.CustomEvent('devot:backup-failed', { detail: 'E_BACKUP_DIR' }))
   })
   const notice = page.getByRole('alert')
-  await expect(notice).toContainText('E_BACKUP_DIR')
+  await expect(notice).toContainText('The automatic backup failed.')
+  await expect(notice).not.toContainText('E_BACKUP_DIR')
   await notice.getByRole('button', { name: 'Dismiss' }).click()
   await expect(notice).toBeHidden()
 })

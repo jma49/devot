@@ -17,7 +17,7 @@ import {
 } from '../../../core/editorSettings'
 import { useKeymap } from '../commands/shortcutSettings'
 import { useEditorSettings } from '../editorSettings'
-import { currentLocale, format, t, type MessageKey } from '../i18n'
+import { currentLocale, t, type MessageKey } from '../i18n'
 import {
   NumberStepper,
   Select,
@@ -29,6 +29,7 @@ import {
 import { FontSection } from './FontChoice'
 import { useOnPhone } from './onPhone'
 import { useTypedNumber } from './typedNumber'
+import { failureText } from '../failure'
 
 const INDENT_LABELS: Readonly<Record<IndentUnitId, MessageKey>> = {
   spaces2: 'editorSettings.indent.spaces2',
@@ -141,7 +142,7 @@ export function EditingSection() {
       </h2>
       {error ? (
         <p role="alert" className="settings-error">
-          {format(t('editorSettings.failed'), { code: error })}
+          {failureText('editorSettings.failed', error)}
         </p>
       ) : null}
       <SettingsSection title="editorSettings.interface">

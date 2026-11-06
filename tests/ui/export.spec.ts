@@ -472,7 +472,7 @@ test('a failure shows what did not complete, with its code, until dismissed', as
   await mockExport(page, { export_write: { error: 'E_EXPORT_WRITE_FAILED' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as Markdown…')
   const notice = page.getByRole('alert')
-  await expect(notice).toContainText('The export did not complete (E_EXPORT_WRITE_FAILED).')
+  await expect(notice).toContainText('The export did not complete.')
   expect((await calls(page, 'export_finish')).length).toBe(1)
   await notice.getByRole('button', { name: 'Dismiss' }).click()
   await expect(notice).toHaveCount(0)
@@ -480,25 +480,23 @@ test('a failure shows what did not complete, with its code, until dismissed', as
   await mockExport(page, { note_print: { error: 'E_PRINT_BUSY' } })
   await pickFromNoteMenu(page, 'Plan', 'Print…')
   await confirmPageSetup(page, 'Print…')
-  await expect(notice).toHaveText(/^The note could not be printed \(E_PRINT_BUSY\)\./)
+  await expect(notice).toHaveText(/^The note could not be printed\./)
 
   await mockExport(page, { clipboard_write_html: { error: 'E_CLIPBOARD_WRITE_FAILED' } })
   await pickFromNoteMenu(page, 'Plan', 'Copy as Simple HTML')
-  await expect(notice).toHaveText(/^The note could not be copied \(E_CLIPBOARD_WRITE_FAILED\)\./)
+  await expect(notice).toHaveText(/^The note could not be copied\./)
 
   // A PDF that could not be written fails (there is no panel to cancel).
   await mockExport(page, { export_pdf: { error: 'E_EXPORT_PDF_FAILED' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as PDF…')
   await confirmPageSetup(page, 'Export…')
-  await expect(notice).toHaveText(/^The export did not complete \(E_EXPORT_PDF_FAILED\)\./)
+  await expect(notice).toHaveText(/^The export did not complete\./)
   await notice.getByRole('button', { name: 'Dismiss' }).click()
 
   const writes = (await calls(page, 'export_write')).length
   await mockExport(page, { export_attach: { error: 'E_EXPORT_ATTACH_FAILED' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as Markdown…')
-  await expect(notice).toHaveText(
-    /^The export is incomplete: 1 written, 1 with problems \(first: E_EXPORT_ATTACH_FAILED\)\./,
-  )
+  await expect(notice).toHaveText(/^The export is incomplete: 1 written, 1 with problems\./)
   expect((await calls(page, 'export_write')).length).toBe(writes + 1)
 })
 
@@ -510,8 +508,8 @@ test("an export's notice and a backup's both show, each with its buttons", async
   })
   await mockExport(page, { export_write: { error: 'E_EXPORT_WRITE_FAILED' } })
   await pickFromNoteMenu(page, 'Plan', 'Export as Markdown…')
-  const backup = page.getByRole('alert').filter({ hasText: 'E_BACKUP_DIR' })
-  const exported = page.getByRole('alert').filter({ hasText: 'E_EXPORT_WRITE_FAILED' })
+  const backup = page.getByRole('alert').filter({ hasText: 'The automatic backup failed.' })
+  const exported = page.getByRole('alert').filter({ hasText: 'The export did not complete.' })
   await expect(backup).toBeVisible()
   await expect(exported).toBeVisible()
   // Neither covers the other: each one's Dismiss takes a click.
@@ -665,9 +663,7 @@ test('a page setup that cannot be saved stops the print and names the code', asy
   await pickFromNoteMenu(page, 'Plan', 'Print…')
   await confirmPageSetup(page, 'Print…')
   // Rust lays the page out by the setup it holds: printing with the old one silently is worse (A114).
-  await expect(page.getByRole('alert')).toContainText(
-    'The note could not be printed (E_EDITOR_SETTINGS_WRITE_FAILED).',
-  )
+  await expect(page.getByRole('alert')).toContainText('The note could not be printed.')
   expect(await calls(page, 'note_print')).toHaveLength(0)
 })
 

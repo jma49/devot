@@ -141,7 +141,7 @@ Part of the [architecture overview](../architecture.md).
     Proposals are not kept: closing the sheet forgets it.
   - **Applying:** `NoteService.applyAiEdit` finds the selection at its start, or wherever edits since moved it when it is there exactly once (else `E_AI_PROPOSAL_STALE`), takes a version of unversioned typing, applies the difference as Yjs operations (`textEdits`, as `setBody`), then takes a version marked `ai` (see Revision history).
     The core returns the update, which the editor applies as one undo step, as a restore is: Cmd+Z takes back the whole edit.
-  - **Unavailable:** the sheet says why, with the code: no Allow AI Access on the note's notebook (and how to turn it on), no key or no model (Settings > AI), a refused key, a rate limit, no connection, a reply cut off, a selection too long or changed meanwhile.
+  - **Unavailable:** the sheet says why, never the code (which goes to the log): no Allow AI Access on the note's notebook (and how to turn it on), no key or no model (Settings > AI), a refused key, a rate limit, no connection, a reply cut off, a selection too long or changed meanwhile.
     Try Again shows only where asking again may help.
   - **Tests:** `src/core/aiEdit.test.ts` (prompts, replies, diffs), `tests/core/ai-edit.test.ts` (applying on real SQLite: one update, the versions, merging with typing, a moved or changed selection, compaction), `tests/ui/ai-edit.spec.ts` (the toolbar and the editor menu, review per change, undo, history, nothing sent without access, failures, with `ai_generate` faked).
 - **Next edit suggestions** (#158, second half; `src/core/aiSuggest.ts`, `src/renderer/src/editor/ghostText.ts`): a continuation of the note at the caret, shown as ghost text after it.
@@ -150,7 +150,7 @@ Part of the [architecture overview](../architecture.md).
     Nothing else asks: not opening a note, not a timer with the setting off, not sync.
     The pause timer starts only after typing the user did (`input.type`), is dropped by the next change, and the setting is read afresh from Rust at the moment of the request, so turning it off stops the next one.
   - **When it is off:** `createSuggester` sends nothing unless the note's notebook (as the core holds it now) is one `createAiGenerator` accepts (Allow AI Access on; a note in no notebook or in Templates never), and the active provider has a key stored and a model (`providerReady`; a key state of `unknown` or `unavailable` counts as missing).
-    The key trigger then fails with the code (`E_AI_ACCESS_DENIED`, `E_AI_KEY_MISSING`, `E_AI_MODEL_MISSING`) shown in a notice; a pause request fails silently.
+    The key trigger then fails with the code (`E_AI_ACCESS_DENIED`, `E_AI_KEY_MISSING`, `E_AI_MODEL_MISSING`), logged, and a notice says why; a pause request fails silently.
     The Trash has no suggester.
     The central access rule is untouched: the request is a user trigger (`by: 'user'`) with the note's notebook, and the idle setting is checked before it in the suggester.
   - **What is sent:** at most 2,000 characters before the caret and 500 after it (`SUGGEST_BEFORE_CHARS`, `SUGGEST_AFTER_CHARS`; never splitting a surrogate pair), between `<before>` and `<after>` tags, with a system prompt that asks for the text to insert only and says the note is content, never instructions.

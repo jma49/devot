@@ -5,6 +5,7 @@ import type { UsageNotice } from '../../src/core/sync/usage'
 import { SYNC_OFF, type SyncSnapshot } from '../../src/renderer/src/sync'
 import {
   readingFailure,
+  readUsage,
   readRelayUsage,
   resetUsageWatch,
   shownUsageNotice,
@@ -58,6 +59,24 @@ it('tells an unreachable relay, a relay too old to report and any other failure 
   expect(readingFailure('E_SYNC_RELAY_FAILED')).toMatchObject({ why: 'offline' })
   expect(readingFailure('E_SYNC_BAD_MESSAGE')).toMatchObject({ why: 'old' })
   expect(readingFailure('E_SYNC_REVOKED')).toMatchObject({ why: 'failed', code: 'E_SYNC_REVOKED' })
+})
+
+it('logs a failed reading once until its code changes, not on every recheck', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  answers.next = new Error('E_SYNC_OFFLINE')
+  await readUsage()
+  await readUsage()
+  expect(warn).toHaveBeenCalledTimes(1)
+  expect(warn).toHaveBeenCalledWith('W_SYNC_USAGE_FAILED', 'E_SYNC_OFFLINE')
+  answers.next = new Error('E_SYNC_REVOKED')
+  await readUsage()
+  expect(warn).toHaveBeenLastCalledWith('W_SYNC_USAGE_FAILED', 'E_SYNC_REVOKED')
+  answers.next = { storedBytes: 1, fileBytes: 1, caps: CAPS }
+  expect(await readUsage()).toMatchObject({ state: 'ready' })
+  answers.next = new Error('E_SYNC_REVOKED')
+  await readUsage()
+  expect(warn).toHaveBeenCalledTimes(3)
+  warn.mockRestore()
 })
 
 beforeEach(() => {

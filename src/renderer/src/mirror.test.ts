@@ -58,18 +58,18 @@ describe('the mirror status from Rust', () => {
 describe('the mirror notices', () => {
   it('say why the mirror is paused, with the code', () => {
     expect(pausedMessage('E_MIRROR_FOLDER_MISSING')).toBe(
-      'The mirror is paused: its folder is missing (E_MIRROR_FOLDER_MISSING). It resumes once the folder is back.',
+      'The mirror is paused: its folder is missing. It resumes once the folder is back.',
     )
     expect(pausedMessage('E_MIRROR_FOLDER_READ_ONLY')).toContain('cannot be written')
     // Without its manifest the mirror cannot go on by itself: the notice says what to do.
     expect(pausedMessage('E_MIRROR_MANIFEST_MISSING')).toBe(
-      'The mirror is paused: the list of files Devot wrote in its folder (.devot-mirror.json) is missing (E_MIRROR_MANIFEST_MISSING). Put it back, or choose the folder again to go on.',
+      'The mirror is paused: the list of files Devot wrote in its folder (.devot-mirror.json) is missing. Put it back, or choose the folder again to go on.',
     )
     expect(pausedMessage('E_MIRROR_MANIFEST_INVALID')).toBe(
-      'The mirror is paused: the list of files Devot wrote in its folder (.devot-mirror.json) cannot be read (E_MIRROR_MANIFEST_INVALID). Choose the folder again to go on.',
+      'The mirror is paused: the list of files Devot wrote in its folder (.devot-mirror.json) cannot be read. Choose the folder again to go on.',
     )
     expect(pausedMessage('E_MIRROR_MANIFEST_FOREIGN')).toBe(
-      'The mirror is paused: its folder holds the files of another Devot library (E_MIRROR_MANIFEST_FOREIGN). Choose the folder again to go on.',
+      'The mirror is paused: its folder holds the files of another Devot library. Choose the folder again to go on.',
     )
     for (const code of [
       'E_MIRROR_MANIFEST_MISSING',
@@ -79,7 +79,7 @@ describe('the mirror notices', () => {
       expect(pausedMessage(code)).not.toContain('resumes')
     }
     expect(pausedMessage('E_MIRROR_FOLDER_OTHER')).toBe(
-      'The mirror is paused (E_MIRROR_FOLDER_OTHER). It resumes once its folder can be written again.',
+      'The mirror is paused. It resumes once its folder can be written again.',
     )
   })
 

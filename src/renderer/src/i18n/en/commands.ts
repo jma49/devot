@@ -211,7 +211,7 @@ export const messages = {
     '{key} is an Edit menu key; it can be used only on list and sidebar rows.',
   'shortcuts.problem.needsModifier':
     '{key} would type text; shortcuts that work while you type need Command or Control.',
-  'shortcuts.failed': 'The change could not be saved ({code}).',
+  'shortcuts.failed': 'The change could not be saved.',
   'palette.placeholder': 'Search commands, notebooks, tags, etc...',
   'palette.placeholder.command': 'Search commands...',
   'palette.placeholder.book': 'Search notebooks...',

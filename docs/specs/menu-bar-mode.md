@@ -18,7 +18,7 @@ Settings > General > Keep in Menu Bar (`menuBar` in the editor settings, off by 
   It starts no core and is granted no note command (`capabilities/quick-capture.json`): it hands the note to Rust (`quick_capture_save`, title, body and notebook checked against `note_put`'s limits), which emits it to the main window (`devot://quick-capture`) with a request ID and waits up to 15 s for the answer (`quick_capture_done`, main window only, a code or nothing).
   The main window claims the request (`quick_capture_claim`) before its core writes anything: one Rust gave up on cannot be claimed, so a timed-out capture is never made (`E_QUICK_CAPTURE_TIMEOUT`, try again), while a claimed one that times out may still appear (`E_QUICK_CAPTURE_LATE`, the window says to look for it before saving again).
   The main window's core makes the note (`captureNote`, `src/core/capture.ts`: refuses an empty capture and a notebook that is gone, then saves before it answers; a save that fails after the note is made leaves it pending in the core like any unsaved edit, so the capture is never sent twice), records `note.created` from `quick_capture` and refreshes its lists.
-  On success the window empties and closes (`quick_capture_close`); on failure it keeps the text and shows the code.
+  On success the window empties and closes (`quick_capture_close`); on failure it keeps the text, says what failed and logs the code.
   What is typed is kept as a draft in the webview's local storage on every change (`devot.quickCapture.draft`, cleared once the note is saved), so closing the window or quitting first loses nothing.
 
 ## Background start

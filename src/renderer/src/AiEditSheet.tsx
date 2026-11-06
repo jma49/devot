@@ -16,6 +16,7 @@ import { currentLocale, format, t } from './i18n'
 import { isImeKey } from './ime'
 import { LICENCE_REQUIRED } from './licence'
 import { LicenceButton } from './LicenceLocked'
+import { logFailure } from './failure'
 
 type Phase =
   | { kind: 'prompt' }
@@ -71,7 +72,8 @@ export function AiEditSheet(props: {
         .then(
           (proposal) => mine === attempt.current && setPhase({ kind: 'review', proposal }),
           (e: unknown) =>
-            mine === attempt.current && setPhase({ kind: 'failed', code: errorCode(e) }),
+            mine === attempt.current &&
+            setPhase({ kind: 'failed', code: logFailure(errorCode(e), 'W_AI_EDIT_FAILED') }),
         )
     },
     [core, generator, noteId, start.text],
@@ -103,7 +105,7 @@ export function AiEditSheet(props: {
       props.onClose()
     } catch (e) {
       setBusy(false)
-      setPhase({ kind: 'failed', code: errorCode(e) })
+      setPhase({ kind: 'failed', code: logFailure(errorCode(e), 'W_AI_EDIT_FAILED') })
     }
   }
 
