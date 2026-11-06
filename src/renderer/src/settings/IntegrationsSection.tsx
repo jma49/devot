@@ -9,6 +9,7 @@ import { HttpApiSection } from './HttpApiSection'
 import { McpAccessSection } from './McpAccessSection'
 import {
   claudeCodeCommand,
+  clientStateLog,
   codexConfig,
   mcpServersJson,
   NO_MCP_SETUP,
@@ -260,6 +261,11 @@ export function IntegrationsSection() {
       window.removeEventListener('focus', load)
     }
   }, [])
+
+  const logClientStates = useRef(clientStateLog())
+  useEffect(() => {
+    if (setup) logClientStates.current(setup.clients)
+  }, [setup])
 
   useEffect(() => {
     let live = true

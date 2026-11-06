@@ -17,7 +17,7 @@ describe('failureReason', () => {
     ['E_NET_TOO_MANY_REDIRECTS', 'failure.serverRefused'],
     ['E_AI_HTTP', 'failure.serverRefused'],
     ['E_AI_PROVIDER_UNAVAILABLE', 'failure.serverUnavailable'],
-    ['E_SPEECH_UNAVAILABLE', 'failure.unavailable'],
+    ['E_APP_STORE_UNAVAILABLE', 'failure.serverUnavailable'],
   ] as const)('words %s as %s', (code, key) => {
     expect(failureReason(code)).toBe(key)
   })
@@ -25,6 +25,17 @@ describe('failureReason', () => {
   it('has no reason for a code it cannot explain', () => {
     expect(failureReason('E_STORAGE_BUSY')).toBeUndefined()
     expect(failureReason('E_UNKNOWN')).toBeUndefined()
+    expect(
+      [
+        'E_DATA_FOLDER_UNAVAILABLE',
+        'E_AI_KEYCHAIN_UNAVAILABLE',
+        'E_SYNC_ICLOUD_ACCOUNT_UNAVAILABLE',
+        'E_MCP_ACCESS_UNAVAILABLE',
+        'E_PLUGIN_UNAVAILABLE',
+        'E_HTTP_API_UNAVAILABLE',
+        'E_SPEECH_UNAVAILABLE',
+      ].filter((code) => failureReason(code) !== undefined),
+    ).toEqual([])
     expect(failureReason('')).toBeUndefined()
   })
 })
@@ -40,6 +51,10 @@ describe('failureText', () => {
     expect(failureText('syncSettings.usage.failed', 'E_NET_TIMEOUT')).toBe(
       `${t('syncSettings.usage.failed')} ${t('failure.timeout')}`,
     )
+  })
+
+  it('adds no reason after a message that gives its own advice', () => {
+    expect(failureText('httpApi.notListening', 'E_NET_TIMEOUT')).toBe(t('httpApi.notListening'))
   })
 
   it('fills the message’s other placeholders', () => {

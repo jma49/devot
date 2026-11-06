@@ -19,14 +19,18 @@ const REASONS: Readonly<Record<string, MessageKey>> = {
   E_SYNC_TOKEN_REFUSED: 'failure.serverRefused',
   E_AI_PROVIDER_UNAVAILABLE: 'failure.serverUnavailable',
   E_APP_STORE_UPSTREAM: 'failure.serverUnavailable',
+  E_APP_STORE_UNAVAILABLE: 'failure.serverUnavailable',
+  E_APP_STORE_PRODUCT_UNAVAILABLE: 'failure.serverUnavailable',
 }
 
-/** The plain reason for a code, if Devot can say one: network, time limit, refusal or unavailability. */
+/** Messages that already advise what to do next: no reason is added after them. */
+const GIVES_ADVICE: ReadonlySet<MessageKey> = new Set(['httpApi.notListening'])
+
+/** The plain reason for a code, if Devot can say one: network, time limit, refusal or a service that may recover. */
 export function failureReason(code: string): MessageKey | undefined {
   const known = REASONS[code]
   if (known) return known
   if (/_TIME(?:OUT|D_OUT)$/.test(code)) return 'failure.timeout'
-  if (/_UNAVAILABLE$/.test(code)) return 'failure.unavailable'
   return undefined
 }
 
@@ -43,11 +47,26 @@ export function failureText(
   code: string,
   values: Readonly<Record<string, string>> = {},
 ): string {
-  return withReason(format(t(message), values), code)
+  const text = format(t(message), values)
+  return GIVES_ADVICE.has(message) ? text : withReason(text, code)
 }
 
 /** Call once when a failure is caught, since its text no longer carries the code: logs it and hands it back. */
 export function logFailure(code: string, area = 'W_UI_FAILED'): string {
   console.warn(area, code)
   return code
+}
+
+/** A `logFailure` for a failure that is read again and again: logs a code once until it changes or `undefined` clears it. */
+export function changeLogger(area: string): (code: string | undefined, key?: string) => void {
+  const last = new Map<string, string>()
+  return (code, key = '') => {
+    if (code === undefined) {
+      last.delete(key)
+      return
+    }
+    if (last.get(key) === code) return
+    last.set(key, code)
+    logFailure(code, area)
+  }
 }

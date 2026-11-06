@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { en } from '../../src/renderer/src/i18n/en'
 import { enPhone } from '../../src/renderer/src/i18n/phone'
@@ -17,6 +18,29 @@ it('no English message shows an error code', () => {
 
 it('no iPhone wording shows an error code', () => {
   expect(offenders(enPhone)).toEqual([])
+})
+
+// The shell's own text (menus, dialogs, notifications) reaches windows; the CLI_ lines go to a terminal.
+const rustStrings = (source: string) =>
+  Object.fromEntries(
+    [...source.matchAll(/^pub const (\w+): &str =\s*"((?:[^"\\]|\\.)*)";/gm)]
+      .filter(([, name]) => !name?.startsWith('CLI_'))
+      .map(([, name, text]) => [name, text]),
+  )
+
+it('no text the Rust shell shows shows an error code', () => {
+  const strings = rustStrings(readFileSync('src-tauri/src/strings.rs', 'utf8'))
+  expect(Object.keys(strings).length).toBeGreaterThan(100)
+  expect(offenders(strings)).toEqual([])
+})
+
+it('the Rust strings check skips the CLI lines and catches a code in the rest', () => {
+  const source = [
+    'pub const MENU_FILE: &str = "File";',
+    'pub const BAD: &str = "Failed (E_X_FAILED)";',
+    'pub const CLI_BAD: &str = "failed: E_X_FAILED";',
+  ].join('\n')
+  expect(offenders(rustStrings(source))).toEqual(['BAD: Failed (E_X_FAILED)'])
 })
 
 it('the check catches a code slot and a written code', () => {

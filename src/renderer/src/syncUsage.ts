@@ -15,7 +15,7 @@ import { errorCode } from './backups'
 import type { MessageKey } from './i18n'
 import { invoke } from './ipc'
 import type { SyncSnapshot } from './sync'
-import { logFailure } from './failure'
+import { changeLogger } from './failure'
 
 export const USAGE_NOTICE_TEXT: Readonly<Record<UsageNotice, MessageKey>> = {
   storageWarn: 'sync.notice.usage.storageWarn',
@@ -58,6 +58,8 @@ export type UsageReading =
 
 const OFFLINE = new Set(['E_SYNC_OFFLINE', 'E_SYNC_RELAY_FAILED'])
 
+const logUsageFailure = changeLogger('W_SYNC_USAGE_FAILED')
+
 export function readingFailure(code: string): UsageReading {
   // A relay from before `usage` does not know the message.
   const why: UsageWhy = OFFLINE.has(code)
@@ -65,17 +67,23 @@ export function readingFailure(code: string): UsageReading {
     : code === 'E_SYNC_BAD_MESSAGE'
       ? 'old'
       : 'failed'
-  return { state: 'unavailable', why, code: logFailure(code, 'W_SYNC_USAGE_FAILED') }
+  return { state: 'unavailable', why, code }
 }
 
-async function readUsage(): Promise<UsageReading> {
+export async function readUsage(): Promise<UsageReading> {
+  let failed: UsageReading
   try {
     const usage = readRelayUsage(await invoke<unknown>('sync_usage'))
-    if (usage) return { state: 'ready', view: viewStorage(usage) }
-    return readingFailure('E_SYNC_PROTOCOL')
+    if (usage) {
+      logUsageFailure(undefined)
+      return { state: 'ready', view: viewStorage(usage) }
+    }
+    failed = readingFailure('E_SYNC_PROTOCOL')
   } catch (e) {
-    return readingFailure(errorCode(e))
+    failed = readingFailure(errorCode(e))
   }
+  if (failed.state === 'unavailable') logUsageFailure(failed.code)
+  return failed
 }
 
 /** Reads the usage while `active`, again whenever `again` changes; null until the first answer. */

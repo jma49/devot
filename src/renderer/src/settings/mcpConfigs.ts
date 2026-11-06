@@ -3,6 +3,8 @@
 // Claude Code (a `claude mcp add` command), Codex (`~/.codex/config.toml`) and any client that
 // reads an `mcpServers` JSON file, Claude Desktop among them. Connect itself writes in Rust
 // (src-tauri/src/mcp_clients.rs).
+import { changeLogger } from '../failure'
+
 const SERVER_NAME = 'devot'
 
 const MCP_CLIENTS = ['claudeCode', 'codex', 'claudeDesktop'] as const
@@ -128,6 +130,14 @@ export function asMcpSetup(value: unknown): McpSetup | null {
         : BRIDGE_ARGS,
     temporary: temporary === true,
     clients: statuses.filter((status) => status !== null),
+  }
+}
+
+/** Logs each client's config code, once until it changes, since the state text does not carry it. */
+export function clientStateLog(): (clients: readonly McpClientStatus[]) => void {
+  const log = changeLogger('W_MCP_CLIENT_STATE')
+  return (clients) => {
+    for (const { client, code } of clients) log(code ?? undefined, client)
   }
 }
 

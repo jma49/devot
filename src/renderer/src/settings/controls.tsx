@@ -11,6 +11,7 @@ import {
 import { Icon } from '../icons/Icon'
 import type { EditorSettings } from '../../../core/editorSettings'
 import { errorCode } from '../backups'
+import { logFailure } from '../failure'
 import { changeEditorSettings } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
 import { useOnPhone } from './onPhone'
@@ -28,7 +29,7 @@ export function useSettingsChange(): [
   const change = (patch: Partial<EditorSettings>) =>
     void changeEditorSettings(patch).then(
       () => setError(undefined),
-      (e: unknown) => setError(errorCode(e)),
+      (e: unknown) => setError(logFailure(errorCode(e), 'W_EDITOR_SETTINGS_FAILED')),
     )
   return [error, change]
 }
