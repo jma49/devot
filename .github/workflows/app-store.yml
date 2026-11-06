@@ -64,13 +64,14 @@ jobs:
       - name: Check the merged pull request passed CI
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
         run: |
           sha=$(git rev-parse HEAD)
           prs=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/pulls")
           pr=$(jq -r --arg sha "$sha" \
             '[.[] | select(.merged_at != null and .merge_commit_sha == $sha)] | first | .number // empty' <<< "$prs")
           if [ -z "$pr" ]; then
-            echo "::error::E_RELEASE_NO_MERGED_PR: ${{ github.ref_name }} is not a merged pull request's merge commit."
+            echo "::error::E_RELEASE_NO_MERGED_PR: $TAG is not a merged pull request's merge commit."
             exit 1
           fi
           head=$(jq -r --arg sha "$sha" \

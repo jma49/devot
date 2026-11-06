@@ -2,6 +2,7 @@
 // theme tokens and sends them to the frame, whose document has no tokens.
 import { parseColor, toHex } from '../theme/contrast'
 import { light, sizes, type ThemeColor } from '../theme/tokens'
+import type { RenderRequest } from './mermaid-protocol'
 
 export interface DiagramPalette {
   card: string
@@ -508,4 +509,36 @@ export function finishDrawing(markup: string): string {
     if (svg.style?.maxWidth) svg.style.maxWidth = `${width}px`
   }
   return new XMLSerializer().serializeToString(root)
+}
+
+/**
+ * Keys a diagram's directive or front matter cannot set: Mermaid's own, and those whose
+ * CSS it would only check for balanced braces, so a note cannot restyle or fetch with them.
+ */
+const SECURE_KEYS = [
+  'secure',
+  'securityLevel',
+  'startOnLoad',
+  'maxTextSize',
+  'suppressErrorRendering',
+  'maxEdges',
+  'themeCSS',
+  'themeVariables',
+  'fontFamily',
+  'altFontFamily',
+]
+
+/** What the frame passes to `mermaid.initialize` for one drawing. */
+export function frameSettings(request: RenderRequest) {
+  return {
+    startOnLoad: false,
+    securityLevel: 'strict' as const,
+    secure: SECURE_KEYS,
+    theme: 'base' as const,
+    fontFamily: request.fontFamily,
+    ...diagramTheme(request.palette, request.appearance, request.fontFamily),
+    ...diagramConfig(request.width),
+    htmlLabels: false,
+    flowchart: { htmlLabels: false },
+  }
 }

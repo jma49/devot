@@ -5,11 +5,12 @@
 // window or its IPC. The frame is created on the first diagram. Its SVG is rebuilt here
 // node by node under the strict CSP: the embedded <style> becomes a
 // constructed stylesheet and `style` attributes go through the CSSOM, so no
-// inline style is ever parsed. Scripts, event handlers, foreign objects and
-// external links are dropped.
+// inline style is ever parsed. Scripts, event handlers, foreign objects,
+// external links and CSS that would fetch are dropped.
 import { PREVIEW_API_VERSION } from '../../../core/preview/registry'
 import { format as fill, t } from '../i18n'
 import { dark, light, sizes, type ThemeColor } from '../theme/tokens'
+import { pointsElsewhere, withoutRemoteCss } from './diagram-css'
 import type { IslandContent, IslandContext, PreviewIsland } from './islands'
 import { keptAnswers } from './kept'
 import {
@@ -204,17 +205,18 @@ export function importSvg(markup: string): { svg: SVGSVGElement; css: string } {
   const copy = (source: Element): Element | null => {
     if (source.namespaceURI !== SVG_NS || DROPPED.has(source.localName)) return null
     if (source.localName === 'style') {
-      css.push(source.textContent ?? '')
+      css.push(withoutRemoteCss(source.textContent ?? ''))
       return null
     }
     const el = document.createElementNS(SVG_NS, source.localName)
     for (const attr of Array.from(source.attributes)) {
       if (/^on/i.test(attr.localName)) continue
       if (attr.localName === 'style') {
-        ;(el as SVGElement).style.cssText = attr.value
+        ;(el as SVGElement).style.cssText = withoutRemoteCss(attr.value)
         continue
       }
-      if (attr.localName === 'href' && !attr.value.startsWith('#')) continue
+      if (attr.localName === 'href' ? !attr.value.startsWith('#') : pointsElsewhere(attr.value))
+        continue
       if (attr.namespaceURI === XLINK_NS)
         el.setAttributeNS(XLINK_NS, `xlink:${attr.localName}`, attr.value)
       else if (attr.namespaceURI === null) el.setAttribute(attr.localName, attr.value)

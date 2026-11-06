@@ -12,7 +12,7 @@ import {
   type FrameMessage,
   type RenderRequest,
 } from './preview/mermaid-protocol'
-import { diagramConfig, diagramTheme, finishDrawing } from './preview/mermaid-theme'
+import { finishDrawing, frameSettings } from './preview/mermaid-theme'
 
 let port: MessagePort | undefined
 /** Requests are drawn one after another (Mermaid's settings are global). */
@@ -41,16 +41,7 @@ async function draw(request: RenderRequest): Promise<void> {
   // Mermaid measures text in this document: give it the diagram's font.
   document.body.style.fontFamily = request.fontFamily
   document.body.style.fontSize = request.fontSize
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: 'strict',
-    theme: 'base',
-    fontFamily: request.fontFamily,
-    ...diagramTheme(request.palette, request.appearance, request.fontFamily),
-    ...diagramConfig(request.width),
-    htmlLabels: false,
-    flowchart: { htmlLabels: false },
-  })
+  mermaid.initialize(frameSettings(request))
   // A container of its own, removed when this drawing is done; nothing else
   // in the document is touched.
   const container = document.createElement('div')
