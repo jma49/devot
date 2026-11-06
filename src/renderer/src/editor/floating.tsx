@@ -11,6 +11,7 @@ import type { IconName } from '../icons/symbols'
 import { closingRef } from '../closing'
 import { sizes } from '../theme/tokens'
 import { closingStyles, closingTooltips, motionKeyframes, tipIn } from './motion'
+import { glass } from './boxes'
 import { BAR_GAP, NOTCH_X, notchElement, notchStyles } from './notch'
 import type { Tip } from './toolbarButtons'
 
@@ -203,6 +204,7 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     color: 'var(--color-text-secondary)',
     fontFamily: 'var(--font-family-ui)',
   },
+  [glass('.cm-tooltip.cm-float-bar')]: { paddingInline: 'var(--size-float-toolbar-end)' },
   '.cm-float-content': { display: 'flex', alignItems: 'center', minWidth: '0' },
   ...notchStyles,
   '.cm-float-buttons': {
@@ -320,6 +322,15 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     fontSize: 'var(--font-size-caption)',
     lineHeight: 'var(--size-segment-height)',
     color: 'var(--color-text-secondary)',
+  },
+  // The app's Glass tooltip and keycap (app.css, .tool-tip).
+  [glass('.cm-float-tip')]: { borderRadius: 'var(--radius-glass-tooltip)' },
+  [glass('.cm-float-kbd')]: {
+    borderRadius: 'var(--radius-button)',
+    backgroundColor: 'var(--color-fill-settings-card)',
+    boxShadow: 'inset 0 0 0 0.5px var(--color-line-hairline)',
+    fontSize: 'inherit',
+    lineHeight: 'inherit',
   },
 }
 

@@ -10,7 +10,7 @@ import { useNameLimit } from './nameLimit'
 import { fieldStep, placePickerPanel } from './Picker'
 import { quickTagRows, readRecentTags, rememberTag } from './quickTag'
 import { localStore } from './localStore'
-import { TagDot } from './TagDot'
+import { dotCase, TagDot } from './TagDot'
 import { tagDotClass } from './tagColorStyle'
 import type { TagRow } from './tagRows'
 
@@ -170,9 +170,13 @@ export function QuickTag(props: {
                 {row.kind === 'tag' ? (
                   <>
                     {row.tag.color ? (
-                      <TagDot color={row.tag.color} />
+                      <TagDot color={row.tag.color} name={row.tag.name} />
                     ) : (
-                      <span className={tagDotClass(null)} aria-hidden="true" />
+                      <span
+                        className={tagDotClass(null)}
+                        data-lowercase={dotCase(row.tag.name)}
+                        aria-hidden="true"
+                      />
                     )}
                     <span className="picker-name" dir="auto">
                       {row.tag.name}

@@ -71,7 +71,7 @@ export function StatusPicker(props: {
         }}
       >
         <span className={shown === 'none' ? 'status-empty-mark' : undefined}>
-          <Icon name={STATUS_ICONS[shown]} size="sm" />
+          <Icon name={STATUS_ICONS[shown]} size="xs" />
         </span>
         <span className="popup-value">{value}</span>
         <Icon name="popup" size="xs" />

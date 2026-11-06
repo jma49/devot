@@ -114,7 +114,7 @@ export function TagEditor(props: {
               : undefined
           }
         >
-          {tag.color ? <TagDot color={tag.color} /> : null}
+          {tag.color ? <TagDot color={tag.color} name={tag.name} /> : null}
           {tag.name}
           <button
             type="button"
@@ -232,7 +232,7 @@ export function TagEditor(props: {
               >
                 {row.kind === 'tag' ? (
                   <>
-                    {row.tag.color ? <TagDot color={row.tag.color} /> : null}
+                    {row.tag.color ? <TagDot color={row.tag.color} name={row.tag.name} /> : null}
                     {row.tag.name}
                   </>
                 ) : (

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { sizes } from '../../src/renderer/src/theme/tokens'
+import { cssRules } from '../support/css-rules'
 
 type Path = keyof typeof sizes
 function px(path: Path): number {
@@ -120,6 +121,54 @@ describe('capsule tokens', () => {
     const named = CAPSULES.flatMap((c) => [c.gap, ...c.ends.map(([inset]) => inset)])
     for (const path of named.filter((p) => p?.startsWith('size.'))) {
       expect(layout).toContain(`\`${path}\``)
+    }
+  })
+
+  it('places capsule contents with these tokens in the Glass interface', () => {
+    const rules = cssRules(readFileSync('src/renderer/src/app.css', 'utf8'))
+    const glass = (selector: string) => `:root[data-sidebar-material='on'] ${selector}`
+    const declared = (selector: string, property: string) =>
+      rules.findLast((r) => r.selector === selector && r.body.has(property))?.body.get(property)
+    const expected: [selector: string, property: string, value: string][] = [
+      [glass('.note-meta .chip'), 'gap', 'var(--size-note-pill-gap)'],
+      [
+        glass('.note-meta .chip:has(> .tag-dot)'),
+        'padding-inline-start',
+        'var(--size-note-pill-end-dot)',
+      ],
+      [
+        glass('.note-meta .chip:has(> .chip-remove)'),
+        'padding-inline-end',
+        'var(--size-note-pill-trail)',
+      ],
+      [glass('.note-meta .chip-remove'), 'width', 'var(--size-note-pill-remove)'],
+      [glass('.note-meta .chip-remove'), 'inset-inline-end', 'var(--size-note-pill-end-remove)'],
+      [glass('.note-meta .popup'), 'gap', 'var(--size-note-pill-gap)'],
+      [
+        glass(".note-meta .popup[class*='status-']"),
+        'padding-inline-start',
+        'var(--size-note-pill-end-xs)',
+      ],
+      [glass('.note-meta .book-popup'), 'padding-inline-start', 'var(--size-note-pill-end-sm)'],
+      [glass('.footer-toggle'), 'column-gap', 'var(--size-sidebar-footer-gap)'],
+      [
+        glass('.footer-toggle:has(> .footer-dot)'),
+        'padding-inline-start',
+        'var(--size-sidebar-footer-end-dot)',
+      ],
+      [glass('.sort-chip'), 'gap', 'var(--size-list-filter-control-gap)'],
+      [
+        glass('.list-filter .search-icon'),
+        'padding-inline',
+        'var(--size-toolbar-control-end-sm) var(--size-toolbar-control-gap)',
+      ],
+      [glass('.settings-search'), 'padding-inline-start', 'var(--size-toolbar-control-end-sm)'],
+      [glass('.settings-search'), 'gap', 'var(--size-toolbar-control-gap)'],
+      ['.row .chip', 'gap', 'var(--size-row-chip-gap)'],
+      ['.row .chip:has(> .tag-dot)', 'padding-inline-start', 'var(--size-row-chip-end-dot)'],
+    ]
+    for (const [selector, property, value] of expected) {
+      expect(declared(selector, property), `${selector} ${property}`).toBe(value)
     }
   })
 })

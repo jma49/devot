@@ -5,15 +5,19 @@ import { t } from '../i18n'
 import { isImeKey } from '../ime'
 import { useNameLimit } from '../nameLimit'
 import { tagDotClass } from '../tagColorStyle'
-import { TagDot } from '../TagDot'
+import { dotCase, TagDot } from '../TagDot'
 
-export function TagGlyph(props: { color: TagColorValue | null }) {
+export function TagGlyph(props: { color: TagColorValue | null; name: string }) {
   return (
     <span className="tag-dot-box">
       {props.color ? (
-        <TagDot color={props.color} />
+        <TagDot color={props.color} name={props.name} />
       ) : (
-        <span className={tagDotClass(null)} aria-hidden="true" />
+        <span
+          className={tagDotClass(null)}
+          data-lowercase={dotCase(props.name)}
+          aria-hidden="true"
+        />
       )}
     </span>
   )

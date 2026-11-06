@@ -23,7 +23,7 @@ export const filterRow = (
   label: ReactNode,
   count: number,
   extra?: string,
-  tag?: { color: TagColorValue | null; onMenu: (at: MenuPoint) => void },
+  tag?: { name: string; color: TagColorValue | null; onMenu: (at: MenuPoint) => void },
   /** An agent's row counts its unseen changes, and none when there are none. */
   unseen?: boolean,
 ) => {
@@ -59,7 +59,7 @@ export const filterRow = (
         }
       }}
     >
-      {tag ? <TagGlyph color={tag.color} /> : <Icon name={icon} size="md" />}
+      {tag ? <TagGlyph color={tag.color} name={tag.name} /> : <Icon name={icon} size="md" />}
       <span className="source-label" dir="auto">
         {label}
       </span>
@@ -128,7 +128,7 @@ export function tagsSection(v: SidebarView) {
             >
               {editingTag === tag.id ? (
                 <div className="source tag-row">
-                  <TagGlyph color={tag.color} />
+                  <TagGlyph color={tag.color} name={tag.name} />
                   <NameField
                     name={tag.name}
                     max={MAX_TAG_NAME_CHARS}
@@ -151,6 +151,7 @@ export function tagsSection(v: SidebarView) {
                   props.tagCounts.get(tag.id) ?? 0,
                   `tag-row${tagMenu?.id === tag.id ? ' menu-target' : ''}`,
                   {
+                    name: tag.name,
                     color: tag.color,
                     onMenu: (at) => openTagMenu(tag, at),
                   },
