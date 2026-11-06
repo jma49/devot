@@ -354,6 +354,23 @@ describe.each([
     expect(warn).toHaveBeenCalledWith('W_SYNC_SETTINGS_FAILED E_SYNC_CLOUDKIT_UNAVAILABLE')
   })
 
+  it('drops the failure banner when the next iCloud attempt succeeds', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const el = await show(
+      snapshot({ enabled: false, vault: false, transport: 'relay' }),
+      ICLOUD,
+      phone,
+    )
+    answers.useFails = 'E_SYNC_UNEXPLAINED'
+    await act(async () => button(el, 'Sync Through iCloud')?.click())
+    await settle()
+    expect(el.querySelector('[role=alert]')).not.toBeNull()
+    answers.useFails = undefined
+    await act(async () => button(el, 'Sync Through iCloud')?.click())
+    await settle()
+    expect(el.querySelector('[role=alert]')).toBeNull()
+  })
+
   it('keeps the code in a failure the app cannot explain', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const el = await show(

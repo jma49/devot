@@ -188,6 +188,7 @@ export function SyncSection() {
     },
     [say],
   )
+  const cleared = useCallback(() => setError(undefined), [])
   const devicesChanged = useCallback(() => setDevicesVersion((v) => v + 1), [])
   const joined = useCallback(() => {
     announce(t('syncSettings.joined'))
@@ -423,7 +424,7 @@ export function SyncSection() {
   const icloudSetup =
     attention?.kind === 'ask' && line ? (
       <Setting label="syncSettings.setup" description={line.text}>
-        <ICloudActions actions={line.actions} locked={locked} failed={failed} />
+        <ICloudActions actions={line.actions} locked={locked} failed={failed} cleared={cleared} />
       </Setting>
     ) : attention?.kind === 'fallback' && line ? (
       <>
@@ -446,6 +447,7 @@ export function SyncSection() {
         ref={firstButton}
         onRelay={chooseRelay}
         failed={failed}
+        cleared={cleared}
       />
     )
   const relaySetupRows = snapshot.enrolled ? null : held ? (
@@ -504,7 +506,7 @@ export function SyncSection() {
       ? [statusLine.text, ...statusDetails(snapshot, locale)].join(' ')
       : statusLine.text
   const statusActions = statusLine ? (
-    <ICloudActions actions={statusLine.actions} locked={locked} failed={failed} />
+    <ICloudActions actions={statusLine.actions} locked={locked} failed={failed} cleared={cleared} />
   ) : null
   const showsTransport = onICloud || (snapshot.enrolled && icloud.available)
   const offersICloud =
@@ -628,7 +630,7 @@ export function SyncSection() {
         ) : null}
         {offersICloud ? (
           <PhoneGroup>
-            <MoveToICloudRow locked={locked} failed={failed} />
+            <MoveToICloudRow locked={locked} failed={failed} cleared={cleared} />
           </PhoneGroup>
         ) : null}
         {recoveryKey ? <PhoneGroup>{recoveryPanel}</PhoneGroup> : null}
@@ -680,7 +682,9 @@ export function SyncSection() {
         </Setting>
         {stateNotes}
         {onICloud ? <ICloudStorageRows snapshot={snapshot} /> : <UsageRows snapshot={snapshot} />}
-        {offersICloud ? <MoveToICloudRow locked={locked} failed={failed} /> : null}
+        {offersICloud ? (
+          <MoveToICloudRow locked={locked} failed={failed} cleared={cleared} />
+        ) : null}
         {rotatedRows}
         {inVault ? (
           <>
