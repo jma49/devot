@@ -29,13 +29,23 @@ final class EditorTests: XCTestCase {
         return condition()
     }
 
-    /// A drag from 2 pt inside the left edge, where only the system's back swipe starts.
-    private func edgeSwipe(by distance: CGFloat, velocity: XCUIGestureVelocity) {
+    /// A slow drag from 2 pt inside the left edge, where only the system's back swipe starts. On a
+    /// loaded simulator UIKit turns back most fast synthesized drags even in an app of plain view
+    /// controllers, and keeps every slow one.
+    private func edgeSwipe(by distance: CGFloat) {
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
             .withOffset(CGVector(dx: 2, dy: 0))
         start.press(
             forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: distance, dy: 0)),
-            withVelocity: velocity, thenHoldForDuration: 0.2)
+            withVelocity: .slow, thenHoldForDuration: 0.2)
+    }
+
+    /// The screen at a step, kept with the result bundle of a run that passes too.
+    private func keepScreen(_ step: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = step
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func scrollUntil(_ found: () -> Bool, swipes: Int = 30) -> Bool {
@@ -57,21 +67,29 @@ final class EditorTests: XCTestCase {
                 format: "label CONTAINS %@ AND label != %@", title, L10n.phoneRowActions(title: title))
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 30), "the welcome example is listed")
+        XCTAssertTrue(waitUntil { row.isHittable }, "the welcome example's row is on screen")
+        keepScreen("the Notes list")
         row.tap()
-        XCTAssertTrue(noteBar.waitForExistence(timeout: 10))
+        let pushed = noteBar.waitForExistence(timeout: 10)
+        keepScreen("the row tapped")
+        XCTAssertTrue(pushed, "the row pushes its note")
         XCTAssertTrue(app.otherElements["editor.cover"].waitForNonExistence(timeout: 5), "the cover fades")
         XCTAssertTrue(waitUntil { !tabBarShown }, "the note hides the tab bar")
+        keepScreen("the example open")
     }
 
     func testANoteSlidesInAndTheBackSwipeTakesItAwayOrTurnsBack() throws {
         openExample()
 
-        edgeSwipe(by: 60, velocity: .slow)
+        edgeSwipe(by: 60)
+        keepScreen("a short swipe")
         XCTAssertTrue(noteBar.waitForExistence(timeout: 5), "a swipe turned back keeps the note")
         XCTAssertFalse(tabBarShown)
 
-        edgeSwipe(by: app.frame.width * 0.8, velocity: .fast)
-        XCTAssertTrue(waitUntil { tabBarShown })
+        edgeSwipe(by: app.frame.width * 0.8)
+        let listShown = waitUntil { tabBarShown }
+        keepScreen("a full swipe")
+        XCTAssertTrue(listShown, "a full swipe brings the list and its tab bar back")
         XCTAssertTrue(noteBar.waitForNonExistence(timeout: 5))
 
         openExample()
@@ -82,11 +100,15 @@ final class EditorTests: XCTestCase {
         let link = page.links[L10n.welcomeTitle()].firstMatch
         XCTAssertTrue(scrollUntil { link.exists && link.isHittable })
         link.tap()
-        XCTAssertTrue(link.waitForNonExistence(timeout: 10), "the welcome note replaced the example")
+        let replaced = link.waitForNonExistence(timeout: 10)
+        keepScreen("the link followed")
+        XCTAssertTrue(replaced, "the welcome note replaced the example")
         XCTAssertTrue(noteBar.exists)
 
-        edgeSwipe(by: app.frame.width * 0.8, velocity: .fast)
-        XCTAssertTrue(link.waitForExistence(timeout: 10), "back on the example")
+        edgeSwipe(by: app.frame.width * 0.8)
+        let back = link.waitForExistence(timeout: 10)
+        keepScreen("a full swipe on the linked note")
+        XCTAssertTrue(back, "back on the example")
         XCTAssertTrue(noteBar.exists)
         XCTAssertFalse(tabBarShown)
     }
