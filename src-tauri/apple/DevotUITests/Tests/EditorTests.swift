@@ -91,19 +91,44 @@ final class EditorTests: XCTestCase {
         XCTAssertFalse(tabBarShown)
     }
 
+    /// Keeps the web view's tree with a failing run, and prints the part from `marker` on, since
+    /// the CI log keeps only lines that start with "Evidence:".
+    private func keepTree(from marker: String) {
+        let tree = page.debugDescription
+        let attachment = XCTAttachment(string: tree)
+        attachment.name = "web view tree"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        let lines = tree.split(separator: "\n")
+        let start = lines.firstIndex { $0.contains(marker) } ?? 0
+        for line in lines[start..<min(start + 60, lines.count)] {
+            print("Evidence: \(line)")
+        }
+    }
+
     func testTheExampleDrawsEveryDiagramAndFormula() throws {
         openExample()
-        let diagrams = page.images.matching(NSPredicate(format: "label BEGINSWITH %@", L10n.mermaidLabel()))
-        // Mermaid, PlantUML and Markmap in the example's Diagrams section.
-        XCTAssertTrue(scrollUntil { diagrams.count >= 3 }, "found \(diagrams.count) diagrams")
-        XCTAssertEqual(diagrams.count, 3)
 
         func shown(_ text: String) -> Int {
             page.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).count
         }
+        // The example's Math section comes before its Diagrams; the formulas follow this sentence.
+        let math = page.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Inline math"))
+            .firstMatch
+        let reached = scrollUntil { math.exists && math.isHittable }
         // The display block's integral sign exists only once temml has turned the TeX into MathML.
-        XCTAssertGreaterThan(shown("\u{222B}"), 0, "the display formula is drawn")
+        let drawn = shown("\u{222B}")
+        let tex = shown("\\int") + shown("mc^2") + shown("$E")
+        if !reached || drawn == 0 || tex > 0 { keepTree(from: "Inline math") }
+        XCTAssertTrue(reached, "the Math section is on screen")
+        XCTAssertGreaterThan(drawn, 0, "the display formula is drawn")
         XCTAssertEqual(shown("\\int"), 0, "no display formula left as TeX")
         XCTAssertEqual(shown("mc^2"), 0, "no inline formula left as TeX")
+        XCTAssertEqual(shown("$E"), 0, "no inline formula left between dollar signs")
+
+        let diagrams = page.images.matching(NSPredicate(format: "label BEGINSWITH %@", L10n.mermaidLabel()))
+        // Mermaid, PlantUML and Markmap in the example's Diagrams section.
+        XCTAssertTrue(scrollUntil { diagrams.count >= 3 }, "found \(diagrams.count) diagrams")
+        XCTAssertEqual(diagrams.count, 3)
     }
 }

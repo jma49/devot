@@ -34,9 +34,13 @@ xcrun simctl install "$device" "$app"
 cd "$root/src-tauri/apple/DevotUITests"
 xcodegen generate --quiet
 log=$(mktemp)
+# CI uploads the result bundle, with the tests' attachments, when a test fails.
+results="$root/test-results/iphone-ui.xcresult"
+rm -rf "$results"
+mkdir -p "$(dirname "$results")"
 status=0
 xcodebuild test -project DevotUITests.xcodeproj -scheme DevotUITests \
-  -destination "id=$device" >"$log" 2>&1 || status=$?
-grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test|Issue:|audit" "$log" || tail -n 60 "$log"
+  -destination "id=$device" -resultBundlePath "$results" >"$log" 2>&1 || status=$?
+grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test|Issue:|audit|Evidence: " "$log" || tail -n 60 "$log"
 rm -f "$log"
 exit "$status"
