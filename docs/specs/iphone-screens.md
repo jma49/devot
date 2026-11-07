@@ -1,0 +1,261 @@
+# iPhone screens
+
+The iPhone's navigation, lists, Settings, sheets and menus are native UIKit screens, and its editor is the one long-lived web view moved into the screen on top ([ADR 0018](../adr/0018-iphone-native-shell-around-a-web-editor.md)).
+This spec is the agreement the code is held to: how the screens attach, the bridge and its envelope, which way each operation goes, how the editor screen and the page talk, where glass goes and what Settings holds.
+The move happens in stages that each ship alone, and until the last one the web shell in `src/renderer/src/phone/` stays as the fallback.
+The iPhone's minimum is iOS 26.
+Design rules for the phone stay in `design/phone.md` and `design/motion.md`, which change stage by stage as each interaction is built.
+
+## Shape
+
+```
+UIApplication (tao's app delegate, unchanged)
+└─ TaoUIWindow (tao)
+   └─ TaoUIViewController (tao, stays the root)
+      └─ TaoUIView
+         └─ ScreensRootController (Swift, a child controller pinned to all edges)
+            ├─ WebStage (1 × 1 pt at the back, alpha 1, never hidden): the web view rests here
+            └─ UITabBarController (the system tab bar)
+               ├─ Notes     UINavigationController → note list → EditorScreen
+               ├─ Library   UINavigationController → Library → note list → EditorScreen
+               ├─ Activity  UINavigationController → Activity (in the page until stage 4)
+               ├─ Settings  UINavigationController → Settings root → panes
+               └─ Search    (the search tab role) → search with scopes All and Titles
+            sheets: the system's sheet presentation   menus: UIMenu and context menus
+```
+
+- **Swift.** The `DevotScreens` package sits beside `src-tauri/apple/DevotStore` and is linked the same way.
+  `Bridge.swift` holds the C ABI and is its only file with `Unsafe*Pointer`.
+  `Model/` holds the Codable messages, the navigation state, the restoration codec and the routes, pure logic tested without UIKit.
+  `UI/` holds the controllers and the SwiftUI views.
+  `Generated/` holds the Swift tokens and strings, generated from the design tokens and the message catalog.
+- **Rust.** A `screens` module in `src-tauri/src/native/ios/` holds the C ABI, its `unsafe` blocks with SAFETY comments, the callbacks behind `catch_unwind` and the map of waiting requests, shaped like `store.rs`.
+  A platform-free `screens` module in `src-tauri/src/` holds message validation, the phone router and the Rust-direct reads; it compiles for iOS and for tests on the Mac.
+- **Page.** A `screens` folder in `src/renderer/src/phone/` holds the bridge, the table from operation names to core calls, the change notices and the editor host.
+  It runs only when Rust reports that the native screens are installed.
+
+## Install and the kill switch
+
+1. `native::main_window_built` (`src-tauri/src/native/mod.rs`) installs the screens after it hides WebKit's bar above the keyboard.
+2. On the main thread, inside `with_webview`, Rust passes the web view and tao's view controller to the package's install function, which answers `true` or `false`.
+3. Swift checks both objects' classes and that a window exists, builds the containers, and moves the web view into `WebStage` with animations off.
+4. On `false` the app keeps today's web shell unchanged.
+5. At start the page calls `screens_take`, which answers `{ installed, pending }`: whether the screens attached, and the operations queued before the page listened.
+6. With `installed` the page mounts the editor host alone (no tab bar, lists, sheets or glass); otherwise it mounts the web shell.
+   Both paths start the core and seed the welcome notes the same way.
+
+The kill switch stays until stage 4 has shipped one release with no fallback in crash reports.
+In stage 0 the root is empty and transparent and passes every touch through, so the app behaves exactly as before.
+
+## Bridge
+
+| From → to    | Channel                                                                                                      | Use                                                                  |
+| ------------ | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| Swift → Rust | the C call `devot_screens_call(request, json, len, reply)`; Rust validates, then answers through `reply`     | Rust-direct reads and writes, and core operations that Rust forwards |
+| Rust → Swift | the C call `devot_screens_deliver(json, len)`; Swift copies on the calling thread and hops to the main queue | core replies, change notices, licence and sync snapshots, routes     |
+| Rust → page  | the Tauri event `devot://screens` to window `main`                                                           | a core operation for the page to run                                 |
+| page → Rust  | the command `screens_post { message }`                                                                       | an operation's reply, change notices, editor events                  |
+| page start   | the command `screens_take`                                                                                   | the mode, and operations queued before the page listened             |
+
+- Swift never talks to the page directly: there is no `WKScriptMessageHandler`.
+  Every way into the page is a declared command in the `SCREENS` area of `src-tauri/build_commands.rs`, granted in `src-tauri/capabilities/phone.json` and validated in Rust.
+- `build.rs` lists the package's C symbols beside the store's, so Cargo's iOS library, which holds no Swift, still links.
+- A no-operation round trip stays within p50 4 ms and p95 10 ms on an iPhone 15 or later.
+- A tap never waits on the bridge to move: a push starts at once and the data arrives during it.
+
+## Message envelope
+
+```json
+{ "v": 1, "id": 41, "op": "note.create", "args": { "bookId": "0192…" } }
+{ "v": 1, "id": 41, "ok": true, "result": { "id": "0193…" } }
+{ "v": 1, "id": 41, "ok": false, "code": "E_LICENCE_REQUIRED" }
+{ "v": 1, "notice": "notes.changed", "rev": 812, "ids": ["0193…"] }
+```
+
+- `v` is the envelope's version, and a message of another version is refused.
+- A request carries `id`, `op` and `args`; its reply carries the same `id` with `ok` and either `result` or `code`.
+- A notice carries `notice` and its own fields, and no `id`.
+- `id` is a `u64` from Swift's own counter, and a reply whose `id` is not waiting is dropped, as `store.rs` drops one.
+- Rust validates every message before it forwards it:
+  - `op` and `notice` come from closed enums, and unknown fields are refused;
+  - note IDs pass `valid_note_id` (`src-tauri/src/commands/notes.rs`);
+  - a title is at most `MAX_TITLE_CHARS`, a tag name at most the tag limit, and a search query at most 10 clauses of 100 characters a term;
+  - a message is at most 4 MiB, the store bridge's limit.
+- A code is for logs and for choosing what to show, never shown to the user.
+- Logs carry the operation, the `id` and codes only (`W_SCREENS_OP_FAILED op=note.create code=…`).
+  Swift logs through `devot_screens_log(level, code, len)`, so its lines land in Rust's log files and pass the same scrubbing.
+- Valid and invalid messages live as fixtures in a `screens` folder of `tests/fixtures/`, and the Vitest, `cargo test` and XCTest suites all read them, so the three implementations cannot drift apart.
+- An operation joins the enums with the pull request that first uses it.
+
+## Operations
+
+1. Writes to note data always go through the core, which holds open notes, owns the hybrid logical clock (`src/core/hlc.ts`), keeps the link index, tells sync and derives the Markdown snapshot.
+2. Reads that SQLite answers alone go Rust-direct, over the same functions the Tauri commands call, so they reach the same database thread with the same validation and work before the page has started.
+3. Reads taken from a body or from pending edits go through the core: excerpts, headlines, previews and search parsing.
+4. Domains Rust owns already are read and written from Swift through Rust, and Rust's change events keep the editor in step with a change made in native Settings.
+
+| Operation                                                                   | Path                                  | Function or core call                                                           |
+| --------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------- |
+| Note list rows (title, dates, notebook, status, pinned, tags, body version) | Rust-direct                           | the note list page and summaries reads                                          |
+| Notebooks, tags, saved searches, the Trash list                             | Rust-direct                           | the books, tags, saved searches and Trash list reads                            |
+| Row excerpts, for visible rows only, at most 60 IDs a call                  | core                                  | `excerpts(ids)`, cached in Swift by note ID and body version                    |
+| Search                                                                      | core                                  | `search(query, scope, { flush: true })`: the core parses and Rust's search runs |
+| New Note                                                                    | core                                  | `create(title, bookId)`, then the editor opens it                               |
+| Today's note, templates, duplicate                                          | core                                  | `openTodaysNote`, `applyTemplate`, `duplicate`                                  |
+| Pin, status with undo, notebook, dates                                      | core                                  | `setPinned`, `setStatusUndoable` and `undoStatus`, `setBook`, `setNoteDates`    |
+| A note's tags; renaming, colouring and deleting a tag                       | core                                  | `addTag`, `removeTag`, `renameTag`, `setTagColor`, `deleteTag`                  |
+| Notebooks: create, rename, move, icon, AI access, remove                    | core                                  | the core's book calls and `setBookAiAccess`                                     |
+| Trash, restore, purge, empty                                                | core                                  | `trash`, `restore`, `purge`, `emptyTrash`                                       |
+| Several notes at once                                                       | core                                  | `batch(ids, change)`                                                            |
+| History, AI edits, import, export                                           | core, drawn in the page until stage 4 | as today                                                                        |
+| Licence state and the gate                                                  | Rust-direct                           | the licence snapshot, as `licence_get` reads it                                 |
+| Purchases, restoring them, the Mac key                                      | Rust-direct                           | the App Store path, Swift underneath                                            |
+| Sync settings, pairing, devices, iCloud                                     | Rust-direct                           | the sync commands' bodies                                                       |
+| Editor settings, themes, fonts, AI providers                                | Rust-direct                           | the editor settings, fonts and AI settings bodies                               |
+| Glass Transparency (this iPhone's own)                                      | Swift's `UserDefaults`                | moved from `src/renderer/src/phone/glassPrefs.ts` in stage 1                    |
+
+- Each Rust-direct entry starts as a refactor: the command's body moves into a function that both the Tauri command and the screens module call, so validation is never written twice.
+- Rust's write gate (`src-tauri/src/storage/db.rs`) stays the enforcement for every write, whichever side asked for it.
+
+### Keeping lists fresh
+
+- The core sends `notes.changed { rev, ids }` after each write it makes and after it takes in external changes from sync, iCloud or another process.
+- It also sends `books.changed`, `tags.changed` and `savedSearches.changed`.
+- Swift reads only the changed rows again from Rust and applies them to the list's diffable snapshot, so moves and inserts take the system's list animation.
+- When a `rev` is not the next one, Swift reloads the whole first page (200 rows) rather than guess.
+
+## Editor screen protocol
+
+| Message                                     | Direction    | Meaning                                                                                                        |
+| ------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------- |
+| `editor.prepare { noteId }`                 | Swift → page | a row was pressed: the core opens and holds the note so its bytes are in memory                                |
+| `editor.show { noteId, mode, focus }`       | Swift → page | the web view is in an editor screen: swap CodeMirror's state, set Edit or Preview, and focus the body if asked |
+| `editor.hide`                               | Swift → page | the web view is back in `WebStage`: the core lets the note go after 30 s                                       |
+| `editor.ready { noteId }`                   | page → Swift | the note's first frame is painted                                                                              |
+| `editor.title { id, title }`                | page → Swift | the title changed, so the row and the bar's title follow at once                                               |
+| `editor.scroll { titleVisible }`            | page → Swift | the page's own title scrolled under the bar, which fades its inline title in                                   |
+| `editor.insets { bottom, duration, curve }` | Swift → page | the keyboard moved; the page sets its bottom inset and CodeMirror's scroll margin at once and animates nothing |
+| `editor.format { id }`                      | Swift → page | a button on the native formatting bar, by the editor's format ID                                               |
+| `editor.gate { what }`                      | page → Swift | a write was tried while writes are locked: Swift opens the gate's sheet                                        |
+
+### The web view never changes size
+
+The web view keeps a width and height equal to the editor screen's content area, the window's bounds, wherever it is.
+In `WebStage` it is clipped, not pinned to the stage's edges, and in an editor screen it is pinned to the container's edges, which give the same size.
+So a move never changes the page's viewport, and a push never starts with CodeMirror measuring again.
+It moves between superviews with `addSubview` alone, never `removeFromSuperview` first, so its window is never nil.
+
+### Row to editor
+
+1. Touch-down highlights the cell and sends `editor.prepare`.
+2. Touch-up pushes `EditorScreen` at once; the push is the system's and is never retimed or waited on.
+3. In the navigation controller's `willShow`, the editor's container takes the web view under a cover: the theme's background with the title in the note type scale, drawn natively.
+   Swift sends `editor.show`.
+4. The page swaps the note in under 16 ms and answers `editor.ready`.
+5. The cover fades over `motion.duration.phone-adjust` once `editor.ready` arrives, never before the push's first frame.
+   Without `editor.ready` after 400 ms the cover fades anyway and the page shows its own loading state.
+
+A note opens in Edit when it is empty and writes are allowed, and in Preview otherwise; while writes are locked every note opens in Preview and stays there.
+
+### Editor to list
+
+- When a pop or an edge swipe starts, nothing moves: the live web view slides out with the leaving editor, still scrolling and still holding its caret and keyboard.
+- A cancelled swipe has nothing to undo.
+- When the pop completes, the web view moves to `WebStage` with animations off, and Swift sends `editor.hide`.
+
+### Editor to editor
+
+- A link pushes a new `EditorScreen`: the leaving one keeps a snapshot of the web view in its container, and the new one takes the live view under its cover and sends `editor.show`.
+- Popping back keeps the live view in the leaving editor while it slides; when the pop completes, the revealed editor takes it under its cover, sends `editor.show` and drops its snapshot.
+
+### New Note
+
+1. New Note is the trailing item of the navigation bar on the Notes root, every notebook's list and Library; a long press offers New Note in a notebook and From Template.
+2. On a tap the gate reads Swift's licence snapshot.
+   When writes are locked it opens its sheet, plays the warning haptic, and pushes and creates nothing; an unlock from the sheet runs New Note once, after the sheet has gone.
+3. Otherwise Swift pushes `EditorScreen` at once with an empty title on the cover, and sends `note.create { bookId }` in the same frame; its reply is followed by `editor.show { noteId, focus: "body" }`.
+   The notebook is the one New Note files into on the Mac: the view's notebook, else the default notebook, else none.
+4. The snapshot only decides what the screen shows; Rust's write gate decides what is stored.
+   If the core answers a licence code, Swift pops the editor while its cover is still up, opens the gate's sheet once the pop completes and reads the licence again; the user sees no code.
+5. The keyboard rises after the push has settled, on the system's curve, by the path the keyboard spike chooses.
+6. Back from a new note left untouched purges it when its screen leaves the stack, and removes its row without animation before the pop's first frame.
+
+## Glass map
+
+Glass is the system's, on the navigation layer only; content is never glass.
+
+| Surface                                               | Material                                                                                                 | Tint                                                                 | Shape                                        |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------- |
+| Navigation bar                                        | the system bar: no background, a scroll-edge effect at the top                                           | none                                                                 | system                                       |
+| Bar items (back, More, New Note, Done, close)         | the system's bar item glass; New Note gets a capsule of its own                                          | none; a sheet's one confirm item is prominent in `color.accent.fill` | system capsule                               |
+| Tab bar                                               | the system tab bar, never minimised on scroll                                                            | `color.accent.text` on the selected item only                        | system                                       |
+| Search tab                                            | the system's search circle                                                                               | none                                                                 | system                                       |
+| The editor's bottom toolbar (Back, Forward, Find, AI) | the system toolbar's grouped glass                                                                       | the AI sparkle keeps the caret's colour on its glyph                 | system                                       |
+| Formatting bar on the keyboard                        | regular, interactive glass in a glass container with the Hide Keyboard circle, so the two merge and part | none                                                                 | capsule and circle, `size.phone-target` high |
+| Undo toast                                            | regular glass, not interactive                                                                           | none                                                                 | capsule of `size.phone-toast`                |
+| Sheets                                                | the system's own sheet material; lists inside keep solid `color.phone.card` cells                        | none                                                                 | system, grabber on                           |
+| Menus, context menus, alerts                          | system                                                                                                   | none                                                                 | system                                       |
+| A content sheet's one primary action                  | the system's prominent glass button                                                                      | `color.accent.fill`, label `color.accent.on-fill`                    | capsule of `size.phone-sheet-done`           |
+| Rows, cards, the note, pickers' lists, Settings forms | solid `color.phone.background`, cards `color.phone.card`                                                 |                                                                      |                                              |
+| The editor's cover                                    | solid `color.phone.background` with the native title                                                     |                                                                      |                                              |
+
+- Devot's glass never sits on glass and never on content; inside a sheet Devot adds no glass of its own but the one primary action.
+- Glass that belongs together shares one glass container with 12 pt spacing: the formatting bar with the Hide Keyboard circle, and the toolbar's Back and Forward with Find.
+- Only what a finger presses is interactive glass.
+- Colour on glass marks what is selected only: the accent on the selected tab, the caret's colour on the AI sparkle.
+- Devot's two glass views (the formatting bar and the toast) cast `shadow.phone-float-*` in `color.phone.float-shadow`, drawn from a shadow path so no offscreen pass runs.
+- Glass Transparency runs from −100 to 100 in steps of 5 and is this iPhone's own setting, never synced:
+  - on Devot's two glass views, −100 is a solid `color.phone.glass-opaque`, values below 0 tint regular glass with it at −t/100, 0 is plain regular glass, and values above 0 are clear glass tinted at the larger of 0 and 0.25 − t/400;
+  - on the system bars, whose glass has no public opacity, only values below 0 act: a background of `color.phone.glass-opaque` at −t/100 × 0.85, and from 0 up the system's default;
+  - a change applies on every move of the slider and is saved when the finger lifts.
+- Reduce Transparency and Increase Contrast win over Glass Transparency: the system frosts its glass, Devot's glass views follow with a solid fill, and the slider shows disabled with a footer that says why.
+
+## Settings tree
+
+Every pane is a SwiftUI form in a hosting controller pushed on the Settings tab's own navigation controller, so push, pop and the edge swipe are UIKit's.
+Rows have a label, at most one short description and one trailing edge (a value with a chevron, a switch, or nothing), with no info buttons.
+A choice of three or fewer sits inline as checkmark rows, and a longer one pushes a checkmark page.
+Every choice applies in the next frame with no transition, before it is saved.
+
+```
+Settings root (large title, the system search field, a Pair a Device bar button → Sync, at pairing)
+├─ App row: Devot, "version · licence", a badge when the licence needs attention → License (the Trial sheet while a trial runs)
+├─ General
+│  ├─ General → Default Notebook (picker: None, then notebooks in Library order); Send Crash Reports (where reports can be sent)
+│  ├─ Appearance → Color Scheme, Theme, Glass, Text, Note Font, Animations
+│  ├─ Editing → today's phone rows; Cursor Scroll Margin, Tab Width and Line Height push checkmark pages
+│  └─ Preview → Load Images from the Web
+├─ Sync & Storage
+│  └─ Sync (On or Off, a badge when sync needs the owner) → relay, status, setup, iCloud, usage, Devices, pairing
+├─ AI & Integrations
+│  └─ AI → the licence notice when locked, Provider, endpoint, model and key, Suggest on Idle
+├─ (no header)
+│  ├─ License (its label, a badge when it needs attention) → status, its one action, trial, devices, licensee, ID, key, Remove
+│  ├─ Restore Purchases (App Store builds)
+│  ├─ Get a Mac License Key (App Store builds, Pro held) → the Mac key sheet
+│  └─ Request a Refund (App Store builds, Pro held)
+└─ Footer: Devot and its version
+```
+
+- Appearance holds three colour scheme cards, a two-column grid of themes with "Aa" swatches for light and dark, a Glass card whose sample previews Glass Transparency, a Text card with a live sample above the Text Size and Preview Font Size sliders, a Note Font row and an inline Animations choice.
+- App Font is not on the phone.
+- A purchase on the License page goes through StoreKit only, never a link outside it (ADR 0014).
+- Settings text comes from the message catalog by key, as everywhere else.
+
+## Spikes
+
+These are measured on a device in stage 0, before the stages that depend on them start; each result is written here.
+
+- **S1, reparenting.** The web view moves to a native screen and back 200 times during a sync, `visibilityState` stays `visible`, the core worker answers a ping every 100 ms, and Tauri never resizes the moved view.
+  Result: not measured yet.
+- **S2, the keyboard after a native tap.** On iOS 26 and 27, a hidden native text field made first responder in `viewDidAppear` hands focus to the page; a public path is preferred.
+  Otherwise the numbers choose between a guarded private focus path with a fallback, and a caret with no keyboard until the first tap.
+  Result: not measured yet.
+- **S3, the bridge.** 1000 no-operation round trips stay within p50 4 ms and p95 10 ms, and 60 excerpt calls while a list scrolls at 120 Hz drop no frames.
+  Result: not measured yet.
+- **S4, the page as its own scroller.** CodeMirror with an auto-height editor and a visible scroller lets the web view's own scroll view scroll the note; layout, selection handles, the bar's scroll-edge effect and interactive keyboard dismissal hold on iOS 26.
+  If it holds, the page scrolls itself; otherwise CodeMirror's own scroller stays.
+  Result: not measured yet.
+- **Bar tint.** A background colour on the navigation bar, toolbar and tab bar appearances draws behind iOS 26's floating bars, as Glass Transparency below 0 needs.
+  If the floating tab bar ignores it, the tint reaches the navigation bars and the toolbar only.
+  Result: not measured yet.

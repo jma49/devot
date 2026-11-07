@@ -30,3 +30,13 @@ Terms the code and the docs use with one meaning each.
 - **App Store purchase:** the Devot Pro in-app purchase, which unlocks the iPhone app without taking a seat.
 - **Trial purchase:** the free 30-day Trial in-app purchase; the trial ends 30 days after its purchase date.
 - **Licence exchange:** the Worker's check of an App Store purchase with Apple, answered with that purchase's one licence, signed again from its row: the same key every time while the signing kid is unchanged.
+
+## iPhone
+
+- **Screens:** the iPhone's native UIKit layer, the `DevotScreens` package, which holds the tab bar, the navigation stacks, Settings, sheets and menus around the one web view (docs/adr/0018-iphone-native-shell-around-a-web-editor.md, docs/specs/iphone-screens.md).
+  Whether it attached is what `screens_take` answers as `installed`; when it did not, the web shell runs as before.
+- **WebStage:** the 1 × 1 pt view at the back of the screens' root where the web view rests while no editor is on top, in the window and never hidden, so WebKit keeps the page and its core running.
+- **EditorScreen:** the native screen that shows a note; it takes the one web view into its container when it comes on top and gives it back when it leaves.
+- **Rust-direct read:** a read the screens make through Rust's own functions, with the commands' validation, without the page, for anything SQLite answers alone; whatever comes from a body, and every write to note data, goes through the core instead.
+- **The gate:** the screens' check of Swift's licence snapshot before an action that writes, which opens the Pro or purchase sheet instead of starting it while writes are locked.
+  It decides only what is shown; Rust's write gate decides what is stored.

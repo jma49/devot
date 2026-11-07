@@ -34,6 +34,7 @@ Docs are written one sentence per line, so a change touches only the sentences i
 - [Quality](specs/quality.md): priorities, test layers, data integrity, security tests, static checks, coverage, CI, the workflow, and crash reporting and logs.
 - [Performance](specs/performance.md): the product's budgets and the core benchmarks that hold them.
 - [First-launch notes](specs/first-launch-notes.md): the "Getting started" notebook a new library gets.
+- [iPhone screens](specs/iphone-screens.md): the iPhone's native screens around the one web view, the bridge and its envelope, which way each operation goes, the editor screen, the glass map, the Settings tree and the spikes.
 
 ## Product
 
@@ -121,13 +122,22 @@ no database, no notes, calls the running app's local HTTP API (see AI)
 
 devot --crash-reporter (builds with a Sentry DSN only) ── a second copy of
 the app binary that waits for the app to crash and saves a scrubbed report
+
+iPhone: DevotScreens (Swift, UIKit) ── tab bar, stacks, lists, Settings, sheets
+  ├─ C ABI ⇄ Rust: Rust-direct reads, and core operations Rust forwards to the page
+  └─ holds the one WKWebView above: the editor and the core worker, moved into
+     the editor screen on top and resting in WebStage otherwise
 ```
+
+On the iPhone the web view's role narrows to the editor, the rendered note and the core worker, while UIKit screens draw everything around it, stage by stage ([iPhone screens](specs/iphone-screens.md), docs/adr/0018-iphone-native-shell-around-a-web-editor.md).
+Until the last stage, and whenever the screens fail to attach, the page draws the whole interface as before.
 
 ### Who does what
 
 - **Rust:** what is performance-sensitive or needs the system: SQLite reads and writes (on a dedicated thread), FTS5, file I/O, encryption, native window features, and later local embeddings.
 - **TypeScript core:** the logic: data model, Yjs, Markdown, link index, import and export rules.
   It runs in a Web Worker so the UI thread never waits on it.
+- **Swift (iPhone):** the native screens, which read what SQLite answers alone straight from Rust and send every write to note data through the core in the page; Swift never talks to the page except through Rust.
 - **Moving work to Rust:** when a piece of core logic is measured as a bottleneck, or must keep running with no window open (for example the sync engine), it moves to Rust behind the same interface.
 
 ### Core library boundaries
@@ -153,6 +163,7 @@ Every change keeps these; each spec has the detail.
 - IDs are UUIDv7, deletes are soft, and metadata fields are last-writer-wins by a hybrid logical clock that storage itself enforces ([Data model](specs/data-model.md)).
 - The core imports neither `@tauri-apps/*`, `better-sqlite3` nor `node:*`, and the UI imports no Node modules; lint rules enforce it ([Quality](specs/quality.md#static-checks)).
 - Every Tauri command is declared in `src-tauri/build.rs`, granted to a window by a capability file, validates its arguments in Rust and returns error codes, never content ([Security](specs/security.md)).
+- On the iPhone, Swift reaches the page only through Rust and those commands, never through a `WKScriptMessageHandler`, and the one web view never leaves the window ([iPhone screens](specs/iphone-screens.md)).
 - Note content is untrusted: the preview sanitizes it, the CSP allows no inline scripts or `eval`, and untrusted URLs are fetched by Rust, never by the UI ([Security](specs/security.md#html-and-embeds-in-notes)).
 - Secrets live in the OS keychain, and Rust writes every file outside the databases whole, never through a link ([Security](specs/security.md)).
 - Objective-C and private API code lives only in the native modules, each private call guarded by `respondsToSelector:` ([Security](specs/security.md#private-macos-apis)).
@@ -263,6 +274,12 @@ Spec: [`docs/specs/performance.md`](specs/performance.md).
 
 An empty library gets a "Getting started" notebook once.
 Spec: [`docs/specs/first-launch-notes.md`](specs/first-launch-notes.md).
+
+## iPhone screens
+
+The iPhone's navigation is native and its editor a web view: UIKit screens from a Swift package hold the tabs, stacks, lists, Settings, sheets and menus, and the one long-lived web view, which runs the core, moves into the editor screen on top.
+Reads that SQLite answers alone go from Swift to Rust directly; every write to note data goes through the core over a bridge of declared, validated commands.
+Spec: [`docs/specs/iphone-screens.md`](specs/iphone-screens.md).
 
 ## Open questions
 
