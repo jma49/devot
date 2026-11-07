@@ -104,6 +104,28 @@ final class EditorScreenTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(seconds))
     }
 
+    /// Runs the run loop until the condition holds or the timeout passes, for timers that fire after the transition.
+    private func settle(until condition: () -> Bool, timeout: TimeInterval = 30) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition(), Date() < deadline {
+            settle(0.02)
+        }
+    }
+
+    /// Runs the run loop until the navigation controller's push or pop, interactive or not, has finished.
+    /// A slow runner stretches the animation, so this waits on the transition itself, not a fixed delay.
+    private func settleTransition(_ nav: UINavigationController? = nil, timeout: TimeInterval = 30) {
+        let nav = nav ?? navigation!
+        settle()
+        var finished = nav.transitionCoordinator == nil
+        nav.transitionCoordinator?.animate(alongsideTransition: nil) { _ in finished = true }
+        let deadline = Date().addingTimeInterval(timeout)
+        while !finished, Date() < deadline {
+            settle(0.02)
+        }
+        settle()
+    }
+
     private func editor(_ noteId: String, title: String = "Plans", coverTimeout: TimeInterval = 10)
         -> EditorScreen
     {
@@ -114,7 +136,7 @@ final class EditorScreenTests: XCTestCase {
 
     private func push(_ screen: EditorScreen) {
         navigation.pushViewController(screen, animated: true)
-        settle(1)
+        settleTransition()
     }
 
     func testAPushMovesTheWebViewIntoTheEditorWithoutLeavingTheWindowOrResizing() throws {
@@ -177,7 +199,7 @@ final class EditorScreenTests: XCTestCase {
         let swipe = holdBackSwipe()
         XCTAssertTrue(webView.isDescendant(of: screen.view), "the live note slides under the finger")
         swipe.interaction.cancel()
-        settle(1)
+        settleTransition()
         XCTAssertTrue(navigation.topViewController === screen)
         XCTAssertTrue(webView.isDescendant(of: screen.view))
         XCTAssertTrue(field.isFirstResponder)
@@ -193,7 +215,7 @@ final class EditorScreenTests: XCTestCase {
         let swipe = holdBackSwipe()
         XCTAssertTrue(webView.isDescendant(of: screen.view), "the live note slides out")
         swipe.interaction.finish()
-        settle(1)
+        settleTransition()
         XCTAssertTrue(webView.superview === list.view)
         XCTAssertEqual(webView.movesAnimated, [false])
         XCTAssertEqual(webView.leftWindow, 0)
@@ -213,7 +235,7 @@ final class EditorScreenTests: XCTestCase {
         navigation.popViewController(animated: true)
         settle(0.02)
         XCTAssertTrue(webView.isDescendant(of: screen.view))
-        settle(1)
+        settleTransition()
         XCTAssertTrue(webView.superview === list.view)
         XCTAssertTrue(host.holder === list)
         XCTAssertTrue(navigation.isNavigationBarHidden)
@@ -225,7 +247,8 @@ final class EditorScreenTests: XCTestCase {
         list.hideTimeout = 0.1
         push(editor(first))
         navigation.popViewController(animated: true)
-        settle(1)
+        settleTransition()
+        settle(until: { list.snapshot == nil })
         XCTAssertNil(list.snapshot)
     }
 
@@ -242,7 +265,7 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertEqual(page.shown, [first, second])
 
         navigation.popViewController(animated: true)
-        settle(1)
+        settleTransition()
         XCTAssertTrue(webView.isDescendant(of: one.view))
         let still = try XCTUnwrap(one.snapshot, "the revealed note keeps its still until the page has drawn it")
         XCTAssertTrue(one.webContainer.subviews.last === still)
@@ -265,7 +288,8 @@ final class EditorScreenTests: XCTestCase {
         one.ready(first)
         push(editor(second, title: "Second"))
         navigation.popViewController(animated: true)
-        settle(1)
+        settleTransition()
+        settle(until: { one.snapshot == nil })
         XCTAssertNil(one.snapshot)
         XCTAssertTrue(webView.isDescendant(of: one.view))
     }
@@ -327,7 +351,7 @@ final class EditorScreenTests: XCTestCase {
         try answerAll()
 
         screens.delivered(Data(#"{"v":1,"notice":"nav.openNote","noteId":"\#(first)","title":"Plans"}"#.utf8))
-        settle(1)
+        settleTransition(try XCTUnwrap(tabs.selectedViewController as? UINavigationController))
         let navigation = try XCTUnwrap(tabs.selectedViewController as? UINavigationController)
         let screen = try XCTUnwrap(navigation.topViewController as? EditorScreen)
         XCTAssertEqual(screen.noteId, first)
@@ -353,7 +377,7 @@ final class EditorScreenTests: XCTestCase {
         XCTAssertEqual(try requests().filter { $0 == .editorShow }.count, 2)
 
         screens.delivered(Data(#"{"v":1,"notice":"nav.back"}"#.utf8))
-        settle(1)
+        settleTransition(navigation)
         XCTAssertTrue(navigation.topViewController === tabs.screen(.library))
         XCTAssertTrue(webView.superview === tabs.screen(.library)?.view)
         XCTAssertEqual(webView.leftWindow, 0)
