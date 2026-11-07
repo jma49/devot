@@ -288,7 +288,8 @@ These are measured on a device in stage 0, before the stages that depend on them
   Pass: no size change, no hidden page, no missed ping and no resize.
   A run in which sync never reached `syncing` says so in its notes, so turn sync on and write on another device while it runs.
   Run: `scripts/ios/run-spike.sh S1`.
-  Result: not measured yet.
+  Result (2026-11-07, iPhone18,2, iOS 27.2, debug build): passed with sync off; 200 moves, no size change, no hidden page, no viewport resize, 205 pings answered with none missed and a longest gap of 108 ms.
+  Sync was not running, so the run under sync is still to be taken.
 - **S2, the keyboard after a native tap.** On iOS 26 and 27, a hidden native text field made first responder in `viewDidAppear` hands focus to the page; a public path is preferred.
   Otherwise the numbers choose between a guarded private focus path with a fallback, and a caret with no keyboard until the first tap.
   The harness tries three paths on a pushed screen: the field holds the keyboard and the page focuses its editor, the same followed by making the web view first responder, and the page focusing its editor with no keyboard up.
@@ -296,7 +297,9 @@ These are measured on a device in stage 0, before the stages that depend on them
   Pass: either hand-off keeps the keyboard up with the web view first responder and the caret in the editor.
   The guarded private focus path is not built; it is built and measured only if no public path passes.
   Run: `scripts/ios/run-spike.sh S2`.
-  Result: not measured yet.
+  Result (2026-11-07, iPhone18,2, iOS 27.2): not settled.
+  In three runs the hidden field became first responder but the keyboard never came up, though a tap in a note raises it on the same phone, so the harness is suspected and the run is to be repeated once that is found.
+  Under iPhone Mirroring the phone uses the Mac's keyboard and shows none, so this spike is run with the phone in hand.
 - **S3, the bridge.** 1000 no-operation round trips stay within p50 4 ms and p95 10 ms, and 60 excerpt calls while a list scrolls at 120 Hz drop no frames.
   The round trips go Swift to Rust to the page and back, the way every real request goes, and are timed in Swift.
   The 60 excerpt calls of 20 notes each go 50 ms apart while the page scrolls a 3000-row list, and the page counts frames longer than 1.5 times the screen's frame budget.
@@ -304,17 +307,24 @@ These are measured on a device in stage 0, before the stages that depend on them
   Pass: no failed round trip, p50 at most 4 ms, p95 at most 10 ms, and no frame over budget.
   Instruments' Hitches on the device is the authority on dropped frames, and it is read by hand during the run.
   Run: `scripts/ios/run-spike.sh S3`.
-  Result: not measured yet.
+  Result (2026-11-07, iPhone18,2, iOS 27.2): the bridge passed; 1000 round trips with none failed, p50 0.27 ms, p95 0.43 ms, longest 4.9 ms.
+  The 60 excerpt calls were refused as expected and timed the bridge at p50 3.53 ms and p95 4.78 ms.
+  WebKit runs the page's animation frames at 60 Hz on a 120 Hz screen, so the page's frame count measures against 16.7 ms, not 8.3 ms: over 217 frames the longest was 18 ms and none passed 1.5 times 16.7 ms.
+  Instruments' Hitches was not read in this run.
 - **S4, the page as its own scroller.** CodeMirror with an auto-height editor and a visible scroller lets the web view's own scroll view scroll the note; layout, selection handles, the bar's scroll-edge effect and interactive keyboard dismissal hold on iOS 26.
   If it holds, the page scrolls itself; otherwise CodeMirror's own scroller stays.
   The harness shows a long made-up note in a navigation controller with a toolbar, sets the web view's scroll view as the bar's content scroll view with interactive keyboard dismissal, and scrolls it to the middle and to the end.
   Pass: the scroll view scrolls, its content height matches the page's height within 2 points, the page's scroll position matches the offset at the middle, and the page has drawn lines at both stops.
   The screen stays up, and selection handles and the scroll-edge effect are read off a screenshot taken by hand.
   Run: `scripts/ios/run-spike.sh S4`.
-  Result: not measured yet.
+  Result (2026-11-07, iPhone18,2, iOS 27.2): passed; the scroll view's content height equals the page's 27481 points, the offsets at the middle and the end match the page's scroll position, and lines are drawn at both stops.
+  By hand: the note scrolls from its first line to its last, a long press selects a word with both handles, dragging the handles works, a tap raises the keyboard, and the bar's scroll-edge effect blurs the lines under it.
+  So the page scrolls itself.
 - **Bar tint.** A background colour on the navigation bar, toolbar and tab bar appearances draws behind iOS 26's floating bars, as Glass Transparency below 0 needs.
   If the floating tab bar ignores it, the tint reaches the navigation bars and the toolbar only.
   The harness shows a tab bar around a navigation controller with large titles, a toolbar and a long list, with `phoneActionTrash` at half opacity on all three appearances.
   The screen stays up, and which bars draw the tint is read off a screenshot taken by hand, so the report's `pass` is `null`.
   Run: `scripts/ios/run-spike.sh barTint`.
-  Result: not measured yet.
+  Result (2026-11-07, iPhone18,2, iOS 27.2): only the navigation bar draws the tint, and it then draws as an opaque band instead of floating glass; the floating tab bar and the toolbar ignore it.
+  So Glass Transparency below 0 cannot reach the bars through their appearance's background colour, and the tint needs another path in PR 14.
+  iOS 26 was not measured.
