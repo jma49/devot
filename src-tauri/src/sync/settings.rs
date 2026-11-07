@@ -19,6 +19,8 @@ pub(crate) const FILE: &str = "sync-settings.json";
 const DEVICE_ACCOUNT: &str = "device";
 /// The successor's token of a rotation that has not switched yet.
 const NEXT_DEVICE_ACCOUNT: &str = "device-next";
+/// The rotating device's token for the vault it retired, which still lists that vault's devices.
+const RETIRED_DEVICE_ACCOUNT: &str = "device-retired";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -239,6 +241,22 @@ impl DeviceCredentials {
 
     pub(crate) fn forget_next(store: &dyn SecretStore) -> Result<(), SyncError> {
         store.remove(NEXT_DEVICE_ACCOUNT).map(|_| ())
+    }
+
+    /// The token for the vault this device retired, kept while devices of it have not joined.
+    pub(crate) fn load_retired(store: &dyn SecretStore) -> Result<Option<Self>, SyncError> {
+        Ok(store
+            .read(RETIRED_DEVICE_ACCOUNT)?
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok()))
+    }
+
+    pub(crate) fn save_retired(&self, store: &dyn SecretStore) -> Result<(), SyncError> {
+        let bytes = Zeroizing::new(serde_json::to_vec(self).map_err(|_| SyncError::VaultCorrupt)?);
+        store.replace(RETIRED_DEVICE_ACCOUNT, &bytes)
+    }
+
+    pub(crate) fn forget_retired(store: &dyn SecretStore) -> Result<(), SyncError> {
+        store.remove(RETIRED_DEVICE_ACCOUNT).map(|_| ())
     }
 
     pub(crate) fn fits(&self, relay: &str, vault: &str) -> bool {

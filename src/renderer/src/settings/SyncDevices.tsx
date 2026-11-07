@@ -457,8 +457,9 @@ export function JoinRows(props: {
 
 /**
  * The vault's devices, this one marked; on a relay any other can be removed after a confirmation.
- * On iCloud a device leaves with its Apple ID, so the list only shows the day each was last seen,
- * then the relay devices not seen there since this device moved the vault.
+ * After a key change on this device, the old key's devices that have not joined follow, and Remove
+ * takes one off the list. On iCloud a device leaves with its Apple ID, so the list only shows the
+ * day each was last seen, then the relay devices not seen there since this device moved the vault.
  */
 export function DevicesRow(props: {
   icloud?: boolean
@@ -482,13 +483,24 @@ export function DevicesRow(props: {
   const locale = currentLocale()
   const { onAnnounce, failed, refresh } = props
   const icloud = props.icloud === true
+  const onPhone = useOnPhone()
   const datedAs = (device: SyncDevice): MessageKey =>
     device.unseen
-      ? 'syncSettings.deviceUnseen'
+      ? icloud
+        ? 'syncSettings.deviceUnseen'
+        : 'syncSettings.deviceNotJoined'
       : icloud
         ? 'syncSettings.deviceSeen'
         : 'syncSettings.deviceAdded'
-  const onPhone = useOnPhone()
+  const hint: MessageKey = devices?.some((d) => d.unseen)
+    ? icloud
+      ? 'syncSettings.icloudDevicesUnseenHint'
+      : 'syncSettings.devicesNotJoinedHint'
+    : icloud
+      ? 'syncSettings.icloudDevicesHint'
+      : onPhone
+        ? 'phone.sync.devicesHint'
+        : 'syncSettings.devicesHint'
 
   useEffect(() => {
     let current = true
@@ -557,21 +569,7 @@ export function DevicesRow(props: {
 
   return (
     <>
-      <Setting
-        label="syncSettings.devices"
-        description={
-          problem ??
-          t(
-            icloud
-              ? devices?.some((d) => d.unseen)
-                ? 'syncSettings.icloudDevicesUnseenHint'
-                : 'syncSettings.icloudDevicesHint'
-              : onPhone
-                ? 'phone.sync.devicesHint'
-                : 'syncSettings.devicesHint',
-          )
-        }
-      >
+      <Setting label="syncSettings.devices" description={problem ?? t(hint)}>
         {problem ? (
           <div className="settings-buttons">
             <button
@@ -652,7 +650,11 @@ export function DevicesRow(props: {
             name: removing.label,
             date: day(removing.created, locale),
           })}
-          detail={t('syncSettings.deviceRemoveDetail')}
+          detail={t(
+            removing.unseen
+              ? 'syncSettings.deviceNotJoinedRemoveDetail'
+              : 'syncSettings.deviceRemoveDetail',
+          )}
           confirm={t('syncSettings.deviceRemoveButton')}
           onConfirm={() => remove(removing)}
           onCancel={() => setRemoving(undefined)}

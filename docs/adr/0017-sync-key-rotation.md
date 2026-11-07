@@ -40,6 +40,18 @@ Each step is kept before the next, so a rotation that stops anywhere either fini
 4. **Switch.** The vault item takes the new key, then the device-only token item takes the successor's token, then the settings forget `rotating`, and the `-next` items go. The recovery key is recorded as saved per vault ID, so the new one is on offer. The old key is gone from this device.
 5. **Upload.** The engine connects to the successor, finds a new epoch and uploads the whole library. The new recovery key is offered until the owner says it was saved, as for a new vault.
 
+### Who has not joined yet
+
+The old vault still lists its devices once retired, so the rotating device can name those that still have to join (#644):
+
+- At the switch, before the successor's token takes its place, the device keeps its old token in a device-only item of its own (`device-retired`). That token opens only the retired vault, which takes no pushes, pulls or enrollments, so keeping it opens nothing new.
+- Settings > Sync on the rotating device lists the successor's devices, then the old vault's other devices, each with the day it was added and marked as not joined yet.
+- A device that joins the successor in place of the retired vault, with a pairing code or the new recovery key, then removes itself from the retired vault with its old token, so it leaves that list. A removal that fails is not tried again; the device then shows twice, joined in the successor and not joined in the old vault, until the owner removes the old row.
+- Remove on a device not joined yet removes it from the retired vault, which only takes it off the list: the lost device, or one the owner no longer uses.
+- The token goes once no other device is left in the old vault, when the relay no longer takes it, or with Leave This Vault. A relay that cannot be reached lists only the successor's devices that time.
+- The list is a guide, not an access check. A device that holds the old key and a token nobody revoked, the lost one included, can still remove devices of the old vault, this device's old row too, which ends the list; it can neither join the successor nor change what the successor lists.
+- A device that left the old vault without joining (ADR 0008, Leaving a relay vault) keeps its row there, and the owner removes it from the list.
+
 A connect that finds `rotating` with a successor token waiting reads the old vault's `welcome`. Retired for this successor: the device finishes step 4 on its own. Retired for another: it lost the race, as in step 3. Not retired: retiring needs the relay secret, which the device does not keep, so the old vault syncs on and the waiting key and token stay; the next rotation, with the secret, takes them and goes on from step 3. With no token waiting, the old vault was never retired: the waiting key and the record are dropped (`I_SYNC_ROTATION_DROPPED`) and the old vault syncs on. If a successor was made but its token was lost, that successor stays on the relay, empty, until wiping exists (follow-up).
 
 ### The other devices
@@ -57,7 +69,7 @@ A connect that finds `rotating` with a successor token waiting reads the old vau
 - **Write records others accept:** no. The old vault refuses pushes from anyone; the successor needs a token it cannot get, and records it sealed would not open.
 - **Join again with the old key or the old recovery key:** no. Both name the old vault, which refuses enrollment for good.
 - **Read the old vault's records:** they stay on the relay, sealed under the old key, until they are wiped (follow-up). The relay refuses pulls, so only someone holding both the relay's storage and the old key reads them; those are the records the device held anyway, plus what other devices pushed between its removal and the retirement. Rotating soon after removing keeps that short.
-- **Hide the retirement from an offline device:** only together with the relay, which then also hands out the old records. A relay that colludes could keep an offline device pushing to the old vault until the owner rotates on it; that is outside what a relay is trusted not to do (ADR 0002, risk 10), and Settings on the rotating device lists the devices of the successor, so a missing one shows.
+- **Hide the retirement from an offline device:** only together with the relay, which then also hands out the old records. A relay that colludes could keep an offline device pushing to the old vault until the owner rotates on it; that is outside what a relay is trusted not to do (ADR 0002, risk 10), and Settings on the rotating device lists the devices of the successor, and those of the old vault that have not joined it, so a missing one shows.
 
 ### Older builds
 
@@ -86,4 +98,4 @@ Not built yet; recorded here so the relay part does not decide it differently.
 - ADR 0008: "Locking out a lost device for good needs a new vault key" is this ADR. A join may replace a held vault that is retired, for its successor only. Leaving a relay vault, which ADR 0008 now records, lets any other vault be joined.
 - ADR 0015: locking a device out of an iCloud vault is removing it from the Apple ID and then rotating, as above.
 - ADR 0016: a rotation is a new vault, so every store name changes with it; a store can link old and new names only by timing and sizes, as after the move to store names.
-- Follow-ups: rotation on iCloud (#641); per-device keys so relay devices follow without pairing again (#642); wiping a retired vault's records from the relay, and an orphaned successor left by a lost race (#643); listing, on the rotating device, the old vault's devices that have not joined the successor yet (#644). Leaving a relay vault, the recovery path for a stuck device (#646), is built (ADR 0008).
+- Follow-ups: rotation on iCloud (#641); per-device keys so relay devices follow without pairing again (#642); wiping a retired vault's records from the relay, and an orphaned successor left by a lost race (#643); Leaving a relay vault, the recovery path for a stuck device (#646), is built (ADR 0008), and so is listing on the rotating device the old vault's devices that have not joined the successor yet (#644, above).

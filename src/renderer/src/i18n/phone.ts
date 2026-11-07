@@ -101,6 +101,7 @@ export const enPhone: Partial<Messages> = {
   'syncSettings.left': 'Vault left. Notes stay here.',
   'syncSettings.icloudDevicesHint': 'With the day each was last seen',
   'syncSettings.icloudDevicesUnseenHint': 'Some still have to follow the move',
+  'syncSettings.devicesNotJoinedHint': 'Some still have to join the new key',
   'syncSettings.vaultMoved': 'Vault moved to iCloud',
   'syncSettings.vaultMovedHint': '',
   'syncSettings.vaultMovedElsewhere': '',

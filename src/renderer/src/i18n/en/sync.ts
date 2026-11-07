@@ -147,7 +147,12 @@ export const messages = {
   'syncSettings.deviceRemoveLabel': 'Remove {name}, added {date}',
   'syncSettings.deviceRemoveConfirm': 'Remove {name}, added {date}, from sync?',
   'syncSettings.deviceRemoveDetail':
-    'Sync stops there and its notes stay. The device still holds this vault’s key, so whoever has it can join again; Devot cannot change the key yet.',
+    'Sync stops there and its notes stay. The device still holds this vault’s key, so whoever has it can join again until you change the vault key.',
+  'syncSettings.devicesNotJoinedHint':
+    'The devices in this vault, then those of the old key that have not joined the new key yet: join each with a pairing code or the new recovery key. Remove the device you lost from the list.',
+  'syncSettings.deviceNotJoined': 'Added {date} · Not joined yet',
+  'syncSettings.deviceNotJoinedRemoveDetail':
+    'It leaves this list. The old key opens nothing new, so its notes and this vault stay as they are.',
   'syncSettings.deviceRemoveButton': 'Remove',
   'syncSettings.deviceRemoved': 'The device was removed from sync.',
   'syncSettings.devicesFailed': 'The devices could not be listed.',

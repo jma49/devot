@@ -1182,7 +1182,8 @@ pub(crate) struct DeviceInfo {
     pub created: i64,
     pub current: bool,
     /// On iCloud: a device of the relay this device moved the vault from, not seen on iCloud yet;
-    /// `created` is the day it was added to the relay, which keeps no last-seen day.
+    /// `created` is the day it was added to the relay, which keeps no last-seen day. On a relay: a
+    /// device of the vault this device retired with a key change, not joined to the successor yet.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub unseen: bool,
 }

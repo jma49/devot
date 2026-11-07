@@ -7,7 +7,7 @@
 use super::super::client::{self, Connection, Enrollment, RelayUrl, Retire, Welcome};
 use super::super::settings::{DeviceCredentials, Rotation};
 use super::super::{SecretStore, Vault};
-use super::{Created, DEVICE_LABEL, SyncService, checked_relay_secret};
+use super::{Created, DEVICE_LABEL, REVOKED, SyncService, checked_relay_secret};
 
 pub(super) const VAULT_ROTATED: &str = "E_SYNC_VAULT_ROTATED";
 const ROTATION_ICLOUD: &str = "E_SYNC_ROTATION_ICLOUD";
@@ -156,18 +156,37 @@ impl SyncService {
     fn switch_to(&self, next: &Vault) -> Result<(), &'static str> {
         let secrets = self.secrets.as_ref();
         Vault::replace(secrets, next).map_err(|e| e.code())?;
+        let mut settings = self.settings.get();
         if let Some(waiting) = DeviceCredentials::load_next(secrets).map_err(|e| e.code())?
             && waiting.vault == next.id().to_string()
         {
+            if let Some(from) = &settings.rotating {
+                self.keep_retired_token(&from.from);
+            }
             waiting.save(secrets).map_err(|e| e.code())?;
         }
-        let mut settings = self.settings.get();
         settings.rotating = None;
         settings.rotated = None;
         self.settings.set(&settings)?;
         Self::forget_next_items(secrets);
         log::info!("I_SYNC_ROTATED vault={}", next.id());
         Ok(())
+    }
+
+    /// Keeps this device's token for `from` before the successor's token takes its place, so
+    /// Settings can list the devices of `from` that have not joined the successor yet.
+    fn keep_retired_token(&self, from: &str) {
+        let secrets = self.secrets.as_ref();
+        let kept = match DeviceCredentials::load(secrets) {
+            Ok(Some(old)) if old.vault == from && old.token != REVOKED => {
+                old.save_retired(secrets).map_err(|e| e.code())
+            }
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.code()),
+        };
+        if let Err(code) = kept {
+            log::warn!("W_SYNC_RETIRED_KEEP {code} vault={from}");
+        }
     }
 
     /// Before a connect: switches to the successor once the relay retired the old vault for it,

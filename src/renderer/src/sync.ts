@@ -444,7 +444,7 @@ export interface SyncDevice {
   created: number
   /** This device. */
   current: boolean
-  /** On iCloud: a relay device not seen there since this device moved the vault; `created` is the day it was added to the relay. */
+  /** On iCloud: a relay device not seen there since this device moved the vault; `created` is the day it was added to the relay. On a relay: a device of the vault this device retired with a key change, not joined yet. */
   unseen: boolean
 }
 
