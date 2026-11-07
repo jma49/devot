@@ -105,16 +105,22 @@ final class EditorScreenTests: XCTestCase {
     }
 
     /// Runs the run loop until the condition holds or the timeout passes, for timers that fire after the transition.
-    private func settle(until condition: () -> Bool, timeout: TimeInterval = 30) {
+    private func settle(
+        until condition: () -> Bool, timeout: TimeInterval = 30, file: StaticString = #filePath, line: UInt = #line
+    ) {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition(), Date() < deadline {
             settle(0.02)
         }
+        if !condition() { XCTFail("waited \(timeout) s and the condition never held", file: file, line: line) }
     }
 
     /// Runs the run loop until the navigation controller's push or pop, interactive or not, has finished.
     /// A slow runner stretches the animation, so this waits on the transition itself, not a fixed delay.
-    private func settleTransition(_ nav: UINavigationController? = nil, timeout: TimeInterval = 30) {
+    private func settleTransition(
+        _ nav: UINavigationController? = nil, timeout: TimeInterval = 30, file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let nav = nav ?? navigation!
         settle()
         var finished = nav.transitionCoordinator == nil
@@ -123,6 +129,7 @@ final class EditorScreenTests: XCTestCase {
         while !finished, Date() < deadline {
             settle(0.02)
         }
+        if !finished { XCTFail("waited \(timeout) s and the transition never finished", file: file, line: line) }
         settle()
     }
 
