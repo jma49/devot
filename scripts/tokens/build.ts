@@ -1,14 +1,15 @@
 // Writes the generated token files. `--check` fails instead of writing when
 // the committed output is stale (CI runs it).
-import { readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { compile, type TokenTree } from './compile.ts'
+import { compileSwift, SWIFT_TOKENS } from './swift.ts'
 import { BUILT_IN_THEMES } from './themes.ts'
 
 const root = join(import.meta.dirname, '../..')
 const read = (path: string) => JSON.parse(readFileSync(join(root, path), 'utf8')) as TokenTree
 
-const { css, ts } = compile(
+const sources = [
   read('design/tokens/base.tokens.json'),
   read('design/tokens/themes/system.light.tokens.json'),
   read('design/tokens/themes/system.dark.tokens.json'),
@@ -18,11 +19,13 @@ const { css, ts } = compile(
     dark: read(`design/tokens/themes/${id}.dark.tokens.json`),
   })),
   read('design/tokens/backdrops.tokens.json'),
-)
+] as const
+const { css, ts } = compile(...sources)
 
 const outputs: [string, string][] = [
   ['src/renderer/src/theme/tokens.css', css],
   ['src/renderer/src/theme/tokens.ts', ts],
+  [SWIFT_TOKENS, compileSwift(...sources)],
 ]
 
 if (process.argv.includes('--check')) {
@@ -38,5 +41,8 @@ if (process.argv.includes('--check')) {
     process.exit(1)
   }
 } else {
-  for (const [path, content] of outputs) writeFileSync(join(root, path), content)
+  for (const [path, content] of outputs) {
+    mkdirSync(dirname(join(root, path)), { recursive: true })
+    writeFileSync(join(root, path), content)
+  }
 }

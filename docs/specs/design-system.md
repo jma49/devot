@@ -35,6 +35,9 @@ The native look of the interface, its menus, lists and keyboard, is in [native-l
 - **Tokens build:** `pnpm tokens` compiles `design/tokens` into `src/renderer/src/theme/tokens.css` and `tokens.ts` (committed); `pnpm tokens:check` fails CI when they are stale.
   Each built-in theme besides the default is listed in `scripts/tokens/themes.ts` and compiled from its own `design/tokens/themes/<id>.light|dark.tokens.json`; a test fails when a theme lacks a token of the default theme or has an extra one.
   Only theme colours and non-colour base tokens are exported, and a policy test rejects colour literals in UI styles.
+  The same build writes `Tokens.swift` for the iPhone's native screens: every theme as light and dark palettes, every non-colour base token, and each spring in both of its forms ([design/README.md](../../design/README.md), Swift tokens).
+  A theme's or backdrop's id is its Swift member name as well as the `theme` setting's value, so it must be letters and digits starting with a letter (`E_TOKEN_SWIFT_THEME`).
+  `pnpm lint` rejects colour literals in Swift outside a `Generated/` folder.
 - **Other themes:** independent of the system accent.
   Each provides light and dark appearances and follows the system's light/dark switch, unless it declares a single appearance.
   The built-in one is Ivory, a warm theme.

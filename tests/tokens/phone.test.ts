@@ -169,6 +169,50 @@ describe('the phone motion tokens', () => {
   })
 })
 
+describe('the native phone motion tokens', () => {
+  it('enters slower than it leaves, and adjusts quickest', () => {
+    expect(sizes['motion.duration.phone-adjust']).toBe('120ms')
+    expect(sizes['motion.duration.phone-enter']).toBe('200ms')
+    expect(sizes['motion.duration.phone-exit']).toBe('150ms')
+    expect(sizes['motion.duration.phone-fly']).toBe('160ms')
+  })
+
+  it('eases out on entering and in and out where two layers cross', () => {
+    expect(sizes['motion.easing.phone-enter']).toBe('cubic-bezier(0.33, 1, 0.68, 1)')
+    expect(sizes['motion.easing.phone-pair']).toBe('cubic-bezier(0.65, 0, 0.35, 1)')
+  })
+
+  it('settles a released drag on a stiff spring of mass 0.7', () => {
+    expect(sizes['motion.spring.phone-settle-damping']).toBe('0.855')
+    expect(sizes['motion.spring.phone-settle-response']).toBe('0.29')
+    expect(sizes['motion.spring.phone-settle-mass']).toBe('0.7')
+  })
+
+  it('dismisses the toast past a quarter of its width or at 800 points a second', () => {
+    expect(sizes['motion.ratio.phone-toast-dismiss']).toBe('0.25')
+    expect(sizes['motion.velocity.phone-toast-flick']).toBe('800')
+  })
+
+  it('lifts the toast 8 above what it sits on and rises it its height and 12', () => {
+    expect(px('size.phone-toast-gap')).toBe(8)
+    expect(px('size.phone-toast-rise')).toBe(px('size.phone-toast') + 12)
+  })
+
+  it('drops the floating glass shadow 14 down with a radius of 28', () => {
+    expect(px('shadow.phone-float-offset')).toBe(14)
+    expect(px('shadow.phone-float-radius')).toBe(28)
+  })
+
+  it.each([
+    ['light', light, 0.08],
+    ['dark', dark, 0.22],
+    ['ivory light', ivoryLight, 0.08],
+    ['ivory dark', ivoryDark, 0.22],
+  ] as const)('%s draws the floating glass shadow in black', (_name, theme, alpha) => {
+    expect(theme['color.phone.float-shadow']).toBe(`rgb(0 0 0 / ${alpha})`)
+  })
+})
+
 describe('the phone colour tokens', () => {
   it.each([
     ['light', light],

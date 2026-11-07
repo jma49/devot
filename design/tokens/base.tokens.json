@@ -2816,8 +2816,13 @@
     },
     "phone-toast-rise": {
       "$type": "dimension",
-      "$value": { "value": 28, "unit": "px" },
-      "$description": "How far the undo toast rises as it appears."
+      "$value": { "value": 60, "unit": "px" },
+      "$description": "How far the undo toast rises as it appears: its height and 12."
+    },
+    "phone-toast-gap": {
+      "$type": "dimension",
+      "$value": { "value": 8, "unit": "px" },
+      "$description": "The native undo toast above the tab bar, the toolbar or the keyboard."
     },
     "phone-toast-undo": {
       "$type": "dimension",
@@ -2834,6 +2839,22 @@
     "$description": "How things move: hover, toggles, colour changes and pop-ups each have one duration, and Reduce Motion drops every movement (app.css).",
     "duration": {
       "$type": "duration",
+      "phone-adjust": {
+        "$value": { "value": 120, "unit": "ms" },
+        "$description": "On the native iPhone screens: a small repositioning, a value's fade, the editor's cover fading."
+      },
+      "phone-enter": {
+        "$value": { "value": 200, "unit": "ms" },
+        "$description": "On the native iPhone screens: something entering, such as the toast rising or a floating control appearing."
+      },
+      "phone-exit": {
+        "$value": { "value": 150, "unit": "ms" },
+        "$description": "On the native iPhone screens: something leaving, such as the toast fading or a floating control going."
+      },
+      "phone-fly": {
+        "$value": { "value": 160, "unit": "ms" },
+        "$description": "On the native iPhone screens: a toast flung off by a swipe."
+      },
       "phone-flash": {
         "$value": { "value": 1200, "unit": "ms" },
         "$description": "A newly saved note's row in the accent wash, fading."
@@ -2992,6 +3013,14 @@
         "$value": [0.23, 1, 0.32, 1],
         "$description": "A push and a pop on the phone."
       },
+      "phone-enter": {
+        "$value": [0.33, 1, 0.68, 1],
+        "$description": "On the native iPhone screens: everything that enters or repositions (a cubic ease-out)."
+      },
+      "phone-pair": {
+        "$value": [0.65, 0, 0.35, 1],
+        "$description": "On the native iPhone screens: two layers that cross, such as the Edit and Preview panes, so neither wobbles against the other."
+      },
       "standard": {
         "$value": [0.42, 0, 0.58, 1],
         "$description": "Eases in and out (CSS ease-in-out)."
@@ -3112,6 +3141,12 @@
       "phone-lens-trail-response": {
         "$value": 0.5,
         "$description": "The tab bar lens's end that trails: the platform's default spring, 0.5 s with no bounce."
+      },
+      "phone-settle-damping": { "$value": 0.855 },
+      "phone-settle-response": { "$value": 0.29 },
+      "phone-settle-mass": {
+        "$value": 0.7,
+        "$description": "On the native iPhone screens: any drag released, such as the toast swiped back or a card pressed. A spring's mass is 1 unless it has a -mass token; the native shell clamps this one's overshoot."
       }
     },
     "delay": {
@@ -3146,6 +3181,22 @@
           "unit": "ms"
         },
         "$description": "The editor's floating actions fade away once the pointer and the keyboard have rested this long."
+      }
+    },
+    "ratio": {
+      "$type": "number",
+      "$description": "A distance as a share of the size of what moves.",
+      "phone-toast-dismiss": {
+        "$value": 0.25,
+        "$description": "On the native iPhone screens: a toast swiped this share of its width goes."
+      }
+    },
+    "velocity": {
+      "$type": "number",
+      "$description": "A speed in points per second.",
+      "phone-toast-flick": {
+        "$value": 800,
+        "$description": "On the native iPhone screens: a toast flicked this fast, in the direction of the drag, goes."
       }
     },
     "blur": {
@@ -3217,6 +3268,14 @@
         "unit": "px"
       },
       "$description": "The soft single shadow under a floating bar (the selection toolbar, the image size bar); its colour is color.shadow.float-bar."
+    },
+    "phone-float-offset": {
+      "$value": { "value": 14, "unit": "px" },
+      "$description": "On the native iPhone screens: the shadow under Devot's own glass views falls this far straight down; its colour is color.phone.float-shadow."
+    },
+    "phone-float-radius": {
+      "$value": { "value": 28, "unit": "px" },
+      "$description": "The blur radius of that shadow (a layer's shadow radius)."
     },
     "phone-glass-rim-offset": {
       "$value": { "value": 1.5, "unit": "px" },

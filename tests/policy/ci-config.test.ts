@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join, normalize } from 'node:path'
 import { expect, it } from 'vitest'
 import { parse } from 'yaml'
@@ -237,6 +237,30 @@ it('caches the WebKit download per Playwright version, restored by every shard a
   expect(ui.slice(saveAt, ui.indexOf('\n      - ', saveAt))).toContain(
     'key: ${{ steps.browsers.outputs.cache-primary-key }}',
   )
+})
+
+it('keeps the generated Swift tokens and strings current, and compiles them for the iPhone', () => {
+  expect(commands(job('web-checks'))).toEqual(
+    expect.arrayContaining(['pnpm tokens:check', 'pnpm i18n:apple:check', 'pnpm lint']),
+  )
+  expect(scripts['lint']).toContain('node scripts/tokens/swift-literals.ts')
+  expect(
+    commands(job('ios-check')).filter(
+      (command) =>
+        command.startsWith('xcrun --sdk iphonesimulator swiftc -typecheck -swift-version 6') &&
+        command.endsWith('apple/DevotScreens/Sources/DevotScreens/Generated/*.swift'),
+    ),
+  ).toHaveLength(1)
+  // The typecheck alone never runs L10n's placeholder filling.
+  expect(commands(job('ios-check'))).toEqual(
+    expect.arrayContaining([
+      'swiftc -swift-version 6 -warnings-as-errors -o "$RUNNER_TEMP/strings-check" ' +
+        'apple/DevotScreens/Sources/DevotScreens/Generated/Strings.swift ' +
+        'apple/DevotScreens/Checks/main.swift',
+      '"$RUNNER_TEMP/strings-check"',
+    ]),
+  )
+  expect(existsSync('src-tauri/apple/DevotScreens/Checks/main.swift')).toBe(true)
 })
 
 it('builds no UI for the Rust jobs, which compile against a placeholder page', () => {

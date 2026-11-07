@@ -8,7 +8,7 @@ export interface Token {
   $extensions?: { 'app.devot'?: { source?: string } }
 }
 
-interface ColorValue {
+export interface ColorValue {
   colorSpace: 'srgb'
   components: [number, number, number]
   hex: string
@@ -75,7 +75,7 @@ function cssColor(c: ColorValue): string {
 }
 
 /** The direction of every backdrop gradient: top to bottom, leaning right. */
-const BACKDROP_ANGLE = '160deg'
+export const BACKDROP_DEGREES = 160
 
 export function cssValue(token: FlatToken): string {
   switch (token.type) {
@@ -85,7 +85,7 @@ export function cssValue(token: FlatToken): string {
       const stops = (token.value as { color: ColorValue; position: number }[]).map(
         (s) => `${cssColor(s.color)} ${round(s.position * 100)}%`,
       )
-      return `linear-gradient(${BACKDROP_ANGLE}, ${stops.join(', ')})`
+      return `linear-gradient(${BACKDROP_DEGREES}deg, ${stops.join(', ')})`
     }
     case 'dimension': {
       const d = token.value as DimensionValue

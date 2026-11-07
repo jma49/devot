@@ -31,6 +31,21 @@ Everything in this folder is published with the repository (`LICENSE`) and may o
 
 Tokens use the [W3C Design Tokens (DTCG)](https://www.designtokens.org/) format. `pnpm tokens` compiles them into `src/renderer/src/theme/tokens.css` (CSS custom properties) and `tokens.ts` (TypeScript constants); CI fails when those are stale. Components use theme tokens only, never the palette's colour primitives (`color.teal.*` and the like) and never colour literals (hex, rgb or named colours).
 
+### Swift tokens
+
+`pnpm tokens` also writes `src-tauri/apple/DevotScreens/Sources/DevotScreens/Generated/Tokens.swift` for the iPhone's native screens (`scripts/tokens/swift.ts`), and CI fails when it is stale too.
+CI also type-checks it against the iPhone SDK in Swift 6 mode, with warnings as errors.
+Every theme is a `Tokens.Theme`, found by the id the `theme` editor setting stores (`Tokens.Theme("ivory")`); the gradient themes keep the default palette and carry their gradient as a `Backdrop`.
+A theme's colours are `UIColor(dynamicProvider:)` values that resolve to its light or dark palette with the trait collection.
+`Tokens.Color.<name>` is a colour of `Tokens.Theme.current`, named after its path without `color.` (`color.phone.text-faint` is `Tokens.Color.phoneTextFaint`).
+Every other base token is a constant in the enum of its group, and a motion token in the enum of its kind: `Tokens.Size.phoneTarget`, `Tokens.Duration.phoneEnter` (in seconds), `Tokens.Easing.phoneEnter` (control points), `Tokens.Ratio.phoneToastDismiss`.
+A spring is one `Tokens.Spring` value in both forms: its damping ratio and response, for `UIView.animate(springDuration:bounce:)` and SwiftUI, and its mass, stiffness and damping, for `UISpringTimingParameters`.
+Stiffness is m (2π / response)² and damping m 4π ζ / response; the mass is 1 unless the spring has a `-mass` token, as `motion.spring.phone-settle-mass` (0.7) gives `phone-settle`.
+The default theme's accent tokens keep their own values in Swift: on the iPhone there is no system accent to follow.
+Swift code never spells a colour: `pnpm lint` fails on `UIColor(red:`, `UIColor(white:`, `Color(red:`, `Color(white:`, `Color(hex` and `#colorLiteral(` outside a `Generated/` folder (`scripts/tokens/swift-literals.ts`).
+
+Two token groups exist for the native screens' gestures: `motion.ratio.*` is a distance as a share of the size of what moves, and `motion.velocity.*` a speed in points per second.
+
 ## Look
 
 - **Window:** the window is transparent with the system under-window background material behind all of it, always active; each region shows it through its own wash: the sidebar `color.surface.sidebar`, the note list `color.surface.list-wash`, the editor pane `color.surface.editor-wash` (the editor itself is transparent). The toolbar has no wash of its own; pop-ups and menus stay opaque. Settings > Appearance > Glass Transparency, a slider that starts at these washes (0), adjusts every wash's alpha a to 1 - (1 - a) x (1 + level / 100), clamped, for a level from -100 (opaque) through 0 (as designed) to 100 (twice as clear). The traffic lights sit in the sidebar's top bar, and the sidebar toggle at the start of the note list's header (after `size.window-controls-inset` of room for the traffic lights while the sidebar is hidden); a unified 52 px toolbar runs over the list and editor, and the traffic lights sit on its centre line.
