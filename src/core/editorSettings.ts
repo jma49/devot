@@ -1,4 +1,4 @@
-// Editor settings: how the note editor looks and behaves on this device, plus the window's Glass Transparency (Settings > Appearance). A local preference, never note
+// Editor settings: how the note editor looks and behaves on this device, plus the window's Glass and Material Transparency (Settings > Appearance). A local preference, never note
 // data: Rust keeps them in their own file (src-tauri/src/editor_settings.rs, which checks the same lists and ranges as this module) and they never sync.
 
 import { DAILY_TITLE_FORMATS, type DailyTitleFormat } from './dailyNotes'
@@ -47,8 +47,10 @@ export interface EditorSettings {
   listMarker: ListMarker
   spellCheck: boolean
   highlightActiveLine: boolean
-  /** How see-through the window is, from the regions' design washes: 0 is the design, -100 opaque, 100 twice as see-through. */
+  /** How see-through the sheet is, from its design wash: 0 is the design, -100 opaque, 100 twice as see-through. */
   windowTransparency: number
+  /** The same for the glass material over the sheet (Settings > Appearance > Material Transparency). */
+  materialTransparency: number
   pasteUrl: PasteUrlStyle
   syncScroll: boolean
   inlineImages: boolean
@@ -130,6 +132,7 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   spellCheck: true,
   highlightActiveLine: false,
   windowTransparency: 0,
+  materialTransparency: 0,
   pasteUrl: 'link',
   syncScroll: true,
   inlineImages: true,
@@ -295,6 +298,7 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   spellCheck: isFlag,
   highlightActiveLine: isFlag,
   windowTransparency: wholeIn(-WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX),
+  materialTransparency: wholeIn(-WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX),
   pasteUrl: oneOf(PASTE_URL_STYLES),
   syncScroll: isFlag,
   inlineImages: isFlag,

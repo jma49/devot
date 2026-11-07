@@ -318,6 +318,7 @@
   --size-glass-popover-row: 32px;
   --size-glass-popover-notch: 14px;
   --size-glass-popover-inset: 6px;
+  --size-glass-sheen: 44px;
   --size-list-section-gap: 14px;
   --size-footnote-rule: 48px;
   --size-list-row-padding-bottom: 11px;
@@ -544,8 +545,8 @@
   --color-surface-popover: #ffffff;
   --color-surface-float-bar: #ffffff;
   --color-surface-sheet: rgb(255 255 255 / 0.75);
-  --color-surface-glass-popover: rgb(255 255 255 / 0.78);
-  --color-surface-glass-float-bar: rgb(255 255 255 / 0.86);
+  --color-surface-glass: rgb(255 255 255 / 0.8);
+  --color-surface-glass-sheen: rgb(255 255 255 / 0.16);
   --color-ink-text: #000000;
   --color-ink-line: #171717;
   --color-text-on-destructive: #ffffff;
@@ -563,7 +564,6 @@
   --color-line-match: #f59f0a;
   --color-line-control: rgb(28 27 25 / 0.2);
   --color-line-shadow: rgb(0 0 0 / 0.14);
-  --color-line-float-bar: rgb(23 23 23 / 0.1);
   --color-line-field: rgb(23 23 23 / 0.1);
   --color-line-glass-edge: rgb(255 255 255 / 0.8);
   --color-line-glass-highlight: rgb(255 255 255 / 0.95);
@@ -576,7 +576,6 @@
   --color-fill-match: rgb(245 159 10 / 0.25);
   --color-fill-match-current: rgb(245 159 10 / 0.5);
   --color-fill-button: #ebeae7;
-  --color-fill-completion-selected: #ebe7fe;
   --color-fill-card: rgb(28 27 25 / 0.065);
   --color-fill-settings-card: rgb(28 27 25 / 0.04);
   --color-fill-control: rgb(28 27 25 / 0.07);
@@ -587,7 +586,6 @@
   --color-fill-backdrop: rgb(0 0 0 / 0.3);
   --color-fill-glass-backdrop: rgb(0 0 0 / 0.3);
   --color-fill-field: #ffffff;
-  --color-fill-glass-control: rgb(255 255 255 / 0.72);
   --color-accent-fill: var(--system-accent-fill-light, #3472d6);
   --color-accent-text: var(--system-accent-text-light, #2856a2);
   --color-accent-hover: #2463eb;
@@ -776,8 +774,8 @@
     --color-surface-popover: #171717;
     --color-surface-float-bar: #2a2927;
     --color-surface-sheet: rgb(18 18 18 / 0.7);
-    --color-surface-glass-popover: rgb(42 42 46 / 0.78);
-    --color-surface-glass-float-bar: rgb(44 44 48 / 0.86);
+    --color-surface-glass: rgb(30 30 33 / 0.8);
+    --color-surface-glass-sheen: rgb(255 255 255 / 0.03);
     --color-ink-text: #fafafa;
     --color-ink-line: #f5f5f5;
     --color-text-on-destructive: #ffffff;
@@ -795,7 +793,6 @@
     --color-line-match: #f59f0a;
     --color-line-control: rgb(235 232 226 / 0.18);
     --color-line-shadow: rgb(0 0 0 / 0.45);
-    --color-line-float-bar: rgb(245 245 245 / 0.1);
     --color-line-field: rgb(245 245 245 / 0.1);
     --color-line-glass-edge: rgb(255 255 255 / 0.14);
     --color-line-glass-highlight: rgb(255 255 255 / 0.16);
@@ -808,7 +805,6 @@
     --color-fill-match: rgb(245 159 10 / 0.25);
     --color-fill-match-current: rgb(245 159 10 / 0.45);
     --color-fill-button: #34332f;
-    --color-fill-completion-selected: #3a3550;
     --color-fill-card: rgb(235 232 226 / 0.08);
     --color-fill-settings-card: rgb(235 232 226 / 0.05);
     --color-fill-control: rgb(235 232 226 / 0.1);
@@ -819,7 +815,6 @@
     --color-fill-backdrop: rgb(0 0 0 / 0.3);
     --color-fill-glass-backdrop: rgb(0 0 0 / 0.2);
     --color-fill-field: #171717;
-    --color-fill-glass-control: rgb(60 60 66 / 0.62);
     --color-accent-fill: var(--system-accent-fill-dark, #4576b2);
     --color-accent-text: var(--system-accent-text-dark, #7ea6d8);
     --color-accent-hover: #2463eb;
@@ -1009,8 +1004,8 @@
   --color-surface-popover: #171717;
   --color-surface-float-bar: #2a2927;
   --color-surface-sheet: rgb(18 18 18 / 0.7);
-  --color-surface-glass-popover: rgb(42 42 46 / 0.78);
-  --color-surface-glass-float-bar: rgb(44 44 48 / 0.86);
+  --color-surface-glass: rgb(30 30 33 / 0.8);
+  --color-surface-glass-sheen: rgb(255 255 255 / 0.03);
   --color-ink-text: #fafafa;
   --color-ink-line: #f5f5f5;
   --color-text-on-destructive: #ffffff;
@@ -1028,7 +1023,6 @@
   --color-line-match: #f59f0a;
   --color-line-control: rgb(235 232 226 / 0.18);
   --color-line-shadow: rgb(0 0 0 / 0.45);
-  --color-line-float-bar: rgb(245 245 245 / 0.1);
   --color-line-field: rgb(245 245 245 / 0.1);
   --color-line-glass-edge: rgb(255 255 255 / 0.14);
   --color-line-glass-highlight: rgb(255 255 255 / 0.16);
@@ -1041,7 +1035,6 @@
   --color-fill-match: rgb(245 159 10 / 0.25);
   --color-fill-match-current: rgb(245 159 10 / 0.45);
   --color-fill-button: #34332f;
-  --color-fill-completion-selected: #3a3550;
   --color-fill-card: rgb(235 232 226 / 0.08);
   --color-fill-settings-card: rgb(235 232 226 / 0.05);
   --color-fill-control: rgb(235 232 226 / 0.1);
@@ -1052,7 +1045,6 @@
   --color-fill-backdrop: rgb(0 0 0 / 0.3);
   --color-fill-glass-backdrop: rgb(0 0 0 / 0.2);
   --color-fill-field: #171717;
-  --color-fill-glass-control: rgb(60 60 66 / 0.62);
   --color-accent-fill: var(--system-accent-fill-dark, #4576b2);
   --color-accent-text: var(--system-accent-text-dark, #7ea6d8);
   --color-accent-hover: #2463eb;
@@ -1241,8 +1233,8 @@
   --color-surface-popover: #ffffff;
   --color-surface-float-bar: #ffffff;
   --color-surface-sheet: rgb(255 255 255 / 0.75);
-  --color-surface-glass-popover: rgb(255 255 255 / 0.78);
-  --color-surface-glass-float-bar: rgb(255 255 255 / 0.86);
+  --color-surface-glass: rgb(255 255 255 / 0.8);
+  --color-surface-glass-sheen: rgb(255 255 255 / 0.16);
   --color-ink-text: #000000;
   --color-ink-line: #171717;
   --color-text-on-destructive: #ffffff;
@@ -1260,7 +1252,6 @@
   --color-line-match: #f59f0a;
   --color-line-control: rgb(28 27 25 / 0.2);
   --color-line-shadow: rgb(0 0 0 / 0.14);
-  --color-line-float-bar: rgb(23 23 23 / 0.1);
   --color-line-field: rgb(23 23 23 / 0.1);
   --color-line-glass-edge: rgb(255 255 255 / 0.8);
   --color-line-glass-highlight: rgb(255 255 255 / 0.95);
@@ -1273,7 +1264,6 @@
   --color-fill-match: rgb(245 159 10 / 0.25);
   --color-fill-match-current: rgb(245 159 10 / 0.5);
   --color-fill-button: #ebeae7;
-  --color-fill-completion-selected: #ebe7fe;
   --color-fill-card: rgb(28 27 25 / 0.065);
   --color-fill-settings-card: rgb(28 27 25 / 0.04);
   --color-fill-control: rgb(28 27 25 / 0.07);
@@ -1284,7 +1274,6 @@
   --color-fill-backdrop: rgb(0 0 0 / 0.3);
   --color-fill-glass-backdrop: rgb(0 0 0 / 0.3);
   --color-fill-field: #ffffff;
-  --color-fill-glass-control: rgb(255 255 255 / 0.72);
   --color-accent-fill: var(--system-accent-fill-light, #3472d6);
   --color-accent-text: var(--system-accent-text-light, #2856a2);
   --color-accent-hover: #2463eb;
@@ -1473,8 +1462,8 @@
   --color-surface-popover: #ffffff;
   --color-surface-float-bar: #ffffff;
   --color-surface-sheet: rgb(253 252 248 / 0.75);
-  --color-surface-glass-popover: rgb(255 254 251 / 0.8);
-  --color-surface-glass-float-bar: rgb(255 254 251 / 0.88);
+  --color-surface-glass: rgb(255 254 251 / 0.8);
+  --color-surface-glass-sheen: rgb(255 255 255 / 0.16);
   --color-ink-text: #141413;
   --color-ink-line: #1f1e1d;
   --color-text-on-destructive: #ffffff;
@@ -1492,7 +1481,6 @@
   --color-line-match: #f59f0a;
   --color-line-control: rgb(31 30 29 / 0.3);
   --color-line-shadow: rgb(31 30 29 / 0.14);
-  --color-line-float-bar: rgb(31 30 29 / 0.1);
   --color-line-field: rgb(31 30 29 / 0.1);
   --color-line-glass-edge: rgb(255 255 255 / 0.8);
   --color-line-glass-highlight: rgb(255 255 255 / 0.95);
@@ -1505,7 +1493,6 @@
   --color-fill-match: rgb(245 159 10 / 0.25);
   --color-fill-match-current: rgb(245 159 10 / 0.5);
   --color-fill-button: #ebe9e0;
-  --color-fill-completion-selected: #ebe7fe;
   --color-fill-card: rgb(31 30 29 / 0.065);
   --color-fill-settings-card: rgb(31 30 29 / 0.04);
   --color-fill-control: rgb(31 30 29 / 0.07);
@@ -1516,7 +1503,6 @@
   --color-fill-backdrop: rgb(31 30 29 / 0.3);
   --color-fill-glass-backdrop: rgb(31 30 29 / 0.3);
   --color-fill-field: #ffffff;
-  --color-fill-glass-control: rgb(255 255 255 / 0.72);
   --color-accent-fill: #3472d6;
   --color-accent-text: #2856a2;
   --color-accent-hover: #2463eb;
@@ -1705,8 +1691,8 @@
     --color-surface-popover: #353533;
     --color-surface-float-bar: #353533;
     --color-surface-sheet: rgb(43 43 41 / 0.7);
-    --color-surface-glass-popover: rgb(49 49 47 / 0.8);
-    --color-surface-glass-float-bar: rgb(51 51 47 / 0.88);
+    --color-surface-glass: rgb(49 49 47 / 0.8);
+    --color-surface-glass-sheen: rgb(255 255 255 / 0.03);
     --color-ink-text: #faf9f5;
     --color-ink-line: #faf9f5;
     --color-text-on-destructive: #ffffff;
@@ -1724,7 +1710,6 @@
     --color-line-match: #f59f0a;
     --color-line-control: rgb(250 249 245 / 0.3);
     --color-line-shadow: rgb(31 30 29 / 0.45);
-    --color-line-float-bar: rgb(250 249 245 / 0.1);
     --color-line-field: rgb(250 249 245 / 0.1);
     --color-line-glass-edge: rgb(255 255 255 / 0.14);
     --color-line-glass-highlight: rgb(255 255 255 / 0.16);
@@ -1737,7 +1722,6 @@
     --color-fill-match: rgb(245 159 10 / 0.25);
     --color-fill-match-current: rgb(245 159 10 / 0.45);
     --color-fill-button: #3d3d3a;
-    --color-fill-completion-selected: #3a3550;
     --color-fill-card: rgb(250 249 245 / 0.08);
     --color-fill-settings-card: rgb(250 249 245 / 0.05);
     --color-fill-control: rgb(250 249 245 / 0.1);
@@ -1748,7 +1732,6 @@
     --color-fill-backdrop: rgb(31 30 29 / 0.5);
     --color-fill-glass-backdrop: rgb(31 30 29 / 0.35);
     --color-fill-field: #1f1e1d;
-    --color-fill-glass-control: rgb(69 68 63 / 0.62);
     --color-accent-fill: #5884ba;
     --color-accent-text: #a2bfe3;
     --color-accent-hover: #2463eb;
@@ -1938,8 +1921,8 @@
   --color-surface-popover: #353533;
   --color-surface-float-bar: #353533;
   --color-surface-sheet: rgb(43 43 41 / 0.7);
-  --color-surface-glass-popover: rgb(49 49 47 / 0.8);
-  --color-surface-glass-float-bar: rgb(51 51 47 / 0.88);
+  --color-surface-glass: rgb(49 49 47 / 0.8);
+  --color-surface-glass-sheen: rgb(255 255 255 / 0.03);
   --color-ink-text: #faf9f5;
   --color-ink-line: #faf9f5;
   --color-text-on-destructive: #ffffff;
@@ -1957,7 +1940,6 @@
   --color-line-match: #f59f0a;
   --color-line-control: rgb(250 249 245 / 0.3);
   --color-line-shadow: rgb(31 30 29 / 0.45);
-  --color-line-float-bar: rgb(250 249 245 / 0.1);
   --color-line-field: rgb(250 249 245 / 0.1);
   --color-line-glass-edge: rgb(255 255 255 / 0.14);
   --color-line-glass-highlight: rgb(255 255 255 / 0.16);
@@ -1970,7 +1952,6 @@
   --color-fill-match: rgb(245 159 10 / 0.25);
   --color-fill-match-current: rgb(245 159 10 / 0.45);
   --color-fill-button: #3d3d3a;
-  --color-fill-completion-selected: #3a3550;
   --color-fill-card: rgb(250 249 245 / 0.08);
   --color-fill-settings-card: rgb(250 249 245 / 0.05);
   --color-fill-control: rgb(250 249 245 / 0.1);
@@ -1981,7 +1962,6 @@
   --color-fill-backdrop: rgb(31 30 29 / 0.5);
   --color-fill-glass-backdrop: rgb(31 30 29 / 0.35);
   --color-fill-field: #1f1e1d;
-  --color-fill-glass-control: rgb(69 68 63 / 0.62);
   --color-accent-fill: #5884ba;
   --color-accent-text: #a2bfe3;
   --color-accent-hover: #2463eb;
@@ -2170,8 +2150,8 @@
   --color-surface-popover: #ffffff;
   --color-surface-float-bar: #ffffff;
   --color-surface-sheet: rgb(253 252 248 / 0.75);
-  --color-surface-glass-popover: rgb(255 254 251 / 0.8);
-  --color-surface-glass-float-bar: rgb(255 254 251 / 0.88);
+  --color-surface-glass: rgb(255 254 251 / 0.8);
+  --color-surface-glass-sheen: rgb(255 255 255 / 0.16);
   --color-ink-text: #141413;
   --color-ink-line: #1f1e1d;
   --color-text-on-destructive: #ffffff;
@@ -2189,7 +2169,6 @@
   --color-line-match: #f59f0a;
   --color-line-control: rgb(31 30 29 / 0.3);
   --color-line-shadow: rgb(31 30 29 / 0.14);
-  --color-line-float-bar: rgb(31 30 29 / 0.1);
   --color-line-field: rgb(31 30 29 / 0.1);
   --color-line-glass-edge: rgb(255 255 255 / 0.8);
   --color-line-glass-highlight: rgb(255 255 255 / 0.95);
@@ -2202,7 +2181,6 @@
   --color-fill-match: rgb(245 159 10 / 0.25);
   --color-fill-match-current: rgb(245 159 10 / 0.5);
   --color-fill-button: #ebe9e0;
-  --color-fill-completion-selected: #ebe7fe;
   --color-fill-card: rgb(31 30 29 / 0.065);
   --color-fill-settings-card: rgb(31 30 29 / 0.04);
   --color-fill-control: rgb(31 30 29 / 0.07);
@@ -2213,7 +2191,6 @@
   --color-fill-backdrop: rgb(31 30 29 / 0.3);
   --color-fill-glass-backdrop: rgb(31 30 29 / 0.3);
   --color-fill-field: #ffffff;
-  --color-fill-glass-control: rgb(255 255 255 / 0.72);
   --color-accent-fill: #3472d6;
   --color-accent-text: #2856a2;
   --color-accent-hover: #2463eb;

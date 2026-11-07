@@ -212,10 +212,10 @@ body {
 }
 
 body {
-  /* Two materials only: one sheet the note list and the editor share, and glass controls floating over
-   it. The sidebar floats inset from the window and is drawn in CSS with the controls' own fill, so it
-   shows the theme's surface through the same wash as every other glass control. A cutout in the
-   surrounding sheet leaves it uncovered. */
+  /* Two materials only: one sheet the note list and the editor share, and one glass material for
+   everything floating over it, the sidebar included. A cutout in the surrounding sheet leaves the
+   sidebar uncovered. Each keeps its token's alpha a, adjusted by its own slider level (-100 to 100):
+   0 keeps a, -100 is opaque, 100 lets twice as much through (1 - (1 - a)(1 + level / 100), clamped). */
   color: var(--color-text-primary);
   cursor: default;
   --radius-settings-card: var(--radius-glass-card);
@@ -223,15 +223,35 @@ body {
     from var(--color-surface-sheet) srgb r g b /
       clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
   );
-  --glass-sidebar: color(
-    from var(--color-fill-glass-control) srgb r g b /
-      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
+  --glass-material: color(
+    from var(--color-surface-glass) srgb r g b /
+      clamp(0, 1 - (1 - alpha) * (1 + var(--material-transparency, 0) / 100), 1)
+  );
+  /* Top to bottom: the sheen, the theme's gradient aligned to the window, the material. */
+  --glass-sheen: linear-gradient(
+    var(--color-surface-glass-sheen),
+    transparent var(--size-glass-sheen)
+  );
+  --glass-sheen-top: linear-gradient(
+    var(--color-surface-glass-sheen),
+    var(--color-surface-glass-sheen)
+  );
+  --glass-tint: var(--backdrop, none) fixed, var(--glass-material);
+  --glass-material-bg: var(--glass-sheen), var(--glass-tint);
+  --menu-highlight: color-mix(
+    in srgb,
+    var(--color-accent-fill) calc(var(--opacity-list-selected) * 100%),
+    transparent
   );
   --glass-backdrop: blur(var(--space-9)) saturate(1.8);
-  --glass-rim:
-    inset 0 1px 0 var(--color-line-glass-highlight), 0 0 0 0.5px var(--color-line-glass-edge);
-  --color-surface-popover: var(--color-surface-glass-popover);
-  --color-surface-float-bar: var(--color-surface-glass-float-bar);
+  --glass-rim-edge: 0 0 0 0.5px var(--color-line-glass-edge);
+  --glass-rim-highlight: inset 0 1px 0 var(--color-line-glass-highlight);
+  --glass-rim: var(--glass-rim-highlight), var(--glass-rim-edge);
+  /* The rim's highlight as a background layer, for surfaces with a notch on the top edge. */
+  --glass-highlight: linear-gradient(
+    var(--color-line-glass-highlight),
+    var(--color-line-glass-highlight)
+  );
   --radius-popover: var(--radius-glass-popover);
   --radius-floating-bar: var(--radius-glass-floating-bar);
   --radius-dialog: var(--radius-glass-dialog);
@@ -496,7 +516,7 @@ button {
   width: var(--size-toolbar-control);
   height: var(--size-toolbar-control);
   border-radius: var(--radius-capsule);
-  background: var(--color-fill-glass-control);
+  background: var(--glass-material-bg);
   box-shadow:
     var(--glass-rim),
     0 1px var(--space-4) var(--color-shadow-glass);
@@ -514,7 +534,7 @@ button {
 }
 
 .toolbar .tool:hover:not(:disabled, [aria-disabled='true']) {
-  background: var(--color-fill-glass-control);
+  background: var(--glass-material-bg);
   box-shadow:
     var(--glass-rim),
     inset 0 0 0 100vmax var(--color-fill-tool-hover),
@@ -537,7 +557,6 @@ button {
   pointer-events: none;
 }
 
-/* Each region's wash has its token's alpha a, adjusted by --window-transparency (-100 to 100): 0 keeps a, -100 is opaque, 100 lets twice as much through (1 - (1 - a)(1 + level / 100), clamped). */
 .sidebar {
   /* Above the list, so the sidebar's soft shadow fades out over it instead of stopping at its edge. */
   position: relative;
@@ -550,10 +569,6 @@ button {
   flex-direction: column;
   padding: 0 var(--space-5) var(--space-6);
   box-sizing: border-box;
-  background: color(
-    from var(--color-surface-sidebar) srgb r g b /
-      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
-  );
   font-size: var(--font-size-row);
   z-index: 1;
   margin: var(--size-sidebar-inset);
@@ -561,11 +576,7 @@ button {
   padding-block-end: var(--size-sidebar-row-inset);
   border-right: 0;
   border-radius: var(--radius-sidebar);
-  background-color: transparent;
-  background-image:
-    linear-gradient(var(--glass-sidebar), var(--glass-sidebar)), var(--backdrop, none),
-    linear-gradient(var(--glass-sheet), var(--glass-sheet));
-  background-attachment: scroll, fixed, scroll;
+  background: var(--glass-material-bg);
   -webkit-backdrop-filter: var(--glass-backdrop);
   backdrop-filter: var(--glass-backdrop);
   box-shadow:
@@ -1194,7 +1205,7 @@ button {
 }
 
 .footer-toggle:hover {
-  background: var(--color-fill-track);
+  background: var(--color-fill-tool-hover);
 }
 
 .footer-toggle .icon {
@@ -2423,10 +2434,10 @@ div.card-placeholder {
   max-width: var(--size-drag-card-max-width);
   padding: var(--space-4);
   overflow: hidden;
-  border: 1px solid var(--color-line-control);
+  border: 0;
   border-radius: var(--radius-field);
-  background: var(--color-surface-popover);
-  box-shadow: var(--popover-shadow);
+  background: var(--glass-material-bg);
+  box-shadow: var(--glass-rim), var(--popover-shadow);
   color: var(--color-text-primary);
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-regular);
@@ -4061,13 +4072,11 @@ button.note-info-row:focus-visible {
   z-index: 10;
   box-sizing: border-box;
   padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--color-line-hairline);
+  border: 0;
   border-radius: var(--radius-card);
-  background: var(--color-surface-editor);
   color: var(--color-text-primary);
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-regular);
-  box-shadow: var(--popover-shadow);
   transform-origin: top right;
   animation: popover-in var(--motion-duration-popover) var(--motion-easing-move);
 }
@@ -4149,11 +4158,7 @@ button.note-info-row:focus-visible {
   padding: var(--space-8);
   border: 0;
   border-radius: var(--radius-card);
-  background: var(--color-surface-editor);
   color: var(--color-text-primary);
-  box-shadow:
-    0 0 0 0.5px var(--color-line-hairline),
-    var(--popover-shadow);
 }
 
 .confirm-message {
@@ -4252,11 +4257,7 @@ button.note-info-row:focus-visible {
   padding: 0;
   border: 0;
   border-radius: var(--radius-dialog);
-  background: var(--color-surface-float-bar);
   color: var(--color-text-primary);
-  box-shadow:
-    0 0 0 0.5px var(--color-line-hairline),
-    var(--popover-shadow);
   overflow: hidden;
 }
 
@@ -4340,11 +4341,7 @@ button.note-info-row:focus-visible {
   padding: var(--space-8);
   border: 0;
   border-radius: var(--radius-card);
-  background: var(--color-surface-editor);
   color: var(--color-text-primary);
-  box-shadow:
-    0 0 0 0.5px var(--color-line-hairline),
-    var(--popover-shadow);
 }
 
 .sheet-title {
@@ -5186,7 +5183,7 @@ button.note-info-row:focus-visible {
   overflow: hidden;
   border-radius: var(--radius-capsule);
   height: var(--size-toolbar-control);
-  background: var(--color-fill-glass-control);
+  background: var(--glass-material-bg);
   box-shadow:
     var(--glass-rim),
     0 1px var(--space-4) var(--color-shadow-glass);
@@ -5252,10 +5249,6 @@ button.note-info-row:focus-visible {
   box-sizing: border-box;
   width: var(--size-settings-nav-width);
   overflow-y: auto;
-  background: color(
-    from var(--color-surface-sidebar) srgb r g b /
-      clamp(0, 1 - (1 - alpha) * (1 + var(--window-transparency, 0) / 100), 1)
-  );
   position: relative;
   z-index: 1;
   margin: var(--size-sidebar-inset);
@@ -5263,11 +5256,7 @@ button.note-info-row:focus-visible {
     var(--size-sidebar-row-inset) var(--size-sidebar-row-inset);
   border: 0;
   border-radius: var(--radius-sidebar);
-  background-color: transparent;
-  background-image:
-    linear-gradient(var(--glass-sidebar), var(--glass-sidebar)), var(--backdrop, none),
-    linear-gradient(var(--glass-sheet), var(--glass-sheet));
-  background-attachment: scroll, fixed, scroll;
+  background: var(--glass-material-bg);
   -webkit-backdrop-filter: var(--glass-backdrop);
   backdrop-filter: var(--glass-backdrop);
   box-shadow:
@@ -5277,7 +5266,7 @@ button.note-info-row:focus-visible {
 
 /* A capsule as wide as a row's highlight, its glyph on the tiles' centre line. */
 .settings-search {
-  /* Search lives on glass already, so it gets a fill and rim without a second blur. */
+  /* Search lives on glass already, so it gets a wash and the rim, never a second material. */
   display: flex;
   flex: none;
   align-items: center;
@@ -5288,8 +5277,12 @@ button.note-info-row:focus-visible {
   border-radius: var(--radius-capsule);
   color: var(--color-text-secondary);
   height: var(--size-toolbar-control);
-  background: var(--color-fill-glass-control);
+  background: var(--color-fill-track);
   box-shadow: var(--glass-rim);
+}
+
+.settings-search:hover {
+  background: var(--color-fill-tool-hover);
 }
 
 .settings-search:focus-within {
@@ -6358,10 +6351,6 @@ button.note-info-row:focus-visible {
   min-width: calc(var(--size-settings-key-field) + var(--space-9));
   padding: var(--space-2);
   border-radius: var(--radius-popover);
-  background: var(--color-surface-popover);
-  box-shadow:
-    0 0 0 0.5px var(--color-line-hairline),
-    0 var(--space-2) var(--space-7) var(--color-shadow-popover-key);
 }
 
 .more-menu-item {
@@ -6460,12 +6449,8 @@ button.note-info-row:focus-visible {
   margin: calc(var(--size-toolbar-height) * 2) auto auto;
   border: 0;
   color: var(--color-text-primary);
-  box-shadow:
-    0 0 0 0.5px var(--color-line-hairline),
-    var(--popover-shadow);
   padding: var(--size-glass-palette-inset);
   border-radius: var(--radius-glass-dialog);
-  background: var(--color-surface-glass-popover);
 }
 
 .palette::backdrop {
@@ -6481,7 +6466,11 @@ button.note-info-row:focus-visible {
   height: var(--size-glass-palette-field);
   padding: 0 var(--space-6) 0 var(--size-glass-palette-field-end-md);
   border-radius: var(--radius-capsule);
-  background: var(--color-fill-glass-control);
+  background: var(--color-fill-track);
+}
+
+.palette-field:hover {
+  background: var(--color-fill-tool-hover);
 }
 
 .palette-field:focus-within {
@@ -6970,15 +6959,14 @@ button.popup:focus-visible {
   gap: var(--space-2);
   padding: var(--space-3) var(--space-5);
   border-radius: var(--radius-button);
-  background: var(--color-surface-popover);
   color: var(--color-text-secondary);
   font-size: var(--font-size-footnote);
   white-space: nowrap;
   pointer-events: none;
-  box-shadow:
-    0 0 0 0.5px var(--color-line-hairline),
-    var(--popover-shadow);
   animation: fade-in var(--motion-duration-popover) var(--motion-easing-standard);
+  --notch-x: var(--tip-arrow-x, 50%);
+  --notch-width: calc(var(--space-3) * 2);
+  --notch-height: var(--space-3);
 }
 
 .tool-tip[data-closing] {
@@ -6990,27 +6978,63 @@ button.popup:focus-visible {
   animation: none;
 }
 
-.tool-tip::before {
+/* A notch toward the anchor, outside the surface's edge and never turned, so the window-aligned
+   gradient in its fill lines up: ::before is the glass edge as a band along its slanted sides,
+   ::after the material half a pixel in, cut at the edge so the two translucent fills never overlap
+   (editor/notch.ts draws the editor's the same way). The insets are half a pixel because a notch
+   is twice as wide as it is tall. */
+.tool-tip::before,
+.tool-tip::after,
+.picker-popover::before,
+.picker-popover::after {
   content: '';
   position: absolute;
-  left: calc(var(--tip-arrow-x, 50%) - var(--space-4) / 2);
-  box-sizing: border-box;
-  width: var(--space-4);
-  height: var(--space-4);
-  background: var(--color-surface-popover);
-  transform: rotate(45deg);
+  left: calc(var(--notch-x) - var(--notch-width) / 2);
+  width: var(--notch-width);
+  height: var(--notch-height);
+  pointer-events: none;
 }
 
-.tool-tip:not([data-side='below'])::before {
-  bottom: calc(var(--space-4) / -2);
-  border-right: 0.5px solid var(--color-line-hairline);
-  border-bottom: 0.5px solid var(--color-line-hairline);
+.tool-tip:not([data-side='below'])::before,
+.picker-popover[data-side='above']::before {
+  top: 100%;
+  background: var(--color-line-glass-edge);
+  clip-path: polygon(0 0, 0.5px 0, 50% calc(100% - 0.5px), calc(100% - 0.5px) 0, 100% 0, 50% 100%);
 }
 
-.tool-tip[data-side='below']::before {
-  top: calc(var(--space-4) / -2);
-  border-top: 0.5px solid var(--color-line-hairline);
-  border-left: 0.5px solid var(--color-line-hairline);
+.tool-tip:not([data-side='below'])::after,
+.picker-popover[data-side='above']::after {
+  top: calc(100% - 0.5px);
+  background: var(--glass-tint);
+  clip-path: polygon(0.5px 0.5px, calc(100% - 0.5px) 0.5px, 50% 100%);
+}
+
+.tool-tip[data-side='below']::before,
+.picker-popover:not([data-side='above'])::before {
+  bottom: 100%;
+  background: var(--color-line-glass-edge);
+  clip-path: polygon(0 100%, 0.5px 100%, 50% 0.5px, calc(100% - 0.5px) 100%, 100% 100%, 50% 0);
+}
+
+/* On the top edge the notch meets the sheen at its strongest. */
+.tool-tip[data-side='below']::after,
+.picker-popover:not([data-side='above'])::after {
+  bottom: calc(100% - 0.5px);
+  background: var(--glass-sheen-top), var(--glass-tint);
+  clip-path: polygon(0.5px calc(100% - 0.5px), calc(100% - 0.5px) calc(100% - 0.5px), 50% 0);
+}
+
+/* An inset box shadow would run its highlight across the base of a notch on the top edge, so the
+   highlight is two strips either side of it. */
+.tool-tip.note-card-pop[data-side='below'],
+.picker-popover:not([data-side='above']) {
+  background:
+    var(--glass-highlight) left top / max(0px, var(--notch-x) - var(--notch-width) / 2) 1px
+      no-repeat,
+    var(--glass-highlight) right top / max(0px, 100% - var(--notch-x) - var(--notch-width) / 2) 1px
+      no-repeat,
+    var(--glass-material-bg);
+  box-shadow: var(--glass-rim-edge), var(--popover-shadow);
 }
 
 .tool-tip-key {
@@ -7147,11 +7171,7 @@ button.popup:focus-visible {
   overflow: hidden;
   border: 0;
   border-radius: var(--radius-card);
-  background: var(--color-surface-editor);
   color: var(--color-text-primary);
-  box-shadow:
-    0 0 0 0.5px var(--color-line-hairline),
-    var(--popover-shadow);
 }
 
 .plugin-panel::backdrop {
@@ -7367,8 +7387,10 @@ button.popup:focus-visible {
   translate: calc(var(--history-at, 0.5) * -100%) 0;
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-control);
-  background: var(--color-surface-popover);
-  box-shadow: 0 0 0 0.5px var(--color-line-hairline);
+  background: var(--glass-material-bg);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow: var(--glass-rim);
   color: var(--color-text-primary);
   white-space: nowrap;
   pointer-events: none;
@@ -7670,11 +7692,11 @@ button.popup:focus-visible {
 }
 
 .footer-toggle:not(:hover, :active) {
-  background: var(--color-fill-glass-control);
+  background: var(--color-fill-track);
 }
 
 .toolbar .tool:active:not(:disabled, [aria-disabled='true']) {
-  background: var(--color-fill-glass-control);
+  background: var(--glass-material-bg);
   scale: var(--press-scale);
 }
 
@@ -7703,7 +7725,7 @@ button.popup:focus-visible {
   padding: var(--space-1);
   border: 0;
   border-radius: var(--radius-capsule);
-  background: var(--color-fill-glass-control);
+  background: var(--glass-material-bg);
   box-shadow:
     var(--glass-rim),
     0 1px var(--space-4) var(--color-shadow-glass);
@@ -7737,7 +7759,7 @@ button.popup:focus-visible {
 }
 
 .toolbar .segment[aria-pressed='true'] {
-  background: var(--color-fill-glass-control);
+  background: var(--color-fill-row-selected);
   box-shadow:
     var(--glass-rim),
     0 1px var(--space-2) var(--color-shadow-glass);
@@ -7817,11 +7839,13 @@ button.popup:focus-visible {
   outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
-/* The drag image (listDrag.ts): a copy of the card, lifted, on an opaque ground. After the card's own rules, which it overrides. */
+/* The drag image (listDrag.ts): a lifted copy of the card on the glass material. After the card's own rules, which it overrides.
+   Its holder is off screen, so a window-aligned gradient would show the wrong part of it. */
 .drag-card-holder > .card.drag-card-copy {
   background:
-    linear-gradient(var(--color-fill-card), var(--color-fill-card)), var(--color-surface-popover);
-  box-shadow: var(--popover-shadow);
+    linear-gradient(var(--color-fill-card), var(--color-fill-card)), var(--glass-sheen),
+    var(--glass-material);
+  box-shadow: var(--glass-rim), var(--popover-shadow);
 }
 
 .window[data-focus] .content > :is(.title, .note-meta) {
@@ -7985,9 +8009,9 @@ button.popup:focus-visible {
   gap: var(--space-2);
 }
 
-/* Floating surfaces: popovers, tooltips, pickers, the palette, dialogs and sheets lie over a blur of
-   what is under them, with the glass rim. The editor's own popups (in its shadow root) read
-   --glass-backdrop and the surface tokens above. */
+/* Floating surfaces: popovers, tooltips, pickers, the palette, dialogs and sheets are the glass
+   material over a blur of what is under them, with the glass rim. The editor's own popups (in its
+   shadow root) read the same variables from body. */
 :is(
   .tool-tip,
   .palette,
@@ -8000,6 +8024,7 @@ button.popup:focus-visible {
   .sheet,
   .plugin-panel
 ) {
+  background: var(--glass-material-bg);
   -webkit-backdrop-filter: var(--glass-backdrop);
   backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--glass-rim), var(--popover-shadow);
@@ -8009,7 +8034,6 @@ button.popup:focus-visible {
    their text sits a further step in. */
 :is(.sheet, .confirm, .link-dialog) {
   border-radius: var(--radius-glass-dialog);
-  background: var(--color-surface-popover);
 }
 
 :is(.sheet, .confirm) {
@@ -8139,41 +8163,17 @@ dialog[open].sheet.import {
   padding: var(--size-glass-popover-inset);
   border: 0;
   border-radius: var(--radius-glass-popover);
-  background: var(--color-surface-popover);
 }
 
 .picker-popover {
   --picker-gap: var(--space-6);
+  --notch-x: var(--picker-notch-x, 50%);
+  --notch-width: calc(var(--size-glass-popover-notch) * sqrt(2));
+  --notch-height: calc(var(--notch-width) / 2);
   top: calc(100% + var(--picker-gap));
   display: flex;
   flex-direction: column;
   overflow: visible;
-}
-
-/* A turned square, clipped to the half outside the panel so the two translucent fills never overlap. */
-.picker-popover::before {
-  content: '';
-  position: absolute;
-  top: calc(var(--size-glass-popover-notch) / -2);
-  left: calc(var(--picker-notch-x, 50%) - var(--size-glass-popover-notch) / 2);
-  box-sizing: border-box;
-  width: var(--size-glass-popover-notch);
-  height: var(--size-glass-popover-notch);
-  border-top: 0.5px solid var(--color-line-glass-edge);
-  border-left: 0.5px solid var(--color-line-glass-edge);
-  background: var(--color-surface-popover);
-  transform: rotate(45deg);
-  clip-path: polygon(0 0, 100% 0, 0 100%);
-  pointer-events: none;
-}
-
-.picker-popover[data-side='above']::before {
-  top: auto;
-  bottom: calc(var(--size-glass-popover-notch) / -2);
-  border: 0;
-  border-right: 0.5px solid var(--color-line-glass-edge);
-  border-bottom: 0.5px solid var(--color-line-glass-edge);
-  clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
 
 /* The Note Info card and its date picker: glass popovers at the popover inset, with menu-row corners. */
@@ -8181,7 +8181,7 @@ dialog[open].sheet.import {
   padding: var(--size-glass-popover-inset);
   border: 0;
   border-radius: var(--radius-glass-popover);
-  background: var(--color-surface-popover);
+  background: var(--glass-material-bg);
   -webkit-backdrop-filter: var(--glass-backdrop);
   backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--glass-rim), var(--popover-shadow);
@@ -8236,7 +8236,8 @@ dialog[open].sheet.import {
   padding-inline-end: var(--space-3);
 }
 
-.tool-tip:not(.note-card-pop)::before {
+.tool-tip:not(.note-card-pop)::before,
+.tool-tip:not(.note-card-pop)::after {
   display: none;
 }
 
@@ -8246,9 +8247,11 @@ dialog[open].sheet.import {
   body {
     --glass-sheet: var(--color-surface-editor);
     --glass-backdrop: none;
-    --color-fill-glass-control: var(--color-surface-editor);
-    --color-surface-popover: var(--color-surface-editor);
-    --color-surface-float-bar: var(--color-surface-editor);
+    --glass-material: var(--color-surface-editor);
+    --glass-tint: var(--color-surface-editor);
+    --glass-material-bg: var(--color-surface-editor);
+    --glass-sheen: none;
+    --glass-sheen-top: none;
     --color-line-glass-edge: var(--color-line-control);
   }
 

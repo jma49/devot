@@ -10,6 +10,9 @@ import {
 const appearancePane = (page: Page) => page.getByRole('region', { name: 'Appearance' }).first()
 const transparencySlider = (page: Page) =>
   appearancePane(page).getByRole('slider', { name: 'Glass Transparency' })
+const materialSlider = (page: Page) =>
+  appearancePane(page).getByRole('slider', { name: 'Material Transparency' })
+const sliderValue = (page: Page, index: number) => appearancePane(page).locator('output').nth(index)
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
@@ -39,14 +42,35 @@ test('the transparency adjusts the sheet: opaque at one end, the design in the m
   await expect(page.locator('html')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
 })
 
+test('the material transparency adjusts the glass and leaves the sheet', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window
+    w.devotEditorRevision = 2
+    w.devotEditorSettings = { materialTransparency: -100 }
+  })
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto('/')
+  const sidebar = page.locator('.sidebar')
+  const list = page.getByRole('region', { name: 'Notes' })
+  await expect.poll(() => paintedBackground(sidebar)).toBe('rgb(255, 255, 255)')
+  await expect.poll(() => paintedBackground(list)).toBe('rgba(255, 255, 255, 0.75)')
+  await changeEditorSettingsElsewhere(page, { materialTransparency: 100 })
+  await expect.poll(() => paintedBackground(sidebar)).toBe('rgba(255, 255, 255, 0.6)')
+  await changeEditorSettingsElsewhere(page, { materialTransparency: 0 })
+  await expect.poll(() => paintedBackground(sidebar)).toBe('rgba(255, 255, 255, 0.8)')
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 100 })
+  await expect.poll(() => paintedBackground(sidebar)).toBe('rgba(255, 255, 255, 0.8)')
+  await expect.poll(() => paintedBackground(list)).toBe('rgba(255, 255, 255, 0.5)')
+})
+
 test('the Settings window adjusts how see-through Glass is with a slider', async ({ page }) => {
   await openSettings(page, 'Appearance')
   await expect(transparencySlider(page)).toHaveValue('0')
   await expect(transparencySlider(page)).toHaveAccessibleDescription(/shows through/)
-  await expect(appearancePane(page).locator('output')).toHaveText('0')
+  await expect(sliderValue(page, 0)).toHaveText('0')
 
   await transparencySlider(page).fill('40')
-  await expect(appearancePane(page).locator('output')).toHaveText('+40')
+  await expect(sliderValue(page, 0)).toHaveText('+40')
   await expect
     .poll(() => calls(page, 'editor_settings_set'))
     .toEqual([{ patch: { windowTransparency: 40 } }])
@@ -55,6 +79,20 @@ test('the Settings window adjusts how see-through Glass is with a slider', async
   await expect
     .poll(() => calls(page, 'editor_settings_set'))
     .toEqual([{ patch: { windowTransparency: 40 } }, { patch: { windowTransparency: 35 } }])
+})
+
+test('the Settings window adjusts the glass material with its own slider', async ({ page }) => {
+  await openSettings(page, 'Appearance')
+  await expect(materialSlider(page)).toHaveValue('0')
+  await expect(materialSlider(page)).toHaveAccessibleDescription(/shows through/)
+  await expect(sliderValue(page, 1)).toHaveText('0')
+
+  await materialSlider(page).fill('-40')
+  await expect(sliderValue(page, 1)).toHaveText('-40')
+  await expect(sliderValue(page, 0)).toHaveText('0')
+  await expect
+    .poll(() => calls(page, 'editor_settings_set'))
+    .toEqual([{ patch: { materialTransparency: -40 } }])
 })
 
 test('an appearance change that cannot be stored is reported and dropped', async ({ page }) => {

@@ -447,7 +447,7 @@ const previewPlugin = ViewPlugin.fromClass(
 const theme = EditorView.theme({
   '.cm-link-format-preview': {
     borderRadius: 'var(--radius-button)',
-    backgroundColor: 'var(--color-fill-completion-selected)',
+    backgroundColor: 'var(--menu-highlight)',
     color: 'var(--color-text-secondary)',
     whiteSpace: 'pre-wrap',
   },

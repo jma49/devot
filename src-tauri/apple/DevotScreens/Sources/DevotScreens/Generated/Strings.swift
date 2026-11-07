@@ -6658,6 +6658,14 @@ public enum L10n {
     text("appearanceSettings.glassAmountHint", "How much of the desktop shows through the window.")
   }
 
+  public static func appearanceSettingsMaterialAmount() -> String {
+    text("appearanceSettings.materialAmount", "Material Transparency")
+  }
+
+  public static func appearanceSettingsMaterialAmountHint() -> String {
+    text("appearanceSettings.materialAmountHint", "How much shows through the sidebar, buttons and pop-ups.")
+  }
+
   public static func appearanceSettingsLightMode() -> String {
     text("appearanceSettings.lightMode", "Light Mode")
   }

@@ -205,7 +205,7 @@ test('the selected view mode is a raised glass segment', async ({ page }) => {
   await expect(split).toHaveAttribute('aria-pressed', 'true')
   await expect
     .poll(() => css(split, 'background-color'))
-    .toBe(await tokenColor(page, '--color-fill-glass-control'))
+    .toBe(await tokenColor(page, '--color-fill-row-selected'))
 })
 
 test('the window stays put while the caret scrolls to the end of a long note', async ({ page }) => {

@@ -11,7 +11,21 @@ import type { IconName } from '../icons/symbols'
 import { closingRef } from '../closing'
 import { sizes } from '../theme/tokens'
 import { closingStyles, closingTooltips, motionKeyframes, tipIn } from './motion'
-import { BAR_GAP, NOTCH_X, notchElement, notchStyles } from './notch'
+import {
+  BAR_GAP,
+  BAR_NOTCH_TIP,
+  EDGE,
+  NOTCH_EDGE_CLIP,
+  NOTCH_FILL_CLIP,
+  NOTCH_HEIGHT,
+  NOTCH_WIDTH,
+  NOTCH_X,
+  highlightBesideNotch,
+  notchElement,
+  notchLeft,
+  notchStyles,
+  outsideNotch,
+} from './notch'
 import type { Tip } from './toolbarButtons'
 
 export { BAR_GAP, NOTCH_X }
@@ -21,11 +35,11 @@ const SHOW_AFTER_MS = Number.parseFloat(sizes['motion.delay.tooltip'])
 const TIP_ROOM = 64
 /** Space between a tooltip bubble and the editor's frame when it has to shift. */
 const TIP_EDGE = 4
-/** A notch's half width, and the least room left between it and the bubble's corner. */
+/** The least room between the notch's tip and either end of the bubble, clear of its corner. */
 const NOTCH_INSET = 8
 
 /**
- * Where a tooltip bubble's centre sits, and where its notch is along the
+ * Where a tooltip bubble's left edge sits, and where its notch is along the
  * bubble. `x` and `room` are in the bar's coordinates. A bubble centred on a
  * button at the frame's edge would hang outside the editor; it shifts in, and
  * the notch stays on the button (kept off the bubble's own corner).
@@ -38,9 +52,9 @@ export function placeFloatTip(
   const half = width / 2
   const min = room.left + TIP_EDGE + half
   const max = room.right - TIP_EDGE - half
-  const left = max < min ? min : Math.min(Math.max(x, min), max)
-  const notch = Math.min(Math.max(x - left + half, NOTCH_INSET), width - NOTCH_INSET)
-  return { left, notch }
+  const centre = max < min ? min : Math.min(Math.max(x, min), max)
+  const notch = Math.min(Math.max(x - centre + half, NOTCH_INSET), width - NOTCH_INSET)
+  return { left: centre - half, notch }
 }
 
 interface ShownTip {
@@ -160,23 +174,18 @@ export function FloatSeparator(): ReactNode {
 }
 
 /**
- * One bar element holds the surface and a box shadow (on the bar only, no
- * filter): a 1 px ring for the outline, then one soft layer; its notch is a
- * separate element behind it (`notch.ts`). A tooltip bubble has its own
- * notch: a turned square on its edge, pointing at its button.
+ * One bar element holds the glass material and the rim's highlight (no
+ * filter); a layer behind it casts the rim edge and one soft shade around its
+ * notch, a separate element behind it too (`notch.ts`). A tooltip bubble draws
+ * the same notch with its two pseudo-elements, pointing at its button.
  */
-const hairline = '0.5px solid var(--color-line-hairline)'
-const notchSize = 'var(--space-4)'
-const notchOut = 'calc(var(--space-4) / -2)'
-const barShadow = [
-  '0 0 0 1px var(--color-line-float-bar)',
-  '0 var(--shadow-float-bar-y) var(--shadow-float-bar-blur) var(--color-shadow-float-bar)',
-].join(', ')
-const popoverShadow = [
-  '0 0 0 1px var(--color-line-hairline)',
-  '0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key)',
-  '0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient)',
-].join(', ')
+const barShade =
+  '0 var(--shadow-float-bar-y) var(--shadow-float-bar-blur) var(--color-shadow-float-bar)'
+const shadeReach = 'calc(2 * var(--shadow-float-bar-blur) + var(--shadow-float-bar-y))'
+const shadeClip = outsideNotch(BAR_NOTCH_TIP, shadeReach)
+const popoverShadow = 'var(--glass-rim), var(--popover-shadow)'
+const tipNotch = 'var(--tip-notch, 50%)'
+const notchWidth = `${NOTCH_WIDTH}px`
 
 export function barContent(dom: HTMLElement): HTMLElement {
   const content = document.createElement('div')
@@ -197,13 +206,28 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     paddingInline: 'var(--size-float-toolbar-end)',
     border: '0',
     borderRadius: 'var(--radius-floating-bar)',
-    backgroundColor: 'var(--color-surface-float-bar)',
+    background: 'var(--glass-material-bg)',
     backdropFilter: 'var(--glass-backdrop, none)',
     WebkitBackdropFilter: 'var(--glass-backdrop, none)',
-    boxShadow: barShadow,
+    boxShadow: 'var(--glass-rim-highlight)',
     color: 'var(--color-text-secondary)',
     fontFamily: 'var(--font-family-ui)',
   },
+  '.cm-tooltip.cm-tooltip-below.cm-float-bar': {
+    background: `${highlightBesideNotch(BAR_NOTCH_TIP, notchWidth)}, var(--glass-material-bg)`,
+    boxShadow: 'none',
+  },
+  '.cm-tooltip.cm-float-bar::before': {
+    content: '""',
+    position: 'absolute',
+    inset: '0',
+    zIndex: '-1',
+    borderRadius: 'inherit',
+    boxShadow: `var(--glass-rim-edge), ${barShade}`,
+    pointerEvents: 'none',
+  },
+  '.cm-tooltip.cm-tooltip-above.cm-float-bar::before': { clipPath: shadeClip.down },
+  '.cm-tooltip.cm-tooltip-below.cm-float-bar::before': { clipPath: shadeClip.up },
   '.cm-float-content': { display: 'flex', alignItems: 'center', minWidth: '0' },
   ...notchStyles,
   '.cm-float-buttons': {
@@ -275,7 +299,7 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     gap: 'var(--space-2)',
     padding: 'var(--space-3) var(--space-5)',
     borderRadius: 'var(--radius-glass-tooltip)',
-    backgroundColor: 'var(--color-surface-popover)',
+    background: 'var(--glass-material-bg)',
     backdropFilter: 'var(--glass-backdrop, none)',
     WebkitBackdropFilter: 'var(--glass-backdrop, none)',
     boxShadow: popoverShadow,
@@ -283,35 +307,45 @@ export const floatStyles: Parameters<typeof EditorView.theme>[0] = {
     fontSize: 'var(--font-size-footnote)',
     whiteSpace: 'nowrap',
     pointerEvents: 'none',
-    transform: 'translateX(-50%)',
     animation: tipIn,
   },
   '.cm-float-tip[data-side="below"]': {
     top: 'calc(100% + var(--tooltip-gap))',
+    background: `${highlightBesideNotch(tipNotch, notchWidth)}, var(--glass-material-bg)`,
+    boxShadow: 'var(--glass-rim-edge), var(--popover-shadow)',
   },
   '.cm-float-tip[data-side="above"]': {
     bottom: 'calc(100% + var(--tooltip-gap))',
   },
-  '.cm-float-tip::before': {
+  '.cm-float-tip::before, .cm-float-tip::after': {
     content: '""',
     position: 'absolute',
-    boxSizing: 'border-box',
     // The bubble may shift to stay in the frame; the notch stays on its button.
-    left: `calc(var(--tip-notch, 50%) - ${notchSize} / 2)`,
-    width: notchSize,
-    height: notchSize,
-    backgroundColor: 'inherit',
-    transform: 'rotate(45deg)',
-  },
-  '.cm-float-tip[data-side="below"]::before': {
-    top: notchOut,
-    borderLeft: hairline,
-    borderTop: hairline,
+    left: notchLeft(tipNotch, NOTCH_WIDTH),
+    width: notchWidth,
+    height: `${NOTCH_HEIGHT}px`,
+    pointerEvents: 'none',
   },
   '.cm-float-tip[data-side="above"]::before': {
-    bottom: notchOut,
-    borderRight: hairline,
-    borderBottom: hairline,
+    top: '100%',
+    background: 'var(--color-line-glass-edge)',
+    clipPath: NOTCH_EDGE_CLIP.down,
+  },
+  '.cm-float-tip[data-side="above"]::after': {
+    top: `calc(100% - ${EDGE}px)`,
+    background: 'var(--glass-tint)',
+    clipPath: NOTCH_FILL_CLIP.down,
+  },
+  // Below its button the notch meets the bubble's top edge, where the sheen is at its strongest.
+  '.cm-float-tip[data-side="below"]::before': {
+    bottom: '100%',
+    background: 'var(--color-line-glass-edge)',
+    clipPath: NOTCH_EDGE_CLIP.up,
+  },
+  '.cm-float-tip[data-side="below"]::after': {
+    bottom: `calc(100% - ${EDGE}px)`,
+    background: 'var(--glass-sheen-top), var(--glass-tint)',
+    clipPath: NOTCH_FILL_CLIP.up,
   },
   // The app's tooltip keycap (app.css, .tool-tip).
   '.cm-float-kbd': {

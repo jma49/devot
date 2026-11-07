@@ -184,10 +184,13 @@ pub struct EditorSettings {
     pub list_marker: ListMarker,
     pub spell_check: bool,
     pub highlight_active_line: bool,
-    /// An adjustment of the regions' washes from their design values
-    /// (Settings > Appearance > Transparency): 0 is the design, -100 opaque,
+    /// An adjustment of the sheet's wash from its design value
+    /// (Settings > Appearance > Glass Transparency): 0 is the design, -100 opaque,
     /// 100 twice as see-through.
     pub window_transparency: i64,
+    /// The same adjustment of the glass material over the sheet
+    /// (Settings > Appearance > Material Transparency).
+    pub material_transparency: i64,
     pub paste_url: PasteUrl,
     pub sync_scroll: bool,
     pub inline_images: bool,
@@ -268,6 +271,7 @@ impl Default for EditorSettings {
             spell_check: true,
             highlight_active_line: false,
             window_transparency: 0,
+            material_transparency: 0,
             paste_url: PasteUrl::Link,
             sync_scroll: true,
             inline_images: true,
@@ -404,6 +408,10 @@ impl EditorSettings {
             "highlightActiveLine" => self.highlight_active_line = flag(value)?,
             "windowTransparency" => {
                 self.window_transparency =
+                    signed_whole(value, -WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX)?
+            }
+            "materialTransparency" => {
+                self.material_transparency =
                     signed_whole(value, -WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX)?
             }
             "pasteUrl" => self.paste_url = choice(value)?,
@@ -783,6 +791,7 @@ mod tests {
         assert_eq!(d.tab_width, 2);
         assert_eq!(d.list_marker, ListMarker::Star);
         assert_eq!(d.window_transparency, 0);
+        assert_eq!(d.material_transparency, 0);
         assert_eq!(d.paste_url, PasteUrl::Link);
         assert!(d.toolbar && d.scroll_past_end && d.show_counts);
         assert_eq!(d.cursor_scroll_margin, 0);
@@ -819,6 +828,7 @@ mod tests {
         // Checked apart: one json! of every key passes the macro recursion limit.
         let map = value.as_object_mut().unwrap();
         assert_eq!(map.remove("loadRemoteImages"), Some(Value::Bool(true)));
+        assert_eq!(map.remove("materialTransparency"), Some(json!(0)));
         let keys: Vec<String> = map
             .keys()
             .filter(|k| k.starts_with("page"))
@@ -1254,6 +1264,10 @@ mod tests {
             json!({ "windowTransparency": -101 }),
             json!({ "windowTransparency": 50.5 }),
             json!({ "windowTransparency": "50" }),
+            json!({ "materialTransparency": 101 }),
+            json!({ "materialTransparency": -101 }),
+            json!({ "materialTransparency": 50.5 }),
+            json!({ "materialTransparency": "50" }),
             json!({ "syncScroll": "off" }),
             json!({ "syncScroll": 0 }),
             json!({ "inlineImages": "on" }),
@@ -1538,6 +1552,36 @@ mod tests {
         assert_eq!(
             EditorSettings::from_stored(&json!({ "windowTransparency": -40 })).window_transparency,
             -40
+        );
+    }
+
+    #[test]
+    fn takes_the_material_transparency_apart_from_the_sheet() {
+        for level in [-100, 0, 35, 100] {
+            let next = EditorSettings::default()
+                .with(&patch(json!({ "materialTransparency": level })))
+                .unwrap();
+            assert_eq!(next.material_transparency, level);
+            assert_eq!(next.window_transparency, 0);
+        }
+    }
+
+    #[test]
+    fn reads_a_file_from_before_the_material_setting_as_the_design() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(FILE), br#"{ "windowTransparency": -40 }"#).unwrap();
+        let read = store(&dir).get().unwrap().settings;
+        assert_eq!(read.window_transparency, -40);
+        assert_eq!(read.material_transparency, 0);
+        assert_eq!(
+            EditorSettings::from_stored(&json!({ "materialTransparency": -101 }))
+                .material_transparency,
+            0
+        );
+        assert_eq!(
+            EditorSettings::from_stored(&json!({ "materialTransparency": 60 }))
+                .material_transparency,
+            60
         );
     }
 
