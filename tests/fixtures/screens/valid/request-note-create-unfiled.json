@@ -1,0 +1,9 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 42,
+    "op": "note.create",
+    "args": {}
+  }
+}

@@ -249,6 +249,10 @@ const PLUGINS: &[&str] = &[
     "plugin_export_save",
 ];
 
+/// The iPhone's native screens and the page: the bridge's replies and notices, and what waited for
+/// the page before it listened.
+const SCREENS: &[&str] = &["screens_post", "screens_take"];
+
 pub const AREAS: &[&[&str]] = &[
-    SHELL, NOTES, HISTORY, FILES, SETTINGS, WINDOWS, LICENCE, SYNC, AI, CLI, PLUGINS,
+    SHELL, NOTES, HISTORY, FILES, SETTINGS, WINDOWS, LICENCE, SYNC, AI, CLI, PLUGINS, SCREENS,
 ];

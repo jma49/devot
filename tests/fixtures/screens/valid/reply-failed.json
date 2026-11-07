@@ -1,0 +1,9 @@
+{
+  "from": "page",
+  "message": {
+    "v": 1,
+    "id": 41,
+    "ok": false,
+    "code": "E_LICENCE_REQUIRED"
+  }
+}

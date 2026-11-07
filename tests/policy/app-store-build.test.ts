@@ -121,6 +121,9 @@ describe('the iPhone app', () => {
       // SQLite's locking style and atomic_file's read-only check read a volume's flags and file
       // system type with statfs, fstatfs and statvfs before writing, never its free space.
       NSPrivacyAccessedAPICategoryDiskSpace: ['E174.1'],
+      // The native screens read the app's own defaults: their kill switch, then this iPhone's
+      // glass and navigation settings.
+      NSPrivacyAccessedAPICategoryUserDefaults: ['CA92.1'],
     })
   })
 

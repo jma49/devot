@@ -361,7 +361,7 @@ jobs:
         working-directory: src-tauri
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      # The generated Swift tokens and strings, which no package compiles yet.
+      # The generated Swift tokens and strings on their own; ios-app compiles the whole package.
       - run: xcrun --sdk iphonesimulator swiftc -typecheck -swift-version 6 -warnings-as-errors -target arm64-apple-ios26.0-simulator apple/DevotScreens/Sources/DevotScreens/Generated/*.swift
       # The typecheck never runs L10n's placeholder filling; this checks it against the page's cases.
       - run: swiftc -swift-version 6 -warnings-as-errors -o "$RUNNER_TEMP/strings-check" apple/DevotScreens/Sources/DevotScreens/Generated/Strings.swift apple/DevotScreens/Checks/main.swift && "$RUNNER_TEMP/strings-check"
@@ -378,9 +378,9 @@ jobs:
       # The input bar's Objective-C runtime tests run only on an Apple host.
       - run: cargo test --lib input_accessory
 
-  # The StoreKit bridge (src-tauri/apple/DevotStore): its tests in a host app on an iPhone
-  # simulator, as StoreKit Test needs, then the iPhone app built for the simulator, which is the
-  # only build that links the Swift package and Rust's calls into it.
+  # The Swift packages (src-tauri/apple/DevotStore and DevotScreens): their tests in host apps on an
+  # iPhone simulator, as StoreKit Test and UIKit need, then the iPhone app built for the simulator,
+  # which is the only build that links the packages and Rust's calls into them.
   ios-app:
     name: iPhone app and StoreKit tests
     needs: changes
@@ -397,6 +397,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: sh scripts/ci/devot-store-tests.sh
+      - run: sh scripts/ci/devot-screens-tests.sh
       # A placeholder for the UI, as in rust-check.
       - run: mkdir -p dist && echo '<!doctype html><title>Devot</title>' > dist/index.html
       - run: rustup toolchain install

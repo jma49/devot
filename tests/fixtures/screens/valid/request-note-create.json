@@ -1,0 +1,12 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 41,
+    "op": "note.create",
+    "args": {
+      "bookId": "0192f0c4-3b1e-7a2d-9c4f-5e6a7b8c9d0e",
+      "title": "Café plans"
+    }
+  }
+}

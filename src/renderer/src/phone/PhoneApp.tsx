@@ -28,6 +28,7 @@ import { PhoneLibrary } from './PhoneLibrary'
 import { usePhoneData, type PhoneData } from './usePhoneData'
 import { haptic } from './haptics'
 import { startLicence, useLicence } from '../licence'
+import { startScreensBridge } from './screens/bridge'
 import { currentWindowLabel } from '../focus'
 import { useSyncEngine } from '../sync'
 import { licenceRow, welcomeDue } from './settingsRows'
@@ -238,6 +239,7 @@ export function PhoneApp() {
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => (root.current ? startPhoneRoot(root.current) : undefined), [])
   useEffect(() => startLicence(), [])
+  useEffect(() => startScreensBridge().stop, [])
   useEffect(() => {
     if (welcomed.current || !welcomeDue(licence, Date.now())) return
     welcomed.current = true

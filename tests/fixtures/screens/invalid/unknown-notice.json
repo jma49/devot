@@ -1,0 +1,9 @@
+{
+  "from": "page",
+  "code": "E_SCREENS_NOTICE_UNKNOWN",
+  "envelope": true,
+  "message": {
+    "v": 1,
+    "notice": "notes.exploded"
+  }
+}

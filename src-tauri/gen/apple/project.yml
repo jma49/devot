@@ -4,10 +4,13 @@ options:
   deploymentTarget:
     iOS: 26.0
 fileGroups: [../../src]
-# StoreKit 2 behind a C ABI (docs/adr/0014); native/ios/store.rs calls it. Only the iPhone app links it.
+# StoreKit 2 (docs/adr/0014) and the native screens (docs/specs/iphone-screens.md), each behind a
+# C ABI that native/ios/store.rs or native/ios/screens.rs calls. Only the iPhone app links them.
 packages:
   DevotStore:
     path: ../../apple/DevotStore
+  DevotScreens:
+    path: ../../apple/DevotScreens
 configs:
   debug: debug
   release: release
@@ -86,6 +89,7 @@ targets:
       - framework: libapp.a
         embed: false
       - package: DevotStore
+      - package: DevotScreens
       - sdk: CoreGraphics.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework
