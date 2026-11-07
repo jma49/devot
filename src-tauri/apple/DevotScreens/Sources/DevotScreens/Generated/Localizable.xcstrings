@@ -14796,6 +14796,138 @@
         }
       }
     },
+    "phone.pro.bodyAiKey" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI needs a license."
+          }
+        }
+      }
+    },
+    "phone.pro.bodyAttention" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This device's license could not be verified."
+          }
+        }
+      }
+    },
+    "phone.pro.bodyChecking" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your App Store purchases could not be checked yet."
+          }
+        }
+      }
+    },
+    "phone.pro.bodyKey" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes stay readable and searchable. Editing needs a license."
+          }
+        }
+      }
+    },
+    "phone.pro.bodySeat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This iPhone is not on your license's device list."
+          }
+        }
+      }
+    },
+    "phone.pro.bodyUnreadable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devot could not read its license from the keychain."
+          }
+        }
+      }
+    },
+    "phone.pro.inactiveTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devot Pro is not active"
+          }
+        }
+      }
+    },
+    "phone.pro.notNow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Now"
+          }
+        }
+      }
+    },
+    "phone.pro.openLicence" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open License Settings"
+          }
+        }
+      }
+    },
+    "phone.pro.titleAttention" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "License needs attention"
+          }
+        }
+      }
+    },
+    "phone.pro.titleUnreadable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "License could not be read"
+          }
+        }
+      }
+    },
+    "phone.pro.tryAgain" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try Again"
+          }
+        }
+      }
+    },
     "phone.purchase.buy" : {
       "extractionState" : "manual",
       "localizations" : {

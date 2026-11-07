@@ -5802,6 +5802,54 @@ public enum L10n {
     fill(text("phone.purchase.restoreFailed", "Purchases could not be restored. {problem}"), ["problem": p0])
   }
 
+  public static func phoneProInactiveTitle() -> String {
+    text("phone.pro.inactiveTitle", "Devot Pro is not active")
+  }
+
+  public static func phoneProTitleAttention() -> String {
+    text("phone.pro.titleAttention", "License needs attention")
+  }
+
+  public static func phoneProTitleUnreadable() -> String {
+    text("phone.pro.titleUnreadable", "License could not be read")
+  }
+
+  public static func phoneProBodyKey() -> String {
+    text("phone.pro.bodyKey", "Notes stay readable and searchable. Editing needs a license.")
+  }
+
+  public static func phoneProBodyChecking() -> String {
+    text("phone.pro.bodyChecking", "Your App Store purchases could not be checked yet.")
+  }
+
+  public static func phoneProBodyAttention() -> String {
+    text("phone.pro.bodyAttention", "This device's license could not be verified.")
+  }
+
+  public static func phoneProBodySeat() -> String {
+    text("phone.pro.bodySeat", "This iPhone is not on your license's device list.")
+  }
+
+  public static func phoneProBodyUnreadable() -> String {
+    text("phone.pro.bodyUnreadable", "Devot could not read its license from the keychain.")
+  }
+
+  public static func phoneProBodyAiKey() -> String {
+    text("phone.pro.bodyAiKey", "AI needs a license.")
+  }
+
+  public static func phoneProOpenLicence() -> String {
+    text("phone.pro.openLicence", "Open License Settings")
+  }
+
+  public static func phoneProTryAgain() -> String {
+    text("phone.pro.tryAgain", "Try Again")
+  }
+
+  public static func phoneProNotNow() -> String {
+    text("phone.pro.notNow", "Not Now")
+  }
+
   public static func phoneHintDone() -> String {
     text("phone.hint.done", "Done")
   }

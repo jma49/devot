@@ -5,6 +5,7 @@ import { Icon } from '../icons/Icon'
 import {
   editingAllowed,
   purchase,
+  readCurrentLicence,
   restorePurchases,
   storeProducts,
   TRIAL_DAYS,
@@ -13,10 +14,11 @@ import {
   type StoreProductView,
 } from '../licence'
 import { licenceProblem } from '../licenceView'
-import { closePurchase } from '../purchaseSheet'
+import { closePurchase, purchaseGate, usePurchaseGate } from '../purchaseSheet'
 import { doveMask } from './dove'
 import { PhoneSheet } from './PhoneSheet'
 import { logFailure } from '../failure'
+import { gateUnlocked } from './requireEditing'
 
 export type PurchaseBusy = StoreProduct | 'restore'
 
@@ -45,7 +47,11 @@ const FEATURES = [
   ['phone.purchase.featureAi', null],
 ] as const
 
-function purchaseHeading(licence: LicenceSnapshot): string {
+function purchaseHeading(licence: LicenceSnapshot, gate: boolean): string {
+  if (gate)
+    return t(
+      licence.trial?.state === 'available' ? 'phone.pro.inactiveTitle' : 'phone.purchase.ended',
+    )
   if (licence.trial?.state === 'available') return t('phone.purchase.title')
   if (licence.appStore?.code) return t('phone.purchase.unknown')
   return t(licence.trial?.state === 'ended' ? 'phone.purchase.ended' : 'phone.purchase.title')
@@ -148,8 +154,15 @@ export function PurchaseOffer(props: {
   )
 }
 
-/** The purchase sheet, over every tab, while `purchaseSheet` says it is open. */
+/** Opened by a locked write, the sheet goes and the write runs through the gate again. */
+const unlocked = () => (purchaseGate() ? gateUnlocked() : closePurchase())
+
+/**
+ * The purchase sheet, over every tab, while `purchaseSheet` says it is open. Opened by a write that
+ * editing is locked for, its head says Devot Pro is not active.
+ */
 export function PhonePurchaseSheet(props: { licence: LicenceSnapshot; onEnterKey: () => void }) {
+  const gate = usePurchaseGate()
   const [products, setProducts] = useState<readonly StoreProductView[]>([])
   const [busy, setBusy] = useState<PurchaseBusy | null>(null)
   const [message, setMessage] = useState<PurchaseMessage | null>(null)
@@ -170,7 +183,10 @@ export function PhonePurchaseSheet(props: { licence: LicenceSnapshot; onEnterKey
     purchase(product)
       .then(
         (bought) => {
-          if (bought === 'purchased') closePurchase()
+          if (bought === 'purchased')
+            void readCurrentLicence()
+              .catch(() => console.warn('W_LICENCE_READ_FAILED'))
+              .then(unlocked)
           else if (bought === 'pending') setMessage({ kind: 'pending' })
         },
         (error: unknown) =>
@@ -186,7 +202,7 @@ export function PhonePurchaseSheet(props: { licence: LicenceSnapshot; onEnterKey
     setMessage(null)
     restorePurchases()
       .then(
-        () => (editingAllowed() ? closePurchase() : setMessage({ kind: 'nothingRestored' })),
+        () => (editingAllowed() ? unlocked() : setMessage({ kind: 'nothingRestored' })),
         (error: unknown) =>
           setMessage({
             kind: 'restoreFailed',
@@ -197,7 +213,7 @@ export function PhonePurchaseSheet(props: { licence: LicenceSnapshot; onEnterKey
   }
   return (
     <PhoneSheet
-      title={purchaseHeading(props.licence)}
+      title={purchaseHeading(props.licence, gate)}
       onClose={closePurchase}
       lead={
         <span className="phone-detail-icon">

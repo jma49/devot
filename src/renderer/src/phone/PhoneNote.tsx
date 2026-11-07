@@ -5,7 +5,7 @@ import type { NoteSummary } from '../../../core/storage'
 import { tagCounts } from '../../../core/tags'
 import { aiTransport } from '../ai'
 import { aiSuggestFailure } from '../aiEditView'
-import { licenceEntitlements } from '../licence'
+import { licenceEntitlements, useEditing } from '../licence'
 import { loadAiSettings } from '../settings/aiProviders'
 import { useAlertMenu } from '../editor/alertMenu'
 import { noteDate } from '../format'
@@ -34,6 +34,7 @@ import {
   TagPicker,
 } from './pickers'
 import { PhoneDetailSheet, PhoneSheet, SheetChoice } from './PhoneSheet'
+import { requireEditing, watchWrite } from './requireEditing'
 import type { PhoneStore } from './usePhoneData'
 import { useKeyboard } from './useKeyboard'
 
@@ -178,6 +179,8 @@ function InfoSheet(props: {
 
 type Sheet = 'info' | 'notebook' | 'status' | 'tags' | null
 
+const PICKER_OPS = { notebook: 'move', status: 'status', tags: 'tags' } as const
+
 export function PhoneNote(props: {
   store: PhoneStore
   noteId: string
@@ -190,7 +193,7 @@ export function PhoneNote(props: {
   const note =
     store.notes.find((n) => n.id === noteId) ?? store.templates.find((n) => n.id === noteId)
   const [modes, setModes] = useState<Readonly<Record<string, 'edit' | 'preview'>>>({})
-  const mode = modes[noteId] ?? 'preview'
+  const editing = useEditing()
   const setMode = (next: 'edit' | 'preview') => setModes((m) => ({ ...m, [noteId]: next }))
   const [toggles, setToggles] = useState(0)
   const [body, setBody] = useState({ id: noteId, text: '' })
@@ -200,6 +203,9 @@ export function PhoneNote(props: {
   const [suggestFailure, setSuggestFailure] = useState<string>()
   const [finding, setFinding] = useState(false)
   const [findTarget, setFindTarget] = useState<FindTarget | null>(null)
+  // A locked note stays in Preview; only Find shows its editor, which then takes no caret.
+  const mode = editing || finding ? (modes[noteId] ?? 'preview') : 'preview'
+  const titleField = useRef<HTMLTextAreaElement>(null)
   const editor = useRef<EditorHandle | null>(null)
   const showAlertMenu = useAlertMenu()
   const keyboard = useKeyboard()
@@ -288,14 +294,18 @@ export function PhoneNote(props: {
   const stats = noteStats(text)
   const title = titleDraft ?? note.title
   const back = () => (history.at > 0 ? setHistory((h) => ({ ...h, at: h.at - 1 })) : props.onBack())
+  const pick = (picker: 'notebook' | 'status' | 'tags') =>
+    requireEditing({ op: PICKER_OPS[picker], id: note.id }, () => setSheet(picker))
 
   return (
     <section aria-label={note.title || t('note.untitled')} className="phone-screen">
       <div className="phone-scroll phone-note-scroll">
         <div className="phone-note-heading-field" data-title={title}>
           <textarea
+            ref={titleField}
             className="phone-note-heading"
             rows={1}
+            readOnly={!editing}
             aria-label={t('phone.note.title')}
             placeholder={t('note.untitled')}
             value={title}
@@ -303,22 +313,26 @@ export function PhoneNote(props: {
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.preventDefault()
             }}
+            onClick={() => {
+              if (!editing)
+                requireEditing({ op: 'title', id: note.id }, () => titleField.current?.focus())
+            }}
             onBlur={() => {
               if (titleDraft !== null && titleDraft !== note.title)
-                void core.setTitle(note.id, titleDraft)
+                watchWrite('title', core.setTitle(note.id, titleDraft))
               setTitleDraft(null)
             }}
           />
         </div>
         <div className="phone-chips phone-note-chips">
-          <button type="button" className="phone-chip-target" onClick={() => setSheet('notebook')}>
+          <button type="button" className="phone-chip-target" onClick={() => pick('notebook')}>
             <span className="phone-chip">
               <Icon name="notebook" size="sm" />
               <span className="phone-chip-text">{book?.name ?? t('phone.noNotebook')}</span>
               <Icon name="popup.chevron" size="xs" />
             </span>
           </button>
-          <button type="button" className="phone-chip-target" onClick={() => setSheet('status')}>
+          <button type="button" className="phone-chip-target" onClick={() => pick('status')}>
             <span
               className="phone-chip phone-chip-strong"
               style={{ background: statusTile(note.status) }}
@@ -333,7 +347,7 @@ export function PhoneNote(props: {
               key={tag!.id}
               type="button"
               className="phone-chip-target"
-              onClick={() => setSheet('tags')}
+              onClick={() => pick('tags')}
             >
               <span
                 className={`phone-chip ${tagColorClass(tag!.color)}`}
@@ -344,7 +358,7 @@ export function PhoneNote(props: {
               </span>
             </button>
           ))}
-          <button type="button" className="phone-chip-target" onClick={() => setSheet('tags')}>
+          <button type="button" className="phone-chip-target" onClick={() => pick('tags')}>
             <span className="phone-chip phone-chip-dashed">
               <Icon name="notebook.new" size="xs" />
               {t('phone.note.tag')}
@@ -365,6 +379,8 @@ export function PhoneNote(props: {
               noteId={noteId}
               autoFocus={false}
               hidden={mode === 'preview'}
+              readOnly={!editing}
+              noKeyboard
               onText={(read) => showText(noteId, read())}
               onLoaded={(loaded) => noteLoaded(noteId, loaded)}
               links={links}
@@ -381,7 +397,16 @@ export function PhoneNote(props: {
             data-shown={mode === 'preview' || undefined}
             aria-hidden={mode !== 'preview'}
           >
-            {mode === 'preview' && <Preview core={core} markdown={text} onOpenNote={openNote} />}
+            {mode === 'preview' && (
+              <Preview
+                core={core}
+                markdown={text}
+                onOpenNote={openNote}
+                onToggleTask={(at) =>
+                  requireEditing({ op: 'task', id: noteId }, () => editor.current?.toggleTask(at))
+                }
+              />
+            )}
           </div>
         </div>
       </div>
@@ -404,8 +429,13 @@ export function PhoneNote(props: {
             aria-pressed={mode === 'preview'}
             data-turn={toggles === 0 ? undefined : toggles % 2 ? 'a' : 'b'}
             onClick={() => {
-              setToggles((n) => n + 1)
-              setMode(mode === 'edit' ? 'preview' : 'edit')
+              const next = mode === 'edit' ? 'preview' : 'edit'
+              const turn = () => {
+                setToggles((n) => n + 1)
+                setMode(next)
+              }
+              if (next === 'edit') requireEditing({ op: 'edit', id: noteId }, turn)
+              else turn()
             }}
           >
             <Icon name={mode === 'edit' ? 'mode.preview' : 'mode.edit'} size="lg" />
@@ -462,7 +492,9 @@ export function PhoneNote(props: {
             type="button"
             className="phone-glass phone-note-circle phone-note-ai"
             aria-label={t('phone.note.suggest')}
-            onClick={() => editor.current?.suggest()}
+            onClick={() =>
+              requireEditing({ op: 'ai', id: noteId }, () => editor.current?.suggest())
+            }
           >
             <Icon name="format.ai" size="md" />
           </button>
@@ -532,8 +564,10 @@ export function PhoneNote(props: {
           onClose={() => setSheet(null)}
           onTrash={() => {
             setSheet(null)
-            props.onTrash(note)
-            props.onBack()
+            requireEditing({ op: 'trash', id: note.id }, () => {
+              props.onTrash(note)
+              props.onBack()
+            })
           }}
           onOpenNote={(id) => {
             setSheet(null)
@@ -548,7 +582,7 @@ export function PhoneNote(props: {
           onClose={() => setSheet(null)}
           onPick={(bookId) => {
             setSheet(null)
-            void core.setBook(note.id, bookId)
+            watchWrite('move', core.setBook(note.id, bookId))
           }}
         />
       )}
@@ -558,7 +592,7 @@ export function PhoneNote(props: {
           onClose={() => setSheet(null)}
           onPick={(status) => {
             setSheet(null)
-            void core.setStatus(note.id, status)
+            watchWrite('status', core.setStatus(note.id, status))
           }}
         />
       )}
@@ -569,17 +603,23 @@ export function PhoneNote(props: {
           counts={tagCounts(store.notes)}
           onClose={() => setSheet(null)}
           onCreate={(name, color) =>
-            void core
-              .addTag(note.id, name)
-              .then((id) => {
-                rememberTag(globalThis.localStorage, id)
-                return color ? core.setTagColor(id, color) : undefined
-              })
-              .then(store.refresh)
+            watchWrite(
+              'tags',
+              core
+                .addTag(note.id, name)
+                .then((id) => {
+                  rememberTag(globalThis.localStorage, id)
+                  return color ? core.setTagColor(id, color) : undefined
+                })
+                .then(store.refresh),
+            )
           }
           onToggle={(tag, on) =>
-            void (on ? core.addTag(note.id, tag.name) : core.removeTag(note.id, tag.id)).then(
-              store.refresh,
+            watchWrite(
+              'tags',
+              (on ? core.addTag(note.id, tag.name) : core.removeTag(note.id, tag.id)).then(
+                store.refresh,
+              ),
             )
           }
         />

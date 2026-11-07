@@ -189,6 +189,7 @@ export function LicenceSection() {
           >
             <input
               id={id('key')}
+              data-licence-key
               type="text"
               className="settings-number settings-text"
               spellCheck={false}

@@ -153,6 +153,13 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
 - **Pane rows:** rule 2. A select, action or stepper row fills with `color.phone.pressed` at once while pressed, and the fill goes at once on release. A select's whole row opens the picker. A disabled row is dimmed at rest and never animates.
 - **Detail sheet:** rule 3. It grows in with `gentle` like any sheet; Done and a drag down close it the same way.
 - **Purchase sheet** (App Store builds): rule 3, as the detail sheet. It rises at launch before the trial or once it has ended, and from Buy Devot Pro; the close circle in its head, Escape and a drag down close it the same way. StoreKit's own sheets cover it while a purchase or Restore Purchases runs, with Apple's motion. A completed purchase or restore takes it away at once, as StoreKit's sheet comes down over it. Its filled action and text buttons have no press state, and the close circle presses as a glass control; the price, a pending note or a failure appear in place with no motion (rule 2). A trial that ends while it is open swaps Try Free and Buy Once for the filled Buy at once, and the title with them (rule 2).
+- **Devot Pro not active** (a write while editing is locked): rule 3.
+  A refused control returns at once, and one content-sized sheet rises as any sheet does, with the `warning` haptic.
+  In an App Store build that needs a purchase it is the purchase sheet, headed that Devot Pro is not active or that the trial has ended; otherwise it is the short Pro sheet.
+  Not Now, Escape and a drag down close it the same way.
+  Its contents never animate: a check in progress or a message replaces its line at once (rule 2).
+  A tap while it is up raises no second sheet.
+  Under Reduce Motion it crossfades, as any sheet does.
 - **Mac licence key sheet** (App Store builds, Settings > Get a Mac License Key): rule 3, as the detail sheet. Getting the key, the key, a failure and Copied appear in place with no motion (rule 2). Copy Key, Share and Try Again press as glass controls; Share opens the system share sheet, which rises from the bottom with its own motion.
 - **Restore Purchases row:** rule 2. The row presses as any Settings row; its value changes in place to Restoring and then to the outcome.
 - **Request a Refund row** (App Store builds, while Devot Pro is held): rule 2. The row presses as any Settings row; its value changes in place to Opening and then to Requested or a failure. Apple's refund sheet covers the app with Apple's motion, and a cancel leaves the row as it was.

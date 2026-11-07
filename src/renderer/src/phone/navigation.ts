@@ -13,6 +13,8 @@ export interface PhoneRoute {
   readonly noteId?: string
   /** A Settings pane's id. */
   readonly pane?: string
+  /** License opened to type a key: its key field takes the focus. */
+  readonly focusKey?: boolean
 }
 
 export interface PhoneNavigation {

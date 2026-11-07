@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { errorCode } from '../../../core/errors'
 import { crashReports } from '../crashReports'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
@@ -421,9 +421,16 @@ const PANE_SECTIONS: Readonly<Partial<Record<PaneId, () => Promise<() => React.J
 }
 
 /** An existing Settings pane, in a phone screen of its own. */
-export function PhoneSettingsPane(props: { pane: string; onBack: () => void }) {
+export function PhoneSettingsPane(props: { pane: string; focusKey?: boolean; onBack: () => void }) {
   const pane = props.pane as PaneId
   const [Section, setSection] = useState<(() => React.JSX.Element) | null>(null)
+  const scroller = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (Section && props.focusKey)
+      scroller.current
+        ?.querySelector<HTMLInputElement>('input[data-licence-key]')
+        ?.focus({ preventScroll: true })
+  }, [Section, props.focusKey])
   useEffect(() => {
     let alive = true
     void PANE_SECTIONS[pane]?.()
@@ -436,7 +443,7 @@ export function PhoneSettingsPane(props: { pane: string; onBack: () => void }) {
   const title = PANE_TABS[pane] ? t(PANE_TABS[pane].label) : t('settings.title')
   return (
     <section aria-label={title} className="phone-screen">
-      <div className="phone-scroll phone-settings-pane settings-window">
+      <div ref={scroller} className="phone-scroll phone-settings-pane settings-window">
         <OnPhone.Provider value={true}>{Section && <Section />}</OnPhone.Provider>
       </div>
       <div aria-hidden="true" className="phone-topbar-band" />

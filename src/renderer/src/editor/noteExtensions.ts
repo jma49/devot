@@ -89,6 +89,13 @@ export const LOCKED = [
     }),
   ),
 ]
+// A read-only contenteditable still takes the caret, and on the iPhone a tap on it raises the keyboard.
+const NO_KEYBOARD = [...LOCKED, EditorView.editable.of(false)]
+
+export type EditorLock = 'none' | 'readOnly' | 'noKeyboard'
+
+export const lockExtensions = (lock: EditorLock) =>
+  lock === 'none' ? [] : lock === 'readOnly' ? LOCKED : NO_KEYBOARD
 // WebKit keeps a contenteditable's selection when focus moves to a sheet or the history bar, and
 // runs Backspace and typing against it even under `inert` or a modal: the note out of sight would
 // change. The change is dropped and the editor draws its own text again. It comes first among the
@@ -174,7 +181,7 @@ export interface NoteEditorRefs {
     open: ((image: ViewedImage) => void) | undefined
     menu: ShowImageMenu | undefined
   }>
-  locked: RefObject<boolean>
+  locked: RefObject<EditorLock>
   countsReport: RefObject<((counts: EditorCounts) => void) | undefined>
   caretLineReport: RefObject<((line: number) => void) | undefined>
 }
@@ -283,7 +290,7 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
     }),
     popupSpace(frame),
     pausedSlot.of([]),
-    lockedSlot.of(refs.locked.current ? LOCKED : []),
+    lockedSlot.of(lockExtensions(refs.locked.current)),
     authorshipSlot.of(marksFor(settings.authorship, doc, noteId)),
     // Undo is CodeMirror's history alone: no Yjs undo manager.
     authorshipUndo(doc),
