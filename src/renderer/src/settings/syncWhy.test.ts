@@ -33,6 +33,12 @@ describe('failureText', () => {
     )
   })
 
+  it('says a recovery key was refused because its vault is being removed from iCloud', () => {
+    expect(failureText('syncSettings.devicesFailed', 'E_SYNC_ICLOUD_LEAVING')).toBe(
+      `${en['syncSettings.devicesFailed']} ${en['syncSettings.why.icloudLeaving']}`,
+    )
+  })
+
   it('ends the explanation with a full stop, also where the phone copy is a bare label', () => {
     setIPhoneWording(true)
     expect(enPhone['syncSettings.icloudFull']).toBeDefined()

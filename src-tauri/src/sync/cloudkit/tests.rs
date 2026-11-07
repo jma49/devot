@@ -776,6 +776,29 @@ fn a_leave_that_stopped_after_current_s_zone_stops_every_device() {
 }
 
 #[test]
+fn a_vault_zone_without_zone_devot_is_being_left() {
+    use super::current::{Unclaimed, unclaimed};
+    use super::kit::CloudKit as _;
+    let kit = Arc::new(Fake::new());
+    let vault = Vault::generate().unwrap().id().to_string();
+    let zone = vault_zone(&vault);
+    assert_eq!(unclaimed(kit.as_ref(), &vault), Ok(Unclaimed::Absent));
+
+    kit.save_zones(&[ZONE_DEVOT.to_string(), zone.clone()])
+        .unwrap();
+    assert_eq!(unclaimed(kit.as_ref(), &vault), Ok(Unclaimed::There));
+
+    kit.delete_zone(ZONE_DEVOT);
+    let (saves, zones) = (kit.calls(Op::Save), kit.calls(Op::SaveZones));
+    assert_eq!(unclaimed(kit.as_ref(), &vault), Ok(Unclaimed::BeingLeft));
+    assert_eq!(kit.calls(Op::Save), saves, "it only reads");
+    assert_eq!(kit.calls(Op::SaveZones), zones);
+
+    kit.delete_zone(&zone);
+    assert_eq!(unclaimed(kit.as_ref(), &vault), Ok(Unclaimed::Absent));
+}
+
+#[test]
 fn the_account_is_kept_as_a_short_hash_of_the_user_record() {
     use sha2::{Digest, Sha256};
     let (kit, vault) = setup();

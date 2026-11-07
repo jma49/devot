@@ -38,6 +38,7 @@ export const WHY: Readonly<Record<string, MessageKey>> = {
   E_SYNC_ICLOUD_OTHER_ACCOUNT: 'syncSettings.icloudOtherAccount',
   E_SYNC_ICLOUD_OTHER_VAULT: 'syncSettings.why.icloudOtherVault',
   E_SYNC_ICLOUD_NO_VAULT: 'syncSettings.why.icloudNoVault',
+  E_SYNC_ICLOUD_LEAVING: 'syncSettings.why.icloudLeaving',
   E_SYNC_ICLOUD_NOT_USED: 'syncSettings.why.icloudNotUsed',
   E_SYNC_ICLOUD_FAILED: 'syncSettings.why.icloudFailed',
   E_SYNC_ICLOUD_ZONE_MISSING: 'syncSettings.why.icloudZoneMissing',

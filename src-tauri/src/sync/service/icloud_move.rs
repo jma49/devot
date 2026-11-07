@@ -1,8 +1,7 @@
 #[cfg(test)]
 use std::sync::atomic::Ordering;
 
-use super::super::cloudkit::current::{self, Claim};
-use super::super::cloudkit::kit::vault_zone;
+use super::super::cloudkit::current::{self, Claim, Unclaimed};
 use super::super::cloudkit::{self, ICloudState};
 use super::super::settings::{DeviceCredentials, SyncSettings};
 use super::super::{Vault, handover, moved};
@@ -190,15 +189,22 @@ impl SyncService {
 
     /// Whether this Apple ID syncs `vault`: `current` names it, or its zone is there from before
     /// `current` and it claims it now. Any other vault would start a second copy that never meets
-    /// the first; with no `current` and no zone it is not on this Apple ID's iCloud.
+    /// the first; with no `current` and no zone it is not on this Apple ID's iCloud, and a zone
+    /// without zone `devot` belongs to a leave that stopped part way, so it is treated as left.
     pub(super) fn belongs(&self, vault: &Vault) -> Result<(), &'static str> {
         let kit = self.kit.as_ref();
         let id = vault.id().to_string();
         match current::read(kit)? {
             Some(current) if current == id => Ok(()),
             Some(_) => Err(OTHER_VAULT),
-            None if current::zone_exists(kit, &vault_zone(&id))? => self.claim(vault),
-            None => Err(NO_VAULT),
+            None => match current::unclaimed(kit, &id)? {
+                Unclaimed::There => self.claim(vault),
+                Unclaimed::BeingLeft => {
+                    log::warn!("W_SYNC_ICLOUD_BEING_LEFT vault={id}");
+                    Err(cloudkit::error::LEAVING)
+                }
+                Unclaimed::Absent => Err(NO_VAULT),
+            },
         }
     }
 
