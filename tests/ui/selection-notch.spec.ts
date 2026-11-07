@@ -147,7 +147,7 @@ for (const scheme of ['light', 'dark'] as const) {
               )
             expect(sides, `outline on the ${side < 0 ? 'left' : 'right'} side`).toBeGreaterThan(2)
           }
-          // Inside, the notch is the fill; a light glass fill lets the bar's shadow through faintly.
+          // Inside, the notch is the fill, give or take the fade of the bar's sheen over its rows.
           expect(distance(shot.at(Math.round(cx), midY), [r, g, b])).toBeLessThanOrEqual(
             scheme === 'light' ? 4 : 2,
           )
