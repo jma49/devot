@@ -12,14 +12,14 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 - The peek's status bar and menu sit over the peek's own 16 px blur and draw no blur of their own: a second one would add nothing, and it would be drawn again every frame they grow.
 - Content runs the full height of the screen and scrolls under the glass, with the frosted band under each top bar: `size.phone-topbar-band` below the safe area, `blur(20px) saturate(1.8)`, `color.phone.bar`, a 0.5 hairline in `color.phone.separator`. Content starts `size.phone-content-top` below the safe area. Reduce Transparency makes the band opaque.
 - Colour on glass marks what is selected only: the accent on the selected tab, the caret's violet on AI. The compose circle's icon is in the text colour.
-- Curves share a centre: a capsule is height / 2, and an inner radius is the outer radius minus the inset. This wins over a design value: fields in the capture sheet are 20 (design 24 and 22). A grouped row's pressed fill is the exception: `radius.phone-row-press` 16 in a 22 card.
+- Curves share a centre: a capsule is height / 2, and an inner radius is the outer radius minus the inset. A grouped row's pressed fill is the exception: `radius.phone-row-press` 16 in a 22 card.
 - CSS draws the glass (ADR 0010).
 - Glass Transparency is this iPhone's own choice, in `devot.phone.glassTransparency` in the webview's storage, never the Mac's settings and never synced (`phone/glassPrefs.ts`). It moves `.phone-glass`'s tint: -100 is `color.phone.glass-opaque`, 0 the design, 100 half the tint's opacity. Reduce Transparency wins over it.
 - Appearance's Light and Dark reach UIKit too: every window takes the chosen style (`overrideUserInterfaceStyle`), so the status bar, the keyboard and the web view's `prefers-color-scheme` follow it, not only the page's tokens.
 
 ## Touch
 
-- Every target is at least `size.phone-target` (44 pt). A smaller drawing keeps its size and extends its hit area: the formatting bar's buttons (38 by 40), the sheet's close and capture's Cancel and Save (`size.phone-capture-control`, on a `.phone-hit` child), and the note's chips (30 in a layout item 44 tall, so wrapped rows' targets touch and never overlap).
+- Every target is at least `size.phone-target` (44 pt). A smaller drawing keeps its size and extends its hit area: the formatting bar's buttons (38 by 40), the sheet's close, and the note's chips (30 in a layout item 44 tall, so wrapped rows' targets touch and never overlap).
 - A back swipe starts from the left edge and tracks the finger; every push can be undone by it. A vertical scroll never starts a swipe.
 - Anything a gesture does is reachable without it: swipe actions and the peek's actions are also VoiceOver custom actions.
 
@@ -64,7 +64,10 @@ A notebook's path and the Mac key use `.phone-mono`, the mono font.
 
 Tab bar: four icon-only tabs (Notes, Library, Activity, Settings) in a `size.phone-glass-bar` glass bar at x 16, as wide as the screen leaves beside the `size.phone-compose` glass circle: 286 on a 390 screen, with the circle at x 312. The selected tab has a lens (inset 4 on every side at every tab, `radius.phone-lens-bar`, concentric with the bar) and a filled icon in the accent; the lens stretches between tabs by width and never reaches past the bar's inner edge, and it can be dragged along the bar; Settings shows a badge when the licence needs attention. The circle is offered on the Notes and Library screens that can take a new note, and hidden on Activity, Settings, Templates, Trash, a note and a pane.
 
-Capture: the circle grows in place into the sheet, `size.phone-sheet-inset` from the screen's sides and bottom, up to `size.phone-capture-height`. The keyboard does not move the layout, so the open sheet rides above it and shrinks to what is left under the safe area, and its contents scroll. A note saved where the list would not show it opens All Notes.
+New Note: the circle makes an empty note, in the notebook the list shows, else the default notebook, else none, and pushes its screen at once with the caret in the body.
+Where the screen below would not list it (a status list, a tag list, the Library), its notebook's list or All Notes slides in under it on the same tab, so Back finds it.
+Back from a note left untouched deletes it for good.
+In Templates the circle is New Template and makes a template the same way.
 
 Search: an overlay over the whole screen, including the tab bar. In the top bar's place, a 44 glass field and a 44 close circle. With no query: Recent, then chips (`size.phone-search-chip`, a 44 target) for Notebooks, Status and Tags, each filling the field with `in:`, `is:` or `#`. Recent searches stay in this device's `localStorage`, added on Return or on opening a result; they are never synced or logged. Results are note rows without swipes, found words in `color.phone.match`, the notebook in mono where the time goes, the excerpt moved to start a few words before the match, since one line holds far less than the core's excerpt.
 

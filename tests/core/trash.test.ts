@@ -164,3 +164,43 @@ describe('trash on SQLite', () => {
     expect((await notes.list()).map((n) => n.id)).toEqual([id])
   })
 })
+
+describe('discarding an empty note on SQLite', () => {
+  it('deletes a live note with no title and no body for good, without the Trash', async () => {
+    const { storage, notes } = setup()
+    const id = await notes.create('', null)
+    await notes.open(id)
+    await notes.discardEmpty(id)
+    expect(await notes.list()).toEqual([])
+    expect(await notes.listTrash()).toEqual([])
+    expect(await storage.getNote(id, { trashed: true })).toBeNull()
+  })
+
+  it('refuses a note with a title, and keeps it', async () => {
+    const { notes } = setup()
+    const id = await notes.create('Plans', null)
+    await expect(notes.discardEmpty(id)).rejects.toThrow('E_NOTE_NOT_TRASHED')
+    expect((await notes.list()).map((n) => n.id)).toEqual([id])
+  })
+
+  it('refuses a note whose body was typed but not saved yet, and keeps the text', async () => {
+    const { notes } = setup()
+    const id = await notes.create('', null)
+    const opened = await notes.open(id)
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, opened.state)
+    const before = Y.encodeStateVector(doc)
+    doc.getText(BODY).insert(0, 'a')
+    await notes.applyUpdate(id, Y.encodeStateAsUpdate(doc, before))
+    await expect(notes.discardEmpty(id)).rejects.toThrow('E_NOTE_NOT_TRASHED')
+    expect((await notes.read(id)).bodyMd).toBe('a')
+  })
+
+  it('leaves a note in the Trash to Empty Trash', async () => {
+    const { notes } = setup()
+    const id = await notes.create('', null)
+    await notes.trash(id)
+    await expect(notes.discardEmpty(id)).rejects.toThrow('E_NOTE_NOT_FOUND')
+    expect((await notes.listTrash()).map((n) => n.id)).toEqual([id])
+  })
+})

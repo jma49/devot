@@ -64,10 +64,10 @@ test('the compose circle sits beside the tab bar and leaves Activity and Setting
   expect((await compose.boundingBox())!.y).toBe(844 - 24 - 62)
   for (const name of ['Activity', 'Settings']) {
     await tab(page, name).click()
-    await expect(page.locator('.phone-capture')).toHaveAttribute('data-hidden')
+    await expect(page.locator('.phone-compose')).toHaveAttribute('data-hidden')
   }
   await tab(page, 'Notes').click()
-  await expect(page.locator('.phone-capture')).not.toHaveAttribute('data-hidden')
+  await expect(page.locator('.phone-compose')).not.toHaveAttribute('data-hidden')
 })
 
 test('Activity has a top bar and moves the lens to the third place', async ({ page }) => {
@@ -306,23 +306,19 @@ test('a drag the bar is resized under is cancelled', async ({ page }) => {
   await expect(tab(page, 'Activity')).toHaveAttribute('aria-current', 'page')
 })
 
-test('the capture sheet grows from the circle, 374 by 440, and goes back', async ({ page }) => {
+test('New Note pushes an empty note over the list, with no sheet, and the circle comes back', async ({
+  page,
+}) => {
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
-  const sheet = page.getByRole('dialog', { name: 'New Note' })
-  await expect(sheet).toBeVisible()
-  // 440 at the default text size, and the test browser's system text is smaller.
-  const height = 440 * (await barScale(page))
+  const note = page.getByRole('region', { name: 'Untitled' })
+  await expect(note).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'New Note' })).toHaveCount(0)
+  await expect(note.locator('.cm-content')).toBeFocused()
+  await expect(page.locator('.phone-compose')).toHaveAttribute('data-hidden')
+  await note.getByRole('button', { name: 'Back' }).click()
+  await expect(note).toHaveCount(0)
   await expect
-    .poll(async () => {
-      const box = (await sheet.boundingBox())!
-      return [box.x, box.width, Math.round(box.height), Math.round(box.y)]
-    })
-    .toEqual([8, 374, Math.round(height), Math.round(844 - 8 - height)])
-  await expect(sheet).toHaveCSS('border-radius', '34px')
-  await sheet.getByRole('button', { name: 'Cancel' }).click()
-  await expect(sheet).toHaveCount(0)
-  await expect
-    .poll(async () => page.locator('.phone-capture').boundingBox())
+    .poll(async () => page.locator('.phone-compose').boundingBox())
     .toMatchObject({ x: 312, width: 62, height: 62 })
 })
 

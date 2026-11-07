@@ -121,7 +121,10 @@ it('reaches every UI source in the repository from a page, a lazy boundary or a 
     return !reach || reach.pages.size + reach.boundaries.size + reach.specs.size === 0
   })
   // Shared by unit tests only.
-  expect(unreached).toEqual(['src/renderer/src/menuLines.ts'])
+  expect(unreached).toEqual([
+    'src/renderer/src/menuLines.ts',
+    'src/renderer/src/phone/testShell.tsx',
+  ])
 })
 
 it('names as phone specs exactly the specs that load the phone layout', () => {

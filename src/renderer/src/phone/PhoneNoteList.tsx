@@ -592,8 +592,6 @@ export function PhoneNoteList(props: {
     if (!hasArrived || !scroll) return
     const row = scroll.querySelector<HTMLElement>('.phone-note-row[data-arrived]')
     if (!row) return
-    // The rows below shift by what it really takes, which Dynamic Type can change.
-    scroll.style.setProperty('--phone-arrived-height', `${row.offsetHeight}px`)
     const topInset = Number.parseFloat(getComputedStyle(scroll).paddingTop)
     if (scroll.scrollTop > row.offsetTop - topInset) scroll.scrollTop = row.offsetTop - topInset
   }, [hasArrived])

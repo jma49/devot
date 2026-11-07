@@ -55,7 +55,7 @@ async function newestBackup(): Promise<number | null | undefined> {
 }
 
 export type PhoneStore = PhoneData & {
-  readonly refresh: () => void
+  readonly refresh: () => Promise<void>
   /** Hears each change a note in memory took in that the phone did not make (sync's, merged in); returns the stop. */
   readonly onTakenIn: (listener: (change: TakenIn) => void) => () => void
 }
@@ -95,10 +95,10 @@ export function usePhoneData(): PhoneStore {
     })
   }, [])
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     const core = coreRef.current
     if (core)
-      void load(core).catch((e: unknown) => console.warn('W_PHONE_LOAD_FAILED', errorCode(e)))
+      await load(core).catch((e: unknown) => console.warn('W_PHONE_LOAD_FAILED', errorCode(e)))
   }, [load])
 
   useEffect(() => {
@@ -106,7 +106,7 @@ export function usePhoneData(): PhoneStore {
     let started: Core | null = null
     void startCore(
       () => {},
-      () => refresh(),
+      () => void refresh(),
       (code) => console.warn('W_PHONE_CORE_FAILED', code),
       { onTakenIn: (change) => takenIn.forEach((listener) => listener(change)) },
     )

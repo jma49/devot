@@ -50,7 +50,7 @@ beforeEach(() => {
     trash: [],
     lastBackup: null,
     loadedAt: 0,
-    refresh: () => {},
+    refresh: async () => {},
     onTakenIn: () => () => {},
   }
   host = document.createElement('div')

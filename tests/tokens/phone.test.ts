@@ -45,8 +45,6 @@ describe('the phone layout tokens', () => {
     ['size.phone-tab-inset', 16],
     ['size.phone-compose', 62],
     ['size.phone-compose-gap', 10],
-    ['size.phone-capture-height', 440],
-    ['size.phone-arrive-rise', 320],
     ['size.phone-tab-bottom', 24],
     ['size.phone-search-chip', 34],
     ['size.phone-child-indent', 40],
@@ -102,7 +100,6 @@ describe('the phone layout tokens', () => {
   it('keeps what sits in a sheet concentric with the sheet', () => {
     const sheet = px('radius.phone-sheet')
     expect(sheet - px('size.phone-sheet-pad')).toBe(px('radius.phone-sheet-card'))
-    expect(sheet - px('size.phone-capture-pad')).toBe(px('radius.phone-capture-field'))
   })
 
   it('gives every tappable control a target of at least 44 points', () => {
@@ -120,13 +117,16 @@ describe('the phone layout tokens', () => {
 })
 
 describe('the phone motion tokens', () => {
-  it('moves the lens on the platform default spring, and takes 560 ms over capture', () => {
+  it('moves the lens on the platform default spring', () => {
     expect(sizes['motion.spring.phone-lens-trail-damping']).toBe('1')
     expect(sizes['motion.spring.phone-lens-trail-response']).toBe('0.5')
     expect(Number(sizes['motion.spring.phone-lens-lead-response'])).toBeLessThan(0.5)
     expect(Number(sizes['motion.scale.phone-lens-lift'])).toBe(1.08)
-    expect(sizes['motion.duration.phone-capture']).toBe('560ms')
-    expect(Number(sizes['motion.scale.phone-arrive'])).toBe(0.92)
+  })
+
+  it('has no tokens left for the capture sheet New Note replaced', () => {
+    const names = Object.keys(sizes)
+    expect(names.filter((name) => /phone-(capture|arrive|dim-capture)/.test(name))).toEqual([])
   })
 
   it('draws the glass rim from tokens, on the bars and the lifted lens', () => {

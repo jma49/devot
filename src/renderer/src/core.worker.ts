@@ -306,6 +306,7 @@ const coreApi = {
   backlinks: (id: string) => required().backlinks(id),
   linkTargets: (ids: string[]) => required().linkTargets(ids),
   purge: (id: string) => required().purge(id),
+  discardEmpty: (id: string) => required().discardEmpty(id),
   emptyTrash: () => required().emptyTrash(),
   history: (id: string) => required().history(id),
   compareRevision: (id: string, revisionId: string) => required().compareRevision(id, revisionId),

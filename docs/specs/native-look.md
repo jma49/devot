@@ -79,6 +79,7 @@ Part of the [design system](design-system.md).
 - **Untitled notes in lists** (`headline` in `src/core/extract.ts`, `src/renderer/src/headlines.ts`): a note with no title shows the first line of its body as its row title (and in the multiple selection's list), so a list of new notes can be told apart.
   The line is the first one with readable text after front matter, as the preview shows it (heading, list, quote and task markers and link syntax out; a line with only an image is skipped), cut to 120 characters.
   It is a display fallback only: the title stays empty (the title field shows its placeholder, links, exports and the Markdown mirror still name the note Untitled), and it is never written to storage.
+  The iPhone writes nothing into the title either: New Note there leaves it empty and puts the caret in the body.
   The list does not read bodies: the rows that render ask the core (`NoteService.headlines`, which reads pending edits too and works for Trash notes) for the notes they show with no title, only the start of each body is read, and the answer is kept until the note's `updatedAt` changes (at most 2000 are kept).
   A note with no text shows Untitled.
   Return in the title field moves to the body (not the Return that picks an input method's candidate).

@@ -15,6 +15,8 @@ export interface PhoneRoute {
   readonly pane?: string
   /** License opened to type a key: its key field takes the focus. */
   readonly focusKey?: boolean
+  /** A note New Note made: discarded when its screen is left untouched. */
+  readonly fresh?: boolean
 }
 
 export interface PhoneNavigation {
@@ -30,6 +32,8 @@ export type PhoneNavigationAction =
   | ({ readonly type: 'push' } & Omit<PhoneRoute, 'id'>)
   | { readonly type: 'showNotes'; readonly view: PhoneView; readonly status: PhoneStatusFilter }
   | { readonly type: 'pop' }
+  /** A note New Note made, over the list that shows it when the one below would not (`listView`). */
+  | { readonly type: 'newNoteShown'; readonly listView: PhoneView | null; readonly noteId: string }
 
 // An iPad's layout is out of scope, and an iPhone keeps this layout turned sideways.
 export const isPhoneLayout = (userAgent: string): boolean => /\biPhone\b/.test(userAgent)
@@ -72,6 +76,18 @@ export function navigate(state: PhoneNavigation, action: PhoneNavigationAction):
       }
     case 'pop':
       return stack.length > 1 ? withStack(stack.slice(0, -1)) : state
+    case 'newNoteShown': {
+      const list: PhoneRoute[] = action.listView
+        ? [{ id: state.nextId, screen: 'list', view: action.listView }]
+        : []
+      const note: PhoneRoute = {
+        id: state.nextId + list.length,
+        screen: 'note',
+        noteId: action.noteId,
+        fresh: true,
+      }
+      return { ...withStack([...stack, ...list, note]), nextId: note.id + 1 }
+    }
   }
 }
 

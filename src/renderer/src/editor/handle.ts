@@ -10,6 +10,7 @@ import { formatCommand, type FormatId } from './formats'
 import { acceptSpec, suggestAt } from './ghostText'
 import { imageAt, viewImageAt } from './images'
 import { insertCommand, type InsertId } from './insert'
+import { replayEarlyKeys, type EarlyKey } from './earlyKeys'
 import { linkForNewNote, runEditCommand, type LinkAt } from './lineCommands'
 import { pastePlain, pasteUrlAsIn, setImageSize } from './noteKeys'
 import { TABLE_COMMANDS, inTable, type TableCommandId } from './tableCommands'
@@ -28,6 +29,8 @@ export interface EditorHandle {
   takeStep: (state: Uint8Array) => void
   focus: () => void
   focusStart: () => void
+  /** Types `keys` at the caret as if they had been pressed there. */
+  type: (keys: readonly EarlyKey[]) => void
   remeasure: () => void
   format: (id: FormatId) => void
   insert: (id: InsertId) => void
@@ -83,6 +86,7 @@ export function editorHandle(
       ready.focus()
       ready.dispatch({ selection: { anchor: 0 }, scrollIntoView: true })
     },
+    type: (keys) => replayEarlyKeys(ready, keys),
     remeasure: () => ready.requestMeasure(),
     format: (id) => {
       ready.focus()

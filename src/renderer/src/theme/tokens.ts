@@ -74,7 +74,6 @@ export const sizes = {
   "radius.phone-card": "22px",
   "radius.phone-sheet": "34px",
   "radius.phone-sheet-card": "22px",
-  "radius.phone-capture-field": "20px",
   "radius.phone-lens-bar": "27px",
   "radius.phone-lens-segmented": "18px",
   "radius.phone-chip": "15px",
@@ -140,7 +139,6 @@ export const sizes = {
   "size.phone-grabber-width": "36px",
   "size.phone-grabber-height": "5px",
   "size.phone-sheet-pad": "12px",
-  "size.phone-capture-pad": "14px",
   "size.phone-sheet-inset": "8px",
   "size.phone-screen-edge": "16px",
   "size.phone-tab-inset": "16px",
@@ -337,9 +335,6 @@ export const sizes = {
   "size.glass-slider-knob-width": "32px",
   "size.phone-compose": "62px",
   "size.phone-compose-gap": "10px",
-  "size.phone-capture-height": "440px",
-  "size.phone-capture-control": "40px",
-  "size.phone-arrive-rise": "320px",
   "size.icon-phone-tab": "25px",
   "size.icon-phone-compose": "24px",
   "size.phone-swipe-action-height": "34px",
@@ -381,7 +376,6 @@ export const sizes = {
   "motion.duration.insert": "300ms",
   "motion.duration.grow": "300ms",
   "motion.duration.backdrop-exit": "400ms",
-  "motion.duration.phone-capture": "560ms",
   "motion.duration.phone-search": "220ms",
   "motion.duration.phone-search-field": "160ms",
   "motion.duration.phone-chevron": "320ms",
@@ -408,7 +402,6 @@ export const sizes = {
   "motion.scale.knob-press": "1.25",
   "motion.scale.segment-lift": "1.06",
   "motion.scale.phone-compose-hidden": "0.6",
-  "motion.scale.phone-arrive": "0.92",
   "motion.scale.phone-peek-bar": "0.4",
   "motion.scale.phone-peek-menu": "0.35",
   "motion.scale.phone-toast": "0.9",
@@ -430,7 +423,6 @@ export const sizes = {
   "motion.spring.phone-settle-mass": "0.7",
   "motion.delay.phone-peek-bar": "90ms",
   "motion.delay.phone-peek-menu": "50ms",
-  "motion.delay.phone-capture-body": "120ms",
   "motion.delay.phone-peek": "420ms",
   "motion.delay.tooltip": "400ms",
   "motion.delay.idle-hide": "3000ms",
@@ -471,8 +463,7 @@ export const sizes = {
   "opacity.alert.fill": "0.08",
   "opacity.alert.edge": "0.2",
   "opacity.filter-icon": "0.3",
-  "opacity.headline-icon": "0.8",
-  "opacity.phone-dim-capture": "0.16"
+  "opacity.headline-icon": "0.8"
 } as const
 
 export const light = {

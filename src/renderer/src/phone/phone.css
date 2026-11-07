@@ -15,7 +15,6 @@
   --phone-compose-hidden-scale: var(--motion-scale-phone-compose-hidden);
   --phone-toast-scale: var(--motion-scale-phone-toast);
   --phone-search-field-scale: var(--motion-scale-phone-search-field);
-  --phone-arrive-scale: var(--motion-scale-phone-arrive);
   /* At the design's 34 pt home indicator inset this is the 24 the prototype draws. */
   --phone-tab-bottom: max(var(--size-phone-tab-bottom), calc(env(safe-area-inset-bottom) - 10px));
   /* A gradient theme's backdrop, under a veil of the page so it shows at the token's strength. */
@@ -121,8 +120,7 @@ button.phone-glass {
     filter var(--motion-duration-ring) var(--motion-easing-out);
 }
 
-button.phone-glass:active,
-.phone-capture:not([data-open]):has(> .phone-capture-fab:active) {
+button.phone-glass:active {
   transform: scale(var(--phone-glass-press-scale));
   filter: brightness(1.05);
 }
@@ -378,7 +376,6 @@ button.phone-glass:active,
   --phone-compose-hidden-scale: 1;
   --phone-toast-scale: 1;
   --phone-search-field-scale: 1;
-  --phone-arrive-scale: 1;
 }
 
 /* Every movement becomes a crossfade: layers stay in place, and one that comes or goes fades. */
@@ -981,13 +978,9 @@ button.phone-grouped-open:active:not(:disabled) {
     visibility 0s;
 }
 
-/* A clip here would cut off a saved note flying in from below. */
-.phone-note-section-body:not(:has(.phone-note-row[data-arrived])) > .phone-note-list {
-  overflow: clip;
-}
-
 .phone-note-section-body > .phone-note-list {
   min-height: 0;
+  overflow: clip;
 }
 
 .phone-note-section-body[data-collapsed] {
@@ -1001,36 +994,9 @@ button.phone-grouped-open:active:not(:disabled) {
   position: relative;
 }
 
+/* A new note's row is already in place when the list comes back: it only fades out of the wash. */
 .phone-note-row[data-arrived] {
-  z-index: 1;
-  animation:
-    phone-arrive var(--motion-duration-phone-capture) var(--phone-spring-gentle),
-    phone-arrive-fade var(--motion-duration-ring) var(--motion-easing-out),
-    phone-flash var(--motion-duration-phone-flash) var(--motion-easing-out);
-}
-
-.phone-note-row[data-arrived] ~ .phone-note-row,
-.phone-note-section:has(.phone-note-row[data-arrived]) ~ .phone-note-section {
-  animation: phone-shift var(--motion-duration-phone-capture) var(--phone-spring-gentle);
-}
-
-@keyframes phone-arrive {
-  from {
-    translate: 0 var(--size-phone-arrive-rise);
-    scale: var(--phone-arrive-scale);
-  }
-}
-
-@keyframes phone-arrive-fade {
-  from {
-    opacity: var(--opacity-disabled);
-  }
-}
-
-@keyframes phone-shift {
-  from {
-    translate: 0 calc(var(--phone-arrived-height, var(--size-phone-list-row)) * -1);
-  }
+  animation: phone-flash var(--motion-duration-phone-flash) var(--motion-easing-out);
 }
 
 @keyframes phone-flash {
@@ -1484,8 +1450,7 @@ button.phone-grouped-open:active:not(:disabled) {
   z-index: 25;
 }
 
-.phone-sheet-dim,
-.phone-capture-dim {
+.phone-sheet-dim {
   position: absolute;
   inset: 0;
   background: var(--color-phone-scrim);
@@ -2054,193 +2019,46 @@ button.phone-grouped-open:active:not(:disabled) {
   justify-content: center;
 }
 
-/* Capture */
+/* New Note */
 
-.phone-capture-dim {
-  z-index: 19;
-  pointer-events: none;
-}
-
-.phone-capture-dim[data-shown] {
-  opacity: var(--opacity-phone-dim-capture);
-  pointer-events: auto;
-}
-
-.phone-capture {
-  --phone-capture-time: var(--motion-duration-phone-capture) var(--phone-spring-gentle);
+button.phone-compose {
   position: absolute;
   z-index: 20;
   right: var(--size-phone-tab-inset);
   bottom: var(--phone-tab-bottom);
   width: var(--size-phone-compose);
   height: var(--size-phone-compose);
-  border-radius: calc(var(--size-phone-compose) / 2);
-  overflow: hidden;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition:
-    scale var(--phone-capture-time),
+    scale var(--phone-spring-gentle-duration) var(--phone-spring-gentle),
     transform var(--motion-duration-phone-glass-press) var(--motion-easing-phone-push),
     filter var(--motion-duration-ring) var(--motion-easing-out),
-    width var(--phone-capture-time),
-    height var(--phone-capture-time),
-    right var(--phone-capture-time),
-    bottom var(--phone-capture-time),
-    border-radius var(--phone-capture-time),
-    background var(--motion-duration-phone-capture) var(--motion-easing-out),
     opacity var(--motion-duration-ring) var(--motion-easing-out);
 }
 
-.phone-capture[data-hidden] {
+button.phone-compose[data-hidden] {
   opacity: 0;
   scale: var(--phone-compose-hidden-scale);
   pointer-events: none;
 }
 
-.phone-capture[data-open] {
-  right: var(--size-phone-sheet-inset);
-  /* The layout viewport stays put under the keyboard, so the sheet rides above it, and shrinks to fit what is left. */
-  bottom: calc(var(--size-phone-sheet-inset) + var(--phone-keyboard, 0px));
-  width: calc(100% - var(--size-phone-sheet-inset) * 2);
-  height: min(
-    calc(var(--size-phone-capture-height) * var(--phone-bar-text-scale, 1)),
-    calc(
-      100% - var(--phone-safe-top) - var(--size-phone-sheet-inset) * 2 - var(--phone-keyboard, 0px)
-    )
-  );
-  border-radius: var(--radius-phone-sheet);
-  background: var(--color-phone-sheet);
-  backdrop-filter: blur(30px) saturate(1.8);
-  -webkit-backdrop-filter: blur(30px) saturate(1.8);
-  box-shadow:
-    inset 0 1px 1px var(--color-phone-glass-lowlight),
-    0 -10px 40px var(--color-phone-shadow);
-}
-
-.phone-capture::before,
-.phone-capture::after {
-  transition: opacity var(--motion-duration-ring) var(--motion-easing-out);
-}
-
-.phone-capture[data-open]::before,
-.phone-capture[data-open]::after {
-  opacity: 0;
-}
-
-.phone-capture-fab {
+/* WebKit raises the keyboard only for a field focused in the tap: this one holds it until the new note's body takes it. */
+.phone-keyboard-proxy {
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
-  width: var(--size-phone-compose);
-  height: var(--size-phone-compose);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: opacity var(--motion-duration-popover) var(--motion-easing-out);
-}
-
-.phone-capture[data-open] .phone-capture-fab {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.phone-capture-body {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: calc(100vw - var(--size-phone-sheet-inset) * 2);
-  max-height: 100%;
-  overflow-y: auto;
-  padding: var(--size-phone-capture-pad);
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  opacity: 0;
-  translate: 0 20px;
-  transition:
-    opacity var(--motion-duration-ring) var(--motion-easing-out),
-    translate var(--phone-capture-time);
-}
-
-.phone-capture[data-open] .phone-capture-body {
-  opacity: 1;
-  translate: none;
-  transition-delay: var(--motion-delay-phone-capture-body), 0s;
-}
-
-.phone-capture-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.phone-capture-title {
-  font-weight: 600;
-}
-
-.phone-capture-cancel {
-  height: var(--size-phone-capture-control);
-  padding: 0 16px;
-  border-radius: calc(var(--size-phone-capture-control) / 2);
-  font-size: calc(16px * var(--phone-bar-text-scale, 1));
-  font-weight: 500;
-}
-
-.phone-capture-save {
-  position: relative;
-  width: var(--size-phone-capture-control);
-  height: var(--size-phone-capture-control);
-  border-radius: 50%;
-  background: var(--color-accent-fill);
-  color: var(--color-accent-on-fill);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Glass has taken its pseudo-elements, so a control drawn under 44 extends its target on a child. */
-.phone-hit {
-  position: absolute;
-  inset: calc((var(--size-phone-capture-control) - var(--size-phone-target)) / 2);
-}
-
-.phone-capture-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.phone-capture-field > span {
-  padding-left: 12px;
-  font-size: calc(13px * var(--phone-text-scale, 1));
-  font-weight: 500;
-  color: var(--color-phone-text-secondary);
-}
-
-.phone-capture-field input,
-.phone-capture-field textarea {
+  width: 1px;
+  height: 1px;
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-phone-capture-field);
-  background: var(--color-phone-field);
-  padding: 12px 14px;
-  color: var(--color-text-editor);
-  font: inherit;
-  font-size: calc(16px * var(--phone-text-scale, 1));
-  line-height: calc(22px * var(--phone-text-scale, 1));
-  outline: none;
+  opacity: 0;
   resize: none;
-}
-
-.phone-capture .phone-chip {
-  background: var(--color-phone-field);
-}
-
-.phone-capture-field input {
-  min-height: 46px;
-  padding-block: 0;
-  box-sizing: border-box;
-  font-size: calc(17px * var(--phone-text-scale, 1));
-  font-weight: 600;
-  color: var(--color-phone-text);
+  pointer-events: none;
+  /* Under 16 px WebKit zooms the page to the focused field. */
+  font-size: 16px;
 }
 
 /* Undo toast */
@@ -3391,8 +3209,7 @@ button.phone-grouped-open:active:not(:disabled) {
 }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  .phone-sheet,
-  .phone-capture[data-open] {
+  .phone-sheet {
     background: var(--color-phone-glass-opaque);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -3403,15 +3220,6 @@ button.phone-grouped-open:active:not(:disabled) {
   .phone-segmented-pill,
   .phone-app .phone-settings-pane.settings-window .setting-toggle input[role='switch']::after {
     transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
-  }
-
-  .phone-note-row[data-arrived] {
-    animation: phone-flash var(--motion-duration-phone-flash) var(--motion-easing-out);
-  }
-
-  .phone-note-row[data-arrived] ~ .phone-note-row,
-  .phone-note-section:has(.phone-note-row[data-arrived]) ~ .phone-note-section {
-    animation: none;
   }
 
   .phone-note-section-body {
@@ -3468,18 +3276,7 @@ button.phone-grouped-open:active:not(:disabled) {
       visibility 0s var(--motion-duration-phone-crossfade);
   }
 
-  /* The circle and the sheet do not morph: each is simply there, fading in. */
-  .phone-capture {
-    transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
-    animation: phone-capture-fade-a var(--motion-duration-phone-crossfade) var(--motion-easing-out);
-  }
-
-  .phone-capture[data-open] {
-    animation-name: phone-capture-fade-b;
-  }
-
-  .phone-capture-body {
-    translate: none;
+  button.phone-compose {
     transition: opacity var(--motion-duration-phone-crossfade) var(--motion-easing-out);
   }
 
@@ -3490,17 +3287,11 @@ button.phone-grouped-open:active:not(:disabled) {
 
   .phone-mode-toggle[data-turn='a'] > *,
   .phone-mode-toggle[data-turn='b'] > * {
-    animation: phone-capture-fade-a var(--motion-duration-phone-crossfade) var(--motion-easing-out);
+    animation: phone-fade-in var(--motion-duration-phone-crossfade) var(--motion-easing-out);
   }
 }
 
-@keyframes phone-capture-fade-a {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes phone-capture-fade-b {
+@keyframes phone-fade-in {
   from {
     opacity: 0;
   }
