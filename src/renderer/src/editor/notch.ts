@@ -2,7 +2,9 @@
 // clipped layers, the glass edge as a band along the slanted sides and the
 // material as a triangle shifted EDGE pixels in, so the edge shows as a thin
 // outline. The box sits at the bar's edge, outside its rectangle, and paints
-// over the bar's rim (a box-shadow, `floating.tsx`) where the two meet.
+// over the rim's outer edge where the two meet; on the top edge the rim's
+// highlight stops either side of it (`highlightBesideNotch`). It is never
+// turned: a transform would misalign the window-aligned gradient in its fill.
 import { sizes } from '../theme/tokens'
 
 export const NOTCH_WIDTH = Number.parseFloat(sizes['size.float-notch-width'])
@@ -22,13 +24,43 @@ export const BAR_GAP = NOTCH_HEIGHT
 
 export const notchLeft = (tip: string, width: number) => `calc(${tip} - ${width / 2}px)`
 
-const tip = `var(--float-notch-x, ${NOTCH_X}px)`
+export const BAR_NOTCH_TIP = `var(--float-notch-x, ${NOTCH_X}px)`
+const tip = BAR_NOTCH_TIP
 const half = NOTCH_WIDTH / 2
 // Where the fill triangle's sides cross the edge triangle's base: the edge is clipped to the
 // outline between the two, so the translucent material never shows the edge colour through it.
 const inset = `${(half / NOTCH_HEIGHT) * EDGE}px`
 const edge = 'var(--color-line-glass-edge)'
 const tint = 'var(--glass-tint)'
+
+/** The edge band's outline, pointing down (the surface above its anchor) and up. */
+export const NOTCH_EDGE_CLIP = {
+  down: `polygon(0 0, ${inset} 0, 50% calc(100% - ${EDGE}px), calc(100% - ${inset}) 0, 100% 0, 50% 100%)`,
+  up: `polygon(0 100%, ${inset} 100%, 50% ${EDGE}px, calc(100% - ${inset}) 100%, 100% 100%, 50% 0)`,
+}
+
+/**
+ * The material's triangle on a surface with no clipping box: shifted EDGE
+ * pixels in like the bar's, and cut where it meets the surface's edge so the
+ * two translucent fills never overlap.
+ */
+export const NOTCH_FILL_CLIP = {
+  down: `polygon(${inset} ${EDGE}px, calc(100% - ${inset}) ${EDGE}px, 50% 100%)`,
+  up: `polygon(${inset} calc(100% - ${EDGE}px), calc(100% - ${inset}) calc(100% - ${EDGE}px), 50% 0)`,
+}
+
+const highlight = 'var(--glass-highlight)'
+
+/**
+ * The rim's top highlight as two strips either side of a notch on the top
+ * edge, `x` its tip from the left: an inset box shadow would run across the
+ * notch's base. The surface then rims itself with `--glass-rim-edge` only.
+ */
+export const highlightBesideNotch = (x: string, width: string) =>
+  [
+    `${highlight} left top / max(0px, ${x} - ${width} / 2) 1px no-repeat`,
+    `${highlight} right top / max(0px, 100% - ${x} - ${width} / 2) 1px no-repeat`,
+  ].join(', ')
 
 export const notchStyles = {
   '.cm-float-notch': {
@@ -54,7 +86,7 @@ export const notchStyles = {
   '.cm-tooltip-above > .cm-float-notch::before': {
     top: '0',
     background: edge,
-    clipPath: `polygon(0 0, ${inset} 0, 50% calc(100% - ${EDGE}px), calc(100% - ${inset}) 0, 100% 0, 50% 100%)`,
+    clipPath: NOTCH_EDGE_CLIP.down,
   },
   '.cm-tooltip-above > .cm-float-notch::after': {
     top: `-${EDGE}px`,
@@ -65,7 +97,7 @@ export const notchStyles = {
   '.cm-tooltip-below > .cm-float-notch::before': {
     bottom: '0',
     background: edge,
-    clipPath: `polygon(0 100%, ${inset} 100%, 50% ${EDGE}px, calc(100% - ${inset}) 100%, 100% 100%, 50% 0)`,
+    clipPath: NOTCH_EDGE_CLIP.up,
   },
   '.cm-tooltip-below > .cm-float-notch::after': {
     bottom: `-${EDGE}px`,

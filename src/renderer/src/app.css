@@ -244,8 +244,13 @@ body {
     transparent
   );
   --glass-backdrop: blur(var(--space-9)) saturate(1.8);
-  --glass-rim:
-    inset 0 1px 0 var(--color-line-glass-highlight), 0 0 0 0.5px var(--color-line-glass-edge);
+  --glass-rim-edge: 0 0 0 0.5px var(--color-line-glass-edge);
+  --glass-rim: inset 0 1px 0 var(--color-line-glass-highlight), var(--glass-rim-edge);
+  /* The rim's highlight as a background layer, for surfaces with a notch on the top edge. */
+  --glass-highlight: linear-gradient(
+    var(--color-line-glass-highlight),
+    var(--color-line-glass-highlight)
+  );
   --radius-popover: var(--radius-glass-popover);
   --radius-floating-bar: var(--radius-glass-floating-bar);
   --radius-dialog: var(--radius-glass-dialog);
@@ -6958,6 +6963,9 @@ button.popup:focus-visible {
   white-space: nowrap;
   pointer-events: none;
   animation: fade-in var(--motion-duration-popover) var(--motion-easing-standard);
+  --notch-x: var(--tip-arrow-x, 50%);
+  --notch-width: calc(var(--space-3) * 2);
+  --notch-height: var(--space-3);
 }
 
 .tool-tip[data-closing] {
@@ -6969,29 +6977,63 @@ button.popup:focus-visible {
   animation: none;
 }
 
-.tool-tip::before {
+/* A notch toward the anchor, outside the surface's edge and never turned, so the window-aligned
+   gradient in its fill lines up: ::before is the glass edge as a band along its slanted sides,
+   ::after the material half a pixel in, cut at the edge so the two translucent fills never overlap
+   (editor/notch.ts draws the editor's the same way). The insets are half a pixel because a notch
+   is twice as wide as it is tall. */
+.tool-tip::before,
+.tool-tip::after,
+.picker-popover::before,
+.picker-popover::after {
   content: '';
   position: absolute;
-  left: calc(var(--tip-arrow-x, 50%) - var(--space-4) / 2);
-  box-sizing: border-box;
-  width: var(--space-4);
-  height: var(--space-4);
-  transform: rotate(45deg);
+  left: calc(var(--notch-x) - var(--notch-width) / 2);
+  width: var(--notch-width);
+  height: var(--notch-height);
+  pointer-events: none;
 }
 
-/* Below its button the notch meets the tip's top edge, so it carries the sheen at its strongest. */
-.tool-tip:not([data-side='below'])::before {
-  bottom: calc(var(--space-4) / -2);
-  border-right: 0.5px solid var(--color-line-glass-edge);
-  border-bottom: 0.5px solid var(--color-line-glass-edge);
+.tool-tip:not([data-side='below'])::before,
+.picker-popover[data-side='above']::before {
+  top: 100%;
+  background: var(--color-line-glass-edge);
+  clip-path: polygon(0 0, 0.5px 0, 50% calc(100% - 0.5px), calc(100% - 0.5px) 0, 100% 0, 50% 100%);
+}
+
+.tool-tip:not([data-side='below'])::after,
+.picker-popover[data-side='above']::after {
+  top: calc(100% - 0.5px);
   background: var(--glass-tint);
+  clip-path: polygon(0.5px 0.5px, calc(100% - 0.5px) 0.5px, 50% 100%);
 }
 
-.tool-tip[data-side='below']::before {
-  top: calc(var(--space-4) / -2);
-  border-top: 0.5px solid var(--color-line-glass-edge);
-  border-left: 0.5px solid var(--color-line-glass-edge);
+.tool-tip[data-side='below']::before,
+.picker-popover:not([data-side='above'])::before {
+  bottom: 100%;
+  background: var(--color-line-glass-edge);
+  clip-path: polygon(0 100%, 0.5px 100%, 50% 0.5px, calc(100% - 0.5px) 100%, 100% 100%, 50% 0);
+}
+
+/* On the top edge the notch meets the sheen at its strongest. */
+.tool-tip[data-side='below']::after,
+.picker-popover:not([data-side='above'])::after {
+  bottom: calc(100% - 0.5px);
   background: var(--glass-sheen-top), var(--glass-tint);
+  clip-path: polygon(0.5px calc(100% - 0.5px), calc(100% - 0.5px) calc(100% - 0.5px), 50% 0);
+}
+
+/* An inset box shadow would run its highlight across the base of a notch on the top edge, so the
+   highlight is two strips either side of it. */
+.tool-tip.note-card-pop[data-side='below'],
+.picker-popover:not([data-side='above']) {
+  background:
+    var(--glass-highlight) left top / max(0px, var(--notch-x) - var(--notch-width) / 2) 1px
+      no-repeat,
+    var(--glass-highlight) right top / max(0px, 100% - var(--notch-x) - var(--notch-width) / 2) 1px
+      no-repeat,
+    var(--glass-material-bg);
+  box-shadow: var(--glass-rim-edge), var(--popover-shadow);
 }
 
 .tool-tip-key {
@@ -7796,10 +7838,12 @@ button.popup:focus-visible {
   outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
-/* The drag image (listDrag.ts): a copy of the card, lifted, on an opaque ground. After the card's own rules, which it overrides. */
+/* The drag image (listDrag.ts): a lifted copy of the card on the glass material. After the card's own rules, which it overrides.
+   Its holder is off screen, so a window-aligned gradient would show the wrong part of it. */
 .drag-card-holder > .card.drag-card-copy {
   background:
-    linear-gradient(var(--color-fill-card), var(--color-fill-card)), var(--glass-material-bg);
+    linear-gradient(var(--color-fill-card), var(--color-fill-card)), var(--glass-sheen),
+    var(--glass-material);
   box-shadow: var(--glass-rim), var(--popover-shadow);
 }
 
@@ -8122,38 +8166,13 @@ dialog[open].sheet.import {
 
 .picker-popover {
   --picker-gap: var(--space-6);
+  --notch-x: var(--picker-notch-x, 50%);
+  --notch-width: calc(var(--size-glass-popover-notch) * sqrt(2));
+  --notch-height: calc(var(--notch-width) / 2);
   top: calc(100% + var(--picker-gap));
   display: flex;
   flex-direction: column;
   overflow: visible;
-}
-
-/* A turned square, clipped to the half outside the panel so the two translucent fills never overlap.
-   Below the panel it meets the top edge, so it carries the sheen at its strongest. */
-.picker-popover::before {
-  content: '';
-  position: absolute;
-  top: calc(var(--size-glass-popover-notch) / -2);
-  left: calc(var(--picker-notch-x, 50%) - var(--size-glass-popover-notch) / 2);
-  box-sizing: border-box;
-  width: var(--size-glass-popover-notch);
-  height: var(--size-glass-popover-notch);
-  border-top: 0.5px solid var(--color-line-glass-edge);
-  border-left: 0.5px solid var(--color-line-glass-edge);
-  background: var(--glass-sheen-top), var(--glass-tint);
-  transform: rotate(45deg);
-  clip-path: polygon(0 0, 100% 0, 0 100%);
-  pointer-events: none;
-}
-
-.picker-popover[data-side='above']::before {
-  top: auto;
-  bottom: calc(var(--size-glass-popover-notch) / -2);
-  border: 0;
-  border-right: 0.5px solid var(--color-line-glass-edge);
-  border-bottom: 0.5px solid var(--color-line-glass-edge);
-  background: var(--glass-tint);
-  clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
 
 /* The Note Info card and its date picker: glass popovers at the popover inset, with menu-row corners. */
@@ -8216,7 +8235,8 @@ dialog[open].sheet.import {
   padding-inline-end: var(--space-3);
 }
 
-.tool-tip:not(.note-card-pop)::before {
+.tool-tip:not(.note-card-pop)::before,
+.tool-tip:not(.note-card-pop)::after {
   display: none;
 }
 

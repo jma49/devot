@@ -7,6 +7,7 @@ import {
   NOTCH_WIDTH,
   NOTCH_HEIGHT,
   NOTCH_X,
+  highlightBesideNotch,
   notchLeft,
   notchStyles,
 } from './notch'
@@ -68,6 +69,15 @@ describe('notch geometry', () => {
 
   it('is not a rotated square', () => {
     expect(JSON.stringify(notchStyles)).not.toContain('rotate')
+  })
+
+  it('draws the top highlight as two strips beside a notch on the top edge, never across its base', () => {
+    expect(highlightBesideNotch('var(--x)', '12px')).toBe(
+      [
+        'var(--glass-highlight) left top / max(0px, var(--x) - 12px / 2) 1px no-repeat',
+        'var(--glass-highlight) right top / max(0px, 100% - var(--x) - 12px / 2) 1px no-repeat',
+      ].join(', '),
+    )
   })
 
   it('needs no seam strip: the notch, behind the bar, paints over its rim', () => {

@@ -80,19 +80,61 @@ describe('the glass material', () => {
     expect(background(selector)).toBe('var(--glass-material-bg)')
   })
 
-  it('lays the drag image card fill over the material', () => {
+  it('lays the drag image card fill over the material, with no window-aligned gradient off screen', () => {
     expect(background('.drag-card-holder > .card.drag-card-copy')).toBe(
-      'linear-gradient(var(--color-fill-card), var(--color-fill-card)), var(--glass-material-bg)',
+      'linear-gradient(var(--color-fill-card), var(--color-fill-card)), var(--glass-sheen), var(--glass-material)',
     )
   })
 
   it('fills the notches with the material, the sheen only where they meet a top edge', () => {
-    expect(background('.picker-popover::before')).toBe('var(--glass-sheen-top), var(--glass-tint)')
-    expect(background(".picker-popover[data-side='above']::before")).toBe('var(--glass-tint)')
-    expect(background(".tool-tip[data-side='below']::before")).toBe(
-      'var(--glass-sheen-top), var(--glass-tint)',
+    for (const up of [".tool-tip[data-side='below']", ".picker-popover:not([data-side='above'])"]) {
+      expect(background(`${up}::after`)).toBe('var(--glass-sheen-top), var(--glass-tint)')
+      expect(background(`${up}::before`)).toBe('var(--color-line-glass-edge)')
+    }
+    for (const down of [
+      ".tool-tip:not([data-side='below'])",
+      ".picker-popover[data-side='above']",
+    ]) {
+      expect(background(`${down}::after`)).toBe('var(--glass-tint)')
+      expect(background(`${down}::before`)).toBe('var(--color-line-glass-edge)')
+    }
+  })
+
+  it('stops the top highlight either side of a notch on the top edge', () => {
+    expect(body.body.get('--glass-rim')).toBe(
+      'inset 0 1px 0 var(--color-line-glass-highlight), var(--glass-rim-edge)',
     )
-    expect(background(".tool-tip:not([data-side='below'])::before")).toBe('var(--glass-tint)')
+    for (const up of [
+      ".tool-tip.note-card-pop[data-side='below']",
+      ".picker-popover:not([data-side='above'])",
+    ]) {
+      const rule = rules.find((r) => listed(r.selector).includes(up))
+      expect(rule?.body.get('box-shadow')).toBe('var(--glass-rim-edge), var(--popover-shadow)')
+      expect(rule?.body.get('background')).toBe(
+        'var(--glass-highlight) left top / max(0px, var(--notch-x) - var(--notch-width) / 2) 1px no-repeat, ' +
+          'var(--glass-highlight) right top / max(0px, 100% - var(--notch-x) - var(--notch-width) / 2) 1px no-repeat, ' +
+          'var(--glass-material-bg)',
+      )
+    }
+  })
+
+  // A transform puts a fixed background in the element's own coordinates, so the theme gradient
+  // would no longer line up with the window. A Z translation alone moves nothing.
+  it('turns and shifts no surface that paints the material', () => {
+    const base = (selector: string) =>
+      selector.replace(/:not\((?:[^()]|\([^()]*\))*\)|\[[^\]]*\]/g, '').trim()
+    const glass = new Set(
+      rules
+        .filter((r) => /--glass-(tint|material-bg)/.test(r.body.get('background') ?? ''))
+        .flatMap((r) => listed(r.selector).map(base)),
+    )
+    const moved = rules.filter(
+      (r) =>
+        listed(r.selector).some((s) => glass.has(base(s))) &&
+        (r.body.has('rotate') ||
+          /rotate|skew|matrix|translate(X|Y|3d)?\(/.test(r.body.get('transform') ?? '')),
+    )
+    expect(moved.map((r) => r.selector)).toEqual([])
   })
 
   it('rims every glass surface with the glass edge, not a hairline', () => {
@@ -172,6 +214,10 @@ describe('the editor popups', () => {
     expect(source('notch')).toContain("'var(--color-line-glass-edge)'")
     expect(source('notch')).toContain("'var(--glass-tint)'")
   })
+
+  it.each(['floating', 'notch'] as const)('%s turns and shifts none of its glass', (name) => {
+    expect(source(name)).not.toMatch(/\b(transform|rotate|translate)\s*:/)
+  })
 })
 
 it('names no removed glass token anywhere in the app', () => {
@@ -179,4 +225,11 @@ it('names no removed glass token anywhere in the app', () => {
     /--color-(fill-glass-control|surface-glass-popover|surface-glass-float-bar|line-float-bar|fill-completion-selected)\b|--glass-sidebar\b/
   const files = listFiles('.', 'src').filter((f) => /\.(css|ts|tsx)$/.test(f))
   expect(files.filter((f) => removed.test(readFileSync(f, 'utf8')))).toEqual([])
+})
+
+it('paints nothing with the popover and float bar surfaces, kept only for contrast checks', () => {
+  const files = listFiles('.', 'src').filter((f) => /\.(css|ts|tsx)$/.test(f))
+  expect(
+    files.filter((f) => /var\(--color-surface-(popover|float-bar)\)/.test(readFileSync(f, 'utf8'))),
+  ).toEqual([])
 })

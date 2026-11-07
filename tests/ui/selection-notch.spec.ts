@@ -115,6 +115,8 @@ for (const scheme of ['light', 'dark'] as const) {
           const ringTop = placement === 'below' ? box.y - 1 : box.y + box.height
           const ringRows: number[] = []
           for (let y = Math.floor(ringTop); y < Math.ceil(ringTop + 1); y++) ringRows.push(y)
+          // Below, the rim's highlight runs along the row just inside the top edge, beside the notch only.
+          if (placement === 'below') ringRows.push(Math.floor(box.y))
           const x0 = Math.round(notch.x)
           const x1 = Math.round(notch.x + notch.width)
           const besideX = cx < box.x + box.width / 2 ? x1 + 4 : x0 - 4

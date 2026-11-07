@@ -648,7 +648,7 @@
           "components": [0.0902, 0.0902, 0.0902],
           "hex": "#171717"
         },
-        "$description": "Floating lists in the editor: the slash menu and the completion popups."
+        "$description": "A reference for contrast checks only (tag ink and notebook icons in a popover, the focus ring): nothing paints it, the glass material is the fill of every popover."
       },
       "float-bar": {
         "$type": "color",
@@ -657,7 +657,7 @@
           "components": [0.1647, 0.1608, 0.1529],
           "hex": "#2a2927"
         },
-        "$description": "The floating bars over the editor (the selection toolbar, the image size bar) and their notch."
+        "$description": "A reference for the focus ring contrast check only: nothing paints it, the floating bars are the glass material."
       },
       "sheet": {
         "$type": "color",
