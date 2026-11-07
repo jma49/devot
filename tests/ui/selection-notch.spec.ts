@@ -1,10 +1,10 @@
 import { inflateSync } from 'node:zlib'
 import type { Page } from '@playwright/test'
+import { GLASS_BAR_RADIUS } from '../../src/renderer/src/editor/notch'
 import { expect, test, openApp } from './fixtures'
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const bar = (page: Page) => page.locator('.cm-tooltip.cm-float-bar')
-const RADIUS = 14
 
 type Pixels = { width: number; height: number; at: (x: number, y: number) => number[] }
 
@@ -103,22 +103,25 @@ for (const scheme of ['light', 'dark'] as const) {
           const notch = (await el.locator('.cm-float-notch').boundingBox())!
 
           // The notch's base lies on the straight part of the edge, clear of the corners.
-          expect(notch.x).toBeGreaterThanOrEqual(box.x + RADIUS)
-          expect(notch.x + notch.width).toBeLessThanOrEqual(box.x + box.width - RADIUS)
+          expect(notch.x).toBeGreaterThanOrEqual(box.x + GLASS_BAR_RADIUS)
+          expect(notch.x + notch.width).toBeLessThanOrEqual(box.x + box.width - GLASS_BAR_RADIUS)
 
           const shot = decodePng(await page.screenshot({ scale: 'css' }))
           const cx = notch.x + notch.width / 2
           // A glass bar is translucent, so its fill is the colour it paints just inside the edge, not its CSS colour.
           const insideY = Math.round(placement === 'below' ? box.y + 4 : box.y + box.height - 5)
           const [r = 0, g = 0, b = 0] = shot.at(Math.round(cx), insideY)
-          // The bar's outline row: the darkest (or lightest) pixel beside the notch, just past the bar's edge.
+          // The bar's edge row, read beside the notch where the edge is straight: the outline, or the row past it when a dark glass outline is close to the fill.
           const x0 = Math.round(notch.x)
           const x1 = Math.round(notch.x + notch.width)
+          const besideX = cx < box.x + box.width / 2 ? x1 + 4 : x0 - 4
           const edgeY = Math.round(placement === 'below' ? box.y : box.y + box.height)
+          const rows =
+            placement === 'below' ? [edgeY - 2, edgeY - 1, edgeY] : [edgeY - 1, edgeY, edgeY + 1]
           let baseY = edgeY
           let strongest = 0
-          for (let y = edgeY - 1; y <= edgeY; y++) {
-            const d = distance(shot.at(x0 - 4, y), [r, g, b])
+          for (const y of rows) {
+            const d = distance(shot.at(besideX, y), [r, g, b])
             if (d > strongest) [strongest, baseY] = [d, y]
           }
           expect(strongest, 'the outline is drawn beside the notch').toBeGreaterThan(8)
@@ -138,7 +141,8 @@ for (const scheme of ['light', 'dark'] as const) {
               )
             expect(sides, `outline on the ${side < 0 ? 'left' : 'right'} side`).toBeGreaterThan(2)
           }
-          expect(distance(shot.at(Math.round(cx), midY), [r, g, b])).toBeLessThanOrEqual(2)
+          // Inside, the notch is the fill, with the bar's shadow showing faintly through a glass fill.
+          expect(distance(shot.at(Math.round(cx), midY), [r, g, b])).toBeLessThanOrEqual(4)
         })
       }
     }
