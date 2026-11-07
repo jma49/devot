@@ -128,6 +128,8 @@ A web view cannot bend light, so Devot does not imitate refraction in motion. It
 
 ## iPhone
 
+The phone draws at the display's refresh rate (`CADisableMinimumFrameDurationOnPhone` in its `Info.plist`): the keyboard, system sheets and the web view's compositor transitions of `transform` and `opacity` run at 120 Hz on a ProMotion display, while motion drawn by script each frame stays near 60 Hz.
+
 The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by `phoneSpring` (`phone/spring.ts`) and set on the phone root. Positions follow the finger and can be interrupted; only selecting and dropping may overshoot; colour and opacity never bounce. A drag follows one finger; if its touch is cancelled, its capture is lost, the app leaves the screen or its screen goes away before the finger lifts, it settles back as a short release does, and the next tap is not swallowed (`phone/dragEnd.ts`). Reduce Motion turns every movement into a `motion.duration.phone-crossfade` crossfade and every scale to 1.
 
 - **Push and pop:** rule 3. The new screen slides in from the right over `motion.duration.phone-push` on `motion.easing.phone-push`; the one below moves 30% left and dims `opacity.phone-dim-push`.
