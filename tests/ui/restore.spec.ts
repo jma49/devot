@@ -201,6 +201,23 @@ test('preview mode comes back scrolled where it was, without taking the keyboard
   await expect.poll(() => scroller(page).evaluate((e) => e.scrollTop)).toBeCloseTo(editorTop, -1)
 })
 
+test('a scroll made as the editor shows again after preview mode is kept', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 })
+  await createNote(page, 'Scrolled back')
+  await writeBody(page, longBody(150).replace(/\n/g, '\n\n'))
+  await expect.poll(() => scroller(page).evaluate((e) => e.scrollTop)).toBeGreaterThan(1000)
+  await modeButton(page, 'Preview').click()
+  await expect(preview(page).getByText('line 150', { exact: true })).toBeAttached()
+  const box = await scroller(page).elementHandle()
+  // Scrolled before CodeMirror's next measure, as on a page too busy to draw a frame in between.
+  await modeButton(page, 'Edit').evaluate(async (button: HTMLElement, editor) => {
+    button.click()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    editor!.scrollTop = 6
+  }, box)
+  expect(await settledTop(scroller(page))).toBe(6)
+})
+
 test('a restored preview position past content that loads later is still reached', async ({
   page,
 }) => {
