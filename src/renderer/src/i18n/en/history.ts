@@ -53,8 +53,6 @@ export const messages = {
   'usage.empty': 'No usage events are stored.',
   'usage.countOne': '{count} event is stored on this Mac.',
   'usage.countOther': '{count} events are stored on this Mac.',
-  'usage.eventsTitle': 'Events',
-  'usage.eventsLabel': 'Stored on This Mac',
   'usage.byType': 'Events by Type',
   'usage.eventColumn': 'Event',
   'usage.countColumn': 'Count',

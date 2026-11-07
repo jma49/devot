@@ -1614,6 +1614,10 @@ button {
   width: var(--size-list-action);
   height: var(--size-list-action);
   border-radius: var(--radius-capsule);
+}
+
+/* As specific as the pressed .tool fill, and later, so a key press keeps the track. */
+.list-filter .tool.list-create {
   background: var(--color-fill-track);
 }
 
@@ -3181,10 +3185,6 @@ div.card-placeholder {
 
 .panes-split .editor {
   --editor-reading-width: none;
-}
-
-.panes-split .preview {
-  padding-left: var(--space-6);
 }
 
 /* The box inside the shadow root scrolls and takes this padding (NoteEditor.tsx); the host clips nothing, so a popup over the first lines can reach up over the title. */
@@ -8020,7 +8020,7 @@ button.popup:focus-visible {
   margin-inline: var(--space-5);
 }
 
-:is(.sheet-title, .confirm-message) {
+:is(.sheet, .confirm) :is(.sheet-title, .confirm-message) {
   margin-block-start: var(--space-5);
 }
 

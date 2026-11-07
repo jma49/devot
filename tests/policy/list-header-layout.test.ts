@@ -25,6 +25,13 @@ describe('the note list header layout', () => {
     expect(sizes['size.list-action']).toBe(sizes['size.toolbar-control'])
   })
 
+  it('keeps New Note on its track fill when pressed from the keyboard', () => {
+    const pressed = rules.findIndex((r) => r.selector.startsWith('.tool:active'))
+    const create = rules.findIndex((r) => r.selector === '.list-filter .tool.list-create')
+    expect(rules[create]?.body.get('background')).toBe('var(--color-fill-track)')
+    expect(create).toBeGreaterThan(pressed)
+  })
+
   it('shrinks the search field, not New Note, in a narrow list', () => {
     const root = /className="([^"]+)"/.exec(
       readFileSync('src/renderer/src/SearchField.tsx', 'utf8'),

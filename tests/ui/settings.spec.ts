@@ -332,6 +332,8 @@ test('Connect shows what it will write and where, and writes only once confirmed
   await codex.getByRole('button', { name: 'Connect Codex' }).click()
 
   const dialog = page.getByRole('dialog', { name: 'Connect Codex?' })
+  // Spaced like a confirm dialog outside Settings, not like the pane's captions.
+  await expect(dialog.getByText('Connect Codex?', { exact: true })).toHaveCSS('margin-top', '10px')
   await expect(dialog).toContainText('/Users/me/.codex/config.toml.devot-backup')
   await expect(dialog.locator('code')).toHaveText(CODEX_PREVIEW)
   await expect(dialog).toContainText('If Codex is running it may rewrite this file at any time')

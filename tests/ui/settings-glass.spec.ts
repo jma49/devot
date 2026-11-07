@@ -1,4 +1,75 @@
-import { changeEditorSettingsElsewhere, expect, openSettings, test } from './fixtures'
+import type { Page } from '@playwright/test'
+import {
+  changeEditorSettingsElsewhere,
+  expect,
+  openSettings,
+  paintedBackground,
+  test,
+} from './fixtures'
+
+const appearancePane = (page: Page) => page.getByRole('region', { name: 'Appearance' }).first()
+const transparencySlider = (page: Page) =>
+  appearancePane(page).getByRole('slider', { name: 'Glass Transparency' })
+
+const calls = (page: Page, cmd: string) =>
+  page.evaluate(
+    (c) => window.devotIpcCalls.filter((call) => call.cmd === c).map((call) => call.args),
+    cmd,
+  )
+
+test('the transparency adjusts the sheet: opaque at one end, the design in the middle, twice as clear at the other', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const w = window
+    w.devotEditorRevision = 2
+    w.devotEditorSettings = { windowTransparency: -100 }
+  })
+  await page.goto('/')
+  const list = page.getByRole('region', { name: 'Notes' })
+  const editor = page.getByRole('main')
+  await expect.poll(() => paintedBackground(list)).toBe('rgb(255, 255, 255)')
+  await expect.poll(() => paintedBackground(editor)).toBe('rgb(255, 255, 255)')
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 100 })
+  await expect.poll(() => paintedBackground(list)).toBe('rgba(255, 255, 255, 0.5)')
+  await expect.poll(() => paintedBackground(editor)).toBe('rgba(255, 255, 255, 0.5)')
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 0 })
+  await expect.poll(() => paintedBackground(list)).toBe('rgba(255, 255, 255, 0.75)')
+  await expect.poll(() => paintedBackground(editor)).toBe('rgba(255, 255, 255, 0.75)')
+  await expect(page.locator('html')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+})
+
+test('the Settings window adjusts how see-through Glass is with a slider', async ({ page }) => {
+  await openSettings(page, 'Appearance')
+  await expect(transparencySlider(page)).toHaveValue('0')
+  await expect(transparencySlider(page)).toHaveAccessibleDescription(/shows through/)
+  await expect(appearancePane(page).locator('output')).toHaveText('0')
+
+  await transparencySlider(page).fill('40')
+  await expect(appearancePane(page).locator('output')).toHaveText('+40')
+  await expect
+    .poll(() => calls(page, 'editor_settings_set'))
+    .toEqual([{ patch: { windowTransparency: 40 } }])
+  await transparencySlider(page).focus()
+  await page.keyboard.press('ArrowLeft')
+  await expect
+    .poll(() => calls(page, 'editor_settings_set'))
+    .toEqual([{ patch: { windowTransparency: 40 } }, { patch: { windowTransparency: 35 } }])
+})
+
+test('an appearance change that cannot be stored is reported and dropped', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window
+    w.devotIpcMocks = { editor_settings_set: { error: 'E_EDITOR_SETTINGS_WRITE_FAILED' } }
+  })
+  await openSettings(page, 'Appearance')
+  const schemes = page.getByRole('radiogroup', { name: 'Color scheme' })
+  await schemes.getByText('Dark', { exact: true }).click()
+  await expect(appearancePane(page).getByRole('alert')).toHaveText(
+    'The appearance settings could not be saved.',
+  )
+  await expect(schemes.getByRole('radio', { name: 'Auto', exact: true })).toBeChecked()
+})
 
 test('switches the entire palette and selected picture with animations enabled', async ({
   page,
