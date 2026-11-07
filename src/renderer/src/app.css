@@ -7587,14 +7587,10 @@ button.popup:focus-visible {
 :root[data-sidebar-material='on'] .footer-toggle {
   column-gap: var(--size-sidebar-footer-gap);
   height: var(--size-sidebar-footer);
-  padding-inline: var(--space-5) var(--size-sidebar-footer-end-sm);
+  padding-inline: var(--size-sidebar-row-padding) var(--size-sidebar-footer-end-sm);
   border: var(--size-capsule-edge) solid var(--color-line-glass-edge);
   border-radius: var(--radius-capsule);
   color: var(--color-text-primary);
-}
-
-:root[data-sidebar-material='on'] .footer-toggle:has(> .footer-dot) {
-  padding-inline-start: var(--size-sidebar-footer-end-dot);
 }
 
 :root[data-sidebar-material='on'] .footer-dot {

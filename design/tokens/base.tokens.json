@@ -2231,15 +2231,10 @@
       "$value": { "value": 6, "unit": "px" },
       "$description": "The Glass sidebar footer: the gap between its dot, text and chevron (space.3)."
     },
-    "sidebar-footer-end-dot": {
-      "$type": "dimension",
-      "$value": { "value": 5, "unit": "px" },
-      "$description": "The Glass sidebar footer: the start padding before its dot, concentric with the end cap: (size.sidebar-footer - space.4) / 2 - size.capsule-edge."
-    },
     "sidebar-footer-end-sm": {
       "$type": "dimension",
-      "$value": { "value": 2, "unit": "px" },
-      "$description": "The Glass sidebar footer: the end padding after its chevron's 14 px box: (size.sidebar-footer - size.icon-sm) / 2 - size.capsule-edge."
+      "$value": { "value": 7, "unit": "px" },
+      "$description": "The Glass sidebar footer: the end padding after its chevron's 14 px box, so the chevron centres as far from its end as the dot, which keeps a sidebar row's start padding, from the other: size.sidebar-row-padding + space.4 / 2 - size.icon-sm / 2."
     },
     "scrollbar": {
       "$type": "dimension",

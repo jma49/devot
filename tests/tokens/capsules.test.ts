@@ -37,10 +37,7 @@ const CAPSULES: Capsule[] = [
     height: 'size.sidebar-footer',
     edge: 'size.capsule-edge',
     gap: 'size.sidebar-footer-gap',
-    ends: [
-      ['size.sidebar-footer-end-dot', 'space.4'],
-      ['size.sidebar-footer-end-sm', 'size.icon-sm'],
-    ],
+    ends: [],
   },
   {
     name: 'sort chip',
@@ -120,6 +117,12 @@ describe('capsule tokens', () => {
     )
   })
 
+  it("keeps the sidebar footer's dot on the rows' keyline, its chevron centred as far from the other end", () => {
+    const dotCentre = px('size.sidebar-row-padding') + px('space.4') / 2
+    expect(px('size.sidebar-footer-end-sm') + px('size.icon-sm') / 2).toBe(dotCentre)
+    expect(rules.some((r) => r.selector.includes('.footer-toggle:has('))).toBe(false)
+  })
+
   it('makes a floating bar a capsule', () => {
     expect(px('radius.glass-floating-bar')).toBe(px('size.float-toolbar-height') / 2)
   })
@@ -133,6 +136,7 @@ describe('capsule tokens', () => {
     const named = [
       ...CAPSULES.flatMap((c) => [c.gap, ...c.ends.map(([inset]) => inset)]),
       'size.note-pill-remove-cover',
+      'size.sidebar-footer-end-sm',
     ]
     for (const path of named.filter((p) => p?.startsWith('size.'))) {
       expect(layout).toContain(`\`${path}\``)
@@ -159,7 +163,7 @@ describe('capsule tokens', () => {
       [
         glass('.footer-toggle'),
         'padding-inline',
-        'var(--space-5) var(--size-sidebar-footer-end-sm)',
+        'var(--size-sidebar-row-padding) var(--size-sidebar-footer-end-sm)',
       ],
       [
         glass('.palette-field'),
@@ -174,11 +178,6 @@ describe('capsule tokens', () => {
       ],
       [glass('.note-meta .book-popup'), 'padding-inline-start', 'var(--size-note-pill-end-sm)'],
       [glass('.footer-toggle'), 'column-gap', 'var(--size-sidebar-footer-gap)'],
-      [
-        glass('.footer-toggle:has(> .footer-dot)'),
-        'padding-inline-start',
-        'var(--size-sidebar-footer-end-dot)',
-      ],
       [glass('.sort-chip'), 'gap', 'var(--size-list-filter-control-gap)'],
       [
         glass('.list-filter .search-icon'),

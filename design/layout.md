@@ -158,7 +158,7 @@ Insets are measured from the capsule's outer edge; where it has a border, `size.
 | Capsule                              | Height                                                       | Text end                                          | Gap                                                         | End insets                                                                                                                                                |
 | ------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Note pills (notebook, status, tag)   | `size.note-pill` 26                                          | `size.note-pill-pad` 10                           | `size.note-pill-gap` 6                                      | dot `size.note-pill-end-dot` 9, a 10 px glyph `size.note-pill-end-xs` 8, the notebook icon `size.note-pill-end-sm` 6, the x `size.note-pill-end-remove` 5 |
-| Sidebar footer, the note list's sort | `size.sidebar-footer`, `size.list-filter-control` 20, edge 1 | `space.5` 10, the sort label on the inner keyline | `size.sidebar-footer-gap`, `size.list-filter-control-gap` 6 | dot `size.sidebar-footer-end-dot` 5, the footer chevron `size.sidebar-footer-end-sm` 2, the sort chevron `size.list-filter-control-end-xs` 4              |
+| Sidebar footer, the note list's sort | `size.sidebar-footer`, `size.list-filter-control` 20, edge 1 | `space.5` 10, the sort label on the inner keyline | `size.sidebar-footer-gap`, `size.list-filter-control-gap` 6 | the footer under Exceptions, the sort chevron `size.list-filter-control-end-xs` 4                                                                         |
 | Tag chip in a note row               | `size.row-chip` 17, edge 1                                   | `space.3` 6                                       | `size.row-chip-gap` 4                                       | dot `size.row-chip-end-dot` 3.5                                                                                                                           |
 | Toolbar capsules and 32 px fields    | `size.toolbar-control` 32                                    | `space.4` 8                                       | `size.toolbar-control-gap` 6                                | Settings' magnifier `size.toolbar-control-end-sm` 9, Back and Forward `size.toolbar-control-end-toolbar` 7                                                |
 | Palette field                        | `size.glass-palette-field` 40                                | `space.6` 12                                      | `space.3` 6                                                 | the magnifier or Back `size.glass-palette-field-end-md` 11.5                                                                                              |
@@ -171,13 +171,16 @@ Insets are measured from the capsule's outer edge; where it has a border, `size.
   Tag pills do not truncate: a long name shows whole at rest, and only its last letters fade under the x.
 - **Trailing buttons in a 32 px field:** the clear, options and syntax buttons are each `size.toolbar-control` wide and as tall as the field, so the last glyph centres 16 from the end.
 - **Back and Forward:** each chevron's box is concentric with its end of the shared capsule: in the editor `size.toolbar-control-end-toolbar` from the end of a wider half, in Settings centred in a `size.toolbar-control` square.
-- **Sidebar footer:** without a dot (while the status loads) its text keeps the `space.5` text end.
+- **Sidebar footer:** without a dot (while the status loads) its text keeps the same `size.sidebar-row-padding` (10) start.
 
 Exceptions to these rules, each chosen on purpose:
 
 - **The note list's magnifier:** the list's keyline wins over the end-cap rule.
   The magnifier stands on the 24 keyline (`size.list-keyline-inner`), 12 inside a field whose edge is on the 12 keyline (`size.list-keyline-outer`), so it lines up with the sort label and the row titles.
   It is 9 from the field's top and bottom, so it is 3 off concentric with the end cap; the placeholder still starts `size.toolbar-control-gap` (6) after it.
+- **The sidebar footer's ends:** the sidebar's icon column wins over the end-cap rule.
+  Its dot keeps a sidebar row's start padding (`size.sidebar-row-padding`, 10), so it sits on the column of the rows' icons, 5 off concentric with the end cap.
+  Its chevron end matches: `size.sidebar-footer-end-sm` (7) puts the chevron's centre as far from its end (15) as the dot's is from the other, so the two ends look the same.
 - **The notebook pill's icon:** it is `size.icon-sm` (14), not the 10 px of the pill's other glyphs.
   A line icon is drawn larger to carry the weight of the filled 10 px marks beside it (the status icon, a tag's dot).
 
