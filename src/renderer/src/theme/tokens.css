@@ -2315,6 +2315,7 @@
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-separator: rgb(120 40 75 / 0.13);
   --color-phone-text-secondary: #5f4651;
+  --color-phone-text-faint: #6a4f5b;
   --color-phone-glass-opaque: #fdf2f6;
 }
 
@@ -2325,6 +2326,7 @@
     --color-phone-card: rgb(238 127 166 / 0.08);
     --color-phone-separator: rgb(255 210 230 / 0.12);
     --color-phone-text-secondary: #c9adba;
+    --color-phone-text-faint: #bb9fad;
     --color-phone-glass-opaque: #32262d;
   }
 }
@@ -2336,6 +2338,7 @@
   --color-phone-card: rgb(238 127 166 / 0.08);
   --color-phone-separator: rgb(255 210 230 / 0.12);
   --color-phone-text-secondary: #c9adba;
+  --color-phone-text-faint: #bb9fad;
   --color-phone-glass-opaque: #32262d;
 }
 
@@ -2346,6 +2349,7 @@
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-separator: rgb(120 40 75 / 0.13);
   --color-phone-text-secondary: #5f4651;
+  --color-phone-text-faint: #6a4f5b;
   --color-phone-glass-opaque: #fdf2f6;
 }
 
@@ -2356,6 +2360,7 @@
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-separator: rgb(40 60 130 / 0.13);
   --color-phone-text-secondary: #485069;
+  --color-phone-text-faint: #4f5770;
   --color-phone-glass-opaque: #f2f5fe;
 }
 
@@ -2366,6 +2371,7 @@
     --color-phone-card: rgb(165 147 245 / 0.08);
     --color-phone-separator: rgb(200 215 255 / 0.12);
     --color-phone-text-secondary: #a9b1cb;
+    --color-phone-text-faint: #9ea7c2;
     --color-phone-glass-opaque: #222738;
   }
 }
@@ -2377,6 +2383,7 @@
   --color-phone-card: rgb(165 147 245 / 0.08);
   --color-phone-separator: rgb(200 215 255 / 0.12);
   --color-phone-text-secondary: #a9b1cb;
+  --color-phone-text-faint: #9ea7c2;
   --color-phone-glass-opaque: #222738;
 }
 
@@ -2387,6 +2394,7 @@
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-separator: rgb(40 60 130 / 0.13);
   --color-phone-text-secondary: #485069;
+  --color-phone-text-faint: #4f5770;
   --color-phone-glass-opaque: #f2f5fe;
 }
 
@@ -2397,6 +2405,7 @@
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-separator: rgb(40 90 55 / 0.14);
   --color-phone-text-secondary: #4c5c51;
+  --color-phone-text-faint: #506055;
   --color-phone-glass-opaque: #f2f8ef;
 }
 
@@ -2407,6 +2416,7 @@
     --color-phone-card: rgb(92 192 176 / 0.08);
     --color-phone-separator: rgb(210 240 220 / 0.12);
     --color-phone-text-secondary: #a8b9ad;
+    --color-phone-text-faint: #9caea1;
     --color-phone-glass-opaque: #202a23;
   }
 }
@@ -2418,6 +2428,7 @@
   --color-phone-card: rgb(92 192 176 / 0.08);
   --color-phone-separator: rgb(210 240 220 / 0.12);
   --color-phone-text-secondary: #a8b9ad;
+  --color-phone-text-faint: #9caea1;
   --color-phone-glass-opaque: #202a23;
 }
 
@@ -2428,6 +2439,7 @@
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-separator: rgb(40 90 55 / 0.14);
   --color-phone-text-secondary: #4c5c51;
+  --color-phone-text-faint: #506055;
   --color-phone-glass-opaque: #f2f8ef;
 }
 
@@ -2438,6 +2450,7 @@
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-separator: rgb(120 60 30 / 0.13);
   --color-phone-text-secondary: #5e4c43;
+  --color-phone-text-faint: #665349;
   --color-phone-glass-opaque: #fdf3eb;
 }
 
@@ -2448,6 +2461,7 @@
     --color-phone-card: rgb(243 154 82 / 0.08);
     --color-phone-separator: rgb(255 225 205 / 0.12);
     --color-phone-text-secondary: #c5b0a6;
+    --color-phone-text-faint: #baa499;
     --color-phone-glass-opaque: #312820;
   }
 }
@@ -2459,6 +2473,7 @@
   --color-phone-card: rgb(243 154 82 / 0.08);
   --color-phone-separator: rgb(255 225 205 / 0.12);
   --color-phone-text-secondary: #c5b0a6;
+  --color-phone-text-faint: #baa499;
   --color-phone-glass-opaque: #312820;
 }
 
@@ -2469,5 +2484,6 @@
   --color-phone-card: rgb(255 255 255 / 0.3);
   --color-phone-separator: rgb(120 60 30 / 0.13);
   --color-phone-text-secondary: #5e4c43;
+  --color-phone-text-faint: #665349;
   --color-phone-glass-opaque: #fdf3eb;
 }

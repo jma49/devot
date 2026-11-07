@@ -117,7 +117,7 @@ struct SettingsRootView: View {
         } label: {
             HStack(spacing: Tokens.Size.phoneGroupedGap) {
                 Image(systemName: "bird.fill")
-                    .foregroundStyle(Color(Tokens.Color.phoneOnAction))
+                    .foregroundStyle(Color(Tokens.Color.accentOnFill))
                     .frame(width: Tokens.Size.phoneTarget, height: Tokens.Size.phoneTarget)
                     .background(RoundedRectangle(cornerRadius: Tokens.Radius.phoneGroupedCard / 2).fill(Color(Tokens.Color.accentFill)))
                     .accessibilityHidden(true)

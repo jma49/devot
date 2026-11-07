@@ -56,6 +56,14 @@
           },
           "$description": "Secondary text, tinted toward the theme; 4.5:1 on the glow and the base."
         },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.4157, 0.3098, 0.3569],
+            "hex": "#6a4f5b"
+          },
+          "$description": "Faint text such as the build version, tinted toward the theme, in place of color.phone.text-faint; 4.5:1 on the base."
+        },
         "accent": {
           "$value": {
             "colorSpace": "srgb",
@@ -71,6 +79,14 @@
             "hex": "#9a2b55"
           },
           "$description": "The accent as text and marks: links, checkmarks and the selected tab; 4.5:1 on the base."
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "hex": "#ffffff"
+          },
+          "$description": "A label or symbol on the accent fill, in place of color.accent.on-fill; 4.5:1 on the accent."
         },
         "glass-tint": {
           "$value": {
@@ -128,6 +144,13 @@
             "hex": "#c9adba"
           }
         },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7333, 0.6235, 0.6784],
+            "hex": "#bb9fad"
+          }
+        },
         "accent": {
           "$value": {
             "colorSpace": "srgb",
@@ -140,6 +163,13 @@
             "colorSpace": "srgb",
             "components": [0.9608, 0.6392, 0.7529],
             "hex": "#f5a3c0"
+          }
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1176, 0.0706, 0.098],
+            "hex": "#1e1219"
           }
         },
         "glass-tint": {
@@ -205,6 +235,14 @@
           },
           "$description": "Secondary text, tinted toward the theme; 4.5:1 on the glow and the base."
         },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3098, 0.3412, 0.4392],
+            "hex": "#4f5770"
+          },
+          "$description": "Faint text such as the build version, tinted toward the theme, in place of color.phone.text-faint; 4.5:1 on the base."
+        },
         "accent": {
           "$value": {
             "colorSpace": "srgb",
@@ -220,6 +258,14 @@
             "hex": "#3a47b5"
           },
           "$description": "The accent as text and marks: links, checkmarks and the selected tab; 4.5:1 on the base."
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "hex": "#ffffff"
+          },
+          "$description": "A label or symbol on the accent fill, in place of color.accent.on-fill; 4.5:1 on the accent."
         },
         "glass-tint": {
           "$value": {
@@ -277,6 +323,13 @@
             "hex": "#a9b1cb"
           }
         },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6196, 0.6549, 0.7608],
+            "hex": "#9ea7c2"
+          }
+        },
         "accent": {
           "$value": {
             "colorSpace": "srgb",
@@ -289,6 +342,13 @@
             "colorSpace": "srgb",
             "components": [0.7373, 0.7098, 1],
             "hex": "#bcb5ff"
+          }
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.0667, 0.0784, 0.1137],
+            "hex": "#11141d"
           }
         },
         "glass-tint": {
@@ -354,6 +414,14 @@
           },
           "$description": "Secondary text, tinted toward the theme; 4.5:1 on the glow and the base."
         },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.3137, 0.3765, 0.3333],
+            "hex": "#506055"
+          },
+          "$description": "Faint text such as the build version, tinted toward the theme, in place of color.phone.text-faint; 4.5:1 on the base."
+        },
         "accent": {
           "$value": {
             "colorSpace": "srgb",
@@ -369,6 +437,14 @@
             "hex": "#1a6359"
           },
           "$description": "The accent as text and marks: links, checkmarks and the selected tab; 4.5:1 on the base."
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "hex": "#ffffff"
+          },
+          "$description": "A label or symbol on the accent fill, in place of color.accent.on-fill; 4.5:1 on the accent."
         },
         "glass-tint": {
           "$value": {
@@ -426,6 +502,13 @@
             "hex": "#a8b9ad"
           }
         },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.6118, 0.6824, 0.6314],
+            "hex": "#9caea1"
+          }
+        },
         "accent": {
           "$value": {
             "colorSpace": "srgb",
@@ -438,6 +521,13 @@
             "colorSpace": "srgb",
             "components": [0.5255, 0.8471, 0.7922],
             "hex": "#86d8ca"
+          }
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.0588, 0.0902, 0.0667],
+            "hex": "#0f1711"
           }
         },
         "glass-tint": {
@@ -503,6 +593,14 @@
           },
           "$description": "Secondary text, tinted toward the theme; 4.5:1 on the glow and the base."
         },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.4, 0.3255, 0.2863],
+            "hex": "#665349"
+          },
+          "$description": "Faint text such as the build version, tinted toward the theme, in place of color.phone.text-faint; 4.5:1 on the base."
+        },
         "accent": {
           "$value": {
             "colorSpace": "srgb",
@@ -518,6 +616,14 @@
             "hex": "#8a4508"
           },
           "$description": "The accent as text and marks: links, checkmarks and the selected tab; 4.5:1 on the base."
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [1, 1, 1],
+            "hex": "#ffffff"
+          },
+          "$description": "A label or symbol on the accent fill, in place of color.accent.on-fill; 4.5:1 on the accent."
         },
         "glass-tint": {
           "$value": {
@@ -575,6 +681,13 @@
             "hex": "#c5b0a6"
           }
         },
+        "text-faint": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.7294, 0.6431, 0.6],
+            "hex": "#baa499"
+          }
+        },
         "accent": {
           "$value": {
             "colorSpace": "srgb",
@@ -587,6 +700,13 @@
             "colorSpace": "srgb",
             "components": [1, 0.7059, 0.4863],
             "hex": "#ffb47c"
+          }
+        },
+        "on-accent": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.1137, 0.0784, 0.0471],
+            "hex": "#1d140c"
           }
         },
         "glass-tint": {

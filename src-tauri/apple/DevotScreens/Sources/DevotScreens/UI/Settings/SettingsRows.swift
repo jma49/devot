@@ -228,7 +228,8 @@ struct SheetButton: View {
         }
         .frame(maxWidth: .infinity, minHeight: Tokens.Size.phoneSheetDone)
         if prominent {
-            Button(action: action) { label }.buttonStyle(.glassProminent).tint(Color(Tokens.Color.accentFill))
+            Button(action: action) { label.foregroundStyle(Color(Tokens.Color.accentOnFill)) }
+                .buttonStyle(.glassProminent).tint(Color(Tokens.Color.accentFill))
         } else {
             Button(action: action) { label }.buttonStyle(.glass)
         }

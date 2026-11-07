@@ -1405,8 +1405,10 @@ export const phoneThemes = {
       "card": "rgb(255 255 255 / 0.3)",
       "separator": "rgb(120 40 75 / 0.13)",
       "text-secondary": "#5f4651",
+      "text-faint": "#6a4f5b",
       "accent": "#b83a68",
       "accent-mark": "#9a2b55",
+      "on-accent": "#ffffff",
       "glass-tint": "#fdf2f6"
     },
     "dark": {
@@ -1416,8 +1418,10 @@ export const phoneThemes = {
       "card": "rgb(238 127 166 / 0.08)",
       "separator": "rgb(255 210 230 / 0.12)",
       "text-secondary": "#c9adba",
+      "text-faint": "#bb9fad",
       "accent": "#ee7fa6",
       "accent-mark": "#f5a3c0",
+      "on-accent": "#1e1219",
       "glass-tint": "#32262d"
     }
   },
@@ -1429,8 +1433,10 @@ export const phoneThemes = {
       "card": "rgb(255 255 255 / 0.3)",
       "separator": "rgb(40 60 130 / 0.13)",
       "text-secondary": "#485069",
+      "text-faint": "#4f5770",
       "accent": "#4553c9",
       "accent-mark": "#3a47b5",
+      "on-accent": "#ffffff",
       "glass-tint": "#f2f5fe"
     },
     "dark": {
@@ -1440,8 +1446,10 @@ export const phoneThemes = {
       "card": "rgb(165 147 245 / 0.08)",
       "separator": "rgb(200 215 255 / 0.12)",
       "text-secondary": "#a9b1cb",
+      "text-faint": "#9ea7c2",
       "accent": "#a593f5",
       "accent-mark": "#bcb5ff",
+      "on-accent": "#11141d",
       "glass-tint": "#222738"
     }
   },
@@ -1453,8 +1461,10 @@ export const phoneThemes = {
       "card": "rgb(255 255 255 / 0.3)",
       "separator": "rgb(40 90 55 / 0.14)",
       "text-secondary": "#4c5c51",
+      "text-faint": "#506055",
       "accent": "#1f7468",
       "accent-mark": "#1a6359",
+      "on-accent": "#ffffff",
       "glass-tint": "#f2f8ef"
     },
     "dark": {
@@ -1464,8 +1474,10 @@ export const phoneThemes = {
       "card": "rgb(92 192 176 / 0.08)",
       "separator": "rgb(210 240 220 / 0.12)",
       "text-secondary": "#a8b9ad",
+      "text-faint": "#9caea1",
       "accent": "#5cc0b0",
       "accent-mark": "#86d8ca",
+      "on-accent": "#0f1711",
       "glass-tint": "#202a23"
     }
   },
@@ -1477,8 +1489,10 @@ export const phoneThemes = {
       "card": "rgb(255 255 255 / 0.3)",
       "separator": "rgb(120 60 30 / 0.13)",
       "text-secondary": "#5e4c43",
+      "text-faint": "#665349",
       "accent": "#a8560f",
       "accent-mark": "#8a4508",
+      "on-accent": "#ffffff",
       "glass-tint": "#fdf3eb"
     },
     "dark": {
@@ -1488,8 +1502,10 @@ export const phoneThemes = {
       "card": "rgb(243 154 82 / 0.08)",
       "separator": "rgb(255 225 205 / 0.12)",
       "text-secondary": "#c5b0a6",
+      "text-faint": "#baa499",
       "accent": "#f39a52",
       "accent-mark": "#ffb47c",
+      "on-accent": "#1d140c",
       "glass-tint": "#312820"
     }
   },

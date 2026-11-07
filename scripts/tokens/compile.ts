@@ -259,9 +259,11 @@ export const PHONE_THEME_COLOURS: Readonly<Record<string, string>> = {
   card: 'color.phone.card',
   separator: 'color.phone.separator',
   'text-secondary': 'color.phone.text-secondary',
+  'text-faint': 'color.phone.text-faint',
   'glass-tint': 'color.phone.glass-opaque',
   accent: 'color.accent.fill',
   'accent-mark': 'color.accent.text',
+  'on-accent': 'color.accent.on-fill',
 }
 const PHONE_THEME_GLOW = ['glow-start', 'glow-end']
 
@@ -296,7 +298,7 @@ export function phoneThemes(tree: TokenTree, known: readonly string[]): PhoneThe
   })
 }
 
-/** The phone colours a theme's slots replace, as declarations; the accent stays the Mac's on the page. */
+/** The phone colours a theme's slots replace, as declarations; the accent and its label stay the Mac's on the page. */
 function phoneDeclarations(slots: Map<string, ColorValue>): string[] {
   return [...slots]
     .filter(([slot]) => PHONE_THEME_COLOURS[slot]?.startsWith('color.phone.'))

@@ -26,8 +26,10 @@ const SLOTS = [
   'card',
   'separator',
   'text-secondary',
+  'text-faint',
   'accent',
   'accent-mark',
+  'on-accent',
   'glass-tint',
 ]
 const GLOW = ['glow-start', 'glow-end']
@@ -50,7 +52,10 @@ function screen(id: string, scheme: Scheme) {
     top: glow ? composite(glow, background) : background,
     text: parseColor(base['color.phone.text']!).rgb,
     secondary: parseColor(slots['text-secondary'] ?? base['color.phone.text-secondary']!).rgb,
+    faint: parseColor(slots['text-faint'] ?? base['color.phone.text-faint']!).rgb,
     mark: parseColor(slots['accent-mark'] ?? base['color.accent.text']!).rgb,
+    accent: parseColor(slots.accent ?? base['color.accent.fill']!).rgb,
+    onAccent: parseColor(slots['on-accent'] ?? base['color.accent.on-fill']!).rgb,
   }
 }
 
@@ -116,6 +121,22 @@ describe("the iPhone's theme tokens", () => {
         expect(contrastRatio(secondary, surface)).toBeGreaterThanOrEqual(4.5)
       }
       expect(contrastRatio(mark, background)).toBeGreaterThanOrEqual(4.5)
+    },
+  )
+
+  it.each(GRADIENT_THEMES.flatMap((id) => SCHEMES.map((scheme) => [id, scheme] as const)))(
+    'keep faint text 4.5:1 on the base in %s %s',
+    (id, scheme) => {
+      const { background, faint } = screen(id, scheme)
+      expect(contrastRatio(faint, background)).toBeGreaterThanOrEqual(4.5)
+    },
+  )
+
+  it.each(THEMES.flatMap((id) => SCHEMES.map((scheme) => [id, scheme] as const)))(
+    'keep a label 4.5:1 on an accent fill in %s %s',
+    (id, scheme) => {
+      const { accent, onAccent } = screen(id, scheme)
+      expect(contrastRatio(onAccent, accent)).toBeGreaterThanOrEqual(4.5)
     },
   )
 
