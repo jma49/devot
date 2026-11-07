@@ -370,6 +370,45 @@ fn info_of(target: &Path, id: String, now: i64, seq: u64, kind: Kind) -> BackupI
     }
 }
 
+// Closing any descriptor of a file here would drop every POSIX lock this process holds on it, the
+// app's own SQLite locks included, so the live database's files are read by `cat` instead (#761).
+struct ReadInAnotherProcess(std::process::Child);
+
+impl ReadInAnotherProcess {
+    fn open(path: &Path) -> std::io::Result<Self> {
+        let child = std::process::Command::new("/bin/cat")
+            .arg("--")
+            .arg(path)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()?;
+        Ok(Self(child))
+    }
+}
+
+impl std::io::Read for ReadInAnotherProcess {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let stdout = self
+            .0
+            .stdout
+            .as_mut()
+            .ok_or(std::io::ErrorKind::BrokenPipe)?;
+        let read = stdout.read(buf)?;
+        if read == 0 && !buf.is_empty() && !self.0.wait()?.success() {
+            return Err(std::io::Error::other("E_BACKUP_SNAPSHOT_FAILED"));
+        }
+        Ok(read)
+    }
+}
+
+impl Drop for ReadInAnotherProcess {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
 /// The database's bytes as they are, with its `-wal` and `-shm`, for a database whose snapshot
 /// failed its check, so a restore over it still leaves a copy to go back to. Each file is written
 /// whole under a temporary name, the side files first, so the copy is listed only once complete;
@@ -380,7 +419,8 @@ fn take_raw(db_path: &Path, dir: &Path, now: i64) -> Result<BackupInfo, &'static
     let seq = next_seq(dir);
     let id = file_name(now, seq, Kind::RawSafety);
     let copy = |from: &Path, to: &str| {
-        let mut source = std::fs::File::open(from).map_err(|_| "E_BACKUP_SNAPSHOT_FAILED")?;
+        let mut source =
+            ReadInAnotherProcess::open(from).map_err(|_| "E_BACKUP_SNAPSHOT_FAILED")?;
         into.write_from(to, &mut source, Place::New)
             .map_err(|_| "E_BACKUP_SNAPSHOT_FAILED")
     };
@@ -1048,6 +1088,64 @@ mod tests {
         assert!(bytes.len() >= 4 * 4096, "{}", bytes.len());
         bytes[4096..3 * 4096].fill(0xff);
         std::fs::write(path, bytes).unwrap();
+    }
+
+    fn locked_out_of(db: &Path) -> bool {
+        let probe = std::process::Command::new("sqlite3")
+            .arg(db)
+            .arg("BEGIN IMMEDIATE;")
+            .output()
+            .expect("sqlite3 on PATH");
+        !probe.status.success()
+            && String::from_utf8_lossy(&probe.stderr).contains("database is locked")
+    }
+
+    #[test]
+    fn a_raw_copy_that_cannot_read_the_database_places_nothing() {
+        let (dir, backups, _db) = app_data();
+        std::fs::create_dir_all(&backups.dir).unwrap();
+        let unreadable = dir.path().join("folder.sqlite");
+        std::fs::create_dir(&unreadable).unwrap();
+        for db_path in [unreadable, dir.path().join("missing.sqlite")] {
+            assert_eq!(
+                take_raw(&db_path, &backups.dir, NOW).unwrap_err(),
+                "E_BACKUP_SNAPSHOT_FAILED"
+            );
+        }
+        assert_eq!(std::fs::read_dir(&backups.dir).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn a_raw_copy_keeps_the_app_s_locks_on_the_database() {
+        let (dir, backups, _db) = app_data();
+        let side = |suffix: &str| PathBuf::from(format!("{}{suffix}", backups.db_path.display()));
+        let files = [backups.db_path.clone(), side("-wal"), side("-shm")];
+        let app = rusqlite::Connection::open(&backups.db_path).unwrap();
+        app.execute_batch("BEGIN IMMEDIATE").unwrap();
+        assert!(locked_out_of(&backups.db_path));
+        let before = dir.path().join("before");
+        std::fs::create_dir(&before).unwrap();
+        // Copied by another process, which leaves this one's locks alone.
+        let copied = std::process::Command::new("cp")
+            .args(&files)
+            .arg(&before)
+            .status()
+            .unwrap();
+        assert!(copied.success());
+
+        for (taken, at) in [NOW, NOW + HOUR].into_iter().enumerate() {
+            let copy = take_raw(&backups.db_path, &backups.dir, at).unwrap();
+            assert!(locked_out_of(&backups.db_path), "after copy {taken}");
+            for (file, suffix) in files.iter().zip(["", "-wal", "-shm"]) {
+                let name = file.file_name().unwrap();
+                assert_eq!(
+                    std::fs::read(backups.dir.join(format!("{}{suffix}", copy.id))).unwrap(),
+                    std::fs::read(before.join(name)).unwrap(),
+                    "{name:?}"
+                );
+            }
+        }
+        app.execute_batch("ROLLBACK").unwrap();
     }
 
     #[test]
