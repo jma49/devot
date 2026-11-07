@@ -66,6 +66,9 @@ final class Screens {
         }
         let screens = Screens(rust: rust, webView: webView)
         UIView.performWithoutAnimation { screens.root.attach(to: root) }
+        #if DEBUG
+            SpikeHarness.startIfAsked(screens: screens, webView: webView, defaults: defaults)
+        #endif
         return screens
     }
 

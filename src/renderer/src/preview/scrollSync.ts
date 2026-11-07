@@ -347,8 +347,8 @@ export function shiftScroll(element: HTMLElement, by: number): void {
 /**
  * The preview as a scroll pane: `element` scrolls and its blocks carry their
  * source lines. Block offsets are measured once and kept until the content
- * changes size or is rendered anew, so scrolling reads no layout but the
- * scroll offset.
+ * changes size, its line count changes or it is rendered anew, so scrolling
+ * and typing within a line read no layout but the scroll offset and height.
  */
 export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
   let lines = 1
@@ -412,6 +412,12 @@ export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
       return () => moves.delete(listener)
     },
     changed: (count) => {
+      // Typing in a line moves no block unless the height changes, which `measure` notices:
+      // measuring every block of a big note again on each key would cost more than the edit.
+      if (count !== undefined && count === lines) {
+        for (const listener of listeners) listener()
+        return
+      }
       if (count !== undefined) lines = count
       relayout()
     },

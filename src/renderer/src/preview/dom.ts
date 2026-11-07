@@ -169,12 +169,20 @@ export function patchChildren(parent: Node, next: readonly HastChild[]): void {
   else while (parent.childNodes.length > wanted.length) parent.lastChild?.remove()
 }
 
+/** A run of a piece's marked elements, in document order, that counts from its own line and offset. */
+export interface PiecePart {
+  line: number
+  offset: number
+  marks: number
+}
+
 /** What the page shows of one piece of the note (see `renderPreviewPieces`). */
 export interface ShownPiece {
   key: string
-  /** The line and offset the piece's attributes count from. */
+  /** The line and offset the piece's attributes count from, unless it has parts. */
   line: number
   offset: number
+  parts?: PiecePart[]
   nodes: ChildNode[]
   marked: Element[]
 }
@@ -183,6 +191,7 @@ export interface NextPiece {
   key: string
   line: number
   offset: number
+  parts?: readonly PiecePart[] | undefined
   nodes?: readonly HastChild[] | undefined
 }
 
@@ -207,16 +216,47 @@ function bump(el: Element, name: string, by: number): void {
   if (value !== null) el.setAttribute(name, String(Number(value) + by))
 }
 
-function moveTo(piece: ShownPiece, line: number, offset: number): void {
-  const lines = line - piece.line
-  const chars = offset - piece.offset
+function shiftMarked(
+  marked: readonly Element[],
+  from: number,
+  to: number,
+  lines: number,
+  chars: number,
+) {
   if (lines === 0 && chars === 0) return
-  for (const el of piece.marked) {
+  for (let i = from; i < to; i += 1) {
+    const el = marked[i]!
     if (lines !== 0) bump(el, LINE_ATTRIBUTE, lines)
     if (chars !== 0) for (const name of OFFSET_ATTRIBUTES) bump(el, name, chars)
   }
-  piece.line = line
-  piece.offset = offset
+}
+
+function moveTo(piece: ShownPiece, to: NextPiece): void {
+  if (piece.parts && to.parts) {
+    let from = 0
+    for (const [at, part] of to.parts.entries()) {
+      const was = piece.parts[at]!
+      shiftMarked(
+        piece.marked,
+        from,
+        from + part.marks,
+        part.line - was.line,
+        part.offset - was.offset,
+      )
+      from += part.marks
+    }
+    piece.parts = to.parts.map((part) => ({ ...part }))
+  } else {
+    shiftMarked(
+      piece.marked,
+      0,
+      piece.marked.length,
+      to.line - piece.line,
+      to.offset - piece.offset,
+    )
+  }
+  piece.line = to.line
+  piece.offset = to.offset
 }
 
 /** `patchChildren` for the run `old`, which sits just before `before`. */
@@ -253,9 +293,9 @@ function patchRange(
 
 /**
  * Brings `host` from the pieces it shows to `next` and returns what it shows
- * then. Pieces at the start and the end that kept their key stay as they are
- * (bar their lines and offsets); the run between is patched in place. A piece
- * sent without nodes must be one the host shows.
+ * then. Pieces that kept their key stay as they are (bar their lines and
+ * offsets); each run between them is patched in place. A piece sent without
+ * nodes must be one the host shows.
  */
 export function patchPieces(
   host: Element,
@@ -283,49 +323,74 @@ export function patchPieces(
     null
 
   const fresh = (piece: NextPiece, nodes: ChildNode[]): ShownPiece => {
-    const made = { key: piece.key, line: 1, offset: 0, nodes, marked: markedIn(nodes) }
-    moveTo(made, piece.line, piece.offset)
+    const made: ShownPiece = { key: piece.key, line: 1, offset: 0, nodes, marked: markedIn(nodes) }
+    if (piece.parts) made.parts = piece.parts.map((part) => ({ ...part, line: 1, offset: 0 }))
+    moveTo(made, piece)
     return made
   }
 
-  let middle: ShownPiece[]
-  if (newMiddle.every((piece) => piece.nodes)) {
-    const nodes = patchRange(
-      host,
-      oldMiddle.flatMap((piece) => piece.nodes),
-      newMiddle.flatMap((piece) => piece.nodes!),
-      before,
-    )
-    let at = 0
-    middle = newMiddle.map((piece) => {
-      const count = piece.nodes!.filter(isShown).length
-      at += count
-      return fresh(piece, nodes.slice(at - count, at))
-    })
+  // Where each kept piece is now and was before; they stay put if they kept their order.
+  const shownAt = new Map(oldMiddle.map((piece, at) => [piece.key, at]))
+  const kept: { at: number; was: number }[] = []
+  let inOrder = true
+  for (const [at, piece] of newMiddle.entries()) {
+    if (piece.nodes) continue
+    const was = shownAt.get(piece.key)
+    if (was === undefined || was <= (kept.at(-1)?.was ?? -1)) inOrder = false
+    else kept.push({ at, was })
+  }
+
+  let middle: ShownPiece[] = []
+  if (inOrder) {
+    let fromNew = 0
+    let fromOld = 0
+    for (const { at, was } of [...kept, { at: newMiddle.length, was: oldMiddle.length }]) {
+      const run = newMiddle.slice(fromNew, at)
+      const until = oldMiddle.slice(was).find((piece) => piece.nodes.length > 0)?.nodes[0] ?? before
+      const nodes = patchRange(
+        host,
+        oldMiddle.slice(fromOld, was).flatMap((piece) => piece.nodes),
+        run.flatMap((piece) => piece.nodes!),
+        until,
+      )
+      let taken = 0
+      for (const piece of run) {
+        const count = piece.nodes!.filter(isShown).length
+        taken += count
+        middle.push(fresh(piece, nodes.slice(taken - count, taken)))
+      }
+      const stays = oldMiddle[was]
+      if (stays) {
+        moveTo(stays, newMiddle[at]!)
+        middle.push(stays)
+      }
+      fromNew = at + 1
+      fromOld = was + 1
+    }
   } else {
     // A piece moved: the others in the run are built anew.
     const known = new Map(oldMiddle.map((piece) => [piece.key, piece]))
-    const kept = new Set<ShownPiece>()
+    const reused = new Set<ShownPiece>()
     middle = newMiddle.map((piece) => {
       if (piece.nodes) {
         const nodes = piece.nodes.filter(isShown).map((n) => create(n, host.namespaceURI))
         return fresh(piece, nodes as ChildNode[])
       }
       const old = known.get(piece.key)
-      if (!old || kept.has(old)) throw new Error('E_PREVIEW_PIECE_MISSING')
-      kept.add(old)
-      moveTo(old, piece.line, piece.offset)
+      if (!old || reused.has(old)) throw new Error('E_PREVIEW_PIECE_MISSING')
+      reused.add(old)
+      moveTo(old, piece)
       return old
     })
     for (const piece of oldMiddle) {
-      if (!kept.has(piece)) for (const node of piece.nodes) node.remove()
+      if (!reused.has(piece)) for (const node of piece.nodes) node.remove()
     }
     for (const piece of middle) for (const node of piece.nodes) host.insertBefore(node, before)
   }
 
   const out = [...shown.slice(0, head), ...middle, ...after]
   for (let i = 0; i < out.length; i += 1) {
-    if (i < head || i >= head + middle.length) moveTo(out[i]!, next[i]!.line, next[i]!.offset)
+    if (i < head || i >= head + middle.length) moveTo(out[i]!, next[i]!)
   }
   return out
 }

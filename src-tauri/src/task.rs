@@ -5,10 +5,7 @@ pub async fn blocking<T: Send + 'static>(
     failed: &'static str,
     work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
 ) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(work)
-        .await
-        .map_err(|_| failed.to_string())?
-        .map_err(String::from)
+    coded(failed, work).await.map_err(String::from)
 }
 
 /// [`blocking`] for a command whose work needs a service held in Tauri's state.
@@ -17,8 +14,27 @@ pub async fn blocking_with<S: Send + Sync + 'static, T: Send + 'static>(
     failed: &'static str,
     work: impl FnOnce(&S) -> Result<T, &'static str> + Send + 'static,
 ) -> Result<T, String> {
+    coded_with(state, failed, work).await.map_err(String::from)
+}
+
+/// [`blocking`] that keeps the code, for a body that a command and the iPhone's screens share.
+pub async fn coded<T: Send + 'static>(
+    failed: &'static str,
+    work: impl FnOnce() -> Result<T, &'static str> + Send + 'static,
+) -> Result<T, &'static str> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|_| failed)?
+}
+
+/// [`blocking_with`] that keeps the code.
+pub async fn coded_with<S: Send + Sync + 'static, T: Send + 'static>(
+    state: &Arc<S>,
+    failed: &'static str,
+    work: impl FnOnce(&S) -> Result<T, &'static str> + Send + 'static,
+) -> Result<T, &'static str> {
     let state = Arc::clone(state);
-    blocking(failed, move || work(&state)).await
+    coded(failed, move || work(&state)).await
 }
 
 #[cfg(test)]

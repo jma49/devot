@@ -1,4 +1,4 @@
-import type { Root, RootContent } from 'hast'
+import type { Element, Root, RootContent } from 'hast'
 import { describe, expect, it } from 'vitest'
 import {
   createPieceRenderer,
@@ -19,19 +19,27 @@ import { labels, noteFields } from '../support/preview-html'
 
 const options: PreviewOptions = { labels, loadedEmbeds: [] }
 
-function shifted(node: RootContent, line: number, offset: number): RootContent {
+const marked = (node: Element) =>
+  typeof node.properties[PIECE_LINE_PROPERTY] === 'number' ||
+  PIECE_OFFSET_PROPERTIES.some((name) => typeof node.properties[name] === 'number')
+
+/** `node` with its lines and offsets counted from the note, each marked element from `baseOf()`. */
+function shifted(node: RootContent, baseOf: () => { line: number; offset: number }): RootContent {
   if (node.type !== 'element') return structuredClone(node)
   const properties = { ...node.properties }
-  const at = properties[PIECE_LINE_PROPERTY]
-  if (typeof at === 'number') properties[PIECE_LINE_PROPERTY] = at + line - 1
-  for (const name of PIECE_OFFSET_PROPERTIES) {
-    const value = properties[name]
-    if (typeof value === 'number') properties[name] = value + offset
+  if (marked(node)) {
+    const { line, offset } = baseOf()
+    const at = properties[PIECE_LINE_PROPERTY]
+    if (typeof at === 'number') properties[PIECE_LINE_PROPERTY] = at + line - 1
+    for (const name of PIECE_OFFSET_PROPERTIES) {
+      const value = properties[name]
+      if (typeof value === 'number') properties[name] = value + offset
+    }
   }
   return {
     ...node,
     properties,
-    children: node.children.map((c) => shifted(c, line, offset)) as typeof node.children,
+    children: node.children.map((c) => shifted(c, baseOf)) as typeof node.children,
   }
 }
 
@@ -42,7 +50,11 @@ function assemble(pieces: PreviewPiece[], kept: Map<string, RootContent[]>): Roo
     const nodes = piece.nodes ?? kept.get(piece.key)
     if (!nodes) throw new Error(`no nodes for ${piece.key}`)
     kept.set(piece.key, structuredClone(nodes))
-    children.push(...nodes.map((n) => shifted(n, piece.line, piece.offset)))
+    const bases = piece.parts?.flatMap((part) => Array<typeof part>(part.marks).fill(part))
+    let mark = 0
+    const baseOf = () => (bases ? bases[mark++]! : piece)
+    children.push(...nodes.map((n) => shifted(n, baseOf)))
+    expect(mark).toBe(bases?.length ?? mark)
   }
   return { type: 'root', children }
 }
@@ -90,12 +102,32 @@ const CASES: Record<string, string> = {
   'link definitions':
     'See [a] and [b][].\n\nText.\n\n[a]: https://example.com/a\n\n[b]: https://example.com/b',
   footnotes: 'Note[^1] and more[^n].\n\nText.\n\n[^1]: First.\n\n[^n]: Second.',
-  'definitions in containers': '> [a]: https://example.com\n\nSee [a].',
+  'definitions in containers':
+    '> [a]: https://example.com\n\nSee [a].\n\n- item\n\n  [^q]: In a list.\n\nCall[^q].',
+  'footnotes called again and from other pieces':
+    'One[^a] and two[^b].\n\nAgain[^a] and [^A].\n\n[^b]: Bee *b*.\n\n[^a]: Ay with [link].\n\n[link]: https://example.com/l "Title"\n\nLast[^b].',
+  'footnotes inside footnotes': 'Call[^x].\n\n[^x]: Outer, see[^y].\n\n[^y]: Inner[^x].',
+  'a footnote ending in a code block': 'Call[^c].\n\n[^c]: Text.\n\n        code\n\nAfter[^c].',
+  'repeated definitions':
+    '[a] and [^n].\n\n[a]: https://example.com/first\n\n[^n]: First note.\n\n[a]: https://example.com/second\n\n[^n]: Second note.\n\n[a][] again[^n].',
+  'definitions in code':
+    '```ts\ntype A = {\n  [key: string]: number\n}\n```\n\nText.\n\n```\n[^x]: not a note\n```\n\nCall [^x] stays text.',
+  'unused definitions': 'Text.\n\n[^u]: Never called.\n\n[u]: https://example.com\n\nMore.',
+  'labels by case and spacing':
+    'See [Foo  Bar] and [^Note One].\n\n[foo bar]: https://example.com/fb\n\n[^note one]: Spaced.',
+  'images by reference':
+    '![alt][img]\n\nText.\n\n[img]: devot://attachment/0b0b0b0b-0000-4000-8000-000000000000',
+  'front matter and footnotes': '---\ntitle: A\n---\n\nCall[^1].\n\n[^1]: Note.',
+  'tasks and math in footnotes':
+    'Call[^m].\n\nText.\n\n[^m]: Math $x^2$ and a list:\n\n    - [ ] inside\n    - [x] done\n\nAfter.',
+  'an unclosed fence after footnotes':
+    'Call[^1] and [r].\n\n[^1]: Note.\n\n[r]: https://example.com\n\n```\nopen [r] [^1]\n\nstill code',
   'crlf line ends': '# A\r\n\r\nText\r\n\r\n```\r\na\r\n\r\nb\r\n```\r\n\r\n- [ ] t\r\n',
   'tabs and spaces': 'A\n\n\tindented\n\n  two spaces\n\nB',
   diagrams:
     '```mermaid\ngraph TD\n  A --> B\n```\n\nText.\n\n```mermaid\nsequenceDiagram\n  A->>B: hi\n```',
   'code with titles': '```ts title="a.ts"\nlet a = 1\n```\n\n```py line=3-4\nx = 1\n\ny = 2\n```',
+  'headings in footnotes': '# Same\n\nCall[^h].\n\n[^h]: Note\n\n    # Same\n\n# Same\n\nEnd.',
   'processing instructions': 'A.\n\n<?php\n\necho 1;\n\n?>\n\nB.',
   'empty and blank notes': '\n\n\n',
 }
@@ -133,9 +165,7 @@ describe('createPieceRenderer', () => {
   })
 
   it('renders notes built from shuffled cases as the whole note does', async () => {
-    const parts = Object.entries(CASES)
-      .filter(([name]) => !/definitions|footnotes/.test(name))
-      .map(([, md]) => md)
+    const parts = Object.values(CASES)
     let seed = 7
     const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
     for (let round = 0; round < 25; round += 1) {
@@ -146,9 +176,112 @@ describe('createPieceRenderer', () => {
     }
   })
 
-  it('keeps one piece for a note with definitions', () => {
-    expect(splitBlocks(CASES['link definitions']!)).toHaveLength(1)
-    expect(splitBlocks(CASES['footnotes']!)).toHaveLength(1)
+  it('cuts a note with definitions into pieces', () => {
+    expect(splitBlocks(CASES['link definitions']!, 1)).toHaveLength(4)
+    expect(splitBlocks(CASES['footnotes']!, 1)).toHaveLength(4)
+  })
+
+  it('sends again only the edited piece of a note with footnotes and reference definitions', async () => {
+    const render = small()
+    const note = (edit: string) =>
+      [...Array(12).keys()]
+        .map(
+          (i) =>
+            `Para ${i}${i === 5 ? edit : ''} calls[^n${i}] and [ref ${i}].\n\n[^n${i}]: Note ${i}, [ref ${i}].\n\n[ref ${i}]: https://example.com/${i}`,
+        )
+        .join('\n\n')
+    const kept = new Map<string, RootContent[]>()
+    const first = await render(note(''), options)
+    assemble(first, kept)
+    expect(first.length).toBeGreaterThan(30)
+    const markdown = note(' edited')
+    const second = await render(markdown, options, [...kept.keys()])
+    expect(second.filter((p) => p.nodes !== undefined).map((p) => p.line)).toEqual([31])
+    expect(blocksOnly(assemble(second, kept))).toEqual(
+      blocksOnly(await renderPreview(markdown, options)),
+    )
+  })
+
+  it('sends the list of notes again only when a note in it changed', async () => {
+    const render = createPieceRenderer({ pieceLength: 30 })
+    const note = (edit: string, noteEdit = '') =>
+      [...Array(8).keys()]
+        .map(
+          (i) =>
+            `Para ${i}${i === 5 ? edit : ''} calls[^n${i}].\n\n[^n${i}]: Note ${i}${i === 5 ? noteEdit : ''}.`,
+        )
+        .join('\n\n')
+    const kept = new Map<string, RootContent[]>()
+    const first = await render(note(''), options)
+    assemble(first, kept)
+    const edited = await render(note(' edited'), options, [...kept.keys()])
+    expect(edited.filter((p) => p.nodes !== undefined).map((p) => p.line)).toEqual([21])
+    assemble(edited, kept)
+    const markdown = note(' edited', ' edited')
+    const both = await render(markdown, options, [...kept.keys()])
+    expect(both.filter((p) => p.nodes !== undefined).map((p) => p.line)).toEqual([21, 3])
+    expect(blocksOnly(assemble(both, kept))).toEqual(
+      blocksOnly(await renderPreview(markdown, options)),
+    )
+  })
+
+  it('keeps the list of notes when lines and characters are added above the notes it lists', async () => {
+    const render = createPieceRenderer({ pieceLength: 30 })
+    const note = (edit: string) =>
+      [...Array(8).keys()]
+        .map(
+          (i) =>
+            `Para ${i}${i === 1 ? edit : ''} calls[^n${i}].\n\n[^n${i}]: Note ${i}, ![i](https://example.com/${i}.png)\n\n    - [ ] task ${i}`,
+        )
+        .join('\n\n')
+    const kept = new Map<string, RootContent[]>()
+    assemble(await render(note(''), options), kept)
+    for (const edit of [' typed', ' typed\nand a line']) {
+      const markdown = note(edit)
+      const next = await render(markdown, options, [...kept.keys()])
+      const sent = next.filter((p) => p.nodes !== undefined)
+      expect(sent.map((p) => p.line)).toContain(7)
+      expect(sent.filter((p) => p.parts)).toEqual([])
+      expect(blocksOnly(assemble(next, kept))).toEqual(
+        blocksOnly(await renderPreview(markdown, options)),
+      )
+    }
+  })
+
+  it('names the headings in footnotes after every other heading, again when one is added before them', async () => {
+    const render = small()
+    const kept = new Map<string, RootContent[]>()
+    const before = 'Call[^h].\n\n[^h]: Note\n\n    # Same\n\nEnd.'
+    assemble(await render(before, options), kept)
+    const markdown = `# Same\n\n${before}`
+    const next = await render(markdown, options, [...kept.keys()])
+    expect(blocksOnly(assemble(next, kept))).toEqual(
+      blocksOnly(await renderPreview(markdown, options)),
+    )
+  })
+
+  it('numbers the footnotes again when a call is added before them', async () => {
+    const render = small()
+    const kept = new Map<string, RootContent[]>()
+    const before = 'A[^a].\n\nB[^b].\n\n[^a]: Ay.\n\n[^b]: Bee.'
+    assemble(await render(before, options), kept)
+    const markdown = 'B first[^b]. A[^a].\n\nB[^b].\n\n[^a]: Ay.\n\n[^b]: Bee.'
+    const second = await render(markdown, options, [...kept.keys()])
+    expect(blocksOnly(assemble(second, kept))).toEqual(
+      blocksOnly(await renderPreview(markdown, options)),
+    )
+  })
+
+  it('renders a piece again when a definition it uses changes in another piece', async () => {
+    const render = small()
+    const kept = new Map<string, RootContent[]>()
+    assemble(await render('See [a].\n\n[a]: https://example.com/1', options), kept)
+    const markdown = 'See [a].\n\n[a]: https://example.com/2'
+    const second = await render(markdown, options, [...kept.keys()])
+    expect(second[0]!.nodes).toBeDefined()
+    expect(blocksOnly(assemble(second, kept))).toEqual(
+      blocksOnly(await renderPreview(markdown, options)),
+    )
   })
 
   it('still tells a tag that closes itself from one that stays open', () => {
@@ -261,6 +394,46 @@ describe('createPieceRenderer', () => {
     render.forgetShown()
     const first = await rendering
     expect(keptOf(first, await render(LONG_NOTE, options))).toBeLessThanOrEqual(KEPT_CHARACTERS)
+  })
+
+  describe('keeps none of the footnotes of a note whose pieces it let go', () => {
+    const FOOTNOTED = [...Array(6).keys()]
+      .map((i) => `Para ${i} calls[^n${i}].\n\n[^n${i}]: Note ${i}.`)
+      .join('\n\n')
+    // The list's key holds the version the renderer remembers of each note in it.
+    const listKey = (pieces: readonly PreviewPiece[]) => pieces.at(-1)!.key
+    const forgetting = () => createPieceRenderer({ pieceLength: 30, capacity: 0 })
+
+    it('when another note is shown', async () => {
+      const render = forgetting()
+      const first = await render(FOOTNOTED, options)
+      expect(listKey(first)).toMatch(/^notes /)
+      await render('Another note.', options)
+      expect(listKey(await render(FOOTNOTED, options))).not.toBe(listKey(first))
+    })
+
+    it('when its preview closed', async () => {
+      const render = forgetting()
+      const first = await render(FOOTNOTED, options)
+      render.forgetShown()
+      expect(listKey(await render(FOOTNOTED, options))).not.toBe(listKey(first))
+    })
+
+    it('when its preview closed while it was rendered', async () => {
+      const render = forgetting()
+      const rendering = render(FOOTNOTED, options)
+      render.forgetShown()
+      const first = await rendering
+      expect(listKey(await render(FOOTNOTED, options))).not.toBe(listKey(first))
+    })
+
+    it('but the versions of those it keeps, so the list is not sent again', async () => {
+      const render = createPieceRenderer({ pieceLength: 30 })
+      const first = await render(FOOTNOTED, options)
+      render.forgetShown()
+      await render('Another note.', options)
+      expect(listKey(await render(FOOTNOTED, options))).toBe(listKey(first))
+    })
   })
 
   it('keeps every piece of a note larger than its capacity, so only an edited piece is sent again', async () => {

@@ -93,7 +93,14 @@ fn open_at(app: &AppHandle, pane: Option<&'static str>) {
         // Links from other apps wait until it closes (`deep_link`).
         Ok(_window) => {
             #[cfg(target_os = "macos")]
-            crate::native::macos::round_window_corner(&_window);
+            {
+                crate::native::macos::round_window_corner(&_window);
+                crate::native::macos::keep_traffic_lights(
+                    &_window,
+                    TRAFFIC_LIGHTS.x,
+                    TRAFFIC_LIGHTS.y,
+                );
+            }
             crate::deep_link::settings_opened(app)
         }
         Err(_) => log::warn!("W_SETTINGS_OPEN_FAILED"),

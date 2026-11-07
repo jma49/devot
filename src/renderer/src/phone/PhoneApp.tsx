@@ -55,6 +55,7 @@ import { startScreensBridge, type ScreensBridge } from './screens/bridge'
 import { SCREENS_HANDLERS } from './screens/ops'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
 import { modalOpen, watchModals } from './modal'
+import { useSpikes } from './screens/useSpikes'
 import { currentWindowLabel } from '../focus'
 import { useSyncEngine } from '../sync'
 import { licenceRow, welcomeDue } from './settingsRows'
@@ -339,6 +340,7 @@ export function PhoneApp() {
       started.stop()
     }
   }, [])
+  useSpikes(store.core)
   useEffect(() => {
     if (welcomed.current || !welcomeDue(licence, Date.now())) return
     welcomed.current = true

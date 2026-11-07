@@ -399,6 +399,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: sh scripts/ci/devot-store-tests.sh
       - run: sh scripts/ci/devot-screens-tests.sh
+      # The spike harness is built into a debug app only (docs/specs/iphone-screens.md, Spikes).
+      - run: sh scripts/ci/devot-screens-release-check.sh
       # A placeholder for the UI, as in rust-check.
       - run: mkdir -p dist && echo '<!doctype html><title>Devot</title>' > dist/index.html
       - run: rustup toolchain install

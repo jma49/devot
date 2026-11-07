@@ -6,7 +6,11 @@ import {
   findMatches,
   replaceAll,
   replacementChanges,
+  changedSpan,
+  updateMatches,
   type FindOptions,
+  type FindResult,
+  type FindText,
 } from './find'
 import { escapeRegExp } from './search'
 
@@ -243,6 +247,129 @@ describe('replaceAll', () => {
           expect(replaceAll(t, plain(q, true), r).text).toBe(t.split(q).join(r))
         },
       ),
+    )
+  })
+})
+
+const textOf = (text: string, read?: (from: number, to: number) => void): FindText => ({
+  length: text.length,
+  slice: (from, to) => {
+    read?.(from, to)
+    return text.slice(from, to)
+  },
+})
+
+interface Edit {
+  at: number
+  remove: number
+  insert: string
+}
+
+function applyEdit(text: string, edit: Edit) {
+  const from = Math.min(edit.at, text.length)
+  const to = Math.min(from + edit.remove, text.length)
+  return {
+    text: text.slice(0, from) + edit.insert + text.slice(to),
+    change: { from, toA: to, toB: from + edit.insert.length },
+  }
+}
+
+describe('updateMatches', () => {
+  const LONE_HIGH = String.fromCharCode(0xd83d)
+  const KELVIN = String.fromCodePoint(0x212a)
+  const LONG_S = String.fromCodePoint(0x17f)
+  const alphabet = fc.constantFrom(
+    'a',
+    'A',
+    'b',
+    's',
+    'S',
+    'k',
+    LONG_S,
+    KELVIN,
+    EMOJI,
+    LONE_HIGH,
+    '\n',
+    ' ',
+  )
+  const piece = (max: number) =>
+    fc.array(alphabet, { maxLength: max }).map((chars) => chars.join(''))
+  const edit = fc.record({
+    at: fc.nat({ max: 80 }),
+    remove: fc.nat({ max: 6 }),
+    insert: piece(6),
+  })
+
+  it('gives what a full search of the new text gives, edit after edit', () => {
+    fc.assert(
+      fc.property(
+        piece(80),
+        fc.array(alphabet, { minLength: 1, maxLength: 4 }).map((chars) => chars.join('')),
+        fc.boolean(),
+        fc.array(edit, { minLength: 1, maxLength: 8 }),
+        fc.constantFrom(MAX_FIND_MATCHES, 3),
+        (start, query, caseSensitive, edits, limit) => {
+          const options = plain(query, caseSensitive)
+          let text = start
+          let result: FindResult = findMatches(text, options, limit)
+          for (const e of edits) {
+            const next = applyEdit(text, e)
+            text = next.text
+            result =
+              updateMatches(result, options, next.change, textOf(text), limit)?.result ??
+              findMatches(text, options, limit)
+            expect(result).toEqual(findMatches(text, options, limit))
+          }
+        },
+      ),
+      { numRuns: 3000 },
+    )
+  })
+
+  it('reads only around the change in a long note', () => {
+    const lines = 'A line of prose about a dog.\n'.repeat(9) + 'A line about a cat.\n'
+    const text = lines.repeat(4_000)
+    const options = plain('cat')
+    const old = findMatches(text, options)
+    const at = text.length >> 1
+    const next = applyEdit(text, { at, remove: 0, insert: 'x' })
+    let read = 0
+    const result = updateMatches(
+      old,
+      options,
+      next.change,
+      textOf(next.text, (from, to) => (read += to - from)),
+    )
+    expect(result?.result).toEqual(findMatches(next.text, options))
+    expect(read).toBeLessThan(100)
+  })
+
+  it('leaves regular expressions and a capped result to a full search', () => {
+    const change = { from: 0, toA: 0, toB: 1 }
+    const old = findMatches('aa', regexp('a'))
+    expect(updateMatches(old, regexp('a'), change, textOf('baa'))).toBeNull()
+    const capped = findMatches('aaa', plain('a'), 2)
+    expect(updateMatches(capped, plain('a'), change, textOf('baaa'), 2)).toBeNull()
+  })
+})
+
+describe('changedSpan', () => {
+  it('covers every difference between two texts and nothing they share at the ends', () => {
+    const text = fc.string({ unit: fc.constantFrom('a', 'b', '\n'), maxLength: 9000 })
+    fc.assert(
+      fc.property(text, text, text, (head, middle, tail) => {
+        const a = head + middle + tail
+        const b = head + tail
+        const span = changedSpan(a, b)
+        expect(span === null).toBe(a === b)
+        const { from, toA, toB } = span ?? { from: a.length, toA: a.length, toB: b.length }
+        expect(a.slice(0, from)).toBe(b.slice(0, from))
+        expect(a.slice(toA)).toBe(b.slice(toB))
+        expect(from).toBeGreaterThanOrEqual(0)
+        expect(toA - from).toBeLessThanOrEqual(middle.length)
+        expect(toB).toBeGreaterThanOrEqual(from)
+      }),
+      { numRuns: 300 },
     )
   })
 })
