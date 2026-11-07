@@ -148,3 +148,39 @@ it('CI runs the package tests in their host app, over the shared fixtures', () =
     'path: ../../../../tests/fixtures/screens',
   )
 })
+
+// The spike harness (docs/specs/iphone-screens.md, Spikes) exists in debug builds only.
+const debugOnly = (text: string) => text.replace(/^\s*#if DEBUG\n[\s\S]*?^\s*#endif\n?/gm, '')
+
+it('keeps the spike harness inside #if DEBUG, in Debug/ and in the lines that start it', () => {
+  const harness = handWritten.filter((file) => file.includes('/Debug/'))
+  expect(harness.length).toBeGreaterThan(0)
+  for (const file of harness) {
+    expect({ file, inside: debugOnly(read(file)).trim() }).toEqual({ file, inside: '' })
+  }
+  for (const file of handWritten.filter((path) => !path.includes('/Debug/'))) {
+    expect({ file, spike: /Spike/.test(debugOnly(read(file))) }).toEqual({ file, spike: false })
+  }
+  expect(read(`${PACKAGE}/Sources/DevotScreens/Screens.swift`)).toMatch(
+    /#if DEBUG\n\s*SpikeHarness\.startIfAsked\(/,
+  )
+})
+
+it('lets only the debug harness run script in the page', () => {
+  const files = listFiles('.', 'src-tauri').filter((file) => /\.(swift|rs|m|mm)$/.test(file))
+  const scripting = files.filter((file) =>
+    /callAsyncJavaScript|evaluateJavaScript/.test(read(file)),
+  )
+  expect(scripting).toEqual([`${PACKAGE}/Sources/DevotScreens/Debug/SpikeHarness.swift`])
+  expect(debugOnly(read(scripting[0]!))).not.toMatch(/callAsyncJavaScript|evaluateJavaScript/)
+})
+
+it("loads the page's spike probes only in a debug build", () => {
+  const folder = 'src/renderer/src'
+  const importers = listFiles('.', folder)
+    .filter((file) => /(?<!\.test)\.tsx?$/.test(file))
+    .filter((file) => /from '\.\/spikes'|import\('\.\/spikes'\)/.test(read(file)))
+  expect(importers).toEqual([`${folder}/phone/screens/useSpikes.ts`])
+  expect(read(importers[0]!)).toMatch(/if \(!DEVOT_SPIKES\) return\n[\s\S]*import\('\.\/spikes'\)/)
+  expect(read(importers[0]!)).not.toMatch(/from '\.\/spikes'/)
+})

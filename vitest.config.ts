@@ -7,6 +7,7 @@ const include = ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}']
 const slow = ['**/*.bench.test.ts']
 
 export default defineConfig({
+  define: { DEVOT_SPIKES: 'false' },
   test: {
     environment: 'node',
     // Capped so a local run leaves the machine usable; DEVOT_TEST_WORKERS

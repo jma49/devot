@@ -65,6 +65,7 @@ In stage 0 the root is empty and transparent and passes every touch through, so 
 
 - Swift never talks to the page directly: there is no `WKScriptMessageHandler`.
   Every way into the page is a declared command in the `SCREENS` area of `src-tauri/build_commands.rs`, granted in `src-tauri/capabilities/phone.json` and validated in Rust.
+  The debug-only spike harness is the one exception (Spikes).
 - The package exports two C functions, `devot_screens_install(webView, root, call, log)` and `devot_screens_deliver(json, len)`.
   Rust hands Swift its own `call` and `log` functions at install, so Rust exports no symbol and Swift needs no header.
 - `build.rs` lists the package's C symbols beside the store's, so Cargo's iOS library, which holds no Swift, still links.
@@ -301,16 +302,75 @@ Settings root (large title, the system search field, a Pair a Device bar button 
 
 These are measured on a device in stage 0, before the stages that depend on them start; each result is written here.
 
+### The harness
+
+- A debug build carries a spike harness, `Sources/DevotScreens/Debug/` in the package and `src/renderer/src/phone/screens/spikes.ts` in the page; a release build carries neither.
+- The launch argument `-DevotSpike S1|S2|S3|S4|barTint` starts one spike once the screens are installed and the page answers a ping; without it the harness does nothing.
+- The harness drives the page's probes through `WKWebView.callAsyncJavaScript` on `window.__devotSpikes`, the one exception to Swift never talking to the page directly, and it exists in debug builds only.
+- Each run writes `Documents/spikes/<spike>.json` in the app's container, shaped `{ spike, device, os, build, startedAt, results, pass, notes }`.
+- `device` is the model identifier, never the phone's name, and `pass` is `null` when the result is read off a screenshot.
+- A run that cannot finish writes `pass: false` with its error code as the only note, such as `E_SPIKE_PAGE_TIMEOUT` when the page never answers within 60 s.
+- Each run logs `I_SPIKE_START spike=<spike>` and `I_SPIKE_DONE spike=<spike> pass=<pass>` through `os_log`, subsystem `io.github.jma49.devot`, category `spikes`.
+- To run one, install a debug build on a connected iPhone and run `scripts/ios/run-spike.sh <spike> [device]`.
+- The script builds, signs and installs nothing and needs no secret: it launches the app with `xcrun devicectl`, waits for a report whose `startedAt` differs from the one left before the launch, copies it back with `xcrun devicectl device copy from` and prints it.
+- `E_SPIKE_REPORT_TIMEOUT` from the script can mean the installed app was built without the harness, as when Xcode builds the package in its release configuration for the app's debug one; CI checks the package alone, not the app's build of it.
+- CI builds the package in Debug and Release and fails with `E_SPIKES_IN_RELEASE` when a Release symbol names a spike (`scripts/ci/devot-screens-release-check.sh`).
+- The page's probes load only when `DEVOT_SPIKES` is true, which Vite sets for a Tauri debug build, and `scripts/sentry/ui.ts` fails a release build whose bundle holds `__devotSpikes`.
+
+### Each spike
+
 - **S1, reparenting.** The web view moves to a native screen and back 200 times during a sync, `visibilityState` stays `visible`, the core worker answers a ping every 100 ms, and Tauri never resizes the moved view.
-  Result: not measured yet.
+  The harness moves the web view between the root and a pushed screen with `addSubview` alone and checks its size after each move and again 50 ms later.
+  The page counts `visibilitychange` to hidden, viewport resizes, unanswered or late pings, and the sync states it saw, and it touches sync while the moves run.
+  Pass: no size change, no hidden page, no missed ping and no resize.
+  A run in which sync never reached `syncing` says so in its notes, so turn sync on and write on another device while it runs.
+  Run: `scripts/ios/run-spike.sh S1`.
+  Result (2026-11-07, iPhone18,2, iOS 27.2, debug build): passed with sync off; 200 moves, no size change, no hidden page, no viewport resize, 205 pings answered with none missed and a longest gap of 108 ms.
+  Sync was not running, so the run under sync is still to be taken.
 - **S2, the keyboard after a native tap.** On iOS 26 and 27, a hidden native text field made first responder in `viewDidAppear` hands focus to the page; a public path is preferred.
   Otherwise the numbers choose between a guarded private focus path with a fallback, and a caret with no keyboard until the first tap.
-  Result: not measured yet.
+  The harness tries four paths on a pushed screen: the field holds the keyboard and the page focuses its editor, the same followed by making the web view first responder, the web view made first responder before the page focuses its editor, and the page focusing its editor with no keyboard up.
+  Each try records whether the keyboard came up and stayed up, which view is first responder, and whether the page's editor has focus and shows a caret.
+  The harness waits for the scene to be foreground-active first; if the field leaves the keyboard down, it makes the window key when it is not, then has the field resign and become first responder again, and records each step.
+  `results.diagnostics` records, after each step and around each try, the window's and the scene's key and activation state, the first responder's class, the field's state, a hardware keyboard, and the keyboard, window and scene notifications with their times.
+  Pass: either hand-off keeps the keyboard up with the web view first responder and the caret in the editor.
+  The guarded private focus path is not built; it is built and measured only if no public path passes.
+  Run: `scripts/ios/run-spike.sh S2`.
+  Result (2026-11-07, iPhone18,2, iOS 27.2): a public path passes once tao's window is key.
+  The app's window is not its scene's key window after launch: the scene has no key window, so a field that is first responder raises no keyboard until a tap or `makeKey()` makes the window key.
+  This comes from tao attaching its window to the scene after `makeKeyAndVisible`, as the app declares no scene manifest; the native shell must make that window key when it installs (PR 12).
+  With the window key, the field raises the keyboard at once.
+  The field holding the keyboard while the page focuses its editor keeps the keyboard up but gives the editor no focus, since the web view is not first responder.
+  Making the web view first responder after the page focuses its editor gives a caret but drops the keyboard.
+  Making the web view first responder while the field holds the keyboard, then focusing the editor, ends with the keyboard up, the web view first responder and the caret in the editor; the keyboard hides and shows again within about 25 ms on the way.
+  The page focusing its editor with no keyboard up gives neither focus nor a caret.
+  So the native shell takes that last public order (D2), checks by eye in PR 17 that the quick hide and show is not seen, and needs no private focus path.
+  Under iPhone Mirroring the phone uses the Mac's keyboard and shows none, so this spike is run with the phone in hand.
 - **S3, the bridge.** 1000 no-operation round trips stay within p50 4 ms and p95 10 ms, and 60 excerpt calls while a list scrolls at 120 Hz drop no frames.
-  Result: not measured yet.
+  The round trips go Swift to Rust to the page and back, the way every real request goes, and are timed in Swift.
+  The 60 excerpt calls of 20 notes each go 50 ms apart while the page scrolls a 3000-row list, and the page counts frames longer than 1.5 times the screen's frame budget.
+  Until the page handles excerpts it refuses them with `E_SCREENS_OP_UNSUPPORTED`, so the calls time the bridge and not the core, and the report says so.
+  Pass: no failed round trip, p50 at most 4 ms, p95 at most 10 ms, and no frame over budget.
+  Instruments' Hitches on the device is the authority on dropped frames, and it is read by hand during the run.
+  Run: `scripts/ios/run-spike.sh S3`.
+  Result (2026-11-07, iPhone18,2, iOS 27.2): the bridge passed; 1000 round trips with none failed, p50 0.27 ms, p95 0.43 ms, longest 4.9 ms.
+  The 60 excerpt calls were refused as expected and timed the bridge at p50 3.53 ms and p95 4.78 ms.
+  WebKit runs the page's animation frames at 60 Hz on a 120 Hz screen, so the page's frame count measures against 16.7 ms, not 8.3 ms: over 217 frames the longest was 18 ms and none passed 1.5 times 16.7 ms.
+  Instruments' Hitches was not read in this run.
 - **S4, the page as its own scroller.** CodeMirror with an auto-height editor and a visible scroller lets the web view's own scroll view scroll the note; layout, selection handles, the bar's scroll-edge effect and interactive keyboard dismissal hold on iOS 26.
   If it holds, the page scrolls itself; otherwise CodeMirror's own scroller stays.
-  Result: not measured yet.
+  The harness shows a long made-up note in a navigation controller with a toolbar, sets the web view's scroll view as the bar's content scroll view with interactive keyboard dismissal, and scrolls it to the middle and to the end.
+  Pass: the scroll view scrolls, its content height matches the page's height within 2 points, the page's scroll position matches the offset at the middle, and the page has drawn lines at both stops.
+  The screen stays up, and selection handles and the scroll-edge effect are read off a screenshot taken by hand.
+  Run: `scripts/ios/run-spike.sh S4`.
+  Result (2026-11-07, iPhone18,2, iOS 27.2): passed; the scroll view's content height equals the page's 27481 points, the offsets at the middle and the end match the page's scroll position, and lines are drawn at both stops.
+  By hand: the note scrolls from its first line to its last, a long press selects a word with both handles, dragging the handles works, a tap raises the keyboard, and the bar's scroll-edge effect blurs the lines under it.
+  So the page scrolls itself.
 - **Bar tint.** A background colour on the navigation bar, toolbar and tab bar appearances draws behind iOS 26's floating bars, as Glass Transparency below 0 needs.
   If the floating tab bar ignores it, the tint reaches the navigation bars and the toolbar only.
-  Result: not measured yet.
+  The harness shows a tab bar around a navigation controller with large titles, a toolbar and a long list, with `phoneActionTrash` at half opacity on all three appearances.
+  The screen stays up, and which bars draw the tint is read off a screenshot taken by hand, so the report's `pass` is `null`.
+  Run: `scripts/ios/run-spike.sh barTint`.
+  Result (2026-11-07, iPhone18,2, iOS 27.2): only the navigation bar draws the tint, and it then draws as an opaque band instead of floating glass; the floating tab bar and the toolbar ignore it.
+  So Glass Transparency below 0 cannot reach the bars through their appearance's background colour, and the tint needs another path in PR 14.
+  iOS 26 was not measured.

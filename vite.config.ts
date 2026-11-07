@@ -17,7 +17,11 @@ export default defineConfig({
   // True only in the UI tests' build (vite.ui-test.config.ts): in-memory storage, no Tauri.
   // A define, not an env variable, so no .env file can turn it on; the release build fails
   // if the storage is in dist/ (scripts/sentry/ui.ts).
-  define: { DEVOT_UI_TEST: 'false' },
+  // DEVOT_SPIKES (build.d.ts) follows Tauri's debug flag, and a release build fails if the probes are in dist/.
+  define: {
+    DEVOT_UI_TEST: 'false',
+    DEVOT_SPIKES: JSON.stringify(process.env['TAURI_ENV_DEBUG'] === 'true'),
+  },
   // The CSS minifier would write `rgb(… / 0.7)` as #rrggbbaa, rounding alpha to 1/255 steps, so
   // painted colours would drift from the tokens (tests/scripts/css-minify.test.ts). 16384 is
   // lightningcss's Features.HexAlphaColors; lightningcss comes with Vite, not as our dependency.

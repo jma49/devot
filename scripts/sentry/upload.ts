@@ -132,12 +132,17 @@ export function sourceMapLeaks(dir: string): string[] {
  */
 export const TEST_STORAGE_MARKER = 'devot.test.'
 
-export function testStorageLeaks(dir: string): string[] {
-  return files(dir).filter(
-    (file) =>
-      TEXT.test(file) && readFileSync(join(dir, file), 'utf8').includes(TEST_STORAGE_MARKER),
+const holding = (dir: string, marker: string) =>
+  files(dir).filter(
+    (file) => TEXT.test(file) && readFileSync(join(dir, file), 'utf8').includes(marker),
   )
-}
+
+export const testStorageLeaks = (dir: string): string[] => holding(dir, TEST_STORAGE_MARKER)
+
+/** The name the spike harness's page probes go by (src/renderer/src/phone/screens/spikes.ts). */
+export const SPIKES_MARKER = '__devotSpikes'
+
+export const spikeLeaks = (dir: string): string[] => holding(dir, SPIKES_MARKER)
 
 export function argument(name: string): string | undefined {
   const i = process.argv.indexOf(name)

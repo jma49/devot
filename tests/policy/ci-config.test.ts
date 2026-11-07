@@ -83,6 +83,7 @@ it('CI tests the StoreKit bridge and builds the iPhone app with it, and the Rust
   expect(steps).toContain('brew install xcodegen')
   expect(steps).toContain('sh scripts/ci/devot-store-tests.sh')
   expect(steps).toContain('sh scripts/ci/devot-screens-tests.sh')
+  expect(steps).toContain('sh scripts/ci/devot-screens-release-check.sh')
   expect(steps).toContain('rustup toolchain install')
   const build = steps.find((step) => step.startsWith('pnpm tauri ios build '))
   expect(build).toContain('--debug --target aarch64-sim')
