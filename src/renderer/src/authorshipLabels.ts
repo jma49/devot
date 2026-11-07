@@ -43,6 +43,15 @@ export function writerKey(writer: WriterRef): string {
   return product ? `${writer.kind}#${product}` : `${writer.kind}:${writer.name}`
 }
 
+/** The writer as Undo All takes it: its kind and every name its product sends, so one Undo All takes them all. */
+export function writerNames(writer: WriterRef): { kind: WriterKind; names: string[] } {
+  const product = productOf(writer)
+  const names = product
+    ? [...PRODUCTS].filter(([, of]) => of === product).map(([name]) => name)
+    : [writer.name]
+  return { kind: writer.kind, names }
+}
+
 /** The writers' labels joined as a list, each once, in the order given. */
 export function writersLabel(writers: readonly WriterRef[]): string {
   const labels = [...new Set(writers.map(writerLabel))]

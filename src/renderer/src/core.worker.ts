@@ -320,7 +320,7 @@ const coreApi = {
     required().applyPluginEdit(id, edit),
   appendToNote: (id: string, text: string, options: AppendOptions) =>
     required().appendToNote(id, text, options),
-  undoAgentWrites: (id: string, writer: { kind: WriterKind; name: string }) =>
+  undoAgentWrites: (id: string, writer: { kind: WriterKind; names: readonly string[] }) =>
     required().undoAgentWrites(id, writer),
   clearAuthorship: (id: string) => required().clearAuthorship(id),
   agentWrites: (limit: number) => required().agentWrites(limit),

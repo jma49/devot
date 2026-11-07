@@ -216,10 +216,10 @@ export interface NoteService {
   appendToNote(id: string, text: string, options: AppendOptions): Promise<Uint8Array>
   /** Records an agent's write (ADR 0007): its body edit, applied as Yjs operations (see textEdits), and its record go in as one Yjs transaction. Resolves to the write's ID, or null when it changed nothing. */
   agentWrite(id: string, write: AgentNoteWrite): Promise<string | null>
-  /** Undo All for one writer (kind and name) as an owner edit; the text before is kept as a version. `update` is for the editor's replica to apply as one undoable step. */
+  /** Undo All for one writer (its kind and every name it has gone by) as an owner edit; the text before is kept as a version. `update` is for the editor's replica to apply as one undoable step. */
   undoAgentWrites(
     id: string,
-    writer: { kind: WriterKind; name: string },
+    writer: { kind: WriterKind; names: readonly string[] },
   ): Promise<Reversal & { update: Uint8Array }>
   /** Clear Authorship: drops every authorship record of the note. Returns the Yjs update, for the editor's replica. */
   clearAuthorship(id: string): Promise<Uint8Array>

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { writerKey, writerLabel, writerLabelParts, writersLabel } from './authorshipLabels'
+import {
+  writerKey,
+  writerLabel,
+  writerLabelParts,
+  writerNames,
+  writersLabel,
+} from './authorshipLabels'
 
 describe('writerLabelParts', () => {
   it('splits the label around the name, so the kind is never the part cut short', () => {
@@ -71,5 +77,31 @@ describe('writerKey', () => {
         { kind: 'mcp', name: 'local-agent-mode-devot' },
       ]),
     ).toBe('Claude Desktop (MCP)')
+  })
+})
+
+describe('writerNames', () => {
+  it('gives Undo All every name a product sends, whichever one the notice shows', () => {
+    const both = ['claude-ai', 'local-agent-mode-devot']
+    expect(writerNames({ kind: 'mcp', name: 'claude-ai' })).toEqual({ kind: 'mcp', names: both })
+    expect(writerNames({ kind: 'mcp', name: 'local-agent-mode-devot' })).toEqual({
+      kind: 'mcp',
+      names: both,
+    })
+    expect(writerNames({ kind: 'mcp', name: 'claude-code' })).toEqual({
+      kind: 'mcp',
+      names: ['claude-code'],
+    })
+  })
+
+  it('keeps any other writer to the name it gave', () => {
+    expect(writerNames({ kind: 'mcp', name: 'Claude Desktop' })).toEqual({
+      kind: 'mcp',
+      names: ['Claude Desktop'],
+    })
+    expect(writerNames({ kind: 'http', name: 'claude-ai' })).toEqual({
+      kind: 'http',
+      names: ['claude-ai'],
+    })
   })
 })

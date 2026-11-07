@@ -211,12 +211,36 @@ describe('Undo All', () => {
     sync(agent, owner)
     expect(body(owner)).toBe('Title\nAlpha BETA delta.\nClaude really wrote this.\nCodex line.\n')
 
-    const result = reverseWrites(owner, { kind: 'mcp', name: 'Claude Code' })
+    const result = reverseWrites(owner, { kind: 'mcp', names: ['Claude Code'] })
     expect(result).toEqual({ writes: 2, dropped: 0 })
     // The owner's word typed inside the agent's paragraph stays on its own (ADR 0007, risk 2).
     expect(body(owner)).toBe('Title\nAlpha beta gammareally .\nCodex line.\n')
     expect(agentText(owner)).toBe('Codex line.\n')
     expect(readWrites(owner)).toHaveLength(1)
+  })
+
+  it('undoes every name it is given as one writer, and only those', () => {
+    const desktop = newWriter('mcp', 'claude-ai', 'mcp1111111111ab')
+    const agentMode = newWriter('mcp', 'local-agent-mode-devot', 'mcp2222222222ab')
+    const owner = docWith('Intro.\n')
+    let agent = loaded(owner, 2)
+    edit(agent, desktop, 'Intro.\nFrom the app.\n')
+    sync(agent, owner)
+    agent = loaded(owner, 3)
+    edit(agent, codex, `${body(agent)}Codex line.\n`, 1500)
+    sync(agent, owner)
+    agent = loaded(owner, 4)
+    edit(agent, agentMode, body(agent).replace('the app', 'agent mode'), 2000)
+    sync(agent, owner)
+    expect(body(owner)).toBe('Intro.\nFrom agent mode.\nCodex line.\n')
+
+    const result = reverseWrites(owner, {
+      kind: 'mcp',
+      names: ['claude-ai', 'local-agent-mode-devot'],
+    })
+    expect(result).toEqual({ writes: 2, dropped: 0 })
+    expect(body(owner)).toBe('Intro.\nCodex line.\n')
+    expect(agentText(owner)).toBe('Codex line.\n')
   })
 
   it('keeps a writer’s text gone when two writers changed the same passage, undone in order', () => {
@@ -229,8 +253,8 @@ describe('Undo All', () => {
     sync(agent, owner)
     expect(body(owner)).toBe('Intro.\nBeta replaced it.\n')
 
-    reverseWrites(owner, { kind: 'mcp', name: 'Claude Code' })
-    reverseWrites(owner, { kind: 'mcp', name: 'Codex' })
+    reverseWrites(owner, { kind: 'mcp', names: ['Claude Code'] })
+    reverseWrites(owner, { kind: 'mcp', names: ['Codex'] })
     expect(body(owner)).toBe('Intro.\n')
     expect(agentText(owner)).toBe('')
   })
@@ -244,11 +268,11 @@ describe('Undo All', () => {
     edit(agent, codex, 'Intro.\nBeta replaced it.\n', 2000)
     sync(agent, owner)
 
-    reverseWrites(owner, { kind: 'mcp', name: 'Codex' })
+    reverseWrites(owner, { kind: 'mcp', names: ['Codex'] })
     // The text Claude wrote comes back, still Claude's, so its own Undo All takes it out.
     expect(body(owner)).toBe('Intro.\nAlpha wrote this paragraph.\n')
     expect(agentText(owner)).toBe('Alpha wrote this paragraph.\n')
-    reverseWrites(owner, { kind: 'mcp', name: 'Claude Code' })
+    reverseWrites(owner, { kind: 'mcp', names: ['Claude Code'] })
     expect(body(owner)).toBe('Intro.\n')
     expect(agentText(owner)).toBe('')
   })
@@ -261,7 +285,7 @@ describe('Undo All', () => {
     agent = loaded(owner, 3)
     edit(agent, claude, 'Started.\n')
     sync(agent, owner)
-    reverseWrites(owner, { kind: 'mcp', name: 'Claude Code' })
+    reverseWrites(owner, { kind: 'mcp', names: ['Claude Code'] })
     expect(body(owner)).toBe('Start.\n')
   })
 
@@ -274,7 +298,7 @@ describe('Undo All', () => {
     const agent = loaded(owner, 2)
     edit(agent, claude, 'AAA.\n\nBBB.\n\nCCC.\n')
     sync(agent, owner)
-    reverseWrites(owner, { kind: 'mcp', name: 'Claude Code' })
+    reverseWrites(owner, { kind: 'mcp', names: ['Claude Code'] })
     expect(body(owner)).toBe('AAAfoo.\n\nBBBbar.\n\nCCC.\n')
   })
 
@@ -286,7 +310,7 @@ describe('Undo All', () => {
     const b = loaded(a, 3)
     b.getText('body').insert(0, 'From B. ')
     sync(b, a)
-    reverseWrites(a, { kind: 'mcp', name: 'Claude Code' })
+    reverseWrites(a, { kind: 'mcp', names: ['Claude Code'] })
     expect(body(a)).toBe('From B. One two three.\n')
     sync(a, b)
     expect(body(b)).toBe(body(a))
@@ -302,7 +326,7 @@ describe('Undo All', () => {
       maxRemovedBytes: 0,
     })
     expect(readWrites(agent)[0]!.removed).toBeUndefined()
-    expect(reverseWrites(agent, { kind: 'mcp', name: 'Claude Code' })).toEqual({
+    expect(reverseWrites(agent, { kind: 'mcp', names: ['Claude Code'] })).toEqual({
       writes: 1,
       dropped: 1,
     })
@@ -314,7 +338,7 @@ describe('Undo All', () => {
     edit(doc, claude, 'Owner.\nClaude line.\n')
     edit(doc, codex, 'Owner.\nClaude line.\nCodex line.\n', 2000)
     const [undone] = readWrites(doc)
-    reverseWrites(doc, { kind: 'mcp', name: 'Claude Code' })
+    reverseWrites(doc, { kind: 'mcp', names: ['Claude Code'] })
     expect(body(doc)).toBe('Owner.\nCodex line.\n')
     let recorded = false
     const put = (tr: Y.Transaction) => {
@@ -334,7 +358,7 @@ describe('Undo All', () => {
       ['Codex', 2000],
     ])
     // Undo All takes it out again.
-    reverseWrites(doc, { kind: 'mcp', name: 'Claude Code' })
+    reverseWrites(doc, { kind: 'mcp', names: ['Claude Code'] })
     expect(body(doc)).toBe('Owner.\nCodex line.\n')
   })
 
@@ -383,7 +407,7 @@ describe('the deleted text of an undone write', () => {
       maxRemovedBytes: max,
     })
     applyAgentEdit(doc, { writer: claude, at: 2, markdown: '', maxRemovedBytes: max })
-    reverseWrites(doc, { kind: 'mcp', name: 'Claude Code' })
+    reverseWrites(doc, { kind: 'mcp', names: ['Claude Code'] })
     const undone = [...doc.getMap(WRITES).values()].filter(
       (raw) => (raw as { reversed?: boolean }).reversed,
     )

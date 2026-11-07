@@ -61,7 +61,8 @@ Part of the [architecture overview](../architecture.md).
   Logs carry codes, note IDs, write IDs and kinds (`I_AUTHORSHIP_WRITE`, `I_AUTHORSHIP_UNDONE`, `I_AUTHORSHIP_CLEARED`, `W_AUTHORSHIP_RECORD_INVALID`), never a client name or text; the app's go to the local log from the core worker (as info lines) and the page, and `log_write` takes write IDs, kinds and counts only under these codes.
   The UI always names a writer with its kind ("Claude Code (MCP)", "HTTP API", "Edit with AI"; `authorshipLabels.ts`).
   The clients Settings connects show by their product names, mapped from the stored `clientInfo.name` when shown, so old writes show them too (#620): `claude-code` as Claude Code, `claude-ai` and `local-agent-mode-devot` as Claude Desktop, `codex-mcp-client` as Codex; any other client keeps its own name.
-  A product's names share one writer key, so the Agents section and Undo All take them as one writer.
+  A product's names share one writer key, so the Agents section and the review notice list them as one writer.
+  Undo All passes every name of the product to `NoteService.undoAgentWrites`, so one press takes out the writes under all of them.
   - **Gutter** (View > Show Authorship, the `authorship` setting, on by default; a check item in Rust's menu): the editor marks the lines agents wrote, one mark per run of lines with the same writes, read from the replica's own document (`editor/authorship.ts`).
     The text is attributed once per change to the document and only the marks in the viewport are drawn.
     The marks are buttons in a group of their own beside the text, outside CodeMirror's gutters (hidden from assistive technology): each is named "Written by <writers>, <time>", shows that on hover or focus, selects the agents' text on its lines when chosen, and the arrow keys move between them.

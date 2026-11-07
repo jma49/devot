@@ -161,7 +161,7 @@ describe('recording agent writes', () => {
     })
     const [write] = readWrites(await stored(s.storage, id))
     expect(s.claude.logs).toEqual([`I_AUTHORSHIP_WRITE ${id} ${write!.id} mcp`])
-    await s.notes.undoAgentWrites(id, { kind: 'mcp', name: 'Claude Code' })
+    await s.notes.undoAgentWrites(id, { kind: 'mcp', names: ['Claude Code'] })
     await s.notes.clearAuthorship(id)
     expect(s.logs).toEqual([`I_AUTHORSHIP_UNDONE ${id} 1`, `I_AUTHORSHIP_CLEARED ${id}`])
     const all = [...s.claude.logs, ...s.logs, ...warn.mock.calls.flat().map(String)].join('\n')
@@ -237,7 +237,7 @@ describe('interleaved owner and agent edits', () => {
 
   it('Undo All reverts one agent and keeps the owner’s later edits and the other agent’s text', async () => {
     const s = await interleaved()
-    const result = await s.notes.undoAgentWrites(s.id, { kind: 'mcp', name: 'Claude Code' })
+    const result = await s.notes.undoAgentWrites(s.id, { kind: 'mcp', names: ['Claude Code'] })
     expect(result).toMatchObject({ writes: 2, dropped: 0 })
     await s.notes.flush()
     const doc = await stored(s.storage, s.id)
@@ -266,7 +266,7 @@ describe('interleaved owner and agent edits', () => {
     const again = app(s.path)
     const doc = docOf((await again.notes.open(s.id)).state)
     expect(agentText(doc)).toEqual(before)
-    await again.notes.undoAgentWrites(s.id, { kind: 'mcp', name: 'Codex' })
+    await again.notes.undoAgentWrites(s.id, { kind: 'mcp', names: ['Codex'] })
     await again.notes.flush()
     expect(agentText(await stored(again.storage, s.id)).join('')).not.toContain('Codex')
   })
@@ -499,7 +499,7 @@ describe('the deleted-text cap', () => {
     // The first deletion went: the two after it hold what they deleted.
     expect(writes.map((w) => w.removed !== undefined)).toEqual([false, false, true, true])
     expect(writes[1]!.deleted.length).toBeGreaterThan(0)
-    const result = await s.notes.undoAgentWrites(id, { kind: 'mcp', name: 'Claude Code' })
+    const result = await s.notes.undoAgentWrites(id, { kind: 'mcp', names: ['Claude Code'] })
     expect(result).toMatchObject({ writes: 4, dropped: 1 })
   })
 })
