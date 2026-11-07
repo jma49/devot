@@ -50,6 +50,8 @@ Part of the [architecture overview](../architecture.md).
   Another note opened in the preview replaces what the last one showed instead of being patched over it, and the worker is asked for all its pieces.
 - The iPhone draws at its display's refresh rate: `CADisableMinimumFrameDurationOnPhone` in `src-tauri/gen/apple/devot_iOS/Info.plist` and `project.yml` (held by `tests/policy/iphone-info-plist.test.ts`) lifts the 60 Hz cap a ProMotion iPhone otherwise puts on Core Animation and the display link.
   The keyboard, system sheets and the web view's compositor transitions then run at 120 Hz; the page's `requestAnimationFrame` stays near 60 Hz, so motion drawn by script each frame does not gain from it.
+- On the iPhone's native screens a note's push starts in the frame after the tap, and the cover over a pushed note is up at most 400 ms ([iPhone screens](iphone-screens.md#row-to-editor)).
+  Switching notes, the budget above, covers `editor.show`: the page swaps the note into its one editor rather than building one.
   Judge the phone's smoothness on a release build on a device.
 - A note left gives back what was kept for it, held by `tests/renderer/left-note-memory.test.ts`, `tests/core/preview-pieces.test.ts` and `tests/ui/preview.spec.ts`:
   - The worker keeps, besides the open note's preview pieces, pieces of at most 50,000 characters of source (`KEPT_CHARACTERS`; a tree takes about 100 bytes a character), so a long note left is rendered again when it opens (in V8, a 250 KB note left kept 25 MB of trees, now under 7 MB).

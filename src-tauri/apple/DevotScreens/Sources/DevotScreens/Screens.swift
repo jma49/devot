@@ -28,6 +28,8 @@ final class Screens {
     private var nextID: UInt64 = 1
     private var waiting: [UInt64: (Outcome) -> Void] = [:]
     private var tabModel = TabModel()
+    /// Whether the page shows a note in its editor host, so a list taking the web view back asks it to let go.
+    private var editorShown = false
     let selectionFeedback: UISelectionFeedbackGenerator
 
     private init(rust: any RustSide, webView: WKWebView) {
@@ -48,6 +50,9 @@ final class Screens {
                 selectionFeedback.selectionChanged()
             }
             run(effects)
+        }
+        for tab in TabModel.tabs {
+            root.tabs.screen(tab)?.hideEditor = { [weak self] done in self?.hideEditor(done) }
         }
     }
 
@@ -103,6 +108,7 @@ final class Screens {
             rust.log(.warn, "W_SCREENS_NOTICE_INVALID")
             return
         }
+        if routeEditorNotice(kind, fields) { return }
         guard kind == .tabsState else {
             onNotice?(kind, fields)
             return
@@ -123,6 +129,94 @@ final class Screens {
             case .hideBar(let hidden): root.tabs.setTabBarHidden(hidden, animated: true)
             case .badge(let on): root.tabs.setAttention(on)
             }
+        }
+    }
+
+    /// The notices that drive the editor screen; false for any other kind.
+    private func routeEditorNotice(_ kind: NoticeKind, _ fields: [String: JSONValue]) -> Bool {
+        switch kind {
+        case .navOpenNote:
+            guard case .string(let id)? = fields["noteId"], case .string(let title)? = fields["title"] else {
+                return invalid(kind)
+            }
+            openNote(id, title: title)
+        case .navBack:
+            guard let navigation = shownNavigation, navigation.topViewController is EditorScreen,
+                navigation.transitionCoordinator == nil
+            else { return true }
+            navigation.popViewController(animated: true)
+        case .editorReady:
+            guard case .string(let id)? = fields["noteId"] else { return invalid(kind) }
+            (root.host.holder as? EditorScreen)?.ready(id)
+        case .editorMode:
+            guard case .string(let id)? = fields["noteId"], case .string(let name)? = fields["mode"],
+                let mode = NoteMode(rawValue: name)
+            else { return invalid(kind) }
+            for screen in editorScreens where screen.noteId == id { screen.showMode(mode) }
+        case .editorTitle:
+            guard case .string(let id)? = fields["id"], case .string(let title)? = fields["title"] else {
+                return invalid(kind)
+            }
+            for screen in editorScreens where screen.noteId == id { screen.retitle(title) }
+        case .editorScroll:
+            guard case .bool(let visible)? = fields["titleVisible"] else { return invalid(kind) }
+            (root.host.holder as? EditorScreen)?.titleVisible(visible)
+        default:
+            return false
+        }
+        return true
+    }
+
+    private func invalid(_ kind: NoticeKind) -> Bool {
+        rust.log(.warn, "W_SCREENS_NOTICE_INVALID notice=\(kind.rawValue)")
+        return true
+    }
+
+    private var shownNavigation: UINavigationController? {
+        root.tabs.selectedViewController as? UINavigationController
+    }
+
+    private var editorScreens: [EditorScreen] {
+        (root.tabs.viewControllers ?? []).compactMap { $0 as? UINavigationController }
+            .flatMap(\.viewControllers).compactMap { $0 as? EditorScreen }
+    }
+
+    /// Pushed at once on the shown tab; a second tap while a push runs, or on the note already shown, does nothing.
+    private func openNote(_ id: String, title: String) {
+        guard let navigation = shownNavigation, navigation.transitionCoordinator == nil,
+            (navigation.topViewController as? EditorScreen)?.noteId != id
+        else { return }
+        let screen = EditorScreen(
+            noteId: id, title: title, tab: tabModel.selected, host: root.host, actions: editorActions)
+        navigation.pushViewController(screen, animated: true)
+    }
+
+    private var editorActions: EditorActions {
+        EditorActions(
+            show: { [weak self] id in
+                self?.editorShown = true
+                self?.askEditor(.editorShow, ["noteId": .string(id)])
+            },
+            setMode: { [weak self] mode in self?.askEditor(.editorSetMode, ["mode": .string(mode.rawValue)]) },
+            info: { [weak self] in self?.askEditor(.editorInfo) },
+            appeared: { [weak self] tab in
+                guard let self else { return }
+                run(tabModel.appeared(tab))
+            })
+    }
+
+    private func hideEditor(_ done: @escaping () -> Void) {
+        guard editorShown else { return done() }
+        editorShown = false
+        askEditor(.editorHide, done: done)
+    }
+
+    private func askEditor(_ op: Op, _ args: [String: JSONValue] = [:], done: (() -> Void)? = nil) {
+        request(op, args) { [weak self] outcome in
+            if case .failed(let code) = outcome {
+                self?.rust.log(.warn, "W_SCREENS_EDITOR_FAILED op=\(op.rawValue) code=\(code)")
+            }
+            done?()
         }
     }
 

@@ -54,12 +54,21 @@ public enum Op: String, CaseIterable, Sendable {
     case noteCreate = "note.create"
     case tabsShow = "tabs.show"
     case tabsPopToRoot = "tabs.popToRoot"
+    case editorShow = "editor.show"
+    case editorHide = "editor.hide"
+    case editorSetMode = "editor.setMode"
+    case editorInfo = "editor.info"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {
     case notesChanged = "notes.changed"
     case editorTitle = "editor.title"
     case tabsState = "tabs.state"
+    case navOpenNote = "nav.openNote"
+    case navBack = "nav.back"
+    case editorReady = "editor.ready"
+    case editorMode = "editor.mode"
+    case editorScroll = "editor.scroll"
 }
 
 public enum Outcome: Equatable, Sendable {

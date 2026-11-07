@@ -203,17 +203,30 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 
 ## Editor screen protocol
 
-| Message                                     | Direction    | Meaning                                                                                                        |
-| ------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------- |
-| `editor.prepare { noteId }`                 | Swift → page | a row was pressed: the core opens and holds the note so its bytes are in memory                                |
-| `editor.show { noteId, mode, focus }`       | Swift → page | the web view is in an editor screen: swap CodeMirror's state, set Edit or Preview, and focus the body if asked |
-| `editor.hide`                               | Swift → page | the web view is back in `WebStage`: the core lets the note go after 30 s                                       |
-| `editor.ready { noteId }`                   | page → Swift | the note's first frame is painted                                                                              |
-| `editor.title { id, title }`                | page → Swift | the title changed, so the row and the bar's title follow at once                                               |
-| `editor.scroll { titleVisible }`            | page → Swift | the page's own title scrolled under the bar, which fades its inline title in                                   |
-| `editor.insets { bottom, duration, curve }` | Swift → page | the keyboard moved; the page sets its bottom inset and CodeMirror's scroll margin at once and animates nothing |
-| `editor.format { id }`                      | Swift → page | a button on the native formatting bar, by the editor's format ID                                               |
-| `editor.gate { what }`                      | page → Swift | a write was tried while writes are locked: Swift opens the gate's sheet                                        |
+| Message                                     | Direction    | Meaning                                                                                                                 |
+| ------------------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `nav.openNote { noteId, title }`            | page → Swift | a row, a search result or a link opens a note: Swift pushes its `EditorScreen` on the shown tab, the title on its cover |
+| `nav.back`                                  | page → Swift | the page left the note (it was trashed from Info): Swift pops its screen                                                |
+| `editor.prepare { noteId }`                 | Swift → page | a native row was pressed: the core opens and holds the note so its bytes are in memory                                  |
+| `editor.show { noteId }`                    | Swift → page | the web view is in the note's screen: the page swaps the note into its one editor and shows it                          |
+| `editor.hide`                               | Swift → page | the web view is back in a list: the page hides its editor and answers once the list is painted                          |
+| `editor.setMode { mode }`                   | Swift → page | the bar's toggle: `edit` or `preview`; Edit still goes through the write gate                                           |
+| `editor.info`                               | Swift → page | the bar's Info button: the page opens Note Info                                                                         |
+| `editor.ready { noteId }`                   | page → Swift | the note's first frame is painted                                                                                       |
+| `editor.mode { noteId, mode }`              | page → Swift | the mode the note is shown in, so the toggle shows the other                                                            |
+| `editor.title { id, title }`                | page → Swift | the title changed, so the row, the cover and the bar's title follow at once                                             |
+| `editor.scroll { titleVisible }`            | page → Swift | whether the page's own title is still below the bar, which shows the title only once it is not                          |
+| `editor.insets { bottom, duration, curve }` | Swift → page | the keyboard moved; the page sets its bottom inset and CodeMirror's scroll margin at once and animates nothing          |
+| `editor.format { id }`                      | Swift → page | a button on the native formatting bar, by the editor's format ID                                                        |
+| `editor.gate { what }`                      | page → Swift | a write was tried while writes are locked: Swift opens the gate's sheet                                                 |
+
+- Each message joins the bridge with the change that first sends it: `editor.prepare` with the native lists, `editor.show`'s `focus` with New Note, and `editor.insets`, `editor.format` and `editor.gate` with the native toolbar and gate.
+- Until the lists are native, the page prepares a note itself when a finger lands on its row (`phone/screens/prepared.ts`): it holds and opens the note, and the editor takes the opened state when Swift shows it; a note no tap took is let go after 1.5 s.
+- The page decides the mode, so `editor.show` carries none: Edit for an empty note while writes are allowed, Preview otherwise, and Preview for every note while writes are locked.
+- A hidden editor keeps the last note open until the next `editor.show`, so going back to it costs nothing; its history and caret are kept per note as before.
+- Every `editor.show` opens the note at its top, the note shown last too, and the page sends `editor.mode`, `editor.title` and `editor.scroll` again, since each show comes with a new screen.
+- The page's editor host (`phone/screens/EditorHost.tsx`) draws the note without its own top bar or Back and Forward capsule: the system bar and the screens' stack replace them.
+- Note ids are checked as every note id is (`E_SCREENS_NOTE_ID_INVALID`), the title as a note title, and the mode against the two modes (`E_SCREENS_ARGS_INVALID`).
 
 ### The web view never changes size
 
@@ -224,9 +237,10 @@ It moves between superviews with `addSubview` alone, never `removeFromSuperview`
 
 ### Row to editor
 
-1. Touch-down highlights the cell and sends `editor.prepare`.
-2. Touch-up pushes `EditorScreen` at once; the push is the system's and is never retimed or waited on.
-3. In the navigation controller's `willShow`, the editor's container takes the web view under a cover: the theme's background with the title in the note type scale, drawn natively.
+1. Touch-down highlights the cell and sends `editor.prepare` (the page prepares a web row itself).
+2. Touch-up pushes `EditorScreen` at once, with `hidesBottomBarWhenPushed`; the push is the system's and is never retimed or waited on.
+3. The list's screen leaves a still of the page, `snapshotView(afterScreenUpdates: false)`, in its own view.
+   In `viewIsAppearing`, the first callback with a window, the editor's container takes the web view under a cover: `color.phone.background` with the title in the note type scale on the editor keyline, drawn natively.
    Swift sends `editor.show`.
 4. The page swaps the note in under 16 ms and answers `editor.ready`.
 5. The cover fades over `motion.duration.phone-adjust` once `editor.ready` arrives, never before the push's first frame.
@@ -238,12 +252,17 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
 
 - When a pop or an edge swipe starts, nothing moves: the live web view slides out with the leaving editor, still scrolling and still holding its caret and keyboard.
 - A cancelled swipe has nothing to undo.
-- When the pop completes, the web view moves to `WebStage` with animations off, and Swift sends `editor.hide`.
+- When the pop completes, the revealed list's screen takes the web view with animations off, brings its still to the front and sends `editor.hide`; the still goes when the page answers, or after 400 ms.
+- The popped screen's view leaves the window before the transition coordinator's completion runs, and a covered screen's view can leave it before the pushed screen appears, either of which would take the web view out of the window with it.
+  So the hand-over happens as that view leaves the window (`willMove(toWindow: nil)` on the container): a covered screen leaves its still first and rests the web view in `WebStage`, a popped one gives it to the revealed screen, and the completion takes the view only if nothing has.
+- A tab switch rests the web view in `WebStage` from the leaving screen; the list of the tab shown takes it and sends `editor.hide` if a note was shown, and returning to the tab shows the note again under its cover.
+- The navigation bar is hidden on a list and shown on a note, each screen setting it in `viewWillAppear`; the content pop gesture is off, so only the edge swipe pops, and the back button shows only its chevron (`backButtonDisplayMode = .minimal`).
 
 ### Editor to editor
 
 - A link pushes a new `EditorScreen`: the leaving one keeps a snapshot of the web view in its container, and the new one takes the live view under its cover and sends `editor.show`.
-- Popping back keeps the live view in the leaving editor while it slides; when the pop completes, the revealed editor takes it under its cover, sends `editor.show` and drops its snapshot.
+- Popping back keeps the live view in the leaving editor while it slides; when the pop completes, the revealed editor takes it behind its snapshot, with no cover, and sends `editor.show`.
+  The snapshot fades over `motion.duration.phone-adjust` once `editor.ready` arrives, or after 400 ms, so the note it already shows never gives way to a blank cover.
 
 ### New Note
 

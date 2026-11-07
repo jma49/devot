@@ -172,7 +172,7 @@ Every change keeps these; each spec has the detail.
 - Logs, errors and crash reports carry codes and IDs, never note content ([Quality](specs/quality.md#crash-reporting-and-logs)).
 - UI text comes from the message catalog by key, and code holds no CJK characters ([Localisation](specs/localisation.md)).
 - The windows only show what a licence locks; Rust enforces it ([Licences](specs/licences.md)).
-- Launch to first editor paint stays under 700 ms, idle memory under 200 MB, keystroke to paint within one frame at 120 Hz, search over 10k notes under 50 ms and switching notes under 16 ms ([Performance](specs/performance.md)).
+- Launch to first editor paint stays under 700 ms, idle memory under 200 MB, keystroke to paint within one frame at 120 Hz, search over 10k notes under 50 ms and switching notes under 16 ms, the iPhone's `editor.show` included ([Performance](specs/performance.md)).
 
 ## Data model
 

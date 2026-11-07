@@ -113,6 +113,8 @@ interface RowProps {
   /** True when a tap closed another row: this press does nothing else. */
   closeOthers: () => boolean
   onOpen: () => void
+  /** Called on touch-down, so the note can be opened before the tap lands. */
+  onPrepare?: () => void
   onPeek: () => void
   onAction: (key: RowAction) => void
 }
@@ -144,6 +146,7 @@ export function NoteRow(props: RowProps) {
   useEffect(() => () => press.current?.stop(), [])
 
   const down = (event: PointerEvent<HTMLDivElement>) => {
+    props.onPrepare?.()
     if (!props.swipes || press.current) return
     const pointer = event.pointerId
     const stop = watchDragEnd(event.currentTarget, pointer, (how, e) => latestEnd.current(how, e))
@@ -526,6 +529,7 @@ export function PhoneNoteList(props: {
   arrivedId: string | null
   onBack?: () => void
   onOpenNote: (id: string) => void
+  onPrepareNote?: (id: string) => void
   onSearch: () => void
   onTrash: (note: NoteSummary) => void
   onComplete: (note: NoteSummary) => void
@@ -620,6 +624,7 @@ export function PhoneNoteList(props: {
         return true
       }}
       onOpen={() => props.onOpenNote(note.id)}
+      {...(props.onPrepareNote ? { onPrepare: () => props.onPrepareNote?.(note.id) } : {})}
       onPeek={() => {
         setOpenId(null)
         setPeekId(note.id)

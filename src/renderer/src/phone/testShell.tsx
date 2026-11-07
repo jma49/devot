@@ -32,6 +32,13 @@ export function testCore() {
     listSavedSearches: async () => [],
     history: async () => [],
     backlinks: async () => [],
+    // Preview is drawn behind Edit; a result it cannot read would make it render again forever.
+    renderLivePreview: async () => ({
+      pieces: [],
+      tasks: { done: 0, total: 0 },
+      lines: 0,
+      links: [],
+    }),
   }
   // What the screens ask of the core besides these goes to the note service, or finds nothing.
   const core = new Proxy(named, {

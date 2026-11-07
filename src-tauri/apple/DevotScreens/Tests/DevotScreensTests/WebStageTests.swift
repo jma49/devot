@@ -9,6 +9,13 @@ import XCTest
 final class RecordingWebView: WKWebView {
     var leftWindow = 0
     var resized = 0
+    /// Whether UIKit animated each move, one entry per new superview.
+    var movesAnimated: [Bool] = []
+
+    override func didMoveToSuperview() {
+        super.didMoveToSuperview()
+        movesAnimated.append(UIView.areAnimationsEnabled)
+    }
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
