@@ -240,7 +240,7 @@ Settings root (large title, the system search field, a Pair a Device bar button 
 ├─ App row: Devot, "version · licence", a badge when the licence needs attention → License (the Trial sheet while a trial runs)
 ├─ General
 │  ├─ General → Default Notebook (picker: None, then notebooks in Library order); Send Crash Reports (where reports can be sent)
-│  ├─ Appearance → Color Scheme, Theme, Glass, Text, Note Font, Animations
+│  ├─ Appearance → Color Scheme, Theme, Gradient (only for a gradient theme), Glass, Text, Note Font, Animations
 │  ├─ Editing → today's phone rows; Cursor Scroll Margin, Tab Width and Line Height push checkmark pages
 │  └─ Preview → Load Images from the Web
 ├─ Sync & Storage
@@ -256,6 +256,11 @@ Settings root (large title, the system search field, a Pair a Device bar button 
 ```
 
 - Appearance holds three colour scheme cards, a two-column grid of themes with "Aa" swatches for light and dark, a Glass card whose sample previews Glass Transparency, a Text card with a live sample above the Text Size and Preview Font Size sliders, a Note Font row and an inline Animations choice.
+- Gradient is a card under the themes, so choosing one moves nothing above it, shown only while the Light or Dark theme is Dawn, Tide, Sage or Ember, and gone at once when neither is.
+  It holds one slider labelled Gradient, from Solid (0) to Full (100) in steps of 5, with no description and a 44 pt target.
+  It reads and writes the `gradientStrength` editor setting through Rust (default 0), one value for every gradient theme, so it is kept on this device and never synced, like the theme choice.
+  Wherever the shell draws a theme's `Backdrop`, each stop is mixed in sRGB towards the gradient's middle colour (its stop at 0.5) by strength / 100: 0 is that colour alone, 100 the stops as designed.
+  A change applies on every move of the slider and is saved when the finger lifts, as Glass Transparency is.
 - App Font is not on the phone.
 - A purchase on the License page goes through StoreKit only, never a link outside it (ADR 0014).
 - Settings text comes from the message catalog by key, as everywhere else.
