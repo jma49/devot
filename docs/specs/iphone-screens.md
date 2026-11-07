@@ -133,7 +133,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 | Purchases, restoring them, the Mac key                                      | Rust-direct                           | `direct.store.*`; StoreKit's own sheet takes the payment                        |
 | Sync settings, pairing, devices, iCloud                                     | Rust-direct                           | `direct.sync.*`, the bodies of the `sync_*` commands Settings calls             |
 | Editor settings, themes, fonts, AI providers, crash reports                 | Rust-direct                           | `direct.editorSettings.*`, `.fonts.list`, `.ai.*`, `.crashReports.*`            |
-| Glass Transparency (this iPhone's own)                                      | Swift's `UserDefaults`                | moved from `src/renderer/src/phone/glassPrefs.ts` in stage 1                    |
+| Glass Transparency (this iPhone's own)                                      | Swift's `UserDefaults`                | `devot.phone.glassTransparency`; the page's old value moves over once           |
 
 - Each Rust-direct entry starts as a refactor: the command's body moves into a function that both the Tauri command and the screens module call, so validation is never written twice.
 - Rust's write gate (`src-tauri/src/storage/db.rs`) stays the enforcement for every write, whichever side asked for it.
@@ -167,7 +167,7 @@ In stage 0 the root was empty and transparent and passed every touch through, so
 - The operations reach the database only through `NoteCounts`, the two counts sync's settings show, so no Rust-direct request can write a note; a test over the operation enum holds every name to a settings area.
 - A failure is logged as `W_SCREENS_DIRECT_FAILED op=… id=… code=…`, and a request's arguments, which may hold a licence key, an AI key or a relay secret, are never logged.
 - The native purchase sheet reads StoreKit's price with `direct.store.products` and buys with `direct.store.purchase`, the bodies the page's sheet calls, so StoreKit's own sheet takes the payment either way.
-- Importing a font joins with the Appearance pane that first sends it.
+- `direct.fonts.import { path }` imports the copy the document picker made, and takes only a file under the app's temporary folder.
 - The sync engine's commands (`sync_connect`, `sync_pull`, `sync_push`, `sync_disconnect`, `sync_status_report`) stay the core's.
 
 ### Keeping lists fresh
@@ -201,7 +201,7 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 - `WebTabScreen`'s view reports the window's safe area insets, and the web view derives its own from them: the page lays itself out by `env(safe-area-inset-*)` exactly as without the system bar, and its own room for a floating bar at the bottom clears the system's.
 - The view overrides `safeAreaInsets` because the tab bar's inset can reach it through its superview, which a negative `additionalSafeAreaInsets` does not take back (on iOS 26.5 each screen kept the bar's 49 points).
 - The bar's tint is `color.accent.text` and it is never minimised on scroll.
-  Glass Transparency does not reach it: the floating tab bar ignores a bar tint (spike: bar tint).
+  Glass Transparency reaches it only below 0, through the scroll edge effect (spike: bar tint).
 - The host-app XCTests check the bar's items, the web view's moves and the key window; the `iphone-ui` CI job's XCUITest (`src-tauri/apple/DevotUITests/Tests/TabsTests.swift`) launches the real app, switches all four tabs by their names and runs the accessibility audit on the bar (docs/specs/quality.md, CI).
 
 ## Editor screen protocol
@@ -286,7 +286,7 @@ Glass is the system's, on the navigation layer only; content is never glass.
 - Devot's two glass views (the formatting bar and the toast) cast `shadow.phone-float-*` in `color.phone.float-shadow`, drawn from a shadow path so no offscreen pass runs.
 - Glass Transparency runs from −100 to 100 in steps of 5 and is this iPhone's own setting, never synced:
   - on Devot's two glass views, −100 is a solid `color.phone.glass-opaque`, values below 0 tint regular glass with it at −t/100, 0 is plain regular glass, and values above 0 are clear glass tinted at the larger of 0 and 0.25 − t/400;
-  - on the system bars, whose glass has no public opacity, only values below 0 act: a background of `color.phone.glass-opaque` at −t/100 × 0.85, and from 0 up the system's default;
+  - on the system bars, whose glass has no public opacity, only values below 0 act: every scroll view under them, the web view's and the panes', takes the hard scroll edge effect, and from 0 up the automatic one;
   - a change applies on every move of the slider and is saved when the finger lifts.
 - Reduce Transparency and Increase Contrast win over Glass Transparency: the system frosts its glass, Devot's glass views follow with a solid fill, and the slider shows disabled with a footer that says why.
 
@@ -294,7 +294,7 @@ Glass is the system's, on the navigation layer only; content is never glass.
 
 Every pane is a SwiftUI form in a hosting controller pushed on the Settings tab's own navigation controller, so push, pop and the edge swipe are UIKit's.
 The root's rows are buttons that push through `SettingsRouter`, never SwiftUI navigation links, since no SwiftUI navigation container holds them.
-Appearance and Sync are still the page's panes: their rows push a `WebPaneScreen`, which asks the page for the pane with `settings.showPane` each time it shows and takes the web view under the native bar once the page answers, so the push never shows what the page drew before.
+Sync is still the page's pane: its row pushes a `WebPaneScreen`, which asks the page for the pane with `settings.showPane` each time it shows and takes the web view under the native bar once the page answers, so the push never shows what the page drew before.
 The web view keeps its size there; its safe area takes in the bar, so the page's top inset clears it.
 The page keeps a pane it still shows when asked again, so a tab switch loses nothing typed in it and leaves a pairing running; once the `WebPaneScreen` leaves the stack, Swift sends `tabs.popToRoot { tab: "settings" }` and the page lets the pane go, as its own Back did.
 Rows have a label, at most one short description and one trailing edge (a value with a chevron, a switch, or nothing), with no info buttons.
@@ -337,6 +337,8 @@ Settings root (large title, the system search field, a Pair a Device bar button 
 | Message                               | From  | Meaning                                                                                                             |
 | ------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------- |
 | `settings.showPane { pane, anchor? }` | Swift | the page shows `appearance` or `sync` in the web view, without its own bar; `anchor` is only `pairing`, with `sync` |
+| `glass.get`                           | Swift | the page answers its stored Glass Transparency, or null, once, when this iPhone has no value of its own yet         |
+| `glass.set { transparency }`          | Swift | the page paints its glass at this value and keeps a copy, so it paints right at the next launch                     |
 | `settings.notebooks`                  | Swift | the page answers the notebooks, each with `id`, `name` and `depth`, in order                                        |
 | `settings.open { pane, focusKey }`    | page  | the page asks Swift to open License, its key field focused or not                                                   |
 
@@ -418,5 +420,5 @@ These are measured on a device in stage 0, before the stages that depend on them
   The screen stays up, and which bars draw the tint is read off a screenshot taken by hand, so the report's `pass` is `null`.
   Run: `scripts/ios/run-spike.sh barTint`.
   Result (2026-11-07, iPhone18,2, iOS 27.2): only the navigation bar draws the tint, and it then draws as an opaque band instead of floating glass; the floating tab bar and the toolbar ignore it.
-  So Glass Transparency below 0 cannot reach the bars through their appearance's background colour, and the tint needs another path in PR 14.
+  So Glass Transparency below 0 cannot reach the bars through their appearance's background colour; it reaches them as the hard scroll edge effect instead, which the system draws behind every floating bar.
   iOS 26 was not measured.

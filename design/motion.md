@@ -192,9 +192,16 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   A setting changes before it is saved; a refused save puts the old value back at once and raises the system's alert (rule 2).
   An action row's value changes in place (rule 2), as on the web shell's Restore Purchases and Request a Refund rows.
   The Trial, Mac licence key and purchase sheets are one content-sized system sheet with its grabber, rising and following a drag with the system's motion (rule 3); when their content grows the sheet's height follows in one system animation, and content taller than the sheet scrolls inside it.
-  A pane the page still draws (Appearance, Sync) shows the screen's background during the push until the page has the pane, then the pane at once (rule 2); Pair a Device lands on Sync's pairing without a scroll animation.
+  A pane the page still draws (Sync) shows the screen's background during the push until the page has the pane, then the pane at once (rule 2); Pair a Device lands on Sync's pairing without a scroll animation.
   Removing a licence asks first in the system's alert, with Remove in the destructive style.
   Under Reduce Motion the system crossfades its pushes and sheets.
+- **Appearance cards** (the native Appearance pane): rule 4, then rule 2.
+  A colour scheme card, a theme card and a theme swatch scale to `PressableCardStyle`'s 0.97 (a swatch 0.94) over `motion.duration.quick` while pressed, and settle back on `motion.spring.phone-settle-*` on release; a theme card scales with its swatches on it.
+  The choice then shows in the next frame: the scheme ring and the swatch rings and badges appear at once, with no travel and no fade, and a pick plays the `selection` haptic.
+  Under Reduce Motion, or with Animations set to Off, nothing scales.
+- **Glass Transparency, Gradient, Text Size and Preview Font Size** (the native Appearance pane): rule 1.
+  The system slider follows the finger with a `selection` haptic per step; the glass of Devot's own views, the sample, the bars' edge, the glow or the text sample change with it, with no motion of their own.
+  The value is stored when the finger lifts.
 - **Note mode toggle:** rule 4. The icon turns in with `bouncy` from a dip and -30 degrees. Edit and Preview crossfade over `motion.duration.ring`, the new one rising 8 pt with `gentle`. Under Reduce Motion both only fade, over `motion.duration.phone-crossfade`.
 - **Note bottom bar and formatting bar:** rule 2. As the keyboard rises the bottom bar fades and drops 20 pt with `gentle`, and the formatting bar fades in on the keyboard. Under Reduce Motion both only crossfade. The system's bar of previous, next and a check mark is not shown above the keyboard, so the formatting bar sits on the keyboard itself, and Hide keyboard lowers the keyboard with the system's motion.
 - **Find bar:** rule 2. It appears at once on the keyboard, in the bottom bar's place, and matches change as you type.
@@ -206,4 +213,4 @@ PlantUML and Markmap drawings replace their previous SVG at once (rule 2), as Me
 
 ## Stays instant
 
-Another note; another view; palette results; the editor's floating bars; Write mode's marks showing and hiding; Write mode's emoji and inline HTML drawn or shown as source; Write mode's blocks opening and folding; Write mode's tables redrawn by an edit; a pane being resized; a window's theme or appearance changing (`data-appearance-changing` turns transitions off, because WKWebView can keep half-transitioned layers when a background window changes theme); text folding (it would animate height inside CodeMirror's measured layout).
+Another note; another view; palette results; the editor's floating bars; Write mode's marks showing and hiding; Write mode's emoji and inline HTML drawn or shown as source; Write mode's blocks opening and folding; Write mode's tables redrawn by an edit; a pane being resized; a window's theme or appearance changing (`data-appearance-changing` turns transitions off, because WKWebView can keep half-transitioned layers when a background window changes theme); on the iPhone, a theme, a colour scheme or a Glass Transparency change in the native screens; text folding (it would animate height inside CodeMirror's measured layout).
