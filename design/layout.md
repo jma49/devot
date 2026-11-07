@@ -179,8 +179,8 @@ Exceptions to these rules, each chosen on purpose:
   The magnifier stands on the 24 keyline (`size.list-keyline-inner`), 12 inside a field whose edge is on the 12 keyline (`size.list-keyline-outer`), so it lines up with the sort label and the row titles.
   It is 9 from the field's top and bottom, so it is 3 off concentric with the end cap; the placeholder still starts `size.toolbar-control-gap` (6) after it.
 - **The sidebar footer's ends:** the sidebar's icon column wins over the end-cap rule.
-  Its dot keeps a sidebar row's start padding (`size.sidebar-row-padding`, 10), so it sits on the column of the rows' icons, 5 off concentric with the end cap.
-  Its chevron end matches: `size.sidebar-footer-end-sm` (7) puts the chevron's centre as far from its end (15) as the dot's is from the other, so the two ends look the same.
+  Its dot is a sidebar row's start padding (`size.sidebar-row-padding`, 10) from the outer edge, border included, so it sits on the column of the rows' icons, 4 off concentric with the end cap.
+  Its chevron end matches: `size.sidebar-footer-end-sm` (6) puts the chevron's centre as far from its end (14) as the dot's is from the other, so the two ends look the same.
 - **The notebook pill's icon:** it is `size.icon-sm` (14), not the 10 px of the pill's other glyphs.
   A line icon is drawn larger to carry the weight of the filled 10 px marks beside it (the status icon, a tag's dot).
 

@@ -7587,7 +7587,8 @@ button.popup:focus-visible {
 :root[data-sidebar-material='on'] .footer-toggle {
   column-gap: var(--size-sidebar-footer-gap);
   height: var(--size-sidebar-footer);
-  padding-inline: var(--size-sidebar-row-padding) var(--size-sidebar-footer-end-sm);
+  padding-inline: calc(var(--size-sidebar-row-padding) - var(--size-capsule-edge))
+    var(--size-sidebar-footer-end-sm);
   border: var(--size-capsule-edge) solid var(--color-line-glass-edge);
   border-radius: var(--radius-capsule);
   color: var(--color-text-primary);

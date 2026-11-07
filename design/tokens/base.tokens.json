@@ -2233,8 +2233,8 @@
     },
     "sidebar-footer-end-sm": {
       "$type": "dimension",
-      "$value": { "value": 7, "unit": "px" },
-      "$description": "The Glass sidebar footer: the end padding after its chevron's 14 px box, so the chevron centres as far from its end as the dot, which keeps a sidebar row's start padding, from the other: size.sidebar-row-padding + space.4 / 2 - size.icon-sm / 2."
+      "$value": { "value": 6, "unit": "px" },
+      "$description": "The Glass sidebar footer: the end padding after its chevron's 14 px box, so the chevron centres as far from its end as the dot, which sits a sidebar row's start padding from the outer edge, from the other: size.sidebar-row-padding + space.4 / 2 - size.icon-sm / 2 - size.capsule-edge."
     },
     "scrollbar": {
       "$type": "dimension",

@@ -266,7 +266,7 @@ export const sizes = {
   "size.sidebar-footer": "20px",
   "size.capsule-edge": "1px",
   "size.sidebar-footer-gap": "6px",
-  "size.sidebar-footer-end-sm": "7px",
+  "size.sidebar-footer-end-sm": "6px",
   "size.scrollbar": "6px",
   "size.menu-width": "325px",
   "size.menu-max-height": "210px",

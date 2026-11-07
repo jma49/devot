@@ -119,7 +119,9 @@ describe('capsule tokens', () => {
 
   it("keeps the sidebar footer's dot on the rows' keyline, its chevron centred as far from the other end", () => {
     const dotCentre = px('size.sidebar-row-padding') + px('space.4') / 2
-    expect(px('size.sidebar-footer-end-sm') + px('size.icon-sm') / 2).toBe(dotCentre)
+    expect(
+      px('size.capsule-edge') + px('size.sidebar-footer-end-sm') + px('size.icon-sm') / 2,
+    ).toBe(dotCentre)
     expect(rules.some((r) => r.selector.includes('.footer-toggle:has('))).toBe(false)
   })
 
@@ -163,7 +165,7 @@ describe('capsule tokens', () => {
       [
         glass('.footer-toggle'),
         'padding-inline',
-        'var(--size-sidebar-row-padding) var(--size-sidebar-footer-end-sm)',
+        'calc(var(--size-sidebar-row-padding) - var(--size-capsule-edge)) var(--size-sidebar-footer-end-sm)',
       ],
       [
         glass('.palette-field'),
