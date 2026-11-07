@@ -112,7 +112,8 @@ describe('highlightSpans', () => {
       return count
     }
     const top = walked(0, 2000)
-    // Without a start at the range, the end walks past each of the 10,000 blocks before it.
+    // A range at the end must not step past the 10,000 blocks before it.
+    expect(top).toBeGreaterThan(0)
     expect(walked(length - 2000, length)).toBeLessThan(top * 2)
   })
 

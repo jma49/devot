@@ -64,6 +64,7 @@
   "tests/ui/list-keys.spec.ts": 6935,
   "tests/ui/list-viewer-keys.spec.ts": 15420,
   "tests/ui/long-list.spec.ts": 70714,
+  "tests/ui/long-note-typing.spec.ts": 55000,
   "tests/ui/main-windows.spec.ts": 124364,
   "tests/ui/mermaid-charts.spec.ts": 58376,
   "tests/ui/mermaid-style.spec.ts": 35353,

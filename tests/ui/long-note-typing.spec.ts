@@ -100,7 +100,9 @@ test('a keystroke in a 200 KB note stays within its budget', async ({ page }) =>
 // the caret (a parse, a scan or decorations from the note's start, heights measured above the viewport).
 // The note is three times the one above, so such work shows against the rest. Each place is typed twice, in
 // turns, a letter then Backspace so the note keeps its length, with pauses as a person leaves them; trimmed
-// means keep a garbage collection or a late frame from deciding.
+// means keep a garbage collection or a late frame from deciding, and CI's one retry a noisy runner.
+// The bound catches work of about half a keystroke; a smaller cost, such as the highlighting walk that
+// highlighting.test.ts holds, does not always cross it.
 const PLACE_NOTE_CHARS = 600_000
 const PLACE_RATIO = 1.5
 const PLACE_KEYS = 20

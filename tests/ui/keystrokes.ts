@@ -21,28 +21,26 @@ export function watchKeys(content: Locator) {
     const w = window
     w.devotKeys = []
     let current: { work: number; frame: number } | null = null
-    const timed = (name: 'update' | 'measure') => {
-      const run = view[name].bind(view) as (...args: unknown[]) => void
-      view[name] = (...args: unknown[]) => {
-        const start = w.performance.now()
-        try {
-          run(...args)
-        } finally {
-          if (current) current.work += w.performance.now() - start
-        }
+    // A call inside another timed one is already in the outer one's time.
+    let depth = 0
+    const timing = <T>(run: () => T): T => {
+      const start = w.performance.now()
+      depth++
+      try {
+        return run()
+      } finally {
+        depth--
+        if (current && depth === 0) current.work += w.performance.now() - start
       }
     }
-    timed('update')
-    timed('measure')
+    for (const name of ['update', 'measure'] as const) {
+      const run = view[name].bind(view) as (...args: unknown[]) => void
+      view[name] = (...args: unknown[]) => timing(() => run(...args))
+    }
     const state = Object.getPrototypeOf(view.state) as StateLike
     const transaction = state.update
     state.update = function (this: StateLike, ...specs: unknown[]) {
-      const start = w.performance.now()
-      try {
-        return transaction.apply(this, specs)
-      } finally {
-        if (current) current.work += w.performance.now() - start
-      }
+      return timing(() => transaction.apply(this, specs))
     }
     w.addEventListener(
       'keydown',
