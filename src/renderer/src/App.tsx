@@ -201,8 +201,6 @@ export function App() {
   const shown = useShownWrites(core, agentWrites)
 
   useSaveOnHide(core)
-  // oxlint-disable-next-line react/immutability -- saveNow comes from useLastState below; the trial-end effect calls it after the render.
-  useSaveAtTrialEnd(editing, core, () => saveNow())
 
   // The other main windows wrote to the library: this one loads its lists and the notes it holds again, as for a change from another process.
   useEffect(() => {
@@ -268,6 +266,7 @@ export function App() {
     select,
   })
   const { saveNow } = lastStateParts
+  useSaveAtTrialEnd(editing, core, saveNow)
   useQuitAndClose({
     core,
     coreRef,
