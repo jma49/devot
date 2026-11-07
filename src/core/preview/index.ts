@@ -35,6 +35,7 @@ export { videoEmbedUrl } from './builtins'
 export {
   codeLanguage,
   createCodeRenderer,
+  drawCodeMarks,
   parseCodeInfo,
   type CodeInfo,
   type Highlighter,

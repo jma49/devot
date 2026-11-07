@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import languageIcons from '../../design/icons/languages.json'
 import {
   htmlDocument,
   pageBody,
@@ -264,6 +265,19 @@ describe('HTML pages', () => {
     expect(html).toContain('<a href="photo.jpg">A photo</a>')
     expect(html).toContain('<a href="https://x.example">in</a>')
     expect(pageBody(tree, { nonce: NONCE, simple: true }).html).toContain('<img src="photo.jpg"')
+  })
+
+  it('draws every code block mark in full, so a page or a paste shows it without the preview', async () => {
+    const tree = await renderPreview('```js\na\n```\n\n```js\nb\n```\n\n```nolang\nc\n```\n', {
+      labels,
+      loadedEmbeds: [],
+    })
+    for (const print of [false, true]) {
+      const { html } = pageBody(tree, { nonce: NONCE, print })
+      expect(html.split(`<path d="${languageIcons.icons.javascript.path}"></path>`)).toHaveLength(3)
+      expect(html.split('<svg class="code-lang-icon')).toHaveLength(4)
+      expect(html).not.toMatch(/<use|<symbol|\sid="devot-/)
+    }
   })
 
   it('copies a numbered code block as its code alone', async () => {
