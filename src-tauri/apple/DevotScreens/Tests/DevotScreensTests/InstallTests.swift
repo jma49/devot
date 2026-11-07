@@ -102,6 +102,7 @@ final class InstallTests: XCTestCase {
         settle()
         screens.replied(1, try Message.reply(id: 1, outcome: .ok(.object([:]))).json())
         let tabs = screens.root.tabs
+        XCTAssertTrue(screens.selectionFeedback.view === tabs.view)
         _ = tabs.tabBarController(tabs, shouldSelect: try XCTUnwrap(tabs.selectedViewController))
         XCTAssertEqual(try sent(rust).last, .request(id: 2, op: .tabsPopToRoot, args: ["tab": .string("library")]))
         screens.replied(2, try Message.reply(id: 2, outcome: .ok(.object([:]))).json())

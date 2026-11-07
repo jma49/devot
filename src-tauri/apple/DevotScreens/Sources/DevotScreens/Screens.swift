@@ -28,11 +28,13 @@ final class Screens {
     private var nextID: UInt64 = 1
     private var waiting: [UInt64: (Outcome) -> Void] = [:]
     private var tabModel = TabModel()
-    private let selection = UISelectionFeedbackGenerator()
+    let selectionFeedback: UISelectionFeedbackGenerator
 
     private init(rust: any RustSide, webView: WKWebView) {
         self.rust = rust
-        root = ScreensRootController(webView: webView)
+        let root = ScreensRootController(webView: webView)
+        self.root = root
+        selectionFeedback = UISelectionFeedbackGenerator(view: root.tabs.view)
         root.log = { [weak self] in self?.rust.log($0, $1) }
         root.tabs.onAppear = { [weak self] tab in
             guard let self else { return }
@@ -41,7 +43,10 @@ final class Screens {
         root.tabs.onReselect = { [weak self] tab in
             guard let self else { return }
             let effects = tabModel.reselected(tab)
-            if !effects.isEmpty { selection.selectionChanged() }
+            if !effects.isEmpty {
+                selectionFeedback.prepare()
+                selectionFeedback.selectionChanged()
+            }
             run(effects)
         }
     }
