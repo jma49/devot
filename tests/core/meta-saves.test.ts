@@ -7,10 +7,13 @@ import {
   createNoteService,
   newWriter,
   WRITES,
+  type NoteRelayMessage,
+  type NoteService,
   type StorageAdapter,
 } from '../../src/core'
 import { createClock } from '../../src/core/hlc'
 import { createIdGenerator } from '../../src/core/ids'
+import { BODY } from '../../src/core/notes/body'
 import { observeWrites } from '../../src/core/observeWrites'
 import { tempSqliteAdapter } from '../support/sqlite-adapter'
 
@@ -30,14 +33,43 @@ function watched(change: (storage: StorageAdapter) => Partial<StorageAdapter> = 
     },
   }
   const storage = observeWrites({ ...base, ...change(base) }, (ids) => observed.push(ids))
-  const service = (node = 'mac1') =>
-    createNoteService({ storage, clock: createClock(node), newId: createIdGenerator() })
+  const service = (node = 'mac1', relay?: (message: NoteRelayMessage) => void) =>
+    createNoteService({
+      storage,
+      clock: createClock(node),
+      newId: createIdGenerator(),
+      ...(relay ? { relay } : {}),
+    })
   const book = () =>
     createBookService({ storage, clock: createClock('mac1'), newId: createIdGenerator() }).create(
       'Work',
       null,
     )
   return { sqlite, writes, observed, service, book }
+}
+
+const writesIn = (ydoc: Uint8Array) => {
+  const doc = new Y.Doc()
+  Y.applyUpdate(doc, ydoc)
+  return doc.getMap(WRITES).size
+}
+
+/** A note whose authorship was written and then cleared, with the stored record from before the clearing. */
+async function withClearedAuthorship(
+  notes: NoteService,
+  sqlite: ReturnType<typeof tempSqliteAdapter>,
+) {
+  const id = await notes.create('Plan')
+  await notes.setBody(id, 'Ours')
+  await notes.agentWrite(id, {
+    writer: newWriter('mcp', 'Claude Code', 'mcp00aa11bb22cc'),
+    markdown: 'Agent text.\n',
+  })
+  await notes.flush()
+  const withRows = (await sqlite.getNote(id))!
+  await notes.clearAuthorship(id)
+  await notes.flush()
+  return { id, withRows }
 }
 
 describe('saves that change only a note’s fields', () => {
@@ -243,6 +275,71 @@ describe('saves that change only a note’s fields', () => {
     const doc = new Y.Doc()
     Y.applyUpdate(doc, (await sqlite.getNote(id))!.ydoc)
     expect(doc.getMap(WRITES).size).toBe(0)
+  })
+
+  it('write the whole note when an undone status finds the status moved and the stored copy short', async () => {
+    const { sqlite, service } = watched()
+    const notes = service()
+    const { id, withRows } = await withClearedAuthorship(notes, sqlite)
+    const undo = await notes.setStatusUndoable(id, 'active')
+    await service('mac2').writeMeta(id, { status: 'completed' })
+    const now = (await sqlite.getNote(id))!
+    await sqlite.putNote({ ...now, ydoc: withRows.ydoc })
+
+    await notes.undoStatus(id, undo)
+    await notes.flush()
+    expect(writesIn((await sqlite.getNote(id))!.ydoc)).toBe(0)
+    // Pushed out of memory (8 notes are kept) and opened again from storage.
+    for (let i = 0; i < 9; i += 1) await notes.open(await notes.create(`Other ${i}`))
+    await notes.flush()
+    expect(writesIn((await notes.open(id)).state)).toBe(0)
+  })
+
+  it('read no stored record for an undone status while the stored body version has not moved', async () => {
+    let reads = 0
+    const { sqlite, service } = watched((base) => ({
+      getNote: async (id, which) => {
+        reads += 1
+        return base.getNote(id, which)
+      },
+    }))
+    const notes = service()
+    const id = await notes.create('Plan')
+    await notes.setBody(id, 'Text')
+    await notes.flush()
+    const undo = await notes.setStatusUndoable(id, 'active')
+    reads = 0
+
+    await notes.undoStatus(id, undo)
+    await notes.flush()
+    expect(reads).toBe(0)
+    expect((await sqlite.getNote(id))?.status).toBe(undo.status)
+  })
+
+  it('write the whole note while a relayed change waits on one that has not arrived', async () => {
+    const { sqlite, writes, service } = watched()
+    const here = service('mac1', () => {})
+    const id = await here.create('Plan')
+    await here.setBody(id, 'Ours')
+    await here.flush()
+    const other = new Y.Doc()
+    Y.applyUpdate(other, (await sqlite.getNote(id))!.ydoc)
+    const updates: Uint8Array[] = []
+    other.on('update', (update: Uint8Array) => updates.push(update))
+    other.getText(BODY).insert(4, ' one')
+    other.getText(BODY).insert(8, ' two')
+    await here.receive({ kind: 'update', noteId: id, data: updates[1]! })
+    writes.length = 0
+
+    await here.setTitle(id, 'Renamed')
+    await here.flush()
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, (await sqlite.getNote(id))!.ydoc)
+    Y.applyUpdate(doc, updates[0]!)
+    expect({ writes, text: doc.getText(BODY).toString() }).toEqual({
+      writes: ['note'],
+      text: 'Ours one two',
+    })
   })
 
   it('write the whole note when storage no longer has it', async () => {

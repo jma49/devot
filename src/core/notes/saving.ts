@@ -148,7 +148,11 @@ export function createSaving(
         note.state = keepsState(note) ? state : undefined
         return { bodyMd: note.doc.getText(BODY).toString(), ydoc: state }
       },
-      () => note.storedChanges === note.changes,
+      // An update waiting on one that has not arrived raises no change, but storage lacks it too.
+      () =>
+        note.storedChanges === note.changes &&
+        note.doc.store.pendingStructs === null &&
+        note.doc.store.pendingDs === null,
     )
     if (!written) return
     const { record, state } = written
