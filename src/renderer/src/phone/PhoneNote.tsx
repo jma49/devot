@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { createAiGenerator } from '../../../core/aiProvider'
 import { createSuggester } from '../../../core/aiSuggest'
 import type { NoteSummary } from '../../../core/storage'
+import { noteCounts } from '../../../core/noteCounts'
 import { tagCounts } from '../../../core/tags'
 import { aiTransport } from '../ai'
 import { aiSuggestFailure } from '../aiEditView'
@@ -26,7 +27,7 @@ import type { FindTarget } from '../find/target'
 import { Preview } from '../preview/Preview'
 import type { FormatId } from '../editor/formats'
 import { notebookPath } from './library'
-import { noteStats } from './noteStats'
+import { useNoteStats, type NoteStats } from './noteStats'
 import { PhoneFindBar } from './PhoneFindBar'
 import {
   NotebookPicker,
@@ -69,7 +70,7 @@ const rowIcon = (name: IconName) => (
 function InfoSheet(props: {
   store: PhoneStore
   note: NoteSummary
-  text: string
+  stats: NoteStats
   onClose: () => void
   onTrash: () => void
   onOpenNote: (id: string) => void
@@ -105,7 +106,7 @@ function InfoSheet(props: {
       alive = false
     }
   }, [sync.enrolled])
-  const stats = noteStats(props.text)
+  const { stats } = props
   const book = store.books.find((b) => b.id === note.bookId)
   const when = (at: number) => noteDate(at, store.loadedAt, currentLocale())
   const strip: readonly [string, string][] = [
@@ -245,6 +246,12 @@ export function PhoneNote(props: {
   const [toggles, setToggles] = useState(0)
   const [body, setBody] = useState({ id: noteId, text: '' })
   const text = body.id === noteId ? body.text : ''
+  const counter = store.core
+  const countNote = useCallback(
+    (markdown: string) => counter?.noteCounts(markdown) ?? noteCounts(markdown),
+    [counter],
+  )
+  const stats = useNoteStats(noteId, text, countNote)
   const [sheet, setSheet] = useState<Sheet>(null)
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
   const [suggestFailure, setSuggestFailure] = useState<string>()
@@ -355,7 +362,6 @@ export function PhoneNote(props: {
   const tags = note.tagIds
     .map((id) => store.tags.find((tag) => tag.id === id))
     .filter((tag) => tag !== undefined && tag.deletedAt === null)
-  const stats = noteStats(text)
   const title = titleDraft ?? note.title
   const back = () => (history.at > 0 ? setHistory((h) => ({ ...h, at: h.at - 1 })) : props.onBack())
   const pick = (picker: 'notebook' | 'status' | 'tags') =>
@@ -627,7 +633,7 @@ export function PhoneNote(props: {
         <InfoSheet
           store={store}
           note={note}
-          text={text}
+          stats={stats}
           onClose={() => setSheet(null)}
           onTrash={() => {
             setSheet(null)
