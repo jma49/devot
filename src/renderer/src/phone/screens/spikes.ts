@@ -221,6 +221,26 @@ function scroller(budgetMs: number) {
   }
 }
 
+/** Where the page's focus is, by kind and tag name only, for spike S2. */
+export function focusTarget(editorDOM: Element | undefined) {
+  const active = document.activeElement
+  const kind =
+    active === null
+      ? 'none'
+      : editorDOM?.contains(active)
+        ? 'editor'
+        : active.hasAttribute('data-keyboard-proxy')
+          ? 'keyboardProxy'
+          : active === document.body
+            ? 'body'
+            : 'other'
+  return {
+    active: kind,
+    activeTag: active?.tagName ?? 'none',
+    documentFocused: document.hasFocus(),
+  }
+}
+
 function probes(deps: () => SpikeDeps | undefined): Record<string, Probe> {
   let watch: ReturnType<typeof startWatch> | undefined
   let scroll: ReturnType<typeof scroller> | undefined
@@ -236,6 +256,7 @@ function probes(deps: () => SpikeDeps | undefined): Record<string, Probe> {
     return {
       focused: view.hasFocus,
       caret: view.hasFocus && view.coordsAtPos(head) !== null,
+      ...focusTarget(view.dom),
     }
   }
   const scrolledTo = () => {

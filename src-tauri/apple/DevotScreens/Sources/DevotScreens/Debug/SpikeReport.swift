@@ -177,6 +177,96 @@ struct ReparentingResults: SpikeResults {
 struct PageFocus: Codable, Sendable {
     let focused: Bool
     let caret: Bool
+    /// spikes.ts `focusTarget`: where the page's focus is, by kind and tag name.
+    var active: String? = nil
+    var activeTag: String? = nil
+    var documentFocused: Bool? = nil
+}
+
+/// Where UIKit stood for the keyboard at one moment of the keyboard spike; codes and class names
+/// only, with `none` for a view or object that is not there.
+struct KeyboardSnapshot: Codable, Sendable {
+    let stage: String
+    /// Since the keyboard watch started.
+    let atMs: Double
+    let applicationState: String
+    let sceneActivationState: String
+    let connectedScenes: Int
+    let sceneWindows: Int
+    let sceneDelegate: String
+    let windowClass: String
+    let windowIsKey: Bool
+    /// The class of the scene's key window, which UIKit raises the keyboard for.
+    let sceneKeyWindow: String
+    let sceneKeyWindowIsFieldWindow: Bool
+    let fieldInWindow: Bool
+    let fieldFirstResponder: Bool
+    let fieldCanBecomeFirstResponder: Bool
+    let fieldEnabled: Bool
+    let fieldUserInteractionEnabled: Bool
+    let fieldAlpha: Double
+    let fieldHasInputView: Bool
+    let fieldHasInputAccessoryView: Bool
+    /// The field's superviews up to the window.
+    let ancestorHidden: Bool
+    let ancestorTransparent: Bool
+    /// The view a touch on the field lands on.
+    let hitTestView: String
+    /// `GCKeyboard.coalesced` is set: a hardware keyboard keeps the software one down.
+    let hardwareKeyboard: Bool
+    /// Found by walking the field's window.
+    let firstResponderInWindow: String
+    /// Found by sending an action to nil, which goes to the key window's first responder.
+    let firstResponderOfKeyWindow: String
+    let webViewFirstResponder: Bool
+    let contentViewClass: String
+    let keyboardUp: Bool
+}
+
+struct KeyboardEvent: Codable, Sendable {
+    let name: String
+    let atMs: Double
+}
+
+struct KeyboardTryDiagnostics: Codable, Sendable {
+    /// The field was asked to become first responder; false when it already was.
+    let askedField: Bool
+    let fieldBecame: Bool?
+    let webViewBecame: Bool?
+    let keyboardUpBeforeFocus: Bool
+    let before: KeyboardSnapshot
+    let afterFocus: KeyboardSnapshot
+    let end: KeyboardSnapshot
+}
+
+struct KeyboardDiagnostics: Codable, Sendable {
+    struct Tries: Codable, Sendable {
+        let handOff: KeyboardTryDiagnostics
+        let handOffThenWebView: KeyboardTryDiagnostics
+        let webViewThenFocus: KeyboardTryDiagnostics
+        let caretOnly: KeyboardTryDiagnostics
+    }
+
+    /// From the page answering to its scene being foreground-active and the app active.
+    let activationWaitMs: Double
+    let activated: Bool
+    /// What `becomeFirstResponder` returned in `viewDidAppear`.
+    let fieldBecameFirstResponder: Bool
+    /// The field was not first responder a main-queue turn after the transition, and was asked again.
+    let retriedAfterTransition: Bool
+    let fieldBecameOnRetry: Bool?
+    /// The keyboard stayed down and the window was not key, so the harness called `makeKey`.
+    let madeKey: Bool
+    /// After `makeKey` alone, before the field was asked again.
+    let keyboardUpAfterMakeKey: Bool?
+    /// The keyboard stayed down, so the field resigned and became first responder again.
+    let refocused: Bool
+    let fieldBecameOnRefocus: Bool?
+    /// The keyboard was up when the tries began.
+    let keyboardUpForTries: Bool
+    let snapshots: [KeyboardSnapshot]
+    let tries: Tries
+    let events: [KeyboardEvent]
 }
 
 struct KeyboardTry: Codable, Sendable {
@@ -195,18 +285,28 @@ struct KeyboardTry: Codable, Sendable {
 
 struct KeyboardResults: SpikeResults {
     static let noHandOffNote = "no public hand-off kept the keyboard: choose between a guarded private path and caretOnly"
+    static let noKeyboardNote = "the hidden field never brought the keyboard up, so the hand-offs were not measured: read results.diagnostics"
+    static let notKeyNote = "the keyboard came up only once the harness made the window key: the app has to make tao's window key"
 
-    /// The hidden field became first responder and brought the keyboard up.
+    /// The hidden field, made first responder in `viewDidAppear`, brought the keyboard up.
     let nativeField: Bool
     /// (c): the field holds the keyboard, then the page focuses its editor.
     let handOff: KeyboardTry
     /// (c), then the web view is made first responder.
     let handOffThenWebView: KeyboardTry
+    /// (c) the other way round: the field holds the keyboard, the web view is made first
+    /// responder, then the page focuses its editor.
+    let webViewThenFocus: KeyboardTry
     /// (b): the page focuses its editor with no keyboard up.
     let caretOnly: KeyboardTry
+    let diagnostics: KeyboardDiagnostics
 
-    var pass: Bool? { handOff.works || handOffThenWebView.works }
-    var notes: [String] { pass == true ? [] : [Self.noHandOffNote] }
+    var pass: Bool? { handOff.works || handOffThenWebView.works || webViewThenFocus.works }
+    var notes: [String] {
+        if !diagnostics.keyboardUpForTries { return [Self.noKeyboardNote] }
+        let notKey = !nativeField && diagnostics.madeKey ? [Self.notKeyNote] : []
+        return notKey + (pass == true ? [] : [Self.noHandOffNote])
+    }
 }
 
 // MARK: S3

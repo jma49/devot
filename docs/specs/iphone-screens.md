@@ -292,8 +292,10 @@ These are measured on a device in stage 0, before the stages that depend on them
   Sync was not running, so the run under sync is still to be taken.
 - **S2, the keyboard after a native tap.** On iOS 26 and 27, a hidden native text field made first responder in `viewDidAppear` hands focus to the page; a public path is preferred.
   Otherwise the numbers choose between a guarded private focus path with a fallback, and a caret with no keyboard until the first tap.
-  The harness tries three paths on a pushed screen: the field holds the keyboard and the page focuses its editor, the same followed by making the web view first responder, and the page focusing its editor with no keyboard up.
+  The harness tries four paths on a pushed screen: the field holds the keyboard and the page focuses its editor, the same followed by making the web view first responder, the web view made first responder before the page focuses its editor, and the page focusing its editor with no keyboard up.
   Each try records whether the keyboard came up and stayed up, which view is first responder, and whether the page's editor has focus and shows a caret.
+  The harness waits for the scene to be foreground-active first; if the field leaves the keyboard down, it makes the window key when it is not, then has the field resign and become first responder again, and records each step.
+  `results.diagnostics` records, after each step and around each try, the window's and the scene's key and activation state, the first responder's class, the field's state, a hardware keyboard, and the keyboard, window and scene notifications with their times.
   Pass: either hand-off keeps the keyboard up with the web view first responder and the caret in the editor.
   The guarded private focus path is not built; it is built and measured only if no public path passes.
   Run: `scripts/ios/run-spike.sh S2`.

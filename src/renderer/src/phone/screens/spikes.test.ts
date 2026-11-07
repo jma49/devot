@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  focusTarget,
   frameStats,
   installSpikes,
   percentile,
@@ -149,6 +150,39 @@ describe('startWatch', () => {
     const touchSync = vi.fn<() => void>()
     startWatch(deps({ touchSync, sync: () => ({ enabled: false, state: 'off' }) }), 100).stop()
     expect(touchSync).not.toHaveBeenCalled()
+  })
+})
+
+describe('focusTarget', () => {
+  afterEach(() => {
+    document.body.replaceChildren()
+  })
+
+  it('names the focused element by kind and tag, never by its text', () => {
+    const editor = document.createElement('div')
+    const line = document.createElement('div')
+    line.tabIndex = 0
+    line.textContent = 'made-up text'
+    editor.append(line)
+    const proxy = document.createElement('textarea')
+    proxy.setAttribute('data-keyboard-proxy', '')
+    const input = document.createElement('input')
+    document.body.append(editor, proxy, input)
+
+    line.focus()
+    expect(focusTarget(editor)).toMatchObject({ active: 'editor', activeTag: 'DIV' })
+    proxy.focus()
+    expect(focusTarget(editor)).toMatchObject({ active: 'keyboardProxy', activeTag: 'TEXTAREA' })
+    input.focus()
+    expect(focusTarget(editor)).toMatchObject({ active: 'other', activeTag: 'INPUT' })
+    input.blur()
+    expect(focusTarget(editor)).toMatchObject({ active: 'body', activeTag: 'BODY' })
+    expect(Object.keys(focusTarget(undefined)).sort()).toEqual([
+      'active',
+      'activeTag',
+      'documentFocused',
+    ])
+    expect(typeof focusTarget(editor).documentFocused).toBe('boolean')
   })
 })
 

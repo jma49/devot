@@ -1,4 +1,5 @@
 #if DEBUG
+import GameController
 import OSLog
 import QuartzCore
 import UIKit
@@ -217,53 +218,218 @@ final class SpikeHarness {
 
     // MARK: S2
 
+    /// The first device runs left the keyboard down with the field first responder, so this run also
+    /// records UIKit's state at each step and, if the keyboard stays down, makes the window key
+    /// (tao's scene-less window may join its scene without becoming its key window) and asks again.
     private func keyboardAfterNativeTap() async throws -> KeyboardResults {
         let home = try home()
         let screen = SpikeScreen()
-        keyboard.start()
+        let field = screen.field
+        keyboard.start(field: field)
         defer {
             webView.endEditing(true)
-            _ = screen.field.resignFirstResponder()
+            _ = field.resignFirstResponder()
             keyboard.stop()
             moveHome(home)
             removeChild(screen)
         }
+        var snapshots = [snapshot("start", field)]
+        let activation = await waitUntilActive()
+        try await Task.sleep(for: .milliseconds(500))
+        snapshots.append(snapshot("active", field))
         try await send("s2Mount")
-        let nativeField = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+        let became = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
             screen.arriving = { [unowned self] in
                 self.move(into: screen.view)
                 screen.view.sendSubviewToBack(self.webView)
             }
-            screen.appeared = { continuation.resume(returning: screen.field.becomeFirstResponder()) }
+            screen.appeared = { [unowned self] in
+                snapshots.append(self.snapshot("appearing", field))
+                let became = field.becomeFirstResponder()
+                snapshots.append(self.snapshot("appeared", field))
+                continuation.resume(returning: became)
+            }
             showChild(screen)
         }
+        await nextTurn()
+        snapshots.append(snapshot("appearedNextTurn", field))
+        let retried = !field.isFirstResponder
+        let becameOnRetry = retried ? field.becomeFirstResponder() : nil
         await keyboard.wait(up: true)
-        let keyboardCameUp = nativeField && keyboard.up
-        let handOff = try await focusTry(field: screen.field, thenWebView: false)
-        try await reset(screen.field)
-        let handOffThenWebView = try await focusTry(field: screen.field, thenWebView: true)
-        try await reset(screen.field)
-        let caretOnly = try await focusTry(field: nil, thenWebView: false)
+        snapshots.append(snapshot("waited", field))
+        let nativeField = became && field.isFirstResponder && keyboard.up
+
+        var madeKey = false
+        var upAfterMakeKey: Bool?
+        var refocused = false
+        var becameOnRefocus: Bool?
+        if !keyboard.up {
+            if let window = field.window, !window.isKeyWindow {
+                madeKey = true
+                window.makeKey()
+                await nextTurn()
+                await keyboard.wait(up: true, ms: 1000)
+                upAfterMakeKey = keyboard.up
+                snapshots.append(snapshot("madeKey", field))
+            }
+            if !keyboard.up {
+                refocused = true
+                _ = field.resignFirstResponder()
+                await nextTurn()
+                becameOnRefocus = field.becomeFirstResponder()
+                await keyboard.wait(up: true)
+                snapshots.append(snapshot("refocused", field))
+            }
+        }
+        let upForTries = keyboard.up
+
+        let handOff = try await focusTry("handOff", field: field, order: .page, probe: field)
+        try await reset(field)
+        let handOffThenWebView = try await focusTry(
+            "handOffThenWebView", field: field, order: .pageThenWebView, probe: field)
+        try await reset(field)
+        let webViewThenFocus = try await focusTry(
+            "webViewThenFocus", field: field, order: .webViewThenPage, probe: field)
+        try await reset(field)
+        let caretOnly = try await focusTry("caretOnly", field: nil, order: .page, probe: field)
         try await send("cleanup")
+        let diagnostics = KeyboardDiagnostics(
+            activationWaitMs: activation.ms, activated: activation.active, fieldBecameFirstResponder: became,
+            retriedAfterTransition: retried, fieldBecameOnRetry: becameOnRetry, madeKey: madeKey,
+            keyboardUpAfterMakeKey: upAfterMakeKey, refocused: refocused, fieldBecameOnRefocus: becameOnRefocus,
+            keyboardUpForTries: upForTries, snapshots: snapshots,
+            tries: KeyboardDiagnostics.Tries(
+                handOff: handOff.diagnostics, handOffThenWebView: handOffThenWebView.diagnostics,
+                webViewThenFocus: webViewThenFocus.diagnostics, caretOnly: caretOnly.diagnostics),
+            events: keyboard.events)
         return KeyboardResults(
-            nativeField: keyboardCameUp, handOff: handOff, handOffThenWebView: handOffThenWebView,
-            caretOnly: caretOnly)
+            nativeField: nativeField, handOff: handOff.result, handOffThenWebView: handOffThenWebView.result,
+            webViewThenFocus: webViewThenFocus.result, caretOnly: caretOnly.result, diagnostics: diagnostics)
     }
 
-    private func focusTry(field: UITextField?, thenWebView: Bool) async throws -> KeyboardTry {
+    private enum FocusOrder {
+        case page
+        case pageThenWebView
+        case webViewThenPage
+    }
+
+    private func focusTry(_ name: String, field: UITextField?, order: FocusOrder, probe: UITextField)
+        async throws -> (result: KeyboardTry, diagnostics: KeyboardTryDiagnostics)
+    {
+        var askedField = false
+        var fieldBecame: Bool?
         if let field, !field.isFirstResponder {
-            _ = field.becomeFirstResponder()
+            askedField = true
+            fieldBecame = field.becomeFirstResponder()
             await keyboard.wait(up: true)
         }
+        let before = snapshot("\(name).before", probe)
         keyboard.forgetDrops()
+        var webViewBecame: Bool?
+        if order == .webViewThenPage { webViewBecame = webView.becomeFirstResponder() }
+        let upBeforeFocus = keyboard.up
         let _: PageFocus = try await page("s2Focus")
-        if thenWebView { _ = webView.becomeFirstResponder() }
+        let afterFocus = snapshot("\(name).afterFocus", probe)
+        if order == .pageThenWebView { webViewBecame = webView.becomeFirstResponder() }
         try await Task.sleep(for: .milliseconds(800))
         let state: PageFocus = try await page("s2State")
-        return KeyboardTry(
+        let result = KeyboardTry(
             keyboardUp: keyboard.up, keyboardDropped: keyboard.dropped,
             fieldFirstResponder: field?.isFirstResponder ?? false,
             webViewFirstResponder: holdsFirstResponder(webView), page: state)
+        let diagnostics = KeyboardTryDiagnostics(
+            askedField: askedField, fieldBecame: fieldBecame, webViewBecame: webViewBecame,
+            keyboardUpBeforeFocus: upBeforeFocus, before: before, afterFocus: afterFocus,
+            end: snapshot("\(name).end", probe))
+        return (result, diagnostics)
+    }
+
+    /// Until the web view's scene is foreground-active and the app active, for at most 10 s.
+    private func waitUntilActive() async -> (ms: Double, active: Bool) {
+        let start = CACurrentMediaTime()
+        let elapsed = { SpikeStats.rounded((CACurrentMediaTime() - start) * 1000) }
+        for _ in 0..<200 {
+            if UIApplication.shared.applicationState == .active,
+                webView.window?.windowScene?.activationState == .foregroundActive
+            {
+                return (elapsed(), true)
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return (elapsed(), false)
+    }
+
+    /// After the main queue has run what is already queued on it, such as the end of a transition.
+    private func nextTurn() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+    }
+
+    private func snapshot(_ stage: String, _ field: UITextField) -> KeyboardSnapshot {
+        let none = "none"
+        let window = field.window ?? webView.window
+        let scene = window?.windowScene
+        var ancestors: [UIView] = []
+        var next = field.superview
+        while let view = next {
+            ancestors.append(view)
+            next = view.superview
+        }
+        let hit = field.window.flatMap { window in
+            window.hitTest(field.convert(CGPoint(x: field.bounds.midX, y: field.bounds.midY), to: window), with: nil)
+        }
+        FirstResponderProbe.found = nil
+        _ = UIApplication.shared.sendAction(
+            #selector(UIResponder.devotSpikeCaptureFirstResponder(_:)), to: nil, from: nil, for: nil)
+        let keyFirstResponder = FirstResponderProbe.found.map(className)
+        FirstResponderProbe.found = nil
+        return KeyboardSnapshot(
+            stage: stage, atMs: keyboard.elapsedMs(),
+            applicationState: Self.name(UIApplication.shared.applicationState),
+            sceneActivationState: scene.map { Self.name($0.activationState) } ?? "noScene",
+            connectedScenes: UIApplication.shared.connectedScenes.count, sceneWindows: scene?.windows.count ?? 0,
+            sceneDelegate: scene?.delegate.map { className($0) } ?? none, windowClass: window.map(className) ?? none,
+            windowIsKey: window?.isKeyWindow ?? false, sceneKeyWindow: scene?.keyWindow.map(className) ?? none,
+            sceneKeyWindowIsFieldWindow: field.window != nil && scene?.keyWindow === field.window,
+            fieldInWindow: field.window != nil, fieldFirstResponder: field.isFirstResponder,
+            fieldCanBecomeFirstResponder: field.canBecomeFirstResponder, fieldEnabled: field.isEnabled,
+            fieldUserInteractionEnabled: field.isUserInteractionEnabled, fieldAlpha: Double(field.alpha),
+            fieldHasInputView: field.inputView != nil, fieldHasInputAccessoryView: field.inputAccessoryView != nil,
+            ancestorHidden: ancestors.contains { $0.isHidden },
+            ancestorTransparent: ancestors.contains { $0.alpha < 0.01 },
+            hitTestView: hit.map(className) ?? none, hardwareKeyboard: GCKeyboard.coalesced != nil,
+            firstResponderInWindow: window.flatMap { firstResponder(in: $0) }.map(className) ?? none,
+            firstResponderOfKeyWindow: keyFirstResponder ?? none, webViewFirstResponder: holdsFirstResponder(webView),
+            contentViewClass: webView.scrollView.subviews.map(className).first { $0.hasPrefix("WKContentView") } ?? none,
+            keyboardUp: keyboard.up)
+    }
+
+    private func firstResponder(in view: UIView) -> UIView? {
+        if view.isFirstResponder { return view }
+        for subview in view.subviews {
+            if let found = firstResponder(in: subview) { return found }
+        }
+        return nil
+    }
+
+    private static func name(_ state: UIApplication.State) -> String {
+        switch state {
+        case .active: "active"
+        case .inactive: "inactive"
+        case .background: "background"
+        @unknown default: "unknown"
+        }
+    }
+
+    private static func name(_ state: UIScene.ActivationState) -> String {
+        switch state {
+        case .unattached: "unattached"
+        case .foregroundActive: "foregroundActive"
+        case .foregroundInactive: "foregroundInactive"
+        case .background: "background"
+        @unknown default: "unknown"
+        }
     }
 
     private func reset(_ field: UITextField) async throws {
@@ -452,18 +618,58 @@ private final class SpikeList: UITableViewController {
     }
 }
 
+private func className<Object: AnyObject>(_ object: Object) -> String {
+    NSStringFromClass(type(of: object))
+}
+
+@MainActor
+private enum FirstResponderProbe {
+    static var found: UIResponder?
+}
+
+extension UIResponder {
+    @objc fileprivate func devotSpikeCaptureFirstResponder(_ sender: Any?) {
+        FirstResponderProbe.found = self
+    }
+}
+
 @MainActor
 private final class KeyboardWatch: NSObject {
     private(set) var up = false
     /// The keyboard went down since `forgetDrops`.
     private(set) var dropped = false
+    private(set) var events: [KeyboardEvent] = []
+    private var origin = CACurrentMediaTime()
 
-    func start() {
+    private static let watched: [(Notification.Name, String)] = [
+        (UIResponder.keyboardWillShowNotification, "keyboardWillShow"),
+        (UIResponder.keyboardDidShowNotification, "keyboardDidShow"),
+        (UIResponder.keyboardWillHideNotification, "keyboardWillHide"),
+        (UIResponder.keyboardDidHideNotification, "keyboardDidHide"),
+        (UIResponder.keyboardWillChangeFrameNotification, "keyboardWillChangeFrame"),
+        (UIWindow.didBecomeKeyNotification, "windowBecameKey"),
+        (UIWindow.didResignKeyNotification, "windowResignedKey"),
+        (UIScene.didActivateNotification, "sceneActivated"),
+        (UIScene.willDeactivateNotification, "sceneWillDeactivate"),
+        (UIApplication.didBecomeActiveNotification, "appBecameActive"),
+        (.GCKeyboardDidConnect, "hardwareKeyboardConnected"),
+    ]
+
+    func start(field: UITextField) {
+        origin = CACurrentMediaTime()
+        events = []
         let center = NotificationCenter.default
         center.addObserver(
             self, selector: #selector(willShow), name: UIResponder.keyboardWillShowNotification, object: nil)
         center.addObserver(
             self, selector: #selector(willHide), name: UIResponder.keyboardWillHideNotification, object: nil)
+        for (name, _) in Self.watched {
+            center.addObserver(self, selector: #selector(record), name: name, object: nil)
+        }
+        center.addObserver(
+            self, selector: #selector(record), name: UITextField.textDidBeginEditingNotification, object: field)
+        center.addObserver(
+            self, selector: #selector(record), name: UITextField.textDidEndEditingNotification, object: field)
     }
 
     func stop() {
@@ -474,9 +680,12 @@ private final class KeyboardWatch: NSObject {
         dropped = false
     }
 
-    /// For at most 2 s.
-    func wait(up wanted: Bool) async {
-        var tries = 40
+    func elapsedMs() -> Double {
+        SpikeStats.rounded((CACurrentMediaTime() - origin) * 1000)
+    }
+
+    func wait(up wanted: Bool, ms: Int = 2000) async {
+        var tries = ms / 50
         while up != wanted, tries > 0 {
             tries -= 1
             try? await Task.sleep(for: .milliseconds(50))
@@ -490,6 +699,18 @@ private final class KeyboardWatch: NSObject {
     @objc private func willHide(_ notification: Notification) {
         up = false
         dropped = true
+    }
+
+    /// At most 200, so a run that loops on a notification still writes a small report.
+    @objc private func record(_ notification: Notification) {
+        guard events.count < 200 else { return }
+        let name: String
+        switch notification.name {
+        case UITextField.textDidBeginEditingNotification: name = "fieldBeganEditing"
+        case UITextField.textDidEndEditingNotification: name = "fieldEndedEditing"
+        default: name = Self.watched.first { $0.0 == notification.name }?.1 ?? "unknown"
+        }
+        events.append(KeyboardEvent(name: name, atMs: elapsedMs()))
     }
 }
 #endif

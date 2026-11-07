@@ -33,6 +33,32 @@ private func keyboardTry(up: Bool, field: Bool, web: Bool) throws -> KeyboardTry
         page: try decoded(pageFocus))
 }
 
+private let keyboardSnapshot = """
+    {"stage":"appeared","atMs":812.5,"applicationState":"active","sceneActivationState":"foregroundActive",\
+    "connectedScenes":1,"sceneWindows":1,"sceneDelegate":"TaoSceneDelegate","windowClass":"TaoUIWindow",\
+    "windowIsKey":false,"sceneKeyWindow":"none","sceneKeyWindowIsFieldWindow":false,"fieldInWindow":true,\
+    "fieldFirstResponder":true,"fieldCanBecomeFirstResponder":true,"fieldEnabled":true,\
+    "fieldUserInteractionEnabled":true,"fieldAlpha":0,"fieldHasInputView":false,\
+    "fieldHasInputAccessoryView":false,"ancestorHidden":false,"ancestorTransparent":false,\
+    "hitTestView":"TaoView","hardwareKeyboard":false,"firstResponderInWindow":"UITextField",\
+    "firstResponderOfKeyWindow":"none","webViewFirstResponder":false,\
+    "contentViewClass":"WKContentView_DevotNoInputAccessory","keyboardUp":false}
+    """
+
+private func keyboardDiagnostics(upForTries: Bool = true, madeKey: Bool = false) throws -> KeyboardDiagnostics {
+    let snapshot: KeyboardSnapshot = try decoded(keyboardSnapshot)
+    let tried = KeyboardTryDiagnostics(
+        askedField: false, fieldBecame: nil, webViewBecame: nil, keyboardUpBeforeFocus: true, before: snapshot,
+        afterFocus: snapshot, end: snapshot)
+    return KeyboardDiagnostics(
+        activationWaitMs: 0, activated: true, fieldBecameFirstResponder: true, retriedAfterTransition: false,
+        fieldBecameOnRetry: nil, madeKey: madeKey, keyboardUpAfterMakeKey: madeKey ? true : nil, refocused: false,
+        fieldBecameOnRefocus: nil, keyboardUpForTries: upForTries, snapshots: [snapshot],
+        tries: KeyboardDiagnostics.Tries(
+            handOff: tried, handOffThenWebView: tried, webViewThenFocus: tried, caretOnly: tried),
+        events: [KeyboardEvent(name: "keyboardWillShow", atMs: 820)])
+}
+
 final class SpikeTests: XCTestCase {
     func testEachSpikeIsNamedByItsLaunchArgument() throws {
         XCTAssertEqual(Spike.allCases.map(\.rawValue), ["S1", "S2", "S3", "S4", "barTint"])
@@ -86,27 +112,89 @@ final class SpikeTests: XCTestCase {
         XCTAssertEqual(report["notes"] as? [String], [ReparentingResults.noSyncNote])
     }
 
-    func testTheKeyboardSpikePassesOnlyWhenTheHandOffKeepsTheKeyboardAndTheCaret() throws {
+    func testTheKeyboardSpikePassesOnlyWhenAHandOffKeepsTheKeyboardAndTheCaret() throws {
         let works = try keyboardTry(up: true, field: false, web: true)
         let stuck = try keyboardTry(up: true, field: true, web: false)
         let caretOnly = try keyboardTry(up: false, field: false, web: true)
-        let handedOff = KeyboardResults(
-            nativeField: true, handOff: works, handOffThenWebView: works, caretOnly: caretOnly)
-        let report = try encoded(.keyboard, handedOff)
+        let diagnostics = try keyboardDiagnostics()
+        let results = { (handOff: KeyboardTry, thenWebView: KeyboardTry, webViewFirst: KeyboardTry) in
+            KeyboardResults(
+                nativeField: true, handOff: handOff, handOffThenWebView: thenWebView, webViewThenFocus: webViewFirst,
+                caretOnly: caretOnly, diagnostics: diagnostics)
+        }
+        let report = try encoded(.keyboard, results(works, works, works))
         XCTAssertEqual(report["pass"] as? Bool, true)
-        let results = try XCTUnwrap(report["results"] as? [String: Any])
-        XCTAssertEqual(Set(results.keys), ["nativeField", "handOff", "handOffThenWebView", "caretOnly"])
-        let handOff = try XCTUnwrap(results["handOff"] as? [String: Any])
+        XCTAssertEqual(report["notes"] as? [String], [])
+        let encodedResults = try XCTUnwrap(report["results"] as? [String: Any])
+        XCTAssertEqual(
+            Set(encodedResults.keys),
+            ["nativeField", "handOff", "handOffThenWebView", "webViewThenFocus", "caretOnly", "diagnostics"])
+        let handOff = try XCTUnwrap(encodedResults["handOff"] as? [String: Any])
         XCTAssertEqual(
             Set(handOff.keys),
             ["keyboardUp", "keyboardDropped", "fieldFirstResponder", "webViewFirstResponder", "page"])
 
-        XCTAssertEqual(
-            KeyboardResults(nativeField: true, handOff: stuck, handOffThenWebView: works, caretOnly: caretOnly).pass,
-            true)
-        let neither = KeyboardResults(nativeField: true, handOff: stuck, handOffThenWebView: stuck, caretOnly: caretOnly)
+        XCTAssertEqual(results(stuck, works, stuck).pass, true)
+        XCTAssertEqual(results(stuck, stuck, works).pass, true)
+        let neither = results(stuck, stuck, stuck)
         XCTAssertEqual(neither.pass, false)
         XCTAssertEqual(neither.notes, [KeyboardResults.noHandOffNote])
+    }
+
+    func testTheKeyboardSpikeReportsUIKitsStateUnderDiagnostics() throws {
+        let tried = try keyboardTry(up: true, field: false, web: true)
+        let report = try encoded(
+            .keyboard,
+            KeyboardResults(
+                nativeField: true, handOff: tried, handOffThenWebView: tried, webViewThenFocus: tried,
+                caretOnly: tried, diagnostics: try keyboardDiagnostics()))
+        let results = try XCTUnwrap(report["results"] as? [String: Any])
+        let diagnostics = try XCTUnwrap(results["diagnostics"] as? [String: Any])
+        XCTAssertEqual(
+            Set(diagnostics.keys),
+            [
+                "activationWaitMs", "activated", "fieldBecameFirstResponder", "retriedAfterTransition", "madeKey",
+                "refocused", "keyboardUpForTries", "snapshots", "tries", "events",
+            ])
+        let tries = try XCTUnwrap(diagnostics["tries"] as? [String: [String: Any]])
+        XCTAssertEqual(Set(tries.keys), ["handOff", "handOffThenWebView", "webViewThenFocus", "caretOnly"])
+        XCTAssertEqual(
+            Set(try XCTUnwrap(tries["handOff"]).keys),
+            ["askedField", "keyboardUpBeforeFocus", "before", "afterFocus", "end"])
+        let snapshot = try XCTUnwrap((diagnostics["snapshots"] as? [[String: Any]])?.first)
+        XCTAssertEqual(snapshot["windowIsKey"] as? Bool, false)
+        XCTAssertEqual(snapshot["firstResponderInWindow"] as? String, "UITextField")
+        XCTAssertEqual(snapshot["sceneKeyWindow"] as? String, "none")
+        XCTAssertEqual(snapshot.count, 28)
+        let events = try XCTUnwrap(diagnostics["events"] as? [[String: Any]])
+        XCTAssertEqual(events.map { $0["name"] as? String }, ["keyboardWillShow"])
+        XCTAssertEqual(events.map { $0["atMs"] as? Double }, [820])
+    }
+
+    func testTheKeyboardSpikeSaysWhenTheKeyboardNeverCameUpOrNeededAKeyWindow() throws {
+        let down = try keyboardTry(up: false, field: true, web: false)
+        let never = KeyboardResults(
+            nativeField: false, handOff: down, handOffThenWebView: down, webViewThenFocus: down, caretOnly: down,
+            diagnostics: try keyboardDiagnostics(upForTries: false))
+        XCTAssertEqual(never.pass, false)
+        XCTAssertEqual(never.notes, [KeyboardResults.noKeyboardNote])
+
+        let works = try keyboardTry(up: true, field: false, web: true)
+        let afterKey = KeyboardResults(
+            nativeField: false, handOff: works, handOffThenWebView: down, webViewThenFocus: down, caretOnly: down,
+            diagnostics: try keyboardDiagnostics(madeKey: true))
+        XCTAssertEqual(afterKey.pass, true)
+        XCTAssertEqual(afterKey.notes, [KeyboardResults.notKeyNote])
+    }
+
+    func testThePageSaysWhereItsFocusIsWhenItKnows() throws {
+        let page: PageFocus = try decoded(
+            #"{"focused":true,"caret":true,"active":"editor","activeTag":"DIV","documentFocused":false}"#)
+        XCTAssertEqual(page.active, "editor")
+        XCTAssertEqual(page.activeTag, "DIV")
+        XCTAssertEqual(page.documentFocused, false)
+        let older: PageFocus = try decoded(pageFocus)
+        XCTAssertNil(older.active)
     }
 
     func testTheBridgeSpikeHoldsTheRoundTripBudget() throws {
