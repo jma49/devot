@@ -9,6 +9,7 @@ mod encoding;
 pub(crate) mod error;
 pub(crate) mod kit;
 pub(crate) mod pairing;
+pub(crate) mod rotation;
 pub(crate) mod staging;
 mod transport;
 

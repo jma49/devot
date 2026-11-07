@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 use super::super::Vault;
 use super::super::client::{self, Connection, Event, RelayUrl, Welcome};
-use super::super::cloudkit::{self, ICloud, ICloudState};
+use super::super::cloudkit::{self, ICloud};
 use super::super::settings::DeviceCredentials;
 use super::{
     Connected, DEVICE_LABEL, Live, LiveRef, PAIRING_EVENT, REVOKED, SOCKET_EVENT, SyncService,
@@ -25,16 +25,16 @@ impl SyncService {
         let vault = Vault::load(self.secrets.as_ref())
             .map_err(|e| e.code())?
             .ok_or("E_SYNC_NO_VAULT_KEY")?;
+        let vault = self.rotation_on_icloud(vault)?;
+        let settings = self.settings.get();
         let vault_id = vault.id().to_string();
-        if let Some(state) = settings.icloud_for(&vault_id) {
-            return self
-                .connect_icloud(vault, state, has_synced)
-                .map(|welcome| {
-                    Connected::ICloud(cloudkit::Welcome {
-                        epoch: settings.engine_epoch(&welcome.epoch),
-                        ..welcome
-                    })
-                });
+        if settings.icloud_for(&vault_id).is_some() {
+            return self.connect_icloud(vault, has_synced).map(|welcome| {
+                Connected::ICloud(cloudkit::Welcome {
+                    epoch: settings.engine_epoch(&welcome.epoch),
+                    ..welcome
+                })
+            });
         }
         let relay = self.relay()?;
         let vault = self.resume_rotation(&relay, vault)?;
@@ -83,14 +83,81 @@ impl SyncService {
         }))
     }
 
+    /// A switch or a rotation of an iCloud vault this device left part way, finished or carried on;
+    /// the vault to connect with.
+    fn rotation_on_icloud(&self, vault: Vault) -> Result<Vault, &'static str> {
+        let settings = self.settings.get();
+        let rotating = settings
+            .rotating
+            .as_ref()
+            .filter(|r| settings.icloud_for(&r.from).is_some());
+        let rotated = settings
+            .rotated
+            .as_ref()
+            .filter(|r| settings.icloud_for(&r.from).is_some());
+        let Some(rotation) = rotating.or(rotated) else {
+            return Ok(vault);
+        };
+        if !self.kit.available() {
+            return Err(cloudkit::error::UNAVAILABLE);
+        }
+        let held = vault.id().to_string();
+        if held == rotation.to {
+            self.finish_icloud_switch(&vault)?;
+            return Ok(vault);
+        }
+        match rotating {
+            Some(rotating) if held == rotating.from => {
+                match self.resume_icloud_rotation(vault, rotating) {
+                    Err(VAULT_ROTATED) => self.held_vault(),
+                    other => other,
+                }
+            }
+            _ => Ok(vault),
+        }
+    }
+
+    /// Connects to the vault on iCloud; a vault `current` names a successor of is followed first,
+    /// or refused with `E_SYNC_VAULT_ROTATED` until it can be.
     fn connect_icloud(
         &self,
         vault: Vault,
-        state: &ICloudState,
         has_synced: bool,
     ) -> Result<cloudkit::Welcome, &'static str> {
+        let id = vault.id().to_string();
+        let vault = if self.settings.get().successor_of(&id).is_some() {
+            if !self.kit.available() {
+                return Err(cloudkit::error::UNAVAILABLE);
+            }
+            self.follow_icloud(&vault)?.ok_or(VAULT_ROTATED)?
+        } else {
+            vault
+        };
+        match self.connect_icloud_once(vault, has_synced) {
+            Err((cloudkit::error::ROTATED, held)) => {
+                let next = self.follow_icloud(&held)?.ok_or(VAULT_ROTATED)?;
+                self.connect_icloud_once(next, has_synced)
+                    .map_err(|(code, _)| code)
+            }
+            other => other.map_err(|(code, _)| code),
+        }
+    }
+
+    fn connect_icloud_once(
+        &self,
+        vault: Vault,
+        has_synced: bool,
+    ) -> Result<cloudkit::Welcome, (&'static str, Arc<Vault>)> {
         self.disconnect();
         let vault = Arc::new(vault);
+        let id = vault.id().to_string();
+        let state = self
+            .settings
+            .get()
+            .icloud_for(&id)
+            .cloned()
+            .ok_or(("E_SYNC_ICLOUD_NOT_USED", Arc::clone(&vault)))?;
+        let state = &state;
         let icloud = ICloud::new(
             Arc::clone(&self.kit),
             Arc::clone(&vault),
@@ -98,22 +165,26 @@ impl SyncService {
         );
         let (welcome, kept) = icloud
             .connect(state, has_synced, DEVICE_LABEL, self.now())
-            .inspect_err(|code| {
+            .map_err(|code| {
                 log::info!("I_SYNC_ICLOUD_REFUSED {code}");
-                if *code == cloudkit::error::ACCOUNT_CHANGED {
+                if code == cloudkit::error::ACCOUNT_CHANGED {
                     self.forget_handover(&vault);
                 }
+                (code, Arc::clone(&vault))
             })?;
+        let failed = |code| (code, Arc::clone(&vault));
         if kept != *state {
-            self.settings.update(|settings| {
-                if settings
-                    .icloud
-                    .as_ref()
-                    .is_some_and(|s| s.vault == kept.vault)
-                {
-                    settings.icloud = Some(kept);
-                }
-            })?;
+            self.settings
+                .update(|settings| {
+                    if settings
+                        .icloud
+                        .as_ref()
+                        .is_some_and(|s| s.vault == kept.vault)
+                    {
+                        settings.icloud = Some(kept);
+                    }
+                })
+                .map_err(failed)?;
         }
         log::info!(
             "I_SYNC_ICLOUD_CONNECTED vault={} device={}",
@@ -121,7 +192,9 @@ impl SyncService {
             welcome.device
         );
         self.hand_over_at_connect(&vault);
-        *self.live.lock().map_err(|_| "E_SYNC_INTERNAL")? = Some(Live::ICloud(Arc::new(icloud)));
+        self.clear_retired();
+        *self.live.lock().map_err(|_| failed("E_SYNC_INTERNAL"))? =
+            Some(Live::ICloud(Arc::new(icloud)));
         Ok(welcome)
     }
 

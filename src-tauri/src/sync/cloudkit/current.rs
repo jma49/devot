@@ -75,6 +75,55 @@ pub(crate) fn claim(kit: &dyn CloudKit, vault: &str) -> Result<Claim, &'static s
     Ok(Claim::Lost(winner))
 }
 
+/// Saves `current` naming `to` against the `current` that names `from`, under
+/// `.ifServerRecordUnchanged`, so of two rotations at once one wins (docs/adr/0017-sync-key-rotation.md,
+/// On iCloud). `None` when there is no `current`.
+pub(crate) fn replace(
+    kit: &dyn CloudKit,
+    from: &str,
+    to: &str,
+) -> Result<Option<Claim>, &'static str> {
+    let read = match kit.fetch(ZONE_DEVOT, &[CURRENT.to_string()]) {
+        Ok(records) => records.into_iter().next().flatten(),
+        Err(e) if classify(&e) == Failure::ZoneGone => None,
+        Err(e) => return Err(code(e)),
+    };
+    let Some(read) = read else {
+        return Ok(None);
+    };
+    match vault_of(&read) {
+        Some(named) if named == to => return Ok(Some(Claim::Won)),
+        Some(named) if named == from => {}
+        Some(named) => return Ok(Some(Claim::Lost(named))),
+        None => return Err(error::unusable("current-vault")),
+    }
+    let mut record = CkRecord::new(TYPE_VAULT, CURRENT).with(VAULT, Value::Text(to.to_string()));
+    record.system = read.system;
+    let saved = kit
+        .save(ZONE_DEVOT, &[record], SavePolicy::IfUnchanged)
+        .map_err(code)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| error::empty("current-replace"))?;
+    let winner = match saved {
+        Ok(_) => {
+            log::info!("I_SYNC_ICLOUD_CURRENT_MOVED vault={from} successor={to}");
+            return Ok(Some(Claim::Won));
+        }
+        Err(e) => match (classify(&e), &e.server_record) {
+            (Failure::Changed, Some(server)) => {
+                vault_of(server).ok_or_else(|| error::unusable("current-vault"))?
+            }
+            _ => return Err(error::code_of(&e, "current")),
+        },
+    };
+    if winner == to {
+        return Ok(Some(Claim::Won));
+    }
+    log::info!("I_SYNC_ICLOUD_CURRENT_LOST vault={to} winner={winner}");
+    Ok(Some(Claim::Lost(winner)))
+}
+
 /// Removes `vault` from this Apple ID (Leave This Vault). Zone `devot`, which holds `current`,
 /// goes first, so a device that connects before the vault's zone is gone stops instead of making
 /// it again; then the vault's zone, so the other devices find it gone and ask before they upload
@@ -132,7 +181,7 @@ pub(crate) fn unclaimed(kit: &dyn CloudKit, vault: &str) -> Result<Unclaimed, &'
     })
 }
 
-fn vault_of(record: &CkRecord) -> Option<String> {
+pub(super) fn vault_of(record: &CkRecord) -> Option<String> {
     if record.kind != TYPE_VAULT {
         return None;
     }
@@ -263,6 +312,50 @@ mod tests {
         assert_eq!(kit.deleted_zones(), [vault_zone(A)]);
         assert_eq!(read(&kit), Ok(Some(B.to_string())));
         assert!(kit.zone_exists(&vault_zone(B)) && kit.zone_exists(ZONE_CLOCK));
+    }
+
+    #[test]
+    fn of_two_rotations_from_one_vault_the_first_to_replace_current_wins() {
+        const C: &str = "0192f4c8-7a1b-7c3d-8e9f-0123456789a3";
+        let kit = Fake::new();
+        assert_eq!(replace(&kit, A, B), Ok(None), "no current to replace");
+        claim(&kit, A).unwrap();
+        assert_eq!(replace(&kit, A, B), Ok(Some(Claim::Won)));
+        assert_eq!(read(&kit), Ok(Some(B.to_string())));
+        assert_eq!(
+            replace(&kit, A, B),
+            Ok(Some(Claim::Won)),
+            "replaced already"
+        );
+        assert_eq!(replace(&kit, A, C), Ok(Some(Claim::Lost(B.to_string()))));
+        assert_eq!(read(&kit), Ok(Some(B.to_string())));
+    }
+
+    #[test]
+    fn a_replace_that_lost_the_compare_and_swap_names_the_winner() {
+        const C: &str = "0192f4c8-7a1b-7c3d-8e9f-0123456789a3";
+        let kit = Fake::new();
+        claim(&kit, A).unwrap();
+        let winner = CkRecord::new(TYPE_VAULT, CURRENT).with(VAULT, Value::Text(B.into()));
+        kit.fail_record(
+            CURRENT,
+            CkError {
+                code: code::SERVER_RECORD_CHANGED,
+                retry_after_ms: None,
+                server_record: Some(Box::new(winner)),
+            },
+        );
+        assert_eq!(replace(&kit, A, C), Ok(Some(Claim::Lost(B.to_string()))));
+        assert_eq!(
+            read(&kit),
+            Ok(Some(A.to_string())),
+            "the loser saved nothing"
+        );
+
+        let offline = Fake::new();
+        claim(&offline, A).unwrap();
+        offline.fail_next(Op::Fetch, CkError::of(code::NETWORK_UNAVAILABLE));
+        assert_eq!(replace(&offline, A, B), Err(error::OFFLINE));
     }
 
     #[test]

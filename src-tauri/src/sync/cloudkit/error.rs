@@ -55,6 +55,8 @@ pub(crate) const BUSY: &str = "E_SYNC_ICLOUD_BUSY";
 /// The vault's zone went missing while connected; the next connect stops or makes it again.
 pub(crate) const ZONE_MISSING: &str = "E_SYNC_ICLOUD_ZONE_MISSING";
 pub(crate) const FAILED: &str = "E_SYNC_ICLOUD_FAILED";
+/// `current` names the vault that succeeds this one (docs/adr/0017-sync-key-rotation.md).
+pub(crate) const ROTATED: &str = "E_SYNC_VAULT_ROTATED";
 pub(crate) const OFFLINE: &str = "E_SYNC_OFFLINE";
 pub(crate) const TOO_LARGE: &str = "E_SYNC_TOO_LARGE";
 pub(crate) const TAG_INVALID: &str = "E_SYNC_TAG_INVALID";

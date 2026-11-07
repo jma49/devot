@@ -21,6 +21,7 @@ mod record;
 mod recovery;
 pub(crate) mod service;
 pub(crate) mod settings;
+pub(crate) mod successor;
 mod vault;
 
 pub(crate) use error::SyncError;
@@ -49,6 +50,8 @@ fn ends_pairing(label: &str, event: &tauri::WindowEvent) -> bool {
 
 #[cfg(test)]
 mod attachment_relay_tests;
+#[cfg(test)]
+mod icloud_rotation_tests;
 #[cfg(test)]
 mod icloud_service_tests;
 #[cfg(test)]

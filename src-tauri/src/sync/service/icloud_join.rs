@@ -61,7 +61,7 @@ impl SyncService {
         }
     }
 
-    fn write_handover(&self, vault: &Vault) {
+    pub(super) fn write_handover(&self, vault: &Vault) {
         if let Err(e) = handover::write(self.handover.as_ref(), vault) {
             log::warn!("W_SYNC_HANDOVER_WRITE {e} vault={}", vault.id());
         }

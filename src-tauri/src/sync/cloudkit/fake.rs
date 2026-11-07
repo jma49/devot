@@ -15,6 +15,7 @@ pub(crate) enum Op {
     Zones,
     SaveZones,
     DeleteZones,
+    Delete,
     Fetch,
     Save,
     Changes,
@@ -274,6 +275,20 @@ impl CloudKit for Fake {
             }
             Ok(())
         })
+    }
+
+    fn delete(&self, zone: &str, names: &[String]) -> Result<(), CkError> {
+        self.call(Op::Delete)?;
+        self.with(|s| {
+            if let Some(z) = s.zones.get_mut(zone) {
+                for name in names {
+                    if z.records.remove(name).is_some() {
+                        z.seq += 1;
+                    }
+                }
+            }
+        });
+        Ok(())
     }
 
     fn fetch(&self, zone: &str, names: &[String]) -> Result<Vec<Option<CkRecord>>, CkError> {

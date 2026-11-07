@@ -20,6 +20,7 @@ const ITEM_BYTES: usize = 1 + ID_BYTES + KEY_BYTES;
 const RECORD_KEY_INFO: &[u8] = b"devot/sync/record-key/v1";
 const ENROLLMENT_INFO: &[u8] = b"devot/sync/enrollment/v1";
 const NAME_KEY_INFO: &[u8] = b"devot/sync/record-name-key/v1";
+const SUCCESSOR_MAC_INFO: &[u8] = b"devot/sync/successor-mac-key/v1";
 const VERIFIER_LABEL: &[u8] = b"devot-relay enrollment verifier v1";
 
 /// A vault's random ID, a UUIDv4. The relay knows it; it is not a secret.
@@ -103,6 +104,11 @@ impl Vault {
 
     pub(super) fn name_key(&self) -> &[u8; KEY_BYTES] {
         &self.name_key
+    }
+
+    /// The key of this vault's MAC over the vault it succeeds (`successor.rs`).
+    pub(super) fn successor_mac_key(&self) -> Zeroizing<[u8; KEY_BYTES]> {
+        derive(&self.id, &self.key, SUCCESSOR_MAC_INFO)
     }
 
     /// What this vault's devices present to the relay to enroll; the relay keeps only its

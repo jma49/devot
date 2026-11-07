@@ -25,7 +25,7 @@ import { Setting, SettingToggle, SettingsNote, SettingsSection } from './control
 import { useOnPhone } from './onPhone'
 import { DevicesRow, JoinRows, PairingRow, RecoveryKeyPanel } from './SyncDevices'
 import { LeaveVaultRow } from './SyncLeave'
-import { RotateKeyRow } from './SyncRotate'
+import { ICloudRotateKeyRow, RotateKeyRow } from './SyncRotate'
 import {
   ICloudActions,
   ICloudStorageRows,
@@ -157,8 +157,7 @@ export function SyncSection() {
   const onICloud = snapshot.vault && snapshot.transport === 'icloud'
   const inVault = snapshot.enrolled || onICloud
   // Another device changed the key: only its successor can be joined, and no code is shown.
-  const rotatedAway =
-    !onICloud && (snapshot.rotated || snapshot.status.code === 'E_SYNC_VAULT_ROTATED')
+  const rotatedAway = snapshot.rotated || snapshot.status.code === 'E_SYNC_VAULT_ROTATED'
   const attention = icloudAttention(snapshot)
   const line = attention ? icloudLine(attention, snapshot, icloud, pauseOver) : undefined
   const statusLine = attention && line && !OUTSIDE_STATUS.has(attention.kind) ? line : undefined
@@ -395,12 +394,23 @@ export function SyncSection() {
   const joinRows = (
     <JoinRows locked={locked} relayUrl={snapshot.relayUrl} onJoined={joined} failed={failed} />
   )
-  const rotatedRows = rotatedAway ? (
+  const rotatedRows = !rotatedAway ? null : onICloud ? (
+    <>
+      <SettingsNote>{t('syncSettings.rotatedAwayIcloud')}</SettingsNote>
+      <JoinRows
+        locked={locked}
+        relayUrl={snapshot.relayUrl}
+        via="icloud"
+        onJoined={joined}
+        failed={failed}
+      />
+    </>
+  ) : (
     <>
       <SettingsNote>{t('syncSettings.rotatedAway')}</SettingsNote>
       {joinRows}
     </>
-  ) : null
+  )
   const rotated = (key: string | null) => {
     if (key) {
       setRecoveryKey(key)
@@ -710,7 +720,9 @@ export function SyncSection() {
             />
           </>
         ) : null}
-        {snapshot.enrolled && !onICloud && !rotatedAway ? (
+        {rotatedAway ? null : onICloud ? (
+          <ICloudRotateKeyRow onRotated={rotated} failed={failed} />
+        ) : snapshot.enrolled ? (
           <RotateKeyRow onRotated={rotated} failed={failed} />
         ) : null}
         {leaveRow}

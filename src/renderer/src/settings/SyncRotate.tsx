@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { t } from '../i18n'
-import { rotateSyncVault } from '../sync'
+import { rotateICloudVault, rotateSyncVault } from '../sync'
 import { Setting } from './controls'
 import type { Failure } from './SyncDevices'
 
@@ -90,6 +90,77 @@ export function RotateKeyRow(props: {
         >
           {t('syncSettings.rotateButton')}
         </button>
+      </div>
+    </Setting>
+  )
+}
+
+/**
+ * Change Vault Key on iCloud (docs/adr/0017-sync-key-rotation.md, On iCloud): no secret is asked, so
+ * the row first says that a lost device must be off the Apple ID, and Change Key confirms.
+ */
+export function ICloudRotateKeyRow(props: {
+  onRotated: (recoveryKey: string | null) => void
+  failed: Failure
+}) {
+  const [asking, setAsking] = useState(false)
+  const [rotating, setRotating] = useState(false)
+  const confirm = useRef<HTMLButtonElement>(null)
+  const opener = useRef<HTMLButtonElement>(null)
+  const { onRotated, failed } = props
+  useEffect(() => {
+    if (asking) confirm.current?.focus()
+  }, [asking])
+  const cancel = () => {
+    setAsking(false)
+    requestAnimationFrame(() => opener.current?.focus())
+  }
+  const rotate = () => {
+    if (rotating) return
+    setRotating(true)
+    rotateICloudVault()
+      .then((rotated) => {
+        setAsking(false)
+        onRotated(rotated.recoveryKey)
+      }, failed('syncSettings.rotateFailed'))
+      .finally(() => setRotating(false))
+  }
+  return (
+    <Setting
+      label="syncSettings.rotate"
+      description={t(asking ? 'syncSettings.rotateIcloudWarning' : 'syncSettings.rotateIcloudHint')}
+    >
+      <div className="settings-buttons">
+        {asking ? (
+          <>
+            <button type="button" className="button" disabled={rotating} onClick={cancel}>
+              {t('dialog.cancel')}
+            </button>
+            <button
+              ref={confirm}
+              type="button"
+              className="button"
+              data-destructive
+              disabled={rotating}
+              onClick={rotate}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') cancel()
+              }}
+            >
+              {t('syncSettings.rotateButton')}
+            </button>
+          </>
+        ) : (
+          <button
+            ref={opener}
+            type="button"
+            className="button"
+            data-destructive
+            onClick={() => setAsking(true)}
+          >
+            {`${t('syncSettings.rotate')}…`}
+          </button>
+        )}
       </div>
     </Setting>
   )

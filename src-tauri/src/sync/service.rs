@@ -33,6 +33,7 @@ mod devices;
 mod enrollment;
 mod icloud_join;
 mod icloud_move;
+mod icloud_rotation;
 mod leave;
 mod pairing_code;
 mod records;
@@ -124,6 +125,9 @@ pub(crate) struct SyncService {
     /// Holds the next connect once it has the vault and the token, until the test lets it go.
     #[cfg(test)]
     pauses_connect: Mutex<Option<ConnectPause>>,
+    /// Fails an iCloud rotation at this step as if the app quit just before it.
+    #[cfg(test)]
+    quits_at: Mutex<Option<&'static str>>,
 }
 
 #[cfg(test)]
@@ -183,6 +187,8 @@ impl SyncService {
             fails_retired_list: std::sync::atomic::AtomicBool::new(false),
             #[cfg(test)]
             pauses_connect: Mutex::new(None),
+            #[cfg(test)]
+            quits_at: Mutex::new(None),
         }
     }
 
@@ -233,6 +239,11 @@ impl SyncService {
     #[cfg(test)]
     pub(crate) fn fail_next_retired_list(&self) {
         self.fails_retired_list.store(true, Ordering::Relaxed);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn quit_icloud_rotation_at(&self, step: &'static str) {
+        *self.quits_at.lock().unwrap() = Some(step);
     }
 
     /// Returns where the next connect says it paused, and where the test lets it go on.

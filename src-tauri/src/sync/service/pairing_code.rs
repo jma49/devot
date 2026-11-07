@@ -254,10 +254,12 @@ impl SyncService {
     /// another Apple ID.
     fn join_icloud_with_code(&self, pairing: &Pairing) -> Result<Snapshot, &'static str> {
         let kit = self.kit.as_ref();
-        // Refused before the offer is taken, so the code still works on another device.
-        if Vault::load(self.secrets.as_ref())
-            .map_err(|e| e.code())?
-            .is_some()
+        // Refused before the offer is taken, so the code still works on another device. A device
+        // whose iCloud vault was rotated joins the successor.
+        let held = Vault::load(self.secrets.as_ref()).map_err(|e| e.code())?;
+        if held
+            .as_ref()
+            .is_some_and(|held| self.icloud_successor_of(held).is_none())
         {
             return Err("E_SYNC_VAULT_EXISTS");
         }
@@ -274,8 +276,13 @@ impl SyncService {
             log::warn!("W_SYNC_PAIRING_OFFER {} pairing={}", e.code(), pairing.id());
             e.code()
         })?;
-        self.belongs(&vault)?;
-        let vault = self.keep_icloud(vault, true)?;
+        let vault = match &held {
+            Some(held) => self.join_successor(held, vault)?,
+            None => {
+                self.belongs(&vault)?;
+                self.keep_icloud(vault, true)?
+            }
+        };
         let vault_id = vault.id().to_string();
         let device = self
             .settings

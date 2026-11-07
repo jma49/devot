@@ -273,6 +273,12 @@ export const messages = {
     'Enter the relay\u2019s secret to make the new vault. It is used once and not kept.',
   'syncSettings.rotateButton': 'Change Key',
   'syncSettings.rotateFailed': 'The vault key could not be changed.',
+  'syncSettings.rotateIcloudHint':
+    'Locks out a lost device that still has the key. Your notes move to a new vault, and your devices on this Apple ID follow on their own.',
+  'syncSettings.rotateIcloudWarning':
+    'A device still signed in to this Apple ID with iCloud Keychain gets the new key too. Remove a lost device from your Apple ID first, then change the key.',
+  'syncSettings.rotatedAwayIcloud':
+    'The vault key was changed on another device, and the new key has not reached this one through iCloud Keychain yet. To sync again, enter a pairing code from a device that has the new key, or the new recovery key. Your notes stay here.',
   'syncSettings.rotated':
     'The vault key was changed. Save the new recovery key, then join your other devices again.',
   'syncSettings.rotatedAway':

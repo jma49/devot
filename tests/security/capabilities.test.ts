@@ -236,13 +236,15 @@ describe('Tauri command permissions', () => {
       // It shows iCloud's state and what the vault holds there, starts or restores an iCloud vault,
       // moves one from a relay, uploads it again, looks for the Apple ID's vault and passes on the
       // owner's answer to joining it. It leaves an iCloud vault once its recovery key confirms it,
-      // leaves a relay vault on this device alone, and rotates a relay vault's key with the relay's secret.
+      // leaves a relay vault on this device alone, rotates a relay vault's key with the relay's secret,
+      // and rotates an iCloud vault's key.
       'allow-sync-device-remove',
       'allow-sync-devices',
       'allow-sync-get',
       'allow-sync-icloud-join',
       'allow-sync-icloud-leave',
       'allow-sync-icloud-look',
+      'allow-sync-icloud-rotate',
       'allow-sync-icloud-status',
       'allow-sync-icloud-storage',
       'allow-sync-icloud-upload-again',
@@ -310,6 +312,7 @@ describe('Tauri command permissions', () => {
     expect(windowsWith('allow-sync-usage')).toEqual(['main', 'settings'])
     expect(windowsWith('allow-sync-vault-create')).toEqual(['settings'])
     expect(windowsWith('allow-sync-vault-rotate')).toEqual(['settings'])
+    expect(windowsWith('allow-sync-icloud-rotate')).toEqual(['settings'])
     expect(windowsWith('allow-sync-vault-leave')).toEqual(['settings'])
   })
 
