@@ -180,14 +180,14 @@ test('the toolbar shows for a selection: one outlined box of named SF Symbol but
     const box = root.querySelector('.cm-float-notch')!.getBoundingClientRect()
     const icon = style(root.querySelector('.cm-float-button .icon'))
     return {
-      shadow: style(el).boxShadow,
+      shadow: getComputedStyle(el, '::before').boxShadow,
       filter: style(el).filter,
       notch: [box.width, box.height],
       size: [icon.width, icon.height],
       mask: icon.getPropertyValue('mask-size') || icon.getPropertyValue('-webkit-mask-size'),
     }
   })
-  // The outline is the glass rim's half-pixel ring in the box shadow (no spread blur), under the notch.
+  // The outline is the glass rim's half-pixel ring, cast with the shade by a layer behind the bar that leaves the notch out.
   expect(look.shadow).toMatch(/0px 0px 0px 0\.5px/)
   expect(look.filter).toBe('none')
   expect(look.notch).toEqual([12, 6])
