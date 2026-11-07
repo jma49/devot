@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, useActivityMenu } from './Activity'
+import { useActivityMenu } from './Activity'
 import { areaOf, areaTargets, nextArea, usePaneTab } from './areas'
-import { BackupNotice } from './BackupNotice'
-import { BackupsDialog } from './BackupsDialog'
-import { ChangeNotice } from './ChangeNotice'
 import { useKeymap } from './commands/shortcutSettings'
 import { useCoreSession, useCoreStart, useQuitAndClose } from './coreSession'
-import { CoreNotice } from './CoreNotice'
 import { countsStore } from './CountsFooter'
 import { refuseTextDrops } from './dragData'
 import { useAlertMenu } from './editor/alertMenu'
@@ -19,11 +15,8 @@ import { currentWindowLabel, isSecondaryLabel } from './focus'
 import { useFocusRescue } from './focusRescue'
 import { useHistoryBar } from './HistoryBar'
 import { useCliAppend, useHttpApi, useQuickCapture } from './hostCalls'
-import { t } from './i18n'
 import { useImageMenu, type SetImageSize } from './imageMenu'
-import { ImageActionNotice, ImageNotice } from './ImageNotice'
-import { ImageViewer, type ViewedImage } from './ImageViewer'
-import { ImportDialog } from './ImportDialog'
+import type { ViewedImage } from './ImageViewer'
 import { currentLastStateStore } from './lastState'
 import { startLicence, useEditing } from './licence'
 import { useLicenceLink } from './LicenceLink'
@@ -32,27 +25,22 @@ import { useMarkdownMirror } from './MarkdownMirror'
 import { useNoteActions } from './noteActions'
 import type { ApplyRestore } from './NoteEditor'
 import { relayGate, relayLink } from './noteRelay'
-import { Notices } from './Notices'
-import { CommandPalette } from './palette/CommandPalette'
-import { commandEntries, sourceEntries } from './palette/entries'
 import { usePlugins } from './plugins/usePlugins'
-import { RestoreSyncChoice } from './RestoreSyncChoice'
 import { useSaveAtTrialEnd, useSaveOnHide } from './saveGuards'
 import { useSheets } from './sheets'
 import type { Selection, SidebarMenus } from './Sidebar'
 import { useStable } from './stable'
 import { StartFailure } from './StartFailure'
 import { runsSync, startSyncStatus, useSyncEngine, useSyncSnapshot } from './sync'
-import { SyncNotice } from './SyncNotice'
 import { textStore } from './textStore'
 import { ToolTips } from './ToolTips'
-import { ActivationBar, TrialEndedBar, TrialReminder } from './TrialNotices'
 import { useUpdates } from './UpdateNotice'
 import { useLastState } from './useLastState'
 import { useSearch, useSearchRuns } from './useSearch'
 import { warmUp } from './warmUp'
 import { useFocusRequest, useRequestedFocus } from './app/focusRequest'
 import { useListLoaders } from './app/listLoaders'
+import { LibraryDialogs } from './app/LibraryDialogs'
 import { ListPane } from './app/ListPane'
 import { NotePane } from './app/NotePane'
 import { useAiAccess } from './app/useAiAccess'
@@ -85,8 +73,8 @@ import { useSearchIndex } from './app/useSearchIndex'
 import { useTitleRename } from './app/useTitleRename'
 import { useTrash, useTrashList } from './app/useTrash'
 import { useViewChanges } from './app/useViewChanges'
-
-const NO_LIBRARY = { book: [], tag: [], note: [] }
+import { WindowNotices } from './app/WindowNotices'
+import { WindowSheets } from './app/WindowSheets'
 
 // Other main windows hear of this window's writes this long after the first of a burst, and load their lists this long after hearing (mainWindows.ts).
 const LISTS_WROTE_MS = 250
@@ -160,7 +148,6 @@ export function App() {
   const scroll = useScrollEdges({ panesRef, mode, selected })
   const { previewPane } = scroll
   const palette = usePalette(editorRef)
-  const { paletteOpen, paletteOutline, paletteScope, paletteLines, closePalette } = palette
 
   const saves = useSaveNotice({ core, coreRef, refresh })
   const { onSaveProblems } = saves
@@ -169,19 +156,8 @@ export function App() {
   const showLibraryRef =
     useRef<(next: Selection, options?: { clearFilter?: boolean }) => void>(undefined)
 
-  const {
-    importJob,
-    importKey,
-    backupsOpen,
-    backupNotice,
-    setBackupNotice,
-    nextSheet,
-    startImport,
-    closeImport,
-    showBackups,
-    closeBackups,
-    restore,
-  } = useSheets({ core, coreRef, refresh, showLibraryRef })
+  const sheets = useSheets({ core, coreRef, refresh, showLibraryRef })
+  const { backupsOpen, backupNotice, setBackupNotice, nextSheet, startImport, showBackups } = sheets
 
   const view = useLibraryView({ lastState, core, lists, search: searchState, selected })
   const { library, filter, workspace, inTrash, inTemplates, libraryBook, activeFilter } = view
@@ -493,7 +469,7 @@ export function App() {
     editNote: open.editNote,
     changeSelection: open.changeSelection,
   })
-  const { commands, actionsOfEntry } = useAppCommands({
+  const appCommands = useAppCommands({
     core,
     editing,
     query,
@@ -540,6 +516,7 @@ export function App() {
     editorRef,
     setImageSize,
   })
+  const { commands } = appCommands
   const paletteLibrary = usePaletteLibrary({
     paletteOpen: palette.paletteOpen,
     notes,
@@ -682,95 +659,61 @@ export function App() {
         setChangeNotice={setChangeNotice}
         loadHeadlines={loadHeadlines}
       />
-      {importJob ? (
-        <ImportDialog
-          key={importKey}
-          job={importJob}
-          tree={tree}
-          initialDestination={library.kind === 'book' ? library.id : null}
-          onImport={startImport}
-          onClose={closeImport}
-        />
-      ) : null}
-      {backupsOpen ? (
-        <BackupsDialog onRestore={restore} onClose={closeBackups} readOnly={!editing} />
-      ) : null}
-      {core && runsSync(label) ? (
-        <RestoreSyncChoice
-          snapshot={syncSnapshot}
-          onChoose={(choice) => core.syncAfterRestore(choice)}
-        />
-      ) : null}
-      <Notices>
-        <ActivationBar />
-        <TrialEndedBar />
-        <TrialReminder />
-        {saves.notice}
-        {backupNotice && !backupsOpen ? (
-          <BackupNotice
-            code={backupNotice}
-            onShow={() => {
-              setBackupNotice(undefined)
-              showBackups()
-            }}
-            onDismiss={() => setBackupNotice(undefined)}
-          />
-        ) : null}
-        <SyncNotice snapshot={syncSnapshot} />
-        {exports.notice}
-        {searchIndex.notice}
-        {mirror.notices}
-        {updates.notice}
-        {changeNotice ? (
-          <ChangeNotice code={changeNotice} onDismiss={() => setChangeNotice(undefined)} />
-        ) : null}
-        {authorship.undoDroppedNotice}
-        {libraryChanges.batchNotice}
-        {aiAccess.notice}
-        {coreFailure ? (
-          <CoreNotice code={coreFailure} onDismiss={() => setCoreFailure(undefined)} />
-        ) : null}
-        {ai.notice}
-        {imageNotice ? (
-          <ImageNotice codes={imageNotice} onDismiss={() => setImageNotice(undefined)} />
-        ) : null}
-        <ImageActionNotice />
-        {linkNotice}
-        {licenceLink.notice}
-        {plugins.notice}
-      </Notices>
-      {mirror.dialog}
-      {licenceLink.dialog}
-      {plugins.sheet}
-      {noteActions.dialog}
-      {making.templatePicker}
-      {paletteOpen ? (
-        <CommandPalette
-          entries={{
-            command: [...commandEntries(commands, t), ...plugins.entries(openNote !== undefined)],
-            source: sourceEntries(t),
-            outline: paletteOutline,
-            line: [],
-            ...(paletteLibrary ?? NO_LIBRARY),
-          }}
-          actions={actionsOfEntry}
-          initialScope={paletteScope}
-          lineCount={commands['edit.goToLine'] ? paletteLines : 0}
-          onClose={closePalette}
-        />
-      ) : null}
-      {historySheet}
-      {ai.sheet}
-      {viewing ? <ImageViewer image={viewing} onClose={() => setViewing(null)} /> : null}
-      {aiAccess.dialog}
-      {authorship.clearDialog}
-      {core && activityOpen ? (
-        <Activity core={core} onClose={() => setActivityOpen(false)} />
-      ) : null}
-      {exports.dialog}
-      {headerMenus.dialog}
-      {savedSearch.dialog}
-      {confirmDialog}
+      <LibraryDialogs
+        sheets={sheets}
+        tree={tree}
+        library={library}
+        editing={editing}
+        syncCore={runsSync(label) ? core : undefined}
+        syncSnapshot={syncSnapshot}
+      />
+      <WindowNotices
+        save={saves.notice}
+        backup={{
+          code: backupNotice,
+          backupsOpen,
+          show: showBackups,
+          dismiss: () => setBackupNotice(undefined),
+        }}
+        syncSnapshot={syncSnapshot}
+        exported={exports.notice}
+        searchIndex={searchIndex.notice}
+        mirror={mirror.notices}
+        updates={updates.notice}
+        change={{ code: changeNotice, dismiss: () => setChangeNotice(undefined) }}
+        undoDropped={authorship.undoDroppedNotice}
+        batch={libraryChanges.batchNotice}
+        aiAccess={aiAccess.notice}
+        coreFailure={{ code: coreFailure, dismiss: () => setCoreFailure(undefined) }}
+        ai={ai.notice}
+        images={{ code: imageNotice, dismiss: () => setImageNotice(undefined) }}
+        link={linkNotice}
+        licence={licenceLink.notice}
+        plugins={plugins.notice}
+      />
+      <WindowSheets
+        mirror={mirror.dialog}
+        licence={licenceLink.dialog}
+        plugins={plugins.sheet}
+        noteActions={noteActions.dialog}
+        templatePicker={making.templatePicker}
+        palette={palette}
+        paletteLibrary={paletteLibrary}
+        commands={appCommands}
+        pluginEntries={plugins.entries}
+        noteOpen={openNote !== undefined}
+        history={historySheet}
+        ai={ai.sheet}
+        viewing={viewing}
+        closeViewer={() => setViewing(null)}
+        aiAccess={aiAccess.dialog}
+        clearAuthorship={authorship.clearDialog}
+        activity={{ core, open: activityOpen, close: () => setActivityOpen(false) }}
+        exported={exports.dialog}
+        headerMenus={headerMenus.dialog}
+        savedSearch={savedSearch.dialog}
+        confirm={confirmDialog}
+      />
     </div>
   )
 }
