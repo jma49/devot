@@ -36,6 +36,7 @@ import {
   useSaveProblems,
 } from '../saveGuards'
 import { textStore } from '../textStore'
+import { unlistenLater } from '../windowEvents'
 import { useEditorSetting } from '../editorSettings'
 import { OutlinePanel, lineStore } from '../outline/OutlinePanel'
 import { scrollPreviewTo } from '../outline/room'
@@ -48,25 +49,24 @@ import { failureText } from '../failure'
 function listenAsked(onClose: () => void, onQuit: () => void): () => void {
   window.addEventListener(CLOSE_EVENT, onClose)
   window.addEventListener(FLUSH_EVENT, onQuit)
-  const stops: (() => void)[] = []
-  let stopped = false
-  if (!DEVOT_UI_TEST) {
-    void Promise.all([import('@tauri-apps/api/event'), import('@tauri-apps/api/webviewWindow')])
-      .then(async ([{ listen }, { getCurrentWebviewWindow }]) => {
-        const own = await Promise.all([
-          getCurrentWebviewWindow().listen('devot://note-window-close', onClose),
-          listen('devot://flush-before-exit', onQuit),
-        ])
-        if (stopped) own.forEach((stop) => stop())
-        else stops.push(...own)
-      })
-      .catch(() => console.warn('W_NOTE_WINDOW_LISTEN_FAILED'))
-  }
+  const unlisten = DEVOT_UI_TEST
+    ? undefined
+    : unlistenLater(
+        Promise.all([
+          import('@tauri-apps/api/event'),
+          import('@tauri-apps/api/webviewWindow'),
+        ]).then(([{ listen }, { getCurrentWebviewWindow }]) =>
+          Promise.all([
+            getCurrentWebviewWindow().listen('devot://note-window-close', onClose),
+            listen('devot://flush-before-exit', onQuit),
+          ]),
+        ),
+        () => console.warn('W_NOTE_WINDOW_LISTEN_FAILED'),
+      )
   return () => {
-    stopped = true
     window.removeEventListener(CLOSE_EVENT, onClose)
     window.removeEventListener(FLUSH_EVENT, onQuit)
-    stops.forEach((stop) => stop())
+    unlisten?.()
   }
 }
 

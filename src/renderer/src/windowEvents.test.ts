@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import { unlistenLater } from './windowEvents'
+import { keepListening, unlistenLater } from './windowEvents'
 
 const settled = () => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -27,4 +27,42 @@ it('tells `failed` when the listener could not be made', async () => {
   unlistenLater(Promise.reject(new Error('E_LISTEN')), failed)
   await settled()
   expect(failed).toHaveBeenCalledOnce()
+})
+
+it('stops every listener of a set made together', async () => {
+  const stops = [vi.fn<() => void>(), vi.fn<() => void>()]
+  const cleanup = unlistenLater(Promise.resolve(stops))
+  await settled()
+  cleanup()
+  for (const stop of stops) expect(stop).toHaveBeenCalledOnce()
+})
+
+it('is ready once the listeners are kept, so work that needs them can follow', async () => {
+  const stop = vi.fn<() => void>()
+  const listening = keepListening(Promise.resolve(stop))
+  const after = vi.fn<() => void>()
+  void listening.ready.then(after)
+  expect(after).not.toHaveBeenCalled()
+  await settled()
+  expect(after).toHaveBeenCalledOnce()
+  expect(listening.stopped()).toBe(false)
+  listening.stop()
+  expect(listening.stopped()).toBe(true)
+  expect(stop).toHaveBeenCalledOnce()
+})
+
+it('tells the work that follows when a cleanup came before the listeners', async () => {
+  const stops = [vi.fn<() => void>(), vi.fn<() => void>()]
+  let give: (made: (() => void)[]) => void = () => {}
+  const listening = keepListening(new Promise((resolve) => (give = resolve)))
+  const stoppedWhenReady = listening.ready.then(() => listening.stopped())
+  listening.stop()
+  give(stops)
+  expect(await stoppedWhenReady).toBe(true)
+  for (const stop of stops) expect(stop).toHaveBeenCalledOnce()
+})
+
+it('rejects ready when the listeners could not be made', async () => {
+  const listening = keepListening(Promise.reject(new Error('E_LISTEN')))
+  await expect(listening.ready).rejects.toThrow('E_LISTEN')
 })

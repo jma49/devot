@@ -13,23 +13,42 @@ export async function listenHere<T>(
   return getCurrentWebviewWindow().listen<T>(event, handler)
 }
 
+/** Listeners still being made, for code that cleans up before they exist or chains work onto them. */
+export interface Listening {
+  /** Settles once the listeners are kept, or stopped for a cleanup that came first; rejects if they could not be made. */
+  readonly ready: Promise<void>
+  /** Whether the cleanup has run: work chained onto `ready` checks it before it acts. */
+  readonly stopped: () => boolean
+  readonly stop: () => void
+}
+
+export function keepListening(started: Promise<UnlistenFn | readonly UnlistenFn[]>): Listening {
+  let stopped = false
+  let kept: readonly UnlistenFn[] = []
+  const ready = started.then((made) => {
+    const stops = typeof made === 'function' ? [made] : made
+    if (stopped) for (const stop of stops) stop()
+    else kept = stops
+  })
+  return {
+    ready,
+    stopped: () => stopped,
+    stop: () => {
+      stopped = true
+      for (const stop of kept) stop()
+    },
+  }
+}
+
 /**
- * The cleanup for a listener that is still being made: it stops the listener at once if it is
- * there, or as soon as `started` gives it. `failed` hears a listener that could not be made.
+ * The cleanup for listeners that are still being made: it stops them at once if they are there, or
+ * as soon as `started` gives them. `failed` hears listeners that could not be made.
  */
 export function unlistenLater(
-  started: Promise<UnlistenFn>,
+  started: Promise<UnlistenFn | readonly UnlistenFn[]>,
   failed?: (e: unknown) => void,
 ): () => void {
-  let stopped = false
-  let unlisten: UnlistenFn | undefined
-  const kept = started.then((stop) => {
-    if (stopped) stop()
-    else unlisten = stop
-  })
-  if (failed) kept.catch(failed)
-  return () => {
-    stopped = true
-    unlisten?.()
-  }
+  const listening = keepListening(started)
+  if (failed) listening.ready.catch(failed)
+  return listening.stop
 }

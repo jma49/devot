@@ -14,7 +14,7 @@ import { finishImport } from './importer'
 import { invoke } from './ipc'
 import { isLicenceId, isLicenceState } from './licence'
 import type { LicenceOffer } from './licenceView'
-import { listenHere } from './windowEvents'
+import { keepListening, listenHere } from './windowEvents'
 
 /**
  * The commands a URL may run: each one only shows something; none makes,
@@ -319,30 +319,26 @@ export function useDeepLinks(
     }
     const onEvent = (e: Event) => take(e instanceof CustomEvent ? e.detail : undefined)
     window.addEventListener(OPEN_URL, onEvent)
-    let stopped = false
-    let unlisten: (() => void) | undefined
+    const listening = keepListening(
+      DEVOT_UI_TEST
+        ? Promise.resolve([])
+        : listenHere<unknown>(TAURI_EVENT, (event) =>
+            window.dispatchEvent(new CustomEvent(OPEN_URL, { detail: event.payload })),
+          ),
+    )
     // Listening first, then asking for what waits: no link is lost between.
-    const listening = DEVOT_UI_TEST
-      ? Promise.resolve()
-      : listenHere<unknown>(TAURI_EVENT, (event) =>
-          window.dispatchEvent(new CustomEvent(OPEN_URL, { detail: event.payload })),
-        ).then((stop) => {
-          if (stopped) stop()
-          else unlisten = stop
-        })
-    listening
+    listening.ready
       .catch(() => console.warn('W_DEEP_LINK_LISTEN_FAILED'))
-      .then(() => (stopped ? [] : invoke<unknown>('deep_link_take')))
+      .then(() => (listening.stopped() ? [] : invoke<unknown>('deep_link_take')))
       .then(
         (held) => {
-          if (!stopped && Array.isArray(held)) held.forEach(take)
+          if (!listening.stopped() && Array.isArray(held)) held.forEach(take)
         },
         () => console.warn('W_DEEP_LINK_TAKE_FAILED'),
       )
     return () => {
-      stopped = true
+      listening.stop()
       window.removeEventListener(OPEN_URL, onEvent)
-      unlisten?.()
     }
   }, [])
   useEffect(() => {
