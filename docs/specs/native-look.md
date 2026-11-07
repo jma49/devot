@@ -26,6 +26,7 @@ Part of the [design system](design-system.md).
   AppKit moves them back to the system's place whenever it lays the title bar out again (key and main state, activation, screen and backing scale changes, appearance, title), while tao puts them back only when its view draws and after full screen.
   So `native::macos::keep_traffic_lights` observes the frames of the three buttons and the title bar views above them, and the window's and the app's notifications, and applies tao's inset again at once whenever a button is off its place.
   It never moves a button that is in place, gives way after 120 placements in a second rather than fight AppKit, leaves a window in full screen alone, and lets a window go when it closes.
+  A titled window is held from the moment it is built, even while its buttons are elsewhere (full screen), and a notification posted on another thread is handled on the main thread.
 - macOS type scale: body 13 pt, captions 11 pt, sidebar rows 28 px.
 - The menu bar and context menus are native (Tauri menus).
   Settings live in the app menu.

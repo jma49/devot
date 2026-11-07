@@ -1,11 +1,6 @@
-//! Keeps a window's traffic lights at its inset (`trafficLightPosition`) whatever AppKit does.
-//!
-//! tao applies the inset only in its view's `drawRect:` and after leaving full screen, but AppKit
-//! lays the title bar out again on other events (key and main state, activation, screen and backing
-//! changes, appearance, title) without that view drawing, and the buttons stay at the system's
-//! place (#744). Here every view tao moves posts its frame changes, and the window's notifications
-//! are watched too; whenever a button is off its place, the same inset tao applies is applied
-//! again, at once, on the main thread.
+//! Keeps a window's traffic lights at its inset (`trafficLightPosition`): tao applies it only when
+//! its view draws and after full screen, while AppKit moves the buttons back whenever it lays the
+//! title bar out again (#744).
 
 use std::cell::{Cell, RefCell};
 use std::ptr::NonNull;
@@ -80,6 +75,10 @@ impl TitleBar {
         frame
     }
 
+    fn spacing(&self) -> f64 {
+        self.buttons[1].frame().origin.x - self.buttons[0].frame().origin.x
+    }
+
     fn button_x(inset: Inset, index: usize) -> f64 {
         inset.x + index as f64 * inset.spacing
     }
@@ -121,7 +120,10 @@ type Observer = Retained<ProtocolObject<dyn NSObjectProtocol>>;
 struct Held {
     window: Weak<NSWindow>,
     address: usize,
-    inset: Inset,
+    x: f64,
+    y: f64,
+    /// Measured when the buttons are first found in the window.
+    spacing: Option<f64>,
     window_observers: Vec<Observer>,
     watched: Vec<Weak<NSView>>,
     view_observers: Vec<Observer>,
@@ -144,8 +146,8 @@ const MAX_PLACEMENTS_PER_SECOND: u32 = 120;
 
 thread_local! {
     static HELD: RefCell<Vec<Held>> = const { RefCell::new(Vec::new()) };
-    /// Set while a check runs, so the frame changes it makes are not checked again.
-    static CHECKING: Cell<bool> = const { Cell::new(false) };
+    /// Windows being checked, so the frame changes a check makes are not checked again.
+    static CHECKING: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
     static APP_OBSERVED: Cell<bool> = const { Cell::new(false) };
     /// Times the inset was applied again, for the self-test.
     static APPLIED: Cell<usize> = const { Cell::new(0) };
@@ -173,18 +175,29 @@ pub fn keep_traffic_lights(window: &tauri::WebviewWindow, x: f64, y: f64) {
     }
 }
 
-/// Places the buttons at `(x, y)` and keeps them there until the window closes.
+/// Places the buttons at `(x, y)` and keeps them there until the window closes. A titled window
+/// whose buttons are elsewhere for now (full screen) is held all the same and placed when they
+/// come back.
 fn hold(window: &NSWindow, x: f64, y: f64) -> Result<(), &'static str> {
-    let bar = TitleBar::of(window).ok_or("E_TRAFFIC_LIGHTS_NO_BUTTONS")?;
-    let spacing = bar.buttons[1].frame().origin.x - bar.buttons[0].frame().origin.x;
-    let inset = Inset { x, y, spacing };
+    if !window.styleMask().contains(NSWindowStyleMask::Titled) {
+        return Err("E_TRAFFIC_LIGHTS_UNTITLED");
+    }
     let address = std::ptr::from_ref(window) as usize;
-    let known = HELD.with_borrow_mut(|held| {
-        held.iter_mut()
-            .find(|entry| entry.address == address)
-            .map(|entry| entry.inset = inset)
-            .is_some()
+    // An entry at this address whose window is gone belonged to a window that was freed without
+    // closing; this window reused its address.
+    let (known, stale) = HELD.with_borrow_mut(|held| {
+        let Some(index) = held.iter().position(|entry| entry.address == address) else {
+            return (false, None);
+        };
+        if held[index].window.load().is_some() {
+            held[index].x = x;
+            held[index].y = y;
+            (true, None)
+        } else {
+            (false, Some(held.swap_remove(index)))
+        }
     });
+    drop(stale);
     if !known {
         // SAFETY: AppKit string constants.
         let names = unsafe {
@@ -211,7 +224,9 @@ fn hold(window: &NSWindow, x: f64, y: f64) -> Result<(), &'static str> {
             held.push(Held {
                 window: Weak::new(window),
                 address,
-                inset,
+                x,
+                y,
+                spacing: None,
                 window_observers,
                 watched: Vec::new(),
                 view_observers: Vec::new(),
@@ -224,17 +239,17 @@ fn hold(window: &NSWindow, x: f64, y: f64) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Calls `handler(address)` for every `name` from `object`, on the thread that posts it.
+/// Calls `handler(address)` on the main thread for every `name` from `object`.
 fn observe(
     name: &NSNotificationName,
     object: Option<&AnyObject>,
     handler: fn(usize),
     address: usize,
 ) -> Observer {
-    let block = RcBlock::new(move |_: NonNull<NSNotification>| handler(address));
-    // SAFETY: the name is an NSString and the object live; with no queue the block runs where the
-    // notification is posted, and every handler checks for the main thread. The centre keeps its
-    // own copy of the block.
+    let block = RcBlock::new(move |_: NonNull<NSNotification>| on_main(handler, address));
+    // SAFETY: the name is an NSString and the object live. With no queue the block runs where the
+    // notification is posted, so a frame change is corrected before the display cycle draws it.
+    // The centre keeps its own copy of the block.
     unsafe {
         NSNotificationCenter::defaultCenter().addObserverForName_object_queue_usingBlock(
             Some(name),
@@ -242,6 +257,16 @@ fn observe(
             None,
             &block,
         )
+    }
+}
+
+/// `HELD` lives on the main thread, so a notification posted on another thread is handled on the
+/// main queue rather than dropped.
+fn on_main(handler: fn(usize), address: usize) {
+    if MainThreadMarker::new().is_some() {
+        handler(address);
+    } else {
+        later(move || handler(address));
     }
 }
 
@@ -293,31 +318,57 @@ fn release(address: usize) {
     }
 }
 
+/// Removes observers on the next turn of the run loop, not inside a notification one of them may
+/// be handling.
+fn remove_later(observers: Vec<Observer>) {
+    if observers.is_empty() {
+        return;
+    }
+    let observers = RefCell::new(observers);
+    later(move || {
+        let center = NSNotificationCenter::defaultCenter();
+        for observer in observers.take() {
+            // SAFETY: a token `addObserverForName:object:queue:usingBlock:` returned.
+            unsafe { center.removeObserver(observer.as_ref()) };
+        }
+    });
+}
+
 fn later(work: impl Fn() + 'static) {
     let block = RcBlock::new(work);
-    // SAFETY: the main queue runs the block on the main thread, where it was made.
+    // SAFETY: the main queue runs the block on the main thread. Blocks made on other threads
+    // capture only a handler and an address.
     unsafe { NSOperationQueue::mainQueue().addOperationWithBlock(&block) };
 }
 
-/// Applies the inset again if a button is off its place.
 fn check(address: usize) {
-    if MainThreadMarker::new().is_none() || CHECKING.replace(true) {
+    if MainThreadMarker::new().is_none() {
+        return;
+    }
+    let entered = CHECKING.with_borrow_mut(|checking| {
+        let entered = !checking.contains(&address);
+        if entered {
+            checking.push(address);
+        }
+        entered
+    });
+    if !entered {
         return;
     }
     let _ = guarded("W_TRAFFIC_LIGHTS_FAILED", || {
         place(address);
         Some(())
     });
-    CHECKING.set(false);
+    CHECKING.with_borrow_mut(|checking| checking.retain(|&other| other != address));
 }
 
 fn place(address: usize) {
     let found = HELD.with_borrow(|held| {
         held.iter()
             .find(|entry| entry.address == address)
-            .map(|entry| (entry.window.load(), entry.inset))
+            .map(|entry| (entry.window.load(), entry.x, entry.y, entry.spacing))
     });
-    let Some((window, inset)) = found else {
+    let Some((window, x, y, spacing)) = found else {
         return;
     };
     let Some(window) = window else {
@@ -330,6 +381,16 @@ fn place(address: usize) {
     let Some(bar) = TitleBar::of(&window) else {
         return;
     };
+    let spacing = spacing.unwrap_or_else(|| {
+        let spacing = bar.spacing();
+        HELD.with_borrow_mut(|held| {
+            if let Some(entry) = held.iter_mut().find(|entry| entry.address == address) {
+                entry.spacing = Some(spacing);
+            }
+        });
+        spacing
+    });
+    let inset = Inset { x, y, spacing };
     watch(address, &bar);
     if bar.in_place(&window, inset) || !within_budget(address) {
         return;
@@ -342,21 +403,22 @@ fn place(address: usize) {
 fn watch(address: usize, bar: &TitleBar) {
     // SAFETY: main thread; `superview` reads the view tree.
     let title_bar = unsafe { bar.buttons[0].superview() };
-    let views: Vec<Retained<NSView>> = bar
-        .buttons
-        .iter()
-        .map(|button| Retained::into_super(Retained::into_super(button.clone())))
-        .chain(title_bar)
-        .chain([bar.container.clone()])
-        .collect();
+    let views: [Option<&NSView>; 5] = [
+        Some(&bar.buttons[0]),
+        Some(&bar.buttons[1]),
+        Some(&bar.buttons[2]),
+        title_bar.as_deref(),
+        Some(&bar.container),
+    ];
+    let views = || views.iter().flatten().copied();
     let same = HELD.with_borrow(|held| {
         held.iter()
             .find(|entry| entry.address == address)
             .is_some_and(|entry| {
-                entry.watched.len() == views.len()
-                    && entry.watched.iter().zip(&views).all(|(weak, view)| {
+                entry.watched.len() == views().count()
+                    && entry.watched.iter().zip(views()).all(|(weak, view)| {
                         weak.load()
-                            .is_some_and(|seen| Retained::as_ptr(&seen) == Retained::as_ptr(view))
+                            .is_some_and(|seen| std::ptr::eq(Retained::as_ptr(&seen), view))
                     })
             })
     });
@@ -365,24 +427,24 @@ fn watch(address: usize, bar: &TitleBar) {
     }
     // SAFETY: an AppKit string constant.
     let name = unsafe { NSViewFrameDidChangeNotification };
-    let observers: Vec<Observer> = views
-        .iter()
+    let observers: Vec<Observer> = views()
         .map(|view| {
             view.setPostsFrameChangedNotifications(true);
             observe(name, Some(view), check, address)
         })
         .collect();
-    let watched = views.iter().map(Weak::from_retained).collect();
-    let replaced = HELD.with_borrow_mut(|held| {
-        let entry = held.iter_mut().find(|entry| entry.address == address)?;
-        entry.watched = watched;
-        Some(std::mem::replace(&mut entry.view_observers, observers))
-    });
-    let center = NSNotificationCenter::defaultCenter();
-    for observer in replaced.into_iter().flatten() {
-        // SAFETY: a token `addObserverForName:object:queue:usingBlock:` returned.
-        unsafe { center.removeObserver(observer.as_ref()) };
-    }
+    let watched = views().map(Weak::new).collect();
+    let stale =
+        HELD.with_borrow_mut(
+            |held| match held.iter_mut().find(|entry| entry.address == address) {
+                Some(entry) => {
+                    entry.watched = watched;
+                    std::mem::replace(&mut entry.view_observers, observers)
+                }
+                None => observers,
+            },
+        );
+    remove_later(stale);
 }
 
 fn within_budget(address: usize) -> bool {
@@ -402,10 +464,7 @@ fn within_budget(address: usize) -> bool {
     })
 }
 
-/// A titled window with the overlay title bar, held at an inset: its buttons come back to the
-/// inset at once when they are moved back to the system's place, as AppKit moves them, and after
-/// the window's title, appearance, style mask and key state change; an inset in place is not
-/// applied again; a window without buttons is refused; a closed window is let go.
+/// A held window's buttons come back to the inset whatever moves them, and are left alone in place.
 #[doc(hidden)]
 pub fn self_test_traffic_lights_stay() -> Result<(), &'static str> {
     use objc2::msg_send;
@@ -501,11 +560,35 @@ pub fn self_test_traffic_lights_stay() -> Result<(), &'static str> {
         if !bar.in_place(&window, inset) {
             return Err("E_TRAFFIC_LIGHTS_STAYED_MOVED_AFTER_EVENTS");
         }
+        let address = std::ptr::from_ref(&*window) as usize;
+        CHECKING.with_borrow_mut(|checking| checking.push(address));
+        for (button, origin) in bar.buttons.iter().zip(&system) {
+            button.setFrameOrigin(*origin);
+        }
+        CHECKING.with_borrow_mut(|checking| checking.retain(|&other| other != address));
+        if bar.in_place(&window, inset) {
+            return Err("E_TRAFFIC_LIGHTS_TEST_NOT_MOVED");
+        }
+        std::thread::spawn(|| {
+            // SAFETY: an AppKit string constant, posted with no object; the centre is thread-safe.
+            unsafe {
+                NSNotificationCenter::defaultCenter().postNotificationName_object(
+                    NSApplicationDidChangeScreenParametersNotification,
+                    None,
+                );
+            }
+        })
+        .join()
+        .map_err(|_| "E_TRAFFIC_LIGHTS_TEST_THREAD")?;
+        pump(0.05);
+        if !bar.in_place(&window, inset) {
+            return Err("E_TRAFFIC_LIGHTS_OTHER_THREAD_DROPPED");
+        }
         let borderless = make(NSWindowStyleMask::Borderless);
         let refused = hold(&borderless, inset.x, inset.y).is_err();
         borderless.close();
         if !refused {
-            return Err("E_TRAFFIC_LIGHTS_HELD_NO_BUTTONS");
+            return Err("E_TRAFFIC_LIGHTS_HELD_UNTITLED");
         }
         Ok(())
     })();
@@ -526,12 +609,10 @@ fn post(window: &NSWindow, name: &'static objc2_foundation::NSNotificationName) 
 
 fn pump(seconds: f64) {
     use objc2_foundation::{NSDate, NSDefaultRunLoopMode, NSRunLoop};
-    // SAFETY: the default mode constant is a valid run loop mode.
-    unsafe {
-        NSRunLoop::currentRunLoop().runMode_beforeDate(
-            NSDefaultRunLoopMode,
-            &NSDate::dateWithTimeIntervalSinceNow(seconds),
-        );
+    let until = NSDate::dateWithTimeIntervalSinceNow(seconds);
+    while until.timeIntervalSinceNow() > 0.0 {
+        // SAFETY: the default mode constant is a valid run loop mode.
+        unsafe { NSRunLoop::currentRunLoop().runMode_beforeDate(NSDefaultRunLoopMode, &until) };
     }
 }
 
