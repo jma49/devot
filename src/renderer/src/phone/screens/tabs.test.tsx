@@ -165,13 +165,21 @@ describe('the page under the native tab bar', () => {
     expect(screens()).toEqual(['Library'])
   })
 
-  it('hides the bar while a note is pushed and shows it again once it is popped', async () => {
+  it('leaves a tapped note to Swift, whose pushed screen hides the bar itself', async () => {
     await shell.notes.create('Plans', null)
     await start()
     await swift('tabs.show', 'notes')
     await vi.waitFor(() => expect(shownStack().querySelector('.phone-note-open')).not.toBeNull())
+    const before = bridge.notices.length
     await tap(shownStack().querySelector<HTMLButtonElement>('.phone-note-open'))
-    expect(lastNotice()).toMatchObject({ tab: 'notes', barHidden: true })
+    expect(bridge.notices.slice(before).map((n) => n.notice)).toStrictEqual(['nav.openNote'])
+  })
+
+  it('hides the bar while New Note’s web screen is pushed and shows it again once it is popped', async () => {
+    await start()
+    await swift('tabs.show', 'notes')
+    await tap(button('New Note'))
+    await vi.waitFor(() => expect(lastNotice()).toMatchObject({ tab: 'notes', barHidden: true }))
     await tap(button('Back'))
     expect(lastNotice()).toMatchObject({ tab: 'notes', barHidden: false })
   })

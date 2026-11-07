@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react'
 import { createAiGenerator } from '../../../core/aiProvider'
 import { createSuggester } from '../../../core/aiSuggest'
 import type { NoteSummary } from '../../../core/storage'
@@ -21,12 +31,14 @@ import type { EarlyKey } from '../editor/earlyKeys'
 import type { EditorHandle } from '../editor/handle'
 import { motionReduced } from '../motionPreference'
 import { motionMs } from '../motionTiming'
+import type { Core } from '../core-client'
 import { NoteEditor } from '../NoteEditor'
 import { listDevices, useSyncSnapshot } from '../sync'
 import type { FindTarget } from '../find/target'
 import { Preview } from '../preview/Preview'
 import type { FormatId } from '../editor/formats'
 import { notebookPath } from './library'
+import { crossfadePanes } from './modeCrossfade'
 import { useNoteStats, type NoteStats } from './noteStats'
 import { PhoneFindBar } from './PhoneFindBar'
 import {
@@ -41,6 +53,7 @@ import { PhoneDetailSheet, PhoneSheet, SheetChoice } from './PhoneSheet'
 import { requireEditing, watchWrite } from './requireEditing'
 import type { PhoneStore } from './usePhoneData'
 import { useKeyboard } from './useKeyboard'
+import type { EditorMode } from './screens/message'
 
 const FORMATS: readonly {
   id: FormatId
@@ -196,6 +209,27 @@ export interface NewNoteArrival {
   onTouched: () => void
 }
 
+/** What the native editor screen runs on the note it shows. */
+export interface NoteCommands {
+  readonly setMode: (mode: EditorMode) => void
+  readonly info: () => void
+  /** The screen went: sheets, Find and the keyboard go with it. */
+  readonly leave: () => void
+}
+
+/**
+ * The note inside the native editor screen, which draws the bar: Back pops the screen, a link
+ * pushes another, and the page reports what the bar shows.
+ */
+export interface NativeNoteChrome {
+  readonly openNote: (id: string) => void
+  readonly loaded: (id: string) => void
+  readonly mode: (id: string, mode: EditorMode) => void
+  readonly title: (id: string, title: string) => void
+  readonly titleVisible: (visible: boolean) => void
+  readonly commands: RefObject<NoteCommands | null>
+}
+
 // A push that ends without a transitionend (the layer was already in place) still lands.
 const LANDING_MARGIN_MS = 100
 
@@ -228,8 +262,10 @@ export function PhoneNote(props: {
   onBack: () => void
   onTrash: (note: NoteSummary) => void
   arrival?: NewNoteArrival
+  native?: NativeNoteChrome
+  takePreopened?: (core: Core, noteId: string) => Uint8Array | undefined
 }) {
-  const { store, arrival } = props
+  const { store, arrival, native } = props
   const screen = useRef<HTMLElement>(null)
   const landed = useLanded(screen, arrival !== undefined)
   const [loadedId, setLoadedId] = useState<string | null>(null)
@@ -237,15 +273,22 @@ export function PhoneNote(props: {
     if (id === props.noteId) arrival?.onTouched()
   }
   const [history, setHistory] = useState({ ids: [props.noteId], at: 0 })
-  const noteId = history.ids[history.at]!
+  const noteId = native ? props.noteId : history.ids[history.at]!
   const note =
     store.notes.find((n) => n.id === noteId) ?? store.templates.find((n) => n.id === noteId)
   const [modes, setModes] = useState<Readonly<Record<string, 'edit' | 'preview'>>>({})
   const editing = useEditing()
   const setMode = (next: 'edit' | 'preview') => setModes((m) => ({ ...m, [noteId]: next }))
   const [toggles, setToggles] = useState(0)
+  const [moving, setMoving] = useState(false)
+  const editLayer = useRef<HTMLDivElement>(null)
+  const previewLayer = useRef<HTMLDivElement>(null)
+  const band = useRef<HTMLDivElement>(null)
+  const headingField = useRef<HTMLDivElement>(null)
   const [body, setBody] = useState({ id: noteId, text: '' })
   const text = body.id === noteId ? body.text : ''
+  // Preview stays drawn behind Edit, a step behind the typing.
+  const previewText = useDeferredValue(text)
   const counter = store.core
   const countNote = useCallback(
     (markdown: string) => counter?.noteCounts(markdown) ?? noteCounts(markdown),
@@ -272,10 +315,61 @@ export function PhoneNote(props: {
   }
   const noteLoaded = (id: string, loaded: string) => {
     setLoadedId(id)
+    native?.loaded(id)
     setBody({ id, text: loaded })
     // An empty note has nothing to read, so it opens ready to write.
     setModes((m) => (m[id] ? m : { ...m, [id]: loaded === '' ? 'edit' : 'preview' }))
   }
+
+  // A toggle crossfades; a note shown in its other mode simply shows it.
+  const shownMode = useRef({ noteId, mode })
+  useLayoutEffect(() => {
+    const before = shownMode.current
+    shownMode.current = { noteId, mode }
+    if (before.noteId !== noteId || before.mode === mode) return
+    const incoming = mode === 'edit' ? editLayer.current : previewLayer.current
+    const outgoing = mode === 'edit' ? previewLayer.current : editLayer.current
+    if (!incoming || !outgoing) return
+    let current = true
+    setMoving(true)
+    void crossfadePanes(incoming, outgoing, motionReduced()).then(() => {
+      if (current) setMoving(false)
+    })
+    return () => {
+      current = false
+    }
+  }, [noteId, mode])
+
+  useEffect(() => {
+    native?.mode(noteId, mode)
+  }, [native, noteId, mode])
+
+  const shownTitle = titleDraft ?? note?.title
+  const noteShown = note !== undefined
+  useEffect(() => {
+    if (shownTitle !== undefined) native?.title(noteId, shownTitle)
+  }, [native, noteId, shownTitle])
+
+  // The bar takes the title once the note's own has scrolled under it.
+  const scrolledNote = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    const scroller = screen.current?.querySelector<HTMLElement>('.phone-note-scroll')
+    if (!native || !noteShown || !scroller) return
+    // The one editor takes each note Swift pushes, which opens at its top.
+    if (scrolledNote.current !== noteId) scroller.scrollTop = 0
+    scrolledNote.current = noteId
+    let visible: boolean | null = null
+    const check = () => {
+      const bar = band.current?.getBoundingClientRect().bottom ?? 0
+      const next = (headingField.current?.getBoundingClientRect().bottom ?? 0) > bar
+      if (next === visible) return
+      visible = next
+      native.titleVisible(next)
+    }
+    check()
+    scroller.addEventListener('scroll', check, { passive: true })
+    return () => scroller.removeEventListener('scroll', check)
+  }, [native, noteId, noteShown])
 
   const suggester = useMemo(() => {
     const core = store.core
@@ -306,6 +400,24 @@ export function PhoneNote(props: {
     if (typed.length) shown.type(typed)
   }, [arrival, landed, loadedId, noteId, props.noteId])
 
+  useImperativeHandle(native?.commands, (): NoteCommands => ({
+    setMode: (next) => {
+      const turn = () => {
+        setToggles((n) => n + 1)
+        setMode(next)
+      }
+      if (next === 'edit') requireEditing({ op: 'edit', id: noteId }, turn)
+      else turn()
+    },
+    info: () => setSheet('info'),
+    leave: () => {
+      setSheet(null)
+      setFinding(false)
+      const focused = document.activeElement
+      if (focused instanceof HTMLElement && screen.current?.contains(focused)) focused.blur()
+    },
+  }))
+
   const { onTakenIn } = store
   useEffect(
     () =>
@@ -319,7 +431,9 @@ export function PhoneNote(props: {
   )
 
   const openNote = (id: string) =>
-    setHistory((h) => ({ ids: [...h.ids.slice(0, h.at + 1), id], at: h.at + 1 }))
+    native
+      ? native.openNote(id)
+      : setHistory((h) => ({ ids: [...h.ids.slice(0, h.at + 1), id], at: h.at + 1 }))
   const links: LinkSources = {
     find: async (query) => {
       const core = store.core
@@ -343,16 +457,18 @@ export function PhoneNote(props: {
   if (!note || !store.core)
     return (
       <section ref={screen} aria-label={t('phone.note')} className="phone-screen">
-        <header className="phone-topbar">
-          <button
-            type="button"
-            className="phone-glass phone-nav-control"
-            aria-label={t('phone.back')}
-            onClick={props.onBack}
-          >
-            <Icon name="nav.back" size="lg" />
-          </button>
-        </header>
+        {native ? null : (
+          <header className="phone-topbar">
+            <button
+              type="button"
+              className="phone-glass phone-nav-control"
+              aria-label={t('phone.back')}
+              onClick={props.onBack}
+            >
+              <Icon name="nav.back" size="lg" />
+            </button>
+          </header>
+        )}
       </section>
     )
 
@@ -370,7 +486,7 @@ export function PhoneNote(props: {
   return (
     <section ref={screen} aria-label={note.title || t('note.untitled')} className="phone-screen">
       <div className="phone-scroll phone-note-scroll">
-        <div className="phone-note-heading-field" data-title={title}>
+        <div ref={headingField} className="phone-note-heading-field" data-title={title}>
           <textarea
             ref={titleField}
             className="phone-note-heading"
@@ -445,13 +561,21 @@ export function PhoneNote(props: {
           })}
         </p>
         <div className="phone-note-body" data-mode={mode}>
-          <div className="phone-note-layer" data-shown={mode === 'edit' || undefined}>
+          <div
+            ref={editLayer}
+            className="phone-note-layer"
+            data-shown={mode === 'edit' || undefined}
+            data-resting={(mode === 'preview' && !moving) || undefined}
+            inert={mode !== 'edit'}
+          >
             <NoteEditor
-              key={noteId}
+              // The native screen swaps notes into one editor; the web stack draws one per note.
+              key={native ? undefined : noteId}
               core={core}
               noteId={noteId}
               autoFocus={false}
-              hidden={mode === 'preview'}
+              hidden={mode === 'preview' && !moving}
+              {...(props.takePreopened ? { takePreopened: props.takePreopened } : {})}
               readOnly={!editing}
               noKeyboard
               onText={(read) => showText(noteId, read())}
@@ -466,88 +590,97 @@ export function PhoneNote(props: {
             />
           </div>
           <div
+            ref={previewLayer}
             className="phone-note-layer phone-note-preview"
             data-shown={mode === 'preview' || undefined}
-            aria-hidden={mode !== 'preview'}
+            data-resting={(mode === 'edit' && !moving) || undefined}
+            inert={mode !== 'preview'}
           >
-            {mode === 'preview' && (
-              <Preview
-                core={core}
-                markdown={text}
-                onOpenNote={openNote}
-                onToggleTask={(at) =>
-                  requireEditing({ op: 'task', id: noteId }, () => editor.current?.toggleTask(at))
-                }
-              />
-            )}
+            <Preview
+              core={core}
+              markdown={mode === 'preview' ? text : previewText}
+              onOpenNote={openNote}
+              onToggleTask={(at) =>
+                requireEditing({ op: 'task', id: noteId }, () => editor.current?.toggleTask(at))
+              }
+            />
           </div>
         </div>
       </div>
-      <div aria-hidden="true" className="phone-topbar-band" />
-      <header className="phone-topbar">
-        <button
-          type="button"
-          className="phone-glass phone-nav-control"
-          aria-label={t('phone.back')}
-          onClick={props.onBack}
-        >
-          <Icon name="nav.back" size="lg" />
-        </button>
-        <span className="phone-note-crumb phone-mono">{crumb}</span>
-        <div className="phone-glass phone-capsule">
+      <div
+        ref={band}
+        aria-hidden="true"
+        className="phone-topbar-band"
+        data-native={native ? '' : undefined}
+      />
+      {native ? null : (
+        <header className="phone-topbar">
           <button
             type="button"
-            className="phone-capsule-button phone-mode-toggle"
-            aria-label={t(mode === 'edit' ? 'phone.note.preview' : 'phone.note.edit')}
-            aria-pressed={mode === 'preview'}
-            data-turn={toggles === 0 ? undefined : toggles % 2 ? 'a' : 'b'}
-            onClick={() => {
-              const next = mode === 'edit' ? 'preview' : 'edit'
-              const turn = () => {
-                setToggles((n) => n + 1)
-                setMode(next)
-              }
-              if (next === 'edit') requireEditing({ op: 'edit', id: noteId }, turn)
-              else turn()
-            }}
+            className="phone-glass phone-nav-control"
+            aria-label={t('phone.back')}
+            onClick={props.onBack}
           >
-            <Icon name={mode === 'edit' ? 'mode.preview' : 'mode.edit'} size="lg" />
+            <Icon name="nav.back" size="lg" />
           </button>
-          <span aria-hidden="true" className="phone-capsule-divider" />
-          <button
-            type="button"
-            className="phone-capsule-button"
-            aria-label={t('phone.info.title')}
-            onClick={() => setSheet('info')}
-          >
-            <Icon name="phone.info" size="lg" />
-          </button>
-        </div>
-      </header>
+          <span className="phone-note-crumb phone-mono">{crumb}</span>
+          <div className="phone-glass phone-capsule">
+            <button
+              type="button"
+              className="phone-capsule-button phone-mode-toggle"
+              aria-label={t(mode === 'edit' ? 'phone.note.preview' : 'phone.note.edit')}
+              aria-pressed={mode === 'preview'}
+              data-turn={toggles === 0 ? undefined : toggles % 2 ? 'a' : 'b'}
+              onClick={() => {
+                const next = mode === 'edit' ? 'preview' : 'edit'
+                const turn = () => {
+                  setToggles((n) => n + 1)
+                  setMode(next)
+                }
+                if (next === 'edit') requireEditing({ op: 'edit', id: noteId }, turn)
+                else turn()
+              }}
+            >
+              <Icon name={mode === 'edit' ? 'mode.preview' : 'mode.edit'} size="lg" />
+            </button>
+            <span aria-hidden="true" className="phone-capsule-divider" />
+            <button
+              type="button"
+              className="phone-capsule-button"
+              aria-label={t('phone.info.title')}
+              onClick={() => setSheet('info')}
+            >
+              <Icon name="phone.info" size="lg" />
+            </button>
+          </div>
+        </header>
+      )}
       <div
         className="phone-note-bottom"
         data-hidden={typing || finding || undefined}
         inert={typing || finding}
       >
-        <div className="phone-glass phone-capsule phone-capsule-tall">
-          <button
-            type="button"
-            className="phone-capsule-button"
-            aria-label={t('phone.note.previous')}
-            onClick={back}
-          >
-            <Icon name="phone.history.back" size="md" />
-          </button>
-          <button
-            type="button"
-            className="phone-capsule-button"
-            aria-label={t('phone.note.next')}
-            disabled={history.at >= history.ids.length - 1}
-            onClick={() => setHistory((h) => ({ ...h, at: h.at + 1 }))}
-          >
-            <Icon name="phone.history.forward" size="md" />
-          </button>
-        </div>
+        {native ? null : (
+          <div className="phone-glass phone-capsule phone-capsule-tall">
+            <button
+              type="button"
+              className="phone-capsule-button"
+              aria-label={t('phone.note.previous')}
+              onClick={back}
+            >
+              <Icon name="phone.history.back" size="md" />
+            </button>
+            <button
+              type="button"
+              className="phone-capsule-button"
+              aria-label={t('phone.note.next')}
+              disabled={history.at >= history.ids.length - 1}
+              onClick={() => setHistory((h) => ({ ...h, at: h.at + 1 }))}
+            >
+              <Icon name="phone.history.forward" size="md" />
+            </button>
+          </div>
+        )}
         <span className="phone-topbar-spacer" />
         <button
           type="button"
