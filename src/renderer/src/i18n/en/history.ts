@@ -49,8 +49,6 @@ export const messages = {
     'Charts use the records still stored on this Mac; older or excess records are not included.',
   'usage.rangeDates': '{start} – {end}',
   'usage.title': 'Usage Data',
-  'usage.detail':
-    'Devot keeps a record of how it is used on this Mac, such as how many notes are created and how many results a search finds. It never includes note content, titles or names, and nothing leaves this Mac.',
   'usage.limits': 'Events older than 90 days are deleted, and at most 10,000 are kept.',
   'usage.empty': 'No usage events are stored.',
   'usage.countOne': '{count} event is stored on this Mac.',

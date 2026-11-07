@@ -224,11 +224,6 @@ export const messages = {
   'appearanceSettings.light': 'Light',
   'appearanceSettings.dark': 'Dark',
   'appearanceSettings.system': 'Auto',
-  'appearanceSettings.interfaceStyle': 'Interface style',
-  'appearanceSettings.interfaceClassic': 'Classic',
-  'appearanceSettings.interfaceGlass': 'Glass',
-  'appearanceSettings.interfaceStyleNote':
-    'Glass lets the desktop show through the window; Classic keeps the window opaque.',
   'appearanceSettings.glassAmount': 'Glass Transparency',
   'appearanceSettings.glassAmountHint': 'How much of the desktop shows through the window.',
   'appearanceSettings.lightMode': 'Light Mode',

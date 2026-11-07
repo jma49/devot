@@ -11,7 +11,6 @@ import { editorSettings, startEditorSettings, subscribeEditorSettings } from './
 import { followSystemAccent } from './theme/accent'
 import { startAppearance } from './theme/appearance'
 import { startMotion } from './motionPreference'
-import { showSidebarMaterial } from './sidebarMaterial'
 import { startSidebarSurround } from './sidebarSurround'
 import { applyMotionScale } from './motionTiming'
 import { resolveLocale, setLocale, t } from './i18n'
@@ -27,7 +26,6 @@ watchCompositions(window)
 startEditorSettings()
 startAppearance()
 startMotion()
-showSidebarMaterial()
 applyMotionScale(document.documentElement)
 startShortcutSettings()
 startSidebarSurround()

@@ -609,7 +609,7 @@ export function NoteEditor({
     ).some((key) => now.settings[key] !== settings[key])
     now.settings = settings
     if (effects.length > 0) now.view.dispatch({ effects })
-    // A setting outside the editor (the sidebar material) leaves it alone.
+    // A setting outside the editor (Glass Transparency) leaves it alone.
     if (effects.length > 0 || remeasure) now.view.requestMeasure()
   }, [settings])
 

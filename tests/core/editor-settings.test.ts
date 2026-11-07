@@ -7,7 +7,6 @@ import {
   FONT_SIZE_MAX,
   GRADIENT_THEMES,
   ICON_STYLES,
-  INTERFACE_STYLES,
   FONT_SIZE_MIN,
   APPEARANCES,
   THEMES,
@@ -25,8 +24,6 @@ import {
   parseEditorSettings,
   slotFont,
   stepFontSize,
-  interfaceStyle,
-  interfaceStylePatch,
   themeFollowsSystemAccent,
   themeInEffect,
 } from '../../src/core/editorSettings'
@@ -53,7 +50,6 @@ describe('editor settings', () => {
       listMarker: '*',
       spellCheck: true,
       highlightActiveLine: false,
-      sidebarMaterial: true,
       windowTransparency: 0,
       pasteUrl: 'link',
       syncScroll: true,
@@ -183,7 +179,6 @@ describe('editor settings', () => {
       previewFontSize: 18,
       defaultNotebook: 'abc-1',
       spellCheck: 'yes',
-      sidebarMaterial: false,
       syncScroll: false,
       future: 1,
     })
@@ -197,7 +192,6 @@ describe('editor settings', () => {
       fontWeight: '500',
       previewFontSize: 18,
       defaultNotebook: 'abc-1',
-      sidebarMaterial: false,
       syncScroll: false,
     })
     expect(read).not.toHaveProperty('future')
@@ -224,9 +218,8 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ dailyTitleFormat: 'dayMonthYear' }).dailyTitleFormat).toBe(
       'dayMonthYear',
     )
-    expect(parseEditorSettings({ sidebarMaterial: 'off' }).sidebarMaterial).toBe(true)
     // Settings from before the transparency setting read it as the design.
-    expect(parseEditorSettings({ sidebarMaterial: true }).windowTransparency).toBe(0)
+    expect(parseEditorSettings({ spellCheck: false }).windowTransparency).toBe(0)
     expect(parseEditorSettings({ windowTransparency: -40 }).windowTransparency).toBe(-40)
     expect(parseEditorSettings({ windowTransparency: 101 }).windowTransparency).toBe(0)
     expect(parseEditorSettings({ autoDownloadUpdates: false }).autoDownloadUpdates).toBe(false)
@@ -262,7 +255,6 @@ describe('editor settings', () => {
       fontSize: 16,
       listMarker: '*',
     })
-    expect(checkEditorSettingsPatch({ sidebarMaterial: false })).toEqual({ sidebarMaterial: false })
     for (const windowTransparency of [-100, 0, 35, 100])
       expect(checkEditorSettingsPatch({ windowTransparency })).toEqual({ windowTransparency })
     expect(checkEditorSettingsPatch({ inlineImages: false })).toEqual({ inlineImages: false })
@@ -315,8 +307,8 @@ describe('editor settings', () => {
       { lightTheme: 'dark' },
       { darkTheme: null },
       { theme: 'ivory' },
-      { sidebarMaterial: 'off' },
-      { sidebarMaterial: null },
+      { sidebarMaterial: false },
+      { sidebarMaterial: true },
       { windowTransparency: -105 },
       { windowTransparency: 105 },
       { windowTransparency: 52.5 },
@@ -460,17 +452,13 @@ describe('editor settings', () => {
     expect(themeInEffect(settings, 'dark')).toBe('tide')
   })
 
-  it('reads the interface style from the window material, and stores it there', () => {
-    expect(INTERFACE_STYLES).toEqual(['classic', 'glass'])
-    expect(interfaceStyle({ sidebarMaterial: true })).toBe('glass')
-    expect(interfaceStyle({ sidebarMaterial: false })).toBe('classic')
-    expect(interfaceStyle(DEFAULT_EDITOR_SETTINGS)).toBe('glass')
-    expect(interfaceStylePatch('classic')).toEqual({ sidebarMaterial: false })
-    expect(interfaceStylePatch('glass')).toEqual({ sidebarMaterial: true })
-    for (const style of INTERFACE_STYLES)
-      expect(interfaceStyle({ ...DEFAULT_EDITOR_SETTINGS, ...interfaceStylePatch(style) })).toBe(
-        style,
-      )
+  it('reads settings that still hold the removed interface style, whatever its value', () => {
+    for (const sidebarMaterial of [true, false, 'off', null]) {
+      const read = parseEditorSettings({ sidebarMaterial, spellCheck: false })
+      expect(read).toEqual({ ...DEFAULT_EDITOR_SETTINGS, spellCheck: false })
+      expect(read).not.toHaveProperty('sidebarMaterial')
+    }
+    expect(DEFAULT_EDITOR_SETTINGS).not.toHaveProperty('sidebarMaterial')
   })
 
   it('lets only the default theme follow the system accent', () => {

@@ -107,23 +107,15 @@ export const selectionTint = (fill: Rgb, appearance: Appearance): Rgb =>
   selectionTints(fill, appearance).focused
 
 /**
- * What a board card's text sits on (app.css `.card`), plain and selected: in
- * Classic the card fill on a column's track with a light accent wash, in Glass
- * the card fill on the list itself with the list's selection wash.
+ * What a board card's text sits on (app.css `.card`), plain and selected: the card fill on the
+ * list itself, and with the list's selection wash.
  */
 export function cardBackdrops(theme: Readonly<Record<string, string>>, fill: Rgb): Rgb[] {
   const color = (path: string) => parseColor(theme[`color.${path}`] ?? '')
   const list = color('surface.list').rgb
-  const column = composite(color('fill.track'), list)
   const card = color('fill.card')
-  const washed = (opacity: 'card-selected' | 'list-selected') =>
-    mixSrgb({ rgb: fill, alpha: 1 }, Number(sizes[`opacity.${opacity}`]), card)
-  return [
-    composite(card, column),
-    composite(washed('card-selected'), column),
-    composite(card, list),
-    composite(washed('list-selected'), list),
-  ]
+  const washed = mixSrgb({ rgb: fill, alpha: 1 }, Number(sizes['opacity.list-selected']), card)
+  return [composite(card, list), composite(washed, list)]
 }
 
 function textBackdrops(appearance: Appearance, selection: Rgb): Rgb[] {

@@ -111,13 +111,7 @@ export function startSidebarSurround(doc: Document = document): void {
   })
   changed.observe(root, {
     attributes: true,
-    attributeFilter: [
-      'data-sidebar-material',
-      'data-sidebar-hidden',
-      'data-focus',
-      'data-appearance',
-      'data-theme',
-    ],
+    attributeFilter: ['data-sidebar-hidden', 'data-focus', 'data-appearance', 'data-theme'],
     childList: true,
     subtree: true,
   })

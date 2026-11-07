@@ -8,9 +8,9 @@ import { Icon } from './icons/Icon'
  * Return confirms. When it goes away, focus returns to whatever had it before
  * it opened, if that is still on the page and nothing else took focus meanwhile.
  *
- * `destructive` marks an action that loses something for good: in Glass it
- * draws as a centred card, the action above Cancel. The buttons stay in this
- * document order either way, so the keyboard does not change.
+ * `destructive` marks an action that loses something for good: it draws as a
+ * centred card, the action above Cancel. The buttons keep the same document
+ * order either way, so the keyboard does not change.
  */
 export function ConfirmDialog(props: {
   message: string

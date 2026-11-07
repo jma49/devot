@@ -68,7 +68,6 @@ mod plugins;
 mod settings;
 mod settings_file;
 mod share;
-mod sidebar_material;
 mod single_instance;
 mod startup;
 mod storage;
@@ -274,7 +273,6 @@ pub fn run() {
             fonts::fonts_list,
             fonts::fonts_installed,
             fonts::font_read,
-            sidebar_material::sidebar_material_sync,
             #[cfg(desktop)]
             menu::sidebar_menu_set,
             #[cfg(desktop)]
@@ -572,29 +570,13 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     watch::start(app.handle());
     #[cfg(desktop)]
     install_desktop(app)?;
-    // The sidebar material as stored: an opaque sidebar starts without the window effect, and the page starts from the same settings, so its first paint matches the window.
+    // The settings as stored: the page starts from the same settings, so its first paint matches the window.
     let stored = editor_settings
         .get()
         .unwrap_or_else(|_| editor_settings::Snapshot {
             revision: 0,
             settings: editor_settings::EditorSettings::default(),
         });
-    let configured = app
-        .config()
-        .app
-        .windows
-        .iter()
-        .find(|w| w.label == MAIN_WINDOW)
-        .ok_or_else(|| StartupError::new("E_MAIN_WINDOW_CONFIG_MISSING"))?
-        .window_effects
-        .clone();
-    app.manage(sidebar_material::SidebarMaterial::new(
-        configured,
-        sidebar_material::Shown {
-            revision: stored.revision,
-            material: stored.settings.sidebar_material,
-        },
-    ));
     #[cfg(desktop)]
     background::enter(app, stored.settings.menu_bar);
     main_windows::build(app.handle(), MAIN_WINDOW, None).map_err(StartupError::new)?;

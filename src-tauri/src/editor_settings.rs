@@ -1,12 +1,12 @@
-//! Editor settings (Settings > Editor), plus the window's sidebar material (see
-//! `sidebar_material`). They are kept on this device only, in `<app data>/editor-settings.json`, so
-//! they never sync and never go into backups.
+//! Editor settings (Settings > Editor), plus the appearance and window settings. They are kept on
+//! this device only, in `<app data>/editor-settings.json`, so they never sync and never go into
+//! backups.
 //! Rust holds them so every window reads the same values: after each change every window gets
 //! `devot://editor-settings-changed` with the full settings and a revision number. Each value is
 //! checked here (ranges for numbers, a fixed list for the rest): a change with an unknown key or a
 //! bad value is refused as a whole. Reading the file is lenient instead: a missing or out-of-range
 //! value (a file from another Devot version, or edited by hand) falls back to its default and the
-//! others are kept.
+//! others are kept, and a key this version does not know is left out, so the next write drops it.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -184,8 +184,6 @@ pub struct EditorSettings {
     pub list_marker: ListMarker,
     pub spell_check: bool,
     pub highlight_active_line: bool,
-    /// The key keeps its old name.
-    pub sidebar_material: bool,
     /// An adjustment of the regions' washes from their design values
     /// (Settings > Appearance > Transparency): 0 is the design, -100 opaque,
     /// 100 twice as see-through.
@@ -269,7 +267,6 @@ impl Default for EditorSettings {
             list_marker: ListMarker::Star,
             spell_check: true,
             highlight_active_line: false,
-            sidebar_material: true,
             window_transparency: 0,
             paste_url: PasteUrl::Link,
             sync_scroll: true,
@@ -405,7 +402,6 @@ impl EditorSettings {
             "listMarker" => self.list_marker = choice(value)?,
             "spellCheck" => self.spell_check = flag(value)?,
             "highlightActiveLine" => self.highlight_active_line = flag(value)?,
-            "sidebarMaterial" => self.sidebar_material = flag(value)?,
             "windowTransparency" => {
                 self.window_transparency =
                     signed_whole(value, -WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX)?
@@ -534,7 +530,7 @@ pub struct Snapshot {
 pub const INITIAL_GLOBAL: &str = "devotInitialEditorSettings";
 
 /// Runs before the page's own (an initialization script, which the CSP does not apply to), so the
-/// page's first paint matches the settings (the sidebar material, the editor's font) instead of the
+/// page's first paint matches the settings (the theme, the editor's font) instead of the
 /// defaults. The page still reads the settings and takes any newer revision.
 pub fn initial_script(snapshot: &Snapshot) -> String {
     // JSON is a JavaScript literal: serde_json escapes quotes, backslashes
@@ -786,7 +782,6 @@ mod tests {
         assert_eq!(d.indent_unit, IndentUnit::Spaces2);
         assert_eq!(d.tab_width, 2);
         assert_eq!(d.list_marker, ListMarker::Star);
-        assert!(d.sidebar_material);
         assert_eq!(d.window_transparency, 0);
         assert_eq!(d.paste_url, PasteUrl::Link);
         assert!(d.toolbar && d.scroll_past_end && d.show_counts);
@@ -894,7 +889,6 @@ mod tests {
                 "listMarker": "*",
                 "spellCheck": true,
                 "highlightActiveLine": false,
-                "sidebarMaterial": true,
                 "windowTransparency": 0,
                 "pasteUrl": "link",
                 "syncScroll": true,
@@ -991,7 +985,6 @@ mod tests {
                 "listMarker": "*",
                 "spellCheck": true,
                 "highlightActiveLine": false,
-                "sidebarMaterial": false,
                 "windowTransparency": -100,
                 "pasteUrl": "link",
                 "syncScroll": false,
@@ -1086,7 +1079,6 @@ mod tests {
                 .unwrap();
             assert_eq!(read.line_wrapping, mode);
         }
-        assert!(!next.sidebar_material);
         assert!(!next.sync_scroll);
         assert!(next.readable_width && next.spell_check);
         assert_eq!(next.font_size, 32);
@@ -1256,9 +1248,8 @@ mod tests {
             json!({ "pasteUrl": true }),
             json!({ "spellCheck": null }),
             json!({ "highlightActiveLine": [] }),
-            json!({ "sidebarMaterial": "off" }),
-            json!({ "sidebarMaterial": 0 }),
-            json!({ "sidebarMaterial": null }),
+            json!({ "sidebarMaterial": true }),
+            json!({ "sidebarMaterial": false }),
             json!({ "windowTransparency": 101 }),
             json!({ "windowTransparency": -101 }),
             json!({ "windowTransparency": 50.5 }),
@@ -1323,7 +1314,6 @@ mod tests {
         });
         let read = EditorSettings::from_stored(&stored);
         assert!(!read.line_numbers);
-        assert!(read.sidebar_material);
         assert!(!read.sync_scroll);
         assert_eq!(read.font_family, FontFamily::Menlo);
         assert_eq!(read.code_font_family, FontFamily::Monaco);
@@ -1353,7 +1343,7 @@ mod tests {
         let snapshot = Snapshot {
             revision: 0,
             settings: EditorSettings {
-                sidebar_material: false,
+                spell_check: false,
                 ..EditorSettings::default()
             },
         };
@@ -1364,7 +1354,7 @@ mod tests {
             .expect("one assignment");
         let value: Value = serde_json::from_str(json).unwrap();
         assert_eq!(value, serde_json::to_value(&snapshot).unwrap());
-        assert_eq!(value["settings"]["sidebarMaterial"], json!(false));
+        assert_eq!(value["settings"]["spellCheck"], json!(false));
     }
 
     #[test]
@@ -1512,7 +1502,7 @@ mod tests {
     #[test]
     fn reads_a_file_from_before_the_animations_setting_as_always() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join(FILE), br#"{ "sidebarMaterial": true }"#).unwrap();
+        std::fs::write(dir.path().join(FILE), br#"{ "spellCheck": true }"#).unwrap();
         assert_eq!(
             store(&dir).get().unwrap().settings.animations,
             Animations::Always
@@ -1538,9 +1528,8 @@ mod tests {
     #[test]
     fn reads_a_file_from_before_the_transparency_setting_as_the_design() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join(FILE), br#"{ "sidebarMaterial": true }"#).unwrap();
+        std::fs::write(dir.path().join(FILE), br#"{ "spellCheck": true }"#).unwrap();
         let read = store(&dir).get().unwrap().settings;
-        assert!(read.sidebar_material);
         assert_eq!(read.window_transparency, 0);
         assert_eq!(
             EditorSettings::from_stored(&json!({ "windowTransparency": 101 })).window_transparency,
@@ -1652,18 +1641,26 @@ mod tests {
     }
 
     #[test]
-    fn remembers_an_opaque_sidebar() {
-        let dir = tempfile::tempdir().unwrap();
-        let next = store(&dir)
-            .update(&patch(json!({ "sidebarMaterial": false })))
-            .unwrap();
-        assert!(!next.settings.sidebar_material);
-        assert!(!store(&dir).get().unwrap().settings.sidebar_material);
-        // A file written before the setting existed keeps the material.
-        std::fs::write(dir.path().join(FILE), br#"{ "fontSize": 15 }"#).unwrap();
-        let older = store(&dir).get().unwrap().settings;
-        assert!(older.sidebar_material);
-        assert_eq!(older.font_size, 15);
+    fn reads_a_file_with_the_removed_interface_style_and_drops_it_on_the_next_write() {
+        for old in [json!(true), json!(false), json!("off"), json!({ "on": 1 })] {
+            let dir = tempfile::tempdir().unwrap();
+            let file = dir.path().join(FILE);
+            let stored = json!({ "sidebarMaterial": old, "fontSize": 15 });
+            std::fs::write(&file, serde_json::to_vec(&stored).unwrap()).unwrap();
+            let read = store(&dir).get().unwrap().settings;
+            assert_eq!(read.font_size, 15);
+            assert!(
+                serde_json::to_value(&read)
+                    .unwrap()
+                    .get("sidebarMaterial")
+                    .is_none()
+            );
+            store(&dir)
+                .update(&patch(json!({ "spellCheck": false })))
+                .unwrap();
+            let written: Value = serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+            assert_eq!(written, json!({ "fontSize": 15, "spellCheck": false }));
+        }
     }
 
     #[test]

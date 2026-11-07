@@ -10,7 +10,6 @@ import {
   type MouseEvent,
 } from 'react'
 import { shortcutLabel } from '../commands/keys'
-import { useEditorSetting } from '../editorSettings'
 import { format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { BookIcon } from '../BookIcon'
@@ -123,7 +122,6 @@ export function CommandPalette(props: {
   onClose: (picked?: () => void | Promise<unknown>) => void
 }) {
   const { entries, actions, onClose } = props
-  const glass = useEditorSetting('sidebarMaterial')
   const dialog = useRef<HTMLDialogElement>(null)
   const input = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<PaletteState>(() =>
@@ -230,7 +228,7 @@ export function CommandPalette(props: {
     } else if (e.key === 'Enter' && !e.ctrlKey && !e.altKey) {
       e.preventDefault()
       if (current) pick(current, { shift: e.shiftKey, meta: e.metaKey })
-    } else if (e.key === 'Tab' && glass && !isModified(e) && current?.kind === 'source') {
+    } else if (e.key === 'Tab' && !isModified(e) && current?.kind === 'source') {
       e.preventDefault()
       pick(current, NO_MODIFIERS)
     } else if (e.key === 'Backspace' && state.scope !== null && state.query === '') {
@@ -243,7 +241,7 @@ export function CommandPalette(props: {
     if (!current) return null
     if (current.kind === 'source') {
       if (held.shift || held.meta) return null
-      return { keys: 'Enter', label: glass ? t('palette.open') : t('palette.openSource') }
+      return { keys: 'Enter', label: t('palette.open') }
     }
     if (!hints) return null
     const action = chosen(hints, held)
@@ -254,8 +252,8 @@ export function CommandPalette(props: {
 
   const scope = state.scope
   const placeholder = scope === null ? t('palette.placeholder') : t(PLACEHOLDER[scope])
-  const showHeaders = scope === null && (glass || state.query.trim() !== '')
-  const showTabHint = glass && current?.kind === 'source' && !held.shift && !held.meta
+  const showHeaders = scope === null
+  const showTabHint = current?.kind === 'source' && !held.shift && !held.meta
 
   return (
     <dialog
@@ -413,12 +411,10 @@ export function CommandPalette(props: {
             <kbd>{shortcutLabel('Tab')}</kbd> {t('palette.openSource')}
           </span>
         ) : null}
-        {glass ? (
-          <span className="palette-hint">
-            <kbd>{t('palette.key.escape')}</kbd>{' '}
-            {escapeStep(state) === null ? t('palette.close') : t('palette.back')}
-          </span>
-        ) : null}
+        <span className="palette-hint">
+          <kbd>{t('palette.key.escape')}</kbd>{' '}
+          {escapeStep(state) === null ? t('palette.close') : t('palette.back')}
+        </span>
       </div>
     </dialog>
   )
