@@ -299,8 +299,15 @@ These are measured on a device in stage 0, before the stages that depend on them
   Pass: either hand-off keeps the keyboard up with the web view first responder and the caret in the editor.
   The guarded private focus path is not built; it is built and measured only if no public path passes.
   Run: `scripts/ios/run-spike.sh S2`.
-  Result (2026-11-07, iPhone18,2, iOS 27.2): not settled.
-  In three runs the hidden field became first responder but the keyboard never came up, though a tap in a note raises it on the same phone, so the harness is suspected and the run is to be repeated once that is found.
+  Result (2026-11-07, iPhone18,2, iOS 27.2): a public path passes once tao's window is key.
+  The app's window is not its scene's key window after launch: the scene has no key window, so a field that is first responder raises no keyboard until a tap or `makeKey()` makes the window key.
+  This comes from tao attaching its window to the scene after `makeKeyAndVisible`, as the app declares no scene manifest; the native shell must make that window key when it installs (PR 12).
+  With the window key, the field raises the keyboard at once.
+  The field holding the keyboard while the page focuses its editor keeps the keyboard up but gives the editor no focus, since the web view is not first responder.
+  Making the web view first responder after the page focuses its editor gives a caret but drops the keyboard.
+  Making the web view first responder while the field holds the keyboard, then focusing the editor, ends with the keyboard up, the web view first responder and the caret in the editor; the keyboard hides and shows again within about 25 ms on the way.
+  The page focusing its editor with no keyboard up gives neither focus nor a caret.
+  So the native shell takes that last public order (D2), checks by eye in PR 17 that the quick hide and show is not seen, and needs no private focus path.
   Under iPhone Mirroring the phone uses the Mac's keyboard and shows none, so this spike is run with the phone in hand.
 - **S3, the bridge.** 1000 no-operation round trips stay within p50 4 ms and p95 10 ms, and 60 excerpt calls while a list scrolls at 120 Hz drop no frames.
   The round trips go Swift to Rust to the page and back, the way every real request goes, and are timed in Swift.
