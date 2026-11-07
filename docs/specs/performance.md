@@ -39,6 +39,7 @@ Part of the [architecture overview](../architecture.md).
 - `tests/scripts/startup-chunks.bench.test.ts` holds what a window parses before its first paint and what the core worker parses before `init` answers, each under a byte budget.
   The main page loads no Markdown parser and no server renderer, as the core worker parses and converts Markdown.
   The core worker loads sync, the Markdown mirror, import, export and the AI service on their first use.
+  A stop, or a later start, made while sync's code loads wins, and starts made while the mirror's code loads make one mirror (`lazyStart.ts`).
   Once the window is idle, warm-up renders a short sample with only the code languages, math and emoji that the open note and the first 20 listed notes use, so the next note opened from the list opens warm without a fixed set of grammars kept in memory.
 - The phase 2 harness measures them on macOS, in-app for typing latency, plus idle GPU power (`powermetrics`) with the transparent window against an opaque one.
 - Core budgets, held by the benchmarks in `tests/core/*.bench.test.ts` (`pnpm test` and CI run them; `pnpm test:fast` leaves them out) against the test store on better-sqlite3, which runs the Rust store's SQL.

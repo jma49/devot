@@ -1,9 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
+// @vitest-environment happy-dom
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { renderPreviewPieces } from '../../core/preview'
 import type { WarmFeatures } from '../../core/preview/warmFeatures'
 import type { Core } from './core-client'
 import { previewLabels } from './preview/Preview'
-import { warmSample, warmUp, type WarmSource } from './warmUp'
+import { renderHook, unmountAll } from '../../../tests/support/render-hook'
+import { useWarmUp, warmSample, warmUp, type WarmSource } from './warmUp'
+
+afterEach(unmountAll)
 
 const NONE: WarmFeatures = { languages: [], math: false, emoji: false }
 
@@ -88,5 +92,28 @@ describe('warmUp', () => {
       ),
     ).not.toThrow()
     await vi.waitFor(() => expect(calls.pieces).toHaveBeenCalled())
+  })
+})
+
+describe('useWarmUp', () => {
+  it('warms once the window is ready, with the text and listed notes it holds when idle', async () => {
+    const { core, calls } = fakeCore(NONE)
+    const tasks: (() => void)[] = []
+    const schedule = (task: () => void) => void tasks.push(task)
+    let text = 'restored'
+    const hook = renderHook(
+      ({ ready, listed }: { ready: boolean; listed: string[] }) =>
+        useWarmUp(core, ready, () => text, listed, schedule),
+      { props: { ready: false, listed: [] as string[] } },
+    )
+    expect(tasks).toHaveLength(0)
+    hook.rerender({ ready: true, listed: [] })
+    hook.rerender({ ready: true, listed: ['a'] })
+    text = 'typed'
+    hook.rerender({ ready: true, listed: ['a', 'b'] })
+    expect(tasks).toHaveLength(1)
+    tasks[0]!()
+    expect(calls.features).toHaveBeenCalledWith('typed', ['a', 'b'])
+    await vi.waitFor(() => expect(calls.pieces).toHaveBeenCalledTimes(1))
   })
 })

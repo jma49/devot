@@ -11,7 +11,10 @@ export interface WarmFeatures {
   emoji: boolean
 }
 
-const FENCE = /^ {0,3}(?:`{3,}|~{3,})[ \t]*([^\s`{]+)/gm
+// Any indent and quote marks, so fences in lists and quotes count too.
+const FENCE = /^(?:[ \t]*>)*[ \t]*(?:`{3,}|~{3,})[ \t]*([^\s`{]+)/gm
+// A `$` pair with no space inside either end, so prices such as `$5 and $10` are not math.
+const MATH = /\$\$|\$[^\s$](?:[^$\n]*?[^\s$])?\$(?!\d)/
 const EMOJI = /:[\w+-]+:/
 
 /** The first word of each fence's info string in order of first use, and whether math or emoji appear. */
@@ -24,7 +27,7 @@ export function warmFeatures(markdowns: readonly string[]): WarmFeatures {
       if (languages.size === MAX_WARM_LANGUAGES) break
       languages.add(name!.toLowerCase())
     }
-    math ||= markdown.indexOf('$') !== markdown.lastIndexOf('$')
+    math ||= MATH.test(markdown)
     emoji ||= EMOJI.test(markdown)
   }
   return { languages: [...languages], math, emoji }

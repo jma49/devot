@@ -1,4 +1,5 @@
 import { LanguageDescription } from '@codemirror/language'
+import { useEffect, useRef } from 'react'
 import { languages as editorLanguages } from '@codemirror/language-data'
 import type { WarmFeatures } from '../../core/preview/warmFeatures'
 import type { Core } from './core-client'
@@ -65,6 +66,29 @@ export function warmUp(core: Core, source: WarmSource, schedule: Idle = idle): v
     },
     { timeout: 3000 },
   )
+}
+
+/**
+ * Warms up once, when `ready` first holds. The open note's text and `listed` are read when the
+ * window is idle, so a list still filling when the window got ready is warmed as it stands then.
+ */
+export function useWarmUp(
+  core: Core | undefined,
+  ready: boolean,
+  text: () => string,
+  listed: readonly string[],
+  schedule: Idle = idle,
+): void {
+  const latest = useRef({ text, listed })
+  useEffect(() => {
+    latest.current = { text, listed }
+  })
+  const warmed = useRef(false)
+  useEffect(() => {
+    if (!core || !ready || warmed.current) return
+    warmed.current = true
+    warmUp(core, () => ({ text: latest.current.text(), listed: latest.current.listed }), schedule)
+  }, [core, ready, schedule])
 }
 
 function idle(run: () => void, options: { timeout: number }): unknown {

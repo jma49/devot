@@ -56,6 +56,7 @@ import { libraryWarmFeatures } from '../../core/preview/warmFeatures'
 import type { SyncEngine, SyncStatus } from '../../core/sync/engine'
 import type { SyncEvent, TransportName } from '../../core/sync/transport'
 import { fromWireRelay, relayOut, type RelayOut, type WireRelay } from './noteRelayWire'
+import { lazyEngine, lazyOnce, trackedRuns } from './lazyStart'
 import type { SaveProblemsMessage } from './saving'
 import { starterTemplates } from './starterTemplates'
 import type { WireSync, WireTransport } from './storage/syncWire'
@@ -88,15 +89,14 @@ let savedSearches: SavedSearchService | undefined
 let templates: TemplateService | undefined
 let newId: (() => string) | undefined
 let welcome: ((content: WelcomeContent) => Promise<string | null>) | undefined
-let importing: Promise<unknown> = Promise.resolve()
+const imports = trackedRuns()
 let stopImport = false
-let mirror: MirrorRunner | undefined
+const mirror = lazyOnce<Awaited<ReturnType<typeof loadMirror>>, MirrorRunner>(loadMirror)
 let mirrorStorage: StorageAdapter | undefined
 let httpApi: AiService | undefined
 let httpWriter: Writer | null = null
 let callWriter: Writer | null = null
-let sync: SyncEngine | undefined
-let syncStarts = 0
+const sync = lazyEngine<Awaited<ReturnType<typeof loadSync>>, SyncEngine>(loadSync)
 let coreParts:
   | {
       storage: StorageAdapter
@@ -162,8 +162,8 @@ const coreApi = {
     const ids = createIdGenerator()
     newId = ids
     const storage = observeWrites(fromWire(remote), (noteIds) => {
-      mirror?.touch(noteIds)
-      sync?.touch()
+      mirror.current?.touch(noteIds)
+      sync.current?.touch()
     })
     mirrorStorage = storage
     coreParts = { storage, clock, newId: ids }
@@ -381,34 +381,34 @@ const coreApi = {
     const parts = { notes: required(), books: requiredBooks(), tags: requiredTags() }
     const files = mirrorStorage
     stopImport = false
-    const run = loadImport().then(([{ importMarkdown, preparerHere }, { preparerOffThread }]) => {
-      const prepare = preparerOffThread(
-        () =>
-          new Worker(new URL('./import.worker.ts', import.meta.url), {
-            type: 'module',
-          }),
-        preparerHere(ids),
-        () => console.warn('W_IMPORT_WORKER_FAILED'),
-      )
-      return importMarkdown({
-        ...parts,
-        newId: ids,
-        scan,
-        source,
-        files,
-        destination,
-        onProgress,
-        stopped: () => stopImport,
-        prepare,
-        wikiLinks,
-      }).finally(prepare.close)
-    })
-    importing = run.catch(() => undefined)
-    return run
+    return imports.run(() =>
+      loadImport().then(([{ importMarkdown, preparerHere }, { preparerOffThread }]) => {
+        const prepare = preparerOffThread(
+          () =>
+            new Worker(new URL('./import.worker.ts', import.meta.url), {
+              type: 'module',
+            }),
+          preparerHere(ids),
+          () => console.warn('W_IMPORT_WORKER_FAILED'),
+        )
+        return importMarkdown({
+          ...parts,
+          newId: ids,
+          scan,
+          source,
+          files,
+          destination,
+          onProgress,
+          stopped: () => stopImport,
+          prepare,
+          wikiLinks,
+        }).finally(prepare.close)
+      }),
+    )
   },
   stopImport: async () => {
     stopImport = true
-    await importing
+    await imports.settled()
   },
   planExport: async (target: ExportTarget, untitled: string) => {
     const parts = { notes: required(), books: requiredBooks(), tags: requiredTags() }
@@ -462,18 +462,18 @@ const coreApi = {
   /** Prepares the mirror (once); nothing runs until `mirrorReconcile`. */
   startMirror: async (host: MirrorHost, untitled: string, logFailure: (code: string) => void) => {
     const storage = mirrorStorage
-    if (mirror || !storage) return
-    const { createMirrorRunner } = await loadMirror()
-    if (mirror) return
+    if (!storage) return
     // Failures reach the app's log through the window (codes only).
-    mirror = createMirrorRunner({ storage, host, untitled, onError: logFailure })
+    await mirror.start(({ createMirrorRunner }) =>
+      createMirrorRunner({ storage, host, untitled, onError: logFailure }),
+    )
   },
   /** A full pass soon, unless one for Rust's `generation` ran already. */
-  mirrorReconcile: (generation?: number) => mirror?.reconcile(generation),
+  mirrorReconcile: (generation?: number) => mirror.current?.reconcile(generation),
   /** A pass soon: for the named notes only when nothing else changed, or for every note. */
-  mirrorTouch: (noteIds?: readonly string[]) => mirror?.touch(noteIds),
-  mirrorWake: () => mirror?.wake(),
-  mirrorStop: () => mirror?.stop(),
+  mirrorTouch: (noteIds?: readonly string[]) => mirror.current?.touch(noteIds),
+  mirrorWake: () => mirror.current?.wake(),
+  mirrorStop: () => mirror.current?.stop(),
   /** Runs the sync engine on Rust's store and socket, which the page passes in. */
   async startSync(
     store: WireSync,
@@ -484,33 +484,25 @@ const coreApi = {
     via: TransportName = 'relay',
   ) {
     const parts = coreParts
-    if (sync || !parts) return
-    const start = ++syncStarts
-    const [{ createSyncEngine }, { fromWireSync, fromWireTransport }] = await loadSync()
-    // A stop, or another start, came while the engine loaded.
-    if (sync || start !== syncStarts) return
-    sync = createSyncEngine({
-      ...parts,
-      ...(build ? { build } : {}),
-      via,
-      sync: fromWireSync(store),
-      transport: fromWireTransport(transport, via),
-      onStatus: (status) => void Promise.resolve(onStatus(status)).catch(() => undefined),
-      // The page merges the changes into the notes in memory and reloads, as for another process's writes.
-      onApplied: () => void Promise.resolve(onApplied()).catch(() => undefined),
-    })
-    sync.start()
+    if (!parts) return
+    await sync.start(([{ createSyncEngine }, { fromWireSync, fromWireTransport }]) =>
+      createSyncEngine({
+        ...parts,
+        ...(build ? { build } : {}),
+        via,
+        sync: fromWireSync(store),
+        transport: fromWireTransport(transport, via),
+        onStatus: (status) => void Promise.resolve(onStatus(status)).catch(() => undefined),
+        // The page merges the changes into the notes in memory and reloads, as for another process's writes.
+        onApplied: () => void Promise.resolve(onApplied()).catch(() => undefined),
+      }),
+    )
   },
-  async stopSync() {
-    syncStarts += 1
-    const engine = sync
-    sync = undefined
-    await engine?.stop()
-  },
-  syncReceived: (event: SyncEvent) => sync?.received(event),
-  syncTouch: () => sync?.touch(),
-  syncFocused: () => sync?.focused(),
-  syncAfterRestore: (choice: 'merge' | 'keep') => sync?.afterRestore(choice),
+  stopSync: () => sync.stop(),
+  syncReceived: (event: SyncEvent) => sync.current?.received(event),
+  syncTouch: () => sync.current?.touch(),
+  syncFocused: () => sync.current?.focused(),
+  syncAfterRestore: (choice: 'merge' | 'keep') => sync.current?.afterRestore(choice),
 }
 
 export type CoreApi = typeof coreApi

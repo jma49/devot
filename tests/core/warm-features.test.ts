@@ -24,6 +24,19 @@ describe('warmFeatures', () => {
     expect(warmFeatures(notes).languages).toEqual(['python', 'rust'])
   })
 
+  it('finds fences inside lists and quotes', () => {
+    const notes = [
+      '- Item\n\n  ```go\n  x\n  ```',
+      '> ```js\n> x\n> ```',
+      '1. Step\n   ~~~sql\n   x\n   ~~~',
+    ]
+    expect(warmFeatures(notes).languages).toEqual(['go', 'js', 'sql'])
+  })
+
+  it('takes prices for prices, not math', () => {
+    expect(warmFeatures(['It costs $5 and $10, or $20 in all.']).math).toBe(false)
+  })
+
   it('finds math and emoji in any of the notes', () => {
     expect(warmFeatures(['plain', 'Inline $a + b$.'])).toMatchObject({ math: true, emoji: false })
     expect(warmFeatures(['$$\nx\n$$'])).toMatchObject({ math: true })
