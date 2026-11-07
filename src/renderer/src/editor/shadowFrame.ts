@@ -38,7 +38,7 @@ const frameStyles = (() => {
           overflow: auto;
           overflow-y: var(--editor-overflow-y, auto);
           padding: var(--editor-padding);
-          /* The panes' top-edge fade (app.css). */
+          /* Not on .editor or .panes: popups beside this box must stay unmasked (app.css). */
           mask-image: linear-gradient(transparent, var(--color-ink-text) var(--scroll-edge-depth, 0px));
         }
         .editor-scroll::-webkit-scrollbar {

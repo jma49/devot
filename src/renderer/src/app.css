@@ -8272,7 +8272,7 @@ dialog[open].sheet.import {
   transition: --scroll-edge-size var(--motion-duration-quick) var(--motion-easing-quick);
 }
 
-/* Only the scroll boxes are masked (the editor's in editor/shadowFrame.ts): a mask clips to its box and drops the blur of glass inside it, and the editor's popups sit beside its scroll box. */
+/* Mask only the scroll boxes: a mask clips popups to its box and removes their backdrop blur in WKWebView. */
 .panes > .preview {
   mask-image: linear-gradient(transparent, var(--color-ink-text) var(--scroll-edge-depth, 0px));
 }
