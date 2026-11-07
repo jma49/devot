@@ -24,9 +24,20 @@ const note = (id: string, updatedAt = 1): NoteSummary => ({
 const trashed = (id: string): TrashedNote =>
   ({ id, title: id, deletedAt: 7, bookId: 'b1' }) as TrashedNote
 
+let stored: NoteSummary[] = []
+let listed = 0
+const listLibrary = async () => {
+  listed += 1
+  return { notes: stored, templates: [] }
+}
+
+/** The core worker's lists; the notes come from the page's storage (`listLibrary`). */
 function fakeCore(notes: NoteSummary[], trash: TrashedNote[] = []) {
+  stored = notes
   return {
-    listWithTemplates: async () => ({ notes, templates: [] }),
+    listWithTemplates: () => {
+      throw new Error('the notes were listed through the worker')
+    },
     listBooks: async () => [],
     listTags: async () => [],
     listTrash: async () => trash,
@@ -37,7 +48,10 @@ function fakeCore(notes: NoteSummary[], trash: TrashedNote[] = []) {
 function lists() {
   const rerunSearch = vi.fn<() => void>()
   const setResults = vi.fn<Dispatch<SetStateAction<SearchResults | undefined>>>()
-  return { hook: renderHook(useLibraryLists, { props: { rerunSearch, setResults } }), rerunSearch }
+  return {
+    hook: renderHook(useLibraryLists, { props: { rerunSearch, setResults, listLibrary } }),
+    rerunSearch,
+  }
 }
 
 describe('useLibraryLists', () => {
@@ -49,6 +63,15 @@ describe('useLibraryLists', () => {
       expect.objectContaining({ id: 't', createdAt: 7, updatedAt: 7, bookId: 'b1', pinned: false }),
     ])
     expect(rerunSearch).toHaveBeenCalledOnce()
+  })
+
+  it("lists the notes from the page's storage once, never through the worker", async () => {
+    const { hook } = lists()
+    listed = 0
+    const shown = await act(() => hook.current.refresh(fakeCore([note('a'), note('b')])))
+    expect(listed).toBe(1)
+    expect(shown.notes.map((n) => n.id)).toEqual(['a', 'b'])
+    expect(shown.trash).toEqual([])
   })
 
   it('dates a written note at once, but not while a reload is pending', async () => {

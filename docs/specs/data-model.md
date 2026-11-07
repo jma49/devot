@@ -150,6 +150,7 @@ Part of the [architecture overview](../architecture.md).
 - **The core must start, visibly:** the core worker starts when the window opens (`connectCore` in `src/renderer/src/coreConnect.ts`).
   A worker that does not load or raises an error before it is ready (`E_CORE_WORKER_FAILED`), a core that takes longer than 30 s to start (`E_CORE_START_TIMEOUT`) and a first load of the lists that fails (the load's own code, such as `E_STORAGE_BUSY`) are logged as `W_CORE_START_FAILED` with the code, and the window shows an error state in place of the library (`StartFailure.tsx`): what failed, a pointer to Help > Export Diagnostics… (whose logs hold the code) and Try Again, which stops the worker and starts the core again.
   An empty library is never shown for a core that is not running.
+  The main window lists its notes from the page's own storage and splits off the templates there (`listLibrary` in `src/renderer/src/core-client.ts`), so the summaries Rust sends are not copied to the worker and back (50k notes: 160 ms of copying and splitting before, 12 ms after, in Node).
   An error the worker raises after it started (an uncaught error or an unreadable message) is logged with its code and shown as a notice; the worker is kept, since it may hold unsaved changes.
   A worker that stops without any event cannot be told from a slow one and is not detected.
 - **Note limits:** a title is one line (no line feed or carriage return) of at most 1,000 code points, a body at most 32 MiB of UTF-8, a Yjs state at most 64 MiB, and a body links to at most 10,000 notes.
