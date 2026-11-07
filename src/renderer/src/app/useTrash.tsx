@@ -72,8 +72,6 @@ export function useTrashList({
   const askEmptyTrash = useStable(() => {
     if (trash.length > 0 && editing) setConfirm({ kind: 'empty' })
   })
-  // aria-disabled, not disabled: a disabled button would drop the keyboard
-  // when the Trash is emptied from it.
   const showTrashMenu = useTrashMenu((action, target) => void trashAction(action, target.id))
   const trashRowMenu = useStable(
     (id: string) =>
