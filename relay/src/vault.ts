@@ -124,7 +124,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 export const ORPHAN_AGE_MS = 90 * DAY_MS
 /** A wipe writes at most this share of the daily rows cap a day: the successor's upload runs in the same days. */
 export const WIPE_SHARE = 0.25
-const WIPE_SLICE_ROWS = 1000
+export const WIPE_SLICE_ROWS = 1000
 const MAX_DEVICES = 100
 /** Sealed file records up to this size (a purge's tombstone) are never refused for the attachment share. */
 const TOMBSTONE_BYTES = 1024

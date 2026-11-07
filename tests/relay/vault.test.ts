@@ -5,7 +5,7 @@ import { handleHttp, type Vaults } from '../../relay/src/front'
 import { RateLimiter } from '../../relay/src/limiter'
 import { sqliteSql } from '../../relay/src/node/sqlite'
 import { FREE_CAPS } from '../../relay/src/quota'
-import { ORPHAN_AGE_MS, VaultRelay, WIPE_SHARE } from '../../relay/src/vault'
+import { ORPHAN_AGE_MS, VaultRelay, WIPE_SHARE, WIPE_SLICE_ROWS } from '../../relay/src/vault'
 import {
   CLOSE,
   decodeFrame,
@@ -565,7 +565,8 @@ describe('wiping a retired vault', () => {
 
   it('wipes without a cap in slices that follow each other at once', async () => {
     const { relay, send, db } = await vaultAt(at, { quota: null, limiter: roomy() })
-    for (let i = 0; i < 1500; i++) send(...record(`r${i}`, 0, 1))
+    // A one-chunk record costs two rows: this many take three slices, one after the first sweep and one more.
+    for (let i = 0; i <= WIPE_SLICE_ROWS; i++) send(...record(`r${i}`, 0, 1))
     relay.retire({ successor })
     expect(relay.sweep()).toEqual({ drop: false, next: at })
     expect(count(db, 'records')).toBeGreaterThan(0)

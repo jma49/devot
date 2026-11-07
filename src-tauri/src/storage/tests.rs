@@ -2329,29 +2329,25 @@ fn excerpts_read_only_a_stretch_of_a_long_body() {
     );
     let found = body_excerpt(&body, &["needle"]).unwrap();
     assert!(found.contains("amet consectetur the needle here lorem"));
-    // A page of results (200 excerpts) of 110 KB bodies: reading each body
-    // whole took about 70 ms in a release build. Debug builds are slower and
-    // the machine may be busy, so this checks against reading the body
-    // whole, the best of a few rounds taken in turn: an excerpt (one found,
-    // one not) reads a small part of it.
-    let time = |work: &dyn Fn()| {
-        let start = Instant::now();
+    // A page of results reads each body whole, unless an excerpt reads only
+    // the stretches around the places it looks at.
+    let read = |work: &dyn Fn()| {
+        readable::READ_BYTES.with(|read| read.set(0));
         work();
-        start.elapsed()
+        readable::READ_BYTES.with(|read| read.get())
     };
-    let (mut excerpts, mut whole) = (Duration::MAX, Duration::MAX);
-    for _ in 0..5 {
-        excerpts = excerpts.min(time(&|| {
-            body_excerpt(&body, &["needle"]);
-            body_excerpt(&body, &["absent"]);
-        }));
-        whole = whole.min(time(&|| {
-            readable::readable_text(&body);
-        }));
-    }
+    let found = read(&|| {
+        body_excerpt(&body, &["needle"]);
+    });
+    let absent = read(&|| {
+        body_excerpt(&body, &["absent"]);
+    });
+    let whole = read(&|| {
+        readable::readable_text(&body);
+    });
     assert!(
-        excerpts * 4 < whole,
-        "two excerpts cost {excerpts:?}, against {whole:?} to read the body"
+        (found + absent) * 4 < whole,
+        "two excerpts read {found} and {absent} bytes, against {whole} to read the body"
     );
 }
 
