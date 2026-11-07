@@ -56,3 +56,53 @@ test('fades scrolled editor and preview independently', async ({ page }) => {
   await expect(panes).toHaveAttribute('data-preview-scrolled')
   await expect(preview).toHaveCSS('--scroll-edge-size', '28px')
 })
+
+test('scrolling a split note past the fade depth restyles nothing', async ({ page }) => {
+  await openApp(page)
+  await page.getByRole('button', { name: 'New Note', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('')
+  await page.getByRole('textbox', { name: 'Note body' }).click()
+  await page.keyboard.insertText(
+    Array.from({ length: 200 }, (_, i) => `## Section ${i}\n\nParagraph ${i}`).join('\n\n'),
+  )
+  await page.getByRole('textbox', { name: 'Title' }).click()
+  await page
+    .getByRole('group', { name: 'View mode' })
+    .getByRole('button', { name: 'Split', exact: true })
+    .click()
+  const panes = page.locator('.panes')
+  const preview = page.locator('.preview')
+  await expect(preview.getByRole('heading', { name: 'Section 199' })).toBeAttached()
+  await preview.evaluate((el) => {
+    el.scrollTop = 100
+  })
+  await expect(panes).toHaveAttribute('data-preview-scrolled')
+  await expect(panes).toHaveAttribute('data-editor-scrolled')
+  await expect(preview).toHaveCSS('--scroll-edge-size', '28px')
+  await expect(page.locator('.editor')).toHaveCSS('--scroll-edge-size', '28px')
+  // The depth stays on the pane it fades: the preview's blocks never inherit it.
+  for (const name of ['--scrolled-by', '--preview-scrolled-by', '--pane-scrolled-by']) {
+    await expect(page.locator('.preview-body')).toHaveCSS(name, '')
+  }
+  const restyled = await page.evaluate(async () => {
+    const watched = ['.content', '.panes', '.panes > .editor', '.panes > .preview']
+    const records: string[] = []
+    const observer = new MutationObserver((changes) => {
+      for (const change of changes) records.push((change.target as Element).className)
+    })
+    for (const selector of watched) {
+      observer.observe(document.querySelector(selector)!, { attributes: true })
+    }
+    const scroller = document.querySelector<HTMLElement>('.panes > .preview')!
+    const frame = () => new Promise((done) => requestAnimationFrame(() => done(undefined)))
+    for (let top = 150; top <= 2000; top += 50) {
+      scroller.scrollTop = top
+      await frame()
+      await frame()
+    }
+    observer.disconnect()
+    return { records, top: scroller.scrollTop }
+  })
+  expect(restyled.top).toBeGreaterThan(1000)
+  expect(restyled.records).toEqual([])
+})
