@@ -7,7 +7,6 @@ export interface NoteCounts {
   readonly characters: number
 }
 
-/** Code points other than whitespace. */
 function nonSpace(text: string): number {
   let characters = 0
   for (let at = 0; at < text.length;) {

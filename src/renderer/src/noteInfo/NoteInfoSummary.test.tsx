@@ -144,4 +144,21 @@ describe('the note summary', () => {
       { words: 3, characters: 11, selection: null },
     ])
   })
+
+  it('counts twice a pause when the footer has no shared tally', async () => {
+    const state = EditorState.create({ doc: 'one two' })
+    const reports: EditorCounts[] = []
+    const pacer = new CountsPacer(
+      () => state,
+      (counts) => reports.push(counts),
+      () => true,
+      (markdown) => core.noteCounts(markdown),
+    )
+    vi.mocked(core.noteTally).mockClear()
+    await show('one two')
+    await vi.waitFor(() => expect(reports).toHaveLength(1))
+    pacer.stop()
+    expect(core.noteTally).toHaveBeenCalledTimes(1)
+    expect(core.noteCounts).toHaveBeenCalledTimes(1)
+  })
 })
