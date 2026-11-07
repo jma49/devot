@@ -364,7 +364,7 @@ export function Preview({
       (input: RenderInput) => {
         // Read with the text, so a text that arrives after a switch is not taken for the note before.
         const source = input.read()
-        const noteId = noteNow.current
+        const ofNote = noteNow.current
         return core
           .renderLivePreview(
             source,
@@ -374,19 +374,19 @@ export function Preview({
               ...(input.remoteImages ? { remoteImages: input.remoteImages } : {}),
               ...(input.frontMatterInInfo ? { frontMatterInInfo: true } : {}),
             },
-            noteId === piecesOf.current ? pieces.current.map((piece) => piece.key) : [],
+            ofNote === piecesOf.current ? pieces.current.map((piece) => piece.key) : [],
             // The chips' notes are asked for again when another note opens or one of them changes.
             `${noteNow.current ?? ''} ${linksChanged.current}`,
           )
-          .then((next) => ({ next, input, source, noteId }))
+          .then((next) => ({ next, input, source, ofNote }))
       },
-      ({ next, input, source, noteId }) => {
+      ({ next, input, source, ofNote }) => {
         if (!host.current) return
-        if (noteId !== piecesOf.current) {
+        if (ofNote !== piecesOf.current) {
           // Another note shares nothing worth patching over with the one shown.
           host.current.replaceChildren()
           pieces.current = []
-          piecesOf.current = noteId
+          piecesOf.current = ofNote
         }
         try {
           pieces.current = patchPieces(host.current, pieces.current, next.pieces, { defer: true })

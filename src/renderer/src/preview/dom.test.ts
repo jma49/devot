@@ -341,10 +341,13 @@ describe('noteOffset, over pieces built later', { timeout: 30_000 }, () => {
     const offsets = offsetsIn(host, shown)
     expect(offsets.length).toBeGreaterThan(10)
     expect(offsets).toEqual(offsetsIn(whole, wholeShown))
-    for (const found of offsets) {
-      if (Array.isArray(found)) expect(edited.slice(found[0], found[1])).toMatch(/^!\[/)
-      else expect(edited.slice(found! - 1, found! + 2)).toMatch(/^\[[ xX]\]$/)
-    }
+    const pointedAt = offsets.map((found) =>
+      Array.isArray(found)
+        ? edited.slice(found[0], found[1])
+        : edited.slice(found! - 1, found! + 2),
+    )
+    // An image's range holds its Markdown; a task box points at the mark in its brackets.
+    expect(pointedAt.filter((text) => !/^(?:!\[|\[[ xX]\]$)/.test(text))).toEqual([])
   })
 })
 
