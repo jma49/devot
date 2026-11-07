@@ -63,6 +63,7 @@ const features: { sources: string[]; specs: string[] }[] = [
       'src/renderer/src/preview/mermaid-protocol.ts',
       'src/renderer/src/preview/mermaid-theme.ts',
       'src/renderer/src/mermaid-frame.ts',
+      'src/renderer/src/diagram-engines/loader.ts',
       'src/renderer/src/diagram-engines/registry.ts',
       'src/renderer/src/diagram-engines/mermaid.ts',
       'src/renderer/src/diagram-engines/plantuml.ts',

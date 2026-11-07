@@ -78,9 +78,11 @@ export function mermaidFrame(): Plugin {
   return {
     name: 'devot-mermaid-frame',
     configureServer(server) {
-      // Built ahead, so the first diagram does not wait seconds for the bundles.
+      // The frame and Mermaid are built ahead, so the first diagram does not wait seconds for them;
+      // the rarer engines are built when a diagram first asks for one.
       const warm = (name: string) => void bundle(name).catch(() => undefined)
-      SCRIPTS.forEach((_, name) => warm(name))
+      warm(MERMAID_FRAME_SCRIPT)
+      warm(engineScript('mermaid'))
       server.watcher.on('change', (file) => {
         for (const [name, built] of cached) {
           built.then(

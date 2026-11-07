@@ -4,12 +4,11 @@
 // through the private port the parent hands over, and the parent rebuilds the
 // returned SVG safely (preview/mermaid.ts). Each engine is a classic script
 // of its own, loaded when the first diagram that needs it is drawn.
-import { registeredEngine, type DrawingEngine } from './diagram-engines/registry'
+import { engineLoader } from './diagram-engines/loader'
 import {
   isRenderRequest,
   READY,
   targetOrigin,
-  type DiagramKind,
   type FrameMessage,
   type RenderRequest,
 } from './preview/mermaid-protocol'
@@ -17,13 +16,12 @@ import {
 let port: MessagePort | undefined
 /** Requests are drawn one after another (Mermaid's settings are global). */
 let queue: Promise<void> = Promise.resolve()
-const loading = new Map<DiagramKind, Promise<DrawingEngine>>()
 /** Built and served by scripts/vite/mermaid-frame.ts. */
-const ENGINE_SCRIPTS: Record<DiagramKind, string> = {
+const engine = engineLoader({
   mermaid: '/mermaid-frame-mermaid.js',
   plantuml: '/mermaid-frame-plantuml.js',
   markmap: '/mermaid-frame-markmap.js',
-}
+})
 
 const reply = (message: FrameMessage) => port?.postMessage(message)
 
@@ -33,30 +31,6 @@ document.body.style.margin = '0'
 window.requestAnimationFrame = (callback) =>
   window.setTimeout(() => callback(performance.now()), 16)
 window.cancelAnimationFrame = (id) => window.clearTimeout(id)
-
-/** A classic script: a module script or import() would be a CORS request, which the app refuses. */
-function engine(kind: DiagramKind): Promise<DrawingEngine> {
-  let loaded = loading.get(kind)
-  if (!loaded) {
-    loaded = new Promise((resolve, reject) => {
-      const script = document.createElement('script')
-      script.src = ENGINE_SCRIPTS[kind]
-      script.onload = () => {
-        const found = registeredEngine(kind)
-        if (found) resolve(found)
-        else reject(new Error('E_DIAGRAM_ENGINE'))
-      }
-      script.onerror = () => {
-        script.remove()
-        reject(new Error('E_DIAGRAM_ENGINE'))
-      }
-      document.head.appendChild(script)
-    })
-    loaded.catch(() => loading.delete(kind))
-    loading.set(kind, loaded)
-  }
-  return loaded
-}
 
 function render(request: RenderRequest): void {
   queue = queue
