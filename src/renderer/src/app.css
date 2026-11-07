@@ -8516,11 +8516,11 @@ button.popup:focus-visible {
   backdrop-filter: var(--glass-backdrop);
 }
 
-/* Search lives on glass already, so it gets a fill and rim without a second blur. */
 :root[data-sidebar-material='on'] .settings-history-button {
   width: var(--size-toolbar-control);
 }
 
+/* Search lives on glass already, so it gets a fill and rim without a second blur. */
 :root[data-sidebar-material='on'] .settings-search {
   gap: var(--size-toolbar-control-gap);
   height: var(--size-toolbar-control);

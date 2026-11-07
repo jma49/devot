@@ -115,7 +115,9 @@ The width, the empty line, the fade, the meta line and the drag hold in Classic 
 
 A control or block in a note is filled or outlined, never both, and a dashed border is not used at rest. A rendered table (hairline edge) and a callout (tinted edge) are the only bordered blocks; the table box behind Edit mode's source is fill only, like code.
 
-- **Pills** (notebook, status, tag): `color.fill.card`, no border, a 26 pt capsule (`size.note-pill`) laid out as Capsules says, 6 apart. Hover uses `color.fill.tool-hover`. Coloured tags keep their tint.
+- **Pills** (notebook, status, tag): `color.fill.card`, no border, a 26 pt capsule (`size.note-pill`) laid out as Capsules says, 6 apart.
+  Hover uses `color.fill.tool-hover`.
+  Coloured tags keep their tint.
 - **Add Tag:** the text "+ Tag" in tertiary with 8 padding. A dashed focus-ring outline shows only while it holds the keyboard.
 - **Code:** fill only. Blocks use `radius.list-row` (12), inline code `radius.inline-code` (5), in the preview and the editor. Edit mode's table box takes the same fill and `radius.list-row`.
 
@@ -148,9 +150,9 @@ Insets are measured from the capsule's outer edge; where it has a border, `size.
 - **Centre:** items centre on the text's optical centre, the middle of the cap height.
   For a name in lower case only it is the middle of the x-height: `lowercaseOnly` (`TagDot.tsx`) marks the dot `data-lowercase`, which moves it down by (1cap - 1ex) / 2.
   The label's line box is centred in the capsule.
-- **Sizes:** a dot is `space.4` (8) in every capsule, and the glyphs of one height share a size.
+- **Sizes:** a dot is `space.4` (8) in every capsule, and the glyphs of one height share a size; a notebook's own icon keeps `size.icon-sm`.
 - **Targets:** an x that removes keeps a round hit area of at least 16 inside the capsule, concentric with the end cap, and its glyph keeps its own size.
-- **Rows:** capsules in one row share a height and a baseline, and stand one gap token apart.
+- **Rows:** capsules in one row share a height and a baseline, and stand `space.3` (6) apart.
 
 | Capsule                              | Height                                                       | Text end                                          | Gap                                                         | End insets                                                                                                                                                |
 | ------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |

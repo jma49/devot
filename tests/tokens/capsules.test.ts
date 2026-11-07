@@ -143,6 +143,23 @@ describe('capsule tokens', () => {
       ],
       [glass('.note-meta .chip-remove'), 'width', 'var(--size-note-pill-remove)'],
       [glass('.note-meta .chip-remove'), 'inset-inline-end', 'var(--size-note-pill-end-remove)'],
+      [glass('.note-meta .chip-remove'), 'inset-block', 'var(--size-note-pill-end-remove)'],
+      [glass('.note-meta .chip-remove'), 'height', 'var(--size-note-pill-remove)'],
+      [
+        glass('.note-meta .popup'),
+        'padding-inline',
+        'var(--size-note-pill-pad) var(--size-note-pill-end-xs)',
+      ],
+      [
+        glass('.footer-toggle'),
+        'padding-inline',
+        'var(--space-5) var(--size-sidebar-footer-end-sm)',
+      ],
+      [
+        glass('.palette-field'),
+        'padding',
+        '0 var(--space-6) 0 var(--size-glass-palette-field-end-md)',
+      ],
       [glass('.note-meta .popup'), 'gap', 'var(--size-note-pill-gap)'],
       [
         glass(".note-meta .popup[class*='status-']"),
