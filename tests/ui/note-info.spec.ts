@@ -42,7 +42,7 @@ test('the summary ends the pill row and counts the note', async ({ page }) => {
   await expect(summary(page)).toHaveText('1/2 · 2 words')
   const meta = page.locator('.note-meta')
   await expect(meta.locator('.note-summary')).toBeVisible()
-  const add = (await meta.getByRole('button', { name: /Tag/ }).last().boundingBox())!
+  const add = (await meta.getByRole('group', { name: 'Tags' }).boundingBox())!
   const box = (await summary(page).boundingBox())!
   expect(box.x).toBeGreaterThan(add.x)
 })
@@ -64,9 +64,9 @@ test('the summary and View > Note Info open the card, and the keyboard comes bac
   await expect(card(page)).toHaveCount(0)
   await expect(summary(page)).toBeFocused()
 
-  await page.keyboard.press('ControlOrMeta+Alt+KeyI')
+  await page.keyboard.press('Meta+Alt+KeyI')
   await expect(card(page)).toBeVisible()
-  await page.keyboard.press('ControlOrMeta+Alt+KeyI')
+  await page.keyboard.press('Meta+Alt+KeyI')
   await expect(card(page)).toHaveCount(0)
 
   await summary(page).click()
@@ -96,15 +96,12 @@ test('a date is set from the date picker: Return sets, Escape cancels', async ({
 
   const createdNow = await created.textContent()
   await dateRow(page, 'Updated').click()
+  const focusedDay = picker(page).locator('[role="gridcell"][tabindex="0"]')
+  await expect(focusedDay).toBeFocused()
   await page.keyboard.press('PageUp')
   await page.keyboard.press('PageUp')
-  await expect(picker(page).getByRole('button', { name: 'Set' })).toHaveAttribute(
-    'aria-disabled',
-    'true',
-  )
-  await expect(picker(page).getByRole('alert')).toHaveText(
-    'Updated cannot be earlier than Created.',
-  )
+  await expect(focusedDay).toHaveAttribute('aria-disabled', 'true')
+  await expect(picker(page).getByRole('alert')).toHaveText('')
   await page.keyboard.press('Escape')
   await expect(picker(page)).toHaveCount(0)
   await expect(card(page)).toBeVisible()
