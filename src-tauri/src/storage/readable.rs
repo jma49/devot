@@ -86,7 +86,14 @@ fn fold_blanks(text: &str) -> String {
     folded
 }
 
+#[cfg(test)]
+thread_local! {
+    pub(crate) static READ_BYTES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 pub(crate) fn readable_text(markdown: &str) -> String {
+    #[cfg(test)]
+    READ_BYTES.with(|read| read.set(read.get() + markdown.len()));
     let lines: Vec<&str> = markdown
         .split('\n')
         .map(|l| l.strip_suffix('\r').unwrap_or(l))
