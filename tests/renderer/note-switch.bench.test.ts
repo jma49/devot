@@ -66,7 +66,7 @@ describe('switching notes on a 2 MB note', { timeout: TIMEOUT_MS }, () => {
   beforeAll(() => {
     state = typedState()
     body = replicaOf(state).getText(BODY).toString()
-  })
+  }, TIMEOUT_MS)
 
   it('is about 2 MB of text', () => {
     expect(body.length).toBeGreaterThan(2_000_000)

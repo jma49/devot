@@ -22,6 +22,7 @@ import {
   EditorState,
   Transaction,
   type StateEffect,
+  type Text,
   type ChangeSpec,
   type EditorStateConfig,
   type Extension,
@@ -49,7 +50,8 @@ export function yjsHistory(
 }
 
 interface Kept {
-  /** The editor's text length when left, which was the replica's. */
+  /** The editor's text when left, which was the replica's. */
+  text: Text
   length: number
   vector: Uint8Array
   history: unknown
@@ -60,9 +62,12 @@ interface Kept {
 
 const kept = new Map<string, Kept>()
 
+// A hidden window paints no frames, so the timer bounds how long a left replica is held.
+const PAINT_FALLBACK_MS = 1000
+
 const afterPaint = (work: () => void) => {
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(work))
-  else setTimeout(work)
+  setTimeout(work, PAINT_FALLBACK_MS)
 }
 
 /** The replica left, encoded; undefined when it changed since it was left, which an editor never does. */
@@ -70,9 +75,7 @@ function stateOf(was: Kept): Uint8Array | undefined {
   const doc = was.doc
   if (!doc) return was.state
   was.doc = undefined
-  const unchanged =
-    doc.getText(BODY).length === was.length && sameBytes(Y.encodeStateVector(doc), was.vector)
-  was.state = unchanged ? Y.encodeStateAsUpdate(doc) : undefined
+  was.state = sameInsertions(was, doc) ? Y.encodeStateAsUpdate(doc) : undefined
   return was.state
 }
 
@@ -92,7 +95,14 @@ export function keepUndo(noteId: string, state: EditorState, doc: Y.Doc): void {
   const length = doc.getText(BODY).length
   if (state.doc.length !== length) return
   const { history } = state.toJSON({ history: historyField }) as { history: unknown }
-  const was: Kept = { length, vector: Y.encodeStateVector(doc), history, doc, state: undefined }
+  const was: Kept = {
+    text: state.doc,
+    length,
+    vector: Y.encodeStateVector(doc),
+    history,
+    doc,
+    state: undefined,
+  }
   kept.set(noteId, was)
   afterPaint(() => void stateOf(was))
   for (const id of kept.keys()) {
@@ -156,14 +166,16 @@ function changesSince(was: Kept, doc: Y.Doc): { text: string; changes: ChangeSet
   }
 }
 
-/** Holds everything `was` holds, and no more text: deletions alone shorten it and insertions add to the vector. */
-function unchangedSince(was: Kept, doc: Y.Doc): boolean {
+/**
+ * Holds the insertions `was` holds and no others, with as much text; its deletions can still
+ * differ, since they do not move the state vector.
+ */
+function sameInsertions(was: Kept, doc: Y.Doc): boolean {
   return doc.getText(BODY).length === was.length && sameBytes(Y.encodeStateVector(doc), was.vector)
 }
 
 /** The history `was` kept, mapped through what changed in `doc` since; null when that cannot be told. */
-function historySince(was: Kept, doc: Y.Doc): unknown {
-  if (unchangedSince(was, doc)) return was.history
+function mappedHistory(was: Kept, doc: Y.Doc): unknown {
   const since = changesSince(was, doc)
   if (!since) return null
   const left = EditorState.fromJSON(
@@ -201,12 +213,20 @@ export function noteState(
 ): EditorState {
   const was = kept.get(noteId)
   if (!was) return EditorState.create(config)
-  const mapped = historySince(was, doc)
-  forget(noteId)
-  if (mapped === null) return EditorState.create(config)
-  return EditorState.fromJSON(
-    { doc: config.doc, selection: selectionJSON(config.selection), history: mapped },
-    { extensions: config.extensions ?? [] },
-    { history: historyField },
-  )
+  const withHistory = (history: unknown) =>
+    EditorState.fromJSON(
+      { doc: config.doc, selection: selectionJSON(config.selection), history },
+      { extensions: config.extensions ?? [] },
+      { history: historyField },
+    )
+  try {
+    if (sameInsertions(was, doc)) {
+      const state = withHistory(was.history)
+      if (state.doc.eq(was.text)) return state
+    }
+    const mapped = mappedHistory(was, doc)
+    return mapped === null ? EditorState.create(config) : withHistory(mapped)
+  } finally {
+    forget(noteId)
+  }
 }

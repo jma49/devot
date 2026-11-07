@@ -208,6 +208,19 @@ describe('a note shown again', () => {
     expect(state.doc.toString()).toBe('bc')
   })
 
+  it('has no history when the core refused a deletion and another left the same length', () => {
+    const core = replica('abcd')
+    const page = new Y.Doc()
+    Y.applyUpdate(page, Y.encodeStateAsUpdate(core))
+    keepUndo('note-refused', edit(start('abcd'), page, 0, 1, '', 1000), page)
+    core.getText(BODY).delete(3, 1)
+    let state = show('note-refused', changedElsewhere(core))
+    expect(state.doc.toString()).toBe('abc')
+    const depth = undoDepth(state)
+    state = run(state, undo)
+    expect({ depth, text: state.doc.toString() }).toEqual({ depth: 0, text: 'abc' })
+  })
+
   it('has no history when it was never left', () => {
     const state = show('note-new', replica('abc'))
     expect(state.doc.toString()).toBe('abc')

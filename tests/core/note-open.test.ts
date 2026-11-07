@@ -45,6 +45,22 @@ describe('opening a note in the core', () => {
     expect(textOf(again.state)).toBe('Plan\n')
   })
 
+  it('sends only the state when storage reads it as part of a larger frame', async () => {
+    const { notes, id, storage } = await setup('Plan\n')
+    const read = storage.openNote.bind(storage)
+    storage.openNote = async (noteId) => {
+      const opened = await read(noteId)
+      if (!opened) return null
+      const frame = new Uint8Array(opened.ydoc.byteLength + 64)
+      frame.set(opened.ydoc, 64)
+      return { ...opened, ydoc: frame.subarray(64) }
+    }
+    await notes.hold(id)
+    const { state } = await notes.open(id)
+    expect(state.byteLength).toBe(state.buffer.byteLength)
+    expect(textOf(state)).toBe('Plan\n')
+  })
+
   it('sends every change made since, saved or not', async () => {
     const { notes, id } = await setup('Plan\n')
     await notes.hold(id)
