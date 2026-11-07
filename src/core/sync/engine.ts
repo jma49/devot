@@ -6,13 +6,14 @@
 // holds (`fingerprint`).
 //
 // It runs one task at a time. Pushes wait for 3 s without writes, and go at least every 10 s while
-// writes go on; a large backlog goes out in batches (`pushMany`). It refuses to sync while this
-// device's clock is more than 5 minutes off the relay's, and a new vault epoch (a relay that lost its
-// data, or a new one) means every record is uploaded again. Revoked, unknown or refused devices stop
-// until the user acts; the relay's quota cap pauses pushes until its next 00:00 UTC, another
-// transport's pause lasts as long as it says (a full iCloud until it is looked at again); anything
-// else retries with backoff and jitter. The cursor and each record's change tag are the
-// transport's, never read here (docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md).
+// writes go on; a large note waits longer between its pushes (`pushPaceMs`), and a large backlog
+// goes out in batches (`pushMany`). It refuses to sync while this device's clock is more than 5
+// minutes off the relay's, and a new vault epoch (a relay that lost its data, or a new one) means
+// every record is uploaded again. Revoked, unknown or refused devices stop until the user acts; the
+// relay's quota cap pauses pushes until its next 00:00 UTC, another transport's pause lasts as long
+// as it says (a full iCloud until it is looked at again); anything else retries with backoff and
+// jitter. The cursor and each record's change tag are the transport's, never read here
+// (docs/adr/0015-sync-through-icloud-with-devots-own-encryption.md).
 
 import * as Y from 'yjs'
 import { textEdits } from '../diff'
@@ -85,6 +86,20 @@ import {
 
 export const PUSH_IDLE_MS = 3_000
 export const PUSH_EVERY_MS = 10_000
+/** About the most bytes a second one record's pushes average while it is edited. */
+const PACE_BYTES_PER_S = 100_000
+const MAX_PACE_MS = 60_000
+
+/**
+ * How long a note of `bytes` of state waits after the engine last read it before it is pushed
+ * again: each push reads and sends the whole record, so a large note goes out less often (2 MB
+ * about every 20 s). One that would wait no longer than the idle wait is not paced.
+ */
+export function pushPaceMs(bytes: number): number {
+  const wait = Math.min(MAX_PACE_MS, Math.round((bytes * 1_000) / PACE_BYTES_PER_S))
+  return wait > PUSH_IDLE_MS ? wait : 0
+}
+
 const MAX_PUSH_RETRIES = 5
 const MAX_CLOCK_SKEW_MS = 5 * 60_000
 const RETRY_BASE_MS = 250
@@ -442,6 +457,10 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   let reconnectDelay = RECONNECT_MIN_MS
   let pushTimer: ReturnType<typeof setTimeout> | undefined
   let firstTouch: number | undefined
+  /** When each large note may be pushed again (`pushPaceMs`), the first of those a pass skipped, and its pass. */
+  const pacedUntil = new Map<string, number>()
+  let nextPaced: number | undefined
+  let pacedTimer: ReturnType<typeof setTimeout> | undefined
   /** Record ID to the fingerprint the relay refused as too large; a changed record is tried again. */
   const tooLarge = new Map<string, string>()
   /** Past the retry cap: left until the next `changed`. */
@@ -589,8 +608,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   }
 
   /** A device that was stopped (revoked, refused) stays so until sync is turned off and on, or a recheck (`again`). */
-  async function connect(again = false) {
-    if (connected) return syncAll()
+  async function connect(again = false, paced = true) {
+    if (connected) return syncAll(paced)
     if (status.state === 'stopped' && !again) return
     if (await waitsForRestoreChoice()) return
     set({ state: 'connecting' })
@@ -623,7 +642,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     }
     connected = true
     reconnectDelay = RECONNECT_MIN_MS
-    await syncAll()
+    await syncAll(paced)
   }
 
   /** A library that never synced has nothing later to bring back, so nobody is asked. */
@@ -712,10 +731,10 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     }
   }
 
-  async function syncAll() {
+  async function syncAll(paced = true) {
     set({ state: 'syncing' })
     await pullAll()
-    await pushAll()
+    await pushAll(paced)
     await finishPass()
   }
 
@@ -1023,17 +1042,69 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     for (const [id, times] of pushTimes) if ((times.at(-1) ?? 0) <= since) pushTimes.delete(id)
   }
 
-  async function pushAll() {
+  async function pushAll(paced = true) {
     try {
-      await pushEach()
+      await pushEach(paced)
     } finally {
       forgetOldPushes()
+      armPaced()
     }
+  }
+
+  /** A large note read lately waits out its pace; the first wait a pass meets ends in a pass of its own. */
+  const waitsForPace = (id: string) => {
+    const until = pacedUntil.get(id)
+    if (until === undefined) return false
+    if (until <= now()) {
+      pacedUntil.delete(id)
+      return false
+    }
+    nextPaced = Math.min(nextPaced ?? until, until)
+    return true
+  }
+
+  /** The engine read the whole of a note: a large one is paced from now. */
+  const readWhole = (local: SyncLocal) => {
+    const row = local.note
+    const wait = row && !row.purged ? pushPaceMs(row.note.ydoc.length) : 0
+    if (wait > 0) pacedUntil.set(local.id, now() + wait)
+    else pacedUntil.delete(local.id)
+  }
+
+  function armPaced() {
+    clearTimeout(pacedTimer)
+    pacedTimer = undefined
+    const at = now()
+    for (const [id, until] of pacedUntil) if (until <= at) pacedUntil.delete(id)
+    const until = nextPaced
+    nextPaced = undefined
+    if (!running || until === undefined) return
+    pacedTimer = setTimeout(
+      () => {
+        pacedTimer = undefined
+        void enqueue(pushPass).catch(() => undefined)
+      },
+      Math.max(0, until - at),
+    )
+  }
+
+  /** What a push timer runs: a pass on the connection, or the stamps of edits made offline. */
+  async function pushPass() {
+    if (!connected) {
+      await stampAll()
+      armPaced()
+      return
+    }
+    set({ state: 'syncing' })
+    await pushAll()
+    // iCloud has no socket to say what changed meanwhile, and a silent push may not come.
+    if (via === 'icloud') await pullAll()
+    await finishPass()
   }
 
   const kept = (id: string) => tooLarge.has(id) || unsynced.has(id) || parked.has(id)
 
-  async function pushEach() {
+  async function pushEach(paced: boolean) {
     const upload = await trackUpload()
     let full: Paused | undefined
     const refused = (paused: Paused | undefined) => {
@@ -1047,7 +1118,8 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
           await pushBatches(upload, refused)
         } else {
           await pending(async (id) => {
-            if (!parked.has(id)) refused(await pushOne(id))
+            if (parked.has(id) || (paced && waitsForPace(id))) return
+            refused(await pushOne(id))
           })
         }
         full ??= shownRefused
@@ -1143,10 +1215,11 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
   async function stampAll() {
     await pending(async (id, edits) => {
-      if (stampedEdits.get(id) === edits) return
+      if (stampedEdits.get(id) === edits || waitsForPace(id)) return
       const [local] = await sync.syncRead([id])
       const entry = local?.entry
       if (!local || !entry || !local.note) return
+      readWhole(local)
       const stamped = stamp(local)
       if (stamped.bodyFp !== entry.bodyFp) await sync.syncPut({ ...entry, ...stamped })
       stampedEdits.set(id, edits)
@@ -1197,6 +1270,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const [local] = await sync.syncRead([id])
     const entry: SyncEntry | null | undefined = local?.entry
     if (!local || !entry) return null
+    readWhole(local)
     if (id === MOVED_ID) {
       console.warn('W_SYNC_RESERVED_ID', id)
       await sync.syncPut({ ...entry, synced: entry.edits })
@@ -1366,11 +1440,15 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       connected = false
       clearTimeout(reconnectTimer)
       clearTimeout(pushTimer)
+      clearTimeout(pacedTimer)
       clearInterval(pollTimer)
       pollTimer = undefined
       connectQueued = false
       reconnectTimer = undefined
       pushTimer = undefined
+      pacedTimer = undefined
+      pacedUntil.clear()
+      nextPaced = undefined
       firstTouch = undefined
       passQueued = false
       await transport.close().catch(() => undefined)
@@ -1388,14 +1466,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       pushTimer = setTimeout(() => {
         pushTimer = undefined
         firstTouch = undefined
-        void enqueue(async () => {
-          if (!connected) return stampAll()
-          set({ state: 'syncing' })
-          await pushAll()
-          // iCloud has no socket to say what changed meanwhile, and a silent push may not come.
-          if (via === 'icloud') await pullAll()
-          await finishPass()
-        }).catch(() => undefined)
+        void enqueue(pushPass).catch(() => undefined)
       }, wait)
     },
     received(event) {
@@ -1438,7 +1509,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       queuePass()
     },
     pushesRemembered: () => pushTimes.size,
-    syncNow: () => enqueue(() => connect()).catch(() => undefined),
+    syncNow: () => enqueue(() => connect(false, false)).catch(() => undefined),
     async idle() {
       for (let seen: Promise<void> | undefined; seen !== queue;) {
         seen = queue
