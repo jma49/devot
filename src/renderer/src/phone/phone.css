@@ -2957,8 +2957,64 @@ button.phone-grouped-open:active:not(:disabled) {
   background: var(--color-phone-separator);
 }
 
-:is(.phone-purchase-primary, .phone-purchase-buy-once, .phone-purchase-link)[aria-disabled='true'] {
+:is(
+  .phone-purchase-primary,
+  .phone-purchase-buy-once,
+  .phone-purchase-link,
+  .phone-pro-plain
+)[aria-disabled='true'] {
   opacity: var(--opacity-disabled);
+}
+
+/* The short Pro sheet: the dove in a lens circle, a title, one line, one filled action and Not Now. */
+.phone-pro {
+  display: flex;
+  flex-direction: column;
+}
+
+.phone-pro-lens {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 16px;
+  border-radius: 50%;
+  background: var(--color-phone-lens);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phone-pro-dove {
+  width: 28px;
+  height: 25px;
+}
+
+.phone-pro-title {
+  margin: 0 0 8px;
+  font-size: calc(20px * var(--phone-text-scale, 1));
+  line-height: calc(25px * var(--phone-text-scale, 1));
+  font-weight: 700;
+  color: var(--color-phone-text);
+}
+
+.phone-pro-actions {
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+}
+
+.phone-pro-line {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: calc(14px * var(--phone-text-scale, 1));
+  line-height: calc(19px * var(--phone-text-scale, 1));
+  color: var(--color-phone-text-secondary);
+}
+
+.phone-pro-plain {
+  min-height: var(--size-phone-target);
+  margin-top: 4px;
+  color: var(--color-accent-text);
+  font-size: calc(17px * var(--phone-text-scale, 1));
 }
 
 /* The Mac licence key: one long word, broken anywhere, selectable to copy by hand. */

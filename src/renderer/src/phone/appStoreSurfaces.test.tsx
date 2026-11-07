@@ -11,6 +11,8 @@ import { LicenceSection } from '../settings/LicenceSection'
 import { OnPhone } from '../settings/onPhone'
 import { PhoneSettings } from './PhoneSettings'
 import { PhonePurchaseSheet, PurchaseOffer } from './PhonePurchase'
+import { PhoneGate } from './PhoneProSheet'
+import { closeGate, requireEditing } from './requireEditing'
 
 vi.mock('../ipc', () => ({ invoke: vi.fn<() => Promise<unknown>>() }))
 vi.stubGlobal('DEVOT_UI_TEST', true)
@@ -231,14 +233,14 @@ describe('the purchase sheet', () => {
 })
 
 describe('the purchase sheet over the app', () => {
-  const open = async (licence: unknown) => {
+  const open = async (licence: unknown, gate = false) => {
     vi.mocked(invoke).mockImplementation(async (command) => {
       if (command === 'store_products') return products
       if (command === 'licence_get') return licence
       return undefined
     })
     const current = await readCurrentLicence()
-    openPurchase()
+    openPurchase({ gate })
     const host = document.createElement('div')
     document.body.append(host)
     const root = createRoot(host)
@@ -282,6 +284,19 @@ describe('the purchase sheet over the app', () => {
     }
   })
 
+  it('heads the sheet a locked write opened with Devot Pro not being active', async () => {
+    for (const [licence, title] of [
+      [appStore('available'), 'Devot Pro is not active'],
+      [appStore('ended'), 'Your trial has ended'],
+    ] as const) {
+      const { dialog, done } = await open(licence, true)
+      expect(heading(dialog)).toEqual({ label: title, title })
+      await vi.waitFor(() => expect(dialog?.textContent).toContain(STOREKIT_PRICE))
+      noOutsidePurchase(dialog?.outerHTML ?? '')
+      done()
+    }
+  })
+
   it('closes from the X in its head, and has no Not Now', async () => {
     const { dialog, done } = await open(appStore('available'))
     expect(dialog?.textContent).not.toContain('Not Now')
@@ -290,6 +305,35 @@ describe('the purchase sheet over the app', () => {
     act(() => close?.click())
     await vi.waitFor(() => expect(purchaseOpen()).toBe(false))
     done()
+  })
+})
+
+describe('the short Pro sheet in an App Store build', () => {
+  it('names no price and links nowhere while the purchases are unread', async () => {
+    const value = appStore('ended')
+    const unread = { ...value, appStore: { ...value.appStore, code: 'E_APP_STORE_UNREAD' } }
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === 'store_products') return products
+      if (command === 'licence_get') return unread
+      return undefined
+    })
+    const licence = await readCurrentLicence()
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    await act(async () => root.render(<PhoneGate licence={licence} onOpenLicence={() => {}} />))
+    await act(async () => requireEditing({ op: 'newNote', id: null }, () => {}))
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')
+    expect(dialog?.getAttribute('aria-label')).toBe('Get Devot Pro')
+    noOutsidePurchase(dialog?.outerHTML ?? '')
+    expect(dialog?.textContent).not.toContain(STOREKIT_PRICE)
+    act(() => {
+      closeGate()
+      root.unmount()
+    })
+    host.remove()
+    vi.mocked(invoke).mockReset()
+    vi.mocked(invoke).mockResolvedValue(undefined)
   })
 })
 

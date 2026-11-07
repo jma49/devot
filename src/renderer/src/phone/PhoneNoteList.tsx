@@ -21,6 +21,7 @@ import {
   type SectionChoices,
 } from './noteList'
 import { NotebookPicker, STATUS_LABEL, StatusMark, statusTile } from './pickers'
+import { requireEditing, watchWrite, type WriteOp } from './requireEditing'
 import {
   decideGesture,
   isArmed,
@@ -43,6 +44,11 @@ const FILTER_LABEL: Readonly<Record<PhoneStatusFilter, MessageKey>> = {
 type RowAction = 'pin' | 'trash' | 'done'
 
 const ACTIONS: readonly RowAction[] = ['pin', 'trash', 'done']
+const ROW_OPS: Readonly<Record<RowAction, WriteOp>> = {
+  pin: 'pin',
+  trash: 'trash',
+  done: 'complete',
+}
 
 const actionIcon = (key: RowAction, note: NoteSummary): IconName =>
   key === 'pin'
@@ -385,7 +391,8 @@ function Peek(props: {
         current={props.note.bookId}
         onClose={props.onClose}
         onPick={(bookId) => {
-          void props.data.core?.setBook(props.note.id, bookId)
+          const core = props.data.core
+          if (core) watchWrite('move', core.setBook(props.note.id, bookId))
           props.onClose()
         }}
       />
@@ -435,7 +442,11 @@ function Peek(props: {
             {actionLabel('pin', props.note)}
             <Icon name={actionIcon('pin', props.note)} size="phone-status" />
           </button>
-          <button type="button" role="menuitem" onClick={() => setMoving(true)}>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => requireEditing({ op: 'move', id: props.note.id }, () => setMoving(true))}
+          >
             {t('phone.moveTo')}
             <Icon name="phone.move" size="phone-status" />
           </button>
@@ -565,9 +576,13 @@ export function PhoneNoteList(props: {
 
   const act = (note: NoteSummary, key: RowAction) => {
     setPeekId(null)
-    if (key === 'pin') void data.core?.setPinned(note.id, !note.pinned)
-    else if (key === 'trash') props.onTrash(note)
-    else props.onComplete(note)
+    requireEditing({ op: ROW_OPS[key], id: note.id }, () => {
+      const core = data.core
+      if (key === 'pin') {
+        if (core) watchWrite('pin', core.setPinned(note.id, !note.pinned))
+      } else if (key === 'trash') props.onTrash(note)
+      else props.onComplete(note)
+    })
   }
   const peek = peekId ? rows.find((n) => n.id === peekId) : undefined
   const hasArrived = props.arrivedId !== null && rows.some((n) => n.id === props.arrivedId)
@@ -737,12 +752,15 @@ export function PhoneNoteList(props: {
           }}
           onStatus={(next) => {
             setPeekId(null)
-            if (next === 'completed') {
-              props.onComplete(peek)
-              return
-            }
-            haptic('selection')
-            void data.core?.setStatus(peek.id, next)
+            requireEditing({ op: 'status', id: peek.id }, () => {
+              if (next === 'completed') {
+                props.onComplete(peek)
+                return
+              }
+              haptic('selection')
+              const core = data.core
+              if (core) watchWrite('status', core.setStatus(peek.id, next))
+            })
           }}
           onAction={(key) => act(peek, key)}
         />

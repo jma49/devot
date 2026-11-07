@@ -50,7 +50,7 @@ import { catchUp } from './editor/catchUp'
 import {
   authorshipSlot,
   editorTop,
-  LOCKED,
+  lockExtensions,
   lockedSlot,
   marksFor,
   noteExtensions,
@@ -60,6 +60,7 @@ import {
   templateSlot,
   writeFor,
   writeSlot,
+  type EditorLock,
   type EditorPlace,
   type NoteEditorRefs,
 } from './editor/noteExtensions'
@@ -244,6 +245,8 @@ interface Props {
   onOpenNote?: (noteId: string) => void
   /** Shown but not changed: the trial is over without a licence. */
   readOnly?: boolean
+  /** While read-only, the text takes no caret either, so a tap raises no keyboard. */
+  noKeyboard?: boolean
 }
 
 export function NoteEditor({
@@ -280,9 +283,11 @@ export function NoteEditor({
   onChooseTemplate,
   onOpenNote,
   readOnly = false,
+  noKeyboard = false,
 }: Props) {
   const host = useRef<HTMLDivElement>(null)
-  const locked = useRef(readOnly)
+  const lock = readOnly ? (noKeyboard ? 'noKeyboard' : 'readOnly') : 'none'
+  const locked = useRef<EditorLock>(lock)
   // Read once, when the note has loaded.
   const focusOnOpen = useRef(autoFocus)
   const focusOnlyIfFree = useRef(autoFocusIfFree)
@@ -465,10 +470,10 @@ export function NoteEditor({
   }, [write, core, hidden])
 
   useEffect(() => {
-    if (locked.current === readOnly) return
-    locked.current = readOnly
-    editor.current?.view.dispatch({ effects: lockedSlot.reconfigure(readOnly ? LOCKED : []) })
-  }, [readOnly])
+    if (locked.current === lock) return
+    locked.current = lock
+    editor.current?.view.dispatch({ effects: lockedSlot.reconfigure(lockExtensions(lock)) })
+  }, [lock])
 
   useEffect(() => {
     const now = editor.current

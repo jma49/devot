@@ -26,37 +26,16 @@ export function useBoardMoves({
   libraryChanges: LibraryChanges
 }) {
   const { listView, canBoard, boardNotes, boardStatusList, setMovedTo } = view
-  const { changeBooks, runBatch, batchFailures, setBatchFailed } = libraryChanges
+  const { changeBooks, batchFailures, setBatchFailed } = libraryChanges
   // Status changes on a board view, however made (drops, keys, menus, the editor), are kept per view, in memory, so Undo and Redo on a board take back or make again the last one.
   const boardMoves = useRef<ReturnType<typeof createBoardHistories>>(undefined)
   const boardHistory = () => (boardMoves.current ??= createBoardHistories()).forView(listView)
-  const recordStatus = (ids: readonly string[], status: NoteStatus) => {
-    if (canBoard && editing) boardHistory().record(moveChanges(boardNotes, ids, status))
-  }
-  const setStatus = (noteId: string, status: NoteStatus) => {
-    recordStatus([noteId], status)
-    return changeBooks((c) => c.setStatus(noteId, status))
-  }
-  const setNotesStatus = (ids: readonly string[], status: NoteStatus) => {
-    recordStatus(ids, status)
-    return runBatch(ids, { kind: 'status', status })
-  }
-
-  /** Makes `changes`, resolving to those that were written. */
-  const applyMove = async (changes: BoardMove): Promise<BoardMove> => {
-    if (changes.length === 0) return changes
+  // The board shows changes before the lists have them, so an Undo straight after one finds it there.
+  const showWhile = async <T>(changes: BoardMove, write: () => Promise<T>): Promise<T> => {
+    if (changes.length === 0) return write()
     setMovedTo((shown) => new Map([...shown, ...changes.map((c) => [c.id, c.to] as const)]))
-    const failed: string[] = []
     try {
-      for (const [status, ids] of changesByStatus(changes)) {
-        failed.push(...(await batchFailures(ids, { kind: 'status', status }, { notice: false })))
-      }
-      // One notice for the whole move, with every card whose write failed.
-      if (failed.length > 0) setBatchFailed(failed.length)
-      return appliedChanges(changes, failed)
-    } catch (e) {
-      console.warn('W_BOARD_MOVE_FAILED', errorCode(e))
-      return []
+      return await write()
     } finally {
       setMovedTo((shown) => {
         const left = new Map(shown)
@@ -64,6 +43,52 @@ export function useBoardMoves({
         return left
       })
     }
+  }
+  const writeStatus = async (
+    ids: readonly string[],
+    status: NoteStatus,
+    writeFailures: () => Promise<readonly string[]>,
+  ) => {
+    const changes = moveChanges(boardNotes, ids, status)
+    const history = canBoard && editing ? boardHistory() : undefined
+    history?.record(changes)
+    let failed: readonly string[] = ids
+    try {
+      failed = await showWhile(changes, writeFailures)
+    } finally {
+      const applied = appliedChanges(changes, failed)
+      if (applied.length < changes.length) history?.settle(changes, applied)
+    }
+  }
+  const setStatus = (noteId: string, status: NoteStatus) =>
+    writeStatus([noteId], status, async () => {
+      let written = false
+      await changeBooks(async (c) => {
+        await c.setStatus(noteId, status)
+        written = true
+      })
+      return written ? [] : [noteId]
+    })
+  const setNotesStatus = (ids: readonly string[], status: NoteStatus) =>
+    writeStatus(ids, status, () => batchFailures(ids, { kind: 'status', status }))
+
+  /** Makes `changes`, resolving to those that were written. */
+  const applyMove = async (changes: BoardMove): Promise<BoardMove> => {
+    if (changes.length === 0) return changes
+    return showWhile(changes, async () => {
+      const failed: string[] = []
+      try {
+        for (const [status, ids] of changesByStatus(changes)) {
+          failed.push(...(await batchFailures(ids, { kind: 'status', status }, { notice: false })))
+        }
+        // One notice for the whole move, with every card whose write failed.
+        if (failed.length > 0) setBatchFailed(failed.length)
+        return appliedChanges(changes, failed)
+      } catch (e) {
+        console.warn('W_BOARD_MOVE_FAILED', errorCode(e))
+        return []
+      }
+    })
   }
   const recordMove = (changes: BoardMove) => {
     if (!editing || changes.length === 0) return

@@ -18,7 +18,7 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 - **Note list header:** the toolbar holds only the sidebar toggle and the view's name over its count, left-aligned `space.5` (10) after the toggle on the same y = 26 line.
   The name is cut off with an ellipsis and, with the sidebar hidden, keeps clear of the traffic lights by the toolbar's start padding.
   Actions on the list sit at the end of the search row, not in the toolbar: New Note is a `size.list-action` (32, the search field's height) round tool on `color.fill.track` (hover `color.fill.tool-hover`), `space.3` (6) after the field, its right edge on the list's outer keyline (12).
-  A view's own action (Empty in the Trash) takes its place.
+  A view's own action (Empty Trash in the Trash) takes its place as a round icon button of the same size and fill, named by its label and tooltip.
   The List and Board control stays in the sort row below.
 - **Sidebar depth:** a top-level notebook has no extra indent. Each deeper level steps 16, and the chevron hangs in the row's padding without pushing the row. The guide runs from an open notebook's icon down its children, drawn per child row; where it meets a row's chevron it breaks `space.1` clear of the chevron's 14 px box (an 18 px gap centred on the row) and continues above and below.
 - **Outline:** a column `size.outline-width` (220) at the editor pane's right edge, beside the scroll bar's reserve, with rows of body size on `space.3` sides; each level steps `space.7`. It is hidden in focus mode and when the panes would fall below `size.pane-min-width` each.

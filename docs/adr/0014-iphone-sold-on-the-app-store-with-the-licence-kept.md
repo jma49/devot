@@ -47,6 +47,7 @@ Otherwise the iPhone is read-only under the same rules as the Mac after its tria
 ### What the iPhone shows
 
 - **The welcome and purchase sheet,** before the trial and when it ends: the trial's length, what is locked when it ends, and the price of Devot Pro as StoreKit gives it. Its actions are Start 30-day Trial, Buy Devot Pro, Restore Purchases and Enter Licence Key.
+- **A write while editing is locked** opens the purchase sheet in gate mode, headed "Devot Pro is not active" or "Your trial has ended", with Try Free (while the trial is available) beside StoreKit's price; any other locked state shows a short sheet with no price and no link.
 - **Settings:** the Licence row, Restore Purchases, and once an App Store purchase is held, Get a Mac Licence Key.
 - **No way to pay outside the App Store:** an App Store build shows no link to `/buy` or to the website's prices, and no price other than StoreKit's. A test enforces this for every phone surface.
 - **Manage Devices stays, without the website.** The Worker's pages link to devot.online in their header and footer, and the website sells the Mac licence and shows its price, so the phone opens `/devices?from=app` instead, in Safari. With `from=app` the Worker serves `/devices`, its form posts and its error answers with no link to devot.online or `/buy`; without it they are unchanged. A test over the Worker's pages checks that the flagged page links nowhere outside `/devices`.

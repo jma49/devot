@@ -1,11 +1,13 @@
 import {
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
+  type Ref,
 } from 'react'
 import { createPortal } from 'react-dom'
 import { t } from '../i18n'
@@ -22,15 +24,24 @@ const DISMISS_SPEED = 0.5
 const sheetCloses = (travel: number, speed: number): boolean =>
   travel > DISMISS_TRAVEL || (speed > DISMISS_SPEED && travel > 24)
 
+export interface SheetHandle {
+  close: () => void
+}
+
 /**
  * A modal bottom sheet: grows in with `gentle`, and a drag down on its top or Escape closes it.
  * While open it holds the keyboard and the rest of the app is inert; closed, it gives the
  * keyboard back to what had it.
  */
-export function PhoneSheet(props: {
+export function PhoneSheet({
+  ref,
+  ...props
+}: {
   title: string
   onClose: () => void
   children: ReactNode
+  /** Its `close` moves as a drag down does. */
+  ref?: Ref<SheetHandle>
   tall?: boolean
   /** No head: the contents bring their own title. */
   plain?: boolean
@@ -103,6 +114,7 @@ export function PhoneSheet(props: {
     else setDrag(null)
   }
   useEffect(() => () => start.current?.stop(), [])
+  useImperativeHandle(ref, () => ({ close }))
   const onKey = (event: KeyboardEvent) => {
     if (event.defaultPrevented || isImeKey(event.nativeEvent)) return
     // A sheet opened from this one is a child in React, so its keys would reach this one too.

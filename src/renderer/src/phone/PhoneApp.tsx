@@ -32,9 +32,10 @@ import { startScreensBridge } from './screens/bridge'
 import { currentWindowLabel } from '../focus'
 import { useSyncEngine } from '../sync'
 import { licenceRow, welcomeDue } from './settingsRows'
-import { openPurchase, usePurchaseOpen } from '../purchaseSheet'
-import { PhonePurchaseSheet } from './PhonePurchase'
+import { openPurchase } from '../purchaseSheet'
 import { PhoneCapture } from './PhoneCapture'
+import { PhoneGate } from './PhoneProSheet'
+import { dropIntent, requireEditing, watchWrite } from './requireEditing'
 import { applyGlassPrefs } from './glassPrefs'
 import { PhoneNote } from './PhoneNote'
 import { PhoneNoteList } from './PhoneNoteList'
@@ -232,7 +233,6 @@ export function PhoneApp() {
   const [searching, setSearching] = useState(false)
   const [searchQuery, setSearchQuery] = useState<string>()
   const licence = useLicence()
-  const purchasing = usePurchaseOpen()
   const welcomed = useRef(false)
   const undoable = useUndoToast(store)
   const now = useLicenceClock(licence)
@@ -278,7 +278,7 @@ export function PhoneApp() {
     if (route.screen === 'note' && route.noteId)
       return <PhoneNote store={store} noteId={route.noteId} onBack={pop} onTrash={undoable.trash} />
     if (route.screen === 'pane' && route.pane)
-      return <PhoneSettingsPane pane={route.pane} onBack={pop} />
+      return <PhoneSettingsPane pane={route.pane} focusKey={route.focusKey === true} onBack={pop} />
     if (tab === 'library' && route.screen === 'root')
       return (
         <PhoneLibrary
@@ -287,12 +287,17 @@ export function PhoneApp() {
           onOpenList={(view) => dispatch({ type: 'push', screen: 'list', view })}
           onSearch={() => openSearch()}
           onSavedSearch={openSearch}
-          onNewNotebook={() => {
-            void store.core
-              ?.createBook(t('book.new'), null)
-              .then(store.refresh)
-              .catch(() => console.warn('W_PHONE_NEW_NOTEBOOK_FAILED'))
-          }}
+          onNewNotebook={() =>
+            requireEditing({ op: 'newNotebook', id: null }, () => {
+              const core = store.core
+              if (core)
+                watchWrite(
+                  'newNotebook',
+                  core.createBook(t('book.new'), null).then(store.refresh),
+                  'W_PHONE_NEW_NOTEBOOK_FAILED',
+                )
+            })
+          }
         />
       )
     if (tab === 'activity')
@@ -360,6 +365,7 @@ export function PhoneApp() {
         needsAttention={licenceRow(licence, now).needsAttention}
         onSelect={(tab) => {
           if (tab !== state.tab) {
+            dropIntent()
             haptic('selection')
             // A hidden tab keeps its focus, so a field that saves when it is left would never save.
             if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -378,16 +384,14 @@ export function PhoneApp() {
         }}
       />
       <PhoneToast toast={undoable.toast} />
-      {purchasing && (
-        <PhonePurchaseSheet
-          licence={licence}
-          onEnterKey={() => {
-            setSearching(false)
-            dispatch({ type: 'selectTab', tab: 'settings' })
-            dispatch({ type: 'push', screen: 'pane', pane: 'licence' })
-          }}
-        />
-      )}
+      <PhoneGate
+        licence={licence}
+        onOpenLicence={(focusKey) => {
+          setSearching(false)
+          dispatch({ type: 'selectTab', tab: 'settings' })
+          dispatch({ type: 'push', screen: 'pane', pane: 'licence', focusKey })
+        }}
+      />
       <PhoneSearch
         store={store}
         open={searching}

@@ -82,10 +82,21 @@ Under it, three lines of what Devot Pro unlocks, each with a check in `color.acc
 Then one filled action, `size.phone-sheet-done` high: Try Free while the trial is available, with Buy Once and StoreKit's price as a 44 accent text button under it; once the trial has ended, Buy Devot Pro with the price is the filled action and the trial is gone.
 The price always sits in the buy action, and Buy names no price until StoreKit gives one.
 Restore Purchases and Enter License Key share the last line, each a 44 target in 15 accent text, with a `size.phone-separator` hairline in `color.phone.separator` between them; Enter License Key and the hairline are there only in a build that takes keys.
+Opened by a write while editing is locked, its title says that Devot Pro is not active while the trial is available, and that the trial has ended once it has; the rest is the same.
 
-Note: a note opens in Preview, and an empty one in Edit, chosen once when its body has loaded. Its text, in Edit and Preview, shares the title's left and right edges. A later change to the body never changes the mode. Back and Forward return to a note in the mode it was left in; leaving the note's screen forgets that. The top bar has a back circle, the notebook's path in mono, and a capsule of the mode toggle and info. Below it the title 26 bold, wrapping to as many lines as it needs (Return adds none), the chips, a long name cut with an ellipsis at the screen's width, then the edit time and word count in `.phone-figures`; there is no per-note sync state. The bottom has a glass capsule of Back and Forward, a find circle and, in Edit, an AI circle with its sparkle in the caret colour. While typing the bottom fades and the formatting bar sits on the keyboard, with a hide-keyboard circle.
+Pro sheet, for a write while editing is locked in every other state: the dove in a 56 `color.phone.lens` circle, then a 20/25 bold title and one 16/24 line in `color.phone.text-secondary`.
+Then one filled action, `size.phone-sheet-done` high, and Not Now as a 44 target in 17 accent text.
+The action is Enter License Key when no license is held, Open License Settings when the license or this device's seat needs attention, and Try Again while App Store purchases or the keychain could not be read.
+While App Store purchases could not be read, Restore Purchases follows Not Now as a third.
+It has no close circle, names no price and links nowhere; a check in progress or a failure shows in one 14/19 line under the action.
+Every write the phone offers goes through one gate (`phone/requireEditing.ts`), so a tap shows one sheet and never a write that silently fails.
+
+Note: a note opens in Preview, and an empty one in Edit, chosen once when its body has loaded.
+While editing is locked a note opens in Preview and stays there: the mode toggle, a task box, the title, the chips and the AI circle show the lock's sheet instead.
+Its text, in Edit and Preview, shares the title's left and right edges. A later change to the body never changes the mode. Back and Forward return to a note in the mode it was left in; leaving the note's screen forgets that. The top bar has a back circle, the notebook's path in mono, and a capsule of the mode toggle and info. Below it the title 26 bold, wrapping to as many lines as it needs (Return adds none), the chips, a long name cut with an ellipsis at the screen's width, then the edit time and word count in `.phone-figures`; there is no per-note sync state. The bottom has a glass capsule of Back and Forward, a find circle and, in Edit, an AI circle with its sparkle in the caret colour. While typing the bottom fades and the formatting bar sits on the keyboard, with a hide-keyboard circle.
 
 Find: the editor's own find, in a glass bar on the keyboard with a count, its numbers in `.phone-figures` and its words in the body font, previous, next and a close circle. It switches a note in Preview to Edit.
+While editing is locked that editor takes no caret, so a tap in the text raises no keyboard.
 
 Note info: the sheet has the stats in mono, in two columns at the accessibility sizes; icon rows for notebook, created, modified and, on an enrolled device, synced devices, plain rows at full opacity, not buttons, each value under its label at the accessibility sizes; backlinks, which opens the linking notes when there are any; and Move to Trash, with the undo toast. There is no revision history or export row: neither has a phone screen yet.
 

@@ -8,7 +8,12 @@ import type { Core } from '../core-client'
 import type { LinkSources } from '../linkCompletion'
 import { linkOpener } from './lineCommands'
 import { newFromSelection } from './noteKeys'
-import { noteExtensions, type EditorPlace, type NoteEditorRefs } from './noteExtensions'
+import {
+  noteExtensions,
+  type EditorLock,
+  type EditorPlace,
+  type NoteEditorRefs,
+} from './noteExtensions'
 
 const NOTE = '01890a5d-ac96-774b-bcce-b302099a8057'
 
@@ -35,7 +40,7 @@ function refs(overrides: Partial<NoteEditorRefs> = {}): NoteEditorRefs {
     aiEdit: { current: undefined },
     aiMenu: { current: async () => {} },
     imageHandlers: { current: { open: undefined, menu: undefined } },
-    locked: { current: false },
+    locked: { current: 'none' },
     countsReport: { current: undefined },
     caretLineReport: { current: undefined },
     ...overrides,
@@ -93,7 +98,16 @@ describe('noteExtensions', () => {
 
   it('is read-only for a note shown while locked', () => {
     expect(noteState('text', refs()).state.readOnly).toBe(false)
-    expect(noteState('text', refs({ locked: { current: true } })).state.readOnly).toBe(true)
+    expect(noteState('text', refs({ locked: { current: 'readOnly' } })).state.readOnly).toBe(true)
+  })
+
+  it('takes no caret either where a read-only text would still raise the keyboard', () => {
+    const editable = (locked: EditorLock) =>
+      noteState('text', refs({ locked: { current: locked } })).state.facet(EditorView.editable)
+    expect(editable('none')).toBe(true)
+    expect(editable('readOnly')).toBe(true)
+    expect(editable('noKeyboard')).toBe(false)
+    expect(noteState('text', refs({ locked: { current: 'noKeyboard' } })).state.readOnly).toBe(true)
   })
 
   it('reports the place and the caret line as the selection moves', () => {
