@@ -32,7 +32,7 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 
 - List sections have no rule between them. A later section gets `size.list-section-gap` (14) more space above it.
 - One caption style for the sidebar and the list (`.section-header`, `.list-section`): caption size (11), semibold, tertiary text, no icon.
-- The editor footer (`.editor-counts`, words and characters) is caption size (11) in tertiary text, right-aligned to the history bar's margin (`space.10`), with no rule above it.
+- The editor footer (`.editor-counts`, words and characters) is caption size (11) in tertiary text, right-aligned to the history bar's margin (`space.10`) from the content column's edge, with no rule above it; focus mode does not narrow it to the reading column, so it keeps the window's bottom-right corner.
 - Footnotes on screen start with a 48 pt hairline (`size.footnote-rule`) on the text's edge, with text at footnote size (12) in secondary. Print keeps the full-width rule.
 
 ## Settings footnotes

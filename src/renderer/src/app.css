@@ -3008,7 +3008,7 @@ div.card-placeholder {
   padding-inline-start: var(--size-window-controls-inset);
 }
 
-.window[data-focus] .content > :not(.toolbar) {
+.window[data-focus] .content > :not(.toolbar, .editor-counts) {
   box-sizing: border-box;
   width: min(var(--size-reading-width), 100% - var(--space-10) * 2);
   margin-inline: auto;
