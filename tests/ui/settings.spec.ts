@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { sizes } from '../../src/renderer/src/theme/tokens'
 import { changeEditorSettingsElsewhere, expect, openSettings, test } from './fixtures'
 
 const AT = Date.UTC(2026, 9, 10, 9, 30)
@@ -1277,7 +1278,7 @@ test('the search capsule lines up with the rows, and every control ends on the c
   const search = await box('.settings-search')
   const selected = await box('.settings-nav-row[aria-selected="true"]')
   expect([search.x, search.x + search.width]).toEqual([selected.x, selected.x + selected.width])
-  await expect(page.locator('.settings-search')).toHaveCSS('border-radius', '14px')
+  await expect(page.locator('.settings-search')).toHaveCSS('border-radius', sizes['radius.capsule'])
 
   for (const pane of ['General', 'Appearance', 'Editing']) {
     await tab(page, pane).click()

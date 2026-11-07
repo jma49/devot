@@ -1,4 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
+import { sizes as tokenSizes } from '../../src/renderer/src/theme/tokens'
 import { expect, pickMenuItem, pickNoteMore, test } from './fixtures'
 
 const FOLDERS = ['Inbox', 'Projects', 'Projects/Deep', 'Areas', 'Resources', 'Archive', 'Daily']
@@ -197,7 +198,10 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expectGlassSurface(dialog)
       const card = await box(dialog)
       expect(card.width).toBe(300)
-      await expect(dialog).toHaveCSS('padding', '22px 16px 16px')
+      const inset = Number.parseFloat(tokenSizes['size.glass-alert-inset'])
+      await expect(dialog).toHaveCSS('padding', `22px ${inset}px ${inset}px`)
+      // The capsules' ends are concentric with the card's corners.
+      await expect(dialog).toHaveCSS('border-radius', `${inset + 32 / 2}px`)
       await expect(dialog).toHaveCSS('text-align', 'center')
 
       const tile = dialog.locator('.confirm-icon')
@@ -215,11 +219,11 @@ for (const colorScheme of ['light', 'dark'] as const) {
       const destructiveBox = await box(destructive)
       for (const button of [cancelBox, destructiveBox]) {
         expect(button.height).toBe(32)
-        expect(button.width).toBe(268)
-        expect(button.x - card.x).toBeCloseTo(16, 0)
+        expect(button.width).toBe(300 - 2 * inset)
+        expect(button.x - card.x).toBeCloseTo(inset, 0)
       }
       expect(cancelBox.y - (destructiveBox.y + destructiveBox.height)).toBeCloseTo(8, 0)
-      expect(card.y + card.height - (cancelBox.y + cancelBox.height)).toBeCloseTo(16, 0)
+      expect(card.y + card.height - (cancelBox.y + cancelBox.height)).toBeCloseTo(inset, 0)
       await expect(cancel).toHaveCSS('border-radius', '999px')
       await expect(destructive).toHaveCSS('border-radius', '999px')
       await expect(destructive).toHaveCSS('background-color', 'rgb(196, 55, 47)')
