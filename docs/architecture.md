@@ -30,7 +30,7 @@ Docs are written one sentence per line, so a change touches only the sentences i
 - [Extensions](specs/extensions.md): the internal extension API and third-party plugins.
 - [Localisation](specs/localisation.md): the message catalog, placeholders, `Intl` and the rule against CJK characters in code.
 - [Design system](specs/design-system.md): the design direction, the assets in `design/`, the app icon, and theming.
-- [Native look](specs/native-look.md): the window material and interface style, menus and context menus, selection and batch changes, drag and drop, the sidebar, note list layouts, keyboard navigation, commands and shortcuts, the command palette and icons.
+- [Native look](specs/native-look.md): the window material and Glass Transparency, menus and context menus, selection and batch changes, drag and drop, the sidebar, note list layouts, keyboard navigation, commands and shortcuts, the command palette and icons.
 - [Quality](specs/quality.md): priorities, test layers, data integrity, security tests, static checks, coverage, CI, the workflow, and crash reporting and logs.
 - [Performance](specs/performance.md): the product's budgets and the core benchmarks that hold them.
 - [First-launch notes](specs/first-launch-notes.md): the "Getting started" notebook a new library gets.
@@ -98,7 +98,7 @@ Measured on the same CodeMirror page with a 10k-character note, M1 Pro, macOS 27
 | Idle CPU, static page          | ≈ 0 %                 | ≈ 0 %                                |
 
 Tauri also runs the same code on iOS.
-Its costs: WKWebView paces rendering at 60 fps unless a private WebKit preference is turned off, and window transparency (needed for the sidebar material) uses a private API too; both rule out the Mac App Store.
+Its costs: WKWebView paces rendering at 60 fps unless a private WebKit preference is turned off, and window transparency (needed for the window material) uses a private API too; both rule out the Mac App Store.
 Window transparency has a reported GPU power cost on some Macs (tauri-apps/tauri#15471); GPU power is measured in the phase 2 harness.
 
 ## Process model
