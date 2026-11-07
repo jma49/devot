@@ -370,6 +370,45 @@ fn info_of(target: &Path, id: String, now: i64, seq: u64, kind: Kind) -> BackupI
     }
 }
 
+struct HeldOpen {
+    id: (u64, u64),
+    file: std::fs::File,
+}
+
+/// Closing any descriptor of a file lets go of every POSIX lock this process holds on it, those of
+/// the app's SQLite connections included, and they stay open as long as the app runs (a restore
+/// copies pages into the open connection). So a file of the live database, once opened here, is
+/// never closed; a later copy finds it again by its device and inode, so repeated restores open
+/// nothing more (#761).
+static HELD_OPEN: std::sync::Mutex<Vec<HeldOpen>> = std::sync::Mutex::new(Vec::new());
+
+fn file_id(meta: &std::fs::Metadata) -> (u64, u64) {
+    use std::os::unix::fs::MetadataExt;
+    (meta.dev(), meta.ino())
+}
+
+fn read_held_open<T>(
+    path: &Path,
+    read: impl FnOnce(&std::fs::File) -> std::io::Result<T>,
+) -> std::io::Result<T> {
+    use std::io::{Seek, SeekFrom};
+    let mut held = crate::locks::lock(&HELD_OPEN);
+    let id = file_id(&std::fs::metadata(path)?);
+    let index = match held.iter().position(|open| open.id == id) {
+        Some(index) => index,
+        None => {
+            let file = std::fs::File::open(path)?;
+            // Kept even when it cannot be read back: dropping it would close it.
+            let id = file.metadata().map_or(id, |meta| file_id(&meta));
+            held.push(HeldOpen { id, file });
+            held.len() - 1
+        }
+    };
+    let mut file = &held[index].file;
+    file.seek(SeekFrom::Start(0))?;
+    read(file)
+}
+
 /// The database's bytes as they are, with its `-wal` and `-shm`, for a database whose snapshot
 /// failed its check, so a restore over it still leaves a copy to go back to. Each file is written
 /// whole under a temporary name, the side files first, so the copy is listed only once complete;
@@ -380,9 +419,10 @@ fn take_raw(db_path: &Path, dir: &Path, now: i64) -> Result<BackupInfo, &'static
     let seq = next_seq(dir);
     let id = file_name(now, seq, Kind::RawSafety);
     let copy = |from: &Path, to: &str| {
-        let mut source = std::fs::File::open(from).map_err(|_| "E_BACKUP_SNAPSHOT_FAILED")?;
-        into.write_from(to, &mut source, Place::New)
-            .map_err(|_| "E_BACKUP_SNAPSHOT_FAILED")
+        read_held_open(from, |mut source| {
+            into.write_from(to, &mut source, Place::New)
+        })
+        .map_err(|_| "E_BACKUP_SNAPSHOT_FAILED")
     };
     for suffix in ["-wal", "-shm"] {
         let from = PathBuf::from(format!("{}{suffix}", db_path.display()));
@@ -1048,6 +1088,61 @@ mod tests {
         assert!(bytes.len() >= 4 * 4096, "{}", bytes.len());
         bytes[4096..3 * 4096].fill(0xff);
         std::fs::write(path, bytes).unwrap();
+    }
+
+    fn locked_out_of(db: &Path) -> bool {
+        let probe = std::process::Command::new("sqlite3")
+            .arg(db)
+            .arg("BEGIN IMMEDIATE;")
+            .output()
+            .expect("sqlite3 on PATH");
+        !probe.status.success()
+            && String::from_utf8_lossy(&probe.stderr).contains("database is locked")
+    }
+
+    fn held_open_for(path: &Path) -> usize {
+        let id = file_id(&std::fs::metadata(path).unwrap());
+        crate::locks::lock(&HELD_OPEN)
+            .iter()
+            .filter(|held| held.id == id)
+            .count()
+    }
+
+    /// A restore takes the raw copy while the app's connection is open (#761).
+    #[test]
+    fn a_raw_copy_keeps_the_app_s_locks_on_the_database() {
+        let (dir, backups, _db) = app_data();
+        let side = |suffix: &str| PathBuf::from(format!("{}{suffix}", backups.db_path.display()));
+        let files = [backups.db_path.clone(), side("-wal"), side("-shm")];
+        let app = rusqlite::Connection::open(&backups.db_path).unwrap();
+        app.execute_batch("BEGIN IMMEDIATE").unwrap();
+        assert!(locked_out_of(&backups.db_path));
+        let before = dir.path().join("before");
+        std::fs::create_dir(&before).unwrap();
+        // Copied by another process, which leaves this one's locks alone.
+        let copied = std::process::Command::new("cp")
+            .args(&files)
+            .arg(&before)
+            .status()
+            .unwrap();
+        assert!(copied.success());
+
+        for (taken, at) in [NOW, NOW + HOUR].into_iter().enumerate() {
+            let copy = take_raw(&backups.db_path, &backups.dir, at).unwrap();
+            assert!(locked_out_of(&backups.db_path), "after copy {taken}");
+            for (file, suffix) in files.iter().zip(["", "-wal", "-shm"]) {
+                let name = file.file_name().unwrap();
+                assert_eq!(
+                    std::fs::read(backups.dir.join(format!("{}{suffix}", copy.id))).unwrap(),
+                    std::fs::read(before.join(name)).unwrap(),
+                    "{name:?}"
+                );
+            }
+        }
+        for file in &files {
+            assert_eq!(held_open_for(file), 1, "{file:?}");
+        }
+        app.execute_batch("ROLLBACK").unwrap();
     }
 
     #[test]
