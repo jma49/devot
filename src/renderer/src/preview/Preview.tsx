@@ -384,7 +384,7 @@ export function Preview({
         shown.current = input.markdown
         shownLinks.current = next.links
         afterBuild()
-        scroll.current?.changed(next.lines)
+        scroll.current?.rendered(next.lines, pieces.current)
         if (!scrollAskedOnce.current && pieces.current.some((piece) => piece.nodes.length > 0)) {
           scrollAskedOnce.current = true
           const top = scrollAsked.current?.()

@@ -134,22 +134,64 @@ describe('wheelDistance', () => {
   })
 })
 
-function fakePreview(tops: Map<number, number>, height: number) {
+interface FakeBlock {
+  line: number
+  top: number
+}
+
+/**
+ * A preview made of pieces, each a run of blocks with a source line and an
+ * offset in the content. Its pane stays where it is on screen, so a block's
+ * box moves up as the pane scrolls. It counts the boxes read.
+ */
+function fakePreview(pieces: FakeBlock[][], height: number) {
+  const counter = { reads: 0 }
   const element = Object.assign(new EventTarget(), {
     scrollTop: 0,
     scrollHeight: height,
     clientHeight: 100,
     clientTop: 0,
-    getBoundingClientRect: () => ({ top: -element.scrollTop }),
-    querySelectorAll: () =>
-      [...tops.keys()].map((line) => ({
-        dataset: { sourceLine: String(line) },
-        getBoundingClientRect: () => ({
-          top: tops.get(line)! - element.scrollTop,
-        }),
-      })),
+    getBoundingClientRect: () => ({ top: 0 }),
   })
-  return element
+  const runOf = (blocks: FakeBlock[]) => ({
+    line: blocks[0]?.line ?? 1,
+    marked: blocks.map((block) => ({
+      getAttribute: (name: string) => (name === 'data-source-line' ? String(block.line) : null),
+      getBoundingClientRect: () => {
+        counter.reads += 1
+        return { top: block.top - element.scrollTop }
+      },
+    })) as unknown as Element[],
+  })
+  return {
+    element,
+    scroller: element as unknown as HTMLElement,
+    counter,
+    runOf,
+    runs: pieces.map(runOf),
+  }
+}
+
+/** Where every block measured in one pass puts a line and an offset (the reference). */
+function measuredAll(pieces: FakeBlock[][], lines: number, height: number) {
+  return normalizeAnchors(pieces.flat(), { line: lines + 1, top: height })
+}
+
+/** A big note: a heading, a paragraph and a list with a nested item in each of `count` sections. */
+function bigNote(count: number) {
+  const pieces: FakeBlock[][] = []
+  for (let i = 0; i < count; i += 1) {
+    const line = i * 8 + 1
+    const top = i * 200
+    pieces.push([{ line, top }])
+    pieces.push([{ line: line + 2, top: top + 40 }])
+    pieces.push([
+      { line: line + 4, top: top + 100 },
+      { line: line + 4, top: top + 100 },
+      { line: line + 5, top: top + 130 },
+    ])
+  }
+  return { pieces, lines: count * 8, height: count * 200 }
 }
 
 /** The node test environment has no ResizeObserver; the preview only starts one. */
@@ -162,27 +204,36 @@ const stubResizeObserver = () =>
     },
   )
 
+function frameQueue() {
+  const queued: (() => void)[] = []
+  return {
+    frame: (run: () => void) => queued.push(run),
+    cancel: () => void queued.splice(0),
+    flush: () => queued.splice(0).forEach((run) => run()),
+  }
+}
+
 describe('previewScrollPane', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('measures its blocks again when an image above loads late', () => {
+  it('measures its blocks again when an image above loads late, once a frame', () => {
     stubResizeObserver()
     // An image paragraph at line 3, then a heading at line 5; 9 lines.
-    const tops = new Map([
-      [1, 0],
-      [3, 40],
-      [5, 60],
-    ])
-    const element = fakePreview(tops, 200)
-    const pane = previewScrollPane(element as unknown as HTMLElement)
-    pane.changed(9)
+    const pieces = [[{ line: 1, top: 0 }], [{ line: 3, top: 40 }], [{ line: 5, top: 60 }]]
+    const preview = fakePreview(pieces, 200)
+    const frame = frameQueue()
+    const pane = previewScrollPane(preview.scroller, frame)
+    pane.rendered(9, preview.runs)
     let laidOut = 0
     pane.onLayout!(() => laidOut++)
     expect(pane.offsetOf(5)).toBe(60)
     // The image loads at 300 pixels: everything below moves down.
-    tops.set(5, 360)
-    element.scrollHeight = 500
-    element.dispatchEvent(new Event('load'))
+    pieces[2]![0]!.top = 360
+    preview.element.scrollHeight = 500
+    preview.element.dispatchEvent(new Event('load'))
+    preview.element.dispatchEvent(new Event('load'))
+    expect(laidOut).toBe(0)
+    frame.flush()
     expect(laidOut).toBe(1)
     expect(pane.offsetOf(5)).toBe(360)
     expect(pane.offsetOf(4)).toBe(200)
@@ -191,8 +242,7 @@ describe('previewScrollPane', () => {
 
   it('is moved by a distance through itself, and says so unless nothing moved', () => {
     stubResizeObserver()
-    const element = fakePreview(new Map([[1, 0]]), 1000)
-    const scroller = element as unknown as HTMLElement
+    const { scroller, element } = fakePreview([[{ line: 1, top: 0 }]], 1000)
     const pane = previewScrollPane(scroller)
     let moved = 0
     pane.onMove!(() => moved++)
@@ -207,40 +257,153 @@ describe('previewScrollPane', () => {
     expect(moved).toBe(1)
   })
 
-  it('keeps its measure of a big note when an edit changes neither its lines nor its height', () => {
+  it('reads only the blocks around the place asked for in a big note', () => {
     stubResizeObserver()
-    const tops = new Map([...Array(20_000).keys()].map((i) => [i * 2 + 1, i * 30]))
-    const element = fakePreview(tops, 600_000)
-    let reads = 0
-    const query = element.querySelectorAll
-    element.querySelectorAll = () => {
-      reads += 1
-      return query()
-    }
-    const pane = previewScrollPane(element as unknown as HTMLElement)
-    pane.changed(40_000)
-    expect(pane.offsetOf(21)).toBe(300)
-    pane.changed(40_000)
-    expect(pane.offsetOf(21)).toBe(300)
-    expect(reads).toBe(1)
-    pane.changed(40_001)
-    expect(pane.offsetOf(21)).toBe(300)
-    expect(reads).toBe(2)
+    const note = bigNote(20_000)
+    const preview = fakePreview(note.pieces, note.height)
+    const pane = previewScrollPane(preview.scroller)
+    pane.rendered(note.lines, preview.runs)
+    const all = measuredAll(note.pieces, note.lines, note.height)
+    expect(pane.offsetOf(80_003)).toBe(topOf(all, 80_003))
+    preview.element.scrollTop = 2_000_150
+    expect(pane.topLine()).toBe(lineAt(all, 2_000_150))
+    expect(preview.counter.reads).toBeLessThan(60)
     pane.dispose()
   })
 
-  it('notices content that grew without a load event (a diagram)', () => {
+  it('after an edit that adds a line, reads again only the blocks it needs', () => {
     stubResizeObserver()
-    const tops = new Map([
-      [1, 0],
-      [4, 50],
-    ])
-    const element = fakePreview(tops, 100)
-    const pane = previewScrollPane(element as unknown as HTMLElement)
-    pane.changed(5)
+    const note = bigNote(20_000)
+    const preview = fakePreview(note.pieces, note.height)
+    const pane = previewScrollPane(preview.scroller)
+    pane.rendered(note.lines, preview.runs)
+    expect(pane.offsetOf(80_003)).toBe(
+      topOf(measuredAll(note.pieces, note.lines, note.height), 80_003),
+    )
+    // Enter in the paragraph of section 10 000: it gets a line and 30 pixels, and so does all below.
+    const edited = 30_001
+    const pieces = note.pieces.map((blocks, at) =>
+      at < edited ? blocks : blocks.map((block) => ({ ...block })),
+    )
+    for (const [at, blocks] of pieces.entries()) {
+      if (at <= edited) continue
+      for (const block of blocks) {
+        block.line += 1
+        block.top += 30
+      }
+      note.pieces[at]!.forEach((block, k) => Object.assign(block, blocks[k]))
+    }
+    const runs = preview.runs.map((run, at) =>
+      at === edited
+        ? preview.runOf(pieces[at]!)
+        : Object.assign(run, { line: pieces[at]![0]!.line }),
+    )
+    preview.element.scrollHeight += 30
+    preview.counter.reads = 0
+    pane.rendered(note.lines + 1, runs)
+    const all = measuredAll(pieces, note.lines + 1, note.height + 30)
+    for (const line of [80_002, 80_003, 80_004, 80_010.5])
+      expect(pane.offsetOf(line)).toBe(topOf(all, line))
+    expect(preview.counter.reads).toBeLessThan(30)
+    // The preview then scrolls to that line: what was just measured tells where it is.
+    const reads = preview.counter.reads
+    preview.element.scrollTop = pane.offsetOf(80_003)
+    expect(pane.topLine()).toBe(lineAt(all, preview.element.scrollTop))
+    expect(preview.counter.reads).toBe(reads)
+    pane.dispose()
+  })
+
+  it('maps every line and offset as measuring every block does', () => {
+    stubResizeObserver()
+    // Blank lines above the first block, a list on its first item's line, a block at the
+    // offset of the one before, a piece that shows nothing, a long code block and the
+    // footnotes at the end, some defined above and some below the last block.
+    const pieces: FakeBlock[][] = [
+      [{ line: 3, top: 0 }],
+      [
+        { line: 5, top: 30 },
+        { line: 5, top: 30 },
+        { line: 6, top: 50 },
+        { line: 7, top: 50 },
+        { line: 8, top: 70 },
+      ],
+      [],
+      [{ line: 10, top: 70 }],
+      [{ line: 11, top: 100 }],
+      [{ line: 13, top: 140 }],
+      [{ line: 30, top: 600 }],
+      [
+        { line: 12, top: 700 },
+        { line: 4, top: 720 },
+        { line: 33, top: 760 },
+        { line: 34, top: 780 },
+      ],
+    ]
+    const lines = 35
+    const height = 820
+    const all = measuredAll(pieces, lines, height)
+    const preview = fakePreview(pieces, height)
+    const pane = previewScrollPane(preview.scroller)
+    pane.rendered(lines, preview.runs)
+    for (let line = 0; line <= lines + 2; line += 0.25) {
+      expect([line, pane.offsetOf(line)]).toEqual([line, topOf(all, line)])
+    }
+    for (let top = 0; top <= height - 100; top += 5) {
+      preview.element.scrollTop = top
+      expect([top, pane.topLine()]).toEqual([top, lineAt(all, top)])
+    }
+    pane.dispose()
+  })
+
+  it('agrees with measuring every block over notes of every shape', () => {
+    stubResizeObserver()
+    let seed = 7
+    const random = () => (seed = (seed * 48_271) % 2_147_483_647) / 2_147_483_647
+    for (let note = 0; note < 40; note += 1) {
+      const pieces: FakeBlock[][] = []
+      let line = 1 + Math.floor(random() * 3)
+      let top = Math.floor(random() * 2) * 20
+      for (let piece = 0; piece < 30; piece += 1) {
+        const blocks: FakeBlock[] = []
+        const count = Math.floor(random() * 4)
+        for (let k = 0; k < count; k += 1) {
+          blocks.push({ line, top })
+          line += Math.floor(random() * 3)
+          top += Math.floor(random() * 3) * 15
+        }
+        pieces.push(blocks)
+        line += 1 + Math.floor(random() * 2)
+        top += Math.floor(random() * 2) * 25
+      }
+      if (random() < 0.5)
+        pieces.push([
+          { line: 2, top: top + 10 },
+          { line: line + 1, top: top + 40 },
+        ])
+      const lines = line + 3
+      const height = top + 300
+      const all = measuredAll(pieces, lines, height)
+      const preview = fakePreview(pieces, height)
+      const pane = previewScrollPane(preview.scroller)
+      pane.rendered(lines, preview.runs)
+      for (let at = 0; at <= lines + 2; at += 0.5) expect(pane.offsetOf(at)).toBe(topOf(all, at))
+      for (let at = 0; at <= height - 100; at += 7) {
+        preview.element.scrollTop = at
+        expect(pane.topLine()).toBe(lineAt(all, at))
+      }
+      pane.dispose()
+    }
+  })
+
+  it('measures afresh when the content changed height on its own (a diagram)', () => {
+    stubResizeObserver()
+    const pieces = [[{ line: 1, top: 0 }], [{ line: 4, top: 50 }]]
+    const preview = fakePreview(pieces, 100)
+    const pane = previewScrollPane(preview.scroller)
+    pane.rendered(5, preview.runs)
     expect(pane.offsetOf(4)).toBe(50)
-    tops.set(4, 250)
-    element.scrollHeight = 300
+    pieces[1]![0]!.top = 250
+    preview.element.scrollHeight = 300
     expect(pane.offsetOf(4)).toBe(250)
     pane.dispose()
   })
