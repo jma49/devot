@@ -183,31 +183,6 @@ fn valid_record(
     Ok(NoteRecord::from_meta(meta, body_md, ydoc))
 }
 
-impl NoteDto {
-    fn into_record(self) -> Result<NoteRecord, &'static str> {
-        let ydoc = STANDARD.decode(self.ydoc.as_bytes());
-        let meta = NoteMetaDto {
-            id: self.id,
-            title: self.title,
-            title_hlc: self.title_hlc,
-            body_version: self.body_version,
-            book_id: self.book_id,
-            book_hlc: self.book_hlc,
-            status: self.status,
-            status_hlc: self.status_hlc,
-            pinned: self.pinned,
-            pinned_hlc: self.pinned_hlc,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-            dates_hlc: self.dates_hlc,
-            deleted_at: self.deleted_at,
-            deleted_hlc: self.deleted_hlc,
-        }
-        .into_meta()?;
-        valid_record(meta, self.body_md, ydoc.map_err(|_| "E_NOTE_YDOC_INVALID")?)
-    }
-}
-
 /// The JSON part of a `note_put` frame.
 #[derive(Deserialize)]
 struct FrameFields {
@@ -223,12 +198,18 @@ fn framed_part(data: &[u8]) -> Option<(&[u8], &[u8])> {
     (length <= rest.len()).then(|| rest.split_at(length))
 }
 
+/// What a `note_put` frame carries: the note, the note IDs its body links to and its agent_writes rows.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct NoteFrame {
+    pub record: NoteRecord,
+    pub links: Vec<String>,
+    pub writes: Option<Vec<AgentWriteRow>>,
+}
+
 /// A note as `noteFrame` in src/renderer/src/storage/wire.ts lays it out: the length of the JSON of
 /// its fields, its links and its agent_writes rows (4 bytes, little-endian), that JSON, the length
 /// of its body, the body as UTF-8, then its Yjs state.
-pub(crate) fn note_frame(
-    data: &[u8],
-) -> Result<(NoteRecord, Vec<String>, Option<Vec<AgentWriteRow>>), &'static str> {
+pub(crate) fn note_frame(data: &[u8]) -> Result<NoteFrame, &'static str> {
     const INVALID: &str = "E_NOTE_FRAME_INVALID";
     let (json, rest) = framed_part(data).ok_or(INVALID)?;
     let (body, ydoc) = framed_part(rest).ok_or(INVALID)?;
@@ -238,8 +219,11 @@ pub(crate) fn note_frame(
     }
     let body_md = std::str::from_utf8(body).map_err(|_| INVALID)?.to_owned();
     let meta = fields.note.into_meta()?;
-    let record = valid_record(meta, body_md, ydoc.to_vec())?;
-    Ok((record, fields.links, fields.writes))
+    Ok(NoteFrame {
+        record: valid_record(meta, body_md, ydoc.to_vec())?,
+        links: fields.links,
+        writes: fields.writes,
+    })
 }
 
 fn validate_list_page(exclude_book_id: Option<&str>) -> Result<(), &'static str> {
@@ -389,8 +373,7 @@ pub async fn note_put(db: State<'_, Db>, request: Request<'_>) -> Result<(), Str
     let InvokeBody::Raw(data) = request.body() else {
         return Err("E_NOTE_FRAME_INVALID".into());
     };
-    let (record, links, writes) = note_frame(data).map_err(String::from)?;
-    put_record(&db, record, links, writes).await
+    put_frame(&db, note_frame(data).map_err(String::from)?).await
 }
 
 /// A save that changed no text: the fields alone (`Store::put_note_meta`), with the note's
@@ -412,23 +395,15 @@ pub async fn note_put_meta(
     .map_err(|e| e.to_string())
 }
 
-pub(crate) async fn put_note(
-    db: &Db,
-    note: NoteDto,
-    links: Vec<String>,
-    writes: Option<Vec<AgentWriteRow>>,
-) -> Result<(), String> {
-    let record = note.into_record().map_err(String::from)?;
-    put_record(db, record, links, writes).await
-}
-
 /// A note's first save creates user content; only a save of a note already stored is a body
 /// edit, which the gate still lets land for a short grace after editing ends.
-async fn put_record(
+pub(crate) async fn put_frame(
     db: &Db,
-    record: NoteRecord,
-    links: Vec<String>,
-    writes: Option<Vec<AgentWriteRow>>,
+    NoteFrame {
+        record,
+        links,
+        writes,
+    }: NoteFrame,
 ) -> Result<(), String> {
     validate_links(&links).map_err(String::from)?;
     if let Some(rows) = &writes {
@@ -589,6 +564,14 @@ mod tests {
         assert!(taken.is_empty(), "{taken:?}");
     }
 
+    /// The record `note_put` writes for `note`, its fields checked as a frame's are.
+    fn into_record(note: NoteDto) -> Result<NoteRecord, &'static str> {
+        let fields: NoteMetaDto =
+            serde_json::from_value(serde_json::to_value(&note).unwrap()).unwrap();
+        let ydoc = STANDARD.decode(note.ydoc.as_bytes()).unwrap();
+        valid_record(fields.into_meta()?, note.body_md, ydoc)
+    }
+
     fn dto() -> NoteDto {
         NoteDto {
             id: ID.into(),
@@ -614,7 +597,7 @@ mod tests {
     #[test]
     fn opens_a_note_as_its_fields_and_state_without_the_body() {
         assert!(opened_frame(None).is_empty());
-        let record = dto().into_record().unwrap();
+        let record = into_record(dto()).unwrap();
         let frame = opened_frame(Some(&record));
         let length = u32::from_le_bytes(frame[..4].try_into().unwrap()) as usize;
         let fields: serde_json::Value = serde_json::from_slice(&frame[4..4 + length]).unwrap();
@@ -628,7 +611,7 @@ mod tests {
 
     #[test]
     fn accepts_a_valid_note_and_round_trips_through_the_dto() {
-        let record = dto().into_record().unwrap();
+        let record = into_record(dto()).unwrap();
         assert_eq!(record.ydoc, vec![1, 2, 3]);
         assert_eq!(record.body_version, 4);
         assert_eq!(NoteDto::from(record), dto());
@@ -636,7 +619,7 @@ mod tests {
             body_version: MAX_BODY_VERSION - 1,
             ..dto()
         };
-        assert!(last.into_record().is_ok());
+        assert!(into_record(last).is_ok());
     }
 
     #[test]
@@ -697,7 +680,7 @@ mod tests {
             book_hlc: "0001728000000000-0000-node".into(),
             ..dto()
         };
-        assert!(note.into_record().is_ok());
+        assert!(into_record(note).is_ok());
     }
 
     /// What a list's rows cost to read at 10,000 notes: 200 rows as one `note_get` each (the
@@ -721,7 +704,7 @@ mod tests {
                 body_md: body.clone(),
                 // A body's Yjs state with no edit history is about as long as its text.
                 ydoc: body.as_bytes().to_vec(),
-                ..dto().into_record().unwrap()
+                ..into_record(dto()).unwrap()
             };
             store.put_note(&record, &[]).unwrap();
         }
@@ -807,19 +790,22 @@ mod tests {
 
     #[test]
     fn reads_a_note_frame_as_the_record_note_put_writes() {
-        let (record, links, writes) = note_frame(&frame(
+        let read = note_frame(&frame(
             &frame_fields(),
             "# T\u{e9}\n".as_bytes(),
             &[1, 2, 3],
         ))
         .unwrap();
-        let expected = NoteRecord {
-            body_md: "# T\u{e9}\n".into(),
-            ydoc: vec![1, 2, 3],
-            ..dto().into_record().unwrap()
+        let expected = NoteFrame {
+            record: NoteRecord {
+                body_md: "# T\u{e9}\n".into(),
+                ydoc: vec![1, 2, 3],
+                ..into_record(dto()).unwrap()
+            },
+            links: vec![ID.to_owned()],
+            writes: None,
         };
-        assert_eq!(record, expected);
-        assert_eq!((links, writes), (vec![ID.to_owned()], None));
+        assert_eq!(read, expected);
     }
 
     #[test]
@@ -857,7 +843,7 @@ mod tests {
     #[test]
     fn rejects_bad_fields() {
         type Case = (fn(&mut NoteDto), &'static str);
-        let cases: [Case; 16] = [
+        let cases: [Case; 15] = [
             (|n| n.status = "urgent".into(), "E_NOTE_STATUS_INVALID"),
             (|n| n.dates_hlc = "x".repeat(65), "E_NOTE_HLC_INVALID"),
             (
@@ -872,7 +858,6 @@ mod tests {
             (|n| n.title = "x".repeat(1_001), "E_NOTE_TITLE_INVALID"),
             (|n| n.title_hlc = String::new(), "E_NOTE_HLC_INVALID"),
             (|n| n.updated_at = 0, "E_NOTE_TIME_INVALID"),
-            (|n| n.ydoc = "%%%".into(), "E_NOTE_YDOC_INVALID"),
             (|n| n.ydoc = String::new(), "E_NOTE_YDOC_INVALID"),
             (|n| n.body_version = -1, "E_NOTE_VERSION_INVALID"),
             // Storage could not move it on to a version JavaScript holds exactly.
@@ -885,7 +870,7 @@ mod tests {
         for (mutate, code) in cases {
             let mut note = dto();
             mutate(&mut note);
-            assert_eq!(note.into_record().unwrap_err(), code);
+            assert_eq!(into_record(note).unwrap_err(), code);
         }
     }
 
@@ -1005,12 +990,12 @@ mod tests {
             title: "\u{1F600}".repeat(MAX_TITLE_CHARS),
             ..dto()
         };
-        assert!(longest.into_record().is_ok());
+        assert!(into_record(longest).is_ok());
         let longer = NoteDto {
             title: "\u{1F600}".repeat(MAX_TITLE_CHARS + 1),
             ..dto()
         };
-        assert_eq!(longer.into_record().unwrap_err(), "E_NOTE_TITLE_INVALID");
+        assert_eq!(into_record(longer).unwrap_err(), "E_NOTE_TITLE_INVALID");
     }
 
     #[test]
@@ -1018,6 +1003,6 @@ mod tests {
         let mut note = dto();
         note.book_id = None;
         note.book_hlc = String::new();
-        assert!(note.into_record().is_ok());
+        assert!(into_record(note).is_ok());
     }
 }
