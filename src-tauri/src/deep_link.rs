@@ -301,8 +301,10 @@ impl DeepLinks {
 }
 
 /// Follows the URLs macOS opens the app with (`RunEvent::Opened`, through the
-/// deep-link plugin). Called from setup, before the event loop runs, so no
-/// URL comes earlier.
+/// deep-link plugin), and takes the ones a launch came with: macOS hands those
+/// over before `applicationDidFinishLaunching`, so before setup runs and nothing
+/// hears them, and the plugin keeps them as its current URLs (#621).
+/// Called from setup once the licence is managed, so a launch's licence link is checked.
 pub(crate) fn listen(app: &tauri::App) {
     let handle = app.handle().clone();
     app.deep_link().on_open_url(move |event| {
@@ -310,6 +312,22 @@ pub(crate) fn listen(app: &tauri::App) {
             receive(&handle, url.as_str());
         }
     });
+    let current = app.deep_link().get_current().unwrap_or_else(|_| {
+        log::warn!("W_DEEP_LINK_LAUNCH_UNREAD");
+        None
+    });
+    for url in launch_urls(current) {
+        receive(app.handle(), &url);
+    }
+}
+
+fn launch_urls(current: Option<Vec<tauri::Url>>) -> Vec<String> {
+    current
+        .unwrap_or_default()
+        .into_iter()
+        .take(MAX_PER_EVENT)
+        .map(String::from)
+        .collect()
 }
 
 pub(crate) fn on_second_instance<R: Runtime>(app: &AppHandle<R>, args: Vec<String>, _cwd: String) {
@@ -841,6 +859,27 @@ mod tests {
             .unwrap_or(0)
             .max(ID.len());
         assert!(format!("{DEBUG_SCHEME}://command/").len() + longest <= MAX_URL_LEN);
+    }
+
+    #[test]
+    fn a_note_link_the_app_was_launched_with_waits_for_the_window_that_asks_first() {
+        let url = format!("{SCHEME}://note/{ID}");
+        let current = Some(vec![tauri::Url::parse(&url).unwrap()]);
+        let mut inbox = Inbox::default();
+        for url in launch_urls(current) {
+            assert!(inbox.arrive(parse(&url, SCHEME).unwrap()).is_empty());
+        }
+        assert_eq!(inbox.take("main"), vec![note()]);
+    }
+
+    #[test]
+    fn a_launch_without_urls_hands_over_none_and_one_with_many_at_most_four() {
+        assert!(launch_urls(None).is_empty());
+        let url = tauri::Url::parse(&format!("{SCHEME}://today")).unwrap();
+        assert_eq!(
+            launch_urls(Some(vec![url; MAX_PER_EVENT + 2])).len(),
+            MAX_PER_EVENT
+        );
     }
 
     #[test]

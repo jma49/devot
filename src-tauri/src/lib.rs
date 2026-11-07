@@ -388,10 +388,10 @@ pub fn run() {
                 startup::fail(&StartupError::new("E_DATA_FOLDER_UNKNOWN"), None)
             };
             logs::install(&data_dir.join(logs::DIR));
-            deep_link::listen(app);
             if let Err(error) = launch(app, &data_dir) {
                 startup::fail(&error, Some(&data_dir));
             }
+            deep_link::listen(app);
             let args: Vec<String> = std::env::args_os()
                 .map(|arg| arg.to_string_lossy().into_owned())
                 .collect();
