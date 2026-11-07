@@ -47,4 +47,7 @@ Part of the [architecture overview](../architecture.md).
   - Import: a Markdown folder with links, tags and images < 30 ms a note, linear in the notes, linear when every folder repeats the same names, and linear in thousands of folders (1,640 against 6,560 notebooks); a 600 KB file prepared < 3 s, linear in its length; HTML pages and bare links linear (`html-import`, `import` benches).
   - Link index: a note of 10,000 links saved < 150 ms; reading a body's links linear in its length.
   - Counting a note's words and characters (`noteCounts`, which the footer and Note Info share once per pause): linear in its length; on a 250 KB note of rich Markdown it took 23 ms in JavaScriptCore before the ASCII paths and takes 15 ms (`tests/core/note-counts.bench.test.ts`).
+  - A save of a 1 MB note, its title or Markdown changed, < 30 ms (median of six): it marks the note stale for search instead of re-indexing it (about 72 ms before, schema v29).
+    The first search after it, with a word of three characters or more, re-indexes the note first: < 150 ms (about 50 ms here), the cost moved off the save.
+    A search with only filters or shorter text reads no index and catches nothing up.
   - The list and links over 50k notes: the list's first 21 notes, templates left out, < 5 ms (a SQL `LIMIT` on the list's index; 148 ms when every note was read); the link targets of a note with 40 links < 10 ms (list rows read by ID; 160 ms); a two-character `[[` query that matches nothing < 20 ms (titles only; 208 ms when it scanned every body).

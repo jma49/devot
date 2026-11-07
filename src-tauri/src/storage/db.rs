@@ -7,9 +7,82 @@ use super::{Result, StorageError, Store};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::{Arc, OnceLock, mpsc};
+use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 
 type Job = Box<dyn FnOnce(&mut Store) + Send>;
+
+/// How long writes stay quiet before the thread re-indexes the notes saves left stale.
+const SEARCH_QUIET: Duration = Duration::from_secs(5);
+/// Writes that never pause (sync, say) delay it no longer than this.
+const SEARCH_LATEST: Duration = Duration::from_secs(60);
+/// One catch-up's share of the thread before queued jobs run (a single note may take longer).
+const SEARCH_BUDGET: Duration = Duration::from_millis(50);
+
+/// When the thread next re-indexes the notes writes may have left stale.
+struct CatchUp {
+    quiet: Duration,
+    first: Option<Instant>,
+    due: Option<Instant>,
+}
+
+impl CatchUp {
+    fn wrote(&mut self, now: Instant) {
+        let first = *self.first.get_or_insert(now);
+        self.due = Some((now + self.quiet).min(first + SEARCH_LATEST));
+    }
+
+    fn run(&mut self, store: &Store) {
+        match store.catch_up_search_index(Some(SEARCH_BUDGET)) {
+            Ok(true) => self.due = Some(Instant::now()),
+            Ok(false) => (self.first, self.due) = (None, None),
+            Err(error) => {
+                log::warn!("W_SEARCH_CATCH_UP_FAILED {error}");
+                (self.first, self.due) = (None, Some(Instant::now() + SEARCH_LATEST));
+            }
+        }
+    }
+}
+
+fn serve(store: &mut Store, inbox: &mpsc::Receiver<Job>, quiet: Duration) {
+    let mut catch_up = CatchUp {
+        quiet,
+        first: None,
+        due: None,
+    };
+    // A run before this one may have left notes stale.
+    catch_up.wrote(Instant::now());
+    let mut seen = store.data_version().ok();
+    loop {
+        let job = match catch_up.due {
+            Some(due) => match inbox.recv_timeout(due.saturating_duration_since(Instant::now())) {
+                Ok(job) => job,
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    catch_up.run(store);
+                    continue;
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => return,
+            },
+            None => match inbox.recv() {
+                Ok(job) => job,
+                Err(_) => return,
+            },
+        };
+        let changes = store.conn.total_changes();
+        // A job that panics drops its reply, so its caller gets a code, and the
+        // thread lives on for the next one (a Transaction rolls back as it unwinds).
+        if catch_unwind(AssertUnwindSafe(|| job(store))).is_err() {
+            log::error!("E_DB_JOB_PANIC");
+        }
+        // Another process's commits move only data_version, which the outside-change watch reads
+        // through a job every second.
+        let outside = store.data_version().ok();
+        if store.conn.total_changes() != changes || outside != seen {
+            seen = outside;
+            catch_up.wrote(Instant::now());
+        }
+    }
+}
 
 /// What a write changes, for the gate to judge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,6 +109,10 @@ pub struct Db {
 
 impl Db {
     pub fn spawn(path: &Path) -> Result<Self> {
+        Self::spawn_quiet_after(path, SEARCH_QUIET)
+    }
+
+    pub(crate) fn spawn_quiet_after(path: &Path, quiet: Duration) -> Result<Self> {
         let path = path.to_owned();
         let (jobs, inbox) = mpsc::channel::<Job>();
         let (ready_tx, ready_rx) = mpsc::channel();
@@ -44,13 +121,7 @@ impl Db {
             .spawn(move || match Store::open(&path) {
                 Ok(mut store) => {
                     let _ = ready_tx.send(Ok(()));
-                    // A job that panics drops its reply, so its caller gets a code, and the
-                    // thread lives on for the next one (a Transaction rolls back as it unwinds).
-                    for job in inbox {
-                        if catch_unwind(AssertUnwindSafe(|| job(&mut store))).is_err() {
-                            log::error!("E_DB_JOB_PANIC");
-                        }
-                    }
+                    serve(&mut store, &inbox, quiet);
                 }
                 Err(error) => {
                     let _ = ready_tx.send(Err(error));
@@ -318,6 +389,64 @@ mod tests {
             notes.into_iter().map(|n| n.id).collect::<Vec<_>>(),
             ["kept"]
         );
+    }
+
+    #[test]
+    fn the_database_thread_catches_the_search_index_up_once_writes_are_quiet() {
+        use tauri::async_runtime::block_on;
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::spawn_quiet_after(&dir.path().join("devot.sqlite"), Duration::from_millis(50))
+            .unwrap();
+        block_on(db.write(Write::Content, |store| store.put_note(&note("a"), &[]))).unwrap();
+        let stale = |db: &Db| {
+            block_on(db.call(|store| {
+                Ok(store
+                    .conn
+                    .query_row("SELECT count(*) FROM search_stale", [], |row| {
+                        row.get::<_, i64>(0)
+                    })?)
+            }))
+            .unwrap()
+        };
+        let waited = Instant::now();
+        while stale(&db) > 0 {
+            assert!(
+                waited.elapsed() < Duration::from_secs(10),
+                "the index never caught up"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    fn the_database_thread_catches_up_after_a_write_from_another_process() {
+        use tauri::async_runtime::block_on;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("devot.sqlite");
+        let db = Db::spawn_quiet_after(&path, Duration::from_millis(50)).unwrap();
+        let stale = |db: &Db| {
+            block_on(db.call(|store| {
+                Ok(store
+                    .conn
+                    .query_row("SELECT count(*) FROM search_stale", [], |row| {
+                        row.get::<_, i64>(0)
+                    })?)
+            }))
+            .unwrap()
+        };
+        std::thread::sleep(Duration::from_millis(200));
+        Store::open(&path)
+            .unwrap()
+            .put_note(&note("a"), &[])
+            .unwrap();
+        let waited = Instant::now();
+        while stale(&db) > 0 {
+            assert!(
+                waited.elapsed() < Duration::from_secs(5),
+                "an outside write never armed the catch-up"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
     }
 
     #[test]

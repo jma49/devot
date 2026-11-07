@@ -35,6 +35,7 @@ pub(super) const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0026_sync_change_tags.sql"),
     include_str!("../../migrations/0027_sync_pushed_counts_as_synced.sql"),
     include_str!("../../migrations/0028_sync_upload_order.sql"),
+    include_str!("../../migrations/0029_search_catch_up.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
