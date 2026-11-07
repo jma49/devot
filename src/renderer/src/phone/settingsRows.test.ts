@@ -1,20 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { LICENCE_UNKNOWN, type LicenceSnapshot } from '../licence'
-import { licenceRow, licenceRowChangesAt, phonePanes, welcomeDue } from './settingsRows'
+import { licenceRow, licenceRowChangesAt, welcomeDue } from './settingsRows'
 
 const DAY = 24 * 60 * 60 * 1000
 const gated = (patch: Partial<LicenceSnapshot>): LicenceSnapshot => ({
   ...LICENCE_UNKNOWN,
   gated: true,
   ...patch,
-})
-
-describe('phonePanes', () => {
-  const panes = ['general', 'appearance', 'sync'] as const
-  it('lists General only when this build can send crash reports, its one setting', () => {
-    expect(phonePanes(panes, true)).toEqual(['general', 'appearance', 'sync'])
-    expect(phonePanes(panes, false)).toEqual(['appearance', 'sync'])
-  })
 })
 
 describe('the Licence row', () => {

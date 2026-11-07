@@ -88,7 +88,15 @@ describe('Settings search on an iPhone', () => {
   it('lists every pane before anything is typed', async () => {
     await settings()
     search('')
-    expect(results()).toEqual(['Appearance', 'Editing', 'Preview', 'Sync', 'AI', 'License'])
+    expect(results()).toEqual([
+      'General',
+      'Appearance',
+      'Editing',
+      'Preview',
+      'Sync',
+      'AI',
+      'License',
+    ])
   })
 })
 

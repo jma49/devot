@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { errorCode } from '../../../core/errors'
-import { crashReports } from '../crashReports'
 import { currentLocale, format, t, type MessageKey } from '../i18n'
 import { Icon } from '../icons/Icon'
 import {
@@ -22,7 +21,7 @@ import { doveMask } from './dove'
 import { MacKeyRow } from './PhoneMacKey'
 import { PhoneDetailSheet } from './PhoneSheet'
 import { useLicenceClock } from './licenceClock'
-import { licenceRow, phonePanes } from './settingsRows'
+import { licenceRow } from './settingsRows'
 import { logFailure } from '../failure'
 
 /** The panes that open on a phone; the rest are left out of its Settings. The phone records no usage. */
@@ -187,22 +186,6 @@ function useVersion(): string | null {
   return version
 }
 
-/** Whether this build can send crash reports, General's only setting on a phone; false until known. */
-function useCrashReportsAvailable(): boolean {
-  const [available, setAvailable] = useState(false)
-  useEffect(() => {
-    let live = true
-    crashReports().then(
-      (state) => live && setAvailable(state?.available ?? false),
-      () => console.warn('W_CRASH_REPORTS_STATUS_FAILED'),
-    )
-    return () => {
-      live = false
-    }
-  }, [])
-  return available
-}
-
 function SettingsSearch(props: {
   panes: readonly PhonePane[]
   onOpen: (pane: PaneId) => void
@@ -266,7 +249,6 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
   const now = useLicenceClock(licence)
   const [searching, setSearching] = useState(false)
   const [trialOpen, setTrialOpen] = useState(false)
-  const panes = phonePanes(OPEN_PANES, useCrashReportsAvailable())
   useEffect(() => startSyncStatus(), [])
   const state = licenceRow(licence, now)
   const trialEnds = licence.trial?.endsAt ?? null
@@ -274,7 +256,7 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
   const groups: readonly { title?: MessageKey; rows: readonly Row[]; after?: ReactNode }[] = [
     {
       title: 'phone.settings.group.general',
-      rows: GENERAL_GROUP.filter((pane) => panes.includes(pane)).map((pane) => paneRow(pane)),
+      rows: GENERAL_GROUP.map((pane) => paneRow(pane)),
     },
     {
       title: 'phone.settings.group.sync',
@@ -387,7 +369,7 @@ export function PhoneSettings(props: { onOpenPane: (pane: PaneId) => void }) {
       </header>
       {searching && (
         <SettingsSearch
-          panes={panes}
+          panes={OPEN_PANES}
           onOpen={(pane) => {
             setSearching(false)
             props.onOpenPane(pane)
