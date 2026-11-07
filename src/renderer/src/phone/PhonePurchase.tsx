@@ -47,7 +47,7 @@ const FEATURES = [
   ['phone.purchase.featureAi', null],
 ] as const
 
-function purchaseHeading(licence: LicenceSnapshot, gate: boolean): string {
+export function purchaseHeading(licence: LicenceSnapshot, gate: boolean): string {
   if (gate)
     return t(
       licence.trial?.state === 'available' ? 'phone.pro.inactiveTitle' : 'phone.purchase.ended',

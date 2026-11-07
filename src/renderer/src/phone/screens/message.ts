@@ -11,6 +11,7 @@ export const SCREENS_OPS = [
   'excerpts',
   'search',
   'note.create',
+  'note.discard',
   'tabs.show',
   'tabs.popToRoot',
   'settings.showPane',
@@ -19,6 +20,7 @@ export const SCREENS_OPS = [
   'editor.hide',
   'editor.setMode',
   'editor.info',
+  'editor.focus',
 ] as const
 export type ScreensOp = (typeof SCREENS_OPS)[number]
 
@@ -46,6 +48,8 @@ export type ScreensNotice =
   | { readonly notice: 'editor.mode'; readonly noteId: string; readonly mode: EditorMode }
   | { readonly notice: 'editor.title'; readonly id: string; readonly title: string }
   | { readonly notice: 'editor.scroll'; readonly titleVisible: boolean }
+  | { readonly notice: 'note.new'; readonly bookId?: string }
+  | { readonly notice: 'notes.changed'; readonly rev: number; readonly ids: readonly string[] }
 
 export interface ScreensRequest {
   readonly id: number

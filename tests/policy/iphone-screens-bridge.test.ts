@@ -209,7 +209,11 @@ it("Swift names the same operations and notices as Rust and the page, and Rust's
     read('src/renderer/src/phone/screens/message.ts'),
   )
   expect(quoted(page?.[1] ?? '')).toEqual(ops)
-  expect(swiftCases('NoticeKind')).toEqual(rustList('src-tauri/src/screens/message.rs', 'NOTICES'))
+  const notices = [
+    ...rustList('src-tauri/src/screens/message.rs', 'NOTICES'),
+    ...rustList('src-tauri/src/screens/message.rs', 'RUST_NOTICES'),
+  ]
+  expect(swiftCases('NoticeKind')).toEqual(notices)
   const direct = rustList('src-tauri/src/screens/direct.rs', 'OPS')
   expect(direct.length).toBeGreaterThan(0)
   expect(swiftCases('DirectOp')).toEqual(direct)

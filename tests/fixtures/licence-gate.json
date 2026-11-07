@@ -1,0 +1,217 @@
+{
+  "//": "Which surface a locked write shows, by licence state (design-new-note 2.3). Read by phone/proGate.test.ts against lockSurface and by DevotScreens ProGateTests against ProGate; surface null means writing is allowed.",
+  "states": [
+    {
+      "name": "A1",
+      "note": "App Store build, trial never started",
+      "licence": {
+        "gated": true,
+        "state": "none",
+        "code": null,
+        "id": null,
+        "licensee": null,
+        "plan": null,
+        "trial": {
+          "state": "available",
+          "endsAt": null,
+          "code": null,
+          "source": "purchase"
+        },
+        "activation": null,
+        "appStore": {
+          "pro": false,
+          "code": null,
+          "takesKeys": true
+        }
+      },
+      "surface": "purchase",
+      "heading": "phone.pro.inactiveTitle"
+    },
+    {
+      "name": "A2",
+      "note": "App Store build, trial ended",
+      "licence": {
+        "gated": true,
+        "state": "none",
+        "code": null,
+        "id": null,
+        "licensee": null,
+        "plan": null,
+        "trial": {
+          "state": "ended",
+          "endsAt": 1000,
+          "code": null,
+          "source": "purchase"
+        },
+        "activation": null,
+        "appStore": {
+          "pro": false,
+          "code": null,
+          "takesKeys": true
+        }
+      },
+      "surface": "purchase",
+      "heading": "phone.purchase.ended"
+    },
+    {
+      "name": "A3",
+      "note": "App Store build, entitlements unread",
+      "licence": {
+        "gated": true,
+        "state": "none",
+        "code": null,
+        "id": null,
+        "licensee": null,
+        "plan": null,
+        "trial": {
+          "state": "ended",
+          "endsAt": 1000,
+          "code": null,
+          "source": "keychain"
+        },
+        "activation": null,
+        "appStore": {
+          "pro": false,
+          "code": "E_APP_STORE_UNREAD",
+          "takesKeys": true
+        }
+      },
+      "surface": "pro",
+      "sheet": "checking"
+    },
+    {
+      "name": "K1",
+      "note": "key build, trial ended, no licence",
+      "licence": {
+        "gated": true,
+        "state": "none",
+        "code": null,
+        "id": null,
+        "licensee": null,
+        "plan": null,
+        "trial": {
+          "state": "ended",
+          "endsAt": 1000,
+          "code": null,
+          "source": "keychain"
+        },
+        "activation": null,
+        "appStore": null
+      },
+      "surface": "pro",
+      "sheet": "key"
+    },
+    {
+      "name": "K2",
+      "note": "key build, licence revoked",
+      "licence": {
+        "gated": true,
+        "state": "revoked",
+        "code": null,
+        "id": "lic_1",
+        "licensee": null,
+        "plan": null,
+        "trial": {
+          "state": "ended",
+          "endsAt": 1000,
+          "code": null,
+          "source": "keychain"
+        },
+        "activation": null,
+        "appStore": null
+      },
+      "surface": "pro",
+      "sheet": "attention"
+    },
+    {
+      "name": "K2-seat",
+      "note": "key build, this device not on the licence",
+      "licence": {
+        "gated": true,
+        "state": "valid",
+        "code": null,
+        "id": "lic_1",
+        "licensee": null,
+        "plan": null,
+        "trial": {
+          "state": "ended",
+          "endsAt": 1000,
+          "code": null,
+          "source": "keychain"
+        },
+        "activation": {
+          "state": "required",
+          "used": 3,
+          "limit": 3,
+          "expiresAt": null
+        },
+        "appStore": null
+      },
+      "surface": "pro",
+      "sheet": "seat"
+    },
+    {
+      "name": "X1",
+      "note": "keychain unreadable",
+      "licence": {
+        "gated": true,
+        "state": "none",
+        "code": "E_LICENCE_UNREADABLE",
+        "id": null,
+        "licensee": null,
+        "plan": null,
+        "trial": {
+          "state": "ended",
+          "endsAt": 1000,
+          "code": null,
+          "source": "keychain"
+        },
+        "activation": null,
+        "appStore": null
+      },
+      "surface": "pro",
+      "sheet": "unreadable"
+    },
+    {
+      "name": "P1",
+      "note": "App Store build with Devot Pro",
+      "licence": {
+        "gated": true,
+        "state": "none",
+        "code": null,
+        "id": null,
+        "licensee": null,
+        "plan": null,
+        "trial": {
+          "state": "ended",
+          "endsAt": 1000,
+          "code": null,
+          "source": "keychain"
+        },
+        "activation": null,
+        "appStore": {
+          "pro": true,
+          "code": null,
+          "takesKeys": true
+        }
+      },
+      "surface": null
+    },
+    {
+      "name": "F1",
+      "note": "a build that does not gate",
+      "licence": {
+        "gated": false,
+        "state": "none",
+        "code": null,
+        "id": null,
+        "licensee": null,
+        "plan": null,
+        "trial": null,
+        "activation": null,
+        "appStore": null
+      },
+      "surface": null
+    }
+  ]
+}

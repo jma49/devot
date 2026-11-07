@@ -14,6 +14,7 @@ import { useExternalChanges } from '../externalChanges'
 import { saveEdits } from '../saveGuards'
 import { welcomeContent } from '../welcome/content'
 import { listSeeded } from '../welcome/seed'
+import { noteWritesReported } from './screens/noteChanges'
 
 export interface PhoneData {
   readonly core: Core | null
@@ -109,7 +110,10 @@ export function usePhoneData(): PhoneStore {
     let started: Core | null = null
     void startCore(
       () => {},
-      () => void refresh(),
+      (writes) => {
+        noteWritesReported(writes.keys())
+        void refresh()
+      },
       (code) => console.warn('W_PHONE_CORE_FAILED', code),
       { onTakenIn: (change) => takenIn.forEach((listener) => listener(change)) },
     )
