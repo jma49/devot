@@ -59,6 +59,13 @@ final class InstallTests: XCTestCase {
         }
     }
 
+    /// The tab requests by name and tab, whatever their IDs after the reads the screens send as they show.
+    private func tabShows(_ rust: FakeRust) throws -> [String] {
+        try tabRequests(rust).compactMap {
+            if case .request(_, let op, let args) = $0 { "\(op.rawValue) \(args["tab"]?.string ?? "")" } else { nil }
+        }
+    }
+
     func testAttachesTheTabBarOverTheWebViewAndShowsThePageLibrary() throws {
         let root = try shownRoot()
         let webView = WKWebView(frame: root.view.bounds)
@@ -75,7 +82,7 @@ final class InstallTests: XCTestCase {
         XCTAssertTrue(webView.superview === screens.root.tabs.screen(.library)?.view)
         let middle = CGPoint(x: root.view.bounds.midX, y: root.view.bounds.midY)
         XCTAssertEqual(screens.root.view.hitTest(middle, with: nil)?.isDescendant(of: webView), true)
-        XCTAssertEqual(try sent(rust), [.request(id: 1, op: .tabsShow, args: ["tab": .string("library")])])
+        XCTAssertEqual(try tabShows(rust), ["tabs.show library"])
     }
 
     func testMakesTaosWindowKeyOnceItsSceneIsActive() throws {
@@ -111,8 +118,9 @@ final class InstallTests: XCTestCase {
         let tabs = screens.root.tabs
         XCTAssertTrue(screens.selectionFeedback.view === tabs.view)
         _ = tabs.tabBarController(tabs, shouldSelect: try XCTUnwrap(tabs.selectedViewController))
-        XCTAssertEqual(try sent(rust).last, .request(id: 2, op: .tabsPopToRoot, args: ["tab": .string("library")]))
-        screens.replied(2, try Message.reply(id: 2, outcome: .ok(.object([:]))).json())
+        let popped = try XCTUnwrap(rust.calls.last?.0)
+        XCTAssertEqual(try sent(rust).last, .request(id: popped, op: .tabsPopToRoot, args: ["tab": .string("library")]))
+        screens.replied(popped, try Message.reply(id: popped, outcome: .ok(.object([:]))).json())
 
         screens.delivered(Data(#"{"v":1,"notice":"tabs.state","tab":"settings","barHidden":false,"attention":true}"#.utf8))
         settle()
@@ -156,7 +164,7 @@ final class InstallTests: XCTestCase {
         settle()
         XCTAssertEqual(screens.root.view.frame, root.view.bounds)
         XCTAssertNotNil(screens.root.view.window)
-        XCTAssertEqual(try sent(rust), [.request(id: 1, op: .tabsShow, args: ["tab": .string("library")])])
+        XCTAssertEqual(try tabShows(rust), ["tabs.show library"])
         XCTAssertEqual(rust.lines, [])
     }
 
@@ -213,7 +221,7 @@ final class InstallTests: XCTestCase {
         XCTAssertEqual(tabs.selectedIndex, TabModel.tabs.firstIndex(of: .settings))
         XCTAssertEqual(tabs.settings.navigation.viewControllers.count, 2)
         XCTAssertTrue(tabs.settings.navigation.viewControllers.first === tabs.settings.root)
-        XCTAssertTrue(try sent(rust).contains(.request(id: 2, op: .tabsShow, args: ["tab": .string("settings")])))
+        XCTAssertEqual(try tabShows(rust), ["tabs.show library", "tabs.show settings"])
         XCTAssertTrue(try sent(rust).contains { if case .direct(_, .licenceGet, _) = $0 { true } else { false } })
         screens.delivered(Data(#"{"v":1,"notice":"settings.open","pane":"sync"}"#.utf8))
         XCTAssertEqual(rust.lines.last, "W_SCREENS_NOTICE_INVALID notice=settings.open")
@@ -229,5 +237,24 @@ final class InstallTests: XCTestCase {
         XCTAssertEqual(try sent(rust).last, .direct(id: id, op: .licenceGet, args: [:]))
         screens.replied(id, try Message.reply(id: id, outcome: .failed("E_LICENCE_KEYCHAIN")).json())
         XCTAssertEqual(outcome, .failed("E_LICENCE_KEYCHAIN"))
+    }
+
+    func testOnceShownTheThemeIsReadAndThePageGetsThisIPhonesGlass() throws {
+        let rust = FakeRust()
+        let root = UIViewController()
+        _ = try XCTUnwrap(Screens.attach(webView: WKWebView(), root: root, rust: rust, defaults: defaults))
+        XCTAssertEqual(rust.calls.count, 0)
+        try show(root)
+        root.view.layoutIfNeeded()
+        settle()
+        let ops = try sent(rust).compactMap { message -> String? in
+            switch message {
+            case .direct(_, let op, _): op.rawValue
+            case .request(_, let op, _): op.rawValue
+            default: nil
+            }
+        }
+        XCTAssertTrue(ops.contains("direct.editorSettings.get"))
+        XCTAssertTrue(ops.contains("glass.get") || ops.contains("glass.set"))
     }
 }

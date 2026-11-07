@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 /// The Settings tab's stack: tells the tab bar when the tab shows, whatever page is on top.
 final class SettingsNavigationController: UINavigationController {
@@ -16,10 +17,14 @@ final class SettingsNavigationController: UINavigationController {
 final class SettingsScreens {
     let store = SettingsStore()
     let query = SettingsQuery()
+    let themes = ThemeStore.shared
+    let glass = GlassStyleStore.shared
     let router: SettingsRouter
     let navigation: SettingsNavigationController
     private(set) var root: SettingsRootScreen!
     private let host: WebViewHost
+    private var fontPicker: FontPicker?
+    private var started = false
     /// The tab shows, whatever page is on top.
     var onTabAppear: () -> Void = {}
 
@@ -33,7 +38,6 @@ final class SettingsScreens {
         router = SettingsRouter { _ in UIViewController() }
         navigation = SettingsNavigationController()
         navigation.navigationBar.prefersLargeTitles = true
-        navigation.view.backgroundColor = Tokens.Color.phoneBackground
         router.navigation = navigation
         router.make = { [unowned self] in controller($0) }
         let actions = SettingsActions(
@@ -49,6 +53,47 @@ final class SettingsScreens {
             if navigation.topViewController !== root { store.load() }
         }
         navigation.setViewControllers([root], animated: false)
+        store.onEditor = { [themes] in themes.adopt($0) }
+        glass.onChange = { [weak self] in self?.sendGlass($0) }
+        followTheme { [weak navigation] in navigation?.view.backgroundColor = Tokens.Color.phoneBackground }
+    }
+
+    /// Once the screens show: the theme from the editor settings, and the glass on the page from
+    /// this iPhone's value, taken from the page the first time.
+    func start() {
+        guard !started else { return }
+        started = true
+        store.loadEditor()
+        guard glass.needsMigration else {
+            sendGlass(glass.transparency)
+            return
+        }
+        store.bridge?.request(.glassGet, [:]) { [weak self] outcome in
+            guard let self else { return }
+            switch outcome {
+            case .ok(let value):
+                glass.migrate(value["transparency"]?.number.map { Int($0) })
+                sendGlass(glass.transparency)
+            case .failed(let code):
+                store.log("W_PHONE_GLASS_MIGRATE_FAILED code=\(code)")
+                sendGlass(glass.transparency)
+            }
+        }
+    }
+
+    private func sendGlass(_ transparency: Int) {
+        store.bridge?.request(.glassSet, ["transparency": .number(Double(transparency))]) { [weak self] outcome in
+            if case .failed(let code) = outcome { self?.store.log("W_PHONE_GLASS_SET_FAILED code=\(code)") }
+        }
+    }
+
+    private func pickFont() {
+        let types = ["ttf", "otf"].compactMap { UTType(filenameExtension: $0) }
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        let delegate = FontPicker { [weak self] in self?.store.importFont($0) }
+        fontPicker = delegate
+        picker.delegate = delegate
+        navigation.present(picker, animated: true)
     }
 
     func controller(_ page: SettingsPage) -> UIViewController {
@@ -56,7 +101,11 @@ final class SettingsScreens {
         case .general:
             SettingsHosting(title: L10n.settingsPaneGeneral(), GeneralPane(store: store, router: router))
         case .appearance:
-            web("appearance", L10n.settingsPaneAppearance())
+            SettingsHosting(
+                title: L10n.settingsPaneAppearance(),
+                AppearancePane(
+                    store: store, themes: themes, glass: glass, router: router,
+                    addFont: { [weak self] in self?.pickFont() }))
         case .editing:
             SettingsHosting(title: L10n.settingsPaneEditing(), EditingPane(store: store, router: router))
         case .preview:
@@ -140,5 +189,18 @@ final class SettingsScreens {
 
     private func dismissSheet() {
         navigation.presentedViewController?.dismiss(animated: true)
+    }
+}
+
+/// The document picker's answer: its copy of the picked font file.
+final class FontPicker: NSObject, UIDocumentPickerDelegate {
+    private let picked: (URL) -> Void
+
+    init(picked: @escaping (URL) -> Void) {
+        self.picked = picked
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        if let url = urls.first { picked(url) }
     }
 }

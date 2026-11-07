@@ -50,7 +50,7 @@ struct SettingsRootView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .settingsPage(store)
+        .settingsPage(store, glow: true)
         .overlay {
             if !query.text.trimmingCharacters(in: .whitespaces).isEmpty, sections.isEmpty {
                 ContentUnavailableView(L10n.phoneSettingsNoResults(), systemImage: "magnifyingglass")
@@ -230,7 +230,7 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = Tokens.Color.phoneBackground
+        followTheme { [weak self] in self?.view.backgroundColor = Tokens.Color.phoneBackground }
     }
 
     override func viewIsAppearing(_ animated: Bool) {

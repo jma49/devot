@@ -9,20 +9,22 @@ private struct SettingsType: ViewModifier {
     @ScaledMetric(relativeTo: .body) private var line: CGFloat = 23
     private let weight: Font.Weight
     private let secondary: Bool
+    private let color: UIColor?
 
     init(size: CGFloat, line: CGFloat, weight: Font.Weight = .regular, relativeTo style: Font.TextStyle = .body,
-        secondary: Bool) {
+        secondary: Bool, color: UIColor? = nil) {
         _size = ScaledMetric(wrappedValue: size, relativeTo: style)
         _line = ScaledMetric(wrappedValue: line, relativeTo: style)
         self.weight = weight
         self.secondary = secondary
+        self.color = color
     }
 
     func body(content: Content) -> some View {
         content
             .font(.system(size: size, weight: weight))
             .lineSpacing(max(0, line - UIFont.systemFont(ofSize: size, weight: weight.uiKit).lineHeight))
-            .foregroundStyle(Color(secondary ? Tokens.Color.phoneTextSecondary : Tokens.Color.phoneText))
+            .foregroundStyle(Color(color ?? (secondary ? Tokens.Color.phoneTextSecondary : Tokens.Color.phoneText)))
     }
 }
 
@@ -43,6 +45,14 @@ extension View {
         modifier(SettingsType(size: 20, line: 25, weight: .bold, relativeTo: .title3, secondary: false))
     }
     func sheetBody() -> some View { modifier(SettingsType(size: 16, line: 24, secondary: true)) }
+    /// A card's name under its picture: 16/23 medium, its colour the only thing a choice changes.
+    func cardLabel(_ color: UIColor) -> some View {
+        modifier(SettingsType(size: 16, line: 23, weight: .medium, secondary: false, color: color))
+    }
+    /// A slider's value beside its name: 14/19 medium in tabular figures.
+    func sliderValue() -> some View {
+        modifier(SettingsType(size: 14, line: 19, weight: .medium, secondary: true)).monospacedDigit()
+    }
 
     /// A row on the grouped card, at least the row's height.
     func settingsRow(described: Bool = false) -> some View {
@@ -237,15 +247,22 @@ final class SettingsHosting<Content: View>: UIHostingController<Content> {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = Tokens.Color.phoneBackground
+        followTheme { [weak self] in self?.view.backgroundColor = Tokens.Color.phoneBackground }
     }
 }
 
 extension View {
     /// The grouped list on the phone's background, and the one-line alert of a refused write.
-    func settingsPage(_ store: SettingsStore) -> some View {
+    func settingsPage(_ store: SettingsStore, glow: Bool = false) -> some View {
         scrollContentBackground(.hidden)
-            .background(Color(Tokens.Color.phoneBackground))
+            .background(alignment: .top) {
+                ZStack(alignment: .top) {
+                    Color(Tokens.Color.phoneBackground)
+                    if glow { ScreenGlow() }
+                }
+                .ignoresSafeArea()
+            }
+            .scrollEdgeEffectStyle(GlassStyleStore.shared.barEdge.swiftUI, for: [.top, .bottom])
             .alert(
                 store.failure ?? "",
                 isPresented: Binding(get: { store.failure != nil }, set: { if !$0 { store.failure = nil } })

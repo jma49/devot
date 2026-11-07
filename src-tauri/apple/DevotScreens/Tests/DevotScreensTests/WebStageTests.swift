@@ -150,11 +150,11 @@ final class WebStageTests: XCTestCase {
         XCTAssertTrue(webView.superview === screens.root.host.stage)
         XCTAssertFalse(reachableByVoiceOver(webView))
 
-        tabs.settings.navigation.pushViewController(tabs.settings.controller(.appearance), animated: false)
+        tabs.settings.navigation.pushViewController(tabs.settings.controller(.sync), animated: false)
         tabs.view.layoutIfNeeded()
         let pane = try XCTUnwrap(tabs.settings.navigation.topViewController as? WebPaneScreen)
         let asked = try XCTUnwrap(try requests(rust, .settingsShowPane).last)
-        XCTAssertEqual(asked.1, ["pane": .string("appearance")])
+        XCTAssertEqual(asked.1, ["pane": .string("sync")])
         XCTAssertTrue(webView.superview === screens.root.host.stage)
 
         screens.replied(asked.0, try Message.reply(id: asked.0, outcome: .ok(.object([:]))).json())

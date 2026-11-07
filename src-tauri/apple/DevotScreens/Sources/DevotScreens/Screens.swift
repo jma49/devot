@@ -50,6 +50,7 @@ final class Screens: SettingsBridge {
             run(effects)
         }
         root.tabs.settings.bridge = self
+        root.onShown = { [weak root] in root?.tabs.settings.start() }
     }
 
     /// Checks what Rust handed over and attaches the root, or answers nil. Tao's window may not be
