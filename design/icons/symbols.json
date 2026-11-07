@@ -76,6 +76,7 @@
     "tag": "circle.fill",
     "sidebar.toggle": "sidebar.left",
     "note.new": "square.and.pencil",
+    "trash.empty": "xmark.bin",
     "mode.focus": "arrow.up.left.and.arrow.down.right",
     "mode.focus.exit": "arrow.down.right.and.arrow.up.left",
     "mode.write": "doc.richtext",

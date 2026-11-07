@@ -2,11 +2,11 @@ import { useMemo, type Dispatch, type SetStateAction } from 'react'
 import type { TrashedNote } from '../../../core'
 import type { Core } from '../core-client'
 import { displayTitles, type HeadlineLoader } from '../headlines'
-import { t } from '../i18n'
 import type { ListSelection } from '../listSelection'
 import type { TrashAction } from '../noteMenu'
 import { useStable } from '../stable'
 import { useTrashMenu } from '../trashMenu'
+import { EmptyTrashButton } from './EmptyTrashButton'
 import type { Confirm } from './useConfirm'
 
 /** Restoring and deleting notes in the Trash, one or a selection of several. */
@@ -83,17 +83,7 @@ export function useTrashList({
       }),
   )
   const emptyTrashButton = useMemo(
-    () => (
-      <button
-        type="button"
-        className="button"
-        data-tauri-drag-region="false"
-        aria-disabled={trash.length === 0 || !editing}
-        onClick={askEmptyTrash}
-      >
-        {t('trash.empty')}
-      </button>
-    ),
+    () => <EmptyTrashButton disabled={trash.length === 0 || !editing} onClick={askEmptyTrash} />,
     [trash.length, editing, askEmptyTrash],
   )
   return { trashKey, askEmptyTrash, trashRowMenu, emptyTrashButton }
