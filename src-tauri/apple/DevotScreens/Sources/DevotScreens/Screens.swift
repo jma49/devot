@@ -56,6 +56,7 @@ final class Screens: SettingsBridge {
         for tab in TabModel.tabs {
             root.tabs.screen(tab)?.hideEditor = { [weak self] done in self?.hideEditor(done) }
         }
+        root.onShown = { [weak root] in root?.tabs.settings.start() }
     }
 
     /// Checks what Rust handed over and attaches the root, or answers nil. Tao's window may not be

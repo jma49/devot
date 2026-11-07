@@ -28,7 +28,14 @@ export function glassSurface(transparency: number): string {
     : `color-mix(in srgb, var(--color-phone-glass) ${100 - transparency / 2}%, transparent)`
 }
 
-const load = (): GlassPrefs => readGlassPrefs(localStore()?.getItem(TRANSPARENCY_KEY) ?? null)
+const stored = () => localStore()?.getItem(TRANSPARENCY_KEY) ?? null
+const load = (): GlassPrefs => readGlassPrefs(stored())
+
+/** The value this page kept, for the native store's one-time migration; null when it kept none. */
+export function storedGlassTransparency(): number | null {
+  const value = stored()
+  return value === null ? null : readGlassPrefs(value).transparency
+}
 
 let current = load()
 const listeners = new Set<() => void>()

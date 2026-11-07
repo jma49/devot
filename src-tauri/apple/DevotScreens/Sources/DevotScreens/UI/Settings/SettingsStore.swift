@@ -10,6 +10,12 @@ protocol SettingsBridge: AnyObject {
     func log(_ level: LogLevel, _ line: String)
 }
 
+/// A font file the user imported, by its stored file name and its display name.
+struct FontFile: Equatable {
+    let id: String
+    let name: String
+}
+
 struct NotebookChoice: Hashable, Identifiable {
     let id: String
     let name: String
@@ -82,7 +88,11 @@ struct AiView: Equatable {
 @MainActor
 final class SettingsStore {
     @ObservationIgnored weak var bridge: (any SettingsBridge)?
-    private(set) var editor: [String: JSONValue] = [:]
+    private(set) var editor: [String: JSONValue] = [:] {
+        didSet { onEditor?(editor) }
+    }
+    /// Told every editor snapshot the panes show, the moment they show it: before Rust hears of a change.
+    @ObservationIgnored var onEditor: (([String: JSONValue]) -> Void)?
     @ObservationIgnored private var revision = -1.0
     private(set) var crashReports: CrashReports?
     private(set) var licence: Licence?
@@ -94,6 +104,7 @@ final class SettingsStore {
     @ObservationIgnored private var syncReading = false
     @ObservationIgnored private var syncAgain = false
     private(set) var notebooks: [NotebookChoice] = []
+    private(set) var fontFiles: [FontFile] = []
     private(set) var products: [StoreProduct] = []
     var failure: String?
     /// The time the licence rows are shown for: read again on coming back to the foreground and
@@ -126,9 +137,13 @@ final class SettingsStore {
         }
     }
 
+    func loadEditor() {
+        read(.editorSettingsGet) { [weak self] in self?.adoptEditor($0) }
+    }
+
     func load() {
         now = Date()
-        read(.editorSettingsGet) { [weak self] in self?.adoptEditor($0) }
+        loadEditor()
         read(.crashReportsGet) { [weak self] value in
             guard let available = value["available"]?.bool, let on = value["on"]?.bool else { return }
             self?.crashReports = CrashReports(available: available, on: on)
@@ -147,6 +162,34 @@ final class SettingsStore {
                 return NotebookChoice(id: id, name: name, depth: Int(item["depth"]?.number ?? 0))
             }
         }
+    }
+
+    func loadFonts() {
+        read(.fontsList) { [weak self] value in
+            self?.fontFiles = (value.array ?? []).compactMap(Self.fontFile)
+        }
+    }
+
+    /// Imports the picker's copy of a font file, removes the copy, and makes the font the Note Font.
+    func importFont(_ copy: URL) {
+        bridge?.direct(.fontsImport, ["path": .string(copy.path)]) { [weak self] outcome in
+            try? FileManager.default.removeItem(at: copy)
+            guard let self else { return }
+            switch outcome {
+            case .ok(let value):
+                guard let file = Self.fontFile(value) else { return }
+                if !fontFiles.contains(file) { fontFiles.append(file) }
+                setEditor(["fontFamily": .string("imported"), "importedFont": .string(file.id)])
+            case .failed(let code):
+                failure = catalog("editorSettings.importFontFailed")
+                bridge?.log(.warn, "W_PHONE_FONT_IMPORT_FAILED code=\(code)")
+            }
+        }
+    }
+
+    private static func fontFile(_ value: JSONValue) -> FontFile? {
+        guard let id = value["id"]?.string, let name = value["name"]?.string else { return nil }
+        return FontFile(id: id, name: name)
     }
 
     /// Without StoreKit's price Buy still works: StoreKit's own sheet shows it.
@@ -215,15 +258,22 @@ final class SettingsStore {
     func flag(_ key: String) -> Bool { editor[key]?.bool ?? false }
 
     func setEditor(_ key: String, _ value: JSONValue) {
-        let old = editor[key]
-        editor[key] = value
-        bridge?.direct(.editorSettingsSet, ["patch": .object([key: value])]) { [weak self] outcome in
+        setEditor([key: value])
+    }
+
+    /// Keys that change together, such as a theme card's light and dark, go to Rust as one patch.
+    func setEditor(_ patch: [String: JSONValue]) {
+        let old = patch.keys.map { ($0, editor[$0]) }
+        editor.merge(patch) { $1 }
+        bridge?.direct(.editorSettingsSet, ["patch": .object(patch)]) { [weak self] outcome in
             guard let self else { return }
             switch outcome {
             case .ok(let snapshot): adoptEditor(snapshot)
             case .failed(let code):
-                if editor[key] == value { editor[key] = old }
-                refused(key: key, code: code)
+                var restored = editor
+                for (key, value) in old where editor[key] == patch[key] { restored[key] = value }
+                editor = restored
+                refused(key: patch.keys.sorted().joined(separator: ","), code: code)
             }
         }
     }

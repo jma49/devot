@@ -28,8 +28,15 @@ Part of the [architecture overview](../architecture.md).
 - **Editor font:** SF Mono by default, nothing bundled.
   Font Family also offers an installed font (`fontFamily: 'installed'`, the family in `installedFont`, listed by AppKit through `fonts_installed`) or an imported file (`'imported'`, the file name in `importedFont`).
   `font_import` (Settings window, and the iPhone's window, whose Files picker hands Rust a copy of the file) asks for a TTF, OTF, WOFF or WOFF2 file in a native panel, checks its extension against its first bytes and its size (50 MB at most), and copies it into `<app data>/fonts/` (a stored file is never replaced: a different file under a taken name is stored as `Name 2.ttf`, so a window never keeps stale glyphs), which never syncs and backups never include; `fonts_list` lists that folder.
+  The iPhone's native Appearance pane picks a TTF or OTF file with the system document picker, which copies it into the app's temporary folder, and hands that copy to the same import through `direct.fonts.import`; Rust reads a path only inside that folder, and the copy is removed after the import.
+  It lists the families the iPhone has (Installed Font only while it is the choice) and the imported files under Note Font, and draws an imported file's name and sample in the system face, since only the web view loads the file.
+  The iPhone shows no App Font: its chrome is native and uses the system font, and the synced `appFontFamily` stays as the Mac set it.
   `font_read` returns a stored file's bytes, checked again, and the window loads them as a `FontFace` under one family name of its own (`src/renderer/src/fonts.ts`), so no path or URL reaches the web view.
   Names are checked on both sides (no quotes or backslashes) before they go into the CSS font list, and every list ends with SF Mono, so a font that is missing, invalid or still loading shows SF Mono.
+- **The iPhone's own appearance:** Default Notebook is in the iPhone's General pane as on the Mac.
+  Glass Transparency is not an editor setting: it is this iPhone's own value in `UserDefaults` (`devot.phone.glassTransparency`), never synced, taken once from the page's storage key of the same name the first time the native screens show (`glass.get`), and set on the page's glass with `glass.set`.
+  When that read fails nothing is sent, so the page keeps its value and the next launch takes it.
+  The native screens apply a theme, a colour scheme and the gradient strength before Rust stores them, so the change shows in the next frame; the page follows through `devot://editor-settings-changed`.
 - **Live in every window:** after each change Rust sends `devot://editor-settings-changed` with the full settings and a revision to every window (the Settings window may listen to events for this).
   The revision goes up by one with each stored change, so a window ignores an answer or event older than one it has seen (two changes can announce themselves out of order).
   The page re-sends the event as `devot:editor-settings-changed`, which the UI tests send too.

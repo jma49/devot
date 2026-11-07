@@ -19,6 +19,8 @@ export const SCREENS_OPS = [
   'editor.hide',
   'editor.setMode',
   'editor.info',
+  'glass.get',
+  'glass.set',
 ] as const
 export type ScreensOp = (typeof SCREENS_OPS)[number]
 

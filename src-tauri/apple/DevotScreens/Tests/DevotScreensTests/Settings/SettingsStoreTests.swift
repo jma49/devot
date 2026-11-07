@@ -173,4 +173,24 @@ final class SettingsStoreTests: XCTestCase {
         store.heard(.syncPairing)
         XCTAssertEqual(store.pairingNudges, 1)
     }
+
+    func testAPatchShowsEveryKeyTellsTheThemeBeforeRustAndRollsBackTogether() {
+        let (store, bridge) = store()
+        var told: [(sent: Int, editor: [String: JSONValue])] = []
+        store.onEditor = { told.append((bridge.sent.count, $0)) }
+        store.loadEditor()
+        XCTAssertEqual(bridge.ops, ["direct.editorSettings.get"])
+        bridge.answer(
+            "direct.editorSettings.get",
+            editor(1, ["lightTheme": .string("default"), "darkTheme": .string("default")]))
+        store.setEditor(["lightTheme": .string("dawn"), "darkTheme": .string("dawn")])
+        XCTAssertEqual(told.last?.sent, 0)
+        XCTAssertEqual(told.last?.editor["darkTheme"], .string("dawn"))
+        XCTAssertEqual(
+            bridge.sent.last?.args, ["patch": .object(["lightTheme": .string("dawn"), "darkTheme": .string("dawn")])])
+        bridge.answer("direct.editorSettings.set", .failed("E_SETTINGS_WRITE"))
+        XCTAssertEqual(store.editor["lightTheme"], .string("default"))
+        XCTAssertEqual(told.last?.editor["darkTheme"], .string("default"))
+        XCTAssertEqual(bridge.lines, ["W_PHONE_SETTINGS_SAVE_FAILED key=darkTheme,lightTheme code=E_SETTINGS_WRITE"])
+    }
 }

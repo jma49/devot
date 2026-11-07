@@ -1,0 +1,11 @@
+{
+  "from": "swift",
+  "message": {
+    "v": 1,
+    "id": 25,
+    "op": "glass.set",
+    "args": {
+      "transparency": -35
+    }
+  }
+}

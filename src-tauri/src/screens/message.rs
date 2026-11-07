@@ -76,6 +76,16 @@ pub enum WebPane {
     Appearance,
 }
 
+/// The iPhone's Glass Transparency: -100 is solid, 0 the design, 100 the clearest, in steps of 5.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GlassSet {
+    pub transparency: i32,
+}
+
+pub const GLASS_TRANSPARENCY_MAX: i32 = 100;
+pub const GLASS_TRANSPARENCY_STEP: i32 = 5;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ShowPane {
@@ -131,6 +141,10 @@ pub enum Op {
     EditorSetMode(ModeArgs),
     #[serde(rename = "editor.info")]
     EditorInfo(Empty),
+    #[serde(rename = "glass.get")]
+    GlassGet(Empty),
+    #[serde(rename = "glass.set")]
+    GlassSet(GlassSet),
 }
 
 pub const OPS: &[&str] = &[
@@ -146,6 +160,8 @@ pub const OPS: &[&str] = &[
     "editor.hide",
     "editor.setMode",
     "editor.info",
+    "glass.get",
+    "glass.set",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -516,10 +532,19 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             create.title.as_deref().map_or(Ok(()), title)
         }
         Op::EditorShow(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
+        Op::GlassSet(GlassSet { transparency }) => {
+            if !(-GLASS_TRANSPARENCY_MAX..=GLASS_TRANSPARENCY_MAX).contains(transparency)
+                || transparency % GLASS_TRANSPARENCY_STEP != 0
+            {
+                return Err("E_SCREENS_ARGS_INVALID");
+            }
+            Ok(())
+        }
         Op::TabsShow(_)
         | Op::TabsPopToRoot(_)
         | Op::SettingsShowPane(_)
         | Op::SettingsNotebooks(_)
+        | Op::GlassGet(_)
         | Op::EditorHide(_)
         | Op::EditorSetMode(_)
         | Op::EditorInfo(_) => Ok(()),

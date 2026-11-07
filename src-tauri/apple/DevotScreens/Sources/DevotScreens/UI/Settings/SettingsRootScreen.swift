@@ -52,7 +52,7 @@ struct SettingsRootView: View {
         .listStyle(.insetGrouped)
         // The tab bar's scroll edge effect would otherwise fade the build footer even at the foot.
         .contentMargins(.bottom, Tokens.Size.phoneTabEdge, for: .scrollContent)
-        .settingsPage(store)
+        .settingsPage(store, glow: true)
         .overlay {
             if !query.text.trimmingCharacters(in: .whitespaces).isEmpty, sections.isEmpty {
                 ContentUnavailableView(L10n.phoneSettingsNoResults(), systemImage: "magnifyingglass")
@@ -116,7 +116,7 @@ struct SettingsRootView: View {
         } label: {
             HStack(spacing: Tokens.Size.phoneGroupedGap) {
                 Image(systemName: "bird.fill")
-                    .foregroundStyle(Color(Tokens.Color.phoneOnAction))
+                    .foregroundStyle(Color(Tokens.Color.accentOnFill))
                     .frame(width: Tokens.Size.phoneTarget, height: Tokens.Size.phoneTarget)
                     .background(RoundedRectangle(cornerRadius: Tokens.Radius.phoneGroupedCard / 2).fill(Color(Tokens.Color.accentFill)))
                     .accessibilityHidden(true)
@@ -240,7 +240,7 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = Tokens.Color.phoneBackground
+        followTheme { [weak self] in self?.view.backgroundColor = Tokens.Color.phoneBackground }
     }
 
     override func viewDidLayoutSubviews() {

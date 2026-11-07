@@ -90,6 +90,8 @@ public enum Op: String, CaseIterable, Sendable {
     case editorHide = "editor.hide"
     case editorSetMode = "editor.setMode"
     case editorInfo = "editor.info"
+    case glassGet = "glass.get"
+    case glassSet = "glass.set"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {

@@ -55,6 +55,7 @@ import { startLicence, useLicence } from '../licence'
 import { choicesFromTree } from '../notebookChoices'
 import { startScreensBridge, type ScreensBridge } from './screens/bridge'
 import { SCREENS_HANDLERS } from './screens/ops'
+import { glassHandlers } from './screens/glass'
 import { settingsHandlers, type NativeSettings } from './screens/settings'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
 import { editorHandlers, type NativeEditor } from './screens/editor'
@@ -343,6 +344,7 @@ export function PhoneApp() {
         notebooks: () => nativeSettings.current?.notebooks() ?? [],
       }),
       ...editorHandlers(() => nativeEditor.current),
+      ...glassHandlers(),
     })
     bridge.current = started
     let live = true

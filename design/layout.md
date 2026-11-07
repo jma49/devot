@@ -59,6 +59,7 @@ Its keyline is `size.phone-grouped-pad-x` (16) from a card's edge: section heade
 - **Stepper:** its value as a trailing value, then a `size.phone-stepper-height` pair of `size.phone-stepper-button` buttons on `color.phone.lens`, its outer corners concentric with the card; it never stretches.
   The value comes first in reading and tab order, and each button is a 44 by 44 target.
 - **Controls that fill a row:** a segmented control or a slider takes the row's width with `size.phone-grouped-pad-x` on every side, so its corners are concentric with the card; its name is the section header, never a label inside the card.
+  A card that holds more than one control names each slider on a line above its track, label left and value right.
   A free-text field goes under its label at the row's width.
 - **Actions:** each is a full-width row of its own, its label in `color.accent.text` on the keyline, and in `color.phone.destructive` when it removes something.
   A row's actions sit under its text, parted by separators.

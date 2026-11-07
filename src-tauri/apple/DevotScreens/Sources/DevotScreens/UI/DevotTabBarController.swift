@@ -29,7 +29,7 @@ final class DevotTabBarController: UITabBarController, UITabBarControllerDelegat
         selectedIndex = TabModel.tabs.firstIndex(of: .library) ?? 0
         delegate = self
         tabBarMinimizeBehavior = .never
-        tabBar.tintColor = Tokens.Color.accentText
+        followTheme { [weak self] in self?.tabBar.tintColor = Tokens.Color.accentText }
     }
 
     required init?(coder: NSCoder) { nil }
