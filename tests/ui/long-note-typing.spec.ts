@@ -50,7 +50,6 @@ function longNote(chars: number): string {
   return sections.join('')
 }
 
-/** A new note holding `longNote(chars)`, once the parser and its first save have settled. */
 async function openLongNote(page: Page, chars: number) {
   await openApp(page)
   await page.getByRole('button', { name: 'New Note', exact: true }).click()
@@ -60,6 +59,7 @@ async function openLongNote(page: Page, chars: number) {
     const view = (el as unknown as { cmTile: { view: ViewLike } }).cmTile.view
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } })
   }, longNote(chars))
+  // For the parser and the note's first save to settle.
   await page.waitForTimeout(3000)
 }
 
@@ -101,9 +101,8 @@ test('a keystroke in a 200 KB note stays within its budget', async ({ page }) =>
 // The note is three times the one above, so such work shows against the rest. Each place is typed twice, in
 // turns, a letter then Backspace so the note keeps its length, with pauses as a person leaves them; trimmed
 // means keep a garbage collection or a late frame from deciding, and CI's one retry a noisy runner.
-// Typing at a place waits until the parser has drawn it and gone quiet, as the top was before the first key:
-// CodeMirror parses only 100 KB past the view, so the first keys after a jump to the end would otherwise time
-// its catching up (seconds on CI, in either mode), not a keystroke.
+// CodeMirror parses only 100 KB past the view, so typing at a place waits until the parser has drawn it and gone
+// quiet: a first visit's catching up is not a keystroke's cost (#759). The note ends in a quote line for that wait.
 // The bound catches work of about half a keystroke; a smaller cost, such as the highlighting walk that
 // highlighting.test.ts holds, does not always cross it.
 const PLACE_NOTE_CHARS = 600_000
@@ -118,7 +117,6 @@ const trimmedMean = (values: number[]) => {
   return kept.reduce((sum, value) => sum + value, 0) / kept.length
 }
 
-/** Notes the time of each editor update from now on, for `quiet`. */
 function watchUpdates(page: Page) {
   return body(page).evaluate((el) => {
     const view = (el as unknown as { cmTile: { view: ViewLike } }).cmTile.view
@@ -132,7 +130,7 @@ function watchUpdates(page: Page) {
   })
 }
 
-/** Waits until the editor has gone `QUIET_MS` without an update: each slice of the parser's background work ends in one. */
+// Each slice of the parser's background work ends in an editor update.
 async function quiet(page: Page) {
   await expect
     .poll(() => page.evaluate(() => window.performance.now() - window.devotLastUpdate), {
@@ -172,6 +170,7 @@ for (const mode of [
     page,
   }) => {
     test.setTimeout(180_000)
+    expect(longNote(PLACE_NOTE_CHARS).trimEnd().split('\n').at(-1)).toMatch(/^> A quote with/)
     await openLongNote(page, PLACE_NOTE_CHARS)
     await page.evaluate(
       (detail) => window.dispatchEvent(new CustomEvent('devot:open-url', { detail })),
