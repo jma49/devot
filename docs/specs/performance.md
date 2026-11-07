@@ -4,6 +4,9 @@ Part of the [architecture overview](../architecture.md).
 
 - Budgets (the cost of native crash reports against the first two is still unmeasured on the app; see [Crash reporting and logs](quality.md#crash-reporting-and-logs)): launch to first editor paint < 700 ms; idle memory footprint < 200 MB; keystroke to paint < 8 ms on a 120 Hz display (one frame); full-text search over 10k notes < 50 ms; switching notes < 16 ms.
 - In WebKit, `tests/ui/long-note-typing.spec.ts` keeps typing in a 200 KB note (prose, lists, tables, code blocks) within a looser budget for that engine on Linux: the median keystroke's editor work (CodeMirror's update and measure) under 25 ms and its key to the end of its frame under 80 ms; it stood at about 13 ms and 30 ms when added, of which the Markdown parser's incremental pass to the note's end is about 5 ms.
+- The iPhone draws at its display's refresh rate: `CADisableMinimumFrameDurationOnPhone` in `src-tauri/gen/apple/devot_iOS/Info.plist` and `project.yml` (held by `tests/policy/iphone-info-plist.test.ts`) lifts the 60 Hz cap a ProMotion iPhone otherwise puts on Core Animation and the display link.
+  The keyboard, system sheets and the web view's compositor transitions then run at 120 Hz; the page's `requestAnimationFrame` stays near 60 Hz, so motion drawn by script each frame does not gain from it.
+  Judge the phone's smoothness on a release build on a device.
 - The phase 2 harness measures them on macOS, in-app for typing latency, plus idle GPU power (`powermetrics`) with the transparent window against an opaque one.
 - Core budgets, held by the benchmarks in `tests/core/*.bench.test.ts` (`pnpm test` and CI run them; `pnpm test:fast` leaves them out) against the test store on better-sqlite3, which runs the Rust store's SQL.
   Each holds on a developer machine and is stretched 5 times on a hosted CI runner (`tests/support/budget.ts`).
