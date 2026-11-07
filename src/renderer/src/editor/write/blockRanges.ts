@@ -13,7 +13,7 @@ import {
   type TransactionSpec,
 } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
-import { videoEmbedUrl } from '../../../../core/preview/builtins'
+import { videoEmbedUrl } from '../../../../core/preview/videoEmbeds'
 import { findImages } from '../images'
 import type { Span } from './changes'
 import { writeFocus } from './focus'

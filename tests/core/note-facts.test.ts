@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { frontMatterHead, noteFrontMatter, noteTally } from '../../src/core/noteFacts'
+import { frontMatterHead } from '../../src/core/frontMatterHead'
+import { noteFrontMatter, noteTally } from '../../src/core/noteFacts'
 import { frontMatterView, propertyCount } from '../../src/core/preview/frontMatterView'
 import { noteFields } from '../support/preview-html'
 

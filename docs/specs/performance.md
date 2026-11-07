@@ -41,6 +41,11 @@ Part of the [architecture overview](../architecture.md).
   - The diagram frame, which holds the diagram libraries, is removed 30 s after no diagram is shown and no drawing is asked for (`preview/frameLifetime.ts`); drawings kept on the page come back without it.
     Write mode lets go of a diagram that scrolls out of view, so reading past a note's diagrams for 30 s also removes the frame; scrolling back to one the page no longer keeps (or after a resize or a theme change) loads the libraries again, which takes seconds.
   - Kept on purpose, each bounded by a count: the undo history of the last 10 notes left ([Data model](data-model.md)), the core's last 8 notes, the last 64 diagram drawings, and Write mode's last 200 rendered blocks (`trees`), 1,000 block heights (`heights`) and 500 inline drawings (`drawnInline`).
+- `tests/scripts/startup-chunks.bench.test.ts` holds what a window parses before its first paint and what the core worker parses before `init` answers, each under a byte budget.
+  The main page loads no Markdown parser and no server renderer, as the core worker parses and converts Markdown.
+  The core worker loads sync, the Markdown mirror, import, export and the AI service on their first use.
+  A stop, or a later start, made while sync's code loads wins, and starts made while the mirror's code loads make one mirror (`lazyStart.ts`).
+  Once the window is idle, warm-up renders a short sample with only the code languages, math and emoji that the open note and the first 20 listed notes use, so the next note opened from the list opens warm without a fixed set of grammars kept in memory.
 - The phase 2 harness measures them on macOS, in-app for typing latency, plus idle GPU power (`powermetrics`) with the transparent window against an opaque one.
 - Core budgets, held by the benchmarks in `tests/core/*.bench.test.ts` (`pnpm test` and CI run them; `pnpm test:fast` leaves them out) against the test store on better-sqlite3, which runs the Rust store's SQL.
   Each holds on a developer machine and is stretched 5 times on a hosted CI runner (`tests/support/budget.ts`).

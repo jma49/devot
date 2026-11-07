@@ -3,6 +3,27 @@ import { fileURLToPath } from 'node:url'
 import { defaultClientConditions, defineConfig } from 'vite'
 import { mermaidFrame } from './scripts/vite/mermaid-frame.ts'
 
+/** Whether a chain of static imports leads from the build's entry to `id`, which is not the entry. */
+function loadsWithEntry(
+  id: string,
+  getModuleInfo: (id: string) => { isEntry: boolean; importers: string[] } | null,
+): boolean {
+  if (getModuleInfo(id)?.isEntry) return false
+  const seen = new Set([id])
+  const queue = [id]
+  for (let next = queue.pop(); next !== undefined; next = queue.pop()) {
+    const info = getModuleInfo(next)
+    if (info?.isEntry) return true
+    for (const importer of info?.importers ?? []) {
+      if (!seen.has(importer)) {
+        seen.add(importer)
+        queue.push(importer)
+      }
+    }
+  }
+  return false
+}
+
 // The UI is served to Tauri's webview (see src-tauri/tauri.conf.json).
 export default defineConfig({
   root: 'src/renderer',
@@ -34,14 +55,26 @@ export default defineConfig({
   // cold start lost the first tests. Naming the worker pre-bundles it
   // (tests/scripts/vite-deps.bench.test.ts); entries replace the default pages, so they stay listed.
   optimizeDeps: { entries: ['*.html', 'src/core.worker.ts'] },
-  // ES module workers, so lazy imports (math, emoji, highlighting) become chunks. Shared code
-  // goes to a chunk of its own, never the entry: WebKit runs the worker script a second time
-  // when a chunk imports it, and that copy answers with E_CORE_NOT_READY
-  // (tests/scripts/worker-chunks.bench.test.ts).
+  // ES module workers, so lazy imports (math, emoji, highlighting, sync, import) become chunks.
+  // No chunk may import the entry: WebKit runs the worker script a second time when one does,
+  // and that copy answers with E_CORE_NOT_READY (tests/scripts/worker-chunks.bench.test.ts).
+  // So the entry is a facade, everything it loads statically goes to `core-shared`, and what
+  // only lazy chunks share to `core-lazy`.
   worker: {
     format: 'es',
     rolldownOptions: {
-      output: { codeSplitting: { groups: [{ name: 'core-shared', minShareCount: 2 }] } },
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: (id, ctx) =>
+                loadsWithEntry(id, (other) => ctx.getModuleInfo(other)) ? 'core-shared' : null,
+              priority: 2,
+            },
+            { name: 'core-lazy', minShareCount: 2, priority: 1 },
+          ],
+        },
+      },
     },
   },
   build: {

@@ -2,7 +2,7 @@
 // the UI thread no per-byte work (a long, much-edited note's state is several MiB).
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { type NoteRecord, type RevisionRecord } from '../../src/core'
+import type { NoteRecord, RevisionRecord } from '../../src/core'
 import { invoke } from '../../src/renderer/src/ipc'
 import { tauriStorage, tauriWire } from '../../src/renderer/src/storage/tauri'
 import {

@@ -1,7 +1,7 @@
 // A note's front matter as rows of properties: the preview's properties block and the Note Info
 // card both draw from it.
 import { parse, stringify } from 'yaml'
-import { noteTitle, readFrontMatterYaml, type FrontMatterMeta } from '../import'
+import { noteTitle, readFrontMatterYaml, type FrontMatterMeta } from '../frontMatter'
 import type { TagColorValue } from '../storage'
 import { sameName } from '../tags'
 import { fillPlaceholders } from '../text'
@@ -134,6 +134,4 @@ export function frontMatterView(
   return rows ? { kind: 'properties', rows } : { kind: 'yaml', yaml }
 }
 
-/** How many properties the summary counts: a block that is not a map of keys counts as one. */
-export const propertyCount = (view: FrontMatterView | null): number =>
-  view === null ? 0 : view.kind === 'properties' ? view.rows.length : 1
+export { propertyCount } from './propertyCount'
