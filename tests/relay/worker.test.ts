@@ -1,9 +1,22 @@
 import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { build } from 'esbuild'
 import { Miniflare } from 'miniflare'
 import { expect, it } from 'vitest'
 import { ANONYMOUS_BURST, SHARED_PERIOD_MS } from '../../relay/src/front'
-import { postJson, randomId } from './client'
+import { ORPHAN_AGE_MS } from '../../relay/src/vault'
+import {
+  bytes,
+  connect,
+  createVault,
+  enrolled,
+  postJson,
+  randomId,
+  retireVault,
+  socketProtocols,
+  socketUrl,
+  TestSocket,
+} from './client'
 import { relaySuite } from './suite'
 
 // The Cloudflare host runs locally in workerd through Miniflare, bundled from
@@ -38,9 +51,39 @@ it('wrangler.toml binds the vault object on SQLite storage, as the tests run it'
   expect(new Set(Object.values(ratelimits).map((r) => r.namespace_id)).size).toBe(2)
 })
 
-async function startWorker({ shared = true } = {}) {
+// workerd's clock and alarms cannot be moved from outside, so this entry adds a clock the test
+// moves and runs an alarm on demand, as workerd does: the alarm is cleared and the object may be fresh.
+const clockedEntry = `
+import worker, { PairingObject, VaultObject as Vault } from './${setting('main')}'
+let offset = 0
+const realNow = Date.now
+Date.now = () => realNow() + offset
+export class VaultObject extends Vault {
+  async advance(ms) { offset += ms }
+  async alarmAt() { return this.ctx.storage.getAlarm() }
+  async forgetAlarm() { await this.ctx.storage.deleteAlarm() }
+  async runAlarm() {
+    await this.ctx.storage.deleteAlarm()
+    this.relay = undefined
+    await this.alarm()
+  }
+}
+export { PairingObject }
+export default worker
+`
+
+interface ClockedVault {
+  advance(ms: number): Promise<void>
+  alarmAt(): Promise<number | null>
+  forgetAlarm(): Promise<void>
+  runAlarm(): Promise<void>
+}
+
+async function startWorker({ shared = true, clocked = false } = {}) {
   const bundle = await build({
-    entryPoints: [`relay/${setting('main')}`],
+    ...(clocked
+      ? { stdin: { contents: clockedEntry, resolveDir: resolve('relay'), loader: 'js' as const } }
+      : { entryPoints: [`relay/${setting('main')}`] }),
     bundle: true,
     format: 'esm',
     platform: 'neutral',
@@ -64,11 +107,75 @@ async function startWorker({ shared = true } = {}) {
     port: 0,
   })
   const url = (await mf.ready).toString().replace(/\/$/, '')
-  return { url, secret, close: () => mf.dispose() }
+  const vaults = await mf.getDurableObjectNamespace('VAULTS')
+  const vaultObject = (vault: string) =>
+    vaults.get(vaults.idFromName(vault)) as unknown as ClockedVault
+  return { url, secret, vaultObject, close: () => mf.dispose() }
 }
 
 // The suite enrolls and pairs more often in a minute than the shared limits allow; they are tested below.
 relaySuite('a Durable Object (Miniflare)', () => startWorker({ shared: false }))
+
+it('sweeps a vault on its alarm: drops one left empty and unused, keeps one in use', async () => {
+  const host = await startWorker({ shared: false, clocked: true })
+  const day = 24 * 3600 * 1000
+  try {
+    const object = host.vaultObject
+    const before = Date.now()
+    const lost = await createVault(host)
+    const alarm = await object(lost.vault).alarmAt()
+    expect(alarm).toBeGreaterThanOrEqual(before + ORPHAN_AGE_MS - 1000)
+    expect(alarm).toBeLessThanOrEqual(Date.now() + ORPHAN_AGE_MS + 1000)
+
+    const busy = await createVault(host)
+    const pushed = await connect(host, busy.vault, busy.first.token)
+    pushed.socket.send({ type: 'push', id: 'r', base: 0, kind: 'record', chunks: [4] }, [
+      bytes(4, 5),
+    ])
+    await pushed.socket.expect('pushed')
+    pushed.socket.close()
+    const shared = await createVault(host)
+    await enrolled(host, shared)
+    const old = await createVault(host)
+    const winner = await createVault(host)
+    expect((await retireVault(host, old.vault, winner.vault)).status).toBe(200)
+
+    await object(lost.vault).forgetAlarm()
+    const watching = await connect(host, lost.vault, lost.first.token)
+    expect(await object(lost.vault).alarmAt()).not.toBeNull()
+
+    await object(lost.vault).advance(91 * day)
+    for (const vault of [lost, busy, shared, winner]) await object(vault.vault).runAlarm()
+    expect(await object(busy.vault).alarmAt()).toBeNull()
+    expect(await object(winner.vault).alarmAt()).toBeNull()
+    expect(await object(shared.vault).alarmAt()).toBeGreaterThan(Date.now() + 91 * day)
+    expect(await object(lost.vault).alarmAt()).toBeGreaterThan(Date.now() + 91 * day)
+    watching.socket.send({ type: 'usage' })
+    await watching.socket.expect('usage')
+
+    watching.socket.close()
+    // The object may learn of the close after the client does; until then the alarm counts it connected.
+    await expect
+      .poll(async () => {
+        await object(lost.vault).advance(91 * day)
+        await object(lost.vault).runAlarm()
+        return object(lost.vault).alarmAt()
+      })
+      .toBeNull()
+    const refused = await TestSocket.open(
+      socketUrl(host, lost.vault),
+      socketProtocols(lost.first.token),
+    )
+    expect((await refused.expect('error')).message['code']).toBe('E_SYNC_NO_VAULT')
+    for (const vault of [busy, shared, winner]) {
+      const kept = await connect(host, vault.vault, vault.first.token)
+      expect(kept.welcome['type']).toBe('welcome')
+      kept.socket.close()
+    }
+  } finally {
+    await host.close()
+  }
+})
 
 const take = (url: string, from: string) =>
   postJson(

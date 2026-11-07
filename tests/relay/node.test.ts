@@ -1,9 +1,20 @@
+import { existsSync } from 'node:fs'
 import { connect as tcp } from 'node:net'
+import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { startNodeRelay } from '../../relay/src/node/server'
 import { tempDir } from '../support/temp-dirs'
 import { CLOSE } from '../../src/core/sync/protocol'
-import { bytes, connect, createVault, enrolled, socketProtocols } from './client'
+import {
+  bytes,
+  connect,
+  createVault,
+  enrolled,
+  retireVault,
+  socketProtocols,
+  socketUrl,
+  TestSocket,
+} from './client'
 import { relaySuite } from './suite'
 
 const secret = 'test-relay-secret-0123456789abcdef'
@@ -93,5 +104,54 @@ it('survives a client that resets the connection while its upgrade is checked', 
   other.socket.send({ type: 'time' })
   expect((await other.socket.expect('time')).message).toMatchObject({ type: 'time' })
   other.socket.close()
+  await relay.close()
+})
+
+it('drops a vault left empty with one device 90 days after a device was last connected, and keeps the rest', async () => {
+  const data = tempDir('devot-relay-drop-')
+  const clock = { now: Date.now() }
+  const relay = await startNodeRelay({ data, secret, now: () => clock.now })
+  const host = { ...relay, secret }
+  const lost = await createVault(host)
+  const busy = await createVault(host)
+  const pushed = await connect(host, busy.vault, busy.first.token)
+  pushed.socket.send({ type: 'push', id: 'r', base: 0, kind: 'record', chunks: [4] }, [bytes(4, 5)])
+  await pushed.socket.expect('pushed')
+  pushed.socket.close()
+  const shared = await createVault(host)
+  await enrolled(host, shared)
+  const old = await createVault(host)
+  const winner = await createVault(host)
+  expect((await retireVault(host, old.vault, winner.vault)).status).toBe(200)
+  const open = await createVault(host)
+  const file = (vault: string) => join(data, `${vault}.sqlite`)
+
+  clock.now += 89 * 24 * 3600 * 1000
+  ;(await connect(host, open.vault, open.first.token)).socket.close()
+  await relay.sweep()
+  expect(existsSync(file(lost.vault))).toBe(true)
+
+  clock.now += 2 * 24 * 3600 * 1000
+  const watching = await connect(host, lost.vault, lost.first.token)
+  clock.now += 200 * 24 * 3600 * 1000
+  await relay.sweep()
+  expect(existsSync(file(lost.vault))).toBe(true)
+  watching.socket.close()
+  await watching.socket.closed
+  // The relay may learn of the close after the client does; until then a sweep counts it connected.
+  await expect
+    .poll(async () => {
+      clock.now += 90 * 24 * 3600 * 1000
+      await relay.sweep()
+      return existsSync(file(lost.vault))
+    })
+    .toBe(false)
+  for (const vault of [busy, shared, old, winner]) expect(existsSync(file(vault.vault))).toBe(true)
+  expect(existsSync(file(open.vault))).toBe(false)
+  const refused = await TestSocket.open(
+    socketUrl(host, lost.vault),
+    socketProtocols(lost.first.token),
+  )
+  expect((await refused.expect('error')).message['code']).toBe('E_SYNC_NO_VAULT')
   await relay.close()
 })

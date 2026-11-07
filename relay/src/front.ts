@@ -24,8 +24,10 @@ export interface Vaults {
   enroll(vault: string, body: Record<string, unknown>): Promise<Reply>
   /** Retires `vault` and tells its sockets; the front has checked the relay secret. */
   retire(vault: string, body: Record<string, unknown>): Promise<Reply>
-  /** Whether `vault` exists and is not retired. */
+  /** Whether `vault` exists and is not retired; a live answer holds it from being dropped as abandoned. */
   live(vault: string): Promise<boolean>
+  /** Records in `vault` that a retire named it the successor of `predecessor`, so it is never dropped. */
+  adopt(vault: string, predecessor: string): Promise<void>
   /** Whether `token` is still `device`'s token in `vault` (its MAC is checked already). */
   authenticate(vault: string, device: string, token: string): Promise<Access>
   /** `device` is the opening device for `pair`, `status` and `close`, else ''. */
@@ -106,7 +108,9 @@ async function retire(vaults: Vaults, vault: string, message: Record<string, unk
   })
   if (!isVaultId(successor) || successor === vault) return refuse(400, 'E_SYNC_BAD_MESSAGE')
   if (!(await vaults.live(successor))) return refuse(409, 'E_SYNC_NO_SUCCESSOR')
-  return vaults.retire(vault, message)
+  const reply = await vaults.retire(vault, message)
+  if (reply.status === 200) await vaults.adopt(successor, vault)
+  return reply
 }
 
 const bearer = (request: Request) =>

@@ -1,10 +1,11 @@
 import Database from 'better-sqlite3'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { handleHttp, type Vaults } from '../../relay/src/front'
 import { RateLimiter } from '../../relay/src/limiter'
 import { sqliteSql } from '../../relay/src/node/sqlite'
 import { FREE_CAPS } from '../../relay/src/quota'
-import { VaultRelay } from '../../relay/src/vault'
+import { ORPHAN_AGE_MS, VaultRelay, WIPE_SHARE } from '../../relay/src/vault'
 import {
   CLOSE,
   decodeFrame,
@@ -28,6 +29,7 @@ afterEach(() => {
 interface VaultAtOptions {
   quota?: QuotaCaps | null
   limiter?: RateLimiter
+  id?: string
 }
 
 async function vaultAt(start: number, options: VaultAtOptions = {}) {
@@ -35,7 +37,7 @@ async function vaultAt(start: number, options: VaultAtOptions = {}) {
   open.push(db)
   /** `step` moves the clock on at every read, so a check made from two reads shows. */
   const clock = { now: start, step: 0 }
-  const relay = new VaultRelay(sqliteSql(db), 'vault-0123456789ab', {
+  const relay = new VaultRelay(sqliteSql(db), options.id ?? 'vault-0123456789ab', {
     secret,
     now: () => {
       const at = clock.now
@@ -478,6 +480,220 @@ describe('retirement', () => {
       })
     }
     expect(send(...record('r', 0))).toMatchObject({ type: 'pushed' })
+  })
+})
+
+describe('wiping a retired vault', () => {
+  const successor = 'successor-0123456789ab'
+  const at = Date.UTC(2026, 10, 5, 12)
+  const count = (db: Database.Database, table: string) =>
+    (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n
+
+  it('wipes the records once retired and counts it, keeping the vault, its devices and the retirement', async () => {
+    const { relay, device, send, enroll, db } = await vaultAt(at, { limiter: roomy() })
+    const phone = await enroll('phone')
+    expect(send(...record('a', 0, 10))).toMatchObject({ type: 'pushed' })
+    send({ type: 'push', id: 'b', base: 0, kind: 'record', chunks: [3, 4] }, [
+      new Uint8Array(3),
+      new Uint8Array(4),
+    ])
+    send({ type: 'push', id: 'img', base: 0, kind: 'file', chunks: [20] }, [new Uint8Array(20)])
+    expect(relay.nextSweep()).toBeNull()
+    expect(relay.sweep()).toEqual({ drop: false, next: null })
+    expect(count(db, 'records')).toBe(3)
+
+    relay.retire({ successor })
+    expect(relay.nextSweep()).toBe(at)
+    const before = send({ type: 'usage' })
+    expect(relay.sweep()).toEqual({ drop: false, next: null })
+    expect(count(db, 'records')).toBe(0)
+    expect(count(db, 'chunks')).toBe(0)
+    expect(count(db, 'devices')).toBe(2)
+    const after = send({ type: 'usage' })
+    expect(after).toMatchObject({ storedBytes: 0, fileBytes: 0 })
+    // Three record rows, four chunk rows and the counters row.
+    expect(Number(after['rowsWritten']) - Number(before['rowsWritten'])).toBeGreaterThanOrEqual(8)
+    expect(Number(after['requests'])).toBeGreaterThan(Number(before['requests']))
+    expect(relay.nextSweep()).toBeNull()
+    expect(relay.sweep()).toEqual({ drop: false, next: null })
+
+    expect(decodeFrame(relay.connected(phone)).message).toMatchObject({ retired: successor })
+    const pull = relay.receive(device, encodeFrame({ type: 'pull', rid: 1, since: 0 })).reply
+    expect(decodeFrame(pull ?? '').message).toMatchObject({ code: VAULT_ROTATED, successor })
+    expect(relay.retire({ successor }).reply.status).toBe(200)
+    expect(relay.retire({ successor: 'another-0123456789abcd' }).reply).toMatchObject({
+      status: 409,
+      body: { code: VAULT_ROTATED, successor },
+    })
+    const again = await relay.enroll({
+      secret: toBase64Url(new Uint8Array(32).fill(1)),
+      label: 'x',
+    })
+    expect(again).toMatchObject({ status: 409, body: { code: VAULT_ROTATED, successor } })
+  })
+
+  it('wipes a large vault in slices, with a share of the daily rows cap a day', async () => {
+    const { relay, send, db, clock } = await vaultAt(at, { quota: null, limiter: roomy() })
+    for (let i = 0; i < 300; i++) send(...record(`r${i}`, 0, 2))
+    relay.retire({ successor })
+    clock.now = Date.UTC(2026, 10, 6, 12)
+    const caps = { rowsWritten: 400, requests: 1e12, storedBytes: 1e15 }
+    const capped = new VaultRelay(sqliteSql(db), relay.vault, {
+      secret,
+      now: () => clock.now,
+      log: () => {},
+      quota: caps,
+    })
+    const days: { rows: number; next: number }[] = []
+    const steps = []
+    for (let guard = 0; guard < 1000; guard++) {
+      const step = capped.sweep()
+      steps.push(step)
+      if (step.drop || step.next === null) break
+      if (step.next > clock.now) {
+        const counters = countersRow(db) as { rows_written: number }
+        days.push({ rows: counters.rows_written, next: step.next })
+        clock.now = step.next + 1000
+      }
+    }
+    expect(steps.every((step) => !step.drop)).toBe(true)
+    expect(count(db, 'records')).toBe(0)
+    expect(days.length).toBeGreaterThanOrEqual(5)
+    expect(days.map((day) => day.next)).toEqual(days.map((_, i) => Date.UTC(2026, 10, 7 + i)))
+    for (const { rows } of days) expect(rows).toBeLessThanOrEqual(caps.rowsWritten * WIPE_SHARE)
+  })
+
+  it('wipes without a cap in slices that follow each other at once', async () => {
+    const { relay, send, db } = await vaultAt(at, { quota: null, limiter: roomy() })
+    for (let i = 0; i < 1500; i++) send(...record(`r${i}`, 0, 1))
+    relay.retire({ successor })
+    expect(relay.sweep()).toEqual({ drop: false, next: at })
+    expect(count(db, 'records')).toBeGreaterThan(0)
+    let steps = 1
+    while (relay.sweep().drop === false && relay.nextSweep() !== null) steps++
+    expect(count(db, 'records')).toBe(0)
+    expect(steps).toBeGreaterThan(1)
+  })
+})
+
+describe('dropping an empty vault', () => {
+  const at = Date.UTC(2026, 10, 5, 12)
+  const days = (n: number) => at + n * 24 * 3600 * 1000
+
+  it('drops a vault with no record and one device once nobody connected for 90 days', async () => {
+    const { relay, clock, device } = await vaultAt(at)
+    expect(ORPHAN_AGE_MS).toBe(90 * 24 * 3600 * 1000)
+    expect(relay.nextSweep()).toBe(days(90))
+    clock.now = days(89)
+    expect(relay.sweep()).toEqual({ drop: false, next: days(90) })
+    clock.now = days(60)
+    relay.connected(device)
+    clock.now = days(91)
+    expect(relay.sweep()).toEqual({ drop: false, next: days(150) })
+    clock.now = days(150)
+    expect(relay.sweep()).toEqual({ drop: true })
+  })
+
+  it('reads when it was last connected from storage, for a relay opened again', async () => {
+    const { relay, clock, device, db } = await vaultAt(at)
+    clock.now = days(30)
+    relay.connected(device)
+    const again = new VaultRelay(sqliteSql(db), relay.vault, {
+      secret,
+      now: () => clock.now,
+      log: () => {},
+    })
+    expect(again.nextSweep()).toBe(days(120))
+  })
+
+  it('writes when it was connected at most once a day', async () => {
+    const { relay, clock, device, db } = await vaultAt(at)
+    const before = countersRow(db)
+    clock.now = at + 3600_000
+    relay.connected(device)
+    expect(countersRow(db)).toEqual(before)
+    clock.now = days(1)
+    relay.connected(device)
+    const once = countersRow(db)
+    expect(once).not.toEqual(before)
+    clock.now = days(1) + 3600_000
+    relay.connected(device)
+    expect(countersRow(db)).toEqual(once)
+    expect(relay.nextSweep()).toBe(days(91))
+  })
+
+  it('never drops a vault with a record, a retirement or a predecessor', async () => {
+    const withRecord = await vaultAt(at)
+    withRecord.send(...record('r', 0))
+    const retired = await vaultAt(at)
+    retired.relay.retire({ successor: 'successor-0123456789ab' })
+    const successor = await vaultAt(at)
+    successor.relay.adopt('predecessor-0123456789')
+    for (const { relay, clock } of [withRecord, retired, successor]) {
+      expect(relay.nextSweep()).toBeNull()
+      clock.now = days(400)
+      expect(relay.sweep()).toEqual({ drop: false, next: null })
+    }
+  })
+
+  it('keeps a vault while a device stays connected, and drops it once none is', async () => {
+    const { relay, clock } = await vaultAt(at)
+    clock.now = days(400)
+    expect(relay.sweep(true)).toEqual({ drop: false, next: days(490) })
+    clock.now = days(490)
+    expect(relay.sweep()).toEqual({ drop: true })
+  })
+
+  it('keeps a successor that a retire checked, though a sweep runs before the retire', async () => {
+    const successor = await vaultAt(at, { id: 'successor-0123456789ab' })
+    const old = await vaultAt(at, { id: 'old-vault-0123456789ab' })
+    for (const clock of [successor.clock, old.clock]) clock.now = days(91)
+    const relays = new Map([successor.relay, old.relay].map((relay) => [relay.vault, relay]))
+    const sweeps: boolean[] = []
+    const vaults = {
+      live: async (vault: string) => relays.get(vault)?.live() ?? false,
+      retire: async (vault: string, body: Record<string, unknown>) => {
+        sweeps.push(successor.relay.sweep().drop)
+        return relays.get(vault)!.retire(body).reply
+      },
+      adopt: async (vault: string, predecessor: string) => relays.get(vault)?.adopt(predecessor),
+    } as unknown as Vaults
+    const response = await handleHttp(
+      new Request(`http://relay/v1/vaults/${old.relay.vault}/retire`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ v: 1, type: 'retire', successor: successor.relay.vault }),
+      }),
+      secret,
+      vaults,
+    )
+    expect(response.status).toBe(200)
+    expect(sweeps).toEqual([false])
+    successor.clock.now = days(400)
+    expect(successor.relay.sweep()).toEqual({ drop: false, next: null })
+  })
+
+  it('keeps a vault with a second device, and looks again later', async () => {
+    const { relay, clock, enroll } = await vaultAt(at)
+    await enroll('phone')
+    clock.now = days(91)
+    expect(relay.sweep()).toEqual({ drop: false, next: days(181) })
+  })
+
+  it('keeps the first predecessor and answers for a vault that does not exist', async () => {
+    const { relay, db } = await vaultAt(at)
+    relay.adopt('predecessor-0123456789')
+    relay.adopt('another-0123456789abcd')
+    expect(db.prepare('SELECT predecessor FROM standing').get()).toEqual({
+      predecessor: 'predecessor-0123456789',
+    })
+    const empty = new Database(join(tempDir('devot-relay-none-'), 'v.sqlite'))
+    open.push(empty)
+    const none = new VaultRelay(sqliteSql(empty), 'vault-0123456789ab', { secret, log: () => {} })
+    none.adopt('predecessor-0123456789')
+    expect(none.exists()).toBe(false)
+    expect(none.nextSweep()).toBeNull()
+    expect(none.sweep()).toEqual({ drop: false, next: null })
   })
 })
 

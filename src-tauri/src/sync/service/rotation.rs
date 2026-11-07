@@ -66,26 +66,53 @@ impl SyncService {
         let secrets = self.secrets.as_ref();
         let next = self.next_key(vault)?;
         let next_id = next.id().to_string();
-        let waiting = DeviceCredentials::load_next(secrets).map_err(|e| e.code())?;
-        if !waiting.is_some_and(|c| c.fits(relay.as_str(), &next_id)) {
-            let enrolled = match client::create_vault(relay, relay_secret, &next, DEVICE_LABEL) {
-                Err("E_SYNC_VAULT_EXISTS") => client::enroll(relay, &next, DEVICE_LABEL)?,
-                other => other?,
-            };
-            DeviceCredentials {
-                relay: relay.as_str().to_string(),
-                vault: next_id.clone(),
-                device: enrolled.device,
-                token: enrolled.token,
-            }
-            .save_next(secrets)
-            .map_err(|e| e.code())?;
-            log::info!(
-                "I_SYNC_SUCCESSOR_READY vault={} successor={next_id}",
-                vault.id()
-            );
+        let waiting = DeviceCredentials::load_next(secrets)
+            .map_err(|e| e.code())?
+            .is_some_and(|c| c.fits(relay.as_str(), &next_id));
+        if !waiting {
+            self.make_successor(relay, relay_secret, vault, &next)?;
         }
-        self.retire_and_switch(relay, relay_secret, vault, &next)
+        match self.retire_and_switch(relay, relay_secret, vault, &next) {
+            // The relay drops a successor left empty for months (docs/adr/0017-sync-key-rotation.md).
+            Err("E_SYNC_NO_SUCCESSOR") if waiting => {
+                log::info!(
+                    "I_SYNC_SUCCESSOR_GONE vault={} successor={next_id}",
+                    vault.id()
+                );
+                self.make_successor(relay, relay_secret, vault, &next)?;
+                self.retire_and_switch(relay, relay_secret, vault, &next)
+            }
+            other => other,
+        }
+    }
+
+    /// Makes `next` on the relay, or enrolls in it when an earlier try made it, and keeps the token
+    /// as the waiting one.
+    fn make_successor(
+        &self,
+        relay: &RelayUrl,
+        relay_secret: &str,
+        vault: &Vault,
+        next: &Vault,
+    ) -> Result<(), &'static str> {
+        let next_id = next.id().to_string();
+        let enrolled = match client::create_vault(relay, relay_secret, next, DEVICE_LABEL) {
+            Err("E_SYNC_VAULT_EXISTS") => client::enroll(relay, next, DEVICE_LABEL)?,
+            other => other?,
+        };
+        DeviceCredentials {
+            relay: relay.as_str().to_string(),
+            vault: next_id.clone(),
+            device: enrolled.device,
+            token: enrolled.token,
+        }
+        .save_next(self.secrets.as_ref())
+        .map_err(|e| e.code())?;
+        log::info!(
+            "I_SYNC_SUCCESSOR_READY vault={} successor={next_id}",
+            vault.id()
+        );
+        Ok(())
     }
 
     /// The rotation's new key: the one waiting for this vault, or a new one, recorded before

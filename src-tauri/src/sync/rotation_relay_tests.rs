@@ -267,6 +267,31 @@ fn a_rotation_stopped_before_the_retire_waits_for_the_relay_secret_and_goes_on_w
 }
 
 #[test]
+fn a_rotation_whose_waiting_successor_the_relay_dropped_makes_it_again() {
+    let mut relay = NodeRelay::start();
+    let mac = Device::first(&relay);
+    let phone = Device::paired(&relay, &mac);
+    mac.service.quit_before_next_retire();
+    assert_eq!(
+        mac.service.rotate_vault(SECRET).err(),
+        Some("E_SYNC_OFFLINE")
+    );
+    let next = Vault::load_next(mac.secrets.as_ref()).unwrap().unwrap();
+    relay.restart_without(&next.id().to_string());
+
+    mac.service.rotate_vault(SECRET).unwrap();
+    assert_eq!(mac.vault().id(), next.id());
+    assert!(!mac.holds("vault-next") && !mac.holds("device-next"));
+    mac.service.connect(false).unwrap();
+    assert!(matches!(
+        mac.service.push(RECORD, 0, &data(), "record", ""),
+        Ok(PushDto::Pushed { .. })
+    ));
+    mac.service.disconnect();
+    assert_eq!(phone.service.connect(false).err(), Some(ROTATED));
+}
+
+#[test]
 fn a_rotation_stopped_after_the_retire_switches_at_the_next_connect() {
     let relay = NodeRelay::start();
     let mac = Device::first(&relay);

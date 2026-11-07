@@ -38,12 +38,21 @@ impl NodeRelay {
     }
 
     fn spawn(data: tempfile::TempDir, port: &str, quota: &str) -> Self {
+        let (child, url) = Self::launch(data.path(), port, quota);
+        Self {
+            child,
+            url,
+            _data: data,
+        }
+    }
+
+    fn launch(data: &Path, port: &str, quota: &str) -> (Child, RelayUrl) {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let mut child = Command::new("node")
             .arg("relay/src/node/main.ts")
             .current_dir(root)
             .env("RELAY_SECRET", SECRET)
-            .env("RELAY_DATA", data.path())
+            .env("RELAY_DATA", data)
             .env("PORT", port)
             .env("RELAY_QUOTA", quota)
             .stdout(Stdio::piped())
@@ -62,11 +71,18 @@ impl NodeRelay {
         let url = url
             .recv_timeout(Duration::from_secs(30))
             .expect("the relay starts and says where it listens");
-        Self {
-            child,
-            url: RelayUrl::parse(&url).unwrap(),
-            _data: data,
+        (child, RelayUrl::parse(&url).unwrap())
+    }
+
+    /// The same relay with `vault` gone, as after it dropped an abandoned empty vault.
+    pub(super) fn restart_without(&mut self, vault: &str) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(self._data.path().join(format!("{vault}.sqlite{suffix}")));
         }
+        let port = self.url.as_str().rsplit(':').next().unwrap().to_string();
+        (self.child, self.url) = Self::launch(self._data.path(), &port, "free");
     }
 
     /// The same address with every vault gone, as after the relay lost its data.

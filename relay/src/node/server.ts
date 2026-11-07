@@ -1,11 +1,17 @@
-import { rmSync } from 'node:fs'
+import { readdirSync, rmSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
 import { type Duplex, Readable } from 'node:stream'
 import Database from 'better-sqlite3'
 import { WebSocket, WebSocketServer } from 'ws'
-import { CLOSE, encodeFrame, type QuotaCaps, SUBPROTOCOL } from '../../../src/core/sync/protocol.ts'
+import {
+  CLOSE,
+  encodeFrame,
+  isVaultId,
+  type QuotaCaps,
+  SUBPROTOCOL,
+} from '../../../src/core/sync/protocol.ts'
 import { errorResponse, handleHttp, isSocketPath, socketTarget } from '../front.ts'
 import { PairingRelay } from '../pairing.ts'
 import { type Outcome, VaultRelay } from '../vault.ts'
@@ -14,6 +20,7 @@ import { openVaultDb, sqliteSql } from './sqlite.ts'
 // The Node host: one HTTP server is the front, and each vault is a SQLite file
 // `<data>/<vault ID>.sqlite` (vault IDs are checked against a strict pattern first).
 // Pairings live minutes, so they are kept in memory and a restart ends them.
+// Every vault is swept at start and hourly, and a retired one at once.
 
 export interface NodeRelayOptions {
   /** Folder for the vaults' databases. */
@@ -28,6 +35,8 @@ export interface NodeRelayOptions {
 
 export interface NodeRelay {
   url: string
+  /** Sweeps every vault now, as the hourly timer does: wipes retired ones, drops abandoned ones. */
+  sweep(): Promise<void>
   close(): Promise<void>
 }
 
@@ -39,6 +48,7 @@ interface OpenVault {
 
 // Above the protocol's own limit, so a message between the two gets E_SYNC_TOO_LARGE; a bigger one closes the socket with 1009.
 const MAX_PAYLOAD = 32 * 1024 * 1024
+const SWEEP_EVERY_MS = 60 * 60 * 1000
 
 export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRelay> {
   const vaults = new Map<string, OpenVault>()
@@ -66,14 +76,44 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
     return opened
   }
 
-  const discardIfEmpty = (vault: string) => {
-    const opened = vaults.get(vault)
-    if (!opened || opened.relay.exists()) return
+  const remove = (vault: string, opened: OpenVault) => {
     opened.db.close()
     vaults.delete(vault)
     const file = join(options.data, `${vault}.sqlite`)
     for (const suffix of ['', '-wal', '-shm']) rmSync(file + suffix, { force: true })
   }
+
+  const discardIfEmpty = (vault: string) => {
+    const opened = vaults.get(vault)
+    if (opened && !opened.relay.exists()) remove(vault, opened)
+  }
+
+  const now = options.now ?? Date.now
+  let closing = false
+  const sweepVault = async (vault: string) => {
+    for (;;) {
+      const opened = closing ? null : open(vault, false)
+      if (!opened) return
+      const outcome = opened.relay.sweep(opened.sockets.size > 0)
+      if (outcome.drop) {
+        remove(vault, opened)
+        return
+      }
+      if (outcome.next === null || outcome.next > now()) return
+      // A wipe goes on slice by slice, letting other requests in between.
+      await new Promise((resolve) => setImmediate(resolve))
+    }
+  }
+  const sweepSafely = (vault: string) =>
+    sweepVault(vault).catch(() => console.error(`E_RELAY_SWEEP vault=${vault}`))
+  const sweepAll = async () => {
+    for (const name of readdirSync(options.data)) {
+      const vault = name.endsWith('.sqlite') ? name.slice(0, -'.sqlite'.length) : ''
+      if (isVaultId(vault)) await sweepSafely(vault)
+    }
+  }
+  const timer = setInterval(() => void sweepAll(), SWEEP_EVERY_MS)
+  timer.unref()
 
   const notFound = { status: 404, body: { v: 1, type: 'error', code: 'E_SYNC_NO_VAULT' } }
   const pairingsDb = new Database(':memory:')
@@ -95,10 +135,14 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
           if (!opened) return notFound
           const { reply, changed } = opened.relay.retire(body)
           if (changed !== undefined) deliver(opened, null, { changed })
+          void sweepSafely(vault)
           return reply
         },
         async live(vault) {
           return open(vault, false)?.relay.live() ?? false
+        },
+        async adopt(vault, predecessor) {
+          open(vault, false)?.relay.adopt(predecessor)
         },
         async authenticate(vault, device, token) {
           return (await open(vault, false)?.relay.authenticate(device, token)) ?? 'no-vault'
@@ -158,11 +202,15 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
   await new Promise<void>((resolve) =>
     server.listen(options.port ?? 0, options.host ?? '127.0.0.1', resolve),
   )
+  void sweepAll()
   const address = server.address() as AddressInfo
   const host = address.family === 'IPv6' ? `[${address.address}]` : address.address
   return {
     url: `http://${host}:${address.port}`,
+    sweep: sweepAll,
     async close() {
+      closing = true
+      clearInterval(timer)
       for (const ws of wss.clients) ws.terminate()
       await new Promise<void>((resolve) => server.close(() => resolve()))
       for (const opened of vaults.values()) opened.db.close()
