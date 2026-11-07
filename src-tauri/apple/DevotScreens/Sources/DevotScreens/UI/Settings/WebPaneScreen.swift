@@ -5,9 +5,8 @@ import UIKit
 /// the page drew before. Its view keeps its own safe area, so the page's top inset takes in the bar.
 final class WebPaneScreen: UIViewController {
     let pane: String
-    private var anchor: PaneAnchor?
     private let host: WebViewHost
-    private let show: @MainActor (_ pane: String, _ anchor: PaneAnchor?, _ shown: @escaping @MainActor () -> Void) -> Void
+    private let show: @MainActor (_ pane: String, _ shown: @escaping @MainActor () -> Void) -> Void
     private let left: () -> Void
     private var showing = false
     /// The page was asked for the pane since the screen last left the stack.
@@ -16,12 +15,11 @@ final class WebPaneScreen: UIViewController {
     /// `show` asks the page for the pane and calls `shown` on its answer; `left` runs once the
     /// screen has left the stack, so the page lets the pane go.
     init(
-        pane: String, anchor: PaneAnchor? = nil, title: String, host: WebViewHost,
-        show: @escaping @MainActor (_ pane: String, _ anchor: PaneAnchor?, _ shown: @escaping @MainActor () -> Void) -> Void,
+        pane: String, title: String, host: WebViewHost,
+        show: @escaping @MainActor (_ pane: String, _ shown: @escaping @MainActor () -> Void) -> Void,
         left: @escaping () -> Void
     ) {
         self.pane = pane
-        self.anchor = anchor
         self.host = host
         self.show = show
         self.left = left
@@ -41,10 +39,7 @@ final class WebPaneScreen: UIViewController {
         super.viewIsAppearing(animated)
         showing = true
         asked = true
-        // The anchor is for the push only: coming back to the tab leaves the pane where it was.
-        let anchor = anchor
-        self.anchor = nil
-        show(pane, anchor) { [weak self] in
+        show(pane) { [weak self] in
             guard let self, showing else { return }
             host.move(into: view)
         }

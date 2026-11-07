@@ -227,6 +227,9 @@ struct SheetButton: View {
 
 /// A Settings page pushed on the Settings stack, under an inline title.
 final class SettingsHosting<Content: View>: UIHostingController<Content> {
+    /// Runs once the page has left the stack; a cancelled back swipe never runs it.
+    var left: () -> Void = {}
+
     init(title: String, _ content: Content) {
         super.init(rootView: content)
         navigationItem.title = title
@@ -238,6 +241,11 @@ final class SettingsHosting<Content: View>: UIHostingController<Content> {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Tokens.Color.phoneBackground
+    }
+
+    override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
+        if parent == nil { left() }
     }
 }
 

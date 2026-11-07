@@ -142,4 +142,35 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(store.syncOn)
         XCTAssertFalse(store.syncNeedsOwner)
     }
+
+    func testSyncChangesHeardDuringAReadReadOnceMoreAfterIt() {
+        let (store, bridge) = store()
+        store.heard(.syncChanged)
+        store.heard(.syncChanged)
+        store.heard(.syncChanged)
+        XCTAssertEqual(bridge.ops, ["direct.sync.get"])
+        bridge.answer("direct.sync.get", .ok(.object(["enabled": .bool(true)])))
+        XCTAssertEqual(bridge.ops.filter { $0 == "direct.sync.get" }.count, 1)
+        bridge.answer("direct.sync.get", .ok(.object(["enabled": .bool(true)])))
+        XCTAssertFalse(bridge.ops.contains("direct.sync.get"))
+    }
+
+    func testICloudIsReadAgainOnlyWhenWhatItDependsOnChanges() {
+        let (store, bridge) = store()
+        store.adoptSync(.object(["enabled": .bool(true)]))
+        bridge.answer("direct.sync.icloudStatus", .ok(.object(["available": .bool(true), "account": .string("available")])))
+        XCTAssertEqual(store.icloud, ICloudStatus(available: true, account: "available"))
+        store.adoptSync(.object(["enabled": .bool(true), "status": .object(["lastSync": .number(5)])]))
+        XCTAssertTrue(bridge.sent.isEmpty)
+        store.adoptSync(.object(["enabled": .bool(false)]))
+        XCTAssertEqual(bridge.ops, ["direct.sync.icloudStatus"])
+        bridge.answer("direct.sync.icloudStatus", .failed("E_COMMAND_FAILED"))
+        XCTAssertEqual(store.icloud, .none)
+    }
+
+    func testAPairingNoticeNudgesTheSyncPane() {
+        let (store, _) = store()
+        store.heard(.syncPairing)
+        XCTAssertEqual(store.pairingNudges, 1)
+    }
 }

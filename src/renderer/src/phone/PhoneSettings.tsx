@@ -23,8 +23,6 @@ import { PhoneDetailSheet } from './PhoneSheet'
 import { useLicenceClock } from './licenceClock'
 import { licenceRow } from './settingsRows'
 import { logFailure } from '../failure'
-import { revealAnchor } from './paneAnchor'
-import type { PaneAnchor } from './screens/settings'
 
 /** The panes that open on a phone; the rest are left out of its Settings. The phone records no usage. */
 type PhonePane = Exclude<PaneId, 'keyboard' | 'mirror' | 'integrations' | 'plugins' | 'usage'>
@@ -411,7 +409,6 @@ const PANE_SECTIONS: Readonly<Partial<Record<PaneId, () => Promise<() => React.J
 export function PhoneSettingsPane(props: {
   pane: string
   focusKey?: boolean
-  anchor?: PaneAnchor | undefined
   nativeBar?: boolean
   onBack: () => void
 }) {
@@ -424,10 +421,6 @@ export function PhoneSettingsPane(props: {
         ?.querySelector<HTMLInputElement>('input[data-licence-key]')
         ?.focus({ preventScroll: true })
   }, [Section, props.focusKey])
-  useEffect(() => {
-    if (Section && props.anchor && scroller.current)
-      return revealAnchor(scroller.current, props.anchor)
-  }, [Section, props.anchor])
   useEffect(() => {
     let alive = true
     void PANE_SECTIONS[pane]?.()

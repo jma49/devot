@@ -127,6 +127,10 @@ final class Screens: SettingsBridge {
             openSettings(fields)
             return
         }
+        if kind == .syncChanged || kind == .syncPairing {
+            root.tabs.settings.store.heard(kind)
+            return
+        }
         if routeEditorNotice(kind, fields) { return }
         guard kind == .tabsState else {
             onNotice?(kind, fields)

@@ -64,7 +64,7 @@ final class SettingsScreens {
         case .preview:
             SettingsHosting(title: L10n.settingsPanePreview(), PreviewPane(store: store))
         case .sync(let anchor):
-            web("sync", L10n.settingsPaneSync(), anchor: anchor)
+            sync(anchor)
         case .ai:
             SettingsHosting(title: L10n.settingsPaneAi(), AiPane(store: store) { [weak self] in self?.buy() })
         case .licence(let entry):
@@ -74,14 +74,21 @@ final class SettingsScreens {
         }
     }
 
-    private func web(_ pane: String, _ title: String, anchor: PaneAnchor? = nil) -> UIViewController {
+    private func sync(_ anchor: PaneAnchor?) -> UIViewController {
+        let model = SyncPaneModel(store: store)
+        let screen = SettingsHosting(
+            title: L10n.settingsPaneSync(),
+            SyncPane(store: store, model: model, anchor: anchor) { [weak self] in self?.buy() })
+        screen.left = { model.left() }
+        return screen
+    }
+
+    private func web(_ pane: String, _ title: String) -> UIViewController {
         WebPaneScreen(
-            pane: pane, anchor: anchor, title: title, host: host,
-            show: { [weak self] pane, anchor, shown in
-                var args: [String: JSONValue] = ["pane": .string(pane)]
-                if let anchor { args["anchor"] = .string(anchor.rawValue) }
+            pane: pane, title: title, host: host,
+            show: { [weak self] pane, shown in
                 self?.hideEditor { [weak self] in
-                    self?.store.bridge?.request(.settingsShowPane, args) { outcome in
+                    self?.store.bridge?.request(.settingsShowPane, ["pane": .string(pane)]) { outcome in
                         if case .failed(let code) = outcome {
                             self?.store.log("W_PHONE_SETTINGS_PANE_FAILED pane=\(pane) code=\(code)")
                         }

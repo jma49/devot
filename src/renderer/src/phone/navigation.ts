@@ -1,6 +1,5 @@
 import { sizes } from '../theme/tokens'
 import type { PhoneStatusFilter, PhoneView } from './library'
-import type { PaneAnchor } from './screens/settings'
 
 export type PhoneTab = 'notes' | 'library' | 'activity' | 'settings'
 export const PHONE_TABS: readonly PhoneTab[] = ['notes', 'library', 'activity', 'settings']
@@ -16,8 +15,6 @@ export interface PhoneRoute {
   readonly pane?: string
   /** License opened to type a key: its key field takes the focus. */
   readonly focusKey?: boolean
-  /** A place in the pane it opens scrolled to. */
-  readonly anchor?: PaneAnchor
   /** A note New Note made: discarded when its screen is left untouched. */
   readonly fresh?: boolean
 }

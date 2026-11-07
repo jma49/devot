@@ -429,6 +429,10 @@ fn sync_emitter(app: tauri::AppHandle) -> sync::service::Emit {
         if sent.is_err() {
             log::warn!("W_SYNC_EMIT_FAILED");
         }
+        #[cfg(target_os = "ios")]
+        if let Some(notice) = screens::message::FromRust::after(event) {
+            native::ios::screens_tell(notice);
+        }
     })
 }
 

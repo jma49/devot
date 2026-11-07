@@ -102,6 +102,10 @@ public enum NoticeKind: String, CaseIterable, Sendable {
     case editorReady = "editor.ready"
     case editorMode = "editor.mode"
     case editorScroll = "editor.scroll"
+    /// Rust's own: the sync snapshot changed.
+    case syncChanged = "sync.changed"
+    /// Rust's own: a pairing on show through iCloud may have moved on.
+    case syncPairing = "sync.pairing"
 }
 
 public enum Outcome: Equatable, Sendable {

@@ -74,22 +74,12 @@ pub struct NoteCreate {
 #[serde(rename_all = "lowercase")]
 pub enum WebPane {
     Appearance,
-    Sync,
-}
-
-/// A place a web pane opens scrolled to: Sync's pairing, for Pair a device.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum PaneAnchor {
-    Pairing,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ShowPane {
     pub pane: WebPane,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub anchor: Option<PaneAnchor>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -249,6 +239,43 @@ const NOTICES: &[&str] = &[
     "editor.mode",
     "editor.scroll",
 ];
+
+/// What Rust tells Swift itself, never passed on from the page: a notice without fields, after
+/// which Swift reads again through Rust-direct operations what changed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FromRust {
+    /// The sync snapshot changed (`devot://sync-changed`).
+    SyncChanged,
+    /// A pairing on show through iCloud may have moved on (`devot://sync-pairing`).
+    SyncPairing,
+}
+
+pub const RUST_NOTICES: &[&str] = &["sync.changed", "sync.pairing"];
+
+impl FromRust {
+    pub const ALL: [Self; 2] = [Self::SyncChanged, Self::SyncPairing];
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::SyncChanged => "sync.changed",
+            Self::SyncPairing => "sync.pairing",
+        }
+    }
+
+    /// The notice Swift hears after the sync service emits `event`, if any.
+    pub fn after(event: &str) -> Option<Self> {
+        use crate::sync::service::{CHANGED_EVENT, PAIRING_EVENT};
+        match event {
+            CHANGED_EVENT => Some(Self::SyncChanged),
+            PAIRING_EVENT => Some(Self::SyncPairing),
+            _ => None,
+        }
+    }
+
+    pub fn to_value(self) -> Value {
+        json!({ "v": VERSION, "notice": self.name() })
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Request {
@@ -488,13 +515,10 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             }
             create.title.as_deref().map_or(Ok(()), title)
         }
-        Op::SettingsShowPane(ShowPane { pane, anchor }) => match (pane, anchor) {
-            (_, None) | (WebPane::Sync, Some(PaneAnchor::Pairing)) => Ok(()),
-            _ => Err("E_SCREENS_ARGS_INVALID"),
-        },
         Op::EditorShow(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
         Op::TabsShow(_)
         | Op::TabsPopToRoot(_)
+        | Op::SettingsShowPane(_)
         | Op::SettingsNotebooks(_)
         | Op::EditorHide(_)
         | Op::EditorSetMode(_)
@@ -586,8 +610,24 @@ mod tests {
                 FromPage::Reply(reply) => reply.to_value(),
                 FromPage::Notice(notice) => notice.to_value(),
             }),
+            "rust" => FromRust::ALL
+                .into_iter()
+                .map(FromRust::to_value)
+                .find(|told| *told == fixture.message)
+                .ok_or("E_SCREENS_NOTICE_UNKNOWN"),
             other => panic!("unknown sender {other}"),
         }
+    }
+
+    #[test]
+    fn tells_swift_of_a_sync_change_and_a_pairing_but_nothing_else_the_service_emits() {
+        use crate::sync::service::{CHANGED_EVENT, PAIRING_EVENT, SOCKET_EVENT};
+        assert_eq!(FromRust::after(CHANGED_EVENT), Some(FromRust::SyncChanged));
+        assert_eq!(FromRust::after(PAIRING_EVENT), Some(FromRust::SyncPairing));
+        assert_eq!(FromRust::after(SOCKET_EVENT), None);
+        let names: Vec<_> = FromRust::ALL.into_iter().map(FromRust::name).collect();
+        assert_eq!(names, RUST_NOTICES);
+        assert!(RUST_NOTICES.iter().all(|name| !NOTICES.contains(name)));
     }
 
     #[test]
