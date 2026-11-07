@@ -77,6 +77,15 @@ const CAPSULES: Capsule[] = [
   },
 ]
 
+const rules = cssRules(readFileSync('src/renderer/src/app.css', 'utf8'))
+const glass = (selector: string) => `:root[data-sidebar-material='on'] ${selector}`
+const declared = (selector: string, property: string) =>
+  rules
+    .findLast((r) => r.selector === selector && r.body.has(property))
+    ?.body.get(property)
+    ?.replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+
 describe('capsule tokens', () => {
   it.each(
     CAPSULES.flatMap((c) => c.ends.map(([inset, item]) => [c.name, inset, item, c] as const)),
@@ -97,9 +106,12 @@ describe('capsule tokens', () => {
     for (const gaps of byHeight.values()) expect(gaps.size).toBe(1)
   })
 
-  it('reserves a removable pill end for the x, one gap clear of the label', () => {
-    expect(px('size.note-pill-trail')).toBe(
-      px('size.note-pill-end-xs') + px('space.5') + px('size.note-pill-gap'),
+  it("lets the x cover a removable pill's label end: clear under its glyph, fading over one gap", () => {
+    expect(px('size.note-pill-remove-cover')).toBe(
+      px('size.note-pill-end-xs') +
+        px('space.5') +
+        px('size.note-pill-gap') -
+        px('size.note-pill-pad'),
     )
     expect(px('size.note-pill-remove')).toBeGreaterThanOrEqual(16)
     // The x button's box is concentric with the glyph box it centres.
@@ -118,28 +130,22 @@ describe('capsule tokens', () => {
 
   it('names every capsule token in design/layout.md', () => {
     const layout = readFileSync('design/layout.md', 'utf8')
-    const named = CAPSULES.flatMap((c) => [c.gap, ...c.ends.map(([inset]) => inset)])
+    const named = [
+      ...CAPSULES.flatMap((c) => [c.gap, ...c.ends.map(([inset]) => inset)]),
+      'size.note-pill-remove-cover',
+    ]
     for (const path of named.filter((p) => p?.startsWith('size.'))) {
       expect(layout).toContain(`\`${path}\``)
     }
   })
 
   it('places capsule contents with these tokens in the Glass interface', () => {
-    const rules = cssRules(readFileSync('src/renderer/src/app.css', 'utf8'))
-    const glass = (selector: string) => `:root[data-sidebar-material='on'] ${selector}`
-    const declared = (selector: string, property: string) =>
-      rules.findLast((r) => r.selector === selector && r.body.has(property))?.body.get(property)
     const expected: [selector: string, property: string, value: string][] = [
       [glass('.note-meta .chip'), 'gap', 'var(--size-note-pill-gap)'],
       [
         glass('.note-meta .chip:has(> .tag-dot)'),
         'padding-inline-start',
         'var(--size-note-pill-end-dot)',
-      ],
-      [
-        glass('.note-meta .chip:has(> .chip-remove)'),
-        'padding-inline-end',
-        'var(--size-note-pill-trail)',
       ],
       [glass('.note-meta .chip-remove'), 'width', 'var(--size-note-pill-remove)'],
       [glass('.note-meta .chip-remove'), 'inset-inline-end', 'var(--size-note-pill-end-remove)'],
@@ -177,7 +183,7 @@ describe('capsule tokens', () => {
       [
         glass('.list-filter .search-icon'),
         'padding-inline',
-        'var(--size-toolbar-control-end-sm) var(--size-toolbar-control-gap)',
+        'calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer)) var(--size-toolbar-control-gap)',
       ],
       [glass('.settings-search'), 'padding-inline-start', 'var(--size-toolbar-control-end-sm)'],
       [glass('.settings-search'), 'gap', 'var(--size-toolbar-control-gap)'],
@@ -187,5 +193,48 @@ describe('capsule tokens', () => {
     for (const [selector, property, value] of expected) {
       expect(declared(selector, property), `${selector} ${property}`).toBe(value)
     }
+  })
+
+  it('keeps a removable tag pill symmetric at rest, the x drawn over the label end', () => {
+    const resizes = rules.filter(
+      (r) =>
+        r.selector.includes('.note-meta .chip') &&
+        /:hover|:focus/.test(r.selector) &&
+        ['padding', 'padding-inline', 'padding-inline-end', 'width', 'min-width'].some((p) =>
+          r.body.has(p),
+        ),
+    )
+    expect(resizes.map((r) => r.selector)).toEqual([])
+    expect(declared(glass('.note-meta .chip'), 'padding')).toBe('0 var(--size-note-pill-pad)')
+    expect(
+      rules.some(
+        (r) => r.selector.includes('.chip:has(> .chip-remove)') && r.body.has('padding-inline-end'),
+      ),
+    ).toBe(false)
+
+    const label = glass('.note-meta .chip-label')
+    const shown = glass('.note-meta .chip:is(:hover, :focus-within) > .chip-label')
+    expect(declared(shown, '--chip-label-cover')).toBe('var(--size-note-pill-remove-cover)')
+    const fade =
+      'linear-gradient(to left, transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)), var(--color-ink-text) var(--chip-label-cover))'
+    expect([declared(label, 'mask-image'), declared(label, '-webkit-mask-image')]).toEqual([
+      fade,
+      fade,
+    ])
+    expect(declared(glass('.note-meta .chip-label:dir(rtl)'), 'mask-image')).toContain('to right')
+  })
+
+  it("reveals the x as a hover fade, and the label's fade at once under Reduce Motion", () => {
+    const hover = 'var(--motion-duration-hover) var(--motion-easing-out)'
+    expect(declared(glass('.note-meta .chip-remove'), 'transition')).toBe(`opacity ${hover}`)
+    expect(declared(glass('.note-meta .chip-label'), 'transition')).toBe(
+      `--chip-label-cover ${hover}`,
+    )
+    expect(
+      declared(
+        `:root[data-motion='reduced'][data-sidebar-material='on'] .note-meta .chip-label`,
+        'transition',
+      ),
+    ).toBe('none')
   })
 })

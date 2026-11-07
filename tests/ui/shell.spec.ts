@@ -75,7 +75,8 @@ test('lays out sidebar, note list and editor at the macOS type scale', async ({ 
   )
   expect(`${(await field.boundingBox())?.height}px`).toBe(control.trim())
   await expect(field.locator('.search-icon')).toHaveCount(1)
-  expect((await field.locator('.search-icon').boundingBox())?.width).toBeCloseTo(49.4, 0)
+  // 12 to the list's text keyline, the 14 px magnifier, a 6 gap to the text.
+  expect((await field.locator('.search-icon').boundingBox())?.width).toBe(32)
   await field.locator('input').fill('x')
   await expect(field.locator('.search-icon')).toHaveCount(0)
   await expect(field.getByRole('button', { name: 'Clear search' })).toBeVisible()

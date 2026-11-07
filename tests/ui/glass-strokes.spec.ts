@@ -32,8 +32,6 @@ const addTag = (page: Page) => page.getByRole('combobox', { name: 'Add Tag' })
 async function expectFilledPill(pill: Locator, fill: string) {
   await expect(pill).toHaveCSS('border-top-width', '0px')
   await expect(pill).toHaveCSS('height', '26px')
-  await expect(pill).toHaveCSS('padding-left', '10px')
-  await expect(pill).toHaveCSS('padding-right', '10px')
   await expect(pill).toHaveCSS('background-color', fill)
 }
 
@@ -54,6 +52,8 @@ test('Glass pills are filled capsules with no border; a coloured tag keeps its t
   await addTag(page).press('Enter')
   const chip = page.locator('.note-meta .chip')
   await expectFilledPill(chip, fill)
+  await expect(chip).toHaveCSS('padding-left', '10px')
+  await expect(chip).toHaveCSS('padding-right', '10px')
   await chip.hover()
   await expect(chip).toHaveCSS('background-color', hovered)
 
@@ -65,6 +65,39 @@ test('Glass pills are filled capsules with no border; a coloured tag keeps its t
   await expect(chip).toHaveCSS('border-top-width', '0px')
   await expect(chip).toHaveCSS('height', '26px')
   await expect(chip).not.toHaveCSS('background-color', fill)
+})
+
+test('a tag pill is symmetric at rest and its x shows over the label without a change of width', async ({
+  page,
+}) => {
+  await openNote(page)
+  await addTag(page).fill('plain')
+  await addTag(page).press('Enter')
+  const chip = page.locator('.note-meta .chip')
+  const label = chip.locator('.chip-label')
+  const remove = chip.getByRole('button', { name: 'Remove Tag plain' })
+  const cover = () =>
+    label.evaluate((el) => getComputedStyle(el).getPropertyValue('--chip-label-cover').trim())
+  await page.mouse.move(0, 0)
+  await expect(remove).toHaveCSS('opacity', '0')
+  await expect.poll(cover).toBe('0px')
+  const rest = await chip.boundingBox()
+  if (!rest) throw new Error('no box')
+
+  for (const reveal of [() => chip.hover(), () => remove.focus()]) {
+    await page.mouse.move(0, 0)
+    await reveal()
+    await expect(remove).toHaveCSS('opacity', '1')
+    await expect.poll(cover).toBe('14px')
+    const pill = await chip.boundingBox()
+    const x = await remove.boundingBox()
+    if (!pill || !x) throw new Error('no box')
+    expect(pill.width).toBe(rest.width)
+    expect([x.width, x.height]).toEqual([16, 16])
+    expect(Math.round(pill.x + pill.width - (x.x + x.width))).toBe(5)
+    expect(Math.round(x.y - pill.y)).toBe(5)
+    await remove.blur()
+  }
 })
 
 test('Add Tag is plain tertiary text at rest and shows a dashed ring on the keyboard', async ({

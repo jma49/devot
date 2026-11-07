@@ -7743,7 +7743,8 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .list-filter .search-icon {
   width: auto;
-  padding-inline: var(--size-toolbar-control-end-sm) var(--size-toolbar-control-gap);
+  padding-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer))
+    var(--size-toolbar-control-gap);
 }
 
 :root[data-sidebar-material='on'] .list-filter :is(.search-help-button, .search-clear) {
@@ -8122,11 +8123,6 @@ button.popup:focus-visible {
   padding-inline-start: var(--size-note-pill-end-dot);
 }
 
-/* The x's room is kept while it is hidden, so the pill never changes width under the pointer. */
-:root[data-sidebar-material='on'] .note-meta .chip:has(> .chip-remove) {
-  padding-inline-end: var(--size-note-pill-trail);
-}
-
 :root[data-sidebar-material='on'] .frontmatter-chip.tag-chip {
   border: 0;
 }
@@ -8145,6 +8141,50 @@ button.popup:focus-visible {
   width: var(--size-note-pill-remove);
   height: var(--size-note-pill-remove);
   border-radius: var(--radius-capsule);
+  transition: opacity var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+@property --chip-label-cover {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* The x shows over the label's end rather than taking room of its own, so the pill keeps one width; the label fades out under it. */
+:root[data-sidebar-material='on'] .note-meta .chip-label {
+  --chip-label-cover: 0px;
+  -webkit-mask-image: linear-gradient(
+    to left,
+    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
+    var(--color-ink-text) var(--chip-label-cover)
+  );
+  mask-image: linear-gradient(
+    to left,
+    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
+    var(--color-ink-text) var(--chip-label-cover)
+  );
+  transition: --chip-label-cover var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip-label:dir(rtl) {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
+    var(--color-ink-text) var(--chip-label-cover)
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
+    var(--color-ink-text) var(--chip-label-cover)
+  );
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip:is(:hover, :focus-within) > .chip-label {
+  --chip-label-cover: var(--size-note-pill-remove-cover);
+}
+
+:root[data-motion='reduced'][data-sidebar-material='on'] .note-meta .chip-label {
+  transition: none;
 }
 
 :root[data-sidebar-material='on'] .note-meta .tag-field {

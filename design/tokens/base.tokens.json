@@ -1744,10 +1744,10 @@
       "$value": { "value": 5, "unit": "px" },
       "$description": "Glass interface: the x button's inset from a tag pill's end and from its top and bottom: (size.note-pill - size.note-pill-remove) / 2."
     },
-    "note-pill-trail": {
+    "note-pill-remove-cover": {
       "$type": "dimension",
-      "$value": { "value": 24, "unit": "px" },
-      "$description": "Glass interface: the end padding of a removable tag pill, kept while the x is hidden: size.note-pill-end-xs + space.5 + size.note-pill-gap, so the label sits one gap from the x's glyph box."
+      "$value": { "value": 14, "unit": "px" },
+      "$description": "Glass interface: how far a removable tag pill's x reaches into the label while it shows: size.note-pill-end-xs + space.5 + size.note-pill-gap - size.note-pill-pad. The label is clear under the glyph and fades in over the last size.note-pill-gap."
     },
     "settings-swatch-width": {
       "$type": "dimension",
@@ -2683,7 +2683,7 @@
     "toolbar-control-end-sm": {
       "$type": "dimension",
       "$value": { "value": 9, "unit": "px" },
-      "$description": "Glass interface: a 14 px glyph's inset from a 32 px capsule's end (the list's and Settings' magnifiers): (size.toolbar-control - size.icon-sm) / 2."
+      "$description": "Glass interface: a 14 px glyph's inset from a 32 px capsule's end (Settings' magnifier; the note list's stands on its keyline instead): (size.toolbar-control - size.icon-sm) / 2."
     },
     "toolbar-control-end-toolbar": {
       "$type": "dimension",

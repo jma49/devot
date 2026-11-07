@@ -44,6 +44,7 @@ test('the note list has two left edges and one right edge', async ({ page }) => 
 
   expect(await from(list.locator('.search-field'))).toBe(12)
   expect(await from(list.locator('.row').first())).toBe(12)
+  expect(await from(list.locator('.search-icon .icon-svg'))).toBe(24)
   expect(Math.round((await inkLeft(list.locator('.sort-chip'))) - origin)).toBe(24)
   expect(Math.round((await inkLeft(list.locator('.row-title').first())) - origin)).toBe(24)
   expect(await from(list.locator('.sidebar-toggle, .list-header-side').first())).toBe(12)

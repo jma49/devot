@@ -115,7 +115,7 @@ export function TagEditor(props: {
           }
         >
           {tag.color ? <TagDot color={tag.color} name={tag.name} /> : null}
-          {tag.name}
+          <span className="chip-label">{tag.name}</span>
           <button
             type="button"
             className="chip-remove"
