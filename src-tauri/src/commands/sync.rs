@@ -136,13 +136,23 @@ fn validate_ids(ids: &[String]) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// 16 lowercase hex digits, then a record ID (migration 0028).
+fn valid_upload_key(key: &str) -> bool {
+    key.len() > 16
+        && key.is_char_boundary(16)
+        && key[..16]
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        && valid_note_id(&key[16..])
+}
+
 #[tauri::command]
 pub async fn sync_pending(
     db: State<'_, Db>,
     after: String,
     limit: u32,
 ) -> Result<Vec<SyncPending>, String> {
-    if !(after.is_empty() || valid_note_id(&after)) {
+    if !(after.is_empty() || valid_upload_key(&after)) {
         return Err("E_SYNC_ID_INVALID".into());
     }
     if !(1..=MAX_SYNC_IDS as u32).contains(&limit) {
@@ -308,6 +318,22 @@ mod tests {
             body_fp: String::new(),
             edits: 0,
             synced: 1,
+        }
+    }
+
+    #[test]
+    fn takes_an_upload_key_as_the_pending_cursor_and_refuses_anything_else() {
+        let id = "0192a6f0-0000-7000-8000-000000000001";
+        assert!(valid_upload_key(&format!("0123456789abcdef{id}")));
+        for bad in [
+            id.to_string(),
+            format!("0123456789ABCDEF{id}"),
+            format!("0123456789abcde{id}"),
+            format!("0123456789abcdeg{id}"),
+            "0123456789abcdef".to_string(),
+            format!("0123456789abcd\u{e9}{id}"),
+        ] {
+            assert!(!valid_upload_key(&bad), "{bad}");
         }
     }
 

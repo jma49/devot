@@ -72,10 +72,12 @@ export interface SyncPending {
   id: string
   /** The `edits` the record is at: the engine skips one it stamped at these edits already. */
   edits: number
+  /** Random hex then the ID: pending records page in this order, so a backlog does not go out in creation order. */
+  uploadKey: string
 }
 
 export interface SyncStore {
-  /** Records written since the engine last looked, by ID after `after`, at most `limit`. */
+  /** Records written since the engine last looked, after the `uploadKey` `after` ('' for the first page), at most `limit`. */
   syncPending(after: string, limit: number): Promise<SyncPending[]>
   syncPendingCount(): Promise<number>
   syncRead(ids: readonly string[]): Promise<SyncLocal[]>

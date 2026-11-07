@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
+import Database from 'better-sqlite3'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { createClock, createIdGenerator, createNoteService, MERGE } from '../../src/core'
@@ -76,7 +77,55 @@ it('gives each pending record’s edits, so the engine skips one it stamped alre
   await notes.flush()
   const [pending] = await storage.syncPending('', 10)
   const [row] = await storage.syncRead([id])
-  expect(pending).toEqual({ id, edits: row?.entry?.edits })
+  expect(pending).toEqual({ id, edits: row?.entry?.edits, uploadKey: expect.any(String) })
+})
+
+it('keys each record for upload at random, after the ID, and draws the keys again for a new epoch', async () => {
+  const storage = sqlite()
+  const notes = createNoteService({
+    storage,
+    clock: createClock('mac'),
+    newId: createIdGenerator(),
+    saveDelayMs: 5,
+  })
+  for (let i = 0; i < 20; i += 1) await notes.create(`Note ${i}`)
+  await notes.flush()
+  const keys = async () =>
+    new Map((await storage.syncPending('', 100)).map((p) => [p.id, p.uploadKey]))
+  const first = await keys()
+  for (const [id, key] of first) expect(key).toMatch(new RegExp(`^[0-9a-f]{16}${id}$`))
+  await storage.syncReset()
+  const again = await keys()
+  expect([...again.keys()].sort()).toEqual([...first.keys()].sort())
+  for (const [id, key] of again) expect(key).not.toBe(first.get(id))
+})
+
+it('keys the records of a library from before schema v28 for upload, each at random', async () => {
+  const dir = join(import.meta.dirname, '../../src-tauri/migrations')
+  const migrations = readdirSync(dir)
+    .filter((f) => /^\d{4}_.+\.sql$/.test(f))
+    .sort()
+    .map((f) => readFileSync(join(dir, f), 'utf8'))
+  const path = join(tempDir('devot-sync-store-v27-'), 'db.sqlite')
+  const db = new Database(path)
+  db.function('devot_fold', { deterministic: true }, (text) => text)
+  migrations.slice(0, 27).forEach((sql, i) => {
+    db.exec(sql)
+    db.pragma(`user_version = ${i + 1}`)
+  })
+  const ids = Array.from(
+    { length: 12 },
+    (_, i) => `0192a6f0-0000-7000-8000-${String(i).padStart(12, '0')}`,
+  )
+  const insert = db.prepare(`INSERT INTO sync_records (id, kind) VALUES (?, 'book')`)
+  for (const id of ids) insert.run(id)
+  db.close()
+  const storage = openSqliteAdapter(path)
+  open.push(storage)
+  const pending = await storage.syncPending('', 100)
+  expect(pending.map((p) => p.id).sort()).toEqual(ids)
+  for (const p of pending) expect(p.uploadKey).toMatch(new RegExp(`^[0-9a-f]{16}${p.id}$`))
+  expect(new Set(pending.map((p) => p.uploadKey.slice(0, 16))).size).toBe(ids.length)
 })
 
 it('passes an attachment on only to a newer owner, as the merge orders them', async () => {
