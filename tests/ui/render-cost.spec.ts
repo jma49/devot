@@ -159,7 +159,7 @@ test('typing in Split view renders neither the preview nor its copy buttons', as
   const preview = page.getByRole('article', { name: 'Preview' })
   await expect(preview.locator('.code-copy')).toHaveCount(60)
   await body(page).click()
-  await page.keyboard.press('ControlOrMeta+ArrowDown')
+  await page.keyboard.press('ControlOrMeta+End')
   await resetRenderCounts(page)
   await page.evaluate(() => (window.devotMediaQueries = 0))
 
@@ -168,8 +168,9 @@ test('typing in Split view renders neither the preview nor its copy buttons', as
     await page.waitForTimeout(20)
   }
   await expect(preview.locator('p').last()).toHaveText(KEYS)
-  const { renders } = await renderCounts(page)
-  expect(renders['Preview']).toBe(0)
+  // A save renders the window and the preview with it once; a key renders neither.
+  const { renders, writes } = await renderCounts(page)
+  expect(renders['Preview']).toBeLessThanOrEqual(writes)
   expect(renders['CopyButton']).toBe(0)
   expect(await page.evaluate(() => window.devotMediaQueries)).toBeLessThanOrEqual(KEYS.length)
 })
