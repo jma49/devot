@@ -19207,6 +19207,28 @@
         }
       }
     },
+    "syncSettings.deviceNotJoined" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added {date} · Not joined yet"
+          }
+        }
+      }
+    },
+    "syncSettings.deviceNotJoinedRemoveDetail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It leaves this list. The old key opens nothing new, so its notes and this vault stay as they are."
+          }
+        }
+      }
+    },
     "syncSettings.deviceRemove" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -19246,7 +19268,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sync stops there and its notes stay. The device still holds this vault’s key, so whoever has it can join again; Devot cannot change the key yet."
+            "value" : "Sync stops there and its notes stay. The device still holds this vault’s key, so whoever has it can join again until you change the vault key."
           }
         }
       }
@@ -19335,6 +19357,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Devices in this vault"
+          }
+        }
+      }
+    },
+    "syncSettings.devicesNotJoinedHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some still have to join the new key"
           }
         }
       }
@@ -20527,6 +20560,28 @@
         }
       }
     },
+    "syncSettings.rotateIcloudHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locks out a lost device that still has the key. Your notes move to a new vault, and your devices on this Apple ID follow on their own."
+          }
+        }
+      }
+    },
+    "syncSettings.rotateIcloudWarning" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A device still signed in to this Apple ID with iCloud Keychain gets the new key too. Remove a lost device from your Apple ID first, then change the key."
+          }
+        }
+      }
+    },
     "syncSettings.rotateSecretHint" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20556,6 +20611,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The vault key was changed on another device. To sync again, enter a pairing code from a device that has the new key, or the new recovery key. Your notes stay here."
+          }
+        }
+      }
+    },
+    "syncSettings.rotatedAwayIcloud" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The vault key was changed on another device, and the new key has not reached this one through iCloud Keychain yet. To sync again, enter a pairing code from a device that has the new key, or the new recovery key. Your notes stay here."
+          }
+        }
+      }
+    },
+    "syncSettings.rotatedIcloud" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The vault key was changed. Save the new recovery key; your devices on this Apple ID follow on their own."
+          }
+        }
+      }
+    },
+    "syncSettings.rotatedIcloudFollowed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another device changed the vault key first. This device now uses its new key; the new recovery key is shown on that device."
           }
         }
       }
