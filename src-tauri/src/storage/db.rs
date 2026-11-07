@@ -10,7 +10,14 @@ use std::sync::{Arc, OnceLock, mpsc};
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 
-type Job = Box<dyn FnOnce(&mut Store) + Send>;
+// Quiet time on the database thread before it copies the WAL into the database file.
+const IDLE_CHECKPOINT: Duration = Duration::from_secs(3);
+
+struct Job {
+    // Only a job that can leave frames in the WAL makes the idle checkpoint worth running.
+    writes: bool,
+    work: Box<dyn FnOnce(&mut Store) + Send>,
+}
 
 /// How long writes stay quiet before the thread re-indexes the notes saves left stale.
 const SEARCH_QUIET: Duration = Duration::from_secs(5);
@@ -44,7 +51,7 @@ impl CatchUp {
     }
 }
 
-fn serve(store: &mut Store, inbox: &mpsc::Receiver<Job>, quiet: Duration) {
+fn serve(store: &mut Store, inbox: &mpsc::Receiver<Job>, idle: Duration, quiet: Duration) {
     let mut catch_up = CatchUp {
         quiet,
         first: None,
@@ -53,33 +60,58 @@ fn serve(store: &mut Store, inbox: &mpsc::Receiver<Job>, quiet: Duration) {
     // A run before this one may have left notes stale.
     catch_up.wrote(Instant::now());
     let mut seen = store.data_version().ok();
+    let mut dirty = false;
+    let mut busy_at = Instant::now();
     loop {
-        let job = match catch_up.due {
-            Some(due) => match inbox.recv_timeout(due.saturating_duration_since(Instant::now())) {
-                Ok(job) => job,
-                Err(mpsc::RecvTimeoutError::Timeout) => {
-                    catch_up.run(store);
-                    continue;
+        let checkpoint = dirty.then(|| busy_at + idle);
+        let job = match catch_up.due.into_iter().chain(checkpoint).min() {
+            Some(next) => {
+                match inbox.recv_timeout(next.saturating_duration_since(Instant::now())) {
+                    Ok(job) => job,
+                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                        if catch_up.due.is_some_and(|due| due <= Instant::now()) {
+                            let changes = store.conn.total_changes();
+                            catch_up.run(store);
+                            dirty |= store.conn.total_changes() != changes;
+                            busy_at = Instant::now();
+                        } else if dirty && busy_at + idle <= Instant::now() {
+                            dirty = checkpoint_left_frames(store);
+                            busy_at = Instant::now();
+                        }
+                        continue;
+                    }
+                    Err(mpsc::RecvTimeoutError::Disconnected) => return,
                 }
-                Err(mpsc::RecvTimeoutError::Disconnected) => return,
-            },
+            }
             None => match inbox.recv() {
                 Ok(job) => job,
                 Err(_) => return,
             },
         };
+        dirty |= job.writes;
         let changes = store.conn.total_changes();
         // A job that panics drops its reply, so its caller gets a code, and the
         // thread lives on for the next one (a Transaction rolls back as it unwinds).
-        if catch_unwind(AssertUnwindSafe(|| job(store))).is_err() {
+        if catch_unwind(AssertUnwindSafe(|| (job.work)(store))).is_err() {
             log::error!("E_DB_JOB_PANIC");
         }
+        busy_at = Instant::now();
         // Another process's commits move only data_version, which the outside-change watch reads
-        // through a job every second.
+        // through a job once the `-wal` file moves.
         let outside = store.data_version().ok();
         if store.conn.total_changes() != changes || outside != seen {
             seen = outside;
             catch_up.wrote(Instant::now());
+        }
+    }
+}
+
+fn checkpoint_left_frames(store: &Store) -> bool {
+    match store.checkpoint_passive() {
+        Ok((log, done)) => done < log,
+        Err(_) => {
+            log::warn!("W_DB_CHECKPOINT_FAILED");
+            false
         }
     }
 }
@@ -105,15 +137,17 @@ pub type WriteGate = Arc<dyn Fn(Write) -> std::result::Result<(), &'static str> 
 pub struct Db {
     jobs: mpsc::Sender<Job>,
     gate: Arc<OnceLock<WriteGate>>,
+    path: Arc<std::path::PathBuf>,
 }
 
 impl Db {
     pub fn spawn(path: &Path) -> Result<Self> {
-        Self::spawn_quiet_after(path, SEARCH_QUIET)
+        Self::spawn_tuned(path, IDLE_CHECKPOINT, SEARCH_QUIET)
     }
 
-    pub(crate) fn spawn_quiet_after(path: &Path, quiet: Duration) -> Result<Self> {
+    fn spawn_tuned(path: &Path, idle: Duration, quiet: Duration) -> Result<Self> {
         let path = path.to_owned();
+        let path_for_handle = path.clone();
         let (jobs, inbox) = mpsc::channel::<Job>();
         let (ready_tx, ready_rx) = mpsc::channel();
         std::thread::Builder::new()
@@ -121,7 +155,7 @@ impl Db {
             .spawn(move || match Store::open(&path) {
                 Ok(mut store) => {
                     let _ = ready_tx.send(Ok(()));
-                    serve(&mut store, &inbox, quiet);
+                    serve(&mut store, &inbox, idle, quiet);
                 }
                 Err(error) => {
                     let _ = ready_tx.send(Err(error));
@@ -132,7 +166,12 @@ impl Db {
         Ok(Self {
             jobs,
             gate: Arc::default(),
+            path: Arc::new(path_for_handle),
         })
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 
     /// Set once, at launch; writes before it are not judged.
@@ -147,7 +186,7 @@ impl Db {
         T: Send + 'static,
         F: FnOnce(&Store) -> Result<T> + Send + 'static,
     {
-        logged(self.run(move |store| work(store)).await)
+        logged(self.run(false, move |store| work(store)).await)
     }
 
     /// Refused with the gate's code, before it reaches the database thread.
@@ -159,7 +198,7 @@ impl Db {
         if let Some(gate) = self.gate.get() {
             gate(what).map_err(StorageError::Refused)?;
         }
-        logged(self.run(work).await)
+        logged(self.run(true, work).await)
     }
 
     /// For a write whose kind depends on what is stored: the gate answers for each of `kinds`
@@ -177,7 +216,7 @@ impl Db {
             .map(|&what| (what, self.gate.get().map_or(Ok(()), |gate| gate(what))))
             .collect();
         let done = self
-            .run(move |store| {
+            .run(true, move |store| {
                 let what = judge(store)?;
                 match answers.into_iter().find(|(kind, _)| *kind == what) {
                     Some((_, Ok(()))) => work(store).map(Ok),
@@ -189,24 +228,33 @@ impl Db {
         logged(done)?.map_err(StorageError::Refused)
     }
 
+    /// At quit: the WAL goes into the database file so the next launch starts with a small one.
+    pub async fn checkpoint(&self) -> Result<()> {
+        self.run(true, |store| store.checkpoint_passive().map(|_| ()))
+            .await
+    }
+
     /// For a caller that logs a run of failures once itself (the change watch), so a lasting failure does not fill the log.
     pub async fn call_quietly<T, F>(&self, work: F) -> Result<T>
     where
         T: Send + 'static,
         F: FnOnce(&Store) -> Result<T> + Send + 'static,
     {
-        self.run(move |store| work(store)).await
+        self.run(false, move |store| work(store)).await
     }
 
-    async fn run<T, F>(&self, work: F) -> Result<T>
+    async fn run<T, F>(&self, writes: bool, work: F) -> Result<T>
     where
         T: Send + 'static,
         F: FnOnce(&mut Store) -> Result<T> + Send + 'static,
     {
         let (reply, answer) = oneshot::channel();
-        let job: Job = Box::new(move |store| {
-            let _ = reply.send(work(store));
-        });
+        let job = Job {
+            writes,
+            work: Box::new(move |store| {
+                let _ = reply.send(work(store));
+            }),
+        };
         self.jobs
             .send(job)
             .map_err(|_| StorageError::Refused("E_DB_THREAD_GONE"))?;
@@ -280,6 +328,122 @@ mod tests {
         licence.set(&testing::key(testing::ID)).unwrap();
         block_on(db.write(Write::Content, |store| store.put_note(&note("after"), &[]))).unwrap();
         assert_eq!(ids(&db).len(), 2);
+    }
+
+    #[test]
+    fn the_database_thread_checkpoints_once_it_has_been_idle() {
+        use tauri::async_runtime::block_on;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("devot.sqlite");
+        let db = Db::spawn(&path).unwrap();
+        let mut big = note("big");
+        big.body_md = "word ".repeat(50_000);
+        block_on(db.write(Write::Content, move |store| store.put_note(&big, &[]))).unwrap();
+        let before = std::fs::metadata(&path).unwrap().len();
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        while std::fs::metadata(&path).unwrap().len() <= before + 200_000 {
+            assert!(std::time::Instant::now() < deadline, "no idle checkpoint");
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    }
+
+    const SHORT_IDLE: Duration = Duration::from_millis(50);
+
+    fn file_len(path: &Path) -> u64 {
+        std::fs::metadata(path).unwrap().len()
+    }
+
+    fn outside_blob(outside: &rusqlite::Connection, id: &str) {
+        outside
+            .execute(
+                "INSERT INTO notes (id, title, title_hlc, body_md, ydoc, created_at, updated_at)
+                 VALUES (?1, 'outside', 'h', '', zeroblob(300000), 1, 1)",
+                [id],
+            )
+            .unwrap();
+    }
+
+    fn grows_past(path: &Path, len: u64) -> bool {
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while std::time::Instant::now() < deadline {
+            if file_len(path) > len {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        false
+    }
+
+    #[test]
+    fn reads_alone_never_start_an_idle_checkpoint() {
+        use tauri::async_runtime::block_on;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("devot.sqlite");
+        let db = Db::spawn_tuned(&path, SHORT_IDLE, SEARCH_QUIET).unwrap();
+        let outside = rusqlite::Connection::open(&path).unwrap();
+        outside_blob(&outside, "outside");
+        let before = file_len(&path);
+        for _ in 0..5 {
+            block_on(db.call(|store| store.list_notes())).unwrap();
+            block_on(db.call_quietly(|store| store.data_version())).unwrap();
+            std::thread::sleep(SHORT_IDLE * 3);
+        }
+        assert_eq!(file_len(&path), before, "a read armed the checkpoint");
+
+        block_on(db.write(Write::Content, |store| store.put_note(&note("own"), &[]))).unwrap();
+        assert!(
+            grows_past(&path, before + 200_000),
+            "no checkpoint after a write"
+        );
+    }
+
+    #[test]
+    fn a_search_catch_up_that_writes_starts_an_idle_checkpoint() {
+        use tauri::async_runtime::block_on;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("devot.sqlite");
+        let db = Db::spawn_tuned(&path, SHORT_IDLE, SHORT_IDLE).unwrap();
+        std::thread::sleep(SHORT_IDLE * 4);
+        let mut big = note("outside");
+        big.ydoc = vec![7; 300_000];
+        Store::open(&path).unwrap().put_note(&big, &[]).unwrap();
+        let before = file_len(&path);
+        block_on(db.call(|store| store.list_notes())).unwrap();
+        assert!(
+            grows_past(&path, before + 200_000),
+            "the catch-up's writes never reached a checkpoint"
+        );
+    }
+
+    #[test]
+    fn a_checkpoint_a_reader_held_back_runs_again_once_the_reader_is_done() {
+        use tauri::async_runtime::block_on;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("devot.sqlite");
+        let db = Db::spawn_tuned(&path, SHORT_IDLE, SEARCH_QUIET).unwrap();
+        block_on(db.write(Write::Content, |store| store.put_note(&note("first"), &[]))).unwrap();
+        std::thread::sleep(SHORT_IDLE * 4);
+
+        let reader = rusqlite::Connection::open(&path).unwrap();
+        reader.execute_batch("BEGIN").unwrap();
+        let _: i64 = reader
+            .query_row("SELECT count(*) FROM notes", [], |row| row.get(0))
+            .unwrap();
+        let mut big = note("big");
+        big.ydoc = vec![7; 300_000];
+        block_on(db.write(Write::Content, move |store| store.put_note(&big, &[]))).unwrap();
+        let held = file_len(&path);
+        std::thread::sleep(SHORT_IDLE * 6);
+        assert!(
+            file_len(&path) < held + 200_000,
+            "the reader did not hold the checkpoint back"
+        );
+
+        reader.execute_batch("COMMIT").unwrap();
+        assert!(
+            grows_past(&path, held + 200_000),
+            "the held-back checkpoint never ran again"
+        );
     }
 
     const EITHER: [Write; 2] = [Write::Body, Write::Content];
@@ -395,8 +559,12 @@ mod tests {
     fn the_database_thread_catches_the_search_index_up_once_writes_are_quiet() {
         use tauri::async_runtime::block_on;
         let dir = tempfile::tempdir().unwrap();
-        let db = Db::spawn_quiet_after(&dir.path().join("devot.sqlite"), Duration::from_millis(50))
-            .unwrap();
+        let db = Db::spawn_tuned(
+            &dir.path().join("devot.sqlite"),
+            IDLE_CHECKPOINT,
+            Duration::from_millis(50),
+        )
+        .unwrap();
         block_on(db.write(Write::Content, |store| store.put_note(&note("a"), &[]))).unwrap();
         let stale = |db: &Db| {
             block_on(db.call(|store| {
@@ -423,7 +591,7 @@ mod tests {
         use tauri::async_runtime::block_on;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("devot.sqlite");
-        let db = Db::spawn_quiet_after(&path, Duration::from_millis(50)).unwrap();
+        let db = Db::spawn_tuned(&path, IDLE_CHECKPOINT, Duration::from_millis(50)).unwrap();
         let stale = |db: &Db| {
             block_on(db.call(|store| {
                 Ok(store

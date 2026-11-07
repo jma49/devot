@@ -4317,3 +4317,99 @@ fn the_index_caught_up_later_ranks_exactly_as_one_written_on_every_save() {
         "{notes} notes, {matched} matches"
     );
 }
+
+fn wal_len(path: &std::path::Path) -> u64 {
+    std::fs::metadata(path.with_extension("sqlite-wal")).map_or(0, |meta| meta.len())
+}
+
+fn big_note(version: u32) -> NoteRecord {
+    let mut record = note("big", "Big", 10 + i64::from(version));
+    record.body_md = format!("{version} {}", "word ".repeat(50_000));
+    record.ydoc = vec![version as u8; 250_000];
+    record.body_version = version.into();
+    record
+}
+
+#[test]
+fn the_wal_is_checkpointed_late_and_trimmed_after_a_reset() {
+    let (_dir, store) = temp_store();
+    let pragma = |name: &str| -> i64 {
+        store
+            .conn
+            .pragma_query_value(None, name, |row| row.get(0))
+            .unwrap()
+    };
+    assert_eq!(pragma("wal_autocheckpoint"), 4000);
+    assert_eq!(pragma("journal_size_limit"), 64 * 1024 * 1024);
+    assert_eq!(pragma("secure_delete"), 1, "secure_delete stays on");
+}
+
+#[test]
+fn an_idle_checkpoint_moves_the_wal_into_the_database() {
+    let (dir, mut store) = temp_store();
+    let path = dir.path().join("devot.sqlite");
+    store.put_note(&big_note(1), &[]).unwrap();
+    assert!(wal_len(&path) > 0);
+
+    let (log, checkpointed) = store.checkpoint_passive().unwrap();
+    assert!(log > 0);
+    assert_eq!(checkpointed, log, "every frame reached the database file");
+
+    let db_len = std::fs::metadata(&path).unwrap().len();
+    assert!(db_len >= 250_000, "the note's bytes are in the main file");
+}
+
+#[test]
+#[ignore = "measurement; run with --ignored --nocapture"]
+fn measure_wal_bytes_and_checkpoint_time() {
+    for (label, pages) in [("default 1000", 1000), ("tuned 4000", 4000)] {
+        let (dir, mut store) = temp_store();
+        let path = dir.path().join("devot.sqlite");
+        store
+            .conn
+            .pragma_update(None, "wal_autocheckpoint", pages)
+            .unwrap();
+        let (mut worst, mut total) = (Duration::ZERO, Duration::ZERO);
+        let mut peak = 0;
+        for version in 0..40 {
+            let started = Instant::now();
+            store.put_note(&big_note(version), &[]).unwrap();
+            let took = started.elapsed();
+            worst = worst.max(took);
+            total += took;
+            peak = peak.max(wal_len(&path));
+        }
+        let idle = Instant::now();
+        store.checkpoint_passive().unwrap();
+        println!(
+            "{label}: 40 saves total {total:?}, worst {worst:?}, peak wal {peak} bytes, idle checkpoint {:?}",
+            idle.elapsed()
+        );
+    }
+}
+
+#[test]
+#[ignore = "measurement; run with --ignored --nocapture"]
+fn measure_secure_delete_cost() {
+    for (label, setting) in [("secure_delete ON", "ON"), ("secure_delete OFF", "OFF")] {
+        let (dir, mut store) = temp_store();
+        let path = dir.path().join("devot.sqlite");
+        store
+            .conn
+            .pragma_update(None, "secure_delete", setting)
+            .unwrap();
+        store
+            .conn
+            .pragma_update(None, "wal_autocheckpoint", 1_000_000)
+            .unwrap();
+        let started = Instant::now();
+        for version in 0..20 {
+            store.put_note(&big_note(version), &[]).unwrap();
+        }
+        println!(
+            "{label}: 20 saves {:?}, wal {} bytes",
+            started.elapsed(),
+            wal_len(&path)
+        );
+    }
+}
