@@ -367,7 +367,7 @@ const PIECE_LENGTH = 2000
  * note left keeps little of its trees (about 100 bytes a character).
  */
 export const KEPT_CHARACTERS = 50_000
-/** Footnotes whose last rendered item is kept to tell whether the next render changed it. */
+// Footnotes whose last rendered item is kept to tell whether the next render changed it.
 const KEPT_NOTE_VERSIONS = 2000
 
 export interface PieceRenderer {
@@ -389,7 +389,7 @@ export function createPieceRenderer({
   const cache = new Map<string, Rendered>()
   let cached = 0
   let ids = 0
-  /** Counts the times the preview closed: a render under way then shows nothing. */
+  // A render under way when the preview closes shows nothing.
   let closings = 0
   const noteVersions = new Map<string, { shape: string; version: number }>()
 
@@ -397,21 +397,25 @@ export function createPieceRenderer({
   const keyOf = (text: string, first: boolean, copy: number, optionsKey: string) =>
     `${first ? 1 : 0} ${copy} ${optionsKey}\u0000${text}`
 
-  /**
-   * Drops the oldest pieces the note does not show right now, until the
-   * others fit. A piece it shows is never dropped, or a note larger than the
-   * cache would render whole again on every keystroke.
-   */
+  // Drops the oldest pieces the note does not show right now, until the others fit. A piece it
+  // shows is never dropped, or a note larger than the cache would render whole again on every
+  // keystroke. The versions of notes no kept piece defines go with them: they hold the notes' text.
   const trim = (shown: ReadonlySet<string>) => {
     let others = cached
     for (const key of shown) others -= cache.get(key)?.length ?? 0
     for (const [key, { length }] of cache) {
-      if (others <= capacity) return
+      if (others <= capacity) break
       if (shown.has(key)) continue
       cache.delete(key)
       cached -= length
       others -= length
     }
+    if (noteVersions.size === 0) return
+    const defined = new Set<string>()
+    for (const { footnotes } of cache.values()) {
+      for (const note of footnotes.notes) defined.add(note.id)
+    }
+    for (const id of noteVersions.keys()) if (!defined.has(id)) noteVersions.delete(id)
   }
 
   const renderPiece = async (

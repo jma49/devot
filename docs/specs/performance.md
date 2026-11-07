@@ -15,6 +15,7 @@ Part of the [architecture overview](../architecture.md).
   It stood at about 1 s on a loaded developer machine, and at about 115 ms on the same machine once definitions no longer made the note one piece; what remains is mostly the page's layout of the whole preview and the scroll sync's measure of its blocks.
   The scroll sync keeps its measure of the preview's blocks while an edit changes neither the note's line count nor the preview's height (`previewScrollPane` in `src/renderer/src/preview/scrollSync.ts`), so typing within a line reads the position of no block.
 - The live preview renders a note in pieces (`src/core/preview/blocks.ts`), cut at blank lines before a new top-level block, and renders again only the pieces whose text changed; the page patches only the pieces whose key changed (`src/renderer/src/preview/dom.ts`).
+  Pieces are kept within `KEPT_CHARACTERS` besides those the note shows (see below), so a piece the note shows is never rendered again for the cache's sake.
   Link reference and footnote definitions reach across pieces without making the note one piece (`definitions.ts`): each piece is parsed with the labels the note defines seeded into the Markdown parser, and gets the definitions it uses from other pieces as tree nodes, so its links and calls come out as the whole note's would.
   A piece's key holds the definitions it was rendered with, so changing a definition renders again the pieces that use it.
   Footnote calls are numbered across the pieces, and the list of notes is one last piece of its own (`footnotes.ts`), sent again only when a note in it, its number or its count of calls changed.
@@ -27,6 +28,8 @@ Part of the [architecture overview](../architecture.md).
 - A note left gives back what was kept for it, held by `tests/renderer/left-note-memory.test.ts`, `tests/core/preview-pieces.test.ts` and `tests/ui/preview.spec.ts`:
   - The worker keeps, besides the open note's preview pieces, pieces of at most 50,000 characters of source (`KEPT_CHARACTERS`; a tree takes about 100 bytes a character), so a long note left is rendered again when it opens (in V8, a 250 KB note left kept 25 MB of trees, now under 7 MB).
     When the preview closes (Edit or Write mode), the page tells the worker (`forgetShownPieces`), so the note it showed is kept within the same limit.
+    A render still under way when the preview closes keeps its pieces within that limit too.
+    The worker remembers the last rendered version of each footnote, to tell whether the list of notes changed (at most 2,000, `KEPT_NOTE_VERSIONS`); a version holds the note's text, so it goes when no kept piece defines that note.
   - Write mode's table drawings live in the note's editor state and go with it; kept across notes, they held 11 MB after a 30-column, 800-row table was left.
     The note's base extensions hold them, so a switch to Edit mode and back draws no table again.
   - `@lezer/html`'s and `@lezer/xml`'s tag tokenizers keep the last input they read, and with it the last note with HTML (or an XML block), its syntax tree and what Write mode keeps by its text (about 10 MB in V8 for a 250 KB note); leaving a note, the editor parses a tag of no note's with each (`releaseParsedNote` in `editor/markdown.ts`).

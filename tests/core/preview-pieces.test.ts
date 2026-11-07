@@ -396,6 +396,46 @@ describe('createPieceRenderer', () => {
     expect(keptOf(first, await render(LONG_NOTE, options))).toBeLessThanOrEqual(KEPT_CHARACTERS)
   })
 
+  describe('keeps none of the footnotes of a note whose pieces it let go', () => {
+    const FOOTNOTED = [...Array(6).keys()]
+      .map((i) => `Para ${i} calls[^n${i}].\n\n[^n${i}]: Note ${i}.`)
+      .join('\n\n')
+    // The list's key holds the version the renderer remembers of each note in it.
+    const listKey = (pieces: readonly PreviewPiece[]) => pieces.at(-1)!.key
+    const forgetting = () => createPieceRenderer({ pieceLength: 30, capacity: 0 })
+
+    it('when another note is shown', async () => {
+      const render = forgetting()
+      const first = await render(FOOTNOTED, options)
+      expect(listKey(first)).toMatch(/^notes /)
+      await render('Another note.', options)
+      expect(listKey(await render(FOOTNOTED, options))).not.toBe(listKey(first))
+    })
+
+    it('when its preview closed', async () => {
+      const render = forgetting()
+      const first = await render(FOOTNOTED, options)
+      render.forgetShown()
+      expect(listKey(await render(FOOTNOTED, options))).not.toBe(listKey(first))
+    })
+
+    it('when its preview closed while it was rendered', async () => {
+      const render = forgetting()
+      const rendering = render(FOOTNOTED, options)
+      render.forgetShown()
+      const first = await rendering
+      expect(listKey(await render(FOOTNOTED, options))).not.toBe(listKey(first))
+    })
+
+    it('but the versions of those it keeps, so the list is not sent again', async () => {
+      const render = createPieceRenderer({ pieceLength: 30 })
+      const first = await render(FOOTNOTED, options)
+      render.forgetShown()
+      await render('Another note.', options)
+      expect(listKey(await render(FOOTNOTED, options))).toBe(listKey(first))
+    })
+  })
+
   it('keeps every piece of a note larger than its capacity, so only an edited piece is sent again', async () => {
     const render = createPieceRenderer({ capacity: 20, pieceLength: 1 })
     const note = (edit: string) =>
