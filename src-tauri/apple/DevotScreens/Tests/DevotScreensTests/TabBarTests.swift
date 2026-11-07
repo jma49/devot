@@ -43,13 +43,38 @@ final class TabBarTests: XCTestCase {
         }
     }
 
-    func testEveryTabRootIsAWebScreenUnderAHiddenNavigationBar() throws {
+    func testSettingsIsNativeUnderALargeTitleAndTheOtherTabsAreWebScreensUnderAHiddenBar() throws {
         let tabs = controller()
         for (index, tab) in TabModel.tabs.enumerated() {
             let navigation = try XCTUnwrap(tabs.viewControllers?[index] as? UINavigationController)
-            XCTAssertTrue(navigation.isNavigationBarHidden)
-            XCTAssertTrue(navigation.viewControllers.first === tabs.screen(tab))
+            if tab == .settings {
+                XCTAssertTrue(navigation === tabs.settings.navigation)
+                XCTAssertFalse(navigation.isNavigationBarHidden)
+                XCTAssertTrue(navigation.navigationBar.prefersLargeTitles)
+                XCTAssertTrue(navigation.viewControllers.first === tabs.settings.root)
+                XCTAssertNil(tabs.screen(tab))
+            } else {
+                XCTAssertTrue(navigation.isNavigationBarHidden)
+                XCTAssertTrue(navigation.viewControllers.first === tabs.screen(tab))
+            }
         }
+    }
+
+    func testTheSettingsRootSearchesAndPairs() throws {
+        let root = controller().settings.root!
+        let search = try XCTUnwrap(root.navigationItem.searchController)
+        XCTAssertFalse(search.obscuresBackgroundDuringPresentation)
+        XCTAssertEqual(search.searchBar.placeholder, L10n.settingsSearch())
+        XCTAssertEqual(root.navigationItem.title, L10n.settingsTitle())
+        XCTAssertEqual(root.navigationItem.rightBarButtonItem?.accessibilityLabel, L10n.phoneSettingsPair())
+    }
+
+    func testOpeningAPageFromElsewhereSelectsTheSettingsTab() throws {
+        let tabs = controller()
+        tabs.settings.router.inFront = { false }
+        tabs.settings.router.open(.licence(.focusKey))
+        XCTAssertEqual(tabs.selectedIndex, TabModel.tabs.firstIndex(of: .settings))
+        XCTAssertEqual(tabs.settings.navigation.viewControllers.count, 2)
     }
 
     func testReportsOnlyTheSelectedTabTappedAgain() throws {

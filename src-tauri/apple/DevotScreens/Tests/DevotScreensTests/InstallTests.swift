@@ -52,6 +52,13 @@ final class InstallTests: XCTestCase {
         try rust.calls.map { try Message(json: $0.1) }
     }
 
+    /// The tab requests, without the reads Settings sends as it shows.
+    private func tabRequests(_ rust: FakeRust) throws -> [Message] {
+        try sent(rust).filter {
+            if case .request(_, let op, _) = $0 { op.rawValue.hasPrefix("tabs.") } else { false }
+        }
+    }
+
     func testAttachesTheTabBarOverTheWebViewAndShowsThePageLibrary() throws {
         let root = try shownRoot()
         let webView = WKWebView(frame: root.view.bounds)
@@ -111,7 +118,7 @@ final class InstallTests: XCTestCase {
         settle()
         XCTAssertEqual(tabs.selectedIndex, TabModel.tabs.firstIndex(of: .settings))
         XCTAssertEqual(tabs.viewControllers?[3].tabBarItem.badgeValue, "!")
-        XCTAssertEqual(rust.calls.count, 2)
+        XCTAssertEqual(try tabRequests(rust).count, 2)
 
         screens.delivered(Data(#"{"v":1,"notice":"tabs.state","tab":"settings","barHidden":true,"attention":true}"#.utf8))
         XCTAssertTrue(tabs.isTabBarHidden)
@@ -193,5 +200,34 @@ final class InstallTests: XCTestCase {
         screens.delivered(nil)
         XCTAssertEqual(notices, [.notesChanged])
         XCTAssertEqual(rust.lines, Array(repeating: "W_SCREENS_NOTICE_INVALID", count: 2))
+    }
+
+    func testThePagesEnterLicenseKeyOpensTheNativeLicensePageOverTheSettingsRoot() throws {
+        let rust = FakeRust()
+        let screens = try XCTUnwrap(
+            Screens.attach(webView: WKWebView(), root: try shownRoot(), rust: rust, defaults: defaults))
+        settle()
+        screens.delivered(Data(#"{"v":1,"notice":"settings.open","pane":"licence","focusKey":true}"#.utf8))
+        settle()
+        let tabs = screens.root.tabs
+        XCTAssertEqual(tabs.selectedIndex, TabModel.tabs.firstIndex(of: .settings))
+        XCTAssertEqual(tabs.settings.navigation.viewControllers.count, 2)
+        XCTAssertTrue(tabs.settings.navigation.viewControllers.first === tabs.settings.root)
+        XCTAssertTrue(try sent(rust).contains(.request(id: 2, op: .tabsShow, args: ["tab": .string("settings")])))
+        XCTAssertTrue(try sent(rust).contains { if case .direct(_, .licenceGet, _) = $0 { true } else { false } })
+        screens.delivered(Data(#"{"v":1,"notice":"settings.open","pane":"sync"}"#.utf8))
+        XCTAssertEqual(rust.lines.last, "W_SCREENS_NOTICE_INVALID notice=settings.open")
+    }
+
+    func testSettingsReadsGoToRustAsDirectRequestsAndComeBackByID() throws {
+        let rust = FakeRust()
+        let screens = try XCTUnwrap(
+            Screens.attach(webView: WKWebView(), root: try shownRoot(), rust: rust, defaults: defaults))
+        var outcome: Outcome?
+        screens.direct(.licenceGet) { outcome = $0 }
+        let id = try XCTUnwrap(rust.calls.last?.0)
+        XCTAssertEqual(try sent(rust).last, .direct(id: id, op: .licenceGet, args: [:]))
+        screens.replied(id, try Message.reply(id: id, outcome: .failed("E_LICENCE_KEYCHAIN")).json())
+        XCTAssertEqual(outcome, .failed("E_LICENCE_KEYCHAIN"))
     }
 }

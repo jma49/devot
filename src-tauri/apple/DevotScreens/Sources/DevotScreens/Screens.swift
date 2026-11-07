@@ -16,7 +16,7 @@ protocol RustSide {
 
 /// The native screens of the one window, and the requests they wait on.
 @MainActor
-final class Screens {
+final class Screens: SettingsBridge {
     static var shared: Screens?
 
     /// Set with the launch argument `-DevotScreensOff YES`; the app then keeps the web shell.
@@ -49,6 +49,7 @@ final class Screens {
             }
             run(effects)
         }
+        root.tabs.settings.bridge = self
     }
 
     /// Checks what Rust handed over and attaches the root, or answers nil. Tao's window may not be
@@ -75,9 +76,22 @@ final class Screens {
     var waitingCount: Int { waiting.count }
 
     func request(_ op: Op, _ args: [String: JSONValue] = [:], done: @escaping (Outcome) -> Void) {
+        send({ .request(id: $0, op: op, args: args) }, done: done)
+    }
+
+    /// A request Rust answers itself, without the page.
+    func direct(_ op: DirectOp, _ args: [String: JSONValue] = [:], done: @escaping (Outcome) -> Void) {
+        send({ .direct(id: $0, op: op, args: args) }, done: done)
+    }
+
+    func log(_ level: LogLevel, _ line: String) {
+        rust.log(level, line)
+    }
+
+    private func send(_ message: (UInt64) -> Message, done: @escaping (Outcome) -> Void) {
         let id = nextID
         nextID += 1
-        guard let json = try? Message.request(id: id, op: op, args: args).json() else {
+        guard let json = try? message(id).json() else {
             done(.failed("E_SCREENS_MESSAGE_INVALID"))
             return
         }
@@ -103,6 +117,10 @@ final class Screens {
             rust.log(.warn, "W_SCREENS_NOTICE_INVALID")
             return
         }
+        if kind == .settingsOpen {
+            openSettings(fields)
+            return
+        }
         guard kind == .tabsState else {
             onNotice?(kind, fields)
             return
@@ -112,6 +130,16 @@ final class Screens {
             return
         }
         run(tabModel.pageState(tab: state.tab, barHidden: state.barHidden, attention: state.attention))
+    }
+
+    /// The page's Pro sheet, Enter License Key, opens License here rather than its own Settings.
+    private func openSettings(_ fields: [String: JSONValue]) {
+        guard fields["pane"]?.string == "licence" else {
+            rust.log(.warn, "W_SCREENS_NOTICE_INVALID notice=settings.open")
+            return
+        }
+        let focusKey = fields["focusKey"]?.bool ?? false
+        root.tabs.settings.router.open(.licence(focusKey ? .focusKey : .plain))
     }
 
     private func run(_ effects: [TabModel.Effect]) {

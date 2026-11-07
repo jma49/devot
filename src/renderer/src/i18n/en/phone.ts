@@ -99,6 +99,8 @@ export const messages = {
   'phone.settings.off': 'Off',
   'phone.settings.noResults': 'No matching settings',
   'phone.settings.closeSearch': 'Close search',
+  'phone.settings.alertOk': 'OK',
+  'phone.settings.defaultNotebookFooter': 'New notes go here unless a notebook is open.',
   'phone.settings.trial': 'Trial',
   'phone.settings.trialEnds':
     'Your trial ends on {date}. After that every note stays readable and searchable; editing needs a license. A license is bought once and covers your Mac and this iPhone.',

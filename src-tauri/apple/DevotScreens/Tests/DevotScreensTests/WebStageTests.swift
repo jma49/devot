@@ -107,7 +107,8 @@ final class WebStageTests: XCTestCase {
         webView.resized = 0
         let tabs = screens.root.tabs
 
-        for tab in TabModel.tabs + TabModel.tabs.reversed() {
+        let web = TabModel.tabs.filter { $0 != .settings }
+        for tab in web + web.reversed() {
             tabs.select(tab)
             tabs.view.layoutIfNeeded()
             let screen = try XCTUnwrap(tabs.screen(tab))
@@ -116,6 +117,40 @@ final class WebStageTests: XCTestCase {
             XCTAssertEqual(screen.view.safeAreaInsets, window.safeAreaInsets, "\(tab)")
             XCTAssertEqual(webView.safeAreaInsets, window.safeAreaInsets, "\(tab)")
         }
+        XCTAssertEqual(webView.leftWindow, 0)
+        XCTAssertEqual(webView.resized, 0)
+    }
+
+    func testTheNativeSettingsRestsTheWebViewAndAWebPaneTakesItUnderTheBarAndAsksForItsPane() throws {
+        let webView = RecordingWebView()
+        let rust = FakeRust()
+        let tao = UIViewController()
+        tao.view.addSubview(webView)
+        let screens = try XCTUnwrap(
+            Screens.attach(webView: webView, root: tao, rust: rust, defaults: try freshDefaults()))
+        let window = try shownWindow(tao)
+        webView.frame = window.bounds
+        tao.view.layoutIfNeeded()
+        webView.resized = 0
+        let tabs = screens.root.tabs
+        tabs.select(.settings)
+        tabs.view.layoutIfNeeded()
+        XCTAssertTrue(webView.superview === screens.root.host.stage)
+
+        tabs.settings.navigation.pushViewController(tabs.settings.controller(.appearance), animated: false)
+        tabs.view.layoutIfNeeded()
+        let pane = try XCTUnwrap(tabs.settings.navigation.topViewController as? WebPaneScreen)
+        XCTAssertTrue(webView.superview === pane.view)
+        XCTAssertEqual(webView.bounds.size, window.bounds.size)
+        XCTAssertGreaterThan(webView.safeAreaInsets.top, window.safeAreaInsets.top)
+        let asked = try rust.calls.map { try Message(json: $0.1) }.contains {
+            if case .request(_, .settingsShowPane, let args) = $0 { args == ["pane": .string("appearance")] } else { false }
+        }
+        XCTAssertTrue(asked)
+
+        tabs.settings.navigation.popViewController(animated: false)
+        tabs.view.layoutIfNeeded()
+        XCTAssertTrue(webView.superview === screens.root.host.stage)
         XCTAssertEqual(webView.leftWindow, 0)
         XCTAssertEqual(webView.resized, 0)
     }

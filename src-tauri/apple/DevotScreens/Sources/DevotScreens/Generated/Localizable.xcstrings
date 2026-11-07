@@ -15236,6 +15236,17 @@
         }
       }
     },
+    "phone.settings.alertOk" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
     "phone.settings.appName" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15265,6 +15276,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Close search"
+          }
+        }
+      }
+    },
+    "phone.settings.defaultNotebookFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New notes go here unless a notebook is open."
           }
         }
       }

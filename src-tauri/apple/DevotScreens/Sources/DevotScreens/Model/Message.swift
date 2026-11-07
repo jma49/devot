@@ -1,7 +1,7 @@
 import Foundation
 
 /// Any JSON value: the arguments, results and notice fields that Rust checks field by field.
-public enum JSONValue: Codable, Equatable, Sendable {
+public enum JSONValue: Codable, Hashable, Sendable {
     case null
     case bool(Bool)
     case number(Double)
@@ -38,6 +38,36 @@ public enum JSONValue: Codable, Equatable, Sendable {
         }
     }
 
+    subscript(key: String) -> JSONValue? {
+        guard case .object(let fields) = self else { return nil }
+        return fields[key]
+    }
+
+    var string: String? {
+        guard case .string(let value) = self else { return nil }
+        return value
+    }
+
+    var bool: Bool? {
+        guard case .bool(let value) = self else { return nil }
+        return value
+    }
+
+    var number: Double? {
+        guard case .number(let value) = self else { return nil }
+        return value
+    }
+
+    var array: [JSONValue]? {
+        guard case .array(let value) = self else { return nil }
+        return value
+    }
+
+    var object: [String: JSONValue]? {
+        guard case .object(let value) = self else { return nil }
+        return value
+    }
+
     /// A whole number that a `Double` holds exactly and an ID can be.
     var id: UInt64? {
         guard case .number(let value) = self, value >= 0, value <= 9_007_199_254_740_991,
@@ -54,12 +84,15 @@ public enum Op: String, CaseIterable, Sendable {
     case noteCreate = "note.create"
     case tabsShow = "tabs.show"
     case tabsPopToRoot = "tabs.popToRoot"
+    case settingsShowPane = "settings.showPane"
+    case settingsNotebooks = "settings.notebooks"
 }
 
 public enum NoticeKind: String, CaseIterable, Sendable {
     case notesChanged = "notes.changed"
     case editorTitle = "editor.title"
     case tabsState = "tabs.state"
+    case settingsOpen = "settings.open"
 }
 
 public enum Outcome: Equatable, Sendable {
@@ -75,6 +108,7 @@ public struct MessageError: Error, Equatable {
 /// envelope only; Rust checks every field.
 public enum Message: Equatable, Sendable {
     case request(id: UInt64, op: Op, args: [String: JSONValue])
+    case direct(id: UInt64, op: DirectOp, args: [String: JSONValue])
     case reply(id: UInt64, outcome: Outcome)
     case notice(NoticeKind, fields: [String: JSONValue])
 
@@ -104,8 +138,9 @@ public enum Message: Equatable, Sendable {
         guard Set(fields.keys) == ["id", "op", "args"], let id = fields["id"]?.id,
             case .string(let name)? = fields["op"], case .object(let args)? = fields["args"]
         else { throw MessageError.invalid }
-        guard let op = Op(rawValue: name) else { throw MessageError(code: "E_SCREENS_OP_UNKNOWN") }
-        return .request(id: id, op: op, args: args)
+        if let op = Op(rawValue: name) { return .request(id: id, op: op, args: args) }
+        if let op = DirectOp(rawValue: name) { return .direct(id: id, op: op, args: args) }
+        throw MessageError(code: "E_SCREENS_OP_UNKNOWN")
     }
 
     private static func reply(_ fields: [String: JSONValue]) throws -> Message {
@@ -123,6 +158,10 @@ public enum Message: Equatable, Sendable {
         var fields: [String: JSONValue] = ["v": .number(Message.version)]
         switch self {
         case .request(let id, let op, let args):
+            fields["id"] = .number(Double(id))
+            fields["op"] = .string(op.rawValue)
+            fields["args"] = .object(args)
+        case .direct(let id, let op, let args):
             fields["id"] = .number(Double(id))
             fields["op"] = .string(op.rawValue)
             fields["args"] = .object(args)

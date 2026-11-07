@@ -29,6 +29,8 @@ targets:
       - path: ../../../../tests/fixtures/screens
         type: folder
         buildPhase: resources
+      - path: ../../../../tests/fixtures/settings-search.json
+        buildPhase: resources
     dependencies:
       - target: DevotScreensHost
       - package: DevotScreens
