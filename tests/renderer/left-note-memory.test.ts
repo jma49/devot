@@ -1,10 +1,11 @@
 import { ensureSyntaxTree, LanguageDescription } from '@codemirror/language'
 import { languages } from '@codemirror/language-data'
 import { EditorSelection, EditorState } from '@codemirror/state'
-import { Decoration, EditorView, type DecorationSet } from '@codemirror/view'
+import type { Decoration } from '@codemirror/view'
 import { describe, expect, it } from 'vitest'
 import { noteMarkdown, releaseParsedNote } from '../../src/renderer/src/editor/markdown'
 import { setWriteFocus, writeFocusTracking, writeMode } from '../../src/renderer/src/editor/write'
+import { drawnBlocks } from '../../src/renderer/src/editor/write/blocks'
 import { collected } from '../support/collected'
 
 function shown(doc: string): EditorState {
@@ -19,9 +20,8 @@ function shown(doc: string): EditorState {
 
 function tableRows(state: EditorState): Decoration[] {
   const rows: Decoration[] = []
-  for (const source of state.facet(EditorView.decorations)) {
-    if (typeof source === 'function') continue
-    ;(source as DecorationSet).between(0, state.doc.length, (_from, _to, value) => {
+  for (const source of drawnBlocks(state).decorations) {
+    source.between(0, state.doc.length, (_from, _to, value) => {
       if (String(value.spec['class'] ?? '').includes('cm-wm-row')) rows.push(value)
     })
   }

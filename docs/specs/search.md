@@ -113,6 +113,8 @@ A search for a word of three characters or more first re-indexes the notes saved
   Inline marks skip a rendered block's source, so an open formula shows `\{`, `_` and `*` as written.
   Whole-line decorations come from a state field fed by the `writeBlockRule` facet (`blocks.ts`): front matter, the rendered blocks and tables.
   A rule gives a list of decorations, which the caret steps over, or layers: decorations, outer marks and the ranges the caret steps over.
+  CodeMirror compares every decoration from state on every update, so the field gives the editor from state only the decorations that take or join lines (block widgets and replaced line breaks); the rest, such as a table's row and cell decorations, a view plugin gives it for the viewport alone.
+  A keystroke's decoration diff then grows with the number of such blocks, not with every cell of every table: in a 2.4 MB note of tables, formulas, images and diagrams the state holds 29,000 decorations instead of 239,000.
   The rendered blocks are found by reading the text line by line and asking the syntax tree only where a line may start one, once per change.
   Inside an input method's composition nothing is built again: the decorations are mapped through the change and built on the first update after it, and Write mode never dispatches a transaction of its own, which would drop the text being composed.
   Write mode is a compartment of the same editor, so switching to and from Edit keeps the text, caret, history and focus, and the line at the top stays there (`scrollSnapshot`).
