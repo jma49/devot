@@ -79,7 +79,7 @@ Part of the [architecture overview](../architecture.md).
     Write mode lets go of a diagram that scrolls out of view, so reading past a note's diagrams for 30 s also removes the frame; scrolling back to one the page no longer keeps (or after a resize or a theme change) loads the libraries again, which takes seconds.
     The frame loads each diagram engine only when a diagram needs it, so the first Mermaid diagram parses the frame and Mermaid (about 5.2 MB) instead of every engine at once (9.3 MB); `tests/scripts/mermaid-frame.bench.test.ts` keeps a size budget.
   - Kept on purpose, each bounded by a count: the undo history of the last 10 notes left ([Data model](data-model.md)), the core's last 8 notes, the last 64 diagram drawings, and Write mode's last 200 rendered blocks (`trees`), 1,000 block heights (`heights`) and 500 inline drawings (`drawnInline`).
-- `tests/scripts/startup-chunks.bench.test.ts` holds what a window parses before its first paint and what the core worker parses before `init` answers, each under a byte budget.
+- `tests/scripts/startup-chunks.build.test.ts` holds what a window parses before its first paint and what the core worker parses before `init` answers, each under a byte budget.
   The main page loads no Markdown parser and no server renderer, as the core worker parses and converts Markdown.
   The core worker loads sync, the Markdown mirror, import, export and the AI service on their first use.
   A stop, or a later start, made while sync's code loads wins, and starts made while the mirror's code loads make one mirror (`lazyStart.ts`).
@@ -87,6 +87,9 @@ Part of the [architecture overview](../architecture.md).
 - The phase 2 harness measures them on macOS, in-app for typing latency, plus idle GPU power (`powermetrics`) with the transparent window against an opaque one.
 - Core budgets, held by the benchmarks in `tests/core/*.bench.test.ts` (`pnpm test` and CI run them; `pnpm test:fast` leaves them out) against the test store on better-sqlite3, which runs the Rust store's SQL.
   Each holds on a developer machine and is stretched 5 times on a hosted CI runner (`tests/support/budget.ts`).
+  The real builds (`*.build.test.ts`) run before the benchmarks, never beside them.
+  A check of work that writes to the store is timed in CPU time, as the store syncs each commit to disk and a hosted runner's shared disk made the wall clock vary tenfold; where it can, a check compares with work measured moments before on the same machine instead of a fixed number (a 1 MB save against the re-index it skips).
+  Every CI run lists the time checks nearest their limits in the unit job's log and summary (`tests/support/budget-report.ts`).
   Where the product has no number, the budget is a measured baseline with room.
   A growth check asks that four times the input take under 7 times as long (`tests/support/growth.ts`), so linear work passes and quadratic work fails on any machine.
   - Search over 10k notes (median, excerpts included): every query < 50 ms, whether words, a word start, a phrase, Chinese terms, tags, notebooks, statuses, exclusions or all of them combined, and each query typed on the way to two words; a scan of every body for text under three characters < 100 ms; a note's backlinks, a page of them or none, < 10 ms (the link index; the phrase search before it took 84 ms when every note holds a note link); saving an edit into the trigram and link indexes < 10 ms; counting 20 saved searches over the listed notes < 16 ms (one frame, on the UI thread).

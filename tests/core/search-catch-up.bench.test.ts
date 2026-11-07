@@ -1,9 +1,12 @@
 // A save of a big note must not re-index it for search: it only marks the note stale (schema v29).
 // Before, a save of a 1 MB note tokenized its old and new text, about 105 ms on a developer's Mac.
+// Both are timed in CPU: the store syncs every commit to disk, and a hosted runner's disk, shared
+// with the other benchmarks' stores, made the wall-clock median of six saves as much as 420 ms against its 30 ms budget.
 import { join } from 'node:path'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import type { NoteRecord } from '../../src/core'
 import { expectWithinBudget } from '../support/budget'
+import { cpuMs } from '../support/growth'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -51,10 +54,10 @@ const query = (value: string) => ({
 })
 
 async function save(title: string, bodyMd: string) {
-  const started = performance.now()
-  await storage.putNote(record(title, bodyMd))
+  const note = record(title, bodyMd)
+  const ms = await cpuMs(() => storage.putNote(note))
   version += 1
-  return performance.now() - started
+  return ms
 }
 
 beforeAll(async () => {
@@ -65,27 +68,44 @@ beforeAll(async () => {
 
 afterAll(() => storage.close())
 
-it('saves a 1 MB note without re-indexing it', async (context) => {
-  const bodies = [...Array(SAVES).keys()].map((i) => body(i + 1))
-  const times: number[] = []
-  for (const [i, text] of bodies.entries()) times.push(await save(i % 2 ? `Big ${i}` : 'Big', text))
-  times.sort((a, b) => a - b)
-  expectWithinBudget(context, times[Math.floor(SAVES / 2)]!, BUDGET_MS)
+const staleNotes = () =>
+  (storage.db.prepare('SELECT count(*) AS n FROM search_stale').get() as { n: number }).n
+
+const median = (values: number[]) =>
+  values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)]!
+
+// Against the re-index the save skipped, measured moments after it on the same machine: a save that
+// re-indexed would cost that and its write, on any machine.
+it('saves a 1 MB note without re-indexing it', { timeout: 60_000 }, async (context) => {
+  const saves: number[] = []
+  const reindexes: number[] = []
+  for (let i = 0; i < SAVES; i += 1) {
+    saves.push(await save(i % 2 ? `Big ${i}` : 'Big', body(i + 1)))
+    expect(staleNotes()).toBe(1)
+    reindexes.push(await cpuMs(async () => storage.catchUpSearchIndex()))
+  }
+  expectWithinBudget(context, median(saves), BUDGET_MS)
+  expectWithinBudget(context, median(saves), median(reindexes) / 2, { exact: true })
   const found = await storage.searchNotes(query(`Edit ${SAVES}`), 1)
   expect(found.map((n) => n.id)).toEqual(['big'])
 })
 
 // The first search after such a save pays for the re-index the save skipped.
-it('re-indexes a 1 MB note in the first search after its save', async (context) => {
-  const times: number[] = []
-  for (let i = 0; i < SAVES; i += 1) {
-    const edit = SAVES + 1 + i
-    await save('Big', body(edit))
-    const started = performance.now()
-    const found = await storage.searchNotes(query(`Edit ${edit}`), 1)
-    times.push(performance.now() - started)
-    expect(found.map((n) => n.id)).toEqual(['big'])
-  }
-  times.sort((a, b) => a - b)
-  expectWithinBudget(context, times[Math.floor(SAVES / 2)]!, SEARCH_BUDGET_MS)
-})
+it(
+  're-indexes a 1 MB note in the first search after its save',
+  { timeout: 60_000 },
+  async (context) => {
+    const times: number[] = []
+    for (let i = 0; i < SAVES; i += 1) {
+      const edit = SAVES + 1 + i
+      await save('Big', body(edit))
+      let found: { id: string }[] = []
+      times.push(
+        await cpuMs(async () => (found = await storage.searchNotes(query(`Edit ${edit}`), 1))),
+      )
+      expect(found.map((n) => n.id)).toEqual(['big'])
+    }
+    times.sort((a, b) => a - b)
+    expectWithinBudget(context, times[Math.floor(SAVES / 2)]!, SEARCH_BUDGET_MS)
+  },
+)

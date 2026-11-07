@@ -37,6 +37,25 @@ function overloaded(): boolean {
   return (globalThis as ProbeHost)[PROBE]?.() ?? false
 }
 
+/** One time check: what it measured, its budget as written and the limit it was held to. */
+export type BudgetCheck = {
+  readonly value: number
+  readonly budget: number
+  readonly limit: number
+}
+
+type BudgetMeta = { budgets?: BudgetCheck[] }
+
+/** The checks a test made, from its task's meta (where Vitest carries them to the reporters). */
+export function budgetChecks(meta: object | undefined): readonly BudgetCheck[] {
+  return (meta as BudgetMeta | undefined)?.budgets ?? []
+}
+
+export function recordBudgetCheck(context: TestContext, check: BudgetCheck): void {
+  const meta = context.task?.meta as BudgetMeta | undefined
+  if (meta) (meta.budgets ??= []).push(check)
+}
+
 export function skipIfOverloaded(context: TestContext, why: string): void {
   if (overloaded()) context.skip(`machine overloaded (${why})`)
 }
@@ -54,6 +73,7 @@ export function expectWithinBudget(
   options: { readonly exact?: boolean } = {},
 ): void {
   const limit = options.exact ? budgetMs : budgetMs * scale
+  recordBudgetCheck(context, { value: ms, budget: budgetMs, limit })
   if (ms >= limit) skipIfOverloaded(context, `${ms.toFixed(1)} ms of ${limit} ms`)
   expect(ms).toBeLessThan(limit)
 }

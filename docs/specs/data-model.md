@@ -145,7 +145,7 @@ Part of the [architecture overview](../architecture.md).
   `scripts/perf/launch-cost.sh` runs the app with HOME in a temporary folder, so even a release build starts on a data folder of its own.
   Both end only the processes they started, by process ID.
 - The UI tests keep notes in an in-memory storage (`src/renderer/src/storage/memory.ts`), chosen at build time: Vite's `define` sets `DEVOT_UI_TEST`, true only in the UI tests' config (`vite.ui-test.config.ts`), so no environment variable or `.env` file can turn it on.
-  The app's builds leave that storage out, and the release UI build fails if the bundle holds it (`scripts/sentry/ui.ts`; `tests/policy/source-maps.bench.test.ts`).
+  The app's builds leave that storage out, and the release UI build fails if the bundle holds it (`scripts/sentry/ui.ts`; `tests/policy/source-maps.build.test.ts`).
   `pnpm vite --config vite.ui-test.config.ts` serves that build in a browser.
 
 ## Saving and quitting

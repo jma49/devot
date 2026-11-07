@@ -15,7 +15,7 @@ import {
   type ImportSource,
 } from '../../src/core'
 import { expectWithinBudget } from '../support/budget'
-import { expectLinearGrowth } from '../support/growth'
+import { expectLinearGrowth, fourfoldGrowthAsync } from '../support/growth'
 import { openSqliteAdapter, type SqliteAdapter } from '../support/sqlite-adapter'
 import { tempDir } from '../support/temp-dirs'
 
@@ -88,7 +88,8 @@ function manyFolders(count: number): Vault {
   return { files, images: [] }
 }
 
-async function importVault({ files, images }: Vault) {
+/** Opens a store for `vault` and returns its import (with the flush of the saves it queued) to time. */
+function prepareImport({ files, images }: Vault) {
   const made = services()
   const scan: ImportScan = {
     id: 1,
@@ -106,23 +107,18 @@ async function importVault({ files, images }: Vault) {
       await made.storage.putFile({ ...file, name: path.split('/').pop()! }, PNG)
     },
   }
-  const start = performance.now()
-  const report = await importMarkdown({ ...made, scan, source, files: made.storage })
-  await made.notes.flush()
-  return { report, ms: performance.now() - start }
+  return async () => {
+    const report = await importMarkdown({ ...made, scan, source, files: made.storage })
+    await made.notes.flush()
+    return report
+  }
 }
 
-/** Growth of a whole import, as fourfoldGrowth measures it, for imports too long to repeat often; with the larger import's time. */
-async function importGrowth(make: (n: number) => Vault, n: number, rounds = 2) {
-  let small = Number.POSITIVE_INFINITY
-  let large = Number.POSITIVE_INFINITY
-  for (let round = 0; round < rounds; round += 1) {
-    small = Math.min(small, (await importVault(make(n))).ms)
-    large = Math.min(large, (await importVault(make(4 * n))).ms)
-  }
-  console.log('GROWTH', small, large)
-  return { growth: large / small, largeMs: large }
-}
+const importVault = (made: Vault) => prepareImport(made)()
+
+/** Growth of a whole import in CPU time, with the larger import's CPU milliseconds. */
+const importGrowth = (make: (n: number) => Vault, n: number, rounds?: number) =>
+  fourfoldGrowthAsync(async (size) => prepareImport(make(size)), n, rounds)
 
 describe('importing a Markdown folder', { timeout: TIMEOUT_MS }, () => {
   const NOTES = 80
@@ -130,7 +126,7 @@ describe('importing a Markdown folder', { timeout: TIMEOUT_MS }, () => {
   const PER_NOTE_BUDGET_MS = 30
 
   it('imports every note, link and image of a vault', async () => {
-    const { report } = await importVault(vault(NOTES))
+    const report = await importVault(vault(NOTES))
     expect(report.problems).toEqual([])
     expect(report.notes).toBe(NOTES)
     expect(report.attachments).toBe(NOTES)
@@ -145,7 +141,7 @@ describe('importing a Markdown folder', { timeout: TIMEOUT_MS }, () => {
   })
 
   it('takes time linear in the notes when every folder repeats the same names', async (context) => {
-    const { report } = await importVault(sameNames(50))
+    const report = await importVault(sameNames(50))
     expect(report.problems).toEqual([])
     expect(report.links).toBe(100)
     expectLinearGrowth(context, (await importGrowth(sameNames, 100)).growth)
@@ -155,7 +151,7 @@ describe('importing a Markdown folder', { timeout: TIMEOUT_MS }, () => {
 describe('importing thousands of folders', { timeout: TIMEOUT_MS }, () => {
   // The notebooks are made in one write: making each alone listed every notebook made before it.
   it('takes time linear in the folders', async (context) => {
-    const { report } = await importVault(manyFolders(400))
+    const report = await importVault(manyFolders(400))
     expect(report.problems).toEqual([])
     expect(report.books).toBe(1640)
     expectLinearGrowth(context, (await importGrowth(manyFolders, 400, 1)).growth)
