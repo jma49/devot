@@ -5866,6 +5866,10 @@ public enum L10n {
     text("phone.appearance.clear", "Clear")
   }
 
+  public static func phoneAppearanceGradientFull() -> String {
+    text("phone.appearance.gradientFull", "Full")
+  }
+
   public static func phoneAppearanceEditor() -> String {
     text("phone.appearance.editor", "Editor")
   }
@@ -6664,6 +6668,14 @@ public enum L10n {
 
   public static func appearanceSettingsMaterialAmountHint() -> String {
     text("appearanceSettings.materialAmountHint", "How much shows through the sidebar, buttons and pop-ups.")
+  }
+
+  public static func appearanceSettingsGradient() -> String {
+    text("appearanceSettings.gradient", "Gradient")
+  }
+
+  public static func appearanceSettingsGradientHint() -> String {
+    text("appearanceSettings.gradientHint", "From a solid color to the theme's full gradient.")
   }
 
   public static func appearanceSettingsLightMode() -> String {

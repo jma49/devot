@@ -15,6 +15,8 @@ It follows Apple's [Human Interface Guidelines](https://developer.apple.com/desi
 - Curves share a centre: a capsule is height / 2, and an inner radius is the outer radius minus the inset. A grouped row's pressed fill is the exception: `radius.phone-row-press` 16 in a 22 card.
 - CSS draws the glass (ADR 0010).
 - Glass Transparency is this iPhone's own choice, in `devot.phone.glassTransparency` in the webview's storage, never the Mac's settings and never synced (`phone/glassPrefs.ts`). It moves `.phone-glass`'s tint: -100 is `color.phone.glass-opaque`, 0 the design, 100 half the tint's opacity. Reduce Transparency wins over it.
+- Gradient sits under the Light and Dark Mode themes while either is a gradient theme, so choosing one moves nothing above it, and goes with the last one: a group titled Gradient whose slider runs from Solid to Full in steps of 5.
+  It is the editor setting the Mac uses (`gradientStrength`, kept on this device like the theme choice), and moves `--backdrop` behind every screen under its veil.
 - Appearance's Light and Dark reach UIKit too: every window takes the chosen style (`overrideUserInterfaceStyle`), so the status bar, the keyboard and the web view's `prefers-color-scheme` follow it, not only the page's tokens.
 
 ## Touch

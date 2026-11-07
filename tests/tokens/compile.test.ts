@@ -240,14 +240,38 @@ describe('token compiler', () => {
     }
     const { css } = compile(base, light, dark, [ivory], backdrops)
 
-    it('writes a gradient from its stops', () => {
+    const mixed = (colour: string, middle: string) =>
+      `color-mix(in srgb, ${colour} calc(var(--gradient-strength, 100) * 1%), ${middle})`
+
+    it('writes a gradient from its stops, each mixed towards its middle colour by the gradient strength', () => {
       expect(backdropThemes(backdrops)).toEqual([
         {
           id: 'dawn',
-          light: 'linear-gradient(160deg, rgb(255 0 0 / 0.5) 0%, rgb(0 255 0 / 0.5) 100%)',
-          dark: 'linear-gradient(160deg, rgb(0 0 128 / 0.5) 0%, rgb(0 128 0 / 0.5) 100%)',
+          light: `linear-gradient(160deg, ${mixed('rgb(255 0 0 / 0.5)', 'rgb(128 128 0 / 0.5)')} 0%, ${mixed('rgb(0 255 0 / 0.5)', 'rgb(128 128 0 / 0.5)')} 100%)`,
+          dark: `linear-gradient(160deg, ${mixed('rgb(0 0 128 / 0.5)', 'rgb(0 64 64 / 0.5)')} 0%, ${mixed('rgb(0 128 0 / 0.5)', 'rgb(0 64 64 / 0.5)')} 100%)`,
         },
       ])
+    })
+
+    it('takes the stop at the middle as the solid colour when there is one', () => {
+      const three = {
+        backdrop: {
+          $type: 'gradient',
+          dawn: {
+            light: {
+              $value: [
+                stop('#ff0000', 0),
+                { color: color('#336699'), position: 0.5 },
+                stop('#00ff00', 1),
+              ],
+            },
+            dark: { $value: [stop('#000080', 0), stop('#008000', 1)] },
+          },
+        },
+      }
+      expect(backdropThemes(three)[0]!.light).toBe(
+        `linear-gradient(160deg, ${mixed('rgb(255 0 0 / 0.5)', '#336699')} 0%, ${mixed('#336699', '#336699')} 50%, ${mixed('rgb(0 255 0 / 0.5)', '#336699')} 100%)`,
+      )
     })
 
     it('adds only the backdrop, after the other themes, so the default colours and accent stay', () => {
@@ -257,7 +281,9 @@ describe('token compiler', () => {
       )
       expect(themed).not.toContain('--color-')
       expect(themed).toContain("[data-theme-preview='dawn'][data-appearance-preview='dark']")
-      expect(themed).toContain('--backdrop: linear-gradient(160deg, rgb(0 0 128 / 0.5)')
+      expect(themed).toContain(
+        `--backdrop: linear-gradient(160deg, ${mixed('rgb(0 0 128 / 0.5)', 'rgb(0 64 64 / 0.5)')} 0%`,
+      )
     })
 
     it('refuses a gradient theme without both appearances, or with an id that is not a plain word', () => {

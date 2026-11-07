@@ -188,6 +188,49 @@ function themeRules(id: string, lightDeclarations: string[], darkDeclarations: s
   ]
 }
 
+interface GradientStop {
+  color: ColorValue
+  position: number
+}
+
+function colourAt(stops: readonly GradientStop[], at: number): ColorValue {
+  const exact = stops.find((s) => s.position === at)
+  if (exact) return exact.color
+  const next = stops.findIndex((s) => s.position > at)
+  if (next <= 0) return stops.at(next === 0 ? 0 : -1)!.color
+  const [a, b] = [stops[next - 1]!, stops[next]!]
+  const share = (at - a.position) / (b.position - a.position)
+  const mix = (x: number, y: number) => x + (y - x) * share
+  const components = a.color.components.map((c, i) => mix(c, b.color.components[i]!)) as [
+    number,
+    number,
+    number,
+  ]
+  const alpha = mix(a.color.alpha ?? 1, b.color.alpha ?? 1)
+  const hex = `#${components
+    .map((c) =>
+      Math.round(c * 255)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`
+  return { colorSpace: 'srgb', components, hex, ...(alpha === 1 ? {} : { alpha }) }
+}
+
+/** Settings > Appearance > Gradient, 0 to 100; a page that never sets it shows the design. */
+const GRADIENT_STRENGTH = 'calc(var(--gradient-strength, 100) * 1%)'
+
+/** Every stop mixed towards the gradient's middle colour: 100 is the design, 0 that colour alone. */
+function backdropGradient(token: FlatToken): string {
+  const stops = token.value as GradientStop[]
+  const solid = cssColor(colourAt(stops, 0.5))
+  const mixed = stops.map(
+    (s) =>
+      `color-mix(in srgb, ${cssColor(s.color)} ${GRADIENT_STRENGTH}, ${solid}) ${round(s.position * 100)}%`,
+  )
+  return `linear-gradient(${BACKDROP_DEGREES}deg, ${mixed.join(', ')})`
+}
+
 /**
  * The gradient themes in `backdrops`: `backdrop.<id>.light|dark`, each a gradient. Such a theme
  * keeps the default theme's colours, accent included, and adds `--backdrop`.
@@ -202,7 +245,7 @@ export function backdropThemes(
     const value = (appearance: 'light' | 'dark') => {
       const token = flat.find((t) => t.path === `backdrop.${id}.${appearance}`)
       if (token?.type !== 'gradient') throw new Error(`E_TOKEN_BACKDROP ${id} ${appearance}`)
-      return cssValue(token)
+      return backdropGradient(token)
     }
     return { id, light: value('light'), dark: value('dark') }
   })
