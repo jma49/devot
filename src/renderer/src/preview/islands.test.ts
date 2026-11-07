@@ -476,6 +476,29 @@ describe('createIslandMounter', () => {
       expect(view.scrollTop).toBe(1160)
     })
 
+    it('moves the view once a frame through `shift`, by what the drawings above it grew, one across its top edge by its share', async () => {
+      const { island, requests } = testIsland()
+      const view = scroller()
+      const shift = vi.fn<(root: HTMLElement, by: number) => void>()
+      const mounter = createIslandMounter(createIslandRegistry([island]), {
+        scroller: () => view as unknown as HTMLElement,
+        shift,
+      })
+      const first = Object.assign(islandElement('first'), { top: -600, height: 100, drawn: 260 })
+      const second = Object.assign(islandElement('second'), { top: -400, height: 100, drawn: 200 })
+      // Half of it above the view's top edge.
+      const across = Object.assign(islandElement('across'), { top: -100, height: 200, drawn: 400 })
+      const below = Object.assign(islandElement('below'), { top: 150, height: 100, drawn: 400 })
+      mounter.mount(hostOf([first, second, across, below]), { appearance: 'light' })
+      near(first, second, across, below)
+      requests.forEach((r) => r.land())
+      await settle()
+      nextFrame()
+      expect(shift).toHaveBeenCalledTimes(1)
+      expect(shift).toHaveBeenCalledWith(view, 160 + 100 + 100)
+      expect(view.scrollTop).toBe(0)
+    })
+
     it('reserves the height a source was last drawn at while it is drawn again', async () => {
       const { island, requests } = testIsland()
       const mounter = mounterFor(island, scroller())

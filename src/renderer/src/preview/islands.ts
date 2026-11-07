@@ -95,7 +95,11 @@ export interface IslandMounter {
 
 const KNOWN_HEIGHTS = 500
 
-/** The height each diagram was last drawn at, so a new element for it (or a preview opened again) reserves it. */
+/**
+ * The height each diagram was last drawn at, so a new element for it (or a
+ * preview opened again) reserves it. A guess: a new font size or zoom makes
+ * it off until the diagram is drawn again.
+ */
 const knownHeights = new Map<string, number>()
 
 function learnHeight(key: string, height: number): void {
@@ -118,12 +122,19 @@ interface Landed {
  * the scroller's view, above or below it: a long note's diagrams cost
  * nothing until they are scrolled near. Drawings that land in the same frame
  * go in together; one that lands above the view moves the scroll position by
- * its growth, so what is in view stays put. A diagram drawn before keeps its
- * height reserved while it is drawn again.
+ * its growth (`shift`, by default a write to `scrollTop`), so what is in view
+ * stays put. A diagram drawn before keeps its height reserved while it is
+ * drawn again.
  */
 export function createIslandMounter(
   registry: IslandRegistry,
-  { scroller }: { scroller?: (host: Element) => HTMLElement | null } = {},
+  {
+    scroller,
+    shift = (root, by) => (root.scrollTop += by),
+  }: {
+    scroller?: (host: Element) => HTMLElement | null
+    shift?: (root: HTMLElement, by: number) => void
+  } = {},
 ): IslandMounter {
   const slots = new Map<Element, Slot>()
   const waiting = new Map<Element, () => void>()
@@ -218,17 +229,20 @@ export function createIslandMounter(
     if (batch.length === 0) return
     const root = scroller && lastHost ? scroller(lastHost) : null
     const viewTop = root?.getBoundingClientRect().top
-    const above = batch.flatMap((entry) => {
+    // One across the view's top edge counts by the share of it above that edge.
+    const above = batch.flatMap(({ el }) => {
       if (viewTop === undefined) return []
-      const box = entry.el.getBoundingClientRect()
-      return box.bottom <= viewTop ? [{ el: entry.el, before: box.height }] : []
+      const box = el.getBoundingClientRect()
+      if (box.top >= viewTop) return []
+      const share = box.height > 0 ? Math.min(1, (viewTop - box.top) / box.height) : 1
+      return [{ el, before: box.height, share }]
     })
     batch.forEach(put)
     const grown = above.reduce(
-      (sum, { el, before }) => sum + el.getBoundingClientRect().height - before,
+      (sum, { el, before, share }) => sum + (el.getBoundingClientRect().height - before) * share,
       0,
     )
-    if (root && grown !== 0) root.scrollTop += grown
+    if (root && grown !== 0) shift(root, grown)
     for (const { el, slot } of batch) {
       const height = el.getBoundingClientRect().height
       if (height > 0) learnHeight(slot.sizeKey, height)
