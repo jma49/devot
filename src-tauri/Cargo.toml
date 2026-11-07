@@ -193,6 +193,9 @@ objc2-app-kit = { version = "0.3", features = [
   "NSResponder",
   "NSWindow",
   "NSView",
+  # The traffic lights (traffic_lights.rs).
+  "NSButton",
+  "NSControl",
   "NSPrintInfo",
   "NSPrintOperation",
   # The header and footer drawn on printed pages (page_setup.rs).

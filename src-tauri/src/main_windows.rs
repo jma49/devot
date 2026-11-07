@@ -276,6 +276,10 @@ pub(crate) fn build(
     }
     let window = builder.build().map_err(|_| "E_MAIN_WINDOW_FAILED")?;
     crate::native::main_window_built(&window);
+    #[cfg(target_os = "macos")]
+    if let Some(inset) = &config.traffic_light_position {
+        crate::native::macos::keep_traffic_lights(&window, inset.x, inset.y);
+    }
     #[cfg(desktop)]
     if crate::background::starts_hidden(app) {
         crate::native::keep_running_while_hidden(&window);

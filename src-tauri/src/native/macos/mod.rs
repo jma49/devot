@@ -19,6 +19,7 @@ mod print;
 mod symbols;
 mod system;
 mod text;
+mod traffic_lights;
 mod webkit;
 mod window;
 
@@ -51,6 +52,7 @@ pub use system::{
 pub use text::{
     TextServices, font_families, look_up, self_test_look_up_fonts, self_test_look_up_speech, speak,
 };
+pub use traffic_lights::{keep_traffic_lights, self_test_traffic_lights_stay};
 pub use webkit::{
     keep_running_while_hidden, self_test_peer_connection_toggle, self_test_private_api_guards,
     self_test_resource_hints_off, self_test_sixty_fps_toggle, turn_off_peer_connections,
