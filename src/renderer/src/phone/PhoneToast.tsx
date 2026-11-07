@@ -6,6 +6,7 @@ import { Icon } from '../icons/Icon'
 import type { IconName } from '../icons/symbols'
 import { sizes } from '../theme/tokens'
 import { haptic } from './haptics'
+import { refusedWrite } from './requireEditing'
 import { completeNote, trashNote, undoNote, type UndoEntry } from './undo'
 import type { PhoneStore } from './usePhoneData'
 
@@ -54,7 +55,7 @@ export function useUndoToast(store: PhoneStore) {
       setLast({ kind: entry.kind, seq: seq.current })
       haptic(entry.kind === 'trash' ? 'warning' : 'success')
       void entry.done.then(refresh, (e: unknown) => {
-        console.warn('W_PHONE_NOTE_ACTION_FAILED', errorCode(e))
+        if (!refusedWrite(entry.kind, e)) console.warn('W_PHONE_NOTE_ACTION_FAILED', errorCode(e))
         setCurrent((now) => (now === offered ? null : now))
         refresh()
       })

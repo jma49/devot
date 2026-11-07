@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { t } from '../i18n'
 import { Icon } from '../icons/Icon'
 import { STATUS_LABEL, statusTile } from './pickers'
+import { refusedWrite, requireEditing } from './requireEditing'
 import { useKeyboard } from './useKeyboard'
 import type { PhoneStore } from './usePhoneData'
 
@@ -36,8 +37,9 @@ export function PhoneCapture(props: {
       // Before the status write, whose refresh would otherwise show the row before it can arrive.
       props.onSaved(id)
       await core.setStatus(id, 'active')
-    } catch {
-      console.warn('W_PHONE_CAPTURE_FAILED')
+    } catch (error) {
+      if (refusedWrite('newNote', error)) setOpen(false)
+      else console.warn('W_PHONE_CAPTURE_FAILED')
     } finally {
       setSaving(false)
     }
@@ -69,7 +71,7 @@ export function PhoneCapture(props: {
           className="phone-capture-fab"
           aria-label={t('noteList.newNote')}
           tabIndex={open || !shown ? -1 : 0}
-          onClick={() => setOpen(true)}
+          onClick={() => requireEditing({ op: 'newNote', id: props.bookId }, () => setOpen(true))}
         >
           <Icon name="note.new" size="phone-compose" />
         </button>
