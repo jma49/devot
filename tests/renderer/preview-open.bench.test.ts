@@ -1,7 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest'
 import { createPieceRenderer, type PreviewPiece } from '../../src/core'
-import { buildFirstPieces, patchPieces } from '../../src/renderer/src/preview/dom'
+import {
+  buildFirstPieces,
+  buildPending,
+  buildToLine,
+  patchPieces,
+  type ShownPiece,
+} from '../../src/renderer/src/preview/dom'
 import { sampleNote } from '../../scripts/bench/fixtures'
 import { skipIfOverloaded } from '../support/budget'
 import { fourfoldGrowth, GROWTH_TIMEOUT } from '../support/growth'
@@ -31,6 +37,33 @@ describe('opening a big note in the preview', () => {
           buildFirstPieces(host, patchPieces(host, [], next, { defer: true }))
         }
       }, SMALL)
+      if (growth >= MOST) skipIfOverloaded(context, `grew ${growth.toFixed(1)} times`)
+      expect(growth).toBeLessThan(MOST)
+    },
+    GROWTH_TIMEOUT,
+  )
+
+  it(
+    'builds no more in a slice, and nothing for a jump to a line built, for a note four times larger',
+    async (context) => {
+      const opened = new Map<number, { host: Element; shown: ShownPiece[] }>()
+      for (const bytes of [SMALL, 4 * SMALL]) {
+        const next = await createPieceRenderer()(sampleNote(bytes), { labels, loadedEmbeds: [] })
+        const host = document.createElement('div')
+        const shown = patchPieces(host, [], next, { defer: true })
+        buildFirstPieces(host, shown)
+        opened.set(bytes, { host, shown })
+      }
+      let builtForJumps = 0
+      const growth = fourfoldGrowth((bytes) => {
+        const { host, shown } = opened.get(bytes)!
+        return () => {
+          for (let i = 0; i < 1000; i += 1) builtForJumps += buildToLine(host, shown, 1)
+          let count = 0
+          buildPending(host, shown, () => (count += 1) <= 5)
+        }
+      }, SMALL)
+      expect(builtForJumps).toBe(0)
       if (growth >= MOST) skipIfOverloaded(context, `grew ${growth.toFixed(1)} times`)
       expect(growth).toBeLessThan(MOST)
     },

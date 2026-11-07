@@ -4,7 +4,15 @@ import { describe, expect, it } from 'vitest'
 import { createPieceRenderer, type PreviewOptions } from '../../../core'
 import { sampleNote } from '../../../../scripts/bench/fixtures'
 import { labels } from '../../../../tests/support/preview-html'
-import { buildPending, patchChildren, patchPieces, type NextPiece, type ShownPiece } from './dom'
+import {
+  buildFirstPieces,
+  buildPending,
+  buildToLine,
+  patchChildren,
+  patchPieces,
+  type NextPiece,
+  type ShownPiece,
+} from './dom'
 
 const el = (
   tagName: string,
@@ -187,7 +195,8 @@ function patchedOver(next: readonly NextPiece[], over: readonly NextPiece[]): El
   return host
 }
 
-describe('patchPieces, deferring', () => {
+// The first render loads the Markdown stack, which takes seconds on a busy machine.
+describe('patchPieces, deferring', { timeout: 30_000 }, () => {
   it('builds a piece anew with the attributes patching gives it', async () => {
     const next = await createPieceRenderer()(richNote(40_000), options)
     const other = await createPieceRenderer()(richNote(40_000, 'x'), options)
@@ -244,5 +253,21 @@ describe('patchPieces, deferring', () => {
     buildPending(host, shown, (next) => next.key === 'a')
     patchPieces(host, shown, [known('c', 1), known('a', 2), known('b', 3)], { defer: true })
     expect(Array.from(host.children, (child) => child.textContent)).toEqual(['C', 'A', 'B'])
+  })
+})
+
+describe('buildToLine', { timeout: 30_000 }, () => {
+  it('builds nothing for a line already built, and up to a line past them', async () => {
+    const host = document.createElement('div')
+    const shown = patchPieces(host, [], await createPieceRenderer()(richNote(200_000), options), {
+      defer: true,
+    })
+    buildFirstPieces(host, shown)
+    const waiting = shown.findIndex((one) => one.pending !== undefined)
+    expect(buildToLine(host, shown, 1)).toBe(0)
+    const far = shown.at(-1)!.line
+    expect(buildToLine(host, shown, far)).toBeGreaterThan(0)
+    expect(shown.findIndex((one) => one.pending !== undefined)).toBe(-1)
+    expect(waiting).toBeGreaterThan(0)
   })
 })

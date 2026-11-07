@@ -429,6 +429,18 @@ function controlsOf(host: Element): Node | null {
 
 export const hasPending = (pieces: readonly ShownPiece[]) => pieces.at(-1)?.pending !== undefined
 
+/** The index of the first piece waiting, or the count when none waits; they are always the last. */
+function firstPending(pieces: readonly ShownPiece[]): number {
+  let low = 0
+  let high = pieces.length
+  while (low < high) {
+    const mid = (low + high) >>> 1
+    if (pieces[mid]!.pending === undefined) low = mid + 1
+    else high = mid
+  }
+  return low
+}
+
 /**
  * Builds the pieces `patchPieces` left to build later, in order, while `more`
  * says so of the next one, and returns how many it built. The pieces still
@@ -439,8 +451,8 @@ export function buildPending(
   pieces: readonly ShownPiece[],
   more: (next: ShownPiece) => boolean,
 ): number {
-  let at = pieces.findIndex((piece) => piece.pending !== undefined)
-  if (at < 0) return 0
+  let at = firstPending(pieces)
+  if (at === pieces.length) return 0
   const fragment = document.createDocumentFragment()
   const start = at
   for (; at < pieces.length; at += 1) {
@@ -466,6 +478,24 @@ export function buildFirstPieces(host: Element, pieces: readonly ShownPiece[]): 
     from ??= piece.offset
     return piece.offset < from + FIRST_CHARACTERS
   })
+}
+
+/**
+ * Builds the pieces up to the one `line` is in and `FIRST_CHARACTERS` past it, so its offset can
+ * be read, and returns how many it built: none when that much is built already.
+ */
+export function buildToLine(host: Element, pieces: readonly ShownPiece[], line: number): number {
+  let low = 0
+  let high = pieces.length
+  while (low < high) {
+    const mid = (low + high) >>> 1
+    if (pieces[mid]!.line <= line) low = mid + 1
+    else high = mid
+  }
+  const from = pieces[low - 1]?.offset ?? 0
+  const next = pieces[firstPending(pieces)]
+  if (!next || next.offset >= from + FIRST_CHARACTERS) return 0
+  return buildPending(host, pieces, (piece) => piece.offset < from + FIRST_CHARACTERS)
 }
 
 /**

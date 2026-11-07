@@ -14,6 +14,7 @@ import { fragmentId } from '../../../core/preview/headingIds'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
 import { useContextMenu, type MenuPoint } from '../contextMenu'
 import { copyText } from '../noteMenu'
+import { keyMatches } from '../commands/keys'
 import { onPluginRenderersChanged } from '../plugins/rendererRevision'
 import { lookUp, startSpeaking, stopSpeaking } from '../textServices'
 import {
@@ -40,6 +41,7 @@ import { shownTheme, subscribeAppearance } from '../theme/appearance'
 import {
   buildFirstPieces,
   buildPending,
+  buildToLine,
   FIRST_CHARACTERS,
   hasPending,
   patchPieces,
@@ -165,6 +167,8 @@ const RESTORE_SCROLL_MS = 5000
 
 /** How long a task builds the pieces a render left for later, between other work. */
 const SLICE_MS = 8
+/** How often a long build adds diagrams and copy buttons to what it built (each pass reads the whole preview). */
+const MOUNT_EVERY_MS = 250
 
 /**
  * The open note's preview, following the editor's text by itself (see
@@ -243,6 +247,7 @@ export function Preview({
   // whole preview (find, select all, copy, a jump to a heading) has the rest built first.
   const buildLater = useCallback(() => {
     if (buildTimer.current !== undefined) return
+    let mountedAt = performance.now()
     const slice = () => {
       buildTimer.current = undefined
       const el = host.current
@@ -255,6 +260,10 @@ export function Preview({
         return more
       })
       if (hasPending(pieces.current)) {
+        if (performance.now() - mountedAt >= MOUNT_EVERY_MS) {
+          afterBuild()
+          mountedAt = performance.now()
+        }
         buildTimer.current = setTimeout(slice, 0)
         return
       }
@@ -272,18 +281,10 @@ export function Preview({
     afterBuild()
     scroll.current?.changed()
   }, [afterBuild])
-  /** Builds up to `line` and a screen past it, so its offset can be read. */
-  const buildToLine = useCallback(
+  const reachLine = useCallback(
     (line: number) => {
       const el = host.current
-      if (!el || !hasPending(pieces.current)) return
-      let from: number | undefined
-      const count = buildPending(el, pieces.current, (piece) => {
-        if (piece.line <= line) return true
-        from ??= piece.offset
-        return piece.offset < from + FIRST_CHARACTERS
-      })
-      if (count > 0) afterBuild()
+      if (el && buildToLine(el, pieces.current, line) > 0) afterBuild()
     },
     [afterBuild],
   )
@@ -332,7 +333,7 @@ export function Preview({
     if (!pane.current) return
     const target = previewFindTarget(pane.current, { complete: buildAll })
     findHandle.current?.(target)
-    const scrolling = previewScrollPane(pane.current, { reach: buildToLine })
+    const scrolling = previewScrollPane(pane.current, { reach: reachLine })
     scroll.current = scrolling
     scrollHandle.current?.(scrolling)
     return () => {
@@ -342,7 +343,7 @@ export function Preview({
       scroll.current = null
       scrollHandle.current?.(null)
     }
-  }, [buildAll, buildToLine])
+  }, [buildAll, reachLine])
 
   useEffect(() => {
     const run = latestOnly(
@@ -583,7 +584,11 @@ export function Preview({
         // Scrolling by the user ends a restore; scrolls made by it are not reported.
         onWheel={stopRestoring}
         onPointerDown={stopRestoring}
-        onKeyDown={stopRestoring}
+        onKeyDown={(event) => {
+          stopRestoring()
+          // Select all runs after this, over a preview built whole.
+          if (keyMatches('Mod+A', event)) buildAll()
+        }}
         onScroll={(event) => {
           if (!scrollTarget.current) scrolled.current?.(event.currentTarget.scrollTop)
         }}
