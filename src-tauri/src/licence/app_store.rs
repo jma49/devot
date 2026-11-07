@@ -203,10 +203,8 @@ impl<S: AppStore + 'static> Storefront<S> {
 /// The storefront, in an App Store build; every other build has none.
 pub(crate) struct Shop(pub Option<Arc<Storefront<app_store::Platform>>>);
 
-fn storefront(shop: &Shop) -> Result<Arc<Storefront<app_store::Platform>>, String> {
-    shop.0
-        .clone()
-        .ok_or_else(|| StoreError::UNAVAILABLE.code().to_owned())
+fn storefront(shop: &Shop) -> Result<Arc<Storefront<app_store::Platform>>, &'static str> {
+    shop.0.clone().ok_or(StoreError::UNAVAILABLE.code())
 }
 
 #[tauri::command]
@@ -256,14 +254,19 @@ pub async fn store_restore(
     shop: Tauri<'_, Shop>,
     licence: Tauri<'_, Arc<Licence>>,
 ) -> Result<Snapshot, String> {
-    storefront(&shop)?
+    Ok(store_restore_inner(&shop, &licence).await?)
+}
+
+/// The bodies of the commands, which the iPhone's native Settings call too (`screens::direct`).
+pub(crate) async fn store_restore_inner(
+    shop: &Shop,
+    licence: &Arc<Licence>,
+) -> Result<Snapshot, &'static str> {
+    storefront(shop)?
         .restore()
         .await
-        .map_err(|error| error.code().to_owned())?;
-    task::blocking_with(&licence, "E_LICENCE_INTERNAL", |licence| {
-        Ok(licence.snapshot())
-    })
-    .await
+        .map_err(|error| error.code())?;
+    task::coded_with(licence, super::INTERNAL, |licence| Ok(licence.snapshot())).await
 }
 
 /// The Devot Pro purchase's one Mac licence key, for the window to show; never added to this
@@ -285,7 +288,11 @@ pub(crate) fn mac_key(
 /// Get a Mac Licence Key.
 #[tauri::command]
 pub async fn store_mac_key(licence: Tauri<'_, Arc<Licence>>) -> Result<MacKey, String> {
-    task::blocking_with(&licence, "E_LICENCE_INTERNAL", |licence| {
+    Ok(store_mac_key_inner(&licence).await?)
+}
+
+pub(crate) async fn store_mac_key_inner(licence: &Arc<Licence>) -> Result<MacKey, &'static str> {
+    task::coded_with(licence, super::INTERNAL, |licence| {
         mac_key(licence, client::exchange_from_site)
     })
     .await
@@ -294,14 +301,18 @@ pub async fn store_mac_key(licence: Tauri<'_, Arc<Licence>>) -> Result<MacKey, S
 /// Request a Refund: takes no argument, so the transaction is never one a window names.
 #[tauri::command]
 pub async fn store_refund(shop: Tauri<'_, Shop>) -> Result<Refund, String> {
-    let outcome = storefront(&shop)?.request_refund().await;
+    Ok(store_refund_inner(&shop).await?)
+}
+
+pub(crate) async fn store_refund_inner(shop: &Shop) -> Result<Refund, &'static str> {
+    let outcome = storefront(shop)?.request_refund().await;
     let line = refund_line(&outcome);
     if outcome.is_ok() {
         log::info!("{line}");
     } else {
         log::warn!("{line}");
     }
-    outcome.map_err(|error| error.code().to_owned())
+    outcome.map_err(|error| error.code())
 }
 
 fn refund_line(outcome: &Result<Refund, StoreError>) -> String {

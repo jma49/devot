@@ -55,16 +55,26 @@ fn sqlite_code(error: &rusqlite::Error) -> &'static str {
     }
 }
 
+impl StorageError {
+    /// The code alone, without the schema version `Display` adds.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::Sqlite(error) => sqlite_code(error),
+            Self::NewerSchema(_) => "E_STORAGE_SCHEMA_TOO_NEW",
+            Self::SnapshotCheckFailed => "E_STORAGE_SNAPSHOT_CHECK_FAILED",
+            Self::BodyStale => "E_NOTE_BODY_STALE",
+            Self::Purged => "E_NOTE_PURGED",
+            Self::RebuildStopped => "E_SEARCH_REBUILD_STOPPED",
+            Self::Refused(code) => code,
+        }
+    }
+}
+
 impl std::fmt::Display for StorageError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Sqlite(error) => f.write_str(sqlite_code(error)),
-            Self::NewerSchema(found) => write!(f, "E_STORAGE_SCHEMA_TOO_NEW v{found}"),
-            Self::SnapshotCheckFailed => f.write_str("E_STORAGE_SNAPSHOT_CHECK_FAILED"),
-            Self::BodyStale => f.write_str("E_NOTE_BODY_STALE"),
-            Self::Purged => f.write_str("E_NOTE_PURGED"),
-            Self::RebuildStopped => f.write_str("E_SEARCH_REBUILD_STOPPED"),
-            Self::Refused(code) => f.write_str(code),
+            Self::NewerSchema(found) => write!(f, "{} v{found}", self.code()),
+            _ => f.write_str(self.code()),
         }
     }
 }

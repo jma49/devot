@@ -5,6 +5,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
+use super::direct;
 use crate::commands::notes::{MAX_TITLE_CHARS, valid_note_id};
 
 pub const VERSION: u64 = 1;
@@ -52,7 +53,8 @@ pub struct NoteCreate {
     pub title: Option<String>,
 }
 
-/// What Swift may ask for: an operation joins with the pull request that first sends it.
+/// What Swift may ask the page for: an operation joins with the pull request that first sends it.
+/// What Rust answers itself is a `direct::Op`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", content = "args")]
 pub enum Op {
@@ -66,7 +68,7 @@ pub enum Op {
     NoteCreate(NoteCreate),
 }
 
-const OPS: &[&str] = &["ping", "excerpts", "search", "note.create"];
+pub const OPS: &[&str] = &["ping", "excerpts", "search", "note.create"];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -97,6 +99,22 @@ const NOTICES: &[&str] = &["notes.changed", "editor.title"];
 pub struct Request {
     pub id: u64,
     pub op: Op,
+}
+
+/// A checked request from Swift: for the page, or for Rust to answer (`direct`).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Asked {
+    Page(Request),
+    Direct(direct::Asked),
+}
+
+impl Asked {
+    pub fn id(&self) -> u64 {
+        match self {
+            Self::Page(request) => request.id,
+            Self::Direct(asked) => asked.id,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -200,7 +218,7 @@ fn take_id(message: &mut Map<String, Value>) -> Result<u64, &'static str> {
 
 /// A request from Swift, whose C call carries `request` beside the JSON: the two must agree, so a
 /// refusal always reaches the call that sent it.
-pub fn from_swift(request: u64, bytes: &[u8]) -> Result<Request, &'static str> {
+pub fn from_swift(request: u64, bytes: &[u8]) -> Result<Asked, &'static str> {
     let (kind, mut message) = envelope(bytes)?;
     let Kind::Request = kind else {
         return Err("E_SCREENS_KIND_UNEXPECTED");
@@ -212,17 +230,22 @@ pub fn from_swift(request: u64, bytes: &[u8]) -> Result<Request, &'static str> {
     if id != request {
         return Err("E_SCREENS_ID_MISMATCH");
     }
-    if !message
+    let name = message
         .get("op")
         .and_then(Value::as_str)
-        .is_some_and(|op| OPS.contains(&op))
-    {
+        .unwrap_or_default();
+    if let Some(name) = direct::OPS.iter().find(|known| **known == name) {
+        let op =
+            serde_json::from_value(Value::Object(message)).map_err(|_| "E_SCREENS_ARGS_INVALID")?;
+        return Ok(Asked::Direct(direct::Asked { id, name, op }));
+    }
+    if !OPS.contains(&name) {
         return Err("E_SCREENS_OP_UNKNOWN");
     }
     let op: Op =
         serde_json::from_value(Value::Object(message)).map_err(|_| "E_SCREENS_ARGS_INVALID")?;
     validate_op(&op)?;
-    Ok(Request { id, op })
+    Ok(Asked::Page(Request { id, op }))
 }
 
 /// A reply or a notice from the page.
@@ -375,7 +398,12 @@ mod tests {
     fn passed_on(fixture: &Fixture) -> Result<Value, &'static str> {
         let message = bytes(&fixture.message);
         match fixture.from.as_str() {
-            "swift" => from_swift(request_number(&fixture.message), &message).map(|r| r.to_value()),
+            "swift" => {
+                from_swift(request_number(&fixture.message), &message).map(|asked| match asked {
+                    Asked::Page(request) => request.to_value(),
+                    Asked::Direct(direct) => panic!("{} is answered by Rust", direct.name),
+                })
+            }
             "page" => from_page(&message).map(|from| match from {
                 FromPage::Reply(reply) => reply.to_value(),
                 FromPage::Notice(notice) => notice.to_value(),
@@ -413,7 +441,7 @@ mod tests {
 
     #[test]
     fn a_request_answers_the_call_that_carried_it() {
-        assert_eq!(from_swift(7, &ping(7)).map(|r| r.id), Ok(7));
+        assert_eq!(from_swift(7, &ping(7)).map(|asked| asked.id()), Ok(7));
         assert_eq!(from_swift(8, &ping(7)), Err("E_SCREENS_ID_MISMATCH"));
     }
 

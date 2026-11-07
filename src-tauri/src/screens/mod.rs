@@ -2,6 +2,7 @@
 //! between Swift and the page. The C calls are in `native::ios::screens`; this side holds no
 //! `unsafe` and is tested off the phone.
 
+pub mod direct;
 pub mod hub;
 pub mod message;
 

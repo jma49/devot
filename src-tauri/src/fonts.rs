@@ -273,8 +273,13 @@ pub async fn fonts_installed(app: AppHandle) -> Result<Vec<String>, String> {
 
 #[tauri::command]
 pub async fn fonts_list(fonts: State<'_, std::sync::Arc<Fonts>>) -> Result<Vec<FontFile>, String> {
-    let fonts = std::sync::Arc::clone(&fonts);
-    crate::task::blocking(FAILED, move || Ok(fonts.list())).await
+    Ok(fonts_list_inner(&fonts).await?)
+}
+
+pub(crate) async fn fonts_list_inner(
+    fonts: &std::sync::Arc<Fonts>,
+) -> Result<Vec<FontFile>, &'static str> {
+    crate::task::coded_with(fonts, FAILED, |fonts| Ok(fonts.list())).await
 }
 
 #[tauri::command]
