@@ -475,10 +475,7 @@ test('a new note from the Library has status none, and Back finds it in All Note
   await expect(note.locator('.cm-content')).toBeFocused()
   await expect(note.locator('.phone-chip-strong')).toContainText('No Status')
   await note.getByRole('textbox', { name: 'Title' }).fill('From the Library')
-  await page
-    .getByRole('region', { name: 'From the Library' })
-    .getByRole('button', { name: 'Back' })
-    .click()
+  await note.getByRole('button', { name: 'Back' }).click()
   await expect(recent(page).first()).toContainText('From the Library')
   await expect(tabs(page).getByRole('button', { name: 'Library' })).toHaveAttribute(
     'aria-current',
