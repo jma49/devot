@@ -63,6 +63,9 @@ async function vaultAt(start: number, options: VaultAtOptions = {}) {
   return { relay, clock, device, send, enroll, db }
 }
 
+// A commit per record waits on the disk, which takes seconds on a CI runner.
+const inOneCommit = (db: Database.Database, seed: () => void) => db.transaction(seed)()
+
 const countersRow = (db: Database.Database) => db.prepare('SELECT * FROM counters').get()
 
 describe('counters', () => {
@@ -534,7 +537,9 @@ describe('wiping a retired vault', () => {
 
   it('wipes a large vault in slices, with a share of the daily rows cap a day', async () => {
     const { relay, send, db, clock } = await vaultAt(at, { quota: null, limiter: roomy() })
-    for (let i = 0; i < 300; i++) send(...record(`r${i}`, 0, 2))
+    inOneCommit(db, () => {
+      for (let i = 0; i < 300; i++) send(...record(`r${i}`, 0, 2))
+    })
     relay.retire({ successor })
     clock.now = Date.UTC(2026, 10, 6, 12)
     const caps = { rowsWritten: 400, requests: 1e12, storedBytes: 1e15 }
@@ -566,7 +571,9 @@ describe('wiping a retired vault', () => {
   it('wipes without a cap in slices that follow each other at once', async () => {
     const { relay, send, db } = await vaultAt(at, { quota: null, limiter: roomy() })
     // A one-chunk record costs two rows: this many take three slices, one after the first sweep and one more.
-    for (let i = 0; i <= WIPE_SLICE_ROWS; i++) send(...record(`r${i}`, 0, 1))
+    inOneCommit(db, () => {
+      for (let i = 0; i <= WIPE_SLICE_ROWS; i++) send(...record(`r${i}`, 0, 1))
+    })
     relay.retire({ successor })
     expect(relay.sweep()).toEqual({ drop: false, next: at })
     expect(count(db, 'records')).toBeGreaterThan(0)
