@@ -106,22 +106,38 @@ final class EditorTests: XCTestCase {
         }
     }
 
+    private func flattened(_ node: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
+        [node] + node.children.flatMap(flattened)
+    }
+
     func testTheExampleDrawsEveryDiagramAndFormula() throws {
         openExample()
 
-        func shown(_ text: String) -> Int {
-            page.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).count
-        }
         // The example's Math section comes before its Diagrams; the formulas follow this sentence.
-        let math = page.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Inline math"))
-            .firstMatch
+        let sentence = "Inline math sits in a sentence, like"
+        let math = page.staticTexts[sentence]
         let reached = scrollUntil { math.exists && math.isHittable }
-        // The display block's integral sign exists only once temml has turned the TeX into MathML.
-        let drawn = shown("\u{222B}")
+        // WebKit hands each drawn <math> to accessibility as one element without a label (VoiceOver
+        // reads it through the math API), so a formula is a bare leaf where the TeX would be text.
+        let nodes = flattened(try page.snapshot())
+        let text = nodes.first { $0.elementType == .staticText && $0.label == sentence }?.frame ?? .null
+        let next = nodes.first { $0.elementType == .staticText && $0.label == "Diagrams" }?.frame ?? .null
+        let formulas = nodes.filter {
+            $0.elementType == .other && $0.label.isEmpty && $0.children.isEmpty && !$0.frame.isEmpty
+                && $0.frame.minY >= text.minY && $0.frame.maxY <= next.minY
+        }
+        let inline = formulas.filter {
+            $0.frame.minX >= text.maxX - 1 && abs($0.frame.midY - text.midY) < text.height
+        }
+        let display = formulas.filter { $0.frame.minY >= text.maxY && $0.frame.width > text.width }
+        func shown(_ text: String) -> Int {
+            nodes.filter { $0.label.contains(text) }.count
+        }
         let tex = shown("\\int") + shown("mc^2") + shown("$E")
-        if !reached || drawn == 0 || tex > 0 { keepTree(from: "Inline math") }
+        if !reached || inline.count != 1 || display.count != 1 || tex > 0 { keepTree(from: sentence) }
         XCTAssertTrue(reached, "the Math section is on screen")
-        XCTAssertGreaterThan(drawn, 0, "the display formula is drawn")
+        XCTAssertEqual(inline.count, 1, "the inline formula is drawn in its sentence")
+        XCTAssertEqual(display.count, 1, "the display formula is drawn on its own line")
         XCTAssertEqual(shown("\\int"), 0, "no display formula left as TeX")
         XCTAssertEqual(shown("mc^2"), 0, "no inline formula left as TeX")
         XCTAssertEqual(shown("$E"), 0, "no inline formula left between dollar signs")
