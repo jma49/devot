@@ -2,7 +2,7 @@ name: devot
 options:
   bundleIdPrefix: io.github.jma49.devot
   deploymentTarget:
-    iOS: 15.0
+    iOS: 26.0
 fileGroups: [../../src]
 # StoreKit 2 behind a C ABI (docs/adr/0014); native/ios/store.rs calls it. Only the iPhone app links it.
 packages:
