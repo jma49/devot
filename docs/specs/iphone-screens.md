@@ -31,7 +31,7 @@ UIApplication (tao's app delegate, unchanged)
   `Generated/` holds the Swift tokens and strings, generated from the design tokens and the message catalog.
 - **Rust.** A `screens` module in `src-tauri/src/native/ios/` holds the C ABI, its `unsafe` blocks with SAFETY comments, the callbacks behind `catch_unwind` and the map of waiting requests, shaped like `store.rs`.
   A platform-free `screens` module in `src-tauri/src/` holds message validation, the phone router and the Rust-direct reads; it compiles for iOS and for tests on the Mac.
-  Stage 0 brings its message validation and the waiting requests (`message.rs`, `hub.rs`); the router and the reads join with the stages that use them.
+  Stage 0 brings its message validation and the waiting requests (`message.rs`, `hub.rs`), and stage 1 the Rust-direct operations (`direct.rs`); the router and the list reads join with the stages that use them.
 - **Page.** A `screens` folder in `src/renderer/src/phone/` holds the bridge, the table from operation names to core calls, the change notices and the editor host.
   It runs only when Rust reports that the native screens are installed.
 
@@ -104,6 +104,7 @@ In stage 0 the root is empty and transparent and passes every touch through, so 
 - Stage 0 declares `ping`, `excerpts`, `search` and `note.create`, and the notices `notes.changed` and `editor.title`, so the three validators are tested against more than one shape.
   The page runs only `ping` and answers the others `E_SCREENS_OP_UNSUPPORTED`; each gets its handler with the pull request that first sends it.
   Any other operation joins the enums with the pull request that first uses it.
+- An operation whose name starts with `direct.` is one Rust answers itself (Rust-direct operations below), and it is in neither the page's enum nor its fixtures.
 
 ## Operations
 
@@ -126,14 +127,45 @@ In stage 0 the root is empty and transparent and passes every touch through, so 
 | Trash, restore, purge, empty                                                | core                                  | `trash`, `restore`, `purge`, `emptyTrash`                                       |
 | Several notes at once                                                       | core                                  | `batch(ids, change)`                                                            |
 | History, AI edits, import, export                                           | core, drawn in the page until stage 4 | as today                                                                        |
-| Licence state and the gate                                                  | Rust-direct                           | the licence snapshot, as `licence_get` reads it                                 |
-| Purchases, restoring them, the Mac key                                      | Rust-direct                           | the App Store path, Swift underneath                                            |
-| Sync settings, pairing, devices, iCloud                                     | Rust-direct                           | the sync commands' bodies                                                       |
-| Editor settings, themes, fonts, AI providers                                | Rust-direct                           | the editor settings, fonts and AI settings bodies                               |
+| Licence state and the gate                                                  | Rust-direct                           | `direct.licence.*`, the bodies of the `licence_*` commands                      |
+| Purchases, restoring them, the Mac key                                      | Rust-direct                           | `direct.store.*`; buying stays with StoreKit's sheet in Swift                   |
+| Sync settings, pairing, devices, iCloud                                     | Rust-direct                           | `direct.sync.*`, the bodies of the `sync_*` commands Settings calls             |
+| Editor settings, themes, fonts, AI providers, crash reports                 | Rust-direct                           | `direct.editorSettings.*`, `.fonts.list`, `.ai.*`, `.crashReports.*`            |
 | Glass Transparency (this iPhone's own)                                      | Swift's `UserDefaults`                | moved from `src/renderer/src/phone/glassPrefs.ts` in stage 1                    |
 
 - Each Rust-direct entry starts as a refactor: the command's body moves into a function that both the Tauri command and the screens module call, so validation is never written twice.
 - Rust's write gate (`src-tauri/src/storage/db.rs`) stays the enforcement for every write, whichever side asked for it.
+
+### Rust-direct operations
+
+`src-tauri/src/screens/direct.rs` maps each `direct.` operation to the body of one Tauri command, its `…_inner` function.
+
+| Area            | Operations                                                                                         | Command bodies                                   |
+| --------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Editor settings | `direct.editorSettings.get`, `.set { patch }`                                                      | `editor_settings_get`, `editor_settings_set`     |
+| Imported fonts  | `direct.fonts.list`                                                                                | `fonts_list`                                     |
+| Crash reports   | `direct.crashReports.get`, `.set { on }`                                                           | `crash_reports_get`, `crash_reports_set`         |
+| AI providers    | `direct.ai.get`, `.set { settings }`, `.keySet { provider, key }`, `.keyClear { provider }`        | `ai_settings_get`, `ai_settings_set`, `ai_key_*` |
+| Licence         | `direct.licence.get`, `.set { key }`, `.remove`, `.refresh`                                        | `licence_*`                                      |
+| App Store       | `direct.store.restore`, `.macKey`, `.refund`                                                       | `store_restore`, `store_mac_key`, `store_refund` |
+| Sync settings   | `direct.sync.get`, `.set { patch }`, `.devices`, `.usage`, `.deviceRemove { device }`              | the `sync_*` command of the same name            |
+| Sync vault      | `direct.sync.vaultCreate { relaySecret }`, `.vaultRotate { relaySecret }`, `.vaultLeave`           | the `sync_vault_*` command of the same name      |
+| Recovery key    | `direct.sync.recoveryKey`, `.recoverySaved`, `.joinRecovery { recoveryKey }`                       | the `sync_*` command of the same name            |
+| Pairing         | `direct.sync.pairingOpen`, `.pairingCheck`, `.pairingCancel`, `.joinCode { code, via? }`           | the `sync_*` command of the same name            |
+| iCloud          | `direct.sync.icloudStatus`, `.icloudUse { recoveryKey? }`, `.icloudLook`, `.icloudJoin { accept }` | the `sync_icloud_*` command of the same name     |
+| iCloud vault    | `direct.sync.icloudUploadAgain`, `.icloudRotate`, `.icloudLeave { recoveryKey }`, `.icloudStorage` | the `sync_icloud_*` command of the same name     |
+
+- An operation's name is its command's in camel case, so `direct.sync.icloudUploadAgain` runs the body of `sync_icloud_upload_again`.
+- A request's `args` are the command's arguments under the names the page passes them, and unknown fields are refused with `E_SCREENS_ARGS_INVALID` before anything runs.
+- Its reply's `result` is what the command answers, and its `code` the command's own refusal code, so Swift and the page see the same outcome for the same input.
+- Rust runs the body on its async runtime and answers Swift once, from that thread; a panic there answers `E_SCREENS_INTERNAL`, and a request that comes before the app's services exist is refused with `E_SCREENS_NOT_READY`.
+- A Rust-direct request is never queued for the page or counted among the waiting requests, so it works before the page has started.
+- A change made this way emits the command's own events (`devot://editor-settings-changed`, `devot://licence-changed`, `devot://sync-changed`), so the page follows a change made in native Settings.
+- The operations reach the database only through `NoteCounts`, the two counts sync's settings show, so no Rust-direct request can write a note; a test over the operation enum holds every name to a settings area.
+- A failure is logged as `W_SCREENS_DIRECT_FAILED op=… id=… code=…`, and a request's arguments, which may hold a licence key, an AI key or a relay secret, are never logged.
+- Buying and the product list are not Rust-direct: the purchase sheet buys through StoreKit in Swift.
+- Importing a font joins with the Appearance pane that first sends it.
+- The sync engine's commands (`sync_connect`, `sync_pull`, `sync_push`, `sync_disconnect`, `sync_status_report`) stay the core's.
 
 ### Keeping lists fresh
 
