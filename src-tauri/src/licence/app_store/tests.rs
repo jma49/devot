@@ -9,7 +9,7 @@ use super::super::activation::State as SeatState;
 use super::super::client::MacKey;
 use super::super::client::Reply as ActivationReply;
 use super::super::store::{KeyStore, MemoryKey};
-use super::super::testing::{ID, key, sign, test_keys};
+use super::super::testing::{ID, gated_db, has_note, key, save_note, sign, test_keys};
 use super::super::trial::{LENGTH_MS, TrialSource, TrialState};
 use super::super::{KEYS_OFF, Licence, REQUIRED, Snapshot};
 use super::{Bought, Limits, Storefront, mac_key, purchase_line, refund_line, restore_line};
@@ -278,6 +278,25 @@ fn a_refund_seen_as_an_update_makes_it_read_only_but_a_save_in_flight_lands() {
     setup.at(START + HOUR + 5 * MINUTE);
     assert_eq!(setup.licence.require_write(Write::Body), Err(REQUIRED));
     assert!(!setup.licence.snapshot().app_store.expect("app store").pro);
+}
+
+#[test]
+fn after_a_refund_a_note_that_exists_still_saves_but_a_new_note_does_not() {
+    const KEPT: &str = "0192a6f0-0000-7000-8000-00000000000a";
+    const NEW: &str = "0192a6f0-0000-7000-8000-00000000000b";
+    let setup = app_store();
+    let pro = transaction(Product::Pro, 1, START - DAY);
+    entitled(&setup, vec![pro.clone()]);
+    let (_db_dir, db) = gated_db(&setup.licence);
+    save_note(&db, KEPT, 0).expect("Devot Pro is held");
+    setup.at(START + HOUR);
+    setup.licence.take_transaction(refunded(pro, START + HOUR));
+    assert_eq!(setup.licence.require(), Err(REQUIRED));
+    assert_eq!(save_note(&db, KEPT, 1), Ok(()));
+    assert_eq!(save_note(&db, NEW, 0), Err(REQUIRED.to_owned()));
+    assert!(!has_note(&db, NEW));
+    setup.at(START + HOUR + 5 * MINUTE);
+    assert_eq!(save_note(&db, KEPT, 2), Err(REQUIRED.to_owned()));
 }
 
 #[test]

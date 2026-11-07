@@ -304,14 +304,33 @@ pub async fn note_put(
     links: Vec<String>,
     writes: Option<Vec<AgentWriteRow>>,
 ) -> Result<(), String> {
+    put_note(&db, note, links, writes).await
+}
+
+/// A note's first save creates user content; only a save of a note already stored is a body
+/// edit, which the gate still lets land for a short grace after editing ends.
+pub(crate) async fn put_note(
+    db: &Db,
+    note: NoteDto,
+    links: Vec<String>,
+    writes: Option<Vec<AgentWriteRow>>,
+) -> Result<(), String> {
     let record = note.into_record().map_err(String::from)?;
     validate_links(&links).map_err(String::from)?;
     if let Some(rows) = &writes {
         validate_agent_writes(rows).map_err(String::from)?;
     }
-    db.write(Write::Body, move |store| {
-        store.put_note_with_writes(&record, &links, writes.as_deref())
-    })
+    let id = record.id.clone();
+    db.write_judged(
+        move |store| {
+            Ok(if store.has_note(&id)? {
+                Write::Body
+            } else {
+                Write::Content
+            })
+        },
+        move |store| store.put_note_with_writes(&record, &links, writes.as_deref()),
+    )
     .await
     .map_err(|e| e.to_string())
 }

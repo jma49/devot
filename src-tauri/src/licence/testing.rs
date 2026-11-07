@@ -4,13 +4,15 @@ use std::path::Path;
 use std::sync::Arc;
 
 use base64::Engine as _;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use ed25519_dalek::{Signer, SigningKey};
 use serde_json::{Value, json};
 
 use super::keys::TEST;
 use super::store::MemoryKey;
-use super::{Licence, PublicKeys, Snapshot};
+use super::{Gate, Licence, PublicKeys, Snapshot};
+use crate::commands::notes::{NoteDto, put_note};
+use crate::storage::Db;
 
 pub(crate) const VECTORS: &str = include_str!("../../../licence/test-vectors.json");
 pub(crate) const ID: &str = "5vEvzHainWD0cA2Ht_ljHg";
@@ -71,4 +73,43 @@ pub(crate) fn licence(dir: &Path, gated: bool) -> Arc<Licence> {
         dir,
         Arc::new(|_: &Snapshot| {}),
     ))
+}
+
+/// A database on a temporary file whose writes `licence` judges, as the app guards its own at launch.
+pub(crate) fn gated_db(licence: &Arc<Licence>) -> (tempfile::TempDir, Db) {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let db = Db::spawn(&dir.path().join("devot.sqlite")).expect("database");
+    let gate = Gate::of(licence);
+    db.guard(Arc::new(move |what| gate.require_write(what)));
+    (dir, db)
+}
+
+/// Saves note `id` as the window does, at the body version its last save left.
+pub(crate) fn save_note(db: &Db, id: &str, body_version: i64) -> Result<(), String> {
+    let note = NoteDto {
+        id: id.into(),
+        title: "Title".into(),
+        title_hlc: "0001728000000000-0000-node".into(),
+        body_md: "Typed".into(),
+        ydoc: STANDARD.encode([1]),
+        body_version,
+        book_id: None,
+        book_hlc: String::new(),
+        status: "none".into(),
+        status_hlc: String::new(),
+        pinned: false,
+        pinned_hlc: String::new(),
+        created_at: 1,
+        updated_at: 1,
+        dates_hlc: String::new(),
+        deleted_at: None,
+        deleted_hlc: None,
+    };
+    tauri::async_runtime::block_on(put_note(db, note, Vec::new(), None))
+}
+
+/// Whether note `id` is stored, in the trash or not.
+pub(crate) fn has_note(db: &Db, id: &str) -> bool {
+    let id = id.to_owned();
+    tauri::async_runtime::block_on(db.call(move |store| store.has_note(&id))).expect("read")
 }

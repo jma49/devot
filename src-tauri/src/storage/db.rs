@@ -1,7 +1,7 @@
 //! A dedicated database thread. Every storage call runs there, so SQLite
 //! never blocks the UI thread or Tauri's async runtime.
-//! Reads get the store shared (`call`); a write needs it exclusively, which only `write` hands out,
-//! after the gate a build that checks licences sets (`guard`) let it through.
+//! Reads get the store shared (`call`); a write needs it exclusively, which only `write` and
+//! `write_judged` hand out, after the gate a build that checks licences sets (`guard`) let it through.
 
 use super::{Result, StorageError, Store};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -14,9 +14,10 @@ type Job = Box<dyn FnOnce(&mut Store) + Send>;
 /// What a write changes, for the gate to judge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Write {
-    /// A note as typed, or its history: what a save in flight carries.
+    /// A note already stored, as typed, or its history: what a save in flight carries.
     Body,
-    /// Any other user content: notebooks, tags, attachments, the trash, imports, a restore.
+    /// Any other user content: a note's first save, notebooks, tags, attachments, the trash,
+    /// imports, a restore.
     Content,
     /// What holds no user content: sync's own state, the search index.
     Bookkeeping,
@@ -88,6 +89,30 @@ impl Db {
             gate(what).map_err(StorageError::Refused)?;
         }
         logged(self.run(work).await)
+    }
+
+    /// For a write whose kind depends on what is stored: `judge` reads the store and the gate
+    /// judges its answer on the database thread, in the same job as `work`, so no other write
+    /// comes between them. A refusal changes nothing.
+    pub async fn write_judged<T, J, F>(&self, judge: J, work: F) -> Result<T>
+    where
+        T: Send + 'static,
+        J: FnOnce(&Store) -> Result<Write> + Send + 'static,
+        F: FnOnce(&mut Store) -> Result<T> + Send + 'static,
+    {
+        let gate = Arc::clone(&self.gate);
+        let done = self
+            .run(move |store| {
+                let what = judge(store)?;
+                if let Some(gate) = gate.get()
+                    && let Err(code) = gate(what)
+                {
+                    return Ok(Err(code));
+                }
+                work(store).map(Ok)
+            })
+            .await;
+        logged(done)?.map_err(StorageError::Refused)
     }
 
     /// For a caller that logs a run of failures once itself (the change watch), so a lasting failure does not fill the log.
@@ -181,6 +206,66 @@ mod tests {
         licence.set(&testing::key(testing::ID)).unwrap();
         block_on(db.write(Write::Content, |store| store.put_note(&note("after"), &[]))).unwrap();
         assert_eq!(ids(&db).len(), 2);
+    }
+
+    fn first_put(id: &'static str) -> impl FnOnce(&Store) -> Result<Write> + Send + 'static {
+        move |store| {
+            Ok(if store.has_note(id)? {
+                Write::Body
+            } else {
+                Write::Content
+            })
+        }
+    }
+
+    #[test]
+    fn a_judged_write_is_gated_once_by_what_its_own_job_found_stored() {
+        use std::sync::Mutex;
+        use tauri::async_runtime::block_on;
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::spawn(&dir.path().join("devot.sqlite")).unwrap();
+        let judged = Arc::new(Mutex::new(Vec::new()));
+        let seen = Arc::clone(&judged);
+        db.guard(Arc::new(move |what| {
+            seen.lock().unwrap().push(what);
+            Ok(())
+        }));
+        block_on(db.write_judged(first_put("note"), |store| {
+            store.put_note(&note("note"), &[])?;
+            let mut again = note("note");
+            again.body_version = 1;
+            store.put_note(&again, &[])
+        }))
+        .unwrap();
+        let mut edited = note("note");
+        edited.body_version = 2;
+        block_on(db.write_judged(first_put("note"), move |store| store.put_note(&edited, &[])))
+            .unwrap();
+        assert_eq!(*judged.lock().unwrap(), [Write::Content, Write::Body]);
+    }
+
+    #[test]
+    fn a_judged_write_the_gate_refuses_changes_nothing() {
+        use tauri::async_runtime::block_on;
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::spawn(&dir.path().join("devot.sqlite")).unwrap();
+        block_on(db.write(Write::Content, |store| store.put_note(&note("kept"), &[]))).unwrap();
+        db.guard(Arc::new(|what| match what {
+            Write::Body => Ok(()),
+            _ => Err("E_LICENCE_REQUIRED"),
+        }));
+        let mut kept = note("kept");
+        kept.body_version = 1;
+        block_on(db.write_judged(first_put("kept"), move |store| store.put_note(&kept, &[])))
+            .unwrap();
+        let refused =
+            block_on(db.write_judged(first_put("new"), |store| store.put_note(&note("new"), &[])));
+        assert_eq!(refused.unwrap_err().to_string(), "E_LICENCE_REQUIRED");
+        let notes = block_on(db.call(|store| store.list_notes())).unwrap();
+        assert_eq!(
+            notes.into_iter().map(|n| n.id).collect::<Vec<_>>(),
+            ["kept"]
+        );
     }
 
     #[test]
