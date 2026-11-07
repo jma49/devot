@@ -184,3 +184,39 @@ it("loads the page's spike probes only in a debug build", () => {
   expect(read(importers[0]!)).toMatch(/if \(!DEVOT_SPIKES\) return\n[\s\S]*import\('\.\/spikes'\)/)
   expect(read(importers[0]!)).not.toMatch(/from '\.\/spikes'/)
 })
+
+const quoted = (block: string) =>
+  [...block.matchAll(/"([^"]+)"|'([^']+)'/g)].map((m) => m[1] ?? m[2]!)
+
+function rustList(path: string, name: string): string[] {
+  return quoted(
+    new RegExp(`const ${name}: &\\[&str\\] = &\\[([\\s\\S]*?)\\];`).exec(read(path))?.[1] ?? '',
+  )
+}
+
+function swiftCases(name: string): string[] {
+  const swiftText = sources.map(read).join('\n')
+  const body =
+    new RegExp(`public enum ${name}: String[^{]*\\{([\\s\\S]*?)\\n\\}`).exec(swiftText)?.[1] ?? ''
+  return [...body.matchAll(/case (\w+)(?: = "([^"]+)")?/g)].map(([, bare, raw]) => raw ?? bare!)
+}
+
+it("Swift names the same operations and notices as Rust and the page, and Rust's direct ones", () => {
+  const ops = rustList('src-tauri/src/screens/message.rs', 'OPS')
+  expect(ops.length).toBeGreaterThan(0)
+  expect(swiftCases('Op')).toEqual(ops)
+  const page = /export const SCREENS_OPS = \[([\s\S]*?)\]/.exec(
+    read('src/renderer/src/phone/screens/message.ts'),
+  )
+  expect(quoted(page?.[1] ?? '')).toEqual(ops)
+  expect(swiftCases('NoticeKind')).toEqual(rustList('src-tauri/src/screens/message.rs', 'NOTICES'))
+  const direct = rustList('src-tauri/src/screens/direct.rs', 'OPS')
+  expect(direct.length).toBeGreaterThan(0)
+  expect(swiftCases('DirectOp')).toEqual(direct)
+})
+
+it('the package tests read the Settings search fixture the page tests read', () => {
+  expect(read(`${PACKAGE}/TestHost/project.yml`)).toContain(
+    'path: ../../../../tests/fixtures/settings-search.json',
+  )
+})
