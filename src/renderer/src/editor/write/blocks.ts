@@ -8,6 +8,7 @@
 // viewport alone.
 import { syntaxTree } from '@codemirror/language'
 import {
+  type ChangeSet,
   Facet,
   MapMode,
   RangeSet,
@@ -318,12 +319,26 @@ const blocks = StateField.define<Blocks>({
   ],
 })
 
-function within(set: DecorationSet, { from, to }: { from: number; to: number }): DecorationSet {
+/**
+ * What of `set` meets `from`-`to`, less what takes lines: a line break typed
+ * or synced into a hidden piece while the blocks are only mapped stretches it
+ * across lines, which the editor refuses from a plugin, until it is drawn again.
+ */
+function within(set: DecorationSet, doc: Text, { from, to }: { from: number; to: number }) {
   const ranges: Range<Decoration>[] = []
   set.between(from, to, (a, b, value) => {
-    ranges.push(value.range(a, b))
+    const range = value.range(a, b)
+    if (!takesLines(doc, range)) ranges.push(range)
   })
   return Decoration.set(ranges, true)
+}
+
+function insertsLineBreak(changes: ChangeSet): boolean {
+  let found = false
+  changes.iterChanges((_fromA, _toA, _fromB, _toB, text) => {
+    if (text.lines > 1) found = true
+  })
+  return found
 }
 
 const inView = ViewPlugin.fromClass(
@@ -334,22 +349,25 @@ const inView = ViewPlugin.fromClass(
 
     constructor(view: EditorView) {
       this.layers = view.state.field(blocks).layers
-      this.inline = within(this.layers.inline, view.viewport)
-      this.outer = within(this.layers.outer, view.viewport)
+      this.inline = within(this.layers.inline, view.state.doc, view.viewport)
+      this.outer = within(this.layers.outer, view.state.doc, view.viewport)
     }
 
     update(update: ViewUpdate) {
       const { layers } = update.state.field(blocks)
       if (layers === this.layers && !update.viewportChanged) return
       this.layers = layers
+      const { doc } = update.state
       // Moved with the text inside a composition, as the blocks are.
       if (update.view.compositionStarted && !update.viewportChanged) {
         this.inline = this.inline.map(update.changes)
+        if (insertsLineBreak(update.changes))
+          this.inline = within(this.inline, doc, { from: 0, to: doc.length })
         this.outer = this.outer.map(update.changes)
         return
       }
-      this.inline = within(layers.inline, update.view.viewport)
-      this.outer = within(layers.outer, update.view.viewport)
+      this.inline = within(layers.inline, doc, update.view.viewport)
+      this.outer = within(layers.outer, doc, update.view.viewport)
     }
   },
   {
@@ -358,6 +376,11 @@ const inView = ViewPlugin.fromClass(
       EditorView.outerDecorations.of((view) => view.plugin(plugin)?.outer ?? Decoration.none),
   },
 )
+
+/** What the editor is given of the blocks that neither take nor join lines: those that meet its viewport. */
+export function viewBlocks(view: EditorView): { inline: DecorationSet; outer: DecorationSet } {
+  return view.plugin(inView) ?? { inline: Decoration.none, outer: Decoration.none }
+}
 
 /** All the blocks draw over the whole note, of which the editor is given what meets its viewport. */
 export function drawnBlocks(state: EditorState): {
