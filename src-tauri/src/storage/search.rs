@@ -456,14 +456,16 @@ pub(super) fn search_sql(query: &NoteQuery, limit: u32) -> (String, Vec<String>)
     (sql, values)
 }
 
-/// Re-indexes one stale note (`@rowid`): takes out the text the index holds for it, puts
-/// in what the note holds now. The same statements as the TypeScript adapter's
-/// (tests/support/sqlite-adapter.ts, CATCH_UP_SQL; a test compares them).
+// Re-indexes one stale note (`@rowid`): takes out the text the index holds for it, puts in what
+// the note holds now. A note that is not stale is indexed as it is and left alone: inserting its
+// row again would count it twice. The same statements as the TypeScript adapter's
+// (tests/support/sqlite-adapter.ts, CATCH_UP_SQL; a test compares them).
 pub(super) const CATCH_UP_SQL: [&str; 3] = [
     "INSERT INTO notes_fts (notes_fts, rowid, title, body_md)
        SELECT 'delete', rowid, title, body_md FROM search_stale WHERE rowid = @rowid AND title IS NOT NULL",
     "INSERT INTO notes_fts (rowid, title, body_md)
-       SELECT rowid, title, body_md FROM notes WHERE rowid = @rowid",
+       SELECT rowid, title, body_md FROM notes WHERE rowid = @rowid
+          AND EXISTS (SELECT 1 FROM search_stale WHERE rowid = @rowid)",
     "DELETE FROM search_stale WHERE rowid = @rowid",
 ];
 
@@ -477,8 +479,8 @@ pub(super) fn catch_up_note(conn: &Connection, rowid: i64) -> rusqlite::Result<(
     Ok(())
 }
 
-/// Re-indexes stale notes until none is left, or once `budget` is spent (one note at least):
-/// whether any is left.
+// Re-indexes stale notes until none is left, or once `budget` is spent (one note at least):
+// whether any is left.
 pub(super) fn catch_up(conn: &Connection, budget: Option<Duration>) -> rusqlite::Result<bool> {
     let started = Instant::now();
     let mut next = conn.prepare_cached(NEXT_STALE_SQL)?;

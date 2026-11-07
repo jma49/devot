@@ -407,15 +407,17 @@ export function searchStatement(
 
 /**
  * Re-indexes one stale note (`@rowid`): takes out the text the index holds for it, puts in what
- * the note holds now. A save only marks its note stale (schema v29); a search and a purge catch the
- * index up first. The same statements as the Rust store's (storage/search.rs, CATCH_UP_SQL; a test
- * compares them).
+ * the note holds now. A note that is not stale is indexed as it is and left alone: inserting its
+ * row again would count it twice. A save only marks its note stale (schema v29); a search and a
+ * purge catch the index up first. The same statements as the Rust store's (storage/search.rs,
+ * CATCH_UP_SQL; a test compares them).
  */
 export const CATCH_UP_SQL = [
   `INSERT INTO notes_fts (notes_fts, rowid, title, body_md)
        SELECT 'delete', rowid, title, body_md FROM search_stale WHERE rowid = @rowid AND title IS NOT NULL`,
   `INSERT INTO notes_fts (rowid, title, body_md)
-       SELECT rowid, title, body_md FROM notes WHERE rowid = @rowid`,
+       SELECT rowid, title, body_md FROM notes WHERE rowid = @rowid
+          AND EXISTS (SELECT 1 FROM search_stale WHERE rowid = @rowid)`,
   'DELETE FROM search_stale WHERE rowid = @rowid',
 ] as const
 

@@ -4093,6 +4093,23 @@ fn a_purge_takes_the_text_the_index_holds_out_of_the_file_after_later_edits() {
     }
 }
 
+#[test]
+fn purging_an_indexed_note_with_no_text_leaves_the_search_index_whole() {
+    let (_dir, mut store) = temp_store();
+    let mut empty = note("a", "", 10);
+    empty.body_md = String::new();
+    store.put_note(&empty, &[]).unwrap();
+    store.put_note(&note("b", "Kept", 10), &[]).unwrap();
+    assert!(!store.catch_up_search_index(None).unwrap());
+    check_search_index(&store.conn);
+    store
+        .trash_and_purge("a", 30, "0000000000000030-0000-a")
+        .unwrap();
+    assert_eq!(search_stale(&store), 0);
+    check_search_index(&store.conn);
+    assert_eq!(store.search_notes(&words(&["kept"]), 10).unwrap().len(), 1);
+}
+
 /// A database as schema `version` left it, written by that version's triggers.
 fn open_at_schema(path: &Path, version: usize) -> Connection {
     let conn = Connection::open(path).unwrap();

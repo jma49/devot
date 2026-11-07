@@ -91,6 +91,18 @@ describe('the search index', () => {
     expect(stale(s)).toBe(0)
   })
 
+  it('stays whole when an indexed note with no text is purged', async () => {
+    const s = sqlite()
+    await s.putNote({ ...note('empty', '', ''), deletedAt: 5, deletedHlc: '5' })
+    await s.putNote(note('kept', 'Kept', 'Kept'))
+    s.catchUpSearchIndex()
+    s.db.exec(`INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)`)
+    await s.purgeNote('empty', 6, '0000000000006-0000-test')
+    expect(stale(s)).toBe(0)
+    s.db.exec(`INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)`)
+    expect(await found(s, 'kept')).toEqual(['kept'])
+  })
+
   it('loses the text it held for a purged note, from the file too, after later edits', async () => {
     const path = join(tempDir('devot-search-catch-up-'), 'devot.sqlite')
     const s = sqlite(path)
