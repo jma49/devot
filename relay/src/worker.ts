@@ -12,11 +12,19 @@ import {
 } from './front.ts'
 import { RateLimiter } from './limiter.ts'
 import { gone, type PairingOp, PairingRelay } from './pairing.ts'
-import { type Outcome, type Reply, type Sql, type SqlValue, VaultRelay } from './vault.ts'
+import {
+  type Outcome,
+  type Reply,
+  type Sql,
+  type SqlValue,
+  storedVaultId,
+  VaultRelay,
+} from './vault.ts'
 
 // The Cloudflare host: the Worker is the front, one Durable Object on SQLite
 // storage per vault keeps the vault, and every socket uses the Hibernation API.
-// Each pairing has a Durable Object of its own, which an alarm empties.
+// Each pairing has a Durable Object of its own, which an alarm empties; a vault's
+// alarm wipes it once retired and drops it once abandoned empty.
 
 export interface Env {
   VAULTS: DurableObjectNamespace<VaultObject>
@@ -74,7 +82,10 @@ export class VaultObject extends DurableObject<Env> {
   }
 
   async create(vault: string, body: Record<string, unknown>): Promise<Reply> {
-    return this.relayFor(vault).create(body)
+    const relay = this.relayFor(vault)
+    const reply = await relay.create(body)
+    await this.schedule(relay)
+    return reply
   }
 
   async enroll(vault: string, body: Record<string, unknown>): Promise<Reply> {
@@ -86,15 +97,51 @@ export class VaultObject extends DurableObject<Env> {
   }
 
   async retire(vault: string, body: Record<string, unknown>): Promise<Reply> {
-    const { reply, changed } = this.relayFor(vault).retire(body)
+    const relay = this.relayFor(vault)
+    const { reply, changed } = relay.retire(body)
     if (changed !== undefined) {
       for (const ws of this.ctx.getWebSockets()) trySend(ws, changed)
     }
+    await this.schedule(relay, true)
     return reply
   }
 
   async live(vault: string): Promise<boolean> {
     return this.relayFor(vault).live()
+  }
+
+  async adopt(vault: string, predecessor: string): Promise<void> {
+    this.relayFor(vault).adopt(predecessor)
+  }
+
+  /** Sets the alarm for the vault's next sweep; one set already stays unless `replace`. */
+  private async schedule(relay: VaultRelay, replace = false): Promise<void> {
+    const next = relay.nextSweep()
+    if (next === null) return
+    if (replace || (await this.ctx.storage.getAlarm()) === null) {
+      await this.ctx.storage.setAlarm(next)
+    }
+  }
+
+  override async alarm(): Promise<void> {
+    const vault = this.relay?.vault ?? storedVaultId(durableSql(this.ctx.storage))
+    if (vault === null) return
+    const outcome = this.relayFor(vault).sweep()
+    if (!outcome.drop) {
+      if (outcome.next !== null) await this.ctx.storage.setAlarm(outcome.next)
+      return
+    }
+    for (const ws of this.ctx.getWebSockets()) {
+      trySend(ws, encodeFrame({ type: 'error', code: 'E_SYNC_NO_VAULT' }))
+      try {
+        ws.close(CLOSE.noVault, 'E_SYNC_NO_VAULT')
+      } catch {
+        // Closed already.
+      }
+    }
+    this.relay = undefined
+    await this.ctx.storage.deleteAlarm()
+    await this.ctx.storage.deleteAll()
   }
 
   override async fetch(request: Request): Promise<Response> {
@@ -108,6 +155,7 @@ export class VaultObject extends DurableObject<Env> {
       this.ctx.acceptWebSocket(server, [device])
       server.serializeAttachment({ vault, device } satisfies Attachment)
       server.send(relay.connected(device))
+      await this.schedule(relay)
     } else {
       // Accepted only to say why: a web view cannot read the status of a refused upgrade.
       const code = access === 'no-vault' ? 'E_SYNC_NO_VAULT' : 'E_SYNC_UNAUTHORIZED'
@@ -200,6 +248,7 @@ export default {
         enroll: (vault, body) => vaultFor(vault).enroll(vault, body),
         retire: (vault, body) => vaultFor(vault).retire(vault, body),
         live: (vault) => vaultFor(vault).live(vault),
+        adopt: (vault, predecessor) => vaultFor(vault).adopt(vault, predecessor),
         authenticate: (vault, device, token) => vaultFor(vault).authenticate(vault, device, token),
         pairing: (op, id, body, device) =>
           env.PAIRINGS.get(env.PAIRINGS.idFromName(id)).handle(op, id, body, device),

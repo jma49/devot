@@ -1,6 +1,6 @@
 # Rotating the vault key moves the devices to a new vault and retires the old one
 
-Status: accepted (2026-11-05). Amends ADR 0002 (Relay), ADR 0008 (What the new device learns, Rules on both joins), ADR 0015 (Devices list, A lost device) and ADR 0016 (store names). The relay part is built; the iCloud part and the follow-ups below are separate issues.
+Status: accepted (2026-11-05). Amends ADR 0002 (Relay), ADR 0008 (What the new device learns, Rules on both joins), ADR 0015 (Devices list, A lost device) and ADR 0016 (store names). The relay part is built, with clearing the relay of retired and abandoned vaults; the iCloud part and the other follow-ups below are separate issues.
 
 A removed or lost device still holds the vault key. On a relay it can enroll again on purpose (ADR 0008); on iCloud it stays on the Apple ID until the owner removes it there (ADR 0015). Rotating the key is what locks it out: the devices the owner keeps move to a new vault, and the old vault stops taking anything.
 
@@ -36,7 +36,7 @@ Each step is kept before the next, so a rotation that stops anywhere either fini
 1. **Make the key.** A new vault goes into the device-only keychain under its own account (`vault-next`), beside the old one, and the sync settings record `rotating: { from, to }`. A rotation started again takes the waiting key instead of making another.
 2. **Make the successor** on the relay with the relay's secret (`create`); a successor that exists already, from an earlier try, is enrolled in with the new key's enrollment secret instead. Its token goes to its own account (`device-next`). A wrong relay secret stops here, with nothing retired.
 3. **Retire the old vault** with the relay's secret, naming the successor. Retiring comes before the upload: until it, anyone holding the old key can enroll in the old vault and read what is pushed there.
-   - Another device won the race: its successor is named in the refusal. This device drops its own new key and token, records the winner as the old vault's successor and stops with `E_SYNC_VAULT_ROTATED`, like any other device. The successor it made stays on the relay empty, with one device; the relay has no delete.
+   - Another device won the race: its successor is named in the refusal. This device drops its own new key and token, records the winner as the old vault's successor and stops with `E_SYNC_VAULT_ROTATED`, like any other device. The successor it made stays on the relay empty, with one device, until the relay drops it (Clearing the relay).
 4. **Switch.** The vault item takes the new key, then the device-only token item takes the successor's token, then the settings forget `rotating`, and the `-next` items go. The recovery key is recorded as saved per vault ID, so the new one is on offer. The old key is gone from this device.
 5. **Upload.** The engine connects to the successor, finds a new epoch and uploads the whole library. The new recovery key is offered until the owner says it was saved, as for a new vault.
 
@@ -55,7 +55,36 @@ The old vault still lists its devices once retired, so the rotating device can n
 - The list is a guide, not an access check. A device that holds the old key and a token nobody revoked, the lost one included, can still remove devices of the old vault, this device's old row too, which ends the list; it can neither join the successor nor change what the successor lists.
 - A device that left the old vault without joining (ADR 0008, Leaving a relay vault) keeps its row there, and the owner removes it from the list.
 
-A connect that finds `rotating` with a successor token waiting reads the old vault's `welcome`. Retired for this successor: the device finishes step 4 on its own. Retired for another: it lost the race, as in step 3. Not retired: retiring needs the relay secret, which the device does not keep, so the old vault syncs on and the waiting key and token stay; the next rotation, with the secret, takes them and goes on from step 3. With no token waiting, the old vault was never retired: the waiting key and the record are dropped (`I_SYNC_ROTATION_DROPPED`) and the old vault syncs on. If a successor was made but its token was lost, that successor stays on the relay, empty, until wiping exists (follow-up).
+A connect that finds `rotating` with a successor token waiting reads the old vault's `welcome`. Retired for this successor: the device finishes step 4 on its own. Retired for another: it lost the race, as in step 3. Not retired: retiring needs the relay secret, which the device does not keep, so the old vault syncs on and the waiting key and token stay; the next rotation, with the secret, takes them and goes on from step 3.
+If the relay dropped the waiting successor meanwhile (Clearing the relay), the retire is refused with `E_SYNC_NO_SUCCESSOR`: the device makes the successor again with the waiting key (`I_SYNC_SUCCESSOR_GONE`) and retires for it. With no token waiting, the old vault was never retired: the waiting key and the record are dropped (`I_SYNC_ROTATION_DROPPED`) and the old vault syncs on. If a successor was made but its token was lost, that successor stays on the relay, empty, until the relay drops it.
+
+### Clearing the relay
+
+A retired vault's records serve nobody: the relay refuses every pull, and every device holds all its records (ADR 0002).
+A successor that lost the race, or whose token was lost, holds nothing and is reached by nobody.
+The relay clears both on its own, with no new message, so it works for every build, including the released ones and a device that is offline for good.
+
+- **A retired vault is wiped.**
+  Right after the retire, the relay deletes its records and their chunks, the oldest first, in slices of at most 1,000 rows.
+  A retire from before wiping existed is wiped at the vault's next connection on a Durable Object, and at the next sweep under Node.
+- **The wipe is counted** like any write: the rows it deletes go into the vault's rows written, each slice counts one request, and the stored bytes and file bytes fall with it, so `usage` shows the vault empty once it is done.
+- **The wipe keeps to a quarter of the daily rows cap** (`WIPE_SHARE`), counting what the vault wrote that day already.
+  The successor's upload runs in the same days and the Workers Free limits are the account's, so a wipe never takes the upload's share; what does not fit waits for 00:00 UTC.
+  A relay without the cap wipes slice after slice at once.
+- **The wipe keeps the vault**: its `vault` row, its devices and their tokens, the `retirement` row and the counters.
+  Old tokens still open a socket and learn the successor from the welcome, the old key still enrolls nowhere, and a retire naming another successor is still refused.
+- **An abandoned vault is dropped**: one that holds no record, has at most one device, is not retired and was never named the successor in a retirement, and that no device connected to for 90 days (`ORPHAN_AGE_MS`).
+  Dropping deletes all its storage; its sockets close with `E_SYNC_NO_VAULT`, as for a vault that does not exist.
+- **Why those conditions**: a successor that lost the race or whose token was lost matches all of them, since its one device never connects to it.
+  A vault in use does not: its first sync uploads the library, a successor that won is named in the retirement, and a device on an empty library still connects.
+  The relay keeps the time a device last connected, at most once a day and only while the vault matches, in a `standing` table made on first need, beside the vault the retirement named it the successor of; a vault from before it counts from its creation.
+  Ninety days is long: a device kept away from the relay for that long with nothing to sync loses only an empty vault, and joins or creates one again.
+- **The front records the successor**: after a retire is answered `retired`, the front tells the successor which vault it succeeds, and the first one named stays.
+  A retire answered `retired` again records it again, so a relay that stopped between the two steps finishes at the next try.
+- **On a Durable Object**, the vault's alarm does the sweeping: a creation sets it for 90 days on, a connection sets it when none is set, a retire sets it for now, and each sweep sets the next one.
+  A vault from before this relay version gets its alarm at its next connection; one that never gets one stays.
+- **Under Node**, the relay sweeps every vault file at start and every hour, and a retired vault at once.
+- **A rotation waiting for the relay secret** may find its successor dropped, if months pass before the owner enters the secret again; the rotating device then makes the successor again with the waiting key (The rotating device).
 
 ### The other devices
 
@@ -71,7 +100,7 @@ A connect that finds `rotating` with a successor token waiting reads the old vau
 - **Read new records:** no. They are in the successor, sealed under a key it does not hold, under store names it cannot compute (ADR 0016), and enrolling there needs the new key's enrollment secret.
 - **Write records others accept:** no. The old vault refuses pushes from anyone; the successor needs a token it cannot get, and records it sealed would not open.
 - **Join again with the old key or the old recovery key:** no. Both name the old vault, which refuses enrollment for good.
-- **Read the old vault's records:** they stay on the relay, sealed under the old key, until they are wiped (follow-up). The relay refuses pulls, so only someone holding both the relay's storage and the old key reads them; those are the records the device held anyway, plus what other devices pushed between its removal and the retirement. Rotating soon after removing keeps that short.
+- **Read the old vault's records:** the relay refuses pulls from the retire on and wipes them right after it (Clearing the relay), so only someone holding both the relay's storage and the old key, before the wipe ends, reads them; those are the records the device held anyway, plus what other devices pushed between its removal and the retirement. Rotating soon after removing keeps that short.
 - **Hide the retirement from an offline device:** only together with the relay, which then also hands out the old records. A relay that colludes could keep an offline device pushing to the old vault until the owner rotates on it; that is outside what a relay is trusted not to do (ADR 0002, risk 10), and Settings on the rotating device lists the devices of the successor, and those of the old vault that have not joined it, so a missing one shows.
 
 ### Older builds
@@ -95,10 +124,18 @@ Not built yet; recorded here so the relay part does not decide it differently.
 - **Rotating or retiring without the relay secret**, on a device token alone. Any enrolled device, a stolen one included, could then retire the vault for a successor of its choosing before the owner rotates: the owner's devices would record that successor, refuse to rotate a retired vault and accept a join into nothing else, so the fleet would be locked out of its own vault. A retire over the socket, from an enrolled device, was built first and dropped for this.
 - **Proving the successor with a token of it** instead of the relay secret. It would let a rotation stopped before the retire finish at the next connect without the secret, but a device that is a member of any other live vault on the relay could still retire the vault for that one. The secret is simpler to reason about; a rotation stopped there waits for the owner to enter it again.
 
+- **A wipe asked by a device of the successor**, with its token, checked against the retirement.
+  Nobody needs the records once pulls are refused, so a request adds a route and a check across two vaults for nothing, and a device that is offline for good, an older build or a lost token would never send it.
+- **Wiping in the retire's own transaction.**
+  A large vault would write more rows in one go than the daily limits allow, on the days the successor's upload needs them.
+- **Dropping an empty vault by its age alone.**
+  A device that set up sync on an empty library would lose its vault while it is still in use; the last connection tells the two apart.
+
 ## Consequences
 
 - ADR 0002: a relay vault can be retired, with the relay secret only; it keeps a `retirement` table, refuses `push`, `pull` and `enroll` once retired, and its welcome says so.
+  The relay wipes a retired vault's records within a share of the daily rows cap and drops a vault left empty and unused for 90 days.
 - ADR 0008: "Locking out a lost device for good needs a new vault key" is this ADR. A join may replace a held vault that is retired, for its successor only. Leaving a relay vault, which ADR 0008 now records, lets any other vault be joined.
 - ADR 0015: locking a device out of an iCloud vault is removing it from the Apple ID and then rotating, as above.
 - ADR 0016: a rotation is a new vault, so every store name changes with it; a store can link old and new names only by timing and sizes, as after the move to store names.
-- Follow-ups: rotation on iCloud (#641); per-device keys so relay devices follow without pairing again (#642); wiping a retired vault's records from the relay, and an orphaned successor left by a lost race (#643); Leaving a relay vault, the recovery path for a stuck device (#646), is built (ADR 0008), and so is listing on the rotating device the old vault's devices that have not joined the successor yet (#644, above).
+- Follow-ups: rotation on iCloud (#641); per-device keys so relay devices follow without pairing again (#642). Leaving a relay vault, the recovery path for a stuck device (#646), is built (ADR 0008), and so are listing on the rotating device the old vault's devices that have not joined the successor yet (#644, above) and clearing the relay of a retired vault's records and of an abandoned successor (#643).

@@ -485,6 +485,50 @@ export function relaySuite(name: string, start: () => Promise<RelayHost>): void 
         kept.socket.close()
       })
 
+      it('wipes a retired vault’s records and counts it, keeping the retirement and the tokens', async () => {
+        const old = await createVault(host)
+        const next = await createVault(host)
+        const kept = await connect(host, old.vault, old.first.token)
+        kept.socket.send({ type: 'push', id: 'note', base: 0, kind: 'record', chunks: [100, 50] }, [
+          bytes(100, 1),
+          bytes(50, 1),
+        ])
+        await kept.socket.expect('pushed')
+        kept.socket.send({ type: 'push', id: 'img', base: 0, kind: 'file', chunks: [70] }, [
+          bytes(70, 2),
+        ])
+        await kept.socket.expect('pushed')
+        kept.socket.send({ type: 'usage' })
+        const before = (await kept.socket.expect('usage')).message
+        expect(before).toMatchObject({ storedBytes: 220, fileBytes: 70 })
+
+        expect((await retireVault(host, old.vault, next.vault)).status).toBe(200)
+        await kept.socket.expect('changed')
+        let after = before
+        for (let tries = 0; tries < 100 && Number(after['storedBytes']) > 0; tries++) {
+          await new Promise((resolve) => setTimeout(resolve, 50))
+          kept.socket.send({ type: 'usage' })
+          after = (await kept.socket.expect('usage')).message
+        }
+        expect(after).toMatchObject({ storedBytes: 0, fileBytes: 0 })
+        // Two record rows and three chunk rows.
+        expect(Number(after['rowsWritten']) - Number(before['rowsWritten'])).toBeGreaterThanOrEqual(
+          5,
+        )
+        kept.socket.close()
+
+        const again = await connect(host, old.vault, old.first.token)
+        expect(again.welcome).toMatchObject({ retired: next.vault, seq: 0 })
+        again.socket.send({ type: 'devices' })
+        expect((await again.socket.expect('devices')).message['devices']).toHaveLength(1)
+        again.socket.send({ type: 'pull', rid: 1, since: 0 })
+        expect((await again.socket.expect('error')).message).toMatchObject({
+          code: VAULT_ROTATED,
+          successor: next.vault,
+        })
+        again.socket.close()
+      })
+
       it('retires only for a successor the relay holds that is not retired itself', async () => {
         const old = await createVault(host)
         expect(await retireVault(host, old.vault, randomId())).toMatchObject({

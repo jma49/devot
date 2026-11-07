@@ -52,6 +52,9 @@ export interface Outcome {
   close?: { device: string; code: number; reason: string; notice: Outgoing }
 }
 
+/** What a host does after a sweep: delete the vault's storage, or sweep again at `next` (never when null). */
+export type Sweep = { drop: true } | { drop: false; next: number | null }
+
 export interface VaultOptions {
   secret: string
   now?: () => number
@@ -109,6 +112,19 @@ const RETIREMENT = `CREATE TABLE IF NOT EXISTS retirement (
     successor TEXT NOT NULL,
     at INTEGER NOT NULL
   )`
+// Made at the first connection a day after creation or at the first retire that names this vault,
+// for vaults that may be dropped: when a device last connected, and the vault this one succeeds.
+const STANDING = `CREATE TABLE IF NOT EXISTS standing (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    seen INTEGER NOT NULL,
+    predecessor TEXT
+  )`
+const DAY_MS = 24 * 60 * 60 * 1000
+/** A vault with no record, one device and no retirement either way is dropped this long after its last connection. */
+export const ORPHAN_AGE_MS = 90 * DAY_MS
+/** A wipe writes at most this share of the daily rows cap a day: the successor's upload runs in the same days. */
+export const WIPE_SHARE = 0.25
+const WIPE_SLICE_ROWS = 1000
 const MAX_DEVICES = 100
 /** Sealed file records up to this size (a purge's tombstone) are never refused for the attachment share. */
 const TOMBSTONE_BYTES = 1024
@@ -162,6 +178,13 @@ interface Delta {
   files?: number
 }
 
+/** The ID of the vault kept in `sql`, or null when it holds none. */
+export function storedVaultId(sql: Sql): string | null {
+  const table = sql.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'vault'")
+  const row = table.length > 0 ? sql.all('SELECT vault_id FROM vault WHERE id = 1')[0] : undefined
+  return row ? String(row['vault_id']) : null
+}
+
 export class VaultRelay {
   readonly vault: string
   private readonly sql: Sql
@@ -174,6 +197,7 @@ export class VaultRelay {
   private pending = { messages: 0, requests: 0 }
   // The successor, read from storage once (push and pull check it); only `retire` changes it.
   private retiredFor: string | null | undefined
+  private standingRow: { seen: number; predecessor: string | null } | undefined
 
   constructor(sql: Sql, vault: string, options: VaultOptions) {
     this.sql = sql
@@ -186,10 +210,7 @@ export class VaultRelay {
   }
 
   exists(): boolean {
-    return (
-      this.sql.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'vault'")
-        .length > 0
-    )
+    return this.hasTable('vault')
   }
 
   async create(body: Record<string, unknown>): Promise<Reply> {
@@ -271,6 +292,7 @@ export class VaultRelay {
     const quota = this.quota ? 'on' : 'off'
     const attachments = this.quota?.fileBytes === undefined ? 'off' : 'on'
     const retired = this.successor()
+    this.touch()
     return encodeFrame({
       type: 'welcome',
       time: this.now(),
@@ -535,6 +557,127 @@ export class VaultRelay {
     return { reply, changed: encodeFrame({ type: 'changed', seq: this.head() }) }
   }
 
+  /** Records the vault this one succeeds, once a retire named it; the first one stays. */
+  adopt(predecessor: string): void {
+    if (!isVaultId(predecessor) || !this.exists()) return
+    this.sql.transaction(() => {
+      const { seen, predecessor: held } = this.standing()
+      if (held === null) this.writeStanding(seen, predecessor)
+    })
+  }
+
+  /** When the host should sweep this vault next, or null for never (until a retire). */
+  nextSweep(): number | null {
+    if (!this.exists()) return null
+    if (this.successor() !== null) return this.head() > 0 ? this.now() : null
+    if (!this.mayDrop()) return null
+    return this.standing().seen + ORPHAN_AGE_MS
+  }
+
+  /**
+   * Wipes a slice of a retired vault's records, or says whether a vault that may be an abandoned
+   * successor is due to be dropped (docs/adr/0017-sync-key-rotation.md, Clearing the relay).
+   */
+  sweep(): Sweep {
+    if (!this.exists()) return { drop: false, next: null }
+    if (this.successor() !== null) return this.wipe()
+    const next = this.nextSweep()
+    const now = this.now()
+    if (next === null || next > now) return { drop: false, next }
+    if (num(this.sql.all('SELECT COUNT(*) AS n FROM devices')[0]?.['n']) > 1) {
+      return { drop: false, next: now + ORPHAN_AGE_MS }
+    }
+    this.log(`I_RELAY_VAULT_DROPPED vault=${this.vault}`)
+    return { drop: true }
+  }
+
+  /** Deletes the oldest records within the day's share of the rows cap; the rest waits for the next slice. */
+  private wipe(): Sweep {
+    const at = this.now()
+    const wiped = this.sql.transaction(() => {
+      const budget = this.quota
+        ? Math.floor(this.quota.rowsWritten * WIPE_SHARE) - this.usage(at).rowsWritten
+        : Infinity
+      // One row of the budget is the counters row's own write.
+      const limit = Math.min(WIPE_SLICE_ROWS, budget - 1)
+      const rows = this.sql.all(
+        'SELECT id, kind, chunk_count, bytes FROM records ORDER BY seq LIMIT ?',
+        WIPE_SLICE_ROWS,
+      )
+      let planned = 0
+      let stored = 0
+      let files = 0
+      const ids: string[] = []
+      for (const row of rows) {
+        const cost = num(row['chunk_count']) + 1
+        if (planned + cost > limit) break
+        planned += cost
+        ids.push(String(row['id']))
+        stored += num(row['bytes'])
+        if (row['kind'] === 'file') files += num(row['bytes'])
+      }
+      let written = 0
+      for (const id of ids) {
+        written += this.sql.run('DELETE FROM chunks WHERE id = ?', id)
+        written += this.sql.run('DELETE FROM records WHERE id = ?', id)
+      }
+      if (ids.length > 0) this.count({ rows: written, requests: 1, stored: -stored, files: -files })
+      return ids.length
+    })
+    if (this.head() === 0) {
+      if (wiped > 0) this.log(`I_RELAY_VAULT_WIPED vault=${this.vault}`)
+      return { drop: false, next: null }
+    }
+    return { drop: false, next: wiped > 0 ? at : quotaResetAt(at) }
+  }
+
+  /** No record and no retirement either way: what an abandoned successor looks like. */
+  private mayDrop(): boolean {
+    return this.successor() === null && this.standing().predecessor === null && this.head() === 0
+  }
+
+  /** Keeps when a device last connected, at most once a day and only while the vault may be dropped. */
+  private touch(): void {
+    if (!this.mayDrop()) return
+    const now = this.now()
+    const { seen, predecessor } = this.standing()
+    if (now - seen < DAY_MS) return
+    this.sql.transaction(() => this.writeStanding(now, predecessor))
+  }
+
+  private standing(): { seen: number; predecessor: string | null } {
+    if (this.standingRow) return this.standingRow
+    const row = this.hasTable('standing')
+      ? this.sql.all('SELECT seen, predecessor FROM standing WHERE id = 1')[0]
+      : undefined
+    const created = num(this.sql.all('SELECT created FROM vault WHERE id = 1')[0]?.['created'])
+    const predecessor = row?.['predecessor']
+    this.standingRow = {
+      seen: row ? num(row['seen']) : created,
+      predecessor: predecessor === null || predecessor === undefined ? null : String(predecessor),
+    }
+    return this.standingRow
+  }
+
+  private writeStanding(seen: number, predecessor: string | null): void {
+    let rows = this.sql.run(STANDING)
+    rows += this.sql.run(
+      `INSERT INTO standing (id, seen, predecessor) VALUES (1, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET seen = excluded.seen, predecessor = excluded.predecessor`,
+      seen,
+      predecessor,
+    )
+    this.count({ rows })
+    this.standingRow = { seen, predecessor }
+  }
+
+  private hasTable(name: string): boolean {
+    return (
+      this.sql.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = ?", name)
+        .length > 0
+    )
+  }
+
   /** Whether the vault exists and is not retired: what a successor must be. */
   live(): boolean {
     return this.exists() && this.successor() === null
@@ -543,13 +686,9 @@ export class VaultRelay {
   /** The vault that succeeds this one, once it is retired. */
   private successor(): string | null {
     if (this.retiredFor !== undefined) return this.retiredFor
-    const table = this.sql.all(
-      "SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'retirement'",
-    )
-    const row =
-      table.length > 0
-        ? this.sql.all('SELECT successor FROM retirement WHERE id = 1')[0]
-        : undefined
+    const row = this.hasTable('retirement')
+      ? this.sql.all('SELECT successor FROM retirement WHERE id = 1')[0]
+      : undefined
     this.retiredFor = row ? String(row['successor']) : null
     return this.retiredFor
   }
