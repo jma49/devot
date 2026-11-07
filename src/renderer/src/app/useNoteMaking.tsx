@@ -9,7 +9,7 @@ import { editorSettings } from '../editorSettings'
 import { displayTitle, displayTitles, type HeadlineLoader } from '../headlines'
 import { t } from '../i18n'
 import { MAX_LINK_NOTES } from '../linkCompletion'
-import { dropNote, linkedNoteDiscard } from '../linkedNotes'
+import { dropNote, linkedNoteCreate, linkedNoteDiscard } from '../linkedNotes'
 import { homeOf, viewLists, type ListView } from '../listUpdates'
 import { startEarlyKeys } from '../editor/earlyKeys'
 import { notebookForNewNote } from '../notebookChoices'
@@ -322,12 +322,7 @@ export function useNoteMaking({
     await refresh(core)
   }
 
-  const createLinkedNote = async (linkTitle: string) => {
-    if (!core) throw new Error('E_CORE_NOT_READY')
-    const id = await core.create(linkTitle, newNoteBookId())
-    await refresh(core)
-    return id
-  }
+  const createLinkedNote = linkedNoteCreate(() => core, newNoteBookId, refresh)
 
   const discardLinkedNote = linkedNoteDiscard(() => core, refresh)
 

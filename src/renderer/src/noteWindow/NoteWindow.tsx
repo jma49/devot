@@ -17,7 +17,7 @@ import { isImeKey } from '../ime'
 import { invoke } from '../ipc'
 import { startLicence, useEditing } from '../licence'
 import { MAX_LINK_NOTES } from '../linkCompletion'
-import { linkedNoteDiscard } from '../linkedNotes'
+import { linkedNoteCreate, linkedNoteDiscard } from '../linkedNotes'
 import { currentDefaultMode } from '../lastState'
 import { ModeControl, editorOnly, type Mode } from '../ModeControl'
 import type { EditorHandle } from '../editor/handle'
@@ -234,10 +234,10 @@ export function NoteWindow() {
     return found.filter((n) => n.id !== noteId)
   }
 
-  const createLinkedNote = async (linkTitle: string) => {
-    if (!core || !noteId) throw new Error('E_CORE_NOT_READY')
-    return core.create(linkTitle, (await core.read(noteId)).bookId)
-  }
+  const createLinkedNote = linkedNoteCreate(
+    () => (noteId ? core : null),
+    async (c) => (noteId ? (await c.read(noteId)).bookId : null),
+  )
 
   const discardLinkedNote = linkedNoteDiscard(() => core)
 

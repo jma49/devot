@@ -25,3 +25,26 @@ export function linkedNoteDiscard<C extends Dropping>(
     await after?.(c)
   }
 }
+
+interface Making {
+  create: (title: string, bookId: string | null) => Promise<string>
+}
+
+/**
+ * A link completion's create (`LinkSources.create`) for every window: the note goes in the notebook
+ * `bookOf` picks. Before the core has started it rejects with `E_CORE_NOT_READY`, so the completion
+ * leaves the link as typed.
+ */
+export function linkedNoteCreate<C extends Making>(
+  core: () => C | null | undefined,
+  bookOf: (core: C) => string | null | Promise<string | null>,
+  after?: (core: C) => Promise<unknown>,
+): (title: string) => Promise<string> {
+  return async (title) => {
+    const c = core()
+    if (!c) throw new Error('E_CORE_NOT_READY')
+    const id = await c.create(title, await bookOf(c))
+    await after?.(c)
+    return id
+  }
+}

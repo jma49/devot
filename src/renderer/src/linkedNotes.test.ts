@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { dropNote, linkedNoteDiscard } from './linkedNotes'
+import { dropNote, linkedNoteCreate, linkedNoteDiscard } from './linkedNotes'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -62,5 +62,60 @@ describe('linkedNoteDiscard', () => {
     current = core
     await discard('n1')
     expect(calls).toEqual(['trash n1', 'purge n1'])
+  })
+})
+
+function makingCore() {
+  const calls: string[] = []
+  return {
+    calls,
+    core: {
+      create: async (title: string, bookId: string | null) => {
+        calls.push(`create ${title} in ${bookId}`)
+        return 'made'
+      },
+    },
+  }
+}
+
+describe('linkedNoteCreate', () => {
+  it('makes the note in the notebook the window picks, then runs what it does after', async () => {
+    const { calls, core } = makingCore()
+    const id = await linkedNoteCreate(
+      () => core,
+      async () => 'b1',
+      async () => void calls.push('after'),
+    )('Plan')
+    expect(id).toBe('made')
+    expect(calls).toEqual(['create Plan in b1', 'after'])
+  })
+
+  it('makes the note outside any notebook when the window picks none', async () => {
+    const { calls, core } = makingCore()
+    await linkedNoteCreate(
+      () => core,
+      () => null,
+    )('Plan')
+    expect(calls).toEqual(['create Plan in null'])
+  })
+
+  it('refuses by code before the core has started, so the link stays as typed', async () => {
+    const bookOf = vi.fn<() => string>(() => 'b1')
+    await expect(linkedNoteCreate(() => undefined, bookOf)('Plan')).rejects.toThrow(
+      'E_CORE_NOT_READY',
+    )
+    expect(bookOf).not.toHaveBeenCalled()
+  })
+
+  it('reads the core when it creates, not when it is made', async () => {
+    const { calls, core } = makingCore()
+    let current: typeof core | null = null
+    const create = linkedNoteCreate(
+      () => current,
+      () => 'b1',
+    )
+    current = core
+    await create('Plan')
+    expect(calls).toEqual(['create Plan in b1'])
   })
 })
