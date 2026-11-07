@@ -69,6 +69,8 @@ export interface PreviewOptions {
   noteLinks?: Readonly<Record<string, NoteLinkTarget>>
   /** Only the live preview gives it: exported pages, copies and templates show front matter as written. */
   note?: PreviewNote
+  /** The main window's live preview: Note Info shows the front matter, so the body leaves it out. */
+  frontMatterInInfo?: boolean
   /** Changes when plugins' renderers do, so pieces rendered before are rendered again. */
   pluginRenderers?: number
 }

@@ -113,6 +113,11 @@ test('Tab reaches the preview from the Trash buttons, with a focus ring', async 
   ).toContainText('This note is in the Trash.')
   await page.getByRole('button', { name: 'Delete Permanently' }).focus()
   await page.keyboard.press('Tab')
+  // WebKit on Linux stops on buttons with Tab, as macOS does only with Full Keyboard Access.
+  const summary = page.getByRole('button', { name: /^Note info: / })
+  if (await summary.evaluate((el) => el === document.activeElement)) {
+    await page.keyboard.press('Tab')
+  }
   await expect(preview(page)).toBeFocused()
   await expect(preview(page)).not.toHaveCSS('box-shadow', 'none')
 })

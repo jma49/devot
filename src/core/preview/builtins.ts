@@ -24,9 +24,9 @@ import { createCodeRenderer } from './code'
 import { glyph } from './glyphs'
 import { headingIds } from './headingIds'
 import { noteLinkChips } from './noteLinks'
-import { parse, stringify } from 'yaml'
-import { noteTitle, readFrontMatterYaml, type FrontMatterMeta } from '../import'
-import { customTagColorProperties, sameName, tagColorClass } from '../tags'
+import { customTagColorProperties, tagColorClass } from '../tags'
+import type { TagColorValue } from '../storage'
+import { frontMatterView, type FrontMatterView, type PropertyDifference } from './frontMatterView'
 
 type Parent = Root | Element
 type Rewrite = (el: Element, parent: Parent) => ElementContent | ElementContent[] | null | undefined
@@ -64,16 +64,7 @@ const txt = (value: string): ElementContent => ({ type: 'text', value })
 
 const isBlank = (node: RootContent) => node.type === 'text' && node.value.trim() === ''
 
-function valueText(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  if (typeof value === 'object' && !(value instanceof Date)) return stringify(value).trimEnd()
-  return value instanceof Date ? value.toISOString() : String(value)
-}
-
-type NoteField = 'title' | 'status' | 'tags'
-
-const chip = (name: string, note: PreviewNote | undefined): Element => {
-  const color = note?.tagColors.find((tag) => sameName(tag.name, name))?.color
+const chip = (name: string, color: TagColorValue | undefined): Element => {
   const className = color
     ? ['frontmatter-chip', 'tag-chip', tagColorClass(color)]
     : ['frontmatter-chip']
@@ -81,18 +72,12 @@ const chip = (name: string, note: PreviewNote | undefined): Element => {
 }
 
 /** The note's own value beside the front matter's, and an Apply that sets it from the front matter. */
-function difference(
-  field: NoteField,
-  shown: string,
-  value: string | null,
-  note: PreviewNote,
-): Element {
+function differenceBadge(added: PropertyDifference, note: PreviewNote): Element {
   const { labels } = note
-  const badge = fillPlaceholders(labels.noteValue, { value: shown })
   const out: ElementContent[] = [
-    el('span', { className: ['frontmatter-badge'], title: badge }, [txt(badge)]),
+    el('span', { className: ['frontmatter-badge'], title: added.badge }, [txt(added.badge)]),
   ]
-  if (value !== null && note.canApply) {
+  if (added.value !== null && note.canApply) {
     const name = { title: labels.applyTitle, status: labels.applyStatus, tags: labels.applyTags }
     out.push(
       el(
@@ -100,9 +85,9 @@ function difference(
         {
           type: 'button',
           className: ['frontmatter-apply'],
-          ariaLabel: name[field],
-          dataFrontmatterApply: field,
-          dataFrontmatterValue: value,
+          ariaLabel: name[added.field],
+          dataFrontmatterApply: added.field,
+          dataFrontmatterValue: added.value,
         },
         [txt(labels.apply)],
       ),
@@ -111,92 +96,36 @@ function difference(
   return el('span', { className: ['frontmatter-note'] }, out)
 }
 
-/** What a field's row adds when the front matter says something other than the note: null when they agree. */
-function fieldDifference(
-  field: NoteField,
-  meta: FrontMatterMeta,
-  written: string,
-  note: PreviewNote,
-  untitled: string,
-): Element | null {
-  if (field === 'title') {
-    if (meta.title === null || meta.title.trim() === '') return null
-    const title = noteTitle(meta.title)
-    if (title === note.title) return null
-    return difference(field, note.title || untitled, title, note)
+function frontMatterBlock(view: FrontMatterView, note: PreviewNote | undefined): Element {
+  if (view.kind === 'yaml') {
+    return el('pre', { className: ['frontmatter'] }, [
+      el('code', { className: ['language-yaml'] }, [txt(view.yaml)]),
+    ])
   }
-  if (field === 'status') {
-    if (meta.status === note.status) return null
-    // Text that names no status cannot be applied, but it still is not the note's status.
-    if (meta.status === null && written.trim() === '') return null
-    return difference(field, note.labels.statuses[note.status], meta.status, note)
-  }
-  const same =
-    meta.tags.length === note.tags.length &&
-    meta.tags.every((name) => note.tags.some((own) => sameName(own, name)))
-  if (same) return null
-  const shown = note.tags.length > 0 ? note.tags.join(', ') : note.labels.noTags
-  return difference(field, shown, JSON.stringify(meta.tags), note)
-}
-
-const isNoteField = (key: string): key is NoteField =>
-  key === 'title' || key === 'status' || key === 'tags'
-
-function propertiesBlock(
-  yaml: string,
-  note: PreviewNote | undefined,
-  untitled: string,
-): Element | null {
-  let data: unknown
-  try {
-    data = parse(yaml, { maxAliasCount: 16 })
-  } catch {
-    return null
-  }
-  if (data === null || typeof data !== 'object' || Array.isArray(data)) return null
-  const entries = Object.entries(data as Record<string, unknown>)
-  const meta = note ? readFrontMatterYaml(yaml) : null
-  // As import reads them: keys match in any case and the last of a repeated one counts.
-  const fieldRows = new Map<NoteField, number>()
-  entries.forEach(([key], i) => {
-    const field = key.toLowerCase()
-    if (isNoteField(field)) fieldRows.set(field, i)
-  })
-  const fieldAt = new Map([...fieldRows].map(([field, i]) => [i, field]))
-  const rows = entries.map(([key, value], i) => {
-    const field = note && meta ? fieldAt.get(i) : undefined
-    const list = Array.isArray(value) && value.every((v) => v === null || typeof v !== 'object')
+  const rows = view.rows.map(({ key, value, difference }) => {
     const dd: ElementContent[] =
-      field === 'tags' && meta
-        ? meta.tags.map((name) => chip(name, note))
-        : list
-          ? (value as unknown[]).map((v) => chip(valueText(v), undefined))
-          : [txt(valueText(value))]
-    if (field && meta && note) {
-      const added = fieldDifference(field, meta, valueText(value), note, untitled)
+      value.kind === 'chips' ? value.chips.map((c) => chip(c.name, c.color)) : [txt(value.text)]
+    if (difference && note) {
+      const added = differenceBadge(difference, note)
       // A space, so the badge can wrap under a long value; chips are spaced by their row.
-      if (added && dd[0]?.type === 'text') dd.push(txt(' '), added)
-      else if (added) dd.push(added)
+      if (value.kind === 'text') dd.push(txt(' '), added)
+      else dd.push(added)
     }
     return el('div', { className: ['frontmatter-row'] }, [
       el('dt', {}, [txt(key)]),
       el('dd', {}, dd),
     ])
   })
-  return rows.length > 0 ? el('dl', { className: ['frontmatter'] }, rows) : null
+  return el('dl', { className: ['frontmatter'] }, rows)
 }
 
 /** YAML that is not a map of keys shows as code. */
 const frontmatter: PreviewRenderer = {
   id: 'devot.frontmatter',
   apiVersion: PREVIEW_API_VERSION,
-  transform(tree, { frontmatter: yaml, note, labels }) {
-    if (yaml === null) return
-    const block =
-      propertiesBlock(yaml, note, labels.untitled) ??
-      el('pre', { className: ['frontmatter'] }, [
-        el('code', { className: ['language-yaml'] }, [txt(yaml)]),
-      ])
+  transform(tree, { frontmatter: yaml, note, labels, frontMatterInInfo }) {
+    if (yaml === null || frontMatterInInfo) return
+    const block = frontMatterBlock(frontMatterView(yaml, note, labels.untitled), note)
     // Front matter always opens the note.
     block.position = { start: { line: 1, column: 1 }, end: { line: 1, column: 1 } }
     tree.children.unshift(block)

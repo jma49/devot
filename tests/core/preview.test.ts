@@ -247,6 +247,15 @@ describe('Markdown dialect', () => {
       expect(value).toHaveLength(1000)
     })
 
+    it('leaves the front matter out of the body when Note Info shows it', async () => {
+      const tree = await render('---\ntitle: Plan\n---\n\n# Body', {
+        note: noteFields({}),
+        frontMatterInInfo: true,
+      })
+      expect(byClass(tree, 'frontmatter')).toEqual([])
+      expect((tree.children[0] as Element).tagName).toBe('h1')
+    })
+
     it('shows front matter as written without the note’s fields (exports, copies, templates)', async () => {
       const tree = await render('---\ntitle: Plan\nstatus: on hold\ntags: [work]\n---\n')
       expect(badges(tree)).toEqual([])

@@ -23,7 +23,11 @@ Part of the [architecture overview](../architecture.md).
   The note service then takes the stored copy in, as when it hears of an outside write (`takeIn`: a Yjs merge, so neither side's text is lost, and the newer HLC of each metadata field), and writes again (`put` in `src/core/notes/saving.ts`), five times a write at most (`WRITE_TRIES`): a save the other keeps getting ahead of fails like any other, keeping its changes, and is tried again later (see Saving and quitting).
   A change written without loading the note and a restore from the Trash read the note again and write again the same way; moving a note to the Trash writes the body as its document holds it, with what it took in since its last write.
   A write may be based on a whole number below 2^53 − 1 (`MAX_BODY_VERSION`), so the version it moves on to is still exact in JavaScript; `note_put` refuses any other with `E_NOTE_VERSION_INVALID`, as every storage adapter does (`checkNote`).
-- **Hand-set dates:** the preview's info card sets a note's created and updated dates (a click opens a date-time field; Return saves, Escape cancels).
+- **Hand-set dates:** Note Info's Created and Updated rows set a note's created and updated dates (`noteInfo/NoteInfoCard.tsx`).
+  A click on a row opens Devot's own date picker under it (`DatePicker.tsx`, its logic in `noteInfo/calendar.ts`): a month with the days of the weeks around it, the week starting on the locale's first day, and the hour and minute (with AM and PM where the locale writes them).
+  The picker keeps the date's seconds and milliseconds and turns off the days the other date rules out: Created no later than Updated, Updated no earlier than Created.
+  A date left unchanged is written back exactly as stored, even in the hour that comes twice when the clocks go back.
+  Set is turned off while the time breaks that rule, is incomplete or is skipped when the clocks go forward, and says why; Return sets, Escape cancels, and a save that fails says so and keeps the picker open.
   Both dates share one HLC (schema v17 `notes.dates_hlc`, `datesHlc` on a record, '' when never set): a write with a newer one sets both as written, any other keeps `created_at` and moves `updated_at` only forward, in every storage adapter alike.
   `NoteService.setDates` refuses a time that is not a whole, non-negative millisecond count, or a note updated before it was created (`E_NOTE_TIME_INVALID`, as `note_put` does).
   The next edit moves the update date on as usual.

@@ -216,6 +216,7 @@ it('keeps every command item to set its key', () => {
     ['Check', 'sync_scroll'],
     ['Plain', 'backups'],
     ['Plain', 'today'],
+    ['Plain', 'note_info'],
   ])
 })
 

@@ -163,7 +163,7 @@ test('the title, the first pill and the text start 32 from the divider', async (
   const from = async (locator: Locator) => Math.round((await left(locator)) - origin)
 
   expect(await from(page.locator('.title'))).toBe(32)
-  expect(await from(page.locator('.note-meta > *').first())).toBe(32)
+  expect(await from(page.locator('.note-meta-fields > *').first())).toBe(32)
   expect(Math.round((await inkLeft(page.locator('.cm-line').first())) - origin)).toBe(32)
 })
 

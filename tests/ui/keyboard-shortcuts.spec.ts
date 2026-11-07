@@ -350,6 +350,7 @@ test('a shortcut changed in Settings works in the main window at once', async ({
       'view.togglePreview': 'CmdOrCtrl+E',
       'view.split': 'CmdOrCtrl+P',
       'view.syncScroll': null,
+      'view.noteInfo': 'Alt+CmdOrCtrl+I',
       'app.backups': null,
     },
   })

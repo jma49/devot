@@ -1,6 +1,6 @@
-// Something that changes size in place (the image viewer between Fit and
-// Actual Size, the backlinks opening) eases to it over `motion.duration.grow`
-// on the `motion.easing.move` curve. Reduce Motion shows it at once.
+// Something that changes size in place (the image viewer between Fit and Actual Size)
+// eases to it over `motion.duration.grow` on the `motion.easing.move` curve.
+// Reduce Motion shows it at once.
 import { motionTiming } from './motionTiming'
 import { motionReduced } from './motionPreference'
 

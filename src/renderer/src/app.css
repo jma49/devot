@@ -13,6 +13,7 @@
   --section-enter-shift: var(--space-4);
   --bar-enter-shift: var(--space-4);
   --outline-enter-shift: var(--space-9);
+  --month-slide-shift: var(--space-7);
   --popover-shadow:
     0 var(--shadow-popover-y) var(--shadow-popover-key-blur) var(--color-shadow-popover-key),
     0 var(--shadow-popover-y) var(--shadow-popover-ambient-blur) var(--color-shadow-popover-ambient);
@@ -29,6 +30,7 @@
   --section-enter-shift: 0px;
   --bar-enter-shift: 0px;
   --outline-enter-shift: 0px;
+  --month-slide-shift: 0px;
 }
 
 @keyframes popover-in {
@@ -2421,7 +2423,7 @@ div.card-placeholder {
 }
 
 /* The notebook pop-up's icon, not its hover fill, lines up with the title. */
-.note-meta > .picker:first-child {
+.note-meta-fields > .picker:first-child {
   margin-inline-start: calc(-1 * var(--space-2));
 }
 
@@ -3097,156 +3099,557 @@ div.card-placeholder {
   box-shadow: inset 0 0 0 2px var(--color-accent-fill);
 }
 
-/* The first thing in the preview, never in an exported or printed page. */
-.note-info {
-  margin: var(--space-1) 0 var(--space-7);
+/* The note summary ends the pill row and opens the Note Info card under it (design/layout.md). */
+.note-meta-fields {
+  display: contents;
+}
+
+.note-info-anchor {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.note-summary {
+  box-sizing: border-box;
+  min-width: 0;
+  height: var(--size-segment-height);
+  padding: 0 var(--space-2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  outline-color: transparent;
+  transition:
+    background-color var(--motion-duration-hover) var(--motion-easing-out),
+    color var(--motion-duration-hover) var(--motion-easing-out),
+    outline-color var(--motion-duration-quick) var(--motion-easing-quick),
+    scale var(--press-duration, var(--motion-duration-settle))
+      var(--press-easing, var(--motion-easing-spring));
+}
+
+.note-summary[data-pending] {
+  visibility: hidden;
+}
+
+.note-summary:hover {
+  background: var(--color-fill-tool-hover);
+  color: var(--color-text-secondary);
+}
+
+.note-summary[aria-expanded='true'] {
+  background: var(--color-fill-card);
+  color: var(--color-text-secondary);
+}
+
+.note-summary:active {
+  --press-duration: var(--motion-duration-quick);
+  --press-easing: var(--motion-easing-move);
+  scale: var(--press-scale);
+}
+
+.note-summary:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+}
+
+.note-info-card {
+  position: absolute;
+  top: calc(100% + var(--space-3));
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: var(--size-note-info-width);
+  max-height: var(--note-info-room, 100vh);
+  padding: var(--space-3);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-editor);
+  color: var(--color-text-primary);
   font-size: var(--font-size-body);
   line-height: 1.3;
+  text-align: start;
+  white-space: normal;
+  box-shadow: var(--popover-shadow);
+  outline: none;
+  transform-origin: top left;
+  animation: popover-in var(--motion-duration-popover) var(--motion-easing-move);
   -webkit-user-select: none;
   user-select: none;
 }
 
-.note-info-card {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-7);
-  box-sizing: border-box;
-  min-height: calc(var(--space-10) + var(--space-4) * 2);
-  padding: var(--space-4);
-  border-radius: var(--radius-floating-bar);
-  background: var(--color-fill-card);
+.note-info-card[data-side='above'] {
+  top: auto;
+  bottom: calc(100% + var(--space-3));
+  transform-origin: bottom left;
 }
 
-.note-info-field {
-  display: inline-flex;
+.note-info-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Every row shares the card's keylines: icon at 16, label at 42, value at 116. */
+.note-info-row {
+  display: grid;
+  grid-template-columns: var(--size-icon-menu) var(--size-note-info-label) minmax(0, 1fr) auto;
+  column-gap: var(--space-5);
   align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--size-note-info-row);
+  margin: 0;
+  padding: var(--space-2) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  outline-color: transparent;
+  transition:
+    background-color var(--motion-duration-hover) var(--motion-easing-out),
+    outline-color var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
+button.note-info-row:hover,
+.note-info-row[data-editing] {
+  background: var(--color-fill-tool-hover);
+}
+
+button.note-info-row:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
 }
 
 .note-info-icon {
   display: inline-flex;
-  flex: none;
-  align-items: center;
   justify-content: center;
-  width: var(--space-10);
-  height: var(--space-10);
-  color: var(--color-text-primary);
+  color: var(--color-text-secondary);
 }
 
-.note-info-icon .icon {
-  width: var(--size-icon-lg);
-  height: var(--size-icon-lg);
+.note-info-label {
+  overflow: hidden;
+  margin: 0;
+  color: var(--color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.note-info-icon .icon-svg {
-  width: var(--size-icon-lg);
-  height: var(--size-icon-lg);
+.note-info-value {
+  grid-column: 3 / -1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.note-info-link .note-info-value {
+  grid-column: 2 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-info-row[data-editing] .note-info-value {
+  color: var(--color-accent-text);
+}
+
+.note-info-section {
+  margin-top: var(--space-2);
 }
 
 .note-info-caption {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.note-info-label {
-  color: var(--color-text-secondary);
-  font-size: 0.6rem;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.note-info-date {
-  /* The hover fill reaches past the text, which stays on the label's edge. */
-  margin-inline: calc(var(--space-1) * -1);
-  padding: 0 var(--space-1);
-  border: 0;
-  border-radius: var(--radius-button);
-  background: none;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.note-info-date:hover {
-  background: var(--color-fill-track);
-}
-
-.note-info-date-input {
-  padding: 0 var(--space-1);
-  border: 1px solid var(--color-line-control);
-  border-radius: var(--radius-button);
-  background: none;
-  color: inherit;
-  font: inherit;
-}
-
-.note-info-date-edit {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
-}
-
-.note-info-date-input[aria-invalid='true'] {
-  border-color: var(--color-status-dropped);
-}
-
-.note-info-date-problem {
-  color: var(--color-status-dropped);
-  font-size: var(--font-size-footnote);
-  white-space: normal;
-}
-
-.note-info-value {
-  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-body);
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--size-note-info-caption);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  outline-color: transparent;
+}
+
+.note-info-caption:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
+.note-info-count {
+  font-weight: var(--font-weight-regular);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
-/* Above the note text's rule for `details`, which would take this margin away. */
-.note-info .note-backlinks {
-  margin-top: var(--space-6);
+.note-info-chevron {
+  margin-inline-start: auto;
+  opacity: 0;
+  rotate: -90deg;
+  transition:
+    opacity var(--motion-duration-hover) var(--motion-easing-out),
+    rotate var(--motion-duration-toggle) var(--motion-easing-move);
 }
 
-.note-backlinks > summary {
-  cursor: default;
-  font-size: 0.8rem;
-  opacity: 0.7;
-  text-transform: uppercase;
+.note-info-section[data-open] .note-info-chevron {
+  rotate: 0deg;
 }
 
-.note-backlinks > ul {
-  margin: var(--space-2) 0 0;
+.note-info-caption:is(:hover, :focus-visible) .note-info-chevron {
+  opacity: 1;
+}
+
+:root[data-motion='reduced'] .note-info-chevron {
+  transition: opacity var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+.note-info-fold {
+  animation: fade-in var(--motion-duration-toggle) var(--motion-easing-move);
+}
+
+.note-info-properties,
+.note-info-links {
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.note-backlink {
-  display: inline-flex;
+.note-info-property .note-info-value {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  max-width: 100%;
-  padding: var(--space-1) 0;
-  border: 0;
-  background: none;
-  color: var(--color-accent-text);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
-.note-backlink > span {
+.note-info-yaml {
+  margin: 0 var(--space-5);
+  overflow-x: auto;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-footnote);
+  white-space: pre;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.note-info-empty {
+  margin: 0;
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  color: var(--color-text-tertiary);
+}
+
+.note-info-foot {
+  flex: none;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-line-separator);
+}
+
+.note-info-meter .note-info-value {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.note-info-meter-bar {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  height: var(--size-note-info-meter);
+  border: 0;
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-track);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.note-info-meter-bar::-webkit-progress-bar {
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-track);
+}
+
+.note-info-meter-bar::-webkit-progress-value {
+  border-radius: var(--radius-capsule);
+  background: var(--color-accent-fill);
+}
+
+/* The Note Info card's date picker hangs from the date it sets. */
+.date-picker {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  width: var(--size-date-picker-width);
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-line-hairline);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-editor);
+  box-shadow: var(--popover-shadow);
+  transform-origin: top left;
+  animation: popover-in var(--motion-duration-popover) var(--motion-easing-move);
+}
+
+.date-picker[data-side='above'] {
+  margin-top: calc(-1 * var(--space-2));
+  transform-origin: bottom left;
+}
+
+.date-picker-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--size-date-picker-head);
+  padding: 0 var(--space-2) 0 var(--space-5);
+}
+
+.date-picker-month {
+  flex: 1;
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.date-picker-nav,
+.date-picker-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 0;
+  color: var(--color-text-secondary);
+  font: inherit;
+  outline-color: transparent;
+  transition:
+    background-color var(--motion-duration-hover) var(--motion-easing-out),
+    outline-color var(--motion-duration-quick) var(--motion-easing-quick),
+    scale var(--press-duration, var(--motion-duration-settle))
+      var(--press-easing, var(--motion-easing-spring));
+}
+
+.date-picker-nav {
+  width: var(--size-date-picker-nav);
+  height: var(--size-date-picker-nav);
+  padding: 0;
+  border-radius: var(--radius-capsule);
+  background: transparent;
+}
+
+.date-picker-today {
+  width: var(--size-segment-height);
+}
+
+.date-picker-dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-capsule);
+  background: currentColor;
+}
+
+.date-picker-nav:hover,
+.date-picker-button:hover {
+  background: var(--color-fill-tool-hover);
+  color: var(--color-text-primary);
+}
+
+.date-picker-nav:active,
+.date-picker-button:active:not([aria-disabled='true']) {
+  --press-duration: var(--motion-duration-quick);
+  --press-easing: var(--motion-easing-move);
+  scale: var(--press-scale);
+}
+
+:is(.date-picker-nav, .date-picker-button, .date-picker-day, .date-picker-segment):focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
+.date-picker-grid {
+  overflow: hidden;
+}
+
+.date-picker-week,
+.date-picker-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 0 var(--space-2);
+}
+
+.date-picker-week > span {
+  height: var(--size-date-picker-week);
+  line-height: var(--size-date-picker-week);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+}
+
+.date-picker-days[data-slide] {
+  animation: month-slide var(--motion-duration-toggle) var(--motion-easing-move);
+}
+
+.date-picker-days[data-slide='previous'] {
+  --month-slide-from: calc(-1 * var(--month-slide-shift));
+}
+
+@keyframes month-slide {
+  from {
+    opacity: 0;
+    translate: var(--month-slide-from, var(--month-slide-shift)) 0;
+  }
+}
+
+.date-picker-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--size-date-picker-cell);
+  border-radius: var(--radius-capsule);
+  font-variant-numeric: tabular-nums;
+  outline-color: transparent;
+}
+
+.date-picker-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-date-picker-day);
+  height: var(--size-date-picker-day);
+  border-radius: var(--radius-capsule);
+  transition:
+    background-color var(--motion-duration-quick) var(--motion-easing-quick),
+    color var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
+.date-picker-day:hover .date-picker-circle {
+  background: var(--color-fill-tool-hover);
+}
+
+.date-picker-day[data-outside] .date-picker-circle {
+  color: var(--color-text-tertiary);
+}
+
+.date-picker-day[data-today] .date-picker-circle {
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.date-picker-day[aria-selected='true'] .date-picker-circle {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+  font-weight: var(--font-weight-semibold);
+}
+
+.date-picker-day[aria-disabled='true'] {
+  opacity: var(--opacity-disabled);
+}
+
+.date-picker-day[aria-disabled='true']:hover .date-picker-circle {
+  background: transparent;
+}
+
+.date-picker-time {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: var(--color-fill-card);
+}
+
+.date-picker-time-label {
+  color: var(--color-text-secondary);
+}
+
+.date-picker-clock {
+  display: inline-flex;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.date-picker-segment {
+  min-width: var(--size-segment-height);
+  height: var(--size-segment-height);
+  line-height: var(--size-segment-height);
+  border-radius: var(--radius-control);
+  text-align: center;
+  outline: none;
+}
+
+.date-picker-segment:focus {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+}
+
+.date-picker-colon {
+  padding: 0 var(--space-1);
+  color: var(--color-text-tertiary);
+}
+
+.date-picker-segment[data-segment='dayPeriod'] {
+  margin-inline-start: var(--space-2);
+}
+
+.date-picker-button {
+  height: var(--size-segment-height);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-capsule);
+  background: var(--color-fill-card);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-footnote);
+}
+
+.date-picker-note {
+  margin: 0;
+  padding: 0 var(--space-5);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.date-picker-note:not(:empty) {
+  padding-top: var(--space-3);
+}
+
+.date-picker-foot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.date-picker-foot .date-picker-button {
+  height: var(--size-field-height);
+  font-size: var(--font-size-body);
+}
+
+.date-picker-set {
+  background: var(--color-accent-fill);
+  color: var(--color-accent-on-fill);
+  font-weight: var(--font-weight-medium);
+}
+
+.date-picker-set:hover {
+  background: var(--color-accent-hover);
+  color: var(--color-accent-on-fill);
+}
+
+.date-picker-set[aria-disabled='true'] {
+  opacity: var(--opacity-disabled);
+  background: var(--color-accent-fill);
 }
 
 ::highlight(devot-find) {
@@ -7558,10 +7961,6 @@ button.popup:focus-visible {
   box-shadow: var(--popover-shadow);
 }
 
-:root[data-sidebar-material='on'] .note-info-card {
-  border-radius: var(--radius-note-info);
-}
-
 :root[data-sidebar-material='on'] .title {
   margin-inline: var(--size-editor-keyline);
   font-weight: var(--font-weight-bold);
@@ -7604,7 +8003,7 @@ button.popup:focus-visible {
   padding-top: calc(var(--note-space-pills-below) * 1px - var(--space-4));
 }
 
-:root[data-sidebar-material='on'] .note-meta > .picker:first-child {
+:root[data-sidebar-material='on'] .note-meta-fields > .picker:first-child {
   margin-inline-start: 0;
 }
 
@@ -7711,52 +8110,6 @@ button.popup:focus-visible {
   white-space: nowrap;
 }
 
-:root[data-sidebar-material='on'] .note-info-field {
-  flex: 1 1 auto;
-}
-
-:root[data-sidebar-material='on'] .note-info-icon {
-  color: var(--color-text-secondary);
-}
-
-:root[data-sidebar-material='on'] .note-info-field + .note-info-field {
-  padding-inline-start: var(--space-7);
-  border-inline-start: 1px solid var(--color-line-separator);
-}
-
-:root[data-sidebar-material='on'] .note-info-icon .icon,
-:root[data-sidebar-material='on'] .note-info-icon .icon-svg {
-  width: var(--size-icon-md);
-  height: var(--size-icon-md);
-}
-
-:root[data-sidebar-material='on'] .note-backlinks > summary {
-  font-size: var(--font-size-body);
-  text-transform: none;
-  color: var(--color-text-secondary);
-  opacity: 1;
-  list-style: none;
-}
-
-:root[data-sidebar-material='on'] .note-backlinks > summary::-webkit-details-marker {
-  display: none;
-}
-
-:root[data-sidebar-material='on'] .note-backlinks > summary::before {
-  content: '';
-  display: inline-block;
-  width: var(--space-2);
-  height: var(--space-2);
-  margin-inline: 0 var(--space-4);
-  border-top: 1px solid currentColor;
-  border-right: 1px solid currentColor;
-  rotate: 45deg;
-}
-
-:root[data-sidebar-material='on'] .note-backlinks[open] > summary::before {
-  rotate: 135deg;
-}
-
 /* Screen only: printing keeps the full-width rule. */
 @media screen {
   :root[data-sidebar-material='on'] .preview .footnotes {
@@ -7779,12 +8132,6 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .preview :is(h1, h2) {
   border-bottom: 0;
-}
-
-:root[data-sidebar-material='on'] .note-info-label {
-  font-size: var(--font-size-caption);
-  letter-spacing: normal;
-  text-transform: none;
 }
 
 :root[data-sidebar-material='on'] .palette {
@@ -8246,6 +8593,35 @@ button.popup:focus-visible {
   border-right: 0.5px solid var(--color-line-glass-edge);
   border-bottom: 0.5px solid var(--color-line-glass-edge);
   clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+/* The Note Info card and its date picker: glass popovers at the popover inset, with menu-row corners. */
+:root[data-sidebar-material='on'] :is(.note-info-card, .date-picker) {
+  padding: var(--size-glass-popover-inset);
+  border: 0;
+  border-radius: var(--radius-glass-popover);
+  background: var(--color-surface-popover);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  box-shadow: var(--glass-rim), var(--popover-shadow);
+}
+
+:root[data-sidebar-material='on'] :is(.note-info-row, .note-info-caption) {
+  border-radius: var(--radius-glass-menu-row);
+}
+
+:root[data-sidebar-material='on'] .note-info-foot {
+  border-top: 0;
+}
+
+:root[data-sidebar-material='on'] .note-summary {
+  height: var(--size-note-pill);
+  padding-inline: var(--size-note-pill-pad);
+  border-radius: var(--radius-capsule);
+}
+
+:root[data-sidebar-material='on'] .date-picker-time {
+  border-radius: var(--radius-glass-menu-row);
 }
 
 /* Placed at the pointer, so it has no button to point at. */

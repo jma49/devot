@@ -15,118 +15,101 @@ async function newNote(page: Page, title: string, body = '') {
   }
 }
 
-const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
-const card = (page: Page) => preview(page).getByRole('group', { name: 'Note info' })
-const showPreview = (page: Page) =>
-  page.getByRole('group', { name: 'View mode' }).getByRole('button', { name: 'Preview' }).click()
+const summary = (page: Page) => page.getByRole('button', { name: /^Note info: / })
+const card = (page: Page) => page.getByRole('dialog', { name: 'Note info' })
+const picker = (page: Page) => page.getByRole('dialog', { name: /^Choose the .* date$/ })
+const dateRow = (page: Page, field: 'Created' | 'Updated') =>
+  card(page).getByRole('button', { name: new RegExp(`^${field}: `) })
+
+// The typed body saves a moment later and moves the update date: wait until it has held.
+async function settled(page: Page) {
+  const updated = card(page).locator('time[data-info="updated"]')
+  await expect
+    .poll(async () => {
+      const first = await updated.textContent()
+      await page.waitForTimeout(1100)
+      return first === (await updated.textContent())
+    })
+    .toBe(true)
+}
 
 test.beforeEach(async ({ page }) => {
   await openApp(page)
 })
 
-test('shows task progress and dates in the note info card', async ({ page }) => {
+test('the summary ends the pill row and counts the note', async ({ page }) => {
   await newNote(page, 'Chores', '- [x] dishes\n- [ ] laundry\n')
-  await showPreview(page)
-  await expect(card(page)).toContainText('Progress')
-  await expect(card(page)).toContainText('1 of 2 tasks')
-  await expect(card(page).locator('progress')).toHaveAttribute('max', '2')
-  await expect(card(page).locator('time')).toHaveCount(2)
-  await expect(card(page).locator('time').first()).toHaveText(
-    /^[A-Z][a-z]{2} \d{1,2}, \d{4}(?: at|,) \d{1,2}:\d{2}\s[AP]M$/,
-  )
+  await expect(summary(page)).toHaveText('1/2 · 2 words')
+  const meta = page.locator('.note-meta')
+  await expect(meta.locator('.note-summary')).toBeVisible()
+  const add = (await meta.getByRole('group', { name: 'Tags' }).boundingBox())!
+  const box = (await summary(page).boundingBox())!
+  expect(box.x).toBeGreaterThan(add.x)
 })
 
-test('leaves Progress out for a note without tasks', async ({ page }) => {
+test('a note with nothing to count says when it was updated', async ({ page }) => {
   await newNote(page, 'Plain', 'Just words.')
-  await showPreview(page)
-  await expect(card(page)).toContainText('Created')
-  await expect(card(page)).not.toContainText('Progress')
+  await expect(summary(page)).toHaveText(/^Updated .* · 2 words$/)
 })
 
-test('a date on the card is edited in a date-time field: Return saves, Escape cancels', async ({
+test('the summary and View > Note Info open the card, and the keyboard comes back', async ({
   page,
 }) => {
   await newNote(page, 'Dated', 'Some text.')
-  await showPreview(page)
+  await summary(page).click()
+  await expect(card(page)).toBeFocused()
+  await expect(summary(page)).toHaveAttribute('aria-expanded', 'true')
+  await expect(card(page).locator('time')).toHaveCount(2)
+  await page.keyboard.press('Escape')
+  await expect(card(page)).toHaveCount(0)
+  await expect(summary(page)).toBeFocused()
+
+  await page.keyboard.press('Meta+Alt+KeyI')
+  await expect(card(page)).toBeVisible()
+  await page.keyboard.press('Meta+Alt+KeyI')
+  await expect(card(page)).toHaveCount(0)
+
+  await summary(page).click()
+  await page.getByRole('textbox', { name: 'Title' }).click()
+  await expect(card(page)).toHaveCount(0)
+})
+
+test('a date is set from the date picker: Return sets, Escape cancels', async ({ page }) => {
+  await newNote(page, 'Dated', 'Some text.')
+  await summary(page).click()
+  await settled(page)
   const created = card(page).locator('time[data-info="created"]')
   const updated = card(page).locator('time[data-info="updated"]')
-  await expect(created).toHaveText(/^[A-Z][a-z]{2} \d{1,2}, \d{4}(?: at|,) \d{1,2}:\d{2}\s[AP]M$/)
-  // The typed body saves a moment later and moves the update date (to the second): read it once it has held for over a second.
-  await expect
-    .poll(async () => {
-      const first = await updated.textContent()
-      await page.waitForTimeout(1100)
-      return first === (await updated.textContent())
-    })
-    .toBe(true)
   const updatedBefore = await updated.textContent()
+  const createdBefore = await created.textContent()
 
-  await created.click()
-  const field = card(page).locator('input[data-info-edit="created"]')
-  await expect(field).toBeFocused()
-  await field.fill('2020-01-02T03:04:05')
+  await dateRow(page, 'Created').click()
+  await expect(picker(page)).toBeVisible()
+  const today = picker(page).locator('[role="gridcell"][tabindex="0"]')
+  await expect(today).toBeFocused()
+  await page.keyboard.press('PageUp')
   await page.keyboard.press('Enter')
-  await expect(field).toHaveCount(0)
-  await expect(created).toHaveText(/^Jan 2, 2020(?: at|,) 3:04\sAM$/)
+  await expect(picker(page)).toHaveCount(0)
+  await expect(created).not.toHaveText(createdBefore ?? '')
   await expect(updated).toHaveText(updatedBefore ?? '')
+  await expect(dateRow(page, 'Created')).toBeFocused()
 
-  await updated.click()
-  const other = card(page).locator('input[data-info-edit="updated"]')
-  await other.fill('2021-05-06T07:08:09')
+  const createdNow = await created.textContent()
+  await dateRow(page, 'Updated').click()
+  const focusedDay = picker(page).locator('[role="gridcell"][tabindex="0"]')
+  await expect(focusedDay).toBeFocused()
+  await page.keyboard.press('PageUp')
+  await page.keyboard.press('PageUp')
+  await expect(focusedDay).toHaveAttribute('aria-disabled', 'true')
+  await expect(picker(page).getByRole('alert')).toHaveText('')
   await page.keyboard.press('Escape')
-  await expect(other).toHaveCount(0)
+  await expect(picker(page)).toHaveCount(0)
+  await expect(card(page)).toBeVisible()
   await expect(updated).toHaveText(updatedBefore ?? '')
-  await expect(created).toHaveText(/^Jan 2, 2020(?: at|,) 3:04\sAM$/)
+  await expect(created).toHaveText(createdNow ?? '')
 })
 
-test('a date the card turns down stays open and says why', async ({ page }) => {
-  await newNote(page, 'Dated', 'Some text.')
-  await showPreview(page)
-  const updated = card(page).locator('time[data-info="updated"]')
-  await expect
-    .poll(async () => {
-      const first = await updated.textContent()
-      await page.waitForTimeout(1100)
-      return first === (await updated.textContent())
-    })
-    .toBe(true)
-  await updated.click()
-  const field = card(page).locator('input[data-info-edit="updated"]')
-  await field.fill('2020-01-01T10:00:05')
-  await page.keyboard.press('Enter')
-  await expect(card(page).getByRole('alert')).toHaveText('Updated cannot be earlier than Created.')
-  await expect(field).toHaveAttribute('aria-invalid', 'true')
-  await expect(field).toBeFocused()
-  await field.fill('')
-  await expect(card(page).getByRole('alert')).toHaveCount(0)
-  await page.keyboard.press('Enter')
-  await expect(card(page).getByRole('alert')).toHaveText('Enter a complete date and time.')
-  await page.keyboard.press('Escape')
-  await expect(field).toHaveCount(0)
-})
-
-test('the date button takes the keyboard back after Escape or a saved date', async ({ page }) => {
-  await newNote(page, 'Back to the button', 'Some text.')
-  await showPreview(page)
-  const button = (key: 'created' | 'updated') =>
-    card(page).getByRole('button', {
-      name: new RegExp(`^${key === 'created' ? 'Created' : 'Updated'}`),
-    })
-  await button('created').click()
-  await expect(card(page).locator('input[data-info-edit="created"]')).toBeFocused()
-  await page.keyboard.press('Escape')
-  await expect(button('created')).toBeFocused()
-
-  await button('created').click()
-  await card(page).locator('input[data-info-edit="created"]').fill('2020-01-02T03:04:05')
-  await page.keyboard.press('Enter')
-  await expect(card(page).locator('time[data-info="created"]')).toHaveText(
-    /^Jan 2, 2020(?: at|,) 3:04\sAM$/,
-  )
-  await expect(button('created')).toBeFocused()
-})
-
-test('the card keeps its edges and leaves room above the backlinks', async ({ page }) => {
+test('the card lists the backlinks and opens one', async ({ page }) => {
   await newNote(page, 'Target', 'The linked note')
   await newNote(page, 'Source', 'Links to ')
   await page.keyboard.type('[[Targ')
@@ -135,30 +118,29 @@ test('the card keeps its edges and leaves room above the backlinks', async ({ pa
     .filter({ hasText: /^Target/ })
     .first()
     .click()
-  await showPreview(page)
-  // The source's row also shows the link's name, and it sorts first as the newer note.
   const rows = page.getByRole('listbox', { name: 'Notes' }).getByRole('option')
-  const summary = preview(page).locator('.note-backlinks > summary')
   // The link is stored when the source saves, so the target may need opening again.
   await expect(async () => {
     await rows.first().click()
     await rows.last().click()
-    await expect(summary).toBeVisible({ timeout: 1000 })
+    await expect(summary(page)).toHaveText(/1 backlink/, { timeout: 1000 })
   }).toPass()
+  await summary(page).click()
+  const link = card(page).getByRole('button', { name: 'Source' })
+  await expect(link).toBeVisible()
+  await link.click()
+  await expect(card(page)).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Source')
+})
 
+test('the card keeps its keylines', async ({ page }) => {
+  await newNote(page, 'Lines', 'Some text.')
+  await summary(page).click()
   const box = (await card(page).boundingBox())!
-  const title = (await summary.boundingBox())!
-  expect(Math.abs(title.x - box.x)).toBeLessThanOrEqual(1)
-  expect(title.y - (box.y + box.height)).toBeGreaterThanOrEqual(12)
-
-  const label = (await card(page).locator('.note-info-label').first().boundingBox())!
-  const textX = await card(page)
-    .locator('.note-info-date')
-    .first()
-    .evaluate((el) => {
-      const range = document.createRange()
-      range.selectNodeContents(el)
-      return range.getBoundingClientRect().x
-    })
-  expect(Math.abs(textX - label.x)).toBeLessThanOrEqual(1)
+  const left = async (selector: string) =>
+    (await card(page).locator(selector).first().boundingBox())!.x - box.x
+  expect(Math.abs((await left('.note-info-row')) - 6)).toBeLessThanOrEqual(1)
+  expect(Math.abs((await left('.note-info-icon')) - 16)).toBeLessThanOrEqual(1)
+  expect(Math.abs((await left('.note-info-label')) - 42)).toBeLessThanOrEqual(1)
+  expect(Math.abs((await left('.note-info-value')) - 116)).toBeLessThanOrEqual(1)
 })

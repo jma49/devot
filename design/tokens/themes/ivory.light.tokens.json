@@ -999,7 +999,7 @@
           "hex": "#1f1e1d",
           "alpha": 0.065
         },
-        "$description": "The preview's note info card."
+        "$description": "A quiet fill: the note's pills, the date picker's time row and buttons, a broken image's box."
       },
       "settings-card": {
         "$type": "color",

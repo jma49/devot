@@ -1251,14 +1251,6 @@
       },
       "$description": "Glass interface: the ends of a quote's bar."
     },
-    "note-info": {
-      "$type": "dimension",
-      "$value": {
-        "value": 14,
-        "unit": "px"
-      },
-      "$description": "Glass interface: the note info card."
-    },
     "glass-popover": {
       "$type": "dimension",
       "$value": {
@@ -1661,6 +1653,61 @@
         "unit": "px"
       },
       "$description": "Glass interface: a note pill's padding at each side."
+    },
+    "note-info-width": {
+      "$type": "dimension",
+      "$value": { "value": 320, "unit": "px" },
+      "$description": "The Note Info card under the note summary."
+    },
+    "note-info-label": {
+      "$type": "dimension",
+      "$value": { "value": 64, "unit": "px" },
+      "$description": "The Note Info card: the label column, so values start on the 116 keyline."
+    },
+    "note-info-row": {
+      "$type": "dimension",
+      "$value": { "value": 30, "unit": "px" },
+      "$description": "The Note Info card: the least height of a row."
+    },
+    "note-info-caption": {
+      "$type": "dimension",
+      "$value": { "value": 24, "unit": "px" },
+      "$description": "The Note Info card: the height of a section caption (Properties, Backlinks)."
+    },
+    "note-info-meter": {
+      "$type": "dimension",
+      "$value": { "value": 4, "unit": "px" },
+      "$description": "The Note Info card: the height of the Tasks meter."
+    },
+    "date-picker-width": {
+      "$type": "dimension",
+      "$value": { "value": 276, "unit": "px" },
+      "$description": "The date picker of the Note Info card."
+    },
+    "date-picker-head": {
+      "$type": "dimension",
+      "$value": { "value": 32, "unit": "px" },
+      "$description": "The date picker: the month row."
+    },
+    "date-picker-cell": {
+      "$type": "dimension",
+      "$value": { "value": 32, "unit": "px" },
+      "$description": "The date picker: the height of a day cell."
+    },
+    "date-picker-day": {
+      "$type": "dimension",
+      "$value": { "value": 30, "unit": "px" },
+      "$description": "The date picker: the circle of a day."
+    },
+    "date-picker-nav": {
+      "$type": "dimension",
+      "$value": { "value": 26, "unit": "px" },
+      "$description": "The date picker: the round previous, today and next buttons."
+    },
+    "date-picker-week": {
+      "$type": "dimension",
+      "$value": { "value": 22, "unit": "px" },
+      "$description": "The date picker: the row of weekday captions."
     },
     "settings-swatch-width": {
       "$type": "dimension",
@@ -2776,7 +2823,7 @@
           "value": 300,
           "unit": "ms"
         },
-        "$description": "A size change: the image viewer resizing, a progress bar filling, the backlinks opening, a tag chip arriving, a code block's copy button showing."
+        "$description": "A size change: the image viewer resizing, a progress bar filling, a tag chip arriving, a code block's copy button showing."
       },
       "backdrop-exit": {
         "$value": {

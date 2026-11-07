@@ -1,14 +1,14 @@
 import type { Page } from '@playwright/test'
 import { expect, pickStatus, statusPicker, test } from './fixtures'
 
-// The live preview's front matter shows what differs from the note's own
-// title, status and tags, and Apply sets the note's field from it.
+// The main window shows a note's front matter in Note Info, not in the preview's body: what
+// differs from the note's own title, status and tags gets an Apply that sets the note's field.
 
 const preview = (page: Page) => page.getByRole('article', { name: 'Preview' })
-const props = (page: Page) => preview(page).locator('dl.frontmatter')
+const card = (page: Page) => page.getByRole('dialog', { name: 'Note info' })
 const row = (page: Page, key: string) =>
-  props(page)
-    .locator('.frontmatter-row')
+  card(page)
+    .locator('.note-info-property')
     .filter({ has: page.locator('dt', { hasText: key }) })
 const editorTags = (page: Page) => page.getByRole('group', { name: 'Tags' })
 
@@ -50,6 +50,12 @@ test('front matter that differs from the note offers to apply it', async ({ page
     .getByRole('group', { name: 'View mode' })
     .getByRole('button', { name: 'Split' })
     .click()
+  await expect(preview(page)).toContainText('Body')
+  await expect(preview(page).locator('.frontmatter')).toHaveCount(0)
+
+  const summary = page.getByRole('button', { name: /^Note info: / })
+  await expect(summary).toHaveText(/^3 properties · /)
+  await summary.click()
 
   await expect(row(page, 'title').locator('.frontmatter-badge')).toHaveCount(0)
   await expect(row(page, 'status').locator('.frontmatter-badge')).toHaveText('Note: Active')
@@ -72,7 +78,7 @@ test('front matter that differs from the note offers to apply it', async ({ page
   )
   expect(stored.map((tag) => tag.name).sort()).toEqual(['q4', 'work'])
 
-  // The preview's chip is painted as the note header's chip for the same tag.
+  // The card's chip is painted as the note header's chip for the same tag.
   const paint = (el: Element) => {
     const style = getComputedStyle(el)
     return [style.backgroundColor, style.borderTopColor, style.color]

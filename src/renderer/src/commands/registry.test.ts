@@ -327,6 +327,7 @@ describe('COMMANDS', () => {
     expect(keys('view.togglePreview')).toEqual(['Mod+E'])
     expect(keys('view.split')).toEqual(['Mod+P'])
     expect(keys('note.history')).toEqual(['Mod+Alt+Y'])
+    expect(keys('view.noteInfo')).toEqual(['Mod+Alt+I'])
     expect(keys('note.duplicate')).toEqual(['Mod+D'])
     expect(keys('notebook.delete')).toEqual(['Backspace', 'Delete'])
     expect(editorFormatKeys()).toEqual([
@@ -411,6 +412,7 @@ describe('COMMANDS', () => {
       [press('KeyF', 'f', { metaKey: true, shiftKey: true, altKey: true }), 'search.all'],
       [press('KeyD', 'd', { metaKey: true, shiftKey: true }), 'view.focus'],
       [press('KeyY', 'y', { metaKey: true, altKey: true }), 'note.history'],
+      [press('KeyI', 'Dead', { metaKey: true, altKey: true }), 'view.noteInfo'],
       [press('KeyN', 'n', { metaKey: true }), 'note.new'],
       [press('KeyF', 'f', { metaKey: true }), 'find.find'],
       [press('KeyC', 'c', { metaKey: true, altKey: true }), 'find.caseSensitive'],
@@ -672,6 +674,7 @@ describe('the commands that change notes', () => {
       'note.exportPdf',
       'note.print',
       'note.history',
+      'view.noteInfo',
       'note.openInWindow',
       'find.find',
       'find.next',

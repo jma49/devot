@@ -46,6 +46,7 @@ import {
   type TagService,
   type TemplateService,
   type PluginRendererSpec,
+  type PreviewNote,
   type PreviewOptions,
   type RenderPluginBlock,
   type SearchScope,
@@ -58,6 +59,7 @@ import {
 } from '../../core'
 import { errorCode } from '../../core/errors'
 import { noteCounts } from '../../core/noteCounts'
+import { noteFacts } from '../../core/noteFacts'
 import { createLivePreviewRenderer } from '../../core/preview/live'
 import { renderCardPreview, type CardLabels } from '../../core/preview/card'
 import { createSyncEngine, type SyncEngine, type SyncStatus } from '../../core/sync/engine'
@@ -419,6 +421,9 @@ const coreApi = {
     }),
   renderPreview: (markdown: string, options: PreviewOptions) => renderPreview(markdown, options),
   noteCounts: (markdown: string) => noteCounts(markdown),
+  /** What the open note's Note Info counts: tasks, words and its front matter as rows. */
+  noteFacts: (markdown: string, note: PreviewNote | undefined, untitled: string) =>
+    noteFacts(markdown, note, untitled),
   /** The open note's preview in pieces; `known` are the keys of the pieces the page shows. */
   renderPreviewPieces: (markdown: string, options: PreviewOptions, known: string[]) =>
     pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
