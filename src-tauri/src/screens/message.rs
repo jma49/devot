@@ -69,6 +69,26 @@ pub struct NoteCreate {
     pub title: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct NoteArgs {
+    pub note_id: String,
+}
+
+/// The editor's two panes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Mode {
+    Edit,
+    Preview,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModeArgs {
+    pub mode: Mode,
+}
+
 /// What Swift may ask the page for: an operation joins with the pull request that first sends it.
 /// What Rust answers itself is a `direct::Op`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,6 +106,14 @@ pub enum Op {
     TabsShow(TabArgs),
     #[serde(rename = "tabs.popToRoot")]
     TabsPopToRoot(TabArgs),
+    #[serde(rename = "editor.show")]
+    EditorShow(NoteArgs),
+    #[serde(rename = "editor.hide")]
+    EditorHide(Empty),
+    #[serde(rename = "editor.setMode")]
+    EditorSetMode(ModeArgs),
+    #[serde(rename = "editor.info")]
+    EditorInfo(Empty),
 }
 
 pub const OPS: &[&str] = &[
@@ -95,6 +123,10 @@ pub const OPS: &[&str] = &[
     "note.create",
     "tabs.show",
     "tabs.popToRoot",
+    "editor.show",
+    "editor.hide",
+    "editor.setMode",
+    "editor.info",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -121,6 +153,26 @@ pub struct TabsState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct OpenNote {
+    pub note_id: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct EditorMode {
+    pub note_id: String,
+    pub mode: Mode,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct EditorScroll {
+    pub title_visible: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "notice", content = "fields")]
 pub enum Notice {
     #[serde(rename = "notes.changed")]
@@ -129,9 +181,28 @@ pub enum Notice {
     EditorTitle(EditorTitle),
     #[serde(rename = "tabs.state")]
     TabsState(TabsState),
+    #[serde(rename = "nav.openNote")]
+    NavOpenNote(OpenNote),
+    #[serde(rename = "nav.back")]
+    NavBack(Empty),
+    #[serde(rename = "editor.ready")]
+    EditorReady(NoteArgs),
+    #[serde(rename = "editor.mode")]
+    EditorMode(EditorMode),
+    #[serde(rename = "editor.scroll")]
+    EditorScroll(EditorScroll),
 }
 
-const NOTICES: &[&str] = &["notes.changed", "editor.title", "tabs.state"];
+const NOTICES: &[&str] = &[
+    "notes.changed",
+    "editor.title",
+    "tabs.state",
+    "nav.openNote",
+    "nav.back",
+    "editor.ready",
+    "editor.mode",
+    "editor.scroll",
+];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Request {
@@ -371,7 +442,12 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             }
             create.title.as_deref().map_or(Ok(()), title)
         }
-        Op::TabsShow(_) | Op::TabsPopToRoot(_) => Ok(()),
+        Op::EditorShow(NoteArgs { note_id }) => note_ids(std::slice::from_ref(note_id), 1),
+        Op::TabsShow(_)
+        | Op::TabsPopToRoot(_)
+        | Op::EditorHide(_)
+        | Op::EditorSetMode(_)
+        | Op::EditorInfo(_) => Ok(()),
     }
 }
 
@@ -382,7 +458,15 @@ fn validate_notice(notice: &Notice) -> Result<(), &'static str> {
             note_ids(std::slice::from_ref(&editor.id), 1)?;
             title(&editor.title)
         }
-        Notice::TabsState(_) => Ok(()),
+        Notice::NavOpenNote(open) => {
+            note_ids(std::slice::from_ref(&open.note_id), 1)?;
+            title(&open.title)
+        }
+        Notice::EditorReady(NoteArgs { note_id })
+        | Notice::EditorMode(EditorMode { note_id, .. }) => {
+            note_ids(std::slice::from_ref(note_id), 1)
+        }
+        Notice::TabsState(_) | Notice::NavBack(_) | Notice::EditorScroll(_) => Ok(()),
     }
 }
 
@@ -540,6 +624,15 @@ mod tests {
             from_page(&editor_title(&longer)),
             Err("E_SCREENS_TITLE_TOO_LONG")
         );
+        assert!(from_page(&open_note(&longest)).is_ok());
+        assert_eq!(
+            from_page(&open_note(&longer)),
+            Err("E_SCREENS_TITLE_TOO_LONG")
+        );
+    }
+
+    fn open_note(title: &str) -> Vec<u8> {
+        bytes(&json!({ "v": 1, "notice": "nav.openNote", "noteId": NOTE, "title": title }))
     }
 
     fn search(query: &str) -> Vec<u8> {

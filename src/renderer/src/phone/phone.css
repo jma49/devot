@@ -1706,7 +1706,7 @@ button.phone-grouped-open:active:not(:disabled) {
 /* The hidden copy of the title gives the field its height, at any width and text size. */
 .phone-note-heading-field {
   display: grid;
-  font-size: calc(26px * var(--phone-text-scale, 1));
+  font-size: calc(var(--font-size-phone-note-title) * var(--phone-text-scale, 1));
   line-height: 1.23;
   font-weight: 700;
 }

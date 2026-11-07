@@ -13,6 +13,7 @@ export const sizes = {
   "font.size.headline": "17px",
   "font.size.title": "22px",
   "font.size.note-title": "24px",
+  "font.size.phone-note-title": "26px",
   "font.size.row": "14px",
   "font.size.list-title": "16.8px",
   "font.weight.regular": "400",
