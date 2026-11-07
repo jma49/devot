@@ -51,7 +51,7 @@ Docs are written one sentence per line, so a change touches only the sentences i
   The windows only show what is locked; Rust enforces it (`E_LICENCE_REQUIRED`).
 - Usage data: the app records usage events through one local interface (event name, time, a few anonymous properties; never note content, titles or names).
   Nothing leaves the device until an opt-in upload ships with accounts (see Usage events).
-- Platforms: macOS 26 and later first, then iOS and iPadOS.
+- Platforms: macOS 26 and later first, then iOS 26 and later (the iPhone) and iPadOS.
   Windows and Linux are out of scope for now; platform code stays isolated (`src-tauri/src/native/`) so they remain possible.
 - Layout: three panes (sidebar, note list, editor and preview), keyboard-driven.
   In a narrow window (the minimum is 760 px) the list shrinks to `size.list-min-width` before the editor, which keeps `size.pane-min-width` for each split pane; below `size.sidebar-collapse-width` (1000 px) the sidebar is hidden until Show Sidebar (or Cmd+/) asks for it, a request that lasts until the window crosses that width again and is not stored.
