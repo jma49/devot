@@ -248,6 +248,28 @@ describe('Write mode emoji and inline HTML', () => {
   })
 })
 
+describe('Write mode inline math', () => {
+  it('draws a formula in place of its source, nothing inside it read as Markdown', () => {
+    expect(shown('Top $a_8^2 + b^2 = c^2$ end, $$x*y*z$$')).toBe(
+      'Top {$a_8^2 + b^2 = c^2$} end, {$$x*y*z$$}',
+    )
+  })
+
+  it("shows a formula's source while the caret is in it or at its edge", () => {
+    const doc = '$x$ and $y$'
+    expect(shown(doc, caret(0))).toBe('$x$ and {$y$}')
+    expect(shown(doc, caret(3))).toBe('$x$ and {$y$}')
+    expect(shown(doc, caret(4))).toBe('{$x$} and {$y$}')
+    expect(shown(doc, caret(doc.length - 1))).toBe('{$x$} and $y$')
+  })
+
+  it('leaves dollars the preview shows as text, and a formula over lines, as source', () => {
+    for (const doc of ['$5 and $6', 'A $ $ b', '$x\ny$']) expect(shown(doc)).toBe(doc)
+    expect(shown('`$x$`')).toBe('$x$')
+    expect(shown('$ x $')).toBe('{$ x $}')
+  })
+})
+
 describe('Write mode lists and tasks', () => {
   it('show a bullet for a bullet list mark, by depth, and keep numbers', () => {
     expect(shown('- a\n  * b\n    + c')).toBe('{bullet1} a\n  {bullet2} b\n    {bullet3} c')
