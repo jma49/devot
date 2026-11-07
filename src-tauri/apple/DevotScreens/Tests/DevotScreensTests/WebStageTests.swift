@@ -164,7 +164,7 @@ final class WebStageTests: XCTestCase {
         XCTAssertEqual(try requests(rust, .tabsPopToRoot).map(\.1), [["tab": .string("settings")]])
     }
 
-    func testPairADeviceOpensSyncAtItsPairingOnceAndAnAnswerAfterLeavingMovesNothing() throws {
+    func testPairADeviceOpensTheNativeSyncPaneWithoutAskingThePage() throws {
         let webView = RecordingWebView()
         let rust = FakeRust()
         let tao = UIViewController()
@@ -175,31 +175,13 @@ final class WebStageTests: XCTestCase {
         let tabs = screens.root.tabs
         tabs.select(.settings)
         tabs.view.layoutIfNeeded()
-        let router = tabs.settings.router
-        let make = router.make
-        var made: [SettingsPage] = []
-        let navigation = tabs.settings.navigation
-        router.make = { made.append($0); return UIViewController() }
-        router.navigation = nil
         tabs.settings.root.onPair()
-        XCTAssertEqual(made, [.sync(anchor: .pairing)])
-        router.make = make
-        router.navigation = navigation
-        navigation.setViewControllers([tabs.settings.root, make(.sync(anchor: .pairing))], animated: false)
         tabs.view.layoutIfNeeded()
-        let pane = try XCTUnwrap(tabs.settings.navigation.topViewController as? WebPaneScreen)
-        let shows = { try self.requests(rust, .settingsShowPane) }
-        XCTAssertEqual(try shows().last?.1, ["pane": .string("sync"), "anchor": .string("pairing")])
-
-        tabs.select(.library)
-        tabs.view.layoutIfNeeded()
-        let late = try XCTUnwrap(try shows().last)
-        screens.replied(late.0, try Message.reply(id: late.0, outcome: .ok(.object([:]))).json())
+        let pane = try XCTUnwrap(tabs.settings.navigation.topViewController)
+        XCTAssertFalse(pane is WebPaneScreen)
+        XCTAssertEqual(pane.navigationItem.title, L10n.settingsPaneSync())
+        XCTAssertTrue(try requests(rust, .settingsShowPane).isEmpty)
         XCTAssertFalse(webView.superview === pane.view)
-
-        tabs.select(.settings)
-        tabs.view.layoutIfNeeded()
-        XCTAssertEqual(try shows().last?.1, ["pane": .string("sync")])
     }
 
     /// The bar's inset may reach a screen through its superview, which a negative additional inset

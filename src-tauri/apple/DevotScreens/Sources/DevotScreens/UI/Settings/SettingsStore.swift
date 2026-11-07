@@ -87,7 +87,12 @@ final class SettingsStore {
     private(set) var crashReports: CrashReports?
     private(set) var licence: Licence?
     var ai: AiView?
-    private(set) var sync: JSONValue?
+    private(set) var sync: SyncSnapshot?
+    private(set) var icloud = ICloudStatus.none
+    /// Counts `sync.pairing` notices: the Sync pane checks its pairing at once on each.
+    private(set) var pairingNudges = 0
+    @ObservationIgnored private var syncReading = false
+    @ObservationIgnored private var syncAgain = false
     private(set) var notebooks: [NotebookChoice] = []
     private(set) var products: [StoreProduct] = []
     var failure: String?
@@ -134,7 +139,7 @@ final class SettingsStore {
             if licence?.soldOnAppStore == true, products.isEmpty { loadProducts() }
         }
         read(.aiGet) { [weak self] in self?.ai = AiView($0) }
-        read(.syncGet) { [weak self] in self?.sync = $0 }
+        readSync()
         bridge?.request(.settingsNotebooks, [:]) { [weak self] outcome in
             guard case .ok(let value) = outcome, let list = value["notebooks"]?.array else { return }
             self?.notebooks = list.compactMap { item in
@@ -156,8 +161,56 @@ final class SettingsStore {
         }
     }
 
-    var syncOn: Bool { sync?["enabled"]?.bool ?? false }
-    var syncNeedsOwner: Bool { sync.map(SyncAttention.needsOwner) ?? false }
+    var syncOn: Bool { sync?.enabled ?? false }
+    var syncNeedsOwner: Bool { sync.flatMap(ICloudAttention.of)?.needsOwner ?? false }
+
+    func heard(_ notice: NoticeKind) {
+        switch notice {
+        case .syncChanged: readSync()
+        case .syncPairing: pairingNudges += 1
+        default: break
+        }
+    }
+
+    /// One read at a time: a change heard during it reads once more after it.
+    func readSync() {
+        guard let bridge else { return }
+        guard !syncReading else {
+            syncAgain = true
+            return
+        }
+        syncReading = true
+        bridge.direct(.syncGet, [:]) { [weak self] outcome in
+            guard let self else { return }
+            syncReading = false
+            switch outcome {
+            case .ok(let value): adoptSync(value)
+            case .failed(let code): log("W_PHONE_SETTINGS_READ_FAILED op=\(DirectOp.syncGet.rawValue) code=\(code)")
+            }
+            if syncAgain {
+                syncAgain = false
+                readSync()
+            }
+        }
+    }
+
+    /// iCloud's state is read again whenever what it depends on changes (`useICloudStatus`).
+    func adoptSync(_ value: JSONValue) {
+        guard let next = SyncSnapshot(value) else { return }
+        let before = sync.map(Self.icloudInputs)
+        sync = next
+        if before != Self.icloudInputs(next) { readICloud() }
+    }
+
+    private static func icloudInputs(_ sync: SyncSnapshot) -> [String] {
+        ["\(sync.vault)", sync.transport, "\(sync.enabled)", sync.status.code ?? "", sync.icloudJoin?.state ?? ""]
+    }
+
+    private func readICloud() {
+        bridge?.direct(.syncIcloudStatus, [:]) { [weak self] outcome in
+            if case .ok(let value) = outcome { self?.icloud = ICloudStatus(value) } else { self?.icloud = .none }
+        }
+    }
 
     func flag(_ key: String) -> Bool { editor[key]?.bool ?? false }
 
