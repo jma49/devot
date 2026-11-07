@@ -50,6 +50,8 @@ struct SettingsRootView: View {
             }
         }
         .listStyle(.insetGrouped)
+        // The tab bar's scroll edge effect would otherwise fade the build footer even at the foot.
+        .contentMargins(.bottom, Tokens.Size.phoneTabEdge, for: .scrollContent)
         .settingsPage(store)
         .overlay {
             if !query.text.trimmingCharacters(in: .whitespaces).isEmpty, sections.isEmpty {
@@ -92,10 +94,7 @@ struct SettingsRootView: View {
             }
         } footer: {
             if let version = store.version {
-                Text(L10n.phoneSettingsBuild(version: version)).settingsDetail().monospacedDigit()
-                    .foregroundStyle(Color(Tokens.Color.phoneTextFaint))
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, SheetMetrics.gap)
+                BuildFooter(text: L10n.phoneSettingsBuild(version: version))
             }
         }
     }
@@ -170,6 +169,16 @@ struct SettingsRootView: View {
     }
 }
 
+/// The build under the last card, centred, its gap above scaled with its text.
+private struct BuildFooter: View {
+    let text: String
+    @ScaledMetric(relativeTo: .body) private var gap = SheetMetrics.gap
+
+    var body: some View {
+        Text(text).settingsDetail().monospacedDigit().frame(maxWidth: .infinity).padding(.top, gap)
+    }
+}
+
 /// Restore Purchases' value: what the last restore did.
 enum Restoring: Equatable {
     case running, restored, nothing
@@ -231,6 +240,21 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Tokens.Color.phoneBackground
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: Self, _: UITraitCollection) in
+            self.keepTheFootInView()
+        }
+    }
+
+    /// The list keeps its offset when the text size changes, which would push the build footer off the
+    /// screen for someone reading it at the foot; there the foot stays in view.
+    private func keepTheFootInView() {
+        guard let list = view.firstSubview(of: UICollectionView.self) else { return }
+        guard list.contentOffset.y >= list.footOffset - 1 else { return }
+        DispatchQueue.main.async { [weak list] in
+            guard let list else { return }
+            list.layoutIfNeeded()
+            list.setContentOffset(CGPoint(x: list.contentOffset.x, y: list.footOffset), animated: false)
+        }
     }
 
     override func viewIsAppearing(_ animated: Bool) {
@@ -240,5 +264,20 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
 
     func updateSearchResults(for searchController: UISearchController) {
         query.text = searchController.searchBar.text ?? ""
+    }
+}
+
+extension UIScrollView {
+    fileprivate var footOffset: CGFloat {
+        max(-adjustedContentInset.top, contentSize.height + adjustedContentInset.bottom - bounds.height)
+    }
+}
+
+extension UIView {
+    fileprivate func firstSubview<View: UIView>(of type: View.Type) -> View? {
+        for subview in subviews {
+            if let match = subview as? View ?? subview.firstSubview(of: type) { return match }
+        }
+        return nil
     }
 }

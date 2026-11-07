@@ -92,18 +92,42 @@ final class SettingsTests: XCTestCase {
         return false
     }
 
-    /// The tab bar's scroll edge effect fades the list from about 35 pt above the bar (iOS 26.5).
-    private static let edgeEffect: CGFloat = 44
+    /// Under the navigation bar, once the list scrolls beneath it, its scroll edge effect and the shadow of
+    /// Pair a Device's glass shade the page to 33 pt below the bar's frame (iOS 26.5 screenshot: the page
+    /// differs from its colour down to y = 148 with the bar's foot at 116); at the top nothing is under it.
+    private static let navigationEdgeEffect: CGFloat = 33
 
-    /// The screen between the navigation bar and the tab bar's edge effect.
-    private func clearOfTheBars() -> CGRect {
+    /// The screen between the two bars' edge effects.
+    private func clearOfTheBars(scrolled: Bool) -> CGRect {
         let screen = app.windows.firstMatch.frame
-        let top = app.navigationBars.firstMatch.frame.maxY
-        let bottom = app.tabBars.firstMatch.frame.minY - Self.edgeEffect
+        let top = app.navigationBars.firstMatch.frame.maxY + (scrolled ? Self.navigationEdgeEffect : 0)
+        let bottom = app.tabBars.firstMatch.frame.minY - Tokens.Size.phoneTabEdge
         return CGRect(x: screen.minX, y: top, width: screen.width, height: bottom - top)
     }
 
-    /// Audits what shows and returns the elements with an issue over a system bar or its edge effect,
+    /// Swipes up until a swipe moves nothing the list shows.
+    private func scrollToTheFoot() throws {
+        let list = app.collectionViews.firstMatch
+        func shown() throws -> [String] {
+            var shown: [String] = []
+            func walk(_ snapshot: any XCUIElementSnapshot) {
+                if !snapshot.label.isEmpty { shown.append("\(snapshot.label) \(snapshot.frame)") }
+                snapshot.children.forEach(walk)
+            }
+            walk(try list.snapshot())
+            return shown
+        }
+        var last = try shown()
+        for _ in 0..<8 {
+            list.swipeUp()
+            let now = try shown()
+            if now == last { return }
+            last = now
+        }
+        XCTFail("the list did not reach its foot")
+    }
+
+    /// Audits what shows and returns the elements whose contrast fails over a system bar or its edge effect,
     /// which the audit measures against the bar's glass; every other issue fails.
     private func audit(clear: CGRect) throws -> Set<Element> {
         var overABar: Set<Element> = []
@@ -112,7 +136,7 @@ final class SettingsTests: XCTestCase {
             let element = issue.element
             let frame = element?.frame ?? .null
             // An element is found again by its type and label, so one without a label cannot be deferred.
-            if let element, !element.label.isEmpty, !frame.isNull, !clear.contains(frame) {
+            if issue.auditType == .contrast, let element, !element.label.isEmpty, !frame.isNull, !clear.contains(frame) {
                 overABar.insert(Element(type: element.elementType, label: element.label))
                 print("audit issue over a bar: \(issue.compactDescription) on \(element.elementType.rawValue) '\(element.label)' \(frame)")
                 return true
@@ -145,8 +169,8 @@ final class SettingsTests: XCTestCase {
         var auditedClear: Set<Element> = []
         // At the top, then at the foot of the list, where the last rows show above the tab bar.
         for foot in [false, true] {
-            if foot { XCTAssertTrue(row(L10n.settingsPaneLicence()).exists) }
-            let clear = clearOfTheBars()
+            if foot { try scrollToTheFoot() }
+            let clear = clearOfTheBars(scrolled: foot)
             auditedClear.formUnion(try shownClear(clear))
             overABar.formUnion(try audit(clear: clear))
         }

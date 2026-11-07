@@ -1652,6 +1652,7 @@ public enum Tokens {
     public static let phoneScreenEdge: CGFloat = 16
     public static let phoneTabInset: CGFloat = 16
     public static let phoneTabBottom: CGFloat = 24
+    public static let phoneTabEdge: CGFloat = 44
     public static let phoneListText: CGFloat = 52
     public static let phoneListEdge: CGFloat = 20
     public static let phoneCardInset: CGFloat = 4
