@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { handleHttp, type Vaults } from '../../relay/src/front'
 import { RateLimiter } from '../../relay/src/limiter'
 import { sqliteSql } from '../../relay/src/node/sqlite'
 import { FREE_CAPS } from '../../relay/src/quota'
@@ -28,6 +29,7 @@ afterEach(() => {
 interface VaultAtOptions {
   quota?: QuotaCaps | null
   limiter?: RateLimiter
+  id?: string
 }
 
 async function vaultAt(start: number, options: VaultAtOptions = {}) {
@@ -35,7 +37,7 @@ async function vaultAt(start: number, options: VaultAtOptions = {}) {
   open.push(db)
   /** `step` moves the clock on at every read, so a check made from two reads shows. */
   const clock = { now: start, step: 0 }
-  const relay = new VaultRelay(sqliteSql(db), 'vault-0123456789ab', {
+  const relay = new VaultRelay(sqliteSql(db), options.id ?? 'vault-0123456789ab', {
     secret,
     now: () => {
       const at = clock.now
@@ -632,6 +634,43 @@ describe('dropping an empty vault', () => {
       clock.now = days(400)
       expect(relay.sweep()).toEqual({ drop: false, next: null })
     }
+  })
+
+  it('keeps a vault while a device stays connected, and drops it once none is', async () => {
+    const { relay, clock } = await vaultAt(at)
+    clock.now = days(400)
+    expect(relay.sweep(true)).toEqual({ drop: false, next: days(490) })
+    clock.now = days(490)
+    expect(relay.sweep()).toEqual({ drop: true })
+  })
+
+  it('keeps a successor that a retire checked, though a sweep runs before the retire', async () => {
+    const successor = await vaultAt(at, { id: 'successor-0123456789ab' })
+    const old = await vaultAt(at, { id: 'old-vault-0123456789ab' })
+    for (const clock of [successor.clock, old.clock]) clock.now = days(91)
+    const relays = new Map([successor.relay, old.relay].map((relay) => [relay.vault, relay]))
+    const sweeps: boolean[] = []
+    const vaults = {
+      live: async (vault: string) => relays.get(vault)?.live() ?? false,
+      retire: async (vault: string, body: Record<string, unknown>) => {
+        sweeps.push(successor.relay.sweep().drop)
+        return relays.get(vault)!.retire(body).reply
+      },
+      adopt: async (vault: string, predecessor: string) => relays.get(vault)?.adopt(predecessor),
+    } as unknown as Vaults
+    const response = await handleHttp(
+      new Request(`http://relay/v1/vaults/${old.relay.vault}/retire`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ v: 1, type: 'retire', successor: successor.relay.vault }),
+      }),
+      secret,
+      vaults,
+    )
+    expect(response.status).toBe(200)
+    expect(sweeps).toEqual([false])
+    successor.clock.now = days(400)
+    expect(successor.relay.sweep()).toEqual({ drop: false, next: null })
   })
 
   it('keeps a vault with a second device, and looks again later', async () => {

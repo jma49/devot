@@ -126,18 +126,10 @@ export class VaultObject extends DurableObject<Env> {
   override async alarm(): Promise<void> {
     const vault = this.relay?.vault ?? storedVaultId(durableSql(this.ctx.storage))
     if (vault === null) return
-    const outcome = this.relayFor(vault).sweep()
+    const outcome = this.relayFor(vault).sweep(this.ctx.getWebSockets().length > 0)
     if (!outcome.drop) {
       if (outcome.next !== null) await this.ctx.storage.setAlarm(outcome.next)
       return
-    }
-    for (const ws of this.ctx.getWebSockets()) {
-      trySend(ws, encodeFrame({ type: 'error', code: 'E_SYNC_NO_VAULT' }))
-      try {
-        ws.close(CLOSE.noVault, 'E_SYNC_NO_VAULT')
-      } catch {
-        // Closed already.
-      }
     }
     this.relay = undefined
     await this.ctx.storage.deleteAlarm()

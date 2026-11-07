@@ -176,7 +176,8 @@ The relay clears two kinds of vault on its own (docs/adr/0017-sync-key-rotation.
   The vault row, the devices, the `retirement` row and the counters stay, so old tokens still learn the successor and the old key still enrolls nowhere.
 - **An abandoned vault is dropped**: one with no record, at most one device, no retirement and never named a successor, that no device connected to for 90 days (`ORPHAN_AGE_MS`).
   That is what a successor left by a lost rotation race, or whose token was lost, looks like.
-  All its storage goes, and its sockets close with `E_SYNC_NO_VAULT` (4004).
+  A socket still open at the sweep counts as a connection, and so does a retire's check that the vault may be its successor, so neither a device on an empty library nor a retire under way loses it.
+  All its storage goes, and a later connection gets `E_SYNC_NO_VAULT` (4004).
   The relay keeps the last connection, at most once a day and only for such a vault, in a `standing` table, which also holds the vault a retire named it the successor of.
 - **On Cloudflare** the vault's Durable Object alarm sweeps it; **under Node** the relay sweeps every vault file at start and every hour, and a retired vault at once.
 

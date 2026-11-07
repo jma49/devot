@@ -94,12 +94,8 @@ export async function startNodeRelay(options: NodeRelayOptions): Promise<NodeRel
     for (;;) {
       const opened = closing ? null : open(vault, false)
       if (!opened) return
-      const outcome = opened.relay.sweep()
+      const outcome = opened.relay.sweep(opened.sockets.size > 0)
       if (outcome.drop) {
-        for (const ws of opened.sockets.keys()) {
-          ws.send(encodeFrame({ type: 'error', code: 'E_SYNC_NO_VAULT' }))
-          ws.close(CLOSE.noVault, 'E_SYNC_NO_VAULT')
-        }
         remove(vault, opened)
         return
       }

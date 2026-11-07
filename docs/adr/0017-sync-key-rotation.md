@@ -56,7 +56,9 @@ The old vault still lists its devices once retired, so the rotating device can n
 - A device that left the old vault without joining (ADR 0008, Leaving a relay vault) keeps its row there, and the owner removes it from the list.
 
 A connect that finds `rotating` with a successor token waiting reads the old vault's `welcome`. Retired for this successor: the device finishes step 4 on its own. Retired for another: it lost the race, as in step 3. Not retired: retiring needs the relay secret, which the device does not keep, so the old vault syncs on and the waiting key and token stay; the next rotation, with the secret, takes them and goes on from step 3.
-If the relay dropped the waiting successor meanwhile (Clearing the relay), the retire is refused with `E_SYNC_NO_SUCCESSOR`: the device makes the successor again with the waiting key (`I_SYNC_SUCCESSOR_GONE`) and retires for it. With no token waiting, the old vault was never retired: the waiting key and the record are dropped (`I_SYNC_ROTATION_DROPPED`) and the old vault syncs on. If a successor was made but its token was lost, that successor stays on the relay, empty, until the relay drops it.
+If the relay dropped the waiting successor meanwhile (Clearing the relay), the retire is refused with `E_SYNC_NO_SUCCESSOR`: the device makes the successor again with the waiting key (`I_SYNC_SUCCESSOR_GONE`) and retires for it.
+With no token waiting, the old vault was never retired: the waiting key and the record are dropped (`I_SYNC_ROTATION_DROPPED`) and the old vault syncs on.
+If a successor was made but its token was lost, that successor stays on the relay, empty, until the relay drops it.
 
 ### Clearing the relay
 
@@ -74,7 +76,9 @@ The relay clears both on its own, with no new message, so it works for every bui
 - **The wipe keeps the vault**: its `vault` row, its devices and their tokens, the `retirement` row and the counters.
   Old tokens still open a socket and learn the successor from the welcome, the old key still enrolls nowhere, and a retire naming another successor is still refused.
 - **An abandoned vault is dropped**: one that holds no record, has at most one device, is not retired and was never named the successor in a retirement, and that no device connected to for 90 days (`ORPHAN_AGE_MS`).
-  Dropping deletes all its storage; its sockets close with `E_SYNC_NO_VAULT`, as for a vault that does not exist.
+  Dropping deletes all its storage; a later connection gets `E_SYNC_NO_VAULT`, as for a vault that does not exist.
+- **A socket open at the sweep counts as a connection**, so a device that stays connected on an empty library keeps its vault however long the socket lives.
+- **A retire's check of its successor counts as a connection** too: the front checks the successor before it retires the old vault and records the predecessor only after, and a sweep in between would otherwise drop a successor that waited 90 days and leave the old vault retired for a vault that is gone.
 - **Why those conditions**: a successor that lost the race or whose token was lost matches all of them, since its one device never connects to it.
   A vault in use does not: its first sync uploads the library, a successor that won is named in the retirement, and a device on an empty library still connects.
   The relay keeps the time a device last connected, at most once a day and only while the vault matches, in a `standing` table made on first need, beside the vault the retirement named it the successor of; a vault from before it counts from its creation.

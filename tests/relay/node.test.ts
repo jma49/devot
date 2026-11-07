@@ -107,7 +107,7 @@ it('survives a client that resets the connection while its upgrade is checked', 
   await relay.close()
 })
 
-it('drops a vault left empty with one device 90 days after its last connection, and keeps the rest', async () => {
+it('drops a vault left empty with one device 90 days after a device was last connected, and keeps the rest', async () => {
   const data = tempDir('devot-relay-drop-')
   const clock = { now: Date.now() }
   const relay = await startNodeRelay({ data, secret, now: () => clock.now })
@@ -133,10 +133,19 @@ it('drops a vault left empty with one device 90 days after its last connection, 
 
   clock.now += 2 * 24 * 3600 * 1000
   const watching = await connect(host, lost.vault, lost.first.token)
-  clock.now += 90 * 24 * 3600 * 1000
+  clock.now += 200 * 24 * 3600 * 1000
   await relay.sweep()
-  expect((await watching.socket.closed).code).toBe(CLOSE.noVault)
-  expect(existsSync(file(lost.vault))).toBe(false)
+  expect(existsSync(file(lost.vault))).toBe(true)
+  watching.socket.close()
+  await watching.socket.closed
+  // The relay may learn of the close after the client does; until then a sweep counts it connected.
+  await expect
+    .poll(async () => {
+      clock.now += 90 * 24 * 3600 * 1000
+      await relay.sweep()
+      return existsSync(file(lost.vault))
+    })
+    .toBe(false)
   for (const vault of [busy, shared, old, winner]) expect(existsSync(file(vault.vault))).toBe(true)
   expect(existsSync(file(open.vault))).toBe(false)
   const refused = await TestSocket.open(

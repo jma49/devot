@@ -24,7 +24,7 @@ export interface Vaults {
   enroll(vault: string, body: Record<string, unknown>): Promise<Reply>
   /** Retires `vault` and tells its sockets; the front has checked the relay secret. */
   retire(vault: string, body: Record<string, unknown>): Promise<Reply>
-  /** Whether `vault` exists and is not retired. */
+  /** Whether `vault` exists and is not retired; a live answer holds it from being dropped as abandoned. */
   live(vault: string): Promise<boolean>
   /** Records in `vault` that a retire named it the successor of `predecessor`, so it is never dropped. */
   adopt(vault: string, predecessor: string): Promise<void>

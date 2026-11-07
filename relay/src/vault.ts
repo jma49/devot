@@ -577,10 +577,12 @@ export class VaultRelay {
   /**
    * Wipes a slice of a retired vault's records, or says whether a vault that may be an abandoned
    * successor is due to be dropped (docs/adr/0017-sync-key-rotation.md, Clearing the relay).
+   * `connected` says a device has a socket open, which counts as connecting now.
    */
-  sweep(): Sweep {
+  sweep(connected = false): Sweep {
     if (!this.exists()) return { drop: false, next: null }
     if (this.successor() !== null) return this.wipe()
+    if (connected) this.touch()
     const next = this.nextSweep()
     const now = this.now()
     if (next === null || next > now) return { drop: false, next }
@@ -678,9 +680,14 @@ export class VaultRelay {
     )
   }
 
-  /** Whether the vault exists and is not retired: what a successor must be. */
+  /**
+   * Whether the vault exists and is not retired: what a successor must be.
+   * A live answer counts as a connection, so a sweep before the retire that follows cannot drop it.
+   */
   live(): boolean {
-    return this.exists() && this.successor() === null
+    if (!this.exists() || this.successor() !== null) return false
+    this.touch()
+    return true
   }
 
   /** The vault that succeeds this one, once it is retired. */
