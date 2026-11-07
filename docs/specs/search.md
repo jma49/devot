@@ -59,12 +59,17 @@ Search covers live notes (never the Trash) through the FTS5 trigram index (`src/
   Empty matches (`^`) count and can be replaced, so replacing `^` with `> ` quotes every line.
   At most 10,000 matches are counted and marked ("More than 10,000 matches"); Replace All has no limit.
   Regular expression replacements expand `$&`, `$1`, `$<name>` and the rest as `String.prototype.replace` does (a property test checks this); plain replacements are inserted as typed.
+  While the bar is open, a change to the note finds plain text again only around the change (`updateMatches`): the matches before it are kept, a window as wide as the change plus the longest possible match is searched, and the matches after it are moved once the scan is back in step with the old one, so a keystroke in a big note never searches the whole note.
+  A regular expression, and a result already over the 10,000 cap, are searched again in full, since a match can depend on text far from the change.
+  Property tests check that the matches, the count and the current match equal a full search after random edits, in the editor and in the preview.
 - **Editor:** matches are CodeMirror decorations and the current match is the selection (it does not pop up the selection toolbar).
+  On a change, the marks are mapped through it and only those in the searched window are replaced.
   F3 and Shift+F3 in the editor also step through matches; CodeMirror's own search panel and Go to Line dialog never open (`editor/settings.ts` keeps only its two searches that open nothing, Select Next Occurrence and Select All Matches, and a test checks that no built-in key opens a panel, also with Find Next moved to another key).
   Replace and Replace All are ordinary editor transactions, so they reach the Yjs document like typing; each is one undo step.
   `@codemirror/search` is not used: its marks only show with its own panel, and the preview needs the same rules outside the editor.
 - **Preview:** Cmd+F in preview mode searches the rendered text (a line break between blocks and at every line break, so a match never runs across two paragraphs, but it does across bold or links) and paints matches with the CSS Custom Highlight API, so the preview's DOM is never changed and its patcher keeps owning every node; the marks follow re-renders.
   Rendered text cannot be edited, so the preview has no replace row; diagrams (islands) are not searched.
+  Each piece keeps the text it read, so after a re-render only the pieces a mutation touched are read again (`previewTextReader`), and the matches are updated from the span where the text changed.
 - **Split mode:** Cmd+F searches the pane that has the keyboard focus: the preview after a click in it, otherwise the editor.
   The bar stays on that pane until find opens again from the other one.
 

@@ -1,7 +1,8 @@
-import type { Locator, Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import { cpus, loadavg } from 'node:os'
 import { budgetScale } from '../support/budget'
 import { expect, openApp, test } from './fixtures'
+import { median, watchKeys, type ViewLike } from './keystrokes'
 
 // Typing in a 200 KB note of prose, lists, tables and code blocks: per keystroke, the editor's own work
 // (CodeMirror's update and its measure in the next frame) and the time from the key to the end of the
@@ -48,57 +49,6 @@ function longNote(): string {
   }
   return sections.join('')
 }
-
-interface ViewLike {
-  state: { doc: { length: number; toString(): string } }
-  dispatch(spec: unknown): void
-  focus(): void
-  update(transactions: unknown): void
-  measure(flush?: boolean): void
-}
-
-/** Times each keystroke from now on: the editor's own work and the key to the end of its frame. */
-function watchKeys(content: Locator) {
-  return content.evaluate((el) => {
-    const view = (el as unknown as { cmTile: { view: ViewLike } }).cmTile.view
-    const w = window
-    w.devotKeys = []
-    let current: { work: number; frame: number } | null = null
-    const timed = (name: 'update' | 'measure') => {
-      const run = view[name].bind(view) as (...args: unknown[]) => void
-      view[name] = (...args: unknown[]) => {
-        const start = w.performance.now()
-        try {
-          run(...args)
-        } finally {
-          if (current) current.work += w.performance.now() - start
-        }
-      }
-    }
-    timed('update')
-    timed('measure')
-    w.addEventListener(
-      'keydown',
-      () => {
-        const start = w.performance.now()
-        const key = { work: 0, frame: 0 }
-        current = key
-        w.requestAnimationFrame(() => {
-          const after = new w.MessageChannel()
-          after.port1.onmessage = () => {
-            key.frame = w.performance.now() - start
-            w.devotKeys.push(key)
-            if (current === key) current = null
-          }
-          after.port2.postMessage(null)
-        })
-      },
-      true,
-    )
-  })
-}
-
-const median = (values: number[]) => [...values].sort((a, b) => a - b)[values.length >> 1]!
 
 test('a keystroke in a 200 KB note stays within its budget', async ({ page }) => {
   test.setTimeout(180_000)
