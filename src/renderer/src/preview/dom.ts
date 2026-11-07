@@ -23,11 +23,26 @@ function namespaceFor(tagName: string, parentNs: string | null): string {
   return parentNs === MATHML_NS || parentNs === SVG_NS ? parentNs : HTML_NS
 }
 
+type PropertyInfo = ReturnType<typeof find>
+const propertyInfo = new Map<string, PropertyInfo>()
+// Note HTML can name any `data-*` attribute; the cache starts over rather than grow with them.
+const MAX_PROPERTY_INFO = 1000
+
+function infoOf(key: string): PropertyInfo {
+  let info = propertyInfo.get(key)
+  if (info === undefined) {
+    if (propertyInfo.size >= MAX_PROPERTY_INFO) propertyInfo.clear()
+    info = find(html, key)
+    propertyInfo.set(key, info)
+  }
+  return info
+}
+
 function attributes(node: HastElement): Map<string, string> {
   const out = new Map<string, string>()
   for (const [key, value] of Object.entries(node.properties)) {
     if (value === null || value === undefined || value === false) continue
-    const info = find(html, key)
+    const info = infoOf(key)
     // Inline styles are never set through attributes (the CSP forbids them).
     if (info.attribute === 'style') continue
     const text =

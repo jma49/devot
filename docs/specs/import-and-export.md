@@ -86,6 +86,7 @@ All three use the notebook's folder panel and session.
   A size preset is the preview's class (`image-size-half`, sized by `content.css`), so exported and printed pages size images as the preview does.
   A table wider than the page scrolls sideways inside its own box on screen, its columns keeping their words whole, as in the preview; on paper it fits the page and its words stay whole.
   Mermaid diagrams are drawn by the UI (light) and cleaned again in the core; video embeds and click-to-load embeds become links; swatches get an inline colour; the preview's `data-*` attributes are dropped.
+  Each code block's language mark is drawn in full on the page, though the preview draws it once (see Security, code blocks), so an app the page is pasted into shows it too.
   A notebook gives one page per note, and links between its notes point at their pages.
   Copy as HTML copies the same page as text; Copy as Simple HTML copies the bare markup without any class, style or `data-*` attribute, front matter or drawing (diagrams show their source, alerts become block quotes with a bold title); a sized image gets no width there either (Half has no pixel width to give), so it shows at its own size, as in other Markdown tools.
   Both copy as plain text (the HTML source), with images as `data:` URIs.
