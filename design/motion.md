@@ -201,7 +201,7 @@ The springs are `motion.spring.gentle-*` and `motion.spring.bouncy-*`, drawn by 
   Under Reduce Motion, or with Animations set to Off, nothing scales.
 - **Glass Transparency, Gradient, Text Size and Preview Font Size** (the native Appearance pane): rule 1.
   The system slider follows the finger with a `selection` haptic per step; the glass of Devot's own views, the sample, the bars' edge, the glow or the text sample change with it, with no motion of their own.
-  The value is stored when the finger lifts.
+  The value is stored when the finger lifts, or, for a step VoiceOver or Switch Control makes without a drag, once the steps settle for 400 ms.
 - **Note mode toggle:** rule 4. The icon turns in with `bouncy` from a dip and -30 degrees. Edit and Preview crossfade over `motion.duration.ring`, the new one rising 8 pt with `gentle`. Under Reduce Motion both only fade, over `motion.duration.phone-crossfade`.
 - **Note bottom bar and formatting bar:** rule 2. As the keyboard rises the bottom bar fades and drops 20 pt with `gentle`, and the formatting bar fades in on the keyboard. Under Reduce Motion both only crossfade. The system's bar of previous, next and a check mark is not shown above the keyboard, so the formatting bar sits on the keyboard itself, and Hide keyboard lowers the keyboard with the system's motion.
 - **Find bar:** rule 2. It appears at once on the keyboard, in the bottom bar's place, and matches change as you type.

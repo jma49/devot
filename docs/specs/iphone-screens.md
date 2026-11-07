@@ -287,7 +287,7 @@ Glass is the system's, on the navigation layer only; content is never glass.
 - Glass Transparency runs from −100 to 100 in steps of 5 and is this iPhone's own setting, never synced:
   - on Devot's two glass views, −100 is a solid `color.phone.glass-opaque`, values below 0 tint regular glass with it at −t/100, 0 is plain regular glass, and values above 0 are clear glass tinted at the larger of 0 and 0.25 − t/400;
   - on the system bars, whose glass has no public opacity, only values below 0 act: every scroll view under them, the web view's and the panes', takes the hard scroll edge effect, and from 0 up the automatic one;
-  - a change applies on every move of the slider and is saved when the finger lifts.
+  - a change applies on every move of the slider and is saved when the finger lifts, or 400 ms after the last step of an adjustment without a drag (VoiceOver, Switch Control).
 - Reduce Transparency and Increase Contrast win over Glass Transparency: the system frosts its glass, Devot's glass views follow with a solid fill, and the slider shows disabled with a footer that says why.
 
 ## Settings tree

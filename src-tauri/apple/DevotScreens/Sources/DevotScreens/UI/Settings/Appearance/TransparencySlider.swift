@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A slider named on a line above its track, its value on the right (design/layout.md, Phone
-/// grouped lists): a selection tick per step, and `released` once the finger lifts.
+/// grouped lists): a selection tick per step, and `released` once the value settles.
 struct LabelledSlider: View {
     let title: String
     let value: String
@@ -11,6 +11,7 @@ struct LabelledSlider: View {
     var minimum: SliderEnd?
     var maximum: SliderEnd?
     let released: () -> Void
+    @State private var commit = SliderCommit()
 
     enum SliderEnd {
         case caption(String)
@@ -25,14 +26,14 @@ struct LabelledSlider: View {
                 Text(value).sliderValue()
             }
             .accessibilityHidden(true)
-            Slider(value: $amount, in: range, step: step) {
+            Slider(value: Binding(get: { amount }, set: { amount = $0; commit.changed(released) }), in: range, step: step) {
                 Text(title)
             } minimumValueLabel: {
                 end(minimum)
             } maximumValueLabel: {
                 end(maximum)
             } onEditingChanged: { editing in
-                if !editing { released() }
+                commit.editing(editing, released)
             }
             .tint(Color(Tokens.Color.accentFill))
             .frame(minHeight: Tokens.Size.phoneGroupedRow)
@@ -49,6 +50,50 @@ struct LabelledSlider: View {
             Image(systemName: name).foregroundStyle(Color(Tokens.Color.phoneTextSecondary)).accessibilityHidden(true)
         case nil: EmptyView()
         }
+    }
+}
+
+/// When a slider's value is written: as a drag's finger lifts, or once steps that came without a
+/// drag settle, since VoiceOver and Switch Control adjust a slider without touch tracking.
+@MainActor
+final class SliderCommit {
+    static let settle: Duration = .milliseconds(400)
+    private let settle: Duration
+    private var dragging = false
+    private var pending: Task<Void, Never>?
+    private var release: (() -> Void)?
+
+    init(settle: Duration = SliderCommit.settle) {
+        self.settle = settle
+    }
+
+    func editing(_ editing: Bool, _ released: @escaping () -> Void) {
+        cancel()
+        dragging = editing
+        if !editing { released() }
+    }
+
+    func changed(_ released: @escaping () -> Void) {
+        guard !dragging else { return }
+        cancel()
+        release = released
+        pending = Task { [weak self, settle] in
+            try? await Task.sleep(for: settle)
+            guard !Task.isCancelled else { return }
+            self?.fire()
+        }
+    }
+
+    private func fire() {
+        let released = release
+        cancel()
+        released?()
+    }
+
+    private func cancel() {
+        pending?.cancel()
+        pending = nil
+        release = nil
     }
 }
 
