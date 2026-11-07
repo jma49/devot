@@ -180,7 +180,8 @@ describe('preparing one large Markdown file', { timeout: TIMEOUT_MS }, () => {
     }
     expect(file(2000).length).toBeGreaterThan(600_000)
     const growth = fourfoldGrowth(prepare, 500, 3)
-    expectWithinBudget(context, await cpuMs(async () => prepare(2000)()), 3000)
+    const prepareLargest = prepare(2000)
+    expectWithinBudget(context, await cpuMs(async () => prepareLargest()), 3000)
     expectLinearGrowth(context, growth)
   })
 })

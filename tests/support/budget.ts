@@ -6,7 +6,7 @@ import { expect, type TestContext } from 'vitest'
 // module imports nothing from Node, so UI tests may use it too.
 //
 // Budgets are written for a developer's Mac. A shared GitHub-hosted runner is slower and noisy, so
-// there they scale by `HOSTED_RUNNER_SCALE`. Over three runs of #777, with the builds kept apart and
+// there they scale by `HOSTED_RUNNER_SCALE`. Over the four CI runs of #777, with the builds kept apart and
 // checks of work that writes to disk timed in CPU, the slowest check ran at 3.3 times its budget and
 // all others under 2; 5 leaves room above that and still fails a regression of a few times. Each CI
 // run lists the measurements nearest their limits (budget-report.ts).
