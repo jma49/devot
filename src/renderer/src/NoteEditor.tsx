@@ -1,24 +1,19 @@
 import { isolateHistory } from '@codemirror/commands'
-import { Compartment, EditorSelection, EditorState, Prec, type Extension } from '@codemirror/state'
+import { EditorSelection, EditorState, type Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
-import { yCollab, ySyncAnnotation } from 'y-codemirror.next'
 import * as Y from 'yjs'
 import { readWrites, type AgentWrite } from '../../core/authorship'
 import { BODY } from '../../core/notes'
-import { authorshipMarks } from './editor/authorship'
-import { authorshipUndo, undoneWrites } from './editor/authorshipUndo'
+import { undoneWrites } from './editor/authorshipUndo'
 import { imageFiles, storeImages } from './attachments'
 import { DRAG_BOOK, DRAG_NOTE } from './dragData'
 import { errorCode } from '../../core/errors'
 import { anchorAt, insertAtAnchor, trackOpenEditor } from './editor/anchoredInsert'
-import { invoke } from './ipc'
-import { linkOpener, lineCommands } from './editor/lineCommands'
-import { overwrite } from './editor/overwrite'
+import { linkOpener } from './editor/lineCommands'
 import {
   EDITOR_MENU,
-  editorMenu,
   editorMenuTarget,
   lookUpTarget,
   replaceWord,
@@ -32,21 +27,10 @@ import { tauriMenus, useContextMenu, type MenuPoint } from './contextMenu'
 import { copyText } from './noteMenu'
 import { lookUp, startSpeaking, stopSpeaking } from './textServices'
 import type { ShowAlertMenu } from './editor/alertMenu'
-import { trackExtract } from './editor/extract'
-import { editorFind, editorFindTarget } from './editor/find'
-import { formatToolbar } from './editor/FormatToolbar'
-import { noteHighlighting } from './editor/highlighting'
+import { editorFindTarget } from './editor/find'
 import { systemMenus, systemMenusAvailable } from './editor/systemMenu'
 import type { Suggester } from '../../core/aiSuggest'
 import { aiEditStart, useAiMenu, type AiEditChoice, type StartAiEdit } from './editor/aiMenu'
-import { ghostText } from './editor/ghostText'
-import { imageSizeBar } from './editor/ImageSizeBar'
-import { tableToolbar } from './editor/TableToolbar'
-import { linkTooltip } from './editor/linkTooltip'
-import { noteLinkHover } from './editor/noteLinkHover'
-import { previewsFor } from './notePreview'
-import { formatKeyAvailability } from './editor/formatKeys'
-import { imeKeys } from './editor/imeKeys'
 import {
   earlyKeysKeptForAnother,
   replayEarlyKeys,
@@ -54,150 +38,51 @@ import {
   takeEarlyKeys,
   type EarlyKeysTicket,
 } from './editor/earlyKeys'
-import {
-  imageCommandKeys,
-  newFromLink,
-  newFromLinkKeys,
-  newFromSelection,
-  newFromSelectionKeys,
-  pastePlain,
-  pastePlainKeys,
-  pasteUrlAsKeys,
-} from './editor/noteKeys'
-import { editorLayoutWatch, editorScrollPane } from './editor/scrollPane'
+import { newFromSelection, pastePlain } from './editor/noteKeys'
+import { editorScrollPane } from './editor/scrollPane'
 import { editorHandle, REMOTE, type EditorHandle } from './editor/handle'
 import { shadowContainer } from './editor/shadowFrame'
-import { editorTheme, popupSpace } from './editor/theme'
-import { insertKeymap } from './editor/insert'
-import { imageActions } from './editor/images'
-import { tableKeymap } from './editor/tableCommands'
-import { tableTyping } from './editor/tableTyping'
-import { markdownLineStyles } from './editor/lineStyles'
-import { noteHighlightStyle, noteMarkdown } from './editor/markdown'
-import { pasteUrls } from './editor/paste'
-import { pasteChooser, type PasteFetcher } from './editor/pasteChooser'
-import { editorSetup, reconfigureSetup } from './editor/settings'
-import { countsReporter, recount, type EditorCounts } from './editor/counts'
-import { selectionEdges } from './editor/selectionEdges'
-import { editorCompletions } from './editor/completions'
-import { chooseTemplate } from './editor/hints'
+import { reconfigureSetup } from './editor/settings'
+import { recount, type EditorCounts } from './editor/counts'
 import { setToolbarFocus } from './editor/toolbarState'
-import { keepUndo, noteState, yjsHistory } from './editor/undo'
+import { keepUndo, noteState } from './editor/undo'
 import { catchUp } from './editor/catchUp'
+import {
+  authorshipSlot,
+  editorTop,
+  LOCKED,
+  lockedSlot,
+  marksFor,
+  noteExtensions,
+  PAUSED,
+  pausedSlot,
+  templateChip,
+  templateSlot,
+  writeFor,
+  writeSlot,
+  type EditorPlace,
+  type NoteEditorRefs,
+} from './editor/noteExtensions'
 import { refusedEdits } from './editor/refusedEdits'
 import { reconfigureRegistryKeys } from './editor/registryKeys'
-import { setInertFormats } from './commands/formatMenu'
 import { subscribeKeymap } from './commands/shortcutSettings'
 import { FONT_SLOTS } from '../../core/editorSettings'
 import { subscribeFontsLoaded } from './fonts'
 import { useEditorSettings } from './editorSettings'
 import type { FindTarget } from './find/target'
 import { keyboardIsFree, typingElsewhere } from './focus'
-import { t } from './i18n'
-import { imageMenuTarget, type ShowImageMenu } from './imageMenu'
+import type { ShowImageMenu } from './imageMenu'
 import type { ViewedImage } from './ImageViewer'
-import { linkCompletion, type LinkSources } from './linkCompletion'
-import { setWriteFocus, writeFocusTracking, writeMode, type WriteRenderer } from './editor/write'
-import { previewLabels } from './preview/Preview'
+import type { LinkSources } from './linkCompletion'
+import { setWriteFocus } from './editor/write'
 import type { Core } from './core-client'
 import type { ScrollPane } from './preview/scrollSync'
-import { clampSelection, clampTop, type EditorTop, type SelectionState } from './lastState'
-import { logFailure } from './failure'
+import { clampSelection, clampTop, type EditorTop } from './lastState'
 
-// The note being left while the next one loads: on screen, but nothing typed may land in it.
-const pausedSlot = new Compartment()
-const PAUSED = [
-  EditorView.editable.of(false),
-  EditorState.readOnly.of(true),
-  // Not offered as the body to type into until the next note is.
-  EditorView.contentAttributes.of({ 'aria-hidden': 'true' }),
-]
-// Notes are read-only once the trial is over without a licence: the text can be read, selected and
-// copied, and only what another replica sends (Yjs) still changes it.
-const lockedSlot = new Compartment()
-const LOCKED = [
-  EditorState.readOnly.of(true),
-  EditorState.changeFilter.of((tr) => tr.annotation(ySyncAnnotation) !== undefined),
-  Prec.highest(
-    EditorView.domEventHandlers({
-      paste: (event) => {
-        event.preventDefault()
-        return true
-      },
-      drop: (event) => {
-        event.preventDefault()
-        return true
-      },
-    }),
-  ),
-]
-// WebKit keeps a contenteditable's selection when focus moves to a sheet or the history bar, and
-// runs Backspace and typing against it even under `inert` or a modal: the note out of sight would
-// change. The change is dropped and the editor draws its own text again. It comes first among the
-// highest-precedence handlers so no other one (close brackets, backticks, table typing, overwrite)
-// dispatches the change before the check runs.
-const ONLY_WHILE_FOCUSED = Prec.highest(EditorView.inputHandler.of((view) => !view.hasFocus))
-// View > Show Authorship (editor/authorship.ts), set for the replica of the note shown.
-const authorshipSlot = new Compartment()
-// The empty note's Choose a Template chip: only where the window can run it on a note that may change.
-const templateSlot = new Compartment()
-const templateChip = (offered: boolean, run: { readonly current: (() => void) | undefined }) =>
-  offered ? chooseTemplate.of(() => run.current?.()) : []
-// Write mode (editor/write): the editor itself, so the caret, the history and the place are kept.
-const writeSlot = new Compartment()
-const writeFor = (on: boolean, core: Core) =>
-  on ? writeMode({ loadNote: previewsFor(core), render: blockRenderer(core) }) : []
-
-/** Write mode's images, formulas and diagrams, by the preview's renderers in the core. */
-const blockRenderer = (core: Core): WriteRenderer => ({
-  render: (markdown, loadedEmbeds, remoteImages) =>
-    core
-      .renderPreviewPieces(
-        markdown,
-        {
-          labels: previewLabels(),
-          loadedEmbeds: [...loadedEmbeds],
-          ...(remoteImages
-            ? { remoteImages: { ...remoteImages, loadedHosts: [...remoteImages.loadedHosts] } }
-            : {}),
-        },
-        [],
-      )
-      .then((pieces) => pieces.flatMap((piece) => piece.nodes ?? [])),
-})
-const marksFor = (on: boolean, doc: Y.Doc, noteId: string) =>
-  on ? authorshipMarks(doc, noteId) : []
 /** A restored version: the core made it, and undo takes it back (editor/undo.ts). */
 const RESTORE = 'restore'
 
 export type ApplyRestore = (update: Uint8Array) => void
-
-export interface EditorPlace {
-  selection: SelectionState
-  top?: EditorTop
-}
-
-/** What the paste chooser fetches, through Rust (https only, capped). */
-const linkFetcher: PasteFetcher = {
-  title: async (url) => {
-    const title = await invoke<unknown>('link_title', { url })
-    return typeof title === 'string' ? title : null
-  },
-  snippet: async (url) => {
-    const code = await invoke<unknown>('github_snippet', { url })
-    if (typeof code !== 'string') throw new Error('E_LINK_FAILED')
-    return code
-  },
-}
-
-/** The top line and the offset past its top. The scroll box is `scroller` (inside the shadow root), not CodeMirror's own. */
-function editorTop(view: EditorView, scroller: HTMLElement): EditorTop | undefined {
-  // Hidden (preview mode): it shows nothing, so it keeps the place it had.
-  if (scroller.clientHeight === 0) return undefined
-  const y = scroller.getBoundingClientRect().top - view.documentTop
-  const block = view.lineBlockAtHeight(y)
-  return { pos: block.from, offset: y - block.top }
-}
 
 /** Scrolls the editor so that `top` is where it was (a line gone since: the end). */
 function scrollToTop(view: EditorView, scroller: HTMLElement, top: EditorTop) {
@@ -667,6 +552,25 @@ export function NoteEditor({
       scrollHandle.current?.(editorScrollPane(view, scroller))
     }
 
+    const extensionRefs: NoteEditorRefs = {
+      writing,
+      menuOpener,
+      noteOpener,
+      fromSelection,
+      fromLink,
+      linkSources,
+      templateShown,
+      chooseTemplate: chooseTemplateRef,
+      suggestions,
+      suggestFailed,
+      alertMenu,
+      aiEdit,
+      aiMenu,
+      imageHandlers,
+      locked,
+      countsReport,
+      caretLineReport,
+    }
     const show = (state: Uint8Array, handedOver = false) => {
       const el = host.current
       if (!el) {
@@ -701,7 +605,6 @@ export function NoteEditor({
       }
       const setupFor = latestSettings.current
       const images = attachImages(core, noteId, text, (codes) => imagesRefused.current?.(codes))
-      const imageChooser = images.choose
       const body = text.toString()
       const restored = placeAsked.current?.()
       const selection = restored?.selection && clampSelection(restored.selection, body.length)
@@ -721,128 +624,23 @@ export function NoteEditor({
                 selection: EditorSelection.single(selection.anchor, selection.head),
               }
             : {}),
-          extensions: [
-            ONLY_WHILE_FOCUSED,
-            editorSetup(setupFor),
-            // No keymap acts on the keys an input method composes with.
-            imeKeys(),
-            editorTheme,
-            selectionEdges,
-            // Operators in code keep one style each, so code fonts form ligatures.
-            noteHighlighting(noteHighlightStyle),
-            markdownLineStyles,
-            writeFocusTracking,
-            writeSlot.of(writeFor(writing.current, core)),
-            noteMarkdown,
-            EditorView.perLineTextDirection.of(true),
-            images.extension,
-            pasteUrls,
-            pasteChooser(linkFetcher),
-            pastePlainKeys(),
-            pasteUrlAsKeys(),
-            newFromSelectionKeys(),
-            editorMenu((target, at, pos) => menuOpener.current(target, at, pos)),
-            newFromLinkKeys(),
-            lineCommands((href) => {
-              const note = /^devot:\/\/note\/([0-9a-f-]{36})$/.exec(href)
-              if (note?.[1]) noteOpener.current?.(note[1])
-              else if (/^https:\/\//i.test(href)) {
-                invoke('open_external', { url: href }).catch(() =>
-                  console.warn('W_OPEN_EXTERNAL_FAILED'),
-                )
-              }
-            }),
-            insertKeymap(),
-            imageCommandKeys(),
-            newFromSelection.of(() => {
-              const run = fromSelection.current
-              run?.()
-              return run !== undefined
-            }),
-            newFromLink.of(() => {
-              const run = fromLink.current
-              run?.()
-              return run !== undefined
-            }),
-            trackExtract,
-            linkCompletion({
-              find: (query) => linkSources.current.find(query),
-              create: (title) => linkSources.current.create(title),
-              discard: (id) => linkSources.current.discard(id),
-              preview: (id) => previewsFor(core)(id),
-              linked: (id) => linkSources.current.linked(id),
-            }),
-            editorCompletions({ chooseImageFiles: (target) => imageChooser(target) }),
-            templateSlot.of(templateChip(templateShown.current, chooseTemplateRef)),
-            ghostText({
-              suggest: (context, trigger) =>
-                suggestions.current?.suggest(noteId, context, trigger) ??
-                (trigger === 'key'
-                  ? Promise.reject(new Error('E_AI_ACCESS_DENIED'))
-                  : Promise.resolve(null)),
-              cancel: () => suggestions.current?.cancel(),
-              failed: (code) => suggestFailed.current?.(logFailure(code, 'W_AI_SUGGEST_FAILED')),
-            }),
-            formatToolbar(
-              (...args) => alertMenu.current(...args),
-              (view, anchor) => (aiEdit.current ? aiMenu.current(view, anchor) : Promise.resolve()),
-            ),
-            imageSizeBar,
-            tableToolbar,
-            linkTooltip,
-            noteLinkHover(previewsFor(core)),
-            formatKeyAvailability(setInertFormats),
-            tableKeymap(),
-            tableTyping(),
-            // After table typing, whose rules come first in a table.
-            overwrite(),
-            editorFind(),
-            imageActions.of({
-              open: (image) => imageHandlers.current.open?.(image),
-              menu: (image, at) => imageHandlers.current.menu?.(imageMenuTarget(image), at),
-            }),
-            popupSpace(frame),
-            pausedSlot.of([]),
-            lockedSlot.of(locked.current ? LOCKED : []),
-            authorshipSlot.of(marksFor(setupFor.authorship, doc, noteId)),
-            // Undo is CodeMirror's history alone: no Yjs undo manager.
-            authorshipUndo(doc),
-            yCollab(text, null, { undoManager: false }),
-            yjsHistory(
-              () => restoring,
-              () => undoneWrites(writesBefore, doc),
-            ),
-            EditorView.contentAttributes.of({
-              'aria-label': t('note.bodyLabel'),
-            }),
-            editorLayoutWatch,
-            countsReporter(
-              (counts) => countsReport.current?.(counts),
-              () => countsReport.current !== undefined,
-              (markdown) => core.noteCounts(markdown),
-            ),
-            EditorView.updateListener.of((update) => {
-              if (!update.selectionSet && !update.docChanged) return
-              if (update.docChanged && place.top) {
-                place.top = {
-                  ...place.top,
-                  pos: update.changes.mapPos(place.top.pos),
-                }
-              }
-              const { anchor, head } = update.state.selection.main
-              place.selection = { anchor, head }
-              placeChanged()
-              caretLineReport.current?.(update.state.doc.lineAt(head).number)
-            }),
-            EditorView.domEventHandlers({
-              scroll: (_event, scrolled) => {
-                const top = editorTop(scrolled, scroller)
-                if (!top) return
-                place.top = top
-                placeChanged()
-              },
-            }),
-          ],
+          extensions: noteExtensions(
+            {
+              core,
+              noteId,
+              doc,
+              text,
+              settings: setupFor,
+              frame,
+              scroller,
+              images,
+              place,
+              placeChanged,
+              restoring: () => restoring,
+              restoredWrites: () => undoneWrites(writesBefore, doc),
+            },
+            extensionRefs,
+          ),
         },
         doc,
       )

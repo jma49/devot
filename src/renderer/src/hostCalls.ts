@@ -9,7 +9,7 @@ import { invoke } from './ipc'
 import { editingAllowed } from './licence'
 import { QUICK_CAPTURE_EVENT, answerCapture, readCaptureRequest } from './quickCaptureHost'
 import { track } from './usage'
-import { listenHere, unlistenLater } from './windowEvents'
+import { keepListening, listenHere, unlistenLater } from './windowEvents'
 
 /** Quick capture (menu bar mode): this window's core makes the note the capture window sent, and the list shows it. */
 export function useQuickCapture(core: Core | undefined, refresh: (c: Core) => Promise<unknown>) {
@@ -54,28 +54,22 @@ export function useHttpApi(core: Core | undefined) {
       window.addEventListener(HTTP_API_EVENT, onCall)
       return () => window.removeEventListener(HTTP_API_EVENT, onCall)
     }
-    let stopped = false
-    let unlisten: (() => void) | undefined
     const take = httpApiHost({
       run: (call) => core.httpApi(call),
       reply: (id, result, error) => invoke('http_api_done', { id, result, error }),
       wrote: () => window.dispatchEvent(new CustomEvent(DB_CHANGED)),
     })
-    void listenHere<unknown>(HTTP_API_EVENT, (e) => void take(e.payload)).then((stop) => {
-      if (stopped) {
-        stop()
-        return
-      }
-      unlisten = stop
+    const listening = keepListening(
+      listenHere<unknown>(HTTP_API_EVENT, (e) => void take(e.payload)),
+    )
+    void listening.ready.then(() => {
+      if (listening.stopped()) return
       // Only now does the MCP bridge's socket open, so no call waits on a window still loading.
       invoke('http_api_listening').catch((e: unknown) =>
         console.warn('W_HTTP_API_LISTENING_FAILED', errorCode(e)),
       )
     })
-    return () => {
-      stopped = true
-      unlisten?.()
-    }
+    return listening.stop
   }, [core])
 }
 
@@ -88,8 +82,6 @@ export function useCliAppend(
 ) {
   useEffect(() => {
     if (!core || DEVOT_UI_TEST) return
-    let stopped = false
-    let unlisten: (() => void) | undefined
     const take = cliAppendHost({
       run: async (request) => {
         if (!editingAllowed()) throw new Error('E_LICENCE_REQUIRED')
@@ -109,22 +101,20 @@ export function useCliAppend(
       claim: (id) => invoke('cli_append_claim', { id }),
       reply: (id, error) => invoke('cli_append_done', { id, error }),
     })
+    const listening = keepListening(
+      listenHere<unknown>(CLI_APPEND_EVENT, (e) => void take(e.payload)),
+    )
     // Listening first, then asking for what waits: no request is lost between.
-    void listenHere<unknown>(CLI_APPEND_EVENT, (e) => void take(e.payload))
-      .then((stop) => {
-        if (stopped) stop()
-        else unlisten = stop
-        return stopped ? [] : invoke<unknown>('cli_append_take')
-      })
+    void listening.ready
+      .then(() => (listening.stopped() ? [] : invoke<unknown>('cli_append_take')))
       .then(
         (held) => {
-          if (!stopped && Array.isArray(held)) held.forEach((request) => void take(request))
+          if (!listening.stopped() && Array.isArray(held)) {
+            held.forEach((request) => void take(request))
+          }
         },
         (e: unknown) => console.warn('W_CLI_APPEND_TAKE_FAILED', errorCode(e)),
       )
-    return () => {
-      stopped = true
-      unlisten?.()
-    }
+    return listening.stop
   }, [core, refresh, applyToOpenNote, dailySettings])
 }

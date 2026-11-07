@@ -148,9 +148,7 @@ export function useSheets({
             listenHere<string>('devot://backup-failed', (e) =>
               window.dispatchEvent(new CustomEvent(BACKUP_FAILED, { detail: e.payload })),
             ),
-          ]).then((stops) => () => {
-            for (const stop of stops) stop()
-          }),
+          ]),
         )
     return () => {
       window.removeEventListener(SHOW_BACKUPS, show)
@@ -225,31 +223,26 @@ export function useSheets({
     window.addEventListener(IMPORT_PROGRESS, progress)
     window.addEventListener(IMPORT_READY, ready)
     window.addEventListener(IMPORT_FAILED, failed)
-    let stopped = false
-    const unlisten: (() => void)[] = []
-    if (!DEVOT_UI_TEST) {
-      const resend = (from: string, to: string) =>
-        listenHere<unknown>(from, (e) =>
-          window.dispatchEvent(new CustomEvent(to, { detail: e.payload })),
+    const resend = (from: string, to: string) =>
+      listenHere<unknown>(from, (e) =>
+        window.dispatchEvent(new CustomEvent(to, { detail: e.payload })),
+      )
+    const unlisten = DEVOT_UI_TEST
+      ? undefined
+      : unlistenLater(
+          Promise.all([
+            resend('devot://import-scanning', IMPORT_SCANNING),
+            resend('devot://import-progress', IMPORT_PROGRESS),
+            resend('devot://import-ready', IMPORT_READY),
+            resend('devot://import-failed', IMPORT_FAILED),
+          ]),
         )
-      void Promise.all([
-        resend('devot://import-scanning', IMPORT_SCANNING),
-        resend('devot://import-progress', IMPORT_PROGRESS),
-        resend('devot://import-ready', IMPORT_READY),
-        resend('devot://import-failed', IMPORT_FAILED),
-      ]).then((stops) => {
-        // Cleaned up before the listeners were ready: stop them now.
-        if (stopped) for (const stop of stops) stop()
-        else unlisten.push(...stops)
-      })
-    }
     return () => {
-      stopped = true
       window.removeEventListener(IMPORT_SCANNING, scanning)
       window.removeEventListener(IMPORT_PROGRESS, progress)
       window.removeEventListener(IMPORT_READY, ready)
       window.removeEventListener(IMPORT_FAILED, failed)
-      for (const stop of unlisten) stop()
+      unlisten?.()
     }
   }, [nextSheet])
 

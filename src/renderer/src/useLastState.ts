@@ -13,7 +13,7 @@ import {
   type ViewLayouts,
 } from './lastState'
 import type { Mode } from './ModeControl'
-import type { EditorPlace } from './NoteEditor'
+import type { EditorPlace } from './editor/noteExtensions'
 import type { Selection } from './Sidebar'
 import { useStable } from './stable'
 

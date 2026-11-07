@@ -17,6 +17,7 @@ import { isImeKey } from '../ime'
 import { invoke } from '../ipc'
 import { startLicence, useEditing } from '../licence'
 import { MAX_LINK_NOTES } from '../linkCompletion'
+import { linkedNoteCreate, linkedNoteDiscard } from '../linkedNotes'
 import { currentDefaultMode } from '../lastState'
 import { ModeControl, editorOnly, type Mode } from '../ModeControl'
 import type { EditorHandle } from '../editor/handle'
@@ -35,6 +36,7 @@ import {
   useSaveProblems,
 } from '../saveGuards'
 import { textStore } from '../textStore'
+import { unlistenLater } from '../windowEvents'
 import { useEditorSetting } from '../editorSettings'
 import { OutlinePanel, lineStore } from '../outline/OutlinePanel'
 import { scrollPreviewTo } from '../outline/room'
@@ -47,25 +49,24 @@ import { failureText } from '../failure'
 function listenAsked(onClose: () => void, onQuit: () => void): () => void {
   window.addEventListener(CLOSE_EVENT, onClose)
   window.addEventListener(FLUSH_EVENT, onQuit)
-  const stops: (() => void)[] = []
-  let stopped = false
-  if (!DEVOT_UI_TEST) {
-    void Promise.all([import('@tauri-apps/api/event'), import('@tauri-apps/api/webviewWindow')])
-      .then(async ([{ listen }, { getCurrentWebviewWindow }]) => {
-        const own = await Promise.all([
-          getCurrentWebviewWindow().listen('devot://note-window-close', onClose),
-          listen('devot://flush-before-exit', onQuit),
-        ])
-        if (stopped) own.forEach((stop) => stop())
-        else stops.push(...own)
-      })
-      .catch(() => console.warn('W_NOTE_WINDOW_LISTEN_FAILED'))
-  }
+  const unlisten = DEVOT_UI_TEST
+    ? undefined
+    : unlistenLater(
+        Promise.all([
+          import('@tauri-apps/api/event'),
+          import('@tauri-apps/api/webviewWindow'),
+        ]).then(([{ listen }, { getCurrentWebviewWindow }]) =>
+          Promise.all([
+            getCurrentWebviewWindow().listen('devot://note-window-close', onClose),
+            listen('devot://flush-before-exit', onQuit),
+          ]),
+        ),
+        () => console.warn('W_NOTE_WINDOW_LISTEN_FAILED'),
+      )
   return () => {
-    stopped = true
     window.removeEventListener(CLOSE_EVENT, onClose)
     window.removeEventListener(FLUSH_EVENT, onQuit)
-    stops.forEach((stop) => stop())
+    unlisten?.()
   }
 }
 
@@ -233,18 +234,12 @@ export function NoteWindow() {
     return found.filter((n) => n.id !== noteId)
   }
 
-  const createLinkedNote = async (linkTitle: string) => {
-    if (!core || !noteId) throw new Error('E_CORE_NOT_READY')
-    return core.create(linkTitle, (await core.read(noteId)).bookId)
-  }
+  const createLinkedNote = linkedNoteCreate(
+    () => (noteId ? core : null),
+    async (c) => (noteId ? (await c.read(noteId)).bookId : null),
+  )
 
-  const discardLinkedNote = async (id: string) => {
-    if (!core) return
-    await core
-      .trash(id)
-      .then(() => core.purge(id))
-      .catch(() => console.warn('W_NOTE_DROP_FAILED', id))
-  }
+  const discardLinkedNote = linkedNoteDiscard(() => core)
 
   if (failure) {
     return (

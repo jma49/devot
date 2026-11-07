@@ -22,6 +22,7 @@ import type { MessageKey } from './i18n'
 import { invoke } from './ipc'
 import { licenceEntitlements, startLicence, subscribeLicence } from './licence'
 import type { WirePulled, WireSync, WireSyncLocal, WireTransport } from './storage/syncWire'
+import { unlistenLater } from './windowEvents'
 
 export const SYNC_CHANGED = 'devot:sync-changed'
 const CHANGED_EVENT = 'devot://sync-changed'
@@ -581,16 +582,14 @@ export function runSync(core: Core): () => void {
     if (document.visibilityState === 'visible') focused()
   }
   document.addEventListener('visibilitychange', shown)
-  let unlisten: (() => void) | undefined
-  void import('@tauri-apps/api/event')
-    .then(async ({ listen }) => {
-      const stop = await listen<SyncEvent>(SOCKET_EVENT, (e) => {
+  const unlisten = unlistenLater(
+    import('@tauri-apps/api/event').then(({ listen }) =>
+      listen<SyncEvent>(SOCKET_EVENT, (e) => {
         void core.syncReceived(e.payload).catch(() => undefined)
-      })
-      if (stopped) stop()
-      else unlisten = stop
-    })
-    .catch(() => console.warn('W_SYNC_LISTEN_FAILED'))
+      }),
+    ),
+    () => console.warn('W_SYNC_LISTEN_FAILED'),
+  )
   return () => {
     stopped = true
     listeners.delete(listener)
@@ -598,7 +597,7 @@ export function runSync(core: Core): () => void {
     window.removeEventListener(DB_CHANGED, touched)
     window.removeEventListener('focus', focused)
     document.removeEventListener('visibilitychange', shown)
-    unlisten?.()
+    unlisten()
     follow(snapshot)
   }
 }

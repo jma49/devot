@@ -31,7 +31,7 @@ The native look of the interface, its menus, lists and keyboard, is in [native-l
   Multicolor, or the option off, removes the overrides and the tokens fall back to Devot's palette.
 - **Contrast:** every colour pair the UI draws meets WCAG AA in light and dark (4.5:1 for text, 3:1 for marks such as status dots and the caret), for the default palette and for every system accent.
   `src/renderer/src/theme/contrast.test.ts` computes the ratios from the token values, so a token edit that drops a pair below the line fails the unit tests.
-  The editor's colours come from the same tokens: its highlight style (`editor/markdown.ts`) and theme (`NoteEditor.tsx`) use theme variables only, never CodeMirror's light-only defaults, and `tests/ui-csp` reads the computed colours of a link, a rule, the active line, the gutter and the selection in both appearances.
+  The editor's colours come from the same tokens: its highlight style (`editor/markdown.ts`) and theme (`editor/theme.ts`) use theme variables only, never CodeMirror's light-only defaults, and `tests/ui-csp` reads the computed colours of a link, a rule, the active line, the gutter and the selection in both appearances.
 - **Tokens build:** `pnpm tokens` compiles `design/tokens` into `src/renderer/src/theme/tokens.css` and `tokens.ts` (committed); `pnpm tokens:check` fails CI when they are stale.
   Each built-in theme besides the default is listed in `scripts/tokens/themes.ts` and compiled from its own `design/tokens/themes/<id>.light|dark.tokens.json`; a test fails when a theme lacks a token of the default theme or has an extra one.
   Only theme colours and non-colour base tokens are exported, and a policy test rejects colour literals in UI styles.

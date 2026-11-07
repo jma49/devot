@@ -10,6 +10,7 @@ type Answer = (cmd: string, args: Record<string, unknown>) => unknown
 export function mockTauri(answer: Answer = () => null) {
   const invoked: string[] = []
   const listeners = new Map<string, number[]>()
+  const asked = new Map<string, number>()
   const waiting: (() => void)[] = []
   let holding = false
   mockWindows('main')
@@ -18,6 +19,7 @@ export function mockTauri(answer: Answer = () => null) {
     if (cmd === 'plugin:event|listen') {
       const event = args['event'] as string
       const handler = args['handler'] as number
+      asked.set(event, (asked.get(event) ?? 0) + 1)
       const register = () => {
         listeners.set(event, [...(listeners.get(event) ?? []), handler])
         return handler
@@ -44,6 +46,8 @@ export function mockTauri(answer: Answer = () => null) {
       for (const register of waiting.splice(0)) register()
     },
     listening: (event: string) => listeners.get(event)?.length ?? 0,
+    /** Listeners asked for, registered or still held. */
+    asked: (event: string) => asked.get(event) ?? 0,
     emit: (event: string, payload?: unknown) => {
       const internals = (
         window as unknown as Record<string, { runCallback: (id: number, data: unknown) => void }>
