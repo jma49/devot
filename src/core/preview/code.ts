@@ -143,10 +143,7 @@ const el = (tagName: string, properties: Element['properties'], children: Elemen
 export const CODE_MARK_ID_PREFIX = 'devot-code-mark-'
 const GENERIC_MARK = 'generic'
 
-/**
- * A mark's path goes in once per render, as a symbol in its first block's mark: a note's code
- * blocks would otherwise carry a copy each to the page on every keystroke.
- */
+// A mark's path goes in once per render, as a symbol in its first block's mark, not once per block.
 function icon(mark: string | undefined, drawn: Set<string>): Element {
   const own = mark ? languageIcons.icons[mark as keyof typeof languageIcons.icons] : undefined
   const id = CODE_MARK_ID_PREFIX + (own ? mark : GENERIC_MARK)

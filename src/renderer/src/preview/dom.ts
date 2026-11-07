@@ -25,7 +25,7 @@ function namespaceFor(tagName: string, parentNs: string | null): string {
 
 type PropertyInfo = ReturnType<typeof find>
 const propertyInfo = new Map<string, PropertyInfo>()
-/** Note HTML can name any `data-*` attribute; the cache starts over rather than grow with them. */
+// Note HTML can name any `data-*` attribute; the cache starts over rather than grow with them.
 const MAX_PROPERTY_INFO = 1000
 
 function infoOf(key: string): PropertyInfo {
