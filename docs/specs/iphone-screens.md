@@ -165,6 +165,7 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 - `WebTabScreen` sets its additional safe area so its safe area equals the window's: the page lays itself out by `env(safe-area-inset-*)` exactly as without the system bar, and its own room for a floating bar at the bottom clears the system's.
 - The bar's tint is `color.accent.text` and it is never minimised on scroll.
   Glass Transparency does not reach it: the floating tab bar ignores a bar tint (spike: bar tint).
+- The host-app XCTests check the bar's items, the web view's moves and the key window; the `iphone-ui` CI job's XCUITest (`src-tauri/apple/DevotUITests/Tests/TabsTests.swift`) launches the real app, switches all four tabs by their names and runs the accessibility audit on the bar (docs/specs/quality.md, CI).
 
 ## Editor screen protocol
 
