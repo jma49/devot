@@ -17,6 +17,7 @@ import { isImeKey } from '../ime'
 import { invoke } from '../ipc'
 import { startLicence, useEditing } from '../licence'
 import { MAX_LINK_NOTES } from '../linkCompletion'
+import { linkedNoteDiscard } from '../linkedNotes'
 import { currentDefaultMode } from '../lastState'
 import { ModeControl, editorOnly, type Mode } from '../ModeControl'
 import type { EditorHandle } from '../editor/handle'
@@ -238,13 +239,7 @@ export function NoteWindow() {
     return core.create(linkTitle, (await core.read(noteId)).bookId)
   }
 
-  const discardLinkedNote = async (id: string) => {
-    if (!core) return
-    await core
-      .trash(id)
-      .then(() => core.purge(id))
-      .catch(() => console.warn('W_NOTE_DROP_FAILED', id))
-  }
+  const discardLinkedNote = linkedNoteDiscard(() => core)
 
   if (failure) {
     return (

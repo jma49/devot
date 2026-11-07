@@ -15,6 +15,7 @@ import { rememberTag } from '../quickTag'
 import { tagColorClass, tagColorStyle } from '../tagColorStyle'
 import type { IconName } from '../icons/symbols'
 import type { LinkSources } from '../linkCompletion'
+import { linkedNoteDiscard } from '../linkedNotes'
 import type { EditorHandle } from '../editor/handle'
 import { NoteEditor } from '../NoteEditor'
 import { listDevices, useSyncSnapshot } from '../sync'
@@ -255,14 +256,7 @@ export function PhoneNote(props: {
         .map((n) => ({ id: n.id, title: n.title || t('note.untitled') }))
     },
     create: async (title) => (store.core ? store.core.create(title, note?.bookId ?? null) : ''),
-    discard: async (id) => {
-      const core = store.core
-      if (!core) return
-      await core
-        .trash(id)
-        .then(() => core.purge(id))
-        .catch(() => console.warn('W_NOTE_DROP_FAILED', id))
-    },
+    discard: linkedNoteDiscard(() => store.core),
     linked: () => {},
   }
 

@@ -9,6 +9,7 @@ import { editorSettings } from '../editorSettings'
 import { displayTitle, displayTitles, type HeadlineLoader } from '../headlines'
 import { t } from '../i18n'
 import { MAX_LINK_NOTES } from '../linkCompletion'
+import { dropNote, linkedNoteDiscard } from '../linkedNotes'
 import { homeOf, viewLists, type ListView } from '../listUpdates'
 import { startEarlyKeys } from '../editor/earlyKeys'
 import { notebookForNewNote } from '../notebookChoices'
@@ -321,12 +322,6 @@ export function useNoteMaking({
     await refresh(core)
   }
 
-  const dropNote = (c: Core, id: string) =>
-    c
-      .trash(id)
-      .then(() => c.purge(id))
-      .catch(() => console.warn('W_NOTE_DROP_FAILED', id))
-
   const createLinkedNote = async (linkTitle: string) => {
     if (!core) throw new Error('E_CORE_NOT_READY')
     const id = await core.create(linkTitle, newNoteBookId())
@@ -334,11 +329,7 @@ export function useNoteMaking({
     return id
   }
 
-  const discardLinkedNote = async (id: string) => {
-    if (!core) return
-    await dropNote(core, id)
-    await refresh(core)
-  }
+  const discardLinkedNote = linkedNoteDiscard(() => core, refresh)
 
   const templatePicker =
     core && picking ? (
