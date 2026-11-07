@@ -282,6 +282,28 @@ pub(crate) async fn fonts_list_inner(
     crate::task::coded_with(fonts, FAILED, |fonts| Ok(fonts.list())).await
 }
 
+/// The iPhone's document picker hands Rust its copy in the app's temporary folder; a path
+/// anywhere else is refused unread.
+pub(crate) async fn font_import_picked_inner(
+    fonts: &std::sync::Arc<Fonts>,
+    path: String,
+) -> Result<FontFile, &'static str> {
+    crate::task::coded_with(fonts, FAILED, move |fonts| {
+        let picked = picked_copy(Path::new(&path)).ok_or("E_SCREENS_ARGS_INVALID")?;
+        fonts.import(&picked)
+    })
+    .await
+}
+
+fn picked_copy(path: &Path) -> Option<PathBuf> {
+    if !path.is_absolute() {
+        return None;
+    }
+    let path = path.canonicalize().ok()?;
+    let temp = std::env::temp_dir().canonicalize().ok()?;
+    (path.starts_with(&temp) && path.is_file()).then_some(path)
+}
+
 #[tauri::command]
 pub async fn font_read(
     fonts: State<'_, std::sync::Arc<Fonts>>,

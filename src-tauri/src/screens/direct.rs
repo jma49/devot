@@ -108,6 +108,12 @@ pub struct MaybeRecoveryKey {
 
 #[derive(Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct Picked {
+    pub path: String,
+}
+
+#[derive(Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Device {
     pub device: String,
 }
@@ -129,6 +135,8 @@ pub enum Op {
     EditorSettingsSet(EditorPatch),
     #[serde(rename = "direct.fonts.list")]
     FontsList(Empty),
+    #[serde(rename = "direct.fonts.import")]
+    FontsImport(Picked),
     #[serde(rename = "direct.crashReports.get")]
     CrashReportsGet(Empty),
     #[serde(rename = "direct.crashReports.set")]
@@ -211,6 +219,7 @@ pub const OPS: &[&str] = &[
     "direct.editorSettings.get",
     "direct.editorSettings.set",
     "direct.fonts.list",
+    "direct.fonts.import",
     "direct.crashReports.get",
     "direct.crashReports.set",
     "direct.ai.get",
@@ -289,6 +298,9 @@ pub async fn run(services: &Services, op: Op) -> Result<Value, &'static str> {
                 .await,
         ),
         Op::FontsList(Empty {}) => value(fonts::fonts_list_inner(fonts).await),
+        Op::FontsImport(Picked { path }) => {
+            value(fonts::font_import_picked_inner(fonts, path).await)
+        }
         Op::CrashReportsGet(Empty {}) => value(Ok(crate::crash::crash_reports_now())),
         Op::CrashReportsSet(On { on }) => value(crate::crash::crash_reports_set_inner(on)),
         Op::AiGet(Empty {}) => value(ai::ai_settings_get_inner(ai).await),
@@ -644,6 +656,36 @@ mod tests {
                 direct(&setup, "direct.crashReports.set", json!({ "on": on })),
                 json(crate::crash::crash_reports_set_inner(on)),
                 "{on}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_font_the_picker_copied_imports_as_the_command_imports_it() {
+        let setup = setup();
+        let picked = tempfile::tempdir().unwrap();
+        let path = picked.path().join("Fira Code.ttf");
+        std::fs::write(&path, [0, 1, 0, 0, 0, 9, 0, 0]).unwrap();
+        let font = json!({ "id": "Fira Code.ttf", "name": "Fira Code" });
+        assert_eq!(
+            direct(&setup, "direct.fonts.import", json!({ "path": path })),
+            Ok(font.clone())
+        );
+        assert_eq!(
+            direct(&setup, "direct.fonts.list", json!({})),
+            Ok(json!([font]))
+        );
+        let outside = picked.path().join("../elsewhere/Fira Code.ttf");
+        for path in [
+            json!("/etc/hosts"),
+            json!("Fira Code.ttf"),
+            json!(outside),
+            json!(7),
+        ] {
+            assert_eq!(
+                direct(&setup, "direct.fonts.import", json!({ "path": path })),
+                Err("E_SCREENS_ARGS_INVALID"),
+                "{path}"
             );
         }
     }
