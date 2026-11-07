@@ -8,7 +8,9 @@ import { median, watchKeys, type ViewLike } from './keystrokes'
 // editor's own work and the time from the key to the end of the frame that shows it, as medians. Find
 // updates its matches only around each change, so the budgets are those of typing without the bar
 // (long-note-typing.spec.ts); on CI they stretch (tests/support/budget.ts), and a local machine running
-// several suites at once skips instead of failing.
+// several suites at once skips instead of failing. A whole-note search per key also fits these budgets
+// on a fast machine, so the read-count tests in src/core/find.test.ts and the editor and preview
+// find.test.ts files are what guard the incremental update.
 const WORK_BUDGET_MS = 25
 const FRAME_BUDGET_MS = 80
 const NOTE_CHARS = 1_000_000
