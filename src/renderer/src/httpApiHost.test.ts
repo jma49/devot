@@ -9,7 +9,7 @@ function host(run: (call: HttpApiCall) => Promise<unknown>) {
   const reply = vi.fn<(id: number, result: unknown, error: string | null) => Promise<void>>(
     async () => {},
   )
-  const wrote = vi.fn<() => void>()
+  const wrote = vi.fn<(notes: readonly string[] | undefined) => void>()
   return { take: httpApiHost({ run, reply, wrote }), reply, wrote }
 }
 
@@ -28,6 +28,16 @@ describe('httpApiHost', () => {
     const other = host(() => Promise.reject(new Error('no code here')))
     await other.take(READ)
     expect(other.reply).toHaveBeenCalledWith(1, null, 'E_HTTP_API_FAILED')
+  })
+
+  it('names the note a write changed when that is all it changed', async () => {
+    const h = host(async () => ({}))
+    await h.take({ id: 3, op: 'notes.append', note: 'n1', args: { text: 'more' } })
+    await h.take({ id: 4, op: 'notes.update', note: 'n1', args: { title: 'Plan' } })
+    await h.take({ id: 5, op: 'notes.update', note: 'n1', args: { tags: ['work'] } })
+    await h.take(TRASH)
+    await h.take({ id: 6, op: 'notes.create', note: null, args: { title: 'New' } })
+    expect(h.wrote.mock.calls).toEqual([[['n1']], [['n1']], [undefined], [undefined], [undefined]])
   })
 
   it('takes a write in as an outside change once it is made, and only then', async () => {

@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { BookRecord, NoteSummary } from '../../core'
 import { TEMPLATES_BOOK_ID } from '../../core/books'
 import {
+  changedNotes,
   homeOf,
   keepUnchanged,
   retitled,
   sameCounts,
   sameSearchRows,
   viewLists,
+  withSummaries,
   withWrites,
 } from './listUpdates'
 
@@ -77,6 +79,44 @@ describe('keepUnchanged', () => {
     ]) {
       expect(keepUnchanged(prev, [note('a', change)])[0]).not.toBe(prev[0])
     }
+  })
+})
+
+describe('withSummaries', () => {
+  it('puts in the rows read again, in place, and keeps the rest', () => {
+    const list = [note('a'), note('b'), note('c')]
+    const next = withSummaries(list, [note('b', { title: 'B', updatedAt: 20 })])
+    expect(next.map((n) => [n.id, n.title, n.updatedAt])).toEqual([
+      ['a', 'a', 10],
+      ['b', 'B', 20],
+      ['c', 'c', 10],
+    ])
+    expect(next[0]).toBe(list[0])
+    expect(next[2]).toBe(list[2])
+  })
+
+  it('returns the same list when no row read again changed', () => {
+    const list = [note('a'), note('b')]
+    expect(withSummaries(list, [note('a')])).toBe(list)
+    expect(withSummaries(list, [note('z')])).toBe(list)
+  })
+
+  it('takes a new body version as a change', () => {
+    const list = [note('a')]
+    expect(withSummaries(list, [note('a', { bodyVersion: 2 })])[0]?.bodyVersion).toBe(2)
+  })
+})
+
+describe('changedNotes', () => {
+  it('names the notes listed in only one of the lists, or listed differently', () => {
+    const prev = [note('a'), note('b'), note('c'), note('d')]
+    const next = [note('d'), note('a'), note('b', { status: 'active' }), note('e')]
+    expect(changedNotes(prev, next).sort()).toEqual(['b', 'c', 'e'])
+  })
+
+  it('counts a new body version as a change, and nothing when the lists match', () => {
+    expect(changedNotes([note('a')], [note('a', { bodyVersion: 2 })])).toEqual(['a'])
+    expect(changedNotes([note('a')], [note('a')])).toEqual([])
   })
 })
 

@@ -117,7 +117,7 @@ describe.each(databases)('writes after the clock is set back, on %s', (_, fresh)
     await fast.notes.setTitle(id, 'Elsewhere')
     await fast.notes.flush()
 
-    expect(await right.notes.mergeStored()).toEqual([{ id, title: 'Elsewhere' }])
+    expect((await right.notes.mergeStored()).retitled).toEqual([{ id, title: 'Elsewhere' }])
     await right.notes.setTitle(id, 'Final')
     await right.notes.flush()
     expect(await right.storage.getNote(id)).toMatchObject({ title: 'Final' })

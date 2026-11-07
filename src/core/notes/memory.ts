@@ -2,7 +2,7 @@ import * as Y from 'yjs'
 import { receiveStored } from '../hlc'
 import { clipTitle } from '../noteLimits'
 import { REVISION_PAUSE_MS } from '../revisions'
-import { MAX_BODY_IDS, type NoteBody, type NoteRecord } from '../storage'
+import { MAX_BODY_IDS, type NoteBody, type NoteRecord, type NoteSummary } from '../storage'
 import { BODY } from './body'
 import type { Live, NoteContext } from './context'
 import type { Kernel } from './kernel'
@@ -72,6 +72,15 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
     }
     for (const batch of await Promise.all(batches)) found.push(...batch)
     return found
+  }
+
+  /** `storage.getSummaries` for any number of IDs, in batches of MAX_BODY_IDS. */
+  const summaries = async (ids: readonly string[]): Promise<NoteSummary[]> => {
+    const batches: Promise<NoteSummary[]>[] = []
+    for (let i = 0; i < ids.length; i += MAX_BODY_IDS) {
+      batches.push(storage.getSummaries(ids.slice(i, i + MAX_BODY_IDS)))
+    }
+    return (await Promise.all(batches)).flat()
   }
 
   const getStored = async (id: string, which?: { trashed: boolean }) => {
@@ -166,5 +175,5 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
     return note && live.get(id) === note ? note : undefined
   }
 
-  return { liveNote, drop, bodies, getStored, load, using, trim, inMemory }
+  return { liveNote, drop, bodies, summaries, getStored, load, using, trim, inMemory }
 }

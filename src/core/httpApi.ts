@@ -36,6 +36,14 @@ export const HTTP_API_WRITES: readonly HttpApiOp[] = [
   'notes.trash',
 ]
 
+/** The notes a write changes when it changes nothing else (no note made or trashed, no tag made); undefined for any other write. */
+export function notesOnlyWritten(call: HttpApiCall): string[] | undefined {
+  if (call.note === null) return undefined
+  if (call.op === 'notes.append') return [call.note]
+  if (call.op === 'notes.update' && call.args['tags'] === undefined) return [call.note]
+  return undefined
+}
+
 export interface HttpApiCall {
   op: HttpApiOp
   /** The note a call is about (read, update, trash). */
