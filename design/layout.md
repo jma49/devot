@@ -87,7 +87,8 @@ The width, the empty line, the fade, the meta line and the drag hold in Classic 
 - **Header:** 32 tall (`space.10`), its text on the inner keyline: the status mark in the status colour, the name 13 semibold in primary, then the count in caption size (11) in tertiary.
 - **Empty column:** one line, "No Notes", in tertiary at footnote size, centred.
 - **Cards:** 6 apart (`space.3`), filled only with `color.fill.card` (one stroke rule), `radius.list-row` (12) and the note row's padding: 10 top, 11 bottom (`size.list-row-padding-bottom`), 12 sides, lines 4 apart.
-  The title is 13 semibold on up to three lines; under it the meta line, 11 on a 14 line (`size.card-meta-line`) in secondary: the time, then a dot per tag ending 12 inside the card's right edge.
+  The title is 13 semibold on up to three lines; under it the meta line, 11 on a 14 line (`size.card-meta-line`) in secondary: the time, the task progress, then a dot per tag ending 12 inside the card's right edge.
+  The task progress is a `size.card-task-ring` (12) ring, 1.5 wide on a radius of 4.5, then its count 4 after it (`space.2`): the track in the text colour at `opacity.card-task-track`, the done part in the text colour from the top, clockwise, and the whole ring in `color.status.done-mark` once every task is done.
   A card in the Dropped column draws its title in secondary unless it is selected.
 - **States:** under the pointer a card takes `color.fill.tool-hover`; selected, the list's accent wash (`color.accent.fill` at `opacity.list-selected` over `color.fill.card`), with no bar; with the keyboard the inset `color.focus.ring` ring.
 - **Fade:** a column's cards fade out over their last 18 (`space.8`) instead of being cut.
@@ -108,7 +109,7 @@ The width, the empty line, the fade, the meta line and the drag hold in Classic 
 - **Page:** the note's first page laid out at `size.gallery-page-width` (480) and scaled to the sheet, about one half: the title in the note's title style (28/34 bold, scaled with the body), then the body on the note type scale, headings primary and text secondary.
   An untitled note starts with its first line, or "Untitled" in tertiary when it has none.
   A diagram, math, a frame or an image from the web shows as a placeholder in a `color.fill.track` box with tertiary text.
-- **Caption:** one line 6 (`space.3`) under the sheet on the inner keyline, 11 (`font-size.caption`) in tertiary, the board card's meta line led by the marks: the pin, the status mark in its colour, the time, then the tag dots at the line's end.
+- **Caption:** one line 6 (`space.3`) under the sheet on the inner keyline, 11 (`font-size.caption`) in tertiary, the board card's meta line led by the marks: the pin, the status mark in its colour, the time, the task ring and count as on a board card, then the tag dots at the line's end.
   The title is not repeated, as the page shows it.
 
 ## One stroke rule

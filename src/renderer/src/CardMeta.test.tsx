@@ -88,4 +88,29 @@ describe('CardMeta', () => {
     const html = meta({ changedBy: { kind: 'mcp', name: 'Helper' } })
     expect(html).toContain('row-agent')
   })
+
+  it('shows task progress as a ring and its count after the time, named for assistive technology', () => {
+    const html = meta({ note: note({ tagIds: ['t1'] }), tasks: { done: 2, total: 5 } })
+    expect(order(html, '</time>', 'card-tasks', '2/5', 'card-tags')).toBe(true)
+    expect(html).toContain('aria-label="2 of 5 tasks done"')
+    expect(html.match(/<circle/g)).toHaveLength(2)
+    expect(html).not.toContain('card-tasks-done')
+  })
+
+  it('draws a complete ring once every task is done', () => {
+    const html = meta({ tasks: { done: 9, total: 9 } })
+    expect(html).toContain('card-tasks card-tasks-done')
+    expect(html).toContain('9/9')
+  })
+
+  it('draws only the track while no task is done', () => {
+    const html = meta({ tasks: { done: 0, total: 3 } })
+    expect(html).toContain('0/3')
+    expect(html.match(/<circle/g)).toHaveLength(1)
+  })
+
+  it('shows no task progress for a note without tasks, or before its counts are read', () => {
+    expect(meta({ tasks: { done: 0, total: 0 } })).not.toContain('card-tasks')
+    expect(meta({ tasks: undefined })).not.toContain('card-tasks')
+  })
 })

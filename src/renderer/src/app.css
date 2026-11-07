@@ -2159,7 +2159,8 @@ button {
   white-space: nowrap;
 }
 
-.card .card-time {
+.card .card-time,
+.card .card-tasks {
   color: var(--color-text-secondary);
 }
 
@@ -2183,6 +2184,34 @@ button {
   gap: var(--space-1);
   min-width: 0;
   margin-inline-start: auto;
+}
+
+/* The done part of the ring in the meta line's colour; once every task is done, the whole ring in the done mark. */
+.card-tasks {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.card-tasks-ring {
+  width: var(--size-card-task-ring);
+  height: var(--size-card-task-ring);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.card-tasks-track {
+  stroke-opacity: var(--opacity-card-task-track);
+}
+
+.card-tasks-arc {
+  stroke-linecap: round;
+}
+
+.card-tasks-done .card-tasks-arc {
+  stroke: var(--color-status-done-mark);
 }
 
 /* The gallery's cards sit in rows of one height (gallery.ts places them), so only the rows near the part that shows render. */

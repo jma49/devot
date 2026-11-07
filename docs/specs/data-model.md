@@ -70,6 +70,10 @@ Part of the [architecture overview](../architecture.md).
   These keys carry no clock: any later move wins, and when two such keys meet the greater wins, so devices that keyed apart still converge.
 - **Markdown snapshot:** derived from the Yjs document on save (debounced).
   FTS5 search, export and MCP read the snapshot.
+- **Task progress:** a note's task items, how many are done and how many there are (`taskProgress` in `src/core/extract.ts`), are derived from the body when they are shown and never stored, synced, encrypted or written to the Markdown mirror.
+  The note list's rows (`NoteService.rowDetails`), board cards and gallery captions (`NoteService.taskCounts`) ask the core for the notes they render, edits not saved yet included, and keep the answer until the note's update time moves.
+  Every write of a body (the editor, import, sync, the MCP server and HTTP API, history, templates) is counted the same way, since the count reads the body itself.
+  There is no stored column for it: a note summary comes from an index that never reads the note's row, and a window re-dates the notes it writes without listing them again, so a stored count would lag each edit until the next reload.
 - **Rule:** nothing writes the snapshot directly.
   Import and MCP note creation both compute a text diff and apply it to the Yjs document as Yjs operations.
 - **Lineage** (ADR 0002, risk 1): every write to a body changes the note's existing Yjs document, so two devices' states of one note always merge without duplicating text.

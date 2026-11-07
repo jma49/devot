@@ -130,6 +130,7 @@ export const messages = {
   'noteList.resize': 'Resize Note List',
   'board.resize': 'Resize Board',
   'board.cardTags': 'Tags: {tags}',
+  'board.cardTasks': '{done}/{total}',
   'board.columnEmpty': 'No Notes',
   'board.droppedHidden': 'Dropped Notes Are Hidden',
   'board.droppedHiddenTip': 'Turn on Dropped Column on Boards in General settings to show them.',

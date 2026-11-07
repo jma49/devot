@@ -110,6 +110,39 @@ describe('row details', () => {
   })
 })
 
+describe('task counts', () => {
+  it('counts the done and open tasks of each note, zero for none, and leaves out notes that do not exist', async () => {
+    const { notes } = setup()
+    const a = await notes.create('Plan')
+    const b = await notes.create('Plain')
+    await notes.setBody(a, '- [x] one\n  - [X] nested\n- [ ] two\n```\n- [ ] in a fence\n```\n')
+    await notes.setBody(b, 'no tasks here')
+    expect(await notes.taskCounts([a, b, '0192a6f0-0000-7000-8000-00000000000a'])).toEqual({
+      [a]: { done: 2, total: 3 },
+      [b]: { done: 0, total: 0 },
+    })
+  })
+
+  it('follows typing not saved yet, then reads the saved body after a restart', async () => {
+    const { notes, storage } = setup()
+    const id = await notes.create('Plan')
+    await notes.setBody(id, '- [ ] one')
+    expect((await notes.taskCounts([id]))[id]).toEqual({ done: 0, total: 1 })
+    await notes.setBody(id, '- [x] one\n- [ ] two')
+    expect((await notes.taskCounts([id]))[id]).toEqual({ done: 1, total: 2 })
+    await notes.flush()
+    const fresh = createNoteService({
+      storage,
+      clock: createClock('mac2'),
+      newId: createIdGenerator(),
+      saveDelayMs: 5,
+    })
+    const batched = vi.spyOn(storage, 'getBodies')
+    expect((await fresh.taskCounts([id]))[id]).toEqual({ done: 1, total: 2 })
+    expect(batched).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('card excerpts', () => {
   it('gives the start of each body after its title for a gallery card, pending edits included', async () => {
     const { notes } = setup()

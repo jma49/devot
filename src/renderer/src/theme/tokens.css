@@ -219,6 +219,7 @@
   --size-board-column-width: 180px;
   --size-board-column-min-width: 150px;
   --size-card-meta-line: 14px;
+  --size-card-task-ring: 12px;
   --size-gallery-card-min-width: 220px;
   --size-gallery-card-max-width: 300px;
   --size-gallery-page-width: 480px;
@@ -448,6 +449,7 @@
   --opacity-list-selected: 0.2;
   --opacity-card-dragged: 0.35;
   --opacity-card-selected: 0.1;
+  --opacity-card-task-track: 0.3;
   --opacity-tag-fill: 0.1;
   --opacity-tag-border: 0.2;
   --opacity-tag-fill-active: 0.2;

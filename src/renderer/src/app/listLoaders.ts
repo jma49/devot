@@ -3,7 +3,7 @@ import type { Core } from '../core-client'
 import { useEditorSetting } from '../editorSettings'
 import { cardLabels } from '../galleryPreviews'
 
-/** What list rows and cards load for the rows on screen: first lines, details, previews and activity strips. */
+/** What list rows and cards load for the rows on screen: first lines, details, task counts, previews and activity strips. */
 export function useListLoaders(core: Core | undefined) {
   const loadHeadlines = useMemo(
     () => (core ? (ids: string[]) => core.headlines(ids) : undefined),
@@ -11,6 +11,10 @@ export function useListLoaders(core: Core | undefined) {
   )
   const loadDetails = useMemo(
     () => (core ? (ids: string[]) => core.rowDetails(ids) : undefined),
+    [core],
+  )
+  const loadTaskCounts = useMemo(
+    () => (core ? (ids: string[]) => core.taskCounts(ids) : undefined),
     [core],
   )
   const loadCardPreviews = useMemo(
@@ -23,7 +27,7 @@ export function useListLoaders(core: Core | undefined) {
       core && activityStrip ? (ids: string[]) => core.noteActivity(ids, Date.now()) : undefined,
     [core, activityStrip],
   )
-  return { loadHeadlines, loadDetails, loadCardPreviews, loadStrips }
+  return { loadHeadlines, loadDetails, loadTaskCounts, loadCardPreviews, loadStrips }
 }
 
 export type ListLoaders = ReturnType<typeof useListLoaders>

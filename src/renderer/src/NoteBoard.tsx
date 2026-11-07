@@ -14,7 +14,7 @@ import {
   type ReactNode,
   type Ref,
 } from 'react'
-import type { NoteSummary, TagRecord } from '../../core'
+import type { NoteSummary, TagRecord, TaskProgress } from '../../core'
 import type { NoteStatus } from '../../core/storage'
 import type { ListDatesStyle } from '../../core/editorSettings'
 import {
@@ -87,6 +87,7 @@ interface Props {
   selection: ListSelection | undefined
   onSelection: (next: ListSelection | undefined) => void
   headlines?: HeadlineLoader | undefined
+  taskCounts?: HeadlineLoader<TaskProgress> | undefined
   /** Gives the notes a status (a drop, a key); undefined while notes cannot be changed, when cards do not drag either. */
   onMove?: ((ids: readonly string[], status: NoteStatus) => void) | undefined
   /** Moves each note one column on (Control+Command+Right and Left). */
@@ -199,6 +200,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
     return more.length > 0 ? [...rendered, ...more] : rendered
   }, [rendered, selection, byId])
   const headlines = useHeadlines(props.headlines, headlineCards)
+  const taskCounts = useHeadlines(props.taskCounts, rendered, true)
   const now = useNow()
   const locale = currentLocale()
   const dates = useEditorSetting('listDates')
@@ -584,6 +586,7 @@ export const NoteBoard = memo(function NoteBoard(props: Props) {
       tags={props.tags}
       changedBy={props.changedBy?.get(note.id)}
       headline={headlines.get(note.id)}
+      tasks={taskCounts.get(note.id)}
       now={now}
       locale={locale}
       dates={dates}
@@ -719,6 +722,7 @@ interface CardProps {
   tags: ReadonlyMap<string, TagRecord>
   changedBy: WriterRef | undefined
   headline: string | undefined
+  tasks: TaskProgress | undefined
   now: number
   locale: string
   dates: ListDatesStyle
@@ -728,7 +732,7 @@ interface CardProps {
   events: CardEvents
 }
 
-/** One note on the board: its title (an untitled note's first line), when it changed and its tags as dots. */
+/** One note on the board: its title (an untitled note's first line), when it changed, its task progress and its tags as dots. */
 const BoardCard = memo(function BoardCard(props: CardProps) {
   const { note: n, events } = props
   const id = n.id
@@ -764,6 +768,7 @@ const BoardCard = memo(function BoardCard(props: CardProps) {
         locale={props.locale}
         dates={props.dates}
         changedBy={props.changedBy}
+        tasks={props.tasks}
         marks={false}
       />
     </li>

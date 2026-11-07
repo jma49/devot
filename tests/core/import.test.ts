@@ -293,6 +293,17 @@ describe('Markdown folder import', () => {
     expect(report.noteIds).toEqual({ 'a.md': (await noteByTitle(sqlite, 'A')).summary.id })
   })
 
+  it('gives the board and the gallery the task counts of what it imported', async () => {
+    const { sqlite, services } = await setup()
+    await importMarkdown({ ...services, scan: scanOf(SAMPLE), source: sourceFor(sqlite).source })
+    const plan = (await noteByTitle(sqlite, 'Plan heading')).summary.id
+    const ancient = (await noteByTitle(sqlite, 'Ancient')).summary.id
+    expect(await services.notes.taskCounts([plan, ancient])).toEqual({
+      [plan]: { done: 1, total: 2 },
+      [ancient]: { done: 0, total: 0 },
+    })
+  })
+
   it('reads nothing from foreign front matter and keeps it in the note as written', async () => {
     const { sqlite, services } = await setup()
     await importMarkdown({ ...services, scan: scanOf(SAMPLE), source: sourceFor(sqlite).source })
