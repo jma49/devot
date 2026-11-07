@@ -161,7 +161,7 @@ function after(manifest: MirrorManifest, ops: readonly MirrorOp[]): MirrorManife
       const size = op.text?.length ?? next.notes[op.id]?.size ?? 0
       next.notes[op.id] = {
         path: op.path,
-        sha256: op.sha256,
+        sha256: hashOf(op),
         size,
         source: op.source,
         files: op.files,
@@ -175,6 +175,9 @@ function after(manifest: MirrorManifest, ops: readonly MirrorOp[]): MirrorManife
   }
   return next
 }
+
+/** What Rust records for a note's op: its own hash of the text sent, or the hash sent without one. */
+const hashOf = (op: Extract<MirrorOp, { kind: 'note' }>) => op.sha256 ?? sha256Hex(op.text!)
 
 const diskOf = (manifest: MirrorManifest): Record<string, DiskState> =>
   Object.fromEntries(
@@ -260,7 +263,8 @@ describe('a first mirror', () => {
       `---\n${EXPORT_HEADER}\ntitle: 'Plan'\n---\nSecond plan.\n`,
     )
     const notes = plan.ops.flatMap((op) => (op.kind === 'note' ? [op] : []))
-    expect(notes.map((op) => op.sha256)).toEqual(notes.map((op) => sha256Hex(op.text!)))
+    // Rust hashes each text itself.
+    expect(notes.filter((op) => op.sha256 !== undefined)).toEqual([])
     expect(plan.deferred).toBe(0)
   })
 
@@ -325,7 +329,8 @@ describe('keeping it up to date', () => {
     const plan = settle(edited)
     expect(kinds(plan.ops)).toEqual(['note Work/Inbox.md -> Work/Inbox.md'])
     expect(textOf(plan, 'Work/Inbox.md')).toBe('# Inbox\n\nNew thoughts.\n')
-    expect(plan.asked).toEqual({ bodies: [id(1)], paths: ['Work/Inbox.md'], hashes: [] })
+    // Rust checks its file before it writes, so the plan does not ask first.
+    expect(plan.asked).toEqual({ bodies: [id(1)], paths: [], hashes: [] })
   })
 
   it('a body that changed while the update time stayed (an older synced edit merged in) is written', () => {
@@ -342,13 +347,13 @@ describe('keeping it up to date', () => {
     expect(textOf(plan, 'Work/Inbox.md')).toBe('# Inbox\n\nMerged in from another device.\n')
   })
 
-  it('a change that leaves the file as it is (pinning) only records it, without the disk', () => {
+  it('a change that leaves the text as it is (pinning) goes without the disk; Rust leaves the file as it is', () => {
     const world = mirrored()
     const plan = settle(changeNote(world, 1, { pinned: true }))
-    expect(kinds(plan.ops)).toEqual(['note Work/Inbox.md -> Work/Inbox.md (record)'])
+    expect(kinds(plan.ops)).toEqual(['note Work/Inbox.md -> Work/Inbox.md'])
     expect(plan.asked.paths).toEqual([])
     const op = plan.ops[0]!
-    expect(op.kind === 'note' && op.sha256).toBe(world.manifest!.notes[id(1)]!.sha256)
+    expect(op.kind === 'note' && hashOf(op)).toBe(world.manifest!.notes[id(1)]!.sha256)
   })
 
   it('renaming a note moves its file; its text follows the new name', () => {
@@ -632,7 +637,10 @@ describe('files changed outside Devot', () => {
     const next = changeNote(world, 1, {})
     next.bodies = { ...next.bodies, [id(1)]: '# Inbox\n\nNew.\n' }
     next.disk = { ...next.disk, 'Work/Inbox.md': edited }
-    expect(kinds(settle(next).ops)).toEqual(['keep Work/Inbox.md', 'note - -> Work/Inbox.md'])
+    // The rewrite goes without a look at the file; Rust finds it changed and says what is there.
+    expect(kinds(settle(next).ops)).toEqual(['note Work/Inbox.md -> Work/Inbox.md'])
+    const told = { ...next, checked: { 'Work/Inbox.md': edited } }
+    expect(kinds(settle(told).ops)).toEqual(['keep Work/Inbox.md', 'note - -> Work/Inbox.md'])
   })
 
   it('are kept on a rename, a move, a trash and a purge', () => {
@@ -666,8 +674,10 @@ describe('files changed outside Devot', () => {
     const next = changeNote(world, 4, {})
     next.bodies = { ...next.bodies, [id(4)]: 'Changed.\n' }
     next.disk = { ...next.disk, 'Loose.md': sha256Hex('Changed.\n') }
-    const plan = settle(next)
-    expect(kinds(plan.ops)).toEqual(['note Loose.md -> Loose.md (record)'])
+    // Unlooked at, the text goes and Rust finds the file holds it; looked at (a reconcile), only the record goes.
+    expect(kinds(settle(next).ops)).toEqual(['note Loose.md -> Loose.md'])
+    const checked = { 'Loose.md': sha256Hex('Changed.\n') }
+    expect(kinds(settle({ ...next, checked }).ops)).toEqual(['note Loose.md -> Loose.md (record)'])
   })
 
   it('replaced by a folder or a link: the entry is forgotten and the note takes another name', () => {
@@ -704,7 +714,7 @@ describe('files Devot wrote that the manifest does not list', () => {
     expect(first.asked.hashes).toEqual([])
     const disk: Record<string, DiskState> = { attachments: 'dir' }
     for (const op of first.ops) {
-      if (op.kind === 'note') disk[op.path] = op.sha256
+      if (op.kind === 'note') disk[op.path] = hashOf(op)
       if (op.kind === 'file') disk[op.path] = world.hashes![op.id]!
       if (op.kind === 'book' && op.path !== null) disk[op.path] = 'dir'
     }
