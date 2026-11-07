@@ -48,6 +48,11 @@ const sameTags = (a: readonly TagRecord[], b: readonly TagRecord[]) =>
     )
   })
 
+const rowsOf = (listed: { notes: NoteSummary[]; templates: NoteSummary[] }) => [
+  ...listed.notes,
+  ...listed.templates,
+]
+
 /** The notes, notebooks, tags, saved searches and Trash as the core last listed them, with the writes and titles shown since. */
 export function useLibraryLists({
   rerunSearch,
@@ -88,14 +93,12 @@ export function useLibraryLists({
       ])
       const nextNotes = listed.notes
       const before = lastListed.current
-      lastListed.current = { notes: nextNotes, templates: listed.templates, tags: nextTags }
+      const listedNow = { notes: nextNotes, templates: listed.templates, tags: nextTags }
+      lastListed.current = listedNow
       // A tag's name or colour shows in the link chips of any note.
       const changed =
         before && sameTags(before.tags, nextTags)
-          ? changedNotes(
-              [...before.notes, ...before.templates],
-              [...nextNotes, ...listed.templates],
-            )
+          ? changedNotes(rowsOf(before), rowsOf(listedNow))
           : undefined
       setTrash(nextTrash)
       setTrashRows((prev) => keepUnchanged(prev, nextTrash.map(trashRow)))

@@ -34,6 +34,7 @@ function sameNote(a: NoteSummary, b: NoteSummary): boolean {
     a.title === b.title &&
     a.createdAt === b.createdAt &&
     a.updatedAt === b.updatedAt &&
+    a.bodyVersion === b.bodyVersion &&
     a.bookId === b.bookId &&
     a.status === b.status &&
     a.pinned === b.pinned &&
@@ -61,30 +62,27 @@ export function keepUnchanged<T extends NoteSummary>(prev: T[], next: T[]): T[] 
   return changed ? kept : prev
 }
 
-const sameRow = (a: NoteSummary, b: NoteSummary) =>
-  sameNote(a, b) && a.bodyVersion === b.bodyVersion
-
 /** `list` with the rows of the notes read again (`read`) in their places; notes it does not list are left out. */
 export function withSummaries<T extends NoteSummary>(list: T[], read: readonly T[]): T[] {
   const byId = new Map(read.map((n) => [n.id, n]))
   let changed = false
   const next = list.map((n) => {
     const fresh = byId.get(n.id)
-    if (!fresh || sameRow(n, fresh)) return n
+    if (!fresh || sameNote(n, fresh)) return n
     changed = true
     return fresh
   })
   return changed ? next : list
 }
 
-/** The IDs of the notes listed in only one of `prev` and `next`, or listed differently (a new body version too). */
+/** The IDs of the notes listed in only one of `prev` and `next`, or listed differently. */
 export function changedNotes(prev: readonly NoteSummary[], next: readonly NoteSummary[]): string[] {
   const before = new Map(prev.map((n) => [n.id, n]))
   const changed: string[] = []
   for (const n of next) {
     const old = before.get(n.id)
     before.delete(n.id)
-    if (!old || !sameRow(old, n)) changed.push(n.id)
+    if (!old || !sameNote(old, n)) changed.push(n.id)
   }
   return [...changed, ...before.keys()]
 }

@@ -159,6 +159,22 @@ describe('useLibraryLists', () => {
     expect(rerunSearch).toHaveBeenCalledTimes(2)
   })
 
+  it('patches a note moved to another notebook in place', async () => {
+    const { hook } = lists()
+    await act(() => hook.current.refresh(fakeCore([note('a'), note('b')])))
+    const listWithTemplates = vi.fn<() => Promise<unknown>>()
+    const core = {
+      listWithTemplates,
+      noteSummaries: async () => [{ ...note('b', 5), bookId: 'b2' }],
+    } as unknown as Core
+    expect(await loadedDuring(() => hook.current.patch(core, ['b']))).toEqual([['b']])
+    expect(listWithTemplates).not.toHaveBeenCalled()
+    expect(hook.current.notes.map((n) => [n.id, n.bookId])).toEqual([
+      ['a', null],
+      ['b', 'b2'],
+    ])
+  })
+
   it('lists the library again when a written note is not listed or no longer there', async () => {
     const { hook } = lists()
     await act(() => hook.current.refresh(fakeCore([note('a')])))

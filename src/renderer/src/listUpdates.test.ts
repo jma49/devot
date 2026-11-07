@@ -76,6 +76,7 @@ describe('keepUnchanged', () => {
       { pinned: true },
       { tagIds: ['t'] },
       { excerpt: 'e' },
+      { bodyVersion: 2 },
     ]) {
       expect(keepUnchanged(prev, [note('a', change)])[0]).not.toBe(prev[0])
     }
