@@ -35,7 +35,7 @@ final class Screens {
         let root = ScreensRootController(webView: webView)
         self.root = root
         selectionFeedback = UISelectionFeedbackGenerator(view: root.tabs.view)
-        root.log = { [weak self] in self?.rust.log($0, $1) }
+        root.log = { [rust] in rust.log($0, $1) }
         root.tabs.onAppear = { [weak self] tab in
             guard let self else { return }
             run(tabModel.appeared(tab))
