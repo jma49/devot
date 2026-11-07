@@ -23,13 +23,15 @@ export function readingMethods(
   | 'cardExcerpts'
 > {
   const { live, holds } = ctx
-  const { bodies, getStored, trim, using } = k.memory
+  const { bodies, getStored, letGo, trim, using } = k.memory
   return {
     open: (id, known) =>
       using(id, (note) => ({
         id,
         title: note.record.title,
-        state: (known ? undefined : note.state) ?? Y.encodeStateAsUpdate(note.doc, known),
+        state: known
+          ? Y.encodeStateAsUpdate(note.doc, known)
+          : (note.state ??= Y.encodeStateAsUpdate(note.doc)),
       })),
 
     title: (id) => using(id, (note) => note.record.title),
@@ -41,7 +43,7 @@ export function readingMethods(
     unhold(id) {
       const left = (holds.get(id) ?? 0) - 1
       if (left > 0) holds.set(id, left)
-      else holds.delete(id)
+      else if (holds.delete(id)) letGo(id)
       trim()
     },
 

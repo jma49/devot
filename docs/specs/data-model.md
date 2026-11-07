@@ -155,6 +155,7 @@ Part of the [architecture overview](../architecture.md).
   Writes of one note go one at a time, in order, each with the note as it is when the write starts, so an older snapshot never lands after a newer one; a flush waits for a write under way.
 - **Notes in memory:** the core keeps a note's Yjs document in memory while it is used, and only the most recently used notes once nothing uses them (`NOTES_IN_MEMORY`, 8), so browsing a library does not keep every note it opened.
   A note in memory keeps its body only in its Yjs document: its record holds only the metadata, the note keeps the byte length of its state as last read or written (for the save delay), and each write encodes the body again from the document.
+  The state as last read, sent or saved stays with it only while it is in use, held by an editor or the note left last ([Performance](performance.md)).
   A note leaves memory only when nothing of it can be lost: no call is using it, no editor shows it (the editor holds its note while it is open, `hold` and `unhold`, so its replica and the core's document never part), no write is asked for or under way, no change is waiting for its save or failed to save, and its title is not being typed (quick title edits stay one event).
   Typing not kept as a version yet becomes one first, as when quitting.
   A note that left is read from storage again when it is next used, with what was saved and what another process wrote meanwhile; calls that ask for a note while it is being read share that read, so a note is never in memory twice.

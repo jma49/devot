@@ -8,16 +8,20 @@ import { tempDir } from '../support/temp-dirs'
 const open: SqliteAdapter[] = []
 afterEach(() => open.splice(0).forEach((a) => a.close()))
 
-async function setup(body: string) {
+async function setup(...bodies: string[]) {
   const storage = openSqliteAdapter(join(tempDir('devot-note-open-'), 'devot.sqlite'))
   open.push(storage)
   const options = { storage, clock: createClock('mac1'), newId: createIdGenerator() }
   const maker = createNoteService({ ...options, saveDelayMs: 5 })
-  const id = await maker.create('Plan')
-  await maker.setBody(id, body)
-  await maker.release(id)
+  const ids: string[] = []
+  for (const body of bodies) {
+    const id = await maker.create('Plan')
+    await maker.setBody(id, body)
+    await maker.release(id)
+    ids.push(id)
+  }
   const notes = createNoteService({ ...options, saveDelayMs: 60_000 })
-  return { notes, id, storage }
+  return { notes, id: ids[0]!, ids, storage }
 }
 
 const textOf = (state: Uint8Array) => {
@@ -88,5 +92,69 @@ describe('opening a note in the core', () => {
     expect(missing.state.byteLength).toBeLessThan(read.state.byteLength)
     Y.applyUpdate(editor, missing.state)
     expect(editor.getText(BODY).toString()).toBe('One Plan\n')
+  })
+})
+
+describe('the encoded state a note keeps', () => {
+  it('is sent as read to an open that holds nothing, and not kept after it', async () => {
+    const { notes, id, storage } = await setup('Plan\n')
+    const read = storage.openNote.bind(storage)
+    let stored: Uint8Array | undefined
+    storage.openNote = async (noteId) => {
+      const opened = await read(noteId)
+      if (!opened) return null
+      stored = opened.ydoc.slice()
+      return { ...opened, ydoc: stored }
+    }
+    const first = await notes.open(id)
+    expect(first.state).toBe(stored)
+    const again = await notes.open(id)
+    expect(again.state).not.toBe(first.state)
+    expect(textOf(again.state)).toBe('Plan\n')
+  })
+
+  it('stays with the note left last until another note is left', async () => {
+    const { notes, ids } = await setup('One\n', 'Two\n')
+    const [one, two] = ids as [string, string]
+    await notes.hold(one)
+    const shown = await notes.open(one)
+    await notes.hold(two)
+    await notes.open(two)
+    await notes.unhold(one)
+    expect((await notes.open(one)).state).toBe(shown.state)
+    await notes.hold(one)
+    await notes.unhold(two)
+    expect((await notes.open(one)).state).toBe(shown.state)
+    const left = await notes.open(two)
+    expect((await notes.open(two)).state).toBe(left.state)
+    await notes.unhold(one)
+    expect((await notes.open(two)).state).not.toBe(left.state)
+    expect((await notes.open(one)).state).toBe(shown.state)
+  })
+
+  it('is the saved state when the note left is saved after the switch', async () => {
+    const { notes, ids } = await setup('One\n', 'Two\n')
+    const [one, two] = ids as [string, string]
+    await notes.hold(one)
+    await notes.applyUpdate(one, typed((await notes.open(one)).state, 'Edit '))
+    await notes.hold(two)
+    await notes.open(two)
+    await notes.unhold(one)
+    await notes.flush()
+    const back = await notes.open(one)
+    expect(textOf(back.state)).toBe('Edit One\n')
+    expect((await notes.open(one)).state).toBe(back.state)
+  })
+
+  it('is not kept by a note saved that no editor holds or left last', async () => {
+    const { notes, ids } = await setup('One\n', 'Two\n')
+    const [one, two] = ids as [string, string]
+    await notes.hold(one)
+    await notes.unhold(one)
+    await notes.applyUpdate(two, typed((await notes.open(two)).state, 'Edit '))
+    await notes.flush()
+    const saved = await notes.open(two)
+    expect(textOf(saved.state)).toBe('Edit Two\n')
+    expect((await notes.open(two)).state).not.toBe(saved.state)
   })
 })

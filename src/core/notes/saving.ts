@@ -36,7 +36,7 @@ export function createSaving(
   const { unchecked, keepBaseline, recordEvents, sweep } = k.versions
   const { report, settle } = k.problems
   const { relay, takeIn } = k.relay
-  const { drop, getStored, trim } = k.memory
+  const { drop, getStored, keepsState, trim } = k.memory
   /** Serialises writes of a note so they never overlap and land in the order asked for. */
   const exclusive = <T>(note: Live, work: () => Promise<T>): Promise<T> => {
     note.writes += 1
@@ -116,7 +116,7 @@ export function createSaving(
       const derived = rowsOf(note)
       rows = derived.rows
       const state = Y.encodeStateAsUpdate(note.doc)
-      note.state = state
+      note.state = keepsState(note) ? state : undefined
       note.record = {
         ...note.record,
         updatedAt: datesSet ? note.record.updatedAt : Math.max(now(), note.record.createdAt),

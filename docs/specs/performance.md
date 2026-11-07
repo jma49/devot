@@ -11,7 +11,7 @@ Part of the [architecture overview](../architecture.md).
   The editor's syntax highlighting (`editor/highlighting.ts`) highlights each top-level block in the visible ranges on its own, found from the range's start, because `highlightTree` from the root steps past every block before it (11,550 in a 600 KB note, about 2 ms a keystroke at the end in WebKit); `highlighting.test.ts` holds a range at the end to the steps of one at the top.
 - Opening a note does not wait for the note left to be saved: its edits are in the core already, and the open asks the core to save once the note has opened (`useOpenNote.ts`).
   With Tauri storage that save still turns the note into JSON for `note_put` on the page's main thread (`storage/tauri.ts`), so that cost comes after the open instead of before it, and is not removed.
-  The core sends a note's state as it read or last saved it while nothing has changed it since, instead of encoding it again (`Live.state`).
+  The core sends a note's state as it read, sent or last saved it while nothing has changed it since, instead of encoding it again (`Live.state`); only the notes an editor holds and the note left last keep that copy (see the notes in memory below).
   Leaving a note with no undo history keeps nothing, and one with history encodes its replica after the next paint (or a second later in a hidden window, which paints nothing), not in the switch (`editor/undo.ts`).
   Shown again with the same insertions and the same text, its history is restored without a second Yjs document; the text is compared too, because a deletion does not move the state vector.
   `tests/renderer/note-switch.bench.test.ts` holds these on a 2 MB note typed over several sessions: about 85 ms to leave and 550 ms to come back with history, and 85 ms for the core's open, before.
@@ -47,6 +47,9 @@ Part of the [architecture overview](../architecture.md).
     When the preview closes (Edit or Write mode), the page tells the worker (`forgetShownPieces`), so the note it showed is kept within the same limit.
     A render still under way when the preview closes keeps its pieces within that limit too.
     The worker remembers the last rendered version of each footnote, to tell whether the list of notes changed (at most 2,000, `KEPT_NOTE_VERSIONS`); a version holds the note's text, so it goes when no kept piece defines that note.
+  - The core keeps a note in memory as its Yjs document: its record holds neither the body nor the stored state (`HeldRecord`), only the state's byte length for the save delay.
+    An encoded state, a second copy of the note, stays only with a note in use, the notes an editor holds and the note left last, so switching back to that one sends it without encoding (`keepsState` in `notes/memory.ts`).
+    Four rich notes of 1 to 5 MB held 14 MB beyond their documents before; `tests/core/note-memory.bench.test.ts` holds the extra under 8% of their text, and `tests/core/note-open.test.ts` which notes keep an encoded state.
   - Write mode's table drawings live in the note's editor state and go with it; kept across notes, they held 11 MB after a 30-column, 800-row table was left.
     The note's base extensions hold them, so a switch to Edit mode and back draws no table again.
   - `@lezer/html`'s and `@lezer/xml`'s tag tokenizers keep the last input they read, and with it the last note with HTML (or an XML block), its syntax tree and what Write mode keeps by its text (about 10 MB in V8 for a 250 KB note); leaving a note, the editor parses a tag of no note's with each (`releaseParsedNote` in `editor/markdown.ts`).

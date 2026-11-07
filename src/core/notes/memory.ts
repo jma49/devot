@@ -55,6 +55,20 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
     return note
   }
 
+  // The encoded state is a second copy of the note: only a note in use, held, or let go of last keeps it.
+  const keepsState = (note: Live) =>
+    note.users > 0 || holds.has(note.record.id) || ctx.lastLeft === note.record.id
+
+  const forgetState = (note: Live | undefined) => {
+    if (note && !keepsState(note)) note.state = undefined
+  }
+
+  const letGo = (id: string) => {
+    const before = ctx.lastLeft
+    ctx.lastLeft = id
+    if (before !== undefined && before !== id) forgetState(live.get(before))
+  }
+
   const drop = (note: Live) => {
     clearTimeout(note.timer)
     note.timer = undefined
@@ -148,6 +162,7 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
       return await work(note)
     } finally {
       note.users -= 1
+      forgetState(note)
       trim()
     }
   }
@@ -181,5 +196,17 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
     return note && live.get(id) === note ? note : undefined
   }
 
-  return { liveNote, drop, bodies, summaries, getStored, load, using, trim, inMemory }
+  return {
+    liveNote,
+    drop,
+    bodies,
+    summaries,
+    getStored,
+    load,
+    using,
+    trim,
+    inMemory,
+    keepsState,
+    letGo,
+  }
 }
