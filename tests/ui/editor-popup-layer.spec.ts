@@ -83,11 +83,11 @@ test('in Split the format bar has no masked ancestor and the panes stay unmasked
 })
 
 test('the link tooltip has no masked ancestor', async ({ page }) => {
-  await newNote(page, '[link](https://example.com)')
+  await newNote(page, 'See [docs](https://example.com/a) and more')
   await page.keyboard.press('ControlOrMeta+Home')
-  await page.keyboard.press('ArrowRight')
-  const tip = page.locator('.cm-tooltip', { hasText: 'example.com' })
-  await expect(tip).toBeVisible()
+  for (let n = 0; n < 6; n++) await page.keyboard.press('ArrowRight')
+  const tip = page.locator('.cm-link-tip')
+  await expect(tip.getByRole('button', { name: 'Open URL' })).toBeVisible()
   expect(await maskingAncestors(tip)).toEqual([])
 })
 
