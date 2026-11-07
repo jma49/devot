@@ -254,11 +254,12 @@ export function Preview({
       if (!el) return
       const until = performance.now() + SLICE_MS
       let first = true
-      buildPending(el, pieces.current, () => {
+      const count = buildPending(el, pieces.current, () => {
         const more = first || performance.now() < until
         first = false
         return more
       })
+      if (count > 0) scroll.current?.built()
       if (hasPending(pieces.current)) {
         if (performance.now() - mountedAt >= MOUNT_EVERY_MS) {
           afterBuild()
@@ -268,7 +269,6 @@ export function Preview({
         return
       }
       afterBuild()
-      scroll.current?.changed()
     }
     buildTimer.current = setTimeout(slice, 0)
   }, [afterBuild])
@@ -278,13 +278,15 @@ export function Preview({
     clearTimeout(buildTimer.current)
     buildTimer.current = undefined
     buildPending(el, pieces.current, () => true)
+    scroll.current?.built()
     afterBuild()
-    scroll.current?.changed()
   }, [afterBuild])
   const reachLine = useCallback(
     (line: number) => {
       const el = host.current
-      if (el && buildToLine(el, pieces.current, line) > 0) afterBuild()
+      if (!el || buildToLine(el, pieces.current, line) === 0) return
+      scroll.current?.built()
+      afterBuild()
     },
     [afterBuild],
   )
@@ -302,7 +304,9 @@ export function Preview({
           return piece.offset < from + chars
         })
       }
-      if (count > 0) afterBuild()
+      if (count === 0) return
+      scroll.current?.built()
+      afterBuild()
     },
     [afterBuild],
   )
@@ -384,7 +388,7 @@ export function Preview({
         shown.current = input.markdown
         shownLinks.current = next.links
         afterBuild()
-        scroll.current?.changed(next.lines)
+        scroll.current?.rendered(next.lines, pieces.current)
         if (!scrollAskedOnce.current && pieces.current.some((piece) => piece.nodes.length > 0)) {
           scrollAskedOnce.current = true
           const top = scrollAsked.current?.()

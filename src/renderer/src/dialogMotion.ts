@@ -15,6 +15,7 @@ import {
   scrollOffsets,
   whenClosed,
 } from './closing'
+import { inNoteContent } from './noteContent'
 import { motionReduced } from './motionPreference'
 
 const DIALOG_KINDS = [
@@ -225,16 +226,35 @@ function takeOverDialogCopy(dialog: HTMLDialogElement): void {
   if (latest) enterFrom(dialog, latest)
 }
 
-export function watchDialogExits(root: Node = document.body): () => void {
-  const forgetScrolls = rememberScrolls(root)
-  const observer = new MutationObserver((mutations) => {
-    const records = mutations.map((m) => ({
+/** The records that may show a dialog opening or closing: none inside a note's content. */
+function dialogRecords(mutations: readonly MutationRecord[]): DialogRecord[] {
+  const inContent = new Map<Node, boolean>()
+  const out: DialogRecord[] = []
+  for (const m of mutations) {
+    if (m.type === 'childList') {
+      let inside = inContent.get(m.target)
+      if (inside === undefined) {
+        inside = inNoteContent(m.target)
+        inContent.set(m.target, inside)
+      }
+      if (inside) continue
+    }
+    out.push({
       type: m.type,
       target: m.target,
       oldValue: m.oldValue,
       removed: Array.from(m.removedNodes),
       added: Array.from(m.addedNodes),
-    }))
+    })
+  }
+  return out
+}
+
+export function watchDialogExits(root: Node = document.body): () => void {
+  const forgetScrolls = rememberScrolls(root)
+  const observer = new MutationObserver((mutations) => {
+    const records = dialogRecords(mutations)
+    if (records.length === 0) return
     const closed = closedDialogs(
       records,
       isMovingDialog,

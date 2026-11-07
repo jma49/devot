@@ -1,0 +1,42 @@
+// @vitest-environment happy-dom
+import { describe, expect, it, vi } from 'vitest'
+import { startSidebarSurround } from './sidebarSurround'
+
+const frame = () => new Promise((done) => requestAnimationFrame(() => done(undefined)))
+
+describe('startSidebarSurround', () => {
+  it('measures the sidebar again when the window changes, not when the note renders', async () => {
+    document.body.innerHTML =
+      '<div class="window"><nav class="sidebar"></nav><article data-devot-part="preview"><div class="preview-body"></div></article></div>'
+    const sidebar = document.querySelector('.sidebar')!
+    const box = vi
+      .spyOn(sidebar, 'getBoundingClientRect')
+      .mockReturnValue({ left: 8, top: 8, width: 200, height: 600 } as DOMRect)
+    const write = vi.spyOn(document.documentElement.style, 'setProperty')
+    startSidebarSurround(document)
+    await frame()
+    await frame()
+    expect(box).toHaveBeenCalledTimes(1)
+    expect(write).toHaveBeenCalledTimes(1)
+
+    const content = document.querySelector('.preview-body')!
+    for (let i = 0; i < 20; i += 1) content.append(document.createElement('p'))
+    content.firstElementChild!.append(document.createElement('em'))
+    await frame()
+    await frame()
+    expect(box).toHaveBeenCalledTimes(1)
+
+    // Measured again, to the same place: nothing written.
+    document.querySelector('.window')!.append(document.createElement('div'))
+    await frame()
+    await frame()
+    expect(box).toHaveBeenCalledTimes(2)
+    expect(write).toHaveBeenCalledTimes(1)
+
+    document.querySelector('.window')!.setAttribute('data-focus', '')
+    await frame()
+    await frame()
+    expect(box).toHaveBeenCalledTimes(3)
+    expect(document.documentElement.style.getPropertyValue('--sidebar-surround-clip')).toBe('')
+  })
+})
