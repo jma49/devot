@@ -91,6 +91,12 @@ Part of the [architecture overview](../architecture.md).
   AI edit proposals have no table: a proposal lives in the Edit with AI sheet until it is accepted or discarded, and an accepted one follows the same rule as import and MCP, a text diff applied as Yjs operations (see AI > Edit with AI).
 - FTS5 uses the `trigram` tokenizer, so Chinese substring search works.
   Triggers keep the index in step with `notes`; a write puts a note's text in again only when its title or its Markdown changed (schema v15), so a notebook, status, pin or Trash change costs no indexing.
+  A save no longer indexes anything itself (schema v29): the triggers only mark the note stale in `search_stale`, keeping the text the index holds for it, since FTS5 takes a row of external content out of the index only given the text it was indexed with.
+  The store re-indexes stale notes later (`CATCH_UP_SQL`, the same statements in both stores): the database thread does it once writes have been quiet for 5 s (60 s at the latest while writes never pause), 50 ms of notes at a time between other jobs, and a search and a purge first catch up every stale note, so they read what the notes hold now.
+  A burst of saves of one note costs one re-index; saving a 1 MB note went from about 72 ms to 12 ms on better-sqlite3 (`tests/core/search-catch-up.bench.test.ts`).
+  The stale set is in the database, so a quit leaves it for the next launch, whose database thread catches up 5 s after its last write.
+  A contentless index (`contentless_delete=1`) would need no copy of the old text, but its deletes only leave tombstones, so a purged note's trigrams would stay in the file's pages until the whole index is rewritten.
+  Rebuild Search Index stays one `'rebuild'` statement and empties `search_stale` in the same transaction.
 - Markdown export (see Export and print) writes notes and notebooks as Markdown files that import back as they were.
 
 ## Schema and migrations
@@ -102,6 +108,7 @@ Part of the [architecture overview](../architecture.md).
 - A fixture database is kept for every released schema version and must upgrade cleanly (`src-tauri/tests/fixtures/schema-v<N>.sqlite`: 18 for v1.0.4, 19 for the v1.0.5 betas, 23 for v1.1.0, each with live, trashed and purged notes, notebooks, a tag, an attachment, a link and versions, made as `schema-fixtures.sql` there says, and v23 with sync state, records of every kind and an agent write as `schema-v23.sql` says; v1 from before).
 - Pragmas: WAL, `synchronous = FULL`, `foreign_keys = ON`, a 5 s busy timeout (so another process and the app can share the file), and `secure_delete = ON` (overflow pages too, unlike `FAST`), so a note deleted for good leaves no readable text in free pages, which every later backup would copy.
   A purge also takes the note's text out of the search index's pages (FTS5 `secure-delete`, on only for the purge: on for every change it would make indexing a long note's edit about 30 times slower).
+  That is the text the index holds, which for a stale note is the copy in `search_stale`, also overwritten as its row goes.
   Other changes only mark a note's old text deleted in the index, so earlier text of a purged note stays there until FTS5 merges its segment.
   Pages freed before a version that set these keep their text until reused; frames in the write-ahead log keep it until the log restarts after a checkpoint (backups read the database, not the log).
 - Every write transaction begins `IMMEDIATE` (the Rust store sets it on its connection; the better-sqlite3 adapter uses `.immediate()`): it takes the write lock first, so it waits out the other writer for the busy timeout.

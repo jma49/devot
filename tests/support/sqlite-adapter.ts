@@ -406,6 +406,20 @@ export function searchStatement(
 }
 
 /**
+ * Re-indexes one stale note (`@rowid`): takes out the text the index holds for it, puts in what
+ * the note holds now. A save only marks its note stale (schema v29); a search and a purge catch the
+ * index up first. The same statements as the Rust store's (storage/search.rs, CATCH_UP_SQL; a test
+ * compares them).
+ */
+export const CATCH_UP_SQL = [
+  `INSERT INTO notes_fts (notes_fts, rowid, title, body_md)
+       SELECT 'delete', rowid, title, body_md FROM search_stale WHERE rowid = @rowid AND title IS NOT NULL`,
+  `INSERT INTO notes_fts (rowid, title, body_md)
+       SELECT rowid, title, body_md FROM notes WHERE rowid = @rowid`,
+  'DELETE FROM search_stale WHERE rowid = @rowid',
+] as const
+
+/**
  * Run when a note (`@id`) is purged, before its attachments are deleted:
  * gives each attachment of the note that another note, not purged, still
  * shows (its Markdown holds the address `devot://file/<id>`) to that note, a
@@ -607,6 +621,8 @@ export interface SqliteAdapter extends StorageAdapter, AiStorage, SyncStore {
    * not at all. Calls run one after another.
    */
   atomically<T>(work: () => Promise<T>): Promise<T>
+  /** Re-indexes the notes saves left stale, as a search does first (CATCH_UP_SQL). */
+  catchUpSearchIndex(): void
 }
 
 export interface OpenOptions {
@@ -929,8 +945,27 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
        updated_at = MAX(excluded.updated_at, updated_at)`,
   )
 
+  const nextStale = db.prepare<[], { rowid: number }>(
+    'SELECT rowid FROM search_stale ORDER BY rowid LIMIT 1',
+  )
+  const catchUpStatements = CATCH_UP_SQL.map((sql) => db.prepare<[{ rowid: number }]>(sql))
+  const catchUpNote = (rowid: number) => {
+    for (const statement of catchUpStatements) statement.run({ rowid })
+  }
+  const catchUp = () => {
+    for (let next = nextStale.get(); next; next = nextStale.get()) catchUpNote(next.rowid)
+  }
+  // The write lock only when a note is stale, as the Rust store's catch_up_search_index.
+  const catchUpSearchIndex = () => {
+    if (nextStale.get()) db.transaction(catchUp).immediate()
+  }
+  const rowidOf = db.prepare<[string], { rowid: number }>(
+    'SELECT rowid FROM notes WHERE id = ? AND purged_at IS NULL',
+  )
+
   /** Runs a search (see searchStatement). */
   const search = (query: NoteQuery, limit: number) => {
+    catchUpSearchIndex()
     const { sql, params } = searchStatement(query, limit)
     return db.prepare<[Record<string, string | number>], SummaryRow>(sql).all(params)
   }
@@ -940,19 +975,22 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
   const purgeWith = (id: string, at: number, hlc: string, here: boolean) =>
     db
       .transaction(() => {
+        const rowid = rowidOf.get(id)?.rowid
         searchSecureDelete.run(1n)
         purge.run({ id, at, hlc })
+        if (rowid !== undefined) catchUpNote(rowid)
+        searchSecureDelete.run(0n)
         dropLinks.run(id)
         // Attachments another note still shows pass to it; the rest go. A purge from sync leaves
         // them: the other device's file records decide, and its heir's link may not be here yet.
         if (here) {
+          catchUp()
           handOverFiles.run({ id, hlc })
           dropFiles.run(id)
         }
         dropNoteLinks.run(id)
         dropAgentWrites.run({ noteId: id })
         if (here) dropRevisions.run(id)
-        searchSecureDelete.run(0n)
       })
       .immediate()
 
@@ -963,6 +1001,7 @@ export function openSqliteAdapter(path: string, open: OpenOptions = {}): SqliteA
     db,
     close: () => db.close(),
     schemaVersion: () => userVersion.get()?.user_version ?? 0,
+    catchUpSearchIndex,
     atomically<T>(work: () => Promise<T>): Promise<T> {
       const run = queue.then(async () => {
         db.exec('BEGIN IMMEDIATE')

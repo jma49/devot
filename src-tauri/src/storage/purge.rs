@@ -1,14 +1,15 @@
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 
 use super::agent_writes::AGENT_WRITES_PURGE_SQL;
+use super::search::{catch_up, catch_up_note};
 use super::{Result, StorageError, Store};
 
 /// Run when a note (`@id`) is purged, before its attachments are deleted: gives each attachment
 /// that another note, not purged, still shows (its Markdown holds `devot://file/<id>`) to that
 /// note, a live one before one in the Trash, then the smallest ID. A link can reach another note
 /// without a copy (cut or dragged Markdown, Paste as Plain Text, an outside writer, a restored version, an
-/// old duplicate) and its image must stay. The search index finds those notes (a phrase match, so
-/// no note is read whole); it ignores case, so `instr` checks the address as written. The same
+/// old duplicate) and its image must stay. The search index, caught up first, finds those notes
+/// (a phrase match, so no note is read whole); it ignores case, so `instr` checks the address as written. The same
 /// statement as the TypeScript adapter's (tests/support/sqlite-adapter.ts, HAND_OVER_FILES_SQL; a test compares
 /// them). `@hlc` is the purge's clock: it dates the new owner, so a device that hears of the same
 /// purge settles on the same note (docs/adr/0003-sync-attachments-as-records.md, risk 5).
@@ -62,6 +63,13 @@ impl Store {
     /// are, because that device's file records (a new owner or a tombstone) decide the attachments.
     pub(super) fn purge(&mut self, id: &str, at: i64, hlc: &str, here: bool) -> Result<()> {
         let tx = self.conn.transaction()?;
+        let rowid: Option<i64> = tx
+            .query_row(
+                "SELECT rowid FROM notes WHERE id = ?1 AND purged_at IS NULL",
+                [id],
+                |row| row.get(0),
+            )
+            .optional()?;
         tx.execute(SEARCH_SECURE_DELETE_SQL, [1])?;
         tx.execute(
             "UPDATE notes SET title = '', title_hlc = MAX(title_hlc, ?3), body_md = '', ydoc = x'',
@@ -70,8 +78,13 @@ impl Store {
              WHERE id = ?1 AND purged_at IS NULL",
             params![id, at, hlc],
         )?;
+        if let Some(rowid) = rowid {
+            catch_up_note(&tx, rowid)?;
+        }
+        tx.execute(SEARCH_SECURE_DELETE_SQL, [0])?;
         tx.execute("DELETE FROM note_tags WHERE note_id = ?1", [id])?;
         if here {
+            catch_up(&tx, None)?;
             tx.execute(
                 HAND_OVER_FILES_SQL,
                 rusqlite::named_params! { "@id": id, "@hlc": hlc },
@@ -86,7 +99,6 @@ impl Store {
         if here {
             tx.execute("DELETE FROM revisions WHERE note_id = ?1", [id])?;
         }
-        tx.execute(SEARCH_SECURE_DELETE_SQL, [0])?;
         tx.commit()?;
         Ok(())
     }
