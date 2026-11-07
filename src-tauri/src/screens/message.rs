@@ -442,7 +442,7 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             _ => Err("E_SCREENS_ARGS_INVALID"),
         },
         Op::GlassSet(GlassSet { transparency }) => {
-            if transparency.abs() > GLASS_TRANSPARENCY_MAX
+            if !(-GLASS_TRANSPARENCY_MAX..=GLASS_TRANSPARENCY_MAX).contains(transparency)
                 || transparency % GLASS_TRANSPARENCY_STEP != 0
             {
                 return Err("E_SCREENS_ARGS_INVALID");
