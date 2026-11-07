@@ -304,29 +304,32 @@ impl DeepLinks {
 /// deep-link plugin), and takes the ones a launch came with: macOS hands those
 /// over before `applicationDidFinishLaunching`, so before setup runs and nothing
 /// hears them, and the plugin keeps them as its current URLs (#621).
-/// Called from setup once the licence is managed, so a launch's licence link is checked.
-pub(crate) fn listen(app: &tauri::App) {
+/// It takes the licence so that setup can call it only once the licence exists.
+pub(crate) fn listen(app: &tauri::App, licence: &crate::licence::Licence) {
     let handle = app.handle().clone();
     app.deep_link().on_open_url(move |event| {
         for url in event.urls().iter().take(MAX_PER_EVENT) {
             receive(&handle, url.as_str());
         }
     });
-    let current = app.deep_link().get_current().unwrap_or_else(|_| {
-        log::warn!("W_DEEP_LINK_LAUNCH_UNREAD");
-        None
-    });
-    for url in launch_urls(current) {
-        receive(app.handle(), &url);
+    for link in launch_links(app.deep_link().get_current(), licence) {
+        deliver(app.handle(), link);
     }
 }
 
-fn launch_urls(current: Option<Vec<tauri::Url>>) -> Vec<String> {
+fn launch_links<E>(
+    current: Result<Option<Vec<tauri::Url>>, E>,
+    licence: &crate::licence::Licence,
+) -> Vec<Link> {
+    let current = current.unwrap_or_else(|_| {
+        log::warn!("W_DEEP_LINK_LAUNCH_UNREAD");
+        None
+    });
     current
         .unwrap_or_default()
-        .into_iter()
+        .iter()
         .take(MAX_PER_EVENT)
-        .map(String::from)
+        .filter_map(|url| link_of(url.as_str(), Some(licence)))
         .collect()
 }
 
@@ -351,20 +354,21 @@ pub(crate) fn on_second_instance<R: Runtime>(app: &AppHandle<R>, args: Vec<Strin
 }
 
 fn receive<R: Runtime>(app: &AppHandle<R>, url: &str) {
-    let link = match parse(url, SCHEME) {
-        Ok(Link::Licence { key: Some(key), .. }) => checked(
-            key,
-            app.try_state::<std::sync::Arc<crate::licence::Licence>>()
-                .as_deref()
-                .map(AsRef::as_ref),
-        ),
-        Ok(link) => link,
+    let licence = app.try_state::<std::sync::Arc<crate::licence::Licence>>();
+    if let Some(link) = link_of(url, licence.as_deref().map(AsRef::as_ref)) {
+        deliver(app, link);
+    }
+}
+
+fn link_of(url: &str, licence: Option<&crate::licence::Licence>) -> Option<Link> {
+    match parse(url, SCHEME) {
+        Ok(Link::Licence { key: Some(key), .. }) => Some(checked(key, licence)),
+        Ok(link) => Some(link),
         Err(code) => {
             log::warn!("W_DEEP_LINK_REFUSED {code}");
-            return;
+            None
         }
-    };
-    deliver(app, link);
+    }
 }
 
 /// A key that does not verify reaches the window as its code, so it can say why.
@@ -861,24 +865,65 @@ mod tests {
         assert!(format!("{DEBUG_SCHEME}://command/").len() + longest <= MAX_URL_LEN);
     }
 
+    fn launched_with(urls: &[String]) -> Result<Option<Vec<tauri::Url>>, ()> {
+        Ok(Some(
+            urls.iter()
+                .map(|url| tauri::Url::parse(url).unwrap())
+                .collect(),
+        ))
+    }
+
     #[test]
     fn a_note_link_the_app_was_launched_with_waits_for_the_window_that_asks_first() {
-        let url = format!("{SCHEME}://note/{ID}");
-        let current = Some(vec![tauri::Url::parse(&url).unwrap()]);
+        let dir = tempfile::tempdir().expect("dir");
+        let service = crate::licence::testing::licence(dir.path(), true);
         let mut inbox = Inbox::default();
-        for url in launch_urls(current) {
-            assert!(inbox.arrive(parse(&url, SCHEME).unwrap()).is_empty());
+        for link in launch_links(launched_with(&[format!("{SCHEME}://note/{ID}")]), &service) {
+            assert!(inbox.arrive(link).is_empty());
         }
         assert_eq!(inbox.take("main"), vec![note()]);
     }
 
     #[test]
-    fn a_launch_without_urls_hands_over_none_and_one_with_many_at_most_four() {
-        assert!(launch_urls(None).is_empty());
-        let url = tauri::Url::parse(&format!("{SCHEME}://today")).unwrap();
+    fn a_licence_link_the_app_was_launched_with_is_checked_against_the_licence() {
+        use crate::licence::testing::{ID as LICENCE_ID, key};
+        let dir = tempfile::tempdir().expect("dir");
+        let service = crate::licence::testing::licence(dir.path(), true);
+        let url = format!("{SCHEME}://licence?key={}", key(LICENCE_ID));
+        let links = launch_links(launched_with(&[url]), &service);
+        let [Link::Licence { offer, code, .. }] = links.as_slice() else {
+            panic!("not one licence link");
+        };
+        assert_eq!(code, &None);
         assert_eq!(
-            launch_urls(Some(vec![url; MAX_PER_EVENT + 2])).len(),
-            MAX_PER_EVENT
+            offer.as_ref().map(|offer| offer.id.as_str()),
+            Some(LICENCE_ID)
+        );
+    }
+
+    #[test]
+    fn a_launch_whose_urls_cannot_be_read_hands_over_none_and_logs_its_code() {
+        crate::test_log::capture();
+        let dir = tempfile::tempdir().expect("dir");
+        let service = crate::licence::testing::licence(dir.path(), true);
+        assert!(launch_links(Err(()), &service).is_empty());
+        assert!(
+            crate::test_log::lines()
+                .iter()
+                .any(|line| line == "WARN W_DEEP_LINK_LAUNCH_UNREAD")
+        );
+    }
+
+    #[test]
+    fn a_launch_hands_over_at_most_four_links_and_none_it_refuses() {
+        let dir = tempfile::tempdir().expect("dir");
+        let service = crate::licence::testing::licence(dir.path(), true);
+        assert!(launch_links(Ok::<_, ()>(None), &service).is_empty());
+        let mut urls = vec![format!("{SCHEME}://note/not-an-id")];
+        urls.extend(vec![format!("{SCHEME}://today"); MAX_PER_EVENT + 2]);
+        assert_eq!(
+            launch_links(launched_with(&urls), &service),
+            vec![Link::Today; MAX_PER_EVENT - 1]
         );
     }
 

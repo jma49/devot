@@ -388,10 +388,11 @@ pub fn run() {
                 startup::fail(&StartupError::new("E_DATA_FOLDER_UNKNOWN"), None)
             };
             logs::install(&data_dir.join(logs::DIR));
-            if let Err(error) = launch(app, &data_dir) {
-                startup::fail(&error, Some(&data_dir));
-            }
-            deep_link::listen(app);
+            let licence = match launch(app, &data_dir) {
+                Ok(licence) => licence,
+                Err(error) => startup::fail(&error, Some(&data_dir)),
+            };
+            deep_link::listen(app, &licence);
             let args: Vec<String> = std::env::args_os()
                 .map(|arg| arg.to_string_lossy().into_owned())
                 .collect();
@@ -443,7 +444,10 @@ fn licence_emitter(app: tauri::AppHandle) -> licence::Emit {
 }
 
 /// Any failure has a code: `startup::fail` explains it and exits.
-fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
+fn launch(
+    app: &mut tauri::App,
+    data_dir: &Path,
+) -> Result<std::sync::Arc<licence::Licence>, StartupError> {
     // One Devot per data folder, for the life of the process.
     let (held, db) = startup::open_data(data_dir, crash::start_native)?;
     app.manage(held);
@@ -590,7 +594,7 @@ fn launch(app: &mut tauri::App, data_dir: &Path) -> Result<(), StartupError> {
     updates::start(app.handle());
     #[cfg(mobile)]
     licence::schedule::start(app.handle());
-    Ok(())
+    Ok(licence)
 }
 
 /// Listens when Settings turned it on; off the launch's thread, since it reads the keychain.
