@@ -189,7 +189,7 @@ it('every Vitest test that skips without a Mac or its tools runs in the macOS jo
   const filters = commands(job('mac-scripts'))
     .filter((c) => c.startsWith('pnpm vitest run '))
     .flatMap((c) => c.split(' ').slice(3))
-  expect(macOnly).toEqual(expect.arrayContaining(['tests/scripts/macos-sign.bench.test.ts']))
+  expect(macOnly).toEqual(expect.arrayContaining(['tests/scripts/macos-sign.build.test.ts']))
   expect(macOnly.filter((file) => !filters.some((f) => file.startsWith(f)))).toEqual([])
 })
 
