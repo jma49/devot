@@ -14,6 +14,7 @@ import { fragmentId } from '../../../core/preview/headingIds'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
 import { useContextMenu, type MenuPoint } from '../contextMenu'
 import { copyText } from '../noteMenu'
+import { keyMatches } from '../commands/keys'
 import { onPluginRenderersChanged } from '../plugins/rendererRevision'
 import { lookUp, startSpeaking, stopSpeaking } from '../textServices'
 import {
@@ -37,7 +38,15 @@ import type { FindTarget } from '../find/target'
 import { format, t } from '../i18n'
 import { useAppearance } from '../icons/Icon'
 import { shownTheme, subscribeAppearance } from '../theme/appearance'
-import { patchPieces, type ShownPiece } from './dom'
+import {
+  buildFirstPieces,
+  buildPending,
+  buildToLine,
+  FIRST_CHARACTERS,
+  hasPending,
+  patchPieces,
+  type ShownPiece,
+} from './dom'
 import { previewFindTarget } from './find'
 import { createIslandMounter } from './islands'
 import { islands } from './islandRegistry'
@@ -98,6 +107,7 @@ export function previewNote(fields: PreviewNoteFields): PreviewNote {
 }
 
 interface RenderInput {
+  noteId: string | undefined
   markdown: string
   loadedEmbeds: string[]
   remoteImages: RemoteImageWait | undefined
@@ -155,6 +165,11 @@ const sameList = (a: readonly HTMLElement[], b: readonly HTMLElement[]) =>
  */
 const RESTORE_SCROLL_MS = 5000
 
+/** How long a task builds the pieces a render left for later, between other work. */
+const SLICE_MS = 8
+/** How often a long build adds diagrams and copy buttons to what it built (each pass reads the whole preview). */
+const MOUNT_EVERY_MS = 250
+
 /**
  * The open note's preview, following the editor's text by itself (see
  * textStore.ts): typing renders it, and nothing around it.
@@ -198,9 +213,12 @@ export function Preview({
     createIslandMounter(islands, { scroller: (body) => body.parentElement, shift: shiftScroll }),
   )
   const [codes, setCodes] = useState<HTMLElement[]>([])
+  const buildTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const render = useRef<(input: RenderInput) => void>(undefined)
   const pieces = useRef<ShownPiece[]>([])
+  /** The note the pieces on screen are of. */
+  const piecesOf = useRef<string | undefined>(undefined)
   /** The Markdown the preview on screen was rendered from (images point into it). */
   const shown = useRef('')
   const findHandle = useRef(onFind)
@@ -218,6 +236,78 @@ export function Preview({
     scrollAsked.current = initialScroll
     scrolled.current = onScroll
   })
+  const afterBuild = useCallback(() => {
+    const el = host.current
+    if (!el) return
+    mounter.mount(el, islandContext.current, () => scroll.current?.changed())
+    const blocks = codeBlocks(el)
+    setCodes((now) => (sameList(now, blocks) ? now : blocks))
+  }, [mounter])
+  // A big note is built in slices after its first pieces (see `buildPending`); what reads the
+  // whole preview (find, select all, copy, a jump to a heading) has the rest built first.
+  const buildLater = useCallback(() => {
+    if (buildTimer.current !== undefined) return
+    let mountedAt = performance.now()
+    const slice = () => {
+      buildTimer.current = undefined
+      const el = host.current
+      if (!el) return
+      const until = performance.now() + SLICE_MS
+      let first = true
+      buildPending(el, pieces.current, () => {
+        const more = first || performance.now() < until
+        first = false
+        return more
+      })
+      if (hasPending(pieces.current)) {
+        if (performance.now() - mountedAt >= MOUNT_EVERY_MS) {
+          afterBuild()
+          mountedAt = performance.now()
+        }
+        buildTimer.current = setTimeout(slice, 0)
+        return
+      }
+      afterBuild()
+      scroll.current?.changed()
+    }
+    buildTimer.current = setTimeout(slice, 0)
+  }, [afterBuild])
+  const buildAll = useCallback(() => {
+    const el = host.current
+    if (!el || !hasPending(pieces.current)) return
+    clearTimeout(buildTimer.current)
+    buildTimer.current = undefined
+    buildPending(el, pieces.current, () => true)
+    afterBuild()
+    scroll.current?.changed()
+  }, [afterBuild])
+  const reachLine = useCallback(
+    (line: number) => {
+      const el = host.current
+      if (el && buildToLine(el, pieces.current, line) > 0) afterBuild()
+    },
+    [afterBuild],
+  )
+  /** Builds until the preview is `height` tall, in growing runs so layout is read few times. */
+  const buildToHeight = useCallback(
+    (scroller: HTMLElement, height: number) => {
+      const el = host.current
+      if (!el) return
+      let count = 0
+      for (let chars = FIRST_CHARACTERS; hasPending(pieces.current); chars *= 2) {
+        if (scroller.scrollHeight >= height) break
+        let from: number | undefined
+        count += buildPending(el, pieces.current, (piece) => {
+          from ??= piece.offset
+          return piece.offset < from + chars
+        })
+      }
+      if (count > 0) afterBuild()
+    },
+    [afterBuild],
+  )
+  useEffect(() => () => clearTimeout(buildTimer.current), [])
+
   // A restored scroll position (see `initialScroll`): asked for at the first
   // render with content, then applied again as the content grows (images,
   // diagrams) until it is reached, the user scrolls, or time runs out.
@@ -232,17 +322,18 @@ export function Preview({
     const el = pane.current
     if (!target || !el) return
     if (performance.now() > target.until) return stopRestoring()
+    buildToHeight(el, target.top + el.clientHeight)
     el.scrollTop = target.top
     if (Math.abs(el.scrollTop - target.top) < 1) return stopRestoring()
     for (const child of Array.from(el.children)) target.sizes.observe(child)
-  }, [stopRestoring])
+  }, [stopRestoring, buildToHeight])
   useEffect(() => () => scrollTarget.current?.sizes.disconnect(), [])
 
   useEffect(() => {
     if (!pane.current) return
-    const target = previewFindTarget(pane.current)
+    const target = previewFindTarget(pane.current, { complete: buildAll })
     findHandle.current?.(target)
-    const scrolling = previewScrollPane(pane.current)
+    const scrolling = previewScrollPane(pane.current, { reach: reachLine })
     scroll.current = scrolling
     scrollHandle.current?.(scrolling)
     return () => {
@@ -252,10 +343,9 @@ export function Preview({
       scroll.current = null
       scrollHandle.current?.(null)
     }
-  }, [])
+  }, [buildAll, reachLine])
 
   useEffect(() => {
-    const islandRendered = () => scroll.current?.changed()
     const run = latestOnly(
       (input: RenderInput) =>
         core
@@ -267,15 +357,22 @@ export function Preview({
               ...(input.remoteImages ? { remoteImages: input.remoteImages } : {}),
               ...(input.frontMatterInInfo ? { frontMatterInInfo: true } : {}),
             },
-            pieces.current.map((piece) => piece.key),
+            input.noteId === piecesOf.current ? pieces.current.map((piece) => piece.key) : [],
             // The chips' notes are asked for again when another note opens or one of them changes.
             `${noteNow.current ?? ''} ${linksChanged.current}`,
           )
           .then((next) => ({ next, input })),
       ({ next, input }) => {
         if (!host.current) return
+        if (input.noteId !== piecesOf.current) {
+          // Another note shares nothing worth patching over with the one shown.
+          host.current.replaceChildren()
+          pieces.current = []
+          piecesOf.current = input.noteId
+        }
         try {
-          pieces.current = patchPieces(host.current, pieces.current, next.pieces)
+          pieces.current = patchPieces(host.current, pieces.current, next.pieces, { defer: true })
+          buildFirstPieces(host.current, pieces.current)
         } catch {
           // The worker counted on a piece the page no longer has: start over.
           console.warn('W_PREVIEW_PIECES_RESET')
@@ -286,9 +383,7 @@ export function Preview({
         }
         shown.current = input.markdown
         shownLinks.current = next.links
-        mounter.mount(host.current, islandContext.current, islandRendered)
-        const blocks = codeBlocks(host.current)
-        setCodes((now) => (sameList(now, blocks) ? now : blocks))
+        afterBuild()
         scroll.current?.changed(next.lines)
         if (!scrollAskedOnce.current && pieces.current.some((piece) => piece.nodes.length > 0)) {
           scrollAskedOnce.current = true
@@ -299,11 +394,12 @@ export function Preview({
           }
         }
         keepRestoring()
+        if (hasPending(pieces.current)) buildLater()
       },
       () => console.warn('W_PREVIEW_RENDER_FAILED'),
     )
     render.current = run
-  }, [core, mounter, keepRestoring])
+  }, [core, afterBuild, buildLater, keepRestoring])
 
   useEffect(() => {
     islandContext.current = { appearance, theme }
@@ -321,13 +417,27 @@ export function Preview({
   // The worker may be gone with the window.
   useEffect(() => () => void core.forgetShownPieces().catch(() => undefined), [core])
 
+  // A note opened renders when its text arrives, which follows its id.
   useEffect(
-    () => render.current?.({ markdown, loadedEmbeds, remoteImages, frontMatterInInfo }),
+    () =>
+      render.current?.({
+        noteId: noteNow.current,
+        markdown,
+        loadedEmbeds,
+        remoteImages,
+        frontMatterInInfo,
+      }),
     [markdown, loadedEmbeds, remoteImages, frontMatterInInfo],
   )
-  const input = useRef<RenderInput>({ markdown, loadedEmbeds, remoteImages, frontMatterInInfo })
+  const input = useRef<RenderInput>({
+    noteId,
+    markdown,
+    loadedEmbeds,
+    remoteImages,
+    frontMatterInInfo,
+  })
   useEffect(() => {
-    input.current = { markdown, loadedEmbeds, remoteImages, frontMatterInInfo }
+    input.current = { noteId, markdown, loadedEmbeds, remoteImages, frontMatterInInfo }
   })
   useEffect(() => onPluginRenderersChanged(() => render.current?.(input.current)), [])
   // Another window or process can change a note a chip shows.
@@ -370,6 +480,7 @@ export function Preview({
     event.preventDefault()
     const href = link.getAttribute('href') ?? ''
     if (href.startsWith('#')) {
+      buildAll()
       const id = fragmentId(decodeURIComponent(href.slice(1)))
       pane.current?.querySelector(`[id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'start' })
       return
@@ -396,34 +507,38 @@ export function Preview({
     onOpenImage({ src: img.currentSrc || img.src, alt: img.alt })
   }
   const menuAt = useRef<MenuPoint>({ x: 0, y: 0 })
-  const pickMenuAction = useCallback((action: PreviewAction, target: PreviewMenuTarget) => {
-    switch (action) {
-      case 'copyLink': {
-        const link = target.link
-        if (link !== null) void copyText(link).catch(() => console.warn('W_LINK_COPY_FAILED'))
-        return
+  const pickMenuAction = useCallback(
+    (action: PreviewAction, target: PreviewMenuTarget) => {
+      switch (action) {
+        case 'copyLink': {
+          const link = target.link
+          if (link !== null) void copyText(link).catch(() => console.warn('W_LINK_COPY_FAILED'))
+          return
+        }
+        case 'lookUp': {
+          if (target.selection === null) return
+          const selection = window.getSelection()
+          const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null
+          const look = range ? previewLookUpTarget(range) : null
+          void lookUp(target.selection, look?.at ?? menuAt.current, look?.font)
+          return
+        }
+        case 'selectAll':
+          buildAll()
+          if (pane.current) selectAllIn(pane.current, window.getSelection())
+          return
+        case 'startSpeaking':
+          void startSpeaking(target.selection)
+          return
+        case 'stopSpeaking':
+          void stopSpeaking()
+          return
+        // Copy is the system's own item; the submenu only holds items.
+        default:
       }
-      case 'lookUp': {
-        if (target.selection === null) return
-        const selection = window.getSelection()
-        const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null
-        const look = range ? previewLookUpTarget(range) : null
-        void lookUp(target.selection, look?.at ?? menuAt.current, look?.font)
-        return
-      }
-      case 'selectAll':
-        if (pane.current) selectAllIn(pane.current, window.getSelection())
-        return
-      case 'startSpeaking':
-        void startSpeaking(target.selection)
-        return
-      case 'stopSpeaking':
-        void stopSpeaking()
-        return
-      // Copy is the system's own item; the submenu only holds items.
-      default:
-    }
-  }, [])
+    },
+    [buildAll],
+  )
   const showMenu = useContextMenu('preview', PREVIEW_MENU, pickMenuAction)
   const onContextMenu = (event: MouseEvent) => {
     const at = { x: event.clientX, y: event.clientY }
@@ -465,10 +580,15 @@ export function Preview({
         onClick={onClick}
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
+        onCopy={buildAll}
         // Scrolling by the user ends a restore; scrolls made by it are not reported.
         onWheel={stopRestoring}
         onPointerDown={stopRestoring}
-        onKeyDown={stopRestoring}
+        onKeyDown={(event) => {
+          stopRestoring()
+          // Select all runs after this, over a preview built whole.
+          if (keyMatches('Mod+A', event)) buildAll()
+        }}
         onScroll={(event) => {
           if (!scrollTarget.current) scrolled.current?.(event.currentTarget.scrollTop)
         }}
