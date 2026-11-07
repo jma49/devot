@@ -11,7 +11,7 @@ struct GeneralPane: View {
             + store.notebooks.map { Choice(value: .string($0.id), title: $0.name, depth: $0.depth) }
         let current = store.editor["defaultNotebook"] ?? .null
         Form {
-            Section(L10n.generalSettingsDefaults()) {
+            Section {
                 NavigationRow(
                     title: L10n.generalSettingsDefaultNotebook(),
                     value: choices.first { $0.value == current }?.title ?? L10n.generalSettingsNoNotebook()
@@ -24,12 +24,16 @@ struct GeneralPane: View {
                                 selected: { [store] in store.editor["defaultNotebook"] ?? .null },
                                 choose: { [store] in store.setEditor("defaultNotebook", $0) })))
                 }
+            } header: {
+                Header(L10n.generalSettingsDefaults())
             }
             if let reports = store.crashReports, reports.available {
-                Section(L10n.generalSettingsData()) {
+                Section {
                     ToggleRow(
                         title: L10n.generalSettingsCrashReports(), detail: L10n.generalSettingsCrashReportsHint(),
                         isOn: reports.on, set: store.setCrashReports)
+                } header: {
+                    Header(L10n.generalSettingsData())
                 }
             }
         }

@@ -27,7 +27,13 @@ private struct SettingsType: ViewModifier {
 }
 
 extension Font.Weight {
-    fileprivate var uiKit: UIFont.Weight { self == .bold ? .bold : .regular }
+    fileprivate var uiKit: UIFont.Weight {
+        switch self {
+        case .bold: .bold
+        case .medium: .medium
+        default: .regular
+        }
+    }
 }
 
 extension View {
@@ -139,6 +145,19 @@ struct ActionRow: View {
         .buttonStyle(.plain)
         .disabled(busy)
         .settingsRow()
+    }
+}
+
+/// A section's header over its card, as written, in place of the system's fainter, uppercased header style.
+struct Header: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text).modifier(SettingsType(size: 14, line: 19, weight: .medium, secondary: true)).textCase(nil)
     }
 }
 

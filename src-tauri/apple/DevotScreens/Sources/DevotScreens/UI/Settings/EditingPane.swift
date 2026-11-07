@@ -7,7 +7,7 @@ struct EditingPane: View {
 
     var body: some View {
         Form {
-            Section(catalog("editorSettings.interface")) {
+            Section {
                 flag("toolbar")
                 flag("lineNumbers")
                 flag("highlightActiveLine")
@@ -16,13 +16,17 @@ struct EditingPane: View {
                 flag("readableWidth", disabled: store.editor["lineWrapping"]?.string == "off")
                 flag("scrollPastEnd")
                 choice("cursorScrollMargin", numbers("cursorScrollMargin", Self.margins, whole))
+            } header: {
+                Header(catalog("editorSettings.interface"))
             }
-            Section(catalog("editorSettings.markdown")) {
+            Section {
                 choice("listMarker", Self.markers)
                 choice("indentUnit", Self.indents)
                 choice("tabWidth", numbers("tabWidth", [2, 4, 8], whole))
                 choice("pasteUrl", Self.pasteUrl)
                 flag("spellCheck")
+            } header: {
+                Header(catalog("editorSettings.markdown"))
             }
             Section {
                 choice("fontWeight", Self.weights)
@@ -30,7 +34,7 @@ struct EditingPane: View {
                 flag("showInvisibles")
                 flag("highlightTrailingWhitespace")
             } header: {
-                Text(catalog("editorSettings.textAppearance"))
+                Header(catalog("editorSettings.textAppearance"))
             } footer: {
                 Footer(L10n.editorSettingsDetail())
             }

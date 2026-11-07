@@ -37,12 +37,14 @@ struct SettingsRootView: View {
                 groups
             } else {
                 ForEach(sections, id: \.pane) { section in
-                    Section(catalog(SettingsSearch.paneLabel(section.pane))) {
+                    Section {
                         ForEach(section.results, id: \.self) { result in
                             NavigationRow(symbol: Self.symbols[result.pane], title: catalog(result.label)) {
                                 SettingsPage(pane: result.pane).map(actions.open)
                             }
                         }
+                    } header: {
+                        Header(catalog(SettingsSearch.paneLabel(section.pane)))
                     }
                 }
             }
@@ -63,15 +65,21 @@ struct SettingsRootView: View {
         Section {
             appCard(licence, row)
         }
-        Section(L10n.phoneSettingsGroupGeneral()) {
+        Section {
             ForEach(["general", "appearance", "editing", "preview"], id: \.self) { pane($0) }
+        } header: {
+            Header(L10n.phoneSettingsGroupGeneral())
         }
-        Section(L10n.phoneSettingsGroupSync()) {
+        Section {
             pane(
                 "sync", value: store.syncOn ? L10n.phoneSettingsOn() : L10n.phoneSettingsOff(), badge: store.syncNeedsOwner)
+        } header: {
+            Header(L10n.phoneSettingsGroupSync())
         }
-        Section(L10n.phoneSettingsGroupAi()) {
+        Section {
             pane("ai")
+        } header: {
+            Header(L10n.phoneSettingsGroupAi())
         }
         Section {
             pane("licence", value: row?.label, badge: row?.attention ?? false)

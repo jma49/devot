@@ -5,6 +5,7 @@
 # under the Tauri CLI. XcodeGen makes the test project from DevotUITests/project.yml; it is
 # generated here and never committed.
 # The newest iPhone runtime is used; DEVOT_UI_SIMULATOR picks a simulator by UDID instead.
+# DEVOT_UI_RESULT, when set, is where xcodebuild writes the result bundle.
 set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 # Tauri leaves a simulator build under gen/apple/build; Xcode's derived data is the fallback.
@@ -35,8 +36,13 @@ cd "$root/src-tauri/apple/DevotUITests"
 xcodegen generate --quiet
 log=$(mktemp)
 status=0
+set --
+if [ -n "${DEVOT_UI_RESULT:-}" ]; then
+  rm -rf "$DEVOT_UI_RESULT"
+  set -- -resultBundlePath "$DEVOT_UI_RESULT"
+fi
 xcodebuild test -project DevotUITests.xcodeproj -scheme DevotUITests \
-  -destination "id=$device" >"$log" 2>&1 || status=$?
+  -destination "id=$device" "$@" >"$log" 2>&1 || status=$?
 grep -E "^Test Case|error: |\*\* TEST|Executed [0-9]+ test|Issue:|audit" "$log" || tail -n 60 "$log"
 rm -f "$log"
 exit "$status"
