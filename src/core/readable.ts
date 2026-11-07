@@ -10,13 +10,20 @@ import { isWhitespace } from './text'
 
 export const FRONT_MATTER_FENCE = /^---[ \t]*$/
 const BLANKS = /[ \t\n\r\f\v]+/g
+/** The runs BLANKS finds, less each lone space: the same text comes out, with far fewer replacements. */
+const SPACING = /[ \t\n\r\f\v]{2,}|[\t\n\r\f\v]/g
+const SURROGATE = /[\ud800-\udfff]/
 const ALERT = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*$/i
 const MAX_LABEL_CHARS = 999
 
+/** Without a surrogate every code point is one UTF-16 unit, and splitting takes them far faster than spreading. */
+const codePoints = (line: string) => (SURROGATE.test(line) ? [...line] : line.split(''))
 const isSpace = (c: string | undefined) => c === ' ' || c === '\t'
 const isWord = (c: string | undefined) => c !== undefined && /^[A-Za-z0-9]$/.test(c)
 const isLetter = (c: string | undefined) => c !== undefined && /^[A-Za-z]$/.test(c)
 const isDigit = (c: string | undefined) => c !== undefined && c >= '0' && c <= '9'
+/** Where the inline rules start: a code span or link resumes only at a backtick or a closing bracket. */
+const STARTS = new Set(['`', '\\', '<', '!', '[', ']', '*', '_', '~', '|'])
 const PUNCTUATION = new Set('!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~')
 const isPunctuation = (c: string | undefined) => c !== undefined && PUNCTUATION.has(c)
 const isWhite = (c: string | undefined) => c === undefined || isWhitespace(c)
@@ -59,7 +66,7 @@ export function readableText(markdown: string): string {
     }
   }
   if (paragraph.length > 0) out.push(render(paragraph))
-  return out.join('\n').replace(BLANKS, ' ').replace(/^ | $/g, '')
+  return out.join('\n').replace(SPACING, ' ').replace(/^ | $/g, '')
 }
 
 function blocks(body: readonly string[]): { ops: Op[]; labels: Set<string> } {
@@ -79,13 +86,13 @@ function blocks(body: readonly string[]): { ops: Op[]; labels: Set<string> } {
       const close = raw.indexOf('-->')
       if (close < 0) continue
       comment = false
-      ops.push({ kind: 'text', line: [...raw.slice(close + 3)], table: false, start: false })
+      ops.push({ kind: 'text', line: codePoints(raw.slice(close + 3)), table: false, start: false })
       open = true
       end()
       continue
     }
     if (fence) {
-      const quoted = stripQuotes([...raw], fence.quotes)
+      const quoted = stripQuotes(codePoints(raw), fence.quotes)
       // Code in a quote ends with the quote.
       if (quoted.quotes === fence.quotes) {
         const line = quoted.line
@@ -96,7 +103,7 @@ function blocks(body: readonly string[]): { ops: Op[]; labels: Set<string> } {
       }
       fence = null
     }
-    const marked = blockMarkers([...raw], open && !listParagraph)
+    const marked = blockMarkers(codePoints(raw), open && !listParagraph)
     let line = marked.line
     const head = line[0]
     const run = head === '`' || head === '~' ? runOf(line, 0, head) : 0
@@ -114,7 +121,7 @@ function blocks(body: readonly string[]): { ops: Op[]; labels: Set<string> } {
     }
     if (!table && line.includes('|')) {
       const next = body[l + 1]
-      table = next !== undefined && isDelimiterRow(blockMarkers([...next], false).line)
+      table = next !== undefined && isDelimiterRow(blockMarkers(codePoints(next), false).line)
     }
     if (
       isBreak(line, open) ||
@@ -353,7 +360,7 @@ function inline(
   // Code spans: a backtick run closes at the next run of the same length.
   // Backslashes are text inside code, but one before a run keeps it from opening.
   const runs: { at: number; length: number }[] = []
-  for (let i = 0; i < n;) {
+  for (let i = c.includes('`') ? 0 : n; i < n;) {
     if (c[i] === '`') {
       const length = runOf(c, i, '`')
       runs.push({ at: i, length })
@@ -384,7 +391,8 @@ function inline(
   const paren = new Map<number, number>()
   const brackets: number[] = []
   const parens: number[] = []
-  for (let i = 0; i < n;) {
+  // Only a bracket starts a link, the one thing these are matched for.
+  for (let i = c.includes('[') ? 0 : n; i < n;) {
     const span = spans.get(i)
     if (span !== undefined) {
       i = span + runOf(c, i, '`')
@@ -558,6 +566,13 @@ function inline(
     }
     text += table && ch === '|' ? ' ' : ch
     i += 1
+    // No rule above starts on any other character: a run of them is text, taken whole.
+    let to = i
+    while (to < n && !STARTS.has(c[to]!)) to += 1
+    if (to > i) {
+      text += c.slice(i, to).join('')
+      i = to
+    }
   }
   pieces.push(text)
   return pieces

@@ -191,7 +191,8 @@ Part of the [architecture overview](../architecture.md).
   Each write is relayed as `saved` with its date, so the main window's lists move the note without a reload (a note made in a note window, through a `[[` link, reloads them).
   `tests/core/note-windows.property.test.ts` types into one note in two windows at random, with deliveries late and reordered and saves at any time, and checks that both windows and the stored note end with every edit either made; `tests/core/lineage.test.ts` checks that two windows' edits keep the note's lineage.
 - **The note relay** (`src-tauri/src/note_relay.rs`, `note_relay_send`): the page hands Rust what its core sends (Yjs data stays the base64 the worker coded, never decoded), and Rust checks it (a note ID, base64 within a Yjs state's limit, a title within the title limit, an HLC) and passes it to the windows that may show the note: every main window, and the note's own window; each page listens on its own window only.
-  A main window sends a note's changes only once another window has spoken of the note (`relayGate` in `src/renderer/src/noteRelay.ts`; a note window always sends), so a window alone pays nothing for each keystroke.
+  A main window sends a note's changes only once another window has spoken of the note (`relayGate` in `src/renderer/src/noteRelayWire.ts`; a note window always sends, `relayAll` when its core starts), so a window alone pays nothing for each keystroke.
+  The worker applies that rule before it codes a message (`relayOut`): a change no other window listens for is never coded or posted to the page, and a message the page relays in (`relayIn`) marks its note as spoken of.
   A note window's core leaves compaction and the notebooks' order to the main window's.
 
 ## Several main windows
@@ -284,6 +285,8 @@ Part of the [architecture overview](../architecture.md).
   Once a version is over a day old, the bar says that compaction keeps one version per hour for a week and one per day before that.
 - **Word and character counts** (`src/core/noteCounts.ts`, `editor/counts.ts`, `CountsFooter.tsx`): one rule for the Mac footer and the phone's note info (`phone/noteStats.ts`): the count is of `readableText`, so front matter, the Markdown of links and images (their label and alt text stay) and bare marks are left out, each CJK character is a word, and characters are those other than whitespace.
   The editor reports counts through a debounced pacer (300 ms after the last edit or selection change; the whole note is counted again only after a text change, the selection from its own text; the core worker counts, so a long note's count never holds a frame, and an answer for text changed since is dropped), and only while the footer is shown (`showCounts`, Settings > Editing; Mac only).
+  The footer and Note Info share one count of the whole note per text (`tallyNote` in `src/renderer/src/noteTally.ts`, the worker's `noteTally`: words, characters and tasks), so a pause sends the note to the worker and counts it once.
+  Counting reads each character by its code (ASCII, JavaScript's whitespace, the CJK ranges) and asks Unicode only whether a character past ASCII is a letter or digit; `src/core/noteCounts.test.ts` and `words.test.ts` hold it to the rule as first written, one regular expression per character, on text of CJK, emoji, combining marks and lone surrogates.
   With a selection the footer reads `12 of 340`.
   The activity figures count words the same way (`noteCounts`), so a week's words match what Note Info shows.
   Versions stored before that counted the raw text, so a note's first version after it can move its day's words by the difference, once.

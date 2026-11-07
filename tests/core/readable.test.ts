@@ -38,6 +38,27 @@ describe('readableText', () => {
   it.each(CASES)('$name', ({ markdown, text }) => {
     expect(readableText(markdown)).toBe(text)
   })
+
+  it.each([
+    [
+      '# Caf\u00e9 \u540c\u6b65\n\nA *na\u0308ive* [link \u{1f600}](https://x.y) and **\u{1f468}\u200d\u{1f469}\u200d\u{1f467} family** _e\u0301t\u00e9_ ~~\u3042\u3044~~ `\u4f1a\u{1f600}`',
+      'Caf\u00e9 \u540c\u6b65 A na\u0308ive link \u{1f600} and \u{1f468}\u200d\u{1f469}\u200d\u{1f467} family e\u0301t\u00e9 \u3042\u3044 \u4f1a\u{1f600}',
+    ],
+    [
+      '| \u{1f1eb}\u{1f1f7} | \u0915\u094d\u0937 |\n| --- | --- |\n| \u00a0x\u3000y | [[\u{1d11e}|\u{1d400} label]] |',
+      '\u{1f1eb}\u{1f1f7} \u0915\u094d\u0937 \u00a0x\u3000y \u{1d400} label',
+    ],
+    [
+      '> lone \ud800 surrogate \udc00 *x*\u{1f600}*y* \u2003em\u2028line',
+      'lone \ud800 surrogate \udc00 x\u{1f600}y \u2003em\u2028line',
+    ],
+    [
+      '\u{1f600}*\u00e9*\u{1f600} \u0301 \u{1d400}\u{1d401} [\u00e9](<a b>) <\u00e9> \\\u00e9 \\*',
+      '\u{1f600}\u00e9\u{1f600} \u0301 \u{1d400}\u{1d401} \u00e9 <\u00e9> \\\u00e9 *',
+    ],
+  ])('reads text beyond ASCII as it is written: %j', (markdown, text) => {
+    expect(readableText(markdown)).toBe(text)
+  })
 })
 
 describe('bodyExcerpt', () => {

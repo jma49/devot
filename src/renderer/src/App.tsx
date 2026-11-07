@@ -24,7 +24,7 @@ import { coalesced, listsLink } from './mainWindows'
 import { useMarkdownMirror } from './MarkdownMirror'
 import { useNoteActions } from './noteActions'
 import type { ApplyRestore } from './NoteEditor'
-import { relayGate, relayLink } from './noteRelay'
+import { relayLink } from './noteRelay'
 import { usePlugins } from './plugins/usePlugins'
 import { useSaveAtTrialEnd, useSaveOnHide } from './saveGuards'
 import { useSheets } from './sheets'
@@ -138,7 +138,7 @@ export function App() {
   const primary = !isSecondaryLabel(label)
   useSyncEngine(core, label)
   // What this window's core says to the other windows, and hears from them (noteRelay.ts).
-  const [relay] = useState(() => ({ link: relayLink(label), gate: relayGate(false) }))
+  const [relay] = useState(() => ({ link: relayLink(label) }))
   const [windowLists] = useState(() => {
     const link = listsLink(label)
     return { link, wrote: coalesced(() => link.send(), LISTS_WROTE_MS) }

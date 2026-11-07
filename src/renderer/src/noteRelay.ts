@@ -1,5 +1,5 @@
 // Carries the core's relay messages between the windows that edit notes (src/core/noteRelay.ts). The
-// worker sends them on its own channel (noteRelayWire.ts); the page hands them to Rust
+// worker sends those another window listens for on its own channel (noteRelayWire.ts); the page hands them to Rust
 // (note_relay_send), which passes them to every main window and the note's own window, and each page
 // hears only what reaches it (devot://note-relay on its own window). The UI tests' build carries
 // them between the pages of one browser through a BroadcastChannel, routed as Rust routes them.
@@ -19,20 +19,6 @@ export const noteWindowLabel = (noteId: string) => `note-${noteId}`
 /** Whether the window `label` hears what is said about `noteId`, as Rust routes it (note_relay.rs). */
 export const hears = (label: string, noteId: string) =>
   isMainLabel(label) || label === noteWindowLabel(noteId)
-
-/**
- * Which of the core's messages to send. A note window always sends: another window shows its note. A
- * main window sends what it asks for (`want`), and the changes to a note once another window has
- * spoken of it (another main window shows the note and answered, say), so a window alone costs
- * nothing for each keystroke.
- */
-export function relayGate(always: boolean) {
-  const spoken = new Set<string>()
-  return {
-    heard: (noteId: string) => void spoken.add(noteId),
-    allows: (message: WireRelay) => always || message.kind === 'want' || spoken.has(message.noteId),
-  }
-}
 
 export interface RelayLink {
   send(message: WireRelay): void
