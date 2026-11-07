@@ -91,7 +91,7 @@ export function relayMethods(
   const { relay, tell, takeOutside, takeIn } = k.relay
   const { getStored, drop, inMemory, summaries } = k.memory
   const { exclusive, schedule } = k.saving
-  /** Stored body versions of the notes not in the Trash among `ids`; none when they cannot be read, so every note is read whole. */
+  // Empty when the versions cannot be read, so every note is read whole.
   const storedVersions = async (ids: readonly string[]) => {
     const listed = await summaries(ids).catch((e: unknown) => {
       console.warn('W_NOTE_MERGE_FAILED', errorCode(e))

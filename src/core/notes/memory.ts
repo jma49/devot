@@ -74,7 +74,6 @@ export function createMemory(ctx: NoteContext, k: Pick<Kernel, 'versions' | 'pro
     return found
   }
 
-  /** `storage.getSummaries` for any number of IDs, in batches of MAX_BODY_IDS. */
   const summaries = async (ids: readonly string[]): Promise<NoteSummary[]> => {
     const batches: Promise<NoteSummary[]>[] = []
     for (let i = 0; i < ids.length; i += MAX_BODY_IDS) {

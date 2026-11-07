@@ -47,7 +47,6 @@ function fakeCore(notes: NoteSummary[], trash: TrashedNote[] = []) {
   } as unknown as Core
 }
 
-/** The `detail` of each NOTES_LOADED event while `run` runs. */
 async function loadedDuring(run: () => Promise<unknown>) {
   const heard: unknown[] = []
   const hear = (e: Event) => heard.push((e as CustomEvent<unknown>).detail)

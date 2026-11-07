@@ -117,7 +117,6 @@ export function useLibraryLists({
     [authorshipChanged, rerunSearch, listLibrary],
   )
 
-  /** Reads again only the rows of `ids`, notes a write changed and nothing else; lists everything when one is not listed or no longer there. */
   const patch = useCallback(
     async (c: Core, ids: readonly string[]) => {
       const found = await c.noteSummaries([...ids])

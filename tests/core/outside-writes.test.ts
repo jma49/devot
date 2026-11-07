@@ -460,7 +460,7 @@ describe('a write made before the window hears of an outside write', () => {
   })
 })
 
-/** A process whose storage notes each stored record it reads, by note ID. */
+// Records the ID of each note its storage reads whole.
 function processCountingOn(path: string, node: string) {
   const sqlite = openSqliteAdapter(path)
   open.push(sqlite)
