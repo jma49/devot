@@ -41,3 +41,33 @@ export function fromWireRelay(
   }
   return message
 }
+
+/**
+ * Which of the core's messages to send. A note window always sends: another window shows its note. A
+ * main window sends what it asks for (`want`), and the changes to a note once another window has
+ * spoken of it (another main window shows the note and answered, say), so a window alone costs
+ * nothing for each keystroke.
+ */
+export function relayGate(always: boolean) {
+  const spoken = new Set<string>()
+  return {
+    heard: (noteId: string) => void spoken.add(noteId),
+    allows: (message: { kind: string; noteId: string }) =>
+      always || message.kind === 'want' || spoken.has(message.noteId),
+  }
+}
+
+/** The worker's side of the relay: what `relayGate` lets through is coded and posted to the page; nothing else is coded at all. */
+export function relayOut(
+  post: (out: RelayOut) => void,
+  toBase64: (bytes: Uint8Array) => string,
+  always: boolean,
+) {
+  const gate = relayGate(always)
+  return {
+    send: (message: NoteRelayMessage) => {
+      if (gate.allows(message)) post({ noteRelay: toWireRelay(message, toBase64) })
+    },
+    heard: gate.heard,
+  }
+}

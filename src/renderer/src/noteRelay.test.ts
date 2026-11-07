@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { hears, MAIN_WINDOW, noteWindowLabel, relayGate } from './noteRelay'
-import { fromWireRelay, toWireRelay } from './noteRelayWire'
+import { describe, expect, it, vi } from 'vitest'
+import { hears, MAIN_WINDOW, noteWindowLabel } from './noteRelay'
+import { fromWireRelay, relayOut, toWireRelay, type RelayOut } from './noteRelayWire'
 import { fromBase64, toBase64 } from './storage/wire'
 
 const ID = '0192a6f0-0000-7000-8000-000000000001'
@@ -26,14 +26,27 @@ describe('the note relay between windows', () => {
     expect(hears('settings', ID)).toBe(false)
   })
 
-  it('sends a main window’s changes only for notes another window has spoken of', () => {
-    const gate = relayGate(false)
-    const update = { kind: 'update' as const, noteId: ID, data: 'AAA=' }
-    expect(gate.allows(update)).toBe(false)
-    expect(gate.allows({ kind: 'want', noteId: ID, data: 'AAA=' })).toBe(true)
-    gate.heard(ID)
-    expect(gate.allows(update)).toBe(true)
-    expect(gate.allows({ ...update, noteId: OTHER })).toBe(false)
-    expect(relayGate(true).allows({ ...update, noteId: OTHER })).toBe(true)
+  it('posts no change of a note no other window has spoken of, and codes nothing for it', () => {
+    const posted: RelayOut[] = []
+    const code = vi.fn<typeof toBase64>(toBase64)
+    const out = relayOut((message) => posted.push(message), code, false)
+    const update = { kind: 'update' as const, noteId: ID, data: Uint8Array.of(1) }
+    out.send(update)
+    out.send({ kind: 'saved', noteId: ID, updatedAt: 1 })
+    expect(posted).toEqual([])
+    expect(code).not.toHaveBeenCalled()
+    out.send({ kind: 'want', noteId: ID, data: Uint8Array.of(2) })
+    expect(posted).toEqual([{ noteRelay: { kind: 'want', noteId: ID, data: 'Ag==' } }])
+    out.heard(ID)
+    out.send(update)
+    out.send({ ...update, noteId: OTHER })
+    expect(posted.slice(1)).toEqual([{ noteRelay: { kind: 'update', noteId: ID, data: 'AQ==' } }])
+  })
+
+  it('posts every change of a note window, which another window always shows', () => {
+    const posted: RelayOut[] = []
+    const out = relayOut((message) => posted.push(message), toBase64, true)
+    out.send({ kind: 'update', noteId: OTHER, data: Uint8Array.of(1) })
+    expect(posted).toEqual([{ noteRelay: { kind: 'update', noteId: OTHER, data: 'AQ==' } }])
   })
 })

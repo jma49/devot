@@ -1,6 +1,7 @@
 // Counts the words and characters of the note, and of the selection, once typing and moving have
 // paused (the editor footer shows them). A note is counted at most once per pause, never per keystroke,
-// and the editor has the core worker count it: a long note takes longer than a frame to count.
+// and the editor has the core worker count it: a long note takes longer than a frame to count. Note Info
+// shares that count (noteTally.ts).
 import { StateEffect, type EditorState, type Extension } from '@codemirror/state'
 import { ViewPlugin } from '@codemirror/view'
 import { noteCounts, type NoteCounts } from '../../../core/noteCounts'
@@ -29,6 +30,7 @@ export class CountsPacer {
     private readonly report: (counts: EditorCounts) => void,
     private readonly wanted: () => boolean = () => true,
     private readonly count: Counter = (markdown) => noteCounts(markdown),
+    private readonly countNote: Counter = count,
   ) {
     this.schedule(0)
   }
@@ -53,14 +55,16 @@ export class CountsPacer {
     if (!this.wanted()) return
     const state = this.current()
     const run = ++this.measured
-    const whole = (this.whole ??= this.count(state.doc.toString()))
+    const whole = (this.whole ??= this.countNote(state.doc.toString()))
     const picked = state.selection.ranges
       .filter((r) => !r.empty)
       .map((r) => state.sliceDoc(r.from, r.to))
     const selection = picked.length > 0 ? this.count(picked.join('\n')) : null
     const counted = then(whole, (note) =>
       then(selection, (part) => {
-        if (run === this.measured && !this.stopped) this.report({ ...note, selection: part })
+        if (run === this.measured && !this.stopped) {
+          this.report({ words: note.words, characters: note.characters, selection: part })
+        }
       }),
     )
     if (counted instanceof Promise)
@@ -74,14 +78,15 @@ export class CountsPacer {
 /** Asks for counts again, for when the footer is shown after the text last changed. */
 export const recount = StateEffect.define<null>()
 
-/** Reports only while `wanted()` holds. */
+/** Reports only while `wanted()` holds; `countNote` counts the whole note, `count` the selection. */
 export function countsReporter(
   report: (counts: EditorCounts) => void,
   wanted: () => boolean,
   count?: Counter,
+  countNote?: Counter,
 ): Extension {
   return ViewPlugin.define((view) => {
-    const pacer = new CountsPacer(() => view.state, report, wanted, count)
+    const pacer = new CountsPacer(() => view.state, report, wanted, count, countNote)
     return {
       update: (update) => {
         const asked = update.transactions.some((tr) => tr.effects.some((e) => e.is(recount)))

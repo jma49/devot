@@ -1,10 +1,21 @@
 import { readableText } from './readable'
-import { countWords } from './words'
+import { countWords, isSpaceCode, unitsAt } from './words'
 
 export interface NoteCounts {
   readonly words: number
   /** Characters other than whitespace. */
   readonly characters: number
+}
+
+/** Code points other than whitespace. */
+function nonSpace(text: string): number {
+  let characters = 0
+  for (let at = 0; at < text.length;) {
+    const code = text.charCodeAt(at)
+    if (!isSpaceCode(code)) characters++
+    at += code < 0x80 ? 1 : unitsAt(text, at)
+  }
+  return characters
 }
 
 /**
@@ -13,7 +24,5 @@ export interface NoteCounts {
  */
 export function noteCounts(markdown: string): NoteCounts {
   const text = readableText(markdown)
-  let characters = 0
-  for (const c of text) if (!/\s/u.test(c)) characters++
-  return { words: countWords(text), characters }
+  return { words: countWords(text), characters: nonSpace(text) }
 }

@@ -16,6 +16,7 @@ import { invoke } from '../ipc'
 import type { EditorTop, SelectionState } from '../lastState'
 import { linkCompletion, type LinkSources } from '../linkCompletion'
 import { previewsFor } from '../notePreview'
+import { tallyNote } from '../noteTally'
 import { previewLabels } from '../preview/Preview'
 import type { ShowAiMenu, StartAiEdit } from './aiMenu'
 import type { ShowAlertMenu } from './alertMenu'
@@ -304,6 +305,7 @@ export function noteExtensions(note: ShownNote, refs: NoteEditorRefs): Extension
       (counts) => refs.countsReport.current?.(counts),
       () => refs.countsReport.current !== undefined,
       (markdown) => core.noteCounts(markdown),
+      (markdown) => tallyNote(core, markdown),
     ),
     EditorView.updateListener.of((update) => {
       if (!update.selectionSet && !update.docChanged) return

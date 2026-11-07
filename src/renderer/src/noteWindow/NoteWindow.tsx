@@ -129,6 +129,7 @@ export function NoteWindow() {
       const link = relayLink(noteWindowLabel(id))
       started = await startCore(onSaveProblems, undefined, (code) => console.error(code), {
         lean: true,
+        relayAll: true,
         onRelay: (message) => link.send(message),
         onTakenIn: takeIn,
       })

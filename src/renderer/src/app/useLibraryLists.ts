@@ -20,7 +20,7 @@ import type { Core } from '../core-client'
 import { NOTES_LOADED } from '../externalChanges'
 import { markWrite } from '../lastWrite'
 import { keepUnchanged, retitled, withWrites } from '../listUpdates'
-import type { relayGate, relayLink } from '../noteRelay'
+import type { relayLink } from '../noteRelay'
 import type { SearchResults } from '../useSearch'
 
 /** A trashed note as a list row; rows that did not change keep their objects (keepUnchanged). */
@@ -149,7 +149,7 @@ export function useNoteWindowChanges({
   knownNotes,
 }: {
   core: Core | undefined
-  relay: { link: ReturnType<typeof relayLink>; gate: ReturnType<typeof relayGate> }
+  relay: { link: ReturnType<typeof relayLink> }
   lists: LibraryLists
   knownNotes: RefObject<ReadonlyMap<string, NoteSummary>>
 }) {
@@ -157,7 +157,6 @@ export function useNoteWindowChanges({
   useEffect(() => {
     if (!core) return
     const listening = relay.link.listen((message) => {
-      relay.gate.heard(message.noteId)
       void core
         .relayIn(message)
         .then(() => {
