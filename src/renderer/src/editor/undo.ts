@@ -9,12 +9,20 @@
 // where they were made, so undo goes on with the user's own edits in their places. When those changes cannot be
 // told, the note starts with no history. It is kept here, not in the core, so the core letting the note go does
 // not touch it.
-import { historyField, isolateHistory } from '@codemirror/commands'
+import {
+  history as historyExtension,
+  historyField,
+  isolateHistory,
+  redoDepth,
+  undoDepth,
+} from '@codemirror/commands'
 import {
   ChangeSet,
+  EditorSelection,
   EditorState,
   Transaction,
   type StateEffect,
+  type Text,
   type ChangeSpec,
   type EditorStateConfig,
   type Extension,
@@ -42,46 +50,93 @@ export function yjsHistory(
 }
 
 interface Kept {
-  text: string
-  state: Uint8Array
+  /** The editor's text when left, which was the replica's. */
+  text: Text
+  length: number
+  vector: Uint8Array
   history: unknown
+  /** The replica as it was left: encoded after the next paint, or when asked first (see stateOf). */
+  doc: Y.Doc | undefined
+  state: Uint8Array | undefined
 }
 
 const kept = new Map<string, Kept>()
 
-export function keepUndo(noteId: string, state: EditorState, doc: Y.Doc): void {
-  const { history } = state.toJSON({ history: historyField }) as {
-    history: unknown
-  }
-  kept.delete(noteId)
-  kept.set(noteId, {
-    text: state.doc.toString(),
-    state: Y.encodeStateAsUpdate(doc),
-    history,
-  })
-  for (const id of kept.keys()) {
-    if (kept.size <= UNDO_NOTES) break
-    kept.delete(id)
-  }
+// A hidden window paints no frames, so the timer bounds how long a left replica is held.
+const PAINT_FALLBACK_MS = 1000
+
+const afterPaint = (work: () => void) => {
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(work))
+  setTimeout(work, PAINT_FALLBACK_MS)
+}
+
+/** The replica left, encoded; undefined when it changed since it was left, which an editor never does. */
+function stateOf(was: Kept): Uint8Array | undefined {
+  const doc = was.doc
+  if (!doc) return was.state
+  was.doc = undefined
+  was.state = sameInsertions(was, doc) ? Y.encodeStateAsUpdate(doc) : undefined
+  return was.state
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false
+  return true
 }
 
 /**
- * What changed in the note's body from `was` (a Yjs state) to `doc`, as
- * y-codemirror would apply it, or null when `doc` does not hold everything
- * `was` does, or the changes do not lead to `doc`'s text.
+ * Keeps the note's history, with its replica `doc`, which the editor no longer changes: it is
+ * encoded only after the next paint, so leaving a note costs the switch little.
  */
-function changesSince(was: Kept, doc: Y.Doc): ChangeSet | null {
+export function keepUndo(noteId: string, state: EditorState, doc: Y.Doc): void {
+  forget(noteId)
+  if (undoDepth(state) === 0 && redoDepth(state) === 0) return
+  const length = doc.getText(BODY).length
+  if (state.doc.length !== length) return
+  const { history } = state.toJSON({ history: historyField }) as { history: unknown }
+  const was: Kept = {
+    text: state.doc,
+    length,
+    vector: Y.encodeStateVector(doc),
+    history,
+    doc,
+    state: undefined,
+  }
+  kept.set(noteId, was)
+  afterPaint(() => void stateOf(was))
+  for (const id of kept.keys()) {
+    if (kept.size <= UNDO_NOTES) break
+    forget(id)
+  }
+}
+
+function forget(noteId: string) {
+  const was = kept.get(noteId)
+  if (!was) return
+  was.doc = undefined
+  kept.delete(noteId)
+}
+
+/**
+ * What changed in the note's body from `was` to `doc`, as y-codemirror would apply it, with the
+ * text `was` had; null when `doc` does not hold everything `was` does, or the changes do not lead
+ * to `doc`'s text.
+ */
+function changesSince(was: Kept, doc: Y.Doc): { text: string; changes: ChangeSet } | null {
+  const state = stateOf(was)
+  if (!state) return null
+  const known = Y.decodeStateVector(Y.encodeStateVector(doc))
+  for (const [client, clock] of Y.decodeStateVector(was.vector)) {
+    if ((known.get(client) ?? 0) < clock) return null
+  }
   const old = new Y.Doc()
   try {
-    Y.applyUpdate(old, was.state)
+    Y.applyUpdate(old, state)
     const body = old.getText(BODY)
-    if (body.toString() !== was.text) return null
-    const known = Y.decodeStateVector(Y.encodeStateVector(doc))
-    for (const [client, clock] of Y.decodeStateVector(Y.encodeStateVector(old))) {
-      if ((known.get(client) ?? 0) < clock) return null
-    }
+    const text = body.toString()
     // One Yjs transaction is one event; each is in the text as it was before it.
-    let changes: ChangeSet | null = ChangeSet.empty(was.text.length)
+    let changes: ChangeSet | null = ChangeSet.empty(text.length)
     body.observe((event) => {
       if (!changes) return
       const specs: ChangeSpec[] = []
@@ -101,13 +156,50 @@ function changesSince(was: Kept, doc: Y.Doc): ChangeSet | null {
       changes = changes.compose(ChangeSet.of(specs, changes.newLength))
     })
     Y.applyUpdate(old, Y.encodeStateAsUpdate(doc, Y.encodeStateVector(old)))
-    return body.toString() === doc.getText(BODY).toString() ? changes : null
+    // Both replicas hold the same changes now, so the same text.
+    const done = changes as ChangeSet | null
+    return done && done.newLength === doc.getText(BODY).length ? { text, changes: done } : null
   } catch {
     return null
   } finally {
     old.destroy()
   }
 }
+
+/**
+ * Holds the insertions `was` holds and no others, with as much text; its deletions can still
+ * differ, since they do not move the state vector.
+ */
+function sameInsertions(was: Kept, doc: Y.Doc): boolean {
+  return doc.getText(BODY).length === was.length && sameBytes(Y.encodeStateVector(doc), was.vector)
+}
+
+/** The history `was` kept, mapped through what changed in `doc` since; null when that cannot be told. */
+function mappedHistory(was: Kept, doc: Y.Doc): unknown {
+  const since = changesSince(was, doc)
+  if (!since) return null
+  const left = EditorState.fromJSON(
+    {
+      doc: since.text,
+      selection: { ranges: [{ anchor: 0, head: 0 }], main: 0 },
+      history: was.history,
+    },
+    { extensions: historyExtension() },
+    { history: historyField },
+  )
+  const mapped = left.update({
+    changes: since.changes,
+    annotations: Transaction.addToHistory.of(false),
+    filter: false,
+  }).state
+  return (mapped.toJSON({ history: historyField }) as { history: unknown }).history
+}
+
+const selectionJSON = (selection: EditorStateConfig['selection']) =>
+  (selection instanceof EditorSelection
+    ? selection
+    : EditorSelection.single(selection?.anchor ?? 0, selection?.head)
+  ).toJSON()
 
 /**
  * The editor state for a note being shown: `config` as it is (its `doc` is
@@ -121,24 +213,20 @@ export function noteState(
 ): EditorState {
   const was = kept.get(noteId)
   if (!was) return EditorState.create(config)
-  kept.delete(noteId)
-  const changes = changesSince(was, doc)
-  if (!changes) return EditorState.create(config)
-  const state = EditorState.fromJSON(
-    {
-      doc: was.text,
-      selection: { ranges: [{ anchor: 0, head: 0 }], main: 0 },
-      history: was.history,
-    },
-    { extensions: config.extensions ?? [] },
-    { history: historyField },
-  )
-  const next = state.update({
-    changes,
-    selection: config.selection ?? { anchor: 0 },
-    annotations: Transaction.addToHistory.of(false),
-    // The note's text as it is, whatever the editor's filters would make of an edit.
-    filter: false,
-  }).state
-  return next.doc.toString() === config.doc ? next : EditorState.create(config)
+  const withHistory = (history: unknown) =>
+    EditorState.fromJSON(
+      { doc: config.doc, selection: selectionJSON(config.selection), history },
+      { extensions: config.extensions ?? [] },
+      { history: historyField },
+    )
+  try {
+    if (sameInsertions(was, doc)) {
+      const state = withHistory(was.history)
+      if (state.doc.eq(was.text)) return state
+    }
+    const mapped = mappedHistory(was, doc)
+    return mapped === null ? EditorState.create(config) : withHistory(mapped)
+  } finally {
+    forget(noteId)
+  }
 }
