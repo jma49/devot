@@ -32,7 +32,8 @@ Part of the [architecture overview](../architecture.md).
     Imports, templates, quick capture, the local HTTP API and plugins all write through those commands.
     Kind `Body` (`note_put` of a note already stored, `revision_put`) is still taken for five minutes after a trial ran out (not one the clock ended), a seat's lease ran out or a refund took Devot Pro, so a save in flight lands; kind `Bookkeeping` (sync's own state and reset, rebuilding the search index) is never refused.
     A note's first save (`note_put` of an ID with no row, trashed or purged, yet) is kind `Content`, so the grace never stores a new note.
-    `Db::write_judged` reads whether the row exists and asks the gate on the database thread, in the same job as the insert, so no other write comes between the check and the put.
+    `Db::write_judged` asks the gate for both `Body` and `Content` on the caller, before it queues the job, because a gate that misses its caches reads the keychain and would otherwise hold up every read and write behind it.
+    The job then reads whether the row exists, in the same job as the insert, so no other write comes between the check and the put, and takes the answer for the kind it found.
     Kind `Welcome` (`welcome_seed`, the first-launch notes) is never refused either: the command takes only a clock stamp and a time, writes the copy of the notes the build bundles (`src-tauri/src/commands/welcome_seed.json`), and writes nothing once the library holds any note, any notebook but Templates, anything in the Trash, or a row with one of the notes' IDs, however deleted or purged.
     Quick capture (`quick_capture_save`) and the local HTTP API (its write routes, 403, or 503 for `E_LICENCE_UNREADABLE`) refuse before the main window is asked, since the core keeps an edit it could not save pending.
     Settings, window state, the license and the trial, making backups, exports and the Markdown mirror keep working.

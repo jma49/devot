@@ -91,25 +91,28 @@ impl Db {
         logged(self.run(work).await)
     }
 
-    /// For a write whose kind depends on what is stored: `judge` reads the store and the gate
-    /// judges its answer on the database thread, in the same job as `work`, so no other write
-    /// comes between them. A refusal changes nothing.
-    pub async fn write_judged<T, J, F>(&self, judge: J, work: F) -> Result<T>
+    /// For a write whose kind depends on what is stored: the gate answers for each of `kinds`
+    /// here, off the database thread, since it may wait on the keychain; `judge` then reads the
+    /// store in the same job as `work`, so no other write comes between them, and the answer for
+    /// its kind decides. A refusal, or a kind not in `kinds`, changes nothing.
+    pub async fn write_judged<T, J, F>(&self, kinds: &[Write], judge: J, work: F) -> Result<T>
     where
         T: Send + 'static,
         J: FnOnce(&Store) -> Result<Write> + Send + 'static,
         F: FnOnce(&mut Store) -> Result<T> + Send + 'static,
     {
-        let gate = Arc::clone(&self.gate);
+        let answers: Vec<_> = kinds
+            .iter()
+            .map(|&what| (what, self.gate.get().map_or(Ok(()), |gate| gate(what))))
+            .collect();
         let done = self
             .run(move |store| {
                 let what = judge(store)?;
-                if let Some(gate) = gate.get()
-                    && let Err(code) = gate(what)
-                {
-                    return Ok(Err(code));
+                match answers.into_iter().find(|(kind, _)| *kind == what) {
+                    Some((_, Ok(()))) => work(store).map(Ok),
+                    Some((_, Err(code))) => Ok(Err(code)),
+                    None => Ok(Err("E_STORAGE_WRITE_UNJUDGED")),
                 }
-                work(store).map(Ok)
             })
             .await;
         logged(done)?.map_err(StorageError::Refused)
@@ -208,6 +211,8 @@ mod tests {
         assert_eq!(ids(&db).len(), 2);
     }
 
+    const EITHER: [Write; 2] = [Write::Body, Write::Content];
+
     fn first_put(id: &'static str) -> impl FnOnce(&Store) -> Result<Write> + Send + 'static {
         move |store| {
             Ok(if store.has_note(id)? {
@@ -219,18 +224,15 @@ mod tests {
     }
 
     #[test]
-    fn a_judged_write_is_gated_once_by_what_its_own_job_found_stored() {
-        use std::sync::Mutex;
+    fn a_judged_write_takes_the_answer_for_what_its_own_job_found_stored() {
         use tauri::async_runtime::block_on;
         let dir = tempfile::tempdir().unwrap();
         let db = Db::spawn(&dir.path().join("devot.sqlite")).unwrap();
-        let judged = Arc::new(Mutex::new(Vec::new()));
-        let seen = Arc::clone(&judged);
-        db.guard(Arc::new(move |what| {
-            seen.lock().unwrap().push(what);
-            Ok(())
+        db.guard(Arc::new(|what| match what {
+            Write::Body => Err("E_LICENCE_REQUIRED"),
+            _ => Ok(()),
         }));
-        block_on(db.write_judged(first_put("note"), |store| {
+        block_on(db.write_judged(&EITHER, first_put("note"), |store| {
             store.put_note(&note("note"), &[])?;
             let mut again = note("note");
             again.body_version = 1;
@@ -239,9 +241,56 @@ mod tests {
         .unwrap();
         let mut edited = note("note");
         edited.body_version = 2;
-        block_on(db.write_judged(first_put("note"), move |store| store.put_note(&edited, &[])))
-            .unwrap();
-        assert_eq!(*judged.lock().unwrap(), [Write::Content, Write::Body]);
+        let refused = block_on(db.write_judged(&EITHER, first_put("note"), move |store| {
+            store.put_note(&edited, &[])
+        }));
+        assert_eq!(refused.unwrap_err().to_string(), "E_LICENCE_REQUIRED");
+    }
+
+    #[test]
+    fn a_judged_write_asks_the_gate_off_the_database_thread() {
+        use std::sync::Mutex;
+        use tauri::async_runtime::block_on;
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::spawn(&dir.path().join("devot.sqlite")).unwrap();
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let seen = Arc::clone(&asked);
+        db.guard(Arc::new(move |what| {
+            let thread = std::thread::current().name().map(str::to_owned);
+            seen.lock().unwrap().push((what, thread));
+            Ok(())
+        }));
+        block_on(db.write_judged(&EITHER, first_put("note"), |store| {
+            store.put_note(&note("note"), &[])
+        }))
+        .unwrap();
+        let asked = asked.lock().unwrap();
+        assert_eq!(
+            asked.iter().map(|(what, _)| *what).collect::<Vec<_>>(),
+            EITHER
+        );
+        assert!(
+            asked
+                .iter()
+                .all(|(_, thread)| thread.as_deref() != Some("devot-db"))
+        );
+    }
+
+    #[test]
+    fn a_judged_write_whose_kind_was_not_asked_is_refused() {
+        use tauri::async_runtime::block_on;
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::spawn(&dir.path().join("devot.sqlite")).unwrap();
+        db.guard(Arc::new(|_| Ok(())));
+        let refused = block_on(db.write_judged(&[Write::Body], first_put("new"), |store| {
+            store.put_note(&note("new"), &[])
+        }));
+        assert_eq!(refused.unwrap_err().to_string(), "E_STORAGE_WRITE_UNJUDGED");
+        assert!(
+            block_on(db.call(|store| store.list_notes()))
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
@@ -256,10 +305,13 @@ mod tests {
         }));
         let mut kept = note("kept");
         kept.body_version = 1;
-        block_on(db.write_judged(first_put("kept"), move |store| store.put_note(&kept, &[])))
-            .unwrap();
-        let refused =
-            block_on(db.write_judged(first_put("new"), |store| store.put_note(&note("new"), &[])));
+        block_on(db.write_judged(&EITHER, first_put("kept"), move |store| {
+            store.put_note(&kept, &[])
+        }))
+        .unwrap();
+        let refused = block_on(db.write_judged(&EITHER, first_put("new"), |store| {
+            store.put_note(&note("new"), &[])
+        }));
         assert_eq!(refused.unwrap_err().to_string(), "E_LICENCE_REQUIRED");
         let notes = block_on(db.call(|store| store.list_notes())).unwrap();
         assert_eq!(

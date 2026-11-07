@@ -322,6 +322,7 @@ pub(crate) async fn put_note(
     }
     let id = record.id.clone();
     db.write_judged(
+        &[Write::Body, Write::Content],
         move |store| {
             Ok(if store.has_note(&id)? {
                 Write::Body
