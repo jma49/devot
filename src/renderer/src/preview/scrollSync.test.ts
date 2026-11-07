@@ -207,6 +207,28 @@ describe('previewScrollPane', () => {
     expect(moved).toBe(1)
   })
 
+  it('keeps its measure of a big note when an edit changes neither its lines nor its height', () => {
+    stubResizeObserver()
+    const tops = new Map([...Array(20_000).keys()].map((i) => [i * 2 + 1, i * 30]))
+    const element = fakePreview(tops, 600_000)
+    let reads = 0
+    const query = element.querySelectorAll
+    element.querySelectorAll = () => {
+      reads += 1
+      return query()
+    }
+    const pane = previewScrollPane(element as unknown as HTMLElement)
+    pane.changed(40_000)
+    expect(pane.offsetOf(21)).toBe(300)
+    pane.changed(40_000)
+    expect(pane.offsetOf(21)).toBe(300)
+    expect(reads).toBe(1)
+    pane.changed(40_001)
+    expect(pane.offsetOf(21)).toBe(300)
+    expect(reads).toBe(2)
+    pane.dispose()
+  })
+
   it('notices content that grew without a load event (a diagram)', () => {
     stubResizeObserver()
     const tops = new Map([
