@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useActivityMenu } from './Activity'
 import { areaOf, areaTargets, nextArea, usePaneTab } from './areas'
 import { useKeymap } from './commands/shortcutSettings'
+import { listLibrary } from './core-client'
 import { useCoreSession, useCoreStart, useQuitAndClose } from './coreSession'
 import { countsStore } from './CountsFooter'
 import { refuseTextDrops } from './dragData'
@@ -92,7 +93,7 @@ export function App() {
   const { loadHeadlines } = loaders
   const searchState = useSearch(core)
   const { query, results } = searchState
-  const lists = useLibraryLists(searchState)
+  const lists = useLibraryLists({ ...searchState, listLibrary })
   const { notes, books, tags, savedSearches, trash, templates, listsLoaded, setListsLoaded } = lists
   const { refresh, showWrites, authorshipChanged } = lists
   const [builtIn, setBuiltIn] = useState<string>()
