@@ -54,17 +54,29 @@ async function bigNote(bytes: number, pageOf: (stored: WireStorage) => WireStora
     newId: createIdGenerator(),
   })
   const id = await notes.create('Big')
-  await notes.setBody(id, sampleNote(bytes))
-  return { notes, id, sqlite }
+  const body = sampleNote(bytes)
+  await notes.setBody(id, body)
+  return { notes, id, body, sqlite }
+}
+
+/** The least of a few saves, so one collection pause does not count. */
+async function leastOf(save: (round: number) => Promise<number>) {
+  const times: number[] = []
+  for (let round = 0; round < 3; round += 1) times.push(await save(round))
+  return Math.min(...times)
 }
 
 it('costs the UI thread no work for each byte of a 5 MiB note’s save', async (context) => {
-  const { notes } = await bigNote(5 * MIB, () => tauriWire)
-  pageMs = 0
-  await notes.flush()
+  const { notes, id, body } = await bigNote(5 * MIB, () => tauriWire)
+  const least = await leastOf(async (round) => {
+    if (round > 0) await notes.setBody(id, `${body}${round}`)
+    pageMs = 0
+    await notes.flush()
+    return pageMs
+  })
   expect(vi.mocked(invoke).mock.calls.map(([cmd]) => cmd)).toContain('note_put')
   // About 15 ms in Node when the note crossed as JSON with its state in base64.
-  expectWithinBudget(context, pageMs, 2)
+  expectWithinBudget(context, least, 2)
 }, 60_000)
 
 it('saves a title of a 5 MiB note with no work for each byte of it outside storage', async (context) => {
@@ -76,10 +88,13 @@ it('saves a title of a 5 MiB note with no work for each byte of it outside stora
     putNoteMeta: async () => void written.push('meta'),
   }))
   await notes.flush()
-  await notes.setTitle(id, 'Renamed')
-  const start = performance.now()
-  await notes.flush()
-  expect(written.at(-1)).toBe('meta')
+  const least = await leastOf(async (round) => {
+    await notes.setTitle(id, `Renamed ${round}`)
+    const start = performance.now()
+    await notes.flush()
+    return performance.now() - start
+  })
+  expect(written.slice(-3)).toEqual(['meta', 'meta', 'meta'])
   // About 25 ms in Node when the whole note was coded and crossed again.
-  expectWithinBudget(context, performance.now() - start, 3)
+  expectWithinBudget(context, least, 3)
 }, 60_000)

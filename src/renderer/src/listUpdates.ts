@@ -6,17 +6,6 @@ import { TEMPLATES_BOOK_ID } from '../../core/books'
 import { filterNotes, type NoteFilter } from '../../core/tags'
 import type { Selection } from './Sidebar'
 
-const madeFrom = new WeakMap<readonly NoteSummary[], readonly NoteSummary[]>()
-
-const inPlace = <T extends NoteSummary>(list: T[], next: T[]) => {
-  madeFrom.set(next, list)
-  return next
-}
-
-/** The list `list` was made from by changing notes in their places (`withWrites`, `withSummaries`, `retitled`), if it was. */
-export const earlierList = <T extends NoteSummary>(list: readonly T[]) =>
-  madeFrom.get(list) as readonly T[] | undefined
-
 /**
  * `list` with each note written since (`written`: its ID and new
  * `updatedAt`) dated as written. A write no newer than the date listed (an
@@ -33,7 +22,7 @@ export function withWrites<T extends NoteSummary>(
     changed = true
     return { ...n, updatedAt: at }
   })
-  return changed ? inPlace(list, next) : list
+  return changed ? next : list
 }
 
 const sameIds = (a: readonly string[], b: readonly string[]) =>
@@ -141,7 +130,7 @@ export function withSummaries<T extends NoteSummary>(list: T[], read: readonly T
     changed = true
     return fresh
   })
-  return changed ? inPlace(list, next) : list
+  return changed ? next : list
 }
 
 /** The IDs of the notes listed in only one of `prev` and `next`, or listed differently. */
@@ -163,7 +152,7 @@ export function retitled<T extends NoteSummary>(list: T[], id: string, title: st
     changed = true
     return { ...n, title }
   })
-  return changed ? inPlace(list, next) : list
+  return changed ? next : list
 }
 
 export type ListView =

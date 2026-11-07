@@ -165,6 +165,8 @@ export function relayMethods(
           const title = note.record.title
           takeIn(note, stored)
           if (holdsMore(note.doc, stored)) {
+            // Storage lacks part of the document: that save writes it whole.
+            note.storedChanges = -1
             note.edits += 1
             schedule(note)
           }

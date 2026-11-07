@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import type { BookRecord, NoteSummary } from '../../../core'
 import { noteOrder } from '../../../core/sort'
 import { filterNotes, noteGroups, type NoteFilter } from '../../../core/tags'
-import { changedInPlace, countsAlike, earlierList, movedInOrder } from '../listUpdates'
+import { changedInPlace, countsAlike, movedInOrder } from '../listUpdates'
 import { applyOrder, type ListOrder } from '../noteSort'
 import { useKept } from '../stable'
 
@@ -28,25 +28,13 @@ type View = readonly [
   locales: readonly string[],
 ]
 
-// The groups last made from each list, to move only the notes a save changed in the list made from it.
-const grouped = new WeakMap<readonly NoteSummary[], { view: View; groups: Grouped }>()
-const LINEAGE = 8
+type Listed = { notes: readonly NoteSummary[]; view: View; groups: Grouped }
 
-function earlierGroups(notes: NoteSummary[], view: View) {
-  let list = earlierList(notes)
-  for (let step = 0; list && step < LINEAGE; step += 1) {
-    const found = grouped.get(list)
-    if (found)
-      return found.view.every((part, i) => part === view[i]) ? { list, ...found } : undefined
-    list = earlierList(list)
-  }
-  return undefined
-}
-
-function groupsOf(notes: NoteSummary[], view: View): Grouped {
+function groupsOf(notes: NoteSummary[], view: View, was: Listed | undefined): Grouped {
   const [books, bookId, by, order, locales] = view
-  const was = earlierGroups(notes, view)
-  const changed = was && changedInPlace(was.list, notes)
+  const changed = was?.view.every((part, i) => part === view[i])
+    ? changedInPlace(was.notes, notes)
+    : undefined
   if (!was || !changed?.every(([a, b]) => countsAlike(a, b))) {
     return noteGroups(applyOrder(filterNotes(notes, books, { bookId, by }), order, locales))
   }
@@ -60,8 +48,8 @@ function groupsOf(notes: NoteSummary[], view: View): Grouped {
 
 /**
  * The notes of a view (`bookId`, `by`) in `order`, pinned ones apart. A save
- * changes a few notes in their places (`earlierList`), and only those move, so
- * a large library is not sorted again for each.
+ * changes a few notes in their places, and only those move, so a large
+ * library is not sorted again for each.
  */
 export function useNoteGroups(
   notes: NoteSummary[],
@@ -71,10 +59,13 @@ export function useNoteGroups(
   order: ListOrder,
   locales: readonly string[],
 ): Grouped {
+  const last = useRef<Listed | undefined>(undefined)
   return useMemo(() => {
     const view: View = [books, bookId, by, order, locales]
-    const groups = groupsOf(notes, view)
-    grouped.set(notes, { view, groups })
+    // oxlint-disable-next-line react/refs -- Only the last list is kept; groups made from it are right for it, rendered or not.
+    const groups = groupsOf(notes, view, last.current)
+    // oxlint-disable-next-line react/refs -- As above.
+    last.current = { notes, view, groups }
     return groups
   }, [notes, books, bookId, by, order, locales])
 }

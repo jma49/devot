@@ -105,6 +105,22 @@ describe('saves that change only a note’s fields', () => {
     })
   })
 
+  it('write the whole note when the stored body falls short of the document', async () => {
+    const { sqlite, writes, service } = watched()
+    const notes = service()
+    const id = await notes.create('Plan')
+    await notes.setBody(id, 'Real text')
+    await notes.flush()
+    const stored = await sqlite.getNote(id)
+    await sqlite.putNote({ ...stored!, bodyMd: 'Out of step' })
+    writes.length = 0
+
+    await notes.mergeStored()
+    await notes.flush()
+    expect(writes).toEqual(['note'])
+    expect((await sqlite.getNote(id))?.bodyMd).toBe('Real text')
+  })
+
   it('write the whole note when storage no longer has it', async () => {
     const { sqlite, writes, service } = watched(() => ({
       putNoteMeta: async () => {
