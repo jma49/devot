@@ -1,7 +1,8 @@
 // A save of a big note must not re-index it for search: it only marks the note stale (schema v29).
 // Before, a save of a 1 MB note tokenized its old and new text, about 105 ms on a developer's Mac.
 // Both are timed in CPU: the store syncs every commit to disk, and a hosted runner's disk, shared
-// with the other benchmarks' stores, made the wall-clock median of six saves as much as 420 ms against its 30 ms budget.
+// with the other benchmarks' stores, put the wall-clock median of six saves at up to 420 ms against
+// its 30 ms budget.
 import { join } from 'node:path'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import type { NoteRecord } from '../../src/core'
@@ -74,8 +75,8 @@ const staleNotes = () =>
 const median = (values: number[]) =>
   values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)]!
 
-// Against the re-index the save skipped, measured moments after it on the same machine: a save that
-// re-indexed would cost that and its write, on any machine.
+// The save is also held to half the re-index it skipped, measured just after it on the same
+// machine: on any machine, a save that tokenized its text would cost more.
 it('saves a 1 MB note without re-indexing it', { timeout: 60_000 }, async (context) => {
   const saves: number[] = []
   const reindexes: number[] = []
