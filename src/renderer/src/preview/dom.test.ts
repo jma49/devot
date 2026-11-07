@@ -101,7 +101,7 @@ describe('patchPieces', () => {
       piece('notes2', 'Notes edited', 2),
     ])
 
-    expect(Array.from(host.children, (el) => el.textContent)).toEqual([
+    expect(Array.from(host.children, (child) => child.textContent)).toEqual([
       'A',
       'B edited',
       'C',
@@ -125,9 +125,9 @@ describe('patchPieces', () => {
       known('c', 4),
       { key: 'e', line: 5, offset: 50, nodes: [] },
     ])
-    expect(Array.from(host.children, (el) => el.textContent)).toEqual(['A', 'B1', 'B2', 'C'])
+    expect(Array.from(host.children, (child) => child.textContent)).toEqual(['A', 'B1', 'B2', 'C'])
     shown = patchPieces(host, shown, [known('a', 1), known('c', 2), known('e', 3)])
-    expect(Array.from(host.children, (el) => el.textContent)).toEqual(['A', 'C'])
+    expect(Array.from(host.children, (child) => child.textContent)).toEqual(['A', 'C'])
     expect(shown.map((p) => p.key)).toEqual(['a', 'c', 'e'])
   })
 
@@ -160,7 +160,7 @@ describe('patchPieces', () => {
     const read = () =>
       Array.from(
         host.querySelectorAll('p, input'),
-        (el) => el.getAttribute('data-source-line') ?? el.getAttribute('data-task-at'),
+        (found) => found.getAttribute('data-source-line') ?? found.getAttribute('data-task-at'),
       )
     expect(read()).toEqual(['3', '34', '9', '85'])
     shown = patchPieces(host, shown, [{ key: 'notes', line: 3, offset: 30, parts: parts(3, 10) }])
