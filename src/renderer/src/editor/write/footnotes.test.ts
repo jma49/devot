@@ -1,9 +1,10 @@
 import { EditorState, Text } from '@codemirror/state'
 import { describe, expect, it } from 'vitest'
 import { randomChange, randomNote, seeded } from '../../../../../tests/support/random-notes'
-import { carryFootnotes, footnoteNumbers } from './footnotes'
+import { carryFootnotes, footnoteNumbers, linkDefinitions } from './footnotes'
 
 const numbers = (doc: string) => Object.fromEntries(footnoteNumbers(Text.of(doc.split('\n'))))
+const links = (doc: string) => [...linkDefinitions(Text.of(doc.split('\n')))].sort()
 
 describe('footnote numbers', () => {
   it('count a label with a definition, in the order of its first reference, those in definitions last', () => {
@@ -14,6 +15,14 @@ describe('footnote numbers', () => {
   it('leave out references in code and escaped ones', () => {
     const doc = '`[^a]` \\[^a]\n\n```\n[^a]\n```\n\n    [^a]\n\nThen[^b].\n\n[^a]: A.\n[^b]: B.'
     expect(numbers(doc)).toEqual({ b: 1 })
+  })
+})
+
+describe('link definitions', () => {
+  it('are the labels defined outside code, case folded and spaced as CommonMark matches them', () => {
+    const doc =
+      '    [d]: /d\n\n[A  b]: https://a.example\n> [q]: /q\n\\[e]: /e\n[]: /x\n[^f]: Note.\n\n```\n[c]: /c\n```'
+    expect(links(doc)).toEqual(['a b', 'q'])
   })
 })
 
@@ -28,10 +37,11 @@ describe('footnote numbers after an edit', () => {
         carryFootnotes(tr)
         state = tr.state
         const doc = state.doc.toString()
-        expect({ doc, numbers: Object.fromEntries(footnoteNumbers(state.doc)) }).toEqual({
+        expect({
           doc,
-          numbers: numbers(doc),
-        })
+          numbers: Object.fromEntries(footnoteNumbers(state.doc)),
+          links: [...linkDefinitions(state.doc)].sort(),
+        }).toEqual({ doc, numbers: numbers(doc), links: links(doc) })
       }
     }
   })

@@ -5,6 +5,8 @@
 // from the text, since a definition can lie past what the parser has reached.
 // What each line adds is kept with the state its reading starts in, so an edit
 // reads again only its lines and those after them whose state it changed.
+// The same reading finds the labels of link reference definitions, so a
+// reference link with no definition can show as the literal text it is.
 import type { Text, Transaction } from '@codemirror/state'
 
 export const FOOTNOTE_REF = /^\[\^([^\]\s]+)\]$/
@@ -20,9 +22,16 @@ const CODE_SPAN = /(`+)(?:(?!\1)[\s\S])*?[^`]\1(?!`)/g
 
 export const footnoteKey = (label: string) => label.toLowerCase()
 
+/** A link label as CommonMark matches it: case folded, its runs of white space as one space. */
+export const linkKey = (label: string) => label.trim().replace(/\s+/g, ' ').toLowerCase()
+
+const LINK_DEFINITION = /^\[((?:[^[\]\\]|\\.){1,999})\]:/
+
 /** What one line adds: the labels it defines and the references in the text and in definitions. */
 interface Found {
   line: number
+  /** A link reference definition's label, by `linkKey`. */
+  link?: string
   defined: string[]
   inText: string[]
   inDefinitions: string[]
@@ -34,6 +43,7 @@ interface Index {
   /** The lines that add something, in order. */
   found: Found[]
   numbers: ReadonlyMap<string, number>
+  links: ReadonlySet<string>
 }
 
 const cache = new WeakMap<Text, Index>()
@@ -75,8 +85,14 @@ function readLine(line: string, number: number, state: number, found: Found[]): 
   let inDefinition = (state & IN_DEFINITION) !== 0
   const next = () =>
     (inCode ? IN_CODE : 0) | (inList ? IN_LIST : 0) | (inDefinition ? IN_DEFINITION : 0)
-  if (inCode || !line.includes('[^')) return next()
+  if (inCode || !line.includes('[')) return next()
   const prefix = CONTAINERS.exec(line)?.[0].length ?? 0
+  const link = LINK_DEFINITION.exec(line.slice(prefix))?.[1]
+  if (link?.trim() && !link.startsWith('^') && !escaped(line, prefix)) {
+    found.push({ line: number, link: linkKey(link), defined: [], inText: [], inDefinitions: [] })
+    return next()
+  }
+  if (!line.includes('[^')) return next()
   const definition = FOOTNOTE_DEFINITION.exec(line.slice(prefix))
   const adds: Found = { line: number, defined: [], inText: [], inDefinitions: [] }
   let from = prefix
@@ -130,13 +146,19 @@ function numbered(found: readonly Found[]): ReadonlyMap<string, number> {
   return numbers
 }
 
+function linked(found: readonly Found[]): ReadonlySet<string> {
+  const links = new Set<string>()
+  for (const line of found) if (line.link !== undefined) links.add(line.link)
+  return links
+}
+
 function indexOf(doc: Text): Index {
   const known = cache.get(doc)
   if (known) return known
   const states = new Int32Array(doc.lines + 2)
   const found: Found[] = []
   readLines(doc, 1, BLANK_BEFORE, states, found, Infinity, () => false)
-  const index = { states, found, numbers: numbered(found) }
+  const index = { states, found, numbers: numbered(found), links: linked(found) }
   cache.set(doc, index)
   return index
 }
@@ -146,10 +168,16 @@ export function footnoteNumbers(doc: Text): ReadonlyMap<string, number> {
   return indexOf(doc).numbers
 }
 
+/** The labels of the note's link reference definitions, by `linkKey`. */
+export function linkDefinitions(doc: Text): ReadonlySet<string> {
+  return indexOf(doc).links
+}
+
 const sameLabels = (a: readonly Found[], b: readonly Found[]) =>
   a.length === b.length &&
   a.every(
     (x, i) =>
+      x.link === b[i]!.link &&
       x.defined.join(' ') === b[i]!.defined.join(' ') &&
       x.inText.join(' ') === b[i]!.inText.join(' ') &&
       x.inDefinitions.join(' ') === b[i]!.inDefinitions.join(' '),
@@ -189,6 +217,8 @@ export function carryFootnotes(tr: Transaction): void {
     else found.push(line === f.line ? f : { ...f, line })
   }
   if (end <= doc.lines) states.set(before.states.subarray(end - shift), end)
-  const numbers = sameLabels(read, removed) ? before.numbers : numbered(found)
-  cache.set(doc, { states, found, numbers })
+  const same = sameLabels(read, removed)
+  const numbers = same ? before.numbers : numbered(found)
+  const links = same ? before.links : linked(found)
+  cache.set(doc, { states, found, numbers, links })
 }

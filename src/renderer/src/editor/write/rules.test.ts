@@ -118,7 +118,32 @@ describe('Write mode links', () => {
     expect(shown('a wiki link [[QA Write mode]].')).toBe('a wiki link [[QA Write mode]].')
     expect(marks('see [[Plan]]')).toEqual(['cm-wm-plain [Plan]'])
     expect(shown('see [[Plan]]', caret(6))).toBe('see [[Plan]]')
-    expect(marks('a [x] b')).toEqual([])
+  })
+
+  it('by reference with no definition stay plain text, with the caret beside them or not', () => {
+    expect(marks('a [b] c')).toEqual(['cm-wm-plain [b]'])
+    expect(rangesOf('a [b] c', caret(2)).ranges).toContainEqual({
+      kind: 'mark',
+      from: 2,
+      to: 5,
+      className: 'cm-wm-plain',
+    })
+    expect(marks('a [b][] c')).toEqual(['cm-wm-plain [b][]'])
+    expect(marks('a [b][nope] c')).toEqual(['cm-wm-plain [b][nope]'])
+    expect(shown('a [b][nope] c')).toBe('a [b][nope] c')
+    expect(marks('keys \u2318[ and \u2318].')).toEqual(['cm-wm-plain [ and \u2318]'])
+    expect(shown('a [**b**] c')).toBe('a [b] c')
+  })
+
+  it('by reference with a definition are links, whatever the case and spacing of the label', () => {
+    expect(marks('a [b] c\n\n[b]: https://example.com')).toEqual([])
+    expect(marks('a [B  c][]\n\n[b c]: https://example.com')).toEqual([])
+    expect(marks('a [x][B]\n\n[b]: https://example.com')).toEqual([])
+    expect(marks('a [b] c\n\n```\n[b]: https://example.com\n```')).toEqual([
+      'cm-wm-plain [b]',
+      'cm-wm-fence ```',
+      'cm-wm-fence ```',
+    ])
   })
 
   it('leave images to the image rules', () => {
