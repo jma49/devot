@@ -122,6 +122,9 @@ function source(node: Element): string {
   return node.children.map((c) => (c.type === 'text' ? c.value : '')).join('')
 }
 
+/** As on GitHub, an inline `$` next to a space is not math: "$5 and $6" is prose. */
+export const isInlineTex = (tex: string): boolean => tex !== '' && tex.trim() === tex
+
 type Found = { parent: Root | Element; index: number; code: Element; display: boolean }
 
 function findMath(parent: Root | Element, out: Found[] = []): Found[] {
@@ -133,8 +136,7 @@ function findMath(parent: Root | Element, out: Found[] = []): Found[] {
       out.push({ parent, index, code: inner, display: true })
     } else if (isMath(child)) {
       const tex = source(child)
-      // As on GitHub, `$` next to a space is not math: "$5 and $6" is prose.
-      if (tex.trim() !== tex || tex === '') {
+      if (!isInlineTex(tex)) {
         parent.children[index] = { type: 'text', value: `$${tex}$` }
       } else {
         out.push({ parent, index, code: child, display: false })

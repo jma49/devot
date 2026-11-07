@@ -95,6 +95,53 @@ test('a formula shows its source over its rendering while the caret is in it', a
   expect(await source(page)).toEqual(['Before', '', '$$', 'x^2 + 1', '$$', '', 'After'])
 })
 
+/** How far each `(` of a formula is drawn left of its own box: a bracket hung into the digit before it. */
+const bracketOverhang = (math: Locator) =>
+  math.evaluate((m) =>
+    Array.from(m.querySelectorAll('mo'))
+      .filter((mo) => mo.textContent === '(')
+      .map((mo) => {
+        const glyph = document.createRange()
+        glyph.selectNodeContents(mo)
+        const over = mo.getBoundingClientRect().left - glyph.getBoundingClientRect().left
+        return Math.max(0, Math.round(over))
+      }),
+  )
+
+test('a bracket in a formula keeps clear of the digit before it, in Write mode and the preview', async ({
+  page,
+}) => {
+  await createNote(page, 'Sum', 'Sum\n\n$$\n\\frac{8(8+1)}{2}\n$$\n\nAfter')
+  await page.locator('.cm-line', { hasText: 'After' }).click()
+  const written = page.locator('.cm-wm-block-math math')
+  await expect(written.locator('mfrac')).toHaveCount(1)
+  expect(await bracketOverhang(written)).toEqual([0])
+
+  await runCommand(page, 'view.preview')
+  const previewed = page.getByRole('article', { name: 'Preview' }).locator('.math-display math')
+  await expect(previewed.locator('mfrac')).toHaveCount(1)
+  expect(await bracketOverhang(previewed)).toEqual([0])
+})
+
+test('inline math shows as the preview draws it, and its source while the caret is in it', async ({
+  page,
+}) => {
+  await createNote(page, 'Inline', 'Top $a_8^2 + b^2 = c^2$ end\nNext')
+  const formula = page.locator('.cm-wm-inline math')
+  await expect(formula.locator('msubsup')).toHaveCount(1)
+  expect(await lines(page)).toContain('Next')
+
+  await page.locator('.cm-line', { hasText: 'Top' }).click()
+  await page.keyboard.press('End')
+  for (let i = 0; i < ' end'.length; i++) await page.keyboard.press('ArrowLeft')
+  await expect(formula).toHaveCount(0)
+  await expect.poll(() => lines(page)).toEqual(['Top $a_8^2 + b^2 = c^2$ end', 'Next'])
+
+  await page.keyboard.press('ArrowDown')
+  await expect(formula).toHaveCount(1)
+  expect(await source(page)).toEqual(['Top $a_8^2 + b^2 = c^2$ end', 'Next'])
+})
+
 test('an image shows its Markdown over it from a click, and opens on a double click', async ({
   page,
 }) => {
