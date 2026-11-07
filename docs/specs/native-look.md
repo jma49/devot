@@ -114,6 +114,7 @@ Part of the [design system](design-system.md).
   The column under the pointer is marked as the drop target, except the dragged cards' own column when they all come from it.
   Control+Command+Right and Left (`status.next` and `status.previous`, in Settings > Keyboard Shortcuts, the palette, and the note menu on a board) move each selected card, or the focused one, to the next or previous column; a card in the last column stays.
   Status changes go through the note service as a batch (`applyBatch`), so sync, history and AI tools see ordinary status events; a moved card shows in its new column at once.
+  A status changed another way (a key, a menu, the editor) shows in its new column at once too, so an Undo straight after it takes that change back.
   Each move (a drop or a key press) is one step of the board's own undo history (`createMoveHistory`, the last 50 moves of each board view, kept in memory for the last 20 boards shown, so it lasts across a visit to another view): Cmd+Z and Shift+Cmd+Z while a card or column has the keyboard take the last move back or make it again, each note whose status changed since left alone.
   A move whose write failed keeps only the notes that were written, and a step that changes nothing any more is passed over.
   A view with no notes shows the list's empty message and tip in place of the columns.
