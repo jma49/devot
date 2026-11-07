@@ -275,7 +275,8 @@ These are measured on a device in stage 0, before the stages that depend on them
 - A run that cannot finish writes `pass: false` with its error code as the only note, such as `E_SPIKE_PAGE_TIMEOUT` when the page never answers within 60 s.
 - Each run logs `I_SPIKE_START spike=<spike>` and `I_SPIKE_DONE spike=<spike> pass=<pass>` through `os_log`, subsystem `io.github.jma49.devot`, category `spikes`.
 - To run one, install a debug build on a connected iPhone and run `scripts/ios/run-spike.sh <spike> [device]`.
-- The script builds, signs and installs nothing and needs no secret: it launches the app with `xcrun devicectl`, waits for a report newer than its launch, copies it back with `xcrun devicectl device copy from` and prints it.
+- The script builds, signs and installs nothing and needs no secret: it launches the app with `xcrun devicectl`, waits for a report whose `startedAt` differs from the one left before the launch, copies it back with `xcrun devicectl device copy from` and prints it.
+- `E_SPIKE_REPORT_TIMEOUT` from the script can mean the installed app was built without the harness, as when Xcode builds the package in its release configuration for the app's debug one; CI checks the package alone, not the app's build of it.
 - CI builds the package in Debug and Release and fails with `E_SPIKES_IN_RELEASE` when a Release symbol names a spike (`scripts/ci/devot-screens-release-check.sh`).
 - The page's probes load only when `DEVOT_SPIKES` is true, which Vite sets for a Tauri debug build, and `scripts/sentry/ui.ts` fails a release build whose bundle holds `__devotSpikes`.
 

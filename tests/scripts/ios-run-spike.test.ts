@@ -9,12 +9,17 @@ const BUNDLE = /PRODUCT_BUNDLE_IDENTIFIER: (\S+)/.exec(
   readFileSync('src-tauri/gen/apple/project.yml', 'utf8'),
 )?.[1]
 
-/** A stand-in for xcrun that logs each call and plays a phone with the given report. */
-function fakeXcrun(report: object | null, devices: object[]) {
+/**
+ * A stand-in for xcrun that logs each call and plays a phone holding the `before` report until the
+ * app is launched and the `after` one from then on.
+ */
+function fakeXcrun(after: object | null, devices: object[], before: object | null = null) {
   const dir = tempDir('devot-run-spike-')
   const log = join(dir, 'calls.log')
   const source = join(dir, 'report.json')
-  if (report) writeFileSync(source, JSON.stringify(report))
+  const next = join(dir, 'next.json')
+  if (before) writeFileSync(source, JSON.stringify(before))
+  if (after) writeFileSync(next, JSON.stringify(after))
   writeFileSync(join(dir, 'devices.json'), JSON.stringify({ result: { devices } }))
   const xcrun = join(dir, 'xcrun')
   writeFileSync(
@@ -23,6 +28,7 @@ function fakeXcrun(report: object | null, devices: object[]) {
 printf '%s\\n' "$*" >> "${log}"
 while [ $# -gt 0 ]; do
   case "$1" in
+  launch) [ -f "${next}" ] && cp "${next}" "${source}" ;;
   --json-output) cp "${join(dir, 'devices.json')}" "$2" ;;
   --destination) [ -f "${source}" ] && cp "${source}" "$2" || exit 1 ;;
   esac
@@ -75,26 +81,32 @@ describe.skipIf(process.platform !== 'darwin')('the spike run script', () => {
 
   it('launches the installed app with the spike, then copies its report back and prints it', () => {
     const fresh = report(new Date().toISOString())
-    const fake = fakeXcrun(fresh, [
-      {
-        ...PHONE,
-        identifier: 'MAC',
-        hardwareProperties: { platform: 'macOS' },
-      },
-      PHONE,
-    ])
+    const fake = fakeXcrun(
+      fresh,
+      [
+        {
+          ...PHONE,
+          identifier: 'MAC',
+          hardwareProperties: { platform: 'macOS' },
+        },
+        PHONE,
+      ],
+      report(new Date(Date.now() - 1000).toISOString()),
+    )
     const result = run(['S3'], fake)
-    expect({ status: result.status, stderr: result.stderr }).toMatchObject({ status: 0 })
+    expect({ status: result.status, stderr: result.stderr }).toMatchObject({
+      status: 0,
+    })
     expect(JSON.parse(result.stdout)).toEqual(fresh)
     expect(JSON.parse(readFileSync(join(result.out, 'S3.json'), 'utf8'))).toEqual(fresh)
     const calls = readFileSync(fake.log, 'utf8').trim().split('\n')
     expect(calls[0]).toMatch(/^devicectl list devices /)
-    expect(calls[1]).toBe(
+    const copy = `devicectl device copy from --quiet --device PHONE-1 --domain-type appDataContainer --domain-identifier ${BUNDLE} --source Documents/spikes/S3.json`
+    expect(calls[1]).toContain(copy)
+    expect(calls[2]).toBe(
       `devicectl device process launch --quiet --device PHONE-1 --terminate-existing ${BUNDLE} -- -DevotSpike S3`,
     )
-    expect(calls[2]).toContain(
-      `devicectl device copy from --quiet --device PHONE-1 --domain-type appDataContainer --domain-identifier ${BUNDLE} --source Documents/spikes/S3.json`,
-    )
+    expect(calls[3]).toContain(copy)
     expect(calls.join('\n')).not.toMatch(/build|install|sign/)
   })
 
@@ -114,8 +126,16 @@ describe.skipIf(process.platform !== 'darwin')('the spike run script', () => {
     expect(result.stderr).toContain('E_SPIKE_NO_DEVICE')
   })
 
-  it("waits for a new report and gives up on an old one's", () => {
-    const fake = fakeXcrun(report('2020-01-01T00:00:00.000Z'), [PHONE])
+  it('takes a report from a phone whose clock runs behind', () => {
+    const late = report('2020-01-01T00:00:00.000Z')
+    const result = run(['S3'], fakeXcrun(late, [PHONE]))
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual(late)
+  })
+
+  it("waits for a new report and gives up on the previous run's", () => {
+    const previous = report(new Date().toISOString())
+    const fake = fakeXcrun(null, [PHONE], previous)
     const result = run(['S3'], fake, '0')
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('E_SPIKE_REPORT_TIMEOUT spike=S3')

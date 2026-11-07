@@ -48,8 +48,21 @@ if [ -z "$device" ]; then
   ' "$work/devices.json")
 fi
 
-# A minute early, so a phone whose clock runs a little behind still counts its report as new.
-started=$(date -u -v-60S +%Y-%m-%dT%H:%M:%S)
+copy_report() {
+  xcrun devicectl device copy from --quiet --device "$device" \
+    --domain-type appDataContainer --domain-identifier "$bundle" \
+    --source "Documents/spikes/$spike.json" --destination "$1" >/dev/null 2>&1
+}
+started_at() {
+  node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).startedAt ?? "")' "$1" 2>/dev/null
+}
+
+# A run's report is the one whose startedAt differs from the report left by the run before; the
+# harness removes that one only once the app is up, and the phone's clock need not match the Mac's.
+previous=
+if copy_report "$work/previous.json"; then
+  previous=$(started_at "$work/previous.json" || true)
+fi
 xcrun devicectl device process launch --quiet --device "$device" --terminate-existing \
   "$bundle" -- -DevotSpike "$spike" >/dev/null
 echo "I_SPIKE_LAUNCHED spike=$spike" >&2
@@ -62,14 +75,11 @@ deadline=$(($(date +%s) + ${DEVOT_SPIKE_TIMEOUT:-180}))
 while :; do
   sleep "${DEVOT_SPIKE_POLL:-5}"
   rm -f "$report"
-  if xcrun devicectl device copy from --quiet --device "$device" \
-    --domain-type appDataContainer --domain-identifier "$bundle" \
-    --source "Documents/spikes/$spike.json" --destination "$report" >/dev/null 2>&1 &&
-    node -e '
-      const report = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))
-      process.exit(report.startedAt >= process.argv[2] ? 0 : 1)
-    ' "$report" "$started" 2>/dev/null; then
-    break
+  if copy_report "$report"; then
+    current=$(started_at "$report" || true)
+    if [ -n "$current" ] && [ "$current" != "$previous" ]; then
+      break
+    fi
   fi
   if [ "$(date +%s)" -ge "$deadline" ]; then
     echo "E_SPIKE_REPORT_TIMEOUT spike=$spike" >&2
