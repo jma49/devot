@@ -355,6 +355,31 @@ test('an exported chart keeps the light chart colours in the dark, at the page w
   expect(looks.barText.fill).toBe(rgb(light['color.chart.on-bar']))
 })
 
+test('Export as HTML… draws every diagram, also those the preview has not drawn yet', async ({
+  page,
+}) => {
+  const filler = Array.from({ length: 120 }, (_, i) => `Paragraph ${i}.\n`).join('\n')
+  const sequence = '```mermaid\nsequenceDiagram\n  Alice->>Bob: Hello\n```\n'
+  await createNote(page, 'Far', `${DIAGRAM}\n${filler}\n${sequence}`)
+  await page
+    .getByRole('group', { name: 'View mode' })
+    .getByRole('button', { name: 'Preview' })
+    .click()
+  const shown = page.getByRole('article', { name: 'Preview' }).locator('.island-mermaid')
+  await expect(shown.nth(0).locator('svg')).toHaveCount(1, { timeout: 20_000 })
+  await expect(shown.nth(1).locator('svg')).toHaveCount(0)
+
+  await mockExport(page, { export_begin: { id: 3, fileName: 'Far.html' } })
+  await pickFromNoteMenu(page, 'Far', 'Export as HTML…')
+  await expect
+    .poll(async () => (await calls(page, 'export_finish')).length, { timeout: 20_000 })
+    .toBe(1)
+  const [write] = await calls(page, 'export_write')
+  const html = (write!.args as { text: string }).text
+  expect(html.match(/<div class="island island-mermaid"><svg/g)).toHaveLength(2)
+  expect(html).toContain('Alice')
+})
+
 test('Print right after the preview opens draws every diagram', async ({ page }) => {
   const sequence = '```mermaid\nsequenceDiagram\n  Alice->>Bob: Hello\n```\n'
   await createNote(page, 'Charts', `${DIAGRAM}\n${sequence}`)

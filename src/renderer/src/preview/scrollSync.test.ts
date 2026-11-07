@@ -3,6 +3,7 @@ import {
   lineAt,
   normalizeAnchors,
   previewScrollPane,
+  shiftScroll,
   syncScrolling,
   topOf,
   wheelDistance,
@@ -188,6 +189,24 @@ describe('previewScrollPane', () => {
     pane.dispose()
   })
 
+  it('is moved by a distance through itself, and says so unless nothing moved', () => {
+    stubResizeObserver()
+    const element = fakePreview(new Map([[1, 0]]), 1000)
+    const scroller = element as unknown as HTMLElement
+    const pane = previewScrollPane(scroller)
+    let moved = 0
+    pane.onMove!(() => moved++)
+    shiftScroll(scroller, 120)
+    expect(element.scrollTop).toBe(120)
+    expect(moved).toBe(1)
+    shiftScroll(scroller, 0)
+    expect(moved).toBe(1)
+    pane.dispose()
+    shiftScroll(scroller, 30)
+    expect(element.scrollTop).toBe(150)
+    expect(moved).toBe(1)
+  })
+
   it('notices content that grew without a load event (a diagram)', () => {
     stubResizeObserver()
     const tops = new Map([
@@ -213,17 +232,32 @@ class FakePane implements ScrollPane {
   })
   scrolledTo: number[] = []
   private layout = new Set<() => void>()
+  private moves = new Set<() => void>()
+  /** Content added above the first line, in pixels. */
+  private above = 0
   constructor(private readonly scale = 1) {}
   topLine() {
-    return this.element.scrollTop / this.scale + 1
+    return (this.element.scrollTop - this.above) / this.scale + 1
   }
   offsetOf(line: number) {
     this.scrolledTo.push(line)
-    return (line - 1) * this.scale
+    return (line - 1) * this.scale + this.above
   }
   onLayout(listener: () => void) {
     this.layout.add(listener)
     return () => this.layout.delete(listener)
+  }
+  onMove(listener: () => void) {
+    this.moves.add(listener)
+    return () => this.moves.delete(listener)
+  }
+  /** Content above the view grew by `by`; a pane that `keeps` its line moves itself by as much. */
+  growAbove(by: number, { keeps = true } = {}) {
+    this.above += by
+    this.element.scrollHeight += by
+    if (!keeps) return
+    this.set(this.element.scrollTop + by)
+    for (const listener of this.moves) listener()
   }
   set(top: number) {
     const max = this.element.scrollHeight - this.element.clientHeight
@@ -366,6 +400,27 @@ describe('syncScrolling', () => {
     flush()
     expect(preview.element.scrollTop).toBe(60)
     expect(editor.scrolledTo).toEqual([])
+  })
+
+  it('takes a pane moving itself to keep its line in view for no lead', () => {
+    const { editor, preview, flush } = setup({ previewHeight: 3000 })
+    flush()
+    editor.userScroll(30)
+    flush()
+    expect(preview.element.scrollTop).toBe(60)
+    // Diagrams above the preview's view land together, 500 px taller between them.
+    preview.growAbove(500)
+    preview.relayout()
+    preview.fire()
+    flush()
+    expect(editor.scrolledTo).toEqual([])
+    expect(editor.element.scrollTop).toBe(30)
+    expect(preview.element.scrollTop).toBe(560)
+    // The editor still leads: the next rendering lines the preview up with it.
+    preview.growAbove(40, { keeps: false })
+    preview.relayout()
+    flush()
+    expect(preview.element.scrollTop).toBe(600)
   })
 
   it('takes the scroll a pane is clamped to while laid out anew for no lead', () => {

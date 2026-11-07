@@ -75,6 +75,8 @@ export interface ScrollPane {
   topLine(): number
   offsetOf(line: number): number
   onLayout?(listener: () => void): () => void
+  /** The pane moved its own scroll position to keep showing what it showed (content above it grew): that scroll is no lead. */
+  onMove?(listener: () => void): () => void
 }
 
 export interface SyncOptions {
@@ -309,6 +311,11 @@ export function syncScrolling(
       if (current !== pane) schedule(other(pane), true)
     })
     if (stopLayout) stops.push(stopLayout)
+    const stopMove = pane.onMove?.(() => {
+      expected.set(pane, pane.element.scrollTop)
+      note(pane)
+    })
+    if (stopMove) stops.push(stopMove)
   }
   schedule(current)
 
@@ -324,6 +331,19 @@ export interface PreviewScrollPane extends ScrollPane {
   dispose(): void
 }
 
+const shifts = new WeakMap<Element, (by: number) => void>()
+
+/**
+ * Scrolls `element` by `by` pixels to keep what is in view where it is
+ * (content above it grew). Through its preview scroll pane, when it has one,
+ * so synced scrolling does not take the move for the user's.
+ */
+export function shiftScroll(element: HTMLElement, by: number): void {
+  const shift = shifts.get(element)
+  if (shift) shift(by)
+  else element.scrollTop += by
+}
+
 /**
  * The preview as a scroll pane: `element` scrolls and its blocks carry their
  * source lines. Block offsets are measured once and kept until the content
@@ -335,6 +355,7 @@ export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
   let anchors: Anchor[] | undefined
   let measuredHeight = -1
   const listeners = new Set<() => void>()
+  const moves = new Set<() => void>()
 
   const measure = (): Anchor[] => {
     const height = element.scrollHeight
@@ -371,6 +392,12 @@ export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
   })
   resize.observe(element)
   element.addEventListener('load', relayout, true)
+  const shift = (by: number) => {
+    const before = element.scrollTop
+    element.scrollTop = before + by
+    if (element.scrollTop !== before) for (const listener of moves) listener()
+  }
+  shifts.set(element, shift)
 
   return {
     element,
@@ -379,6 +406,10 @@ export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
     onLayout: (listener) => {
       listeners.add(listener)
       return () => listeners.delete(listener)
+    },
+    onMove: (listener) => {
+      moves.add(listener)
+      return () => moves.delete(listener)
     },
     changed: (count) => {
       if (count !== undefined) lines = count
@@ -389,6 +420,8 @@ export function previewScrollPane(element: HTMLElement): PreviewScrollPane {
       element.removeEventListener('scroll', scrolled)
       element.removeEventListener('load', relayout, true)
       listeners.clear()
+      moves.clear()
+      if (shifts.get(element) === shift) shifts.delete(element)
     },
   }
 }

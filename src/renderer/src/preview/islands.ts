@@ -72,6 +72,8 @@ export function drawingWidth(available: number): number | undefined {
 
 interface Slot {
   key: string
+  /** What its drawn height depends on: the kind, width and source, not the colours. */
+  sizeKey: string
   pending?: AbortController | undefined
   shown?: IslandContent | undefined
   retry: boolean
@@ -91,23 +93,58 @@ export interface IslandMounter {
   dispose(): void
 }
 
+const KNOWN_HEIGHTS = 500
+
 /**
- * With a `scroller`, an island renders only once it is above the bottom of
- * the scroller's view plus one more screen: content below the view costs
- * nothing until it is scrolled near, and content above it is always drawn,
- * so what is in view never moves because something above it drew late.
+ * The height each diagram was last drawn at, so a new element for it (or a
+ * preview opened again) reserves it. A guess: a new font size or zoom makes
+ * it off until the diagram is drawn again.
+ */
+const knownHeights = new Map<string, number>()
+
+function learnHeight(key: string, height: number): void {
+  knownHeights.delete(key)
+  knownHeights.set(key, height)
+  if (knownHeights.size > KNOWN_HEIGHTS) knownHeights.delete(knownHeights.keys().next().value!)
+}
+
+const styleOf = (el: Element) => (el as Partial<ElementCSSInlineStyle>).style
+
+interface Landed {
+  el: Element
+  slot: Slot
+  content: IslandContent
+  current: () => boolean
+}
+
+/**
+ * With a `scroller`, an island renders only while it is within one screen of
+ * the scroller's view, above or below it: a long note's diagrams cost
+ * nothing until they are scrolled near. Drawings that land in the same frame
+ * go in together; one that lands above the view moves the scroll position by
+ * its growth (`shift`, by default a write to `scrollTop`), so what is in view
+ * stays put. A diagram drawn before keeps its height reserved while it is
+ * drawn again.
  */
 export function createIslandMounter(
   registry: IslandRegistry,
-  { scroller }: { scroller?: (host: Element) => HTMLElement | null } = {},
+  {
+    scroller,
+    shift = (root, by) => (root.scrollTop += by),
+  }: {
+    scroller?: (host: Element) => HTMLElement | null
+    shift?: (root: HTMLElement, by: number) => void
+  } = {},
 ): IslandMounter {
   const slots = new Map<Element, Slot>()
   const waiting = new Map<Element, () => void>()
+  const near = new Set<Element>()
+  const landed: Landed[] = []
   let onRendered: (() => void) | undefined
   let lastHost: Element | undefined
   let watched: HTMLElement | undefined
+  let nearby: IntersectionObserver | undefined
   let frame: number | undefined
-  let sizes: ResizeObserver | undefined
   let retryTimer: ReturnType<typeof setTimeout> | undefined
   let retryDue = 0
   let lastContext: IslandContext | undefined
@@ -129,39 +166,88 @@ export function createIslandMounter(
     slot.shown = undefined
   }
 
-  const startNear = () => {
-    frame = undefined
+  const shownView = () => {
     const root = lastHost && scroller?.(lastHost)
-    if (!root || root.clientHeight === 0) return
-    const limit = root.getBoundingClientRect().bottom + root.clientHeight
-    for (const [el, start] of waiting) {
-      if (!el.isConnected) {
-        waiting.delete(el)
-        continue
-      }
-      if (el.getBoundingClientRect().top > limit) continue
-      waiting.delete(el)
-      start()
-    }
+    return root && root.clientHeight > 0 ? root : undefined
   }
-  const schedule = () => {
-    if (frame === undefined && waiting.size > 0) frame = requestAnimationFrame(startNear)
+  const startWaiting = (el: Element) => {
+    const start = waiting.get(el)
+    if (!start || !shownView()) return
+    waiting.delete(el)
+    start()
   }
   const watch = () => {
     const root = lastHost && scroller?.(lastHost)
     if (!root || root === watched) return
     unwatch()
     watched = root
-    root.addEventListener('scroll', schedule, { passive: true })
-    root.addEventListener('load', schedule, true)
-    sizes = new ResizeObserver(schedule)
-    sizes.observe(root)
+    nearby = new IntersectionObserver(
+      (entries) => {
+        for (const { target, isIntersecting } of entries) {
+          if (!isIntersecting) {
+            near.delete(target)
+            continue
+          }
+          near.add(target)
+          startWaiting(target)
+        }
+      },
+      { root, rootMargin: '100% 0px' },
+    )
+    for (const el of slots.keys()) nearby.observe(el)
   }
   const unwatch = () => {
-    watched?.removeEventListener('scroll', schedule)
-    watched?.removeEventListener('load', schedule, true)
-    sizes?.disconnect()
+    nearby?.disconnect()
+    nearby = undefined
+    near.clear()
     watched = undefined
+  }
+
+  const put = ({ el, slot, content }: Landed) => {
+    slot.pending = undefined
+    slot.shown?.dispose?.()
+    slot.shown = content
+    const style = styleOf(el)
+    if (style) style.minHeight = ''
+    el.replaceChildren(content.node)
+    if (content.retry === true) failed(slot)
+    else {
+      slot.retry = false
+      slot.attempts = 0
+      slot.retryAt = 0
+    }
+  }
+
+  /** One frame's drawings, put in place with a layout read before and after, not one per drawing. */
+  const placeLanded = () => {
+    frame = undefined
+    const batch = landed.splice(0).filter((entry) => {
+      if (entry.current()) return true
+      entry.content.dispose?.()
+      return false
+    })
+    if (batch.length === 0) return
+    const root = scroller && lastHost ? scroller(lastHost) : null
+    const viewTop = root?.getBoundingClientRect().top
+    // One across the view's top edge counts by the share of it above that edge.
+    const above = batch.flatMap(({ el }) => {
+      if (viewTop === undefined) return []
+      const box = el.getBoundingClientRect()
+      if (box.top >= viewTop) return []
+      const share = box.height > 0 ? Math.min(1, (viewTop - box.top) / box.height) : 1
+      return [{ el, before: box.height, share }]
+    })
+    batch.forEach(put)
+    const grown = above.reduce(
+      (sum, { el, before, share }) => sum + (el.getBoundingClientRect().height - before) * share,
+      0,
+    )
+    if (root && grown !== 0) shift(root, grown)
+    for (const { el, slot } of batch) {
+      const height = el.getBoundingClientRect().height
+      if (height > 0) learnHeight(slot.sizeKey, height)
+    }
+    onRendered?.()
   }
 
   /** Waits out the shortest backoff of a failure that may pass, then mounts again. */
@@ -210,18 +296,13 @@ export function createIslandMounter(
         // A newer render for this element won the race, or the element
         // is gone: drop this one.
         if (!current()) return content.dispose?.()
-        slot.pending = undefined
-        slot.shown?.dispose?.()
-        slot.shown = content
-        el.replaceChildren(content.node)
-        if (content.retry === true) failed(slot)
-        else {
-          slot.retry = false
-          slot.attempts = 0
-          slot.retryAt = 0
+        if (!scroller) {
+          put({ el, slot, content, current })
+          onRendered?.()
+          return
         }
-        onRendered?.()
-        schedule()
+        landed.push({ el, slot, content, current })
+        frame ??= requestAnimationFrame(placeLanded)
       },
       () => {
         if (current()) {
@@ -237,6 +318,7 @@ export function createIslandMounter(
     onRendered = rendered
     lastHost = host
     lastContext = context
+    if (scroller) watch()
     for (const [el, slot] of slots) {
       // An element that is no island any more (its block became a plain
       // div) gives its slot up: its drawing must not stay there.
@@ -244,6 +326,8 @@ export function createIslandMounter(
         release(slot)
         slots.delete(el)
         waiting.delete(el)
+        near.delete(el)
+        nearby?.unobserve(el)
         widths?.unobserve(el)
       }
     }
@@ -260,8 +344,9 @@ export function createIslandMounter(
       // starts over at once.
       if (known?.key === key && (!known.retry || known.retryAt > Date.now())) continue
       if (!island) continue
-      const slot: Slot = known ?? { key, retry: false, attempts: 0, retryAt: 0 }
+      const slot: Slot = known ?? { key, sizeKey: '', retry: false, attempts: 0, retryAt: 0 }
       slot.width = width
+      slot.sizeKey = `${kind}\n${width ?? ''}\n${source}`
       if (follows) widthObserver().observe(el)
       else widths?.unobserve(el)
       if (slot.key !== key) {
@@ -273,12 +358,16 @@ export function createIslandMounter(
       slot.retry = false
       slot.pending?.abort()
       slot.pending = new AbortController()
-      if (scroller) waiting.set(el, () => render(el, slot, island, source, context, width))
-      else render(el, slot, island, source, context, width)
-    }
-    if (scroller) {
-      watch()
-      schedule()
+      if (!scroller) {
+        render(el, slot, island, source, context, width)
+        continue
+      }
+      const reserved = slot.shown ? undefined : knownHeights.get(slot.sizeKey)
+      const style = styleOf(el)
+      if (reserved !== undefined && style) style.minHeight = `${reserved}px`
+      waiting.set(el, () => render(el, slot, island, source, context, width))
+      nearby?.observe(el)
+      if (near.has(el)) startWaiting(el)
     }
     arm()
   }
@@ -287,6 +376,7 @@ export function createIslandMounter(
     mount,
     dispose() {
       for (const slot of slots.values()) release(slot)
+      for (const { content } of landed.splice(0)) content.dispose?.()
       slots.clear()
       waiting.clear()
       if (frame !== undefined) cancelAnimationFrame(frame)

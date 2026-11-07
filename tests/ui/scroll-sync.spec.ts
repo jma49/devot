@@ -302,7 +302,9 @@ test('applies only in split mode, and keeps the place read in Preview', async ({
   expect(await previewOffset(page, 'Section 90').then(near)).toBe(true)
 })
 
-test('a diagram drawn after the rendering does not leave the preview behind', async ({ page }) => {
+test('diagrams drawn after the rendering do not leave the preview behind, nor move the editor', async ({
+  page,
+}) => {
   // The diagram library arrives late, after the preview has lined up.
   await page.route(/\/mermaid\.html/, async (route) => {
     await new Promise((done) => setTimeout(done, 1500))
@@ -315,11 +317,17 @@ test('a diagram drawn after the rendering does not leave the preview behind', as
   const diagram = ['```mermaid', 'graph TD', '  A --> B', '  B --> C', '  C --> D', '```'].join(
     '\n',
   )
-  await page.keyboard.insertText(diagram + '\n\n' + longNote())
+  // A few sections above the place read: near enough to the view to be drawn.
+  await page.keyboard.insertText(
+    longNote()
+      .replace('## Section 59', `${diagram}\n\n## Section 59`)
+      .replace('## Section 60', `${diagram}\n\n## Section 60`),
+  )
   // Without the browser's scroll anchoring, which would hide a missed relayout.
   await page.addStyleTag({ content: '.preview { overflow-anchor: none; }' })
   await scrollEditorTo(page, '## Section 60')
   await mode(page, 'Split').click()
-  await expect(preview(page).locator('.island-mermaid svg')).toBeAttached()
+  await expect(preview(page).locator('.island-mermaid svg')).toHaveCount(2)
   await expect.poll(() => previewOffset(page, 'Section 60').then(near)).toBe(true)
+  expect(near(await editorOffset(page, '## Section 60'))).toBe(true)
 })

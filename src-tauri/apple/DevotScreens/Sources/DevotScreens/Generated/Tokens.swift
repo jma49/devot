@@ -1734,6 +1734,7 @@ public enum Tokens {
     public static let quoteBar: CGFloat = 3
     public static let alertPadTop: CGFloat = 11
     public static let alertPadInline: CGFloat = 14
+    public static let diagramPlaceholder: CGFloat = 280
     public static let diagramNodeEdge: CGFloat = 0.5
     public static let diagramEdge: CGFloat = 1
     public static let diagramArrowLength: CGFloat = 6
