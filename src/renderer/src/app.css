@@ -8264,11 +8264,17 @@ dialog[open].sheet.import {
 }
 
 .content > .panes:not(.panes-split),
-.panes-split > :is(.editor, .preview),
-.panes-split[data-loading] > :is(.editor, .preview) {
+.panes-split > :is(.editor, .preview) {
   --scroll-edge-size: 0px;
-  mask-image: linear-gradient(transparent, var(--color-ink-text) var(--scroll-edge-size));
+  /* The registered depth does not inherit; this copy carries its eased value down to the scroll boxes. */
+  --scroll-edge-depth: var(--scroll-edge-size);
   transition: --scroll-edge-size var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
+/* Mask only the scroll boxes: a mask clips popups to its box and removes their backdrop blur in WKWebView.
+   The editor's twin of this gradient is in editor/shadowFrame.ts; change both together. */
+.panes > .preview {
+  mask-image: linear-gradient(transparent, var(--color-ink-text) var(--scroll-edge-depth, 0px));
 }
 
 /* No deeper than the pane has scrolled (app/useScrollEdges.ts), so the first line keeps its colour until it reaches the edge. */
