@@ -620,7 +620,7 @@ export interface Reversal {
 }
 
 /**
- * Undo All for one writer (kind and name, across sessions), as one Yjs transaction: each of its
+ * Undo All for one writer (its kind and every name it has gone by, across sessions), as one Yjs transaction: each of its
  * writes' deleted text goes back where its deleted items sit, every live character it
  * inserted is deleted, and its records are marked undone. Text the owner or another writer wrote
  * stays, inside the agent's text too, and comes back as theirs. Text the writer deleted that it
@@ -628,14 +628,15 @@ export interface Reversal {
  */
 export function reverseWrites(
   doc: Y.Doc,
-  who: { kind: WriterKind; name: string },
+  who: { kind: WriterKind; names: readonly string[] },
   noteId?: string,
 ): Reversal {
   const writers = readWriters(doc, noteId)
   const all = readAllWrites(doc, noteId)
+  const names = new Set(who.names)
   const mine = (write: AgentWrite) => {
     const writer = writers.get(write.session)
-    return writer !== undefined && writer.kind === who.kind && writer.name === who.name
+    return writer !== undefined && writer.kind === who.kind && names.has(writer.name)
   }
   const targets = all.filter((write) => !write.reversed && mine(write))
   if (targets.length === 0) return { writes: 0, dropped: 0 }

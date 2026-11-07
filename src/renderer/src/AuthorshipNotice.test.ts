@@ -44,6 +44,16 @@ describe('the review notice', () => {
     expect(undoAllLabel(claude, unseen, unseen, true)).toBe('Undo All by Claude Code (MCP)')
   })
 
+  it('counts the writes under every name of a product in its one Undo All', () => {
+    const unseen = [row('b', 'mcp', 'local-agent-mode-devot'), row('a', 'mcp', 'claude-ai')]
+    const written = [...unseen, row('c', 'mcp', 'claude-ai', true)]
+    const [desktop, ...others] = noticeWriters(unseen)
+    expect(others).toEqual([])
+    expect(undoAllLabel(desktop!, unseen, written, true)).toBe(
+      'Undo All 3 Changes by Claude Desktop (MCP)',
+    )
+  })
+
   it('steps within the changes there are', () => {
     expect(stepFrom(0, 1, 3)).toBe(1)
     expect(stepFrom(2, 1, 3)).toBe(2)

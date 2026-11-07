@@ -1129,7 +1129,7 @@ describe('authorship through sync', () => {
       [row!.writeId, false],
     ])
     await b.notes.setBody(id, 'Intro.\nThe agent wrote this.\nB typed this.\n')
-    await b.notes.undoAgentWrites(id, { kind: 'mcp', name: 'Claude Code' })
+    await b.notes.undoAgentWrites(id, { kind: 'mcp', names: ['Claude Code'] })
     await settle(b, a)
     const note = await sameNote(a, b, id)
     expect(note?.bodyMd).toBe('Intro.\nB typed this.\n')

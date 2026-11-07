@@ -194,7 +194,7 @@ it('attributes the whole note and undoes one writer within budget, keeping every
   const typed = body.split('typed ').length - 1
 
   const undoStart = performance.now()
-  const result = reverseWrites(owner, { kind: 'mcp', name: 'Claude Code' })
+  const result = reverseWrites(owner, { kind: 'mcp', names: ['Claude Code'] })
   const undoMs = performance.now() - undoStart
   expect(result).toEqual({ writes: WRITES / 2, dropped: 0 })
   const after = owner.getText('body').toString()

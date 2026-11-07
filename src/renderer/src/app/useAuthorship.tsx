@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { markSeen, unseenOf, type useAgentWrites } from '../agentWrites'
 import { AuthorshipNotice } from '../AuthorshipNotice'
-import type { WriterRef } from '../authorshipLabels'
+import { writerNames, type WriterRef } from '../authorshipLabels'
 import { errorCode } from '../backups'
 import { ConfirmDialog } from '../ConfirmDialog'
 import type { Core } from '../core-client'
@@ -96,7 +96,7 @@ export function useAuthorshipNotice({
   const undoAgent = async (noteId: string, writer: WriterRef) => {
     if (!core || !editing) return
     try {
-      const undone = await core.undoAgentWrites(noteId, writer)
+      const undone = await core.undoAgentWrites(noteId, writerNames(writer))
       if (editorRef.current?.noteId === noteId) restoreRef.current?.(undone.update)
       if (undone.dropped > 0) setUndoDropped(true)
       await saveEdits(core)
