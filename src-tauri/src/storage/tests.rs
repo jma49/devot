@@ -3315,6 +3315,7 @@ fn a_stopped_rebuild_rolls_back_and_leaves_the_index_as_it_was() {
         store.put_note(&note(&id, "Relay", i + 1), &[]).unwrap();
     }
     let found = |store: &Store, t: &str| store.search_notes(&words(&[t]), 500).unwrap().len();
+    assert_eq!(found(&store, "relay"), 200);
     store
         .conn
         .execute_batch("INSERT INTO notes_fts (notes_fts) VALUES ('delete-all')")
@@ -3935,4 +3936,480 @@ fn counts_the_owner_s_notes_without_purged_or_untouched_first_launch_ones() {
         4,
         "a, b, the trashed d and the rewritten first-launch note"
     );
+}
+
+fn search_stale(store: &Store) -> i64 {
+    store
+        .conn
+        .query_row("SELECT count(*) FROM search_stale", [], |row| row.get(0))
+        .unwrap()
+}
+
+fn index_blocks(conn: &Connection) -> Vec<(i64, Vec<u8>)> {
+    let mut statement = conn
+        .prepare("SELECT id, block FROM notes_fts_data ORDER BY id")
+        .unwrap();
+    statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .unwrap()
+        .map(|row| row.unwrap())
+        .collect()
+}
+
+fn check_search_index(conn: &Connection) {
+    conn.execute_batch("INSERT INTO notes_fts (notes_fts, rank) VALUES ('integrity-check', 1)")
+        .unwrap();
+}
+
+#[test]
+fn a_save_leaves_the_search_index_alone_until_it_catches_up() {
+    let (_dir, mut store) = temp_store();
+    let mut plan = note("plan", "Launch plan", 1);
+    plan.body_md = "The relay goes first.".into();
+    store.put_note(&plan, &[]).unwrap();
+    let found = |store: &Store, t: &str| store.search_notes(&words(&[t]), 10).unwrap().len();
+    assert_eq!(found(&store, "relay"), 1);
+    let indexed = index_blocks(&store.conn);
+
+    let mut edited = based_on(1, plan.clone());
+    edited.body_md = "Snapshot first.".into();
+    store.put_note(&edited, &[]).unwrap();
+    let mut renamed = based_on(2, edited.clone());
+    renamed.title = "Launch day".into();
+    renamed.title_hlc = "0000000000002-0000-test".into();
+    store.put_note(&renamed, &[]).unwrap();
+    assert_eq!(index_blocks(&store.conn), indexed, "no save tokenizes");
+    assert_eq!(search_stale(&store), 1);
+
+    assert_eq!(
+        [
+            found(&store, "snapshot"),
+            found(&store, "relay"),
+            found(&store, "day"),
+            found(&store, "plan")
+        ],
+        [1, 0, 1, 0]
+    );
+    assert_eq!(search_stale(&store), 0);
+    check_search_index(&store.conn);
+}
+
+#[test]
+fn only_a_search_that_reads_the_index_catches_it_up() {
+    let (_dir, mut store) = temp_store();
+    let mut plan = note("plan", "Launch plan", 1);
+    plan.body_md = "The relay goes first.".into();
+    store.put_note(&plan, &[]).unwrap();
+    let mut pinned = words(&["re"]);
+    pinned.pinned = Some(false);
+    assert_eq!(store.search_notes(&pinned, 10).unwrap().len(), 1);
+    assert_eq!(
+        search_stale(&store),
+        1,
+        "a filter or text under three characters scans"
+    );
+
+    let mut without = words(&["orbit"]);
+    without.text[0].negate = true;
+    assert_eq!(store.search_notes(&without, 10).unwrap().len(), 1);
+    assert_eq!(search_stale(&store), 0, "a negated word reads the index");
+}
+
+#[test]
+fn catching_up_on_a_budget_indexes_at_least_one_note_and_says_whether_more_are_left() {
+    let (_dir, mut store) = temp_store();
+    for id in ["a", "b", "c"] {
+        store.put_note(&note(id, "Relay", 1), &[]).unwrap();
+    }
+    assert_eq!(search_stale(&store), 3);
+    assert!(store.catch_up_search_index(Some(Duration::ZERO)).unwrap());
+    assert_eq!(search_stale(&store), 2);
+    assert!(!store.catch_up_search_index(None).unwrap());
+    assert_eq!(search_stale(&store), 0);
+    assert!(!store.catch_up_search_index(Some(Duration::ZERO)).unwrap());
+    check_search_index(&store.conn);
+}
+
+#[test]
+fn rebuilding_the_search_index_settles_the_notes_waiting_for_it() {
+    let (_dir, mut store) = temp_store();
+    store.put_note(&note("a", "Relay plan", 10), &[]).unwrap();
+    store.put_note(&note("b", "Launch day", 20), &[]).unwrap();
+    assert_eq!(search_stale(&store), 2);
+    assert_eq!(store.rebuild_search_index(|| false).unwrap(), 2);
+    assert_eq!(search_stale(&store), 0);
+    check_search_index(&store.conn);
+    let found = |store: &Store, t: &str| store.search_notes(&words(&[t]), 10).unwrap().len();
+    assert_eq!((found(&store, "relay"), found(&store, "launch")), (1, 1));
+}
+
+/// The index of a note that changed since it was indexed holds the earlier text, which a purge
+/// must take out of its pages as well.
+#[test]
+fn a_purge_takes_the_text_the_index_holds_out_of_the_file_after_later_edits() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    let indexed = "Qxjzvwkpfyb ".repeat(400);
+    let edited = "Mbvtrqzhwkd ".repeat(400);
+    {
+        let mut store = Store::open(&path).unwrap();
+        let mut gone = note("a", "Gone", 10);
+        gone.body_md = indexed.clone();
+        store.put_note(&gone, &[]).unwrap();
+        store.put_note(&note("b", "Kept", 10), &[]).unwrap();
+        assert_eq!(
+            store
+                .search_notes(&words(&["qxjzvwkpfyb"]), 10)
+                .unwrap()
+                .len(),
+            1
+        );
+        let mut later = based_on(1, gone.clone());
+        later.body_md = edited.clone();
+        store.put_note(&later, &[]).unwrap();
+        store
+            .trash_and_purge("a", 30, "0000000000000030-0000-a")
+            .unwrap();
+        assert_eq!(search_stale(&store), 0);
+        check_search_index(&store.conn);
+        assert!(store.search_notes(&words(&["kept"]), 10).unwrap().len() == 1);
+    }
+    let bytes = std::fs::read(&path).unwrap();
+    for word in [b"Qxjzvwkpfyb", b"Mbvtrqzhwkd"] {
+        assert!(
+            !bytes.windows(word.len()).any(|w| w == word),
+            "the purged text is still in the file"
+        );
+        let lower = word.to_ascii_lowercase();
+        let left: Vec<&[u8]> = lower
+            .windows(3)
+            .filter(|trigram| bytes.windows(3).any(|w| w == *trigram))
+            .collect();
+        assert!(
+            left.is_empty(),
+            "the search index keeps {} trigrams",
+            left.len()
+        );
+    }
+}
+
+#[test]
+fn purging_an_indexed_note_with_no_text_leaves_the_search_index_whole() {
+    let (_dir, mut store) = temp_store();
+    let mut empty = note("a", "", 10);
+    empty.body_md = String::new();
+    store.put_note(&empty, &[]).unwrap();
+    store.put_note(&note("b", "Kept", 10), &[]).unwrap();
+    assert!(!store.catch_up_search_index(None).unwrap());
+    check_search_index(&store.conn);
+    store
+        .trash_and_purge("a", 30, "0000000000000030-0000-a")
+        .unwrap();
+    assert_eq!(search_stale(&store), 0);
+    check_search_index(&store.conn);
+    assert_eq!(store.search_notes(&words(&["kept"]), 10).unwrap().len(), 1);
+}
+
+/// A database as schema `version` left it, written by that version's triggers.
+fn open_at_schema(path: &Path, version: usize) -> Connection {
+    let conn = Connection::open(path).unwrap();
+    super::search::register_fold(&conn).unwrap();
+    conn.pragma_update(None, "journal_mode", "WAL").unwrap();
+    for (index, sql) in MIGRATIONS.iter().take(version).enumerate() {
+        conn.execute_batch(sql).unwrap();
+        conn.pragma_update(None, "user_version", index as u32 + 1)
+            .unwrap();
+    }
+    conn
+}
+
+const BEFORE_CATCH_UP: usize = 28;
+
+#[test]
+fn the_catch_up_migration_keeps_the_index_of_an_existing_library() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("devot.sqlite");
+    let indexed = {
+        let conn = open_at_schema(&path, BEFORE_CATCH_UP);
+        for (id, title) in [("a", "Relay plan"), ("b", "Launch day")] {
+            conn.execute(
+                "INSERT INTO notes (id, title, title_hlc, body_md, ydoc, created_at, updated_at)
+                 VALUES (?1, ?2, '0000000000001-0000-test', ?2 || ' body', x'00', 1, 1)",
+                [id, title],
+            )
+            .unwrap();
+        }
+        conn.execute(
+            "UPDATE notes SET body_md = 'Snapshot first' WHERE id = 'a'",
+            [],
+        )
+        .unwrap();
+        index_blocks(&conn)
+    };
+    let store = Store::open(&path).unwrap();
+    assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
+    assert_eq!(
+        index_blocks(&store.conn),
+        indexed,
+        "the upgrade re-indexes nothing"
+    );
+    assert_eq!(search_stale(&store), 0);
+    check_search_index(&store.conn);
+    let found = |store: &Store, t: &str| store.search_notes(&words(&[t]), 10).unwrap().len();
+    assert_eq!(
+        [
+            found(&store, "snapshot"),
+            found(&store, "relay"),
+            found(&store, "launch")
+        ],
+        [1, 1, 1]
+    );
+
+    store
+        .conn
+        .execute_batch(MIGRATIONS[BEFORE_CATCH_UP])
+        .expect("running the migration again changes nothing");
+    assert_eq!(index_blocks(&store.conn), indexed);
+    drop(store);
+    let store = Store::open(&path).unwrap();
+    assert_eq!(store.schema_version().unwrap(), SCHEMA_VERSION);
+    check_search_index(&store.conn);
+}
+
+/// Deterministic edits for comparing two databases.
+struct Edits(u64);
+
+impl Edits {
+    fn next(&mut self, below: usize) -> usize {
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        ((self.0 >> 33) as usize) % below
+    }
+
+    fn text(&mut self, vocabulary: &[&str], words: usize) -> String {
+        (0..words)
+            .map(|_| vocabulary[self.next(vocabulary.len())])
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+}
+
+/// The index caught up later holds what an index written on every save holds: the same notes
+/// match every query, in the same order, with bit-identical bm25 scores.
+#[test]
+fn the_index_caught_up_later_ranks_exactly_as_one_written_on_every_save() {
+    let vocabulary = [
+        "relay",
+        "launch",
+        "kiwi",
+        "orbit",
+        "Snapshot",
+        "garden",
+        "\u{7b14}\u{8bb0}\u{672c}",
+        "\u{641c}\u{7d22}\u{5f15}",
+        "caf\u{e9}",
+        "Stra\u{df}e",
+        "plan",
+        "planet",
+        "plank",
+    ];
+    let dir = tempfile::tempdir().unwrap();
+    let before = open_at_schema(&dir.path().join("before.sqlite"), BEFORE_CATCH_UP);
+    let store = Store::open(&dir.path().join("after.sqlite")).unwrap();
+    let both = |sql: &str, values: &[&dyn rusqlite::ToSql]| {
+        before.execute(sql, values).unwrap();
+        store.conn.execute(sql, values).unwrap();
+    };
+    let ranks = |conn: &Connection, fts: &str| -> Vec<(i64, f64)> {
+        let mut statement = conn
+            .prepare(
+                "SELECT rowid, bm25(notes_fts) FROM notes_fts WHERE notes_fts MATCH ?1
+                 ORDER BY rowid",
+            )
+            .unwrap();
+        statement
+            .query_map([fts], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .map(|row| row.unwrap())
+            .collect()
+    };
+    let found_before = |query: &NoteQuery| -> Vec<String> {
+        let (sql, values) = search_sql(query, 1000);
+        let mut statement = before.prepare(&sql).unwrap();
+        statement
+            .query_map(rusqlite::params_from_iter(values.iter()), |row| row.get(0))
+            .unwrap()
+            .map(|row| row.unwrap())
+            .collect()
+    };
+    let queries: Vec<NoteQuery> = vocabulary
+        .iter()
+        .flat_map(|word| {
+            let mut title = words(&[word]);
+            title.text[0].field = TextField::Title;
+            let mut not = words(&[word, "plan"]);
+            not.text[0].negate = true;
+            [words(&[word]), words(&[word, "relay"]), title, not]
+        })
+        .collect();
+    let mut edits = Edits(7);
+    let mut notes = 0;
+    let mut matched = 0;
+    for step in 0..600 {
+        let id = format!("n{}", edits.next(notes.max(1)));
+        match edits.next(20) {
+            0..=1 => {
+                notes += 1;
+                let title = edits.text(&vocabulary, 2);
+                let body = edits.text(&vocabulary, 40);
+                both(
+                    "INSERT INTO notes (id, title, title_hlc, body_md, ydoc, created_at, updated_at)
+                     VALUES (?1, ?2, '0000000000001-0000-test', ?3, x'00', 1, ?4)",
+                    &[&format!("n{}", notes - 1), &title, &body, &step],
+                );
+            }
+            2..=11 => {
+                let length = 5 + edits.next(60);
+                let body = edits.text(&vocabulary, length);
+                both(
+                    "UPDATE notes SET body_md = ?2, updated_at = ?3 WHERE id = ?1",
+                    &[&id, &body, &step],
+                );
+            }
+            12..=14 => {
+                let length = 1 + edits.next(3);
+                let title = edits.text(&vocabulary, length);
+                both("UPDATE notes SET title = ?2 WHERE id = ?1", &[&id, &title]);
+            }
+            15..=16 => both(
+                "UPDATE notes SET deleted_at = CASE WHEN deleted_at IS NULL THEN ?2 END
+                 WHERE id = ?1",
+                &[&id, &step],
+            ),
+            17 => both("DELETE FROM notes WHERE id = ?1", &[&id]),
+            _ => {}
+        }
+        if step % 37 == 0 {
+            store.catch_up_search_index(Some(Duration::ZERO)).unwrap();
+        }
+        if step % 100 == 99 {
+            for query in &queries {
+                let after: Vec<String> = store
+                    .search_notes(query, 1000)
+                    .unwrap()
+                    .into_iter()
+                    .map(|n| n.id)
+                    .collect();
+                assert_eq!(after, found_before(query), "step {step}: {query:?}");
+                matched += after.len();
+                for t in &query.text {
+                    let fts = t.field.fts(&t.value);
+                    assert_eq!(ranks(&store.conn, &fts), ranks(&before, &fts), "{fts}");
+                }
+            }
+            check_search_index(&store.conn);
+        }
+    }
+    assert!(
+        notes > 20 && matched > 1000,
+        "{notes} notes, {matched} matches"
+    );
+}
+
+fn wal_len(path: &std::path::Path) -> u64 {
+    std::fs::metadata(path.with_extension("sqlite-wal")).map_or(0, |meta| meta.len())
+}
+
+fn big_note(version: u32) -> NoteRecord {
+    let mut record = note("big", "Big", 10 + i64::from(version));
+    record.body_md = format!("{version} {}", "word ".repeat(50_000));
+    record.ydoc = vec![version as u8; 250_000];
+    record.body_version = version.into();
+    record
+}
+
+#[test]
+fn the_wal_is_checkpointed_late_and_trimmed_after_a_reset() {
+    let (_dir, store) = temp_store();
+    let pragma = |name: &str| -> i64 {
+        store
+            .conn
+            .pragma_query_value(None, name, |row| row.get(0))
+            .unwrap()
+    };
+    assert_eq!(pragma("wal_autocheckpoint"), 4000);
+    assert_eq!(pragma("journal_size_limit"), 64 * 1024 * 1024);
+    assert_eq!(pragma("secure_delete"), 1, "secure_delete stays on");
+}
+
+#[test]
+fn an_idle_checkpoint_moves_the_wal_into_the_database() {
+    let (dir, mut store) = temp_store();
+    let path = dir.path().join("devot.sqlite");
+    store.put_note(&big_note(1), &[]).unwrap();
+    assert!(wal_len(&path) > 0);
+
+    let (log, checkpointed) = store.checkpoint_passive().unwrap();
+    assert!(log > 0);
+    assert_eq!(checkpointed, log, "every frame reached the database file");
+
+    let db_len = std::fs::metadata(&path).unwrap().len();
+    assert!(db_len >= 250_000, "the note's bytes are in the main file");
+}
+
+#[test]
+#[ignore = "measurement; run with --ignored --nocapture"]
+fn measure_wal_bytes_and_checkpoint_time() {
+    for (label, pages) in [("default 1000", 1000), ("tuned 4000", 4000)] {
+        let (dir, mut store) = temp_store();
+        let path = dir.path().join("devot.sqlite");
+        store
+            .conn
+            .pragma_update(None, "wal_autocheckpoint", pages)
+            .unwrap();
+        let (mut worst, mut total) = (Duration::ZERO, Duration::ZERO);
+        let mut peak = 0;
+        for version in 0..40 {
+            let started = Instant::now();
+            store.put_note(&big_note(version), &[]).unwrap();
+            let took = started.elapsed();
+            worst = worst.max(took);
+            total += took;
+            peak = peak.max(wal_len(&path));
+        }
+        let idle = Instant::now();
+        store.checkpoint_passive().unwrap();
+        println!(
+            "{label}: 40 saves total {total:?}, worst {worst:?}, peak wal {peak} bytes, idle checkpoint {:?}",
+            idle.elapsed()
+        );
+    }
+}
+
+#[test]
+#[ignore = "measurement; run with --ignored --nocapture"]
+fn measure_secure_delete_cost() {
+    for (label, setting) in [("secure_delete ON", "ON"), ("secure_delete OFF", "OFF")] {
+        let (dir, mut store) = temp_store();
+        let path = dir.path().join("devot.sqlite");
+        store
+            .conn
+            .pragma_update(None, "secure_delete", setting)
+            .unwrap();
+        store
+            .conn
+            .pragma_update(None, "wal_autocheckpoint", 1_000_000)
+            .unwrap();
+        let started = Instant::now();
+        for version in 0..20 {
+            store.put_note(&big_note(version), &[]).unwrap();
+        }
+        println!(
+            "{label}: 20 saves {:?}, wal {} bytes",
+            started.elapsed(),
+            wal_len(&path)
+        );
+    }
 }

@@ -3,7 +3,7 @@
 // default key from the registry (what the window binds before the user
 // changes anything), and `{{id:<name>}}` the fixed ID of a first-launch note
 // or picture.
-import { type WelcomeContent } from '../../../core'
+import type { WelcomeContent } from '../../../core'
 import { COMMANDS, defaultKeys, type CommandId } from '../commands/registry'
 import { shortcutLabel } from '../commands/keys'
 import { t } from '../i18n'

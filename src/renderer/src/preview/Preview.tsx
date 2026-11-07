@@ -9,7 +9,7 @@ import {
   type MouseEvent,
 } from 'react'
 import type { PreviewLabels, PreviewNote, RemoteImageWait } from '../../../core'
-import { NOTES_LOADED } from '../externalChanges'
+import { loadedAny, NOTES_LOADED } from '../externalChanges'
 import { fragmentId } from '../../../core/preview/headingIds'
 import { attachmentId, parseImageMarkdown } from '../../../core/images'
 import { useContextMenu, type MenuPoint } from '../contextMenu'
@@ -333,8 +333,7 @@ export function Preview({
   // Another window or process can change a note a chip shows.
   useEffect(() => {
     const changed = (event: Event) => {
-      const changedId = (event as CustomEvent<string | undefined>).detail
-      if (changedId && !shownLinks.current.includes(changedId)) return
+      if (!loadedAny(event, shownLinks.current)) return
       linksChanged.current += 1
       render.current?.(input.current)
     }

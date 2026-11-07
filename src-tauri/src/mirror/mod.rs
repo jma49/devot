@@ -21,7 +21,7 @@ use crate::storage::Db;
 #[cfg(desktop)]
 use crate::strings;
 use folder::{
-    Manifest, OpResult, Root, create_manifest, disk_state, has_entries, parse_manifest,
+    Manifest, OpResult, Root, Seen, create_manifest, disk_state, has_entries, parse_manifest,
     probe_writable, read_manifest, save_manifest, sha256_hex,
 };
 use serde::Serialize;
@@ -168,6 +168,8 @@ struct Inner {
     kept_count: u64,
     /// A manifest read anew (a folder chosen again, a launch) is told even when nothing is written.
     shown_size: Option<u64>,
+    /// Kept for one epoch: a manifest let go may name files of another folder at the same paths.
+    seen: (u64, Seen),
     choices: HashMap<u64, PathBuf>,
     next_choice: u64,
 }
@@ -550,7 +552,13 @@ impl Mirror {
         if generation != inner.generation || inner.manifest.is_none() {
             return Err("E_MIRROR_STALE");
         }
-        Root::open(&path).map_err(|e| self.pause(inner, unopened(&e), notify))
+        if inner.seen.0 != inner.epoch {
+            inner.seen = (inner.epoch, Seen::default());
+        }
+        let seen = Arc::clone(&inner.seen.1);
+        Root::open(&path)
+            .map(|root| root.remembering(seen))
+            .map_err(|e| self.pause(inner, unopened(&e), notify))
     }
 
     pub fn check(
@@ -568,17 +576,20 @@ impl Mirror {
             let mut inner = self.lock(notify)?;
             let root = self.current(&mut inner, generation, notify)?;
             let manifest = inner.manifest.as_ref().ok_or("E_MIRROR_STALE")?;
-            let listed: Vec<(String, String)> = manifest
-                .notes
-                .values()
-                .map(|e| (e.path.clone(), e.sha256.clone()))
-                .chain(
-                    manifest
-                        .files
-                        .values()
-                        .filter_map(|e| Some((e.path.clone(), e.sha256.clone()?))),
-                )
-                .collect();
+            let listed: Vec<(String, String)> = match paths {
+                Some(_) => Vec::new(),
+                None => manifest
+                    .notes
+                    .values()
+                    .map(|e| (e.path.clone(), e.sha256.clone()))
+                    .chain(
+                        manifest
+                            .files
+                            .values()
+                            .filter_map(|e| Some((e.path.clone(), e.sha256.clone()?))),
+                    )
+                    .collect(),
+            };
             (root, listed)
         };
         // Hashing runs without holding the state: the Settings window reads it meanwhile.

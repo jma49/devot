@@ -87,17 +87,25 @@ export function relayMethods(
   ctx: NoteContext,
   k: Kernel,
 ): Pick<NoteService, 'mergeStored' | 'receive'> {
-  const { storage, clock, now, live, heard } = ctx
+  const { clock, now, live, heard } = ctx
   const { relay, tell, takeOutside, takeIn } = k.relay
-  const { getStored, drop, inMemory } = k.memory
+  const { getStored, drop, inMemory, summaries } = k.memory
   const { exclusive, schedule } = k.saving
+  // Empty when the versions cannot be read, so every note is read whole.
+  const storedVersions = async (ids: readonly string[]) => {
+    const listed = await summaries(ids).catch((e: unknown) => {
+      console.warn('W_NOTE_MERGE_FAILED', errorCode(e))
+      return []
+    })
+    return new Map(listed.map((n) => [n.id, n.bodyVersion]))
+  }
   /** The stored state of the notes another window may hold and this core does not, when a write moved it since it was last relayed: the core holding the note is the one that takes it in. */
   const relayStored = async () => {
     const at = now()
-    // The list's body versions are cheap: no note's Yjs state is read until its version moves.
+    // Body versions are cheap: no note's Yjs state is read until its version moves.
     let versions: Map<string, number> | undefined
     const versionOf = async (id: string) => {
-      versions ??= new Map((await storage.listNotes()).map((n) => [n.id, n.bodyVersion]))
+      versions ??= await storedVersions([...heard.keys()])
       return versions.get(id)
     }
     for (const [id, last] of heard) {
@@ -133,11 +141,21 @@ export function relayMethods(
   return {
     async mergeStored() {
       const retitled: { id: string; title: string }[] = []
+      const unchanged: string[] = []
+      const held = [...live.values()]
+      const versions = await storedVersions(held.map((note) => note.record.id))
       // After any write of the note under way, so none lands in between.
       const merge = (note: Live) =>
         exclusive(note, async () => {
           const { id } = note.record
           if (live.get(id) !== note) return
+          // Every write moves the stored body version: one that has not moved since this core read or wrote the note holds nothing new.
+          if (versions.get(id) === note.record.bodyVersion) {
+            if (note.retitled) retitled.push({ id, title: note.record.title })
+            note.retitled = false
+            unchanged.push(id)
+            return
+          }
           const stored = await getStored(id, { trashed: true })
           if (live.get(id) !== note) return
           if (!stored) {
@@ -155,14 +173,14 @@ export function relayMethods(
           }
           note.retitled = false
         })
-      const merged = await Promise.allSettled([...live.values()].map(merge))
+      const merged = await Promise.allSettled(held.map(merge))
       for (const result of merged) {
         if (result.status === 'rejected') {
           console.warn('W_NOTE_MERGE_FAILED', errorCode(result.reason))
         }
       }
       await relayStored()
-      return retitled
+      return { retitled, unchanged }
     },
 
     async receive(message) {

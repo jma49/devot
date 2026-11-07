@@ -17,9 +17,9 @@ import type {
 import { compareNames } from '../../../core/sort'
 import { errorCode } from '../backups'
 import type { Core } from '../core-client'
-import { NOTES_LOADED } from '../externalChanges'
+import { notesLoaded } from '../externalChanges'
 import { markWrite } from '../lastWrite'
-import { keepUnchanged, retitled, withWrites } from '../listUpdates'
+import { changedNotes, keepUnchanged, retitled, withSummaries, withWrites } from '../listUpdates'
 import type { relayLink } from '../noteRelay'
 import type { SearchResults } from '../useSearch'
 
@@ -35,6 +35,23 @@ const trashRow = (n: TrashedNote): NoteSummary => ({
   pinned: false,
   tagIds: [],
 })
+
+const sameTags = (a: readonly TagRecord[], b: readonly TagRecord[]) =>
+  a.length === b.length &&
+  a.every((tag, i) => {
+    const other = b[i]
+    return (
+      other?.id === tag.id &&
+      other.name === tag.name &&
+      other.color === tag.color &&
+      other.deletedAt === tag.deletedAt
+    )
+  })
+
+const rowsOf = (listed: { notes: NoteSummary[]; templates: NoteSummary[] }) => [
+  ...listed.notes,
+  ...listed.templates,
+]
 
 /** The notes, notebooks, tags, saved searches and Trash as the core last listed them, with the writes and titles shown since. */
 export function useLibraryLists({
@@ -60,6 +77,11 @@ export function useLibraryLists({
   const [authorship, setAuthorship] = useState(0)
   const authorshipChanged = useCallback(() => setAuthorship((n) => n + 1), [])
 
+  // What the core last listed, to name the notes each reload changed.
+  const lastListed = useRef<
+    { notes: NoteSummary[]; templates: NoteSummary[]; tags: TagRecord[] } | undefined
+  >(undefined)
+
   const refresh = useCallback(
     async (c: Core) => {
       const [listed, nextBooks, nextTags, nextTrash, nextSearches] = await Promise.all([
@@ -70,6 +92,14 @@ export function useLibraryLists({
         c.listSavedSearches(),
       ])
       const nextNotes = listed.notes
+      const before = lastListed.current
+      const listedNow = { notes: nextNotes, templates: listed.templates, tags: nextTags }
+      lastListed.current = listedNow
+      // A tag's name or colour shows in the link chips of any note.
+      const changed =
+        before && sameTags(before.tags, nextTags)
+          ? changedNotes(rowsOf(before), rowsOf(listedNow))
+          : undefined
       setTrash(nextTrash)
       setTrashRows((prev) => keepUnchanged(prev, nextTrash.map(trashRow)))
       // Notes that did not change keep their objects (and their rows their render).
@@ -77,14 +107,35 @@ export function useLibraryLists({
       setNotes((prev) => keepUnchanged(prev, nextNotes))
       authorshipChanged()
       setBooks(nextBooks)
-      setTags(nextTags.sort((a, b) => compareNames(a.name, b.name, navigator.languages)))
+      setTags([...nextTags].sort((a, b) => compareNames(a.name, b.name, navigator.languages)))
       setSavedSearches(nextSearches)
       // Results follow edits, renames, trash and restore.
       rerunSearch()
-      window.dispatchEvent(new CustomEvent(NOTES_LOADED))
+      window.dispatchEvent(notesLoaded(changed))
       return { notes: nextNotes, templates: listed.templates, books: nextBooks, trash: nextTrash }
     },
     [authorshipChanged, rerunSearch, listLibrary],
+  )
+
+  const patch = useCallback(
+    async (c: Core, ids: readonly string[]) => {
+      const found = await c.noteSummaries([...ids])
+      const before = lastListed.current
+      const listedIds = new Set(before?.notes.map((n) => n.id))
+      if (
+        !before ||
+        found.length !== new Set(ids).size ||
+        found.some((n) => !listedIds.has(n.id))
+      ) {
+        return refresh(c)
+      }
+      lastListed.current = { ...before, notes: withSummaries(before.notes, found) }
+      setNotes((prev) => withSummaries(prev, found))
+      authorshipChanged()
+      rerunSearch()
+      window.dispatchEvent(notesLoaded(found.map((n) => n.id)))
+    },
+    [authorshipChanged, refresh, rerunSearch],
   )
 
   // Every note write dates the note in the lists at once, so an edited note moves without a reload.
@@ -135,6 +186,7 @@ export function useLibraryLists({
     authorship,
     authorshipChanged,
     refresh,
+    patch,
     reloadStarted,
     reloadDone,
     showWrites,
@@ -164,7 +216,7 @@ export function useNoteWindowChanges({
         .relayIn(message)
         .then(() => {
           if (message.kind === 'saved' || message.kind === 'title') {
-            window.dispatchEvent(new CustomEvent(NOTES_LOADED, { detail: message.noteId }))
+            window.dispatchEvent(notesLoaded([message.noteId]))
           }
         })
         .catch((e: unknown) => {
@@ -176,7 +228,7 @@ export function useNoteWindowChanges({
         if (knownNotes.current.has(message.noteId)) {
           showWrites(new Map([[message.noteId, message.updatedAt]]))
         } else void refresh(core).catch(() => {})
-        void core.mirrorTouch()
+        void core.mirrorTouch([message.noteId])
       } else if (message.kind === 'title') {
         retitleListed(message.noteId, message.title)
       }

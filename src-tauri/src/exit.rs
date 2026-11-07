@@ -287,6 +287,9 @@ pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
 /// back to this one.
 fn on_exit(app: &AppHandle) {
     app.state::<ExitGate>().stop();
+    if let Some(db) = app.try_state::<crate::storage::Db>() {
+        checkpoint_at_exit(db.inner(), EXIT_CHECKPOINT_LIMIT);
+    }
     #[cfg(desktop)]
     if let Some(api) = app.try_state::<std::sync::Arc<crate::http_api::HttpApi>>() {
         api.stop_bridge();
@@ -294,6 +297,21 @@ fn on_exit(app: &AppHandle) {
     if app.state::<ExitGate>().restart.load(Ordering::SeqCst) {
         restart(app);
     }
+}
+
+// A job still ahead of it can take long; the next launch recovers the WAL anyway.
+const EXIT_CHECKPOINT_LIMIT: Duration = Duration::from_secs(2);
+
+fn checkpoint_at_exit(db: &crate::storage::Db, limit: Duration) -> bool {
+    // The timer needs the runtime it is made in, and the main thread at exit is not inside one.
+    let done = tauri::async_runtime::block_on(async {
+        tokio::time::timeout(limit, db.checkpoint()).await
+    });
+    let checkpointed = matches!(done, Ok(Ok(())));
+    if !checkpointed {
+        log::warn!("W_EXIT_CHECKPOINT_FAILED");
+    }
+    checkpointed
 }
 
 /// A window saved for the quit; the app exits once every window has.
@@ -590,5 +608,42 @@ mod tests {
         let reopened = Store::open(&path).unwrap();
         assert!(reopened.get_note("typed", false).unwrap().is_some());
         assert!(reopened.integrity_ok().unwrap());
+    }
+
+    #[test]
+    fn the_quit_checkpoint_runs_from_a_thread_outside_any_runtime() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("devot.sqlite");
+        let db = Db::spawn(&path).unwrap();
+        let mut big = note("big");
+        big.body_md = "word ".repeat(50_000);
+        block_on(db.write(Write::Content, move |store| store.put_note(&big, &[]))).unwrap();
+        let before = std::fs::metadata(&path).unwrap().len();
+
+        let quit = std::thread::spawn(move || checkpoint_at_exit(&db, EXIT_CHECKPOINT_LIMIT));
+        assert!(quit.join().expect("the quit checkpoint panicked"));
+        assert!(std::fs::metadata(&path).unwrap().len() >= before + 200_000);
+    }
+
+    #[test]
+    fn the_quit_checkpoint_gives_up_behind_a_slow_job() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::spawn(&dir.path().join("devot.sqlite")).unwrap();
+        let (started, running) = mpsc::channel();
+        let slow = {
+            let db = db.clone();
+            std::thread::spawn(move || {
+                block_on(db.call(move |_| {
+                    started.send(()).unwrap();
+                    std::thread::sleep(Duration::from_millis(500));
+                    Ok(())
+                }))
+            })
+        };
+        running.recv().unwrap();
+
+        let quit = std::thread::spawn(move || checkpoint_at_exit(&db, Duration::from_millis(50)));
+        assert!(!quit.join().expect("the quit checkpoint panicked"));
+        slow.join().unwrap().unwrap();
     }
 }

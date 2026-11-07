@@ -4,6 +4,7 @@ export { saveDelay } from './notes/saving'
 export { createNoteService } from './notes/service'
 export type {
   AgentNoteWrite,
+  MergedStored,
   MetaChange,
   NoteService,
   NoteServiceOptions,

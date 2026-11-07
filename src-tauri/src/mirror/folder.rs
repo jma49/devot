@@ -22,14 +22,15 @@
 //!   crash left short is caught by the next reconcile (kept under the "edited outside Devot" name,
 //!   never lost, and written again). The manifest itself is flushed.
 
-use crate::atomic_file::{self, Folder, Place};
+use crate::atomic_file::{self, Folder, Place, Stamp};
 use crate::commands::notes::valid_note_id;
 use crate::export::{plain_rel_path, valid_rel_path};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 pub const MANIFEST: &str = ".devot-mirror.json";
 const MANIFEST_VERSION: u32 = 1;
@@ -95,6 +96,13 @@ struct ManifestFile {
     manifest: Manifest,
 }
 
+#[derive(Serialize)]
+struct ManifestOut<'a> {
+    version: u32,
+    #[serde(flatten)]
+    manifest: &'a Manifest,
+}
+
 /// Attachments Devot stores have UUIDv7 IDs; a link to any other UUID is simply to no attachment,
 /// never a reason to refuse the note.
 pub fn valid_uuid(id: &str) -> bool {
@@ -157,9 +165,9 @@ pub fn parse_manifest(bytes: &[u8]) -> Option<Manifest> {
 }
 
 pub fn manifest_bytes(manifest: &Manifest) -> Vec<u8> {
-    serde_json::to_vec(&ManifestFile {
+    serde_json::to_vec(&ManifestOut {
         version: MANIFEST_VERSION,
-        manifest: manifest.clone(),
+        manifest,
     })
     .unwrap_or_default()
 }
@@ -179,7 +187,12 @@ fn hex(bytes: &[u8]) -> String {
 pub struct Root {
     path: PathBuf,
     folder: Folder,
+    seen: Option<Seen>,
 }
+
+/// The SHA-256 of each file Devot wrote or read, by path, with the stamp it had then: while the
+/// file keeps that stamp it is not read again. Only in memory, so a relaunch reads every file once.
+pub type Seen = Arc<Mutex<HashMap<String, (Stamp, String)>>>;
 
 impl Root {
     /// Opens the folder at `path`, which was resolved when the user chose it
@@ -189,11 +202,46 @@ impl Root {
         Ok(Self {
             path: path.to_owned(),
             folder: Folder::open_resolved(path)?,
+            seen: None,
         })
+    }
+
+    pub fn remembering(self, seen: Seen) -> Self {
+        Self {
+            seen: Some(seen),
+            ..self
+        }
     }
 
     pub fn is_missing(&self) -> bool {
         !self.path.is_dir()
+    }
+
+    fn recall(&self, rel: &str, stamp: &Stamp) -> Option<String> {
+        let seen = crate::locks::lock(self.seen.as_ref()?);
+        let (known, sha256) = seen.get(rel)?;
+        (known == stamp).then(|| sha256.clone())
+    }
+
+    fn remember(&self, rel: &str, stamp: Option<Stamp>, sha256: &str) {
+        let Some(seen) = &self.seen else {
+            return;
+        };
+        let mut seen = crate::locks::lock(seen);
+        match stamp.filter(Stamp::is_precise) {
+            Some(stamp) => {
+                seen.insert(rel.to_owned(), (stamp, sha256.to_owned()));
+            }
+            None => {
+                seen.remove(rel);
+            }
+        }
+    }
+
+    fn forget(&self, rel: &str) {
+        if let Some(seen) = &self.seen {
+            crate::locks::lock(seen).remove(rel);
+        }
     }
 }
 
@@ -241,7 +289,7 @@ fn find<'a>(root: &Root, rel: &'a str) -> Result<At<'a>, Lost<'a>> {
 fn look<'a>(root: &Root, rel: &'a str) -> (Option<At<'a>>, Option<String>) {
     match find(root, rel) {
         Ok(at) => {
-            let state = state_at(&at);
+            let state = state_at(root, &at);
             (Some(at), state)
         }
         Err(Lost::Missing) => (None, None),
@@ -256,7 +304,7 @@ pub fn disk_state(root: &Root, rel: &str) -> Option<String> {
     look(root, rel).1
 }
 
-fn state_at(at: &At) -> Option<String> {
+fn state_at(root: &Root, at: &At) -> Option<String> {
     let entry = at.folder.entry(at.name).ok()?;
     if entry.is_folder() {
         return Some(DIR.into());
@@ -264,12 +312,31 @@ fn state_at(at: &At) -> Option<String> {
     if !entry.is_file() {
         return Some(OTHER.into());
     }
+    if let Some(sha256) = root.recall(at.rel, &entry.stamp()) {
+        return Some(sha256);
+    }
     let hashed = at.folder.read_file(at.name).and_then(|mut file| {
+        #[cfg(test)]
+        HASHED.with(|n| n.set(n.get() + 1));
+        let stamp = atomic_file::stamp_of(&file)?;
         let mut hasher = Sha256::new();
         std::io::copy(&mut file, &mut hasher)?;
-        Ok(hex(&hasher.finalize()))
+        let sha256 = hex(&hasher.finalize());
+        root.remember(at.rel, Some(stamp), &sha256);
+        Ok(sha256)
     });
     Some(hashed.unwrap_or_else(|_| OTHER.into()))
+}
+
+#[cfg(test)]
+thread_local! {
+    static HASHED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many files this thread has read to hash.
+#[cfg(test)]
+pub fn hashed_files() -> usize {
+    HASHED.with(std::cell::Cell::get)
 }
 
 /// Whether two paths found name the same file (one name in another case,
@@ -324,7 +391,9 @@ pub enum Op {
         id: String,
         path: String,
         from: Option<String>,
-        sha256: String,
+        /// Needed only without the text, which is hashed here; checked against it when both come.
+        #[serde(default)]
+        sha256: Option<String>,
         #[serde(default)]
         text: Option<String>,
         source: String,
@@ -563,7 +632,10 @@ fn keep_aside(root: &Root, at: &At) -> Result<String, Stop> {
     for n in 1..=MAX_KEEP_TRIES {
         let kept = kept_name(at.name, n);
         match at.folder.rename(at.name, &at.folder, &kept, Place::New) {
-            Ok(()) => return Ok(format!("{dir}{kept}")),
+            Ok(()) => {
+                root.forget(at.rel);
+                return Ok(format!("{dir}{kept}"));
+            }
             Err(e) if e.kind() == ErrorKind::AlreadyExists => {}
             Err(e) => return Err(Stop::code(io_code(&e, root))),
         }
@@ -579,23 +651,33 @@ fn stop_at(error: &std::io::Error, root: &Root, rel: &str) -> Stop {
     }
 }
 
-fn write_new(root: &Root, at: &At, data: &[u8]) -> Result<(), Stop> {
-    at.folder
+fn write_new(root: &Root, at: &At, data: &[u8], sha256: &str) -> Result<(), Stop> {
+    let stamp = at
+        .folder
         .write_unflushed(at.name, data, Place::New)
-        .map_err(|e| stop_at(&e, root, at.rel))
+        .map_err(|e| stop_at(&e, root, at.rel))?;
+    root.remember(at.rel, stamp, sha256);
+    Ok(())
 }
 
-fn rewrite(root: &Root, at: &At, data: &[u8]) -> Result<(), Stop> {
-    at.folder
+fn rewrite(root: &Root, at: &At, data: &[u8], sha256: &str) -> Result<(), Stop> {
+    root.forget(at.rel);
+    let stamp = at
+        .folder
         .write_unflushed(at.name, data, Place::Replace)
-        .map_err(|e| Stop::code(io_code(&e, root)))
+        .map_err(|e| Stop::code(io_code(&e, root)))?;
+    root.remember(at.rel, stamp, sha256);
+    Ok(())
 }
 
 fn move_file(root: &Root, from: &At, to: &At, same: bool) -> Result<(), Stop> {
     let place = if same { Place::Replace } else { Place::New };
     from.folder
         .rename(from.name, &to.folder, to.name, place)
-        .map_err(|e| stop_at(&e, root, to.rel))
+        .map_err(|e| stop_at(&e, root, to.rel))?;
+    root.forget(from.rel);
+    root.forget(to.rel);
+    Ok(())
 }
 
 fn file_size(at: &At) -> u64 {
@@ -631,7 +713,8 @@ fn valid_op(op: &Op) -> bool {
             valid_note_id(id)
                 && valid_note_path(path)
                 && from.as_deref().is_none_or(valid_note_path)
-                && valid_sha256(sha256)
+                && sha256.as_deref().is_none_or(valid_sha256)
+                && (text.is_some() || sha256.is_some())
                 && text.as_ref().is_none_or(|t| t.len() <= MAX_TEXT_BYTES)
                 && source.len() <= MAX_SOURCE_LEN
                 && files.len() <= MAX_NOTE_FILES
@@ -672,6 +755,17 @@ pub fn run(
             source,
             files,
         } => {
+            let sha256 = match (text, sha256) {
+                (Some(text), sent) => {
+                    let hashed = sha256_hex(text.as_bytes());
+                    if sent.as_ref().is_some_and(|sent| *sent != hashed) {
+                        return OpResult::failed("E_MIRROR_HASH_MISMATCH");
+                    }
+                    hashed
+                }
+                (None, Some(sent)) => sent.clone(),
+                (None, None) => return OpResult::failed("E_MIRROR_OP_INVALID"),
+            };
             let next = |size: u64| NoteEntry {
                 path: path.clone(),
                 sha256: sha256.clone(),
@@ -685,7 +779,7 @@ pub fn run(
                 id,
                 path,
                 from.as_deref(),
-                sha256,
+                &sha256,
                 text.as_deref(),
                 next,
             )
@@ -780,6 +874,7 @@ fn remove(
                 at.folder
                     .remove_file(at.name)
                     .map_err(|e| Stop::code(io_code(&e, root)))?;
+                root.forget(path);
                 prune(root, path);
             }
         }
@@ -803,11 +898,6 @@ fn note(
     text: Option<&str>,
     next: impl Fn(u64) -> NoteEntry,
 ) -> Result<OpResult, Stop> {
-    if let Some(text) = text
-        && sha256_hex(text.as_bytes()) != sha256
-    {
-        return Err(Stop::code("E_MIRROR_HASH_MISMATCH"));
-    }
     let entry = manifest.notes.get(id).cloned();
     // Its file now, if it still has one; it must hold what Devot wrote (or
     // already what it is about to write), so it was found.
@@ -831,7 +921,10 @@ fn note(
     }
     let record = |manifest: &mut Manifest, size: u64| {
         manifest.notes.insert(id.to_owned(), next(size));
-        OpResult::sized(size)
+        OpResult {
+            sha256: Some(Some(sha256.to_owned())),
+            ..OpResult::sized(size)
+        }
     };
     if let Some((at, state)) = &alive
         && at.rel == path
@@ -843,7 +936,7 @@ fn note(
             return Err(Stop::at("E_MIRROR_CHANGED", path, Some(state.clone())));
         };
         atomic_file::checked();
-        rewrite(root, at, text.as_bytes())?;
+        rewrite(root, at, text.as_bytes(), sha256)?;
         return Ok(record(manifest, text.len() as u64));
     }
     // A new place: nothing that is not Devot's may be there, unless it is
@@ -883,6 +976,7 @@ fn note(
             from.folder
                 .remove_file(from.name)
                 .map_err(|e| Stop::code(io_code(&e, root)))?;
+            root.forget(from.rel);
             prune(root, from.rel);
         }
         return Ok(record(manifest, file_size(&to)));
@@ -892,10 +986,10 @@ fn note(
             return Err(Stop::at("E_MIRROR_CHANGED", path, None));
         };
         if finish_move {
-            rewrite(root, &to, text.as_bytes())?;
+            rewrite(root, &to, text.as_bytes(), sha256)?;
             return Ok(record(manifest, text.len() as u64));
         }
-        write_new(root, &to, text.as_bytes())?;
+        write_new(root, &to, text.as_bytes(), sha256)?;
         return Ok(record(manifest, text.len() as u64));
     };
     move_file(root, &from, &to, renamed)?;
@@ -916,7 +1010,7 @@ fn note(
         return Err(Stop::at("E_MIRROR_CHANGED", path, None).after_move());
     };
     atomic_file::checked();
-    rewrite(root, &to, text.as_bytes()).map_err(Stop::after_move)?;
+    rewrite(root, &to, text.as_bytes(), sha256).map_err(Stop::after_move)?;
     Ok(record(manifest, text.len() as u64))
 }
 
@@ -961,7 +1055,7 @@ fn file(
         None => {
             let at = make_folders(root, path)?;
             atomic_file::checked();
-            write_new(root, &at, &data)?;
+            write_new(root, &at, &data, &sha256)?;
         }
     }
     let size = data.len() as u64;

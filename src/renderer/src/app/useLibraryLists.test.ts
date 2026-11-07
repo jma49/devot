@@ -4,8 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NoteSummary, TrashedNote } from '../../../core'
 import { renderHook, unmountAll } from '../../../../tests/support/render-hook'
 import type { Core } from '../core-client'
+import { NOTES_LOADED } from '../externalChanges'
+import type { WireRelay } from '../noteRelay'
 import type { SearchResults } from '../useSearch'
-import { useLibraryLists } from './useLibraryLists'
+import { useLibraryLists, useNoteWindowChanges, type LibraryLists } from './useLibraryLists'
 
 afterEach(unmountAll)
 
@@ -43,6 +45,18 @@ function fakeCore(notes: NoteSummary[], trash: TrashedNote[] = []) {
     listTrash: async () => trash,
     listSavedSearches: async () => [],
   } as unknown as Core
+}
+
+async function loadedDuring(run: () => Promise<unknown>) {
+  const heard: unknown[] = []
+  const hear = (e: Event) => heard.push((e as CustomEvent<unknown>).detail)
+  window.addEventListener(NOTES_LOADED, hear)
+  try {
+    await act(run)
+  } finally {
+    window.removeEventListener(NOTES_LOADED, hear)
+  }
+  return heard
 }
 
 function lists() {
@@ -102,5 +116,99 @@ describe('useLibraryLists', () => {
     await act(() => hook.current.refresh(fakeCore([note('a')])))
     act(() => hook.current.retitleListed('a', 'Renamed'))
     expect(hook.current.notes[0]?.title).toBe('Renamed')
+  })
+
+  it('names the notes a reload found changed, and none on the first', async () => {
+    const { hook } = lists()
+    expect(
+      await loadedDuring(() => hook.current.refresh(fakeCore([note('a'), note('b')]))),
+    ).toEqual([null])
+    const next = [note('a'), { ...note('b'), bodyVersion: 2 }, note('c')]
+    expect(await loadedDuring(() => hook.current.refresh(fakeCore(next)))).toEqual([['b', 'c']])
+  })
+
+  it('names no notes when a tag changed, as any chip may show it', async () => {
+    const { hook } = lists()
+    await act(() => hook.current.refresh(fakeCore([note('a')])))
+    const retagged = {
+      ...fakeCore([note('a')]),
+      listTags: async () => [{ id: 't', name: 'work', color: null, deletedAt: null }],
+    } as unknown as Core
+    expect(await loadedDuring(() => hook.current.refresh(retagged))).toEqual([null])
+  })
+
+  it('patches the rows of written notes without listing the library again', async () => {
+    const { hook, rerunSearch } = lists()
+    await act(() => hook.current.refresh(fakeCore([note('a'), note('b')])))
+    const authorship = hook.current.authorship
+    const listWithTemplates = vi.fn<() => Promise<unknown>>()
+    const core = {
+      listWithTemplates,
+      noteSummaries: async () => [{ ...note('b', 5), title: 'Renamed' }],
+    } as unknown as Core
+    const before = hook.current.notes
+    expect(await loadedDuring(() => hook.current.patch(core, ['b']))).toEqual([['b']])
+    expect(listWithTemplates).not.toHaveBeenCalled()
+    expect(hook.current.notes.map((n) => [n.id, n.title])).toEqual([
+      ['a', 'a'],
+      ['b', 'Renamed'],
+    ])
+    expect(hook.current.notes[0]).toBe(before[0])
+    expect(hook.current.authorship).toBe(authorship + 1)
+    expect(rerunSearch).toHaveBeenCalledTimes(2)
+  })
+
+  it('patches a note moved to another notebook in place', async () => {
+    const { hook } = lists()
+    await act(() => hook.current.refresh(fakeCore([note('a'), note('b')])))
+    const listWithTemplates = vi.fn<() => Promise<unknown>>()
+    const core = {
+      listWithTemplates,
+      noteSummaries: async () => [{ ...note('b', 5), bookId: 'b2' }],
+    } as unknown as Core
+    expect(await loadedDuring(() => hook.current.patch(core, ['b']))).toEqual([['b']])
+    expect(listWithTemplates).not.toHaveBeenCalled()
+    expect(hook.current.notes.map((n) => [n.id, n.bookId])).toEqual([
+      ['a', null],
+      ['b', 'b2'],
+    ])
+  })
+
+  it('lists the library again when a written note is not listed or no longer there', async () => {
+    const { hook } = lists()
+    await act(() => hook.current.refresh(fakeCore([note('a')])))
+    for (const found of [[note('z')], []]) {
+      const core = { ...fakeCore([note('a'), note('z')]), noteSummaries: async () => found }
+      await act(() => hook.current.patch(core as unknown as Core, ['z']))
+      expect(hook.current.notes.map((n) => n.id)).toEqual(['a', 'z'])
+      await act(() => hook.current.refresh(fakeCore([note('a')])))
+    }
+  })
+})
+
+describe('useNoteWindowChanges', () => {
+  it("names a note window's saved note to the mirror", async () => {
+    let hear: ((message: WireRelay) => void) | undefined
+    const relay = {
+      link: {
+        send: () => {},
+        listen: (handler: (message: WireRelay) => void) => {
+          hear = handler
+          return Promise.resolve(() => {})
+        },
+      },
+    }
+    const mirrorTouch = vi.fn<(noteIds?: readonly string[]) => Promise<void>>(async () => {})
+    const core = { relayIn: async () => {}, mirrorTouch } as unknown as Core
+    const shown = {
+      showWrites: () => {},
+      retitleListed: () => {},
+      refresh: async () => {},
+      authorshipChanged: () => {},
+    } as unknown as LibraryLists
+    const knownNotes = { current: new Map([['a', note('a')]]) }
+    renderHook(useNoteWindowChanges, { props: { core, relay, lists: shown, knownNotes } })
+    act(() => hear?.({ kind: 'saved', noteId: 'a', updatedAt: 5 }))
+    expect(mirrorTouch).toHaveBeenCalledExactlyOnceWith(['a'])
   })
 })

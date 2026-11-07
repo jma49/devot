@@ -1,79 +1,65 @@
 // Runs the core library off the UI thread; the page passes in a storage adapter (Tauri commands are only reachable from the page).
 import * as Comlink from 'comlink'
 import type { RootContent } from 'hast'
-import {
-  type AppendOptions,
-  applyBatch,
-  type DailyNotesSettings,
-  captureNote,
-  createAiService,
-  newWriter,
-  createBookService,
-  createClock,
-  createIdGenerator,
-  createMirrorRunner,
-  createNoteService,
-  createPieceRenderer,
-  createPreviewRegistry,
-  createSavedSearchService,
-  createTagService,
-  createTemplateService,
-  duplicateNote,
-  exportMarkdown,
-  importMarkdown,
-  observeWrites,
-  openTodaysNote,
-  planExport,
-  preparerHere,
-  renderPreview,
-  runHttpApiCall,
-  writerOfCall,
-  type AiService,
-  type Writer,
-  type WriterKind,
-  type BatchChange,
-  type MirrorHost,
-  type MirrorRunner,
-  type BookService,
-  type ExportSink,
-  type ExportTarget,
-  type HttpApiCall,
-  type ImportScan,
-  type ImportSource,
-  type NoteService,
-  type NoteStatus,
-  type SavedSearchService,
-  type TagService,
-  type TemplateService,
-  type PluginRendererSpec,
-  type PreviewNote,
-  type PreviewOptions,
-  type RenderPluginBlock,
-  type SearchScope,
-  type StatusUndo,
-  type StorageAdapter,
-  type TagColor,
-  type TagColorValue,
-  type WelcomeContent,
-  seedWelcome,
+import type {
+  AppendOptions,
+  DailyNotesSettings,
+  AiService,
+  Writer,
+  WriterKind,
+  BatchChange,
+  MirrorHost,
+  MirrorRunner,
+  BookService,
+  ExportSink,
+  ExportTarget,
+  HttpApiCall,
+  ImportScan,
+  ImportSource,
+  NoteService,
+  NoteStatus,
+  SavedSearchService,
+  TagService,
+  TemplateService,
+  PluginRendererSpec,
+  PreviewNote,
+  PreviewOptions,
+  RenderPluginBlock,
+  SearchScope,
+  StatusUndo,
+  StorageAdapter,
+  TagColor,
+  TagColorValue,
+  WelcomeContent,
 } from '../../core'
+import { newWriter } from '../../core/authorship'
+import { applyBatch } from '../../core/batch'
+import { createBookService } from '../../core/books'
+import { captureNote } from '../../core/capture'
+import { openTodaysNote } from '../../core/dailyNotes'
+import { duplicateNote } from '../../core/duplicate'
+import { createClock } from '../../core/hlc'
+import { createIdGenerator } from '../../core/ids'
+import { createNoteService } from '../../core/notes/service'
+import { observeWrites } from '../../core/observeWrites'
+import { createPieceRenderer, createPreviewRegistry, renderPreview } from '../../core/preview'
+import { createSavedSearchService } from '../../core/savedSearches'
+import { createTagService } from '../../core/tags'
+import { createTemplateService } from '../../core/templates'
+import { seedWelcome } from '../../core/welcome'
 import { errorCode } from '../../core/errors'
 import { noteCounts } from '../../core/noteCounts'
 import { noteFrontMatter, noteTally } from '../../core/noteFacts'
 import { createLivePreviewRenderer } from '../../core/preview/live'
 import { renderCardPreview, type CardLabels } from '../../core/preview/card'
-import { createSyncEngine, type SyncEngine, type SyncStatus } from '../../core/sync/engine'
+import { libraryWarmFeatures } from '../../core/preview/warmFeatures'
+import type { SyncEngine, SyncStatus } from '../../core/sync/engine'
 import type { SyncEvent, TransportName } from '../../core/sync/transport'
-import { preparerOffThread } from './importWorker'
 import { fromWireRelay, relayOut, type RelayOut, type WireRelay } from './noteRelayWire'
+import { lazyEngine, lazyOnce, trackedRuns } from './lazyStart'
 import type { SaveProblemsMessage } from './saving'
 import { starterTemplates } from './starterTemplates'
-import {
-  fromWireSync,
-  fromWireTransport,
-  type WireSync,
-  type WireTransport,
-} from './storage/syncWire'
+import type { WireSync, WireTransport } from './storage/syncWire'
 import { fromBase64, fromWire, toBase64, type WireStorage } from './storage/wire'
 import { forwardWorkerLogs, type WorkerLogMessage } from './workerLog'
 
@@ -87,6 +73,14 @@ const logInfo = (code: string, ...ids: string[]) =>
     workerLog: { level: 'info', code, ids },
   } satisfies WorkerLogMessage)
 
+// What no launch needs before the first list loads on first use, so the worker's own script
+// parses before `init` answers (issue 742).
+const loadImport = () => Promise.all([import('../../core/import'), import('./importWorker')])
+const loadExport = () => import('../../core/export')
+const loadMirror = () => import('../../core/mirror')
+const loadHttpApi = () => Promise.all([import('../../core/ai'), import('../../core/httpApi')])
+const loadSync = () => Promise.all([import('../../core/sync/engine'), import('./storage/syncWire')])
+
 let service: NoteService | undefined
 let relayed: ReturnType<typeof relayOut> | undefined
 let books: BookService | undefined
@@ -95,15 +89,15 @@ let savedSearches: SavedSearchService | undefined
 let templates: TemplateService | undefined
 let newId: (() => string) | undefined
 let welcome: ((content: WelcomeContent) => Promise<string | null>) | undefined
-let importing: Promise<unknown> = Promise.resolve()
+const imports = trackedRuns()
 let stopImport = false
-let mirror: MirrorRunner | undefined
+const mirror = lazyOnce<Awaited<ReturnType<typeof loadMirror>>, MirrorRunner>(loadMirror)
 let mirrorStorage: StorageAdapter | undefined
 let httpApi: AiService | undefined
 let httpWriter: Writer | null = null
 let callWriter: Writer | null = null
-let sync: SyncEngine | undefined
-let syncParts:
+const sync = lazyEngine<Awaited<ReturnType<typeof loadSync>>, SyncEngine>(loadSync)
+let coreParts:
   | {
       storage: StorageAdapter
       clock: ReturnType<typeof createClock>
@@ -167,12 +161,12 @@ const coreApi = {
     const clock = createClock(node)
     const ids = createIdGenerator()
     newId = ids
-    const storage = observeWrites(fromWire(remote), () => {
-      mirror?.touch()
-      sync?.touch()
+    const storage = observeWrites(fromWire(remote), (noteIds) => {
+      mirror.current?.touch(noteIds)
+      sync.current?.touch()
     })
     mirrorStorage = storage
-    syncParts = { storage, clock, newId: ids }
+    coreParts = { storage, clock, newId: ids }
     welcome = (content) => seedWelcome({ storage, clock, content })
     const relay = relayOut((out) => self.postMessage(out), toBase64, options.relayAll ?? false)
     relayed = relay
@@ -205,13 +199,7 @@ const coreApi = {
     // (the page merges them, see httpApiHost).
     // One writer for each start of the core, which answers the HTTP API for as long as the app runs.
     httpWriter = newWriter('http', '', node)
-    httpApi = createAiService({
-      storage,
-      clock,
-      newId: ids,
-      writer: () => callWriter ?? httpWriter!,
-      log: logInfo,
-    })
+    httpApi = undefined
     if (options.lean) return
     // Notebooks from before sort keys get theirs, in the order they show.
     // On failure they keep showing in that order and the next start retries.
@@ -231,7 +219,14 @@ const coreApi = {
   /** A local HTTP API call (see httpApiHost), after pending edits are saved, so it reads and changes what the editor shows. */
   httpApi: async (call: HttpApiCall) => {
     const notes = required()
-    if (!httpApi) throw new Error('E_CORE_NOT_READY')
+    const parts = coreParts
+    if (!parts) throw new Error('E_CORE_NOT_READY')
+    const [{ createAiService }, { runHttpApiCall, writerOfCall }] = await loadHttpApi()
+    httpApi ??= createAiService({
+      ...parts,
+      writer: () => callWriter ?? httpWriter!,
+      log: logInfo,
+    })
     await notes.flush().catch(() => {})
     // The window runs calls one at a time (httpApiHost), so this names the one running.
     callWriter = httpWriter ? writerOfCall(call, httpWriter) : null
@@ -310,6 +305,7 @@ const coreApi = {
   peekTrashed: (id: string) => required().peekTrashed(id),
   backlinks: (id: string) => required().backlinks(id),
   linkTargets: (ids: string[]) => required().linkTargets(ids),
+  noteSummaries: (ids: string[]) => required().summaries(ids),
   purge: (id: string) => required().purge(id),
   discardEmpty: (id: string) => required().discardEmpty(id),
   emptyTrash: () => required().emptyTrash(),
@@ -381,54 +377,50 @@ const coreApi = {
     onProgress: (done: number, total: number) => void,
     wikiLinks = true,
   ) => {
-    if (!newId) throw new Error('E_CORE_NOT_READY')
+    const ids = newId
+    if (!ids) throw new Error('E_CORE_NOT_READY')
+    const parts = { notes: required(), books: requiredBooks(), tags: requiredTags() }
+    const files = mirrorStorage
     stopImport = false
-    const prepare = preparerOffThread(
-      () =>
-        new Worker(new URL('./import.worker.ts', import.meta.url), {
-          type: 'module',
-        }),
-      preparerHere(newId),
-      () => console.warn('W_IMPORT_WORKER_FAILED'),
+    return imports.run(() =>
+      loadImport().then(([{ importMarkdown, preparerHere }, { preparerOffThread }]) => {
+        const prepare = preparerOffThread(
+          () =>
+            new Worker(new URL('./import.worker.ts', import.meta.url), {
+              type: 'module',
+            }),
+          preparerHere(ids),
+          () => console.warn('W_IMPORT_WORKER_FAILED'),
+        )
+        return importMarkdown({
+          ...parts,
+          newId: ids,
+          scan,
+          source,
+          files,
+          destination,
+          onProgress,
+          stopped: () => stopImport,
+          prepare,
+          wikiLinks,
+        }).finally(prepare.close)
+      }),
     )
-    const run = importMarkdown({
-      notes: required(),
-      books: requiredBooks(),
-      tags: requiredTags(),
-      newId,
-      scan,
-      source,
-      files: mirrorStorage,
-      destination,
-      onProgress,
-      stopped: () => stopImport,
-      prepare,
-      wikiLinks,
-    })
-    importing = run.catch(() => undefined).finally(prepare.close)
-    return run
   },
   stopImport: async () => {
     stopImport = true
-    await importing
+    await imports.settled()
   },
-  planExport: (target: ExportTarget, untitled: string) =>
-    planExport({
-      notes: required(),
-      books: requiredBooks(),
-      tags: requiredTags(),
-      target,
-      untitled,
-    }),
-  exportMarkdown: (target: ExportTarget, sink: ExportSink, untitled: string) =>
-    exportMarkdown({
-      notes: required(),
-      books: requiredBooks(),
-      tags: requiredTags(),
-      target,
-      untitled,
-      sink,
-    }),
+  planExport: async (target: ExportTarget, untitled: string) => {
+    const parts = { notes: required(), books: requiredBooks(), tags: requiredTags() }
+    const { planExport } = await loadExport()
+    return planExport({ ...parts, target, untitled })
+  },
+  exportMarkdown: async (target: ExportTarget, sink: ExportSink, untitled: string) => {
+    const parts = { notes: required(), books: requiredBooks(), tags: requiredTags() }
+    const { exportMarkdown } = await loadExport()
+    return exportMarkdown({ ...parts, target, untitled, sink })
+  },
   renderPreview: (markdown: string, options: PreviewOptions) => renderPreview(markdown, options),
   noteCounts: (markdown: string) => noteCounts(markdown),
   /** The open note's words, characters and tasks, which the page asks for once per text (noteTally.ts). */
@@ -441,6 +433,12 @@ const coreApi = {
     pieces(markdown, { ...options, pluginRenderers: pluginRevision }, known),
   /** The preview closed, so the pieces it showed are kept no longer than a note left. */
   forgetShownPieces: () => pieces.forgetShown(),
+  /** The code languages, math and emoji the open note and the first `listed` notes use. */
+  warmFeatures: (openText: string, listed: string[]) => {
+    const parts = coreParts
+    if (!parts) throw new Error('E_CORE_NOT_READY')
+    return libraryWarmFeatures(parts.storage, openText, listed)
+  },
   /**
    * The open note's live preview: its pieces with the note's linked notes in, and its task
    * progress and line count. Link targets are asked again when `scope` or the links change.
@@ -463,23 +461,22 @@ const coreApi = {
     pluginRevision += 1
   },
   /** Prepares the mirror (once); nothing runs until `mirrorReconcile`. */
-  startMirror: (host: MirrorHost, untitled: string, logFailure: (code: string) => void) => {
-    if (mirror || !mirrorStorage) return
+  startMirror: async (host: MirrorHost, untitled: string, logFailure: (code: string) => void) => {
+    const storage = mirrorStorage
+    if (!storage) return
     // Failures reach the app's log through the window (codes only).
-    mirror = createMirrorRunner({
-      storage: mirrorStorage,
-      host,
-      untitled,
-      onError: logFailure,
-    })
+    await mirror.start(({ createMirrorRunner }) =>
+      createMirrorRunner({ storage, host, untitled, onError: logFailure }),
+    )
   },
   /** A full pass soon, unless one for Rust's `generation` ran already. */
-  mirrorReconcile: (generation?: number) => mirror?.reconcile(generation),
-  mirrorTouch: () => mirror?.touch(),
-  mirrorWake: () => mirror?.wake(),
-  mirrorStop: () => mirror?.stop(),
+  mirrorReconcile: (generation?: number) => mirror.current?.reconcile(generation),
+  /** A pass soon: for the named notes only when nothing else changed, or for every note. */
+  mirrorTouch: (noteIds?: readonly string[]) => mirror.current?.touch(noteIds),
+  mirrorWake: () => mirror.current?.wake(),
+  mirrorStop: () => mirror.current?.stop(),
   /** Runs the sync engine on Rust's store and socket, which the page passes in. */
-  startSync(
+  async startSync(
     store: WireSync,
     transport: WireTransport,
     onStatus: (status: SyncStatus) => void,
@@ -487,28 +484,26 @@ const coreApi = {
     build?: string,
     via: TransportName = 'relay',
   ) {
-    if (sync || !syncParts) return
-    sync = createSyncEngine({
-      ...syncParts,
-      ...(build ? { build } : {}),
-      via,
-      sync: fromWireSync(store),
-      transport: fromWireTransport(transport, via),
-      onStatus: (status) => void Promise.resolve(onStatus(status)).catch(() => undefined),
-      // The page merges the changes into the notes in memory and reloads, as for another process's writes.
-      onApplied: () => void Promise.resolve(onApplied()).catch(() => undefined),
-    })
-    sync.start()
+    const parts = coreParts
+    if (!parts) return
+    await sync.start(([{ createSyncEngine }, { fromWireSync, fromWireTransport }]) =>
+      createSyncEngine({
+        ...parts,
+        ...(build ? { build } : {}),
+        via,
+        sync: fromWireSync(store),
+        transport: fromWireTransport(transport, via),
+        onStatus: (status) => void Promise.resolve(onStatus(status)).catch(() => undefined),
+        // The page merges the changes into the notes in memory and reloads, as for another process's writes.
+        onApplied: () => void Promise.resolve(onApplied()).catch(() => undefined),
+      }),
+    )
   },
-  async stopSync() {
-    const engine = sync
-    sync = undefined
-    await engine?.stop()
-  },
-  syncReceived: (event: SyncEvent) => sync?.received(event),
-  syncTouch: () => sync?.touch(),
-  syncFocused: () => sync?.focused(),
-  syncAfterRestore: (choice: 'merge' | 'keep') => sync?.afterRestore(choice),
+  stopSync: () => sync.stop(),
+  syncReceived: (event: SyncEvent) => sync.current?.received(event),
+  syncTouch: () => sync.current?.touch(),
+  syncFocused: () => sync.current?.focused(),
+  syncAfterRestore: (choice: 'merge' | 'keep') => sync.current?.afterRestore(choice),
 }
 
 export type CoreApi = typeof coreApi

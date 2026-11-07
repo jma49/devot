@@ -35,9 +35,13 @@ pub(super) const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/0026_sync_change_tags.sql"),
     include_str!("../../migrations/0027_sync_pushed_counts_as_synced.sql"),
     include_str!("../../migrations/0028_sync_upload_order.sql"),
+    include_str!("../../migrations/0029_search_catch_up.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
+
+const WAL_AUTOCHECKPOINT_PAGES: i64 = 4000;
+const WAL_SIZE_LIMIT_BYTES: i64 = 64 * 1024 * 1024;
 
 /// How long a copy waits out another connection's lock; the database thread does nothing else
 /// meanwhile.
@@ -119,6 +123,10 @@ impl Store {
         // Deleted text is overwritten, overflow pages too (ON, not FAST): a purged note leaves
         // nothing readable in free pages, which every later backup would copy.
         conn.pragma_update(None, "secure_delete", "ON")?;
+        // A late automatic checkpoint (SQLite's 1000 pages runs inside every second save of a
+        // big note); the database thread checkpoints when idle and at quit.
+        conn.pragma_update(None, "wal_autocheckpoint", WAL_AUTOCHECKPOINT_PAGES)?;
+        conn.pragma_update(None, "journal_size_limit", WAL_SIZE_LIMIT_BYTES)?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         // Every transaction takes the write lock when it begins, so it waits
         // out another writer (an outside writer) for the busy timeout. A deferred one
@@ -156,6 +164,17 @@ impl Store {
         copy_pages(&source, &mut self.conn, COPY_PATIENCE)?;
         self.conn.pragma_update(None, "journal_mode", "WAL")?;
         self.migrate()
+    }
+
+    /// Copies what the WAL holds into the database file without waiting for readers or writers;
+    /// whatever a busy reader still needs stays for the next one. Returns the frames in the WAL
+    /// and how many of them are now in the file.
+    pub fn checkpoint_passive(&self) -> Result<(i64, i64)> {
+        Ok(self
+            .conn
+            .query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |row| {
+                Ok((row.get(1)?, row.get(2)?))
+            })?)
     }
 
     /// Changes whenever another connection (an outside writer, say) commits; this connection's own commits

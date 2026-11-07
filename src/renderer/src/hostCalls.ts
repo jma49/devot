@@ -3,7 +3,7 @@ import type { DailyNotesSettings } from '../../core'
 import { CLI_APPEND_EVENT, cliAppendHost, resolveAppendTarget } from './cliAppend'
 import type { Core } from './core-client'
 import { errorCode } from './backups'
-import { DB_CHANGED } from './externalChanges'
+import { dbChanged } from './externalChanges'
 import { HTTP_API_DONE_TEST, HTTP_API_EVENT, httpApiHost } from './httpApiHost'
 import { invoke } from './ipc'
 import { editingAllowed } from './licence'
@@ -48,7 +48,7 @@ export function useHttpApi(core: Core | undefined) {
             new CustomEvent(HTTP_API_DONE_TEST, { detail: { id, result, error } }),
           )
         },
-        wrote: () => window.dispatchEvent(new CustomEvent(DB_CHANGED)),
+        wrote: (notes) => window.dispatchEvent(dbChanged(notes)),
       })
       const onCall = (e: Event) => void take((e as CustomEvent<unknown>).detail)
       window.addEventListener(HTTP_API_EVENT, onCall)
@@ -57,7 +57,7 @@ export function useHttpApi(core: Core | undefined) {
     const take = httpApiHost({
       run: (call) => core.httpApi(call),
       reply: (id, result, error) => invoke('http_api_done', { id, result, error }),
-      wrote: () => window.dispatchEvent(new CustomEvent(DB_CHANGED)),
+      wrote: (notes) => window.dispatchEvent(dbChanged(notes)),
     })
     const listening = keepListening(
       listenHere<unknown>(HTTP_API_EVENT, (e) => void take(e.payload)),

@@ -585,7 +585,9 @@ test('a note link chip follows its note when it changes elsewhere', async ({ pag
     const notes = JSON.parse(localStorage.getItem('devot.test.notes') ?? '[]') as {
       id: string
       title: string
+      bodyVersion?: number
     }[]
+    // Storage moves the body version on with every write, a rename too.
     localStorage.setItem(
       'devot.test.notes',
       JSON.stringify(
@@ -595,6 +597,7 @@ test('a note link chip follows its note when it changes elsewhere', async ({ pag
                 ...n,
                 title: 'Renamed',
                 titleHlc: `${String(Date.now() + 60_000).padStart(16, '0')}-0000-mcptest`,
+                bodyVersion: (n.bodyVersion ?? 0) + 1,
               }
             : n,
         ),

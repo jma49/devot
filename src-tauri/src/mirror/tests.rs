@@ -621,7 +621,13 @@ fn checks_the_disk_at_paths_or_every_manifest_file() {
     let opened = f.open().unwrap();
     f.apply(opened.generation, &[note_op("Plan.md", "one")]);
     let check = |paths: Option<&[String]>| f.mirror.check(opened.generation, paths, &f.notify());
+    let hashed = folder::hashed_files();
     assert_eq!(check(None).unwrap(), HashMap::new());
+    assert_eq!(
+        folder::hashed_files(),
+        hashed,
+        "a file it wrote is not read again"
+    );
     fs::write(folder.join("Plan.md"), "edited").unwrap();
     assert_eq!(
         check(None).unwrap(),

@@ -367,6 +367,8 @@ describe('lists and search answer as before', () => {
             }
           }
           const { db } = storage
+          // The statements replaced read the index as it is; a search catches it up first.
+          storage.catchUpSearchIndex()
           expect(await storage.listNotes()).toEqual(
             (db.prepare(BEFORE_LIST).all() as Record<string, unknown>[]).map(asSummary),
           )

@@ -402,6 +402,27 @@ describe('something always in the way', () => {
     expect(applies).toBeLessThanOrEqual(12)
     expect(lib.errors.filter((c) => c === 'E_MIRROR_EXISTS').length).toBeGreaterThan(0)
   })
+
+  it('a rewrite sent without a look at its file has three tries when it is in the way', async () => {
+    const lib = await sample()
+    await mirrorOn(lib)
+    const { inbox } = lib.ids
+    const asIs = lib.host.manifest().notes[inbox]!.sha256
+    let tries = 0
+    const apply = lib.host.apply.bind(lib.host)
+    lib.host.apply = async (generation, ops) =>
+      Promise.all(
+        ops.map(async (op) => {
+          if (op.kind !== 'note' || op.id !== inbox) return (await apply(generation, [op]))[0]!
+          tries += 1
+          return { code: 'E_MIRROR_EXISTS', path: op.path, state: asIs }
+        }),
+      )
+    await lib.notes.setBody(inbox, '# Inbox\n\nNew thoughts.\n')
+    await lib.settled()
+    expect(tries).toBe(3)
+    expect(lib.errors).toEqual(['E_MIRROR_EXISTS'])
+  })
 })
 
 describe('out of date', () => {
