@@ -1,10 +1,10 @@
 import { inflateSync } from 'node:zlib'
 import type { Page } from '@playwright/test'
+import { GLASS_BAR_RADIUS } from '../../src/renderer/src/editor/notch'
 import { expect, test, openApp } from './fixtures'
 
 const body = (page: Page) => page.getByRole('textbox', { name: 'Note body' })
 const bar = (page: Page) => page.locator('.cm-tooltip.cm-float-bar')
-const RADIUS = 14
 
 type Pixels = { width: number; height: number; at: (x: number, y: number) => number[] }
 
@@ -103,28 +103,31 @@ for (const scheme of ['light', 'dark'] as const) {
           const notch = (await el.locator('.cm-float-notch').boundingBox())!
 
           // The notch's base lies on the straight part of the edge, clear of the corners.
-          expect(notch.x).toBeGreaterThanOrEqual(box.x + RADIUS)
-          expect(notch.x + notch.width).toBeLessThanOrEqual(box.x + box.width - RADIUS)
+          expect(notch.x).toBeGreaterThanOrEqual(box.x + GLASS_BAR_RADIUS)
+          expect(notch.x + notch.width).toBeLessThanOrEqual(box.x + box.width - GLASS_BAR_RADIUS)
 
           const shot = decodePng(await page.screenshot({ scale: 'css' }))
           const cx = notch.x + notch.width / 2
           // A glass bar is translucent, so its fill is the colour it paints just inside the edge, not its CSS colour.
           const insideY = Math.round(placement === 'below' ? box.y + 4 : box.y + box.height - 5)
           const [r = 0, g = 0, b = 0] = shot.at(Math.round(cx), insideY)
-          // The bar's outline row: the darkest (or lightest) pixel beside the notch, just past the bar's edge.
+          // The pixel rows the bar's 1 px outline ring touches, just outside its edge.
+          const ringTop = placement === 'below' ? box.y - 1 : box.y + box.height
+          const ringRows: number[] = []
+          for (let y = Math.floor(ringTop); y < Math.ceil(ringTop + 1); y++) ringRows.push(y)
           const x0 = Math.round(notch.x)
           const x1 = Math.round(notch.x + notch.width)
-          const edgeY = Math.round(placement === 'below' ? box.y : box.y + box.height)
-          let baseY = edgeY
-          let strongest = 0
-          for (let y = edgeY - 1; y <= edgeY; y++) {
-            const d = distance(shot.at(x0 - 4, y), [r, g, b])
-            if (d > strongest) [strongest, baseY] = [d, y]
-          }
-          expect(strongest, 'the outline is drawn beside the notch').toBeGreaterThan(8)
-          // The seam strip lies over the bar's outline, which a translucent glass fill lets through faintly.
-          for (let x = x0 + 3; x < x1 - 3; x++)
-            expect(distance(shot.at(x, baseY), [r, g, b]), `base pixel ${x}`).toBeLessThanOrEqual(4)
+          const besideX = cx < box.x + box.width / 2 ? x1 + 4 : x0 - 4
+          const outline = Math.max(...ringRows.map((y) => distance(shot.at(besideX, y), [r, g, b])))
+          expect(outline, 'the outline is drawn beside the notch').toBeGreaterThan(8)
+          // The seam strip covers the outline under the notch base.
+          // A dark glass outline is within a few levels of the fill, so only a light bar shows a missing strip.
+          for (const y of ringRows)
+            for (let x = x0 + 3; x < x1 - 3; x++)
+              expect(
+                distance(shot.at(x, y), [r, g, b]),
+                `base pixel ${x},${y}`,
+              ).toBeLessThanOrEqual(4)
 
           // Halfway up the notch the slanted sides are outlined: a pixel differs from the fill within a pixel of each side.
           const midY = Math.round(notch.y + notch.height / 2)
@@ -138,7 +141,10 @@ for (const scheme of ['light', 'dark'] as const) {
               )
             expect(sides, `outline on the ${side < 0 ? 'left' : 'right'} side`).toBeGreaterThan(2)
           }
-          expect(distance(shot.at(Math.round(cx), midY), [r, g, b])).toBeLessThanOrEqual(2)
+          // Inside, the notch is the fill; a light glass fill lets the bar's shadow through faintly.
+          expect(distance(shot.at(Math.round(cx), midY), [r, g, b])).toBeLessThanOrEqual(
+            scheme === 'light' ? 4 : 2,
+          )
         })
       }
     }

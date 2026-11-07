@@ -202,7 +202,7 @@ export const NoteRow = memo(function NoteRow(props: RowProps) {
               style={tagColorStyle(c.color)}
               dir="auto"
             >
-              {c.color ? <TagDot color={c.color} /> : null}
+              {c.color ? <TagDot color={c.color} name={c.name} /> : null}
               {c.name}
             </span>
           ))}

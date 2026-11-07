@@ -3,6 +3,7 @@ import {
   BAR_GAP,
   BAR_RADIUS,
   EDGE,
+  GLASS_BAR_RADIUS,
   NOTCH_WIDTH,
   NOTCH_HEIGHT,
   NOTCH_X,
@@ -20,16 +21,18 @@ describe('notch geometry', () => {
     expect(BAR_GAP).toBe(6)
   })
 
-  it('puts the tip on the anchor at rest, its base clear of the rounded corner', () => {
+  it('puts the tip on the anchor at rest, its base clear of either rounded corner', () => {
     expect(BAR_RADIUS).toBe(14)
-    expect(NOTCH_X).toBe(BAR_RADIUS + NOTCH_WIDTH / 2)
-    expect(notchLeft(`${NOTCH_X}px`, NOTCH_WIDTH)).toBe('calc(20px - 6px)')
+    expect(GLASS_BAR_RADIUS).toBe(19)
+    expect(NOTCH_X).toBe(GLASS_BAR_RADIUS + NOTCH_WIDTH / 2)
+    expect(notchLeft(`${NOTCH_X}px`, NOTCH_WIDTH)).toBe('calc(25px - 6px)')
   })
 
   it('keeps the tip on the anchor when the bar is held back at the window edge', () => {
     expect(notchOffset(40, 0, 300, NOTCH_X)).toBe(40)
     expect(notchOffset(3, 0, 300, NOTCH_X)).toBe(NOTCH_X)
     expect(NOTCH_X - NOTCH_WIDTH / 2).toBeGreaterThanOrEqual(BAR_RADIUS)
+    expect(NOTCH_X - NOTCH_WIDTH / 2).toBeGreaterThanOrEqual(GLASS_BAR_RADIUS)
     expect(notchOffset(299, 0, 300, NOTCH_X)).toBe(300 - NOTCH_X)
   })
 

@@ -125,7 +125,7 @@ export function TagPickDialog(props: {
               onMouseMove={() => setActive(i)}
               onClick={() => props.onPick(o)}
             >
-              {color ? <TagDot color={color} /> : null}
+              {color ? <TagDot color={color} name={o.name} /> : null}
               <span className="pick-name">
                 {o.tagId === null ? format(t('tagPick.create'), { name: o.name }) : o.name}
               </span>

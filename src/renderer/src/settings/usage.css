@@ -18,13 +18,18 @@
   gap: var(--space-6);
   margin-bottom: var(--space-6);
 }
+.usage-filters .segmented {
+  border-radius: var(--radius-capsule);
+}
 .usage-filters .segment {
   width: auto;
   min-width: calc(var(--space-10) * 2);
+  height: calc(var(--size-settings-control) - 2 * var(--space-1));
   padding-inline: var(--space-7);
+  border-radius: var(--radius-capsule);
   white-space: nowrap;
   font: inherit;
-  font-size: var(--font-size-footnote);
+  font-size: var(--font-size-body);
 }
 .usage-date-range {
   color: var(--color-text-secondary);

@@ -358,7 +358,7 @@ export function CommandPalette(props: {
                     <BookIcon icon={r.bookIcon.icon} color={r.bookIcon.color} size="sm" />
                   ) : r.tagColor ? (
                     <span className="tag-dot-box">
-                      <TagDot color={r.tagColor} />
+                      <TagDot color={r.tagColor} name={r.label} />
                     </span>
                   ) : (
                     <Icon

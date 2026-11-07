@@ -11,12 +11,14 @@ export const NOTCH_HEIGHT = Number.parseFloat(sizes['size.float-notch-height'])
 export const EDGE = 1
 
 export const BAR_RADIUS = Number.parseFloat(sizes['radius.floating-bar'])
+export const GLASS_BAR_RADIUS = Number.parseFloat(sizes['radius.glass-floating-bar'])
 /**
  * How far the notch's tip is from the bar's left edge at rest, and the least it
  * is from either end: the notch's base (half its width each side of the tip)
- * stays on the straight part of the edge, clear of the rounded corners.
+ * stays on the straight part of the edge, clear of the rounded corners of
+ * either interface's bar.
  */
-export const NOTCH_X = BAR_RADIUS + NOTCH_WIDTH / 2
+export const NOTCH_X = Math.max(BAR_RADIUS, GLASS_BAR_RADIUS) + NOTCH_WIDTH / 2
 export const BAR_GAP = NOTCH_HEIGHT
 
 export const notchLeft = (tip: string, width: number) => `calc(${tip} - ${width / 2}px)`

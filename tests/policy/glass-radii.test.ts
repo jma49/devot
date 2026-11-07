@@ -8,6 +8,7 @@ interface DimensionToken {
 const tokens = JSON.parse(readFileSync('design/tokens/base.tokens.json', 'utf8')) as {
   radius: Record<string, DimensionToken>
   size: Record<string, DimensionToken>
+  space: Record<string, DimensionToken>
 }
 function dimension(group: Record<string, DimensionToken>, name: string): number {
   const token = group[name]
@@ -16,6 +17,7 @@ function dimension(group: Record<string, DimensionToken>, name: string): number 
 }
 const radius = (name: string): number => dimension(tokens.radius, name)
 const size = (name: string): number => dimension(tokens.size, name)
+const space = (name: string): number => dimension(tokens.space, name)
 
 describe('Glass radii are concentric: inner radius = outer radius - inset', () => {
   it.each([
@@ -42,6 +44,22 @@ describe('Glass radii are concentric: inner radius = outer radius - inset', () =
       radius('glass-dialog') - size('glass-palette-inset'),
       size('glass-palette-field') / 2,
     ],
+    [
+      'alert, button capsule',
+      radius('glass-dialog') - size('glass-alert-inset'),
+      size('glass-alert-button') / 2,
+    ],
+    [
+      'floating bar, button capsule',
+      radius('glass-floating-bar') - size('float-toolbar-end'),
+      size('float-button') / 2,
+    ],
+    [
+      'find bar, control capsule',
+      radius('glass-find-bar') - size('glass-find-bar-inset'),
+      size('segment-height') / 2,
+    ],
+    ['tooltip, keycap', radius('glass-tooltip') - space('3'), radius('button')],
   ])('%s', (_pair, computed, documented) => {
     expect(computed).toBe(documented)
   })

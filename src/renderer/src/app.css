@@ -764,6 +764,11 @@ button {
   box-shadow: inset 0 0 0 1px var(--color-line-control);
 }
 
+/* Centres on the x-height of a name in lower case only (TagDot.tsx, lowercaseOnly). */
+.tag-dot[data-lowercase] {
+  translate: 0 calc((1cap - 1ex) / 2);
+}
+
 .tag-dot-plain {
   --tag-color: var(--color-text-tertiary);
 }
@@ -775,6 +780,12 @@ button {
   justify-content: center;
   width: var(--size-icon-md);
   height: var(--size-icon-md);
+}
+
+/* The palette's other rows lead with a small icon. */
+.palette-row .tag-dot-box {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
 }
 
 .sidebar-workspace {
@@ -1294,7 +1305,7 @@ button {
 .tag-menu-swatches {
   display: flex;
   justify-content: space-between;
-  padding: var(--space-1) var(--space-3);
+  padding: var(--space-1) 0;
 }
 
 .tag-menu-swatch:hover {
@@ -1321,6 +1332,12 @@ button {
   box-sizing: border-box;
   width: 100%;
   margin-bottom: var(--space-2);
+}
+
+.quick-tag .picker-option:not(:has(> .tag-dot))::before {
+  content: '';
+  flex: none;
+  width: var(--space-4);
 }
 
 .quick-tag .picker-list {
@@ -1599,6 +1616,11 @@ button {
   width: var(--size-filter-icon-slot);
 }
 
+.list-filter .search-clear {
+  align-self: stretch;
+  align-items: center;
+}
+
 .list-filter .search-icon {
   opacity: var(--opacity-filter-icon);
   transition: opacity var(--motion-duration-icon) var(--motion-easing-standard);
@@ -1625,9 +1647,9 @@ button {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  height: calc(var(--space-8) + var(--space-1));
+  height: var(--size-list-filter-control);
   padding: 0 var(--space-4);
-  border: 1px solid var(--color-line-hairline);
+  border: var(--size-capsule-edge) solid var(--color-line-hairline);
   border-radius: var(--radius-capsule);
   background: transparent;
   color: var(--color-text-secondary);
@@ -1763,7 +1785,7 @@ button {
   align-items: center;
   column-gap: var(--space-3);
   min-width: 0;
-  max-height: calc(var(--font-size-caption2) * 1.5 + var(--space-1));
+  max-height: var(--size-row-chip);
   overflow: hidden;
 }
 
@@ -1872,14 +1894,20 @@ button {
 }
 
 .row .chip {
-  height: auto;
+  gap: var(--size-row-chip-gap);
+  box-sizing: border-box;
+  height: var(--size-row-chip);
   padding: 0 var(--space-3);
-  border: 1px solid var(--color-line-control);
-  border-radius: var(--radius-pill);
+  border: var(--size-capsule-edge) solid var(--color-line-control);
+  border-radius: var(--radius-capsule);
   background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-caption2);
   line-height: 1.5;
+}
+
+.row .chip:has(> .tag-dot) {
+  padding-inline-start: var(--size-row-chip-end-dot);
 }
 
 @keyframes chip-in {
@@ -2669,13 +2697,13 @@ div.card-placeholder {
   color: var(--color-text-secondary);
 }
 
-.popup .icon:last-child {
+.popup > .icon:last-child {
   width: var(--space-5);
   height: var(--space-5);
   color: var(--color-text-secondary);
 }
 
-.popup .icon-svg:last-child {
+.popup > .icon-svg:last-child {
   width: var(--space-5);
   height: var(--space-5);
   color: var(--color-text-secondary);
@@ -2694,11 +2722,11 @@ div.card-placeholder {
 }
 
 .popup.status-none,
-.popup.status-none .icon:last-child {
+.popup.status-none > .icon:last-child {
   color: var(--color-text-tertiary);
 }
 
-.popup.status-none .icon-svg:last-child {
+.popup.status-none > .icon-svg:last-child {
   color: var(--color-text-tertiary);
 }
 
@@ -3901,6 +3929,12 @@ button.note-info-row:focus-visible {
   font: inherit;
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
+}
+
+.search-options-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .search-help-button:hover,
@@ -5333,7 +5367,7 @@ button.note-info-row:focus-visible {
   line-height: var(--size-settings-footnote-line);
 }
 
-.settings-footnote > .icon {
+.settings-footnote > :is(.icon, .icon-svg) {
   flex: none;
   margin-top: calc((var(--size-settings-footnote-line) - var(--size-icon-sm)) / 2);
 }
@@ -7551,11 +7585,17 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .footer-toggle {
+  column-gap: var(--size-sidebar-footer-gap);
   height: var(--size-sidebar-footer);
-  padding-inline: var(--space-5) var(--space-3);
-  border: 1px solid var(--color-line-glass-edge);
+  padding-inline: calc(var(--size-sidebar-row-padding) - var(--size-capsule-edge))
+    var(--size-sidebar-footer-end-sm);
+  border: var(--size-capsule-edge) solid var(--color-line-glass-edge);
   border-radius: var(--radius-capsule);
   color: var(--color-text-primary);
+}
+
+:root[data-sidebar-material='on'] .footer-dot {
+  margin-inline-end: 0;
 }
 
 :root[data-sidebar-material='on'] .footer-toggle:not(:hover, :active) {
@@ -7625,13 +7665,19 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .trail-buttons .tool:nth-child(2) {
+  justify-content: flex-start;
+  box-sizing: border-box;
   width: calc(var(--size-toolbar-control) + var(--space-2));
+  padding-inline-start: var(--size-toolbar-control-end-toolbar);
   border-start-end-radius: 0;
   border-end-end-radius: 0;
 }
 
 :root[data-sidebar-material='on'] .trail-buttons .tool:nth-child(3) {
+  justify-content: flex-end;
+  box-sizing: border-box;
   width: calc(var(--size-toolbar-control) + var(--space-2));
+  padding-inline-end: var(--size-toolbar-control-end-toolbar);
   margin-inline-start: calc(-1 * var(--space-3));
   border-start-start-radius: 0;
   border-end-start-radius: 0;
@@ -7693,12 +7739,21 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .list-filter .search-icon {
-  justify-content: flex-start;
-  padding-inline-start: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer));
+  width: auto;
+  padding-inline: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer))
+    var(--size-toolbar-control-gap);
+}
+
+:root[data-sidebar-material='on'] .list-filter :is(.search-help-button, .search-clear) {
+  width: var(--size-toolbar-control);
 }
 
 :root[data-sidebar-material='on'] .sort-chip {
-  padding-inline-start: calc(var(--size-list-keyline-inner) - var(--size-list-keyline-outer) - 1px);
+  gap: var(--size-list-filter-control-gap);
+  padding-inline: calc(
+      var(--size-list-keyline-inner) - var(--size-list-keyline-outer) - var(--size-capsule-edge)
+    )
+    var(--size-list-filter-control-end-xs);
   border-color: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-footnote);
@@ -8012,10 +8067,19 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .note-meta .popup {
+  gap: var(--size-note-pill-gap);
   height: var(--size-note-pill);
-  padding-inline: var(--size-note-pill-pad);
+  padding-inline: var(--size-note-pill-pad) var(--size-note-pill-end-xs);
   border-radius: var(--radius-capsule);
   background: var(--color-fill-card);
+}
+
+:root[data-sidebar-material='on'] .note-meta .popup[class*='status-'] {
+  padding-inline-start: var(--size-note-pill-end-xs);
+}
+
+:root[data-sidebar-material='on'] .note-meta .book-popup {
+  padding-inline-start: var(--size-note-pill-end-sm);
 }
 
 :root[data-sidebar-material='on'] .note-meta .popup:hover {
@@ -8024,6 +8088,16 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .note-meta .popup:active {
   background: var(--color-fill-row-selected);
+}
+
+:root[data-sidebar-material='on'] .find-bar {
+  padding: var(--size-glass-find-bar-inset);
+  border-radius: var(--radius-glass-find-bar);
+}
+
+:root[data-sidebar-material='on']
+  :is(.find-field, .find-toggle, .find-bar .tool-small, .find-bar .button) {
+  border-radius: var(--radius-capsule);
 }
 
 :root[data-sidebar-material='on'] .status-empty-mark {
@@ -8036,9 +8110,14 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .note-meta .chip {
+  gap: var(--size-note-pill-gap);
   height: var(--size-note-pill);
   padding: 0 var(--size-note-pill-pad);
   border: 0;
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip:has(> .tag-dot) {
+  padding-inline-start: var(--size-note-pill-end-dot);
 }
 
 :root[data-sidebar-material='on'] .frontmatter-chip.tag-chip {
@@ -8054,7 +8133,55 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .note-meta .chip-remove {
-  width: var(--size-note-pill-pad);
+  inset-block: var(--size-note-pill-end-remove);
+  inset-inline-end: var(--size-note-pill-end-remove);
+  width: var(--size-note-pill-remove);
+  height: var(--size-note-pill-remove);
+  border-radius: var(--radius-capsule);
+  transition: opacity var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+@property --chip-label-cover {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* The x shows over the label's end rather than taking room of its own, so the pill keeps one width; the label fades out under it. */
+:root[data-sidebar-material='on'] .note-meta .chip-label {
+  --chip-label-cover: 0px;
+  -webkit-mask-image: linear-gradient(
+    to left,
+    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
+    var(--color-ink-text) var(--chip-label-cover)
+  );
+  mask-image: linear-gradient(
+    to left,
+    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
+    var(--color-ink-text) var(--chip-label-cover)
+  );
+  transition: --chip-label-cover var(--motion-duration-hover) var(--motion-easing-out);
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip-label:dir(rtl) {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
+    var(--color-ink-text) var(--chip-label-cover)
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent calc(var(--chip-label-cover) - var(--size-note-pill-gap)),
+    var(--color-ink-text) var(--chip-label-cover)
+  );
+}
+
+:root[data-sidebar-material='on'] .note-meta .chip:is(:hover, :focus-within) > .chip-label {
+  --chip-label-cover: var(--size-note-pill-remove-cover);
+}
+
+:root[data-motion='reduced'][data-sidebar-material='on'] .note-meta .chip-label {
+  transition: none;
 }
 
 :root[data-sidebar-material='on'] .note-meta .tag-field {
@@ -8142,7 +8269,7 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .palette-field {
   height: var(--size-glass-palette-field);
-  padding: 0 var(--space-6);
+  padding: 0 var(--space-6) 0 var(--size-glass-palette-field-end-md);
   border-radius: var(--radius-capsule);
   background: var(--color-fill-glass-control);
 }
@@ -8278,6 +8405,7 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .link-dialog-actions {
   justify-content: flex-end;
+  gap: var(--space-4);
   padding: 0 var(--size-glass-dialog-inset) var(--size-glass-dialog-inset);
   border-top: 0;
   background: transparent;
@@ -8416,6 +8544,7 @@ button.popup:focus-visible {
 
 :root[data-sidebar-material='on'] .settings-history {
   height: var(--size-toolbar-control);
+  border-radius: var(--radius-capsule);
   background: var(--color-fill-glass-control);
   box-shadow:
     var(--glass-rim),
@@ -8424,14 +8553,22 @@ button.popup:focus-visible {
   backdrop-filter: var(--glass-backdrop);
 }
 
+:root[data-sidebar-material='on'] .settings-history-button {
+  width: var(--size-toolbar-control);
+}
+
 /* Search lives on glass already, so it gets a fill and rim without a second blur. */
 :root[data-sidebar-material='on'] .settings-search {
+  gap: var(--size-toolbar-control-gap);
   height: var(--size-toolbar-control);
+  padding-inline-start: var(--size-toolbar-control-end-sm);
+  border-radius: var(--radius-capsule);
   background: var(--color-fill-glass-control);
   box-shadow: var(--glass-rim);
 }
 
 :root[data-sidebar-material='on'] .settings-nav-row {
+  padding-inline: calc((var(--size-settings-nav-row) - var(--size-settings-tile)) / 2);
   border-radius: var(--radius-sidebar-row);
 }
 
@@ -8490,7 +8627,8 @@ button.popup:focus-visible {
 :root[data-sidebar-material='on'] .confirm-destructive {
   box-sizing: border-box;
   width: var(--size-glass-alert-width);
-  padding: calc(var(--space-7) + var(--space-3)) var(--space-7) var(--space-7);
+  padding: calc(var(--space-7) + var(--space-3)) var(--size-glass-alert-inset)
+    var(--size-glass-alert-inset);
   text-align: center;
 }
 
@@ -8506,12 +8644,12 @@ button.popup:focus-visible {
 }
 
 :root[data-sidebar-material='on'] .confirm.confirm-destructive > .confirm-message {
-  margin: 0 0 var(--space-3);
+  margin: 0 var(--space-3) var(--space-3);
   font-weight: var(--font-weight-bold);
 }
 
 :root[data-sidebar-material='on'] .confirm.confirm-destructive > .confirm-detail {
-  margin: 0 var(--space-2) var(--space-7);
+  margin: 0 var(--space-5) var(--space-7);
   font-size: var(--font-size-footnote);
 }
 
@@ -8644,6 +8782,13 @@ button.popup:focus-visible {
   pointer-events: none;
 }
 
+:root[data-sidebar-material='on'] .quick-tag-field {
+  height: var(--size-glass-popover-row);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-glass-menu-row);
+}
+
 :root[data-sidebar-material='on'] .picker-search {
   height: var(--size-glass-popover-row);
   padding: 0 var(--space-5) 0 calc(var(--space-5) + var(--size-icon-sm) + var(--space-3));
@@ -8699,6 +8844,10 @@ button.popup:focus-visible {
   gap: var(--space-4);
   border-radius: var(--radius-glass-tooltip);
   color: var(--color-text-primary);
+}
+
+:root[data-sidebar-material='on'] .tool-tip:not(.note-card-pop):has(> .tool-tip-key) {
+  padding-inline-end: var(--space-3);
 }
 
 :root[data-sidebar-material='on'] .tool-tip:not(.note-card-pop)::before {

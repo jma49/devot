@@ -11,6 +11,7 @@ import { clamp } from './clamp'
 import { format, t } from './i18n'
 import { isImeKey } from './ime'
 import { tagColorStyle } from './tagColorStyle'
+import { dotCase } from './TagDot'
 
 const START: Hsv = { h: 210, s: 0.7, v: 0.85 }
 const percent = (value: number) => Math.round(value * 100)
@@ -116,6 +117,7 @@ export function ColorPicker(props: {
         <span
           className="tag-dot tag-color-custom"
           style={tagColorStyle(shown as `#${string}`)}
+          data-lowercase={dotCase(props.tagName)}
           aria-hidden="true"
         />
         <span dir="auto">{props.tagName}</span>

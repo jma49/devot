@@ -115,7 +115,9 @@ The width, the empty line, the fade, the meta line and the drag hold in Classic 
 
 A control or block in a note is filled or outlined, never both, and a dashed border is not used at rest. A rendered table (hairline edge) and a callout (tinted edge) are the only bordered blocks; the table box behind Edit mode's source is fill only, like code.
 
-- **Pills** (notebook, status, tag): `color.fill.card`, no border, a 26 pt capsule (`size.note-pill`) with 10 sides (`size.note-pill-pad`), 6 apart. Hover uses `color.fill.tool-hover`. Coloured tags keep their tint.
+- **Pills** (notebook, status, tag): `color.fill.card`, no border, a 26 pt capsule (`size.note-pill`) laid out as Capsules says, 6 apart.
+  Hover uses `color.fill.tool-hover`.
+  Coloured tags keep their tint.
 - **Add Tag:** the text "+ Tag" in tertiary with 8 padding. A dashed focus-ring outline shows only while it holds the keyboard.
 - **Code:** fill only. Blocks use `radius.list-row` (12), inline code `radius.inline-code` (5), in the preview and the editor. Edit mode's table box takes the same fill and `radius.list-row`.
 
@@ -133,6 +135,54 @@ A control or block in a note is filled or outlined, never both, and a dashed bor
 - **Date picker:** a glass popover `size.date-picker-width` (276) wide that hangs from its date row (above it when the window has no room below), with the card's radius and inset.
   A head row `size.date-picker-head` (32) has the month and three `size.date-picker-nav` (26) circles (previous, today, next); weekday captions are `size.date-picker-week` (22) tall; days are `size.date-picker-cell` (32) rows with a `size.date-picker-day` (30) circle, the selected day filled `color.accent.fill`, today in `color.accent.text`, days of the months around in tertiary and days ruled out at `opacity.disabled`.
   The time row sits on `color.fill.card` in `radius.glass-menu-row`, and Cancel and Set share the foot, Set filled with the accent.
+
+## Capsules
+
+A capsule's radius is half its height (`radius.capsule`), so each end is a half circle; these rules place what sits inside one.
+Insets are measured from the capsule's outer edge; where it has a border, `size.capsule-edge` (1) comes off the inset.
+`tests/tokens/capsules.test.ts` checks the arithmetic of the tokens below.
+
+- **End caps:** a round item at an end (a dot, a glyph, an x, a chevron, a round button) is concentric with the end cap.
+  Its box sits (height - item) / 2 from that end, the same as from the top and bottom.
+  A bare glyph counts by its box (`space.5` for the small glyphs, `size.icon-sm` and up for icons); a button with a round fill counts by the fill.
+- **Text ends:** an end that holds text takes the capsule's side padding, and a capsule with text at both ends takes the same padding at both.
+- **Gaps:** the space between a leading item and the text, and between the text and a trailing item, is one token for every capsule of one height.
+- **Centre:** items centre on the text's optical centre, the middle of the cap height.
+  For a name in lower case only it is the middle of the x-height: `lowercaseOnly` (`TagDot.tsx`) marks the dot `data-lowercase`, which moves it down by (1cap - 1ex) / 2.
+  The label's line box is centred in the capsule.
+- **Sizes:** a dot is `space.4` (8) in every capsule, and the glyphs of one height share a size.
+- **Targets:** an x that removes keeps a round hit area of at least 16 inside the capsule, concentric with the end cap, and its glyph keeps its own size.
+  It shows only under the pointer or with the keyboard in the capsule, drawn over the text's end rather than taking room of its own, so the capsule keeps one width.
+- **Rows:** capsules in one row share a height and a baseline, and stand `space.3` (6) apart.
+
+| Capsule                              | Height                                                       | Text end                                          | Gap                                                         | End insets                                                                                                                                                |
+| ------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Note pills (notebook, status, tag)   | `size.note-pill` 26                                          | `size.note-pill-pad` 10                           | `size.note-pill-gap` 6                                      | dot `size.note-pill-end-dot` 9, a 10 px glyph `size.note-pill-end-xs` 8, the notebook icon `size.note-pill-end-sm` 6, the x `size.note-pill-end-remove` 5 |
+| Sidebar footer, the note list's sort | `size.sidebar-footer`, `size.list-filter-control` 20, edge 1 | `space.5` 10, the sort label on the inner keyline | `size.sidebar-footer-gap`, `size.list-filter-control-gap` 6 | the footer under Exceptions, the sort chevron `size.list-filter-control-end-xs` 4                                                                         |
+| Tag chip in a note row               | `size.row-chip` 17, edge 1                                   | `space.3` 6                                       | `size.row-chip-gap` 4                                       | dot `size.row-chip-end-dot` 3.5                                                                                                                           |
+| Toolbar capsules and 32 px fields    | `size.toolbar-control` 32                                    | `space.4` 8                                       | `size.toolbar-control-gap` 6                                | Settings' magnifier `size.toolbar-control-end-sm` 9, Back and Forward `size.toolbar-control-end-toolbar` 7                                                |
+| Palette field                        | `size.glass-palette-field` 40                                | `space.6` 12                                      | `space.3` 6                                                 | the magnifier or Back `size.glass-palette-field-end-md` 11.5                                                                                              |
+| Floating bars                        | `size.float-toolbar-height` 38                               | `space.3` 6                                       | none                                                        | 28 px buttons `size.float-toolbar-end` 5, with `radius.glass-floating-bar` 19                                                                             |
+
+- **Removable tag pill:** at rest it is symmetric: its label ends `size.note-pill-pad` from the end, and the hidden x takes no room.
+  Under the pointer or with the keyboard in the pill, its x shows over the label's end: a `size.note-pill-remove` (16) button `size.note-pill-end-remove` from the end and from the top and bottom, with its 10 px glyph centred in it.
+  The label fades out under it over `size.note-pill-remove-cover` (14 = 8 + 10 + 6 - 10) from its end, clear under the glyph and fading in over one gap, so the x reads cleanly.
+  The pill never changes width, so "+ Tag" and the pills after it stay where they are.
+  Tag pills do not truncate: a long name shows whole at rest, and only its last letters fade under the x.
+- **Trailing buttons in a 32 px field:** the clear, options and syntax buttons are each `size.toolbar-control` wide and as tall as the field, so the last glyph centres 16 from the end.
+- **Back and Forward:** each chevron's box is concentric with its end of the shared capsule: in the editor `size.toolbar-control-end-toolbar` from the end of a wider half, in Settings centred in a `size.toolbar-control` square.
+- **Sidebar footer:** without a dot (while the status loads) its text keeps the same `size.sidebar-row-padding` (10) start.
+
+Exceptions to these rules, each chosen on purpose:
+
+- **The note list's magnifier:** the list's keyline wins over the end-cap rule.
+  The magnifier stands on the 24 keyline (`size.list-keyline-inner`), 12 inside a field whose edge is on the 12 keyline (`size.list-keyline-outer`), so it lines up with the sort label and the row titles.
+  It is 9 from the field's top and bottom, so it is 3 off concentric with the end cap; the placeholder still starts `size.toolbar-control-gap` (6) after it.
+- **The sidebar footer's ends:** the sidebar's icon column wins over the end-cap rule.
+  Its dot is a sidebar row's start padding (`size.sidebar-row-padding`, 10) from the outer edge, border included, so it sits on the column of the rows' icons, 4 off concentric with the end cap.
+  Its chevron end matches: `size.sidebar-footer-end-sm` (6) puts the chevron's centre as far from its end (14) as the dot's is from the other, so the two ends look the same.
+- **The notebook pill's icon:** it is `size.icon-sm` (14), not the 10 px of the pill's other glyphs.
+  A line icon is drawn larger to carry the weight of the filled 10 px marks beside it (the status icon, a tag's dot).
 
 ## Note type scale
 
