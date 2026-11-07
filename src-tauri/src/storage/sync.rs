@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{BookRecord, NoteRecord, NoteTagRecord, Result, SavedSearchRecord, Store, TagRecord};
 
-const SYNC_PENDING_SQL: &str = "SELECT id, edits FROM sync_records WHERE edits <> synced AND id > @after ORDER BY id LIMIT @limit";
+const SYNC_PENDING_SQL: &str = "SELECT id, edits, upload_key AS uploadKey FROM sync_records
+     WHERE edits <> synced AND upload_key > @after ORDER BY upload_key LIMIT @limit";
 const SYNC_PENDING_COUNT_SQL: &str = "SELECT COUNT(*) AS n FROM sync_records WHERE edits <> synced";
 const SYNC_ENTRY_SQL: &str =
     "SELECT id, kind, version, tag, fingerprint, body_hlc AS bodyHlc, body_fp AS bodyFp, edits, synced
@@ -23,7 +24,8 @@ const SYNC_STATE_SQL: &str = "SELECT key, value FROM sync_state";
 const SYNC_SET_STATE_SQL: &str = "INSERT INTO sync_state (key, value) VALUES (@key, @value)
      ON CONFLICT (key) DO UPDATE SET value = excluded.value";
 const SYNC_RESET_SQL: &str =
-    "UPDATE sync_records SET version = 0, tag = '', fingerprint = '', synced = edits - 1";
+    "UPDATE sync_records SET version = 0, tag = '', fingerprint = '', synced = edits - 1,
+       upload_key = lower(hex(randomblob(8))) || id";
 const SYNC_FILE_SQL: &str =
     "SELECT id, note_id AS noteId, note_hlc AS noteHlc, name, mime, size, created_at AS createdAt
      FROM files WHERE id = @id";
@@ -56,6 +58,8 @@ const SYNC_NOTE_TAGS_SQL: &str =
 pub struct SyncPending {
     pub id: String,
     pub edits: i64,
+    /// Random hex then the ID: the order pending records page in, and the cursor for the next page.
+    pub upload_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,6 +131,7 @@ impl Store {
                 Ok(SyncPending {
                     id: row.get(0)?,
                     edits: row.get(1)?,
+                    upload_key: row.get(2)?,
                 })
             })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -501,6 +506,60 @@ mod tests {
             .unwrap();
         assert_eq!((reset.version, reset.fingerprint.as_str()), (0, ""));
         assert_eq!(pending(&store, "", 10), vec![NOTE.to_string()]);
+    }
+
+    fn pages(store: &Store, limit: u32) -> Vec<SyncPending> {
+        let mut all: Vec<SyncPending> = Vec::new();
+        loop {
+            let after = all.last().map_or("", |p| p.upload_key.as_str()).to_owned();
+            let page = store.sync_pending(&after, limit).unwrap();
+            let done = page.len() < limit as usize;
+            all.extend(page);
+            if done {
+                return all;
+            }
+        }
+    }
+
+    #[test]
+    fn pages_pending_records_in_a_random_order_that_a_new_epoch_draws_again() {
+        let (_dir, mut store) = store();
+        let ids: Vec<String> = (0..40)
+            .map(|i| format!("0192a6f0-0000-7000-8000-{i:012x}"))
+            .collect();
+        for id in &ids {
+            store
+                .put_note(
+                    &NoteRecord {
+                        id: id.clone(),
+                        ..note()
+                    },
+                    &[],
+                )
+                .unwrap();
+        }
+        let first = pages(&store, 7);
+        for p in &first {
+            assert_eq!(p.upload_key.len(), 16 + p.id.len());
+            assert!(p.upload_key.ends_with(&p.id));
+        }
+        let order: Vec<String> = first.iter().map(|p| p.id.clone()).collect();
+        let mut sorted = order.clone();
+        sorted.sort();
+        assert_eq!(sorted, ids, "every record once");
+        assert_ne!(order, ids, "not in creation order");
+
+        let resumed = store.sync_pending(&first[19].upload_key, 100).unwrap();
+        let rest: Vec<&str> = resumed.iter().map(|p| p.id.as_str()).collect();
+        let expected: Vec<&str> = order[20..].iter().map(String::as_str).collect();
+        assert_eq!(rest, expected, "a cursor resumes where it stopped");
+
+        store.sync_reset().unwrap();
+        let again: Vec<String> = pages(&store, 7).into_iter().map(|p| p.id).collect();
+        let mut sorted_again = again.clone();
+        sorted_again.sort();
+        assert_eq!(sorted_again, ids);
+        assert_ne!(again, order, "a new epoch goes in a new order");
     }
 
     #[test]

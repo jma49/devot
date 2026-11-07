@@ -287,6 +287,74 @@ describe('a backlog in batches', () => {
     expect(await a.storage.syncPendingCount()).toBe(0)
   })
 
+  it('sends a backlog in an order that follows neither creation nor the last backlog (#639)', async () => {
+    const { vault, a, fa } = fakePair({ uploadShownFrom: 3 })
+    const ids: string[] = []
+    for (let i = 0; i < 30; i += 1) ids.push(await a.notes.create(`Note ${i}`))
+    const byCreation = [...ids].sort()
+    expect(ids).toEqual(byCreation)
+    await a.sync()
+    const first = fa.batches.flat()
+    expect([...first].sort()).toEqual(byCreation)
+    expect(first).not.toEqual(byCreation)
+    const before = fa.batches.length
+    vault.wipe()
+    await a.restart()
+    await a.sync()
+    const second = fa.batches.slice(before).flat()
+    expect([...second].sort()).toEqual(byCreation)
+    expect(second).not.toEqual(byCreation)
+    expect(second).not.toEqual(first)
+  })
+
+  it('resumes an interrupted backlog without sending a record twice or skipping one', async () => {
+    const { vault, a, fa } = fakePair({ uploadShownFrom: 3, batchBytes: 1 })
+    const ids: string[] = []
+    for (let i = 0; i < 30; i += 1) ids.push(await a.notes.create(`Note ${i}`))
+    let pushed = 0
+    fa.beforePush = async () => {
+      pushed += 1
+      if (pushed === 12) await fa.close()
+    }
+    await a.sync().catch(() => undefined)
+    delete fa.beforePush
+    expect(vault.records.size).toBeGreaterThan(0)
+    expect(vault.records.size).toBeLessThan(ids.length)
+    await a.restart()
+    await a.sync()
+    const sent = fa.sent.map((push) => push.id)
+    expect(new Set(sent).size).toBe(sent.length)
+    expect([...sent].sort()).toEqual([...ids].sort())
+    for (const id of ids) expect(vault.records.get(id)?.version).toBe(1)
+    expect(await a.storage.syncPendingCount()).toBe(0)
+  })
+
+  it('pages through a backlog larger than one page by upload key, sending each record once', async () => {
+    const { vault, a, fa } = fakePair({ uploadShownFrom: 3 })
+    const ids: string[] = []
+    for (let i = 0; i < 230; i += 1) ids.push(await a.notes.create(`Note ${i}`))
+    await a.notes.flush()
+    const pages: { after: string; keys: string[] }[] = []
+    const read = a.storage.syncPending.bind(a.storage)
+    vi.spyOn(a.storage, 'syncPending').mockImplementation(async (after, limit) => {
+      const rows = await read(after, limit)
+      pages.push({ after, keys: rows.map((row) => row.uploadKey) })
+      return rows
+    })
+    await a.sync()
+    const followed = pages.slice(1).filter((page, at) => pages[at]!.keys.length === 100)
+    expect(followed.length).toBeGreaterThan(1)
+    for (const page of followed) {
+      expect(page.after).toBe(pages[pages.indexOf(page) - 1]!.keys.at(-1))
+      expect(page.after).toMatch(/^[0-9a-f]{16}[0-9a-f-]{36}$/)
+    }
+    const sent = fa.sent.map((push) => push.id)
+    expect(new Set(sent).size).toBe(sent.length)
+    expect([...sent].sort()).toEqual([...ids].sort())
+    for (const id of ids) expect(vault.records.get(id)?.version).toBe(1)
+    expect(await a.storage.syncPendingCount()).toBe(0)
+  })
+
   it('keeps single pushes for a few records', async () => {
     const { a, fa } = fakePair()
     await a.notes.create('Alone')

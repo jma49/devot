@@ -73,6 +73,12 @@ async function device(
     join(tempDir(`devot-sync-files-${name}-`), 'db.sqlite'),
   )
   cleanups.push(() => storage.close())
+  // These cases check what a full share refuses in turn, so pending records go out in ID order
+  // here instead of the random order a device uses (#639).
+  storage.db.exec(`DROP TRIGGER sync_record_upload_key;
+    CREATE TRIGGER sync_record_upload_key AFTER INSERT ON sync_records WHEN NEW.upload_key = '' BEGIN
+      UPDATE sync_records SET upload_key = '0000000000000000' || NEW.id WHERE id = NEW.id;
+    END;`)
   const clock = createClock(name)
   const newId = createIdGenerator()
   const notes: NoteService = createNoteService({

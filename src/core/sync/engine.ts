@@ -989,7 +989,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       const rows = await sync.syncPending(after, PAGE)
       for (const row of rows) await each(row.id, row.edits)
       if (rows.length < PAGE) return
-      after = rows.at(-1)!.id
+      after = rows.at(-1)!.uploadKey
     }
   }
 
