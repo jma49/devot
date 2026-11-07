@@ -369,6 +369,88 @@ it(
   },
 )
 
+/** A Mac and a phone that both hold a large note the Mac just pushed. */
+async function sharedLarge() {
+  const vault = new FakeVault()
+  vault.maxBytes = 20_000_000
+  const phoneStore = openSqliteAdapter(join(tempDir('devot-sync-timing-phone-'), 'db.sqlite'))
+  opened.push(phoneStore)
+  const mac = await typingSetup(new FakeTransport(vault))
+  const phone = await typingSetup(new FakeTransport(vault), { name: 'phone', on: phoneStore })
+  const { id, body } = await pushedLarge(mac.notes, mac.engine)
+  await phone.engine.syncNow()
+  await phone.notes.mergeStored()
+  expect((await phoneStore.getNote(id, { trashed: true }))?.bodyMd).toBe(body)
+  return { mac, phone, id, body }
+}
+
+async function settled({ mac, phone, id }: Awaited<ReturnType<typeof sharedLarge>>) {
+  await vi.advanceTimersByTimeAsync(90_000)
+  await mac.engine.idle()
+  await mac.engine.syncNow()
+  await mac.notes.mergeStored()
+  await phone.engine.syncNow()
+  await phone.notes.mergeStored()
+  const onMac = await mac.storage.getNote(id, { trashed: true })
+  const onPhone = await phone.storage.getNote(id, { trashed: true })
+  await mac.engine.stop()
+  await phone.engine.stop()
+  return { onMac, onPhone }
+}
+
+it(
+  'brings a note back from another device’s Trash when it is edited here during its pace after the trash',
+  { timeout: LARGE_MS },
+  async () => {
+    const shared = await sharedLarge()
+    const { mac, phone, id } = shared
+    let { body } = shared
+    // The Mac's pass sees an edit and holds the note for its pace; then the phone trashes it.
+    await mac.notes.setBody(id, `${body}An edit before the trash.\n`)
+    await mac.notes.flush()
+    await vi.advanceTimersByTimeAsync(PUSH_IDLE_MS + 500)
+    await mac.engine.idle()
+    await phone.notes.trash(id)
+    await phone.notes.flush()
+    // The Mac edits the note again before the trash reaches it.
+    await vi.advanceTimersByTimeAsync(1_000)
+    body = `${body}An edit before the trash.\nAn edit after the trash.\n`
+    await mac.notes.setBody(id, body)
+    await mac.notes.flush()
+    const { onMac, onPhone } = await settled(shared)
+    expect(onMac?.bodyMd).toBe(body)
+    expect({ mac: onMac?.deletedAt, phone: onPhone?.deletedAt }).toEqual({ mac: null, phone: null })
+  },
+)
+
+it(
+  'stamps a paced body at the pass that sees the note’s last write, so a trash made before a later rename here is overturned',
+  { timeout: LARGE_MS },
+  async () => {
+    const shared = await sharedLarge()
+    const { mac, phone, id } = shared
+    const body = `${shared.body}An edit before the trash.\n`
+    await mac.notes.setBody(id, body)
+    await mac.notes.flush()
+    await vi.advanceTimersByTimeAsync(PUSH_IDLE_MS + 500)
+    await mac.engine.idle()
+    // During the wait the Mac renames the note, then the phone trashes it.
+    await mac.notes.setTitle(id, 'Large, renamed')
+    await mac.notes.flush()
+    await vi.advanceTimersByTimeAsync(1_000)
+    await phone.notes.trash(id)
+    await phone.notes.flush()
+    // The Mac's next pass sees only that the note changed, not what changed, and stamps the body then.
+    await vi.advanceTimersByTimeAsync(3_000)
+    await mac.engine.idle()
+    await phone.engine.syncNow()
+    const { onMac, onPhone } = await settled(shared)
+    expect(onMac?.bodyMd).toBe(body)
+    expect(onMac?.title).toBe('Large, renamed')
+    expect({ mac: onMac?.deletedAt, phone: onPhone?.deletedAt }).toEqual({ mac: null, phone: null })
+  },
+)
+
 it(
   'ends a pace that a clock set back would stretch past a minute',
   { timeout: LARGE_MS },

@@ -472,8 +472,9 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   /** The last push pass passed a note over for its pace, so not everything here is synced. */
   let heldBack = false
   /**
-   * The body stamp a passed-over note gets once it is read: taken by the first pass that saw its
-   * `edits`, as when it was pushed then, so a trash made elsewhere after that pass still wins.
+   * The body stamp a passed-over note gets once it is read: taken by the pass that saw its latest
+   * `edits`, never before the body's last change, so an edit after a trash elsewhere still brings
+   * the note back. Any write during the wait moves it on, so a trash made before that write loses.
    */
   const seenEdits = new Map<string, { edits: number; hlc: string }>()
   /** Record ID to the fingerprint the relay refused as too large; a changed record is tried again. */
@@ -828,10 +829,11 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     const entry = local.entry
     const row = local.note
     const kept = { bodyHlc: entry?.bodyHlc ?? '', bodyFp: entry?.bodyFp ?? '' }
+    const seen = seenEdits.get(local.id)
+    seenEdits.delete(local.id)
     if (!row || row.purged) return kept
     const print = bodyPrint(row.note.ydoc)
     if (print === kept.bodyFp) return kept
-    const seen = seenEdits.get(local.id)
     const hlc = seen && seen.edits === entry?.edits ? seen.hlc : clock.tick()
     return { bodyHlc: row.note.deletedAt === null ? hlc : kept.bodyHlc, bodyFp: print }
   }
