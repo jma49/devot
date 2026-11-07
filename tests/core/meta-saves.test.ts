@@ -177,6 +177,74 @@ describe('saves that change only a note’s fields', () => {
     expect((await sqlite.getNote(id))?.bodyMd).toBe('Real text')
   })
 
+  it('write the whole note when an undone status takes in a stored body that falls short', async () => {
+    const { sqlite, writes, service } = watched()
+    const notes = service()
+    const id = await notes.create('Plan')
+    await notes.setBody(id, 'Real text')
+    await notes.flush()
+    const undo = await notes.setStatusUndoable(id, 'active')
+    const stored = await sqlite.getNote(id)
+    await sqlite.putNote({ ...stored!, bodyMd: 'Out of step' })
+    writes.length = 0
+
+    await notes.undoStatus(id, undo)
+    await notes.flush()
+    expect(writes).toEqual(['note'])
+    expect((await sqlite.getNote(id))?.bodyMd).toBe('Real text')
+  })
+
+  it('write the whole note when a stored copy lacks a deletion the document holds', async () => {
+    const { sqlite, writes, service } = watched()
+    const notes = service()
+    const id = await notes.create('Plan')
+    await notes.setBody(id, 'Ours')
+    await notes.agentWrite(id, {
+      writer: newWriter('mcp', 'Claude Code', 'mcp00aa11bb22cc'),
+      markdown: 'Agent text.\n',
+    })
+    await notes.flush()
+    const withRows = await sqlite.getNote(id)
+    await notes.clearAuthorship(id)
+    await notes.flush()
+    const cleared = await sqlite.getNote(id)
+    // The same text and state vector: only the deletions are missing.
+    await sqlite.putNote({ ...cleared!, ydoc: withRows!.ydoc })
+    await notes.mergeStored()
+    writes.length = 0
+
+    await notes.setPinned(id, true)
+    await notes.flush()
+    expect(writes).toEqual(['note'])
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, (await sqlite.getNote(id))!.ydoc)
+    expect(doc.getMap(WRITES).size).toBe(0)
+  })
+
+  it('write the whole note when the stored copy is an older state at a newer version', async () => {
+    const { sqlite, service } = watched()
+    const notes = service()
+    const id = await notes.create('Plan')
+    await notes.setBody(id, 'Ours')
+    await notes.agentWrite(id, {
+      writer: newWriter('mcp', 'Claude Code', 'mcp00aa11bb22cc'),
+      markdown: 'Agent text.\n',
+    })
+    await notes.flush()
+    const before = await sqlite.getNote(id)
+    await notes.clearAuthorship(id)
+    await notes.flush()
+    const now = await sqlite.getNote(id)
+    await sqlite.putNote({ ...now!, ydoc: before!.ydoc })
+
+    await notes.mergeStored()
+    await notes.setPinned(id, true)
+    await notes.flush()
+    const doc = new Y.Doc()
+    Y.applyUpdate(doc, (await sqlite.getNote(id))!.ydoc)
+    expect(doc.getMap(WRITES).size).toBe(0)
+  })
+
   it('write the whole note when storage no longer has it', async () => {
     const { sqlite, writes, service } = watched(() => ({
       putNoteMeta: async () => {

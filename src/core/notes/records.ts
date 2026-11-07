@@ -77,13 +77,15 @@ export const withNewer = (to: HeldRecord, from: NoteMeta): HeldRecord => ({
       : { updatedAt: Math.max(to.updatedAt, from.updatedAt) }),
 })
 
+/**
+ * Whether `doc`, which has taken `stored` in, holds anything `stored` lacks.
+ * The snapshot covers deletions too, which change neither the text nor the state vector.
+ */
 export const holdsMore = (doc: Y.Doc, stored: NoteRecord) => {
   if (doc.getText(BODY).toString() !== stored.bodyMd) return true
-  const theirs = Y.decodeStateVector(Y.encodeStateVectorFromUpdate(stored.ydoc))
-  for (const [client, clock] of Y.decodeStateVector(Y.encodeStateVector(doc))) {
-    if (clock > (theirs.get(client) ?? 0)) return true
-  }
-  return false
+  const theirs = new Y.Doc()
+  Y.applyUpdate(theirs, stored.ydoc)
+  return !Y.equalSnapshots(Y.snapshot(doc), Y.snapshot(theirs))
 }
 
 export const dirty = (note: Live) =>
