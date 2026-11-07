@@ -114,9 +114,30 @@ final class WebStageTests: XCTestCase {
             XCTAssertTrue(webView.superview === screen.view, "\(tab)")
             XCTAssertEqual(webView.bounds.size, window.bounds.size, "\(tab)")
             XCTAssertEqual(screen.view.safeAreaInsets, window.safeAreaInsets, "\(tab)")
+            XCTAssertEqual(webView.safeAreaInsets, window.safeAreaInsets, "\(tab)")
         }
         XCTAssertEqual(webView.leftWindow, 0)
         XCTAssertEqual(webView.resized, 0)
+    }
+
+    /// The bar's inset may reach a screen through its superview, which a negative additional inset
+    /// cannot take back; the page still sees the window's safe area.
+    func testAScreenUnderAContainerThatAddsTheBarsInsetKeepsTheWindowsSafeArea() throws {
+        let container = UIViewController()
+        container.additionalSafeAreaInsets = UIEdgeInsets(top: 0, left: 0, bottom: 49, right: 0)
+        let window = try shownWindow(container)
+        let webView = RecordingWebView(frame: window.bounds)
+        container.view.addSubview(webView)
+        let screen = WebTabScreen(tab: .notes, host: WebViewHost(webView: webView)) { _ in }
+        container.addChild(screen)
+        screen.view.frame = container.view.bounds
+        container.view.addSubview(screen.view)
+        screen.didMove(toParent: container)
+        container.view.layoutIfNeeded()
+        XCTAssertNotEqual(container.view.safeAreaInsets, window.safeAreaInsets)
+        XCTAssertTrue(webView.superview === screen.view)
+        XCTAssertEqual(screen.view.safeAreaInsets, window.safeAreaInsets)
+        XCTAssertEqual(webView.safeAreaInsets, window.safeAreaInsets)
     }
 }
 

@@ -15,6 +15,10 @@ final class WebTabScreen: UIViewController {
 
     required init?(coder: NSCoder) { nil }
 
+    override func loadView() {
+        view = WindowSafeAreaView()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
@@ -32,18 +36,13 @@ final class WebTabScreen: UIViewController {
         super.viewWillDisappear(animated)
         if host.webView.superview === view { host.rest() }
     }
+}
 
-    /// The page lays itself out by the window's safe area, as without the system bar.
-    override func viewSafeAreaInsetsDidChange() {
-        super.viewSafeAreaInsetsDidChange()
-        guard let window = view.window else { return }
-        let given = view.safeAreaInsets
-        let extra = additionalSafeAreaInsets
-        let wanted = UIEdgeInsets(
-            top: window.safeAreaInsets.top - (given.top - extra.top),
-            left: window.safeAreaInsets.left - (given.left - extra.left),
-            bottom: window.safeAreaInsets.bottom - (given.bottom - extra.bottom),
-            right: window.safeAreaInsets.right - (given.right - extra.right))
-        if wanted != extra { additionalSafeAreaInsets = wanted }
+/// The page lays itself out by the window's safe area, as without the system bar. The tab bar's
+/// inset can reach this view through its superview, which a negative additional inset cannot take
+/// back on every iOS, so the view reports the window's insets and its subviews derive theirs from it.
+final class WindowSafeAreaView: UIView {
+    override var safeAreaInsets: UIEdgeInsets {
+        window?.safeAreaInsets ?? super.safeAreaInsets
     }
 }
