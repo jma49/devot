@@ -2193,6 +2193,11 @@ button.phone-compose[data-hidden] {
   -webkit-user-select: text;
 }
 
+/* Under the native Settings' navigation bar, which the safe area already clears. */
+.phone-settings-pane[data-native-bar] {
+  padding-top: calc(var(--phone-safe-top) + var(--size-phone-group-gap));
+}
+
 /* Settings root */
 
 .phone-settings-group {

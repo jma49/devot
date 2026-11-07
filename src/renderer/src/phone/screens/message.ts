@@ -13,6 +13,8 @@ export const SCREENS_OPS = [
   'note.create',
   'tabs.show',
   'tabs.popToRoot',
+  'settings.showPane',
+  'settings.notebooks',
 ] as const
 export type ScreensOp = (typeof SCREENS_OPS)[number]
 
@@ -23,7 +25,15 @@ export interface TabsState {
   readonly attention: boolean
 }
 
-export type ScreensNotice = { readonly notice: 'tabs.state' } & TabsState
+/** A Settings page one of the page's sheets opens in the native Settings. */
+export interface SettingsOpen {
+  readonly pane: 'licence'
+  readonly focusKey: boolean
+}
+
+export type ScreensNotice =
+  | ({ readonly notice: 'tabs.state' } & TabsState)
+  | ({ readonly notice: 'settings.open' } & SettingsOpen)
 
 export interface ScreensRequest {
   readonly id: number

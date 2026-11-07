@@ -1,0 +1,9 @@
+{
+  "from": "page",
+  "message": {
+    "v": 1,
+    "notice": "settings.open",
+    "pane": "licence",
+    "focusKey": true
+  }
+}

@@ -69,6 +69,20 @@ pub struct NoteCreate {
     pub title: Option<String>,
 }
 
+/// A Settings pane the page still draws under the native Settings, until its native pane lands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WebPane {
+    Appearance,
+    Sync,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShowPane {
+    pub pane: WebPane,
+}
+
 /// What Swift may ask the page for: an operation joins with the pull request that first sends it.
 /// What Rust answers itself is a `direct::Op`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,6 +100,10 @@ pub enum Op {
     TabsShow(TabArgs),
     #[serde(rename = "tabs.popToRoot")]
     TabsPopToRoot(TabArgs),
+    #[serde(rename = "settings.showPane")]
+    SettingsShowPane(ShowPane),
+    #[serde(rename = "settings.notebooks")]
+    SettingsNotebooks(Empty),
 }
 
 pub const OPS: &[&str] = &[
@@ -95,6 +113,8 @@ pub const OPS: &[&str] = &[
     "note.create",
     "tabs.show",
     "tabs.popToRoot",
+    "settings.showPane",
+    "settings.notebooks",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -120,6 +140,20 @@ pub struct TabsState {
     pub attention: bool,
 }
 
+/// A Settings page the page's own sheets open: the License page, its key field first if asked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OpenPane {
+    Licence,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct SettingsOpen {
+    pub pane: OpenPane,
+    pub focus_key: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "notice", content = "fields")]
 pub enum Notice {
@@ -129,9 +163,16 @@ pub enum Notice {
     EditorTitle(EditorTitle),
     #[serde(rename = "tabs.state")]
     TabsState(TabsState),
+    #[serde(rename = "settings.open")]
+    SettingsOpen(SettingsOpen),
 }
 
-const NOTICES: &[&str] = &["notes.changed", "editor.title", "tabs.state"];
+const NOTICES: &[&str] = &[
+    "notes.changed",
+    "editor.title",
+    "tabs.state",
+    "settings.open",
+];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Request {
@@ -371,7 +412,10 @@ fn validate_op(op: &Op) -> Result<(), &'static str> {
             }
             create.title.as_deref().map_or(Ok(()), title)
         }
-        Op::TabsShow(_) | Op::TabsPopToRoot(_) => Ok(()),
+        Op::TabsShow(_)
+        | Op::TabsPopToRoot(_)
+        | Op::SettingsShowPane(_)
+        | Op::SettingsNotebooks(_) => Ok(()),
     }
 }
 
@@ -382,7 +426,7 @@ fn validate_notice(notice: &Notice) -> Result<(), &'static str> {
             note_ids(std::slice::from_ref(&editor.id), 1)?;
             title(&editor.title)
         }
-        Notice::TabsState(_) => Ok(()),
+        Notice::TabsState(_) | Notice::SettingsOpen(_) => Ok(()),
     }
 }
 

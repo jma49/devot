@@ -1,0 +1,12 @@
+{
+  "from": "swift",
+  "code": "E_SCREENS_ARGS_INVALID",
+  "message": {
+    "v": 1,
+    "id": 23,
+    "op": "settings.showPane",
+    "args": {
+      "pane": "licence"
+    }
+  }
+}

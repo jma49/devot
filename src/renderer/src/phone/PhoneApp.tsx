@@ -8,6 +8,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react'
+import { buildBookTree } from '../../../core/books'
 import { errorCode } from '../../../core/errors'
 import { TEMPLATES_BOOK_ID } from '../../../core/templatesBook'
 import { editorSettings } from '../editorSettings'
@@ -51,8 +52,10 @@ import { PhoneLibrary } from './PhoneLibrary'
 import { usePhoneData, type PhoneData } from './usePhoneData'
 import { haptic } from './haptics'
 import { startLicence, useLicence } from '../licence'
+import { choicesFromTree } from '../notebookChoices'
 import { startScreensBridge, type ScreensBridge } from './screens/bridge'
 import { SCREENS_HANDLERS } from './screens/ops'
+import { settingsHandlers, type NativeSettings } from './screens/settings'
 import { tabHandlers, tabsState, type NativeTabs } from './screens/tabs'
 import { modalOpen, watchModals } from './modal'
 import { useSpikes } from './screens/useSpikes'
@@ -313,6 +316,7 @@ export function PhoneApp() {
   const committedLater = useRef<(() => void) | null>(null)
   const latest = useRef(state)
   const nativeTabs = useRef<NativeTabs | null>(null)
+  const nativeSettings = useRef<NativeSettings | null>(null)
   const bridge = useRef<ScreensBridge | null>(null)
   // Null until the bridge says whether the native tab bar is there; the page draws its own without it.
   const [native, setNative] = useState<boolean | null>(null)
@@ -328,6 +332,10 @@ export function PhoneApp() {
       ...tabHandlers({
         show: (tab) => nativeTabs.current?.show(tab),
         popToRoot: (tab) => nativeTabs.current?.popToRoot(tab),
+      }),
+      ...settingsHandlers({
+        showPane: (pane) => nativeSettings.current?.showPane(pane),
+        notebooks: () => nativeSettings.current?.notebooks() ?? [],
       }),
     })
     bridge.current = started
@@ -484,6 +492,17 @@ export function PhoneApp() {
         if (tab === latest.current.tab) go({ type: 'selectTab', tab })
       },
     }
+    nativeSettings.current = {
+      showPane: (pane) => {
+        if (latest.current.tab !== 'settings') {
+          leaveTab()
+          go({ type: 'selectTab', tab: 'settings' })
+        }
+        go({ type: 'selectTab', tab: 'settings' })
+        go({ type: 'push', screen: 'pane', pane })
+      },
+      notebooks: () => choicesFromTree(buildBookTree(store.books)),
+    }
   })
   useEffect(() => {
     if (native)
@@ -533,7 +552,14 @@ export function PhoneApp() {
       )
     }
     if (route.screen === 'pane' && route.pane)
-      return <PhoneSettingsPane pane={route.pane} focusKey={route.focusKey === true} onBack={pop} />
+      return (
+        <PhoneSettingsPane
+          pane={route.pane}
+          focusKey={route.focusKey === true}
+          nativeBar={native === true}
+          onBack={pop}
+        />
+      )
     if (tab === 'library' && route.screen === 'root')
       return (
         <PhoneLibrary
@@ -662,6 +688,10 @@ export function PhoneApp() {
         licence={licence}
         onOpenLicence={(focusKey) => {
           setSearching(false)
+          if (native) {
+            bridge.current?.notify({ notice: 'settings.open', pane: 'licence', focusKey })
+            return
+          }
           go({ type: 'selectTab', tab: 'settings' })
           go({ type: 'push', screen: 'pane', pane: 'licence', focusKey })
         }}

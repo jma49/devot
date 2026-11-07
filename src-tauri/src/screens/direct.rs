@@ -72,6 +72,13 @@ pub struct Key {
     pub key: String,
 }
 
+/// A product of the purchase sheet, which the command checks by name.
+#[derive(Clone, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Offer {
+    pub product: String,
+}
+
 #[derive(Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct RelaySecret {
@@ -142,6 +149,10 @@ pub enum Op {
     LicenceRemove(Empty),
     #[serde(rename = "direct.licence.refresh")]
     LicenceRefresh(Empty),
+    #[serde(rename = "direct.store.products")]
+    StoreProducts(Empty),
+    #[serde(rename = "direct.store.purchase")]
+    StorePurchase(Offer),
     #[serde(rename = "direct.store.restore")]
     StoreRestore(Empty),
     #[serde(rename = "direct.store.macKey")]
@@ -210,6 +221,8 @@ pub const OPS: &[&str] = &[
     "direct.licence.set",
     "direct.licence.remove",
     "direct.licence.refresh",
+    "direct.store.products",
+    "direct.store.purchase",
     "direct.store.restore",
     "direct.store.macKey",
     "direct.store.refund",
@@ -288,6 +301,10 @@ pub async fn run(services: &Services, op: Op) -> Result<Value, &'static str> {
         Op::LicenceSet(Key { key }) => value(licence::licence_set_inner(licence, key).await),
         Op::LicenceRemove(Empty {}) => value(licence::licence_remove_inner(licence).await),
         Op::LicenceRefresh(Empty {}) => value(licence::licence_refresh_inner(licence).await),
+        Op::StoreProducts(Empty {}) => value(licence::app_store::store_products_inner(shop).await),
+        Op::StorePurchase(Offer { product }) => {
+            value(licence::app_store::store_purchase_inner(shop, &product).await)
+        }
         Op::StoreRestore(Empty {}) => {
             value(licence::app_store::store_restore_inner(shop, licence).await)
         }
@@ -550,6 +567,7 @@ mod tests {
         for (op, args) in [
             ("direct.licence.get", json!({ "key": "x" })),
             ("direct.licence.set", json!({})),
+            ("direct.store.purchase", json!({ "product": 1 })),
             ("direct.crashReports.set", json!({ "on": "yes" })),
             (
                 "direct.sync.set",
@@ -722,9 +740,25 @@ mod tests {
     fn a_build_without_the_app_store_refuses_its_actions_with_the_commands_codes() {
         let setup = setup();
         let services = &setup.services;
-        for (op, commanded) in [
+        for (op, args, commanded) in [
+            (
+                "direct.store.products",
+                json!({}),
+                json(block_on(licence::app_store::store_products_inner(
+                    &services.shop,
+                ))),
+            ),
+            (
+                "direct.store.purchase",
+                json!({ "product": "pro" }),
+                json(block_on(licence::app_store::store_purchase_inner(
+                    &services.shop,
+                    "pro",
+                ))),
+            ),
             (
                 "direct.store.restore",
+                json!({}),
                 json(block_on(licence::app_store::store_restore_inner(
                     &services.shop,
                     &services.licence,
@@ -732,20 +766,41 @@ mod tests {
             ),
             (
                 "direct.store.macKey",
+                json!({}),
                 json(block_on(licence::app_store::store_mac_key_inner(
                     &services.licence,
                 ))),
             ),
             (
                 "direct.store.refund",
+                json!({}),
                 json(block_on(licence::app_store::store_refund_inner(
                     &services.shop,
                 ))),
             ),
         ] {
             assert_eq!(commanded, Err("E_APP_STORE_UNAVAILABLE"), "{op}");
-            assert_eq!(direct(&setup, op, json!({})), commanded, "{op}");
+            assert_eq!(direct(&setup, op, args), commanded, "{op}");
         }
+        assert_eq!(
+            direct(
+                &setup,
+                "direct.store.purchase",
+                json!({ "product": "lifetime" })
+            ),
+            json(block_on(licence::app_store::store_purchase_inner(
+                &services.shop,
+                "lifetime",
+            ))),
+        );
+        assert_eq!(
+            direct(
+                &setup,
+                "direct.store.purchase",
+                json!({ "product": "lifetime" })
+            ),
+            Err("E_APP_STORE_UNKNOWN_PRODUCT"),
+        );
     }
 
     #[test]

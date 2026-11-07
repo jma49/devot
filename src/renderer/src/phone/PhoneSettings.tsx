@@ -421,7 +421,13 @@ const PANE_SECTIONS: Readonly<Partial<Record<PaneId, () => Promise<() => React.J
 }
 
 /** An existing Settings pane, in a phone screen of its own. */
-export function PhoneSettingsPane(props: { pane: string; focusKey?: boolean; onBack: () => void }) {
+/** Under the native navigation bar (`nativeBar`), the pane draws no top bar of its own. */
+export function PhoneSettingsPane(props: {
+  pane: string
+  focusKey?: boolean
+  nativeBar?: boolean
+  onBack: () => void
+}) {
   const pane = props.pane as PaneId
   const [Section, setSection] = useState<(() => React.JSX.Element) | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
@@ -443,21 +449,29 @@ export function PhoneSettingsPane(props: { pane: string; focusKey?: boolean; onB
   const title = PANE_TABS[pane] ? t(PANE_TABS[pane].label) : t('settings.title')
   return (
     <section aria-label={title} className="phone-screen">
-      <div ref={scroller} className="phone-scroll phone-settings-pane settings-window">
+      <div
+        ref={scroller}
+        className="phone-scroll phone-settings-pane settings-window"
+        data-native-bar={props.nativeBar ? '' : undefined}
+      >
         <OnPhone.Provider value={true}>{Section && <Section />}</OnPhone.Provider>
       </div>
-      <div aria-hidden="true" className="phone-topbar-band" />
-      <header className="phone-topbar">
-        <button
-          type="button"
-          className="phone-glass phone-nav-control"
-          aria-label={t('phone.back')}
-          onClick={props.onBack}
-        >
-          <Icon name="nav.back" size="lg" />
-        </button>
-        <h1 className="phone-topbar-title">{title}</h1>
-      </header>
+      {props.nativeBar ? null : (
+        <>
+          <div aria-hidden="true" className="phone-topbar-band" />
+          <header className="phone-topbar">
+            <button
+              type="button"
+              className="phone-glass phone-nav-control"
+              aria-label={t('phone.back')}
+              onClick={props.onBack}
+            >
+              <Icon name="nav.back" size="lg" />
+            </button>
+            <h1 className="phone-topbar-title">{title}</h1>
+          </header>
+        </>
+      )}
     </section>
   )
 }
