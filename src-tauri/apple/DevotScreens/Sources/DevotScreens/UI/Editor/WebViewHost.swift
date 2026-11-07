@@ -133,6 +133,17 @@ class WebHolderScreen: UIViewController {
         snapshot = nil
     }
 
+    /// Fades the still off the live page under it; a still left meanwhile is a new one.
+    func fadeSnapshot(over duration: TimeInterval) {
+        guard let still = snapshot else { return }
+        snapshot = nil
+        let fader = UIViewPropertyAnimator(
+            duration: duration, timingParameters: Tokens.Easing.standard.timingParameters)
+        fader.addAnimations { still.alpha = 0 }
+        fader.addCompletion { _ in still.removeFromSuperview() }
+        fader.startAnimation()
+    }
+
     func appeared() {}
 
     func tookWebView() {}

@@ -223,7 +223,8 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 - Each message joins the bridge with the change that first sends it: `editor.prepare` with the native lists, `editor.show`'s `focus` with New Note, and `editor.insets`, `editor.format` and `editor.gate` with the native toolbar and gate.
 - Until the lists are native, the page prepares a note itself when a finger lands on its row (`phone/screens/prepared.ts`): it holds and opens the note, and the editor takes the opened state when Swift shows it; a note no tap took is let go after 1.5 s.
 - The page decides the mode, so `editor.show` carries none: Edit for an empty note while writes are allowed, Preview otherwise, and Preview for every note while writes are locked.
-- A hidden editor keeps the last note open until the next `editor.show`, so going back to it costs nothing; its history, scroll and caret are kept per note as before.
+- A hidden editor keeps the last note open until the next `editor.show`, so going back to it costs nothing; its history and caret are kept per note as before.
+- Every `editor.show` opens the note at its top, the note shown last too, and the page sends `editor.mode`, `editor.title` and `editor.scroll` again, since each show comes with a new screen.
 - The page's editor host (`phone/screens/EditorHost.tsx`) draws the note without its own top bar or Back and Forward capsule: the system bar and the screens' stack replace them.
 - Note ids are checked as every note id is (`E_SCREENS_NOTE_ID_INVALID`), the title as a note title, and the mode against the two modes (`E_SCREENS_ARGS_INVALID`).
 
@@ -260,7 +261,8 @@ A note opens in Edit when it is empty and writes are allowed, and in Preview oth
 ### Editor to editor
 
 - A link pushes a new `EditorScreen`: the leaving one keeps a snapshot of the web view in its container, and the new one takes the live view under its cover and sends `editor.show`.
-- Popping back keeps the live view in the leaving editor while it slides; when the pop completes, the revealed editor takes it under its cover, sends `editor.show` and drops its snapshot.
+- Popping back keeps the live view in the leaving editor while it slides; when the pop completes, the revealed editor takes it behind its snapshot, with no cover, and sends `editor.show`.
+  The snapshot fades over `motion.duration.phone-adjust` once `editor.ready` arrives, or after 400 ms, so the note it already shows never gives way to a blank cover.
 
 ### New Note
 

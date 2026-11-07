@@ -244,11 +244,30 @@ final class EditorScreenTests: XCTestCase {
         navigation.popViewController(animated: true)
         settle(1)
         XCTAssertTrue(webView.isDescendant(of: one.view))
-        XCTAssertNil(one.snapshot)
-        XCTAssertTrue(one.cover.waiting, "the revealed note is shown again under its cover")
+        let still = try XCTUnwrap(one.snapshot, "the revealed note keeps its still until the page has drawn it")
+        XCTAssertTrue(one.webContainer.subviews.last === still)
+        XCTAssertFalse(one.cover.waiting, "no blank cover over a note the still already shows")
         XCTAssertEqual(page.shown, [first, second, first])
         XCTAssertTrue(page.hides.isEmpty)
         XCTAssertEqual(webView.leftWindow, 0)
+
+        one.ready(second)
+        XCTAssertNotNil(one.snapshot, "another note's paint")
+        one.ready(first)
+        XCTAssertNil(one.snapshot)
+        settle(0.5)
+        XCTAssertNil(still.superview)
+    }
+
+    func testARevealedNotesStillGoesAnywayWhenThePageIsSlow() throws {
+        let one = editor(first, coverTimeout: 0.2)
+        push(one)
+        one.ready(first)
+        push(editor(second, title: "Second"))
+        navigation.popViewController(animated: true)
+        settle(1)
+        XCTAssertNil(one.snapshot)
+        XCTAssertTrue(webView.isDescendant(of: one.view))
     }
 
     func testTheBarAsksThePageForTheOtherModeAndForInfo() {

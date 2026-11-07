@@ -228,6 +228,8 @@ export interface NativeNoteChrome {
   readonly title: (id: string, title: string) => void
   readonly titleVisible: (visible: boolean) => void
   readonly commands: RefObject<NoteCommands | null>
+  /** Counts Swift's shows: each comes with a new screen, so the page reports the bar's state again. */
+  readonly turn: number
 }
 
 // A push that ends without a transitionend (the layer was already in place) still lands.
@@ -340,6 +342,7 @@ export function PhoneNote(props: {
     }
   }, [noteId, mode])
 
+  // `native` is new on each show, so each new screen hears the mode, the title and the scroll.
   useEffect(() => {
     native?.mode(noteId, mode)
   }, [native, noteId, mode])
@@ -351,13 +354,13 @@ export function PhoneNote(props: {
   }, [native, noteId, shownTitle])
 
   // The bar takes the title once the note's own has scrolled under it.
-  const scrolledNote = useRef<string | null>(null)
+  const scrolledTurn = useRef<number | null>(null)
   useLayoutEffect(() => {
     const scroller = screen.current?.querySelector<HTMLElement>('.phone-note-scroll')
     if (!native || !noteShown || !scroller) return
-    // The one editor takes each note Swift pushes, which opens at its top.
-    if (scrolledNote.current !== noteId) scroller.scrollTop = 0
-    scrolledNote.current = noteId
+    // Each screen Swift pushes opens its note at the top, the note shown last too.
+    if (scrolledTurn.current !== native.turn) scroller.scrollTop = 0
+    scrolledTurn.current = native.turn
     let visible: boolean | null = null
     const check = () => {
       const bar = band.current?.getBoundingClientRect().bottom ?? 0
@@ -369,7 +372,7 @@ export function PhoneNote(props: {
     check()
     scroller.addEventListener('scroll', check, { passive: true })
     return () => scroller.removeEventListener('scroll', check)
-  }, [native, noteId, noteShown])
+  }, [native, noteShown])
 
   const suggester = useMemo(() => {
     const core = store.core

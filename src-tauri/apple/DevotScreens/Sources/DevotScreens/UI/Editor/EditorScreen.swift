@@ -18,6 +18,8 @@ final class EditorScreen: WebHolderScreen {
     private var noteTitle: String
     private var titleShown = true
     private var mode: NoteMode = .edit
+    private let waitLimit: TimeInterval
+    private var revealing = 0
 
     private(set) lazy var modeItem = UIBarButtonItem(
         image: UIImage(systemName: NoteMode.edit.toggleSymbol),
@@ -35,6 +37,7 @@ final class EditorScreen: WebHolderScreen {
         screenTab = tab
         self.actions = actions
         cover = EditorCover(title: title, timeout: coverTimeout)
+        waitLimit = coverTimeout
         super.init(host: host)
         hidesBottomBarWhenPushed = true
         navigationItem.backButtonDisplayMode = .minimal
@@ -67,16 +70,28 @@ final class EditorScreen: WebHolderScreen {
         actions.appeared(screenTab)
     }
 
+    /// A pop reveals a note its still already shows, so the still waits for the page instead of a cover.
     override func tookWebView() {
-        view.bringSubviewToFront(cover)
-        cover.raise()
+        guard let still = snapshot else {
+            view.bringSubviewToFront(cover)
+            cover.raise()
+            return actions.show(noteId)
+        }
+        webContainer.bringSubviewToFront(still)
+        revealing += 1
+        let turn = revealing
         actions.show(noteId)
-        dropSnapshot()
+        DispatchQueue.main.asyncAfter(deadline: .now() + waitLimit) { [weak self] in
+            guard let self, revealing == turn, host.holder === self else { return }
+            fadeSnapshot(over: Tokens.Duration.phoneAdjust)
+        }
     }
 
     func ready(_ id: String) {
         guard id == noteId, host.holder === self else { return }
         cover.ready()
+        revealing += 1
+        fadeSnapshot(over: Tokens.Duration.phoneAdjust)
     }
 
     func showMode(_ shown: NoteMode) {

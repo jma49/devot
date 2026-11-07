@@ -52,8 +52,9 @@ export function EditorHost(props: {
       titleVisible: (titleVisible) =>
         latest.current.notify({ notice: 'editor.scroll', titleVisible }),
       commands,
+      turn: shown?.turn ?? 0,
     }),
-    [],
+    [shown?.turn],
   )
 
   useImperativeHandle(

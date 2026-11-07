@@ -235,6 +235,36 @@ describe('the editor host under the native screens', () => {
     await vi.waitFor(() => expect(notices('editor.ready')).toHaveLength(2))
   })
 
+  it('reports the mode, the title and the title’s place again for each screen that shows the note', async () => {
+    const id = await shell.notes.create('Plans', null)
+    editors.bodies.set(id, 'Read me')
+    await start()
+    await swift('editor.show', { noteId: id })
+    const before = {
+      mode: notices('editor.mode').length,
+      title: notices('editor.title').length,
+      scroll: notices('editor.scroll').length,
+    }
+    expect(notices('editor.mode').at(-1)).toMatchObject({ noteId: id, mode: 'preview' })
+    await swift('editor.hide')
+    await swift('editor.show', { noteId: id })
+    expect(notices('editor.mode')).toHaveLength(before.mode + 1)
+    expect(notices('editor.mode').at(-1)).toMatchObject({ noteId: id, mode: 'preview' })
+    expect(notices('editor.title')).toHaveLength(before.title + 1)
+    expect(notices('editor.scroll')).toHaveLength(before.scroll + 1)
+  })
+
+  it('opens the note at its top on each show, even the note shown last', async () => {
+    const id = await shell.notes.create('Plans', null)
+    await start()
+    await swift('editor.show', { noteId: id })
+    const scroller = editorHost().querySelector<HTMLElement>('.phone-note-scroll')!
+    scroller.scrollTop = 400
+    await swift('editor.hide')
+    await swift('editor.show', { noteId: id })
+    expect(scroller.scrollTop).toBe(0)
+  })
+
   it('hides the editor and answers once the list is painted again', async () => {
     const id = await shell.notes.create('Plans', null)
     await start()
