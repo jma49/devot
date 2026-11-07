@@ -8267,8 +8267,14 @@ dialog[open].sheet.import {
 .panes-split > :is(.editor, .preview),
 .panes-split[data-loading] > :is(.editor, .preview) {
   --scroll-edge-size: 0px;
-  mask-image: linear-gradient(transparent, var(--color-ink-text) var(--scroll-edge-size));
+  /* The registered depth does not inherit; this copy carries its eased value down to the scroll boxes. */
+  --scroll-edge-depth: var(--scroll-edge-size);
   transition: --scroll-edge-size var(--motion-duration-quick) var(--motion-easing-quick);
+}
+
+/* Only the scroll boxes are masked (the editor's in editor/shadowFrame.ts): a mask clips to its box and drops the blur of glass inside it, and the editor's popups sit beside its scroll box. */
+.panes > .preview {
+  mask-image: linear-gradient(transparent, var(--color-ink-text) var(--scroll-edge-depth, 0px));
 }
 
 /* No deeper than the pane has scrolled (app/useScrollEdges.ts), so the first line keeps its colour until it reaches the edge. */
