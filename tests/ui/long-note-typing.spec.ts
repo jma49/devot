@@ -101,6 +101,9 @@ test('a keystroke in a 200 KB note stays within its budget', async ({ page }) =>
 // The note is three times the one above, so such work shows against the rest. Each place is typed twice, in
 // turns, a letter then Backspace so the note keeps its length, with pauses as a person leaves them; trimmed
 // means keep a garbage collection or a late frame from deciding, and CI's one retry a noisy runner.
+// Typing at a place waits until the parser has drawn it and gone quiet, as the top was before the first key:
+// CodeMirror parses only 100 KB past the view, so the first keys after a jump to the end would otherwise time
+// its catching up (seconds on CI, in either mode), not a keystroke.
 // The bound catches work of about half a keystroke; a smaller cost, such as the highlighting walk that
 // highlighting.test.ts holds, does not always cross it.
 const PLACE_NOTE_CHARS = 600_000
@@ -115,9 +118,9 @@ const trimmedMean = (values: number[]) => {
   return kept.reduce((sum, value) => sum + value, 0) / kept.length
 }
 
-/** Waits until the editor has gone `QUIET_MS` without an update: each slice of the parser's background work ends in one. */
-async function quiet(page: Page) {
-  await body(page).evaluate((el) => {
+/** Notes the time of each editor update from now on, for `quiet`. */
+function watchUpdates(page: Page) {
+  return body(page).evaluate((el) => {
     const view = (el as unknown as { cmTile: { view: ViewLike } }).cmTile.view
     const w = window
     w.devotLastUpdate = w.performance.now()
@@ -127,6 +130,10 @@ async function quiet(page: Page) {
       run(transactions)
     }
   })
+}
+
+/** Waits until the editor has gone `QUIET_MS` without an update: each slice of the parser's background work ends in one. */
+async function quiet(page: Page) {
   await expect
     .poll(() => page.evaluate(() => window.performance.now() - window.devotLastUpdate), {
       timeout: 60_000,
@@ -141,7 +148,11 @@ async function typeAt(page: Page, place: 'top' | 'end') {
     return { head: view.state.selection.main.head, length: view.state.doc.length }
   })
   expect(caret.head).toBe(place === 'top' ? 0 : caret.length)
-  await page.waitForTimeout(500)
+  const quote = body(page).locator('.cm-line', { hasText: 'A quote with' })
+  await expect(place === 'top' ? quote.first() : quote.last()).toHaveClass(/cm-md-quote/, {
+    timeout: 60_000,
+  })
+  await quiet(page)
   await page.evaluate(() => {
     window.devotKeys = []
   })
@@ -166,6 +177,7 @@ for (const mode of [
       (detail) => window.dispatchEvent(new CustomEvent('devot:open-url', { detail })),
       { kind: 'command', id: mode.command },
     )
+    await watchUpdates(page)
     await quiet(page)
     await body(page).focus()
     await watchKeys(body(page))
