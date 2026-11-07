@@ -215,6 +215,7 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
     private let query: SettingsQuery
     var onAppear: () -> Void = {}
     var onPair: () -> Void = {}
+    private var footKeeper: FootKeeper?
 
     init(store: SettingsStore, query: SettingsQuery, actions: SettingsActions) {
         self.query = query
@@ -240,20 +241,12 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Tokens.Color.phoneBackground
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: Self, _: UITraitCollection) in
-            self.keepTheFootInView()
-        }
     }
 
-    /// The list keeps its offset when the text size changes, which would push the build footer off the
-    /// screen for someone reading it at the foot; there the foot stays in view.
-    private func keepTheFootInView() {
-        guard let list = view.firstSubview(of: UICollectionView.self) else { return }
-        guard list.contentOffset.y >= list.footOffset - 1 else { return }
-        DispatchQueue.main.async { [weak list] in
-            guard let list else { return }
-            list.layoutIfNeeded()
-            list.setContentOffset(CGPoint(x: list.contentOffset.x, y: list.footOffset), animated: false)
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if footKeeper == nil, let list = view.firstSubview(of: UICollectionView.self) {
+            footKeeper = FootKeeper(list)
         }
     }
 
@@ -267,9 +260,42 @@ final class SettingsRootScreen: UIHostingController<SettingsRootView>, UISearchR
     }
 }
 
-extension UIScrollView {
-    fileprivate var footOffset: CGFloat {
-        max(-adjustedContentInset.top, contentSize.height + adjustedContentInset.bottom - bounds.height)
+/// Keeps a list at its foot while its content grows, once the reader has scrolled there: a list keeps its
+/// offset otherwise, so a larger text size would push the build footer off the screen, and SwiftUI's list
+/// can pass through a short content size on the way.
+@MainActor
+final class FootKeeper {
+    private let list: UIScrollView
+    private let movedByTheReader: @MainActor (UIScrollView) -> Bool
+    private var observations: [NSKeyValueObservation] = []
+    private var adjusting = false
+    private(set) var atTheFoot = false
+
+    init(_ list: UIScrollView, movedByTheReader: @escaping @MainActor (UIScrollView) -> Bool = {
+        $0.isTracking || $0.isDragging || $0.isDecelerating
+    }) {
+        self.list = list
+        self.movedByTheReader = movedByTheReader
+        observations = [
+            list.observe(\.contentOffset) { [weak self] _, _ in MainActor.assumeIsolated { self?.moved() } },
+            list.observe(\.contentSize) { [weak self] _, _ in MainActor.assumeIsolated { self?.resized() } },
+        ]
+    }
+
+    private var foot: CGFloat {
+        max(-list.adjustedContentInset.top, list.contentSize.height + list.adjustedContentInset.bottom - list.bounds.height)
+    }
+
+    private func moved() {
+        guard !adjusting, movedByTheReader(list) else { return }
+        atTheFoot = list.contentOffset.y >= foot - 1
+    }
+
+    private func resized() {
+        guard atTheFoot, abs(list.contentOffset.y - foot) > 0.5 else { return }
+        adjusting = true
+        list.contentOffset.y = foot
+        adjusting = false
     }
 }
 

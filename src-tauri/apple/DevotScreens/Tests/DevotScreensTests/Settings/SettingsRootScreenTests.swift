@@ -32,10 +32,6 @@ final class SettingsRootScreenTests: XCTestCase {
         return (window, navigation, root)
     }
 
-    private func foot(_ list: UIScrollView) -> CGFloat {
-        list.contentSize.height + list.adjustedContentInset.bottom - list.bounds.height
-    }
-
     /// Lets SwiftUI lay the list out at the new text size.
     private func settle(_ list: UIScrollView) {
         var last = list.contentSize
@@ -46,27 +42,46 @@ final class SettingsRootScreenTests: XCTestCase {
         }
     }
 
-    /// A larger text size seen from the foot leaves the build footer in view, as the list would keep its
-    /// offset and push the footer off the screen.
-    func testALargerTextSizeAtTheFootKeepsTheFootInView() throws {
-        let (window, _, root) = try show()
-        let list = try XCTUnwrap(views(in: root.view).compactMap { $0 as? UICollectionView }.first)
-        XCTAssertGreaterThan(foot(list), 0)
-        list.setContentOffset(CGPoint(x: 0, y: foot(list)), animated: false)
-        let before = list.contentSize.height
-        window.traitOverrides.preferredContentSizeCategory = .accessibilityLarge
-        settle(list)
-        XCTAssertGreaterThan(list.contentSize.height, before)
-        XCTAssertEqual(list.contentOffset.y, foot(list), accuracy: 1)
-    }
-
     func testALargerTextSizeAtTheTopLeavesTheListAtTheTop() throws {
         let (window, _, root) = try show()
         let list = try XCTUnwrap(views(in: root.view).compactMap { $0 as? UICollectionView }.first)
         let top = list.contentOffset.y
+        let before = list.contentSize.height
         window.traitOverrides.preferredContentSizeCategory = .accessibilityLarge
         settle(list)
+        XCTAssertGreaterThan(list.contentSize.height, before)
         XCTAssertEqual(list.contentOffset.y, top, accuracy: 1)
+    }
+
+    private func scrolled(byTheReader reader: @escaping () -> Bool) -> (UIScrollView, FootKeeper) {
+        let list = UIScrollView(frame: CGRect(x: 0, y: 0, width: 400, height: 600))
+        list.contentInsetAdjustmentBehavior = .never
+        list.contentSize = CGSize(width: 400, height: 1000)
+        return (list, FootKeeper(list) { _ in reader() })
+    }
+
+    /// The list passes through a short content size on its way to the larger one, as SwiftUI's does.
+    func testTheFootStaysInViewWhileTheContentGrowsAfterTheReaderScrolledThere() {
+        var reader = true
+        let (list, keeper) = scrolled { reader }
+        list.contentOffset.y = 400
+        XCTAssertTrue(keeper.atTheFoot)
+        reader = false
+        list.contentSize.height = 300
+        list.contentOffset.y = 0
+        list.contentSize.height = 1600
+        XCTAssertEqual(list.contentOffset.y, 1000)
+    }
+
+    func testAListAboveItsFootKeepsItsOffsetWhileTheContentGrows() {
+        var reader = true
+        let (list, keeper) = scrolled { reader }
+        list.contentOffset.y = 400
+        list.contentOffset.y = 200
+        XCTAssertFalse(keeper.atTheFoot)
+        reader = false
+        list.contentSize.height = 1600
+        XCTAssertEqual(list.contentOffset.y, 200)
     }
 
     /// The accessibility audit measures the bar button by its 36 pt frame; touches are what count.
