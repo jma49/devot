@@ -169,12 +169,20 @@ export function patchChildren(parent: Node, next: readonly HastChild[]): void {
   else while (parent.childNodes.length > wanted.length) parent.lastChild?.remove()
 }
 
+/** A run of a piece's marked elements, in document order, that counts from its own line and offset. */
+export interface PiecePart {
+  line: number
+  offset: number
+  marks: number
+}
+
 /** What the page shows of one piece of the note (see `renderPreviewPieces`). */
 export interface ShownPiece {
   key: string
-  /** The line and offset the piece's attributes count from. */
+  /** The line and offset the piece's attributes count from, unless it has parts. */
   line: number
   offset: number
+  parts?: PiecePart[]
   nodes: ChildNode[]
   marked: Element[]
 }
@@ -183,6 +191,7 @@ export interface NextPiece {
   key: string
   line: number
   offset: number
+  parts?: readonly PiecePart[] | undefined
   nodes?: readonly HastChild[] | undefined
 }
 
@@ -207,16 +216,47 @@ function bump(el: Element, name: string, by: number): void {
   if (value !== null) el.setAttribute(name, String(Number(value) + by))
 }
 
-function moveTo(piece: ShownPiece, line: number, offset: number): void {
-  const lines = line - piece.line
-  const chars = offset - piece.offset
+function shiftMarked(
+  marked: readonly Element[],
+  from: number,
+  to: number,
+  lines: number,
+  chars: number,
+) {
   if (lines === 0 && chars === 0) return
-  for (const el of piece.marked) {
+  for (let i = from; i < to; i += 1) {
+    const el = marked[i]!
     if (lines !== 0) bump(el, LINE_ATTRIBUTE, lines)
     if (chars !== 0) for (const name of OFFSET_ATTRIBUTES) bump(el, name, chars)
   }
-  piece.line = line
-  piece.offset = offset
+}
+
+function moveTo(piece: ShownPiece, to: NextPiece): void {
+  if (piece.parts && to.parts) {
+    let from = 0
+    for (const [at, part] of to.parts.entries()) {
+      const was = piece.parts[at]!
+      shiftMarked(
+        piece.marked,
+        from,
+        from + part.marks,
+        part.line - was.line,
+        part.offset - was.offset,
+      )
+      from += part.marks
+    }
+    piece.parts = to.parts.map((part) => ({ ...part }))
+  } else {
+    shiftMarked(
+      piece.marked,
+      0,
+      piece.marked.length,
+      to.line - piece.line,
+      to.offset - piece.offset,
+    )
+  }
+  piece.line = to.line
+  piece.offset = to.offset
 }
 
 /** `patchChildren` for the run `old`, which sits just before `before`. */
@@ -283,8 +323,9 @@ export function patchPieces(
     null
 
   const fresh = (piece: NextPiece, nodes: ChildNode[]): ShownPiece => {
-    const made = { key: piece.key, line: 1, offset: 0, nodes, marked: markedIn(nodes) }
-    moveTo(made, piece.line, piece.offset)
+    const made: ShownPiece = { key: piece.key, line: 1, offset: 0, nodes, marked: markedIn(nodes) }
+    if (piece.parts) made.parts = piece.parts.map((part) => ({ ...part, line: 1, offset: 0 }))
+    moveTo(made, piece)
     return made
   }
 
@@ -320,7 +361,7 @@ export function patchPieces(
       }
       const stays = oldMiddle[was]
       if (stays) {
-        moveTo(stays, newMiddle[at]!.line, newMiddle[at]!.offset)
+        moveTo(stays, newMiddle[at]!)
         middle.push(stays)
       }
       fromNew = at + 1
@@ -338,7 +379,7 @@ export function patchPieces(
       const old = known.get(piece.key)
       if (!old || reused.has(old)) throw new Error('E_PREVIEW_PIECE_MISSING')
       reused.add(old)
-      moveTo(old, piece.line, piece.offset)
+      moveTo(old, piece)
       return old
     })
     for (const piece of oldMiddle) {
@@ -349,7 +390,7 @@ export function patchPieces(
 
   const out = [...shown.slice(0, head), ...middle, ...after]
   for (let i = 0; i < out.length; i += 1) {
-    if (i < head || i >= head + middle.length) moveTo(out[i]!, next[i]!.line, next[i]!.offset)
+    if (i < head || i >= head + middle.length) moveTo(out[i]!, next[i]!)
   }
   return out
 }

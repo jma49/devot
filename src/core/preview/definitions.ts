@@ -42,9 +42,15 @@ export function likelyDefined(text: string): Label[] {
   return [...out]
 }
 
+export type LinkDefinition = Pick<Definition, 'identifier' | 'url'> & {
+  label: string | null
+  title: string | null
+}
+export type NoteDefinition = Pick<FootnoteDefinition, 'identifier'> & { label: string | null }
+
 export interface Definitions {
-  links: Map<Label, Definition>
-  notes: Map<Label, FootnoteDefinition>
+  links: Map<Label, LinkDefinition>
+  notes: Map<Label, NoteDefinition>
 }
 
 /** The definitions in a parsed piece, the first of each label. */
@@ -54,10 +60,20 @@ export function definitionsIn(tree: MdastRoot): Definitions {
     for (const node of nodes) {
       if (node.type === 'definition') {
         const label = normalizeLabel(node.label ?? node.identifier)
-        if (!found.links.has(label)) found.links.set(label, node)
+        if (!found.links.has(label)) {
+          const { identifier, url } = node
+          found.links.set(label, {
+            identifier,
+            url,
+            label: node.label ?? null,
+            title: node.title ?? null,
+          })
+        }
       } else if (node.type === 'footnoteDefinition') {
         const label = NOTE + normalizeLabel(node.label ?? node.identifier)
-        if (!found.notes.has(label)) found.notes.set(label, node)
+        if (!found.notes.has(label)) {
+          found.notes.set(label, { identifier: node.identifier, label: node.label ?? null })
+        }
       }
       if ('children' in node) walk(node.children)
     }

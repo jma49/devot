@@ -1,4 +1,4 @@
-import type { Root, RootContent } from 'hast'
+import type { Element, Root, RootContent } from 'hast'
 import { describe, expect, it } from 'vitest'
 import {
   createPieceRenderer,
@@ -19,19 +19,27 @@ import { labels, noteFields } from '../support/preview-html'
 
 const options: PreviewOptions = { labels, loadedEmbeds: [] }
 
-function shifted(node: RootContent, line: number, offset: number): RootContent {
+const marked = (node: Element) =>
+  typeof node.properties[PIECE_LINE_PROPERTY] === 'number' ||
+  PIECE_OFFSET_PROPERTIES.some((name) => typeof node.properties[name] === 'number')
+
+/** `node` with its lines and offsets counted from the note, each marked element from `baseOf()`. */
+function shifted(node: RootContent, baseOf: () => { line: number; offset: number }): RootContent {
   if (node.type !== 'element') return structuredClone(node)
   const properties = { ...node.properties }
-  const at = properties[PIECE_LINE_PROPERTY]
-  if (typeof at === 'number') properties[PIECE_LINE_PROPERTY] = at + line - 1
-  for (const name of PIECE_OFFSET_PROPERTIES) {
-    const value = properties[name]
-    if (typeof value === 'number') properties[name] = value + offset
+  if (marked(node)) {
+    const { line, offset } = baseOf()
+    const at = properties[PIECE_LINE_PROPERTY]
+    if (typeof at === 'number') properties[PIECE_LINE_PROPERTY] = at + line - 1
+    for (const name of PIECE_OFFSET_PROPERTIES) {
+      const value = properties[name]
+      if (typeof value === 'number') properties[name] = value + offset
+    }
   }
   return {
     ...node,
     properties,
-    children: node.children.map((c) => shifted(c, line, offset)) as typeof node.children,
+    children: node.children.map((c) => shifted(c, baseOf)) as typeof node.children,
   }
 }
 
@@ -42,7 +50,11 @@ function assemble(pieces: PreviewPiece[], kept: Map<string, RootContent[]>): Roo
     const nodes = piece.nodes ?? kept.get(piece.key)
     if (!nodes) throw new Error(`no nodes for ${piece.key}`)
     kept.set(piece.key, structuredClone(nodes))
-    children.push(...nodes.map((n) => shifted(n, piece.line, piece.offset)))
+    const bases = piece.parts?.flatMap((part) => Array<typeof part>(part.marks).fill(part))
+    let mark = 0
+    const baseOf = () => (bases ? bases[mark++]! : piece)
+    children.push(...nodes.map((n) => shifted(n, baseOf)))
+    expect(mark).toBe(bases?.length ?? mark)
   }
   return { type: 'root', children }
 }
@@ -115,6 +127,7 @@ const CASES: Record<string, string> = {
   diagrams:
     '```mermaid\ngraph TD\n  A --> B\n```\n\nText.\n\n```mermaid\nsequenceDiagram\n  A->>B: hi\n```',
   'code with titles': '```ts title="a.ts"\nlet a = 1\n```\n\n```py line=3-4\nx = 1\n\ny = 2\n```',
+  'headings in footnotes': '# Same\n\nCall[^h].\n\n[^h]: Note\n\n    # Same\n\n# Same\n\nEnd.',
   'processing instructions': 'A.\n\n<?php\n\necho 1;\n\n?>\n\nB.',
   'empty and blank notes': '\n\n\n',
 }
@@ -206,8 +219,43 @@ describe('createPieceRenderer', () => {
     assemble(edited, kept)
     const markdown = note(' edited', ' edited')
     const both = await render(markdown, options, [...kept.keys()])
-    expect(both.filter((p) => p.nodes !== undefined).map((p) => p.line)).toEqual([21, 1])
+    expect(both.filter((p) => p.nodes !== undefined).map((p) => p.line)).toEqual([21, 3])
     expect(blocksOnly(assemble(both, kept))).toEqual(
+      blocksOnly(await renderPreview(markdown, options)),
+    )
+  })
+
+  it('keeps the list of notes when lines and characters are added above the notes it lists', async () => {
+    const render = createPieceRenderer({ pieceLength: 30 })
+    const note = (edit: string) =>
+      [...Array(8).keys()]
+        .map(
+          (i) =>
+            `Para ${i}${i === 1 ? edit : ''} calls[^n${i}].\n\n[^n${i}]: Note ${i}, ![i](https://example.com/${i}.png)\n\n    - [ ] task ${i}`,
+        )
+        .join('\n\n')
+    const kept = new Map<string, RootContent[]>()
+    assemble(await render(note(''), options), kept)
+    for (const edit of [' typed', ' typed\nand a line']) {
+      const markdown = note(edit)
+      const next = await render(markdown, options, [...kept.keys()])
+      const sent = next.filter((p) => p.nodes !== undefined)
+      expect(sent.map((p) => p.line)).toContain(7)
+      expect(sent.filter((p) => p.parts)).toEqual([])
+      expect(blocksOnly(assemble(next, kept))).toEqual(
+        blocksOnly(await renderPreview(markdown, options)),
+      )
+    }
+  })
+
+  it('names the headings in footnotes after every other heading, again when one is added before them', async () => {
+    const render = small()
+    const kept = new Map<string, RootContent[]>()
+    const before = 'Call[^h].\n\n[^h]: Note\n\n    # Same\n\nEnd.'
+    assemble(await render(before, options), kept)
+    const markdown = `# Same\n\n${before}`
+    const next = await render(markdown, options, [...kept.keys()])
+    expect(blocksOnly(assemble(next, kept))).toEqual(
       blocksOnly(await renderPreview(markdown, options)),
     )
   })

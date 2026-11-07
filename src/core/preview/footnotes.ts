@@ -2,21 +2,27 @@
 // defines (definitions.ts), and they are numbered across the note, with one list of notes at its
 // end, as mdast-util-to-hast numbers and lists them for a whole note.
 import type { Element, ElementContent, Root as HastRoot, RootContent } from 'hast'
-import { PIECE_OFFSET_PROPERTIES } from './registry'
 
 const CALL_HREF = '#fn-'
 const CALL_ID = 'user-content-fnref-'
 const NOTE_ID = 'user-content-fn-'
 const BACK_HREF = '#fnref-'
 
-/** A note a piece defines, as its list item renders it (lines and offsets count from the piece). */
+/** A note a piece defines, as its list item renders it. */
 export interface PieceNote {
   id: string
+  /** Its lines and offsets count from `line` and `offset`, where it starts in its piece. */
   item: Element
+  line: number
+  offset: number
   /** Calls in the note itself, to other notes. */
   calls: Element[]
-  /** Whether the item holds offsets into the note, which move when text before it changes. */
-  offsets: boolean
+  /** How many of its elements carry a line or an offset. */
+  marks: number
+  /** The text of its headings to name, in order. */
+  headings: string[]
+  /** Its back reference's label, split where the note's number goes. */
+  backLabel: readonly [string, string]
   /** The same for each render of the same item, so the list of notes is sent again only when one changed. */
   version: number
 }
@@ -47,9 +53,13 @@ function callsIn(nodes: readonly (RootContent | ElementContent)[], out: Element[
   return out
 }
 
-function holdsOffsets(node: Element): boolean {
-  if (PIECE_OFFSET_PROPERTIES.some((name) => node.properties[name] !== undefined)) return true
-  return node.children.some((child) => isElement(child) && holdsOffsets(child))
+/** The label the piece's render gave the item's first back reference, `number` being its place there. */
+function backLabelOf(item: Element, number: number): readonly [string, string] {
+  const found = firstBackReference(item)
+  const link = found?.parent.children[found.at] as Element | undefined
+  const label = String(link?.properties['ariaLabel'] ?? '')
+  const at = label.lastIndexOf(String(number))
+  return at < 0 ? [label, ''] : [label.slice(0, at), label.slice(at + String(number).length)]
 }
 
 /** The list of notes and the paragraph of calls a piece's render added, which come without a source position. */
@@ -92,16 +102,22 @@ export function takeFootnotes(tree: HastRoot, strip: (tree: HastRoot) => void): 
   const extra = added(tree)
   const section = extra.find(({ node }) => node.tagName === 'section')?.node
   const items = section ? listOf(section).children.filter(isElement) : []
-  const own = items.filter((item) => item.position)
+  const own = items.flatMap((item) => (item.position ? [{ item, start: item.position.start }] : []))
   strip(tree)
   for (const { node, parent } of extra) remove(parent, node)
-  const notes = own.map((item) => ({
+  const notes = own.map(({ item, start }) => ({
     id: String(item.properties['id']).slice(NOTE_ID.length),
     item,
+    line: start.line,
+    offset: start.offset ?? 0,
     calls: callsIn(item.children),
-    offsets: holdsOffsets(item),
+    marks: 0,
+    headings: [],
+    backLabel: backLabelOf(item, items.indexOf(item) + 1),
     version: 0,
   }))
+  // One back reference, so an item does not change with the calls its piece made.
+  for (const note of notes) withBackReferences(note.item, note, 0, 1)
   if (section) listOf(section).children = []
   return { calls: callsIn(tree.children), notes, ...(section ? { section } : {}) }
 }
@@ -139,7 +155,12 @@ export function createNumbering() {
 
 const text = (value: string): ElementContent => ({ type: 'text', value })
 
-function backReference(id: string, index: number, repeat: number): Element {
+function backReference(
+  id: string,
+  index: number,
+  repeat: number,
+  [before, after]: readonly [string, string],
+): Element {
   const suffix = repeat > 1 ? `-${repeat}` : ''
   return {
     type: 'element',
@@ -147,7 +168,7 @@ function backReference(id: string, index: number, repeat: number): Element {
     properties: {
       href: BACK_HREF + id + suffix,
       dataFootnoteBackref: '',
-      ariaLabel: `Back to reference ${index + 1}${suffix}`,
+      ariaLabel: before + String(index + 1) + suffix + after,
       className: ['data-footnote-backref'],
     },
     children: [
@@ -169,8 +190,13 @@ function firstBackReference(parent: Element): { parent: Element; at: number } | 
   return null
 }
 
-/** `item` with `count` links back to its calls, the note being `index`th in the list. */
-export function withBackReferences(item: Element, id: string, index: number, count: number): void {
+/** `note`'s `item` with `count` links back to its calls, the note being `index`th in the list. */
+export function withBackReferences(
+  item: Element,
+  note: PieceNote,
+  index: number,
+  count: number,
+): void {
   const found = firstBackReference(item)
   if (!found) return
   const { parent, at } = found
@@ -179,7 +205,7 @@ export function withBackReferences(item: Element, id: string, index: number, cou
   const links: ElementContent[] = []
   for (let repeat = 1; repeat <= count; repeat += 1) {
     if (repeat > 1) links.push(text(loose ? '\n \n' : ' '))
-    links.push(backReference(id, index, repeat))
+    links.push(backReference(note.id, index, repeat, note.backLabel))
   }
   if (loose) links.push(text('\n'))
   parent.children.splice(at, parent.children.length - at, ...links)

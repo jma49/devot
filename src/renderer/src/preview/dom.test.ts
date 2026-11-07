@@ -130,4 +130,41 @@ describe('patchPieces', () => {
     expect(Array.from(host.children, (el) => el.textContent)).toEqual(['A', 'C'])
     expect(shown.map((p) => p.key)).toEqual(['a', 'c', 'e'])
   })
+
+  it('moves each part of a piece from its own start', () => {
+    const host = document.createElement('div')
+    const task = (at: number): HastElement => ({
+      type: 'element',
+      tagName: 'input',
+      properties: { type: 'checkbox', dataTaskAt: at },
+      children: [],
+    })
+    const list: HastElement = {
+      type: 'element',
+      tagName: 'ol',
+      properties: {},
+      children: [
+        { ...paragraph('One', 1), children: [task(4)] },
+        { ...paragraph('Two', 2), children: [task(5)] },
+      ],
+    }
+    const parts = (one: number, two: number) => [
+      { line: one, offset: one * 10, marks: 2 },
+      { line: two, offset: two * 10, marks: 2 },
+    ]
+    let shown = patchPieces(
+      host,
+      [],
+      [{ key: 'notes', line: 3, offset: 30, parts: parts(3, 8), nodes: [list] }],
+    )
+    const read = () =>
+      Array.from(
+        host.querySelectorAll('p, input'),
+        (el) => el.getAttribute('data-source-line') ?? el.getAttribute('data-task-at'),
+      )
+    expect(read()).toEqual(['3', '34', '9', '85'])
+    shown = patchPieces(host, shown, [{ key: 'notes', line: 3, offset: 30, parts: parts(3, 10) }])
+    expect(read()).toEqual(['3', '34', '11', '105'])
+    expect(shown[0]!.parts).toEqual(parts(3, 10))
+  })
 })

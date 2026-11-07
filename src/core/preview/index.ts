@@ -2,12 +2,7 @@
 // allowlist, and only then do preview renderers add Devot's own structure. The tree is plain data, so it crosses the worker boundary.
 import type { Comment, Element, ElementContent, Root as HastRoot, RootContent } from 'hast'
 import { textOf } from '../hastText'
-import type {
-  Definition,
-  FootnoteDefinition,
-  Root as MdastRoot,
-  RootContent as MdastContent,
-} from 'mdast'
+import type { Root as MdastRoot, RootContent as MdastContent } from 'mdast'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema, type Options as Schema } from 'rehype-sanitize'
 import remarkFrontmatter from 'remark-frontmatter'
@@ -26,12 +21,15 @@ import {
   remarkSeededLabels,
   type Definitions,
   type Label,
+  type LinkDefinition,
+  type NoteDefinition,
 } from './definitions'
 import {
   createNumbering,
   footnoteSection,
   takeFootnotes,
   withBackReferences,
+  type PieceFootnotes,
   type PieceNote,
 } from './footnotes'
 import { createSlugger, headingIds, ID_PREFIX } from './headingIds'
@@ -263,12 +261,24 @@ async function transformed(
  * the caller already has a piece with this `key`. Lines and offsets in the
  * nodes (`data-source-line`, `data-task-at`, `data-image-from`/`-to`) count
  * from the piece's start: add `line - 1` and `offset` for the note's.
+ * With `parts`, the elements carrying them, in document order, fall into
+ * parts that each count from their own start instead: the list of notes has
+ * a part per note, from where the note is defined, so text added above a
+ * note moves its lines without sending the list again.
  */
 export interface PreviewPiece {
   key: string
   line: number
   offset: number
+  parts?: PiecePart[]
   nodes?: RootContent[]
+}
+
+export interface PiecePart {
+  line: number
+  offset: number
+  /** How many of the piece's elements with a line or an offset are in this part. */
+  marks: number
 }
 
 interface Rendered {
@@ -304,10 +314,19 @@ interface PieceContext {
 /** Elements carrying a source line, and those carrying an offset into the note. */
 export const PIECE_LINE_PROPERTY = 'dataSourceLine'
 
-/** The headings `headingIds` names, in its order. */
+/**
+ * The headings `headingIds` names, in its order, bar those in the list of notes a piece's render
+ * added: the note's list is named after all its pieces.
+ */
 function unnamedHeadings(nodes: readonly RootContent[], out: Rendered['headings']): void {
   for (const node of nodes) {
     if (node.type !== 'element') continue
+    if (
+      node.tagName === 'section' &&
+      !node.position &&
+      node.properties['dataFootnotes'] !== undefined
+    )
+      continue
     if (HEADING.test(node.tagName) && node.properties['id'] === undefined) {
       out.push({ node, text: textOf(node) })
     }
@@ -315,7 +334,6 @@ function unnamedHeadings(nodes: readonly RootContent[], out: Rendered['headings'
   }
 }
 
-/** Moves a node's lines and offsets by `lines` and `chars`. */
 function shift(node: RootContent | ElementContent, lines: number, chars: number): void {
   if (node.type !== 'element') return
   const line = node.properties[PIECE_LINE_PROPERTY]
@@ -325,6 +343,17 @@ function shift(node: RootContent | ElementContent, lines: number, chars: number)
     if (typeof value === 'number') node.properties[name] = value + chars
   }
   for (const child of node.children) shift(child, lines, chars)
+}
+
+/** The elements in `node` with a line or an offset, as the page counts them for `PiecePart`. */
+function marksIn(node: RootContent | ElementContent): number {
+  if (node.type !== 'element') return 0
+  const own =
+    typeof node.properties[PIECE_LINE_PROPERTY] === 'number' ||
+    PIECE_OFFSET_PROPERTIES.some((name) => typeof node.properties[name] === 'number')
+  let count = own ? 1 : 0
+  for (const child of node.children) count += marksIn(child)
+  return count
 }
 
 const HEADING = /^h[1-6]$/
@@ -421,12 +450,18 @@ export function createPieceRenderer({
     )
     const footnotes = takeFootnotes(tree, markLinesAndStripPositions)
     for (const note of footnotes.notes) {
+      // Counted from the note's own start, an item stays the same when text before it changes.
+      shift(note.item, 1 - note.line, -note.offset)
       const shape = JSON.stringify(note.item)
       const known = noteVersions.get(note.id)
       const version = known?.shape === shape ? known.version : (ids += 1)
       noteVersions.delete(note.id)
       noteVersions.set(note.id, { shape, version })
       note.version = version
+      note.marks = marksIn(note.item)
+      const named: Rendered['headings'] = []
+      unnamedHeadings(note.item.children, named)
+      note.headings = named.map((heading) => heading.text)
     }
     for (const id of noteVersions.keys()) {
       if (noteVersions.size <= KEPT_NOTE_VERSIONS) break
@@ -508,8 +543,8 @@ export function createPieceRenderer({
 
     // The note's definition of a label is its first.
     const owner = new Map<Label, number>()
-    const links = new Map<Label, Definition>()
-    const notes = new Map<Label, FootnoteDefinition>()
+    const links = new Map<Label, LinkDefinition>()
+    const notes = new Map<Label, NoteDefinition>()
     for (const i of blocks.keys()) {
       const { defines } = summary(i)
       for (const [label, node] of defines.links) {
@@ -535,7 +570,7 @@ export function createPieceRenderer({
             context.calls.push({
               type: 'footnoteReference',
               identifier: note.identifier,
-              label: note.label ?? null,
+              label: note.label,
             })
           }
           continue
@@ -547,7 +582,7 @@ export function createPieceRenderer({
           side.push({
             type: 'footnoteDefinition',
             identifier: note.identifier,
-            label: note.label ?? null,
+            label: note.label,
             children: [],
           })
           parts.push(label + where)
@@ -556,9 +591,9 @@ export function createPieceRenderer({
           side.push({
             type: 'definition',
             identifier: link.identifier,
-            label: link.label ?? null,
+            label: link.label,
             url: link.url,
-            title: link.title ?? null,
+            title: link.title,
           })
           parts.push(`${label}\u0001${link.url}\u0001${link.title ?? ''}${where}`)
         }
@@ -638,28 +673,34 @@ export function createPieceRenderer({
       listed.push({ ...defined, index, count: numbering.counts.get(id)!, calls })
     }
     if (listed.length === 0) return pieces
-    // Lines and offsets count from the first piece with a note listed.
-    const base = blocks[Math.min(...listed.map(({ piece }) => piece))]!
-    const moved = listed.map(({ piece, note, index, count, calls }) => {
-      const lines = blocks[piece]!.line - base.line
-      const chars = blocks[piece]!.offset - base.offset
-      return { piece, note, index, count, calls, lines, chars }
-    })
-    const key = `notes ${moved
+    const named = listed.map(({ note }) => (next ? note.headings.map((text) => next(text)) : []))
+    const key = `notes ${listed
       .map(
-        ({ note, index, count, calls, lines, chars }) =>
-          `${note.version}.${index}.${count}.${calls}.${lines}.${note.offsets ? chars : ''}`,
+        ({ note, index, count, calls }, at) =>
+          `${note.version}.${index}.${count}.${calls}.${named[at]!.join('\u0001')}`,
       )
-      .join(' ')}`
-    const footer: PreviewPiece = { key, line: base.line, offset: base.offset }
+      .join('\u0000')}`
+    const shape = rendered[listed[0]!.piece]!.footnotes.section!
+    const parts = listed.map(({ piece, note }) => {
+      const { line, offset } = blocks[piece]!
+      return { line: line + note.line - 1, offset: offset + note.offset, marks: note.marks }
+    })
+    // The section around the notes counts with the first.
+    parts[0]!.marks += marksIn(shape)
+    const footer: PreviewPiece = { key, line: parts[0]!.line, offset: parts[0]!.offset, parts }
     if (!have.has(key)) {
-      const items = moved.map(({ note, index, count, lines, chars }) => {
+      const items = listed.map(({ note, index, count }, at) => {
         const item = structuredClone(note.item)
-        shift(item, lines, chars)
-        withBackReferences(item, note.id, index, count)
+        const headings: Rendered['headings'] = []
+        unnamedHeadings(item.children, headings)
+        for (const [h, { node }] of headings.entries()) {
+          const slug = named[at]![h]
+          if (slug) node.properties['id'] = ID_PREFIX + slug
+          else delete node.properties['id']
+        }
+        withBackReferences(item, note, index, count)
         return item
       })
-      const shape = rendered[moved[0]!.piece]!.footnotes.section!
       footer.nodes = [LINE_BREAK, footnoteSection(shape, items)]
     }
     return [...pieces, footer]
