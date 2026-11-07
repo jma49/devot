@@ -15,12 +15,12 @@ struct TextCard: View {
         let fontSize = size ?? store.editor["fontSize"]?.number ?? Self.defaultSize
         let previewSize = preview ?? store.editor["previewFontSize"]?.number ?? Self.defaultPreview
         VStack(alignment: .leading, spacing: Tokens.Space.space4) {
-            Text(L10n.phoneSettingsAppearanceSample())
-                .font(NoteFont(editor: store.editor).font(size: fontSize))
-                .foregroundStyle(Color(Tokens.Color.phoneText))
-            Text(L10n.phoneSettingsAppearanceSamplePreview())
-                .font(.system(size: previewSize))
-                .foregroundStyle(Color(Tokens.Color.phoneTextSecondary))
+            TextPicture(
+                text: L10n.phoneSettingsAppearanceSample(), font: NoteFont(editor: store.editor).font(size: fontSize),
+                color: Tokens.Color.phoneText)
+            TextPicture(
+                text: L10n.phoneSettingsAppearanceSamplePreview(), font: .system(size: previewSize),
+                color: Tokens.Color.phoneTextSecondary)
         }
         .padding(.vertical, Tokens.Space.space4)
         .settingsRow()

@@ -3,6 +3,7 @@ import SwiftUI
 /// Always, Follow System and Off as checkmark rows in place; the check moves at once.
 struct MotionRows: View {
     let store: SettingsStore
+    @ScaledMetric(relativeTo: .body) private var check: CGFloat = 18
 
     static let choices = ["always", "system", "off"]
 
@@ -18,7 +19,7 @@ struct MotionRows: View {
                         Spacer(minLength: Tokens.Size.phoneGroupedGap)
                         if choice == current {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 18, weight: .semibold))
+                                .font(.system(size: check, weight: .semibold))
                                 .foregroundStyle(Color(Tokens.Color.accentText))
                                 .accessibilityHidden(true)
                         }
@@ -30,7 +31,7 @@ struct MotionRows: View {
                 .settingsRow()
             }
         } header: {
-            Text(catalog("appearanceSettings.groupMotion"))
+            Header(catalog("appearanceSettings.groupMotion"))
         } footer: {
             Footer(L10n.phoneSettingsAppearanceAnimationsFooter())
         }

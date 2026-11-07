@@ -6,7 +6,7 @@ struct GlassCard: View {
     let glass: GlassStyleStore
 
     var body: some View {
-        GlassSample(style: glass.style, firm: glass.barEdge == .hard)
+        Group { if (ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("nosample") { Color.clear } else { GlassSample(style: glass.style, firm: glass.barEdge == .hard) } }
             .frame(height: Tokens.Size.phoneGlassSample)
             .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.phoneGlassSample, style: .continuous))
             .listRowInsets(EdgeInsets(
@@ -27,6 +27,7 @@ struct GlassSample: View {
 
     private static let bar: CGFloat = 44
     private static let control: CGFloat = 32
+    private static let chevron: CGFloat = 14
     private static let row: CGFloat = 14
     private static let tab = CGSize(width: 120, height: 28)
 
@@ -45,11 +46,14 @@ struct GlassSample: View {
             .padding(.top, Self.bar / 2)
             HStack(spacing: Tokens.Space.space4) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .semibold))
+                    .resizable().scaledToFit().fontWeight(.semibold)
+                    .frame(height: Self.chevron)
                     .foregroundStyle(Color(Tokens.Color.phoneText))
                     .frame(width: Self.control, height: Self.control)
                     .devotGlass(style, in: Circle())
-                Text(L10n.phoneSettingsAppearanceSampleTitle()).settingsLabel().fontWeight(.semibold)
+                if !(ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("nosampletitle") { TextPicture(
+                    text: L10n.phoneSettingsAppearanceSampleTitle(), font: .system(size: 16, weight: .semibold),
+                    color: Tokens.Color.phoneText, wraps: false) }
                 Spacer()
             }
             .padding(.horizontal, Tokens.Space.space4)

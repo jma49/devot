@@ -5,6 +5,8 @@ import SwiftUI
 struct NoteFontPage: View {
     let store: SettingsStore
     let addFont: () -> Void
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 16
+    @ScaledMetric(relativeTo: .body) private var check: CGFloat = 18
 
     var body: some View {
         let family = store.editor["fontFamily"]?.string ?? "mono"
@@ -26,7 +28,7 @@ struct NoteFontPage: View {
                 }
                 ActionRow(title: L10n.phoneSettingsAppearanceAddFont(), action: addFont)
             } header: {
-                Text(L10n.phoneSettingsAppearanceImportedFonts())
+                Header(L10n.phoneSettingsAppearanceImportedFonts())
             } footer: {
                 Footer(L10n.phoneSettingsAppearanceFontFooter())
             }
@@ -55,11 +57,11 @@ struct NoteFontPage: View {
     private func row(_ title: String, font: NoteFont, chosen: Bool, choose: @escaping () -> Void) -> some View {
         Button(action: choose) {
             HStack {
-                Text(title).font(font.font(size: 16)).foregroundStyle(Color(Tokens.Color.phoneText))
+                Text(title).font(font.font(size: size)).foregroundStyle(Color(Tokens.Color.phoneText))
                 Spacer(minLength: Tokens.Size.phoneGroupedGap)
                 if chosen {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: check, weight: .semibold))
                         .foregroundStyle(Color(Tokens.Color.accentText))
                         .accessibilityHidden(true)
                 }

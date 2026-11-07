@@ -35,6 +35,8 @@ private struct ThemeCard: View {
     let motion: MotionPolicy
     let pick: ([String: JSONValue]) -> Void
     @State private var pressed = false
+    /// The badge keeps its size as the swatch it marks does.
+    private static let badgeSymbol: CGFloat = 12
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Tokens.Radius.phoneGroupedCard, style: .continuous)
@@ -47,9 +49,10 @@ private struct ThemeCard: View {
                 shape.fill(Color(Tokens.Color.phoneCard))
                     .overlay(shape.strokeBorder(Color(Tokens.Color.phoneSeparator), lineWidth: Tokens.Size.phoneSeparator))
                     .overlay(alignment: .bottom) {
+                        if (ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("nonames") { Color.clear.frame(height: 23).padding(.bottom, Tokens.Space.space7) } else {
                         Text(name).cardLabel(both ? Tokens.Color.accentText : Tokens.Color.phoneText)
                             .lineLimit(1)
-                            .padding(.bottom, Tokens.Space.space7)
+                            .padding(.bottom, Tokens.Space.space7) }
                     }
                     .contentShape(shape)
             }
@@ -86,7 +89,8 @@ private struct ThemeCard: View {
             .overlay(alignment: .bottomTrailing) {
                 if chosen {
                     Image(systemName: style == .dark ? "moon" : "sun.max")
-                        .font(.system(size: 12, weight: .medium))
+                        .resizable().scaledToFit().fontWeight(.medium)
+                        .frame(width: Self.badgeSymbol, height: Self.badgeSymbol)
                         .foregroundStyle(Color(Tokens.Color.phoneText))
                         .frame(width: Tokens.Size.phoneSwatchBadge, height: Tokens.Size.phoneSwatchBadge)
                         .background(Circle().fill(Color(Tokens.Color.phoneElevated)))
@@ -108,7 +112,12 @@ struct ThemeSwatchView: View {
         Circle().fill(Color(swatch.background))
             .overlay { ThemeGlow(colors: swatch.glow).clipShape(Circle()) }
             .overlay {
-                Text(verbatim: "Aa").font(.system(size: 20, weight: .semibold)).foregroundStyle(Color(swatch.text))
+                if (ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("noaa") { Color.clear } else if (ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("aacanvas") {
+                    Canvas { context, size in
+                        context.draw(context.resolve(Text(verbatim: "Aa").font(.system(size: 20, weight: .semibold)).foregroundStyle(Color(swatch.text))), at: CGPoint(x: size.width / 2, y: size.height / 2))
+                    }
+                } else {
+                TextPicture(text: "Aa", font: .system(size: 20, weight: .semibold), color: swatch.text, wraps: false) }
             }
             .overlay(alignment: .bottomTrailing) {
                 Circle().fill(Color(swatch.accent)).frame(width: 10, height: 10).padding(Tokens.Space.space4)

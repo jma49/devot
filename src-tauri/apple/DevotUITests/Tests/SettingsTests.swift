@@ -102,15 +102,37 @@ final class SettingsTests: XCTestCase {
         value.formatted(.number.sign(strategy: .always(includingZero: false)))
     }
 
-    /// Drags the slider to `value`, nudging it where the drag lands a step off.
-    private func drag(_ slider: XCUIElement, to value: Int) {
-        let expected = Self.signed(value)
-        for _ in 0..<3 where slider.value as? String != expected {
-            let shown = Int((slider.value as? String ?? "").replacingOccurrences(of: "+", with: "")) ?? 0
-            let position = slider.normalizedSliderPosition + CGFloat(value - shown) / 200
-            slider.adjust(toNormalizedSliderPosition: min(max(position, 0), 1))
+    private static func number(_ value: String?) -> Int? {
+        value.flatMap { Int($0.replacingOccurrences(of: "+", with: "")) }
+    }
+
+    /// The slider's value once it has held still for a second. `adjust` returns while the app is
+    /// still moving the thumb and before it handles the lift, so a value read at once can be one
+    /// the drag passes on its way.
+    private func settled(_ slider: XCUIElement) -> Int? {
+        var value = slider.value as? String
+        var still = 0
+        for _ in 0..<40 where still < 4 {
+            Thread.sleep(forTimeInterval: 0.25)
+            let now = slider.value as? String
+            still = now == value ? still + 1 : 0
+            value = now
         }
-        XCTAssertEqual(slider.value as? String, expected)
+        XCTAssertEqual(still, 4, "the slider did not settle")
+        return Self.number(value)
+    }
+
+    /// Drags the slider towards `value`, nudging it where the drag lands off, and returns where it settles:
+    /// a drag lands within a few steps of its target, not on it.
+    @discardableResult
+    private func drag(_ slider: XCUIElement, to value: Int) -> Int? {
+        var shown = settled(slider)
+        for _ in 0..<3 where shown != value {
+            let position = slider.normalizedSliderPosition + CGFloat(value - (shown ?? 0)) / 200
+            slider.adjust(toNormalizedSliderPosition: min(max(position, 0), 1))
+            shown = settled(slider)
+        }
+        return shown
     }
 
     func testAThemeCardRingsBothOfItsSwatches() {
@@ -130,13 +152,14 @@ final class SettingsTests: XCTestCase {
         XCTAssertFalse(dark.isSelected)
     }
 
-    func testGlassTransparencyIsKeptAcrossALaunch() {
+    func testGlassTransparencyIsKeptAcrossALaunch() throws {
         openAppearance()
-        drag(transparency(), to: -50)
+        let dragged = try XCTUnwrap(drag(transparency(), to: -50))
+        XCTAssertLessThan(dragged, 0, "the drag left the design's value")
         launch()
         openAppearance()
         let slider = transparency()
-        XCTAssertEqual(slider.value as? String, Self.signed(-50))
+        XCTAssertEqual(slider.value as? String, Self.signed(dragged))
         drag(slider, to: 0)
     }
 

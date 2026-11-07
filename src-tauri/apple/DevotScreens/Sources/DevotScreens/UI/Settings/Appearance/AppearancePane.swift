@@ -11,36 +11,44 @@ struct AppearancePane: View {
 
     var body: some View {
         Form {
-            Section(catalog("appearanceSettings.colorScheme")) {
+            Section {
                 SchemeCards(store: store, themes: themes).cardRow()
+            } header: {
+                Header(catalog("appearanceSettings.colorScheme"))
             }
             Section {
                 ThemeGrid(store: store, themes: themes).cardRow()
             } header: {
-                Text(L10n.phoneSettingsAppearanceThemes())
+                Header(L10n.phoneSettingsAppearanceThemes())
             } footer: {
                 Footer(L10n.phoneSettingsAppearanceThemesFooter())
             }
             if themes.gradientShown {
-                Section(catalog("appearanceSettings.gradient")) {
+                Section {
                     GradientCard(store: store, themes: themes)
+                } header: {
+                    Header(catalog("appearanceSettings.gradient"))
                 }
             }
             Section {
                 GlassCard(glass: glass)
             } header: {
-                Text(L10n.phoneSettingsAppearanceGlass())
+                Header(L10n.phoneSettingsAppearanceGlass())
             } footer: {
                 if glass.reduced { Footer(L10n.phoneSettingsAppearanceTransparencyReduced()) }
             }
-            Section(L10n.phoneSettingsAppearanceText()) {
+            Section {
                 TextCard(store: store)
+            } header: {
+                Header(L10n.phoneSettingsAppearanceText())
             }
-            Section(L10n.phoneSettingsAppearanceFonts()) {
+            Section {
                 let title = catalog("editorSettings.noteFont")
                 NavigationRow(title: title, value: NoteFontPage.value(editor: store.editor, files: store.fontFiles)) {
                     router.push(SettingsHosting(title: title, NoteFontPage(store: store, addFont: addFont)))
                 }
+            } header: {
+                Header(L10n.phoneSettingsAppearanceFonts())
             }
             MotionRows(store: store)
         }

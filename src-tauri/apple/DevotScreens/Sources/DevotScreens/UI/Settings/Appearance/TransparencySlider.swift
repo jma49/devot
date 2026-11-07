@@ -1,7 +1,9 @@
 import SwiftUI
 
 /// A slider named on a line above its track, its value on the right (design/layout.md, Phone
-/// grouped lists): a selection tick per step, and `released` once the value settles.
+/// grouped lists): a selection tick per step, and `released` once the value settles. The line stays
+/// in the accessibility tree although the slider repeats it: text on the screen is text to the
+/// accessibility audit, which cannot measure hidden text.
 struct LabelledSlider: View {
     let title: String
     let value: String
@@ -25,7 +27,6 @@ struct LabelledSlider: View {
                 Spacer(minLength: Tokens.Size.phoneGroupedGap)
                 Text(value).sliderValue()
             }
-            .accessibilityHidden(true)
             Slider(value: Binding(get: { amount }, set: { amount = $0; commit.changed(released) }), in: range, step: step) {
                 Text(title)
             } minimumValueLabel: {
@@ -45,7 +46,7 @@ struct LabelledSlider: View {
 
     @ViewBuilder private func end(_ end: SliderEnd?) -> some View {
         switch end {
-        case .caption(let text): Text(text).settingsDetail()
+        case .caption(let text): if (ProcessInfo.processInfo.environment["DEVOTDIAG"] ?? "").contains("nocaps") { Color.clear.frame(width: 30, height: 10) } else { Text(text).settingsDetail() }
         case .symbol(let name):
             Image(systemName: name).foregroundStyle(Color(Tokens.Color.phoneTextSecondary)).accessibilityHidden(true)
         case nil: EmptyView()

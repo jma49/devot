@@ -17,44 +17,13 @@ struct SchemeCards: View {
             : AnyLayout(HStackLayout(spacing: Tokens.Space.space4))
         layout {
             ForEach(Self.schemes, id: \.self) { scheme in
-                card(scheme, selected: scheme == current, stacked: type.isAccessibilitySize)
-                    .buttonStyle(PressableCardStyle(motion: motion))
+                SchemeCard(
+                    title: catalog("appearanceSettings.\(scheme)"), selected: scheme == current,
+                    stacked: type.isAccessibilitySize, motion: motion, mini: mini(scheme)
+                ) { store.setEditor("appearance", .string(scheme)) }
             }
         }
         .sensoryFeedback(.selection, trigger: current)
-    }
-
-    private func card(_ scheme: String, selected: Bool, stacked: Bool) -> some View {
-        let shape = RoundedRectangle(cornerRadius: Tokens.Radius.phoneGroupedCard, style: .continuous)
-        let label = Text(catalog("appearanceSettings.\(scheme)"))
-            .cardLabel(selected ? Tokens.Color.phoneText : Tokens.Color.phoneTextSecondary)
-        return Button {
-            store.setEditor("appearance", .string(scheme))
-        } label: {
-            Group {
-                if stacked {
-                    HStack(spacing: Tokens.Size.phoneGroupedGap) {
-                        mini(scheme)
-                        label
-                        Spacer(minLength: 0)
-                    }
-                } else {
-                    VStack(spacing: Tokens.Space.space4) {
-                        mini(scheme)
-                        label.lineLimit(1).minimumScaleFactor(0.8)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-            }
-            .padding(Tokens.Space.space4)
-            .frame(minHeight: Tokens.Size.phoneSchemeCard)
-            .background(shape.fill(Color(Tokens.Color.phoneCard)))
-            .overlay {
-                if selected { shape.strokeBorder(Color(Tokens.Color.accentFill), lineWidth: Tokens.Size.phoneThemeRing) }
-            }
-            .contentShape(shape)
-        }
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func mini(_ scheme: String) -> some View {
@@ -74,6 +43,63 @@ struct SchemeCards: View {
         .clipShape(shape)
         .overlay(shape.strokeBorder(Color(light.separator), lineWidth: Self.border))
         .accessibilityHidden(true)
+    }
+}
+
+/// One scheme's card: its mini phone over its name. The named button covers only the name, since
+/// the contrast audit reads everything a button draws as its text and a light mini phone on the
+/// card fails as text; the card under it is a second touch target for the same choice, out of the
+/// accessibility tree so VoiceOver meets the scheme once, by its name.
+private struct SchemeCard<Mini: View>: View {
+    let title: String
+    let selected: Bool
+    let stacked: Bool
+    let motion: MotionPolicy
+    let mini: Mini
+    let pick: () -> Void
+    @State private var pressed = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Tokens.Radius.phoneGroupedCard, style: .continuous)
+        let preview = mini.allowsHitTesting(false)
+        Group {
+            if stacked {
+                HStack(spacing: Tokens.Size.phoneGroupedGap) {
+                    preview
+                    name(alignment: .leading)
+                }
+                .padding(Tokens.Space.space4)
+            } else {
+                VStack(spacing: 0) {
+                    preview
+                    name(alignment: .center).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .padding([.top, .horizontal], Tokens.Space.space4)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: Tokens.Size.phoneSchemeCard)
+        .background {
+            Button(action: pick) { shape.fill(Color(Tokens.Color.phoneCard)) }
+                .buttonStyle(PressReportingStyle(pressed: $pressed))
+                .accessibilityHidden(true)
+        }
+        .overlay {
+            if selected {
+                shape.strokeBorder(Color(Tokens.Color.accentFill), lineWidth: Tokens.Size.phoneThemeRing)
+                    .allowsHitTesting(false)
+            }
+        }
+        .pressScale(pressed, PressableCardStyle.card, motion)
+    }
+
+    private func name(alignment: Alignment) -> some View {
+        Button(action: pick) {
+            Text(title).cardLabel(selected ? Tokens.Color.phoneText : Tokens.Color.phoneTextSecondary)
+                .frame(maxWidth: .infinity, minHeight: Tokens.Size.phoneTarget, alignment: alignment)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressReportingStyle(pressed: $pressed))
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
