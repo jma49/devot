@@ -1,10 +1,20 @@
 // @vitest-environment happy-dom
-import { syntaxTree } from '@codemirror/language'
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { noteMarkdown } from './markdown'
 import { parseToView } from './parseToView'
+
+vi.mock('@codemirror/language', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@codemirror/language')>()
+  return {
+    ...actual,
+    ensureSyntaxTree: vi.fn<typeof actual.ensureSyntaxTree>(actual.ensureSyntaxTree),
+  }
+})
+
+const slices = vi.mocked(ensureSyntaxTree)
 
 const SECTION =
   '## Part\n\nSome **bold** prose and a [link](https://example.com).\n\n- a list\n- [ ] a task\n\n'
@@ -12,21 +22,15 @@ const SECTION =
 const note = (size: number) => SECTION.repeat(Math.ceil(size / SECTION.length))
 
 const views: EditorView[] = []
-afterEach(() => views.splice(0).forEach((view) => view.destroy()))
+afterEach(() => {
+  views.splice(0).forEach((view) => view.destroy())
+  vi.useRealTimers()
+  slices.mockClear()
+})
 
-function opened(doc: string, steps: string[] = []): EditorView {
+function opened(doc: string): EditorView {
   const view = new EditorView({
-    state: EditorState.create({
-      doc,
-      extensions: [
-        noteMarkdown,
-        parseToView,
-        EditorView.updateListener.of((update) => {
-          for (const tr of update.transactions)
-            if (!tr.docChanged && !tr.selection) steps.push('parse')
-        }),
-      ],
-    }),
+    state: EditorState.create({ doc, extensions: [noteMarkdown, parseToView] }),
     parent: document.body,
   })
   views.push(view)
@@ -63,23 +67,45 @@ describe('parsing toward where the view jumped', () => {
     expect(await within(400, () => parsedTo(view) === doc.length)).toBe(true)
   })
 
-  it('leaves a note alone while its view is parsed', async () => {
-    const steps: string[] = []
-    const view = opened(note(2_500), steps)
+  it('leaves a note alone while its view is parsed', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    const view = opened(note(2_500))
     view.dispatch({
       selection: EditorSelection.cursor(view.state.doc.length),
       scrollIntoView: true,
     })
-    await pause(20)
-    expect(steps).toEqual([])
+    vi.advanceTimersByTime(1_000)
+    expect(slices).not.toHaveBeenCalled()
   })
 
-  it('stops when the editor closes', async () => {
-    const steps: string[] = []
-    const view = opened(note(300_000), steps)
+  it('stops when the editor closes', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    const view = opened(note(300_000))
     view.dispatch({ selection: EditorSelection.cursor(250_000), scrollIntoView: true })
+    for (let timer = 0; timer < 10 && slices.mock.calls.length === 0; timer++)
+      vi.advanceTimersToNextTimer()
+    expect(slices).toHaveBeenCalledOnce()
     view.destroy()
-    await pause(40)
-    expect(steps).toEqual([])
+    vi.advanceTimersByTime(1_000)
+    expect(slices).toHaveBeenCalledOnce()
+  })
+
+  it('parses on only once keys have paused for 100 ms', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    const view = opened(note(1_000_000))
+    const type = () => view.dispatch({ changes: { from: view.state.doc.length, insert: 'a' } })
+    view.dispatch({
+      selection: EditorSelection.cursor(view.state.doc.length),
+      scrollIntoView: true,
+    })
+    type()
+    vi.advanceTimersByTime(50)
+    type()
+    vi.advanceTimersByTime(90)
+    expect(slices).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(20)
+    expect(slices).toHaveBeenCalled()
+    vi.advanceTimersByTime(200)
+    expect(syntaxTree(view.state).length).toBeGreaterThanOrEqual(view.viewport.to)
   })
 })

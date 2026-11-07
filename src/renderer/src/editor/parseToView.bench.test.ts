@@ -46,6 +46,22 @@ function parseMs(doc: string): number {
   return performance.now() - start
 }
 
+/**
+ * The parser's last step, warmed up: it builds the note's tree and finds the fenced code in it in one go,
+ * so no slicing splits it (about 15 ms a megabyte; CodeMirror's own worker pays it too).
+ */
+function lastStepMs(doc: string): number {
+  const last = () => {
+    const parse = noteMarkdown.language.parser.startParse(doc)
+    for (;;) {
+      const start = performance.now()
+      if (parse.advance()) return performance.now() - start
+    }
+  }
+  last()
+  return last()
+}
+
 const views: EditorView[] = []
 afterEach(() => views.splice(0).forEach((view) => view.destroy()))
 
@@ -69,6 +85,32 @@ function jumpToEnd(view: EditorView): void {
   expect(styled(view)).toBe(false)
 }
 
+/** A note open at its end, parsed whole before it was shown. */
+async function openedParsed(doc: string): Promise<EditorView> {
+  const view = new EditorView({
+    state: EditorState.create({ doc, extensions: [noteMarkdown, parseToView] }),
+    parent: document.body,
+  })
+  views.push(view)
+  ensureSyntaxTree(view.state, doc.length, 1e9)
+  view.dispatch({ selection: EditorSelection.cursor(doc.length), scrollIntoView: true })
+  expect(syntaxTree(view.state).length).toBe(doc.length)
+  await pause(800)
+  return view
+}
+
+function typeAtEnd(view: EditorView): number {
+  const at = view.state.doc.length
+  const start = performance.now()
+  view.dispatch({
+    changes: { from: at, insert: 'a' },
+    selection: EditorSelection.cursor(at + 1),
+  })
+  return performance.now() - start
+}
+
+const median = (times: number[]) => [...times].sort((a, b) => a - b)[times.length >> 1] ?? 0
+
 describe('a jump to the end of a long note the parser has not reached', () => {
   it('is styled in little more than the time a parse of the whole note takes', async (context) => {
     const doc = richNote(2_000_000)
@@ -82,22 +124,55 @@ describe('a jump to the end of a long note the parser has not reached', () => {
     expectWithinBudget(context, styledMs, 2 * parse + 100)
   }, 60_000)
 
-  it('holds the editor no longer than a short slice at a time while the parser catches up', async (context) => {
-    const doc = richNote(1_000_000)
-    parseMs(doc)
-    const view = await opened(doc)
+  it.for<[string, number]>([
+    ['1 MB', 1_000_000],
+    ['4 MB', 4_000_000],
+  ])(
+    'holds a %s note no longer than a short slice at a time while the parser catches up, beyond its last step',
+    { timeout: 60_000 },
+    async ([label, size], context) => {
+      const doc = richNote(size)
+      const lastStep = lastStepMs(doc)
+      const view = await opened(doc)
+      const start = performance.now()
+      jumpToEnd(view)
+      let last = performance.now()
+      let held = 0
+      while (performance.now() - start < 2_500) {
+        await pause(1)
+        const now = performance.now()
+        held = Math.max(held, now - last)
+        last = now
+      }
+      expect(styled(view)).toBe(true)
+      console.log(
+        `${label}: longest hold ${held.toFixed(1)} ms, the parser's last step ${lastStep.toFixed(1)} ms`,
+      )
+      expectWithinBudget(context, held, 40 + lastStep)
+    },
+  )
+
+  it('leaves keys at the end, once caught up, costing what they do in a note parsed whole', async (context) => {
+    const doc = richNote(4_000_000)
+    const jumped = await opened(doc)
+    jumpToEnd(jumped)
     const start = performance.now()
-    jumpToEnd(view)
-    let last = performance.now()
-    let held = 0
-    while (performance.now() - start < 1_500) {
-      await pause(1)
-      const now = performance.now()
-      held = Math.max(held, now - last)
-      last = now
+    while (syntaxTree(jumped.state).length < doc.length && performance.now() - start < 30_000)
+      await pause(10)
+    await pause(300)
+    const parsed = await openedParsed(doc)
+    const afterJump: number[] = []
+    const whole: number[] = []
+    for (let key = 0; key < 8; key++) {
+      afterJump.push(typeAtEnd(jumped))
+      await pause(150)
+      whole.push(typeAtEnd(parsed))
+      await pause(150)
     }
-    expect(styled(view)).toBe(true)
-    console.log(`1 MB: longest hold ${held.toFixed(1)} ms`)
-    expectWithinBudget(context, held, 40)
-  }, 60_000)
+    const show = (times: number[]) => times.map((ms) => ms.toFixed(0)).join(' ')
+    console.log(
+      `4 MB keys at the end: after a jump ${show(afterJump)}, parsed whole ${show(whole)} ms`,
+    )
+    expectWithinBudget(context, median(afterJump), 1.5 * median(whole) + 10, { exact: true })
+  }, 120_000)
 })
