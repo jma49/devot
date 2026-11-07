@@ -67,16 +67,24 @@ export function sortNotes<T extends SortableNote>(
   sort: NoteSort,
   locales: string | readonly string[],
 ): T[] {
+  return [...notes].sort(noteOrder(sort, locales))
+}
+
+/** The order of `sortNotes`: total, as no two notes share an ID, so a note put in place by a binary search lands where a sort puts it. */
+export function noteOrder<T extends SortableNote>(
+  sort: NoteSort,
+  locales: string | readonly string[],
+): (a: T, b: T) => number {
   const sign = sort.direction === 'asc' ? 1 : -1
   const byId = (a: T, b: T) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
   const newest = (a: T, b: T) => b.updatedAt - a.updatedAt || byId(b, a)
   if (sort.key !== 'title') {
     const field = sort.key === 'created' ? 'createdAt' : 'updatedAt'
-    return [...notes].sort((a, b) => sign * (a[field] - b[field] || byId(a, b)))
+    return (a, b) => sign * (a[field] - b[field] || byId(a, b))
   }
   const { compare } = collator(locales)
-  return [...notes].sort((a, b) => {
+  return (a, b) => {
     if (!a.title || !b.title) return (a.title ? -1 : b.title ? 1 : 0) || newest(a, b)
     return sign * compare(a.title, b.title) || newest(a, b)
-  })
+  }
 }

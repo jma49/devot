@@ -25,6 +25,50 @@ pub struct NoteRecord {
     pub deleted_hlc: Option<String>,
 }
 
+/// A note's fields without its body, for a write that changed no text (`Store::put_note_meta`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoteMeta {
+    pub id: String,
+    pub title: String,
+    pub title_hlc: String,
+    pub body_version: i64,
+    pub book_id: Option<String>,
+    pub book_hlc: String,
+    pub status: String,
+    pub status_hlc: String,
+    pub pinned: bool,
+    pub pinned_hlc: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub dates_hlc: String,
+    pub deleted_at: Option<i64>,
+    pub deleted_hlc: Option<String>,
+}
+
+impl NoteRecord {
+    pub fn from_meta(meta: NoteMeta, body_md: String, ydoc: Vec<u8>) -> Self {
+        Self {
+            id: meta.id,
+            title: meta.title,
+            title_hlc: meta.title_hlc,
+            body_md,
+            ydoc,
+            body_version: meta.body_version,
+            book_id: meta.book_id,
+            book_hlc: meta.book_hlc,
+            status: meta.status,
+            status_hlc: meta.status_hlc,
+            pinned: meta.pinned,
+            pinned_hlc: meta.pinned_hlc,
+            created_at: meta.created_at,
+            updated_at: meta.updated_at,
+            dates_hlc: meta.dates_hlc,
+            deleted_at: meta.deleted_at,
+            deleted_hlc: meta.deleted_hlc,
+        }
+    }
+}
+
 pub const NOTE_STATUSES: [&str; 5] = ["none", "active", "on_hold", "completed", "dropped"];
 
 /// The IDs `tags.color` may hold; each theme maps one to a colour (design tokens `color.tag.<id>`).

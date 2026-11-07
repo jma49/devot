@@ -4,6 +4,7 @@ import {
   createClock,
   createIdGenerator,
   createNoteService,
+  type NoteFields,
   type NoteRecord,
   type NoteService,
   type SaveProblem,
@@ -24,26 +25,28 @@ afterEach(async () => {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-/** Note writes fail with E_TEST_WRITE while `failWrites` says so; `holdNextWrite` keeps the next one waiting; retries wait `retryDelayMs` (long, so only the test's saves write). */
+/** Note writes, whole or of the fields alone, fail with E_TEST_WRITE while `failWrites` says so; `holdNextWrite` keeps the next one waiting; retries wait `retryDelayMs` (long, so only the test's saves write). */
 function setup({
   retryDelayMs = 60_000,
   listener,
 }: { retryDelayMs?: number; listener?: (problems: SaveProblem[]) => void } = {}) {
   const sqlite = openSqliteAdapter(join(tempDir('devot-saves-'), 'devot.sqlite'))
   open.push(sqlite)
-  const writes: NoteRecord[] = []
-  let refuse: (record: NoteRecord) => boolean = () => false
+  const writes: NoteFields[] = []
+  let refuse: (record: NoteFields) => boolean = () => false
   let refusal = 'E_TEST_WRITE'
   let gate: Promise<void> | undefined
+  const written = async <T extends NoteFields>(record: T, put: (record: T) => Promise<void>) => {
+    writes.push(record)
+    const wait = gate
+    gate = undefined
+    if (wait) await wait
+    if (refuse(record)) throw new Error(refusal)
+    await put(record)
+  }
   const storage: StorageAdapter = Object.assign(Object.create(sqlite) as SqliteAdapter, {
-    async putNote(record: NoteRecord) {
-      writes.push(record)
-      const wait = gate
-      gate = undefined
-      if (wait) await wait
-      if (refuse(record)) throw new Error(refusal)
-      await sqlite.putNote(record)
-    },
+    putNote: (record: NoteRecord) => written(record, (r) => sqlite.putNote(r)),
+    putNoteMeta: (note: NoteFields) => written(note, (n) => sqlite.putNoteMeta(n)),
   })
   const reports: SaveProblem[][] = []
   const notes = createNoteService({
@@ -66,7 +69,7 @@ function setup({
     reports,
     problems: () => reports.at(-1) ?? [],
     stored: (id: string) => sqlite.getNote(id, { trashed: true }),
-    failWrites(when: (record: NoteRecord) => boolean = () => true, code = 'E_TEST_WRITE') {
+    failWrites(when: (record: NoteFields) => boolean = () => true, code = 'E_TEST_WRITE') {
       refuse = when
       refusal = code
     },
@@ -258,7 +261,7 @@ describe('saves of one note', () => {
     expect(s.writes).toHaveLength(2)
     release()
     expect((await searching).found.map((n) => n.id)).toEqual([id])
-    expect(s.writes.map((w) => w.bodyMd)).toEqual(['', 'older', 'newer'])
+    expect(s.writes.map((w) => 'bodyMd' in w && w.bodyMd)).toEqual(['', 'older', 'newer'])
     expect((await s.stored(id))?.bodyMd).toBe('newer')
   })
 })

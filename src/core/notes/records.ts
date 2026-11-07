@@ -1,7 +1,7 @@
 import * as Y from 'yjs'
 import { errorCode } from '../errors'
 import { clipTitle } from '../noteLimits'
-import type { NoteRecord, OpenedRecord } from '../storage'
+import type { NoteFields, NoteRecord, OpenedRecord } from '../storage'
 import { BODY } from './body'
 import type { HeldRecord, Live, NoteMeta } from './context'
 
@@ -9,6 +9,8 @@ import type { HeldRecord, Live, NoteMeta } from './context'
 const WRITE_TRIES = 5
 
 const isStale = (error: unknown) => errorCode(error) === 'E_NOTE_BODY_STALE'
+
+export const metaOf = ({ bodyMd: _body, ydoc: _state, ...fields }: NoteRecord): NoteFields => fields
 
 export const asWritten = <T extends NoteMeta>(record: T): T => ({
   ...record,
@@ -39,7 +41,7 @@ export const stampsOf = (record: OpenedRecord) => META_HLCS.map((key) => record[
 export type MetaField = 'book' | 'status' | 'pinned'
 
 /** The record without its body, as a note in memory keeps it. */
-export const heldOf = (record: OpenedRecord & Partial<NoteRecord>): HeldRecord => {
+export const heldOf = (record: NoteMeta & Partial<NoteRecord>): HeldRecord => {
   const { ydoc: _, bodyMd: __, agentWrites: ___, ...held } = record
   return held
 }
@@ -75,13 +77,15 @@ export const withNewer = (to: HeldRecord, from: NoteMeta): HeldRecord => ({
       : { updatedAt: Math.max(to.updatedAt, from.updatedAt) }),
 })
 
+/**
+ * Whether `doc`, which has taken `stored` in, holds anything `stored` lacks.
+ * The snapshot covers deletions too, which change neither the text nor the state vector.
+ */
 export const holdsMore = (doc: Y.Doc, stored: NoteRecord) => {
   if (doc.getText(BODY).toString() !== stored.bodyMd) return true
-  const theirs = Y.decodeStateVector(Y.encodeStateVectorFromUpdate(stored.ydoc))
-  for (const [client, clock] of Y.decodeStateVector(Y.encodeStateVector(doc))) {
-    if (clock > (theirs.get(client) ?? 0)) return true
-  }
-  return false
+  const theirs = new Y.Doc()
+  Y.applyUpdate(theirs, stored.ydoc)
+  return !Y.equalSnapshots(Y.snapshot(doc), Y.snapshot(theirs))
 }
 
 export const dirty = (note: Live) =>

@@ -71,6 +71,7 @@ Part of the [architecture overview](../architecture.md).
   - The core keeps a note in memory as its Yjs document: its record holds neither the body nor the stored state (`HeldRecord`), only the state's byte length for the save delay.
     An encoded state, a second copy of the note, stays only with a note in use, the notes an editor holds and the note left last, so switching back to that one sends it without encoding (`keepsState` in `notes/memory.ts`).
     The note left last is the one whose last hold went last, shown or not: an open overtaken by another, or a body opened ahead and not used, can take its place, so switching back to the note shown before encodes its state again, which costs time and loses nothing.
+    A save encodes the state once, only when it writes the body, and only a note that keeps a state keeps that one; a save of the fields alone neither encodes it nor drops the one kept.
     Four rich notes of 1 to 5 MB held 14 MB beyond their documents before; `tests/core/note-memory.bench.test.ts` holds the extra under 8% of their text, and `tests/core/note-open.test.ts` which notes keep an encoded state.
   - Write mode's table drawings live in the note's editor state and go with it; kept across notes, they held 11 MB after a 30-column, 800-row table was left.
     The note's base extensions hold them, so a switch to Edit mode and back draws no table again.

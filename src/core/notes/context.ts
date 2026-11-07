@@ -26,6 +26,10 @@ export interface Live {
   timer: Timer | undefined
   edits: number
   savedEdits: number
+  /** Changes to `doc` of any origin, counted. */
+  changes: number
+  /** `changes` when `doc` was as storage holds it at `saved.bodyVersion`: a save while it still is writes the fields alone (see write in saving.ts). */
+  storedChanges: number
   queue: Promise<void>
   writes: number
   /** Service calls using the note now (see using): it stays in memory while any does. */
