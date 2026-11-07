@@ -1,23 +1,36 @@
 // The Mermaid frame (src/renderer/mermaid.html) is sandboxed, so its origin is opaque and every
 // module script or dynamic import() it asks for is a CORS request from `null`, which Tauri's
-// asset protocol refuses. It loads one classic script instead: mermaid-frame.ts built as an IIFE
-// with its dynamic imports inlined. The bundle is built in memory, served by the dev server and
-// emitted into the build, so nothing generated is written to the source tree.
+// asset protocol refuses. It loads classic scripts instead: mermaid-frame.ts, and each diagram
+// engine when a diagram first needs it, every one built as an IIFE with its dynamic imports
+// inlined. The bundles are built in memory, served by the dev server and emitted into the build,
+// so nothing generated is written to the source tree.
 import { resolve } from 'node:path'
 import { build, type Plugin, type Rolldown } from 'vite'
-import { MERMAID_FRAME_ENTRY, MERMAID_FRAME_SCRIPT } from './mermaid-frame-entry.ts'
+import {
+  DIAGRAM_ENGINES,
+  engineEntry,
+  engineScript,
+  MERMAID_FRAME_ENTRY,
+  MERMAID_FRAME_SCRIPT,
+} from './mermaid-frame-entry.ts'
 
-export { MERMAID_FRAME_SCRIPT }
+export { DIAGRAM_ENGINES, engineScript, MERMAID_FRAME_SCRIPT }
 
-const entry = resolve(import.meta.dirname, '../..', MERMAID_FRAME_ENTRY)
+const repository = resolve(import.meta.dirname, '../..')
+
+/** Each script the frame loads, by its published name, and the module it is built from. */
+const SCRIPTS = new Map([
+  [MERMAID_FRAME_SCRIPT, MERMAID_FRAME_ENTRY],
+  ...DIAGRAM_ENGINES.map((engine) => [engineScript(engine), engineEntry(engine)] as const),
+])
 
 interface Bundle {
   code: string
   modules: Set<string>
 }
 
-/** The frame's script as one classic script: no import(), no import.meta, no top-level await. */
-export async function buildMermaidFrame(): Promise<Bundle> {
+/** One classic script: no import(), no import.meta, no top-level await. */
+async function buildScript(entry: string): Promise<Bundle> {
   const result = await build({
     configFile: false,
     logLevel: 'warn',
@@ -27,7 +40,12 @@ export async function buildMermaidFrame(): Promise<Bundle> {
       target: 'es2023',
       minify: true,
       sourcemap: false,
-      lib: { entry, formats: ['iife'], name: 'devotMermaidFrame', fileName: () => 'frame.js' },
+      lib: {
+        entry: resolve(repository, entry),
+        formats: ['iife'],
+        name: 'devotMermaidFrame',
+        fileName: () => 'frame.js',
+      },
     },
   })
   const outputs = (Array.isArray(result) ? result : [result]).flatMap(
@@ -39,28 +57,46 @@ export async function buildMermaidFrame(): Promise<Bundle> {
   return { code: chunk.code, modules: new Set(chunk.moduleIds) }
 }
 
+/** The frame's script and every engine's, by published name, the frame's first. */
+export async function buildMermaidFrame(): Promise<Map<string, Bundle>> {
+  const names = [...SCRIPTS.keys()]
+  const bundles = await Promise.all(names.map((name) => buildScript(SCRIPTS.get(name)!)))
+  return new Map(names.map((name, i) => [name, bundles[i]!]))
+}
+
 export function mermaidFrame(): Plugin {
-  let cached: Promise<Bundle> | undefined
-  const bundle = () => (cached ??= buildMermaidFrame())
+  const cached = new Map<string, Promise<Bundle>>()
+  const bundle = (name: string) => {
+    let built = cached.get(name)
+    if (!built) {
+      built = buildScript(SCRIPTS.get(name)!)
+      built.catch(() => cached.delete(name))
+      cached.set(name, built)
+    }
+    return built
+  }
   return {
     name: 'devot-mermaid-frame',
     configureServer(server) {
-      // Built ahead, so the first diagram does not wait seconds for the bundle.
-      const warm = () => void bundle().catch(() => (cached = undefined))
-      warm()
+      // Built ahead, so the first diagram does not wait seconds for the bundles.
+      const warm = (name: string) => void bundle(name).catch(() => undefined)
+      SCRIPTS.forEach((_, name) => warm(name))
       server.watcher.on('change', (file) => {
-        cached?.then(
-          ({ modules }) => {
-            if (!modules.has(file)) return
-            cached = undefined
-            warm()
-          },
-          () => (cached = undefined),
-        )
+        for (const [name, built] of cached) {
+          built.then(
+            ({ modules }) => {
+              if (!modules.has(file) || cached.get(name) !== built) return
+              cached.delete(name)
+              warm(name)
+            },
+            () => undefined,
+          )
+        }
       })
       server.middlewares.use((req, res, next) => {
-        if (req.url?.split('?')[0] !== `/${MERMAID_FRAME_SCRIPT}`) return next()
-        bundle().then(({ code }) => {
+        const name = req.url?.split('?')[0]?.slice(1) ?? ''
+        if (!SCRIPTS.has(name)) return next()
+        bundle(name).then(({ code }) => {
           res.setHeader('content-type', 'text/javascript')
           res.setHeader('cache-control', 'no-cache')
           res.end(code)
@@ -68,8 +104,10 @@ export function mermaidFrame(): Plugin {
       })
     },
     async generateBundle() {
-      const { code } = await bundle()
-      this.emitFile({ type: 'asset', fileName: MERMAID_FRAME_SCRIPT, source: code })
+      const bundles = await buildMermaidFrame()
+      for (const [fileName, { code }] of bundles) {
+        this.emitFile({ type: 'asset', fileName, source: code })
+      }
     },
   }
 }

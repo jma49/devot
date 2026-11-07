@@ -4,6 +4,7 @@ import { expect, it } from 'vitest'
 import { boundaries } from '../../scripts/ci/ui-plan.ts'
 import { uiGraph, uiReach } from '../../scripts/ci/ui-graph.ts'
 import {
+  engineEntry,
   MERMAID_FRAME_ENTRY,
   MERMAID_FRAME_SCRIPT,
 } from '../../scripts/vite/mermaid-frame-entry.ts'
@@ -79,6 +80,19 @@ it('starts a page that loads a plugin-built script at the module the plugin buil
   const graph = uiGraph(root)
   expect([...graph.pages]).toEqual([['src/renderer/mermaid.html', MERMAID_FRAME_ENTRY]])
   expect(uiReach(graph, 'src/renderer/src/diagram.ts')?.pages).toEqual(
+    new Set([MERMAID_FRAME_ENTRY]),
+  )
+})
+
+it('reaches a diagram engine through the frame that loads its script', () => {
+  const root = repo({
+    'src/renderer/mermaid.html': `<!doctype html><script src="/${MERMAID_FRAME_SCRIPT}" vite-ignore></script>`,
+    [MERMAID_FRAME_ENTRY]: '',
+    [engineEntry('plantuml')]: "import './draw'",
+    'src/renderer/src/diagram-engines/draw.ts': '',
+  })
+  const graph = uiGraph(root)
+  expect(uiReach(graph, 'src/renderer/src/diagram-engines/draw.ts')?.pages).toEqual(
     new Set([MERMAID_FRAME_ENTRY]),
   )
 })
