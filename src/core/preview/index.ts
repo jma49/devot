@@ -278,15 +278,16 @@ const PIECE_LENGTH = 2000
  * before them, so they are named across the whole note on every call.
  */
 /**
- * The cache holds pieces up to this many characters of source in all: every
- * keystroke in Split view makes a new version of one piece, and a count limit
- * kept hundreds of superseded versions (about 100 KB of tree each).
+ * Besides the pieces the note shows, the cache keeps pieces up to this many
+ * characters of source: superseded versions of an edited piece (a count limit
+ * kept hundreds, about 100 KB of tree each) and the notes shown before, so a
+ * note left keeps little of its trees (about 100 bytes a character).
  */
-const CACHE_CHARACTERS = 300_000
+export const KEPT_CHARACTERS = 50_000
 
 export function createPieceRenderer({
   registry = defaultRegistry,
-  capacity = CACHE_CHARACTERS,
+  capacity = KEPT_CHARACTERS,
   pieceLength = PIECE_LENGTH,
 }: { registry?: PreviewRegistry; capacity?: number; pieceLength?: number } = {}): (
   markdown: string,
@@ -302,16 +303,19 @@ export function createPieceRenderer({
     `${first ? 1 : 0} ${copy} ${optionsKey}\u0000${text}`
 
   /**
-   * Drops the oldest pieces the note does not show right now, until the cache
-   * fits. A piece it shows is never dropped, or a note larger than the cache
-   * would render whole again on every keystroke.
+   * Drops the oldest pieces the note does not show right now, until the
+   * others fit. A piece it shows is never dropped, or a note larger than the
+   * cache would render whole again on every keystroke.
    */
   const trim = (shown: ReadonlySet<string>) => {
+    let others = cached
+    for (const key of shown) others -= cache.get(key)?.length ?? 0
     for (const [key, { length }] of cache) {
-      if (cached <= capacity) return
+      if (others <= capacity) return
       if (shown.has(key)) continue
       cache.delete(key)
       cached -= length
+      others -= length
     }
   }
 

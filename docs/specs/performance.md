@@ -9,6 +9,12 @@ Part of the [architecture overview](../architecture.md).
 - The iPhone draws at its display's refresh rate: `CADisableMinimumFrameDurationOnPhone` in `src-tauri/gen/apple/devot_iOS/Info.plist` and `project.yml` (held by `tests/policy/iphone-info-plist.test.ts`) lifts the 60 Hz cap a ProMotion iPhone otherwise puts on Core Animation and the display link.
   The keyboard, system sheets and the web view's compositor transitions then run at 120 Hz; the page's `requestAnimationFrame` stays near 60 Hz, so motion drawn by script each frame does not gain from it.
   Judge the phone's smoothness on a release build on a device.
+- A note left gives back what was kept for it, held by `tests/renderer/left-note-memory.test.ts`, `tests/core/preview-pieces.test.ts` and `tests/ui/preview.spec.ts`:
+  - The worker keeps, besides the open note's preview pieces, pieces of at most 50,000 characters of source (`KEPT_CHARACTERS`; a tree takes about 100 bytes a character), so a long note left is rendered again when it opens (in V8, a 250 KB note left kept 25 MB of trees, now under 7 MB).
+  - Write mode's table drawings live in the note's editor state and go with it; kept across notes, they held 11 MB after a 30-column, 800-row table was left.
+  - `@lezer/html`'s tag tokenizer keeps the last input it read, and with it the last note with HTML, its syntax tree and what Write mode keeps by its text (about 10 MB in V8 for a 250 KB note); leaving a note, the editor parses a tag of no note's (`releaseParsedNote` in `editor/markdown.ts`).
+  - The diagram frame, which holds the diagram libraries, is removed 30 s after no diagram is shown and no drawing is asked for (`preview/frameLifetime.ts`); drawings kept on the page come back without it.
+  - Kept on purpose, each bounded by a count: the undo history of the last 10 notes left ([Data model](data-model.md)), the core's last 8 notes, the last 64 diagram drawings.
 - The phase 2 harness measures them on macOS, in-app for typing latency, plus idle GPU power (`powermetrics`) with the transparent window against an opaque one.
 - Core budgets, held by the benchmarks in `tests/core/*.bench.test.ts` (`pnpm test` and CI run them; `pnpm test:fast` leaves them out) against the test store on better-sqlite3, which runs the Rust store's SQL.
   Each holds on a developer machine and is stretched 5 times on a hosted CI runner (`tests/support/budget.ts`).

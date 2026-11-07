@@ -9,6 +9,7 @@ import {
   type PreviewPiece,
 } from '../../src/core'
 import { splitBlocks } from '../../src/core/preview/blocks'
+import { KEPT_CHARACTERS } from '../../src/core/preview'
 import { sampleNote } from '../../scripts/bench/fixtures'
 import { labels, noteFields } from '../support/preview-html'
 
@@ -219,7 +220,23 @@ describe('createPieceRenderer', () => {
     await render('D.', options)
     const again = await render('A.\n\nB.\n\nC.', options)
     expect(again[0]!.key).not.toBe(first[0]!.key)
-    expect(again[2]!.key).not.toBe(first[2]!.key)
+    expect(again[1]!.key).not.toBe(first[1]!.key)
+    expect(again[2]!.key).toBe(first[2]!.key)
+  })
+
+  it('keeps little of a note it showed before, however long the note', async () => {
+    const render = createPieceRenderer()
+    const long = [...Array(500).keys()].map((i) => `Paragraph ${i}: ${'word '.repeat(70)}`)
+    const note = long.join('\n\n')
+    expect(note.length).toBeGreaterThan(3 * KEPT_CHARACTERS)
+    const first = await render(note, options)
+    await render('Another note.', options)
+    const again = await render(note, options)
+    const ends = [...again.slice(1).map((piece) => piece.offset), note.length]
+    const kept = again
+      .map((piece, i) => (piece.key === first[i]!.key ? ends[i]! - piece.offset : 0))
+      .reduce((sum, length) => sum + length, 0)
+    expect(kept).toBeLessThanOrEqual(KEPT_CHARACTERS)
   })
 
   it('keeps every piece of a note larger than its capacity, so only an edited piece is sent again', async () => {

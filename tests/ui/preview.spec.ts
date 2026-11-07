@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { FRAME_IDLE_MS } from '../../src/renderer/src/preview/frameLifetime'
 import { expect, test, openApp } from './fixtures'
 
 async function newNote(page: Page, title: string, body = '') {
@@ -243,6 +244,31 @@ test('a diagram drawn again releases the styles of the one it replaces', async (
   await mode(page, 'Edit').click()
   await expect(preview(page)).toHaveCount(0)
   await expect.poll(() => adoptedSheets(page)).toBe(before)
+})
+
+test('the diagram frame goes a while after the last note with a diagram is left', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await newNote(page, 'Plain', 'No diagram here.')
+  await newNote(page, 'Drawn', FLOWCHART)
+  await mode(page, 'Split').click()
+  const svgs = preview(page).locator('.island-mermaid svg')
+  await expect(svgs).toHaveCount(1, { timeout: 20_000 })
+  const frame = page.locator('iframe.mermaid-frame')
+  await expect(frame).toHaveCount(1)
+
+  const notes = page.getByRole('listbox', { name: 'Notes' })
+  await notes.getByRole('option', { name: /Plain/ }).click()
+  await expect(page.getByRole('textbox', { name: 'Title' })).toHaveValue('Plain')
+  await page.clock.runFor(FRAME_IDLE_MS - 1000)
+  await expect(frame).toHaveCount(1)
+  await page.clock.runFor(2000)
+  await expect(frame).toHaveCount(0)
+
+  await notes.getByRole('option', { name: /Drawn/ }).click()
+  await expect(svgs).toHaveCount(1, { timeout: 20_000 })
+  await expect(preview(page).locator('.island-error')).toHaveCount(0)
 })
 
 async function mermaidFrame(page: Page) {
