@@ -19,6 +19,7 @@ interface Answers {
   icloud: ICloudStatus | Error
   devices: Record<string, unknown>[]
   useFails?: string | undefined
+  leaveFails?: string | undefined
 }
 
 const DEVICES = [
@@ -56,6 +57,15 @@ vi.mock('../ipc', () => ({
         if ((args as { relaySecret?: string }).relaySecret !== 'relay-secret')
           throw new Error('E_SYNC_RELAY_SECRET')
         return { snapshot: answers.snapshot, recoveryKey: 'ABCDE-FGHIJ-KLMNO' }
+      case 'sync_vault_leave':
+        if (answers.leaveFails) throw new Error(answers.leaveFails)
+        return {
+          ...answers.snapshot,
+          vault: false,
+          enrolled: false,
+          enabled: false,
+          rotated: false,
+        }
       case 'sync_devices':
         return answers.devices
       case 'sync_icloud_storage':
@@ -111,6 +121,7 @@ afterEach(() => {
   calls.length = 0
   answers.devices = DEVICES
   answers.useFails = undefined
+  answers.leaveFails = undefined
   vi.restoreAllMocks()
 })
 
@@ -366,6 +377,7 @@ describe.each([
     await settle()
     expect(el.querySelector('[role=alert]')).not.toBeNull()
     answers.useFails = undefined
+    answers.leaveFails = undefined
     await act(async () => button(el, 'Sync Through iCloud')?.click())
     await settle()
     expect(el.querySelector('[role=alert]')).toBeNull()
@@ -588,17 +600,62 @@ describe.each([
     }
   })
 
-  it('cancels leaving without a word to Rust, and offers it to no relay vault', async () => {
+  it('cancels leaving without a word to Rust', async () => {
     const el = await show(snapshot({}), ICLOUD, phone)
     await act(async () => button(el, 'Leave This Vault…')?.click())
     await act(async () => button(el, 'Cancel')?.click())
     expect(el.querySelector('input[type=text]')).toBeNull()
     expect(button(el, 'Leave This Vault…')).toBeDefined()
     expect(calls.some((c) => c.cmd === 'sync_icloud_leave')).toBe(false)
-    act(() => root?.unmount())
-    root = undefined
-    const relay = await show(snapshot({ transport: 'relay', enrolled: true }), ICLOUD, phone)
-    expect(button(relay, 'Leave This Vault…')).toBeUndefined()
+  })
+
+  it('leaves a relay vault once confirmed, and asks no recovery key for it', async () => {
+    const el = await show(snapshot({ transport: 'relay', enrolled: true }), ICLOUD, phone)
+    expect(el.textContent).toMatch(/notes stay on this device/i)
+    await act(async () => button(el, 'Leave This Vault…')?.click())
+    expect(el.querySelector('input[type=text]')).toBeNull()
+    expect(document.body.textContent).toMatch(
+      /Nothing changes on the relay or on your other devices/,
+    )
+    const dialog = document.querySelector('dialog')
+    const cancel = [...(dialog?.querySelectorAll('button') ?? [])].find(
+      (b) => b.textContent === 'Cancel',
+    )
+    await act(async () => cancel?.click())
+    expect(calls.some((c) => c.cmd === 'sync_vault_leave')).toBe(false)
+    await act(async () => button(el, 'Leave This Vault…')?.click())
+    await act(async () => button(el, 'Leave')?.click())
+    await settle()
+    expect(calls.filter((c) => c.cmd === 'sync_vault_leave').map((c) => c.args)).toEqual([
+      undefined,
+    ])
+    await act(() => new Promise((resolve) => setTimeout(resolve, 60)))
+    expect(el.textContent).toMatch(/left the vault|Vault left/)
+    expect(button(el, 'Leave This Vault…')).toBeUndefined()
+  })
+
+  it('offers a stuck relay device the way out beside the joins', async () => {
+    for (const shown of [
+      snapshot({ transport: 'relay', enrolled: false, enabled: false }),
+      snapshot({ transport: 'relay', enrolled: true, rotated: true }),
+    ]) {
+      const el = await show(shown, NO_CONTAINER, phone)
+      expect(button(el, 'Leave This Vault…')).toBeDefined()
+      act(() => root?.unmount())
+      root = undefined
+    }
+    const none = await show(snapshot({ transport: 'relay', vault: false }), NO_CONTAINER, phone)
+    expect(button(none, 'Leave This Vault…')).toBeUndefined()
+  })
+
+  it('says why a relay vault could not be left', async () => {
+    answers.leaveFails = 'E_SYNC_KEYCHAIN'
+    const el = await show(snapshot({ transport: 'relay', enrolled: true }), NO_CONTAINER, phone)
+    await act(async () => button(el, 'Leave This Vault…')?.click())
+    await act(async () => button(el, 'Leave')?.click())
+    await settle()
+    expect(el.textContent).toMatch(/The vault could not be left\./)
+    expect(el.textContent).not.toContain('E_SYNC_KEYCHAIN')
   })
 })
 

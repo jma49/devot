@@ -24,6 +24,7 @@ import { PhoneGroup } from '../phone/PhoneControls'
 import { Setting, SettingToggle, SettingsNote, SettingsSection } from './controls'
 import { useOnPhone } from './onPhone'
 import { DevicesRow, JoinRows, PairingRow, RecoveryKeyPanel } from './SyncDevices'
+import { LeaveVaultRow } from './SyncLeave'
 import { RotateKeyRow } from './SyncRotate'
 import {
   ICloudActions,
@@ -521,6 +522,8 @@ export function SyncSection() {
   const toggleOff = !onICloud && snapshot.relayUrl === ''
   const leaveRow = onICloud ? (
     <LeaveICloudRow onLeft={() => announce(t('syncSettings.icloudLeft'))} failed={failed} />
+  ) : snapshot.vault ? (
+    <LeaveVaultRow onLeft={() => announce(t('syncSettings.left'))} failed={failed} />
   ) : null
   const stateNotes = (
     <>

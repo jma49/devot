@@ -304,6 +304,9 @@ export async function rotateSyncVault(
   return { snapshot: next, recoveryKey: readRecoveryKey(v['recoveryKey']) }
 }
 
+/** Leaves the relay vault this device holds: its key and token go here, and its notes stay. */
+export const leaveSyncVault = async () => adoptSnapshot(await invoke<unknown>('sync_vault_leave'))
+
 const readRecoveryKey = (key: unknown) =>
   typeof key === 'string' && RECOVERY_KEY.test(key) ? key : null
 

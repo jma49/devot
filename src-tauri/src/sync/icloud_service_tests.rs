@@ -1311,6 +1311,15 @@ fn a_leave_that_failed_part_way_is_retried_to_the_same_end() {
 }
 
 #[test]
+fn leaving_a_relay_vault_is_refused_for_a_vault_on_icloud() {
+    let kit = Arc::new(Fake::new());
+    let mac = device(&kit);
+    mac.service.use_icloud(None, 0).unwrap();
+    assert_eq!(mac.service.leave_vault().err(), Some("E_SYNC_LEAVE_ICLOUD"));
+    assert!(held(&mac).is_some() && mac.service.snapshot().enabled);
+}
+
+#[test]
 fn a_device_that_connects_part_way_through_a_leave_stops_instead_of_making_the_vault_again() {
     use super::cloudkit::error::code;
     use super::cloudkit::kit::CkError;

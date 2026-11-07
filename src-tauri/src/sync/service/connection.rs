@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 
+use super::super::Vault;
 use super::super::client::{self, Connection, Event, RelayUrl, Welcome};
 use super::super::cloudkit::{self, ICloud, ICloudState};
 use super::super::settings::DeviceCredentials;
-use super::super::{Vault, names};
 use super::{
     Connected, DEVICE_LABEL, Live, LiveRef, PAIRING_EVENT, REVOKED, SOCKET_EVENT, SyncService,
     VAULT_ROTATED,
@@ -30,7 +30,7 @@ impl SyncService {
                 .connect_icloud(vault, state, has_synced)
                 .map(|welcome| {
                     Connected::ICloud(cloudkit::Welcome {
-                        epoch: names::epoch(&welcome.epoch),
+                        epoch: settings.engine_epoch(&welcome.epoch),
                         ..welcome
                     })
                 });
@@ -75,7 +75,7 @@ impl SyncService {
             vault: Arc::new(vault),
         });
         Ok(Connected::Relay(Welcome {
-            epoch: names::epoch(&welcome.epoch),
+            epoch: settings.engine_epoch(&welcome.epoch),
             ..welcome
         }))
     }

@@ -49,7 +49,7 @@ A connect that finds `rotating` with a successor token waiting reads the old vau
 - A join may replace the held vault only when the held vault is recorded as retired and the joined vault is its recorded successor. A join with the old key on a device that recorded the retirement is refused with `E_SYNC_VAULT_ROTATED`, though its old token still opens a socket. Every other rule of ADR 0008 stands: another vault is still never replaced. The relay says which vault succeeded, but cannot hand over its key: the offer opens only under the code's key, and the recovery key comes from the owner. A relay that names a false successor only makes the join refuse.
 - On joining, the device's whole library goes up to the successor (a new epoch), so changes it made after the rotating device's last pull reach the others. Nothing on any device is lost: every device holds all its records (ADR 0002).
 - A device offline during the rotation finds the retirement when it next connects, whenever that is: the retirement is kept for good.
-- A device removed before the rotation, which holds a revoked token, cannot connect to learn the successor, and so cannot join it: it stays out. Letting it back in waits on a way to leave a relay vault (#646), which is also the way out for any device stuck on a vault it cannot use.
+- A device removed before the rotation, which holds a revoked token, cannot connect to learn the successor, and so cannot join it: it stays out. To let it back in, its owner leaves the vault on it (ADR 0008, Leaving a relay vault), which forgets the old key and token there, and then joins the successor with a pairing code or the new recovery key, as a device with no vault. Leaving is also the way out for any device stuck on a vault it cannot use, such as one retired for a successor that was lost.
 
 ### What the removed device can still do
 
@@ -83,7 +83,7 @@ Not built yet; recorded here so the relay part does not decide it differently.
 ## Consequences
 
 - ADR 0002: a relay vault can be retired, with the relay secret only; it keeps a `retirement` table, refuses `push`, `pull` and `enroll` once retired, and its welcome says so.
-- ADR 0008: "Locking out a lost device for good needs a new vault key" is this ADR. A join may replace a held vault that is retired, for its successor only.
+- ADR 0008: "Locking out a lost device for good needs a new vault key" is this ADR. A join may replace a held vault that is retired, for its successor only. Leaving a relay vault, which ADR 0008 now records, lets any other vault be joined.
 - ADR 0015: locking a device out of an iCloud vault is removing it from the Apple ID and then rotating, as above.
 - ADR 0016: a rotation is a new vault, so every store name changes with it; a store can link old and new names only by timing and sizes, as after the move to store names.
-- Follow-ups: rotation on iCloud (#641); per-device keys so relay devices follow without pairing again (#642); wiping a retired vault's records from the relay, and an orphaned successor left by a lost race (#643); listing, on the rotating device, the old vault's devices that have not joined the successor yet (#644); leaving a relay vault, the recovery path for a stuck device (#646).
+- Follow-ups: rotation on iCloud (#641); per-device keys so relay devices follow without pairing again (#642); wiping a retired vault's records from the relay, and an orphaned successor left by a lost race (#643); listing, on the rotating device, the old vault's devices that have not joined the successor yet (#644). Leaving a relay vault, the recovery path for a stuck device (#646), is built (ADR 0008).

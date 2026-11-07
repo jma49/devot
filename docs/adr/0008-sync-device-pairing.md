@@ -68,9 +68,27 @@ Removing a device revokes its token, not its knowledge: it still holds the vault
 ## Rules on both joins
 
 - A device that already holds another vault refuses to join (`E_SYNC_VAULT_EXISTS`): a key that may be the only copy is never replaced. Joining the vault it already holds (a removed device that is let back in) is allowed.
-- Settings offers the joins first on a device that holds no vault. Creating a new vault is a separate step marked as for the first device only, so a second device does not start a vault of its own by mistake: with no way yet to leave a vault, its notes would never meet the others.
+- Settings offers the joins first on a device that holds no vault. Creating a new vault is a separate step marked as for the first device only, so a second device does not start a vault of its own by mistake: its notes would not meet the others until it left that vault.
 - Pairing and joining are sync actions and need the license (`E_LICENCE_REQUIRED`), as creating the vault and connecting do. Listing and removing devices do not need it: taking access away is never locked.
 - Key material stays in Rust. The page sees the code to show (text and QR), its expiry, the outcome, and the recovery key until it is saved.
+
+## Leaving a relay vault
+
+Leave This Vault in Settings > Sync is the way out for a device stuck on a relay vault it cannot use: removed before a rotation, so its revoked token cannot learn the successor (ADR 0017); retired for a successor it cannot join; or on a relay that is gone or whose secret is lost.
+
+- It is offered on any relay vault the device holds, enrolled or not.
+  Leaving an iCloud vault is ADR 0015's and is refused here (`E_SYNC_LEAVE_ICLOUD`).
+- A dialog confirms it and says what stays and what goes.
+  The notes stay on this device.
+  The vault key, the device-only token item, a rotation's `-next` items and the `rotating` and `rotated` records go from this device, and sync turns off.
+  Nothing changes on the relay or on the other devices: the relay still lists the device until Remove on another device takes it off.
+- Sync turns off first and the vault item goes last, so a leave that fails part way keeps the key and a retry ends the same.
+- The relay's address stays set, so the device can join again at once, with a pairing code or a recovery key, as a device that holds no vault.
+  Any vault may then be joined, as on a new device.
+- The next join treats the device as one with no vault: its whole library goes up to the joined vault (a new epoch, ADR 0002).
+  Each leave marks the epoch the engine sees, so this holds even when the device joins the vault it left.
+- It needs no licence: it takes nothing from anyone, and a stuck device must not be kept stuck.
+- Errors and logs carry codes and the vault ID only (`I_SYNC_LEFT`, `W_SYNC_LEAVE_FORGET`).
 
 ## Compatibility
 
@@ -81,7 +99,7 @@ Removing a device revokes its token, not its knowledge: it still holds the vault
 ## Consequences
 
 - docs/sync-relay.md documents the routes and how an owner updates their relay. docs/architecture.md and GLOSSARY.md name the pairing code, the offer and the recovery key.
-- Follow-ups: scanning the QR code inside Devot on iOS; acting on a `devot://pair` link (it should only fill in the join form, never join on its own); device names that tell two Macs apart (encrypted under the vault key so the relay does not see them); a way to leave a vault on purpose; key rotation, so a removed device that holds the vault key cannot join again (ADR 0017).
+- Follow-ups: scanning the QR code inside Devot on iOS; acting on a `devot://pair` link (it should only fill in the join form, never join on its own); device names that tell two Macs apart (encrypted under the vault key so the relay does not see them); key rotation, so a removed device that holds the vault key cannot join again (ADR 0017).
 
 ## Amended
 

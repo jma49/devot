@@ -33,6 +33,7 @@ mod devices;
 mod enrollment;
 mod icloud_join;
 mod icloud_move;
+mod leave;
 mod pairing_code;
 mod records;
 mod rotation;

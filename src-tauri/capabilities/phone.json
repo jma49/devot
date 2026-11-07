@@ -38,6 +38,7 @@
     "allow-sync-icloud-join",
     "allow-sync-icloud-upload-again",
     "allow-sync-icloud-leave",
+    "allow-sync-vault-leave",
     "allow-sync-icloud-storage",
     "allow-licence-get",
     "allow-licence-set",

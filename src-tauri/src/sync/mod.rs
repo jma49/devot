@@ -52,6 +52,8 @@ mod attachment_relay_tests;
 #[cfg(test)]
 mod icloud_service_tests;
 #[cfg(test)]
+mod leave_relay_tests;
+#[cfg(test)]
 mod pairing_relay_tests;
 #[cfg(test)]
 mod pairing_tests;

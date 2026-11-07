@@ -275,6 +275,16 @@ export const messages = {
   'syncSettings.why.rotated':
     'This key was changed. Use a pairing code from a device that has the new key, or the new recovery key.',
   'syncSettings.icloudChangeFailed': 'Sync through iCloud could not be changed.',
+  'syncSettings.leave': 'Leave This Vault',
+  'syncSettings.leaveHint':
+    'Forgets this vault\u2019s key on this device, so it can join a vault again with a pairing code or a recovery key. Your notes stay on this device.',
+  'syncSettings.leaveConfirm': 'Leave this vault on this device?',
+  'syncSettings.leaveDetail':
+    'The vault key and this device\u2019s access to the relay are removed from this device, and sync turns off. Your notes stay here. Nothing changes on the relay or on your other devices, which list this device until you remove it there.',
+  'syncSettings.leaveButton': 'Leave',
+  'syncSettings.left':
+    'You left the vault. Your notes stay here. To sync again, join with a pairing code or a recovery key.',
+  'syncSettings.leaveFailed': 'The vault could not be left.',
   'syncSettings.icloudLeave': 'Leave This Vault',
   'syncSettings.icloudLeaveHint':
     'Removes the vault from this Apple ID. Your notes stay on every device, and the other devices ask before they sync again. To pause sync and keep the vault, turn sync off.',
