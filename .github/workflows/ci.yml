@@ -440,6 +440,16 @@ jobs:
       # Tauri's beforeBuildCommand builds the release UI, which the app embeds.
       - run: pnpm tauri ios build --debug --target aarch64-sim
       - run: sh scripts/ci/iphone-ui-tests.sh
+        env:
+          DEVOT_UI_RESULT: ${{ runner.temp }}/DevotUITests.xcresult
+      # The result bundle names each failed audit issue's element and holds the screenshots.
+      - if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: iphone-ui-xcresult
+          path: ${{ runner.temp }}/DevotUITests.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Cargo-deny reads the manifest and lockfile, not the built app. It runs in
   # parallel with the compile-heavy job and does not pull the UI or apt stack.

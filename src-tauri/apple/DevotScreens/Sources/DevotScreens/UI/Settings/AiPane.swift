@@ -15,10 +15,12 @@ struct AiPane: View {
         Form {
             if let problem { ProblemRow(text: problem) }
             if let licence = store.licence, !licence.allows(store.now) {
-                Section(L10n.licenceSettingsTitle()) {
+                Section {
                     Text(LicenceText.aiLocked(licence, store.now)).settingsDetail()
                         .listRowBackground(Color(Tokens.Color.phoneCard))
                     ActionRow(title: licence.soldOnAppStore ? L10n.licenceSettingsBuyPro() : L10n.licenceSettingsBuy(), action: buy)
+                } header: {
+                    Header(L10n.licenceSettingsTitle())
                 }
             }
             if let view = store.ai {
@@ -30,7 +32,7 @@ struct AiPane: View {
                         store.setAi(next)
                     }
                 } header: {
-                    Text(L10n.phoneAiFeatures())
+                    Header(L10n.phoneAiFeatures())
                 } footer: {
                     Footer(L10n.phoneAiSuggestHint())
                 }
@@ -73,7 +75,7 @@ struct AiPane: View {
             ActionRow(title: L10n.aiSettingsRemoveKey(), destructive: true) { removeKey(view.active) }
                 .disabled(shown.key != "set" && shown.key != "unknown")
         } header: {
-            Text(L10n.phoneAiProvider())
+            Header(L10n.phoneAiProvider())
         } footer: {
             Footer(L10n.aiSettingsDetail())
         }

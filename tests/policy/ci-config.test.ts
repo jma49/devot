@@ -129,6 +129,12 @@ it('launches the real iPhone app with its built UI in a simulator, switches the 
   expect(script).toContain('xcrun simctl install')
   expect(script).toContain('xcodebuild test')
   expect(script).toContain('-scheme DevotUITests')
+  // A failed run keeps the result bundle, which names each audit issue's element.
+  expect(script).toContain('-resultBundlePath "$DEVOT_UI_RESULT"')
+  expect(ui).toContain('DEVOT_UI_RESULT: ${{ runner.temp }}/DevotUITests.xcresult')
+  expect(ui).toMatch(
+    /- if: failure\(\)\n {8}uses: actions\/upload-artifact@[0-9a-f]{40} # v\S+\n {8}with:\n {10}name: iphone-ui-xcresult\n {10}path: \$\{\{ runner\.temp \}\}\/DevotUITests\.xcresult\n/,
+  )
   const tests = read('src-tauri/apple/DevotUITests/Tests/TabsTests.swift')
   expect(tests).toContain('performAccessibilityAudit')
   for (const tab of ['Notes', 'Library', 'Activity', 'Settings']) {

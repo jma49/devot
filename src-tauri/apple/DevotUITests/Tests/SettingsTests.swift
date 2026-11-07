@@ -17,8 +17,14 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(app.navigationBars[L10n.settingsTitle()].waitForExistence(timeout: 10))
     }
 
+    /// The root is taller than the screen: a row under the tab bar is scrolled up to before it is tapped.
     private func row(_ title: String) -> XCUIElement {
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
+        let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
+        let bar = app.tabBars.firstMatch
+        for _ in 0..<4 where !(row.exists && row.frame.maxY <= bar.frame.minY) {
+            app.collectionViews.firstMatch.swipeUp()
+        }
+        return row
     }
 
     private func back() {
@@ -68,9 +74,27 @@ final class SettingsTests: XCTestCase {
     }
 
     func testTheSettingsRootPassesTheAccessibilityAudit() throws {
-        // The chevron keeps the system's fixed disclosure size, as UIKit's own does.
-        try app.performAccessibilityAudit { issue in
-            issue.auditType == .dynamicType && issue.element?.elementType == .image
+        continueAfterFailure = true
+        let bar = app.tabBars.firstMatch.frame
+        let allowed = { (issue: XCUIAccessibilityAuditIssue) -> Bool in
+            let element = issue.element
+            let type = element?.elementType
+            let frame = element?.frame ?? .null
+            // The chevron keeps the system's fixed disclosure size, as UIKit's own does.
+            if issue.auditType == .dynamicType && type == .image { return true }
+            // The system's search field, which the app does not draw.
+            if issue.auditType == .textClipped && type == .searchField { return true }
+            // The system's bar button: its frame is 36 pt, but its glass platter takes touches over 44 by 44.
+            if issue.auditType == .hitRegion && type == .button && element?.label == L10n.phoneSettingsPair() {
+                return true
+            }
+            // Rows scroll under the system's glass tab bar, which the audit measures them against.
+            if issue.auditType == .contrast && frame.intersects(bar) { return true }
+            print("audit issue: \(issue.compactDescription) on \(type.map { "\($0.rawValue)" } ?? "-") '\(element?.label ?? "")' \(frame)")
+            return false
         }
+        // Contrast runs alone: audited with the rest, a row under the tab bar comes without its element.
+        try app.performAccessibilityAudit(for: XCUIAccessibilityAuditType.all.subtracting(.contrast), allowed)
+        try app.performAccessibilityAudit(for: .contrast, allowed)
     }
 }
