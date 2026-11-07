@@ -100,6 +100,9 @@ Part of the [architecture overview](../architecture.md).
   On a 5 MB note (synthetic text) a save writes about 10 MB of write-ahead log and a catch-up 6 to 26 MB, as FTS5 merges segments; a save wrote 11 to 38 MB before, so one settled edit writes about as much as before and a burst of saves far less.
   The stale set is in the database, so a quit leaves it for the next launch, whose database thread catches up 5 s after its last write.
   A build from before schema v29 still running against an upgraded file (an old window or helper left open) keeps saving under the new triggers but never catches up, so its searches miss edits until a newer process catches up.
+  Its purge also runs its own attachment hand-over against that index without catching it up, so an attachment can be deleted instead of handed over when another note was edited to show it since the last catch-up.
+  That purge only marks the purged note's text stale, and the newer process's catch-up later removes it with FTS5 `secure-delete` off, so its trigrams stay in the index pages.
+  Both need a process that was already open during the upgrade, since an older build refuses to open a file with a newer schema.
   A contentless index (`contentless_delete=1`) would need no copy of the old text, but its deletes only leave tombstones, so a purged note's trigrams would stay in the file's pages until the whole index is rewritten.
   Rebuild Search Index stays one `'rebuild'` statement and empties `search_stale` in the same transaction.
 - Markdown export (see Export and print) writes notes and notebooks as Markdown files that import back as they were.
