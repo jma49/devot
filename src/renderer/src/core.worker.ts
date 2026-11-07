@@ -167,8 +167,8 @@ const coreApi = {
     const clock = createClock(node)
     const ids = createIdGenerator()
     newId = ids
-    const storage = observeWrites(fromWire(remote), () => {
-      mirror?.touch()
+    const storage = observeWrites(fromWire(remote), (noteIds) => {
+      mirror?.touch(noteIds)
       sync?.touch()
     })
     mirrorStorage = storage
