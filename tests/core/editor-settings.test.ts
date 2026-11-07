@@ -5,6 +5,7 @@ import {
   FONT_FAMILIES,
   FONT_WEIGHTS,
   FONT_SIZE_MAX,
+  GRADIENT_STRENGTH_MAX,
   GRADIENT_THEMES,
   ICON_STYLES,
   FONT_SIZE_MIN,
@@ -18,6 +19,7 @@ import {
   PASTE_URL_STYLES,
   TAB_WIDTHS,
   checkEditorSettingsPatch,
+  gradientThemeChosen,
   indentText,
   PAGE_MARGINS,
   PAGE_PAPERS,
@@ -51,6 +53,8 @@ describe('editor settings', () => {
       spellCheck: true,
       highlightActiveLine: false,
       windowTransparency: 0,
+      materialTransparency: 0,
+      gradientStrength: 0,
       pasteUrl: 'link',
       syncScroll: true,
       inlineImages: true,
@@ -222,6 +226,15 @@ describe('editor settings', () => {
     expect(parseEditorSettings({ spellCheck: false }).windowTransparency).toBe(0)
     expect(parseEditorSettings({ windowTransparency: -40 }).windowTransparency).toBe(-40)
     expect(parseEditorSettings({ windowTransparency: 101 }).windowTransparency).toBe(0)
+    // Settings from before the material slider read it as the design.
+    expect(parseEditorSettings({ windowTransparency: -40 }).materialTransparency).toBe(0)
+    expect(parseEditorSettings({ materialTransparency: 60 }).materialTransparency).toBe(60)
+    expect(parseEditorSettings({ materialTransparency: -101 }).materialTransparency).toBe(0)
+    // Settings from before the gradient slider read it as a solid colour.
+    expect(parseEditorSettings({ lightTheme: 'dawn' }).gradientStrength).toBe(0)
+    expect(parseEditorSettings({ gradientStrength: 60 }).gradientStrength).toBe(60)
+    for (const gradientStrength of [-1, 101, 52.5, '50', null])
+      expect(parseEditorSettings({ gradientStrength }).gradientStrength).toBe(0)
     expect(parseEditorSettings({ autoDownloadUpdates: false }).autoDownloadUpdates).toBe(false)
     expect(parseEditorSettings({ showCounts: false }).showCounts).toBe(false)
     expect(parseEditorSettings({ showCounts: 0 }).showCounts).toBe(true)
@@ -257,6 +270,10 @@ describe('editor settings', () => {
     })
     for (const windowTransparency of [-100, 0, 35, 100])
       expect(checkEditorSettingsPatch({ windowTransparency })).toEqual({ windowTransparency })
+    for (const materialTransparency of [-100, 0, 35, 100])
+      expect(checkEditorSettingsPatch({ materialTransparency })).toEqual({ materialTransparency })
+    for (const gradientStrength of [0, 35, GRADIENT_STRENGTH_MAX])
+      expect(checkEditorSettingsPatch({ gradientStrength })).toEqual({ gradientStrength })
     expect(checkEditorSettingsPatch({ inlineImages: false })).toEqual({ inlineImages: false })
     for (const listDates of LIST_DATES_STYLES)
       expect(checkEditorSettingsPatch({ listDates })).toEqual({ listDates })
@@ -313,6 +330,14 @@ describe('editor settings', () => {
       { windowTransparency: 105 },
       { windowTransparency: 52.5 },
       { windowTransparency: '50' },
+      { materialTransparency: -105 },
+      { materialTransparency: 105 },
+      { materialTransparency: 52.5 },
+      { materialTransparency: '50' },
+      { gradientStrength: -5 },
+      { gradientStrength: 105 },
+      { gradientStrength: 52.5 },
+      { gradientStrength: '50' },
       { syncScroll: 'on' },
       { syncScroll: 1 },
       { inlineImages: 'on' },
@@ -459,6 +484,15 @@ describe('editor settings', () => {
       expect(read).not.toHaveProperty('sidebarMaterial')
     }
     expect(DEFAULT_EDITOR_SETTINGS).not.toHaveProperty('sidebarMaterial')
+  })
+
+  it('counts a gradient theme as chosen when either appearance has one', () => {
+    expect(gradientThemeChosen(DEFAULT_EDITOR_SETTINGS)).toBe(false)
+    expect(gradientThemeChosen({ lightTheme: 'ivory', darkTheme: 'default' })).toBe(false)
+    for (const theme of GRADIENT_THEMES) {
+      expect(gradientThemeChosen({ lightTheme: theme, darkTheme: 'default' })).toBe(true)
+      expect(gradientThemeChosen({ lightTheme: 'ivory', darkTheme: theme })).toBe(true)
+    }
   })
 
   it('lets only the default theme follow the system accent', () => {

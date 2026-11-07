@@ -102,11 +102,12 @@ describe('slashTrigger', () => {
     expect(opens(`/${'x'.repeat(64)}^`)).toBe(false)
   })
 
-  it('does not open in code, HTML or front matter', () => {
+  it('does not open in code, a formula, HTML or front matter', () => {
     expect(opens('```\n/^\n```')).toBe(false)
     expect(opens('~~~js\n/^\n~~~')).toBe(false)
     expect(opens('<div>\n/^\n</div>')).toBe(false)
     expect(opens('---\n/^\n---\nBody')).toBe(false)
+    expect(opens('$a\n/^ b$')).toBe(false)
   })
 
   it('opens only for a single cursor', () => {

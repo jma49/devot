@@ -28,6 +28,18 @@ describe('searchSettings', () => {
     })
   })
 
+  it('finds the gradient on the Mac and the iPhone alike', () => {
+    const gradient = {
+      pane: 'appearance',
+      label: 'appearanceSettings.gradient',
+      paneLabel: 'settings.pane.appearance',
+    }
+    expect(searchSettings('gradient', t)).toContainEqual(gradient)
+    expect(searchSettings('gradient', t, { onPhone: true, panes: ['appearance'] })).toContainEqual(
+      gradient,
+    )
+  })
+
   it('needs every word, whatever the case', () => {
     expect(searchSettings('ICON style', t)).toContainEqual({
       pane: 'appearance',

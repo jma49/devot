@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
 import {
   changeEditorSettingsElsewhere,
   expect,
+  gradientStops,
   openSettings,
   paintedBackground,
   test,
@@ -10,6 +12,24 @@ import {
 const appearancePane = (page: Page) => page.getByRole('region', { name: 'Appearance' }).first()
 const transparencySlider = (page: Page) =>
   appearancePane(page).getByRole('slider', { name: 'Glass Transparency' })
+const materialSlider = (page: Page) =>
+  appearancePane(page).getByRole('slider', { name: 'Material Transparency' })
+const gradientSlider = (page: Page) =>
+  appearancePane(page).getByRole('slider', { name: 'Gradient' })
+const sliderValue = (page: Page, index: number) => appearancePane(page).locator('output').nth(index)
+
+const backdrops = JSON.parse(
+  readFileSync(new URL('../../design/tokens/backdrops.tokens.json', import.meta.url), 'utf8'),
+) as Record<
+  'backdrop',
+  Record<string, Record<string, { $value: { color: { components: number[]; alpha: number } }[] }>>
+>
+/** The gradient as designed, stop by stop, as the page paints it. */
+const designStops = (theme: string, appearance: 'light' | 'dark') =>
+  backdrops.backdrop[theme]![appearance]!.$value.map(({ color }) => {
+    const [r, g, b] = color.components.map((c) => Math.round(c * 255))
+    return `rgba(${r}, ${g}, ${b}, ${color.alpha})`
+  })
 
 const calls = (page: Page, cmd: string) =>
   page.evaluate(
@@ -39,14 +59,35 @@ test('the transparency adjusts the sheet: opaque at one end, the design in the m
   await expect(page.locator('html')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
 })
 
+test('the material transparency adjusts the glass and leaves the sheet', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window
+    w.devotEditorRevision = 2
+    w.devotEditorSettings = { materialTransparency: -100 }
+  })
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto('/')
+  const sidebar = page.locator('.sidebar')
+  const list = page.getByRole('region', { name: 'Notes' })
+  await expect.poll(() => paintedBackground(sidebar)).toBe('rgb(255, 255, 255)')
+  await expect.poll(() => paintedBackground(list)).toBe('rgba(255, 255, 255, 0.75)')
+  await changeEditorSettingsElsewhere(page, { materialTransparency: 100 })
+  await expect.poll(() => paintedBackground(sidebar)).toBe('rgba(255, 255, 255, 0.6)')
+  await changeEditorSettingsElsewhere(page, { materialTransparency: 0 })
+  await expect.poll(() => paintedBackground(sidebar)).toBe('rgba(255, 255, 255, 0.8)')
+  await changeEditorSettingsElsewhere(page, { windowTransparency: 100 })
+  await expect.poll(() => paintedBackground(sidebar)).toBe('rgba(255, 255, 255, 0.8)')
+  await expect.poll(() => paintedBackground(list)).toBe('rgba(255, 255, 255, 0.5)')
+})
+
 test('the Settings window adjusts how see-through Glass is with a slider', async ({ page }) => {
   await openSettings(page, 'Appearance')
   await expect(transparencySlider(page)).toHaveValue('0')
   await expect(transparencySlider(page)).toHaveAccessibleDescription(/shows through/)
-  await expect(appearancePane(page).locator('output')).toHaveText('0')
+  await expect(sliderValue(page, 0)).toHaveText('0')
 
   await transparencySlider(page).fill('40')
-  await expect(appearancePane(page).locator('output')).toHaveText('+40')
+  await expect(sliderValue(page, 0)).toHaveText('+40')
   await expect
     .poll(() => calls(page, 'editor_settings_set'))
     .toEqual([{ patch: { windowTransparency: 40 } }])
@@ -55,6 +96,81 @@ test('the Settings window adjusts how see-through Glass is with a slider', async
   await expect
     .poll(() => calls(page, 'editor_settings_set'))
     .toEqual([{ patch: { windowTransparency: 40 } }, { patch: { windowTransparency: 35 } }])
+})
+
+test('the Settings window adjusts the glass material with its own slider', async ({ page }) => {
+  await openSettings(page, 'Appearance')
+  await expect(materialSlider(page)).toHaveValue('0')
+  await expect(materialSlider(page)).toHaveAccessibleDescription(/shows through/)
+  await expect(sliderValue(page, 1)).toHaveText('0')
+
+  await materialSlider(page).fill('-40')
+  await expect(sliderValue(page, 1)).toHaveText('-40')
+  await expect(sliderValue(page, 0)).toHaveText('0')
+  await expect
+    .poll(() => calls(page, 'editor_settings_set'))
+    .toEqual([{ patch: { materialTransparency: -40 } }])
+})
+
+test('the Gradient slider shows only while a gradient theme is chosen for either appearance', async ({
+  page,
+}) => {
+  await openSettings(page, 'Appearance')
+  await expect(materialSlider(page)).toBeVisible()
+  await expect(gradientSlider(page)).toHaveCount(0)
+  await changeEditorSettingsElsewhere(page, { lightTheme: 'dawn' })
+  await expect(gradientSlider(page)).toHaveValue('0')
+  await expect(gradientSlider(page)).toHaveAccessibleDescription(/solid color/)
+  await expect(sliderValue(page, 2)).toHaveText('0')
+  await changeEditorSettingsElsewhere(page, { lightTheme: 'ivory', darkTheme: 'ember' })
+  await expect(gradientSlider(page)).toBeVisible()
+  await changeEditorSettingsElsewhere(page, { lightTheme: 'ivory', darkTheme: 'default' })
+  await expect(gradientSlider(page)).toHaveCount(0)
+
+  await page
+    .getByRole('radiogroup', { name: 'Light Mode Theme' })
+    .getByRole('radio', { name: 'Tide' })
+    .check({ force: true })
+  await gradientSlider(page).fill('40')
+  await expect(sliderValue(page, 2)).toHaveText('40')
+  await expect
+    .poll(() => calls(page, 'editor_settings_set'))
+    .toEqual([{ patch: { lightTheme: 'tide' } }, { patch: { gradientStrength: 40 } }])
+})
+
+test('the gradient strength turns the backdrop and the glass tint from a solid colour into the designed gradient', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const w = window
+    w.devotEditorRevision = 2
+    w.devotEditorSettings = { appearance: 'light', lightTheme: 'dawn' }
+  })
+  await page.goto('/')
+  const sheet = page.locator('.window')
+  const sidebar = page.locator('.sidebar')
+  const design = designStops('dawn', 'light')
+  const backdrop = async () => (await gradientStops(sheet, '::before'))[0]
+  const tint = async () => (await gradientStops(sidebar)).find((stops) => stops.length === 3)
+
+  await expect.poll(backdrop).toEqual([design[1], design[1], design[1]])
+  await expect.poll(tint).toEqual([design[1], design[1], design[1]])
+  await changeEditorSettingsElsewhere(page, {
+    appearance: 'light',
+    lightTheme: 'dawn',
+    gradientStrength: 100,
+  })
+  await expect.poll(backdrop).toEqual(design)
+  await expect.poll(tint).toEqual(design)
+  await changeEditorSettingsElsewhere(page, {
+    appearance: 'light',
+    lightTheme: 'dawn',
+    gradientStrength: 50,
+  })
+  const half = (await backdrop())!
+  expect(half[1]).toBe(design[1])
+  expect(half[0]).not.toBe(design[0])
+  expect(half[0]).not.toBe(design[1])
 })
 
 test('an appearance change that cannot be stored is reported and dropped', async ({ page }) => {

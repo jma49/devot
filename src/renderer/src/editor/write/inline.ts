@@ -1,5 +1,5 @@
-// Write mode's inline elements the preview draws (an emoji shortcode, `<kbd>`,
-// `<sup>`, `<sub>`): the element's Markdown goes through the preview's own
+// Write mode's inline elements the preview draws (an emoji shortcode, inline math,
+// `<kbd>`, `<sup>`, `<sub>`): the element's Markdown goes through the preview's own
 // renderers in the core, and the sanitised tree is built with DOM APIs
 // (preview/dom.ts), as for the rendered blocks. Until the renderer answers the
 // first time, the widget shows the source; later draws come from the cache.

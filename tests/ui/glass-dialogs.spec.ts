@@ -114,7 +114,7 @@ const box = async (locator: Locator) => {
 async function expectGlassSurface(dialog: Locator) {
   await expect(dialog).toHaveCSS('border-radius', '26px')
   expect(await css(dialog, 'backdrop-filter')).not.toBe('none')
-  expect(await css(dialog, 'background-color')).toMatch(/rgba?\(.*0\.78\)|\/ 0\.78\)/)
+  expect(await css(dialog, 'background-color')).toMatch(/rgba?\(.*0\.8\)|\/ 0\.8\)/)
 }
 
 for (const colorScheme of ['light', 'dark'] as const) {

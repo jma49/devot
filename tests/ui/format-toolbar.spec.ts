@@ -180,15 +180,15 @@ test('the toolbar shows for a selection: one outlined box of named SF Symbol but
     const box = root.querySelector('.cm-float-notch')!.getBoundingClientRect()
     const icon = style(root.querySelector('.cm-float-button .icon'))
     return {
-      shadow: style(el).boxShadow,
+      shadow: getComputedStyle(el, '::before').boxShadow,
       filter: style(el).filter,
       notch: [box.width, box.height],
       size: [icon.width, icon.height],
       mask: icon.getPropertyValue('mask-size') || icon.getPropertyValue('-webkit-mask-size'),
     }
   })
-  // The outline is a 1 px ring in the box shadow (no spread blur), under the notch's strip.
-  expect(look.shadow).toMatch(/0px 0px 0px 1px/)
+  // The outline is the glass rim's half-pixel ring, cast with the shade by a layer behind the bar that leaves the notch out.
+  expect(look.shadow).toMatch(/0px 0px 0px 0\.5px/)
   expect(look.filter).toBe('none')
   expect(look.notch).toEqual([12, 6])
   // Whole pixels, and the mask fills the box exactly, so the glyph is scaled
@@ -522,12 +522,11 @@ test('a tooltip on the first button stays inside the editor, its notch on the bu
   expect(tipBox.x).toBeGreaterThanOrEqual(host.x + 3)
   expect(tipBox.x + tipBox.width).toBeLessThanOrEqual(host.x + host.width - 3)
 
-  const notchLeft = await tip.evaluate((el) => {
-    const view = window
-    return Number.parseFloat(view.getComputedStyle(el, '::before').left)
+  const [notchLeft, notchWidth] = await tip.evaluate((el) => {
+    const notch = window.getComputedStyle(el, '::before')
+    return [Number.parseFloat(notch.left), Number.parseFloat(notch.width)]
   })
-  // The notch's box is 8px (space-4); its centre is 4px past the reported left.
-  const notchCenter = tipBox.x + notchLeft + 4
+  const notchCenter = tipBox.x + notchLeft + notchWidth / 2
   expect(Math.abs(notchCenter - (buttonBox.x + buttonBox.width / 2))).toBeLessThan(2)
 })
 

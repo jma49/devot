@@ -208,7 +208,15 @@ const NESTING_MARKS: Record<string, string> = {
   Strikethrough: 'StrikethroughMark',
 }
 // Syntax nothing may be inserted into.
-const ATOMIC = new Set(['InlineCode', 'Autolink', 'URL', 'HTMLTag', 'Escape', 'Entity'])
+const ATOMIC = new Set([
+  'InlineCode',
+  'InlineMath',
+  'Autolink',
+  'URL',
+  'HTMLTag',
+  'Escape',
+  'Entity',
+])
 
 function otherSyntax(cx: Cx, format: Wrap, from: number, to: number): Syntax[] {
   const own = format === 'link' ? undefined : INLINE[format].node

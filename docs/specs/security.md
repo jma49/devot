@@ -116,6 +116,9 @@ So the preview treats note content as untrusted.
    The CSP's `frame-src` allows `'self'` for this frame; notes can still only embed https.
 8. **Code blocks:** the fence's info string (` ```js `, ` ```js:app.js `, ` ```js title="app.js" `) is read from the note's Markdown at the block's position. A block with a language or a title gets a header with the language's name and mark (an SVG path from a fixed table, `design/icons/languages.json`) and its title as text; the page's copy button sits in that header. Highlighting is lowlight with a fixed set of highlight.js grammars, loaded only for notes that need one; its output is `span.hljs-*` and text, coloured by the syntax tokens.
    Blocks over 20,000 characters stay plain.
+   A render draws each mark once, as a `<symbol>` (id `devot-code-mark-<name>`) inside its first block's mark, and every block's mark shows it with `<use href>`, so the path does not travel to the page once per block.
+   A note's own ids carry the sanitizer's `user-content-` prefix, so none can stand in for a mark's symbol.
+   Each render, and so each preview piece, gallery card and exported page, carries the symbols it uses; `pageBody` draws the path into every mark again.
 9. **Task lists and front matter:** a task's checkbox carries where its mark is in the Markdown (`data-task-at`); a click in the preview ticks it through the editor, which checks the text is still that box.
    Exported pages disable every box.
    Front matter that is a map of keys shows as a compact properties block (lists as chips); other YAML shows as code.

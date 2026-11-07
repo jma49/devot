@@ -1,5 +1,7 @@
-// Editor settings: how the note editor looks and behaves on this device, plus the window's Glass Transparency (Settings > Appearance). A local preference, never note
-// data: Rust keeps them in their own file (src-tauri/src/editor_settings.rs, which checks the same lists and ranges as this module) and they never sync.
+// Editor settings: how the note editor looks and behaves on this device, plus the window's
+// transparency and gradient (Settings > Appearance). A local preference, never note data: Rust
+// keeps them in their own file (src-tauri/src/editor_settings.rs, which checks the same lists and
+// ranges as this module) and they never sync.
 
 import { DAILY_TITLE_FORMATS, type DailyTitleFormat } from './dailyNotes'
 
@@ -47,8 +49,12 @@ export interface EditorSettings {
   listMarker: ListMarker
   spellCheck: boolean
   highlightActiveLine: boolean
-  /** How see-through the window is, from the regions' design washes: 0 is the design, -100 opaque, 100 twice as see-through. */
+  /** How see-through the sheet is, from its design wash: 0 is the design, -100 opaque, 100 twice as see-through. */
   windowTransparency: number
+  /** The same for the glass material over the sheet (Settings > Appearance > Material Transparency). */
+  materialTransparency: number
+  /** How much of a gradient theme's gradient shows, shared by every gradient theme: 0 is its middle colour alone, 100 the design gradient. */
+  gradientStrength: number
   pasteUrl: PasteUrlStyle
   syncScroll: boolean
   inlineImages: boolean
@@ -130,6 +136,8 @@ export const DEFAULT_EDITOR_SETTINGS: Readonly<EditorSettings> = Object.freeze({
   spellCheck: true,
   highlightActiveLine: false,
   windowTransparency: 0,
+  materialTransparency: 0,
+  gradientStrength: 0,
   pasteUrl: 'link',
   syncScroll: true,
   inlineImages: true,
@@ -235,6 +243,12 @@ export const THEMES: readonly ThemeChoice[] = ['default', 'ivory', ...GRADIENT_T
 export const ICON_STYLES: readonly IconStyleChoice[] = ['sfSymbols', 'lucide']
 /** The gradient themes keep the default palette, accent included. */
 export const themeFollowsSystemAccent = (theme: ThemeChoice): boolean => theme !== 'ivory'
+export const gradientThemeChosen = (
+  settings: Pick<EditorSettings, 'lightTheme' | 'darkTheme'>,
+): boolean =>
+  [settings.lightTheme, settings.darkTheme].some((theme) =>
+    GRADIENT_THEMES.includes(theme as GradientTheme),
+  )
 export const themeInEffect = (
   settings: Pick<EditorSettings, 'lightTheme' | 'darkTheme'>,
   appearance: 'light' | 'dark',
@@ -248,6 +262,7 @@ const TAB_WIDTH_MAX = 8
 export const CURSOR_SCROLL_MARGIN_MAX = 200
 export const WINDOW_TRANSPARENCY_MAX = 100
 export const WINDOW_TRANSPARENCY_STEP = 5
+export const GRADIENT_STRENGTH_MAX = 100
 export const LINE_HEIGHTS: readonly number[] = [1.2, 1.4, 1.5, 1.6, 1.8, 2]
 export const TAB_WIDTHS: readonly number[] = [2, 4, 8]
 
@@ -295,6 +310,8 @@ const VALID: { readonly [K in keyof EditorSettings]: (v: unknown) => boolean } =
   spellCheck: isFlag,
   highlightActiveLine: isFlag,
   windowTransparency: wholeIn(-WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX),
+  materialTransparency: wholeIn(-WINDOW_TRANSPARENCY_MAX, WINDOW_TRANSPARENCY_MAX),
+  gradientStrength: wholeIn(0, GRADIENT_STRENGTH_MAX),
   pasteUrl: oneOf(PASTE_URL_STYLES),
   syncScroll: isFlag,
   inlineImages: isFlag,

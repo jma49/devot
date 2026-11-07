@@ -226,6 +226,11 @@ export const messages = {
   'appearanceSettings.system': 'Auto',
   'appearanceSettings.glassAmount': 'Glass Transparency',
   'appearanceSettings.glassAmountHint': 'How much of the desktop shows through the window.',
+  'appearanceSettings.materialAmount': 'Material Transparency',
+  'appearanceSettings.materialAmountHint':
+    'How much shows through the sidebar, buttons and pop-ups.',
+  'appearanceSettings.gradient': 'Gradient',
+  'appearanceSettings.gradientHint': "From a solid color to the theme's full gradient.",
   'appearanceSettings.lightMode': 'Light Mode',
   'appearanceSettings.darkMode': 'Dark Mode',
   'appearanceSettings.modeActive': '\u2014 Active',

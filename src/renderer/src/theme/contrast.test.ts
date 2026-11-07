@@ -204,12 +204,18 @@ describe.each(Object.entries(themes))('the %s theme meets WCAG AA', (_name, them
     ).toEqual([])
   })
 
-  it('draws popup text at 4.5:1 on the popover and its selected row', () => {
+  it('draws popup text at 4.5:1 on the glass material and its selected row', () => {
     // The slash menu, completion popups and the floating toolbar: labels are
     // primary, group headers secondary, key hints tertiary. On the selected
-    // row the hint turns secondary (editor/completions.ts).
-    const popover = [solid(theme, 'surface.popover'), solid(theme, 'surface.float-bar')]
-    const selected = [solid(theme, 'fill.completion-selected')]
+    // row (the accent wash, --menu-highlight) the hint turns secondary
+    // (editor/completions.ts). Under Reduce Transparency the material is the
+    // editor surface.
+    const popover = [
+      ...backdrops(theme).map((b) => over(theme, 'surface.glass', b)),
+      solid(theme, 'surface.editor'),
+    ]
+    const wash = { rgb: solid(theme, 'accent.fill'), alpha: Number(sizes['opacity.list-selected']) }
+    const selected = popover.map((p) => composite(wash, p))
     expect(
       under(4.5, {
         primary: [solid(theme, 'text.primary'), popover],

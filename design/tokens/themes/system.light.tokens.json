@@ -650,7 +650,7 @@
           "components": [1, 1, 1],
           "hex": "#ffffff"
         },
-        "$description": "Floating lists in the editor: the slash menu and the completion popups."
+        "$description": "A reference for contrast checks only (tag ink and notebook icons in a popover, the focus ring): nothing paints it, the glass material is the fill of every popover."
       },
       "float-bar": {
         "$type": "color",
@@ -659,7 +659,7 @@
           "components": [1, 1, 1],
           "hex": "#ffffff"
         },
-        "$description": "The floating bars over the editor (the selection toolbar, the image size bar) and their notch."
+        "$description": "A reference for the focus ring contrast check only: nothing paints it, the floating bars are the glass material."
       },
       "sheet": {
         "$type": "color",
@@ -671,25 +671,25 @@
         },
         "$description": "Glass interface: the one wash the note list and the editor share over the window material, also the ring around the floating sidebar."
       },
-      "glass-popover": {
+      "glass": {
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
           "components": [1.0, 1.0, 1.0],
           "hex": "#ffffff",
-          "alpha": 0.78
+          "alpha": 0.8
         },
-        "$description": "Glass interface: popovers, tooltips, pickers and dialogs, over a blur of what is under them."
+        "$description": "Glass interface: the one material for everything that floats over the sheet: the sidebar, toolbar controls, popovers, menus, tooltips, floating bars and dialogs. Material Transparency adjusts it."
       },
-      "glass-float-bar": {
+      "glass-sheen": {
         "$type": "color",
         "$value": {
           "colorSpace": "srgb",
           "components": [1.0, 1.0, 1.0],
           "hex": "#ffffff",
-          "alpha": 0.86
+          "alpha": 0.16
         },
-        "$description": "Glass interface: the floating bars over the editor and their notch, a little more solid than a popover so the notch, drawn without blur, matches."
+        "$description": "Glass interface: the light along the top of the glass material, fading out over size.glass-sheen."
       }
     },
     "ink": {
@@ -895,16 +895,6 @@
         },
         "$description": "The soft shadow under floating panels."
       },
-      "float-bar": {
-        "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [0.0902, 0.0902, 0.0902],
-          "hex": "#171717",
-          "alpha": 0.1
-        },
-        "$description": "A floating bar's outline: barely visible. The line ink at 10%."
-      },
       "field": {
         "$type": "color",
         "$value": {
@@ -1020,15 +1010,6 @@
           "hex": "#ebeae7"
         }
       },
-      "completion-selected": {
-        "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [0.9216, 0.9059, 0.9961],
-          "hex": "#ebe7fe"
-        },
-        "$description": "The selected row of a completion popup: a light violet."
-      },
       "card": {
         "$type": "color",
         "$value": {
@@ -1127,16 +1108,6 @@
           "hex": "#ffffff"
         },
         "$description": "The note list's Filter field."
-      },
-      "glass-control": {
-        "$type": "color",
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [1.0, 1.0, 1.0],
-          "hex": "#ffffff",
-          "alpha": 0.72
-        },
-        "$description": "Glass interface: a toolbar button or segmented control floating over the sheet."
       }
     },
     "accent": {

@@ -24,7 +24,12 @@ import {
   type TreeFragment,
 } from '@lezer/common'
 import { Tag, styleTags, tags } from '@lezer/highlight'
-import { BlockContext, type MarkdownConfig, type MarkdownParser } from '@lezer/markdown'
+import {
+  BlockContext,
+  type InlineContext,
+  type MarkdownConfig,
+  type MarkdownParser,
+} from '@lezer/markdown'
 import { FRONT_MATTER_FENCE as FENCE } from '../../../core/readable'
 import { leaveMarkupKeys } from './enter'
 
@@ -193,10 +198,54 @@ export const Highlight: MarkdownConfig = {
   ],
 }
 
+const DOLLAR = 36
+const BACKSLASH = 92
+
+/**
+ * `$…$` (any run of dollars, closed by a run as long), read as the preview's remark-math reads it:
+ * like a code span, so nothing inside is Markdown and a backslash escapes no dollar in it.
+ */
+export const InlineMath: MarkdownConfig = {
+  defineNodes: [{ name: 'InlineMath' }, { name: 'InlineMathMark' }],
+  parseInline: [
+    {
+      name: 'InlineMath',
+      parse(cx, next, start) {
+        if (next !== DOLLAR || (cx.char(start - 1) === DOLLAR && !escaped(cx, start - 1))) return -1
+        let pos = start + 1
+        while (pos < cx.end && cx.char(pos) === DOLLAR) pos++
+        const size = pos - start
+        for (let run = 0; pos < cx.end; pos++) {
+          if (cx.char(pos) !== DOLLAR) {
+            run = 0
+            continue
+          }
+          if (++run === size && cx.char(pos + 1) !== DOLLAR) {
+            return cx.addElement(
+              cx.elt('InlineMath', start, pos + 1, [
+                cx.elt('InlineMathMark', start, start + size),
+                cx.elt('InlineMathMark', pos + 1 - size, pos + 1),
+              ]),
+            )
+          }
+        }
+        return -1
+      },
+    },
+  ],
+}
+
+function escaped(cx: InlineContext, pos: number): boolean {
+  let slashes = 0
+  while (pos - slashes - 1 >= cx.offset && cx.char(pos - slashes - 1) === BACKSLASH) slashes++
+  return slashes % 2 === 1
+}
+
 export const noteParser = (markdownLanguage.parser as MarkdownParser).configure([
   FrontMatter,
   MarkupMarks,
   Highlight,
+  InlineMath,
 ])
 
 function startsWithFence(input: Input): boolean {

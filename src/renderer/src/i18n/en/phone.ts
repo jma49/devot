@@ -160,6 +160,7 @@ export const messages = {
   'phone.appearance.transparency': 'Glass Transparency',
   'phone.appearance.solid': 'Solid',
   'phone.appearance.clear': 'Clear',
+  'phone.appearance.gradientFull': 'Full',
   'phone.appearance.editor': 'Editor',
   'phone.appearance.textSize': 'Text Size',
   'phone.appearance.textSizeSmall': 'A',

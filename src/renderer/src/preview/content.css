@@ -50,13 +50,14 @@
   }
 }
 
-/* allow-end: a CJK stop hangs rather than drag the previous character to the next line. */
+/* allow-end: a CJK stop hangs rather than drag the previous character to the next line.
+   Each MathML token is a line of its own, so in a formula `first` would hang every opening bracket into the glyph before it. */
 @supports (hanging-punctuation: first allow-end) {
   .preview {
     hanging-punctuation: first allow-end;
   }
 
-  .preview :is(code, kbd, pre, th, td, .code-header) {
+  .preview :is(code, kbd, pre, th, td, .code-header, math) {
     hanging-punctuation: none;
   }
 }
@@ -260,6 +261,22 @@
 
 .preview table {
   border-collapse: collapse;
+}
+
+/* Breaking words anywhere would squeeze a wide table's columns to a letter a
+   line, so on screen it scrolls sideways instead; paper cannot scroll. */
+.preview :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+@media screen {
+  .preview table {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
 }
 
 .preview :is(th, td) {
@@ -885,14 +902,9 @@
 }
 
 .preview:is([data-devot-part='preview'], .gallery-page) table {
-  display: block;
-  width: fit-content;
-  max-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   border-radius: var(--radius-list-row);
-  overflow-x: auto;
-  overflow-y: hidden;
   box-shadow: 0 0 0 1px var(--color-line-hairline);
 }
 

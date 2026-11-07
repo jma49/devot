@@ -32,7 +32,7 @@ Each column has one outer line, for backgrounds and fields, and one inner line, 
 
 - List sections have no rule between them. A later section gets `size.list-section-gap` (14) more space above it.
 - One caption style for the sidebar and the list (`.section-header`, `.list-section`): caption size (11), semibold, tertiary text, no icon.
-- The editor footer (`.editor-counts`, words and characters) is caption size (11) in tertiary text, right-aligned to the history bar's margin (`space.10`), with no rule above it.
+- The editor footer (`.editor-counts`, words and characters) is caption size (11) in tertiary text, right-aligned and inset `space.10` from the content column's edge, with no rule above it; focus mode does not narrow it to the reading column, so it keeps the window's bottom-right corner.
 - Footnotes on screen start with a 48 pt hairline (`size.footnote-rule`) on the text's edge, with text at footnote size (12) in secondary. Print keeps the full-width rule.
 
 ## Settings footnotes
@@ -119,12 +119,13 @@ A control or block in a note is filled or outlined, never both, and a dashed bor
   Coloured tags keep their tint.
 - **Add Tag:** the text "+ Tag" in tertiary with 8 padding. A dashed focus-ring outline shows only while it holds the keyboard.
 - **Code:** fill only. Blocks use `radius.list-row` (12), inline code `radius.inline-code` (5), in the preview and the editor. Edit mode's table box takes the same fill and `radius.list-row`.
+- **Wide tables:** a preview table wider than its column scrolls sideways inside its own box, as code does, and its columns keep their words whole (a word breaks only when it is wider than the box).
 
 ## Note info card
 
 - **Summary:** the last item of the pill row, after "+ Tag": tertiary text on a 26 pt capsule (`size.note-pill`, `size.note-pill-pad` sides) with no fill at rest, `color.fill.tool-hover` under the pointer and `color.fill.card` while its card is open.
   It keeps its place while the counts load, so the row never shifts.
-- **Card:** a glass popover `size.note-info-width` (320) wide, `space.3` under the summary and kept `size.popover-margin` inside the window; `radius.glass-popover` (18), inset `size.glass-popover-inset` (6), on `color.surface.popover` with the glass rim and the popover shadow.
+- **Card:** a glass popover `size.note-info-width` (320) wide, `space.3` under the summary and kept `size.popover-margin` inside the window; `radius.glass-popover` (18), inset `size.glass-popover-inset` (6), in the glass material (`color.surface.glass`, design/README.md) with the glass rim and the popover shadow.
 - **Keylines:** from the card's edge, 6 for row highlights, 16 for icons and captions, 42 for labels and 116 for values.
   A row is a grid of the 16 pt icon slot, the label column `size.note-info-label` (64) and the value, `space.5` apart, with `space.5` sides; a value that has no label (a backlink) starts on 42.
 - **Rows:** at least `size.note-info-row` (30) tall, highlighted in `radius.glass-menu-row` (12), concentric with the card.

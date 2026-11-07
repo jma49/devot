@@ -1442,6 +1442,28 @@
         }
       }
     },
+    "appearanceSettings.gradient" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gradient"
+          }
+        }
+      }
+    },
+    "appearanceSettings.gradientHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From a solid color to the theme's full gradient."
+          }
+        }
+      }
+    },
     "appearanceSettings.groupAppearance" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1559,6 +1581,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Light Mode Theme"
+          }
+        }
+      }
+    },
+    "appearanceSettings.materialAmount" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Material Transparency"
+          }
+        }
+      }
+    },
+    "appearanceSettings.materialAmountHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How much shows through the sidebar, buttons and pop-ups."
           }
         }
       }
@@ -14088,6 +14132,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Editor"
+          }
+        }
+      }
+    },
+    "phone.appearance.gradientFull" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full"
           }
         }
       }

@@ -5,7 +5,7 @@ import { handleHttp, type Vaults } from '../../relay/src/front'
 import { RateLimiter } from '../../relay/src/limiter'
 import { sqliteSql } from '../../relay/src/node/sqlite'
 import { FREE_CAPS } from '../../relay/src/quota'
-import { ORPHAN_AGE_MS, VaultRelay, WIPE_SHARE } from '../../relay/src/vault'
+import { ORPHAN_AGE_MS, VaultRelay, WIPE_SHARE, WIPE_SLICE_ROWS } from '../../relay/src/vault'
 import {
   CLOSE,
   decodeFrame,
@@ -62,6 +62,9 @@ async function vaultAt(start: number, options: VaultAtOptions = {}) {
   }
   return { relay, clock, device, send, enroll, db }
 }
+
+// A commit per record waits on the disk, which takes seconds on a CI runner.
+const inOneCommit = (db: Database.Database, seed: () => void) => db.transaction(seed)()
 
 const countersRow = (db: Database.Database) => db.prepare('SELECT * FROM counters').get()
 
@@ -534,7 +537,9 @@ describe('wiping a retired vault', () => {
 
   it('wipes a large vault in slices, with a share of the daily rows cap a day', async () => {
     const { relay, send, db, clock } = await vaultAt(at, { quota: null, limiter: roomy() })
-    for (let i = 0; i < 300; i++) send(...record(`r${i}`, 0, 2))
+    inOneCommit(db, () => {
+      for (let i = 0; i < 300; i++) send(...record(`r${i}`, 0, 2))
+    })
     relay.retire({ successor })
     clock.now = Date.UTC(2026, 10, 6, 12)
     const caps = { rowsWritten: 400, requests: 1e12, storedBytes: 1e15 }
@@ -565,7 +570,10 @@ describe('wiping a retired vault', () => {
 
   it('wipes without a cap in slices that follow each other at once', async () => {
     const { relay, send, db } = await vaultAt(at, { quota: null, limiter: roomy() })
-    for (let i = 0; i < 1500; i++) send(...record(`r${i}`, 0, 1))
+    // A one-chunk record costs two rows: this many take three slices, one after the first sweep and one more.
+    inOneCommit(db, () => {
+      for (let i = 0; i <= WIPE_SLICE_ROWS; i++) send(...record(`r${i}`, 0, 1))
+    })
     relay.retire({ successor })
     expect(relay.sweep()).toEqual({ drop: false, next: at })
     expect(count(db, 'records')).toBeGreaterThan(0)

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { floatStyles, placeFloatTip } from './floating'
+import {
+  BAR_NOTCH_TIP,
+  EDGE,
+  NOTCH_HEIGHT,
+  NOTCH_WIDTH,
+  highlightBesideNotch,
+  notchStyles,
+  outsideNotch,
+} from './notch'
 
 type Rule = Record<string, string>
 const rule = (selector: string) => floatStyles[selector] as Rule
@@ -25,15 +34,18 @@ describe('floating bar motion and states', () => {
     expect(transition).not.toContain('background')
   })
 
-  it('is one element: surface, a 1 px outline and one soft box shadow layer, no filter and no animation', () => {
+  it('is the glass material with the rim highlight, its outer shadows on a layer behind it, no filter and no animation', () => {
     const bar = rule('.cm-tooltip.cm-float-bar')
     expect(bar.outline).toBeUndefined()
-    expect(bar.boxShadow).toMatch(/^0 0 0 1px var\(--color-line-float-bar\), /)
+    expect(bar.boxShadow).toBe('var(--glass-rim-highlight)')
     expect(bar.border).toBe('0')
-    expect(bar.backgroundColor).toBe('var(--color-surface-float-bar)')
-    expect(bar.boxShadow!.split('), ')).toHaveLength(2)
-    expect(bar.boxShadow).toContain('var(--color-shadow-float-bar)')
-    expect(bar.boxShadow).not.toContain('popover')
+    expect(bar.background).toBe('var(--glass-material-bg)')
+    const shade = rule('.cm-tooltip.cm-float-bar::before')
+    expect(shade.boxShadow).toMatch(/^var\(--glass-rim-edge\), /)
+    expect(shade.boxShadow!.split('), ')).toHaveLength(2)
+    expect(shade.boxShadow).toContain('var(--color-shadow-float-bar)')
+    expect(shade.boxShadow).not.toContain('popover')
+    expect([shade.inset, shade.zIndex, shade.borderRadius]).toEqual(['0', '-1', 'inherit'])
     expect(bar.filter).toBeUndefined()
     expect(bar.animation).toBeUndefined()
     expect(floatStyles['@keyframes cm-fade-in']).toEqual({
@@ -83,7 +95,8 @@ describe('floating bar motion and states', () => {
     expect(tip.animation).toBe(
       'cm-fade-in var(--motion-duration-popover) var(--motion-easing-standard)',
     )
-    expect(tip.transform).toBe('translateX(-50%)')
+    // Unshifted, so the window-aligned gradient in its glass lines up with the bar's.
+    expect(tip.transform).toBeUndefined()
     expect(rule('.cm-float-tip[data-side="above"]').bottom).toBe('calc(100% + var(--tooltip-gap))')
     expect(rule('.cm-float-tip[data-side="below"]').top).toBe('calc(100% + var(--tooltip-gap))')
     expect(rule('.cm-float-tip[data-closing][data-closing-motion="fade"]').animation).toBe(
@@ -96,20 +109,66 @@ describe('floating bar motion and states', () => {
   })
 
   it('gives the tooltip bubble a notch toward its button, following the button when the bubble shifts', () => {
-    expect(rule('.cm-float-tip[data-side="below"]::before').top).toBeDefined()
-    expect(rule('.cm-float-tip[data-side="above"]::before').bottom).toBeDefined()
-    expect(rule('.cm-float-tip::before').left).toBe(
-      'calc(var(--tip-notch, 50%) - var(--space-4) / 2)',
+    // Outside the bubble's edge toward the button.
+    expect(rule('.cm-float-tip[data-side="below"]::before').bottom).toBe('100%')
+    expect(rule('.cm-float-tip[data-side="above"]::before').top).toBe('100%')
+    const layers = rule('.cm-float-tip::before, .cm-float-tip::after')
+    expect(layers.left).toBe('calc(var(--tip-notch, 50%) - 6px)')
+    expect([layers.width, layers.height]).toEqual([`${NOTCH_WIDTH}px`, `${NOTCH_HEIGHT}px`])
+  })
+
+  it('draws the bubble notch like the bar notch, unturned: the edge as a band, the material half a pixel in', () => {
+    expect(JSON.stringify(floatStyles)).not.toContain('rotate')
+    const bar = (s: string) => (notchStyles[s as keyof typeof notchStyles] as Rule).clipPath
+    expect(rule('.cm-float-tip[data-side="above"]::before').clipPath).toBe(
+      bar('.cm-tooltip-above > .cm-float-notch::before'),
+    )
+    expect(rule('.cm-float-tip[data-side="below"]::before').clipPath).toBe(
+      bar('.cm-tooltip-below > .cm-float-notch::before'),
+    )
+    const down = rule('.cm-float-tip[data-side="above"]::after')
+    expect(down.top).toBe(`calc(100% - ${EDGE}px)`)
+    expect(down.background).toBe('var(--glass-tint)')
+    // Cut at the bubble's edge, so the two translucent fills never overlap.
+    expect(down.clipPath).toBe('polygon(0.5px 0.5px, calc(100% - 0.5px) 0.5px, 50% 100%)')
+    const up = rule('.cm-float-tip[data-side="below"]::after')
+    expect(up.bottom).toBe(`calc(100% - ${EDGE}px)`)
+    expect(up.background).toBe('var(--glass-sheen-top), var(--glass-tint)')
+    expect(up.clipPath).toBe(
+      'polygon(0.5px calc(100% - 0.5px), calc(100% - 0.5px) calc(100% - 0.5px), 50% 0)',
+    )
+  })
+
+  it('stops the top highlight either side of a notch on the top edge', () => {
+    const below = rule('.cm-float-tip[data-side="below"]')
+    expect(below.boxShadow).toBe('var(--glass-rim-edge), var(--popover-shadow)')
+    expect(below.background).toBe(
+      `${highlightBesideNotch('var(--tip-notch, 50%)', `${NOTCH_WIDTH}px`)}, var(--glass-material-bg)`,
+    )
+    const bar = rule('.cm-tooltip.cm-tooltip-below.cm-float-bar')
+    expect(bar.boxShadow).toBe('none')
+    expect(bar.background).toBe(
+      `${highlightBesideNotch('var(--float-notch-x, 25px)', `${NOTCH_WIDTH}px`)}, var(--glass-material-bg)`,
+    )
+  })
+
+  it('casts the rim edge and the shade around the notch, never under its translucent material', () => {
+    const reach = 'calc(2 * var(--shadow-float-bar-blur) + var(--shadow-float-bar-y))'
+    expect(rule('.cm-tooltip.cm-tooltip-above.cm-float-bar::before').clipPath).toBe(
+      outsideNotch(BAR_NOTCH_TIP, reach).down,
+    )
+    expect(rule('.cm-tooltip.cm-tooltip-below.cm-float-bar::before').clipPath).toBe(
+      outsideNotch(BAR_NOTCH_TIP, reach).up,
     )
   })
 
   it('shifts a tooltip in from the editor frame and keeps its notch on the button', () => {
     const room = { left: 0, right: 400 }
     // Clear of both edges: the bubble stays on the button, the notch at its centre.
-    expect(placeFloatTip(200, 60, room)).toEqual({ left: 200, notch: 30 })
+    expect(placeFloatTip(200, 60, room)).toEqual({ left: 170, notch: 30 })
     // The first button: the bubble's left would be -20, so it moves in to 4px from the frame.
-    expect(placeFloatTip(10, 60, room)).toEqual({ left: 34, notch: 8 })
+    expect(placeFloatTip(10, 60, room)).toEqual({ left: 4, notch: 8 })
     // The last button, the same from the right. The notch stops 8px short of the corner.
-    expect(placeFloatTip(390, 60, room)).toEqual({ left: 366, notch: 52 })
+    expect(placeFloatTip(390, 60, room)).toEqual({ left: 336, notch: 52 })
   })
 })

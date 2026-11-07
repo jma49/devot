@@ -17,6 +17,8 @@ describe('applyEditorStyle', () => {
     expect(set.get('--editor-font-size')).toBe('13px')
     expect(set.get('--editor-font-weight')).toBe('normal')
     expect(set.get('--window-transparency')).toBe('0')
+    expect(set.get('--material-transparency')).toBe('0')
+    expect(set.get('--gradient-strength')).toBe('0')
     // The editor's size no longer moves the preview; its own size does.
     expect(set.get('--preview-scale')).toBe(styled(26).get('--preview-scale'))
     expect(Number(set.get('--preview-scale'))).toBeCloseTo(15 / 13.5, 5)
@@ -27,6 +29,25 @@ describe('applyEditorStyle', () => {
     )
     expect(Number(bigger.get('--preview-scale'))).toBeCloseTo(2, 5)
     expect(bigger.get('--editor-font-weight')).toBe('600')
+  })
+
+  it('sets the sheet and the glass material transparencies apart', () => {
+    const set = new Map<string, string>()
+    applyEditorStyle(
+      { ...DEFAULT_EDITOR_SETTINGS, windowTransparency: 30, materialTransparency: -40 },
+      { setProperty: (name, value) => void set.set(name, value) },
+    )
+    expect(set.get('--window-transparency')).toBe('30')
+    expect(set.get('--material-transparency')).toBe('-40')
+  })
+
+  it('sets the gradient strength the theme backdrop is mixed by', () => {
+    const set = new Map<string, string>()
+    applyEditorStyle(
+      { ...DEFAULT_EDITOR_SETTINGS, gradientStrength: 65 },
+      { setProperty: (name, value) => void set.set(name, value) },
+    )
+    expect(set.get('--gradient-strength')).toBe('65')
   })
 
   it('sets the three fonts, and the preview takes the note font once it is not the default', () => {
