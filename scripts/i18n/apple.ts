@@ -88,6 +88,9 @@ export function compileStrings(
     if (seen.has(name)) throw new Error(`E_I18N_SWIFT_NAME ${key}`)
     seen.add(name)
     const args = placeholders(english)
+    if (args.some((arg) => !/^[A-Za-z_]/.test(arg))) {
+      throw new Error(`E_I18N_PLACEHOLDER_NAME ${key}`)
+    }
     const text = wording[key] ?? english
     if (placeholders(text).some((placeholder) => !args.includes(placeholder))) {
       throw new Error(`E_I18N_PLACEHOLDERS ${key}`)

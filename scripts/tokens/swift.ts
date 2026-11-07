@@ -269,6 +269,10 @@ export function compileSwift(
     ...themes.map((theme) => ({ id: theme.id, palette: theme.id, backdrop: 'nil' })),
     ...backdropThemes.map((theme) => ({ ...theme, palette: 'default' })),
   ]
+  // A theme's id is both its Swift member name and the `theme` setting's value.
+  for (const { id } of themeList) {
+    if (!/^[A-Za-z][A-Za-z0-9]*$/.test(id)) throw new Error(`E_TOKEN_SWIFT_THEME ${id}`)
+  }
 
   const lines: string[] = [HEADER, '', 'import UIKit', '', 'public enum Tokens {', TYPES]
 

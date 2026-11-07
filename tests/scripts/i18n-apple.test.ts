@@ -74,6 +74,13 @@ describe('the Swift string catalog', () => {
     )
   })
 
+  it.each(['Step {1} of {2}', 'At {9am}'])(
+    'refuses a placeholder that is no Swift label: %s',
+    (text) => {
+      expect(() => compileStrings({ 'a.b': text }, {})).toThrow(/E_I18N_PLACEHOLDER_NAME a.b/)
+    },
+  )
+
   it('refuses iPhone wording that takes other placeholders than the English', () => {
     expect(() => compileStrings({ 'a.b': 'On {mac}' }, { 'a.b': 'On {phone}' })).toThrow(
       /E_I18N_PLACEHOLDERS a.b/,

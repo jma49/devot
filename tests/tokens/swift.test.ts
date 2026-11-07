@@ -173,6 +173,19 @@ describe('Swift token names', () => {
     expect(() => compileSwift(tree, {}, {})).toThrow(/E_TOKEN_SWIFT_NAME size.row.gap/)
   })
 
+  it('refuses a theme or backdrop id that is no Swift name', () => {
+    const palette = { color: { $type: 'color', ink: { $value: { hex: '#000000' } } } }
+    const hyphenated = [{ id: 'solarized-dark', light: palette, dark: palette }]
+    expect(() => compileSwift({}, palette, palette, hyphenated)).toThrow(
+      /E_TOKEN_SWIFT_THEME solarized-dark/,
+    )
+    const gradient = { $type: 'gradient', $value: [] }
+    const digitFirst = { backdrop: { '2sky': { light: gradient, dark: gradient } } }
+    expect(() => compileSwift({}, palette, palette, [], digitFirst)).toThrow(
+      /E_TOKEN_SWIFT_THEME 2sky/,
+    )
+  })
+
   it('refuses a spring without both its damping and its response', () => {
     const tree = { motion: { spring: { $type: 'number', 'odd-damping': { $value: 0.5 } } } }
     expect(() => compileSwift(tree, {}, {})).toThrow(/E_TOKEN_SWIFT_SPRING odd/)

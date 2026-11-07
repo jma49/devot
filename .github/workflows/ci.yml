@@ -363,6 +363,8 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       # The generated Swift tokens and strings, which no package compiles yet.
       - run: xcrun --sdk iphonesimulator swiftc -typecheck -swift-version 6 -warnings-as-errors -target arm64-apple-ios26.0-simulator apple/DevotScreens/Sources/DevotScreens/Generated/*.swift
+      # The typecheck never runs L10n's placeholder filling; this checks it against the page's cases.
+      - run: swiftc -swift-version 6 -warnings-as-errors -o "$RUNNER_TEMP/strings-check" apple/DevotScreens/Sources/DevotScreens/Generated/Strings.swift apple/DevotScreens/Checks/main.swift && "$RUNNER_TEMP/strings-check"
       # A placeholder for the UI, as in rust-check.
       - run: mkdir -p dist && echo '<!doctype html><title>Devot</title>' > dist/index.html
         working-directory: .

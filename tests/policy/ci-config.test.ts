@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join, normalize } from 'node:path'
 import { expect, it } from 'vitest'
 import { parse } from 'yaml'
@@ -251,6 +251,16 @@ it('keeps the generated Swift tokens and strings current, and compiles them for 
         command.endsWith('apple/DevotScreens/Sources/DevotScreens/Generated/*.swift'),
     ),
   ).toHaveLength(1)
+  // The typecheck alone never runs L10n's placeholder filling.
+  expect(commands(job('ios-check'))).toEqual(
+    expect.arrayContaining([
+      'swiftc -swift-version 6 -warnings-as-errors -o "$RUNNER_TEMP/strings-check" ' +
+        'apple/DevotScreens/Sources/DevotScreens/Generated/Strings.swift ' +
+        'apple/DevotScreens/Checks/main.swift',
+      '"$RUNNER_TEMP/strings-check"',
+    ]),
+  )
+  expect(existsSync('src-tauri/apple/DevotScreens/Checks/main.swift')).toBe(true)
 })
 
 it('builds no UI for the Rust jobs, which compile against a placeholder page', () => {
