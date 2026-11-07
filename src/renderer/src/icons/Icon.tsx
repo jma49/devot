@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { invoke } from '../ipc'
+import { localStore } from '../localStore'
+import { version } from '../../../../package.json'
 import type { IconStyleChoice } from '../../../core/editorSettings'
 import { editorSettings, useEditorSetting } from '../editorSettings'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
@@ -19,6 +21,7 @@ import {
   type SymbolImage,
   type SymbolWeight,
 } from './symbols'
+import { keptSymbols } from './keptSymbols'
 
 const cache = createSymbolCache((name, pointSize, weight) =>
   invoke<string>('symbol_png', { name, pointSize, weight }),
@@ -62,8 +65,14 @@ async function compose(
   return { url: canvas.toDataURL('image/png'), side: at.side / ratio }
 }
 
+// The module's URL names the bundle it came in, whose hash changes with any build of the UI; the
+// version covers a release whose Rust renders symbols differently. The dev server's never changes.
+const kept = keptSymbols(
+  import.meta.env.DEV ? () => undefined : localStore,
+  `${version} ${import.meta.url}`,
+)
 const placed = new Map<string, Promise<SymbolImage>>()
-const drawn = new Map<string, SymbolImage>()
+const drawn = new Map<string, SymbolImage>(kept.images)
 
 const placedKey = (
   symbol: string,
@@ -74,6 +83,7 @@ const placedKey = (
   title = false,
 ) => `${symbol}@${box}x${ratio}/${appearance}/${weight}/${title}`
 
+/** `keep` keeps the image for the next launches: the window's own icons, not a catalog's. */
 function placedSymbol(
   symbol: string,
   box: number,
@@ -81,8 +91,11 @@ function placedSymbol(
   ratio: number,
   weight: SymbolWeight = 'regular',
   title = false,
+  keep = false,
 ): Promise<SymbolImage> {
   const key = placedKey(symbol, box, appearance, ratio, weight, title)
+  const ready = drawn.get(key)
+  if (ready) return Promise.resolve(ready)
   let entry = placed.get(key)
   if (!entry) {
     entry = (async () =>
@@ -93,7 +106,10 @@ function placedSymbol(
         title,
       ))()
     entry.then(
-      (image) => drawn.set(key, image),
+      (image) => {
+        drawn.set(key, image)
+        if (keep) kept.keep(key, image)
+      },
       () => placed.delete(key),
     )
     placed.set(key, entry)
@@ -101,10 +117,29 @@ function placedSymbol(
   return entry
 }
 
+// One query for every icon, made again for each new ratio, since it matches the ratio it was made for.
+const ratioListeners = new Set<() => void>()
+let ratioQuery: MediaQueryList | undefined
+
+function watchRatio() {
+  ratioQuery = matchMedia(`(resolution: ${devicePixelRatio}dppx)`)
+  ratioQuery.addEventListener('change', ratioChanged, { once: true })
+}
+
+function ratioChanged() {
+  watchRatio()
+  for (const notify of ratioListeners) notify()
+}
+
 function subscribeRatio(notify: () => void) {
-  const query = matchMedia(`(resolution: ${devicePixelRatio}dppx)`)
-  query.addEventListener('change', notify)
-  return () => query.removeEventListener('change', notify)
+  ratioListeners.add(notify)
+  if (!ratioQuery) watchRatio()
+  return () => {
+    ratioListeners.delete(notify)
+    if (ratioListeners.size > 0) return
+    ratioQuery?.removeEventListener('change', ratioChanged)
+    ratioQuery = undefined
+  }
 }
 const currentRatio = () => (typeof devicePixelRatio === 'number' ? devicePixelRatio : 2)
 
@@ -288,17 +323,18 @@ export function SymbolIcon({
     if (!visible) return
     let current = true
     const show = (next: SymbolImage) => current && setImage(next)
-    placedSymbol(symbol, box, appearance, ratio, weight, size === 'title').then(show, () => {
+    const title = size === 'title'
+    placedSymbol(symbol, box, appearance, ratio, weight, title, !lazy).then(show, () => {
       console.warn('W_SYMBOL_UNAVAILABLE', symbol)
       if (fallback && fallback !== symbol)
-        placedSymbol(fallback, box, appearance, ratio, weight, size === 'title').then(show, () =>
+        placedSymbol(fallback, box, appearance, ratio, weight, title, !lazy).then(show, () =>
           console.warn('W_SYMBOL_UNAVAILABLE', fallback),
         )
     })
     return () => {
       current = false
     }
-  }, [visible, symbol, box, appearance, ratio, weight, fallback, size])
+  }, [visible, symbol, box, appearance, ratio, weight, fallback, size, lazy])
 
   return (
     <span
@@ -331,7 +367,7 @@ export function iconElement(name: IconName, box: number): HTMLElement {
   span.dataset['symbol'] = symbol
   span.dataset['pending'] = ''
   span.setAttribute('aria-hidden', 'true')
-  placedSymbol(symbol, box, shownAppearance(), currentRatio()).then(
+  placedSymbol(symbol, box, shownAppearance(), currentRatio(), 'regular', false, true).then(
     (image) => {
       delete span.dataset['pending']
       // React's names to CSS's (`WebkitMaskImage` is `-webkit-mask-image`).

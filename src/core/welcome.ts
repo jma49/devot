@@ -6,7 +6,7 @@
 // Each body is seeded as the same Yjs state on every device (`seedState`), so the bodies merge as one; a device whose build seeded another text keeps both.
 // Storage writes the seed in one call (`StorageAdapter.seedWelcome`): the app's store writes its own bundled copy whatever the licence, so a locked library takes these notes and nothing else.
 
-import { TEMPLATES_BOOK_ID } from './books'
+import { holdsNothing } from './libraryLists'
 import { clipTitle } from './noteLimits'
 import { seedState } from './notes/body'
 import { lineFeeds } from './text'
@@ -44,18 +44,13 @@ export interface WelcomeOptions {
   content: WelcomeContent
 }
 
-/** The Templates notebook, made on demand, is not the user's. */
 async function isEmptyLibrary(storage: StorageAdapter): Promise<boolean> {
   const [notes, trash, books] = await Promise.all([
     storage.listNotes(),
     storage.listTrash(),
     storage.listBooks(),
   ])
-  return (
-    notes.every((n) => n.bookId === TEMPLATES_BOOK_ID) &&
-    trash.length === 0 &&
-    books.every((b) => b.id === TEMPLATES_BOOK_ID)
-  )
+  return holdsNothing({ notes, trash, books })
 }
 
 export function welcomeSeed(content: WelcomeContent, hlc: string, at: number): WelcomeSeed {

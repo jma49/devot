@@ -1,6 +1,7 @@
 import * as Comlink from 'comlink'
 import type { SaveProblem, StorageAdapter, TakenIn } from '../../core'
 import { newNodeId } from '../../core/hlc'
+import { splitTemplates } from '../../core/libraryLists'
 import { connectCore, type Core } from './coreConnect'
 import { reportCode } from './crash'
 import { invoke } from './ipc'
@@ -19,6 +20,9 @@ export type { Core } from './coreConnect'
  * the in-memory one, which every build of the app leaves out.
  */
 export const storage: StorageAdapter = DEVOT_UI_TEST ? memoryStorage : tauriStorage
+
+/** The library's notes and templates, listed and split here rather than in the core worker (see useLibraryLists). */
+export const listLibrary = async () => splitTemplates(await storage.listNotes())
 
 const wire: WireStorage = DEVOT_UI_TEST ? toWire(memoryStorage) : tauriWire
 
