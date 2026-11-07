@@ -29,6 +29,7 @@ test('fades scrolled editor and preview independently', async ({ page }) => {
     el.scrollTop = 6
   })
   await expect(panes).toHaveCSS('--scroll-edge-size', '6px')
+  await expect(preview).toHaveCSS('--scroll-edge-depth', '6px')
   await preview.evaluate((el) => {
     el.scrollTop = 0
   })
@@ -44,6 +45,10 @@ test('fades scrolled editor and preview independently', async ({ page }) => {
   await expect(page.locator('.editor-scroll')).toHaveCSS('--scroll-edge-depth', '28px')
   await expect(page.locator('.editor-scroll')).not.toHaveCSS('mask-image', 'none')
   await expect(page.locator('.editor')).toHaveCSS('mask-image', 'none')
+  await page.locator('.editor-scroll').evaluate((el) => {
+    el.scrollTop = 6
+  })
+  await expect(page.locator('.editor-scroll')).toHaveCSS('--scroll-edge-depth', '6px')
   await expect(preview).toHaveCSS('--scroll-edge-size', '0px')
   await preview.evaluate((el) => {
     el.scrollTop = 100

@@ -65,6 +65,32 @@ test('the format bar over the first line is drawn whole above the panes, over th
   expect(onTop).toBe(true)
 })
 
+test('in Split the format bar has no masked ancestor and the panes stay unmasked', async ({
+  page,
+}) => {
+  await newNote(page, Array.from({ length: 80 }, (_, i) => `Paragraph ${i}`).join('\n\n'))
+  await page
+    .getByRole('group', { name: 'View mode' })
+    .getByRole('button', { name: 'Split', exact: true })
+    .click()
+  await body(page).click()
+  await page.keyboard.press('ControlOrMeta+Home')
+  await page.keyboard.press('Shift+ControlOrMeta+ArrowRight')
+  await expect(formatBar(page)).toBeVisible()
+  expect(await maskingAncestors(formatBar(page))).toEqual([])
+  await expect(page.locator('.panes')).toHaveCSS('mask-image', 'none')
+  await expect(page.locator('.editor')).toHaveCSS('mask-image', 'none')
+})
+
+test('the link tooltip has no masked ancestor', async ({ page }) => {
+  await newNote(page, '[link](https://example.com)')
+  await page.keyboard.press('ControlOrMeta+Home')
+  await page.keyboard.press('ArrowRight')
+  const tip = page.locator('.cm-tooltip', { hasText: 'example.com' })
+  await expect(tip).toBeVisible()
+  expect(await maskingAncestors(tip)).toEqual([])
+})
+
 test('the slash menu keeps its blur, with no masked ancestor, while the note is scrolled', async ({
   page,
 }) => {
