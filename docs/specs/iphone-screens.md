@@ -14,7 +14,7 @@ UIApplication (tao's app delegate, unchanged)
    └─ TaoUIViewController (tao, stays the root)
       └─ TaoUIView
          └─ ScreensRootController (Swift, a child controller pinned to all edges)
-            ├─ WebStage (1 × 1 pt at the back, alpha 1, never hidden): the web view rests here
+            ├─ WebStage (1 × 1 pt at the back, alpha 1, never hidden, out of the accessibility tree): the web view rests here
             └─ UITabBarController (the system tab bar)
                ├─ Notes     UINavigationController → note list → EditorScreen
                ├─ Library   UINavigationController → Library → note list → EditorScreen
@@ -196,6 +196,7 @@ The page keeps its own tab bar and compose circle only when the screens are not 
 - The bar hides over a note, search or a sheet the page draws over the whole screen, since those cover where the bar sits, and stays over a pushed list or pane.
 - Settings shows the web shell's `!` badge while the licence needs attention, with "Needs attention" as its VoiceOver value.
 - The web view rests in `WebStage` when a tab's screen disappears, and the next tab's screen takes it, so a tab switch never takes it out of the window.
+  The stage hides it from VoiceOver and the accessibility audit, which would otherwise reach the page drawn behind the native Settings.
 - `WebTabScreen`'s view reports the window's safe area insets, and the web view derives its own from them: the page lays itself out by `env(safe-area-inset-*)` exactly as without the system bar, and its own room for a floating bar at the bottom clears the system's.
 - The view overrides `safeAreaInsets` because the tab bar's inset can reach it through its superview, which a negative `additionalSafeAreaInsets` does not take back (on iOS 26.5 each screen kept the bar's 49 points).
 - The bar's tint is `color.accent.text` and it is never minimised on scroll.

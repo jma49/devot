@@ -92,15 +92,19 @@ final class SettingsTests: XCTestCase {
         return false
     }
 
-    /// The screen between the navigation bar and the tab bar.
+    /// The tab bar's scroll edge effect fades the list from about 35 pt above the bar (iOS 26.5).
+    private static let edgeEffect: CGFloat = 44
+
+    /// The screen between the navigation bar and the tab bar's edge effect.
     private func clearOfTheBars() -> CGRect {
         let screen = app.windows.firstMatch.frame
         let top = app.navigationBars.firstMatch.frame.maxY
-        return CGRect(x: screen.minX, y: top, width: screen.width, height: app.tabBars.firstMatch.frame.minY - top)
+        let bottom = app.tabBars.firstMatch.frame.minY - Self.edgeEffect
+        return CGRect(x: screen.minX, y: top, width: screen.width, height: bottom - top)
     }
 
-    /// Audits what shows and returns the elements with an issue over a system bar, which the audit
-    /// measures against the bar's glass; every other issue fails.
+    /// Audits what shows and returns the elements with an issue over a system bar or its edge effect,
+    /// which the audit measures against the bar's glass; every other issue fails.
     private func audit(clear: CGRect) throws -> Set<Element> {
         var overABar: Set<Element> = []
         let handle = { (issue: XCUIAccessibilityAuditIssue) -> Bool in

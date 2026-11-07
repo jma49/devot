@@ -39,6 +39,11 @@ final class WebStageTests: XCTestCase {
         return window
     }
 
+    /// UIKit leaves a view out of the accessibility tree when it or a superview hides its elements.
+    private func reachableByVoiceOver(_ view: UIView) -> Bool {
+        !sequence(first: view, next: \.superview).contains { $0.accessibilityElementsHidden }
+    }
+
     func testTheStageIsOnePointThatClipsAndStaysVisible() {
         let stage = WebStage()
         XCTAssertEqual(stage.bounds.size, CGSize(width: 1, height: 1))
@@ -139,9 +144,11 @@ final class WebStageTests: XCTestCase {
         tao.view.layoutIfNeeded()
         webView.resized = 0
         let tabs = screens.root.tabs
+        XCTAssertTrue(reachableByVoiceOver(webView))
         tabs.select(.settings)
         tabs.view.layoutIfNeeded()
         XCTAssertTrue(webView.superview === screens.root.host.stage)
+        XCTAssertFalse(reachableByVoiceOver(webView))
 
         tabs.settings.navigation.pushViewController(tabs.settings.controller(.appearance), animated: false)
         tabs.view.layoutIfNeeded()
@@ -152,6 +159,7 @@ final class WebStageTests: XCTestCase {
 
         screens.replied(asked.0, try Message.reply(id: asked.0, outcome: .ok(.object([:]))).json())
         XCTAssertTrue(webView.superview === pane.view)
+        XCTAssertTrue(reachableByVoiceOver(webView))
         XCTAssertEqual(webView.bounds.size, window.bounds.size)
         XCTAssertGreaterThan(webView.safeAreaInsets.top, window.safeAreaInsets.top)
         XCTAssertTrue(try requests(rust, .tabsPopToRoot).isEmpty)
@@ -159,6 +167,7 @@ final class WebStageTests: XCTestCase {
         tabs.settings.navigation.popViewController(animated: false)
         tabs.view.layoutIfNeeded()
         XCTAssertTrue(webView.superview === screens.root.host.stage)
+        XCTAssertFalse(reachableByVoiceOver(webView))
         XCTAssertEqual(webView.leftWindow, 0)
         XCTAssertEqual(webView.resized, 0)
         XCTAssertEqual(try requests(rust, .tabsPopToRoot).map(\.1), [["tab": .string("settings")]])
