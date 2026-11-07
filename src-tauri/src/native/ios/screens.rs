@@ -6,7 +6,7 @@ use tauri::{Emitter, Manager};
 
 use crate::screens::direct::{self, Services};
 use crate::screens::hub::{Hub, Posted, Taken};
-use crate::screens::message::MAX_MESSAGE_BYTES;
+use crate::screens::message::{FromRust, MAX_MESSAGE_BYTES};
 
 /// The screens' bridge (`src-tauri/apple/DevotScreens`, docs/specs/iphone-screens.md). Swift
 /// calls `ScreensCall` with a request number and UTF-8 JSON valid until the call returns, and hears
@@ -173,6 +173,13 @@ pub fn screens_post(message: &[u8]) -> Result<(), &'static str> {
         }
     }
     Ok(())
+}
+
+/// Tells Swift what changed in Rust; without the native screens nobody listens.
+pub fn screens_tell(notice: FromRust) {
+    if HUB.installed() {
+        deliver(notice.to_value().to_string().as_bytes());
+    }
 }
 
 pub fn screens_page_started() {

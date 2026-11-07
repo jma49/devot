@@ -86,6 +86,10 @@ impl<R: Copy> Hub<R> {
         self.state().installed = installed;
     }
 
+    pub fn installed(&self) -> bool {
+        self.state().installed
+    }
+
     pub fn call(&self, request: u64, bytes: &[u8], reply: R) -> Called<R> {
         let refuse = |code: &str| {
             log::warn!("W_SCREENS_REQUEST_REFUSED id={request} code={code}");
@@ -282,6 +286,14 @@ mod tests {
         let hub = Hub::new();
         hub.set_installed(true);
         hub
+    }
+
+    #[test]
+    fn says_whether_the_native_screens_are_installed() {
+        let hub = Hub::<char>::new();
+        assert!(!hub.installed());
+        hub.set_installed(true);
+        assert!(hub.installed());
     }
 
     #[test]
